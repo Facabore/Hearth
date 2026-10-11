@@ -30,8 +30,8 @@ Feature: Line dashboard
 
   @critical @golden
   Scenario: Planned, spent and available per line
-    When "Ana" opens the dashboard for 2026-11
-    Then the lines show:
+    When "Ana" requests the line dashboard for 2026-11
+    Then the response lines are:
       | line        | planned       | spent         | available   |
       | Rent        | 1,200,000 COP | 1,200,000 COP | 0 COP       |
       | Home        | 1,470,000 COP | 1,300,000 COP | 170,000 COP |
@@ -39,28 +39,28 @@ Feature: Line dashboard
       | Free        | 730,000 COP   | 250,000 COP   | 480,000 COP |
       | Unbudgeted  | 0 COP         | 60,000 COP    | -60,000 COP |
 
-  Scenario: Overspent line is highlighted
+  Scenario: Overspent line is flagged
     Given an additional "Groceries" expense of 300,000 COP on 2026-11-20
-    When "Ana" opens the dashboard for 2026-11
-    Then "Home" shows spent 1,600,000 COP and available -130,000 COP
-    And "Home" is marked as overspent
+    When "Ana" requests the line dashboard for 2026-11
+    Then "Home" has spent 1,600,000 COP and available -130,000 COP
+    And "Home" is flagged as overspent
 
   Scenario: Available includes carry-over
     Given "Home" uses rollover "ROLLOVER" and had 200,000 COP available in 2026-10
-    When "Ana" opens the dashboard for 2026-11
-    Then "Home" shows available 370,000 COP
+    When "Ana" requests the line dashboard for 2026-11
+    Then "Home" has available 370,000 COP
 
   Scenario: Month without a plan
     Given "Household" has no plan for 2027-01
-    When "Ana" opens the dashboard for 2027-01
-    Then all spending appears under "Unbudgeted"
-    And "Ana" is offered to create or copy a plan
+    When "Ana" requests the line dashboard for 2027-01
+    Then all spending is reported under "Unbudgeted"
+    And the response reports that no plan exists for 2027-01
 ```
 
 **Technical notes:**
 - Query: `GetLineDashboard(spaceId, period)`; SQL aggregates grouped by line via the category mapping.
-- Uses `RolloverCalculator` from `budgeting` for available amounts.
-- Recharts bar per line; presentational component receives a DTO only.
+- Endpoint: `GET /api/v1/spaces/{spaceId}/reports/lines?period=<label>`; each line carries `planned`, `spent`, `available` and `overspent`, and the response carries `plan: null` when the period has no plan.
+- Uses `RolloverCalculator` from `budgeting` for available amounts. Charts and the "create or copy a plan" prompt are web UI (HU-E9-10).
 
 ---
 
@@ -80,36 +80,36 @@ Feature: Member by line matrix
 
   @critical @golden
   Scenario: Matrix values for a DIRECT line
-    When "Ana" opens the member matrix for 2026-11
-    Then the "Home" row shows:
+    When "Ana" requests the member matrix for 2026-11
+    Then the "Home" row contains:
       | member | assigned    | contributed | consumed    | gap          |
       | Ana    | 588,000 COP | 900,000 COP | 520,000 COP | 312,000 COP  |
       | Juan   | 882,000 COP | 400,000 COP | 780,000 COP | -482,000 COP |
 
   Scenario: Shared-fund lines defer contribution to the fund
     Given "Rent" is funded by "SHARED_FUND" and a 1,200,000 COP rent was paid from "Household Fund" split "BY_ALLOCATION"
-    When "Ana" opens the member matrix for 2026-11
-    Then the "Rent" row shows consumed 480,000 COP for "Ana" and 720,000 COP for "Juan"
-    And contributed and gap for "Rent" read "tracked at fund level"
+    When "Ana" requests the member matrix for 2026-11
+    Then the "Rent" row contains consumed 480,000 COP for "Ana" and 720,000 COP for "Juan"
+    And contributed and gap for "Rent" are null with the reason "TRACKED_AT_FUND_LEVEL"
 
   Scenario: Positive gap means over-contribution
-    When "Ana" opens the member matrix for 2026-11
-    Then the gap of "Ana" on "Home" is labelled as over-contributed by 312,000 COP
+    When "Ana" requests the member matrix for 2026-11
+    Then the gap of "Ana" on "Home" is 312,000 COP with the status "OVER_CONTRIBUTED"
 
   Scenario: Lines without allocation show only consumption
     Given "Free" has allocation rule "NONE" and "Ana" paid 50,000 COP in "Outings" split "EQUAL"
-    When "Ana" opens the member matrix for 2026-11
-    Then the "Free" row shows consumed 25,000 COP for "Ana" and 25,000 COP for "Juan"
-    And assigned, contributed and gap for "Free" read "not allocated"
+    When "Ana" requests the member matrix for 2026-11
+    Then the "Free" row contains consumed 25,000 COP for "Ana" and 25,000 COP for "Juan"
+    And assigned, contributed and gap for "Free" are null with the reason "NOT_ALLOCATED"
 
   Scenario: Viewer can read the matrix
     Given "Sofi" is VIEWER of "Household"
-    When "Sofi" opens the member matrix for 2026-11
-    Then the matrix is displayed
+    When "Sofi" requests the member matrix for 2026-11
+    Then the response status is 200 and it contains the matrix
 ```
 
 **Technical notes:**
-- Query: `GetMemberLineMatrix(spaceId, period)`.
+- Query: `GetMemberLineMatrix(spaceId, period)`. Endpoint: `GET /api/v1/spaces/{spaceId}/reports/member-matrix?period=<label>`; reasons and statuses are codes that the web UI translates (HU-E9-10).
 - Metrics per spec 5.4 (lines with rule `NONE` report consumption only): contributed = Σ payments by m on DIRECT lines; consumed = Σ shares of m; gap = contributed − assigned.
 - Golden test: the reference example fixture produces exactly these values.
 
@@ -131,23 +131,23 @@ Feature: Fund contribution tracking
   Scenario: Expected versus actual
     Given "Ana" contributed 480,000 COP on 2026-11-02
     And "Juan" contributed 500,000 COP on 2026-11-03
-    When "Ana" opens fund tracking for 2026-11
-    Then "Ana" shows expected 480,000 COP, actual 480,000 COP and difference 0 COP
-    And "Juan" shows expected 720,000 COP, actual 500,000 COP and difference -220,000 COP
+    When "Ana" requests fund tracking for 2026-11
+    Then "Ana" has expected 480,000 COP, actual 480,000 COP and difference 0 COP
+    And "Juan" has expected 720,000 COP, actual 500,000 COP and difference -220,000 COP
 
   Scenario: Contributions outside the period are excluded
     Given "Juan" contributed 720,000 COP on 2026-10-31
-    When "Ana" opens fund tracking for 2026-11
-    Then "Juan" shows actual 0 COP
+    When "Ana" requests fund tracking for 2026-11
+    Then "Juan" has actual 0 COP
 
   Scenario: Plan without shared-fund lines
     Given the 2026-12 plan has no "SHARED_FUND" lines
-    When "Ana" opens fund tracking for 2026-12
-    Then every member shows expected 0 COP
+    When "Ana" requests fund tracking for 2026-12
+    Then every member has expected 0 COP
 ```
 
 **Technical notes:**
-- Query: `GetFundContributions(spaceId, period)`.
+- Query: `GetFundContributions(spaceId, period)`. Endpoint: `GET /api/v1/spaces/{spaceId}/reports/fund-contributions?period=<label>`.
 - expectedFundContribution(m) = Σ assigned(m) over SHARED_FUND lines; actualFundContribution(m) = Σ fund-contribution transfers by m in the period.
 
 ---
@@ -173,30 +173,30 @@ Feature: Unified personal view
 
   @critical
   Scenario: Total consumption includes shares across spaces
-    When "Ana" opens her unified view for 2026-11
+    When "Ana" requests her unified view for 2026-11
     Then her total consumption is 1,575,000 COP
     And "Groceries" from both spaces is grouped together under the catalog key "groceries" with 1,035,000 COP
 
   @critical
   Scenario: Cash out versus consumption
-    When "Ana" opens her unified view for 2026-11
+    When "Ana" requests her unified view for 2026-11
     Then her cash out is 2,625,000 COP, including the 480,000 COP fund contribution
     And her consumption is 1,575,000 COP
 
   Scenario: Other members' personal spaces are never included
     Given "Juan" recorded a personal expense of 90,000 COP
-    When "Ana" opens her unified view for 2026-11
+    When "Ana" requests her unified view for 2026-11
     Then the 90,000 COP expense of "Juan" is not included
 
   Scenario: Shared expenses are placed in the viewer's personal period
     Given "Ana"'s personal space has the period policy MONTHLY(1) and "Household" has MONTHLY(25)
     And a "Household" expense with Ana's share 100,000 COP is dated 2026-11-26
-    When "Ana" opens her unified view for 2026-11
+    When "Ana" requests her unified view for 2026-11
     Then the 100,000 COP share is included, because 2026-11-26 falls in her personal period 2026-11-01 to 2026-11-30, even though "Household" counts it in its period "2026-12" from 2026-11-25 to 2026-12-24
 ```
 
 **Technical notes:**
-- Query: `GetUnifiedPersonalView(userId, period)`; only spaces where u is or was a member, through the `SpaceMember` rows linked to u. A claimed guest place (HU-E1-11) contributes its full history, including shares recorded before the claim.
+- Query: `GetUnifiedPersonalView(userId, period)` behind `GET /api/v1/me/unified-view?period=<label>`; only spaces where u is or was a member, through the `SpaceMember` rows linked to u. A claimed guest place (HU-E1-11) contributes its full history, including shares recorded before the claim.
 - consumption = Σ shares of u; cash out = Σ payments by u + Σ fund contributions by u + Σ savings transfers by u (spec 5.4).
 - Seeded categories share a catalog key across spaces; custom categories group under "space / category".
 - Shared transactions are placed by date into the viewer's personal-space period; grouping uses the category catalog key (spec D11).
@@ -214,29 +214,28 @@ Feature: Period-over-period trend
 
   Scenario: Line change versus the previous period
     Given "Home" spent 1,350,000 COP in the period 2026-10 and 1,300,000 COP in the period 2026-11
-    When "Ana" opens the trend for "Household" ending 2026-11
-    Then "Home" shows a change of -50,000 COP (-3.70%)
+    When "Ana" requests the trend for "Household" ending 2026-11
+    Then "Home" has a change of -50,000 COP (-3.70%)
 
   Scenario: Semi-monthly periods compare with the previous half-month
     Given the space "Casa" has the period policy SEMI_MONTHLY(1, 16)
     And "Home" spent 400,000 COP in "2026-10 H2", 500,000 COP in "2026-11 H1" and 450,000 COP in "2026-11 H2"
-    When "Ana" opens the trend for "Casa" ending "2026-11 H2"
-    Then "2026-11 H2" shows a change of -50,000 COP (-10.00%) versus "2026-11 H1"
-    And "2026-11 H1" shows a change of 100,000 COP (25.00%) versus "2026-10 H2"
+    When "Ana" requests the trend for "Casa" ending "2026-11 H2"
+    Then "2026-11 H2" has a change of -50,000 COP (-10.00%) versus "2026-11 H1"
+    And "2026-11 H1" has a change of 100,000 COP (25.00%) versus "2026-10 H2"
 
   Scenario: Six-period personal consumption series
     Given "Ana"'s personal space has the period policy MONTHLY(1) and she had consumption in each period from 2026-06 to 2026-11
-    When "Ana" opens her personal trend ending 2026-11
-    Then a series of 6 consumption values from 2026-06 to 2026-11 is shown
+    When "Ana" requests her personal trend ending 2026-11
+    Then a series of 6 consumption values from 2026-06 to 2026-11 is returned
 
   Scenario: Line without a previous period
     Given the line "Pets" exists only in the 2026-11 plan with spent 80,000 COP
-    When "Ana" opens the trend ending 2026-11
-    Then "Pets" shows "new" instead of a percentage change
+    When "Ana" requests the trend ending 2026-11
+    Then "Pets" has the change status "NEW" and no percentage change
 ```
 
 **Technical notes:**
-- Queries: `GetLineTrend(spaceId, endPeriod, periods)`, `GetPersonalTrend(userId, endPeriod, periods)`.
+- Queries: `GetLineTrend(spaceId, endPeriod, periods)`, `GetPersonalTrend(userId, endPeriod, periods)`. Endpoints: `GET /api/v1/spaces/{spaceId}/reports/trend?endPeriod=<label>&periods=<n>`, `GET /api/v1/me/trend?endPeriod=<label>&periods=<n>`.
 - Each period is compared with the previous period of the same policy, not the calendar month (spec 5.3): for `SEMI_MONTHLY`, H2 compares with H1 of the same month and H1 with the previous month's H2.
-- Percent change with two decimals; division by zero rendered as "new".
-- Recharts line chart; default window 6 periods.
+- Percent change with two decimals; division by zero returned as the status `NEW` with a null percentage; default window 6 periods. Charts are web UI (HU-E9-11).

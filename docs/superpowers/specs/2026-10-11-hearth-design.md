@@ -106,7 +106,7 @@ The core insight: **a personal expense is a shared expense with one participant.
 
 **Transaction** — id, spaceId, type, description, date, categoryId (nullable for transfers and settlements), amount (minor units), currency, createdBy, deletedAt.
 - **Space ownership rule (D9):** a transaction belongs to the space whose budget and balances it affects. Its source accounts may live in a member's personal space, provided the account owner is a member of the transaction's space and is the paying member. A fund contribution belongs to the shared space (its destination). Other members see the paying member's name, never the details of their personal account.
-- `EXPENSE`: one or more `Payment` rows (v1 UI supports one payer) and one or more `Share` rows. Σ payments = Σ shares = amount.
+- `EXPENSE`: one or more `Payment` rows (the v1 API accepts several payers; the v1 web UI offers one) and one or more `Share` rows. Σ payments = Σ shares = amount.
 - `INCOME`: destination account + receiving member.
 - `TRANSFER`: source account → destination account. A transfer from a personal account to a `SHARED_FUND` account is a **fund contribution**.
 - `SETTLEMENT`: member A pays member B to clear balance; optional accounts.
@@ -185,29 +185,51 @@ Unified personal view for user u (D11). It works through every SpaceMember row l
 | D15 | Guest members scoped to one space; all money references point to SpaceMember; guests can claim their place by registering | Not everyone will sign up; guests must still pay, owe and be budgeted like anyone else, and history must survive registration | Requiring registration; global contacts shared across spaces |
 | D16 | Splitting with one person creates or reuses a two-member `DIRECT` space | Keeps one ledger model (D2) while supporting quick one-to-one splits | A separate "friend balance" model outside spaces |
 | D17 | Capacity is suggested from the member's own previous-period income, privately, and is always editable | Saves typing without leaking personal income to the group | Auto-filling capacity visible to all members |
+| D18 | Next.js is the BFF of a modular monolith; the versioned HTTP API is the primary contract and the backend is built first | One deployable on a VPS, API ready for future clients, modules extractable later; UI can follow per area once its API is done | Separate backend service with Next.js as a pure proxy (extra deployable, network hop, auth propagation) |
 
 ## 7. Architecture
 
-Hexagonal (ports and adapters) with screaming, module-first structure. SOLID throughout. The domain does not import Next.js, the ORM, or any I/O library.
+Modular monolith, hexagonal (ports and adapters) with screaming, module-first structure. SOLID throughout. The domain does not import Next.js, the ORM, or any I/O library.
+
+**Next.js is the Backend For Frontend (D18).** A single deployable hosts the versioned HTTP API, the server actions and the web UI. The HTTP API is the primary contract; server actions and future clients (mobile, scripts) are thin callers of the same use cases. Each module can later be extracted into its own service because it only talks to others through application ports.
 
 ```
 src/
-  app/                         # Next.js App Router: driving adapters only (pages, server actions, route handlers)
+  app/
+    api/v1/                    # route handlers: parse with contract -> call use case -> map Result to HTTP
+    (web)/                     # pages and server actions (thin wrappers over the same use cases)
   modules/
     <module>/
       domain/                  # entities, value objects, domain services, domain errors (pure TS)
       application/             # use cases (one class/function per use case), ports (interfaces), DTOs
+      contracts/               # Zod request/response schemas; source of the OpenAPI document
       infrastructure/          # driven adapters: repositories (Drizzle), mappers, external services
       ui/                      # module-specific React components (presentational + containers)
   shared/
-    kernel/                    # Money, Period, Result, Id, DomainEvent, Clock port
+    kernel/                    # Money, PeriodPolicy, Result, Id, DomainEvent, Clock port
+    http/                      # auth guard, DomainError -> problem+json mapping, pagination, idempotency
     infrastructure/            # db client, transaction manager, logger
   composition/                 # composition root: wires ports to adapters per request
 ```
 
 Dependency rule: `app → application → domain`; `infrastructure → application/domain`. Enforced by lint rules (dependency-cruiser or eslint-plugin-boundaries) in CI.
 
-Use cases return `Result<T, DomainError>`; server actions map results to UI state. Validation at the edge with Zod; invariants inside entities.
+Use cases return `Result<T, DomainError>`; route handlers map results to HTTP responses and server actions map them to UI state. Validation at the edge with Zod; invariants inside entities.
+
+### HTTP API conventions
+
+| Concern | Convention |
+|---|---|
+| Base path and versioning | `/api/v1`; breaking changes require `/api/v2` |
+| Style | Resource-oriented REST, JSON, money as `{ "amount": "160000000", "currency": "COP" }` (minor units as string to keep `bigint` precision) |
+| Contracts | Zod schemas per module in `contracts/`; the OpenAPI 3.1 document is generated from them and served at `/api/v1/openapi.json` |
+| Authentication | Session cookie for the web; Bearer token for other clients (Better Auth); both resolve the same user |
+| Authorization | Always in use cases (SpaceMember + role), never only in handlers |
+| Errors | RFC 9457 `application/problem+json` with a stable `code` and `requestId`. The code is the domain error name, or one of the edge codes `ValidationFailed` (422), `Unauthenticated` (401), `InvalidCredentials` (401), `EmailTaken` (409), `PasswordTooShort` (422), `PreconditionFailed` (412), `InternalError` (500); the UI translates codes, the API never returns translated text |
+| Idempotency | `Idempotency-Key` header accepted on every POST that creates a transaction (expense, income, transfer, fund contribution, settlement, direct split) or a recurrence; a replay returns the original response, the same key with a different payload returns 409 |
+| Pagination | Cursor-based (`?cursor=&limit=`), default 50, max 200 |
+| Concurrency | `ETag` / `If-Match` on updates of transactions and plans; mismatch returns `412` |
+| Observability | `X-Request-Id` propagated to logs |
 
 ### Stack
 
@@ -218,11 +240,13 @@ Use cases return `Result<T, DomainError>`; server actions map results to UI stat
 | Data access | Drizzle ORM + drizzle-kit migrations (SQL-first control for reporting aggregates) |
 | Auth | Better Auth (email + password, optional OAuth), self-hosted |
 | Validation | Zod |
+| API contract | OpenAPI 3.1 generated from Zod contracts (generator chosen at bootstrap, e.g. zod-openapi) |
 | UI | Tailwind CSS + shadcn/ui; container-presentational pattern; atomic design for shared components |
 | Charts | Recharts |
 | i18n | next-intl (es default, en) |
 | Unit / integration tests | Vitest; Testcontainers for PostgreSQL |
-| E2E / acceptance | Playwright (+ playwright-bdd to execute critical Gherkin scenarios) |
+| API acceptance | HTTP-level tests against the running app with PostgreSQL in Testcontainers |
+| E2E (web UI) | Playwright (+ playwright-bdd for UI Gherkin scenarios) |
 | Quality | ESLint, Prettier, boundary lint, typecheck in CI, Strict TDD |
 | Package manager | pnpm |
 | CI | GitHub Actions: lint, typecheck, test, build Docker image |
@@ -234,28 +258,33 @@ Exact versions are pinned at bootstrap (story E0) to the latest stable releases.
 
 - Domain errors are typed (`InvalidAllocation`, `SharesDoNotMatchAmount`, `NotASpaceMember`, `PeriodClosed`, `InsufficientRole`, `OutstandingBalance`, `AlreadyMember`, `MemberNameTaken`, `DirectSpaceIsFull`, `GuestAlreadyClaimed`, ...; the backlog is the full catalogue) and returned via `Result`, never thrown across layers.
 - Authorization is checked in application use cases (membership + role), not only in UI.
-- Unexpected errors are logged with request id and surfaced as a generic message.
+- Domain errors map to HTTP statuses in one place (`shared/http`): unauthenticated 401, validation 422, not found 404, insufficient role 403, conflicts and invariant violations 409, closed period 409, precondition failed 412.
+- A requester who is not a member of a space gets `404 SpaceNotFound` (existence is not leaked). Referencing a non-member as payer or participant returns `422 NotASpaceMember`.
+- Unexpected errors are logged with request id and surfaced as a generic `problem+json` (500).
 
 ## 9. Testing strategy
 
 - **Domain:** exhaustive unit tests, TDD-first (allocation math, split methods, rollover, balance algorithm, period boundaries).
 - **Application:** use-case tests with in-memory adapters.
 - **Infrastructure:** repository tests against real PostgreSQL via Testcontainers.
-- **Acceptance:** each user story's Gherkin scenarios map to tests; the critical ones run end-to-end with Playwright.
+- **Acceptance (API):** each backend story's Gherkin scenarios map to tests; `@critical` scenarios run over HTTP against the real app and database.
+- **Contract:** the generated OpenAPI document is snapshot-tested so contract changes are deliberate.
+- **E2E (UI):** web UI stories (epic E9) run their scenarios with Playwright.
 - The reference example (section 4) is a golden test fixture.
 
 ## 10. Delivery
 
-Work is tracked in `docs/backlog/` (epics and user stories with Gherkin acceptance criteria) and mirrored to a GitHub Project once the repository is published. Milestones:
+Work is tracked in `docs/backlog/` (epics and user stories with Gherkin acceptance criteria). Delivery is backend first (D18): stories in E0–E8 are done at API level and the web UI lives in epic E9. The backlog is mirrored to a GitHub Project. Milestones:
 
 | Milestone | Outcome |
 |---|---|
-| M0 Walking skeleton | Repo, architecture skeleton, CI, auth, personal space, deployed to VPS |
-| M1 Personal ledger | Accounts, categories, personal expenses and income, monthly view |
-| M2 Shared spaces | Invitations, shared expenses with split methods, balances, settlements |
-| M3 Allocated budgets | Plans, capacity, lines, allocations, default split by allocation, rollover, recurring transactions (auto and confirm) |
-| M4 Insight | Member/category dashboard, shared fund tracking, unified personal view |
+| M0 Walking skeleton | Repo, architecture skeleton, API foundation (contracts, OpenAPI, problem+json, auth, idempotency, pagination, optimistic concurrency), CI, personal space, deployed to VPS |
+| M1 Personal ledger API | Accounts, categories, personal expenses and income, period queries |
+| M2 Shared spaces API | Invitations, guests, direct spaces, shared expenses with split methods, balances, settlements |
+| M3 Allocated budgets API | Plans, capacity, lines, allocations, default split by allocation, rollover, recurring transactions |
+| M4 Insight API | Member/category dashboards, shared fund tracking, unified personal view |
 | M5 Hardening | Backups, observability, import from Splitwise/CSV |
+| M6 Web UI | Screens for every area (epic E9); an area's UI may start as soon as its API milestone is done |
 
 ## 11. Open questions
 

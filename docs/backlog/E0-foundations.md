@@ -1,8 +1,10 @@
 # E0 — Foundations
 
-**Goal:** a deployable walking skeleton with the architecture, shared kernel, persistence, quality gates and i18n in place, so every later story starts from a green, enforced baseline.
+**Goal:** a deployable walking skeleton with the architecture, shared kernel, persistence, quality gates and the versioned HTTP API foundation in place, so every later story starts from a green, enforced baseline.
 
-**Modules involved:** `shared/kernel`, `shared/infrastructure`, `composition`, `app` (shell only), CI and deployment tooling.
+**Modules involved:** `shared/kernel`, `shared/http`, `shared/infrastructure`, `composition`, `app/api/v1`, CI and deployment tooling.
+
+**Delivery (spec D18):** backend first. E0 delivers the API foundation (contracts, OpenAPI, problem+json, auth guard, idempotency, pagination, concurrency) that every later endpoint reuses. Web UI setup, including internationalization, lives in [E9-web-ui.md](E9-web-ui.md).
 
 ---
 
@@ -31,14 +33,15 @@ Feature: Repository bootstrap with pinned versions
   Scenario: Bootstrap versions are recorded
     Given the repository has just been bootstrapped
     When the developer opens "docs/stack-versions.md"
-    Then it lists the exact versions of Next.js, React, TypeScript, Drizzle ORM, drizzle-kit, Better Auth, Zod, next-intl, Vitest, Playwright, Tailwind CSS, Node.js and PostgreSQL
+    Then it lists the exact versions of Next.js, React, TypeScript, Drizzle ORM, drizzle-kit, Better Auth, Zod, the OpenAPI generator, next-intl, Vitest, Testcontainers, Playwright, Tailwind CSS, Node.js and PostgreSQL
     And each version is the latest stable release on the bootstrap date
 ```
 
 **Technical notes:**
 - TypeScript `strict: true`, `noUncheckedIndexedAccess: true`.
 - `check:pinned` is a small script that fails on `^`, `~`, `*`, `latest` or tag ranges in `dependencies` and `devDependencies`.
-- Next.js App Router, Tailwind CSS and shadcn/ui initialized; no business code.
+- Next.js App Router initialized with `src/app/api/v1/`; no business code.
+- Tailwind CSS, shadcn/ui, next-intl and Playwright are pinned now but first used by the web UI stories of epic E9 (spec D18).
 
 ---
 
@@ -76,7 +79,7 @@ Feature: Architectural boundaries are enforced
 ```
 
 **Technical notes:**
-- Folders per module: `domain/`, `application/`, `infrastructure/`, `ui/`; plus `shared/kernel`, `shared/infrastructure`, `composition/`.
+- Folders per module: `domain/`, `application/`, `contracts/`, `infrastructure/`, `ui/`; plus `shared/kernel`, `shared/http`, `shared/infrastructure`, `composition/` (spec section 7).
 - Rules: `app → application → domain`; `infrastructure → application/domain`; domain imports only `shared/kernel`.
 - Tool: dependency-cruiser or eslint-plugin-boundaries (choose one at implementation, record in an ADR).
 - Composition root wires ports to adapters per request.
@@ -246,7 +249,7 @@ Feature: Database access and migrations
 
 ## HU-E0-06 — Continuous integration pipeline
 
-- **Milestone:** M0 · **Priority:** Must · **Size:** S · **Depends on:** HU-E0-02, HU-E0-05 · **Module(s):** CI
+- **Milestone:** M0 · **Priority:** Must · **Size:** S · **Depends on:** HU-E0-02, HU-E0-05, HU-E0-09 · **Module(s):** CI
 
 **User story:** As a developer, I want GitHub Actions to run every quality gate on each pull request, so that nothing merges unless it is green.
 
@@ -257,7 +260,7 @@ Feature: CI quality gates
     Given a pull request against "main"
     When the CI workflow runs
     Then the jobs "lint", "boundaries", "typecheck", "test" and "build-image" are executed
-    And the "test" job runs unit and Testcontainers integration tests
+    And the "test" job runs unit, Testcontainers integration and HTTP API acceptance tests
 
   Scenario: A type error blocks the merge
     Given a pull request that introduces a TypeScript type error
@@ -265,10 +268,10 @@ Feature: CI quality gates
     Then the "typecheck" job fails
     And the pull request cannot be merged
 
-  Scenario: Missing i18n key blocks the merge
-    Given a pull request that adds the key "ledger.expense.title" to "es" messages only
+  Scenario: An unintended API contract change blocks the merge
+    Given a pull request that changes the Zod contract of "GET /api/v1/me" without updating the OpenAPI snapshot
     When the CI workflow runs
-    Then the "lint" job fails naming the key missing in "en"
+    Then the "test" job fails naming the changed operation "GET /api/v1/me"
 
   Scenario: Main branch produces a tagged image
     Given a commit merged to "main"
@@ -279,25 +282,27 @@ Feature: CI quality gates
 **Technical notes:**
 - Uses pnpm store caching; Node.js version read from `.nvmrc`.
 - Docker layer cache; image build uses a multi-stage Dockerfile with Next.js standalone output.
-- Branch protection requires all jobs.
+- `@critical` scenarios run over HTTP against the built app with PostgreSQL in Testcontainers (spec section 9); the OpenAPI snapshot test comes from HU-E0-09.
+- Branch protection requires all jobs. The i18n catalog check joins the "lint" job with HU-E9-02.
 
 ---
 
 ## HU-E0-07 — Deploy to the VPS with Docker Compose and Caddy
 
-- **Milestone:** M0 · **Priority:** Must · **Size:** M · **Depends on:** HU-E0-06 · **Module(s):** deployment
+- **Milestone:** M0 · **Priority:** Must · **Size:** M · **Depends on:** HU-E0-06, HU-E0-09 · **Module(s):** deployment
 
-**User story:** As the owner, I want the application deployed to my VPS with Docker Compose and automatic TLS, so that my household can use it over HTTPS.
+**User story:** As the owner, I want the application deployed to my VPS with Docker Compose and automatic TLS, so that my household and API clients can reach it over HTTPS.
 
 ```gherkin
 Feature: Self-hosted deployment
 
-  Scenario: Stack starts with TLS
+  Scenario: Stack starts with TLS and exposes the API
     Given a VPS with Docker installed and DNS for "hearth.example.com" pointing to it
     And a ".env" file with the required variables
     When the owner runs "docker compose up -d"
     Then the services "app", "db" and "caddy" are running
-    And "https://hearth.example.com" serves the sign-in page with a valid certificate
+    And "GET https://hearth.example.com/api/v1/health" returns status 200 with a valid certificate
+    And "GET https://hearth.example.com/api/v1/openapi.json" returns the OpenAPI 3.1 document
 
   Scenario: Plain HTTP redirects to HTTPS
     When a client requests "http://hearth.example.com"
@@ -321,46 +326,131 @@ Feature: Self-hosted deployment
 **Technical notes:**
 - Environment validated with Zod at start-up.
 - `.env.example` committed; `.env` git-ignored.
+- `GET /api/v1/health` is a liveness check in M0 (HU-E8-02 adds the database check); a minimal sign-in page is acceptable but not required, because the web UI ships in E9.
 - Deployment runbook in `docs/operations/deploy.md`.
 
 ---
 
-## HU-E0-08 — Internationalization setup (es, en)
+## HU-E0-08 — Internationalization setup (moved)
 
-- **Milestone:** M0 · **Priority:** Must · **Size:** S · **Depends on:** HU-E0-01 · **Module(s):** `app`, `shared/infrastructure`
+Moved on 2026-10-11 to epic E9 as HU-E9-02 in [E9-web-ui.md](E9-web-ui.md): under backend-first delivery (spec D18) internationalization is a web UI concern, and the API returns stable error codes, never translated text. This ID is retired and never reused.
 
-**User story:** As a user, I want the interface in Spanish by default and available in English, so that I can use the app in my language.
+---
+
+## HU-E0-09 — API foundation: contracts, OpenAPI, problem+json and auth guard
+
+- **Milestone:** M0 · **Priority:** Must · **Size:** M · **Depends on:** HU-E0-02, HU-E0-03, HU-E0-04 · **Module(s):** `shared/http`, `app/api/v1`, `composition`
+
+**User story:** As an API client developer, I want every endpoint to follow one contract-first convention for schemas, errors, authentication and money, so that any client (web, mobile, scripts) can rely on the same predictable HTTP API.
 
 ```gherkin
-Feature: Localized interface
+Feature: HTTP API foundation
 
-  Scenario: Spanish is the default locale
-    Given a visitor whose browser sends no supported language preference
-    When the visitor opens the sign-in page
-    Then the page is rendered in Spanish
+  Scenario: The OpenAPI document is generated from module contracts
+    When a client requests "GET /api/v1/openapi.json" without credentials
+    Then the response status is 200
+    And the document declares OpenAPI version "3.1.0"
+    And it contains the operations "GET /api/v1/health" and "GET /api/v1/me" with their Zod-derived response schemas
+    And it contains the shared component schemas "Money" and "Problem"
 
-  Scenario: Signed-in user preference wins
-    Given a signed-in user whose locale is "en"
-    When the user opens the dashboard
-    Then the page is rendered in English
-
-  Scenario Outline: Amounts and dates are formatted per locale
-    Given a user whose locale is "<locale>"
-    When the amount 1,600,000 COP and the date 2026-10-05 are displayed
-    Then the amount reads "<amount>"
-    And the date reads "<date>"
+  Scenario Outline: Domain errors are returned as problem+json with a stable code
+    Given a use case behind an endpoint returns the domain error "<code>"
+    When a client calls that endpoint with the header "Accept-Language: es"
+    Then the response status is <status> with content type "application/problem+json"
+    And the body has the code "<code>" and a requestId equal to the "X-Request-Id" response header
+    And the body contains no text translated to Spanish
 
     Examples:
-      | locale | amount        | date       |
-      | es     | $ 1.600.000   | 5/10/2026  |
-      | en     | COP 1,600,000 | 10/5/2026  |
+      | code               | status |
+      | InsufficientRole   | 403    |
+      | InvalidAmount      | 422    |
+      | SpaceNotFound      | 404    |
+      | OutstandingBalance | 409    |
+      | PeriodClosed       | 409    |
 
-  Scenario: Every key exists in both catalogs
-    When the developer runs "pnpm i18n:check"
-    Then every key in "messages/es.json" exists in "messages/en.json" and vice versa
+  Scenario: Unauthenticated requests are rejected
+    When a client requests "GET /api/v1/me" without a session cookie or Bearer token
+    Then the response status is 401 with the code "Unauthenticated"
+    And "GET /api/v1/health" still returns status 200 without credentials
+
+  Scenario: Session cookie and Bearer token resolve the same user
+    Given "Ana" holds a web session cookie and a Bearer token issued for her account
+    When a client requests "GET /api/v1/me" once with the cookie and once with the Bearer token
+    Then both responses have status 200 and return the same user id for "Ana"
+
+  Scenario: Money is serialized as a minor-units string
+    Given an endpoint whose contract returns Money of 1,600,000 COP
+    When a client calls it
+    Then the money field is serialized as {"amount": "160000000", "currency": "COP"}
+    And a request that sends {"amount": 160000000, "currency": "COP"} with a JSON number is rejected with status 422, the code "ValidationFailed" and an error for the path "amount"
 ```
 
 **Technical notes:**
-- next-intl with `es` (default, es-CO formats) and `en`.
-- COP displayed with zero fraction digits when the fraction is zero; whitespace normalized in tests (Intl may emit non-breaking spaces).
-- Dates rendered in `America/Bogota` unless the user timezone differs.
+- Route handlers in `src/app/api/v1/` only parse with the module contract, call the use case and map its `Result` to HTTP; authorization stays in use cases (spec 7). The guard resolves the acting user from the session cookie or `Authorization: Bearer` through a `SessionResolver` port: a test adapter until HU-E1-01 supplies the Better Auth adapter, after which the cookie/Bearer scenario runs against Better Auth.
+- One `DomainError → problem+json` mapper in `shared/http` (spec section 8): validation 422 (`ValidationFailed` with `errors[]` for contract failures), not found 404, `InsufficientRole` 403, conflicts and invariant violations 409, `PeriodClosed` 409, precondition failed 412, unauthenticated 401; unexpected errors are logged and returned as 500 `InternalError`. Body: `type`, `title` (fixed English summary), `status`, `code`, `requestId`, optional `errors[]`.
+- OpenAPI 3.1 is generated from every module's `contracts/` Zod schemas (generator chosen at bootstrap and recorded in an ADR); a snapshot test of the document fails on unintended contract changes (spec section 9).
+- `X-Request-Id` is accepted from the client or generated, echoed on every response and propagated to logs.
+- Shared `MoneySchema`: `amount` is a string matching `^-?\d+$` in minor units, `currency` an ISO 4217 code (spec section 7).
+
+---
+
+## HU-E0-10 — Idempotency, pagination and optimistic concurrency
+
+- **Milestone:** M0 · **Priority:** Must · **Size:** M · **Depends on:** HU-E0-05, HU-E0-09 · **Module(s):** `shared/http`, `shared/infrastructure`
+
+**User story:** As an API client developer, I want safe retries on money-creating requests, bounded cursor pagination and conflict detection on updates, so that flaky networks never duplicate money and concurrent edits never overwrite each other silently.
+
+```gherkin
+Feature: Idempotency, pagination and optimistic concurrency
+
+  Background:
+    Given "Ana" is authenticated
+    And a money-creating POST endpoint wrapped with the idempotency middleware
+
+  Scenario: A replayed request returns the original response
+    Given "Ana" sent a POST creating a record of 85,000 COP with the header "Idempotency-Key: 7f3c9a1e" and received status 201 with record id "rec-1"
+    When "Ana" sends the same request with the same "Idempotency-Key" again
+    Then the response status is 201 with the same body and record id "rec-1"
+    And exactly one record of 85,000 COP exists
+
+  Scenario: Reusing a key with a different payload is rejected
+    Given "Ana" already used the "Idempotency-Key" "7f3c9a1e" for a record of 85,000 COP
+    When "Ana" sends a POST with the same key for a record of 95,000 COP
+    Then the response status is 409 with the code "IdempotencyKeyConflict"
+    And no record of 95,000 COP is created
+
+  Scenario Outline: Cursor pagination enforces its limits
+    Given 250 records exist
+    When "Ana" lists them with <query>
+    Then the response status is <status>
+    And the page contains <items> items
+
+    Examples:
+      | query       | status | items |
+      | no limit    | 200    | 50    |
+      | limit=200   | 200    | 200   |
+      | limit=201   | 422    | 0     |
+
+  Scenario: Following the cursor visits every record once
+    Given 120 records exist
+    When "Ana" follows "nextCursor" from the first page until it is null
+    Then the pages contain 50, 50 and 20 records
+    And no record appears twice
+
+  Scenario: Update with a matching If-Match succeeds
+    Given a transaction returned with the header "ETag: \"3\""
+    When "Ana" updates it with the header "If-Match: \"3\""
+    Then the response status is 200 with the header "ETag: \"4\""
+
+  Scenario: Update with a stale If-Match is rejected
+    Given a transaction whose current ETag is "\"4\""
+    When "Ana" updates it with the header "If-Match: \"3\""
+    Then the response status is 412 with the code "PreconditionFailed"
+    And the transaction is unchanged
+```
+
+**Technical notes:**
+- Placed in M0, not M1: the first money endpoints in M1 need all three on day one (`POST` expenses in HU-E4-01, the paginated list in HU-E4-05, `If-Match` edits in HU-E4-06), and spec section 7 places them in `shared/http`. They are built once here, verified against a test-only route in the acceptance harness, and reused by the ledger and budgeting stories.
+- Idempotency (spec 7): the optional `Idempotency-Key` header is honoured on every POST that creates money records (expenses, transfers including fund contributions, settlements); the key, a request hash and the response snapshot are stored per (user, route, key) for 24 hours, in the same database transaction as the use case.
+- Pagination: `?cursor=&limit=`, default 50, max 200, responses `{ "items": [...], "nextCursor": "..." | null }`; the cursor is opaque and encodes the sort key plus id; `limit` above 200 fails with `ValidationFailed`.
+- Concurrency: transactions and budget plans carry an integer `version` exposed as a strong `ETag`; `If-Match` mismatch returns 412 `PreconditionFailed` (spec section 8).

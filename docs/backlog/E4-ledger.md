@@ -12,7 +12,7 @@
 
 ## HU-E4-01 — Record a personal expense
 
-- **Milestone:** M1 · **Priority:** Must · **Size:** M · **Depends on:** HU-E0-04, HU-E2-01, HU-E3-01 · **Module(s):** `ledger`
+- **Milestone:** M1 · **Priority:** Must · **Size:** M · **Depends on:** HU-E0-04, HU-E0-10, HU-E2-01, HU-E3-01 · **Module(s):** `ledger`
 
 **User story:** As a user, I want to record an expense in my personal space, so that I know where my money goes.
 
@@ -32,8 +32,8 @@ Feature: Record a personal expense
 
   Scenario: Date defaults to today in the space timezone
     Given the Clock reads 2026-11-01T04:30:00Z
-    When "Ana" opens the new expense form
-    Then the date field defaults to 2026-10-31
+    When "Ana" records an expense of 85,000 COP in "Groceries" paid from "Bancolombia" without a date
+    Then the transaction date is 2026-10-31
 
   Scenario Outline: Invalid amounts are rejected
     When "Ana" records an expense of <amount> COP
@@ -55,7 +55,7 @@ Feature: Record a personal expense
 ```
 
 **Technical notes:**
-- Use case: `RecordExpense` (single use case for personal and shared expenses; personal = one participant).
+- Use case: `RecordExpense` (single use case for personal and shared expenses; personal = one participant). Endpoint: `POST /api/v1/spaces/{spaceId}/expenses` (honours `Idempotency-Key`, HU-E0-10; 201 with the transaction).
 - `Transaction` aggregate owns `Payment[]` and `Share[]`; invariant enforced in the entity.
 - Ports: `TransactionRepository`, `AccountReader`, `CategoryReader`, `Clock`.
 - Audit fields `createdBy`, `createdAt` on every write (D8).
@@ -83,12 +83,12 @@ Feature: Record income
 
   Scenario: Income does not count as spending
     Given "Ana" recorded an income of 3,200,000 COP and an expense of 85,000 COP in October 2026
-    When "Ana" views her October 2026 spending total
-    Then the total is 85,000 COP
+    When "Ana" requests her transactions for the period 2026-10
+    Then the expense total is 85,000 COP
 ```
 
 **Technical notes:**
-- Use case: `RecordIncome`.
+- Use case: `RecordIncome`. Endpoint: `POST /api/v1/spaces/{spaceId}/incomes`.
 - Invariant: destination account in the same space as the transaction; receiving member is a current member.
 
 ---
@@ -118,7 +118,7 @@ Feature: Transfer between own accounts
 ```
 
 **Technical notes:**
-- Use case: `RecordTransfer`.
+- Use case: `RecordTransfer`. Endpoint: `POST /api/v1/spaces/{spaceId}/transfers` (honours `Idempotency-Key`, HU-E0-10).
 - Transfers to a `SHARED_FUND` are fund contributions (HU-E4-09) and follow their own rules.
 
 ---
@@ -135,19 +135,19 @@ Feature: Period assignment
   Scenario: Calendar months with MONTHLY(1)
     Given the personal space of "Ana" has the period policy MONTHLY(1)
     And expenses of 85,000 COP on 2026-10-31 and 40,000 COP on 2026-11-01
-    When "Ana" views the period "2026-10" from 2026-10-01 to 2026-10-31
+    When "Ana" requests the transactions of the period "2026-10" from 2026-10-01 to 2026-10-31
     Then the period total is 85,000 COP
 
   Scenario: Payday cycle with MONTHLY(25)
     Given the space "Household" has the period policy MONTHLY(25)
     And expenses of 120,000 COP on 2026-10-24 and 60,000 COP on 2026-10-25
-    When "Ana" views the period "2026-11" from 2026-10-25 to 2026-11-24
+    When "Ana" requests the transactions of the period "2026-11" from 2026-10-25 to 2026-11-24
     Then the period total is 60,000 COP
 
   Scenario: Half-month periods with SEMI_MONTHLY(1, 16)
     Given the space "Household" has the period policy SEMI_MONTHLY(1, 16)
     And expenses of 70,000 COP on 2026-11-10 and 50,000 COP on 2026-11-20
-    When "Ana" views the period "2026-11 H1" from 2026-11-01 to 2026-11-15
+    When "Ana" requests the transactions of the period "2026-11 H1" from 2026-11-01 to 2026-11-15
     Then the period total is 70,000 COP
     And the period "2026-11 H2" from 2026-11-16 to 2026-11-30 totals 50,000 COP
 
@@ -162,12 +162,13 @@ Feature: Period assignment
 **Technical notes:**
 - Period is derived on read (never stored on the transaction): from the stored plan boundaries when a plan covers the `date`, otherwise from `date` and `space.periodPolicy` (spec 5.2, D14).
 - SQL helper mirrors the kernel `Period` logic; both are covered by the same table-driven test cases.
+- Endpoint: `GET /api/v1/spaces/{spaceId}/transactions?period=<label>` returns the resolved `period` (label, startDate, endDate) and its totals; semi-monthly labels are sent URL-encoded (`2026-11%20H1`).
 
 ---
 
 ## HU-E4-05 — List and filter transactions
 
-- **Milestone:** M1 · **Priority:** Must · **Size:** M · **Depends on:** HU-E4-01, HU-E4-02, HU-E4-03, HU-E4-04 · **Module(s):** `ledger`
+- **Milestone:** M1 · **Priority:** Must · **Size:** M · **Depends on:** HU-E0-10, HU-E4-01, HU-E4-02, HU-E4-03, HU-E4-04 · **Module(s):** `ledger`
 
 **User story:** As a user, I want a monthly transaction list I can filter by period, category and member, so that I can review and find movements quickly.
 
@@ -182,11 +183,11 @@ Feature: Monthly transaction list
       | 2026-10-15 | EXPENSE | Dinner      | Restaurants | 60,000    |
       | 2026-10-25 | INCOME  | Salary      | Salary      | 3,200,000 |
 
-  Scenario: Default view shows the current period
+  Scenario: Without a period filter the current period is returned
     Given today is 2026-10-28
-    When "Ana" opens the transaction list
-    Then 4 transactions are listed, newest first
-    And the period shows total expenses 245,000 COP and total income 3,200,000 COP
+    When "Ana" lists the transactions without a period filter
+    Then 4 transactions are returned, newest first
+    And the response totals are expenses 245,000 COP and income 3,200,000 COP
 
   Scenario: Filter by category
     When "Ana" filters by the category "Groceries"
@@ -199,18 +200,18 @@ Feature: Monthly transaction list
 
   Scenario: Deleted transactions are hidden
     Given the "Dinner" expense was soft-deleted
-    When "Ana" opens the October 2026 list
+    When "Ana" lists the transactions of the period 2026-10
     Then 3 transactions are listed
 
   Scenario: Results are paginated
     Given 120 transactions exist in October 2026
-    When "Ana" opens the list
-    Then the first page shows 50 transactions and indicates more pages
+    When "Ana" lists the transactions of the period 2026-10
+    Then the first page contains 50 transactions and a non-null "nextCursor"
 ```
 
 **Technical notes:**
 - Query: `ListTransactions` with filters `period`, `categoryIds`, `payerMemberId`, `participantMemberId`, `type`; cursor pagination. Member filters take `SpaceMember` ids, so guests can be filtered too.
-- Filter input validated with Zod at the edge; authorization by membership.
+- Endpoint: `GET /api/v1/spaces/{spaceId}/transactions` with cursor pagination (default 50, max 200, HU-E0-10) and period `totals`; filter input validated with the Zod contract; authorization by membership.
 - This list is the M1 "monthly view".
 - The member-filter scenario becomes testable in M2, once shared spaces exist (HU-E4-07).
 
@@ -218,7 +219,7 @@ Feature: Monthly transaction list
 
 ## HU-E4-06 — Edit or delete a transaction with an audit trail
 
-- **Milestone:** M1 · **Priority:** Must · **Size:** M · **Depends on:** HU-E4-01 · **Module(s):** `ledger`
+- **Milestone:** M1 · **Priority:** Must · **Size:** M · **Depends on:** HU-E0-10, HU-E4-01 · **Module(s):** `ledger`
 
 **User story:** As a user, I want to correct or remove transactions while keeping a record of every change, so that shared money stays traceable.
 
@@ -253,7 +254,7 @@ Feature: Edit and soft delete with audit
 ```
 
 **Technical notes:**
-- Use cases: `EditTransaction`, `DeleteTransaction`; port `AuditLog`.
+- Use cases: `EditTransaction`, `DeleteTransaction`; port `AuditLog`. Endpoints: `PATCH /api/v1/spaces/{spaceId}/transactions/{transactionId}` (honours `If-Match`, 412 on a stale ETag, HU-E0-10), `DELETE /api/v1/spaces/{spaceId}/transactions/{transactionId}`, `GET .../transactions/{transactionId}/audit`.
 - The closed-period scenario becomes active with HU-E6-07; until then the `ClosedPeriodGuard` port has an always-open adapter.
 - Moving a transaction into a closed period is also rejected.
 
@@ -305,9 +306,8 @@ Feature: Shared expense with equal split
 ```
 
 **Technical notes:**
-- Use case: `RecordExpense` with a `SplitCalculator` domain service (strategy per split method).
-- v1 UI supports one payer; the domain accepts several payments.
-- `BY_ALLOCATION` is delivered in HU-E6-08.
+- Use case: `RecordExpense` with a `SplitCalculator` domain service (strategy per split method); `BY_ALLOCATION` is delivered in HU-E6-08. Endpoint: `POST /api/v1/spaces/{spaceId}/expenses` with `payments[]` and `split` (method plus participants).
+- v1 UI (HU-E9-06) supports one payer; the domain accepts several payments.
 - A registered payer pays from their own personal account; allowed by the space ownership rule (spec D9).
 - Payment nullability (spec 5.2): `accountId` is null if and only if the payer is a guest. A registered payer without an account is rejected with `AccountRequired`; a guest payment with an account is rejected with `GuestHasNoAccounts`. Any MEMBER or above may record an expense paid by a guest (spec D15).
 
@@ -352,6 +352,7 @@ Feature: Non-equal split methods
 
 **Technical notes:**
 - Strategies `PercentSplit`, `ExactSplit`, `SharesSplit` behind `SplitCalculator`; all round via `Money.allocate`.
+- Endpoint: `POST /api/v1/spaces/{spaceId}/expenses` with `split.method` `PERCENT`, `EXACT` or `SHARES` and per-participant values.
 - Percentages stored with two decimals (basis points) in the split snapshot.
 
 ---
@@ -389,7 +390,7 @@ Feature: Fund contribution
 ```
 
 **Technical notes:**
-- Use case: `RecordFundContribution` (a `TRANSFER` whose destination is `SHARED_FUND`).
+- Use case: `RecordFundContribution` (a `TRANSFER` whose destination is `SHARED_FUND`). Endpoint: `POST /api/v1/spaces/{spaceId}/fund-contributions` (honours `Idempotency-Key`, HU-E0-10).
 - Cross-space transfer: source account in the personal space, destination in the shared space; the transaction belongs to the shared space (spec D9).
 - Feeds `actualFundContribution(m)` (HU-E7-03).
 
@@ -423,11 +424,11 @@ Feature: Expense paid from the shared fund
   Scenario: Fund may go negative only with an explicit warning
     When "Ana" records an expense of 2,000,000 COP paid from "Household Fund"
     Then the expense is recorded
-    And the UI warns that "Household Fund" balance is -500,000 COP
+    And the response "warnings" array contains "FundBalanceNegative" with the "Household Fund" balance of -500,000 COP
 ```
 
 **Technical notes:**
-- Use case: `RecordExpense` with a fund payment source.
+- Use case: `RecordExpense` with a fund payment source. Endpoint: `POST /api/v1/spaces/{spaceId}/expenses` with a payment from the fund account; non-blocking warnings are returned as codes in `warnings[]`, never as text.
 - Fund payments store `memberId = null` and the fund's `accountId`. Per spec 5.2, `memberId` is null if and only if the account is a `SHARED_FUND`, and `accountId` is null if and only if the payer is a guest, so every payment has at least one of the two.
 - Shares still drive consumption in reporting (HU-E7-04).
 
@@ -477,7 +478,7 @@ Feature: Recurring transaction definitions
 ```
 
 **Technical notes:**
-- Use cases: `DefineRecurrence`, `UpdateRecurrence`, `PauseRecurrence`, `ResumeRecurrence`, `EndRecurrence`.
+- Use cases: `DefineRecurrence`, `UpdateRecurrence`, `PauseRecurrence`, `ResumeRecurrence`, `EndRecurrence`. Endpoints: `POST /api/v1/spaces/{spaceId}/recurrences`, `PATCH .../recurrences/{recurrenceId}`, `POST .../recurrences/{recurrenceId}/pause`, `/resume`, `/end`; `GET .../recurrences/{recurrenceId}/occurrences?count=<n>` returns upcoming dates.
 - The schedule reuses the `PeriodPolicy` anchor rules (MONTHLY(day) or SEMI_MONTHLY(day1, day2), 1–31, clamped); WEEKLY/BIWEEKLY follow HU-E8-09.
 - The template stores type (EXPENSE, INCOME, TRANSFER, fund contribution), amount, category, payer SpaceMember (or the fund), account (null for guests), split method and values; payment nullability rules from spec 5.2 apply.
 - If the paying member leaves the space, the recurrence is paused with reason `PayerLeft`.
@@ -532,7 +533,7 @@ Feature: Automatic occurrences
 **Technical notes:**
 - Use case: `MaterializeDueOccurrences`; idempotency key = (recurrenceId, occurrenceDate).
 - Recorded through `RecordExpense` (or the matching use case per type), so all ledger invariants and default-split rules apply; shares are snapshots.
-- Runs behind a `Scheduler` port (adapter: in-container cron job) and uses `Clock`; catch-up processes every due date not yet materialized.
+- Runs behind a `Scheduler` port (adapter: in-container cron job) and uses `Clock`; catch-up processes every due date not yet materialized. No public endpoint triggers it; recorded occurrences are read through `GET /api/v1/spaces/{spaceId}/transactions`.
 
 ---
 
@@ -581,5 +582,6 @@ Feature: Occurrences pending confirmation
 
 **Technical notes:**
 - Use cases: `ConfirmOccurrence`, `SkipOccurrence`; pending occurrences are not transactions and never count as spent.
-- Pending occurrences are listed for members with role MEMBER or above and may be shown on the line dashboard as "expected" (HU-E7-01).
+- Endpoints: `GET /api/v1/spaces/{spaceId}/pending-occurrences`, `POST .../pending-occurrences/{occurrenceId}/confirm` (amount, optional date), `POST .../pending-occurrences/{occurrenceId}/skip`.
+- Pending occurrences are listed for members with role MEMBER or above and may be returned by the line dashboard as "expected" (HU-E7-01).
 - Confirming reuses the recurrence template; only the amount (and optionally the date within the same period) can change.

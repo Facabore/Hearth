@@ -2,7 +2,9 @@
 
 **Goal:** make the self-hosted deployment safe to rely on (backups, observability) and capture post-v1 capabilities so they are designed for, not designed out.
 
-**Modules involved:** deployment/operations, `shared/infrastructure`, `ledger` (recurring, imports), cross-cutting for deferred items.
+**Modules involved:** deployment/operations, `shared/infrastructure`, `shared/http`, `ledger` (imports), cross-cutting for deferred items.
+
+**Delivery (spec D18):** backend stories here are done at API level like E0–E7. HU-E8-07 is a web UI story kept here as a Won't-v1 placeholder; it depends on E9 and follows the UI Definition of Done.
 
 ---
 
@@ -54,32 +56,33 @@ Feature: Backups and restore
 Feature: Observability
 
   Scenario: Every request is logged with a request id
-    When a user loads the dashboard
+    When a client calls "GET /api/v1/spaces/{spaceId}/transactions"
     Then a JSON log line is written with "level", "requestId", "route", "durationMs" and "status"
 
-  Scenario: Unexpected errors show a generic message with the request id
+  Scenario: Unexpected errors return a generic problem with the request id
     Given a use case fails with an unexpected database error
-    When the user submits the form
-    Then the user sees a generic error message containing the request id
+    When a client calls its endpoint
+    Then the response is a status 500 problem+json with the code "InternalError" and the requestId
     And the log line for that request id contains the error stack
 
   Scenario: Health check reports healthy
-    When a client requests "GET /api/health"
+    When a client requests "GET /api/v1/health"
     Then the response status is 200 and the body reports "db": "ok"
 
   Scenario: Health check reports database failure
     Given PostgreSQL is unreachable
-    When a client requests "GET /api/health"
+    When a client requests "GET /api/v1/health"
     Then the response status is 503 and the body reports "db": "unreachable"
 
   Scenario: Sensitive data is not logged
-    When a user signs in
+    When a client signs in through "POST /api/v1/auth/sign-in"
     Then no log line contains the password, session token or email address
 ```
 
 **Technical notes:**
 - `Logger` port in `shared/infrastructure` (pino adapter); request id from header or generated.
-- Docker health check uses `/api/health`; Caddy only routes to healthy containers.
+- Extends the liveness-only `GET /api/v1/health` of HU-E0-07 with the database check; the Docker health check uses it and Caddy only routes to healthy containers.
+- The generic 500 problem comes from the HU-E0-09 mapper; this story adds the stack trace to the log line of that request id.
 
 ---
 
@@ -122,6 +125,7 @@ Feature: CSV import
 
 **Technical notes:**
 - Use case: `ImportTransactionsFromCsv` with a `CsvParser` port; whole import runs in one database transaction.
+- Endpoints: `POST /api/v1/spaces/{spaceId}/imports/csv` (multipart upload, returns the preview with per-row status), `POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm` (category mappings and included duplicates).
 - Upload file size limit 5 MB; parsing happens server-side.
 
 ---
@@ -157,7 +161,7 @@ Feature: Splitwise import
 ```
 
 **Technical notes:**
-- Use case: `ImportSplitwiseGroup`; adapter parses the Splitwise CSV export format.
+- Use case: `ImportSplitwiseGroup`; adapter parses the Splitwise CSV export format. Endpoints: `POST /api/v1/spaces/{spaceId}/imports/splitwise` (preview), `POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm` (member mapping).
 - Settlements in the export become `SETTLEMENT` transactions.
 - A Splitwise member may be mapped to an existing or new guest (HU-E1-10); payments imported for a guest carry no account.
 
@@ -184,12 +188,13 @@ Feature: Foreign-currency expenses
 
 **Technical notes:**
 - Deferred by spec non-goals and D6; kept so the Money API does not preclude it.
+- Would extend `POST /api/v1/spaces/{spaceId}/expenses` with an optional `original` Money and `rate`; the space-currency `amount` stays the minor-units string of HU-E0-09.
 
 ---
 
 ## HU-E8-07 — Installable PWA with offline read
 
-- **Milestone:** M5 · **Priority:** Won't-v1 · **Size:** M · **Depends on:** HU-E7-04 · **Module(s):** `app`
+- **Milestone:** M5 · **Priority:** Won't-v1 · **Size:** M · **Depends on:** HU-E7-04, HU-E9-01, HU-E9-11 · **Module(s):** `app`
 
 **User story:** As a mobile user, I want to install the app and read my latest figures offline, so that I can check balances without a connection.
 
@@ -209,6 +214,7 @@ Feature: PWA offline read
 
 **Technical notes:**
 - Read-only offline cache; offline writes are explicitly out of scope.
+- Web UI story kept in E8 as a placeholder: it builds on the E9 app shell (HU-E9-01) and personal dashboards (HU-E9-11) and follows the UI Definition of Done, so its scenarios run with Playwright like E9 stories.
 
 ---
 
@@ -238,6 +244,7 @@ Feature: Notifications
 
 **Technical notes:**
 - `Notifier` port fed by domain events (`ExpenseRecorded`, `SettlementRecorded`); reuses the `EmailSender` adapter.
+- The preference is part of the user profile (`PATCH /api/v1/me`); a settings screen for it would be a later E9 story.
 
 ---
 
@@ -265,3 +272,4 @@ Feature: Weekly and biweekly period policies
 **Technical notes:**
 - Deferred by spec 5.2 and D14; kept so the `PeriodPolicy` union (HU-E0-04) stays open to new cadences.
 - Weekly labels use ISO week numbering; plan boundaries remain stored, so switching to these cadences follows the same overlap rule as HU-E1-03.
+- Set through `PATCH /api/v1/spaces/{spaceId}` (HU-E1-03); the `periodPolicy` contract gains the `WEEKLY` and `BIWEEKLY` variants.

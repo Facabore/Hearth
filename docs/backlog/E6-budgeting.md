@@ -56,7 +56,7 @@ Feature: Create a period plan
 ```
 
 **Technical notes:**
-- Use case: `CreateBudgetPlan`; port `BudgetPlanRepository`.
+- Use case: `CreateBudgetPlan`; port `BudgetPlanRepository`. Endpoints: `POST /api/v1/spaces/{spaceId}/plans` (body: period label), `GET /api/v1/spaces/{spaceId}/plans/{planId}` (with `ETag`, HU-E0-10).
 - Invariant: unique (spaceId, startDate); the period is resolved with the space `periodPolicy`, and its label, startDate and endDate are stored on the plan at creation (spec 5.2, D10).
 
 ---
@@ -87,21 +87,21 @@ Feature: Member capacities
     When "Ana" sets a capacity for "Marta" who is neither a registered member nor a guest of "Household"
     Then the result is the error "NotASpaceMember"
 
-  Scenario: Reducing capacity below planned lines shows negative unallocated capacity
+  Scenario: Reducing capacity below planned lines reports negative unallocated capacity
     Given the plan has lines totalling 4,000,000 COP
     When "Ana" sets the capacity of "Juan" to 2,000,000 COP
     Then the total capacity is 3,600,000 COP
-    And the unallocated capacity is shown as -400,000 COP
+    And the plan reports unallocated capacity of -400,000 COP
 
   Scenario: Capacity is suggested privately from the member's own previous-period income
     Given "Ana" recorded income of 1,650,000 COP in her personal space during 2026-10
-    When "Ana" opens her capacity for the 2026-11 plan of "Household"
-    Then "Ana" sees the suggested capacity 1,650,000 COP and can accept or edit it
-    And "Juan" never sees Ana's suggestion or her income, only the capacity she saves
+    When "Ana" requests her capacity suggestion for the 2026-11 plan of "Household"
+    Then the suggested capacity is 1,650,000 COP and nothing is saved until "Ana" sets her capacity
+    And no response to "Juan" contains Ana's suggestion or her income, only the capacity she saves
 ```
 
 **Technical notes:**
-- Use cases: `SetMemberCapacities`, `SuggestCapacity` (query, runs only for the requesting user's own SpaceMember; guests get no suggestion).
+- Use cases: `SetMemberCapacities`, `SuggestCapacity` (query, runs only for the requesting user's own SpaceMember; guests get no suggestion). Endpoints: `PUT /api/v1/spaces/{spaceId}/plans/{planId}/capacities`, `GET .../plans/{planId}/capacity-suggestion` (answers only for the caller's own member).
 - A member without an explicit capacity counts as 0 COP.
 - Capacities and allocations reference `memberId` (SpaceMember), so guests can hold capacity and be assigned budget lines like registered members (spec D15).
 - Changing capacities re-derives every PROPORTIONAL assignment (computed on read).
@@ -124,14 +124,14 @@ Feature: Budget lines
   Scenario: Lines and unallocated capacity
     When "Ana" adds the line "Rent" with planned 1,200,000 COP, funding "SHARED_FUND" and rollover "RESET"
     And "Ana" adds the line "Home" with planned 1,470,000 COP, funding "DIRECT" and rollover "RESET"
-    Then the plan shows unallocated capacity of 1,330,000 COP
-    And "Home" shows 36.75% of total capacity
+    Then the plan reports unallocated capacity of 1,330,000 COP
+    And "Home" reports 36.75% of total capacity
 
   @golden
   Scenario: Full reference plan leaves nothing unallocated
     Given the lines "Rent" 1,200,000 COP, "Home" 1,470,000 COP and "Savings" 600,000 COP
     When "Ana" adds the line "Free" with planned 730,000 COP
-    Then the plan shows unallocated capacity of 0 COP
+    Then the plan reports unallocated capacity of 0 COP
 
   Scenario: Lines cannot exceed total capacity
     Given the four reference lines totalling 4,000,000 COP
@@ -153,10 +153,10 @@ Feature: Budget lines
 ```
 
 **Technical notes:**
-- Use cases: `AddBudgetLine`, `UpdateBudgetLine`, `RemoveBudgetLine`.
+- Use cases: `AddBudgetLine`, `UpdateBudgetLine`, `RemoveBudgetLine`. Endpoints: `POST /api/v1/spaces/{spaceId}/plans/{planId}/lines`, `PATCH .../plans/{planId}/lines/{lineId}`, `DELETE .../plans/{planId}/lines/{lineId}`.
 - `SAVINGS` lines reference one or more `SAVINGS` accounts; their spending is the transfers into those accounts (spec 5.4).
 - Invariant: Σ plannedAmount ≤ total capacity when adding or increasing a line.
-- Percent of total displayed with two decimals; unallocated = capacity − Σ planned.
+- Percent of total returned with two decimals; unallocated = capacity − Σ planned.
 
 ---
 
@@ -205,9 +205,8 @@ Feature: Category to line mapping
 ```
 
 **Technical notes:**
-- Use case: `MapCategoriesToLine`.
-- Invariant: (planId, categoryId) unique; archived categories cannot be newly mapped.
-- Use case `SetCatchAllLine`; invariant: at most one `isCatchAll` line per plan.
+- Use cases: `MapCategoriesToLine`, `SetCatchAllLine`. Endpoints: `PUT /api/v1/spaces/{spaceId}/plans/{planId}/lines/{lineId}/categories`, `PATCH .../plans/{planId}/lines/{lineId}` with `isCatchAll`.
+- Invariants: (planId, categoryId) unique; archived categories cannot be newly mapped; at most one `isCatchAll` line per plan.
 - "Unbudgeted" is computed on read, never persisted, and only exists when the plan has no catch-all line.
 
 ---
@@ -226,7 +225,7 @@ Feature: Line allocation rules
 
   @golden
   Scenario: Proportional allocation is the default
-    When "Ana" views the line "Home" with planned 1,470,000 COP
+    When "Ana" requests the line "Home" with planned 1,470,000 COP
     Then the rule is "PROPORTIONAL"
     And "Ana" is assigned 588,000 COP and "Juan" is assigned 882,000 COP
 
@@ -255,12 +254,12 @@ Feature: Line allocation rules
 
   Scenario: Proportional allocation requires positive total capacity
     Given every member capacity is 0 COP
-    When "Ana" views the line "Home"
+    When "Ana" requests the line "Home"
     Then the line is flagged with the error "InvalidAllocation"
 ```
 
 **Technical notes:**
-- Use case: `AllocateBudgetLine`; domain service `AllocationCalculator` using `Money.allocate`.
+- Use case: `AllocateBudgetLine`; domain service `AllocationCalculator` using `Money.allocate`. Endpoint: `PUT /api/v1/spaces/{spaceId}/plans/{planId}/lines/{lineId}/allocation` (rule and member values); lines are returned with derived `assigned` per member.
 - One rule per line (all member rows share the rule); assigned amounts are derived, never stored.
 - Rule `NONE` stores no member rows; `assigned`, `contributed` and `gap` are not reported for that line.
 - Percentages stored as basis points (42% = 4200).
@@ -304,7 +303,7 @@ Feature: Copy previous plan
 ```
 
 **Technical notes:**
-- Use case: `CopyBudgetPlan`; the source is the plan of the previous period of the same policy (for `SEMI_MONTHLY`, "2026-11 H2" copies from "2026-11 H1" and "2026-12 H1" from "2026-11 H2"), never simply the previous calendar month.
+- Use case: `CopyBudgetPlan` (endpoint `POST /api/v1/spaces/{spaceId}/plans` with `copyFrom: "previous"`; the response lists dropped mappings); the source is the plan of the previous period of the same policy (for `SEMI_MONTHLY`, "2026-11 H2" copies from "2026-11 H1" and "2026-12 H1" from "2026-11 H2"), never simply the previous calendar month.
 - Copy is a deep clone with new ids; former members and archived categories excluded.
 - Supports success criterion "plan in under 5 minutes".
 
@@ -355,7 +354,7 @@ Feature: Plan lifecycle
 ```
 
 **Technical notes:**
-- Use cases: `ActivateBudgetPlan`, `CloseBudgetPlan`.
+- Use cases: `ActivateBudgetPlan`, `CloseBudgetPlan`. Endpoints: `POST /api/v1/spaces/{spaceId}/plans/{planId}/activate`, `POST .../plans/{planId}/close` (both honour `If-Match`, HU-E0-10).
 - State machine: DRAFT → ACTIVE → CLOSED; no reopening in v1.
 - Provides the `ClosedPeriodGuard` adapter used by `ledger` (HU-E4-06).
 
@@ -401,7 +400,7 @@ Feature: BY_ALLOCATION default split
     When "Ana" records an expense of 50,000 COP in "Outings", which is not mapped
     Then it counts as spent in "Free"
     And the split method defaults to "EQUAL" with 25,000 COP each
-    And "BY_ALLOCATION" is not offered
+    And the resolved default split for "Outings" does not list "BY_ALLOCATION" among the available methods
 
   Scenario: Draft plans do not drive splits
     Given the plan for 2026-12 is "DRAFT"
@@ -410,7 +409,7 @@ Feature: BY_ALLOCATION default split
 ```
 
 **Technical notes:**
-- Use case: `ResolveDefaultSplit` (budgeting, public query) consumed by `RecordExpense`.
+- Use case: `ResolveDefaultSplit` (budgeting, public query) consumed by `RecordExpense`. Endpoint: `GET /api/v1/spaces/{spaceId}/default-split?categoryId=<id>&date=<date>&amount=<minor>` returns the method, the available methods and the share preview.
 - BY_ALLOCATION ratios = assigned amounts of the line for the expense's period; computed via `Money.allocate`.
 - Share rows store `splitMethod = BY_ALLOCATION` as a snapshot (spec 5.2).
 - EQUAL is the default when the resolved line has rule `NONE`, when there is no line, or when the plan is not `ACTIVE` (spec 5.3).
@@ -429,7 +428,7 @@ Feature: Rollover modes
   Scenario Outline: Carry-over from 2026-11 into 2026-12 for the line "Home"
     Given the line "Home" has planned 1,470,000 COP in both 2026-11 and 2026-12 with rollover "<mode>"
     And spending in "Home" during 2026-11 was <spent>
-    When "Ana" views "Home" for 2026-12 before any December spending
+    When "Ana" requests the line "Home" for 2026-12 before any December spending
     Then the November available amount is <novAvailable>
     And the December available amount is <decAvailable>
 
@@ -445,7 +444,7 @@ Feature: Rollover modes
   Scenario: No previous plan means no carry-over
     Given "Household" has no plan for 2026-10
     And the line "Home" in 2026-11 has rollover "ROLLOVER" and planned 1,470,000 COP
-    When "Ana" views "Home" for 2026-11 before any spending
+    When "Ana" requests the line "Home" for 2026-11 before any spending
     Then the available amount is 1,470,000 COP
 
   Scenario: Carry-over follows the copied line, not its name
@@ -457,4 +456,4 @@ Feature: Rollover modes
 **Technical notes:**
 - Domain service `RolloverCalculator`: available(L) = planned + carry − spent(L); RESET carry 0; ROLLOVER max(prevAvailable, 0); ADJUSTED min(prevAvailable, 0).
 - Previous line resolved via the copied line's origin link (not by name); lines without an origin get carry 0.
-- Computed on read (D7); recursion bounded by the plan chain.
+- Computed on read (D7); recursion bounded by the plan chain. Exposed as `available` and `carryOver` on each line of `GET /api/v1/spaces/{spaceId}/plans/{planId}`.

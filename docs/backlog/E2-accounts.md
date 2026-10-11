@@ -37,6 +37,7 @@ Feature: Create personal accounts
 
 **Technical notes:**
 - Use case: `CreateAccount`; port `AccountRepository`.
+- Endpoint: `POST /api/v1/spaces/{spaceId}/accounts`; opening balance as Money (minor-units string, HU-E0-09).
 - Invariants: personal accounts live in the owner's PERSONAL space; name unique per space (case-insensitive); currency equals space currency.
 
 ---
@@ -68,7 +69,7 @@ Feature: Shared fund account
 ```
 
 **Technical notes:**
-- Use case: `CreateAccount` (same use case, type-dependent rules in the `Account` entity).
+- Use case: `CreateAccount` (same use case and endpoint `POST /api/v1/spaces/{spaceId}/accounts`, type-dependent rules in the `Account` entity).
 - Invariant: `SHARED_FUND` ⇔ space kind `SHARED` and `ownerUserId = null`.
 - Milestone moved to M2 because shared spaces first exist in M2.
 
@@ -97,7 +98,7 @@ Feature: Edit and archive accounts
     When "Ana" archives "Nequi"
     Then "Nequi" has archivedAt set
     And its 3 transactions remain listed
-    And "Nequi" is not offered when recording a new transaction
+    And "Nequi" is not returned when active accounts are listed
 
   Scenario: Recording on an archived account is rejected
     Given "Nequi" is archived
@@ -106,7 +107,7 @@ Feature: Edit and archive accounts
 ```
 
 **Technical notes:**
-- Use cases: `UpdateAccount`, `ArchiveAccount`.
+- Use cases: `UpdateAccount`, `ArchiveAccount`. Endpoints: `PATCH /api/v1/spaces/{spaceId}/accounts/{accountId}`, `POST /api/v1/spaces/{spaceId}/accounts/{accountId}/archive`; `GET /api/v1/spaces/{spaceId}/accounts` excludes archived accounts unless `?archived=true`.
 - Accounts are never hard-deleted once referenced (D8 spirit).
 
 ---
@@ -125,18 +126,18 @@ Feature: Computed account balance
     And an income of 3,000,000 COP into "Bancolombia"
     And an expense of 85,000 COP paid from "Bancolombia"
     And a transfer of 500,000 COP from "Bancolombia" to "Nequi"
-    When "Ana" views her accounts
-    Then "Bancolombia" shows a balance of 4,415,000 COP
-    And "Nequi" shows a balance increased by 500,000 COP
+    When "Ana" requests her accounts
+    Then "Bancolombia" is returned with a balance of 4,415,000 COP
+    And "Nequi" is returned with a balance increased by 500,000 COP
 
   Scenario: Shared expense reduces the payer account by the full payment
     Given "Ana" paid a 300,000 COP shared expense from "Bancolombia" split equally with "Juan"
-    When "Ana" views "Bancolombia"
+    When "Ana" requests "Bancolombia"
     Then its balance decreased by 300,000 COP, not by her 150,000 COP share
 
   Scenario: Deleted transactions are excluded
     Given an expense of 85,000 COP from "Bancolombia" that was soft-deleted
-    When "Ana" views "Bancolombia"
+    When "Ana" requests "Bancolombia"
     Then the deleted expense does not affect the balance
 
   Scenario: Balance as of a date
@@ -146,6 +147,6 @@ Feature: Computed account balance
 ```
 
 **Technical notes:**
-- Query: `GetAccountBalances` computed on read with SQL aggregates (D7); no stored running totals.
+- Query: `GetAccountBalances` computed on read with SQL aggregates (D7); no stored running totals. Endpoints: `GET /api/v1/spaces/{spaceId}/accounts?asOf=<date>` and `GET /api/v1/spaces/{spaceId}/accounts/{accountId}`, each account with its computed `balance`.
 - Balance = openingBalance + incomes in + transfers in − transfers out − payments out ± settlements with account set.
 - Port: `LedgerReadModel` exposed by `ledger` application layer.

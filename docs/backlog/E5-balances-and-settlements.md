@@ -23,34 +23,34 @@ Feature: Balances in a shared space
   @critical
   Scenario: One equal split creates a debt
     Given "Ana" paid an expense of 300,000 COP split "EQUAL" between "Ana" and "Juan"
-    When "Juan" views the balances of "Household"
+    When "Juan" requests the balances of "Household"
     Then "Juan" owes "Ana" 150,000 COP
 
   Scenario: Debts net out across expenses
     Given "Ana" paid an expense of 300,000 COP split "EQUAL" between "Ana" and "Juan"
     And "Juan" paid an expense of 100,000 COP split "EQUAL" between "Ana" and "Juan"
-    When "Ana" views the balances of "Household"
+    When "Ana" requests the balances of "Household"
     Then "Juan" owes "Ana" 100,000 COP
 
   Scenario: Fund-paid expenses create no debt
     Given "Ana" paid an expense of 300,000 COP split "EQUAL" between "Ana" and "Juan"
     And an expense of 1,200,000 COP was paid from "Household Fund" split 40% / 60%
-    When "Ana" views the balances of "Household"
+    When "Ana" requests the balances of "Household"
     Then "Juan" owes "Ana" 150,000 COP
 
   Scenario: Deleted expenses are excluded
     Given "Ana" paid an expense of 300,000 COP split "EQUAL" that was soft-deleted
-    When "Ana" views the balances of "Household"
+    When "Ana" requests the balances of "Household"
     Then all net balances are 0 COP
 
   Scenario: Non-members cannot view balances
     Given "Marta" is neither a registered member nor a guest of "Household"
     When "Marta" requests the balances of "Household"
-    Then the result is the error "NotASpaceMember"
+    Then the response is 404 with the code "SpaceNotFound"
 ```
 
 **Technical notes:**
-- Query: `GetSpaceBalances` returning `net(m)` per member and pairwise debts (for two members, pairwise equals net).
+- Query: `GetSpaceBalances` returning `net(m)` per member and pairwise debts (for two members, pairwise equals net). Endpoint: `GET /api/v1/spaces/{spaceId}/balances`.
 - Pure domain service `BalanceCalculator`; SQL aggregate adapter verified against the in-memory one with the same fixtures.
 - Invariant: Σ net(m) over all members, guests included, = 0. Balances key on `memberId` (SpaceMember), never on a user id.
 - Public query `GetMemberNetBalance` consumed by `spaces` (HU-E1-08, HU-E1-09).
@@ -99,7 +99,7 @@ Feature: Settlements
 ```
 
 **Technical notes:**
-- Use case: `RecordSettlement` (ledger); balances read it.
+- Use case: `RecordSettlement` (ledger); balances read it. Endpoint: `POST /api/v1/spaces/{spaceId}/settlements` (honours `Idempotency-Key`, HU-E0-10).
 - Invariants: amount > 0; both parties current members, registered or guest; payer ≠ payee; accounts optional and, when set, owned by the respective party; a guest party never has an account.
 - Any MEMBER or above may record a settlement on a guest's behalf (spec D15).
 
@@ -134,13 +134,13 @@ Feature: Settlement suggestions
 
   Scenario: Accepting a suggestion records a settlement
     Given the suggestion "Juan" pays "Ana" 100,000 COP
-    When "Juan" accepts it
+    When "Juan" accepts it by recording a settlement with the suggested payer, payee and amount
     Then a settlement of 100,000 COP from "Juan" to "Ana" is recorded
 ```
 
 **Technical notes:**
 - Domain service `DebtSimplifier`: greedy match of largest creditor with largest debtor; at most n − 1 suggestions for n members.
-- Suggestions are computed on read and never stored.
+- Suggestions are computed on read and never stored. Endpoint: `GET /api/v1/spaces/{spaceId}/balances/suggestions`; accepting one is a regular `POST /api/v1/spaces/{spaceId}/settlements`.
 
 ---
 
@@ -162,19 +162,19 @@ Feature: Balance history
       | 2026-10-30 | Juan settles 100,000 COP to Ana                   |
 
   Scenario: Running balance per movement
-    When "Juan" views his balance history in "Household"
-    Then the entries show his running net balance as -150,000 COP, -100,000 COP and 0 COP
+    When "Juan" requests his balance history in "Household"
+    Then the entries return his running net balance as -150,000 COP, -100,000 COP and 0 COP
 
   Scenario: History is limited to a period
-    When "Juan" views his balance history for the period 2026-10-01 to 2026-10-15
-    Then 2 entries are shown and the closing net balance is -100,000 COP
+    When "Juan" requests his balance history for the period 2026-10-01 to 2026-10-15
+    Then 2 entries are returned and the closing net balance is -100,000 COP
 
-  Scenario: Deleted movements are not shown
+  Scenario: Deleted movements are not returned
     Given the 2026-10-10 expense was soft-deleted
-    When "Juan" views his balance history
-    Then the entries show -150,000 COP and -50,000 COP
+    When "Juan" requests his balance history
+    Then the entries return -150,000 COP and -50,000 COP
 ```
 
 **Technical notes:**
-- Query: `GetMemberBalanceHistory` using a window function over balance-affecting rows ordered by date then createdAt.
+- Query: `GetMemberBalanceHistory` using a window function over balance-affecting rows ordered by date then createdAt. Endpoint: `GET /api/v1/spaces/{spaceId}/members/{memberId}/balance-history?from=<date>&to=<date>`.
 - The opening balance for a period equals the net balance as of the day before the period start.

@@ -10,7 +10,7 @@
 
 ## HU-E1-01 — Sign up, sign in and sign out
 
-- **Milestone:** M0 · **Priority:** Must · **Size:** M · **Depends on:** HU-E0-05, HU-E0-08 · **Module(s):** `identity`
+- **Milestone:** M0 · **Priority:** Must · **Size:** M · **Depends on:** HU-E0-05, HU-E0-09 · **Module(s):** `identity`
 
 **User story:** As a visitor, I want to sign up with email and password, sign in and sign out, so that my financial data is private to my account.
 
@@ -21,33 +21,34 @@ Feature: Email and password authentication
     Given no user exists with the email "ana@example.com"
     When a visitor signs up with name "Ana", email "ana@example.com" and a 12-character password
     Then a user "Ana" is created with locale "es" and timezone "America/Bogota"
-    And the visitor is signed in
+    And the response sets a session cookie with which "GET /api/v1/me" returns "Ana"
 
   Scenario: Duplicate email is rejected
     Given a user exists with the email "ana@example.com"
     When a visitor signs up with the email "ANA@example.com"
-    Then sign up fails with the message key "auth.emailTaken"
+    Then sign up fails with status 409 and the code "EmailTaken"
     And no second user is created
 
   Scenario: Password shorter than 8 characters is rejected
     When a visitor signs up with a 7-character password
-    Then sign up fails with the message key "auth.passwordTooShort"
+    Then sign up fails with status 422 and the code "PasswordTooShort"
 
   Scenario: Wrong password returns a generic error
     Given a user exists with the email "ana@example.com"
     When a visitor signs in with that email and a wrong password
-    Then sign in fails with the message key "auth.invalidCredentials"
+    Then sign in fails with status 401 and the code "InvalidCredentials"
     And the response does not reveal whether the email exists
 
   Scenario: Sign out invalidates the session
     Given "Ana" is signed in
     When "Ana" signs out
     Then her session is revoked
-    And requesting the dashboard redirects to the sign-in page
+    And "GET /api/v1/me" with the revoked session returns status 401 with the code "Unauthenticated"
 ```
 
 **Technical notes:**
-- Use cases: `SignUp`, `SignIn`, `SignOut` delegating to Better Auth behind an `AuthProvider` port.
+- Use cases: `SignUp`, `SignIn`, `SignOut` delegating to Better Auth behind an `AuthProvider` port; Better Auth also supplies the `SessionResolver` adapter for the HU-E0-09 guard (cookie and Bearer).
+- Endpoints: `POST /api/v1/auth/sign-up`, `POST /api/v1/auth/sign-in`, `POST /api/v1/auth/sign-out`, `GET /api/v1/me`. Errors are stable codes; the web screens that translate them are HU-E9-01.
 - Emails normalized to lowercase before uniqueness checks.
 - Session cookie `HttpOnly`, `Secure`, `SameSite=Lax`.
 
@@ -72,7 +73,7 @@ Feature: Personal space on sign up
     Given creating the personal space fails with a database error
     When "Ana" signs up
     Then no user "Ana" is persisted
-    And the visitor sees a generic error with a request id
+    And the response is a status 500 problem+json with the code "InternalError" and a requestId
 
   Scenario: A second personal space cannot be created
     Given "Ana" already has a personal space
@@ -86,9 +87,9 @@ Feature: Personal space on sign up
 
 **Technical notes:**
 - Use case: `CreatePersonalSpace`, triggered inside the same transaction as `SignUp` (or via a `UserSignedUp` domain event handled synchronously).
-- Invariant: exactly one PERSONAL space per user; one member; role OWNER.
+- Endpoints: no endpoint creates a PERSONAL space directly (it comes with `POST /api/v1/auth/sign-up`); `POST /api/v1/spaces` with kind `PERSONAL` returns `PersonalSpaceAlreadyExists`; `GET /api/v1/spaces` lists the user's spaces.
+- Invariant: exactly one PERSONAL space per user; one member; role OWNER. Creation triggers default category seeding (HU-E3-01).
 - New spaces get the default period policy `MONTHLY(1)` (spec D14); the owner can change it later (HU-E1-03).
-- Triggers default category seeding (HU-E3-01).
 - Guests cannot be added to a personal space either (HU-E1-10); one-to-one splits use a DIRECT space (HU-E1-13).
 
 ---
@@ -143,7 +144,7 @@ Feature: Space settings
 ```
 
 **Technical notes:**
-- Use case: `UpdateSpaceSettings` (OWNER or ADMIN).
+- Use case: `UpdateSpaceSettings` (OWNER or ADMIN). Endpoints: `PATCH /api/v1/spaces/{spaceId}` (name, currency, periodPolicy); `GET /api/v1/spaces/{spaceId}/periods?from=<date>&count=<n>` lists derived periods with label, startDate and endDate.
 - Changing the `periodPolicy` only affects periods without a plan; plan boundaries are stored, so history never moves (spec D10, D14).
 - Overlap rule: if a period derived with the new policy overlaps an existing plan, it starts the day after that plan ends and keeps its natural end (the day before the next anchor date) and label; later periods follow the new policy unchanged.
 - One currency per space (D6).
@@ -176,7 +177,7 @@ Feature: Create a shared space
 ```
 
 **Technical notes:**
-- Use case: `CreateSharedSpace`.
+- Use case: `CreateSharedSpace`. Endpoint: `POST /api/v1/spaces` with kind `SHARED`.
 - Invariant: a shared space always has at least one OWNER.
 - Currency validated against ISO 4217 list in the kernel.
 
@@ -218,7 +219,7 @@ Feature: Role-based authorization in use cases
   Scenario: Non-members are rejected
     Given "Marta" is neither a registered member nor a guest of "Household"
     When "Marta" requests the transactions of "Household"
-    Then the result is the error "NotASpaceMember"
+    Then the response is 404 with the code "SpaceNotFound", so the space existence is not leaked
 
   Scenario: Owner changes a member's role
     When "Ana" changes the role of "Luis" to "ADMIN"
@@ -231,7 +232,7 @@ Feature: Role-based authorization in use cases
 ```
 
 **Technical notes:**
-- Use cases: `ChangeMemberRole`; shared `AuthorizeSpaceAction` application service used by every use case.
+- Use cases: `ChangeMemberRole`; shared `AuthorizeSpaceAction` application service used by every use case. Endpoints: `GET /api/v1/spaces/{spaceId}/members`, `PATCH /api/v1/spaces/{spaceId}/members/{memberId}` (role).
 - Permission matrix lives in the `spaces` domain as a pure policy; it is pending owner confirmation (see docs/product/functional-overview.md).
 - Authorization is checked in use cases, never only in UI (spec section 8).
 - Guests have no role and cannot sign in, so they never act themselves; any member with role MEMBER or above can add a guest, record expenses and settlements on a guest's behalf, and remove a guest whose balance is zero (spec D15). `createdBy` is always the acting registered user.
@@ -277,7 +278,7 @@ Feature: Invitations
 ```
 
 **Technical notes:**
-- Use cases: `CreateInvitation`, `RevokeInvitation`; requires OWNER or ADMIN.
+- Use cases: `CreateInvitation`, `RevokeInvitation`; requires OWNER or ADMIN. Endpoints: `POST /api/v1/spaces/{spaceId}/invitations` (email or link; the response carries the invitation URL), `POST /api/v1/spaces/{spaceId}/invitations/{invitationId}/revoke`.
 - Ports: `InvitationRepository`, `EmailSender` (SMTP adapter; when SMTP is not configured, the email path is disabled and only links are offered).
 - Token: at least 128 bits of randomness, stored hashed.
 
@@ -302,9 +303,10 @@ Feature: Accept invitation
     And the invitation status is "ACCEPTED"
 
   Scenario: Visitor without an account signs up first
-    Given a visitor opens the invitation URL without an account
-    When the visitor signs up as "juan@example.com"
-    Then the visitor is returned to the invitation and can accept it
+    Given a visitor without an account holds the invitation token
+    When the visitor signs up as "juan@example.com" and then accepts the invitation with that token
+    Then "Juan" is a member of "Household" with role "MEMBER"
+    And the invitation status is "ACCEPTED"
 
   Scenario: Expired invitation is rejected
     Given the invitation was created 8 days ago
@@ -323,7 +325,7 @@ Feature: Accept invitation
 ```
 
 **Technical notes:**
-- Use case: `AcceptInvitation`; uses `Clock` for expiry.
+- Use case: `AcceptInvitation`; uses `Clock` for expiry. Endpoint: `POST /api/v1/invitations/{token}/accept` (authenticated); the redirect back to the invitation after sign-up is web UI behaviour (HU-E9-05).
 - Email invitations are single-use; link invitations remain valid until expiry or revocation.
 - A former member (leftAt set) who accepts again gets a new `SpaceMember` row.
 
@@ -342,19 +344,19 @@ Feature: Leave a space
     Given "Luis" is MEMBER of "Household" with a net balance of 0 COP
     When "Luis" leaves "Household"
     Then his SpaceMember row has leftAt set
-    And past expenses still show "Luis" as payer or participant
+    And past expenses are still returned with "Luis" as payer or participant
 
   Scenario: Member with a non-zero balance cannot leave
     Given "Juan" owes "Ana" 150,000 COP in "Household"
     When "Juan" leaves "Household"
     Then the result is the error "OutstandingBalance"
-    And the error states the amount 150,000 COP
+    And the error body includes the outstanding amount 150,000 COP
 
   Scenario: Money owed by a guest also blocks leaving
     Given the guest "Pedro" owes "Luis" 50,000 COP in "Household"
     When "Luis" leaves "Household"
     Then the result is the error "OutstandingBalance"
-    And the error states the amount 50,000 COP
+    And the error body includes the outstanding amount 50,000 COP
 
   Scenario: The last owner cannot leave
     Given "Ana" is the only OWNER of "Household"
@@ -367,7 +369,7 @@ Feature: Leave a space
 ```
 
 **Technical notes:**
-- Use case: `LeaveSpace`; reads net balance through the `balances` public query `GetMemberNetBalance`.
+- Use case: `LeaveSpace`; reads net balance through the `balances` public query `GetMemberNetBalance`. Endpoint: `POST /api/v1/spaces/{spaceId}/leave`.
 - Former members cannot be selected as payer or participant on new transactions.
 - The net balance includes debts with guests, who count like any other member; guests never leave themselves but are removed by a member (HU-E1-12).
 
@@ -386,7 +388,7 @@ Feature: Archive a space
     Given every member of "Trip 2026", including the guest "Pedro", has a net balance of 0 COP
     When the OWNER archives "Trip 2026"
     Then the space has archivedAt set
-    And it is listed under archived spaces
+    And it is returned when spaces are listed with the archived filter
 
   Scenario: Archived space rejects new transactions
     Given "Trip 2026" is archived
@@ -409,7 +411,7 @@ Feature: Archive a space
 ```
 
 **Technical notes:**
-- Use case: `ArchiveSpace` (OWNER only).
+- Use case: `ArchiveSpace` (OWNER only). Endpoints: `POST /api/v1/spaces/{spaceId}/archive`; `GET /api/v1/spaces?archived=true`.
 - Every write use case checks `space.archivedAt` via a shared guard.
 - The zero-balance check covers every current member, registered or guest; it applies to SHARED and DIRECT spaces alike.
 
@@ -432,11 +434,11 @@ Feature: Guest members
     Then "Household" has a member "Pedro" of kind "GUEST" with no user and no role
     And the member "Pedro" has joinedAt set
 
-  Scenario: Guest is offered as payer and participant
+  Scenario: Guest is listed as a current member eligible as payer and participant
     Given the guest "Pedro" is a member of "Household"
-    When "Ana" opens the new expense form in "Household"
-    Then "Pedro (guest)" is offered as a payer option next to "Ana" and "Luis"
-    And "Pedro (guest)" is offered as a participant option
+    When "Ana" lists the current members of "Household"
+    Then the response contains "Ana", "Luis" and "Pedro", with "Pedro" of kind "GUEST"
+    And "Pedro" is accepted as payer and as participant of a new expense in "Household"
 
   Scenario: Viewer cannot add guests
     When "Sofi" adds the guest "Pedro" to "Household"
@@ -450,7 +452,7 @@ Feature: Guest members
   Scenario: A guest cannot sign in and has no personal space
     Given "Luis" added the guest "Pedro" with contact email "pedro@example.com"
     When a visitor signs in with the email "pedro@example.com" and any password
-    Then sign in fails with the message key "auth.invalidCredentials"
+    Then sign in fails with status 401 and the code "InvalidCredentials"
     And no user and no personal space exist for "Pedro"
 
   Scenario: Guests cannot be added to a personal space
@@ -459,7 +461,7 @@ Feature: Guest members
 ```
 
 **Technical notes:**
-- Use case: `AddGuestMember` (role MEMBER or above, spec D15).
+- Use case: `AddGuestMember` (role MEMBER or above, spec D15). Endpoint: `POST /api/v1/spaces/{spaceId}/guests`; guests appear in `GET /api/v1/spaces/{spaceId}/members` with kind `GUEST`.
 - `SpaceMember` invariants: kind `GUEST` ⇔ `userId` null ⇔ `role` null; `contactEmail` is optional and only allowed for guests; `displayName` is unique per space among current members of both kinds, compared case-insensitively.
 - A guest is scoped to one space: the same name in another space is an unrelated `SpaceMember`.
 - Guests have no accounts, so their payments carry `accountId` null (HU-E4-07); rounding ties use join order, guests included (spec 5.3).
@@ -482,10 +484,10 @@ Feature: Claim a guest place
 
   @critical
   Scenario: New user registers through the claim link and keeps the history
-    Given a visitor opens the claim link without an account
-    When the visitor signs up as "pedro@example.com" and accepts the claim
+    Given a visitor without an account holds the claim token
+    When the visitor signs up as "pedro@example.com" and accepts the claim with that token
     Then the member "Pedro" keeps the same id, has kind "USER", role "MEMBER" and claimedAt set
-    And the "Hotel" expense still shows "Pedro" as payer of 300,000 COP
+    And the "Hotel" expense is still returned with "Pedro" as payer of 300,000 COP
     And "Ana" owes "Pedro" 100,000 COP and "Juan" owes "Pedro" 100,000 COP
     And the unified view of "Pedro" for 2026-10 includes his 100,000 COP "Hotel" share
 
@@ -520,7 +522,7 @@ Feature: Claim a guest place
 ```
 
 **Technical notes:**
-- Use cases: `CreateGuestClaim` (OWNER or ADMIN, like HU-E1-06), `ClaimGuestPlace`; a claim is an `Invitation` bound to a `guestMemberId`, single use, valid 7 days, token hashed.
+- Use cases: `CreateGuestClaim` (OWNER or ADMIN, like HU-E1-06), `ClaimGuestPlace`; a claim is an `Invitation` bound to a `guestMemberId`, single use, valid 7 days, token hashed. Endpoints: `POST /api/v1/spaces/{spaceId}/guests/{memberId}/claim-links`, `POST /api/v1/claims/{token}/accept`.
 - Claiming sets `userId`, `kind = USER`, `role = MEMBER` and `claimedAt` on the existing `SpaceMember`; no money row is rewritten, because every reference already points to that member id (spec D15).
 - Sign-up through a claim link creates the personal space first (HU-E1-02), then applies the claim in the same flow. Claim links are bearer links, not bound to the guest's `contactEmail`.
 - The unified-view assertions become testable in M4 with HU-E7-04; until then the scenarios check the member's shares through the ledger.
@@ -543,7 +545,7 @@ Feature: Remove a guest
     Given "Pedro" has a net balance of 0 COP in "Household"
     When "Luis" removes the guest "Pedro"
     Then the member "Pedro" has leftAt set
-    And "Pedro" is no longer offered as payer or participant
+    And "Pedro" is no longer returned among the current members of "Household"
 
   Scenario: Guest with a non-zero balance cannot be removed
     Given "Pedro" owes "Ana" 100,000 COP in "Household"
@@ -554,7 +556,7 @@ Feature: Remove a guest
   Scenario: History keeps the guest's name
     Given "Pedro" took part in a "Hotel" expense of 300,000 COP with a share of 100,000 COP and later settled it
     When "Ana" removes the guest "Pedro"
-    Then the "Hotel" expense still lists "Pedro (guest)" with a share of 100,000 COP
+    Then the "Hotel" expense is still returned with "Pedro" of kind "GUEST" and a share of 100,000 COP
 
   Scenario: Viewer cannot remove a guest
     When "Sofi" removes the guest "Pedro"
@@ -566,7 +568,7 @@ Feature: Remove a guest
 ```
 
 **Technical notes:**
-- Use case: `RemoveGuestMember` (role MEMBER or above, spec D15); reads the net balance through `GetMemberNetBalance` (HU-E5-01).
+- Use case: `RemoveGuestMember` (role MEMBER or above, spec D15); reads the net balance through `GetMemberNetBalance` (HU-E5-01). Endpoint: `DELETE /api/v1/spaces/{spaceId}/guests/{memberId}` (soft removal).
 - Removal is soft: `leftAt` is set and the row is kept, so payments, shares and settlements still resolve the guest's `displayName`.
 - Pending claim links for the removed guest are revoked; the display name becomes free for a new member of the space.
 
@@ -617,14 +619,13 @@ Feature: Direct spaces
 
   Scenario: Direct spaces use the default period policy and need no budget plan
     Given the direct space "Ana & Pedro" was just created
-    When "Ana" opens its settings
+    When "Ana" requests the space "Ana & Pedro"
     Then its period policy is MONTHLY(1) and it has no budget plan
-    And a new expense in "Ana & Pedro" defaults to the split "EQUAL" between "Ana" and "Pedro"
+    And an expense recorded in "Ana & Pedro" without a split method is split "EQUAL" between "Ana" and "Pedro"
 ```
 
 **Technical notes:**
-- Use case: `SplitWithPerson` resolves or creates the DIRECT space (`spaces`) and delegates to `RecordExpense` (`ledger`) in one database transaction; placed in E1 because space creation, reuse and the two-member invariant belong to `spaces`.
+- Use case: `SplitWithPerson` resolves or creates the DIRECT space (`spaces`) and delegates to `RecordExpense` (`ledger`) in one database transaction; placed in E1 because space creation, reuse and the two-member invariant belong to `spaces`. Endpoint: `POST /api/v1/direct-splits` (honours `Idempotency-Key`, HU-E0-10).
 - Invariant: a DIRECT space has exactly two current members; `AddGuestMember` and `CreateInvitation` reject a third with `DirectSpaceIsFull`. Both registered members hold the role OWNER; a guest has no role.
-- Reuse key: one DIRECT space per unordered pair of registered users (unique index); with a guest counterpart, the person is identified by the existing direct space's guest, so choosing that guest reuses it.
-- A registered counterpart is picked among people the user already shares a space with, so no user lookup by email is exposed.
+- Reuse key: one DIRECT space per unordered pair of registered users (unique index); with a guest counterpart, the person is identified by the existing direct space's guest, so choosing that guest reuses it. A registered counterpart is picked among people the user already shares a space with, so no user lookup by email is exposed.
 - Currency comes from the creator's personal space; default categories are seeded (HU-E3-01).

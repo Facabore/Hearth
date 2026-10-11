@@ -42,7 +42,7 @@ Feature: Default category seed
 ```
 
 **Technical notes:**
-- Use case: `SeedDefaultCategories`, handling `SpaceCreated`.
+- Use case: `SeedDefaultCategories`, handling `SpaceCreated` (no endpoint); the seeded tree is read through `GET /api/v1/spaces/{spaceId}/categories`, each category with its catalog `key` or null.
 - Seed definition lives in the `categories` domain as data with es/en names: Housing (Rent, Utilities, Maintenance), Food (Groceries, Restaurants), Transport (Fuel, Public transport), Health (Medical, Pharmacy), Leisure (Entertainment, Travel), Income (Salary, Other income).
 - Names are stored as user data after seeding (not translated on read).
 - Each seeded category stores an immutable catalog `key` (e.g. `groceries`), used to group categories across spaces in the unified personal view (spec D11).
@@ -88,6 +88,7 @@ Feature: Two-level category tree
 
 **Technical notes:**
 - Use cases: `CreateCategoryGroup`, `CreateCategory`, `RenameCategory`, `MoveCategory`, `RenameCategoryGroup`.
+- Endpoints: `POST /api/v1/spaces/{spaceId}/category-groups`, `PATCH /api/v1/spaces/{spaceId}/category-groups/{groupId}`, `POST /api/v1/spaces/{spaceId}/categories`, `PATCH /api/v1/spaces/{spaceId}/categories/{categoryId}` (rename or move).
 - Invariants: exactly two levels; category and group in the same space; names unique per parent (case-insensitive).
 - Allowed roles: OWNER, ADMIN (personal space: its owner).
 
@@ -111,12 +112,12 @@ Feature: Archive instead of hard delete
     Given the category "Groceries" has 12 transactions
     When "Ana" deletes "Groceries"
     Then the result is the error "CategoryInUse"
-    And "Ana" is offered to archive it instead
+    And "Groceries" still exists and can be archived instead
 
-  Scenario: Archived category stays in history but not in pickers
+  Scenario: Archived category stays in history but not in the active list
     Given "Ana" archived "Groceries"
-    Then its 12 transactions still show the category "Groceries"
-    And "Groceries" is not offered when recording a new expense
+    Then its 12 transactions are still returned with the category "Groceries"
+    And "Groceries" is not returned when active categories are listed
 
   Scenario: Recording with an archived category is rejected
     Given "Groceries" is archived
@@ -126,10 +127,10 @@ Feature: Archive instead of hard delete
   Scenario: Restore an archived category
     Given "Groceries" is archived
     When "Ana" restores it
-    Then "Groceries" is offered again when recording expenses
+    Then "Groceries" is returned again when active categories are listed
 ```
 
 **Technical notes:**
-- Use cases: `DeleteCategory`, `ArchiveCategory`, `RestoreCategory`.
+- Use cases: `DeleteCategory`, `ArchiveCategory`, `RestoreCategory`. Endpoints: `DELETE /api/v1/spaces/{spaceId}/categories/{categoryId}`, `POST .../categories/{categoryId}/archive`, `POST .../categories/{categoryId}/restore`; `GET /api/v1/spaces/{spaceId}/categories` excludes archived ones unless `?archived=true`. Offering "archive instead" is web UI behaviour (HU-E9-04).
 - Reference check uses ports to `ledger` (transactions) and `budgeting` (line mappings); soft-deleted transactions still count as references (audit).
 - Archiving a group archives all its categories.
