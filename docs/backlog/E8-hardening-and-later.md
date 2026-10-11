@@ -273,3 +273,32 @@ Feature: Weekly and biweekly period policies
 - Deferred by spec 5.2 and D14; kept so the `PeriodPolicy` union (HU-E0-04) stays open to new cadences.
 - Weekly labels use ISO week numbering; plan boundaries remain stored, so switching to these cadences follows the same overlap rule as HU-E1-03.
 - Set through `PATCH /api/v1/spaces/{spaceId}` (HU-E1-03); the `periodPolicy` contract gains the `WEEKLY` and `BIWEEKLY` variants.
+
+---
+
+## HU-E8-10 — Keycloak as an external OIDC identity provider
+
+- **Milestone:** M5 · **Priority:** Won't-v1 · **Size:** M · **Depends on:** HU-E1-01, HU-E1-02 · **Module(s):** `identity`
+
+**User story:** As the owner, I want to sign in through a self-hosted Keycloak, so that Hearth shares single sign-on, MFA and social login with my other self-hosted services.
+
+```gherkin
+Feature: Keycloak sign-in through OIDC
+
+  Scenario: First Keycloak sign-in provisions the user and the personal space
+    Given a Keycloak realm "home" with the user "ana@example.com"
+    When "Ana" signs in to Hearth through Keycloak for the first time
+    Then a Hearth user linked to her Keycloak subject is created
+    And exactly one PERSONAL space exists for her with the period policy MONTHLY(1)
+
+  Scenario: An existing email account is linked, not duplicated
+    Given "ana@example.com" already signed up with email and password
+    When she signs in through Keycloak with the same verified email
+    Then the Keycloak identity is linked to her existing user
+    And no second user or personal space is created
+```
+
+**Technical notes:**
+- Implemented as a Better Auth generic OAuth/OIDC provider behind the existing `AuthProvider` and `SessionResolver` ports; the domain does not change.
+- Personal-space creation becomes idempotent "ensure on first authenticated session" for OIDC sign-ins, because registration happens outside Hearth.
+- Adds a `keycloak` service (and its database) to the Compose files; the Keycloak login theme is configured in Keycloak, not in the Hearth web UI.

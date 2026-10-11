@@ -238,7 +238,7 @@ Use cases return `Result<T, DomainError>`; route handlers map results to HTTP re
 | Framework | Next.js (latest stable, App Router, React Server Components, Server Actions), TypeScript strict |
 | Database | PostgreSQL |
 | Data access | Drizzle ORM + drizzle-kit migrations (SQL-first control for reporting aggregates) |
-| Auth | Better Auth (email + password, optional OAuth), self-hosted |
+| Auth | Better Auth (email + password, Bearer plugin), self-hosted, behind the `AuthProvider` and `SessionResolver` ports; Keycloak as an external OIDC provider is deferred (HU-E8-10) |
 | Validation | Zod |
 | API contract | OpenAPI 3.1 generated from Zod contracts (generator chosen at bootstrap, e.g. zod-openapi) |
 | UI | Tailwind CSS + shadcn/ui; container-presentational pattern; atomic design for shared components |

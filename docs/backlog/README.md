@@ -158,6 +158,7 @@ A UI story is `Done` when:
 | [HU-E8-07](E8-hardening-and-later.md) | Installable PWA with offline read | E8 | M5 | Won't-v1 | M | Backlog | HU-E7-04, HU-E9-01, HU-E9-11 |
 | [HU-E8-08](E8-hardening-and-later.md) | Notifications | E8 | M5 | Won't-v1 | M | Backlog | HU-E1-07, HU-E5-02 |
 | [HU-E8-09](E8-hardening-and-later.md) | Weekly and biweekly period policies | E8 | M5 | Won't-v1 | S | Backlog | HU-E0-04, HU-E1-03 |
+| [HU-E8-10](E8-hardening-and-later.md) | Keycloak as an external OIDC identity provider | E8 | M5 | Won't-v1 | M | Backlog | HU-E1-01, HU-E1-02 |
 | [HU-E9-01](E9-web-ui.md) | App shell, sign-in and sign-up screens | E9 | M6 | Must | M | Backlog | HU-E1-01, HU-E1-02, HU-E9-02 |
 | [HU-E9-02](E9-web-ui.md) | Internationalization setup (es, en) | E9 | M6 | Must | S | Backlog | HU-E0-01, HU-E1-01 |
 | [HU-E9-03](E9-web-ui.md) | Personal ledger screens | E9 | M6 | Must | M | Backlog | HU-E2-01, HU-E2-03, HU-E2-04, HU-E4-01, HU-E4-02, HU-E4-03, HU-E4-05, HU-E9-01 |
@@ -170,7 +171,7 @@ A UI story is `Done` when:
 | [HU-E9-10](E9-web-ui.md) | Space dashboards: lines, member matrix and fund tracking | E9 | M6 | Must | M | Backlog | HU-E7-01, HU-E7-02, HU-E7-03, HU-E9-08 |
 | [HU-E9-11](E9-web-ui.md) | Personal dashboards: unified view and trends | E9 | M6 | Must | M | Backlog | HU-E7-04, HU-E7-05, HU-E9-01 |
 
-**Totals:** 79 active stories — E0: 9 · E1: 13 · E2: 4 · E3: 3 · E4: 13 · E5: 4 · E6: 9 · E7: 5 · E8: 8 · E9: 11. Retired IDs: HU-E0-08 (moved to HU-E9-02) and HU-E8-03 (moved to HU-E4-11 … HU-E4-13).
+**Totals:** 80 active stories — E0: 9 · E1: 13 · E2: 4 · E3: 3 · E4: 13 · E5: 4 · E6: 9 · E7: 5 · E8: 9 · E9: 11. Retired IDs: HU-E0-08 (moved to HU-E9-02) and HU-E8-03 (moved to HU-E4-11 … HU-E4-13).
 
 ## Milestone map
 
@@ -181,7 +182,7 @@ A UI story is `Done` when:
 | **M2** Shared spaces API | Invitations, guests, direct spaces, shared expenses with split methods, balances, settlements | HU-E1-04 … HU-E1-13, HU-E2-02, HU-E4-07 … HU-E4-10, HU-E5-01 … HU-E5-04 |
 | **M3** Allocated budgets API | Plans, capacity, lines, allocations, default split by allocation, rollover, recurring transactions | HU-E6-01 … HU-E6-09, HU-E4-11 … HU-E4-13 |
 | **M4** Insight API | Member/category dashboards, shared fund tracking, unified personal view | HU-E7-01 … HU-E7-05 |
-| **M5** Hardening | Backups, observability, import from Splitwise/CSV | HU-E8-01, HU-E8-02, HU-E8-04 … HU-E8-09 (HU-E8-06 … HU-E8-09 are Won't-v1 placeholders) |
+| **M5** Hardening | Backups, observability, import from Splitwise/CSV | HU-E8-01, HU-E8-02, HU-E8-04 … HU-E8-10 (HU-E8-06 … HU-E8-10 are Won't-v1 placeholders) |
 | **M6** Web UI | Screens for every area (epic E9); an area's UI may start as soon as its API milestone is done | HU-E9-01 … HU-E9-11 |
 
 Notes on placement:
