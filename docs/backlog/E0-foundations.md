@@ -35,6 +35,13 @@ Feature: Repository bootstrap with pinned versions
     When the developer opens "docs/stack-versions.md"
     Then it lists the exact versions of Next.js, React, TypeScript, Drizzle ORM, drizzle-kit, Better Auth, Zod, the OpenAPI generator, next-intl, Vitest, Testcontainers, Playwright, Tailwind CSS, Node.js and PostgreSQL
     And each version is the latest stable release on the bootstrap date
+
+  Scenario: The whole development stack runs in Docker
+    Given a machine with only Git and Docker installed
+    When the developer runs "docker compose -f compose.dev.yaml up"
+    Then the services "db", "migrate" and "app" start, with "app" waiting for "migrate" to finish
+    And "GET http://localhost:3000/api/v1/health" returns status 200
+    And editing a file under "src/" reloads the running app without rebuilding the image
 ```
 
 **Technical notes:**
@@ -42,6 +49,7 @@ Feature: Repository bootstrap with pinned versions
 - `check:pinned` is a small script that fails on `^`, `~`, `*`, `latest` or tag ranges in `dependencies` and `devDependencies`.
 - Next.js App Router initialized with `src/app/api/v1/`; no business code.
 - Tailwind CSS, shadcn/ui, next-intl and Playwright are pinned now but first used by the web UI stories of epic E9 (spec D18).
+- Everything runs in containers: `compose.dev.yaml` (db, migrate, app with `pnpm dev`, source bind-mounted, polling file watch on Windows hosts), Testcontainers for integration tests, and `compose.yaml` for production (HU-E0-07). A host Node.js install stays optional.
 
 ---
 

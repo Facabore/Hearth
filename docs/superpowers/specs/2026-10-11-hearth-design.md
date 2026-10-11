@@ -250,6 +250,7 @@ Use cases return `Result<T, DomainError>`; route handlers map results to HTTP re
 | Quality | ESLint, Prettier, boundary lint, typecheck in CI, Strict TDD |
 | Package manager | pnpm |
 | CI | GitHub Actions: lint, typecheck, test, build Docker image |
+| Local development | Fully containerized: `compose.dev.yaml` runs PostgreSQL, a one-shot migration service and the app in dev mode with the source bind-mounted; host Node.js is optional |
 | Deploy | Docker Compose on VPS: app + PostgreSQL + Caddy (automatic TLS); nightly `pg_dump` backups |
 
 Exact versions are pinned at bootstrap (story E0) to the latest stable releases.
