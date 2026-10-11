@@ -117,6 +117,9 @@ A story is `Done` when:
 | [HU-E6-07](E6-budgeting.md) | Activate and close a plan | E6 | M3 | Must | M | Backlog | HU-E6-05 |
 | [HU-E6-08](E6-budgeting.md) | Default split by allocation | E6 | M3 | Must | M | Backlog | HU-E6-04, HU-E6-05, HU-E6-07, HU-E4-07, HU-E5-01 |
 | [HU-E6-09](E6-budgeting.md) | Apply rollover modes | E6 | M3 | Must | M | Backlog | HU-E6-04, HU-E6-07 |
+| [HU-E4-11](E4-ledger.md) | Define and manage recurring transactions | E4 | M3 | Must | M | Backlog | HU-E4-07, HU-E0-04, HU-E1-10 |
+| [HU-E4-12](E4-ledger.md) | Record due occurrences automatically | E4 | M3 | Must | M | Backlog | HU-E4-11, HU-E6-07, HU-E6-08 |
+| [HU-E4-13](E4-ledger.md) | Confirm variable-amount occurrences | E4 | M3 | Must | S | Backlog | HU-E4-12 |
 | [HU-E7-01](E7-reporting.md) | Budget line dashboard | E7 | M4 | Must | M | Backlog | HU-E6-09 |
 | [HU-E7-02](E7-reporting.md) | Member by line matrix | E7 | M4 | Must | M | Backlog | HU-E6-08, HU-E7-01 |
 | [HU-E7-03](E7-reporting.md) | Shared fund contribution tracking | E7 | M4 | Must | S | Backlog | HU-E4-09, HU-E6-05 |
@@ -124,7 +127,6 @@ A story is `Done` when:
 | [HU-E7-05](E7-reporting.md) | Period-over-period trend | E7 | M4 | Should | S | Backlog | HU-E7-01, HU-E7-04 |
 | [HU-E8-01](E8-hardening-and-later.md) | Nightly backups and restore drill | E8 | M5 | Must | M | Backlog | HU-E0-07 |
 | [HU-E8-02](E8-hardening-and-later.md) | Structured logging and health check | E8 | M5 | Should | M | Backlog | HU-E0-07 |
-| [HU-E8-03](E8-hardening-and-later.md) | Recurring transactions | E8 | M5 | Could | M | Backlog | HU-E4-07, HU-E6-07 |
 | [HU-E8-04](E8-hardening-and-later.md) | Import transactions from CSV | E8 | M5 | Could | M | Backlog | HU-E4-01, HU-E4-02 |
 | [HU-E8-05](E8-hardening-and-later.md) | Import from Splitwise | E8 | M5 | Could | M | Backlog | HU-E4-08, HU-E5-01, HU-E1-10 |
 | [HU-E8-06](E8-hardening-and-later.md) | Multi-currency spaces | E8 | M5 | Won't-v1 | M | Backlog | HU-E0-03 |
@@ -132,7 +134,7 @@ A story is `Done` when:
 | [HU-E8-08](E8-hardening-and-later.md) | Notifications | E8 | M5 | Won't-v1 | M | Backlog | HU-E1-07, HU-E5-02 |
 | [HU-E8-09](E8-hardening-and-later.md) | Weekly and biweekly period policies | E8 | M5 | Won't-v1 | S | Backlog | HU-E0-04, HU-E1-03 |
 
-**Totals:** 65 stories — E0: 8 · E1: 13 · E2: 4 · E3: 3 · E4: 10 · E5: 4 · E6: 9 · E7: 5 · E8: 9.
+**Totals:** 67 active stories — E0: 8 · E1: 13 · E2: 4 · E3: 3 · E4: 13 · E5: 4 · E6: 9 · E7: 5 · E8: 8. HU-E8-03 is retired (moved to HU-E4-11 … HU-E4-13).
 
 ## Milestone map
 
@@ -141,9 +143,9 @@ A story is `Done` when:
 | **M0** Walking skeleton | Repo, architecture skeleton, CI, auth, personal space, deployed to VPS | HU-E0-01 … HU-E0-08, HU-E1-01, HU-E1-02 |
 | **M1** Personal ledger | Accounts, categories, personal expenses and income, monthly view | HU-E1-03, HU-E2-01, HU-E2-03, HU-E2-04, HU-E3-01 … HU-E3-03, HU-E4-01 … HU-E4-06 |
 | **M2** Shared spaces | Invitations, shared expenses with split methods, balances, settlements | HU-E1-04 … HU-E1-13, HU-E2-02, HU-E4-07 … HU-E4-10, HU-E5-01 … HU-E5-04 |
-| **M3** Allocated budgets | Plans, capacity, lines, allocations, default split by allocation, rollover | HU-E6-01 … HU-E6-09 |
+| **M3** Allocated budgets | Plans, capacity, lines, allocations, default split by allocation, rollover, recurring transactions | HU-E6-01 … HU-E6-09, HU-E4-11 … HU-E4-13 |
 | **M4** Insight | Member/category dashboard, shared fund tracking, unified personal view | HU-E7-01 … HU-E7-05 |
-| **M5** Hardening | Backups, observability, import from Splitwise/CSV, recurring transactions | HU-E8-01 … HU-E8-09 (HU-E8-06 … HU-E8-09 are Won't-v1 placeholders) |
+| **M5** Hardening | Backups, observability, import from Splitwise/CSV | HU-E8-01, HU-E8-02, HU-E8-04 … HU-E8-09 (HU-E8-06 … HU-E8-09 are Won't-v1 placeholders) |
 
 Notes on placement:
 

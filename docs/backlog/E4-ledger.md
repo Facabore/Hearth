@@ -430,3 +430,156 @@ Feature: Expense paid from the shared fund
 - Use case: `RecordExpense` with a fund payment source.
 - Fund payments store `memberId = null` and the fund's `accountId`. Per spec 5.2, `memberId` is null if and only if the account is a `SHARED_FUND`, and `accountId` is null if and only if the payer is a guest, so every payment has at least one of the two.
 - Shares still drive consumption in reporting (HU-E7-04).
+
+---
+
+## HU-E4-11 — Define and manage recurring transactions
+
+- **Milestone:** M3 · **Priority:** Must · **Size:** M · **Depends on:** HU-E4-07, HU-E0-04, HU-E1-10 · **Module(s):** `ledger`
+
+**User story:** As a household member, I want to define recurring transactions such as rent, utilities or cleaning, so that repeating money movements follow our periods without retyping them.
+
+```gherkin
+Feature: Recurring transaction definitions
+
+  Background:
+    Given the shared space "Household" with members "Ana" and "Juan" and the account "Household Fund"
+
+  Scenario: Define the monthly rent paid from the shared fund
+    When "Ana" defines a recurring expense "Rent" of 1,200,000 COP in "Rent" paid from "Household Fund" with schedule MONTHLY(1), mode "AUTO", starting 2026-12-01
+    Then the recurrence is active
+    And its next occurrence is 2026-12-01
+
+  Scenario: Monthly schedules clamp to short months
+    When "Ana" defines a recurring expense with schedule MONTHLY(31) starting 2027-01-01
+    Then its next three occurrences are 2027-01-31, 2027-02-28 and 2027-03-31
+
+  Scenario: Semi-monthly schedule
+    When "Ana" defines a recurring expense "Cleaning" of 80,000 COP with schedule SEMI_MONTHLY(1, 16) starting 2026-12-01
+    Then its occurrences in December 2026 are 2026-12-01 and 2026-12-16
+
+  Scenario: Editing applies to future occurrences only
+    Given the 2026-12-01 "Rent" occurrence was recorded for 1,200,000 COP
+    When "Ana" changes the "Rent" amount to 1,300,000 COP on 2026-12-15
+    Then the 2026-12-01 expense still has 1,200,000 COP
+    And the 2027-01-01 occurrence will use 1,300,000 COP
+
+  Scenario: Pausing skips the paused span without back-filling
+    Given "Ana" paused "Cleaning" on 2026-12-20
+    When "Ana" resumes it on 2027-02-10
+    Then no occurrence exists between 2026-12-20 and 2027-02-10
+    And its next occurrence is 2027-02-16
+
+  Scenario: Viewers cannot define recurrences
+    Given "Sofi" is VIEWER of "Household"
+    When "Sofi" defines a recurring expense
+    Then the result is the error "InsufficientRole"
+```
+
+**Technical notes:**
+- Use cases: `DefineRecurrence`, `UpdateRecurrence`, `PauseRecurrence`, `ResumeRecurrence`, `EndRecurrence`.
+- The schedule reuses the `PeriodPolicy` anchor rules (MONTHLY(day) or SEMI_MONTHLY(day1, day2), 1–31, clamped); WEEKLY/BIWEEKLY follow HU-E8-09.
+- The template stores type (EXPENSE, INCOME, TRANSFER, fund contribution), amount, category, payer SpaceMember (or the fund), account (null for guests), split method and values; payment nullability rules from spec 5.2 apply.
+- If the paying member leaves the space, the recurrence is paused with reason `PayerLeft`.
+
+---
+
+## HU-E4-12 — Record due occurrences automatically
+
+- **Milestone:** M3 · **Priority:** Must · **Size:** M · **Depends on:** HU-E4-11, HU-E6-07, HU-E6-08 · **Module(s):** `ledger`, `budgeting`
+
+**User story:** As a household member, I want AUTO recurrences to be recorded on their date, so that the plan reflects fixed costs without anyone remembering to enter them.
+
+```gherkin
+Feature: Automatic occurrences
+
+  Background:
+    Given an AUTO recurrence "Rent" of 1,200,000 COP paid from "Household Fund" with schedule MONTHLY(1) from 2026-12-01 to 2027-01-31
+
+  @critical
+  Scenario: Occurrence is recorded on schedule
+    When the scheduler runs on 2026-12-01
+    Then an expense "Rent" of 1,200,000 COP dated 2026-12-01 is recorded and linked to the recurrence
+
+  Scenario: Running twice does not duplicate
+    Given the scheduler already recorded the 2026-12-01 occurrence
+    When the scheduler runs again on 2026-12-01
+    Then exactly one "Rent" expense exists for 2026-12-01
+
+  Scenario: Missed runs are caught up
+    Given the scheduler did not run between 2026-12-01 and 2026-12-03
+    When the scheduler runs on 2026-12-04
+    Then the "Rent" expense dated 2026-12-01 is recorded
+
+  @golden
+  Scenario: BY_ALLOCATION is resolved with the plan of each occurrence's period
+    Given an AUTO recurrence "Internet" of 120,000 COP in "Utilities" paid by "Juan" from "Davivienda" split "BY_ALLOCATION" with schedule MONTHLY(5)
+    And "Home" is allocated 40/60 in the 2026-12 plan and 50/50 in the 2027-01 plan
+    When the scheduler records the occurrences of 2026-12-05 and 2027-01-05
+    Then the 2026-12-05 shares are 48,000 COP for "Ana" and 72,000 COP for "Juan"
+    And the 2027-01-05 shares are 60,000 COP for "Ana" and 60,000 COP for "Juan"
+
+  Scenario: Closed period skips the occurrence
+    Given the plan for 2026-12 is CLOSED before the scheduler runs on 2026-12-01
+    When the scheduler runs
+    Then no expense is created and the skip is logged with reason "PeriodClosed"
+
+  Scenario: Recurrence stops after its end date
+    When the scheduler runs on 2027-02-01
+    Then no "Rent" expense is created for 2027-02-01
+```
+
+**Technical notes:**
+- Use case: `MaterializeDueOccurrences`; idempotency key = (recurrenceId, occurrenceDate).
+- Recorded through `RecordExpense` (or the matching use case per type), so all ledger invariants and default-split rules apply; shares are snapshots.
+- Runs behind a `Scheduler` port (adapter: in-container cron job) and uses `Clock`; catch-up processes every due date not yet materialized.
+
+---
+
+## HU-E4-13 — Confirm variable-amount occurrences
+
+- **Milestone:** M3 · **Priority:** Must · **Size:** S · **Depends on:** HU-E4-12 · **Module(s):** `ledger`
+
+**User story:** As a household member, I want recurrences with variable amounts (utilities) to wait for my confirmation, so that the real bill amount is recorded instead of an estimate.
+
+```gherkin
+Feature: Occurrences pending confirmation
+
+  Background:
+    Given a CONFIRM recurrence "Electricity" with estimated amount 180,000 COP in "Utilities" paid by "Ana" from "Bancolombia" split "BY_ALLOCATION" with schedule MONTHLY(10)
+    And "Home" is allocated 40/60 in the ACTIVE 2026-12 plan
+
+  Scenario: A pending occurrence is created instead of an expense
+    When the scheduler runs on 2026-12-10
+    Then a pending occurrence "Electricity" dated 2026-12-10 with suggested amount 180,000 COP exists
+    And no expense is recorded
+    And "Home" spent is unchanged
+
+  @critical
+  Scenario: Confirming records the actual amount
+    Given the pending occurrence "Electricity" dated 2026-12-10
+    When "Ana" confirms it with the amount 205,300 COP
+    Then an expense "Electricity" of 205,300 COP dated 2026-12-10 is recorded
+    And the shares are 82,120 COP for "Ana" and 123,180 COP for "Juan"
+
+  Scenario: Skipping an occurrence
+    Given the pending occurrence "Electricity" dated 2026-12-10
+    When "Ana" skips it
+    Then the occurrence is marked skipped and no expense is recorded
+    And the next occurrence is 2027-01-10
+
+  Scenario: Viewers cannot confirm
+    Given "Sofi" is VIEWER of "Household"
+    When "Sofi" confirms the pending occurrence "Electricity"
+    Then the result is the error "InsufficientRole"
+
+  Scenario: Confirming into a closed period is rejected
+    Given the 2026-12 plan was CLOSED while "Electricity" dated 2026-12-10 was still pending
+    When "Ana" confirms it with the amount 205,300 COP
+    Then the result is the error "PeriodClosed"
+```
+
+**Technical notes:**
+- Use cases: `ConfirmOccurrence`, `SkipOccurrence`; pending occurrences are not transactions and never count as spent.
+- Pending occurrences are listed for members with role MEMBER or above and may be shown on the line dashboard as "expected" (HU-E7-01).
+- Confirming reuses the recurrence template; only the amount (and optionally the date within the same period) can change.

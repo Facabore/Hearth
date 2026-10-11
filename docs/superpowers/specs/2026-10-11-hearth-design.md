@@ -115,6 +115,8 @@ The core insight: **a personal expense is a shared expense with one participant.
 
 **Share** — transactionId, memberId, amount, splitMethod snapshot (`EQUAL` | `PERCENT` | `EXACT` | `SHARES` | `BY_ALLOCATION`).
 
+**Recurrence** — id, spaceId, template (transaction type, amount or estimated amount, category, payer SpaceMember or fund, account, split method and values), schedule (same anchor rules as `PeriodPolicy`: MONTHLY(day) or SEMI_MONTHLY(day1, day2), clamped), mode (`AUTO` records the transaction on its date; `CONFIRM` creates a pending occurrence that a member confirms with the real amount or skips), startDate, endDate, pausedAt. Occurrences are idempotent per (recurrenceId, date); missed runs are caught up; occurrences in a CLOSED period are skipped. `BY_ALLOCATION` is resolved with the plan of each occurrence's period. Edits apply to future occurrences only.
+
 **CategoryGroup / Category** — two levels, per space, seeded from defaults, renamable and archivable (never hard-deleted while referenced).
 
 **BudgetPlan** — spaceId, label, startDate, endDate, status (`DRAFT` | `ACTIVE` | `CLOSED`), createdFrom (previous plan or template). One plan per period, so a semi-monthly space has two plans per month and capacities are per period. Boundaries are stored when the plan is created, so changing the period policy only affects periods without a plan yet; history never moves (D10). If a policy change would make a new period overlap an existing plan, the new period starts the day after that plan ends.
@@ -250,9 +252,9 @@ Work is tracked in `docs/backlog/` (epics and user stories with Gherkin acceptan
 | M0 Walking skeleton | Repo, architecture skeleton, CI, auth, personal space, deployed to VPS |
 | M1 Personal ledger | Accounts, categories, personal expenses and income, monthly view |
 | M2 Shared spaces | Invitations, shared expenses with split methods, balances, settlements |
-| M3 Allocated budgets | Plans, capacity, lines, allocations, default split by allocation, rollover |
+| M3 Allocated budgets | Plans, capacity, lines, allocations, default split by allocation, rollover, recurring transactions (auto and confirm) |
 | M4 Insight | Member/category dashboard, shared fund tracking, unified personal view |
-| M5 Hardening | Backups, observability, import from Splitwise/CSV, recurring transactions |
+| M5 Hardening | Backups, observability, import from Splitwise/CSV |
 
 ## 11. Open questions
 

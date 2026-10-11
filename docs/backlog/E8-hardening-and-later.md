@@ -83,41 +83,9 @@ Feature: Observability
 
 ---
 
-## HU-E8-03 — Recurring transactions
+## HU-E8-03 — Recurring transactions (moved)
 
-- **Milestone:** M5 · **Priority:** Could · **Size:** M · **Depends on:** HU-E4-07, HU-E6-07 · **Module(s):** `ledger`
-
-**User story:** As a household member, I want to define recurring expenses such as monthly rent, so that they are recorded automatically on schedule.
-
-```gherkin
-Feature: Recurring transactions
-
-  Background:
-    Given a recurring expense "Rent" of 1,200,000 COP paid from "Household Fund" on day 1 of every month starting 2026-12-01
-
-  Scenario: Occurrence is created on schedule
-    When the scheduler runs on 2026-12-01
-    Then an expense "Rent" of 1,200,000 COP dated 2026-12-01 is recorded with the recurrence's split
-
-  Scenario: Running twice does not duplicate
-    Given the scheduler already created the 2026-12-01 occurrence
-    When the scheduler runs again on 2026-12-01
-    Then exactly one "Rent" expense exists for 2026-12-01
-
-  Scenario: Recurrence stops after its end date
-    Given the recurrence ends on 2027-01-31
-    When the scheduler runs on 2027-02-01
-    Then no "Rent" expense is created
-
-  Scenario: Closed period skips the occurrence
-    Given the plan for 2026-12 is CLOSED before the scheduler runs on 2026-12-01
-    When the scheduler runs
-    Then no expense is created and the skip is logged with reason "PeriodClosed"
-```
-
-**Technical notes:**
-- Use cases: `CreateRecurrence`, `MaterializeDueOccurrences`; idempotency key = (recurrenceId, occurrenceDate).
-- Scheduler adapter behind a `Scheduler` port; uses `Clock`.
+Moved on 2026-10-11 to M3 and split into HU-E4-11, HU-E4-12 and HU-E4-13 in [E4-ledger.md](E4-ledger.md). This ID is retired and never reused.
 
 ---
 

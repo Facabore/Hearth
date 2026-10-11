@@ -31,6 +31,7 @@ Users **complement** each other: a shared expense is recorded once, by anyone, a
 | Personal budget | Same budgeting engine as groups, with one member: my capacity (what I have to spend this period), lines, rollover. | E6 (D2) |
 | Periods | Monthly with any cut-off day (1–31), or semi-monthly (quincena) with two anchor days. | HU-E0-04, HU-E1-03 |
 | Edit / delete | Soft delete with audit trail. | HU-E4-06 |
+| Recurring transactions | Rent, utilities, subscriptions or salary repeat on a monthly (cut-off day) or semi-monthly schedule. `AUTO` records them on their date; `CONFIRM` leaves a pending item for variable bills (e.g. electricity) until someone enters the real amount or skips it. Works in personal and shared spaces. | HU-E4-11..13 |
 
 **Example.** Ana uses Hearth alone: she records her salary (1,600,000), pays the market from Bancolombia (85,000) and moves 200,000 to savings. Her dashboard shows spending by category against her personal plan. No group needed.
 
@@ -157,7 +158,7 @@ One line per plan may be the **catch-all** (e.g. Free): any shared expense whose
 
 ## 7. Not in v1 (kept in backlog)
 
-Recurring transactions, CSV and Splitwise import, multi-currency, PWA/offline, notifications, weekly/biweekly periods, bank sync.
+CSV and Splitwise import, multi-currency, PWA/offline, notifications, weekly/biweekly periods, bank sync.
 
 ---
 
@@ -167,7 +168,7 @@ Recurring transactions, CSV and Splitwise import, multi-currency, PWA/offline, n
 |---|---|---|---|
 | G1 | ~~Splitting with one person without creating a group.~~ | | **Resolved 2026-10-11:** two-member `DIRECT` space created or reused on the first split with someone (D16). |
 | G2 | ~~Participants who do not use the app.~~ | | **Resolved 2026-10-11:** guest members scoped to one space, full participants, claimable by registering (D15). |
-| G3 | **Recurring transactions are in M5.** | Rent and utilities repeat every period; the household plan relies on them. | Move recurring transactions to M3, next to budgets. |
+| G3 | ~~Recurring transactions are in M5.~~ | | **Resolved 2026-10-11:** moved to M3 as HU-E4-11..13, with AUTO and CONFIRM modes. |
 | G4 | **Capacity is typed manually.** | Members already record income. | Suggest capacity from income recorded in the previous period; still editable. |
 | G5 | **No "equal + adjustment" or itemized split.** | Receipts with personal items mixed in (e.g. market with one person's toiletries). | Add an `ADJUSTMENT` method (equal split plus per-person extras) as Should in M2; itemized receipts later. |
 | G6 | **Personal budgets are implied, not explicit in stories.** | The engine supports them (D2), but every E6 story is written for a household. | Add one golden scenario of a personal plan to E6. |
