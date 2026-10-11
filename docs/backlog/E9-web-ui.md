@@ -8,6 +8,7 @@
 
 - **Parallel track (milestone M6):** an area's UI story may start as soon as the API stories it depends on are `Done`; it never waits for the whole M0–M5 sequence.
 - **Container-presentational:** containers load data and call server actions; presentational components receive DTOs and props only. Pages and server actions are thin wrappers over the same use cases as `/api/v1` (or call the API); no component touches the database.
+- **Design first:** every screen is designed with `/design` and reviewed by the owner before its UI story moves to `Ready`.
 - **Stack:** shadcn/ui + Tailwind CSS, atomic design for shared components, Recharts for charts, next-intl for `es` (default) and `en`.
 - **Errors and copy:** the API returns stable codes, never translated text; the UI translates every error code (`errors.<Code>`), warning code and reason code through i18n keys.
 - **Acceptance:** scenarios describe UI behaviour. `@e2e` scenarios run with Playwright + playwright-bdd against the running app and PostgreSQL; the others run as component or container tests. Amounts are written in backlog form (`1,200,000 COP`) and rendered per locale (HU-E9-02).

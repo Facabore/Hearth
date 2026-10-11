@@ -1,6 +1,6 @@
 # Hearth — Design Spec
 
-- **Status:** Draft for review
+- **Status:** Approved 2026-10-11 (living document: refined as delivery progresses)
 - **Date:** 2026-10-11
 - **Working name:** Hearth (rename freely)
 
