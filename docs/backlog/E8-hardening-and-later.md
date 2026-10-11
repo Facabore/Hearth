@@ -160,7 +160,7 @@ Feature: CSV import
 
 ## HU-E8-05 — Import from Splitwise
 
-- **Milestone:** M5 · **Priority:** Could · **Size:** M · **Depends on:** HU-E4-08, HU-E5-01 · **Module(s):** `ledger`
+- **Milestone:** M5 · **Priority:** Could · **Size:** M · **Depends on:** HU-E4-08, HU-E5-01, HU-E1-10 · **Module(s):** `ledger`
 
 **User story:** As a household moving from Splitwise, I want to import a group's export, so that our shared history and balances carry over.
 
@@ -191,6 +191,7 @@ Feature: Splitwise import
 **Technical notes:**
 - Use case: `ImportSplitwiseGroup`; adapter parses the Splitwise CSV export format.
 - Settlements in the export become `SETTLEMENT` transactions.
+- A Splitwise member may be mapped to an existing or new guest (HU-E1-10); payments imported for a guest carry no account.
 
 ---
 

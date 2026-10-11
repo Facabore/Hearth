@@ -83,6 +83,10 @@ A story is `Done` when:
 | [HU-E1-07](E1-identity-and-spaces.md) | Accept an invitation | E1 | M2 | Must | M | Backlog | HU-E1-06 |
 | [HU-E1-08](E1-identity-and-spaces.md) | Leave a space | E1 | M2 | Must | S | Backlog | HU-E1-07, HU-E5-01 |
 | [HU-E1-09](E1-identity-and-spaces.md) | Archive a space | E1 | M2 | Should | S | Backlog | HU-E1-05, HU-E5-01 |
+| [HU-E1-10](E1-identity-and-spaces.md) | Add a guest member to a space | E1 | M2 | Must | S | Backlog | HU-E1-05 |
+| [HU-E1-11](E1-identity-and-spaces.md) | Claim a guest place by registering | E1 | M2 | Must | M | Backlog | HU-E1-07, HU-E1-10, HU-E5-01 |
+| [HU-E1-12](E1-identity-and-spaces.md) | Remove a guest | E1 | M2 | Must | S | Backlog | HU-E1-10, HU-E5-01 |
+| [HU-E1-13](E1-identity-and-spaces.md) | Split with one person through a direct space | E1 | M2 | Must | M | Backlog | HU-E1-10, HU-E3-01, HU-E4-07 |
 | [HU-E2-01](E2-accounts.md) | Create a personal account with an opening balance | E2 | M1 | Must | S | Backlog | HU-E1-02 |
 | [HU-E2-02](E2-accounts.md) | Create a shared fund account | E2 | M2 | Must | S | Backlog | HU-E1-05, HU-E2-01 |
 | [HU-E2-03](E2-accounts.md) | Edit and archive an account | E2 | M1 | Must | S | Backlog | HU-E2-01 |
@@ -96,12 +100,12 @@ A story is `Done` when:
 | [HU-E4-04](E4-ledger.md) | Assign transactions to periods by period policy | E4 | M1 | Must | S | Backlog | HU-E1-03, HU-E4-01 |
 | [HU-E4-05](E4-ledger.md) | List and filter transactions | E4 | M1 | Must | M | Backlog | HU-E4-01, HU-E4-02, HU-E4-03, HU-E4-04 |
 | [HU-E4-06](E4-ledger.md) | Edit or delete a transaction with an audit trail | E4 | M1 | Must | M | Backlog | HU-E4-01 |
-| [HU-E4-07](E4-ledger.md) | Record a shared expense split equally | E4 | M2 | Must | M | Backlog | HU-E1-07, HU-E4-01 |
+| [HU-E4-07](E4-ledger.md) | Record a shared expense split equally | E4 | M2 | Must | M | Backlog | HU-E1-07, HU-E1-10, HU-E4-01 |
 | [HU-E4-08](E4-ledger.md) | Split by percentage, exact amounts or shares | E4 | M2 | Must | M | Backlog | HU-E4-07 |
 | [HU-E4-09](E4-ledger.md) | Contribute to the shared fund | E4 | M2 | Must | S | Backlog | HU-E2-02, HU-E4-03 |
 | [HU-E4-10](E4-ledger.md) | Record an expense paid from the shared fund | E4 | M2 | Must | S | Backlog | HU-E2-02, HU-E4-07, HU-E4-08 |
 | [HU-E5-01](E5-balances-and-settlements.md) | Compute who owes whom | E5 | M2 | Must | M | Backlog | HU-E4-07, HU-E4-10 |
-| [HU-E5-02](E5-balances-and-settlements.md) | Record a settlement | E5 | M2 | Must | M | Backlog | HU-E5-01 |
+| [HU-E5-02](E5-balances-and-settlements.md) | Record a settlement | E5 | M2 | Must | M | Backlog | HU-E5-01, HU-E1-10 |
 | [HU-E5-03](E5-balances-and-settlements.md) | Suggest simplified settlements | E5 | M2 | Should | M | Backlog | HU-E5-01 |
 | [HU-E5-04](E5-balances-and-settlements.md) | Show balance history per member | E5 | M2 | Should | S | Backlog | HU-E5-02 |
 | [HU-E6-01](E6-budgeting.md) | Create a plan for a period | E6 | M3 | Must | S | Backlog | HU-E1-05, HU-E0-04 |
@@ -122,13 +126,13 @@ A story is `Done` when:
 | [HU-E8-02](E8-hardening-and-later.md) | Structured logging and health check | E8 | M5 | Should | M | Backlog | HU-E0-07 |
 | [HU-E8-03](E8-hardening-and-later.md) | Recurring transactions | E8 | M5 | Could | M | Backlog | HU-E4-07, HU-E6-07 |
 | [HU-E8-04](E8-hardening-and-later.md) | Import transactions from CSV | E8 | M5 | Could | M | Backlog | HU-E4-01, HU-E4-02 |
-| [HU-E8-05](E8-hardening-and-later.md) | Import from Splitwise | E8 | M5 | Could | M | Backlog | HU-E4-08, HU-E5-01 |
+| [HU-E8-05](E8-hardening-and-later.md) | Import from Splitwise | E8 | M5 | Could | M | Backlog | HU-E4-08, HU-E5-01, HU-E1-10 |
 | [HU-E8-06](E8-hardening-and-later.md) | Multi-currency spaces | E8 | M5 | Won't-v1 | M | Backlog | HU-E0-03 |
 | [HU-E8-07](E8-hardening-and-later.md) | Installable PWA with offline read | E8 | M5 | Won't-v1 | M | Backlog | HU-E7-04 |
 | [HU-E8-08](E8-hardening-and-later.md) | Notifications | E8 | M5 | Won't-v1 | M | Backlog | HU-E1-07, HU-E5-02 |
 | [HU-E8-09](E8-hardening-and-later.md) | Weekly and biweekly period policies | E8 | M5 | Won't-v1 | S | Backlog | HU-E0-04, HU-E1-03 |
 
-**Totals:** 61 stories — E0: 8 · E1: 9 · E2: 4 · E3: 3 · E4: 10 · E5: 4 · E6: 9 · E7: 5 · E8: 9.
+**Totals:** 65 stories — E0: 8 · E1: 13 · E2: 4 · E3: 3 · E4: 10 · E5: 4 · E6: 9 · E7: 5 · E8: 9.
 
 ## Milestone map
 
@@ -136,7 +140,7 @@ A story is `Done` when:
 |---|---|---|
 | **M0** Walking skeleton | Repo, architecture skeleton, CI, auth, personal space, deployed to VPS | HU-E0-01 … HU-E0-08, HU-E1-01, HU-E1-02 |
 | **M1** Personal ledger | Accounts, categories, personal expenses and income, monthly view | HU-E1-03, HU-E2-01, HU-E2-03, HU-E2-04, HU-E3-01 … HU-E3-03, HU-E4-01 … HU-E4-06 |
-| **M2** Shared spaces | Invitations, shared expenses with split methods, balances, settlements | HU-E1-04 … HU-E1-09, HU-E2-02, HU-E4-07 … HU-E4-10, HU-E5-01 … HU-E5-04 |
+| **M2** Shared spaces | Invitations, shared expenses with split methods, balances, settlements | HU-E1-04 … HU-E1-13, HU-E2-02, HU-E4-07 … HU-E4-10, HU-E5-01 … HU-E5-04 |
 | **M3** Allocated budgets | Plans, capacity, lines, allocations, default split by allocation, rollover | HU-E6-01 … HU-E6-09 |
 | **M4** Insight | Member/category dashboard, shared fund tracking, unified personal view | HU-E7-01 … HU-E7-05 |
 | **M5** Hardening | Backups, observability, import from Splitwise/CSV, recurring transactions | HU-E8-01 … HU-E8-09 (HU-E8-06 … HU-E8-09 are Won't-v1 placeholders) |
@@ -144,6 +148,8 @@ A story is `Done` when:
 Notes on placement:
 
 - HU-E2-02 (shared fund account) belongs to epic E2 but ships in M2, because shared spaces first exist in M2.
+- HU-E1-13 (direct spaces) lives in E1 because creating and reusing the space belongs to `spaces`; it reuses the shared-expense flow of HU-E4-07.
+- The unified-view assertions of HU-E1-11 (M2) become testable once HU-E7-04 (M4) lands.
 - The closed-period scenario of HU-E4-06 (M1) activates once HU-E6-07 (M3) provides the `ClosedPeriodGuard` adapter.
 
 ## Open questions affecting the backlog

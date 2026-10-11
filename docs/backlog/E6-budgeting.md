@@ -84,7 +84,7 @@ Feature: Member capacities
     Then the result is the error "InvalidCapacity"
 
   Scenario: Capacity for a non-member is rejected
-    When "Ana" sets a capacity for "Pedro" who is not a member
+    When "Ana" sets a capacity for "Marta" who is neither a registered member nor a guest of "Household"
     Then the result is the error "NotASpaceMember"
 
   Scenario: Reducing capacity below planned lines shows negative unallocated capacity
@@ -97,6 +97,7 @@ Feature: Member capacities
 **Technical notes:**
 - Use case: `SetMemberCapacities`.
 - A member without an explicit capacity counts as 0 COP.
+- Capacities and allocations reference `memberId` (SpaceMember), so guests can hold capacity and be assigned budget lines like registered members (spec D15).
 - Changing capacities re-derives every PROPORTIONAL assignment (computed on read).
 
 ---

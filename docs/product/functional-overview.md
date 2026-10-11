@@ -45,6 +45,11 @@ Users **complement** each other: a shared expense is recorded once, by anyone, a
 | Roles | OWNER, ADMIN, MEMBER, VIEWER (permission matrix in HU-E1-05). | HU-E1-05 |
 | Leave / archive | Blocked while the member's balance is not zero. | HU-E1-08/09 |
 | Shared fund account | Optional common pot owned by the space (e.g. "Household Fund"). | HU-E2-02 |
+| Guest members | Add someone who does not use the app (name, optional email). They exist only in that space and take part in every flow: pay, owe, capacity, allocation, settlements. They cannot sign in. | E1 (D15) |
+| Claim a guest place | Send the guest an invitation; when they register (or sign in), their guest place becomes their account in that space, keeping all history. | E1 (D15) |
+| Split with one person | "I paid dinner with Pedro" creates (or reuses) a two-member direct space "Ana & Pedro"; Pedro can be a guest or a registered user. | E1/E4 (D16) |
+
+**Guest example.** Ana adds guest "Pedro" to a trip space and records a 300,000 hotel paid by Pedro, split equally among Ana, Juan and Pedro. Pedro's payment has no account (it happened outside the app); Ana and Juan each owe Pedro 100,000. If Pedro later registers through his invitation, he sees exactly that history in his own unified view.
 
 **Privacy rule (D9).** When Ana pays a shared expense from her personal Bancolombia account, Juan sees "paid by Ana" — never her account name or balance.
 
@@ -160,8 +165,8 @@ Recurring transactions, CSV and Splitwise import, multi-currency, PWA/offline, n
 
 | # | Gap | Why it matters | Proposal |
 |---|---|---|---|
-| G1 | **Splitting with one person without creating a group.** Today every split needs a shared space. | Splitwise-style "I paid dinner with Pedro" is very common. | Auto-create a lightweight two-person space on the first split with someone (hidden from the space list until used). |
-| G2 | **Participants who do not use the app.** Members must be registered users. | A roommate or relative may never sign up. | Guest members (name only) who can be split with and later claim their account by invitation. |
+| G1 | ~~Splitting with one person without creating a group.~~ | | **Resolved 2026-10-11:** two-member `DIRECT` space created or reused on the first split with someone (D16). |
+| G2 | ~~Participants who do not use the app.~~ | | **Resolved 2026-10-11:** guest members scoped to one space, full participants, claimable by registering (D15). |
 | G3 | **Recurring transactions are in M5.** | Rent and utilities repeat every period; the household plan relies on them. | Move recurring transactions to M3, next to budgets. |
 | G4 | **Capacity is typed manually.** | Members already record income. | Suggest capacity from income recorded in the previous period; still editable. |
 | G5 | **No "equal + adjustment" or itemized split.** | Receipts with personal items mixed in (e.g. market with one person's toiletries). | Add an `ADJUSTMENT` method (equal split plus per-person extras) as Should in M2; itemized receipts later. |

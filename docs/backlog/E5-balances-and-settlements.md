@@ -4,7 +4,7 @@
 
 **Modules involved:** `balances` (read model), `ledger` (settlement transactions).
 
-**Balance rule:** for each member m in a shared space, `net(m)` = Σ payments by m − Σ shares of m over non-deleted, member-paid expenses, plus settlements paid by m, minus settlements received by m. Positive means m is owed money. Fund-paid expenses and fund contributions create no debt (D5).
+**Balance rule:** for each member m in a shared or direct space, registered or guest, `net(m)` = Σ payments by m − Σ shares of m over non-deleted, member-paid expenses, plus settlements paid by m, minus settlements received by m. Positive means m is owed money. Fund-paid expenses and fund contributions create no debt (D5).
 
 ---
 
@@ -44,22 +44,22 @@ Feature: Balances in a shared space
     Then all net balances are 0 COP
 
   Scenario: Non-members cannot view balances
-    Given "Pedro" is not a member of "Household"
-    When "Pedro" requests the balances of "Household"
+    Given "Marta" is neither a registered member nor a guest of "Household"
+    When "Marta" requests the balances of "Household"
     Then the result is the error "NotASpaceMember"
 ```
 
 **Technical notes:**
 - Query: `GetSpaceBalances` returning `net(m)` per member and pairwise debts (for two members, pairwise equals net).
 - Pure domain service `BalanceCalculator`; SQL aggregate adapter verified against the in-memory one with the same fixtures.
-- Invariant: Σ net(m) over all members = 0.
+- Invariant: Σ net(m) over all members, guests included, = 0. Balances key on `memberId` (SpaceMember), never on a user id.
 - Public query `GetMemberNetBalance` consumed by `spaces` (HU-E1-08, HU-E1-09).
 
 ---
 
 ## HU-E5-02 — Record a settlement
 
-- **Milestone:** M2 · **Priority:** Must · **Size:** M · **Depends on:** HU-E5-01 · **Module(s):** `ledger`, `balances`
+- **Milestone:** M2 · **Priority:** Must · **Size:** M · **Depends on:** HU-E5-01, HU-E1-10 · **Module(s):** `ledger`, `balances`
 
 **User story:** As a member who owes money, I want to record a payment to another member, so that our balance reflects that we settled up.
 
@@ -90,11 +90,18 @@ Feature: Settlements
   Scenario: A member cannot settle with themselves
     When "Juan" records a settlement of 100,000 COP paid to "Juan"
     Then the result is the error "InvalidSettlementParties"
+
+  Scenario: A member records a settlement paid by a guest
+    Given the guest "Pedro" owes "Ana" 100,000 COP in "Household"
+    When "Ana" records a settlement of 100,000 COP paid by the guest "Pedro" to "Ana" with no source account
+    Then a transaction of type "SETTLEMENT" from "Pedro" to "Ana" exists with createdBy "Ana"
+    And the net balance between "Pedro" and "Ana" is 0 COP
 ```
 
 **Technical notes:**
 - Use case: `RecordSettlement` (ledger); balances read it.
-- Invariants: amount > 0; both parties current members; payer ≠ payee; accounts optional and, when set, owned by the respective party.
+- Invariants: amount > 0; both parties current members, registered or guest; payer ≠ payee; accounts optional and, when set, owned by the respective party; a guest party never has an account.
+- Any MEMBER or above may record a settlement on a guest's behalf (spec D15).
 
 ---
 

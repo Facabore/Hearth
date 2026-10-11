@@ -6,6 +6,8 @@
 
 **Shared invariant for all expenses:** Σ payments = Σ shares = amount (error `SharesDoNotMatchAmount`).
 
+**Payers and participants:** every payment and share references a `SpaceMember` (`memberId`), registered or guest (spec 5.2, D15). Guests are current members of their space, can pay and take part like anyone else, and have no accounts.
+
 ---
 
 ## HU-E4-01 — Record a personal expense
@@ -207,7 +209,7 @@ Feature: Monthly transaction list
 ```
 
 **Technical notes:**
-- Query: `ListTransactions` with filters `period`, `categoryIds`, `payerUserId`, `participantUserId`, `type`; cursor pagination.
+- Query: `ListTransactions` with filters `period`, `categoryIds`, `payerMemberId`, `participantMemberId`, `type`; cursor pagination. Member filters take `SpaceMember` ids, so guests can be filtered too.
 - Filter input validated with Zod at the edge; authorization by membership.
 - This list is the M1 "monthly view".
 - The member-filter scenario becomes testable in M2, once shared spaces exist (HU-E4-07).
@@ -259,9 +261,9 @@ Feature: Edit and soft delete with audit
 
 ## HU-E4-07 — Record a shared expense split equally
 
-- **Milestone:** M2 · **Priority:** Must · **Size:** M · **Depends on:** HU-E1-07, HU-E4-01 · **Module(s):** `ledger`
+- **Milestone:** M2 · **Priority:** Must · **Size:** M · **Depends on:** HU-E1-07, HU-E1-10, HU-E4-01 · **Module(s):** `ledger`
 
-**User story:** As a household member, I want to record an expense I paid and split it equally among chosen members, so that the debt is computed without manual math.
+**User story:** As a household member, I want to record an expense paid by me or by another member, including a guest, and split it equally among chosen members, so that the debt is computed without manual math.
 
 ```gherkin
 Feature: Shared expense with equal split
@@ -285,9 +287,16 @@ Feature: Shared expense with equal split
     When "Ana" records an expense of 80,000 COP paid by "Ana" split "EQUAL" with only "Juan" as participant
     Then "Juan" has a share of 80,000 COP and "Ana" has no share
 
-  Scenario: Participant must be a current member
-    Given "Pedro" is not a member of "Household"
-    When "Ana" records an expense split with "Pedro"
+  Scenario: A guest pays without an account
+    Given the guest "Pedro" is a member of "Household"
+    When "Ana" records a "Taxi" expense of 90,000 COP paid by "Pedro" split "EQUAL" among "Ana", "Juan" and "Pedro"
+    Then the payment is 90,000 COP by "Pedro" with no account
+    And the shares are 30,000 COP each for "Ana", "Juan" and "Pedro"
+    And the transaction's createdBy is "Ana"
+
+  Scenario: Participant must be a current member of the space
+    Given "Marta" is neither a registered member nor a guest of "Household"
+    When "Ana" records an expense split with "Marta"
     Then the result is the error "NotASpaceMember"
 
   Scenario: At least one participant is required
@@ -299,7 +308,8 @@ Feature: Shared expense with equal split
 - Use case: `RecordExpense` with a `SplitCalculator` domain service (strategy per split method).
 - v1 UI supports one payer; the domain accepts several payments.
 - `BY_ALLOCATION` is delivered in HU-E6-08.
-- Payer pays from their own personal account; allowed by the space ownership rule (spec D9).
+- A registered payer pays from their own personal account; allowed by the space ownership rule (spec D9).
+- Payment nullability (spec 5.2): `accountId` is null if and only if the payer is a guest. A registered payer without an account is rejected with `AccountRequired`; a guest payment with an account is rejected with `GuestHasNoAccounts`. Any MEMBER or above may record an expense paid by a guest (spec D15).
 
 ---
 
@@ -418,5 +428,5 @@ Feature: Expense paid from the shared fund
 
 **Technical notes:**
 - Use case: `RecordExpense` with a fund payment source.
-- Fund payments store `memberUserId = null`; it is null if and only if the account is a `SHARED_FUND` (spec 5.2).
+- Fund payments store `memberId = null` and the fund's `accountId`. Per spec 5.2, `memberId` is null if and only if the account is a `SHARED_FUND`, and `accountId` is null if and only if the payer is a guest, so every payment has at least one of the two.
 - Shares still drive consumption in reporting (HU-E7-04).

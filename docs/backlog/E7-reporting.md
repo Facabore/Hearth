@@ -196,7 +196,7 @@ Feature: Unified personal view
 ```
 
 **Technical notes:**
-- Query: `GetUnifiedPersonalView(userId, period)`; only spaces where u is or was a member.
+- Query: `GetUnifiedPersonalView(userId, period)`; only spaces where u is or was a member, through the `SpaceMember` rows linked to u. A claimed guest place (HU-E1-11) contributes its full history, including shares recorded before the claim.
 - consumption = Σ shares of u; cash out = Σ payments by u + Σ fund contributions by u + Σ savings transfers by u (spec 5.4).
 - Seeded categories share a catalog key across spaces; custom categories group under "space / category".
 - Shared transactions are placed by date into the viewer's personal-space period; grouping uses the category catalog key (spec D11).

@@ -75,7 +75,7 @@ The core insight: **a personal expense is a shared expense with one participant.
 | Module | Responsibility | Key entities |
 |---|---|---|
 | `identity` | Users, authentication, sessions | User |
-| `spaces` | Personal and shared spaces, membership, roles, invitations | Space, Membership, Invitation |
+| `spaces` | Personal, shared and direct spaces; members (registered or guest), roles, invitations, guest claims | Space, SpaceMember, Invitation |
 | `accounts` | Where money lives | Account |
 | `ledger` | Expenses, incomes, transfers, settlements | Transaction, Payment, Share |
 | `categories` | Customizable hierarchical categories per space | CategoryGroup, Category |
@@ -87,14 +87,20 @@ The core insight: **a personal expense is a shared expense with one participant.
 
 **User** — id, name, email, locale, timezone.
 
-**Space** — id, name, kind (`PERSONAL` | `SHARED`), currency, periodPolicy, archivedAt. Every user gets exactly one personal space on sign-up.
+**Space** — id, name, kind (`PERSONAL` | `SHARED` | `DIRECT`), currency, periodPolicy, archivedAt. Every user gets exactly one personal space on sign-up. A `DIRECT` space (D16) has exactly two members, is created implicitly the first time a user splits with one specific person, is named after both ("Ana & Pedro"), and is reused for later splits with that person. The other person is either a registered user the creator already shares a space with, or a new guest (who can later claim). Both members of a direct space are OWNER. If a guest in a direct space claims and the two users already had another direct space, both are kept (merging is deferred).
 
 **PeriodPolicy** (value object, D14) — cadence + anchor days, chosen per space:
 - `MONTHLY(day)`: one period per month starting on `day` (1–31), like a statement cut-off date. If a month is shorter, the period starts on its last day (day 31 → 28/29 Feb, 30 Apr).
 - `SEMI_MONTHLY(day1, day2)`: two periods per month starting on `day1` and `day2` (1 ≤ day1 < day2 ≤ 31, same clamping). Default anchors 1 and 16; any pair is allowed (e.g. 5 and 20).
 - Default: `MONTHLY(1)`. `WEEKLY` and `BIWEEKLY` are deferred (Won't-v1) but the value object is open to them.
 
-**Membership** — spaceId, userId, role (`OWNER` | `ADMIN` | `MEMBER` | `VIEWER`), joinedAt, leftAt.
+**SpaceMember** (D15) — id, spaceId, kind (`USER` | `GUEST`), userId (null for guests), displayName, contactEmail (optional, guests only), role (`OWNER` | `ADMIN` | `MEMBER` | `VIEWER`; guests have no role and cannot sign in), joinedAt, leftAt, claimedAt.
+- Every money reference (payments, shares, capacities, allocations, settlements, balances) points to a **SpaceMember**, never directly to a User. Guests therefore take part in every flow exactly like registered members.
+- A guest exists only inside its space: "Pedro" in Household and "Pedro" in a trip space are two unrelated guests.
+- Any member with role `MEMBER` or above can add a guest, record expenses and settlements on a guest's behalf, and remove a guest whose balance is zero.
+- Guests never join `PERSONAL` spaces.
+- Guests have no accounts, so their money movements have no account: a guest payment, settlement or fund contribution is recorded with `accountId = null` ("outside the app"). Guests have no income or personal finances; their capacity is entered manually like anyone's.
+- **Claim:** an OWNER or ADMIN can create a claim link for a guest (shareable, not bound to `contactEmail`). Accepting it while signed in (new or existing account) sets `userId`, switches `kind` to `USER` with role `MEMBER`, and keeps the same SpaceMember id, so all history stays attached. A user who is already a member of that space cannot claim another guest in it. Claims are per space.
 
 **Account** — id, spaceId, name, type (`CASH` | `BANK` | `CREDIT_CARD` | `SAVINGS` | `SHARED_FUND`), ownerUserId (null for shared accounts), openingBalance, archivedAt. A personal account belongs to the user's personal space; a `SHARED_FUND` account belongs to a shared space.
 
@@ -105,19 +111,19 @@ The core insight: **a personal expense is a shared expense with one participant.
 - `TRANSFER`: source account → destination account. A transfer from a personal account to a `SHARED_FUND` account is a **fund contribution**.
 - `SETTLEMENT`: member A pays member B to clear balance; optional accounts.
 
-**Payment** — transactionId, accountId, memberUserId (nullable), amount. `memberUserId` is null if and only if the account is a `SHARED_FUND`; otherwise it equals the account owner.
+**Payment** — transactionId, memberId (nullable), accountId (nullable), amount. `memberId` is null if and only if the payment comes from a `SHARED_FUND` account. `accountId` is null if and only if the payer is a guest (guests have no accounts; the money left their pocket outside the app). For registered payers, the account must be owned by that member's user.
 
-**Share** — transactionId, memberUserId, amount, splitMethod snapshot (`EQUAL` | `PERCENT` | `EXACT` | `SHARES` | `BY_ALLOCATION`).
+**Share** — transactionId, memberId, amount, splitMethod snapshot (`EQUAL` | `PERCENT` | `EXACT` | `SHARES` | `BY_ALLOCATION`).
 
 **CategoryGroup / Category** — two levels, per space, seeded from defaults, renamable and archivable (never hard-deleted while referenced).
 
 **BudgetPlan** — spaceId, label, startDate, endDate, status (`DRAFT` | `ACTIVE` | `CLOSED`), createdFrom (previous plan or template). One plan per period, so a semi-monthly space has two plans per month and capacities are per period. Boundaries are stored when the plan is created, so changing the period policy only affects periods without a plan yet; history never moves (D10). If a policy change would make a new period overlap an existing plan, the new period starts the day after that plan ends.
 
-**MemberCapacity** — planId, memberUserId, amount. Sum = total capacity.
+**MemberCapacity** — planId, memberId, amount. Sum = total capacity.
 
 **BudgetLine** — planId, originLineId (the line it was copied from, for rollover), name, plannedAmount, funding (`DIRECT` | `SHARED_FUND` | `SAVINGS`), savingsAccountIds[] (only for `SAVINGS`), rolloverMode (`RESET` | `ROLLOVER` | `ADJUSTED`), isCatchAll, categoryIds[]. A category maps to at most one line per plan. At most one line per plan is the catch-all; unmapped categories consume it. Without a catch-all line, unmapped categories fall into an implicit "Unbudgeted" line. Adding or editing a line that would push Σ plannedAmount above total capacity is rejected; a plan whose capacity was later reduced below Σ plannedAmount cannot be activated.
 
-**Allocation** — lineId, memberUserId, rule (`PROPORTIONAL` | `PERCENT` | `FIXED`), value. One rule per line, or none: a line without allocation rows has rule `NONE`. Assigned amount per member is derived.
+**Allocation** — lineId, memberId, rule (`PROPORTIONAL` | `PERCENT` | `FIXED`), value. One rule per line, or none: a line without allocation rows has rule `NONE`. Assigned amount per member is derived.
 
 ### 5.3 Periods, money and rounding
 
@@ -149,12 +155,12 @@ For a line L, member m, period P:
 
 Fund level, per period: `expectedFundContribution(m)` = Σ assigned(m) over SHARED_FUND lines; `actualFundContribution(m)` = Σ fund-contribution transfers by m.
 
-Unified personal view for user u (D11):
+Unified personal view for user u (D11). It works through every SpaceMember row linked to u, including history recorded while u was a guest before claiming:
 
 - **Period:** u's personal-space period; shared transactions are placed by date into it.
 - **Grouping:** by category catalog key. Categories seeded from the default catalog carry a stable `key` shared across spaces; custom categories group under "space / category".
 - **Consumption:** personal-space expenses + u's shares in every shared space.
-- **Cash out:** Σ payments by u + Σ fund contributions by u + Σ savings transfers by u.
+- **Cash out:** Σ payments by u + Σ fund contributions by u + Σ savings transfers by u. Movements without an account (recorded while u was a guest) are included and labelled "outside the app".
 
 ## 6. Key decisions
 
@@ -174,6 +180,8 @@ Unified personal view for user u (D11):
 | D12 | Allocation rules are group-size agnostic (proportional, percent, fixed) and one rule per line | Works for couples, roommates or larger groups without special cases | Rules tied to a fixed number of members |
 | D13 | Allocation is optional per line, and a plan may designate one catch-all line | Some group money (e.g. Free) is shared without per-person responsibility and absorbs whatever does not fit elsewhere | Mandatory allocation; implicit Unbudgeted bucket only |
 | D14 | Period policy is selectable per space: monthly with any cut-off day (1–31, clamped) or semi-monthly with two anchor days | Households budget around paydays (cut-off date, quincena), not only calendar months | Fixed calendar months; start day limited to 1–28 |
+| D15 | Guest members scoped to one space; all money references point to SpaceMember; guests can claim their place by registering | Not everyone will sign up; guests must still pay, owe and be budgeted like anyone else, and history must survive registration | Requiring registration; global contacts shared across spaces |
+| D16 | Splitting with one person creates or reuses a two-member `DIRECT` space | Keeps one ledger model (D2) while supporting quick one-to-one splits | A separate "friend balance" model outside spaces |
 
 ## 7. Architecture
 
@@ -221,7 +229,7 @@ Exact versions are pinned at bootstrap (story E0) to the latest stable releases.
 
 ## 8. Error handling
 
-- Domain errors are typed (`InvalidAllocation`, `SharesDoNotMatchAmount`, `NotASpaceMember`, `PeriodClosed`, ...) and returned via `Result`, never thrown across layers.
+- Domain errors are typed (`InvalidAllocation`, `SharesDoNotMatchAmount`, `NotASpaceMember`, `PeriodClosed`, `InsufficientRole`, `OutstandingBalance`, `AlreadyMember`, `MemberNameTaken`, `DirectSpaceIsFull`, `GuestAlreadyClaimed`, ...; the backlog is the full catalogue) and returned via `Result`, never thrown across layers.
 - Authorization is checked in application use cases (membership + role), not only in UI.
 - Unexpected errors are logged with request id and surfaced as a generic message.
 
@@ -252,4 +260,4 @@ Work is tracked in `docs/backlog/` (epics and user stories with Gherkin acceptan
 2. ~~Period start day~~ — **Resolved 2026-10-11:** selectable per space via `PeriodPolicy` (monthly with cut-off day, or semi-monthly); default `MONTHLY(1)` (D14).
 3. ~~Reference example percentages~~ — **Resolved 2026-10-11:** 42/58 is a custom percentage allocation for the Free line (see section 4 and D12).
 
-Roles, invitation rules and the default category seed are specified in the backlog (HU-E1-05, HU-E1-06, HU-E3-01) and are pending owner confirmation.
+Roles (guests have no role), invitation and claim rules, and the default category seed are specified in the backlog (HU-E1-05, HU-E1-06, HU-E1-10..13, HU-E3-01) and are pending owner confirmation.

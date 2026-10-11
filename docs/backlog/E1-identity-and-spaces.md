@@ -1,8 +1,10 @@
 # E1 — Identity and spaces
 
-**Goal:** users can authenticate, always own a personal space, and create shared spaces where membership and roles govern every action.
+**Goal:** users can authenticate, always own a personal space, and create shared and direct spaces whose members — registered users or guests — take part in every money flow, while roles govern every action.
 
-**Modules involved:** `identity`, `spaces` (with read access to `balances` for leave/archive guards).
+**Modules involved:** `identity`, `spaces` (with read access to `balances` for leave, archive and guest-removal guards; delegates to `ledger` for one-to-one splits).
+
+**Members (spec 5.2, D15):** every space has `SpaceMember` rows of kind `USER` (linked to a user, with a role) or `GUEST` (no user, no role, cannot sign in, no accounts, no personal space). Guests are current members of their space and exist only there.
 
 ---
 
@@ -87,6 +89,7 @@ Feature: Personal space on sign up
 - Invariant: exactly one PERSONAL space per user; one member; role OWNER.
 - New spaces get the default period policy `MONTHLY(1)` (spec D14); the owner can change it later (HU-E1-03).
 - Triggers default category seeding (HU-E3-01).
+- Guests cannot be added to a personal space either (HU-E1-10); one-to-one splits use a DIRECT space (HU-E1-13).
 
 ---
 
@@ -190,26 +193,31 @@ Feature: Role-based authorization in use cases
 
   Background:
     Given the shared space "Household" with OWNER "Ana", ADMIN "Juan", MEMBER "Luis" and VIEWER "Sofi"
+    And the guest "Pedro" is a member of "Household"
 
   Scenario Outline: Permissions per role
     When "<user>" attempts to "<action>"
     Then the outcome is "<outcome>"
 
     Examples:
-      | user | action                         | outcome          |
-      | Ana  | archive the space              | allowed          |
-      | Juan | archive the space              | InsufficientRole |
-      | Juan | invite a member                | allowed          |
-      | Luis | invite a member                | InsufficientRole |
-      | Luis | record an expense              | allowed          |
-      | Sofi | record an expense              | InsufficientRole |
-      | Luis | edit an expense created by Ana | InsufficientRole |
-      | Juan | edit an expense created by Ana | allowed          |
-      | Sofi | view balances                  | allowed          |
+      | user | action                          | outcome          |
+      | Ana  | archive the space               | allowed          |
+      | Juan | archive the space               | InsufficientRole |
+      | Juan | invite a member                 | allowed          |
+      | Luis | invite a member                 | InsufficientRole |
+      | Luis | record an expense               | allowed          |
+      | Sofi | record an expense               | InsufficientRole |
+      | Luis | edit an expense created by Ana  | InsufficientRole |
+      | Juan | edit an expense created by Ana  | allowed          |
+      | Sofi | view balances                   | allowed          |
+      | Luis | add a guest                     | allowed          |
+      | Sofi | add a guest                     | InsufficientRole |
+      | Luis | record an expense paid by Pedro | allowed          |
+      | Sofi | record a settlement for Pedro   | InsufficientRole |
 
   Scenario: Non-members are rejected
-    Given "Pedro" is not a member of "Household"
-    When "Pedro" requests the transactions of "Household"
+    Given "Marta" is neither a registered member nor a guest of "Household"
+    When "Marta" requests the transactions of "Household"
     Then the result is the error "NotASpaceMember"
 
   Scenario: Owner changes a member's role
@@ -226,6 +234,7 @@ Feature: Role-based authorization in use cases
 - Use cases: `ChangeMemberRole`; shared `AuthorizeSpaceAction` application service used by every use case.
 - Permission matrix lives in the `spaces` domain as a pure policy; it is pending owner confirmation (see docs/product/functional-overview.md).
 - Authorization is checked in use cases, never only in UI (spec section 8).
+- Guests have no role and cannot sign in, so they never act themselves; any member with role MEMBER or above can add a guest, record expenses and settlements on a guest's behalf, and remove a guest whose balance is zero (spec D15). `createdBy` is always the acting registered user.
 
 ---
 
@@ -316,7 +325,7 @@ Feature: Accept invitation
 **Technical notes:**
 - Use case: `AcceptInvitation`; uses `Clock` for expiry.
 - Email invitations are single-use; link invitations remain valid until expiry or revocation.
-- A former member (leftAt set) who accepts again gets a new membership row.
+- A former member (leftAt set) who accepts again gets a new `SpaceMember` row.
 
 ---
 
@@ -332,7 +341,7 @@ Feature: Leave a space
   Scenario: Member with a zero balance leaves
     Given "Luis" is MEMBER of "Household" with a net balance of 0 COP
     When "Luis" leaves "Household"
-    Then his membership has leftAt set
+    Then his SpaceMember row has leftAt set
     And past expenses still show "Luis" as payer or participant
 
   Scenario: Member with a non-zero balance cannot leave
@@ -340,6 +349,12 @@ Feature: Leave a space
     When "Juan" leaves "Household"
     Then the result is the error "OutstandingBalance"
     And the error states the amount 150,000 COP
+
+  Scenario: Money owed by a guest also blocks leaving
+    Given the guest "Pedro" owes "Luis" 50,000 COP in "Household"
+    When "Luis" leaves "Household"
+    Then the result is the error "OutstandingBalance"
+    And the error states the amount 50,000 COP
 
   Scenario: The last owner cannot leave
     Given "Ana" is the only OWNER of "Household"
@@ -354,6 +369,7 @@ Feature: Leave a space
 **Technical notes:**
 - Use case: `LeaveSpace`; reads net balance through the `balances` public query `GetMemberNetBalance`.
 - Former members cannot be selected as payer or participant on new transactions.
+- The net balance includes debts with guests, who count like any other member; guests never leave themselves but are removed by a member (HU-E1-12).
 
 ---
 
@@ -367,7 +383,7 @@ Feature: Leave a space
 Feature: Archive a space
 
   Scenario: Owner archives a settled space
-    Given every member of "Trip 2026" has a net balance of 0 COP
+    Given every member of "Trip 2026", including the guest "Pedro", has a net balance of 0 COP
     When the OWNER archives "Trip 2026"
     Then the space has archivedAt set
     And it is listed under archived spaces
@@ -382,6 +398,11 @@ Feature: Archive a space
     When "Ana" archives "Household"
     Then the result is the error "OutstandingBalance"
 
+  Scenario: A guest's outstanding balance also blocks archiving
+    Given the guest "Pedro" owes "Ana" 100,000 COP in "Trip 2026" and every other balance is settled
+    When the OWNER archives "Trip 2026"
+    Then the result is the error "OutstandingBalance"
+
   Scenario: A personal space cannot be archived
     When "Ana" archives her personal space
     Then the result is the error "PersonalSpaceNotArchivable"
@@ -390,3 +411,220 @@ Feature: Archive a space
 **Technical notes:**
 - Use case: `ArchiveSpace` (OWNER only).
 - Every write use case checks `space.archivedAt` via a shared guard.
+- The zero-balance check covers every current member, registered or guest; it applies to SHARED and DIRECT spaces alike.
+
+---
+
+## HU-E1-10 — Add a guest member to a space
+
+- **Milestone:** M2 · **Priority:** Must · **Size:** S · **Depends on:** HU-E1-05 · **Module(s):** `spaces`
+
+**User story:** As a space member, I want to add someone who has no account as a guest, so that they can pay, owe and be budgeted in our space without signing up.
+
+```gherkin
+Feature: Guest members
+
+  Background:
+    Given the shared space "Household" with OWNER "Ana", MEMBER "Luis" and VIEWER "Sofi"
+
+  Scenario: Member adds a guest with a name
+    When "Luis" adds the guest "Pedro" with contact email "pedro@example.com" to "Household"
+    Then "Household" has a member "Pedro" of kind "GUEST" with no user and no role
+    And the member "Pedro" has joinedAt set
+
+  Scenario: Guest is offered as payer and participant
+    Given the guest "Pedro" is a member of "Household"
+    When "Ana" opens the new expense form in "Household"
+    Then "Pedro (guest)" is offered as a payer option next to "Ana" and "Luis"
+    And "Pedro (guest)" is offered as a participant option
+
+  Scenario: Viewer cannot add guests
+    When "Sofi" adds the guest "Pedro" to "Household"
+    Then the result is the error "InsufficientRole"
+
+  Scenario: Display name must be unique among current members of the space
+    Given the guest "Pedro" is a member of "Household"
+    When "Luis" adds the guest "pedro" to "Household"
+    Then the result is the error "MemberNameTaken"
+
+  Scenario: A guest cannot sign in and has no personal space
+    Given "Luis" added the guest "Pedro" with contact email "pedro@example.com"
+    When a visitor signs in with the email "pedro@example.com" and any password
+    Then sign in fails with the message key "auth.invalidCredentials"
+    And no user and no personal space exist for "Pedro"
+
+  Scenario: Guests cannot be added to a personal space
+    When "Ana" adds the guest "Pedro" to her personal space
+    Then the result is the error "PersonalSpaceNotShareable"
+```
+
+**Technical notes:**
+- Use case: `AddGuestMember` (role MEMBER or above, spec D15).
+- `SpaceMember` invariants: kind `GUEST` ⇔ `userId` null ⇔ `role` null; `contactEmail` is optional and only allowed for guests; `displayName` is unique per space among current members of both kinds, compared case-insensitively.
+- A guest is scoped to one space: the same name in another space is an unrelated `SpaceMember`.
+- Guests have no accounts, so their payments carry `accountId` null (HU-E4-07); rounding ties use join order, guests included (spec 5.3).
+
+---
+
+## HU-E1-11 — Claim a guest place by registering
+
+- **Milestone:** M2 · **Priority:** Must · **Size:** M · **Depends on:** HU-E1-07, HU-E1-10, HU-E5-01 · **Module(s):** `spaces`, `identity`
+
+**User story:** As a person added as a guest, I want to claim my place in the space by signing up or signing in, so that I see my history and balances without anyone re-entering them.
+
+```gherkin
+Feature: Claim a guest place
+
+  Background:
+    Given the shared space "Household" with OWNER "Ana", MEMBER "Juan" and the guest "Pedro"
+    And "Ana" recorded on 2026-10-08 a "Hotel" expense of 300,000 COP paid by "Pedro" split "EQUAL" among "Ana", "Juan" and "Pedro"
+    And "Ana" created a claim link for "Pedro"
+
+  @critical
+  Scenario: New user registers through the claim link and keeps the history
+    Given a visitor opens the claim link without an account
+    When the visitor signs up as "pedro@example.com" and accepts the claim
+    Then the member "Pedro" keeps the same id, has kind "USER", role "MEMBER" and claimedAt set
+    And the "Hotel" expense still shows "Pedro" as payer of 300,000 COP
+    And "Ana" owes "Pedro" 100,000 COP and "Juan" owes "Pedro" 100,000 COP
+    And the unified view of "Pedro" for 2026-10 includes his 100,000 COP "Hotel" share
+
+  Scenario: An existing account claims the place
+    Given "Pedro" is signed in as "pedro@example.com" and is not a member of "Household"
+    When "Pedro" accepts the claim link
+    Then the member "Pedro" of "Household" is linked to his user with role "MEMBER"
+    And "Pedro" still has exactly one personal space
+
+  Scenario: A user who is already a member cannot claim a guest
+    Given "Juan" is signed in
+    When "Juan" accepts the claim link for "Pedro"
+    Then the result is the error "AlreadyMember"
+    And "Pedro" remains a guest of "Household"
+
+  Scenario Outline: Unusable claim links are rejected
+    Given the claim link <state>
+    When a signed-in user who is not a member of "Household" accepts it
+    Then the result is the error "<error>"
+
+    Examples:
+      | state                  | error               |
+      | was created 8 days ago | InvitationExpired   |
+      | was already used       | GuestAlreadyClaimed |
+      | was revoked            | InvitationRevoked   |
+
+  Scenario: A claim affects only its own space
+    Given the space "Trip 2026" also has a guest named "Pedro"
+    When "Pedro" claims his place in "Household"
+    Then the guest "Pedro" in "Trip 2026" still has no user
+    And the unified view of "Pedro" includes no shares from "Trip 2026"
+```
+
+**Technical notes:**
+- Use cases: `CreateGuestClaim` (OWNER or ADMIN, like HU-E1-06), `ClaimGuestPlace`; a claim is an `Invitation` bound to a `guestMemberId`, single use, valid 7 days, token hashed.
+- Claiming sets `userId`, `kind = USER`, `role = MEMBER` and `claimedAt` on the existing `SpaceMember`; no money row is rewritten, because every reference already points to that member id (spec D15).
+- Sign-up through a claim link creates the personal space first (HU-E1-02), then applies the claim in the same flow. Claim links are bearer links, not bound to the guest's `contactEmail`.
+- The unified-view assertions become testable in M4 with HU-E7-04; until then the scenarios check the member's shares through the ledger.
+
+---
+
+## HU-E1-12 — Remove a guest
+
+- **Milestone:** M2 · **Priority:** Must · **Size:** S · **Depends on:** HU-E1-10, HU-E5-01 · **Module(s):** `spaces`, `balances`
+
+**User story:** As a space member, I want to remove a guest who no longer takes part, so that they stop appearing in new expenses without losing past records.
+
+```gherkin
+Feature: Remove a guest
+
+  Background:
+    Given the shared space "Household" with OWNER "Ana", MEMBER "Luis", VIEWER "Sofi" and the guest "Pedro"
+
+  Scenario: Guest with a zero balance is removed
+    Given "Pedro" has a net balance of 0 COP in "Household"
+    When "Luis" removes the guest "Pedro"
+    Then the member "Pedro" has leftAt set
+    And "Pedro" is no longer offered as payer or participant
+
+  Scenario: Guest with a non-zero balance cannot be removed
+    Given "Pedro" owes "Ana" 100,000 COP in "Household"
+    When "Ana" removes the guest "Pedro"
+    Then the result is the error "OutstandingBalance"
+    And the error states the amount 100,000 COP
+
+  Scenario: History keeps the guest's name
+    Given "Pedro" took part in a "Hotel" expense of 300,000 COP with a share of 100,000 COP and later settled it
+    When "Ana" removes the guest "Pedro"
+    Then the "Hotel" expense still lists "Pedro (guest)" with a share of 100,000 COP
+
+  Scenario: Viewer cannot remove a guest
+    When "Sofi" removes the guest "Pedro"
+    Then the result is the error "InsufficientRole"
+
+  Scenario: Registered members are not removed as guests
+    When "Ana" removes "Luis" as a guest
+    Then the result is the error "NotAGuest"
+```
+
+**Technical notes:**
+- Use case: `RemoveGuestMember` (role MEMBER or above, spec D15); reads the net balance through `GetMemberNetBalance` (HU-E5-01).
+- Removal is soft: `leftAt` is set and the row is kept, so payments, shares and settlements still resolve the guest's `displayName`.
+- Pending claim links for the removed guest are revoked; the display name becomes free for a new member of the space.
+
+---
+
+## HU-E1-13 — Split with one person through a direct space
+
+- **Milestone:** M2 · **Priority:** Must · **Size:** M · **Depends on:** HU-E1-10, HU-E3-01, HU-E4-07 · **Module(s):** `spaces`, `ledger`
+
+**User story:** As a user, I want to split an expense with one specific person without setting up a group, so that one-to-one debts follow the same rules as any shared space.
+
+```gherkin
+Feature: Direct spaces
+
+  Background:
+    Given "Ana" is signed in with the account "Bancolombia"
+
+  @critical
+  Scenario: First split with a guest creates a direct space
+    Given "Ana" has no direct space with "Pedro"
+    When "Ana" records a "Dinner" expense of 120,000 COP paid from "Bancolombia" split "EQUAL" with the new guest "Pedro"
+    Then a space of kind "DIRECT" named "Ana & Pedro" exists with exactly 2 members, "Ana" and the guest "Pedro"
+    And the expense belongs to "Ana & Pedro" with shares of 60,000 COP for "Ana" and 60,000 COP for "Pedro"
+    And "Pedro" owes "Ana" 60,000 COP
+
+  Scenario: Later splits with the same person reuse the direct space
+    Given the direct space "Ana & Pedro" where "Pedro" owes "Ana" 60,000 COP
+    When "Ana" records a "Taxi" expense of 40,000 COP split "EQUAL" with "Pedro"
+    Then no new space is created
+    And "Pedro" owes "Ana" 80,000 COP in "Ana & Pedro"
+
+  Scenario Outline: A direct space cannot get a third member
+    Given the direct space "Ana & Pedro"
+    When "Ana" <action> in "Ana & Pedro"
+    Then the result is the error "DirectSpaceIsFull"
+
+    Examples:
+      | action                     |
+      | adds the guest "Luis"      |
+      | invites "juan@example.com" |
+
+  Scenario: Direct space with a registered user
+    Given "Ana" and "Juan" are both members of "Household" and have no direct space together
+    When "Ana" records a "Lunch" expense of 90,000 COP paid from "Bancolombia" split "EQUAL" with "Juan"
+    Then a space of kind "DIRECT" named "Ana & Juan" exists with the registered members "Ana" and "Juan"
+    And "Juan" owes "Ana" 45,000 COP in "Ana & Juan"
+    And a later split recorded by "Juan" with "Ana" reuses "Ana & Juan"
+
+  Scenario: Direct spaces use the default period policy and need no budget plan
+    Given the direct space "Ana & Pedro" was just created
+    When "Ana" opens its settings
+    Then its period policy is MONTHLY(1) and it has no budget plan
+    And a new expense in "Ana & Pedro" defaults to the split "EQUAL" between "Ana" and "Pedro"
+```
+
+**Technical notes:**
+- Use case: `SplitWithPerson` resolves or creates the DIRECT space (`spaces`) and delegates to `RecordExpense` (`ledger`) in one database transaction; placed in E1 because space creation, reuse and the two-member invariant belong to `spaces`.
+- Invariant: a DIRECT space has exactly two current members; `AddGuestMember` and `CreateInvitation` reject a third with `DirectSpaceIsFull`. Both registered members hold the role OWNER; a guest has no role.
+- Reuse key: one DIRECT space per unordered pair of registered users (unique index); with a guest counterpart, the person is identified by the existing direct space's guest, so choosing that guest reuses it.
+- A registered counterpart is picked among people the user already shares a space with, so no user lookup by email is exposed.
+- Currency comes from the creator's personal space; default categories are seeded (HU-E3-01).
