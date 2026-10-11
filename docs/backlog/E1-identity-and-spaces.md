@@ -53,7 +53,7 @@ Feature: Email and password authentication
 
 ## HU-E1-02 — Personal space created on sign up
 
-- **Milestone:** M0 · **Priority:** Must · **Size:** S · **Depends on:** HU-E1-01 · **Module(s):** `spaces`, `identity` · **Note:** Blocked by open question #2 (default `periodStartDay`; scenarios use the spec default of 1)
+- **Milestone:** M0 · **Priority:** Must · **Size:** S · **Depends on:** HU-E1-01 · **Module(s):** `spaces`, `identity`
 
 **User story:** As a new user, I want a personal space created automatically when I sign up, so that I can start recording my own expenses immediately.
 
@@ -63,7 +63,7 @@ Feature: Personal space on sign up
   Scenario: Personal space is created atomically with the user
     When "Ana" signs up
     Then exactly one space of kind "PERSONAL" exists for "Ana"
-    And its currency is "COP" and its periodStartDay is 1
+    And its currency is "COP" and its period policy is MONTHLY(1)
     And "Ana" holds the role "OWNER" in it
 
   Scenario: Failure to create the space rolls back the user
@@ -85,33 +85,48 @@ Feature: Personal space on sign up
 **Technical notes:**
 - Use case: `CreatePersonalSpace`, triggered inside the same transaction as `SignUp` (or via a `UserSignedUp` domain event handled synchronously).
 - Invariant: exactly one PERSONAL space per user; one member; role OWNER.
+- New spaces get the default period policy `MONTHLY(1)` (spec D14); the owner can change it later (HU-E1-03).
 - Triggers default category seeding (HU-E3-01).
 
 ---
 
-## HU-E1-03 — Configure space settings
+## HU-E1-03 — Configure space settings and period policy
 
-- **Milestone:** M1 · **Priority:** Must · **Size:** S · **Depends on:** HU-E1-02, HU-E0-04 · **Module(s):** `spaces` · **Note:** Blocked by open question #2 (default value only)
+- **Milestone:** M1 · **Priority:** Must · **Size:** S · **Depends on:** HU-E1-02, HU-E0-04 · **Module(s):** `spaces`
 
-**User story:** As a space owner, I want to rename my space and set the day each period starts, so that monthly figures align with how my household is paid.
+**User story:** As a space owner, I want to rename my space and choose its period policy (a monthly cut-off day or two semi-monthly anchor days), so that period figures align with how my household is paid.
 
 ```gherkin
 Feature: Space settings
 
-  Scenario: Owner sets the period start day to the 25th
-    Given "Ana" is OWNER of the space "Household" with periodStartDay 1
-    When "Ana" sets periodStartDay to 25
-    Then the space periodStartDay is 25
-    And an expense dated 2026-10-24 belongs to the period 2026-09-25 to 2026-10-24
+  Scenario: Owner switches to a monthly cut-off on the 25th
+    Given "Ana" is OWNER of the space "Household" with the period policy MONTHLY(1) and no plans
+    When "Ana" sets the period policy to MONTHLY(25)
+    Then the space period policy is MONTHLY(25)
+    And an expense dated 2026-10-24 belongs to the period "2026-10" from 2026-09-25 to 2026-10-24
 
-  Scenario Outline: Out-of-range start day is rejected
-    When "Ana" sets periodStartDay to <day>
-    Then the result is the error "InvalidPeriodStartDay"
+  Scenario: Owner switches to semi-monthly periods on the 5th and 20th
+    Given "Ana" is OWNER of the space "Household" with the period policy MONTHLY(1) and no plans
+    When "Ana" sets the period policy to SEMI_MONTHLY(5, 20)
+    Then an expense dated 2026-11-03 belongs to the period "2026-10 H2" from 2026-10-20 to 2026-11-04
+    And an expense dated 2026-11-25 belongs to the period "2026-11 H2" from 2026-11-20 to 2026-12-04
+
+  Scenario Outline: Invalid period policy is rejected
+    When "Ana" sets the period policy to <policy>
+    Then the result is the error "InvalidPeriodPolicy"
 
     Examples:
-      | day |
-      | 0   |
-      | 29  |
+      | policy              |
+      | MONTHLY(0)          |
+      | MONTHLY(32)         |
+      | SEMI_MONTHLY(20, 5) |
+
+  Scenario: Changing the policy does not move a period that already has a plan
+    Given "Household" has the period policy MONTHLY(1) and a plan "2026-11" from 2026-11-01 to 2026-11-30
+    When "Ana" sets the period policy to MONTHLY(25)
+    Then the plan "2026-11" still runs from 2026-11-01 to 2026-11-30
+    And the next period "2026-12" runs from 2026-12-01 to 2026-12-24
+    And the period after it "2027-01" runs from 2026-12-25 to 2027-01-24
 
   Scenario: Member without admin rights cannot change settings
     Given "Juan" is MEMBER of "Household"
@@ -126,7 +141,8 @@ Feature: Space settings
 
 **Technical notes:**
 - Use case: `UpdateSpaceSettings` (OWNER or ADMIN).
-- Changing `periodStartDay` only affects periods without a plan; plan boundaries are stored, so history never moves (spec D10).
+- Changing the `periodPolicy` only affects periods without a plan; plan boundaries are stored, so history never moves (spec D10, D14).
+- Overlap rule: if a period derived with the new policy overlaps an existing plan, it starts the day after that plan ends and keeps its natural end (the day before the next anchor date) and label; later periods follow the new policy unchanged.
 - One currency per space (D6).
 
 ---
@@ -208,7 +224,7 @@ Feature: Role-based authorization in use cases
 
 **Technical notes:**
 - Use cases: `ChangeMemberRole`; shared `AuthorizeSpaceAction` application service used by every use case.
-- Permission matrix lives in the `spaces` domain as a pure policy; it is an assumption to confirm (see backlog report).
+- Permission matrix lives in the `spaces` domain as a pure policy; it is pending owner confirmation (see docs/product/functional-overview.md).
 - Authorization is checked in use cases, never only in UI (spec section 8).
 
 ---

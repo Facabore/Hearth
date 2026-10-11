@@ -269,3 +269,30 @@ Feature: Notifications
 
 **Technical notes:**
 - `Notifier` port fed by domain events (`ExpenseRecorded`, `SettlementRecorded`); reuses the `EmailSender` adapter.
+
+---
+
+## HU-E8-09 — Weekly and biweekly period policies
+
+- **Milestone:** M5 · **Priority:** Won't-v1 · **Size:** S · **Depends on:** HU-E0-04, HU-E1-03 · **Module(s):** `shared/kernel`, `spaces`
+
+**User story:** As a household paid every week or every two weeks, I want weekly or biweekly periods, so that budgets follow our actual pay cycle.
+
+```gherkin
+Feature: Weekly and biweekly period policies
+
+  Scenario: Weekly periods start on the chosen weekday
+    Given a space with the period policy WEEKLY(MONDAY)
+    When the period is derived for the date 2026-11-10
+    Then the period runs from 2026-11-09 to 2026-11-15
+    And its label is "2026-W46"
+
+  Scenario: Biweekly periods repeat every 14 days from the anchor date
+    Given a space with the period policy BIWEEKLY(2026-11-06)
+    When the period is derived for the date 2026-11-25
+    Then the period runs from 2026-11-20 to 2026-12-03
+```
+
+**Technical notes:**
+- Deferred by spec 5.2 and D14; kept so the `PeriodPolicy` union (HU-E0-04) stays open to new cadences.
+- Weekly labels use ISO week numbering; plan boundaries remain stored, so switching to these cadences follows the same overlap rule as HU-E1-03.

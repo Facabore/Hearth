@@ -6,7 +6,7 @@
 
 All figures are computed on read (D7) and exclude soft-deleted transactions.
 
-**Shared fixture for this epic:** shared space "Household", ACTIVE reference plan for 2026-11 (see E6), periodStartDay 1. Category mappings: "Rent" → Rent; "Groceries", "Utilities" → Home; "Entertainment" → Free; "Restaurants" unmapped.
+**Shared fixture for this epic:** shared space "Household", ACTIVE reference plan for 2026-11 (see E6), period policy MONTHLY(1). Category mappings: "Rent" → Rent; "Groceries", "Utilities" → Home; "Entertainment" → Free; "Restaurants" unmapped.
 
 ---
 
@@ -189,10 +189,10 @@ Feature: Unified personal view
     Then the 90,000 COP expense of "Juan" is not included
 
   Scenario: Shared expenses are placed in the viewer's personal period
-    Given "Ana"'s personal space has periodStartDay 1 and "Household" has periodStartDay 25
+    Given "Ana"'s personal space has the period policy MONTHLY(1) and "Household" has MONTHLY(25)
     And a "Household" expense with Ana's share 100,000 COP is dated 2026-11-26
     When "Ana" opens her unified view for 2026-11
-    Then the 100,000 COP share is included, because 2026-11-26 falls in her personal period 2026-11-01 to 2026-11-30
+    Then the 100,000 COP share is included, because 2026-11-26 falls in her personal period 2026-11-01 to 2026-11-30, even though "Household" counts it in its period "2026-12" from 2026-11-25 to 2026-12-24
 ```
 
 **Technical notes:**
@@ -203,32 +203,40 @@ Feature: Unified personal view
 
 ---
 
-## HU-E7-05 — Month-over-month trend
+## HU-E7-05 — Period-over-period trend
 
 - **Milestone:** M4 · **Priority:** Should · **Size:** S · **Depends on:** HU-E7-01, HU-E7-04 · **Module(s):** `reporting`
 
-**User story:** As a household member, I want to compare spending month over month per line and for my own consumption, so that I can spot trends early.
+**User story:** As a household member, I want to compare spending period over period per line and for my own consumption, so that I can spot trends early.
 
 ```gherkin
-Feature: Month-over-month trend
+Feature: Period-over-period trend
 
-  Scenario: Line change versus the previous month
-    Given "Home" spent 1,350,000 COP in 2026-10 and 1,300,000 COP in 2026-11
+  Scenario: Line change versus the previous period
+    Given "Home" spent 1,350,000 COP in the period 2026-10 and 1,300,000 COP in the period 2026-11
     When "Ana" opens the trend for "Household" ending 2026-11
     Then "Home" shows a change of -50,000 COP (-3.70%)
 
-  Scenario: Six-month personal consumption series
-    Given "Ana" had consumption in each month from 2026-06 to 2026-11
-    When "Ana" opens her personal trend ending 2026-11
-    Then a series of 6 monthly consumption values from 2026-06 to 2026-11 is shown
+  Scenario: Semi-monthly periods compare with the previous half-month
+    Given the space "Casa" has the period policy SEMI_MONTHLY(1, 16)
+    And "Home" spent 400,000 COP in "2026-10 H2", 500,000 COP in "2026-11 H1" and 450,000 COP in "2026-11 H2"
+    When "Ana" opens the trend for "Casa" ending "2026-11 H2"
+    Then "2026-11 H2" shows a change of -50,000 COP (-10.00%) versus "2026-11 H1"
+    And "2026-11 H1" shows a change of 100,000 COP (25.00%) versus "2026-10 H2"
 
-  Scenario: Line without a previous month
+  Scenario: Six-period personal consumption series
+    Given "Ana"'s personal space has the period policy MONTHLY(1) and she had consumption in each period from 2026-06 to 2026-11
+    When "Ana" opens her personal trend ending 2026-11
+    Then a series of 6 consumption values from 2026-06 to 2026-11 is shown
+
+  Scenario: Line without a previous period
     Given the line "Pets" exists only in the 2026-11 plan with spent 80,000 COP
     When "Ana" opens the trend ending 2026-11
     Then "Pets" shows "new" instead of a percentage change
 ```
 
 **Technical notes:**
-- Queries: `GetLineTrend(spaceId, endPeriod, months)`, `GetPersonalTrend(userId, endPeriod, months)`.
+- Queries: `GetLineTrend(spaceId, endPeriod, periods)`, `GetPersonalTrend(userId, endPeriod, periods)`.
+- Each period is compared with the previous period of the same policy, not the calendar month (spec 5.3): for `SEMI_MONTHLY`, H2 compares with H1 of the same month and H1 with the previous month's H2.
 - Percent change with two decimals; division by zero rendered as "new".
-- Recharts line chart; default window 6 months.
+- Recharts line chart; default window 6 periods.

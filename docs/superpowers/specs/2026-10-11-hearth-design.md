@@ -24,7 +24,7 @@ A self-hosted, multi-user web application that unifies:
 
 ### Success criteria
 
-- A household can define a monthly plan like the reference example (section 4) in under 5 minutes, reusing last month's plan.
+- A household can define a monthly plan like the reference example (section 4) in under 5 minutes, reusing the previous period's plan.
 - Recording a shared expense charges the right budget line and produces the correct inter-member balance without manual calculation.
 - Each member sees, per category and per month: assigned, contributed, consumed, and the gap.
 - Each member sees one unified personal view: personal expenses plus their share of every shared expense.
@@ -87,7 +87,12 @@ The core insight: **a personal expense is a shared expense with one participant.
 
 **User** — id, name, email, locale, timezone.
 
-**Space** — id, name, kind (`PERSONAL` | `SHARED`), currency, periodStartDay (1–28, default 1), archivedAt. Every user gets exactly one personal space on sign-up.
+**Space** — id, name, kind (`PERSONAL` | `SHARED`), currency, periodPolicy, archivedAt. Every user gets exactly one personal space on sign-up.
+
+**PeriodPolicy** (value object, D14) — cadence + anchor days, chosen per space:
+- `MONTHLY(day)`: one period per month starting on `day` (1–31), like a statement cut-off date. If a month is shorter, the period starts on its last day (day 31 → 28/29 Feb, 30 Apr).
+- `SEMI_MONTHLY(day1, day2)`: two periods per month starting on `day1` and `day2` (1 ≤ day1 < day2 ≤ 31, same clamping). Default anchors 1 and 16; any pair is allowed (e.g. 5 and 20).
+- Default: `MONTHLY(1)`. `WEEKLY` and `BIWEEKLY` are deferred (Won't-v1) but the value object is open to them.
 
 **Membership** — spaceId, userId, role (`OWNER` | `ADMIN` | `MEMBER` | `VIEWER`), joinedAt, leftAt.
 
@@ -106,7 +111,7 @@ The core insight: **a personal expense is a shared expense with one participant.
 
 **CategoryGroup / Category** — two levels, per space, seeded from defaults, renamable and archivable (never hard-deleted while referenced).
 
-**BudgetPlan** — spaceId, label (year-month), startDate, endDate, status (`DRAFT` | `ACTIVE` | `CLOSED`), createdFrom (previous plan or template). Boundaries are stored when the plan is created, so changing `periodStartDay` only affects periods without a plan yet; history never moves (D10).
+**BudgetPlan** — spaceId, label, startDate, endDate, status (`DRAFT` | `ACTIVE` | `CLOSED`), createdFrom (previous plan or template). One plan per period, so a semi-monthly space has two plans per month and capacities are per period. Boundaries are stored when the plan is created, so changing the period policy only affects periods without a plan yet; history never moves (D10). If a policy change would make a new period overlap an existing plan, the new period starts the day after that plan ends.
 
 **MemberCapacity** — planId, memberUserId, amount. Sum = total capacity.
 
@@ -116,7 +121,10 @@ The core insight: **a personal expense is a shared expense with one participant.
 
 ### 5.3 Periods, money and rounding
 
-- **Period label:** a period is named after the month that contains most of its days. With `periodStartDay` ≤ 15 that is the start month; otherwise it is the following month (25 Sep – 24 Oct is "October").
+- **Period label:**
+  - `MONTHLY`: named after the month that contains most of its days. With an anchor day ≤ 15 that is the start month; otherwise it is the following month (25 Sep – 24 Oct is "2026-10").
+  - `SEMI_MONTHLY`: named after the start date's month plus the half: "2026-11 H1" (starts on day1) and "2026-11 H2" (starts on day2).
+- **Comparisons and trends** compare a period with the previous period of the same policy, not with the calendar month.
 - **Money:** stored in ISO 4217 minor units. Each currency also has a *rounding unit* for splits and allocations (COP: 1 peso = 100 minor units), so amounts never show cents.
 - **Rounding:** splits and allocations use largest-remainder rounding in rounding units; ties go to members in membership join order. Σ parts always equals the total exactly.
 - **Default split:** expenses that resolve (by mapping or catch-all) to an allocated line of an `ACTIVE` plan default to `BY_ALLOCATION`; all other expenses, including those in `NONE` lines, default to `EQUAL` among active members. `DRAFT` plans never drive splits. The member can always override the split.
@@ -165,6 +173,7 @@ Unified personal view for user u (D11):
 | D11 | Unified view uses the personal period and a shared category catalog key | Spaces can differ in period and categories; the user needs one consistent picture | Per-space views only |
 | D12 | Allocation rules are group-size agnostic (proportional, percent, fixed) and one rule per line | Works for couples, roommates or larger groups without special cases | Rules tied to a fixed number of members |
 | D13 | Allocation is optional per line, and a plan may designate one catch-all line | Some group money (e.g. Free) is shared without per-person responsibility and absorbs whatever does not fit elsewhere | Mandatory allocation; implicit Unbudgeted bucket only |
+| D14 | Period policy is selectable per space: monthly with any cut-off day (1–31, clamped) or semi-monthly with two anchor days | Households budget around paydays (cut-off date, quincena), not only calendar months | Fixed calendar months; start day limited to 1–28 |
 
 ## 7. Architecture
 
@@ -240,7 +249,7 @@ Work is tracked in `docs/backlog/` (epics and user stories with Gherkin acceptan
 ## 11. Open questions
 
 1. ~~Where is "Free" money spent?~~ — **Resolved 2026-10-11:** Free is a shared-space catch-all line with optional allocation (section 4, D13). Personal views pick up members' shares automatically; personal-only expenses never affect the group.
-2. Should a period start on a payday (e.g. the 25th) instead of the 1st? The model supports `periodStartDay`; confirm the default.
+2. ~~Period start day~~ — **Resolved 2026-10-11:** selectable per space via `PeriodPolicy` (monthly with cut-off day, or semi-monthly); default `MONTHLY(1)` (D14).
 3. ~~Reference example percentages~~ — **Resolved 2026-10-11:** 42/58 is a custom percentage allocation for the Free line (see section 4 and D12).
 
 Roles, invitation rules and the default category seed are specified in the backlog (HU-E1-05, HU-E1-06, HU-E3-01) and are pending owner confirmation.

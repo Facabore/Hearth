@@ -1,10 +1,10 @@
 # E6 — Budgeting
 
-**Goal:** a household defines a monthly plan — member capacities, budget lines, category mappings and allocation rules — that drives default expense splits and carries over according to each line's rollover mode.
+**Goal:** a household defines a plan per period (one per month by default) — member capacities, budget lines, category mappings and allocation rules — that drives default expense splits and carries over according to each line's rollover mode.
 
 **Modules involved:** `budgeting` (with read access to `spaces`, `categories`, `ledger`; provides split defaults to `ledger`).
 
-**Reference example (golden fixture, spec section 4):** shared space "Household", members Ana and Juan, period 2026-11 (periodStartDay 1).
+**Reference example (golden fixture, spec section 4):** shared space "Household", members Ana and Juan, period 2026-11 (period policy MONTHLY(1)).
 
 | Line | Planned | Funding | Allocation | Ana | Juan |
 |---|---|---|---|---|---|
@@ -17,14 +17,14 @@ Capacities: Ana 1,600,000 COP, Juan 2,400,000 COP, total 4,000,000 COP (40% / 60
 
 ---
 
-## HU-E6-01 — Create a monthly plan
+## HU-E6-01 — Create a plan for a period
 
 - **Milestone:** M3 · **Priority:** Must · **Size:** S · **Depends on:** HU-E1-05, HU-E0-04 · **Module(s):** `budgeting`
 
-**User story:** As a household admin, I want to create a plan for a given month, so that we can budget that period.
+**User story:** As a household admin, I want to create a plan for a given period of my space's period policy, so that we can budget that period.
 
 ```gherkin
-Feature: Create a monthly plan
+Feature: Create a period plan
 
   Background:
     Given "Ana" is OWNER and "Juan" is MEMBER of the shared space "Household"
@@ -46,11 +46,18 @@ Feature: Create a monthly plan
   Scenario: Personal spaces can also have plans
     When "Ana" creates a plan for 2026-11 in her personal space
     Then a plan with status "DRAFT" exists with "Ana" as its only member
+
+  Scenario: A semi-monthly space gets two plans per month
+    Given "Household" has the period policy SEMI_MONTHLY(1, 16)
+    When "Ana" creates plans for "2026-11 H1" and "2026-11 H2"
+    Then the plan "2026-11 H1" runs from 2026-11-01 to 2026-11-15
+    And the plan "2026-11 H2" runs from 2026-11-16 to 2026-11-30
+    And each plan has its own member capacities
 ```
 
 **Technical notes:**
 - Use case: `CreateBudgetPlan`; port `BudgetPlanRepository`.
-- Invariant: unique (spaceId, period); period resolved with the space `periodStartDay`.
+- Invariant: unique (spaceId, startDate); the period is resolved with the space `periodPolicy`, and its label, startDate and endDate are stored on the plan at creation (spec 5.2, D10).
 
 ---
 
@@ -253,11 +260,11 @@ Feature: Line allocation rules
 
 ---
 
-## HU-E6-06 — Copy a plan from the previous month
+## HU-E6-06 — Copy a plan from the previous period
 
 - **Milestone:** M3 · **Priority:** Must · **Size:** M · **Depends on:** HU-E6-04, HU-E6-05 · **Module(s):** `budgeting`
 
-**User story:** As a household admin, I want to start a month by copying last month's plan, so that monthly budgeting takes minutes instead of starting from scratch.
+**User story:** As a household admin, I want to start a period by copying the previous period's plan, so that budgeting each period takes minutes instead of starting from scratch.
 
 ```gherkin
 Feature: Copy previous plan
@@ -266,7 +273,7 @@ Feature: Copy previous plan
     Given the reference plan for 2026-11 in "Household" with its capacities, lines, mappings and allocations
 
   @critical
-  Scenario: Copy into the next month
+  Scenario: Copy into the next period
     When "Ana" creates the plan for 2026-12 by copying the previous plan
     Then the 2026-12 plan has status "DRAFT" and createdFrom set to the 2026-11 plan
     And it has capacities "Ana" 1,600,000 COP and "Juan" 2,400,000 COP
@@ -290,7 +297,7 @@ Feature: Copy previous plan
 ```
 
 **Technical notes:**
-- Use case: `CopyBudgetPlan`.
+- Use case: `CopyBudgetPlan`; the source is the plan of the previous period of the same policy (for `SEMI_MONTHLY`, "2026-11 H2" copies from "2026-11 H1" and "2026-12 H1" from "2026-11 H2"), never simply the previous calendar month.
 - Copy is a deep clone with new ids; former members and archived categories excluded.
 - Supports success criterion "plan in under 5 minutes".
 
@@ -343,7 +350,7 @@ Feature: Plan lifecycle
 **Technical notes:**
 - Use cases: `ActivateBudgetPlan`, `CloseBudgetPlan`.
 - State machine: DRAFT → ACTIVE → CLOSED; no reopening in v1.
-- Provides the `PeriodPolicy` adapter used by `ledger` (HU-E4-06).
+- Provides the `ClosedPeriodGuard` adapter used by `ledger` (HU-E4-06).
 
 ---
 

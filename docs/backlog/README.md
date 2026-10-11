@@ -69,14 +69,14 @@ A story is `Done` when:
 | [HU-E0-01](E0-foundations.md) | Bootstrap the repository with pinned stable versions | E0 | M0 | Must | S | Backlog | — |
 | [HU-E0-02](E0-foundations.md) | Hexagonal module skeleton with boundary lint | E0 | M0 | Must | M | Backlog | HU-E0-01 |
 | [HU-E0-03](E0-foundations.md) | Money value object | E0 | M0 | Must | S | Backlog | HU-E0-02 |
-| [HU-E0-04](E0-foundations.md) | Period, Result, Id and Clock kernel types | E0 | M0 | Must | M | Backlog | HU-E0-02 |
+| [HU-E0-04](E0-foundations.md) | PeriodPolicy, Result, Id and Clock kernel types | E0 | M0 | Must | M | Backlog | HU-E0-02 |
 | [HU-E0-05](E0-foundations.md) | PostgreSQL access with Drizzle, migrations and Testcontainers | E0 | M0 | Must | M | Backlog | HU-E0-02 |
 | [HU-E0-06](E0-foundations.md) | Continuous integration pipeline | E0 | M0 | Must | S | Backlog | HU-E0-02, HU-E0-05 |
 | [HU-E0-07](E0-foundations.md) | Deploy to the VPS with Docker Compose and Caddy | E0 | M0 | Must | M | Backlog | HU-E0-06 |
 | [HU-E0-08](E0-foundations.md) | Internationalization setup (es, en) | E0 | M0 | Must | S | Backlog | HU-E0-01 |
 | [HU-E1-01](E1-identity-and-spaces.md) | Sign up, sign in and sign out | E1 | M0 | Must | M | Backlog | HU-E0-05, HU-E0-08 |
 | [HU-E1-02](E1-identity-and-spaces.md) | Personal space created on sign up | E1 | M0 | Must | S | Backlog | HU-E1-01 |
-| [HU-E1-03](E1-identity-and-spaces.md) | Configure space settings | E1 | M1 | Must | S | Backlog | HU-E1-02, HU-E0-04 |
+| [HU-E1-03](E1-identity-and-spaces.md) | Configure space settings and period policy | E1 | M1 | Must | S | Backlog | HU-E1-02, HU-E0-04 |
 | [HU-E1-04](E1-identity-and-spaces.md) | Create a shared space | E1 | M2 | Must | S | Backlog | HU-E1-02 |
 | [HU-E1-05](E1-identity-and-spaces.md) | Enforce roles and permissions | E1 | M2 | Must | M | Backlog | HU-E1-04 |
 | [HU-E1-06](E1-identity-and-spaces.md) | Invite a member by link or email | E1 | M2 | Must | M | Backlog | HU-E1-05 |
@@ -93,7 +93,7 @@ A story is `Done` when:
 | [HU-E4-01](E4-ledger.md) | Record a personal expense | E4 | M1 | Must | M | Backlog | HU-E0-04, HU-E2-01, HU-E3-01 |
 | [HU-E4-02](E4-ledger.md) | Record income | E4 | M1 | Must | S | Backlog | HU-E2-01, HU-E3-01 |
 | [HU-E4-03](E4-ledger.md) | Transfer between own accounts | E4 | M1 | Must | S | Backlog | HU-E2-01 |
-| [HU-E4-04](E4-ledger.md) | Assign transactions to periods by periodStartDay | E4 | M1 | Must | S | Backlog | HU-E1-03, HU-E4-01 |
+| [HU-E4-04](E4-ledger.md) | Assign transactions to periods by period policy | E4 | M1 | Must | S | Backlog | HU-E1-03, HU-E4-01 |
 | [HU-E4-05](E4-ledger.md) | List and filter transactions | E4 | M1 | Must | M | Backlog | HU-E4-01, HU-E4-02, HU-E4-03, HU-E4-04 |
 | [HU-E4-06](E4-ledger.md) | Edit or delete a transaction with an audit trail | E4 | M1 | Must | M | Backlog | HU-E4-01 |
 | [HU-E4-07](E4-ledger.md) | Record a shared expense split equally | E4 | M2 | Must | M | Backlog | HU-E1-07, HU-E4-01 |
@@ -104,12 +104,12 @@ A story is `Done` when:
 | [HU-E5-02](E5-balances-and-settlements.md) | Record a settlement | E5 | M2 | Must | M | Backlog | HU-E5-01 |
 | [HU-E5-03](E5-balances-and-settlements.md) | Suggest simplified settlements | E5 | M2 | Should | M | Backlog | HU-E5-01 |
 | [HU-E5-04](E5-balances-and-settlements.md) | Show balance history per member | E5 | M2 | Should | S | Backlog | HU-E5-02 |
-| [HU-E6-01](E6-budgeting.md) | Create a monthly plan | E6 | M3 | Must | S | Backlog | HU-E1-05, HU-E0-04 |
+| [HU-E6-01](E6-budgeting.md) | Create a plan for a period | E6 | M3 | Must | S | Backlog | HU-E1-05, HU-E0-04 |
 | [HU-E6-02](E6-budgeting.md) | Set member capacities | E6 | M3 | Must | S | Backlog | HU-E6-01 |
 | [HU-E6-03](E6-budgeting.md) | Add budget lines and show unallocated capacity | E6 | M3 | Must | M | Backlog | HU-E6-02 |
 | [HU-E6-04](E6-budgeting.md) | Map categories to budget lines | E6 | M3 | Must | S | Backlog | HU-E6-03, HU-E3-02 |
 | [HU-E6-05](E6-budgeting.md) | Allocate a budget line among members | E6 | M3 | Must | M | Backlog | HU-E6-03 |
-| [HU-E6-06](E6-budgeting.md) | Copy a plan from the previous month | E6 | M3 | Must | M | Backlog | HU-E6-04, HU-E6-05 |
+| [HU-E6-06](E6-budgeting.md) | Copy a plan from the previous period | E6 | M3 | Must | M | Backlog | HU-E6-04, HU-E6-05 |
 | [HU-E6-07](E6-budgeting.md) | Activate and close a plan | E6 | M3 | Must | M | Backlog | HU-E6-05 |
 | [HU-E6-08](E6-budgeting.md) | Default split by allocation | E6 | M3 | Must | M | Backlog | HU-E6-04, HU-E6-05, HU-E6-07, HU-E4-07, HU-E5-01 |
 | [HU-E6-09](E6-budgeting.md) | Apply rollover modes | E6 | M3 | Must | M | Backlog | HU-E6-04, HU-E6-07 |
@@ -117,7 +117,7 @@ A story is `Done` when:
 | [HU-E7-02](E7-reporting.md) | Member by line matrix | E7 | M4 | Must | M | Backlog | HU-E6-08, HU-E7-01 |
 | [HU-E7-03](E7-reporting.md) | Shared fund contribution tracking | E7 | M4 | Must | S | Backlog | HU-E4-09, HU-E6-05 |
 | [HU-E7-04](E7-reporting.md) | Unified personal view | E7 | M4 | Must | M | Backlog | HU-E4-07, HU-E4-10 |
-| [HU-E7-05](E7-reporting.md) | Month-over-month trend | E7 | M4 | Should | S | Backlog | HU-E7-01, HU-E7-04 |
+| [HU-E7-05](E7-reporting.md) | Period-over-period trend | E7 | M4 | Should | S | Backlog | HU-E7-01, HU-E7-04 |
 | [HU-E8-01](E8-hardening-and-later.md) | Nightly backups and restore drill | E8 | M5 | Must | M | Backlog | HU-E0-07 |
 | [HU-E8-02](E8-hardening-and-later.md) | Structured logging and health check | E8 | M5 | Should | M | Backlog | HU-E0-07 |
 | [HU-E8-03](E8-hardening-and-later.md) | Recurring transactions | E8 | M5 | Could | M | Backlog | HU-E4-07, HU-E6-07 |
@@ -126,8 +126,9 @@ A story is `Done` when:
 | [HU-E8-06](E8-hardening-and-later.md) | Multi-currency spaces | E8 | M5 | Won't-v1 | M | Backlog | HU-E0-03 |
 | [HU-E8-07](E8-hardening-and-later.md) | Installable PWA with offline read | E8 | M5 | Won't-v1 | M | Backlog | HU-E7-04 |
 | [HU-E8-08](E8-hardening-and-later.md) | Notifications | E8 | M5 | Won't-v1 | M | Backlog | HU-E1-07, HU-E5-02 |
+| [HU-E8-09](E8-hardening-and-later.md) | Weekly and biweekly period policies | E8 | M5 | Won't-v1 | S | Backlog | HU-E0-04, HU-E1-03 |
 
-**Totals:** 60 stories — E0: 8 · E1: 9 · E2: 4 · E3: 3 · E4: 10 · E5: 4 · E6: 9 · E7: 5 · E8: 8.
+**Totals:** 61 stories — E0: 8 · E1: 9 · E2: 4 · E3: 3 · E4: 10 · E5: 4 · E6: 9 · E7: 5 · E8: 9.
 
 ## Milestone map
 
@@ -138,12 +139,12 @@ A story is `Done` when:
 | **M2** Shared spaces | Invitations, shared expenses with split methods, balances, settlements | HU-E1-04 … HU-E1-09, HU-E2-02, HU-E4-07 … HU-E4-10, HU-E5-01 … HU-E5-04 |
 | **M3** Allocated budgets | Plans, capacity, lines, allocations, default split by allocation, rollover | HU-E6-01 … HU-E6-09 |
 | **M4** Insight | Member/category dashboard, shared fund tracking, unified personal view | HU-E7-01 … HU-E7-05 |
-| **M5** Hardening | Backups, observability, import from Splitwise/CSV, recurring transactions | HU-E8-01 … HU-E8-08 (HU-E8-06 … HU-E8-08 are Won't-v1 placeholders) |
+| **M5** Hardening | Backups, observability, import from Splitwise/CSV, recurring transactions | HU-E8-01 … HU-E8-09 (HU-E8-06 … HU-E8-09 are Won't-v1 placeholders) |
 
 Notes on placement:
 
 - HU-E2-02 (shared fund account) belongs to epic E2 but ships in M2, because shared spaces first exist in M2.
-- The closed-period scenario of HU-E4-06 (M1) activates once HU-E6-07 (M3) provides the `PeriodPolicy` adapter.
+- The closed-period scenario of HU-E4-06 (M1) activates once HU-E6-07 (M3) provides the `ClosedPeriodGuard` adapter.
 
 ## Open questions affecting the backlog
 
@@ -152,5 +153,5 @@ From spec section 11:
 | # | Question | Affected stories |
 |---|---|---|
 | 1 | ~~Is "Free" money spent from the shared space or from personal spaces?~~ **Resolved 2026-10-11:** Free is a shared-space catch-all line with optional allocation; personal views pick up members' shares automatically. | — |
-| 2 | Should a period start on a payday (e.g. the 25th) instead of the 1st? Confirm the default. | HU-E0-04, HU-E1-02, HU-E1-03, HU-E4-04 (default value only) |
+| 2 | ~~Should a period start on a payday (e.g. the 25th) instead of the 1st? Confirm the default.~~ **Resolved 2026-10-11:** selectable per space via `PeriodPolicy` (`MONTHLY(day)` with a cut-off day 1–31, or `SEMI_MONTHLY(day1, day2)`); default `MONTHLY(1)` (spec D14). | — |
 | 3 | ~~Is Free's 42/58 split a custom allocation or a typo?~~ **Resolved 2026-10-11:** custom percentage allocation. | — |

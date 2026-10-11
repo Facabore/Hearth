@@ -121,29 +121,36 @@ Feature: Transfer between own accounts
 
 ---
 
-## HU-E4-04 — Assign transactions to periods by periodStartDay
+## HU-E4-04 — Assign transactions to periods by period policy
 
-- **Milestone:** M1 · **Priority:** Must · **Size:** S · **Depends on:** HU-E1-03, HU-E4-01 · **Module(s):** `ledger`, `shared/kernel` · **Note:** Blocked by open question #2 (default value only)
+- **Milestone:** M1 · **Priority:** Must · **Size:** S · **Depends on:** HU-E1-03, HU-E4-01 · **Module(s):** `ledger`, `shared/kernel`
 
-**User story:** As a user, I want each transaction counted in the period defined by my space's start day, so that monthly totals match my pay cycle.
+**User story:** As a user, I want each transaction counted in the period defined by my space's period policy, so that period totals match my pay cycle.
 
 ```gherkin
 Feature: Period assignment
 
-  Scenario: Calendar months with periodStartDay 1
-    Given the personal space of "Ana" has periodStartDay 1
+  Scenario: Calendar months with MONTHLY(1)
+    Given the personal space of "Ana" has the period policy MONTHLY(1)
     And expenses of 85,000 COP on 2026-10-31 and 40,000 COP on 2026-11-01
-    When "Ana" views the period 2026-10-01 to 2026-10-31
+    When "Ana" views the period "2026-10" from 2026-10-01 to 2026-10-31
     Then the period total is 85,000 COP
 
-  Scenario: Payday cycle with periodStartDay 25
-    Given the space "Household" has periodStartDay 25
+  Scenario: Payday cycle with MONTHLY(25)
+    Given the space "Household" has the period policy MONTHLY(25)
     And expenses of 120,000 COP on 2026-10-24 and 60,000 COP on 2026-10-25
-    When "Ana" views the period 2026-10-25 to 2026-11-24
+    When "Ana" views the period "2026-11" from 2026-10-25 to 2026-11-24
     Then the period total is 60,000 COP
 
+  Scenario: Half-month periods with SEMI_MONTHLY(1, 16)
+    Given the space "Household" has the period policy SEMI_MONTHLY(1, 16)
+    And expenses of 70,000 COP on 2026-11-10 and 50,000 COP on 2026-11-20
+    When "Ana" views the period "2026-11 H1" from 2026-11-01 to 2026-11-15
+    Then the period total is 70,000 COP
+    And the period "2026-11 H2" from 2026-11-16 to 2026-11-30 totals 50,000 COP
+
   Scenario: Editing the date moves the transaction to another period
-    Given the personal space of "Ana" has periodStartDay 1
+    Given the personal space of "Ana" has the period policy MONTHLY(1)
     And an expense of 85,000 COP dated 2026-10-31
     When "Ana" changes its date to 2026-11-02
     Then the expense counts in the period 2026-11-01 to 2026-11-30
@@ -151,7 +158,7 @@ Feature: Period assignment
 ```
 
 **Technical notes:**
-- Period is derived on read from `date` and `space.periodStartDay` (never stored on the transaction).
+- Period is derived on read (never stored on the transaction): from the stored plan boundaries when a plan covers the `date`, otherwise from `date` and `space.periodPolicy` (spec 5.2, D14).
 - SQL helper mirrors the kernel `Period` logic; both are covered by the same table-driven test cases.
 
 ---
@@ -166,7 +173,7 @@ Feature: Period assignment
 Feature: Monthly transaction list
 
   Background:
-    Given the personal space of "Ana" with periodStartDay 1 and these October 2026 transactions:
+    Given the personal space of "Ana" with the period policy MONTHLY(1) and these October 2026 transactions:
       | date       | type    | description | category    | amount    |
       | 2026-10-05 | EXPENSE | Market      | Groceries   | 85,000    |
       | 2026-10-12 | EXPENSE | Market      | Groceries   | 100,000   |
@@ -245,7 +252,7 @@ Feature: Edit and soft delete with audit
 
 **Technical notes:**
 - Use cases: `EditTransaction`, `DeleteTransaction`; port `AuditLog`.
-- The closed-period scenario becomes active with HU-E6-07; until then the `PeriodPolicy` port has an always-open adapter.
+- The closed-period scenario becomes active with HU-E6-07; until then the `ClosedPeriodGuard` port has an always-open adapter.
 - Moving a transaction into a closed period is also rejected.
 
 ---
@@ -271,7 +278,7 @@ Feature: Shared expense with equal split
   Scenario: Equal split with a remainder
     Given "Luis" is also a member of "Household"
     When "Ana" records an expense of 100,000 COP split "EQUAL" among "Ana", "Juan" and "Luis"
-    Then one share is 33,333.34 COP and two shares are 33,333.33 COP
+    Then one share is 33,334 COP and two shares are 33,333 COP
     And the shares sum to exactly 100,000 COP
 
   Scenario: Payer need not participate
@@ -292,7 +299,7 @@ Feature: Shared expense with equal split
 - Use case: `RecordExpense` with a `SplitCalculator` domain service (strategy per split method).
 - v1 UI supports one payer; the domain accepts several payments.
 - `BY_ALLOCATION` is delivered in HU-E6-08.
-- Payer pays from their own personal account (cross-space reference; see backlog report).
+- Payer pays from their own personal account; allowed by the space ownership rule (spec D9).
 
 ---
 
@@ -373,7 +380,7 @@ Feature: Fund contribution
 
 **Technical notes:**
 - Use case: `RecordFundContribution` (a `TRANSFER` whose destination is `SHARED_FUND`).
-- Cross-space transfer: source account in the personal space, destination in the shared space; see backlog report.
+- Cross-space transfer: source account in the personal space, destination in the shared space; the transaction belongs to the shared space (spec D9).
 - Feeds `actualFundContribution(m)` (HU-E7-03).
 
 ---

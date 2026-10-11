@@ -107,10 +107,10 @@ Feature: Money in integer minor units
     When it is allocated by the ratio 40:60
     Then the parts are 588,000 COP and 882,000 COP
 
-  Scenario: Allocating with a remainder never loses a minor unit
-    Given Money of 100,000 COP
+  Scenario: Allocating with a remainder uses the currency rounding unit
+    Given Money of 100,000 COP and the COP rounding unit of 1 peso
     When it is allocated equally into 3 parts
-    Then one part is 33,333.34 COP and two parts are 33,333.33 COP
+    Then one part is 33,334 COP and two parts are 33,333 COP
     And the parts sum to exactly 100,000 COP
     And allocating the same input again yields the same parts in the same order
 
@@ -120,37 +120,68 @@ Feature: Money in integer minor units
 ```
 
 **Technical notes:**
-- Currency exponent from ISO 4217 (COP = 2); see the spec inconsistency note in the backlog report about COP practical precision.
+- Currency exponent from ISO 4217 (COP = 2); allocation works in the currency's rounding unit (COP: 1 peso = 100 minor units), so COP parts never carry cents (spec 5.3).
 - `allocate(ratios)` uses the largest-remainder method with deterministic tie-breaking by input order.
 - Immutable; operations return new instances; comparison helpers (`isZero`, `isNegative`, `compare`).
 
 ---
 
-## HU-E0-04 — Period, Result, Id and Clock kernel types
+## HU-E0-04 — PeriodPolicy, Result, Id and Clock kernel types
 
-- **Milestone:** M0 · **Priority:** Must · **Size:** M · **Depends on:** HU-E0-02 · **Module(s):** `shared/kernel` · **Note:** Blocked by open question #2 (default `periodStartDay` value only; behaviour for any configured day is unblocked)
+- **Milestone:** M0 · **Priority:** Must · **Size:** M · **Depends on:** HU-E0-02 · **Module(s):** `shared/kernel`
 
-**User story:** As a developer, I want Period, Result, Id and Clock primitives in the shared kernel, so that every module derives periods, reports errors and reads time the same way.
+**User story:** As a developer, I want PeriodPolicy, Result, Id and Clock primitives in the shared kernel, so that every module derives periods, reports errors and reads time the same way.
 
 ```gherkin
 Feature: Kernel primitives for periods, results and time
 
-  Scenario Outline: A date is assigned to a period according to periodStartDay
-    Given a space with periodStartDay <startDay>
+  Scenario Outline: A monthly policy assigns a date to its period and label
+    Given a space with the period policy MONTHLY(<day>)
+    When the period is derived for the date <date>
+    Then the period runs from <periodStart> to <periodEnd>
+    And its label is "<label>"
+
+    Examples:
+      | day | date       | periodStart | periodEnd  | label   |
+      | 1   | 2026-10-31 | 2026-10-01  | 2026-10-31 | 2026-10 |
+      | 1   | 2026-11-01 | 2026-11-01  | 2026-11-30 | 2026-11 |
+      | 15  | 2026-11-20 | 2026-11-15  | 2026-12-14 | 2026-11 |
+      | 25  | 2026-10-24 | 2026-09-25  | 2026-10-24 | 2026-10 |
+      | 25  | 2026-10-25 | 2026-10-25  | 2026-11-24 | 2026-11 |
+
+  Scenario Outline: Anchor days beyond the end of a short month are clamped
+    Given a space with the period policy MONTHLY(31)
     When the period is derived for the date <date>
     Then the period runs from <periodStart> to <periodEnd>
 
     Examples:
-      | startDay | date       | periodStart | periodEnd  |
-      | 1        | 2026-10-31 | 2026-10-01  | 2026-10-31 |
-      | 1        | 2026-11-01 | 2026-11-01  | 2026-11-30 |
-      | 25       | 2026-10-24 | 2026-09-25  | 2026-10-24 |
-      | 25       | 2026-10-25 | 2026-10-25  | 2026-11-24 |
-      | 28       | 2027-02-27 | 2027-01-28  | 2027-02-27 |
+      | date       | periodStart | periodEnd  |
+      | 2027-02-27 | 2027-01-31  | 2027-02-27 |
+      | 2027-02-28 | 2027-02-28  | 2027-03-30 |
+      | 2028-02-29 | 2028-02-29  | 2028-03-30 |
 
-  Scenario: periodStartDay outside 1 to 28 is rejected
-    When a Period policy is created with periodStartDay 29
-    Then the result is the error "InvalidPeriodStartDay"
+  Scenario Outline: A semi-monthly policy assigns a date to its half-month period
+    Given a space with the period policy SEMI_MONTHLY(<day1>, <day2>)
+    When the period is derived for the date <date>
+    Then the period runs from <periodStart> to <periodEnd>
+    And its label is "<label>"
+
+    Examples:
+      | day1 | day2 | date       | periodStart | periodEnd  | label      |
+      | 1    | 16   | 2026-11-10 | 2026-11-01  | 2026-11-15 | 2026-11 H1 |
+      | 1    | 16   | 2026-11-20 | 2026-11-16  | 2026-11-30 | 2026-11 H2 |
+      | 5    | 20   | 2026-11-03 | 2026-10-20  | 2026-11-04 | 2026-10 H2 |
+
+  Scenario Outline: Invalid period policies are rejected
+    When the period policy <policy> is created
+    Then the result is the error "InvalidPeriodPolicy"
+
+    Examples:
+      | policy               |
+      | MONTHLY(0)           |
+      | MONTHLY(32)          |
+      | SEMI_MONTHLY(16, 16) |
+      | SEMI_MONTHLY(20, 5)  |
 
   Scenario: Today is computed in the space timezone
     Given the Clock reads the instant 2026-11-01T04:30:00Z
@@ -166,10 +197,11 @@ Feature: Kernel primitives for periods, results and time
 ```
 
 **Technical notes:**
-- `Result<T, E extends DomainError>` with `ok`, `err`, `map`, `flatMap`.
+- `PeriodPolicy` is an immutable discriminated union (`MONTHLY(day)` with day 1–31, `SEMI_MONTHLY(day1, day2)` with 1 ≤ day1 < day2 ≤ 31), default `MONTHLY(1)`; `periodFor(date)` returns a `Period` (startDate, endDate, label). The union stays open to `WEEKLY` and `BIWEEKLY` (HU-E8-09, Won't-v1) (spec 5.2, D14).
+- Clamping: an anchor day beyond the month length starts the period on the month's last day (day 31 → 2027-02-28, 2028-02-29, 2026-04-30).
+- Period label (spec 5.3): `MONTHLY` → the month containing most of the period's days (start month if the anchor day ≤ 15, else the following month: 2026-09-25 to 2026-10-24 is "2026-10"); `SEMI_MONTHLY` → the start date's month plus "H1" (starts on day1) or "H2" (starts on day2). The API also exposes start and end dates.
+- `Result<T, E extends DomainError>` with `ok`, `err`, `map`, `flatMap`; `Id` is a branded string type (UUIDv7 generator behind a port).
 - `Clock` is a port with a system adapter and a fixed test adapter.
-- `Id` is a branded string type (UUIDv7 generator behind a port).
-- Period label = month containing most of its days (start month if `periodStartDay` <= 15, else the following month); the API also exposes start and end dates (spec 5.3).
 
 ---
 
