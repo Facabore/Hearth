@@ -121,7 +121,7 @@ The core insight: **a personal expense is a shared expense with one participant.
 
 **BudgetPlan** — spaceId, label, startDate, endDate, status (`DRAFT` | `ACTIVE` | `CLOSED`), createdFrom (previous plan or template). One plan per period, so a semi-monthly space has two plans per month and capacities are per period. Boundaries are stored when the plan is created, so changing the period policy only affects periods without a plan yet; history never moves (D10). If a policy change would make a new period overlap an existing plan, the new period starts the day after that plan ends.
 
-**MemberCapacity** — planId, memberId, amount. Sum = total capacity.
+**MemberCapacity** — planId, memberId, amount. When a registered member sets their own capacity, the app suggests the sum of income they recorded in the previous period (D17); the suggestion is computed only for that member and never shown to others, and only the saved amount is shared. Sum = total capacity.
 
 **BudgetLine** — planId, originLineId (the line it was copied from, for rollover), name, plannedAmount, funding (`DIRECT` | `SHARED_FUND` | `SAVINGS`), savingsAccountIds[] (only for `SAVINGS`), rolloverMode (`RESET` | `ROLLOVER` | `ADJUSTED`), isCatchAll, categoryIds[]. A category maps to at most one line per plan. At most one line per plan is the catch-all; unmapped categories consume it. Without a catch-all line, unmapped categories fall into an implicit "Unbudgeted" line. Adding or editing a line that would push Σ plannedAmount above total capacity is rejected; a plan whose capacity was later reduced below Σ plannedAmount cannot be activated.
 
@@ -184,6 +184,7 @@ Unified personal view for user u (D11). It works through every SpaceMember row l
 | D14 | Period policy is selectable per space: monthly with any cut-off day (1–31, clamped) or semi-monthly with two anchor days | Households budget around paydays (cut-off date, quincena), not only calendar months | Fixed calendar months; start day limited to 1–28 |
 | D15 | Guest members scoped to one space; all money references point to SpaceMember; guests can claim their place by registering | Not everyone will sign up; guests must still pay, owe and be budgeted like anyone else, and history must survive registration | Requiring registration; global contacts shared across spaces |
 | D16 | Splitting with one person creates or reuses a two-member `DIRECT` space | Keeps one ledger model (D2) while supporting quick one-to-one splits | A separate "friend balance" model outside spaces |
+| D17 | Capacity is suggested from the member's own previous-period income, privately, and is always editable | Saves typing without leaking personal income to the group | Auto-filling capacity visible to all members |
 
 ## 7. Architecture
 

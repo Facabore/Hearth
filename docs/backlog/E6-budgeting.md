@@ -92,10 +92,16 @@ Feature: Member capacities
     When "Ana" sets the capacity of "Juan" to 2,000,000 COP
     Then the total capacity is 3,600,000 COP
     And the unallocated capacity is shown as -400,000 COP
+
+  Scenario: Capacity is suggested privately from the member's own previous-period income
+    Given "Ana" recorded income of 1,650,000 COP in her personal space during 2026-10
+    When "Ana" opens her capacity for the 2026-11 plan of "Household"
+    Then "Ana" sees the suggested capacity 1,650,000 COP and can accept or edit it
+    And "Juan" never sees Ana's suggestion or her income, only the capacity she saves
 ```
 
 **Technical notes:**
-- Use case: `SetMemberCapacities`.
+- Use cases: `SetMemberCapacities`, `SuggestCapacity` (query, runs only for the requesting user's own SpaceMember; guests get no suggestion).
 - A member without an explicit capacity counts as 0 COP.
 - Capacities and allocations reference `memberId` (SpaceMember), so guests can hold capacity and be assigned budget lines like registered members (spec D15).
 - Changing capacities re-derives every PROPORTIONAL assignment (computed on read).

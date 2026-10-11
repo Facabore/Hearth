@@ -169,6 +169,6 @@ CSV and Splitwise import, multi-currency, PWA/offline, notifications, weekly/biw
 | G1 | ~~Splitting with one person without creating a group.~~ | | **Resolved 2026-10-11:** two-member `DIRECT` space created or reused on the first split with someone (D16). |
 | G2 | ~~Participants who do not use the app.~~ | | **Resolved 2026-10-11:** guest members scoped to one space, full participants, claimable by registering (D15). |
 | G3 | ~~Recurring transactions are in M5.~~ | | **Resolved 2026-10-11:** moved to M3 as HU-E4-11..13, with AUTO and CONFIRM modes. |
-| G4 | **Capacity is typed manually.** | Members already record income. | Suggest capacity from income recorded in the previous period; still editable. |
+| G4 | ~~Capacity is typed manually.~~ | | **Resolved 2026-10-11:** suggested privately from the member's own previous-period income, always editable (D17, HU-E6-02). |
 | G5 | **No "equal + adjustment" or itemized split.** | Receipts with personal items mixed in (e.g. market with one person's toiletries). | Add an `ADJUSTMENT` method (equal split plus per-person extras) as Should in M2; itemized receipts later. |
 | G6 | **Personal budgets are implied, not explicit in stories.** | The engine supports them (D2), but every E6 story is written for a household. | Add one golden scenario of a personal plan to E6. |
