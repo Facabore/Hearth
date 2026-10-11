@@ -36,7 +36,13 @@
 
 ## Execution Workflow
 
-- Work on one branch: `feat/m0-walking-skeleton` from `main`.
+- Work on the long-lived branch `development` (created from `main`); every task is implemented there with Strict TDD.
+- **RDD before every commit.** Receipt-driven development is on (`gentle-ai review mode status`). Each "Commit" step below means:
+  1. Run every source-mutating normalizer first (`pnpm format`, regenerated migrations or snapshots), then stage exactly the files of the step.
+  2. Run `gentle-ai review status --cwd . --contract gentle-ai.review-integration/v2 --agent claude-code --next-transition` and follow only the returned `next_transition` (`execute` its operation, satisfy `collect` inputs, or stop on `stop` and report its reason code with its documented continuation). Medium/high-risk candidates may return a consent envelope; relay it to the owner and wait.
+  3. Commit only after the provider-returned `review.validate` allows the `pre-commit` gate for that exact staged candidate; the commit must not change the reviewed bytes.
+  4. If the owner disables RDD (`gentle-ai review mode disable --scope clone --cwd .`), commit under ordinary policy and report `disabled/unmanaged`.
+- Keep each commit small enough to review well: if a task's change grows past roughly 400 changed lines, split it into consecutive commits along its steps (each with its own RDD pass).
 - When a task starts, move its GitHub issue to **In Progress** on Project #4; commits reference it (`Refs #N`).
 - When all tasks are done, open one pull request that closes #1–#11 (`Closes #1` … `Closes #11`); the cards move to **In Review**, and to **Done** when the owner merges.
 - Task-to-issue map: Task 1 → #1 (completed in Task 6), Task 2 → #2, Tasks 3 and 5 → #4, Task 4 → #3, Task 6 → #5 and #1, Tasks 7–8 → #8, Task 9 → #9, Task 10 → #10, Task 11 → #11, Task 12 → #7 (images and stack), Task 13 → #6 (CI) and the VPS deployment of #7.
@@ -107,7 +113,8 @@ Implements HU-E0-01 (issue #1) except the containerized dev stack scenario, whic
 - [ ] **Step 1: Create the branch and normalize line endings**
 
 ```bash
-git checkout -b feat/m0-walking-skeleton
+git checkout development
+git pull --ff-only
 ```
 
 `.gitattributes`:
@@ -5009,7 +5016,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, development]
 
 permissions:
   contents: read
@@ -5132,13 +5139,13 @@ Expected: all exit 0 (this is exactly what CI runs).
 ```bash
 git add .github
 git commit -m "ci: add quality gates, image build and smoke test (Refs #6)"
-git push -u origin feat/m0-walking-skeleton
+git push origin development
 ```
 
 Open a draft PR so the workflow runs:
 
 ```bash
-gh pr create --draft --title "M0 walking skeleton" --body "Work in progress for milestone M0. Closes #1 Closes #2 Closes #3 Closes #4 Closes #5 Closes #6 Closes #7 Closes #8 Closes #9 Closes #10 Closes #11"
+gh pr create --draft --base main --head development --title "M0 walking skeleton" --body "Work in progress for milestone M0. Closes #1 Closes #2 Closes #3 Closes #4 Closes #5 Closes #6 Closes #7 Closes #8 Closes #9 Closes #10 Closes #11"
 ```
 
 Expected: the five jobs run; `build-image` builds both images and the smoke test passes (pushing is skipped on pull requests).
