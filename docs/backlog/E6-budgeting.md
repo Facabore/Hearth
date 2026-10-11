@@ -148,7 +148,7 @@ Feature: Budget lines
 
 ## HU-E6-04 — Map categories to budget lines
 
-- **Milestone:** M3 · **Priority:** Must · **Size:** S · **Depends on:** HU-E6-03, HU-E3-02 · **Module(s):** `budgeting`, `categories` · **Note:** Blocked by open question #1 (only for mapping personal-space spending into a shared plan; same-space mapping is unblocked)
+- **Milestone:** M3 · **Priority:** Must · **Size:** S · **Depends on:** HU-E6-03, HU-E3-02 · **Module(s):** `budgeting`, `categories`
 
 **User story:** As a household admin, I want to map categories to budget lines, so that each expense consumes the right envelope automatically.
 
@@ -167,10 +167,23 @@ Feature: Category to line mapping
     When "Ana" maps "Groceries" to "Free"
     Then the result is the error "CategoryAlreadyMapped"
 
-  Scenario: Unmapped categories fall into Unbudgeted
-    Given "Restaurants" is not mapped to any line
+  @golden
+  Scenario: Unmapped categories fall into the catch-all line
+    Given "Free" is the plan's catch-all line
+    And "Outings" is not mapped to any line
+    When an expense of 50,000 COP in "Outings" is recorded on 2026-11-12
+    Then it counts as spent in "Free"
+
+  Scenario: Without a catch-all line, unmapped categories fall into Unbudgeted
+    Given the plan has no catch-all line
+    And "Restaurants" is not mapped to any line
     When an expense of 60,000 COP in "Restaurants" is recorded on 2026-11-12
     Then it counts as spent in the implicit line "Unbudgeted"
+
+  Scenario: A plan has at most one catch-all line
+    Given "Free" is the plan's catch-all line
+    When "Ana" marks "Home" as catch-all
+    Then the result is the error "CatchAllLineAlreadySet"
 
   Scenario: Only categories of the same space can be mapped
     When "Ana" maps a category from her personal space to the line "Free"
@@ -180,7 +193,8 @@ Feature: Category to line mapping
 **Technical notes:**
 - Use case: `MapCategoriesToLine`.
 - Invariant: (planId, categoryId) unique; archived categories cannot be newly mapped.
-- "Unbudgeted" is computed on read, never persisted.
+- Use case `SetCatchAllLine`; invariant: at most one `isCatchAll` line per plan.
+- "Unbudgeted" is computed on read, never persisted, and only exists when the plan has no catch-all line.
 
 ---
 
@@ -188,7 +202,7 @@ Feature: Category to line mapping
 
 - **Milestone:** M3 · **Priority:** Must · **Size:** M · **Depends on:** HU-E6-03 · **Module(s):** `budgeting`
 
-**User story:** As a household admin, I want to assign each line to members proportionally, by percentage or by fixed amount, so that everyone knows what they are responsible for.
+**User story:** As a household admin, I want to assign each line to members proportionally, by percentage or by fixed amount, or leave it unassigned as shared group money, so that everyone knows what they are responsible for.
 
 ```gherkin
 Feature: Line allocation rules
@@ -207,17 +221,23 @@ Feature: Line allocation rules
     When "Ana" allocates the line "Free" with planned 730,000 COP as "PERCENT" "Ana" 42% and "Juan" 58%
     Then "Ana" is assigned 306,600 COP and "Juan" is assigned 423,400 COP
 
-  Scenario: Percentages must sum to 100
-    When "Ana" allocates the line "Free" as "PERCENT" "Ana" 42% and "Juan" 57%
-    Then the result is the error "InvalidAllocation"
-
   Scenario: Fixed amounts
     When "Ana" allocates the line "Savings" with planned 600,000 COP as "FIXED" "Ana" 200,000 COP and "Juan" 400,000 COP
     Then "Ana" is assigned 200,000 COP and "Juan" is assigned 400,000 COP
 
-  Scenario: Fixed amounts must sum to the planned amount
-    When "Ana" allocates the line "Savings" as "FIXED" "Ana" 200,000 COP and "Juan" 350,000 COP
+  Scenario Outline: Allocation values must add up
+    When "Ana" allocates the line "<line>" as "<rule>" "Ana" <ana> and "Juan" <juan>
     Then the result is the error "InvalidAllocation"
+
+    Examples:
+      | line    | rule    | ana         | juan        |
+      | Free    | PERCENT | 42%         | 57%         |
+      | Savings | FIXED   | 200,000 COP | 350,000 COP |
+
+  Scenario: A line can stay unassigned as group money
+    When "Ana" sets the line "Free" to "NONE"
+    Then no member is assigned an amount on "Free"
+    And "Free" reports planned, spent and available but no per-member gap
 
   Scenario: Proportional allocation requires positive total capacity
     Given every member capacity is 0 COP
@@ -228,6 +248,7 @@ Feature: Line allocation rules
 **Technical notes:**
 - Use case: `AllocateBudgetLine`; domain service `AllocationCalculator` using `Money.allocate`.
 - One rule per line (all member rows share the rule); assigned amounts are derived, never stored.
+- Rule `NONE` stores no member rows; `assigned`, `contributed` and `gap` are not reported for that line.
 - Percentages stored as basis points (42% = 4200).
 
 ---
@@ -361,9 +382,11 @@ Feature: BY_ALLOCATION default split
     When the allocation of "Home" changes to "PERCENT" "Ana" 50% and "Juan" 50%
     Then the recorded shares remain 800,000 COP and 1,200,000 COP
 
-  Scenario: Unmapped category does not default to BY_ALLOCATION
-    When "Ana" records an expense of 60,000 COP in "Restaurants" which is not mapped
-    Then the split method defaults to "EQUAL"
+  Scenario: Lines without allocation default to EQUAL
+    Given "Free" is the catch-all line with allocation rule "NONE"
+    When "Ana" records an expense of 50,000 COP in "Outings", which is not mapped
+    Then it counts as spent in "Free"
+    And the split method defaults to "EQUAL" with 25,000 COP each
     And "BY_ALLOCATION" is not offered
 
   Scenario: Draft plans do not drive splits
@@ -376,7 +399,7 @@ Feature: BY_ALLOCATION default split
 - Use case: `ResolveDefaultSplit` (budgeting, public query) consumed by `RecordExpense`.
 - BY_ALLOCATION ratios = assigned amounts of the line for the expense's period; computed via `Money.allocate`.
 - Share rows store `splitMethod = BY_ALLOCATION` as a snapshot (spec 5.2).
-- EQUAL fallback for unmapped categories is an assumption (see backlog report).
+- EQUAL is the default when the resolved line has rule `NONE`, when there is no line, or when the plan is not `ACTIVE` (spec 5.3).
 
 ---
 

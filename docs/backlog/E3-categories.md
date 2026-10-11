@@ -34,12 +34,18 @@ Feature: Default category seed
   Scenario: Seeded categories belong only to their space
     Given "Ana" renames "Arriendo" to "Alquiler" in her personal space
     Then the categories of "Household" are unchanged
+
+  Scenario: Seeded categories keep a stable catalog key
+    Given "Ana" renames "Mercado" to "Supermercado" in her personal space
+    Then the category keeps the catalog key "groceries"
+    And categories created by users have no catalog key
 ```
 
 **Technical notes:**
 - Use case: `SeedDefaultCategories`, handling `SpaceCreated`.
 - Seed definition lives in the `categories` domain as data with es/en names: Housing (Rent, Utilities, Maintenance), Food (Groceries, Restaurants), Transport (Fuel, Public transport), Health (Medical, Pharmacy), Leisure (Entertainment, Travel), Income (Salary, Other income).
 - Names are stored as user data after seeding (not translated on read).
+- Each seeded category stores an immutable catalog `key` (e.g. `groceries`), used to group categories across spaces in the unified personal view (spec D11).
 
 ---
 

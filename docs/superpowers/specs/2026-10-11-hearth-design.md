@@ -48,13 +48,15 @@ Household space with members Ana and Juan. Monthly capacity: Ana 1,600,000; Juan
 | Rent | 1,200,000 | 30.00% | Shared fund | Proportional to capacity (Ana 40% / Juan 60%) |
 | Home | 1,470,000 | 36.75% | Direct | Proportional to capacity |
 | Savings | 600,000 | 15.00% | Savings (transfer to savings account) | Proportional to capacity |
-| Free | 730,000 | 18.25% | Direct | Custom percentage: Ana 42% / Juan 58% |
+| Free | 730,000 | 18.25% | Direct, catch-all | Optional; here custom percentage Ana 42% / Juan 58% |
 
 Rules derived from this example:
 
 - Lines sum to at most the total capacity. Unallocated capacity is shown explicitly (zero-based budgeting).
 - Allocation is **group-size agnostic**: it works for any number of members. Each line uses one rule: **proportional to capacity** (default), **custom percentage** (any split summing to 100%, e.g. 42/58 or 20/30/50), or **fixed amount** per member (e.g. one member puts 1,000,000 and another 2,000,000). Fixed amounts must sum to the line's planned amount.
 - Capacity itself is a fixed amount per member and does not depend on group size.
+- Allocation is **optional**. A line with no allocation (rule `NONE`) is simply group money: it tracks planned, spent and available, but no per-member responsibility.
+- **Free is the catch-all line**: any shared expense whose category is not mapped to another line consumes it. A 50,000 outing recorded once in the shared space consumes Free and shows in the payer's personal view through their share (D2). An expense recorded only in a personal space never touches the group.
 - The line allocation becomes the **default split** for expenses charged to that line. If Ana pays a 2,000,000 Home expense alone with a 40/60 allocation, Juan owes Ana 1,200,000 automatically.
 
 ## 5. Domain model
@@ -108,16 +110,16 @@ The core insight: **a personal expense is a shared expense with one participant.
 
 **MemberCapacity** — planId, memberUserId, amount. Sum = total capacity.
 
-**BudgetLine** — planId, originLineId (the line it was copied from, for rollover), name, plannedAmount, funding (`DIRECT` | `SHARED_FUND` | `SAVINGS`), savingsAccountIds[] (only for `SAVINGS`), rolloverMode (`RESET` | `ROLLOVER` | `ADJUSTED`), categoryIds[]. A category maps to at most one line per plan. Unmapped categories fall into an implicit "Unbudgeted" line. Adding or editing a line that would push Σ plannedAmount above total capacity is rejected; a plan whose capacity was later reduced below Σ plannedAmount cannot be activated.
+**BudgetLine** — planId, originLineId (the line it was copied from, for rollover), name, plannedAmount, funding (`DIRECT` | `SHARED_FUND` | `SAVINGS`), savingsAccountIds[] (only for `SAVINGS`), rolloverMode (`RESET` | `ROLLOVER` | `ADJUSTED`), isCatchAll, categoryIds[]. A category maps to at most one line per plan. At most one line per plan is the catch-all; unmapped categories consume it. Without a catch-all line, unmapped categories fall into an implicit "Unbudgeted" line. Adding or editing a line that would push Σ plannedAmount above total capacity is rejected; a plan whose capacity was later reduced below Σ plannedAmount cannot be activated.
 
-**Allocation** — lineId, memberUserId, rule (`PROPORTIONAL` | `PERCENT` | `FIXED`), value. One rule per line. Assigned amount per member is derived.
+**Allocation** — lineId, memberUserId, rule (`PROPORTIONAL` | `PERCENT` | `FIXED`), value. One rule per line, or none: a line without allocation rows has rule `NONE`. Assigned amount per member is derived.
 
 ### 5.3 Periods, money and rounding
 
 - **Period label:** a period is named after the month that contains most of its days. With `periodStartDay` ≤ 15 that is the start month; otherwise it is the following month (25 Sep – 24 Oct is "October").
 - **Money:** stored in ISO 4217 minor units. Each currency also has a *rounding unit* for splits and allocations (COP: 1 peso = 100 minor units), so amounts never show cents.
 - **Rounding:** splits and allocations use largest-remainder rounding in rounding units; ties go to members in membership join order. Σ parts always equals the total exactly.
-- **Default split:** expenses in a category mapped to a line of an `ACTIVE` plan default to `BY_ALLOCATION`; all other expenses default to `EQUAL` among active members. `DRAFT` plans never drive splits.
+- **Default split:** expenses that resolve (by mapping or catch-all) to an allocated line of an `ACTIVE` plan default to `BY_ALLOCATION`; all other expenses, including those in `NONE` lines, default to `EQUAL` among active members. `DRAFT` plans never drive splits. The member can always override the split.
 
 ### 5.4 Derived metrics (computed on read, never stored)
 
@@ -135,6 +137,7 @@ For a line L, member m, period P:
   - SAVINGS lines: Σ transfers by m into the line's savings accounts.
 - `consumed(m)` = Σ shares of m on expenses in L (not applicable to SAVINGS lines).
 - `gap(m)` = contributed(m) − assigned(m). Positive means m over-contributed.
+- Lines with rule `NONE` report only planned, spent and available; `assigned`, `contributed` and `gap` are not defined for them.
 
 Fund level, per period: `expectedFundContribution(m)` = Σ assigned(m) over SHARED_FUND lines; `actualFundContribution(m)` = Σ fund-contribution transfers by m.
 
@@ -161,6 +164,7 @@ Unified personal view for user u (D11):
 | D10 | Plan boundaries are stored, not recomputed | Changing the period start day must never move closed history | Derive every period on read |
 | D11 | Unified view uses the personal period and a shared category catalog key | Spaces can differ in period and categories; the user needs one consistent picture | Per-space views only |
 | D12 | Allocation rules are group-size agnostic (proportional, percent, fixed) and one rule per line | Works for couples, roommates or larger groups without special cases | Rules tied to a fixed number of members |
+| D13 | Allocation is optional per line, and a plan may designate one catch-all line | Some group money (e.g. Free) is shared without per-person responsibility and absorbs whatever does not fit elsewhere | Mandatory allocation; implicit Unbudgeted bucket only |
 
 ## 7. Architecture
 
@@ -235,7 +239,7 @@ Work is tracked in `docs/backlog/` (epics and user stories with Gherkin acceptan
 
 ## 11. Open questions
 
-1. Is "Free" (discretionary) money meant to be spent from the shared space or from each member's personal space? This affects whether the shared plan can reference personal-space spending.
+1. ~~Where is "Free" money spent?~~ — **Resolved 2026-10-11:** Free is a shared-space catch-all line with optional allocation (section 4, D13). Personal views pick up members' shares automatically; personal-only expenses never affect the group.
 2. Should a period start on a payday (e.g. the 25th) instead of the 1st? The model supports `periodStartDay`; confirm the default.
 3. ~~Reference example percentages~~ — **Resolved 2026-10-11:** 42/58 is a custom percentage allocation for the Free line (see section 4 and D12).
 

@@ -96,6 +96,12 @@ Feature: Member by line matrix
     When "Ana" opens the member matrix for 2026-11
     Then the gap of "Ana" on "Home" is labelled as over-contributed by 312,000 COP
 
+  Scenario: Lines without allocation show only consumption
+    Given "Free" has allocation rule "NONE" and "Ana" paid 50,000 COP in "Outings" split "EQUAL"
+    When "Ana" opens the member matrix for 2026-11
+    Then the "Free" row shows consumed 25,000 COP for "Ana" and 25,000 COP for "Juan"
+    And assigned, contributed and gap for "Free" read "not allocated"
+
   Scenario: Viewer can read the matrix
     Given "Sofi" is VIEWER of "Household"
     When "Sofi" opens the member matrix for 2026-11
@@ -104,7 +110,7 @@ Feature: Member by line matrix
 
 **Technical notes:**
 - Query: `GetMemberLineMatrix(spaceId, period)`.
-- Metrics per spec 5.3: contributed = Σ payments by m on DIRECT lines; consumed = Σ shares of m; gap = contributed − assigned.
+- Metrics per spec 5.4 (lines with rule `NONE` report consumption only): contributed = Σ payments by m on DIRECT lines; consumed = Σ shares of m; gap = contributed − assigned.
 - Golden test: the reference example fixture produces exactly these values.
 
 ---
@@ -163,17 +169,18 @@ Feature: Unified personal view
       | Household| Home purchase      | Groceries   | 2,000,000 COP | Ana            | 800,000 COP |
       | Household| Rent November      | Rent        | 1,200,000 COP | Household Fund | 480,000 COP |
       | Household| Weekly market      | Groceries   | 300,000 COP   | Juan           | 150,000 COP |
+    And on 2026-11-01 "Ana" transferred 480,000 COP from "Bancolombia" to "Household Fund" as a fund contribution
 
   @critical
   Scenario: Total consumption includes shares across spaces
     When "Ana" opens her unified view for 2026-11
     Then her total consumption is 1,575,000 COP
-    And the view groups amounts by space and category
+    And "Groceries" from both spaces is grouped together under the catalog key "groceries" with 1,035,000 COP
 
   @critical
   Scenario: Cash out versus consumption
     When "Ana" opens her unified view for 2026-11
-    Then her cash out is 2,145,000 COP
+    Then her cash out is 2,625,000 COP, including the 480,000 COP fund contribution
     And her consumption is 1,575,000 COP
 
   Scenario: Other members' personal spaces are never included
@@ -181,16 +188,17 @@ Feature: Unified personal view
     When "Ana" opens her unified view for 2026-11
     Then the 90,000 COP expense of "Juan" is not included
 
-  Scenario: Each space uses its own period start day
-    Given "Household" has periodStartDay 25 and an expense with Ana's share 100,000 COP dated 2026-11-26
+  Scenario: Shared expenses are placed in the viewer's personal period
+    Given "Ana"'s personal space has periodStartDay 1 and "Household" has periodStartDay 25
+    And a "Household" expense with Ana's share 100,000 COP is dated 2026-11-26
     When "Ana" opens her unified view for 2026-11
-    Then the view states which period range was applied for each space
+    Then the 100,000 COP share is included, because 2026-11-26 falls in her personal period 2026-11-01 to 2026-11-30
 ```
 
 **Technical notes:**
 - Query: `GetUnifiedPersonalView(userId, period)`; only spaces where u is or was a member.
-- consumption = Σ shares of u; cash out = Σ payments by u (spec 5.3; fund contributions are not payments — see backlog report).
-- Cross-space grouping by category is not defined by the spec (categories are per space); v1 groups by space and category.
+- consumption = Σ shares of u; cash out = Σ payments by u + Σ fund contributions by u + Σ savings transfers by u (spec 5.4).
+- Seeded categories share a catalog key across spaces; custom categories group under "space / category".
 - Shared transactions are placed by date into the viewer's personal-space period; grouping uses the category catalog key (spec D11).
 
 ---

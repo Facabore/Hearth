@@ -151,6 +151,6 @@ From spec section 11:
 
 | # | Question | Affected stories |
 |---|---|---|
-| 1 | Is "Free" money spent from the shared space or from each member's personal space? | HU-E6-04 (cross-space mapping only) |
+| 1 | ~~Is "Free" money spent from the shared space or from personal spaces?~~ **Resolved 2026-10-11:** Free is a shared-space catch-all line with optional allocation; personal views pick up members' shares automatically. | — |
 | 2 | Should a period start on a payday (e.g. the 25th) instead of the 1st? Confirm the default. | HU-E0-04, HU-E1-02, HU-E1-03, HU-E4-04 (default value only) |
 | 3 | ~~Is Free's 42/58 split a custom allocation or a typo?~~ **Resolved 2026-10-11:** custom percentage allocation. | — |
