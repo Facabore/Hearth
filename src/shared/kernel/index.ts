@@ -7,3 +7,4 @@ export * from "./currency";
 export * from "./money";
 export * from "./period-policy";
 export * from "./transaction-manager";
+export * from "./acting-user";
