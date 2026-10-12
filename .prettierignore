@@ -3,3 +3,4 @@ drizzle/
 openapi/openapi.snapshot.json
 .next/
 docs/
+.superpowers
