@@ -27,3 +27,10 @@ export type {
 export { createRecordExpense, type RecordExpense, type RecordExpenseInput } from "./record-expense";
 export { createRecordIncome, type RecordIncome, type RecordIncomeInput } from "./record-income";
 export { createRecordTransfer, type RecordTransfer, type RecordTransferInput } from "./record-transfer";
+export { createGetTransaction, type GetTransaction } from "./get-transaction";
+export {
+  createListTransactions,
+  type ListTransactions,
+  type ListTransactionsInput,
+  type TransactionPage,
+} from "./list-transactions";

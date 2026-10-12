@@ -3,15 +3,19 @@ import type {
   AuditEntry,
   AuditLog,
   CategoryReader,
+  Expense,
+  Income,
   LedgerAccount,
   LedgerDeps,
   Transaction,
   TransactionFilter,
+  TransactionId,
   TransactionPosition,
   TransactionQuery,
   TransactionRepository,
+  Transfer,
 } from "@/modules/ledger/application";
-import { FixedClock } from "@/shared/kernel";
+import { FixedClock, type LocalDate } from "@/shared/kernel";
 import { fakeSpaceAccess, memoryTm, membership, noStoredPeriods, sequentialIds } from "./fakes";
 
 export const ACCOUNTS = {
@@ -134,3 +138,47 @@ export const ledgerFixture = (overrides: Partial<LedgerDeps> = {}) => {
   };
   return { deps, store, audit };
 };
+
+let seeded = 0;
+
+/** Increasing ids, so for equal dates "newest first" means the highest id, like UUIDv7 in production. */
+const baseOf = (date: string, amount: bigint) => ({
+  id: `seed-${String(++seeded).padStart(5, "0")}` as TransactionId,
+  spaceId: "space-ana",
+  description: "",
+  date: date as LocalDate,
+  amount,
+  currency: "COP",
+  createdBy: "u-ana",
+  createdAt: new Date("2026-10-01T00:00:00Z"),
+  updatedAt: new Date("2026-10-01T00:00:00Z"),
+  deletedAt: null,
+  version: 1,
+});
+
+export const anExpense = (date: string, amount: bigint, overrides: Partial<Expense> = {}): Expense => ({
+  ...baseOf(date, amount),
+  type: "EXPENSE",
+  categoryId: CATEGORIES.groceries.id,
+  payments: [{ memberId: "member-ana", accountId: ACCOUNTS.bancolombia.id, amount }],
+  shares: [{ memberId: "member-ana", amount, splitMethod: "EQUAL" }],
+  ...overrides,
+});
+
+export const anIncome = (date: string, amount: bigint, overrides: Partial<Income> = {}): Income => ({
+  ...baseOf(date, amount),
+  type: "INCOME",
+  categoryId: CATEGORIES.salary.id,
+  destinationAccountId: ACCOUNTS.bancolombia.id,
+  receivingMemberId: "member-ana",
+  ...overrides,
+});
+
+export const aTransfer = (date: string, amount: bigint, overrides: Partial<Transfer> = {}): Transfer => ({
+  ...baseOf(date, amount),
+  type: "TRANSFER",
+  categoryId: null,
+  sourceAccountId: ACCOUNTS.bancolombia.id,
+  destinationAccountId: ACCOUNTS.nequi.id,
+  ...overrides,
+});
