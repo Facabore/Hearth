@@ -33,45 +33,63 @@ const waitForPostgres = async (url: string, timeoutMs = 60_000): Promise<void> =
   }
 };
 
+/** The host port from `docker port` output such as "127.0.0.1:49153" (first mapping wins). */
+export const parsePublishedPort = (output: string): string => {
+  const port = output.split("\n")[0]?.match(/:(\d+)$/)?.[1];
+  if (!port) throw new Error(`No published port for the test database container: ${JSON.stringify(output)}`);
+  return port;
+};
+
+const startContainer = (): string =>
+  docker(
+    "run",
+    "-d",
+    "--rm",
+    "--label",
+    "hearth.test=true",
+    "-e",
+    "POSTGRES_DB=hearth",
+    "-e",
+    "POSTGRES_USER=hearth",
+    "-e",
+    "POSTGRES_PASSWORD=hearth",
+    "-p",
+    `${process.env.TEST_DOCKER_PUBLISH_HOST ?? "127.0.0.1"}::5432`,
+    POSTGRES_IMAGE,
+  );
+
+/** Best effort: a failed removal is reported but never hides the error that triggered it. */
+const removeContainer = (id: string): void => {
+  try {
+    docker("rm", "-f", id);
+  } catch (error) {
+    console.warn(`Could not remove test database container ${id}`, error);
+  }
+};
+
 /**
  * Starts a disposable PostgreSQL container through the Docker CLI, migrates it and provides its URL.
  * TEST_DATABASE_URL points the suite at an existing disposable database instead (e.g. a CI service).
  * Inside a container, set TEST_DOCKER_PUBLISH_HOST=0.0.0.0 and TEST_DATABASE_HOST=host.docker.internal.
  */
 export default async function setup(project: TestProject) {
-  let url = process.env.TEST_DATABASE_URL;
   let containerId: string | undefined;
-  if (!url) {
-    const publishHost = process.env.TEST_DOCKER_PUBLISH_HOST ?? "127.0.0.1";
-    containerId = docker(
-      "run",
-      "-d",
-      "--rm",
-      "--label",
-      "hearth.test=true",
-      "-e",
-      "POSTGRES_DB=hearth",
-      "-e",
-      "POSTGRES_USER=hearth",
-      "-e",
-      "POSTGRES_PASSWORD=hearth",
-      "-p",
-      `${publishHost}::5432`,
-      POSTGRES_IMAGE,
-    );
-    const port = docker("port", containerId, "5432/tcp").split("\n")[0]!.split(":").at(-1);
-    url = `postgres://hearth:hearth@${process.env.TEST_DATABASE_HOST ?? "127.0.0.1"}:${port}/hearth`;
-  }
   try {
+    let url = process.env.TEST_DATABASE_URL;
+    if (!url) {
+      containerId = startContainer();
+      const port = parsePublishedPort(docker("port", containerId, "5432/tcp"));
+      url = `postgres://hearth:hearth@${process.env.TEST_DATABASE_HOST ?? "127.0.0.1"}:${port}/hearth`;
+    }
     await waitForPostgres(url);
     await runMigrations(url, "drizzle");
+    project.provide("databaseUrl", url);
+    project.provide("adminDatabaseUrl", adminUrlOf(url));
   } catch (error) {
-    if (containerId) docker("rm", "-f", containerId);
+    if (containerId) removeContainer(containerId);
     throw error;
   }
-  project.provide("databaseUrl", url);
-  project.provide("adminDatabaseUrl", adminUrlOf(url));
   return () => {
-    if (containerId) docker("rm", "-f", containerId);
+    if (containerId) removeContainer(containerId);
   };
 }

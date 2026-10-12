@@ -14,7 +14,12 @@ export default defineConfig({
         test: {
           name: "unit",
           environment: "node",
-          include: ["src/**/*.test.ts", "scripts/**/*.test.mjs", "tests/architecture/**/*.test.ts"],
+          include: [
+            "src/**/*.test.ts",
+            "scripts/**/*.test.mjs",
+            "tests/architecture/**/*.test.ts",
+            "tests/support/**/*.test.ts",
+          ],
           exclude: ["src/**/*.int.test.ts"],
         },
       },
