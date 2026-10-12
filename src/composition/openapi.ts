@@ -1,4 +1,5 @@
 import { createDocument, type ZodOpenApiObject } from "zod-openapi";
+import { authPaths } from "@/modules/identity/contracts/auth.contract";
 import { mePaths } from "@/modules/identity/contracts/me.contract";
 import { MoneySchema, ProblemSchema } from "@/shared/http/contracts";
 import { healthPaths, openApiPaths } from "@/shared/http/system.contract";
@@ -8,7 +9,7 @@ export const buildOpenApiDocument = (): Record<string, unknown> =>
     // zod-openapi 6 types target OAS 3.2; we emit 3.1.0 by design (ADR 0002).
     openapi: "3.1.0" as ZodOpenApiObject["openapi"],
     info: { title: "Hearth API", version: "1.0.0" },
-    paths: { ...healthPaths, ...openApiPaths, ...mePaths },
+    paths: { ...healthPaths, ...openApiPaths, ...mePaths, ...authPaths },
     components: {
       schemas: { Money: MoneySchema, Problem: ProblemSchema },
       securitySchemes: {
