@@ -136,6 +136,27 @@ describe("defineRoute", () => {
     );
   });
 
+  it("logs Err results that map to a 5xx with their details, but not client errors", async () => {
+    const error = vi.fn();
+    const logged = createRouteFactory(() => ({
+      sessionResolver: { resolve: async () => null },
+      logger: { info: vi.fn(), error },
+    }));
+    const internal = await call(
+      logged({ auth: "none", handler: async () => err(domainError("InternalError", { cause: "Boom" })) }),
+    );
+    expect(internal.status).toBe(500);
+    expect(JSON.stringify(await internal.json())).not.toContain("Boom");
+    expect(error).toHaveBeenCalledWith("route_error_result", {
+      requestId: internal.headers.get("x-request-id"),
+      code: "InternalError",
+      details: { cause: "Boom" },
+    });
+    error.mockClear();
+    await call(logged({ auth: "none", handler: async () => err(domainError("SpaceNotFound")) }));
+    expect(error).not.toHaveBeenCalled();
+  });
+
   it("returns 500 when the session resolver fails", async () => {
     const failing = createRouteFactory(() => ({
       sessionResolver: { resolve: () => Promise.reject(new Error("store down")) },

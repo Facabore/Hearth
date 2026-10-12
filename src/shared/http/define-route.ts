@@ -1,7 +1,7 @@
 import type { ZodType } from "zod";
 import type { AuthUser, Result } from "@/shared/kernel";
 import { jsonLogger, type Logger } from "./logger";
-import { problemResponse, type ProblemFieldError } from "./problem";
+import { problemResponse, statusForCode, type ProblemFieldError } from "./problem";
 import { requestIdFrom } from "./request-id";
 import type { SessionResolver } from "./session-resolver";
 
@@ -91,7 +91,17 @@ export const createRouteFactory =
       const params = ((await context?.params) ?? {}) as P;
       const ctx: RouteContext<B, Q, P> = { request, requestId, user, body, query, params };
       const result = spec.before ? await spec.before(ctx, () => spec.handler(ctx)) : await spec.handler(ctx);
-      if (!result.ok) return problemResponse(result.error.code, requestId);
+      if (!result.ok) {
+        // Server-side failures reach clients as a bare code; their details go to the log only.
+        if (statusForCode(result.error.code) >= 500) {
+          logger.error("route_error_result", {
+            requestId,
+            code: result.error.code,
+            details: result.error.details,
+          });
+        }
+        return problemResponse(result.error.code, requestId);
+      }
 
       const headers = new Headers({ "x-request-id": requestId });
       for (const [name, value] of result.value.headers ?? []) headers.append(name, value);

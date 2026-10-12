@@ -20,14 +20,21 @@ export const createSignUp =
   async (input) => {
     const created = await deps.auth.signUp({ ...input, email: normalizeEmail(input.email) });
     if (!created.ok) return created;
-    let provisioned: Result<void>;
+    const { user } = created.value;
+    let cause: string;
     try {
-      provisioned = await deps.provisionUser(created.value.user);
+      const provisioned = await deps.provisionUser(user);
+      if (provisioned.ok) return created;
+      cause = provisioned.error.code;
     } catch {
-      provisioned = err(domainError("InternalError"));
+      cause = "ProvisioningThrew";
     }
-    if (provisioned.ok) return created;
     // The provider commits the user before provisioning runs; compensate so no half-created user remains.
-    await deps.auth.deleteUser(created.value.user.id);
-    return err(domainError("InternalError", { cause: provisioned.error.code }));
+    try {
+      await deps.auth.deleteUser(user.id);
+    } catch {
+      // The user exists without provisioning; the details let operators find and repair it.
+      return err(domainError("InternalError", { cause, compensation: "failed", userId: user.id }));
+    }
+    return err(domainError("InternalError", { cause }));
   };
