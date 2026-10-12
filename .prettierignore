@@ -1,0 +1,5 @@
+pnpm-lock.yaml
+drizzle/
+openapi/openapi.snapshot.json
+.next/
+docs/
