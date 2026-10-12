@@ -59,6 +59,20 @@ describe("Money", () => {
     expect(isErr(unknown) && unknown.error.code).toBe("UnknownCurrency");
   });
 
+  it("treats inherited object keys as unknown currencies", () => {
+    for (const code of ["constructor", "toString", "hasOwnProperty", "__proto__"]) {
+      const result = Money.fromMajor("1", code);
+      expect(isErr(result) && result.error.code).toBe("UnknownCurrency");
+    }
+  });
+
+  it("allocates negative amounts without losing units", () => {
+    const parts = unwrap(unwrap(Money.ofMinor(-100n, "USD")).allocate([1, 1, 1]));
+    expect(parts.map((p) => p.minor)).toEqual([-34n, -33n, -33n]);
+    const cents = unwrap(unwrap(Money.ofMinor(-10050n, "COP")).allocate([1, 1]));
+    expect(cents.map((p) => p.minor)).toEqual([-5050n, -5000n]);
+  });
+
   it("compares, adds and subtracts", () => {
     expect(unwrap(cop("5").add(cop("7"))).minor).toBe(1200n);
     expect(unwrap(cop("5").subtract(cop("7"))).isNegative()).toBe(true);

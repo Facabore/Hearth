@@ -58,7 +58,8 @@ export class Money {
   /**
    * Largest-remainder allocation in the currency rounding unit (spec 5.3).
    * Ties go to the earlier ratio. A sub-unit remainder (amount not a multiple
-   * of the rounding unit) is added to the first part. Intended for non-negative amounts.
+   * of the rounding unit) is added to the first part. Negative amounts are split by
+   * allocating their absolute value and negating every part, so the total stays exact.
    */
   allocate(ratios: readonly number[]): Result<Money[]> {
     if (ratios.length === 0 || ratios.some((r) => !Number.isInteger(r) || r < 0)) {
@@ -67,6 +68,11 @@ export class Money {
     const weights = ratios.map(BigInt);
     const totalWeight = weights.reduce((a, b) => a + b, 0n);
     if (totalWeight === 0n) return err(domainError("InvalidRatio", { ratios }));
+    if (this.minor < 0n) {
+      return map(new Money(-this.minor, this.currency).allocate(ratios), (parts) =>
+        parts.map((part) => new Money(-part.minor, this.currency)),
+      );
+    }
 
     const unit = this.currency.roundingUnit;
     const units = this.minor / unit;
