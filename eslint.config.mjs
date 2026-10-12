@@ -1,5 +1,6 @@
 import js from "@eslint/js";
 import { defineConfig, globalIgnores } from "eslint/config";
+import tseslint from "typescript-eslint";
 
 export default defineConfig([
   globalIgnores([
@@ -16,5 +17,9 @@ export default defineConfig([
     languageOptions: {
       globals: { process: "readonly", console: "readonly", Buffer: "readonly", URL: "readonly" },
     },
+  },
+  {
+    files: ["**/*.{ts,tsx}"],
+    extends: [js.configs.recommended, tseslint.configs.recommended],
   },
 ]);
