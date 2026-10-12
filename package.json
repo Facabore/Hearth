@@ -18,7 +18,11 @@
     "format:check": "prettier --check .",
     "check:pinned": "node scripts/check-pinned.mjs",
     "test": "vitest run",
-    "test:unit": "vitest run --project unit"
+    "test:unit": "vitest run --project unit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node scripts/migrate.mjs",
+    "test:int": "vitest run --project integration",
+    "test:acceptance": "vitest run --project acceptance"
   },
   "dependencies": {
     "drizzle-orm": "0.45.4",
