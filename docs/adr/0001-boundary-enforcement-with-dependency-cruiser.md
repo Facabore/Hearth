@@ -25,3 +25,7 @@ Every rule has a fixture in `tests/architecture/fixtures/` and an assertion in `
 - It does not depend on ESLint's version or resolver plugins.
 - Referential integrity may cross module boundaries at the table level; ownership of each table stays with its module.
 - Editor feedback is weaker than an ESLint plugin; eslint-plugin-boundaries can be added later for in-editor hints without replacing this gate.
+
+## Amendment (Task 11)
+
+Drizzle table files (`*.schema.ts`) may import other modules' table files to declare foreign keys. They may import nothing else from another module (rule `schemas-only-reference-schemas`). Ownership stays with each module; only referential integrity crosses the boundary.
