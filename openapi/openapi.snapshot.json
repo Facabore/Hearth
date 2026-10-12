@@ -199,7 +199,17 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, PasswordTooShort, InvalidEmail",
+            "description": "ValidationFailed, PasswordTooShort, InvalidPassword, InvalidEmail",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "TooManyRequests",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -295,6 +305,16 @@
           },
           "401": {
             "description": "InvalidCredentials",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "TooManyRequests",
             "content": {
               "application/problem+json": {
                 "schema": {

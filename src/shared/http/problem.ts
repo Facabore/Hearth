@@ -14,6 +14,7 @@ const EXPLICIT: ReadonlyMap<string, number> = new Map([
   ["EmailTaken", 409],
   ["IdempotencyKeyConflict", 409],
   ["PreconditionFailed", 412],
+  ["TooManyRequests", 429],
   ["InternalError", 500],
 ]);
 
@@ -24,6 +25,7 @@ const TITLES: ReadonlyMap<number, string> = new Map([
   [409, "Conflict"],
   [412, "Precondition Failed"],
   [422, "Unprocessable Content"],
+  [429, "Too Many Requests"],
   [500, "Internal Server Error"],
 ]);
 

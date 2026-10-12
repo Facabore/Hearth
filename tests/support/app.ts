@@ -7,6 +7,9 @@ import {
   type ContainerOptions,
 } from "@/composition/container";
 
+// Generous by default: suites register many users from one address. Throttling tests pass their own limits.
+const RELAXED_LIMITS = { signInPerEmail: 1000, signInPerIp: 1000, signUpPerIp: 1000 };
+
 /** Builds the real container against the test database and installs it for the route handlers. */
 export const startTestApp = (options: ContainerOptions = {}): Container => {
   const container = buildContainer(
@@ -17,7 +20,7 @@ export const startTestApp = (options: ContainerOptions = {}): Container => {
       APP_TIMEZONE: "America/Bogota",
       LOG_LEVEL: "error",
     },
-    options,
+    { authLimits: RELAXED_LIMITS, ...options },
   );
   setContainerForTests(container);
   return container;

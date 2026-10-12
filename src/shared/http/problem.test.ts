@@ -13,6 +13,7 @@ describe("statusForCode", () => {
     ["NotASpaceMember", 422],
     ["ValidationFailed", 422],
     ["PreconditionFailed", 412],
+    ["TooManyRequests", 429],
     ["InternalError", 500],
   ])("maps %s to %i", (code, status) => {
     expect(statusForCode(code)).toBe(status);
