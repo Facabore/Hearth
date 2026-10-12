@@ -36,6 +36,13 @@
       "when": 1791844519851,
       "tag": "0004_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791846114533,
+      "tag": "0005_ledger",
+      "breakpoints": true
     }
   ]
 }
