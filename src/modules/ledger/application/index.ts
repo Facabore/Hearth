@@ -34,3 +34,11 @@ export {
   type ListTransactionsInput,
   type TransactionPage,
 } from "./list-transactions";
+export { createDeleteTransaction, type DeleteTransaction } from "./delete-transaction";
+export {
+  createEditTransaction,
+  type EditChanges,
+  type EditTransaction,
+  type EditTransactionInput,
+} from "./edit-transaction";
+export { createListAudit, type ListAudit } from "./list-audit";
