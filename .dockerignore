@@ -1,0 +1,12 @@
+.git
+.next
+node_modules
+coverage
+tests
+scripts/*.test.mjs
+**/*.test.ts
+**/*.int.test.ts
+.env
+.env.*
+docs
+openapi
