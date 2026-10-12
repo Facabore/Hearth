@@ -34,7 +34,11 @@ export const authPaths: ZodOpenApiPathsObject = {
           content: json(SignUpResponseSchema),
         },
         "409": { description: "EmailTaken", content: problemContent },
-        "422": { description: "ValidationFailed, PasswordTooShort, InvalidEmail", content: problemContent },
+        "422": {
+          description: "ValidationFailed, PasswordTooShort, InvalidPassword, InvalidEmail",
+          content: problemContent,
+        },
+        "429": { description: "TooManyRequests", content: problemContent },
       },
     },
   },
@@ -46,6 +50,7 @@ export const authPaths: ZodOpenApiPathsObject = {
       responses: {
         "200": { description: "Signed in", content: json(SignInResponseSchema) },
         "401": { description: "InvalidCredentials", content: problemContent },
+        "429": { description: "TooManyRequests", content: problemContent },
       },
     },
   },

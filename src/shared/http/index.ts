@@ -7,3 +7,4 @@ export * from "./etag";
 export * from "./json";
 export * from "./pagination";
 export * from "./idempotency";
+export * from "./rate-limiter";

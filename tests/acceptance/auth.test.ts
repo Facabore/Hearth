@@ -112,6 +112,17 @@ describe("email and password authentication", () => {
     expect((await after.json()).code).toBe("Unauthenticated");
   });
 
+  it("revokes a Bearer session on sign out", async () => {
+    const email = uniqueEmail("ana");
+    await register(email);
+    const { token } = await (await login(email)).json();
+    const authorization = `Bearer ${token}`;
+    const out = await signOut(apiRequest("POST", "/api/v1/auth/sign-out", { headers: { authorization } }));
+    expect(out.status).toBe(204);
+    const after = await me(apiRequest("GET", "/api/v1/me", { headers: { authorization } }));
+    expect(after.status).toBe(401);
+  });
+
   it("stores no plaintext password", async () => {
     const email = uniqueEmail("ana");
     await register(email);
@@ -127,14 +138,72 @@ describe("email and password authentication", () => {
 describe("sign-up provisioning", () => {
   it("removes the user again when provisioning fails, so the email can be reused", async () => {
     const failing = startTestApp({ provisionUser: async () => Promise.reject(new Error("boom")) });
-    const email = uniqueEmail("ana");
-    const response = await register(email);
-    expect(response.status).toBe(500);
-    const { rows } = await failing.pool.query('SELECT count(*)::int AS n FROM "user" WHERE email = $1', [
-      email,
-    ]);
-    expect(rows[0].n).toBe(0);
-    await failing.pool.end();
-    setContainerForTests(app);
+    try {
+      const email = uniqueEmail("ana");
+      const response = await register(email);
+      expect(response.status).toBe(500);
+      const { rows } = await failing.pool.query('SELECT count(*)::int AS n FROM "user" WHERE email = $1', [
+        email,
+      ]);
+      expect(rows[0].n).toBe(0);
+    } finally {
+      await failing.pool.end();
+      setContainerForTests(app);
+    }
+  });
+});
+
+describe("brute-force protection", () => {
+  it("throttles repeated sign-in attempts for one email with 429 TooManyRequests", async () => {
+    const throttled = startTestApp({ authLimits: { signInPerEmail: 3, signInPerIp: 100, signUpPerIp: 100 } });
+    try {
+      const email = uniqueEmail("ana");
+      await register(email);
+      const statuses: number[] = [];
+      for (let attempt = 0; attempt < 4; attempt++)
+        statuses.push((await login(email, "wrong-password")).status);
+      expect(statuses).toEqual([401, 401, 401, 429]);
+      const blocked = await login(email);
+      expect(blocked.status).toBe(429);
+      expect((await blocked.json()).code).toBe("TooManyRequests");
+      expect((await login(uniqueEmail("other"), "whatever-password")).status).toBe(401);
+    } finally {
+      await throttled.pool.end();
+      setContainerForTests(app);
+    }
+  });
+
+  it("throttles sign-in and sign-up per client address", async () => {
+    const throttled = startTestApp({ authLimits: { signInPerEmail: 100, signInPerIp: 2, signUpPerIp: 1 } });
+    try {
+      const from = (ip: string) => ({ "x-forwarded-for": ip });
+      const signUpFrom = (ip: string) =>
+        signUp(
+          apiRequest("POST", "/api/v1/auth/sign-up", {
+            body: { name: "Ana", email: uniqueEmail("ana"), password: "123456789012" },
+            headers: from(ip),
+          }),
+        );
+      expect([(await signUpFrom("203.0.113.1")).status, (await signUpFrom("203.0.113.1")).status]).toEqual([
+        201, 429,
+      ]);
+      expect((await signUpFrom("203.0.113.2")).status).toBe(201);
+      const signInFrom = (ip: string) =>
+        signIn(
+          apiRequest("POST", "/api/v1/auth/sign-in", {
+            body: { email: uniqueEmail("x"), password: "whatever-password" },
+            headers: from(ip),
+          }),
+        );
+      const statuses = [
+        await signInFrom("198.51.100.9"),
+        await signInFrom("198.51.100.9"),
+        await signInFrom("198.51.100.9"),
+      ];
+      expect(statuses.map((r) => r.status)).toEqual([401, 401, 429]);
+    } finally {
+      await throttled.pool.end();
+      setContainerForTests(app);
+    }
   });
 });
