@@ -17,7 +17,8 @@ x-postgres: &postgres
     POSTGRES_USER: hearth
     POSTGRES_PASSWORD: hearth
   healthcheck:
-    test: ["CMD-SHELL", "pg_isready -U hearth -d hearth"]
+    # TCP probe: the init-time temporary server listens only on the unix socket
+    test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U hearth -d hearth"]
     interval: 2s
     timeout: 3s
     retries: 30
