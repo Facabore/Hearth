@@ -145,6 +145,19 @@ describe("defineRoute", () => {
     expect(response.status).toBe(500);
   });
 
+  it("returns a logged problem+json 500 when the dependencies cannot be built", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const broken = createRouteFactory(() => {
+      throw new Error("missing DATABASE_URL");
+    });
+    const response = await call(broken({ auth: "none", handler: async () => ok({ status: 200 }) }));
+    expect(response.status).toBe(500);
+    expect(response.headers.get("content-type")).toBe("application/problem+json");
+    expect((await response.json()).requestId).toBe(response.headers.get("x-request-id"));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("missing DATABASE_URL"));
+    log.mockRestore();
+  });
+
   it("serializes bigint values as strings and appends repeated headers", async () => {
     const route = defineRoute({
       auth: "none",

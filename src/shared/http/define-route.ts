@@ -1,6 +1,6 @@
 import type { ZodType } from "zod";
 import type { AuthUser, Result } from "@/shared/kernel";
-import type { Logger } from "./logger";
+import { jsonLogger, type Logger } from "./logger";
 import { problemResponse, type ProblemFieldError } from "./problem";
 import { requestIdFrom } from "./request-id";
 import type { SessionResolver } from "./session-resolver";
@@ -56,8 +56,11 @@ export const createRouteFactory =
   ) =>
   async (request: Request, context?: { params?: Promise<P> }): Promise<Response> => {
     const requestId = requestIdFrom(request);
-    const deps = getDeps();
+    // Until the dependencies exist, failures are logged with the default JSON logger.
+    let logger: Logger = jsonLogger;
     try {
+      const deps = getDeps();
+      logger = deps.logger;
       const user = spec.auth === "none" ? null : await deps.sessionResolver.resolve(request.headers);
       if (spec.auth === "required" && !user) return problemResponse("Unauthenticated", requestId);
 
@@ -100,7 +103,7 @@ export const createRouteFactory =
         headers,
       });
     } catch (error) {
-      deps.logger.error("unhandled_route_error", { requestId, error: String(error) });
+      logger.error("unhandled_route_error", { requestId, error: String(error) });
       return problemResponse("InternalError", requestId);
     }
   };
