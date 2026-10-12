@@ -1,5 +1,9 @@
+import { ok } from "@/shared/kernel";
+import { defineRoute } from "@/composition/route";
+
 export const runtime = "nodejs";
 
-export function GET(): Response {
-  return Response.json({ status: "ok" });
-}
+export const GET = defineRoute({
+  auth: "none",
+  handler: async () => ok({ status: 200, body: { status: "ok" } }),
+});
