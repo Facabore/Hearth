@@ -2,7 +2,9 @@ import {
   DEFAULT_PERIOD_POLICY,
   domainError,
   err,
+  monthly,
   ok,
+  semiMonthly,
   type Id,
   type PeriodPolicy,
   type Result,
@@ -63,3 +65,17 @@ export const createPersonalSpace = (input: {
 /** Personal spaces have exactly one member (spec 5.2, HU-E1-02). */
 export const ensureCanAddMember = (space: Space): Result<void> =>
   space.kind === "PERSONAL" ? err(domainError("PersonalSpaceNotShareable")) : ok(undefined);
+
+const MAX_SPACE_NAME = 80;
+
+/** HU-E1-03: space names are trimmed and 1–80 characters long. */
+export const spaceName = (raw: string): Result<string> => {
+  const name = raw.trim();
+  return name.length >= 1 && name.length <= MAX_SPACE_NAME
+    ? ok(name)
+    : err(domainError("InvalidSpaceName", { length: name.length }));
+};
+
+/** Re-checks a policy that arrived from outside: the wire format accepts any integer days. */
+export const checkedPeriodPolicy = (policy: PeriodPolicy): Result<PeriodPolicy> =>
+  policy.kind === "MONTHLY" ? monthly(policy.day) : semiMonthly(policy.day1, policy.day2);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Id } from "@/shared/kernel";
-import { createPersonalSpace, ensureCanAddMember } from "./space";
+import { checkedPeriodPolicy, createPersonalSpace, ensureCanAddMember, spaceName } from "./space";
 
 const space = createPersonalSpace({
   id: "s-1" as Id<"Space">,
@@ -25,5 +25,31 @@ describe("personal space", () => {
   it("cannot receive members", () => {
     const result = ensureCanAddMember(space);
     expect(!result.ok && result.error.code).toBe("PersonalSpaceNotShareable");
+  });
+});
+
+describe("space settings rules (HU-E1-03)", () => {
+  it("trims names and rejects blank or overlong ones", () => {
+    expect(spaceName("  Casa  ")).toEqual({ ok: true, value: "Casa" });
+    for (const bad of ["   ", "x".repeat(81)]) {
+      const result = spaceName(bad);
+      expect(!result.ok && result.error.code).toBe("InvalidSpaceName");
+    }
+  });
+
+  it.each([
+    { kind: "MONTHLY", day: 0 },
+    { kind: "MONTHLY", day: 32 },
+    { kind: "SEMI_MONTHLY", day1: 20, day2: 5 },
+  ] as const)("rejects the period policy %o", (policy) => {
+    const result = checkedPeriodPolicy(policy);
+    expect(!result.ok && result.error.code).toBe("InvalidPeriodPolicy");
+  });
+
+  it("accepts valid policies unchanged", () => {
+    expect(checkedPeriodPolicy({ kind: "SEMI_MONTHLY", day1: 5, day2: 20 })).toEqual({
+      ok: true,
+      value: { kind: "SEMI_MONTHLY", day1: 5, day2: 20 },
+    });
   });
 });
