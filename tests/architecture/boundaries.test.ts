@@ -5,7 +5,10 @@ import { cruise, type ICruiseResult } from "dependency-cruiser";
 import { describe, expect, it } from "vitest";
 
 const require = createRequire(import.meta.url);
-const config = require("../../.dependency-cruiser.cjs") as { forbidden: { name: string; comment: string }[] };
+const config = require("../../.dependency-cruiser.cjs") as {
+  forbidden: { name: string; comment: string }[];
+  options: { doNotFollow: { path: string } };
+};
 const fixtures = join(fileURLToPath(new URL(".", import.meta.url)), "fixtures");
 
 async function violations(fixture: string) {
@@ -14,6 +17,7 @@ async function violations(fixture: string) {
     validate: true,
     ruleSet: { forbidden: config.forbidden } as never,
     tsPreCompilationDeps: true,
+    doNotFollow: config.options.doNotFollow,
   });
   const output = result.output as ICruiseResult;
   return output.summary.violations.map((v) => ({ rule: v.rule.name, from: v.from, to: v.to }));
@@ -44,6 +48,15 @@ describe("architecture boundaries", () => {
   it("forbids a table file from reaching anything else in another module", async () => {
     const found = await violations("schema-reaches-repository");
     expect(found.map((v) => v.rule)).toContain("schemas-only-reference-schemas");
+  });
+
+  it.each([
+    ["kernel-imports-node", "kernel-must-be-pure"],
+    ["application-imports-infrastructure", "application-must-not-depend-on-adapters"],
+    ["shared-imports-module", "shared-must-not-depend-on-modules"],
+    ["circular", "no-circular"],
+  ])("flags the %s fixture with %s", async (fixture, rule) => {
+    expect((await violations(fixture)).map((v) => v.rule)).toContain(rule);
   });
 
   it("passes allowed dependency directions", async () => {
