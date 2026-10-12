@@ -9,13 +9,14 @@ export interface Currency {
   readonly roundingUnit: bigint;
 }
 
-const CURRENCIES: Readonly<Record<string, Currency>> = {
-  COP: { code: "COP", exponent: 2, roundingUnit: 100n },
-  USD: { code: "USD", exponent: 2, roundingUnit: 1n },
-  EUR: { code: "EUR", exponent: 2, roundingUnit: 1n },
-};
+// A Map, not an object literal, so inherited keys such as "constructor" are never currencies.
+const CURRENCIES: ReadonlyMap<string, Currency> = new Map([
+  ["COP", { code: "COP", exponent: 2, roundingUnit: 100n }],
+  ["USD", { code: "USD", exponent: 2, roundingUnit: 1n }],
+  ["EUR", { code: "EUR", exponent: 2, roundingUnit: 1n }],
+]);
 
 export const currencyOf = (code: string): Result<Currency> => {
-  const currency = CURRENCIES[code];
+  const currency = CURRENCIES.get(code);
   return currency ? ok(currency) : err(domainError("UnknownCurrency", { currency: code }));
 };
