@@ -1,0 +1,6 @@
+# Local production smoke test: builds the images instead of pulling them.
+services:
+  migrate:
+    build: { context: ., target: migrator }
+  app:
+    build: { context: ., target: runner }

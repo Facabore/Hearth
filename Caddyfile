@@ -1,0 +1,6 @@
+{$HEARTH_DOMAIN} {
+	encode zstd gzip
+	# Caddy replaces client-sent X-Forwarded-For with the real peer address (no trusted_proxies set),
+	# which the auth rate limiter relies on. The app is reachable only through this proxy.
+	reverse_proxy app:3000
+}
