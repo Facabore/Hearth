@@ -5,3 +5,4 @@ export * from "./local-date";
 export * from "./clock";
 export * from "./currency";
 export * from "./money";
+export * from "./period-policy";
