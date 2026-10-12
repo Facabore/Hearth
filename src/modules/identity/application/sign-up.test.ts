@@ -1,8 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { domainError, err, ok, type AuthUser } from "@/shared/kernel";
 import type { AuthProvider, AuthSession } from "./auth-provider";
-import { createSignIn } from "./sign-in";
-import { createSignOut } from "./sign-out";
 import { createSignUp, normalizeEmail } from "./sign-up";
 
 const ana: AuthUser = {
@@ -20,6 +18,8 @@ const provider = (overrides: Partial<AuthProvider> = {}): AuthProvider => ({
   deleteUser: vi.fn(async () => undefined),
   ...overrides,
 });
+
+const input = { name: "Ana", email: "a@b.co", password: "x" };
 
 describe("normalizeEmail", () => {
   it("trims and lowercases", () => {
@@ -76,26 +76,30 @@ describe("SignUp", () => {
     expect(!result.ok && result.error.code).toBe("InternalError");
     expect(auth.deleteUser).toHaveBeenCalledWith("u-ana");
   });
-});
 
-describe("SignIn", () => {
-  it("normalizes the email before delegating", async () => {
-    const auth = provider();
-    await createSignIn(auth)({ email: " Ana@Example.com ", password: "p" });
-    expect(auth.signIn).toHaveBeenCalledWith({ email: "ana@example.com", password: "p" });
+  it("tells a provisioning Err apart from a provisioning throw", async () => {
+    const failing = await createSignUp({
+      auth: provider(),
+      provisionUser: async () => err(domainError("Boom")),
+    })(input);
+    const throwing = await createSignUp({
+      auth: provider(),
+      provisionUser: async () => {
+        throw new Error("db down");
+      },
+    })(input);
+    expect(!failing.ok && failing.error.details).toEqual({ cause: "Boom" });
+    expect(!throwing.ok && throwing.error.details).toEqual({ cause: "ProvisioningThrew" });
   });
 
-  it("passes InvalidCredentials through", async () => {
-    const auth = provider({ signIn: vi.fn(async () => err(domainError("InvalidCredentials"))) });
-    const result = await createSignIn(auth)({ email: "a@b.co", password: "p" });
-    expect(!result.ok && result.error.code).toBe("InvalidCredentials");
-  });
-});
-
-describe("SignOut", () => {
-  it("forwards the caller's credentials", async () => {
-    const auth = provider();
-    await createSignOut(auth)({ cookie: "hearth.session_token=x" });
-    expect(auth.signOut).toHaveBeenCalledWith({ cookie: "hearth.session_token=x" });
+  it("still returns InternalError, flagged for follow-up, when the compensation fails", async () => {
+    const auth = provider({ deleteUser: vi.fn(async () => Promise.reject(new Error("auth db down"))) });
+    const result = await createSignUp({ auth, provisionUser: async () => err(domainError("Boom")) })(input);
+    expect(!result.ok && result.error.code).toBe("InternalError");
+    expect(!result.ok && result.error.details).toEqual({
+      cause: "Boom",
+      compensation: "failed",
+      userId: "u-ana",
+    });
   });
 });
