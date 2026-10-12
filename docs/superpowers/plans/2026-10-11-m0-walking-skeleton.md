@@ -14,7 +14,7 @@
 
 - Node.js `24.21.0` (`.nvmrc`, Docker `node:24.21.0-alpine`); pnpm `12.11.2` via `packageManager`.
 - Every dependency pinned to an exact version (`pnpm add -E`); `pnpm check:pinned` must pass.
-- TypeScript `6.0.3` (not 7.x: typescript-eslint 8.71.1 supports `<6.1.0`); ESLint `9.39.5` (not 10.x: eslint-config-next 16.4 plugin peers stop at 9); Drizzle `0.45.4` (1.0 is still RC); Zod `4.6.5`.
+- TypeScript `6.0.3` (not 7.x: typescript-eslint 8.71.1 supports `<6.1.0`); ESLint `10.12.0` with `@eslint/js` `10.0.1` and `typescript-eslint` `8.71.1` (ESLint 9 is deprecated; `eslint-config-next` is deferred to HU-E9-01 because it pins ESLint 9 and only adds UI rules); Drizzle `0.45.4` (1.0 is still RC); Zod `4.6.5`.
 - TypeScript `strict: true`, `noUncheckedIndexedAccess: true`.
 - Domain and kernel code import nothing but their own module's domain and `src/shared/kernel` (no Next.js, Drizzle, pg, Better Auth, Zod, Node built-ins).
 - Money is `bigint` minor units in code and `bigint` columns in PostgreSQL; over HTTP it is `{ "amount": "<minor units as string>", "currency": "<ISO 4217>" }`.
