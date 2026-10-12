@@ -1,0 +1,44 @@
+import { describe, expect, it } from "vitest";
+import { Money } from "@/shared/kernel";
+import { MoneySchema, moneyFromDto, moneyToDto } from "./contracts";
+
+describe("MoneySchema", () => {
+  it("serializes Money as a minor-units string", () => {
+    const money = Money.fromMajor("1600000", "COP");
+    if (!money.ok) throw new Error(money.error.code);
+    expect(moneyToDto(money.value)).toEqual({ amount: "160000000", currency: "COP" });
+  });
+
+  it("parses a valid DTO back into Money", () => {
+    const parsed = moneyFromDto({ amount: "-160000000", currency: "COP" });
+    expect(parsed.ok && parsed.value.minor).toBe(-160000000n);
+  });
+
+  it("rejects an unknown currency when mapping to Money", () => {
+    const parsed = moneyFromDto({ amount: "5", currency: "XXX" });
+    expect(!parsed.ok && parsed.error.code).toBe("UnknownCurrency");
+  });
+
+  it.each([
+    [{ amount: 160000000, currency: "COP" }, "amount"],
+    [{ amount: "+5", currency: "COP" }, "amount"],
+    [{ amount: " 5", currency: "COP" }, "amount"],
+    [{ amount: "5.00", currency: "COP" }, "amount"],
+    [{ amount: "", currency: "COP" }, "amount"],
+    [{ amount: "9223372036854775808", currency: "COP" }, "amount"],
+    [{ amount: "-9223372036854775809", currency: "COP" }, "amount"],
+    [{ amount: "5", currency: "cop" }, "currency"],
+  ])("rejects %j at path %s with a single issue", (input, path) => {
+    const result = MoneySchema.safeParse(input);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toHaveLength(1);
+      expect(result.error.issues[0]!.path).toEqual([path]);
+    }
+  });
+
+  it("accepts the PostgreSQL bigint bounds", () => {
+    expect(MoneySchema.safeParse({ amount: "9223372036854775807", currency: "COP" }).success).toBe(true);
+    expect(MoneySchema.safeParse({ amount: "-9223372036854775808", currency: "COP" }).success).toBe(true);
+  });
+});
