@@ -9,12 +9,21 @@ import {
 } from "@/modules/identity/application";
 import { createAuth } from "@/modules/identity/infrastructure/better-auth";
 import { BetterAuthProvider } from "@/modules/identity/infrastructure/better-auth-provider";
+import {
+  createCreatePersonalSpace,
+  createListMySpaces,
+  type CreatePersonalSpace,
+  type ListMySpaces,
+} from "@/modules/spaces/application";
+import { DrizzleSpaceRepository } from "@/modules/spaces/infrastructure/drizzle-space-repository";
 import { createFixedWindowLimiter, jsonLogger, type IdempotencyDeps, type RouteDeps } from "@/shared/http";
 import { createDatabase, type Database } from "@/shared/infrastructure/db/client";
 import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { DrizzleIdempotencyStore } from "@/shared/infrastructure/drizzle-idempotency-store";
 import { loadEnv, type Env } from "@/shared/infrastructure/env";
-import { ok, type AuthUser, type Result } from "@/shared/kernel";
+import { SystemClock } from "@/shared/infrastructure/system-clock";
+import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
+import { map, type AuthUser, type Result } from "@/shared/kernel";
 
 /** Process-wide dependencies, built once from the environment. */
 export interface Container extends RouteDeps {
@@ -23,6 +32,7 @@ export interface Container extends RouteDeps {
   readonly tm: DrizzleTransactionManager;
   readonly idempotency: IdempotencyDeps;
   readonly identity: { readonly signUp: SignUp; readonly signIn: SignIn; readonly signOut: SignOut };
+  readonly spaces: { readonly createPersonalSpace: CreatePersonalSpace; readonly listMySpaces: ListMySpaces };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
     readonly signIn: (ip: string, email: string) => boolean;
@@ -56,8 +66,17 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     createAuth({ db, secret: env.BETTER_AUTH_SECRET, baseURL: env.BETTER_AUTH_URL }),
     db,
   );
-  // Task 11 provisions the personal space here.
-  const provisionUser = options.provisionUser ?? (async () => ok(undefined));
+  const spaceRepository = new DrizzleSpaceRepository(tm);
+  const createPersonalSpace = createCreatePersonalSpace({
+    spaces: spaceRepository,
+    ids: new UuidV7IdGenerator(),
+    clock: new SystemClock(),
+    tm,
+  });
+  // HU-E1-02: every new user gets a personal space; sign-up compensates if this fails.
+  const provisionUser =
+    options.provisionUser ??
+    (async (u: AuthUser) => map(await createPersonalSpace({ userId: u.id, name: u.name }), () => undefined));
   const limits = options.authLimits ?? DEFAULT_AUTH_LIMITS;
   const signInByEmail = createFixedWindowLimiter({ limit: limits.signInPerEmail, windowMs: FIFTEEN_MINUTES });
   const signInByIp = createFixedWindowLimiter({ limit: limits.signInPerIp, windowMs: FIFTEEN_MINUTES });
@@ -74,6 +93,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       signIn: createSignIn(provider),
       signOut: createSignOut(provider),
     },
+    spaces: { createPersonalSpace, listMySpaces: createListMySpaces(spaceRepository) },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.
       signIn: (ip, email) => [signInByIp.hit(ip), signInByEmail.hit(email)].every(Boolean),
