@@ -67,3 +67,48 @@ describe("DrizzleSpaceRepository", () => {
     expect(rows[0].n).toBe(0);
   });
 });
+
+describe("DrizzleSpaceRepository memberships and settings (HU-E1-03)", () => {
+  it("finds the owner's membership with the space settings", async () => {
+    const userId = await newUser();
+    const space = personal(userId);
+    await repo.add(space);
+    expect(await repo.findMembership(space.id, userId)).toEqual({
+      spaceId: space.id,
+      name: "Personal",
+      spaceKind: "PERSONAL",
+      currency: "COP",
+      periodPolicy: { kind: "MONTHLY", day: 1 },
+      memberId: space.members[0]!.id,
+      userId,
+      role: "OWNER",
+    });
+  });
+
+  it("finds nothing for another user, a malformed id or an archived space", async () => {
+    const userId = await newUser();
+    const other = await newUser();
+    const space = personal(userId);
+    await repo.add(space);
+    expect(await repo.findMembership(space.id, other)).toBeNull();
+    expect(await repo.findMembership("not-a-uuid", userId)).toBeNull();
+    await pool.query("UPDATE spaces SET archived_at = now() WHERE id = $1", [space.id]);
+    expect(await repo.findMembership(space.id, userId)).toBeNull();
+  });
+
+  it("updates name, currency and period policy", async () => {
+    const userId = await newUser();
+    const space = personal(userId);
+    await repo.add(space);
+    await repo.updateSettings(space.id, {
+      name: "Casa",
+      currency: "USD",
+      periodPolicy: { kind: "SEMI_MONTHLY", day1: 5, day2: 20 },
+    });
+    expect(await repo.findMembership(space.id, userId)).toMatchObject({
+      name: "Casa",
+      currency: "USD",
+      periodPolicy: { kind: "SEMI_MONTHLY", day1: 5, day2: 20 },
+    });
+  });
+});
