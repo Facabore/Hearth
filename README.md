@@ -8,8 +8,21 @@ Self-hosted household finance: personal finance, group expense splitting and all
 
 ## Development
 
-Everything runs in Docker (see "Containerized development" below once available). With a host Node.js 24:
+Everything runs in Docker (see "Containerized development" below). With a host Node.js 24 and Docker:
 
     corepack enable
     pnpm install --frozen-lockfile
     pnpm test
+
+`pnpm test` runs every project; the integration and acceptance projects start a disposable `postgres:18.6-alpine` container through the Docker CLI, or use `TEST_DATABASE_URL` when set. `pnpm db:check` fails when the Drizzle schema has changes without a migration (`pnpm db:generate --name <change>`).
+
+## Containerized development
+
+Requires only Git and Docker.
+
+    docker compose -f compose.dev.yaml up                                  # db -> deps -> migrate -> app on http://localhost:3000
+    docker compose -f compose.dev.yaml --profile test run --rm test        # full test suite against a throwaway test-db
+
+If host port 5432 is taken, set `HEARTH_DB_PORT` (for example `HEARTH_DB_PORT=55432`) and point `DATABASE_URL` in `.env` at it.
+
+Hot reload: the source is bind-mounted and the dev server runs with webpack and polling (`WATCHPACK_POLLING`), because file events from a Windows path do not reach the container and Turbopack misses those changes. With the repository inside WSL2 or on Linux/macOS, `pnpm dev` (Turbopack) also works.
