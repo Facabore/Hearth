@@ -244,8 +244,8 @@ Use cases return `Result<T, DomainError>`; route handlers map results to HTTP re
 | UI | Tailwind CSS + shadcn/ui; container-presentational pattern; atomic design for shared components |
 | Charts | Recharts |
 | i18n | next-intl (es default, en) |
-| Unit / integration tests | Vitest; Testcontainers for PostgreSQL |
-| API acceptance | HTTP-level tests against the running app with PostgreSQL in Testcontainers |
+| Unit / integration tests | Vitest; a disposable PostgreSQL container started through the Docker CLI |
+| API acceptance | HTTP-level tests against the running app with PostgreSQL in a disposable container |
 | E2E (web UI) | Playwright (+ playwright-bdd for UI Gherkin scenarios) |
 | Quality | ESLint, Prettier, boundary lint, typecheck in CI, Strict TDD |
 | Package manager | pnpm |
@@ -267,7 +267,7 @@ Exact versions are pinned at bootstrap (story E0) to the latest stable releases.
 
 - **Domain:** exhaustive unit tests, TDD-first (allocation math, split methods, rollover, balance algorithm, period boundaries).
 - **Application:** use-case tests with in-memory adapters.
-- **Infrastructure:** repository tests against real PostgreSQL via Testcontainers.
+- **Infrastructure:** repository tests against real PostgreSQL in a disposable Docker container.
 - **Acceptance (API):** each backend story's Gherkin scenarios map to tests; `@critical` scenarios run over HTTP against the real app and database.
 - **Contract:** the generated OpenAPI document is snapshot-tested so contract changes are deliberate.
 - **E2E (UI):** web UI stories (epic E9) run their scenarios with Playwright.

@@ -4,7 +4,7 @@ Pinned on 2026-10-11 (HU-E0-01). Each entry was the latest stable release that d
 
 | Component | Version | Note |
 |---|---|---|
-| Node.js | 24.21.0 | Current LTS ("Krypton") in `.nvmrc`, Docker and CI; `engines` accepts `>=24.12.0 <25` for local hosts. Vitest 5 and Testcontainers 12 require Node ≥ 22.12 / 22.22 |
+| Node.js | 24.21.0 | Current LTS ("Krypton") in `.nvmrc`, Docker and CI; `engines` accepts `>=24.12.0 <25` for local hosts. Vitest 5 requires Node ≥ 22.12 |
 | pnpm | 12.11.2 | `packageManager` field; settings in `pnpm-workspace.yaml` |
 | Next.js | 16.4.0 | App Router, standalone output |
 | React / React DOM | 19.3.0 | |
@@ -16,7 +16,7 @@ Pinned on 2026-10-11 (HU-E0-01). Each entry was the latest stable release that d
 | pg | 8.23.1 | |
 | Better Auth | 1.7.7 | Email/password + Bearer plugin |
 | Vitest | 5.0.3 | With Vite 8.3.4 (native `resolve.tsconfigPaths`) |
-| Testcontainers / @testcontainers/postgresql | 12.2.0 | |
+| Test database | — | No Testcontainers: `tests/support/postgres-global-setup.ts` starts `postgres:18.6-alpine` through the Docker CLI (Testcontainers 12.2.0 would add ~64 KB of lockfile and dockerode/ssh2 to the supply chain). `TEST_DATABASE_URL` uses an existing disposable database instead |
 | dependency-cruiser | 18.6.0 | Boundary gate (ADR 0001) |
 | ESLint / @eslint/js | 10.12.0 / 10.0.1 | 9.39.5 is deprecated (no longer supported); eslint-config-next was dropped for the backend-first phase, so ESLint 10 is usable |
 | typescript-eslint | 8.71.1 | Supports ESLint ^10 and TypeScript <6.1.0 |
