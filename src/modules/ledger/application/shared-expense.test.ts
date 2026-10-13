@@ -163,3 +163,83 @@ describe("payers and participants of a shared expense (HU-E4-07, Review Focus 2)
     expect(codeOf(await record({ ...byPedro, userId: "u-marta" }))).toBe("SpaceNotFound");
   });
 });
+
+describe("RecordExpense with non-equal splits (HU-E4-08)", () => {
+  const fortySixty = {
+    method: "PERCENT" as const,
+    participants: [
+      { memberId: "member-ana", basisPoints: 4_000 },
+      { memberId: "member-juan", basisPoints: 6_000 },
+    ],
+  };
+
+  it("stores percentage, exact and share-unit splits with their method", async () => {
+    const { deps, store } = householdLedger();
+    const record = createRecordExpense(deps);
+    const exact = {
+      method: "EXACT" as const,
+      participants: [
+        { memberId: "member-ana", amount: cop(100_000n) },
+        { memberId: "member-juan", amount: cop(150_000n) },
+      ],
+    };
+    const units = {
+      method: "SHARES" as const,
+      participants: [
+        { memberId: "member-ana", units: 2 },
+        { memberId: "member-juan", units: 1 },
+      ],
+    };
+    expect(codeOf(await record(groceries(300_000n, { split: fortySixty })))).toBe("ok");
+    expect(codeOf(await record(groceries(250_000n, { split: exact })))).toBe("ok");
+    expect(codeOf(await record(groceries(90_000n, { split: units })))).toBe("ok");
+    expect(
+      store.rows.map((tx) =>
+        tx.type === "EXPENSE" ? tx.shares.map((s) => [s.memberId, s.amount, s.splitMethod]) : [],
+      ),
+    ).toEqual([
+      [
+        ["member-ana", 12_000_000n, "PERCENT"],
+        ["member-juan", 18_000_000n, "PERCENT"],
+      ],
+      [
+        ["member-ana", 10_000_000n, "EXACT"],
+        ["member-juan", 15_000_000n, "EXACT"],
+      ],
+      [
+        ["member-ana", 6_000_000n, "SHARES"],
+        ["member-juan", 3_000_000n, "SHARES"],
+      ],
+    ]);
+  });
+
+  it("rejects non-equal splits that do not add up and records nothing", async () => {
+    const { deps, store } = householdLedger();
+    const record = createRecordExpense(deps);
+    const fortyFifty = {
+      method: "PERCENT" as const,
+      participants: [
+        { memberId: "member-ana", basisPoints: 4_000 },
+        { memberId: "member-juan", basisPoints: 5_000 },
+      ],
+    };
+    const shortExact = {
+      method: "EXACT" as const,
+      participants: [
+        { memberId: "member-ana", amount: cop(100_000n) },
+        { memberId: "member-juan", amount: cop(120_000n) },
+      ],
+    };
+    const noUnits = {
+      method: "SHARES" as const,
+      participants: [
+        { memberId: "member-ana", units: 0 },
+        { memberId: "member-juan", units: 0 },
+      ],
+    };
+    expect(codeOf(await record(groceries(300_000n, { split: fortyFifty })))).toBe("InvalidSplit");
+    expect(codeOf(await record(groceries(250_000n, { split: shortExact })))).toBe("SharesDoNotMatchAmount");
+    expect(codeOf(await record(groceries(90_000n, { split: noUnits })))).toBe("InvalidSplit");
+    expect(store.rows).toEqual([]);
+  });
+});
