@@ -1,15 +1,14 @@
-import { requireRole, WRITERS, type SpaceMembership } from "@/modules/spaces/application";
-import { domainError, err, flatMap, ok, type LocalDate, type Money, type Result } from "@/shared/kernel";
+import { authorizeSpaceAction, type SpaceMember, type SpaceMembership } from "@/modules/spaces/application";
+import { domainError, err, map, ok, type LocalDate, type Money, type Result } from "@/shared/kernel";
 import type { LedgerDeps } from "./deps";
 import type { LedgerAccount } from "./ports";
 
-/** Members with role MEMBER or above record money movements. */
-export const authorizeWriter = async (
+/** HU-E1-05: recording money movements is the matrix action money.record (MEMBER or above). */
+export const authorizeWriter = (
   deps: Pick<LedgerDeps, "access">,
   spaceId: string,
   userId: string,
-): Promise<Result<SpaceMembership>> =>
-  flatMap(await deps.access(spaceId, userId), (m) => requireRole(m, WRITERS));
+): Promise<Result<SpaceMembership>> => authorizeSpaceAction(deps.access, spaceId, userId, "money.record");
 
 /** D6: amounts are in the space currency. */
 export const inSpaceCurrency = (space: SpaceMembership, money: Money): Result<Money> =>
@@ -51,3 +50,28 @@ export const openPeriod = async (
   date: LocalDate,
 ): Promise<Result<void>> =>
   (await deps.closedPeriods.isClosed(spaceId, date)) ? err(domainError("PeriodClosed")) : ok(undefined);
+
+/**
+ * Spec 5.2, D9, D15: the account a current member moves money through. A guest has none
+ * (GuestHasNoAccounts); a registered member uses an account their own user owns, which may live in
+ * their personal space. `required` is false only where accounts are optional (settlements).
+ * `debitedBy` is the requester on debits: nobody spends from another member's account (D9).
+ */
+export const partyAccount = async (
+  deps: Pick<LedgerDeps, "accounts">,
+  members: readonly SpaceMember[],
+  memberId: string,
+  accountId: string | null,
+  options: { readonly required: boolean; readonly debitedBy?: string },
+): Promise<Result<string | null>> => {
+  const member = members.find((m) => m.id === memberId);
+  if (member === undefined) return err(domainError("NotASpaceMember"));
+  // D15: a member without a user is a guest.
+  if (member.userId === null) return accountId === null ? ok(null) : err(domainError("GuestHasNoAccounts"));
+  if (accountId === null) return options.required ? err(domainError("AccountRequired")) : ok(null);
+  // D9: only the account's owner records a debit from it; crediting another member's account is allowed.
+  if (options.debitedBy !== undefined && options.debitedBy !== member.userId) {
+    return err(domainError("AccountNotOwned"));
+  }
+  return map(await ownAccount(deps, accountId, member.userId), (account) => account.id);
+};

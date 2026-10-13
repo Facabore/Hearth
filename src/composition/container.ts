@@ -223,6 +223,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   const ledgerDeps: LedgerDeps = {
     access,
     transactions: new DrizzleTransactionRepository(tm),
+    // HU-E4-07: payers and participants are current members of the space, in join order.
+    members: spaceRepository,
     query: ledgerQueries,
     audit: new DrizzleAuditLog(tm),
     // Adapters keep the ledger independent of the accounts and categories modules.

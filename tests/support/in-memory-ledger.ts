@@ -15,8 +15,10 @@ import type {
   TransactionRepository,
   Transfer,
 } from "@/modules/ledger/application";
+import { createSpaceAccess, type SpaceMember } from "@/modules/spaces/application";
 import { FixedClock, type LocalDate } from "@/shared/kernel";
 import { fakeSpaceAccess, memoryTm, membership, noStoredPeriods, sequentialIds } from "./fakes";
+import { HOUSEHOLD_MEMBERS, householdSpace, InMemorySpaceStore, memberOf } from "./in-memory-spaces";
 
 export const ACCOUNTS = {
   bancolombia: { id: "acc-bancolombia", spaceId: "space-ana", ownerUserId: "u-ana", archived: false },
@@ -37,6 +39,7 @@ export const CATEGORIES = {
   salary: { id: "cat-salary", spaceId: "space-ana", archived: false },
   archived: { id: "cat-archived", spaceId: "space-ana", archived: true },
   juanFood: { id: "cat-juan-food", spaceId: "space-juan", archived: false },
+  household: { id: "cat-household", spaceId: "space-household", archived: false },
 } satisfies Record<string, CategoryRow>;
 
 const accountReader = (accounts: readonly LedgerAccount[]): AccountReader => ({
@@ -130,6 +133,10 @@ export const ledgerFixture = (overrides: Partial<LedgerDeps> = {}) => {
     categories: categoryReader(Object.values(CATEGORIES)),
     closedPeriods: { isClosed: async () => false },
     storedPeriods: noStoredPeriods,
+    // Ana alone in her personal space; householdLedger binds a real member list.
+    members: {
+      listCurrent: async (spaceId) => (spaceId === "space-ana" ? [memberOf("Ana", "OWNER", 0)] : []),
+    },
     ids: sequentialIds("tx"),
     clock: new FixedClock(new Date("2026-10-28T15:00:00Z")),
     timeZone: "America/Bogota",
@@ -137,6 +144,19 @@ export const ledgerFixture = (overrides: Partial<LedgerDeps> = {}) => {
     ...overrides,
   };
   return { deps, store, audit };
+};
+
+/**
+ * "Household" (`space-household`, COP, MONTHLY(1)) as the ledger sees it: memberships and the current
+ * member list come from one in-memory spaces store (HU-E1-05 Background members unless given).
+ */
+export const householdLedger = (
+  members: readonly SpaceMember[] = HOUSEHOLD_MEMBERS,
+  overrides: Partial<LedgerDeps> = {},
+) => {
+  const spaces = new InMemorySpaceStore();
+  spaces.seed(householdSpace(members));
+  return ledgerFixture({ access: createSpaceAccess(spaces), members: spaces, ...overrides });
 };
 
 let seeded = 0;
