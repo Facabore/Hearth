@@ -7,6 +7,7 @@ import {
 import { POST as archiveAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/archive/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, registerUser, startTestApp, type TestUser } from "../support/app";
+import { actingIn, joinAs, newSharedSpace } from "../support/spaces";
 
 interface AccountDto {
   id: string;
@@ -141,5 +142,35 @@ describe("editing and archiving accounts (HU-E2-03)", () => {
       params: { spaceId: ana.spaceId },
     });
     expect(foreign.status).toBe(404);
+  });
+});
+
+describe("shared fund account (HU-E2-02)", () => {
+  it("lets the owner create the household fund, keeps members out and personal types away", async () => {
+    // Background: "Ana" is OWNER and "Juan" is MEMBER of the shared space "Household".
+    const ana = await registerUser("Ana");
+    const juan = await registerUser("Juan");
+    const spaceId = await newSharedSpace(ana);
+    await joinAs(ana, spaceId, juan, "MEMBER");
+    const asAna = actingIn(ana, spaceId);
+    const fund = await create(asAna, { name: "Household Fund", type: "SHARED_FUND", openingBalance: cop(0) });
+    expect(fund.status).toBe(201);
+    const created = await fund.json();
+    expect(created).toMatchObject({
+      name: "Household Fund",
+      type: "SHARED_FUND",
+      ownerUserId: null,
+      openingBalance: cop(0),
+      balance: cop(0),
+    });
+    expect((await list(asAna)).body.items.map((a: AccountDto) => a.id)).toEqual([created.id]);
+    const byJuan = await create(actingIn(juan, spaceId), {
+      name: "Juan Fund",
+      type: "SHARED_FUND",
+      openingBalance: cop(0),
+    });
+    expect([byJuan.status, (await byJuan.json()).code]).toEqual([403, "InsufficientRole"]);
+    const bank = await create(asAna, { name: "Bancolombia", type: "BANK", openingBalance: cop(0) });
+    expect([bank.status, (await bank.json()).code]).toEqual([409, "PersonalAccountRequiresPersonalSpace"]);
   });
 });
