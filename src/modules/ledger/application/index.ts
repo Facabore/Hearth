@@ -10,6 +10,7 @@ export type {
   TransactionType,
   Transfer,
 } from "../domain/transaction";
+export type { SplitInput } from "../domain/split";
 export type { LedgerDeps } from "./deps";
 export type {
   AccountReader,
