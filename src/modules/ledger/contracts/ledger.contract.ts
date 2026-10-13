@@ -29,7 +29,7 @@ export const ShareSchema = z.object({
 });
 export const TransactionSchema = z.object({
   id: z.string(),
-  type: z.enum(["EXPENSE", "INCOME", "TRANSFER"]),
+  type: z.enum(["EXPENSE", "INCOME", "TRANSFER", "SETTLEMENT"]),
   description: z.string(),
   date: z.iso.date(),
   amount: MoneySchema,
@@ -38,7 +38,10 @@ export const TransactionSchema = z.object({
   shares: z.array(ShareSchema),
   sourceAccountId: z.string().nullable(),
   destinationAccountId: z.string().nullable(),
+  /** The receiving member of an INCOME, or the member a SETTLEMENT is paid to. */
   receivingMemberId: z.string().nullable(),
+  /** The contributor of a TRANSFER into the shared fund (HU-E4-09) or the payer of a SETTLEMENT (HU-E5-02). */
+  payerMemberId: z.string().nullable(),
   createdBy: z.string(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
@@ -91,9 +94,10 @@ export const transactionDto = (tx: Transaction): z.infer<typeof TransactionSchem
             splitMethod: s.splitMethod,
           }))
         : [],
-    sourceAccountId: tx.type === "TRANSFER" ? tx.sourceAccountId : null,
+    sourceAccountId: tx.type === "TRANSFER" || tx.type === "SETTLEMENT" ? tx.sourceAccountId : null,
     destinationAccountId: tx.type === "EXPENSE" ? null : tx.destinationAccountId,
-    receivingMemberId: tx.type === "INCOME" ? tx.receivingMemberId : null,
+    receivingMemberId: tx.type === "INCOME" || tx.type === "SETTLEMENT" ? tx.receivingMemberId : null,
+    payerMemberId: tx.type === "TRANSFER" || tx.type === "SETTLEMENT" ? tx.payerMemberId : null,
     createdBy: tx.createdBy,
     createdAt: tx.createdAt.toISOString(),
     updatedAt: tx.updatedAt.toISOString(),

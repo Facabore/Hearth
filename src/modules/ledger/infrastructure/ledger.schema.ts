@@ -28,7 +28,7 @@ export const transactions = pgTable(
     spaceId: uuid("space_id")
       .notNull()
       .references(() => spaces.id, { onDelete: "cascade" }),
-    type: text("type", { enum: ["EXPENSE", "INCOME", "TRANSFER"] }).notNull(),
+    type: text("type", { enum: ["EXPENSE", "INCOME", "TRANSFER", "SETTLEMENT"] }).notNull(),
     description: text("description").notNull(),
     date: date("date", { mode: "string" }).notNull(),
     categoryId: uuid("category_id").references(() => categories.id),

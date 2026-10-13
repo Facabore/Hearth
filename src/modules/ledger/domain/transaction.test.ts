@@ -6,7 +6,9 @@ import {
   canModify,
   changesBetween,
   recordExpense,
+  recordFundContribution,
   recordIncome,
+  recordSettlement,
   recordTransfer,
   reviseTransaction,
   softDelete,
@@ -211,4 +213,93 @@ describe("editing and deleting (HU-E4-06)", () => {
       expect(canModify(role, "u-ana", "u-luis")).toBe(can(role, "money.editAny"));
     },
   );
+});
+
+describe("fund contributions and settlements (HU-E4-09, HU-E5-02)", () => {
+  const contribution = (overrides: { payerMemberId?: string; sourceAccountId?: string | null } = {}) =>
+    recordFundContribution({
+      ...common,
+      amount: 48_000_000n,
+      payerMemberId: "member-ana",
+      sourceAccountId: "acc-bancolombia",
+      destinationAccountId: "acc-household-fund",
+      ...overrides,
+    });
+  const settlement = (overrides: { receivingMemberId?: string; amount?: bigint } = {}) =>
+    recordSettlement({
+      ...common,
+      amount: 120_000_000n,
+      payerMemberId: "member-juan",
+      receivingMemberId: "member-ana",
+      sourceAccountId: null,
+      destinationAccountId: null,
+      ...overrides,
+    });
+
+  it("records a contribution as a TRANSFER into the fund by the contributing member", () => {
+    expect(unwrap(contribution())).toMatchObject({
+      type: "TRANSFER",
+      categoryId: null,
+      amount: 48_000_000n,
+      sourceAccountId: "acc-bancolombia",
+      destinationAccountId: "acc-household-fund",
+      payerMemberId: "member-ana",
+    });
+  });
+
+  it("lets a guest contribute from outside the app, without a source account", () => {
+    expect(unwrap(contribution({ payerMemberId: "member-pedro", sourceAccountId: null }))).toMatchObject({
+      sourceAccountId: null,
+      payerMemberId: "member-pedro",
+    });
+  });
+
+  it("never contributes the fund to itself", () => {
+    expect(codeOf(contribution({ sourceAccountId: "acc-household-fund" }))).toBe("SameAccountTransfer");
+  });
+
+  it("records transfers between own accounts without a payer", () => {
+    const own = unwrap(
+      recordTransfer({ ...common, amount: 1n, sourceAccountId: "a", destinationAccountId: "b" }),
+    );
+    expect(own.payerMemberId).toBeNull();
+  });
+
+  it("records a settlement from the payer to the receiving member without a category", () => {
+    expect(unwrap(settlement())).toEqual({
+      id: "tx-1",
+      spaceId: "space-ana",
+      type: "SETTLEMENT",
+      description: "Market",
+      date: "2026-10-05",
+      amount: 120_000_000n,
+      currency: "COP",
+      categoryId: null,
+      payerMemberId: "member-juan",
+      receivingMemberId: "member-ana",
+      sourceAccountId: null,
+      destinationAccountId: null,
+      createdBy: "u-ana",
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null,
+      version: 1,
+    });
+  });
+
+  it("rejects a member settling with themselves and non-positive amounts", () => {
+    expect(codeOf(settlement({ receivingMemberId: "member-juan" }))).toBe("InvalidSettlementParties");
+    expect(codeOf(settlement({ amount: 0n }))).toBe("InvalidAmount");
+  });
+
+  it("edits a settlement's amount but never gives it a category", () => {
+    const recorded = unwrap(settlement());
+    expect(unwrap(reviseTransaction(recorded, { amount: 50_000_000n }, later))).toMatchObject({
+      type: "SETTLEMENT",
+      amount: 50_000_000n,
+    });
+    expect(codeOf(reviseTransaction(recorded, { categoryId: "cat-groceries" }, later))).toBe(
+      "SettlementHasNoCategory",
+    );
+  });
 });

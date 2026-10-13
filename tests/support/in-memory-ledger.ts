@@ -180,5 +180,6 @@ export const aTransfer = (date: string, amount: bigint, overrides: Partial<Trans
   categoryId: null,
   sourceAccountId: ACCOUNTS.bancolombia.id,
   destinationAccountId: ACCOUNTS.nequi.id,
+  payerMemberId: null,
   ...overrides,
 });

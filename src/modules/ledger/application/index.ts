@@ -3,6 +3,7 @@ export type {
   Expense,
   Income,
   Payment,
+  Settlement,
   Share,
   SplitMethod,
   Transaction,

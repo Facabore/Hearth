@@ -8,6 +8,7 @@ type TransactionRow = typeof transactions.$inferSelect;
 type PaymentRow = typeof payments.$inferSelect;
 type ShareRow = typeof shares.$inferSelect;
 
+/** Per-type columns; the transactions_shape check pins which ones each type sets. */
 export const transactionRow = (tx: Transaction): typeof transactions.$inferInsert => ({
   id: tx.id,
   spaceId: tx.spaceId,
@@ -17,9 +18,10 @@ export const transactionRow = (tx: Transaction): typeof transactions.$inferInser
   categoryId: tx.categoryId,
   amount: tx.amount,
   currency: tx.currency,
-  sourceAccountId: tx.type === "TRANSFER" ? tx.sourceAccountId : null,
+  sourceAccountId: tx.type === "TRANSFER" || tx.type === "SETTLEMENT" ? tx.sourceAccountId : null,
   destinationAccountId: tx.type === "EXPENSE" ? null : tx.destinationAccountId,
-  receivingMemberId: tx.type === "INCOME" ? tx.receivingMemberId : null,
+  receivingMemberId: tx.type === "INCOME" || tx.type === "SETTLEMENT" ? tx.receivingMemberId : null,
+  payerMemberId: tx.type === "TRANSFER" || tx.type === "SETTLEMENT" ? tx.payerMemberId : null,
   createdBy: tx.createdBy,
   createdAt: tx.createdAt,
   updatedAt: tx.updatedAt,
@@ -101,8 +103,19 @@ const toTransaction = (
         ...base,
         type: "TRANSFER",
         categoryId: null,
-        sourceAccountId: row.sourceAccountId!,
+        sourceAccountId: row.sourceAccountId,
         destinationAccountId: row.destinationAccountId!,
+        payerMemberId: row.payerMemberId,
+      };
+    case "SETTLEMENT":
+      return {
+        ...base,
+        type: "SETTLEMENT",
+        categoryId: null,
+        payerMemberId: row.payerMemberId!,
+        receivingMemberId: row.receivingMemberId!,
+        sourceAccountId: row.sourceAccountId,
+        destinationAccountId: row.destinationAccountId,
       };
   }
 };
