@@ -21,6 +21,13 @@ export const CategoryGroupSchema = CategoryGroupSummarySchema.extend({ categorie
 export const ListCategoriesQuerySchema = z.object({ archived: z.enum(["true", "false"]).optional() });
 export const ListCategoriesResponseSchema = z.object({ items: z.array(CategoryGroupSchema) });
 
+// Length rules live in the domain (InvalidCategoryName); the cap only bounds payload size.
+const Name = z.string().max(200);
+const ParentId = z.string().min(1).max(64);
+export const CategoryGroupBodySchema = z.object({ name: Name });
+export const CreateCategoryBodySchema = z.object({ groupId: ParentId, name: Name });
+export const UpdateCategoryBodySchema = z.object({ name: Name.optional(), groupId: ParentId.optional() });
+
 const isoOrNull = (date: Date | null) => date?.toISOString() ?? null;
 
 export const categoryDto = (c: Category): z.infer<typeof CategorySchema> => ({
@@ -44,6 +51,10 @@ export const categoryTreeDto = (g: CategoryGroupView): z.infer<typeof CategoryGr
 
 const SpacePath = z.object({ spaceId: z.string() });
 
+const CategoryPath = SpacePath.extend({ categoryId: z.string() });
+const GroupPath = SpacePath.extend({ groupId: z.string() });
+const managed = { "401": "Unauthenticated", "403": "InsufficientRole" };
+
 export const categoriesPaths: ZodOpenApiPathsObject = {
   "/api/v1/spaces/{spaceId}/categories": {
     get: {
@@ -57,6 +68,76 @@ export const categoriesPaths: ZodOpenApiPathsObject = {
           content: jsonContent(ListCategoriesResponseSchema),
         },
         ...problems({ "401": "Unauthenticated", "404": "SpaceNotFound", "422": "ValidationFailed" }),
+      },
+    },
+    post: {
+      operationId: "createCategory",
+      summary: "Create a category in a group (two levels only)",
+      ...securedByUser,
+      requestParams: { path: SpacePath },
+      requestBody: { content: jsonContent(CreateCategoryBodySchema) },
+      responses: {
+        "201": { description: "The new category", content: jsonContent(CategorySchema) },
+        ...problems({
+          ...managed,
+          "404": "SpaceNotFound, CategoryGroupNotFound",
+          "409": "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived",
+          "422": "ValidationFailed, InvalidCategoryName",
+        }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/categories/{categoryId}": {
+    patch: {
+      operationId: "updateCategory",
+      summary: "Rename a category and/or move it to another group",
+      ...securedByUser,
+      requestParams: { path: CategoryPath },
+      requestBody: { content: jsonContent(UpdateCategoryBodySchema) },
+      responses: {
+        "200": { description: "The updated category", content: jsonContent(CategorySchema) },
+        ...problems({
+          ...managed,
+          "404": "SpaceNotFound, CategoryNotFound, CategoryGroupNotFound",
+          "409": "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived",
+          "422": "ValidationFailed, InvalidCategoryName",
+        }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/category-groups": {
+    post: {
+      operationId: "createCategoryGroup",
+      summary: "Create a category group",
+      ...securedByUser,
+      requestParams: { path: SpacePath },
+      requestBody: { content: jsonContent(CategoryGroupBodySchema) },
+      responses: {
+        "201": { description: "The new group", content: jsonContent(CategoryGroupSummarySchema) },
+        ...problems({
+          ...managed,
+          "404": "SpaceNotFound",
+          "409": "CategoryGroupNameTaken",
+          "422": "ValidationFailed, InvalidCategoryName",
+        }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/category-groups/{groupId}": {
+    patch: {
+      operationId: "renameCategoryGroup",
+      summary: "Rename a category group",
+      ...securedByUser,
+      requestParams: { path: GroupPath },
+      requestBody: { content: jsonContent(CategoryGroupBodySchema) },
+      responses: {
+        "200": { description: "The renamed group", content: jsonContent(CategoryGroupSummarySchema) },
+        ...problems({
+          ...managed,
+          "404": "SpaceNotFound, CategoryGroupNotFound",
+          "409": "CategoryGroupNameTaken",
+          "422": "ValidationFailed, InvalidCategoryName",
+        }),
       },
     },
   },

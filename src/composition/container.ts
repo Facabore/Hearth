@@ -1,9 +1,17 @@
 import type { Pool } from "pg";
 import {
+  createCreateCategory,
+  createCreateCategoryGroup,
   createListCategories,
+  createRenameCategoryGroup,
   createSeedDefaultCategories,
+  createUpdateCategory,
   type CategoriesDeps,
+  type CreateCategory,
+  type CreateCategoryGroup,
   type ListCategories,
+  type RenameCategoryGroup,
+  type UpdateCategory,
 } from "@/modules/categories/application";
 import { DrizzleCategoryRepository } from "@/modules/categories/infrastructure/drizzle-category-repository";
 import {
@@ -41,7 +49,13 @@ export interface Container extends RouteDeps {
   readonly idempotency: IdempotencyDeps;
   readonly identity: { readonly signUp: SignUp; readonly signIn: SignIn; readonly signOut: SignOut };
   readonly spaces: { readonly createPersonalSpace: CreatePersonalSpace; readonly listMySpaces: ListMySpaces };
-  readonly categories: { readonly listCategories: ListCategories };
+  readonly categories: {
+    readonly listCategories: ListCategories;
+    readonly createCategoryGroup: CreateCategoryGroup;
+    readonly renameCategoryGroup: RenameCategoryGroup;
+    readonly createCategory: CreateCategory;
+    readonly updateCategory: UpdateCategory;
+  };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
     readonly signIn: (ip: string, email: string) => boolean;
@@ -117,7 +131,13 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       signOut: createSignOut(provider),
     },
     spaces: { createPersonalSpace, listMySpaces: createListMySpaces(spaceRepository) },
-    categories: { listCategories: createListCategories(categoriesDeps) },
+    categories: {
+      listCategories: createListCategories(categoriesDeps),
+      createCategoryGroup: createCreateCategoryGroup(categoriesDeps),
+      renameCategoryGroup: createRenameCategoryGroup(categoriesDeps),
+      createCategory: createCreateCategory(categoriesDeps),
+      updateCategory: createUpdateCategory(categoriesDeps),
+    },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.
       signIn: (ip, email) => [signInByIp.hit(ip), signInByEmail.hit(email)].every(Boolean),
