@@ -442,3 +442,27 @@ describe("edit and delete with an audit trail (HU-E4-06)", () => {
     expect([response.status, (await response.json()).code]).toEqual([404, "SpaceNotFound"]);
   });
 });
+
+describe("dates outside the supported years (Review Focus 4)", () => {
+  it("answers year-0000 and two-digit-year inputs with 422, never 500", async () => {
+    const ana = await ledgerUser("Ana");
+    const expense = await post(recordExpense, ana, "expenses", market(ana, 85_000, "0000-06-15"));
+    expect([expense.status, (await expense.json()).code]).toEqual([422, "InvalidDate"]);
+    const balance = await call(
+      getAccount,
+      "GET",
+      inSpace(ana, `accounts/${ana.bancolombia}?asOf=0000-01-01`),
+      {
+        user: ana,
+        params: { spaceId: ana.spaceId, accountId: ana.bancolombia },
+      },
+    );
+    expect([balance.status, (await balance.json()).code]).toEqual([422, "InvalidDate"]);
+    for (const period of ["0000-01", "0050-03"]) {
+      expect(await listOf(ana, `?period=${period}`)).toMatchObject({
+        status: 422,
+        body: { code: "InvalidPeriodLabel" },
+      });
+    }
+  });
+});
