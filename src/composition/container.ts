@@ -1,5 +1,12 @@
 import type { Pool } from "pg";
 import {
+  createListCategories,
+  createSeedDefaultCategories,
+  type CategoriesDeps,
+  type ListCategories,
+} from "@/modules/categories/application";
+import { DrizzleCategoryRepository } from "@/modules/categories/infrastructure/drizzle-category-repository";
+import {
   createSignIn,
   createSignOut,
   createSignUp,
@@ -12,6 +19,7 @@ import { BetterAuthProvider } from "@/modules/identity/infrastructure/better-aut
 import {
   createCreatePersonalSpace,
   createListMySpaces,
+  createSpaceAccess,
   type CreatePersonalSpace,
   type ListMySpaces,
 } from "@/modules/spaces/application";
@@ -33,6 +41,7 @@ export interface Container extends RouteDeps {
   readonly idempotency: IdempotencyDeps;
   readonly identity: { readonly signUp: SignUp; readonly signIn: SignIn; readonly signOut: SignOut };
   readonly spaces: { readonly createPersonalSpace: CreatePersonalSpace; readonly listMySpaces: ListMySpaces };
+  readonly categories: { readonly listCategories: ListCategories };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
     readonly signIn: (ip: string, email: string) => boolean;
@@ -62,21 +71,35 @@ export interface ContainerOptions {
 export const buildContainer = (env: Env, options: ContainerOptions = {}): Container => {
   const { db, pool } = createDatabase(env.DATABASE_URL);
   const tm = new DrizzleTransactionManager(db);
+  const ids = new UuidV7IdGenerator();
+  const clock = new SystemClock();
   const provider = new BetterAuthProvider(
     createAuth({ db, secret: env.BETTER_AUTH_SECRET, baseURL: env.BETTER_AUTH_URL }),
     db,
   );
   const spaceRepository = new DrizzleSpaceRepository(tm);
+  const access = createSpaceAccess(spaceRepository);
+  const categoriesDeps: CategoriesDeps = {
+    categories: new DrizzleCategoryRepository(tm),
+    access,
+    ids,
+    clock,
+    tm,
+  };
+  const seedDefaultCategories = createSeedDefaultCategories(categoriesDeps);
   const createPersonalSpace = createCreatePersonalSpace({
     spaces: spaceRepository,
-    ids: new UuidV7IdGenerator(),
-    clock: new SystemClock(),
+    ids,
+    clock,
     tm,
+    // HU-E3-01: default categories are seeded in the same transaction as the space.
+    onCreated: (space, { locale }) => seedDefaultCategories({ spaceId: space.id, locale }),
   });
   // HU-E1-02: every new user gets a personal space; sign-up compensates if this fails.
   const provisionUser =
     options.provisionUser ??
-    (async (u: AuthUser) => map(await createPersonalSpace({ userId: u.id, name: u.name }), () => undefined));
+    (async (u: AuthUser) =>
+      map(await createPersonalSpace({ userId: u.id, name: u.name, locale: u.locale }), () => undefined));
   const limits = options.authLimits ?? DEFAULT_AUTH_LIMITS;
   const signInByEmail = createFixedWindowLimiter({ limit: limits.signInPerEmail, windowMs: FIFTEEN_MINUTES });
   const signInByIp = createFixedWindowLimiter({ limit: limits.signInPerIp, windowMs: FIFTEEN_MINUTES });
@@ -94,6 +117,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       signOut: createSignOut(provider),
     },
     spaces: { createPersonalSpace, listMySpaces: createListMySpaces(spaceRepository) },
+    categories: { listCategories: createListCategories(categoriesDeps) },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.
       signIn: (ip, email) => [signInByIp.hit(ip), signInByEmail.hit(email)].every(Boolean),

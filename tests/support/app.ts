@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { inject } from "vitest";
+import { POST as signUp } from "@/app/api/v1/auth/sign-up/route";
+import { GET as listSpaces } from "@/app/api/v1/spaces/route";
 import {
   buildContainer,
   setContainerForTests,
@@ -45,3 +47,51 @@ export const cookieHeader = (response: Response): string =>
     .join("; ");
 
 export const uniqueEmail = (name: string): string => `${name}-${randomUUID()}@example.com`;
+
+export interface TestUser {
+  readonly cookie: string;
+  readonly userId: string;
+  readonly spaceId: string;
+}
+
+/** Signs a fresh user up over HTTP; returns their session cookie and personal space id. */
+export const registerUser = async (name = "Ana"): Promise<TestUser> => {
+  const created = await signUp(
+    apiRequest("POST", "/api/v1/auth/sign-up", {
+      body: { name, email: uniqueEmail(name.toLowerCase()), password: "123456789012" },
+    }),
+  );
+  if (created.status !== 201) throw new Error(`sign-up failed with status ${created.status}`);
+  const cookie = cookieHeader(created);
+  const { user } = (await created.json()) as { user: { id: string } };
+  const spaces = await listSpaces(apiRequest("GET", "/api/v1/spaces", { headers: { cookie } }));
+  const { items } = (await spaces.json()) as { items: { id: string }[] };
+  return { cookie, userId: user.id, spaceId: items[0]!.id };
+};
+
+export const routeParams = (params: Record<string, string>) => ({ params: Promise.resolve(params) });
+
+export type RouteHandler = (
+  request: Request,
+  context: { params: Promise<Record<string, string>> },
+) => Promise<Response>;
+
+/** Calls a route handler in-process as `user`, with path params, JSON body and extra headers. */
+export const call = (
+  handler: RouteHandler,
+  method: string,
+  path: string,
+  options: {
+    user?: TestUser;
+    params?: Record<string, string>;
+    body?: unknown;
+    headers?: Record<string, string>;
+  } = {},
+): Promise<Response> =>
+  handler(
+    apiRequest(method, path, {
+      body: options.body,
+      headers: { ...(options.user ? { cookie: options.user.cookie } : {}), ...options.headers },
+    }),
+    routeParams(options.params ?? {}),
+  );

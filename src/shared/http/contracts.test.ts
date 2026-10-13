@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Money } from "@/shared/kernel";
-import { MoneySchema, moneyFromDto, moneyToDto } from "./contracts";
+import { MoneySchema, moneyFromDto, moneyToDto, ProblemSchema, problems } from "./contracts";
 
 describe("MoneySchema", () => {
   it("serializes Money as a minor-units string", () => {
@@ -40,5 +40,16 @@ describe("MoneySchema", () => {
   it("accepts the PostgreSQL bigint bounds", () => {
     expect(MoneySchema.safeParse({ amount: "9223372036854775807", currency: "COP" }).success).toBe(true);
     expect(MoneySchema.safeParse({ amount: "-9223372036854775808", currency: "COP" }).success).toBe(true);
+  });
+});
+
+describe("problems", () => {
+  it("builds problem+json responses keyed by status", () => {
+    expect(problems({ "404": "SpaceNotFound" })).toEqual({
+      "404": {
+        description: "SpaceNotFound",
+        content: { "application/problem+json": { schema: ProblemSchema } },
+      },
+    });
   });
 });

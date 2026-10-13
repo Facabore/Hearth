@@ -10,14 +10,25 @@ import {
 import { createPersonalSpace, type Space } from "../domain/space";
 import type { SpaceRepository } from "./space-repository";
 
+/** Reacts to a new space inside its transaction, e.g. seeding default categories (HU-E3-01). */
+export type SpaceCreatedListener = (
+  space: Space,
+  context: { readonly locale: string },
+) => Promise<Result<void>>;
+
 export interface CreatePersonalSpaceDeps {
   readonly spaces: SpaceRepository;
   readonly ids: IdGenerator;
   readonly clock: Clock;
   readonly tm: TransactionManager;
+  readonly onCreated: SpaceCreatedListener;
 }
 
-export type CreatePersonalSpace = (owner: { userId: string; name: string }) => Promise<Result<Space>>;
+export type CreatePersonalSpace = (owner: {
+  userId: string;
+  name: string;
+  locale: string;
+}) => Promise<Result<Space>>;
 
 export const createCreatePersonalSpace =
   (deps: CreatePersonalSpaceDeps): CreatePersonalSpace =>
@@ -33,5 +44,7 @@ export const createCreatePersonalSpace =
         now: deps.clock.now(),
       });
       await deps.spaces.add(space);
+      const reacted = await deps.onCreated(space, { locale: owner.locale });
+      if (!reacted.ok) return reacted;
       return ok(space);
     });

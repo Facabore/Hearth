@@ -38,3 +38,20 @@ export const moneyFromDto = (dto: MoneyDto): Result<Money> => Money.ofMinor(BigI
 
 /** Standard error responses for operations; every protected operation lists 401. */
 export const problemContent = { "application/problem+json": { schema: ProblemSchema } } as const;
+
+/** `content` of a JSON request or response. */
+export const jsonContent = (schema: z.ZodType) => ({ "application/json": { schema } });
+
+/** Problem responses keyed by status, e.g. `problems({ "404": "SpaceNotFound" })`. */
+export const problems = (descriptions: Record<string, string>) =>
+  Object.fromEntries(
+    Object.entries(descriptions).map(([status, description]) => [
+      status,
+      { description, content: problemContent },
+    ]),
+  );
+
+/** Operations that need a signed-in user accept the session cookie or a Bearer token. */
+export const securedByUser: { security: Record<string, string[]>[] } = {
+  security: [{ cookieAuth: [] }, { bearerAuth: [] }],
+};
