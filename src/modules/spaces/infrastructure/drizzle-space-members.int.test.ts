@@ -147,6 +147,8 @@ describe("concurrent member changes (Review Focus 3)", () => {
       changeRole({ spaceId: space.id, userId: juan, memberId: space.members[0]!.id, role: "ADMIN" }),
     ]);
     expect(results.filter((r) => r.ok)).toHaveLength(1);
+    // The loser re-reads its role on the locked rows, sees itself demoted, and is refused for that.
+    expect(results.flatMap((r) => (r.ok ? [] : [r.error.code]))).toEqual(["InsufficientRole"]);
     const owners = "SELECT count(*)::int AS n FROM space_members WHERE space_id = $1 AND role = 'OWNER'";
     expect(await count(owners, [space.id])).toBe(1);
   });

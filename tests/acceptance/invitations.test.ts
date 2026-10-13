@@ -94,6 +94,32 @@ describe("invitations (HU-E1-06)", () => {
     expect(rows[0].token_hash).toBe(createHash("sha256").update(tokenOf(first.url)).digest("hex"));
   });
 
+  it("exposes only the contract fields and never the raw token or its hash", async () => {
+    const ana = await registerUser("Ana");
+    const spaceId = await newSharedSpace(ana);
+    const body = await (
+      await invite(ana, spaceId, { kind: "EMAIL", email: "juan@example.com", role: "MEMBER" })
+    ).json();
+    expect(Object.keys(body).sort()).toEqual(["emailSent", "invitation", "url"]);
+    expect(Object.keys(body.invitation).sort()).toEqual([
+      "createdAt",
+      "email",
+      "expiresAt",
+      "id",
+      "kind",
+      "role",
+      "spaceId",
+      "status",
+    ]);
+    const token = tokenOf(body.url);
+    const { rows } = await app.pool.query("SELECT token_hash FROM space_invitations WHERE id = $1", [
+      body.invitation.id,
+    ]);
+    const withoutUrl = JSON.stringify({ ...body, url: undefined });
+    expect(withoutUrl).not.toContain(token);
+    expect(JSON.stringify(body)).not.toContain(rows[0].token_hash);
+  });
+
   it("never grants OWNER", async () => {
     const ana = await registerUser("Ana");
     const spaceId = await newSharedSpace(ana);
@@ -149,6 +175,18 @@ describe("invitations (HU-E1-06)", () => {
     const { id, token } = await emailInvitation(ana, spaceId, juan.email);
     expect((await accept(juan, token)).status).toBe(200);
     expect(await problemOf(await revoke(ana, spaceId, id))).toEqual([409, "InvitationAlreadyUsed"]);
+  });
+
+  it("does not revoke another space's invitation through a space the caller owns", async () => {
+    const ana = await registerUser("Ana");
+    const bea = await registerUser("Bea");
+    const juan = await registerUser("Juan");
+    const spaceA = await newSharedSpace(ana);
+    const spaceB = await newSharedSpace(bea, "Other home");
+    const { id, token } = await emailInvitation(ana, spaceA, juan.email);
+    expect(await problemOf(await revoke(bea, spaceB, id))).toEqual([404, "InvitationNotFound"]);
+    expect(await statusOf(id)).toBe("PENDING");
+    expect((await accept(juan, token)).status).toBe(200);
   });
 
   it("answers unknown and malformed invitation ids with 404", async () => {
@@ -254,6 +292,8 @@ describe("accept an invitation (HU-E1-07)", () => {
     const { token } = await emailInvitation(ana, spaceId, juan.email);
     const [first, second] = await Promise.all([accept(juan, token), accept(juan, token)]);
     expect([first.status, second.status].sort()).toEqual([200, 409]);
+    const loser = first.status === 409 ? first : second;
+    expect((await loser.json()).code).toBe("InvitationAlreadyUsed");
     expect(await problemOf(await accept(juan, token))).toEqual([409, "InvitationAlreadyUsed"]);
     const { rows } = await app.pool.query(
       "SELECT count(*)::int AS n FROM space_members WHERE space_id = $1 AND user_id = $2",

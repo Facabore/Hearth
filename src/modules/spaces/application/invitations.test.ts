@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
 import { invitationsWorld, RecordingEmailSender } from "../../../../tests/support/in-memory-spaces";
+import type { EmailSender } from "./invitation-ports";
 import { createCreateInvitation } from "./create-invitation";
 import { createRevokeInvitation } from "./revoke-invitation";
 
@@ -105,6 +106,24 @@ describe("CreateInvitation (HU-E1-06)", () => {
     const { deps, invitations } = invitationsWorld({ emailSender: new RecordingEmailSender("throws") });
     const created = unwrap(
       await createCreateInvitation(deps)({ ...as("ana"), role: "MEMBER", target: toJuan }),
+    );
+    expect(created.emailSent).toBe(false);
+    expect(invitations.rows).toHaveLength(1);
+  });
+
+  it("keeps the invitation when the sender throws synchronously", async () => {
+    const { deps, invitations } = invitationsWorld();
+    const syncThrow: EmailSender = {
+      send: () => {
+        throw new Error("mail client crashed before returning a promise");
+      },
+    };
+    const created = unwrap(
+      await createCreateInvitation({ ...deps, emailSender: syncThrow })({
+        ...as("ana"),
+        role: "MEMBER",
+        target: toJuan,
+      }),
     );
     expect(created.emailSent).toBe(false);
     expect(invitations.rows).toHaveLength(1);

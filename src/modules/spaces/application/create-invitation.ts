@@ -55,10 +55,15 @@ export const createCreateInvitation =
     if (!created.ok) return created;
     const { invitation, token, spaceName } = created.value;
     const url = deps.invitationUrl(token);
-    // Sent after the commit, so a slow or failing mail server never holds or undoes the invitation.
+    // Sent after the commit, so a slow or failing mail server never holds the transaction or undoes the
+    // invitation. The send is still awaited before the HTTP response, so a slow sender delays the response.
+    // Starting it inside a promise chain turns a synchronous throw into a rejection that `.catch` absorbs.
+    const to = invitation.email;
     const emailSent =
-      invitation.email === null
+      to === null
         ? false
-        : await deps.emailSender.send({ to: invitation.email, spaceName, url }).catch(() => false);
+        : await Promise.resolve()
+            .then(() => deps.emailSender.send({ to, spaceName, url }))
+            .catch(() => false);
     return ok({ invitation: toInvitationView(invitation, deps.clock.now()), url, emailSent });
   };
