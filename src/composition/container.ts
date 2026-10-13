@@ -71,6 +71,7 @@ import { BetterAuthProvider } from "@/modules/identity/infrastructure/better-aut
 import {
   createAcceptInvitation,
   createAddGuestMember,
+  createChangeMemberRole,
   createCreateInvitation,
   createCreatePersonalSpace,
   createCreateSpace,
@@ -83,6 +84,7 @@ import {
   createUpdateSpaceSettings,
   type AcceptInvitation,
   type AddGuestMember,
+  type ChangeMemberRole,
   type CreateInvitation,
   type CreatePersonalSpace,
   type CreateSpace,
@@ -129,6 +131,7 @@ export interface Container extends RouteDeps {
     readonly revokeInvitation: RevokeInvitation;
     readonly acceptInvitation: AcceptInvitation;
     readonly addGuest: AddGuestMember;
+    readonly changeMemberRole: ChangeMemberRole;
   };
   readonly categories: {
     readonly listCategories: ListCategories;
@@ -327,6 +330,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       revokeInvitation: createRevokeInvitation(invitationsDeps),
       acceptInvitation: createAcceptInvitation(invitationsDeps),
       addGuest: createAddGuestMember(membersDeps),
+      changeMemberRole: createChangeMemberRole(membersDeps),
     },
     categories: {
       listCategories: createListCategories(categoriesDeps),

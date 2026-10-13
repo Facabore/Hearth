@@ -49,6 +49,7 @@ export const SpaceMemberSchema = z.object({
   joinedAt: z.iso.datetime(),
 });
 export const ListMembersResponseSchema = z.object({ items: z.array(SpaceMemberSchema) });
+export const ChangeMemberRoleBodySchema = z.object({ role: RoleSchema });
 
 /** HU-E1-10: name rules (length, uniqueness ignoring case) live in the domain; the cap only bounds the payload. */
 export const AddGuestBodySchema = z.object({
@@ -132,6 +133,7 @@ export const createdInvitationDto = (
 
 const SpacePath = z.object({ spaceId: z.string() });
 const InvitationPath = SpacePath.extend({ invitationId: z.string() });
+const MemberPath = SpacePath.extend({ memberId: z.string() });
 
 export const spacesPaths: ZodOpenApiPathsObject = {
   "/api/v1/spaces": {
@@ -293,6 +295,25 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           "404": "SpaceNotFound",
           "409": "MemberNameTaken, PersonalSpaceNotShareable",
           "422": "ValidationFailed, InvalidMemberName",
+        }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/members/{memberId}": {
+    patch: {
+      operationId: "changeMemberRole",
+      summary: "Change a registered member's role (OWNER only); a space keeps at least one OWNER",
+      ...securedByUser,
+      requestParams: { path: MemberPath },
+      requestBody: { content: jsonContent(ChangeMemberRoleBodySchema) },
+      responses: {
+        "200": { description: "The member with the new role", content: jsonContent(SpaceMemberSchema) },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound, MemberNotFound",
+          "409": "LastOwnerRequired, GuestHasNoRole",
+          "422": "ValidationFailed",
         }),
       },
     },
