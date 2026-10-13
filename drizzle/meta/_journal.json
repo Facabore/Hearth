@@ -43,6 +43,13 @@
       "when": 1791846114533,
       "tag": "0005_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791893007158,
+      "tag": "0006_shared_spaces",
+      "breakpoints": true
     }
   ]
 }
