@@ -1,4 +1,4 @@
-import { requireRole, WRITERS } from "@/modules/spaces/application";
+import { requirePermission, requireRole, WRITERS } from "@/modules/spaces/application";
 import { ok, type Money, type Result } from "@/shared/kernel";
 import { openAccount, type AccountType } from "../domain/account";
 import { toView, type AccountView } from "./account-view";
@@ -23,7 +23,10 @@ export const createCreateAccount =
       if (!membership.ok) return membership;
       const writer = requireRole(membership.value, WRITERS);
       if (!writer.ok) return writer;
-      const space = writer.value;
+      // HU-E2-02: only OWNER and ADMIN manage shared funds.
+      const allowed = input.type === "SHARED_FUND" ? requirePermission(writer.value, "fund.manage") : writer;
+      if (!allowed.ok) return allowed;
+      const space = allowed.value;
       const openingBalance = minorIn(space.currency, input.openingBalance);
       if (!openingBalance.ok) return openingBalance;
       const account = openAccount({
