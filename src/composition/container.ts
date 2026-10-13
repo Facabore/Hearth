@@ -13,7 +13,18 @@ import {
   type UpdateAccount,
 } from "@/modules/accounts/application";
 import { DrizzleAccountRepository } from "@/modules/accounts/infrastructure/drizzle-account-repository";
+import {
+  createRecordExpense,
+  createRecordIncome,
+  createRecordTransfer,
+  type LedgerDeps,
+  type RecordExpense,
+  type RecordIncome,
+  type RecordTransfer,
+} from "@/modules/ledger/application";
+import { DrizzleAuditLog } from "@/modules/ledger/infrastructure/drizzle-audit-log";
 import { DrizzleLedgerQueries } from "@/modules/ledger/infrastructure/drizzle-ledger-queries";
+import { DrizzleTransactionRepository } from "@/modules/ledger/infrastructure/drizzle-transaction-repository";
 import {
   createCreateCategory,
   createCreateCategoryGroup,
@@ -91,6 +102,11 @@ export interface Container extends RouteDeps {
     readonly listAccounts: ListAccounts;
     readonly getAccount: GetAccount;
   };
+  readonly ledger: {
+    readonly recordExpense: RecordExpense;
+    readonly recordIncome: RecordIncome;
+    readonly recordTransfer: RecordTransfer;
+  };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
     readonly signIn: (ip: string, email: string) => boolean;
@@ -148,6 +164,41 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   };
   // Budget plans (stored period boundaries, D10) arrive with HU-E6-01; until then periods come from the policy.
   const storedPeriods: StoredPeriodSource = async () => [];
+  const ledgerDeps: LedgerDeps = {
+    access,
+    transactions: new DrizzleTransactionRepository(tm),
+    query: ledgerQueries,
+    audit: new DrizzleAuditLog(tm),
+    // Adapters keep the ledger independent of the accounts and categories modules.
+    accounts: {
+      find: async (accountId) => {
+        const account = await accountsDeps.accounts.findById(accountId);
+        return account
+          ? {
+              id: account.id,
+              spaceId: account.spaceId,
+              ownerUserId: account.ownerUserId,
+              archived: account.archivedAt !== null,
+            }
+          : null;
+      },
+    },
+    categories: {
+      find: async (spaceId, categoryId) => {
+        const category = (await categoriesDeps.categories.listCategories(spaceId)).find(
+          (c) => c.id === categoryId,
+        );
+        return category ? { id: category.id, archived: category.archivedAt !== null } : null;
+      },
+    },
+    // Closing plans arrives with HU-E6-07; until then no period is closed.
+    closedPeriods: { isClosed: async () => false },
+    storedPeriods,
+    ids,
+    clock,
+    timeZone: env.APP_TIMEZONE,
+    tm,
+  };
   const createPersonalSpace = createCreatePersonalSpace({
     spaces: spaceRepository,
     ids,
@@ -206,6 +257,11 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       archiveAccount: createArchiveAccount(accountsDeps),
       listAccounts: createListAccounts(accountsDeps),
       getAccount: createGetAccount(accountsDeps),
+    },
+    ledger: {
+      recordExpense: createRecordExpense(ledgerDeps),
+      recordIncome: createRecordIncome(ledgerDeps),
+      recordTransfer: createRecordTransfer(ledgerDeps),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.
