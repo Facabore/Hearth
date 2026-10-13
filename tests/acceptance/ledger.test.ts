@@ -5,6 +5,10 @@ import { GET as listCategories } from "@/app/api/v1/spaces/[spaceId]/categories/
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
 import { POST as recordIncome } from "@/app/api/v1/spaces/[spaceId]/incomes/route";
 import { POST as recordTransfer } from "@/app/api/v1/spaces/[spaceId]/transfers/route";
+import { POST as archiveAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/archive/route";
+import { PATCH as updateSpace } from "@/app/api/v1/spaces/[spaceId]/route";
+import { GET as listTransactions } from "@/app/api/v1/spaces/[spaceId]/transactions/route";
+import { GET as getTransaction } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, registerUser, startTestApp, type RouteHandler, type TestUser } from "../support/app";
 
@@ -210,5 +214,117 @@ describe("income, transfers and computed balances (HU-E4-02, HU-E4-03, HU-E2-04)
       destinationAccountId: ana.bancolombia,
     });
     expect([response.status, (await response.json()).code]).toEqual([409, "SameAccountTransfer"]);
+  });
+});
+
+interface PageDto {
+  period: { label: string; startDate: string; endDate: string };
+  totals: { expenses: MoneyDto; income: MoneyDto };
+  items: TransactionDto[];
+  nextCursor: string | null;
+  code?: string;
+}
+
+const listOf = async (user: TestUser, query: string) => {
+  const response = await call(listTransactions, "GET", inSpace(user, `transactions${query}`), {
+    user,
+    params: { spaceId: user.spaceId },
+  });
+  return { status: response.status, body: (await response.json()) as PageDto };
+};
+
+describe("monthly transaction list (HU-E4-04, HU-E4-05)", () => {
+  it("lists a period newest first with totals, filters by category and pages with a cursor", async () => {
+    const ana = await ledgerUser("Ana");
+    const restaurants = await categoryWithKey(ana, "restaurants");
+    await post(recordExpense, ana, "expenses", market(ana, 85_000, "2026-10-05"));
+    await post(recordExpense, ana, "expenses", market(ana, 100_000, "2026-10-12"));
+    await post(recordExpense, ana, "expenses", {
+      ...market(ana, 60_000, "2026-10-15"),
+      description: "Dinner",
+      categoryId: restaurants,
+    });
+    await post(recordIncome, ana, "incomes", {
+      description: "Salary",
+      amount: cop(3_200_000),
+      date: "2026-10-25",
+      categoryId: ana.salary,
+      accountId: ana.bancolombia,
+    });
+
+    const { body: page } = await listOf(ana, "?period=2026-10");
+    expect(page.period).toEqual({ label: "2026-10", startDate: "2026-10-01", endDate: "2026-10-31" });
+    expect(page.items.map((t) => t.date)).toEqual(["2026-10-25", "2026-10-15", "2026-10-12", "2026-10-05"]);
+    expect(page.totals).toEqual({ expenses: cop(245_000), income: cop(3_200_000) });
+
+    const { body: groceries } = await listOf(ana, `?period=2026-10&categoryIds=${ana.groceries}`);
+    expect(groceries.items).toHaveLength(2);
+    expect(groceries.totals.expenses).toEqual(cop(185_000));
+
+    const { body: first } = await listOf(ana, "?period=2026-10&limit=3");
+    expect(first.items).toHaveLength(3);
+    expect(first.nextCursor).not.toBeNull();
+    const { body: rest } = await listOf(ana, `?period=2026-10&limit=3&cursor=${first.nextCursor}`);
+    expect(rest.items.map((t) => t.date)).toEqual(["2026-10-05"]);
+    expect(rest.nextCursor).toBeNull();
+  });
+
+  it("resolves URL-encoded semi-monthly labels", async () => {
+    const ana = await ledgerUser("Ana");
+    await call(updateSpace, "PATCH", `/api/v1/spaces/${ana.spaceId}`, {
+      user: ana,
+      params: { spaceId: ana.spaceId },
+      body: { periodPolicy: { kind: "SEMI_MONTHLY", day1: 1, day2: 16 } },
+    });
+    await post(recordExpense, ana, "expenses", market(ana, 70_000, "2026-11-10"));
+    await post(recordExpense, ana, "expenses", market(ana, 50_000, "2026-11-20"));
+    const { body: firstHalf } = await listOf(ana, "?period=2026-11%20H1");
+    expect(firstHalf.period).toEqual({ label: "2026-11 H1", startDate: "2026-11-01", endDate: "2026-11-15" });
+    expect(firstHalf.totals.expenses).toEqual(cop(70_000));
+    const { body: secondHalf } = await listOf(ana, "?period=2026-11%20H2");
+    expect(secondHalf.totals.expenses).toEqual(cop(50_000));
+  });
+
+  it("keeps listing the transactions of an archived account (HU-E2-03)", async () => {
+    const ana = await ledgerUser("Ana");
+    const tx = await recorded(post(recordExpense, ana, "expenses", { ...market(ana), accountId: ana.nequi }));
+    await call(archiveAccount, "POST", inSpace(ana, `accounts/${ana.nequi}/archive`), {
+      user: ana,
+      params: { spaceId: ana.spaceId, accountId: ana.nequi },
+    });
+    expect((await listOf(ana, "?period=2026-10")).body.items.map((t) => t.id)).toEqual([tx.id]);
+  });
+
+  it("rejects malformed cursors, labels and filters with 422 (Review Focus 4)", async () => {
+    const ana = await ledgerUser("Ana");
+    const nonUuidCursor = Buffer.from(JSON.stringify(["2026-10-05", "not-a-uuid"]), "utf8").toString(
+      "base64url",
+    );
+    const cases: [string, string][] = [
+      ["?cursor=garbage!!", "InvalidCursor"],
+      [`?cursor=${nonUuidCursor}`, "InvalidCursor"],
+      ["?period=2026-13", "InvalidPeriodLabel"],
+      ["?categoryIds=nope", "ValidationFailed"],
+      ["?limit=201", "ValidationFailed"],
+    ];
+    for (const [query, code] of cases) {
+      expect(await listOf(ana, query)).toMatchObject({ status: 422, body: { code } });
+    }
+  });
+
+  it("returns one transaction with its ETag and hides foreign and malformed ids", async () => {
+    const ana = await ledgerUser("Ana");
+    const juan = await ledgerUser("Juan");
+    const tx = await recorded(post(recordExpense, ana, "expenses", market(ana)));
+    const get = (user: TestUser, spaceOf: TestUser, id: string) =>
+      call(getTransaction, "GET", inSpace(spaceOf, `transactions/${id}`), {
+        user,
+        params: { spaceId: spaceOf.spaceId, transactionId: id },
+      });
+    const own = await get(ana, ana, tx.id);
+    expect([own.status, own.headers.get("etag")]).toEqual([200, '"1"']);
+    expect((await (await get(juan, ana, tx.id)).json()).code).toBe("SpaceNotFound");
+    expect((await (await get(juan, juan, tx.id)).json()).code).toBe("TransactionNotFound");
+    expect((await (await get(ana, ana, "not-a-uuid")).json()).code).toBe("TransactionNotFound");
   });
 });

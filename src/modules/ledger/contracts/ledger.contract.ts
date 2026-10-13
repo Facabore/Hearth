@@ -1,8 +1,17 @@
 import { z } from "zod";
 import type { ZodOpenApiPathsObject } from "zod-openapi";
-import { jsonContent, MoneySchema, problems, securedByUser } from "@/shared/http/contracts";
+import {
+  jsonContent,
+  MoneySchema,
+  PeriodSchema,
+  periodDto,
+  problems,
+  securedByUser,
+} from "@/shared/http/contracts";
 import { etagOf } from "@/shared/http/etag";
-import type { Transaction } from "../application";
+import { decodeCursor, encodeCursor, PaginationQuerySchema } from "@/shared/http/pagination";
+import { domainError, err, isUuid, localDate, ok, type Result } from "@/shared/kernel";
+import type { Transaction, TransactionPage, TransactionPosition } from "../application";
 
 const Id = z.string().min(1).max(64);
 // Length rules live in the domain (InvalidDescription, 200 characters); the cap only bounds payload size.
@@ -97,6 +106,52 @@ export const transactionHeaders = (tx: Transaction): [string, string][] => [
   ["location", `/api/v1/spaces/${tx.spaceId}/transactions/${tx.id}`],
 ];
 
+const UUID = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
+
+export const ListTransactionsQuerySchema = PaginationQuerySchema.extend({
+  /** "2026-10" (monthly) or "2026-11 H1" (semi-monthly, URL-encoded); the current period when absent. */
+  period: z.string().max(20).optional(),
+  /** Comma-separated category ids. */
+  categoryIds: z
+    .string()
+    .regex(new RegExp(`^${UUID}(,${UUID}){0,49}$`), { error: "Comma-separated category ids" })
+    .optional(),
+  payerMemberId: z.uuid().optional(),
+  participantMemberId: z.uuid().optional(),
+  type: z.enum(["EXPENSE", "INCOME", "TRANSFER"]).optional(),
+});
+
+export const ListTransactionsResponseSchema = z.object({
+  period: PeriodSchema,
+  totals: z.object({ expenses: MoneySchema, income: MoneySchema }),
+  items: z.array(TransactionSchema),
+  nextCursor: z.string().nullable(),
+});
+
+export const transactionPageDto = (
+  page: TransactionPage,
+): z.infer<typeof ListTransactionsResponseSchema> => ({
+  period: periodDto(page.period),
+  totals: {
+    expenses: { amount: page.totals.expenses.toString(), currency: page.currency },
+    income: { amount: page.totals.income.toString(), currency: page.currency },
+  },
+  items: page.items.map(transactionDto),
+  nextCursor: page.nextPosition
+    ? encodeCursor({ sortKey: page.nextPosition.date, id: page.nextPosition.id })
+    : null,
+});
+
+/** A cursor must hold a real date and a UUID, or the keyset query would fail its casts. */
+export const positionFromCursor = (raw: string): Result<TransactionPosition> => {
+  const cursor = decodeCursor(raw);
+  if (!cursor.ok) return cursor;
+  const date = localDate(cursor.value.sortKey);
+  return date.ok && isUuid(cursor.value.id)
+    ? ok({ date: date.value, id: cursor.value.id })
+    : err(domainError("InvalidCursor"));
+};
+
 const SpacePath = z.object({ spaceId: z.string() });
 const IdempotencyHeader = z.object({ "idempotency-key": z.string().max(255).optional() });
 
@@ -156,4 +211,35 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
       "422": `${invalidMoney}, AccountNotOwned, AccountNotInSpace`,
     },
   ),
+  "/api/v1/spaces/{spaceId}/transactions": {
+    get: {
+      operationId: "listTransactions",
+      summary: "Transactions of one period, newest first, with period totals (the monthly view)",
+      ...securedByUser,
+      requestParams: { path: SpacePath, query: ListTransactionsQuerySchema },
+      responses: {
+        "200": {
+          description: "One page of the period",
+          content: jsonContent(ListTransactionsResponseSchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "404": "SpaceNotFound",
+          "422": "ValidationFailed, InvalidCursor, InvalidPeriodLabel",
+        }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/transactions/{transactionId}": {
+    get: {
+      operationId: "getTransaction",
+      summary: "One transaction; ETag carries its version",
+      ...securedByUser,
+      requestParams: { path: SpacePath.extend({ transactionId: z.string() }) },
+      responses: {
+        "200": { description: "The transaction", content: jsonContent(TransactionSchema) },
+        ...problems({ "401": "Unauthenticated", "404": "SpaceNotFound, TransactionNotFound" }),
+      },
+    },
+  },
 };

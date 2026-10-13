@@ -14,10 +14,14 @@ import {
 } from "@/modules/accounts/application";
 import { DrizzleAccountRepository } from "@/modules/accounts/infrastructure/drizzle-account-repository";
 import {
+  createGetTransaction,
+  createListTransactions,
   createRecordExpense,
   createRecordIncome,
   createRecordTransfer,
+  type GetTransaction,
   type LedgerDeps,
+  type ListTransactions,
   type RecordExpense,
   type RecordIncome,
   type RecordTransfer,
@@ -106,6 +110,8 @@ export interface Container extends RouteDeps {
     readonly recordExpense: RecordExpense;
     readonly recordIncome: RecordIncome;
     readonly recordTransfer: RecordTransfer;
+    readonly listTransactions: ListTransactions;
+    readonly getTransaction: GetTransaction;
   };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
@@ -262,6 +268,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       recordExpense: createRecordExpense(ledgerDeps),
       recordIncome: createRecordIncome(ledgerDeps),
       recordTransfer: createRecordTransfer(ledgerDeps),
+      listTransactions: createListTransactions(ledgerDeps),
+      getTransaction: createGetTransaction(ledgerDeps),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.
