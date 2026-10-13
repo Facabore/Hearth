@@ -1,17 +1,28 @@
-import type {
-  AddMemberOutcome,
-  Space,
-  SpaceId,
-  SpaceMember,
-  SpaceMemberId,
-  SpaceMemberRepository,
-  SpaceMembership,
-  SpaceRepository,
-  SpaceRole,
-  SpaceSettings,
-  SpaceSettingsRepository,
-  SpaceSummary,
+import {
+  createSpaceAccess,
+  type AddMemberOutcome,
+  type EmailSender,
+  type Invitation,
+  type InvitationEmail,
+  type InvitationRepository,
+  type InvitationsDeps,
+  type InvitationTokens,
+  type RegisteredUsers,
+  type Space,
+  type SpaceId,
+  type SpaceMember,
+  type SpaceMemberId,
+  type SpaceMemberRepository,
+  type SpaceMembership,
+  type SpaceRepository,
+  type SpaceRole,
+  type SpaceSettings,
+  type SpaceSettingsRepository,
+  type SpaceSummary,
 } from "@/modules/spaces/application";
+import { createPersonalSpace } from "@/modules/spaces/domain/space";
+import type { Clock } from "@/shared/kernel";
+import { memoryTm, sequentialIds } from "./fakes";
 
 /** Spaces with their current members; implements every spaces port the use cases need. */
 export class InMemorySpaceStore implements SpaceRepository, SpaceSettingsRepository, SpaceMemberRepository {
@@ -132,3 +143,114 @@ export const householdSpace = (members: readonly SpaceMember[] = HOUSEHOLD_MEMBE
   members: [...members],
   createdAt: new Date("2026-10-01T12:00:00Z"),
 });
+
+export class InMemoryInvitations implements InvitationRepository {
+  rows: Invitation[] = [];
+  /** Ids of the invitations read for update, in order. */
+  readonly locked: string[] = [];
+
+  async add(invitation: Invitation) {
+    this.rows.push(invitation);
+  }
+
+  async findForUpdate(spaceId: string, invitationId: string) {
+    return this.lock(this.rows.find((i) => i.spaceId === spaceId && i.id === invitationId));
+  }
+
+  async findByTokenHashForUpdate(tokenHash: string) {
+    return this.lock(this.rows.find((i) => i.tokenHash === tokenHash));
+  }
+
+  async save(invitation: Invitation) {
+    this.rows = this.rows.map((i) => (i.id === invitation.id ? invitation : i));
+  }
+
+  private lock(found: Invitation | undefined): Invitation | null {
+    if (!found) return null;
+    this.locked.push(found.id);
+    return found;
+  }
+}
+
+/** Deterministic tokens `token-1`, `token-2`, …; the hash of a token is `hash(<token>)`. */
+export const fakeTokens = (): InvitationTokens => {
+  let n = 0;
+  return {
+    issue: () => {
+      const token = `token-${++n}`;
+      return { token, hash: `hash(${token})` };
+    },
+    hash: (token) => `hash(${token})`,
+  };
+};
+
+/** Records every email; "disabled" resolves false like the v1 composition, "throws" fails like a dead SMTP server. */
+export class RecordingEmailSender implements EmailSender {
+  readonly sent: InvitationEmail[] = [];
+  constructor(private readonly outcome: "sent" | "disabled" | "throws" = "sent") {}
+
+  async send(email: InvitationEmail): Promise<boolean> {
+    if (this.outcome === "throws") throw new Error("mail server unavailable");
+    this.sent.push(email);
+    return this.outcome === "sent";
+  }
+}
+
+export const registeredUsers = (byEmail: Record<string, string>): RegisteredUsers => {
+  const users = new Map(Object.entries(byEmail));
+  return { idByEmail: async (email) => users.get(email) ?? null };
+};
+
+export class SettableClock implements Clock {
+  constructor(private instant: Date) {}
+
+  now(): Date {
+    return new Date(this.instant);
+  }
+
+  set(instant: Date): void {
+    this.instant = instant;
+  }
+}
+
+/**
+ * "Household" (`space-household`, members as given, HU-E1-05 Background by default) plus Ana's personal
+ * space (`space-ana`), with in-memory invitation adapters; the clock starts at 2026-10-12T12:00:00Z and
+ * invitation URLs are `https://hearth.test/invitations/<token>`.
+ */
+export const invitationsWorld = (
+  options: {
+    members?: readonly SpaceMember[];
+    store?: InMemorySpaceStore;
+    emailSender?: RecordingEmailSender;
+    users?: Record<string, string>;
+  } = {},
+) => {
+  const store = options.store ?? new InMemorySpaceStore();
+  store.seed(householdSpace(options.members));
+  store.seed(
+    createPersonalSpace({
+      id: "space-ana" as SpaceId,
+      memberId: "member-ana-personal" as SpaceMemberId,
+      ownerUserId: "u-ana",
+      ownerName: "Ana",
+      now: new Date("2026-10-01T12:00:00Z"),
+    }),
+  );
+  const invitations = new InMemoryInvitations();
+  const emailSender = options.emailSender ?? new RecordingEmailSender();
+  const clock = new SettableClock(new Date("2026-10-12T12:00:00Z"));
+  const deps: InvitationsDeps = {
+    access: createSpaceAccess(store),
+    members: store,
+    invitations,
+    tokens: fakeTokens(),
+    emailSender,
+    users: registeredUsers(options.users ?? {}),
+    invitationUrl: (token) => `https://hearth.test/invitations/${token}`,
+    ids: sequentialIds("id"),
+    clock,
+    tm: memoryTm,
+  };
+  return { store, invitations, emailSender, clock, deps };
+};
