@@ -27,3 +27,10 @@ export {
   type SpaceUsage,
   type UpdateSpaceSettings,
 } from "./update-space-settings";
+export type { AddMemberOutcome, SpaceMemberRepository } from "./space-member-repository";
+export {
+  createCreateSpace,
+  type CreateSpace,
+  type CreateSpaceDeps,
+  type CreateSpaceInput,
+} from "./create-space";
