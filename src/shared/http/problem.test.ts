@@ -11,6 +11,8 @@ describe("statusForCode", () => {
     ["Unauthenticated", 401],
     ["InvalidCredentials", 401],
     ["NotASpaceMember", 422],
+    ["UnknownCurrency", 422],
+    ["CurrencyMismatch", 422],
     ["ValidationFailed", 422],
     ["PreconditionFailed", 412],
     ["TooManyRequests", 429],

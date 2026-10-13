@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { Money } from "@/shared/kernel";
-import { MoneySchema, moneyFromDto, moneyToDto, ProblemSchema, problems } from "./contracts";
+import {
+  MoneySchema,
+  moneyFromDto,
+  moneyToDto,
+  optionalLocalDate,
+  ProblemSchema,
+  problems,
+} from "./contracts";
 
 describe("MoneySchema", () => {
   it("serializes Money as a minor-units string", () => {
@@ -51,5 +58,14 @@ describe("problems", () => {
         content: { "application/problem+json": { schema: ProblemSchema } },
       },
     });
+  });
+});
+
+describe("optionalLocalDate", () => {
+  it("keeps an absent date absent and validates present ones", () => {
+    expect(optionalLocalDate(undefined)).toEqual({ ok: true, value: undefined });
+    expect(optionalLocalDate("2026-10-31")).toEqual({ ok: true, value: "2026-10-31" });
+    const impossible = optionalLocalDate("2026-02-30");
+    expect(!impossible.ok && impossible.error.code).toBe("InvalidDate");
   });
 });

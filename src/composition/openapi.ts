@@ -1,4 +1,5 @@
 import { createDocument, type ZodOpenApiObject } from "zod-openapi";
+import { AccountSchema, accountsPaths } from "@/modules/accounts/contracts/accounts.contract";
 import {
   categoriesPaths,
   CategoryGroupSchema,
@@ -16,7 +17,15 @@ export const buildOpenApiDocument = (): Record<string, unknown> =>
     // zod-openapi 6 types target OAS 3.2; we emit 3.1.0 by design (ADR 0002).
     openapi: "3.1.0" as ZodOpenApiObject["openapi"],
     info: { title: "Hearth API", version: "1.0.0" },
-    paths: { ...healthPaths, ...openApiPaths, ...mePaths, ...authPaths, ...spacesPaths, ...categoriesPaths },
+    paths: {
+      ...healthPaths,
+      ...openApiPaths,
+      ...mePaths,
+      ...authPaths,
+      ...spacesPaths,
+      ...categoriesPaths,
+      ...accountsPaths,
+    },
     components: {
       schemas: {
         Money: MoneySchema,
@@ -24,6 +33,7 @@ export const buildOpenApiDocument = (): Record<string, unknown> =>
         Category: CategorySchema,
         CategoryGroup: CategoryGroupSchema,
         CategoryGroupSummary: CategoryGroupSummarySchema,
+        Account: AccountSchema,
       },
       securitySchemes: {
         cookieAuth: { type: "apiKey", in: "cookie", name: "hearth.session_token" },

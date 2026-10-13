@@ -1,5 +1,20 @@
 import type { Pool } from "pg";
 import {
+  createArchiveAccount,
+  createCreateAccount,
+  createGetAccount,
+  createListAccounts,
+  createUpdateAccount,
+  type AccountsDeps,
+  type ArchiveAccount,
+  type CreateAccount,
+  type GetAccount,
+  type ListAccounts,
+  type UpdateAccount,
+} from "@/modules/accounts/application";
+import { DrizzleAccountRepository } from "@/modules/accounts/infrastructure/drizzle-account-repository";
+import { DrizzleLedgerQueries } from "@/modules/ledger/infrastructure/drizzle-ledger-queries";
+import {
   createCreateCategory,
   createCreateCategoryGroup,
   createListCategories,
@@ -56,6 +71,13 @@ export interface Container extends RouteDeps {
     readonly createCategory: CreateCategory;
     readonly updateCategory: UpdateCategory;
   };
+  readonly accounts: {
+    readonly createAccount: CreateAccount;
+    readonly updateAccount: UpdateAccount;
+    readonly archiveAccount: ArchiveAccount;
+    readonly listAccounts: ListAccounts;
+    readonly getAccount: GetAccount;
+  };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
     readonly signIn: (ip: string, email: string) => boolean;
@@ -101,6 +123,16 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     tm,
   };
   const seedDefaultCategories = createSeedDefaultCategories(categoriesDeps);
+  const ledgerQueries = new DrizzleLedgerQueries(tm);
+  // HU-E2-04: balance = opening balance + ledger movements, computed on read (D7).
+  const accountsDeps: AccountsDeps = {
+    accounts: new DrizzleAccountRepository(tm),
+    access,
+    movements: ledgerQueries,
+    ids,
+    clock,
+    tm,
+  };
   const createPersonalSpace = createCreatePersonalSpace({
     spaces: spaceRepository,
     ids,
@@ -137,6 +169,13 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       renameCategoryGroup: createRenameCategoryGroup(categoriesDeps),
       createCategory: createCreateCategory(categoriesDeps),
       updateCategory: createUpdateCategory(categoriesDeps),
+    },
+    accounts: {
+      createAccount: createCreateAccount(accountsDeps),
+      updateAccount: createUpdateAccount(accountsDeps),
+      archiveAccount: createArchiveAccount(accountsDeps),
+      listAccounts: createListAccounts(accountsDeps),
+      getAccount: createGetAccount(accountsDeps),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.

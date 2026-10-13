@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Money, type Result } from "@/shared/kernel";
+import { localDate, Money, ok, type LocalDate, type Result } from "@/shared/kernel";
 
 const INTEGER = /^-?\d{1,19}$/;
 const BIGINT_MIN = -(2n ** 63n);
@@ -55,3 +55,7 @@ export const problems = (descriptions: Record<string, string>) =>
 export const securedByUser: { security: Record<string, string[]>[] } = {
   security: [{ cookieAuth: [] }, { bearerAuth: [] }],
 };
+
+/** Validates an optional ISO date from a request: absent stays undefined, impossible dates are InvalidDate. */
+export const optionalLocalDate = (iso: string | undefined): Result<LocalDate | undefined> =>
+  iso === undefined ? ok(undefined) : localDate(iso);
