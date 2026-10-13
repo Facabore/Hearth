@@ -95,3 +95,9 @@ export const call = (
     }),
     routeParams(options.params ?? {}),
   );
+
+/** Status and problem code of an error response: `expect(await problemOf(response)).toEqual([404, "SpaceNotFound"])`. */
+export const problemOf = async (response: Response): Promise<[number, string]> => [
+  response.status,
+  ((await response.json()) as { code: string }).code,
+];

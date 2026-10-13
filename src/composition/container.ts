@@ -70,15 +70,18 @@ import { createAuth } from "@/modules/identity/infrastructure/better-auth";
 import { BetterAuthProvider } from "@/modules/identity/infrastructure/better-auth-provider";
 import {
   createCreatePersonalSpace,
+  createCreateSpace,
   createGetSpace,
   createListMySpaces,
   createListSpacePeriods,
   createSpaceAccess,
   createUpdateSpaceSettings,
   type CreatePersonalSpace,
+  type CreateSpace,
   type GetSpace,
   type ListMySpaces,
   type ListSpacePeriods,
+  type SpaceCreatedListener,
   type StoredPeriodSource,
   type UpdateSpaceSettings,
 } from "@/modules/spaces/application";
@@ -105,6 +108,7 @@ export interface Container extends RouteDeps {
     readonly getSpace: GetSpace;
     readonly updateSettings: UpdateSpaceSettings;
     readonly listPeriods: ListSpacePeriods;
+    readonly createSpace: CreateSpace;
   };
   readonly categories: {
     readonly listCategories: ListCategories;
@@ -226,13 +230,15 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     timeZone: env.APP_TIMEZONE,
     tm,
   };
+  // HU-E3-01: default categories in the creator's locale, seeded in the same transaction as the space.
+  const onSpaceCreated: SpaceCreatedListener = (space, { locale }) =>
+    seedDefaultCategories({ spaceId: space.id, locale });
   const createPersonalSpace = createCreatePersonalSpace({
     spaces: spaceRepository,
     ids,
     clock,
     tm,
-    // HU-E3-01: default categories are seeded in the same transaction as the space.
-    onCreated: (space, { locale }) => seedDefaultCategories({ spaceId: space.id, locale }),
+    onCreated: onSpaceCreated,
   });
   // HU-E1-02: every new user gets a personal space; sign-up compensates if this fails.
   const provisionUser =
@@ -270,6 +276,14 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         },
       }),
       listPeriods: createListSpacePeriods({ access, storedPeriods, clock, timeZone: env.APP_TIMEZONE }),
+      createSpace: createCreateSpace({
+        spaces: spaceRepository,
+        createPersonalSpace,
+        onCreated: onSpaceCreated,
+        ids,
+        clock,
+        tm,
+      }),
     },
     categories: {
       listCategories: createListCategories(categoriesDeps),

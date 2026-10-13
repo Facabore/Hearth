@@ -22,6 +22,19 @@ export const SpaceSummarySchema = z.object({
 
 export const ListSpacesResponseSchema = z.object({ items: z.array(SpaceSummarySchema) });
 
+/** HU-E1-04: shared spaces are created here; PERSONAL answers PersonalSpaceAlreadyExists (HU-E1-02); DIRECT never (D16). */
+export const CreateSpaceBodySchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("PERSONAL") }),
+  z.object({
+    kind: z.literal("SHARED"),
+    name: z.string().max(200),
+    currency: z
+      .string()
+      .regex(/^[A-Z]{3}$/, { error: "Currency must be an ISO 4217 code" })
+      .default("COP"),
+  }),
+]);
+
 /** Request shape: any integer days, so the domain answers InvalidPeriodPolicy (HU-E1-03) instead of ValidationFailed. */
 export const PeriodPolicyInputSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("MONTHLY"), day: z.number().int() }),
@@ -57,6 +70,21 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           content: { "application/json": { schema: ListSpacesResponseSchema } },
         },
         "401": { description: "Unauthenticated", content: problemContent },
+      },
+    },
+    post: {
+      operationId: "createSpace",
+      summary:
+        "Create a shared space with the requester as its only OWNER (personal spaces come with sign-up)",
+      ...securedByUser,
+      requestBody: { content: jsonContent(CreateSpaceBodySchema) },
+      responses: {
+        "201": { description: "The new space", content: jsonContent(SpaceSummarySchema) },
+        ...problems({
+          "401": "Unauthenticated",
+          "409": "PersonalSpaceAlreadyExists",
+          "422": "ValidationFailed, InvalidSpaceName, UnknownCurrency",
+        }),
       },
     },
   },
