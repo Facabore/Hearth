@@ -38,3 +38,12 @@ export { createChangeMemberRole, type ChangeMemberRole } from "./change-member-r
 export { createListMembers, type ListMembers } from "./list-members";
 export type { MembersDeps } from "./members-deps";
 export { createAddGuestMember, type AddGuestMember } from "./add-guest-member";
+export type {
+  InvitableRole,
+  Invitation,
+  InvitationId,
+  InvitationKind,
+  InvitationState,
+  InvitationStatus,
+  InvitationTarget,
+} from "../domain/invitation";
