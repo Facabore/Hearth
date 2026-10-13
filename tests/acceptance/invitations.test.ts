@@ -1,11 +1,13 @@
 import { createHash, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { POST as acceptInvitation } from "@/app/api/v1/invitations/[token]/accept/route";
 import { POST as revokeInvitation } from "@/app/api/v1/spaces/[spaceId]/invitations/[invitationId]/revoke/route";
 import { POST as createInvitation } from "@/app/api/v1/spaces/[spaceId]/invitations/route";
+import { GET as listMembers } from "@/app/api/v1/spaces/[spaceId]/members/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import type { EmailSender, InvitationEmail } from "@/modules/spaces/application";
-import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
-import { newSharedSpace, tokenOf } from "../support/spaces";
+import { call, problemOf, registerUser, startTestApp, uniqueEmail, type TestUser } from "../support/app";
+import { inviteByLink, joinAs, newSharedSpace, tokenOf } from "../support/spaces";
 
 const mails: InvitationEmail[] = [];
 const emailSender: EmailSender = {
@@ -36,19 +38,24 @@ const revoke = (user: TestUser, spaceId: string, invitationId: string) =>
     user,
     params: { spaceId, invitationId },
   });
-
-/** Makes `user` a current member of the space until invitation acceptance (HU-E1-07) can be driven over HTTP. */
-const joinAs = async (
-  user: TestUser,
-  spaceId: string,
-  role: "ADMIN" | "MEMBER" | "VIEWER",
-): Promise<string> => {
-  const { rows } = await app.pool.query('SELECT name, email FROM "user" WHERE id = $1', [user.userId]);
-  await app.pool.query(
-    "INSERT INTO space_members (id, space_id, kind, user_id, display_name, role, joined_at) VALUES ($1, $2, 'USER', $3, $4, $5, now())",
-    [randomUUID(), spaceId, user.userId, rows[0].name, role],
-  );
-  return rows[0].email;
+const accept = (user: TestUser | undefined, token: string) =>
+  call(acceptInvitation, "POST", `/api/v1/invitations/${token}/accept`, { user, params: { token } });
+const emailInvitation = async (owner: TestUser, spaceId: string, email: string) => {
+  const body = await (await invite(owner, spaceId, { kind: "EMAIL", email, role: "MEMBER" })).json();
+  return { id: body.invitation.id as string, token: tokenOf(body.url) };
+};
+const statusOf = async (invitationId: string) =>
+  (await app.pool.query("SELECT status FROM space_invitations WHERE id = $1", [invitationId])).rows[0].status;
+const membersOf = async (user: TestUser, spaceId: string) => {
+  const response = await call(listMembers, "GET", `/api/v1/spaces/${spaceId}/members`, {
+    user,
+    params: { spaceId },
+  });
+  return (
+    (await response.json()) as {
+      items: { userId: string | null; displayName: string; role: string | null }[];
+    }
+  ).items;
 };
 
 describe("invitations (HU-E1-06)", () => {
@@ -126,6 +133,24 @@ describe("invitations (HU-E1-06)", () => {
     }
   });
 
+  it("does not let a MEMBER revoke an invitation", async () => {
+    const ana = await registerUser("Ana");
+    const marta = await registerUser("Marta");
+    const spaceId = await newSharedSpace(ana);
+    await joinAs(ana, spaceId, marta, "MEMBER");
+    const { invitation } = await (await invite(ana, spaceId, { kind: "LINK", role: "VIEWER" })).json();
+    expect(await problemOf(await revoke(marta, spaceId, invitation.id))).toEqual([403, "InsufficientRole"]);
+  });
+
+  it("refuses to revoke an email invitation that was already accepted", async () => {
+    const ana = await registerUser("Ana");
+    const juan = await registerUser("Juan");
+    const spaceId = await newSharedSpace(ana);
+    const { id, token } = await emailInvitation(ana, spaceId, juan.email);
+    expect((await accept(juan, token)).status).toBe(200);
+    expect(await problemOf(await revoke(ana, spaceId, id))).toEqual([409, "InvitationAlreadyUsed"]);
+  });
+
   it("answers unknown and malformed invitation ids with 404", async () => {
     const ana = await registerUser("Ana");
     const spaceId = await newSharedSpace(ana);
@@ -138,21 +163,10 @@ describe("invitations (HU-E1-06)", () => {
     const ana = await registerUser("Ana");
     const marta = await registerUser("Marta");
     const spaceId = await newSharedSpace(ana);
-    await joinAs(marta, spaceId, "MEMBER");
+    await joinAs(ana, spaceId, marta, "MEMBER");
     expect(await problemOf(await invite(marta, spaceId, { kind: "LINK", role: "VIEWER" }))).toEqual([
       403,
       "InsufficientRole",
-    ]);
-  });
-
-  it("refuses an email invitation for someone who is already a member", async () => {
-    const ana = await registerUser("Ana");
-    const marta = await registerUser("Marta");
-    const spaceId = await newSharedSpace(ana);
-    const email = await joinAs(marta, spaceId, "MEMBER");
-    expect(await problemOf(await invite(ana, spaceId, { kind: "EMAIL", email, role: "MEMBER" }))).toEqual([
-      409,
-      "AlreadyMember",
     ]);
   });
 
@@ -162,5 +176,118 @@ describe("invitations (HU-E1-06)", () => {
     expect(
       await problemOf(await invite(ana, spaceId, { kind: "EMAIL", email: "not-an-email", role: "MEMBER" })),
     ).toEqual([422, "ValidationFailed"]);
+  });
+});
+
+describe("accept an invitation (HU-E1-07)", () => {
+  it("makes the signed-in invitee a MEMBER with joinedAt set and marks the invitation ACCEPTED", async () => {
+    const ana = await registerUser("Ana");
+    const juan = await registerUser("Juan");
+    const spaceId = await newSharedSpace(ana);
+    const { id, token } = await emailInvitation(ana, spaceId, juan.email);
+    const response = await accept(juan, token);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      id: spaceId,
+      name: "Household",
+      kind: "SHARED",
+      role: "MEMBER",
+    });
+    expect(await membersOf(ana, spaceId)).toContainEqual(
+      expect.objectContaining({
+        userId: juan.userId,
+        displayName: "Juan",
+        role: "MEMBER",
+        joinedAt: expect.any(String),
+      }),
+    );
+    expect(await statusOf(id)).toBe("ACCEPTED");
+  });
+
+  it("lets a visitor sign up first and then accept with the token", async () => {
+    const ana = await registerUser("Ana");
+    const spaceId = await newSharedSpace(ana);
+    const email = uniqueEmail("juan");
+    const { id, token } = await emailInvitation(ana, spaceId, email);
+    const juan = await registerUser("Juan", email);
+    expect((await accept(juan, token)).status).toBe(200);
+    expect(await membersOf(ana, spaceId)).toContainEqual(
+      expect.objectContaining({ userId: juan.userId, role: "MEMBER" }),
+    );
+    expect(await statusOf(id)).toBe("ACCEPTED");
+  });
+
+  it("rejects an invitation created 8 days ago", async () => {
+    const ana = await registerUser("Ana");
+    const juan = await registerUser("Juan");
+    const spaceId = await newSharedSpace(ana);
+    const { id, token } = await emailInvitation(ana, spaceId, juan.email);
+    await app.pool.query(
+      "UPDATE space_invitations SET created_at = now() - interval '8 days', expires_at = now() - interval '1 day' WHERE id = $1",
+      [id],
+    );
+    expect(await problemOf(await accept(juan, token))).toEqual([409, "InvitationExpired"]);
+  });
+
+  it("rejects another account for an email-bound invitation", async () => {
+    const ana = await registerUser("Ana");
+    const juan = await registerUser("Juan");
+    const luis = await registerUser("Luis");
+    const spaceId = await newSharedSpace(ana);
+    const { token } = await emailInvitation(ana, spaceId, juan.email);
+    expect(await problemOf(await accept(luis, token))).toEqual([403, "InvitationEmailMismatch"]);
+  });
+
+  it("rejects a revoked invitation", async () => {
+    const ana = await registerUser("Ana");
+    const juan = await registerUser("Juan");
+    const spaceId = await newSharedSpace(ana);
+    const { id, token } = await emailInvitation(ana, spaceId, juan.email);
+    expect((await revoke(ana, spaceId, id)).status).toBe(200);
+    expect(await problemOf(await accept(juan, token))).toEqual([409, "InvitationRevoked"]);
+  });
+
+  it("cannot be replayed, not even by two concurrent requests (Review Focus 2)", async () => {
+    const ana = await registerUser("Ana");
+    const juan = await registerUser("Juan");
+    const spaceId = await newSharedSpace(ana);
+    const { token } = await emailInvitation(ana, spaceId, juan.email);
+    const [first, second] = await Promise.all([accept(juan, token), accept(juan, token)]);
+    expect([first.status, second.status].sort()).toEqual([200, 409]);
+    expect(await problemOf(await accept(juan, token))).toEqual([409, "InvitationAlreadyUsed"]);
+    const { rows } = await app.pool.query(
+      "SELECT count(*)::int AS n FROM space_members WHERE space_id = $1 AND user_id = $2",
+      [spaceId, juan.userId],
+    );
+    expect(rows[0].n).toBe(1);
+  });
+
+  it("answers an unknown token with 404 and an anonymous caller with 401", async () => {
+    const juan = await registerUser("Juan");
+    expect(await problemOf(await accept(juan, "not-a-token"))).toEqual([404, "InvitationNotFound"]);
+    expect(await problemOf(await accept(undefined, "not-a-token"))).toEqual([401, "Unauthenticated"]);
+  });
+
+  it("keeps a link invitation valid for several people and rejects a second join", async () => {
+    const ana = await registerUser("Ana");
+    const juan = await registerUser("Juan");
+    const luis = await registerUser("Luis");
+    const spaceId = await newSharedSpace(ana);
+    const token = await inviteByLink(ana, spaceId, "VIEWER");
+    expect((await accept(juan, token)).status).toBe(200);
+    expect((await accept(luis, token)).status).toBe(200);
+    expect(await problemOf(await accept(juan, token))).toEqual([409, "AlreadyMember"]);
+  });
+});
+
+describe("inviting an existing member (HU-E1-06)", () => {
+  it("rejects the email of a current member", async () => {
+    const ana = await registerUser("Ana");
+    const juan = await registerUser("Juan");
+    const spaceId = await newSharedSpace(ana);
+    await joinAs(ana, spaceId, juan, "MEMBER");
+    expect(
+      await problemOf(await invite(ana, spaceId, { kind: "EMAIL", email: juan.email, role: "MEMBER" })),
+    ).toEqual([409, "AlreadyMember"]);
   });
 });

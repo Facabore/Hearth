@@ -254,4 +254,22 @@ export const spacesPaths: ZodOpenApiPathsObject = {
       },
     },
   },
+  "/api/v1/invitations/{token}/accept": {
+    post: {
+      operationId: "acceptInvitation",
+      summary: "Join the invitation's space as the signed-in user, with the invited role",
+      ...securedByUser,
+      requestParams: { path: z.object({ token: z.string() }) },
+      responses: {
+        "200": { description: "The joined space", content: jsonContent(SpaceSummarySchema) },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InvitationEmailMismatch",
+          "404": "InvitationNotFound, SpaceNotFound",
+          "409":
+            "InvitationExpired, InvitationRevoked, InvitationAlreadyUsed, AlreadyMember, MemberNameTaken",
+        }),
+      },
+    },
+  },
 };

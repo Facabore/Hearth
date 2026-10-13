@@ -1,3 +1,4 @@
+import { POST as acceptInvitation } from "@/app/api/v1/invitations/[token]/accept/route";
 import { POST as createInvitation } from "@/app/api/v1/spaces/[spaceId]/invitations/route";
 import { POST as createSpace } from "@/app/api/v1/spaces/route";
 import { call, type TestUser } from "./app";
@@ -31,4 +32,19 @@ export const inviteByLink = async (
   });
   if (response.status !== 201) throw new Error(`invitation failed with status ${response.status}`);
   return tokenOf(((await response.json()) as { url: string }).url);
+};
+
+/** `member` joins the space through a link invitation created by `owner` with `role`. */
+export const joinAs = async (
+  owner: TestUser,
+  spaceId: string,
+  member: TestUser,
+  role: "ADMIN" | "MEMBER" | "VIEWER",
+): Promise<void> => {
+  const token = await inviteByLink(owner, spaceId, role);
+  const response = await call(acceptInvitation, "POST", `/api/v1/invitations/${token}/accept`, {
+    user: member,
+    params: { token },
+  });
+  if (response.status !== 200) throw new Error(`joining failed with status ${response.status}`);
 };
