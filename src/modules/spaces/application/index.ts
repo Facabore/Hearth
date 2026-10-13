@@ -37,3 +37,4 @@ export {
 export { createChangeMemberRole, type ChangeMemberRole } from "./change-member-role";
 export { createListMembers, type ListMembers } from "./list-members";
 export type { MembersDeps } from "./members-deps";
+export { createAddGuestMember, type AddGuestMember } from "./add-guest-member";

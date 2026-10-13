@@ -13,11 +13,19 @@ import {
   householdSpace,
   InMemorySpaceStore,
 } from "../../../../tests/support/in-memory-spaces";
-import type { Space, SpaceMember } from "../domain/space";
+import {
+  createPersonalSpace,
+  type Space,
+  type SpaceId,
+  type SpaceMember,
+  type SpaceMemberId,
+} from "../domain/space";
+import { createAddGuestMember } from "./add-guest-member";
 import { createChangeMemberRole } from "./change-member-role";
 import { createListMembers } from "./list-members";
 import type { MembersDeps } from "./members-deps";
 import { createSpaceAccess } from "./space-access";
+import type { AddMemberOutcome } from "./space-member-repository";
 
 const now = new Date("2026-10-13T12:00:00Z");
 const space = "space-household";
@@ -33,7 +41,13 @@ const setup = (seeded: Space = householdSpace()) => {
     clock: new FixedClock(now),
     tm: memoryTm,
   };
-  return { store, deps, list: createListMembers(deps), changeRole: createChangeMemberRole(deps) };
+  return {
+    store,
+    deps,
+    list: createListMembers(deps),
+    changeRole: createChangeMemberRole(deps),
+    addGuest: createAddGuestMember(deps),
+  };
 };
 const roleOf = (store: InMemorySpaceStore, name: string) =>
   store.members(space).find((m) => m.displayName === name)?.role;
@@ -133,5 +147,85 @@ describe("ChangeMemberRole (HU-E1-05)", () => {
       "InsufficientRole",
     );
     expect(roleOf(store, "Luis")).toBe("MEMBER");
+  });
+});
+
+describe("AddGuestMember (HU-E1-10)", () => {
+  // Background: OWNER Ana, MEMBER Luis and VIEWER Sofi (Pedro is not a member yet).
+  const withoutPedro = () => householdSpace(HOUSEHOLD_MEMBERS.filter((m) => m.displayName !== "Pedro"));
+
+  it("lets a member add a guest with no user and no role", async () => {
+    const { addGuest, store } = setup(withoutPedro());
+    const pedro = unwrap(
+      await addGuest({ ...as("luis"), displayName: "Pedro", contactEmail: "Pedro@Example.com" }),
+    );
+    expect(pedro).toEqual({
+      id: "member-new-1",
+      kind: "GUEST",
+      userId: null,
+      displayName: "Pedro",
+      role: null,
+      contactEmail: "pedro@example.com",
+      joinedAt: now,
+    });
+    expect(store.members(space).at(-1)).toEqual(pedro);
+  });
+
+  it("lists the guest among the current members", async () => {
+    const { addGuest, list } = setup(withoutPedro());
+    unwrap(await addGuest({ ...as("luis"), displayName: "Pedro" }));
+    const members = unwrap(await list(as("ana")));
+    expect(members.map((m) => [m.displayName, m.kind])).toEqual([
+      ["Ana", "USER"],
+      ["Juan", "USER"],
+      ["Luis", "USER"],
+      ["Sofi", "USER"],
+      ["Pedro", "GUEST"],
+    ]);
+  });
+
+  it("does not let a viewer add guests", async () => {
+    const { addGuest } = setup(withoutPedro());
+    expect(codeOf(await addGuest({ ...as("sofi"), displayName: "Pedro" }))).toBe("InsufficientRole");
+  });
+
+  it("requires a name unique among current members, ignoring case", async () => {
+    const { addGuest } = setup();
+    expect(codeOf(await addGuest({ ...as("luis"), displayName: "pedro" }))).toBe("MemberNameTaken");
+    expect(codeOf(await addGuest({ ...as("luis"), displayName: "   " }))).toBe("InvalidMemberName");
+  });
+
+  it("refuses guests in a personal space", async () => {
+    const { addGuest, store } = setup();
+    store.seed(
+      createPersonalSpace({
+        id: "space-ana" as SpaceId,
+        memberId: "member-ana-personal" as SpaceMemberId,
+        ownerUserId: "u-ana",
+        ownerName: "Ana",
+        now,
+      }),
+    );
+    expect(codeOf(await addGuest({ spaceId: "space-ana", userId: "u-ana", displayName: "Pedro" }))).toBe(
+      "PersonalSpaceNotShareable",
+    );
+  });
+
+  it("answers MemberNameTaken when a concurrent addition takes the name first", async () => {
+    class RacingStore extends InMemorySpaceStore {
+      override async addMember(): Promise<AddMemberOutcome> {
+        return "nameTaken";
+      }
+    }
+    const store = new RacingStore();
+    store.seed(withoutPedro());
+    const addGuest = createAddGuestMember({
+      access: createSpaceAccess(store),
+      members: store,
+      ids: sequentialIds("member-new"),
+      clock: new FixedClock(now),
+      tm: memoryTm,
+    });
+    expect(codeOf(await addGuest({ ...as("luis"), displayName: "Pedro" }))).toBe("MemberNameTaken");
   });
 });
