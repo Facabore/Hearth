@@ -8,7 +8,12 @@ import { POST as recordTransfer } from "@/app/api/v1/spaces/[spaceId]/transfers/
 import { POST as archiveAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/archive/route";
 import { PATCH as updateSpace } from "@/app/api/v1/spaces/[spaceId]/route";
 import { GET as listTransactions } from "@/app/api/v1/spaces/[spaceId]/transactions/route";
-import { GET as getTransaction } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/route";
+import {
+  DELETE as deleteTransaction,
+  GET as getTransaction,
+  PATCH as editTransaction,
+} from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/route";
+import { GET as transactionAudit } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/audit/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, registerUser, startTestApp, type RouteHandler, type TestUser } from "../support/app";
 
@@ -326,5 +331,114 @@ describe("monthly transaction list (HU-E4-04, HU-E4-05)", () => {
     expect((await (await get(juan, ana, tx.id)).json()).code).toBe("SpaceNotFound");
     expect((await (await get(juan, juan, tx.id)).json()).code).toBe("TransactionNotFound");
     expect((await (await get(ana, ana, "not-a-uuid")).json()).code).toBe("TransactionNotFound");
+  });
+});
+
+interface AuditDto {
+  action: string;
+  actorUserId: string;
+  at: string;
+  changes: Record<string, { from: string | null; to: string | null }>;
+}
+
+const onTransaction = (
+  handler: RouteHandler,
+  method: string,
+  user: TestUser,
+  id: string,
+  options: { body?: unknown; ifMatch?: string; suffix?: string } = {},
+) =>
+  call(handler, method, inSpace(user, `transactions/${id}${options.suffix ?? ""}`), {
+    user,
+    params: { spaceId: user.spaceId, transactionId: id },
+    body: options.body,
+    headers: options.ifMatch === undefined ? {} : { "if-match": options.ifMatch },
+  });
+const auditOf = async (user: TestUser, id: string) =>
+  (
+    (await (await onTransaction(transactionAudit, "GET", user, id, { suffix: "/audit" })).json()) as {
+      items: AuditDto[];
+    }
+  ).items;
+
+describe("edit and delete with an audit trail (HU-E4-06)", () => {
+  it("edits the amount with If-Match, returns the next ETag and audits the change", async () => {
+    const ana = await ledgerUser("Ana");
+    const tx = await recorded(post(recordExpense, ana, "expenses", market(ana)));
+    const response = await onTransaction(editTransaction, "PATCH", ana, tx.id, {
+      body: { amount: cop(95_000) },
+      ifMatch: '"1"',
+    });
+    expect([response.status, response.headers.get("etag")]).toEqual([200, '"2"']);
+    const edited = (await response.json()) as TransactionDto;
+    expect(edited.amount).toEqual(cop(95_000));
+    expect(edited.payments.map((p) => p.amount)).toEqual([cop(95_000)]);
+    expect(edited.shares.map((s) => s.amount)).toEqual([cop(95_000)]);
+    expect(await auditOf(ana, tx.id)).toEqual([
+      expect.objectContaining({
+        action: "UPDATED",
+        actorUserId: ana.userId,
+        at: expect.any(String),
+        changes: { amount: { from: "8500000", to: "9500000" } },
+      }),
+    ]);
+  });
+
+  it("rejects a stale or malformed If-Match with 412 and changes nothing (Review Focus 1)", async () => {
+    const ana = await ledgerUser("Ana");
+    const tx = await recorded(post(recordExpense, ana, "expenses", market(ana)));
+    expect(
+      (
+        await onTransaction(editTransaction, "PATCH", ana, tx.id, {
+          body: { description: "Groceries" },
+          ifMatch: '"1"',
+        })
+      ).status,
+    ).toBe(200);
+    for (const ifMatch of ['"1"', "abc"]) {
+      const stale = await onTransaction(editTransaction, "PATCH", ana, tx.id, {
+        body: { amount: cop(1_000) },
+        ifMatch,
+      });
+      expect([stale.status, (await stale.json()).code]).toEqual([412, "PreconditionFailed"]);
+    }
+    const current = (await (await onTransaction(getTransaction, "GET", ana, tx.id)).json()) as TransactionDto;
+    expect([current.amount, current.description, current.version]).toEqual([cop(85_000), "Groceries", 2]);
+    expect(await auditOf(ana, tx.id)).toHaveLength(1);
+  });
+
+  it("soft-deletes: gone from lists and balances, still audited (HU-E2-04)", async () => {
+    const ana = await ledgerUser("Ana");
+    const tx = await recorded(post(recordExpense, ana, "expenses", market(ana)));
+    expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(1_915_000));
+    expect((await onTransaction(deleteTransaction, "DELETE", ana, tx.id)).status).toBe(204);
+    expect((await (await onTransaction(getTransaction, "GET", ana, tx.id)).json()).code).toBe(
+      "TransactionNotFound",
+    );
+    expect((await listOf(ana, "?period=2026-10")).body.items).toEqual([]);
+    expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(2_000_000));
+    expect((await auditOf(ana, tx.id)).map((e) => [e.action, e.actorUserId])).toEqual([
+      ["DELETED", ana.userId],
+    ]);
+  });
+
+  it("moves a transaction to another period when its date changes (HU-E4-04)", async () => {
+    const ana = await ledgerUser("Ana");
+    const tx = await recorded(post(recordExpense, ana, "expenses", market(ana, 85_000, "2026-10-31")));
+    await onTransaction(editTransaction, "PATCH", ana, tx.id, { body: { date: "2026-11-02" } });
+    expect((await listOf(ana, "?period=2026-11")).body.items.map((t) => t.id)).toEqual([tx.id]);
+    expect((await listOf(ana, "?period=2026-10")).body.items).toEqual([]);
+  });
+
+  it("hides other users' transactions", async () => {
+    const ana = await ledgerUser("Ana");
+    const juan = await ledgerUser("Juan");
+    const tx = await recorded(post(recordExpense, ana, "expenses", market(ana)));
+    const response = await call(editTransaction, "PATCH", inSpace(ana, `transactions/${tx.id}`), {
+      user: juan,
+      params: { spaceId: ana.spaceId, transactionId: tx.id },
+      body: { description: "Mine" },
+    });
+    expect([response.status, (await response.json()).code]).toEqual([404, "SpaceNotFound"]);
   });
 });

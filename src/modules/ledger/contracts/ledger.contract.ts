@@ -11,7 +11,7 @@ import {
 import { etagOf } from "@/shared/http/etag";
 import { decodeCursor, encodeCursor, PaginationQuerySchema } from "@/shared/http/pagination";
 import { domainError, err, isUuid, localDate, ok, type Result } from "@/shared/kernel";
-import type { Transaction, TransactionPage, TransactionPosition } from "../application";
+import type { AuditEntry, Transaction, TransactionPage, TransactionPosition } from "../application";
 
 const Id = z.string().min(1).max(64);
 // Length rules live in the domain (InvalidDescription, 200 characters); the cap only bounds payload size.
@@ -152,8 +152,35 @@ export const positionFromCursor = (raw: string): Result<TransactionPosition> => 
     : err(domainError("InvalidCursor"));
 };
 
+export const EditTransactionBodySchema = z.object({
+  description: Description,
+  date: z.iso.date().optional(),
+  categoryId: Id.optional(),
+  amount: MoneySchema.optional(),
+});
+
+export const AuditEntrySchema = z.object({
+  id: z.string(),
+  action: z.enum(["UPDATED", "DELETED"]),
+  actorUserId: z.string(),
+  at: z.iso.datetime(),
+  /** Changed fields with their previous and new values; amounts in minor units as strings. */
+  changes: z.record(z.string(), z.object({ from: z.string().nullable(), to: z.string().nullable() })),
+});
+export const ListAuditResponseSchema = z.object({ items: z.array(AuditEntrySchema) });
+
+export const auditEntryDto = (entry: AuditEntry): z.infer<typeof AuditEntrySchema> => ({
+  id: entry.id,
+  action: entry.action,
+  actorUserId: entry.actorUserId,
+  at: entry.at.toISOString(),
+  changes: entry.changes,
+});
+
 const SpacePath = z.object({ spaceId: z.string() });
 const IdempotencyHeader = z.object({ "idempotency-key": z.string().max(255).optional() });
+const TransactionPath = SpacePath.extend({ transactionId: z.string() });
+const IfMatchHeader = z.object({ "if-match": z.string().optional() });
 
 const recording = (
   operationId: string,
@@ -235,9 +262,58 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
       operationId: "getTransaction",
       summary: "One transaction; ETag carries its version",
       ...securedByUser,
-      requestParams: { path: SpacePath.extend({ transactionId: z.string() }) },
+      requestParams: { path: TransactionPath },
       responses: {
         "200": { description: "The transaction", content: jsonContent(TransactionSchema) },
+        ...problems({ "401": "Unauthenticated", "404": "SpaceNotFound, TransactionNotFound" }),
+      },
+    },
+    patch: {
+      operationId: "editTransaction",
+      summary: "Change description, date, category or amount; send If-Match with the current ETag",
+      ...securedByUser,
+      requestParams: { path: TransactionPath, header: IfMatchHeader },
+      requestBody: { content: jsonContent(EditTransactionBodySchema) },
+      responses: {
+        "200": {
+          description: "The edited transaction with its new ETag",
+          content: jsonContent(TransactionSchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound, TransactionNotFound, CategoryNotFound",
+          "409": "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, TransferHasNoCategory",
+          "412": "PreconditionFailed",
+          "422":
+            "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency",
+        }),
+      },
+    },
+    delete: {
+      operationId: "deleteTransaction",
+      summary: "Soft-delete a transaction; it leaves lists, balances and totals but keeps its audit trail",
+      ...securedByUser,
+      requestParams: { path: TransactionPath },
+      responses: {
+        "204": { description: "Deleted" },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound, TransactionNotFound",
+          "409": "PeriodClosed",
+        }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/transactions/{transactionId}/audit": {
+    get: {
+      operationId: "listTransactionAudit",
+      summary: "Who changed or deleted a transaction, oldest first",
+      ...securedByUser,
+      requestParams: { path: TransactionPath },
+      responses: {
+        "200": { description: "Audit entries", content: jsonContent(ListAuditResponseSchema) },
         ...problems({ "401": "Unauthenticated", "404": "SpaceNotFound, TransactionNotFound" }),
       },
     },
