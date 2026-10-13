@@ -1,5 +1,6 @@
 export type { Space, SpaceId, SpaceKind, SpaceMemberId, SpaceRole } from "../domain/space";
 export { ensureCanAddMember } from "../domain/space";
+export { can, rolesFor, SPACE_ACTIONS, type SpaceAction } from "../domain/permissions";
 export {
   createCreatePersonalSpace,
   type CreatePersonalSpace,
@@ -9,8 +10,10 @@ export { createGetSpace, type GetSpace } from "./get-space";
 export { createListMySpaces, type ListMySpaces } from "./list-my-spaces";
 export { createListSpacePeriods, type ListSpacePeriods, type StoredPeriodSource } from "./list-space-periods";
 export {
+  authorizeSpaceAction,
   createSpaceAccess,
   MANAGERS,
+  requirePermission,
   requireRole,
   toSpaceSummary,
   WRITERS,
