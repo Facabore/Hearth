@@ -1,4 +1,4 @@
-export type { Space, SpaceId, SpaceKind, SpaceMemberId, SpaceRole } from "../domain/space";
+export type { Space, SpaceId, SpaceKind, SpaceMember, SpaceMemberId, SpaceRole } from "../domain/space";
 export { ensureCanAddMember } from "../domain/space";
 export { can, rolesFor, SPACE_ACTIONS, type SpaceAction } from "../domain/permissions";
 export {
