@@ -72,6 +72,7 @@ import {
   createCreatePersonalSpace,
   createCreateSpace,
   createGetSpace,
+  createListMembers,
   createListMySpaces,
   createListSpacePeriods,
   createSpaceAccess,
@@ -79,8 +80,10 @@ import {
   type CreatePersonalSpace,
   type CreateSpace,
   type GetSpace,
+  type ListMembers,
   type ListMySpaces,
   type ListSpacePeriods,
+  type MembersDeps,
   type SpaceCreatedListener,
   type StoredPeriodSource,
   type UpdateSpaceSettings,
@@ -109,6 +112,7 @@ export interface Container extends RouteDeps {
     readonly updateSettings: UpdateSpaceSettings;
     readonly listPeriods: ListSpacePeriods;
     readonly createSpace: CreateSpace;
+    readonly listMembers: ListMembers;
   };
   readonly categories: {
     readonly listCategories: ListCategories;
@@ -240,6 +244,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     tm,
     onCreated: onSpaceCreated,
   });
+  const membersDeps: MembersDeps = { access, members: spaceRepository, ids, clock, tm };
   // HU-E1-02: every new user gets a personal space; sign-up compensates if this fails.
   const provisionUser =
     options.provisionUser ??
@@ -284,6 +289,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         clock,
         tm,
       }),
+      listMembers: createListMembers(membersDeps),
     },
     categories: {
       listCategories: createListCategories(categoriesDeps),

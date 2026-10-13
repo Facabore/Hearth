@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { ZodOpenApiPathsObject } from "zod-openapi";
 import { jsonContent, PeriodSchema, problemContent, problems, securedByUser } from "@/shared/http/contracts";
+import type { SpaceMember } from "../application";
 
 export const PeriodPolicySchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("MONTHLY"), day: z.number().int().min(1).max(31) }),
@@ -34,6 +35,30 @@ export const CreateSpaceBodySchema = z.discriminatedUnion("kind", [
       .default("COP"),
   }),
 ]);
+
+const RoleSchema = z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"]);
+
+/** A current member (HU-E1-05, HU-E1-10): guests have kind GUEST, no user and no role. */
+export const SpaceMemberSchema = z.object({
+  id: z.string(),
+  kind: z.enum(["USER", "GUEST"]),
+  userId: z.string().nullable(),
+  displayName: z.string(),
+  role: RoleSchema.nullable(),
+  contactEmail: z.string().nullable(),
+  joinedAt: z.iso.datetime(),
+});
+export const ListMembersResponseSchema = z.object({ items: z.array(SpaceMemberSchema) });
+
+export const memberDto = (member: SpaceMember): z.infer<typeof SpaceMemberSchema> => ({
+  id: member.id,
+  kind: member.kind,
+  userId: member.userId,
+  displayName: member.displayName,
+  role: member.role,
+  contactEmail: member.contactEmail,
+  joinedAt: member.joinedAt.toISOString(),
+});
 
 /** Request shape: any integer days, so the domain answers InvalidPeriodPolicy (HU-E1-03) instead of ValidationFailed. */
 export const PeriodPolicyInputSchema = z.discriminatedUnion("kind", [
@@ -131,6 +156,18 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           "404": "SpaceNotFound",
           "422": "ValidationFailed, InvalidDate",
         }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/members": {
+    get: {
+      operationId: "listMembers",
+      summary: "Current members of the space in join order, guests included",
+      ...securedByUser,
+      requestParams: { path: SpacePath },
+      responses: {
+        "200": { description: "The current members", content: jsonContent(ListMembersResponseSchema) },
+        ...problems({ "401": "Unauthenticated", "404": "SpaceNotFound" }),
       },
     },
   },
