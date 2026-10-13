@@ -8,8 +8,8 @@ import {
 } from "@/modules/categories/contracts/categories.contract";
 import { authPaths } from "@/modules/identity/contracts/auth.contract";
 import { mePaths } from "@/modules/identity/contracts/me.contract";
-import { spacesPaths } from "@/modules/spaces/contracts/spaces.contract";
-import { MoneySchema, ProblemSchema } from "@/shared/http/contracts";
+import { SpaceSummarySchema, spacesPaths } from "@/modules/spaces/contracts/spaces.contract";
+import { MoneySchema, PeriodSchema, ProblemSchema } from "@/shared/http/contracts";
 import { healthPaths, openApiPaths } from "@/shared/http/system.contract";
 
 export const buildOpenApiDocument = (): Record<string, unknown> =>
@@ -34,6 +34,8 @@ export const buildOpenApiDocument = (): Record<string, unknown> =>
         CategoryGroup: CategoryGroupSchema,
         CategoryGroupSummary: CategoryGroupSummarySchema,
         Account: AccountSchema,
+        Space: SpaceSummarySchema,
+        Period: PeriodSchema,
       },
       securitySchemes: {
         cookieAuth: { type: "apiKey", in: "cookie", name: "hearth.session_token" },

@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { Money } from "@/shared/kernel";
+import { Money, type LocalDate } from "@/shared/kernel";
 import {
   MoneySchema,
   moneyFromDto,
   moneyToDto,
   optionalLocalDate,
+  periodDto,
   ProblemSchema,
   problems,
 } from "./contracts";
@@ -67,5 +68,13 @@ describe("optionalLocalDate", () => {
     expect(optionalLocalDate("2026-10-31")).toEqual({ ok: true, value: "2026-10-31" });
     const impossible = optionalLocalDate("2026-02-30");
     expect(!impossible.ok && impossible.error.code).toBe("InvalidDate");
+  });
+});
+
+describe("periodDto", () => {
+  it("serializes a period with explicit start and end dates", () => {
+    expect(
+      periodDto({ start: "2026-10-25" as LocalDate, end: "2026-11-24" as LocalDate, label: "2026-11" }),
+    ).toEqual({ label: "2026-11", startDate: "2026-10-25", endDate: "2026-11-24" });
   });
 });

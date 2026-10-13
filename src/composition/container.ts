@@ -41,10 +41,17 @@ import { createAuth } from "@/modules/identity/infrastructure/better-auth";
 import { BetterAuthProvider } from "@/modules/identity/infrastructure/better-auth-provider";
 import {
   createCreatePersonalSpace,
+  createGetSpace,
   createListMySpaces,
+  createListSpacePeriods,
   createSpaceAccess,
+  createUpdateSpaceSettings,
   type CreatePersonalSpace,
+  type GetSpace,
   type ListMySpaces,
+  type ListSpacePeriods,
+  type StoredPeriodSource,
+  type UpdateSpaceSettings,
 } from "@/modules/spaces/application";
 import { DrizzleSpaceRepository } from "@/modules/spaces/infrastructure/drizzle-space-repository";
 import { createFixedWindowLimiter, jsonLogger, type IdempotencyDeps, type RouteDeps } from "@/shared/http";
@@ -63,7 +70,13 @@ export interface Container extends RouteDeps {
   readonly tm: DrizzleTransactionManager;
   readonly idempotency: IdempotencyDeps;
   readonly identity: { readonly signUp: SignUp; readonly signIn: SignIn; readonly signOut: SignOut };
-  readonly spaces: { readonly createPersonalSpace: CreatePersonalSpace; readonly listMySpaces: ListMySpaces };
+  readonly spaces: {
+    readonly createPersonalSpace: CreatePersonalSpace;
+    readonly listMySpaces: ListMySpaces;
+    readonly getSpace: GetSpace;
+    readonly updateSettings: UpdateSpaceSettings;
+    readonly listPeriods: ListSpacePeriods;
+  };
   readonly categories: {
     readonly listCategories: ListCategories;
     readonly createCategoryGroup: CreateCategoryGroup;
@@ -133,6 +146,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     clock,
     tm,
   };
+  // Budget plans (stored period boundaries, D10) arrive with HU-E6-01; until then periods come from the policy.
+  const storedPeriods: StoredPeriodSource = async () => [];
   const createPersonalSpace = createCreatePersonalSpace({
     spaces: spaceRepository,
     ids,
@@ -162,7 +177,22 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       signIn: createSignIn(provider),
       signOut: createSignOut(provider),
     },
-    spaces: { createPersonalSpace, listMySpaces: createListMySpaces(spaceRepository) },
+    spaces: {
+      createPersonalSpace,
+      listMySpaces: createListMySpaces(spaceRepository),
+      getSpace: createGetSpace(access),
+      updateSettings: createUpdateSpaceSettings({
+        spaces: spaceRepository,
+        access,
+        tm,
+        usage: {
+          hasMoneyRecords: async (spaceId) =>
+            (await accountsDeps.accounts.listBySpace(spaceId)).length > 0 ||
+            (await ledgerQueries.hasTransactions(spaceId)),
+        },
+      }),
+      listPeriods: createListSpacePeriods({ access, storedPeriods, clock, timeZone: env.APP_TIMEZONE }),
+    },
     categories: {
       listCategories: createListCategories(categoriesDeps),
       createCategoryGroup: createCreateCategoryGroup(categoriesDeps),

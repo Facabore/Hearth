@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { localDate, Money, ok, type LocalDate, type Result } from "@/shared/kernel";
+import { localDate, Money, ok, type LocalDate, type Period, type Result } from "@/shared/kernel";
 
 const INTEGER = /^-?\d{1,19}$/;
 const BIGINT_MIN = -(2n ** 63n);
@@ -59,3 +59,12 @@ export const securedByUser: { security: Record<string, string[]>[] } = {
 /** Validates an optional ISO date from a request: absent stays undefined, impossible dates are InvalidDate. */
 export const optionalLocalDate = (iso: string | undefined): Result<LocalDate | undefined> =>
   iso === undefined ? ok(undefined) : localDate(iso);
+
+/** A period on the wire (HU-E1-03, HU-E4-04). */
+export const PeriodSchema = z.object({ label: z.string(), startDate: z.iso.date(), endDate: z.iso.date() });
+
+export const periodDto = (period: Period): z.infer<typeof PeriodSchema> => ({
+  label: period.label,
+  startDate: period.start,
+  endDate: period.end,
+});
