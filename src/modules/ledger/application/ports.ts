@@ -6,12 +6,19 @@ export interface LedgerAccount {
   readonly id: string;
   readonly spaceId: string;
   readonly ownerUserId: string | null;
+  /** A SHARED_FUND account, recognised by its type (HU-E4-09/10), never by a missing owner. */
+  readonly isSharedFund: boolean;
   readonly archived: boolean;
 }
 
 export interface AccountReader {
   /** Any account by id, whatever its space; null for unknown or malformed ids. */
   find(accountId: string): Promise<LedgerAccount | null>;
+}
+
+/** HU-E4-10: an account's balance (opening balance plus movements) as the requester sees it; bound to the accounts module. */
+export interface AccountBalances {
+  balanceOf(spaceId: string, userId: string, accountId: string): Promise<bigint>;
 }
 
 export interface LedgerCategory {

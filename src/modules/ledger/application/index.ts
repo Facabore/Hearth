@@ -14,6 +14,7 @@ export type {
 export type { SplitInput } from "../domain/split";
 export type { LedgerDeps } from "./deps";
 export type {
+  AccountBalances,
   AccountReader,
   AuditEntry,
   AuditLog,
@@ -28,8 +29,10 @@ export type {
 } from "./ports";
 export {
   createRecordExpense,
+  type LedgerWarning,
   type PaymentInput,
   type RecordExpense,
+  type RecordedExpense,
   type RecordExpenseInput,
 } from "./record-expense";
 export { createRecordIncome, type RecordIncome, type RecordIncomeInput } from "./record-income";

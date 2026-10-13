@@ -75,3 +75,18 @@ export const partyAccount = async (
   }
   return map(await ownAccount(deps, accountId, member.userId), (account) => account.id);
 };
+
+/**
+ * HU-E4-09/10: the shared fund of the transaction's space, recognised by its type (never by a missing
+ * owner). A fund of another space is AccountNotFound, so other spaces' accounts never leak.
+ */
+export const fundAccount = async (
+  deps: Pick<LedgerDeps, "accounts">,
+  accountId: string,
+  spaceId: string,
+): Promise<Result<LedgerAccount>> => {
+  const account = await deps.accounts.find(accountId);
+  if (account === null || account.spaceId !== spaceId) return err(domainError("AccountNotFound"));
+  if (!account.isSharedFund) return err(domainError("InvalidFundAccount"));
+  return account.archived ? err(domainError("AccountArchived")) : ok(account);
+};

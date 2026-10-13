@@ -29,7 +29,11 @@ export const POST = defineRoute({
       accountId: body.accountId,
     });
     return result.ok
-      ? ok({ status: 201, body: transactionDto(result.value), headers: transactionHeaders(result.value) })
+      ? ok({
+          status: 201,
+          body: transactionDto(result.value.expense),
+          headers: transactionHeaders(result.value.expense),
+        })
       : result;
   },
 });

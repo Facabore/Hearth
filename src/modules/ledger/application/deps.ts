@@ -1,6 +1,7 @@
 import type { SpaceAccess, SpaceMemberRepository, StoredPeriodSource } from "@/modules/spaces/application";
 import type { Clock, IdGenerator, TransactionManager } from "@/shared/kernel";
 import type {
+  AccountBalances,
   AccountReader,
   AuditLog,
   CategoryReader,
@@ -17,6 +18,8 @@ export interface LedgerDeps {
   readonly query: TransactionQuery;
   readonly audit: AuditLog;
   readonly accounts: AccountReader;
+  /** HU-E4-10: the fund balance after a fund-paid expense. */
+  readonly accountBalances: AccountBalances;
   readonly categories: CategoryReader;
   readonly closedPeriods: ClosedPeriodGuard;
   readonly storedPeriods: StoredPeriodSource;

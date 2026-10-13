@@ -220,6 +220,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   };
   // Budget plans (stored period boundaries, D10) arrive with HU-E6-01; until then periods come from the policy.
   const storedPeriods: StoredPeriodSource = async () => [];
+  const getAccount = createGetAccount(accountsDeps);
   const ledgerDeps: LedgerDeps = {
     access,
     transactions: new DrizzleTransactionRepository(tm),
@@ -236,6 +237,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
               id: account.id,
               spaceId: account.spaceId,
               ownerUserId: account.ownerUserId,
+              isSharedFund: account.type === "SHARED_FUND",
               archived: account.archivedAt !== null,
             }
           : null;
@@ -252,6 +254,14 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     // Closing plans arrives with HU-E6-07; until then no period is closed.
     closedPeriods: { isClosed: async () => false },
     storedPeriods,
+    // HU-E4-10: the accounts module owns the balance formula (opening balance + movements, HU-E2-04).
+    accountBalances: {
+      balanceOf: async (spaceId, userId, accountId) => {
+        const account = await getAccount({ spaceId, userId, accountId });
+        // The fund was found in this space within the same transaction, so this read succeeds.
+        return account.ok ? account.value.balance : 0n;
+      },
+    },
     ids,
     clock,
     timeZone: env.APP_TIMEZONE,
@@ -351,7 +361,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       updateAccount: createUpdateAccount(accountsDeps),
       archiveAccount: createArchiveAccount(accountsDeps),
       listAccounts: createListAccounts(accountsDeps),
-      getAccount: createGetAccount(accountsDeps),
+      getAccount,
     },
     ledger: {
       recordExpense: createRecordExpense(ledgerDeps),

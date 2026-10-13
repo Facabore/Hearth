@@ -106,6 +106,10 @@ const sum = (amounts: readonly bigint[]): bigint => amounts.reduce((a, b) => a +
 const checkParts = (amount: bigint, payments: readonly Payment[], shares: readonly Share[]): Result<void> => {
   if (shares.length === 0) return err(domainError("ParticipantsRequired"));
   if (payments.length === 0) return err(domainError("PaymentsRequired"));
+  // D5: a fund-paid expense has the fund as its only payer, so it never mixes with member payments.
+  if (payments.length > 1 && payments.some((p) => p.memberId === null)) {
+    return err(domainError("MixedFundPayment"));
+  }
   if ([...payments, ...shares].some((part) => part.amount <= 0n)) return err(domainError("InvalidAmount"));
   if (sum(payments.map((p) => p.amount)) !== amount || sum(shares.map((s) => s.amount)) !== amount) {
     return err(domainError("SharesDoNotMatchAmount"));

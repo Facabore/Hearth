@@ -20,12 +20,42 @@ import { FixedClock, type LocalDate } from "@/shared/kernel";
 import { fakeSpaceAccess, memoryTm, membership, noStoredPeriods, sequentialIds } from "./fakes";
 import { HOUSEHOLD_MEMBERS, householdSpace, InMemorySpaceStore, memberOf } from "./in-memory-spaces";
 
+const personalAccount = (id: string, spaceId: string, ownerUserId: string, archived = false) => ({
+  id,
+  spaceId,
+  ownerUserId,
+  isSharedFund: false,
+  archived,
+});
+const sharedFund = (id: string, spaceId: string, archived = false) => ({
+  id,
+  spaceId,
+  ownerUserId: null,
+  isSharedFund: true,
+  archived,
+});
+
 export const ACCOUNTS = {
-  bancolombia: { id: "acc-bancolombia", spaceId: "space-ana", ownerUserId: "u-ana", archived: false },
-  nequi: { id: "acc-nequi", spaceId: "space-ana", ownerUserId: "u-ana", archived: false },
-  oldNequi: { id: "acc-old-nequi", spaceId: "space-ana", ownerUserId: "u-ana", archived: true },
-  davivienda: { id: "acc-davivienda", spaceId: "space-juan", ownerUserId: "u-juan", archived: false },
+  bancolombia: personalAccount("acc-bancolombia", "space-ana", "u-ana"),
+  nequi: personalAccount("acc-nequi", "space-ana", "u-ana"),
+  oldNequi: personalAccount("acc-old-nequi", "space-ana", "u-ana", true),
+  davivienda: personalAccount("acc-davivienda", "space-juan", "u-juan"),
+  // HU-E4-09/10: shared funds are recognised by their type; their missing owner is incidental.
+  householdFund: sharedFund("acc-household-fund", "space-household"),
+  oldFund: sharedFund("acc-old-fund", "space-household", true),
+  tripFund: sharedFund("acc-trip-fund", "space-trip"),
+  // Test double only (accounts_shared_fund_owner forbids it in PostgreSQL): proves funds are found by type.
+  ownerlessCash: {
+    id: "acc-ownerless-cash",
+    spaceId: "space-household",
+    ownerUserId: null,
+    isSharedFund: false,
+    archived: false,
+  },
 } satisfies Record<string, LedgerAccount>;
+
+/** HU-E4-10 Background: Household Fund opens with 1,500,000 COP; every other account opens at 0. */
+const OPENING_BALANCES: Readonly<Record<string, bigint>> = { [ACCOUNTS.householdFund.id]: 150_000_000n };
 
 interface CategoryRow {
   readonly id: string;
@@ -89,6 +119,21 @@ export class InMemoryTransactions implements TransactionRepository, TransactionQ
     return { expenses: total("EXPENSE"), income: total("INCOME") };
   }
 
+  /** Net movements of one account over live transactions, like DrizzleLedgerQueries.netMovements. */
+  netOf(accountId: string): bigint {
+    let net = 0n;
+    for (const t of this.rows) {
+      if (t.deletedAt !== null) continue;
+      if (t.type !== "EXPENSE" && t.destinationAccountId === accountId) net += t.amount;
+      if ((t.type === "TRANSFER" || t.type === "SETTLEMENT") && t.sourceAccountId === accountId)
+        net -= t.amount;
+      if (t.type === "EXPENSE") {
+        for (const payment of t.payments) if (payment.accountId === accountId) net -= payment.amount;
+      }
+    }
+    return net;
+  }
+
   private matching(f: TransactionFilter): Transaction[] {
     return this.rows
       .filter((t) => t.spaceId === f.spaceId && t.deletedAt === null && t.date >= f.from && t.date <= f.to)
@@ -132,6 +177,11 @@ export const ledgerFixture = (overrides: Partial<LedgerDeps> = {}) => {
     accounts: accountReader(Object.values(ACCOUNTS)),
     categories: categoryReader(Object.values(CATEGORIES)),
     closedPeriods: { isClosed: async () => false },
+    // HU-E2-04 as the accounts module computes it: opening balance plus movements.
+    accountBalances: {
+      balanceOf: async (_spaceId, _userId, accountId) =>
+        (OPENING_BALANCES[accountId] ?? 0n) + store.netOf(accountId),
+    },
     storedPeriods: noStoredPeriods,
     // Ana alone in her personal space; householdLedger binds a real member list.
     members: {

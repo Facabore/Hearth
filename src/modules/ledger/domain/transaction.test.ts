@@ -13,6 +13,7 @@ import {
   reviseTransaction,
   softDelete,
   type Expense,
+  type Payment,
   type TransactionId,
 } from "./transaction";
 
@@ -301,5 +302,28 @@ describe("fund contributions and settlements (HU-E4-09, HU-E5-02)", () => {
     expect(codeOf(reviseTransaction(recorded, { categoryId: "cat-groceries" }, later))).toBe(
       "SettlementHasNoCategory",
     );
+  });
+});
+
+describe("fund-paid expenses (HU-E4-10, D5)", () => {
+  const rentOf = (payments: Payment[]) =>
+    recordExpense({
+      ...common,
+      amount: 100n,
+      categoryId: "cat-rent",
+      payments,
+      shares: [{ memberId: "member-ana", amount: 100n, splitMethod: "EQUAL" }],
+    });
+
+  it("records an expense paid by the fund alone", () => {
+    expect(codeOf(rentOf([{ memberId: null, accountId: "acc-fund", amount: 100n }]))).toBe("ok");
+  });
+
+  it("keeps the fund as the only payer of an expense", () => {
+    const mixed = rentOf([
+      { memberId: null, accountId: "acc-fund", amount: 60n },
+      { memberId: "member-ana", accountId: "acc-bancolombia", amount: 40n },
+    ]);
+    expect(codeOf(mixed)).toBe("MixedFundPayment");
   });
 });
