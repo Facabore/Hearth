@@ -99,3 +99,10 @@ describe("periodByLabel", () => {
     expect(!result.ok && result.error.code).toBe("InvalidPeriodLabel");
   });
 });
+
+describe("labels outside the supported years", () => {
+  it.each(["0000-01", "0050-03", "1899-12"])("rejects %s with InvalidPeriodLabel", (label) => {
+    const result = periodByLabel(M1, [], label);
+    expect(!result.ok && result.error.code).toBe("InvalidPeriodLabel");
+  });
+});

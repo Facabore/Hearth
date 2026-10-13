@@ -1,6 +1,10 @@
 export type { Space, SpaceId, SpaceKind, SpaceMemberId, SpaceRole } from "../domain/space";
 export { ensureCanAddMember } from "../domain/space";
-export { createCreatePersonalSpace, type CreatePersonalSpace } from "./create-personal-space";
+export {
+  createCreatePersonalSpace,
+  type CreatePersonalSpace,
+  type SpaceCreatedListener,
+} from "./create-personal-space";
 export { createGetSpace, type GetSpace } from "./get-space";
 export { createListMySpaces, type ListMySpaces } from "./list-my-spaces";
 export { createListSpacePeriods, type ListSpacePeriods, type StoredPeriodSource } from "./list-space-periods";

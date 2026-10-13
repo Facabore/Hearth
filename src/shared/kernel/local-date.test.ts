@@ -33,3 +33,15 @@ describe("LocalDate", () => {
     expect(partsOf(fromParts(2026, 3, 9))).toEqual({ year: 2026, month: 3, day: 9 });
   });
 });
+
+describe("supported years", () => {
+  // PostgreSQL has no year 0, and Date.UTC maps years 0-99 to 1900-1999.
+  it.each(["0000-06-15", "0050-03-01", "1899-12-31"])("rejects %s as InvalidDate", (iso) => {
+    const result = localDate(iso);
+    expect(isErr(result) && result.error.code).toBe("InvalidDate");
+  });
+
+  it("accepts the first supported day", () => {
+    expect(isOk(localDate("1900-01-01"))).toBe(true);
+  });
+});

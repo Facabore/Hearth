@@ -1,5 +1,64 @@
 import type { Pool } from "pg";
 import {
+  createArchiveAccount,
+  createCreateAccount,
+  createGetAccount,
+  createListAccounts,
+  createUpdateAccount,
+  type AccountsDeps,
+  type ArchiveAccount,
+  type CreateAccount,
+  type GetAccount,
+  type ListAccounts,
+  type UpdateAccount,
+} from "@/modules/accounts/application";
+import { DrizzleAccountRepository } from "@/modules/accounts/infrastructure/drizzle-account-repository";
+import {
+  createDeleteTransaction,
+  createEditTransaction,
+  createGetTransaction,
+  createListAudit,
+  createListTransactions,
+  createRecordExpense,
+  createRecordIncome,
+  createRecordTransfer,
+  type DeleteTransaction,
+  type EditTransaction,
+  type GetTransaction,
+  type LedgerDeps,
+  type ListAudit,
+  type ListTransactions,
+  type RecordExpense,
+  type RecordIncome,
+  type RecordTransfer,
+} from "@/modules/ledger/application";
+import { DrizzleAuditLog } from "@/modules/ledger/infrastructure/drizzle-audit-log";
+import { DrizzleLedgerQueries } from "@/modules/ledger/infrastructure/drizzle-ledger-queries";
+import { DrizzleTransactionRepository } from "@/modules/ledger/infrastructure/drizzle-transaction-repository";
+import {
+  createArchiveCategory,
+  createArchiveCategoryGroup,
+  createCreateCategory,
+  createCreateCategoryGroup,
+  createDeleteCategory,
+  createListCategories,
+  createRenameCategoryGroup,
+  createRestoreCategory,
+  createSeedDefaultCategories,
+  createUpdateCategory,
+  type ArchiveCategory,
+  type ArchiveCategoryGroup,
+  type CategoriesDeps,
+  type CreateCategory,
+  type CreateCategoryGroup,
+  type DeleteCategory,
+  type ListCategories,
+  type RenameCategoryGroup,
+  type RestoreCategory,
+  type UpdateCategory,
+} from "@/modules/categories/application";
+import { DrizzleCategoryRepository } from "@/modules/categories/infrastructure/drizzle-category-repository";
+import {
   createSignIn,
   createSignOut,
   createSignUp,
@@ -11,9 +70,17 @@ import { createAuth } from "@/modules/identity/infrastructure/better-auth";
 import { BetterAuthProvider } from "@/modules/identity/infrastructure/better-auth-provider";
 import {
   createCreatePersonalSpace,
+  createGetSpace,
   createListMySpaces,
+  createListSpacePeriods,
+  createSpaceAccess,
+  createUpdateSpaceSettings,
   type CreatePersonalSpace,
+  type GetSpace,
   type ListMySpaces,
+  type ListSpacePeriods,
+  type StoredPeriodSource,
+  type UpdateSpaceSettings,
 } from "@/modules/spaces/application";
 import { DrizzleSpaceRepository } from "@/modules/spaces/infrastructure/drizzle-space-repository";
 import { createFixedWindowLimiter, jsonLogger, type IdempotencyDeps, type RouteDeps } from "@/shared/http";
@@ -32,7 +99,41 @@ export interface Container extends RouteDeps {
   readonly tm: DrizzleTransactionManager;
   readonly idempotency: IdempotencyDeps;
   readonly identity: { readonly signUp: SignUp; readonly signIn: SignIn; readonly signOut: SignOut };
-  readonly spaces: { readonly createPersonalSpace: CreatePersonalSpace; readonly listMySpaces: ListMySpaces };
+  readonly spaces: {
+    readonly createPersonalSpace: CreatePersonalSpace;
+    readonly listMySpaces: ListMySpaces;
+    readonly getSpace: GetSpace;
+    readonly updateSettings: UpdateSpaceSettings;
+    readonly listPeriods: ListSpacePeriods;
+  };
+  readonly categories: {
+    readonly listCategories: ListCategories;
+    readonly createCategoryGroup: CreateCategoryGroup;
+    readonly renameCategoryGroup: RenameCategoryGroup;
+    readonly createCategory: CreateCategory;
+    readonly updateCategory: UpdateCategory;
+    readonly deleteCategory: DeleteCategory;
+    readonly archiveCategory: ArchiveCategory;
+    readonly restoreCategory: RestoreCategory;
+    readonly archiveCategoryGroup: ArchiveCategoryGroup;
+  };
+  readonly accounts: {
+    readonly createAccount: CreateAccount;
+    readonly updateAccount: UpdateAccount;
+    readonly archiveAccount: ArchiveAccount;
+    readonly listAccounts: ListAccounts;
+    readonly getAccount: GetAccount;
+  };
+  readonly ledger: {
+    readonly recordExpense: RecordExpense;
+    readonly recordIncome: RecordIncome;
+    readonly recordTransfer: RecordTransfer;
+    readonly listTransactions: ListTransactions;
+    readonly getTransaction: GetTransaction;
+    readonly editTransaction: EditTransaction;
+    readonly deleteTransaction: DeleteTransaction;
+    readonly listAudit: ListAudit;
+  };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
     readonly signIn: (ip: string, email: string) => boolean;
@@ -62,21 +163,82 @@ export interface ContainerOptions {
 export const buildContainer = (env: Env, options: ContainerOptions = {}): Container => {
   const { db, pool } = createDatabase(env.DATABASE_URL);
   const tm = new DrizzleTransactionManager(db);
+  const ids = new UuidV7IdGenerator();
+  const clock = new SystemClock();
   const provider = new BetterAuthProvider(
     createAuth({ db, secret: env.BETTER_AUTH_SECRET, baseURL: env.BETTER_AUTH_URL }),
     db,
   );
   const spaceRepository = new DrizzleSpaceRepository(tm);
+  const access = createSpaceAccess(spaceRepository);
+  const categoriesDeps: CategoriesDeps = {
+    categories: new DrizzleCategoryRepository(tm),
+    access,
+    ids,
+    clock,
+    tm,
+  };
+  const seedDefaultCategories = createSeedDefaultCategories(categoriesDeps);
+  const ledgerQueries = new DrizzleLedgerQueries(tm);
+  // HU-E2-04: balance = opening balance + ledger movements, computed on read (D7).
+  const accountsDeps: AccountsDeps = {
+    accounts: new DrizzleAccountRepository(tm),
+    access,
+    movements: ledgerQueries,
+    ids,
+    clock,
+    tm,
+  };
+  // Budget plans (stored period boundaries, D10) arrive with HU-E6-01; until then periods come from the policy.
+  const storedPeriods: StoredPeriodSource = async () => [];
+  const ledgerDeps: LedgerDeps = {
+    access,
+    transactions: new DrizzleTransactionRepository(tm),
+    query: ledgerQueries,
+    audit: new DrizzleAuditLog(tm),
+    // Adapters keep the ledger independent of the accounts and categories modules.
+    accounts: {
+      find: async (accountId) => {
+        const account = await accountsDeps.accounts.findById(accountId);
+        return account
+          ? {
+              id: account.id,
+              spaceId: account.spaceId,
+              ownerUserId: account.ownerUserId,
+              archived: account.archivedAt !== null,
+            }
+          : null;
+      },
+    },
+    categories: {
+      find: async (spaceId, categoryId) => {
+        const category = (await categoriesDeps.categories.listCategories(spaceId)).find(
+          (c) => c.id === categoryId,
+        );
+        return category ? { id: category.id, archived: category.archivedAt !== null } : null;
+      },
+    },
+    // Closing plans arrives with HU-E6-07; until then no period is closed.
+    closedPeriods: { isClosed: async () => false },
+    storedPeriods,
+    ids,
+    clock,
+    timeZone: env.APP_TIMEZONE,
+    tm,
+  };
   const createPersonalSpace = createCreatePersonalSpace({
     spaces: spaceRepository,
-    ids: new UuidV7IdGenerator(),
-    clock: new SystemClock(),
+    ids,
+    clock,
     tm,
+    // HU-E3-01: default categories are seeded in the same transaction as the space.
+    onCreated: (space, { locale }) => seedDefaultCategories({ spaceId: space.id, locale }),
   });
   // HU-E1-02: every new user gets a personal space; sign-up compensates if this fails.
   const provisionUser =
     options.provisionUser ??
-    (async (u: AuthUser) => map(await createPersonalSpace({ userId: u.id, name: u.name }), () => undefined));
+    (async (u: AuthUser) =>
+      map(await createPersonalSpace({ userId: u.id, name: u.name, locale: u.locale }), () => undefined));
   const limits = options.authLimits ?? DEFAULT_AUTH_LIMITS;
   const signInByEmail = createFixedWindowLimiter({ limit: limits.signInPerEmail, windowMs: FIFTEEN_MINUTES });
   const signInByIp = createFixedWindowLimiter({ limit: limits.signInPerIp, windowMs: FIFTEEN_MINUTES });
@@ -93,7 +255,51 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       signIn: createSignIn(provider),
       signOut: createSignOut(provider),
     },
-    spaces: { createPersonalSpace, listMySpaces: createListMySpaces(spaceRepository) },
+    spaces: {
+      createPersonalSpace,
+      listMySpaces: createListMySpaces(spaceRepository),
+      getSpace: createGetSpace(access),
+      updateSettings: createUpdateSpaceSettings({
+        spaces: spaceRepository,
+        access,
+        tm,
+        usage: {
+          hasMoneyRecords: async (spaceId) =>
+            (await accountsDeps.accounts.listBySpace(spaceId)).length > 0 ||
+            (await ledgerQueries.hasTransactions(spaceId)),
+        },
+      }),
+      listPeriods: createListSpacePeriods({ access, storedPeriods, clock, timeZone: env.APP_TIMEZONE }),
+    },
+    categories: {
+      listCategories: createListCategories(categoriesDeps),
+      createCategoryGroup: createCreateCategoryGroup(categoriesDeps),
+      renameCategoryGroup: createRenameCategoryGroup(categoriesDeps),
+      createCategory: createCreateCategory(categoriesDeps),
+      updateCategory: createUpdateCategory(categoriesDeps),
+      // HU-E3-03: soft-deleted transactions still count as references (D8).
+      deleteCategory: createDeleteCategory({ ...categoriesDeps, usage: ledgerQueries }),
+      archiveCategory: createArchiveCategory(categoriesDeps),
+      restoreCategory: createRestoreCategory(categoriesDeps),
+      archiveCategoryGroup: createArchiveCategoryGroup(categoriesDeps),
+    },
+    accounts: {
+      createAccount: createCreateAccount(accountsDeps),
+      updateAccount: createUpdateAccount(accountsDeps),
+      archiveAccount: createArchiveAccount(accountsDeps),
+      listAccounts: createListAccounts(accountsDeps),
+      getAccount: createGetAccount(accountsDeps),
+    },
+    ledger: {
+      recordExpense: createRecordExpense(ledgerDeps),
+      recordIncome: createRecordIncome(ledgerDeps),
+      recordTransfer: createRecordTransfer(ledgerDeps),
+      listTransactions: createListTransactions(ledgerDeps),
+      getTransaction: createGetTransaction(ledgerDeps),
+      editTransaction: createEditTransaction(ledgerDeps),
+      deleteTransaction: createDeleteTransaction(ledgerDeps),
+      listAudit: createListAudit(ledgerDeps),
+    },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.
       signIn: (ip, email) => [signInByIp.hit(ip), signInByEmail.hit(email)].every(Boolean),

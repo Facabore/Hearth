@@ -1,5 +1,5 @@
 import { domainError } from "./domain-error";
-import { addDays, addMonths, daysInMonth, fromParts, type LocalDate } from "./local-date";
+import { addDays, addMonths, daysInMonth, fromParts, MIN_YEAR, type LocalDate } from "./local-date";
 import { periodFor, type Period, type PeriodPolicy } from "./period-policy";
 import { err, ok, type Result } from "./result";
 
@@ -70,7 +70,7 @@ export const periodByLabel = (
   if (!match) return invalidLabel(label);
   const [, year, month, half] = match;
   const monthNumber = Number(month);
-  if (monthNumber < 1 || monthNumber > 12) return invalidLabel(label);
+  if (Number(year) < MIN_YEAR || monthNumber < 1 || monthNumber > 12) return invalidLabel(label);
   if ((policy.kind === "SEMI_MONTHLY") !== (half !== undefined)) return invalidLabel(label);
   const natural = periodFor(policy, startOf(policy, Number(year), monthNumber, half));
   // Clamped anchors can collapse (SEMI_MONTHLY(29, 31) has no February H2): the label must round-trip.

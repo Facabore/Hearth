@@ -5,6 +5,8 @@ import { err, ok, type Result } from "./result";
 export type LocalDate = string & { readonly __brand: "LocalDate" };
 
 const ISO = /^(\d{4})-(\d{2})-(\d{2})$/;
+/** PostgreSQL has no year 0 and Date.UTC maps years 0-99 to 1900-1999, so earlier dates are rejected. */
+export const MIN_YEAR = 1900;
 const pad = (n: number, width = 2) => String(n).padStart(width, "0");
 
 export const daysInMonth = (year: number, month: number): number =>
@@ -22,7 +24,7 @@ export const localDate = (iso: string): Result<LocalDate> => {
   const match = iso.match(ISO);
   if (!match) return err(domainError("InvalidDate", { value: iso }));
   const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
-  if (month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month)) {
+  if (year < MIN_YEAR || month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month)) {
     return err(domainError("InvalidDate", { value: iso }));
   }
   return ok(iso as LocalDate);

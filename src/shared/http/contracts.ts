@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Money, type Result } from "@/shared/kernel";
+import { localDate, Money, ok, type LocalDate, type Period, type Result } from "@/shared/kernel";
 
 const INTEGER = /^-?\d{1,19}$/;
 const BIGINT_MIN = -(2n ** 63n);
@@ -38,3 +38,33 @@ export const moneyFromDto = (dto: MoneyDto): Result<Money> => Money.ofMinor(BigI
 
 /** Standard error responses for operations; every protected operation lists 401. */
 export const problemContent = { "application/problem+json": { schema: ProblemSchema } } as const;
+
+/** `content` of a JSON request or response. */
+export const jsonContent = (schema: z.ZodType) => ({ "application/json": { schema } });
+
+/** Problem responses keyed by status, e.g. `problems({ "404": "SpaceNotFound" })`. */
+export const problems = (descriptions: Record<string, string>) =>
+  Object.fromEntries(
+    Object.entries(descriptions).map(([status, description]) => [
+      status,
+      { description, content: problemContent },
+    ]),
+  );
+
+/** Operations that need a signed-in user accept the session cookie or a Bearer token. */
+export const securedByUser: { security: Record<string, string[]>[] } = {
+  security: [{ cookieAuth: [] }, { bearerAuth: [] }],
+};
+
+/** Validates an optional ISO date from a request: absent stays undefined, impossible dates are InvalidDate. */
+export const optionalLocalDate = (iso: string | undefined): Result<LocalDate | undefined> =>
+  iso === undefined ? ok(undefined) : localDate(iso);
+
+/** A period on the wire (HU-E1-03, HU-E4-04). */
+export const PeriodSchema = z.object({ label: z.string(), startDate: z.iso.date(), endDate: z.iso.date() });
+
+export const periodDto = (period: Period): z.infer<typeof PeriodSchema> => ({
+  label: period.label,
+  startDate: period.start,
+  endDate: period.end,
+});

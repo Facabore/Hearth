@@ -1,8 +1,16 @@
 import { createDocument, type ZodOpenApiObject } from "zod-openapi";
+import { AccountSchema, accountsPaths } from "@/modules/accounts/contracts/accounts.contract";
+import {
+  categoriesPaths,
+  CategoryGroupSchema,
+  CategoryGroupSummarySchema,
+  CategorySchema,
+} from "@/modules/categories/contracts/categories.contract";
 import { authPaths } from "@/modules/identity/contracts/auth.contract";
 import { mePaths } from "@/modules/identity/contracts/me.contract";
-import { spacesPaths } from "@/modules/spaces/contracts/spaces.contract";
-import { MoneySchema, ProblemSchema } from "@/shared/http/contracts";
+import { ledgerPaths, TransactionSchema } from "@/modules/ledger/contracts/ledger.contract";
+import { SpaceSummarySchema, spacesPaths } from "@/modules/spaces/contracts/spaces.contract";
+import { MoneySchema, PeriodSchema, ProblemSchema } from "@/shared/http/contracts";
 import { healthPaths, openApiPaths } from "@/shared/http/system.contract";
 
 export const buildOpenApiDocument = (): Record<string, unknown> =>
@@ -10,9 +18,28 @@ export const buildOpenApiDocument = (): Record<string, unknown> =>
     // zod-openapi 6 types target OAS 3.2; we emit 3.1.0 by design (ADR 0002).
     openapi: "3.1.0" as ZodOpenApiObject["openapi"],
     info: { title: "Hearth API", version: "1.0.0" },
-    paths: { ...healthPaths, ...openApiPaths, ...mePaths, ...authPaths, ...spacesPaths },
+    paths: {
+      ...healthPaths,
+      ...openApiPaths,
+      ...mePaths,
+      ...authPaths,
+      ...spacesPaths,
+      ...categoriesPaths,
+      ...accountsPaths,
+      ...ledgerPaths,
+    },
     components: {
-      schemas: { Money: MoneySchema, Problem: ProblemSchema },
+      schemas: {
+        Money: MoneySchema,
+        Problem: ProblemSchema,
+        Category: CategorySchema,
+        CategoryGroup: CategoryGroupSchema,
+        CategoryGroupSummary: CategoryGroupSummarySchema,
+        Account: AccountSchema,
+        Space: SpaceSummarySchema,
+        Period: PeriodSchema,
+        Transaction: TransactionSchema,
+      },
       securitySchemes: {
         cookieAuth: { type: "apiKey", in: "cookie", name: "hearth.session_token" },
         bearerAuth: { type: "http", scheme: "bearer" },
