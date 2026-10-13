@@ -1,16 +1,40 @@
 import { and, asc, eq, isNull } from "drizzle-orm";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { isUuid } from "@/shared/kernel";
+import type { AddMemberOutcome, SpaceMemberRepository } from "../application/space-member-repository";
 import type { SpaceRepository, SpaceSummary } from "../application/space-repository";
 import type {
   SpaceMembership,
   SpaceSettings,
   SpaceSettingsRepository,
 } from "../application/space-settings-repository";
-import type { Space, SpaceId, SpaceMemberId } from "../domain/space";
+import type { Space, SpaceId, SpaceMember, SpaceMemberId, SpaceRole } from "../domain/space";
 import { spaceMembers, spaces } from "./spaces.schema";
 
-export class DrizzleSpaceRepository implements SpaceRepository, SpaceSettingsRepository {
+const memberRow = (spaceId: string, m: SpaceMember): typeof spaceMembers.$inferInsert => ({
+  id: m.id,
+  spaceId,
+  kind: m.kind,
+  userId: m.userId,
+  displayName: m.displayName,
+  role: m.role,
+  contactEmail: m.contactEmail,
+  joinedAt: m.joinedAt,
+});
+
+const memberColumns = {
+  id: spaceMembers.id,
+  kind: spaceMembers.kind,
+  userId: spaceMembers.userId,
+  displayName: spaceMembers.displayName,
+  role: spaceMembers.role,
+  contactEmail: spaceMembers.contactEmail,
+  joinedAt: spaceMembers.joinedAt,
+};
+
+export class DrizzleSpaceRepository
+  implements SpaceRepository, SpaceSettingsRepository, SpaceMemberRepository
+{
   constructor(private readonly tm: DrizzleTransactionManager) {}
 
   async add(space: Space): Promise<void> {
@@ -24,17 +48,7 @@ export class DrizzleSpaceRepository implements SpaceRepository, SpaceSettingsRep
       personalOwnerUserId: space.personalOwnerUserId,
       createdAt: space.createdAt,
     });
-    await db.insert(spaceMembers).values(
-      space.members.map((m) => ({
-        id: m.id,
-        spaceId: space.id,
-        kind: m.kind,
-        userId: m.userId,
-        displayName: m.displayName,
-        role: m.role,
-        joinedAt: m.joinedAt,
-      })),
-    );
+    await db.insert(spaceMembers).values(space.members.map((m) => memberRow(space.id, m)));
   }
 
   async hasPersonalSpace(userId: string): Promise<boolean> {
@@ -100,5 +114,40 @@ export class DrizzleSpaceRepository implements SpaceRepository, SpaceSettingsRep
       .update(spaces)
       .set({ name: settings.name, currency: settings.currency, periodPolicy: settings.periodPolicy })
       .where(eq(spaces.id, spaceId));
+  }
+
+  async listCurrent(spaceId: SpaceId, options: { readonly lock?: boolean } = {}): Promise<SpaceMember[]> {
+    if (!isUuid(spaceId)) return [];
+    const query = this.tm
+      .executor()
+      .select(memberColumns)
+      .from(spaceMembers)
+      .where(and(eq(spaceMembers.spaceId, spaceId), isNull(spaceMembers.leftAt)))
+      .orderBy(asc(spaceMembers.joinedAt), asc(spaceMembers.id));
+    // Same rows in the same order for every locking reader of a space, so two role changes never deadlock.
+    const rows = options.lock ? await query.for("update") : await query;
+    return rows.map((row) => ({ ...row, id: row.id as SpaceMemberId }));
+  }
+
+  async addMember(spaceId: SpaceId, member: SpaceMember): Promise<AddMemberOutcome> {
+    // No conflict target: both partial unique indexes (current user, current name) count, concurrent inserts included.
+    const inserted = await this.tm
+      .executor()
+      .insert(spaceMembers)
+      .values(memberRow(spaceId, member))
+      .onConflictDoNothing()
+      .returning({ id: spaceMembers.id });
+    if (inserted.length > 0) return "added";
+    if (member.userId === null) return "nameTaken";
+    const current = await this.listCurrent(spaceId);
+    return current.some((m) => m.userId === member.userId) ? "alreadyMember" : "nameTaken";
+  }
+
+  async updateRole(spaceId: SpaceId, memberId: SpaceMemberId, role: SpaceRole): Promise<void> {
+    await this.tm
+      .executor()
+      .update(spaceMembers)
+      .set({ role })
+      .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.id, memberId)));
   }
 }
