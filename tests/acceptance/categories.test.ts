@@ -3,11 +3,20 @@ import {
   GET as listCategories,
   POST as createCategory,
 } from "@/app/api/v1/spaces/[spaceId]/categories/route";
-import { PATCH as updateCategory } from "@/app/api/v1/spaces/[spaceId]/categories/[categoryId]/route";
+import {
+  DELETE as deleteCategory,
+  PATCH as updateCategory,
+} from "@/app/api/v1/spaces/[spaceId]/categories/[categoryId]/route";
 import { POST as createGroup } from "@/app/api/v1/spaces/[spaceId]/category-groups/route";
 import { PATCH as renameGroup } from "@/app/api/v1/spaces/[spaceId]/category-groups/[groupId]/route";
+import { POST as createAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/route";
+import { POST as archiveCategory } from "@/app/api/v1/spaces/[spaceId]/categories/[categoryId]/archive/route";
+import { POST as restoreCategory } from "@/app/api/v1/spaces/[spaceId]/categories/[categoryId]/restore/route";
+import { POST as archiveGroup } from "@/app/api/v1/spaces/[spaceId]/category-groups/[groupId]/archive/route";
+import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
+import { GET as getTransaction } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/route";
 import { setContainerForTests, type Container } from "@/composition/container";
-import { call, registerUser, startTestApp, type TestUser } from "../support/app";
+import { call, registerUser, startTestApp, type RouteHandler, type TestUser } from "../support/app";
 
 interface CategoryDto {
   id: string;
@@ -146,5 +155,103 @@ describe("managing the category tree (HU-E3-02)", () => {
       body: { name: "Mascotas" },
     });
     expect([response.status, (await response.json()).code]).toEqual([404, "SpaceNotFound"]);
+  });
+});
+
+describe("retiring categories (HU-E3-03)", () => {
+  const onCategory = (
+    handler: RouteHandler,
+    method: string,
+    user: TestUser,
+    categoryId: string,
+    suffix = "",
+  ) =>
+    call(handler, method, `/api/v1/spaces/${user.spaceId}/categories/${categoryId}${suffix}`, {
+      user,
+      params: { spaceId: user.spaceId, categoryId },
+    });
+  const names = async (user: TestUser, query = "") =>
+    (await groupsIn(await treeOf(user, user.spaceId, query))).flatMap((g) => g.categories).map((c) => c.name);
+  const accountOf = async (user: TestUser) => {
+    const response = await call(createAccount, "POST", `/api/v1/spaces/${user.spaceId}/accounts`, {
+      user,
+      params: { spaceId: user.spaceId },
+      body: { name: "Bancolombia", type: "BANK", openingBalance: { amount: "0", currency: "COP" } },
+    });
+    return ((await response.json()) as { id: string }).id;
+  };
+  const spend = (user: TestUser, accountId: string, categoryId: string) =>
+    call(recordExpense, "POST", `/api/v1/spaces/${user.spaceId}/expenses`, {
+      user,
+      params: { spaceId: user.spaceId },
+      body: { amount: { amount: "4000000", currency: "COP" }, date: "2026-10-05", categoryId, accountId },
+    });
+
+  it("deletes a category without transactions", async () => {
+    const ana = await registerUser("Ana");
+    const food = (await groupsIn(await treeOf(ana, ana.spaceId))).find((g) => g.name === "Alimentación")!;
+    const created = await call(createCategory, "POST", `/api/v1/spaces/${ana.spaceId}/categories`, {
+      user: ana,
+      params: { spaceId: ana.spaceId },
+      body: { groupId: food.id, name: "Panadería" },
+    });
+    const bakery = (await created.json()) as CategoryDto;
+    expect((await onCategory(deleteCategory, "DELETE", ana, bakery.id)).status).toBe(204);
+    expect(await names(ana, "?archived=true")).not.toContain("Panadería");
+  });
+
+  it("keeps referenced categories: no delete, archive hides them, new expenses refused, restore brings them back", async () => {
+    const ana = await registerUser("Ana");
+    const accountId = await accountOf(ana);
+    const mercado = (await groupsIn(await treeOf(ana, ana.spaceId)))
+      .flatMap((g) => g.categories)
+      .find((c) => c.key === "groceries")!;
+    const expense = (await (await spend(ana, accountId, mercado.id)).json()) as { id: string };
+
+    const refused = await onCategory(deleteCategory, "DELETE", ana, mercado.id);
+    expect([refused.status, (await refused.json()).code]).toEqual([409, "CategoryInUse"]);
+
+    const archived = await onCategory(archiveCategory, "POST", ana, mercado.id, "/archive");
+    expect((await archived.json()).archivedAt).toEqual(expect.any(String));
+    expect(await names(ana)).not.toContain("Mercado");
+    expect(await names(ana, "?archived=true")).toContain("Mercado");
+    const history = await call(
+      getTransaction,
+      "GET",
+      `/api/v1/spaces/${ana.spaceId}/transactions/${expense.id}`,
+      {
+        user: ana,
+        params: { spaceId: ana.spaceId, transactionId: expense.id },
+      },
+    );
+    expect((await history.json()).categoryId).toBe(mercado.id);
+    const blocked = await spend(ana, accountId, mercado.id);
+    expect([blocked.status, (await blocked.json()).code]).toEqual([409, "CategoryArchived"]);
+
+    const restored = await onCategory(restoreCategory, "POST", ana, mercado.id, "/restore");
+    expect((await restored.json()).archivedAt).toBeNull();
+    expect(await names(ana)).toContain("Mercado");
+  });
+
+  it("archives a group with all its categories", async () => {
+    const ana = await registerUser("Ana");
+    const leisure = (await groupsIn(await treeOf(ana, ana.spaceId))).find((g) => g.name === "Ocio")!;
+    const response = await call(
+      archiveGroup,
+      "POST",
+      `/api/v1/spaces/${ana.spaceId}/category-groups/${leisure.id}/archive`,
+      {
+        user: ana,
+        params: { spaceId: ana.spaceId, groupId: leisure.id },
+      },
+    );
+    expect((await response.json()).archivedAt).toEqual(expect.any(String));
+    const archivedLeisure = (await groupsIn(await treeOf(ana, ana.spaceId, "?archived=true"))).find(
+      (g) => g.id === leisure.id,
+    )!;
+    expect(archivedLeisure.categories.every((c) => c.archivedAt !== null)).toBe(true);
+    const travel = archivedLeisure.categories.find((c) => c.name === "Viajes")!;
+    const restore = await onCategory(restoreCategory, "POST", ana, travel.id, "/restore");
+    expect([restore.status, (await restore.json()).code]).toEqual([409, "CategoryGroupArchived"]);
   });
 });

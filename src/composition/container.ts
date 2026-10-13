@@ -36,17 +36,25 @@ import { DrizzleAuditLog } from "@/modules/ledger/infrastructure/drizzle-audit-l
 import { DrizzleLedgerQueries } from "@/modules/ledger/infrastructure/drizzle-ledger-queries";
 import { DrizzleTransactionRepository } from "@/modules/ledger/infrastructure/drizzle-transaction-repository";
 import {
+  createArchiveCategory,
+  createArchiveCategoryGroup,
   createCreateCategory,
   createCreateCategoryGroup,
+  createDeleteCategory,
   createListCategories,
   createRenameCategoryGroup,
+  createRestoreCategory,
   createSeedDefaultCategories,
   createUpdateCategory,
+  type ArchiveCategory,
+  type ArchiveCategoryGroup,
   type CategoriesDeps,
   type CreateCategory,
   type CreateCategoryGroup,
+  type DeleteCategory,
   type ListCategories,
   type RenameCategoryGroup,
+  type RestoreCategory,
   type UpdateCategory,
 } from "@/modules/categories/application";
 import { DrizzleCategoryRepository } from "@/modules/categories/infrastructure/drizzle-category-repository";
@@ -104,6 +112,10 @@ export interface Container extends RouteDeps {
     readonly renameCategoryGroup: RenameCategoryGroup;
     readonly createCategory: CreateCategory;
     readonly updateCategory: UpdateCategory;
+    readonly deleteCategory: DeleteCategory;
+    readonly archiveCategory: ArchiveCategory;
+    readonly restoreCategory: RestoreCategory;
+    readonly archiveCategoryGroup: ArchiveCategoryGroup;
   };
   readonly accounts: {
     readonly createAccount: CreateAccount;
@@ -265,6 +277,11 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       renameCategoryGroup: createRenameCategoryGroup(categoriesDeps),
       createCategory: createCreateCategory(categoriesDeps),
       updateCategory: createUpdateCategory(categoriesDeps),
+      // HU-E3-03: soft-deleted transactions still count as references (D8).
+      deleteCategory: createDeleteCategory({ ...categoriesDeps, usage: ledgerQueries }),
+      archiveCategory: createArchiveCategory(categoriesDeps),
+      restoreCategory: createRestoreCategory(categoriesDeps),
+      archiveCategoryGroup: createArchiveCategoryGroup(categoriesDeps),
     },
     accounts: {
       createAccount: createCreateAccount(accountsDeps),

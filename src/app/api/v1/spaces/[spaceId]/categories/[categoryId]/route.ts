@@ -19,3 +19,15 @@ export const PATCH = defineRoute({
     return result.ok ? ok({ status: 200, body: categoryDto(result.value) }) : result;
   },
 });
+
+export const DELETE = defineRoute({
+  auth: "required",
+  handler: async ({ user, params }) => {
+    const result = await getContainer().categories.deleteCategory({
+      spaceId: params.spaceId!,
+      userId: user!.id,
+      categoryId: params.categoryId!,
+    });
+    return result.ok ? ok({ status: 204 }) : result;
+  },
+});

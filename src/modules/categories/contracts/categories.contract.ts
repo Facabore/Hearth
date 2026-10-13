@@ -104,6 +104,16 @@ export const categoriesPaths: ZodOpenApiPathsObject = {
         }),
       },
     },
+    delete: {
+      operationId: "deleteCategory",
+      summary: "Delete a category that no transaction references (archive it otherwise)",
+      ...securedByUser,
+      requestParams: { path: CategoryPath },
+      responses: {
+        "204": { description: "Deleted" },
+        ...problems({ ...managed, "404": "SpaceNotFound, CategoryNotFound", "409": "CategoryInUse" }),
+      },
+    },
   },
   "/api/v1/spaces/{spaceId}/category-groups": {
     post: {
@@ -138,6 +148,42 @@ export const categoriesPaths: ZodOpenApiPathsObject = {
           "409": "CategoryGroupNameTaken",
           "422": "ValidationFailed, InvalidCategoryName",
         }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/categories/{categoryId}/archive": {
+    post: {
+      operationId: "archiveCategory",
+      summary: "Archive a category: it stays in history but cannot be used for new transactions",
+      ...securedByUser,
+      requestParams: { path: CategoryPath },
+      responses: {
+        "200": { description: "The archived category", content: jsonContent(CategorySchema) },
+        ...problems({ ...managed, "404": "SpaceNotFound, CategoryNotFound" }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/categories/{categoryId}/restore": {
+    post: {
+      operationId: "restoreCategory",
+      summary: "Restore an archived category",
+      ...securedByUser,
+      requestParams: { path: CategoryPath },
+      responses: {
+        "200": { description: "The restored category", content: jsonContent(CategorySchema) },
+        ...problems({ ...managed, "404": "SpaceNotFound, CategoryNotFound", "409": "CategoryGroupArchived" }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/category-groups/{groupId}/archive": {
+    post: {
+      operationId: "archiveCategoryGroup",
+      summary: "Archive a group together with all its categories",
+      ...securedByUser,
+      requestParams: { path: GroupPath },
+      responses: {
+        "200": { description: "The archived group", content: jsonContent(CategoryGroupSummarySchema) },
+        ...problems({ ...managed, "404": "SpaceNotFound, CategoryGroupNotFound" }),
       },
     },
   },
