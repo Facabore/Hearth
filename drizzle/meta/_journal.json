@@ -50,6 +50,13 @@
       "when": 1791893007158,
       "tag": "0006_shared_spaces",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791926539015,
+      "tag": "0007_shared_money",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,9 @@
+ALTER TABLE "transactions" DROP CONSTRAINT "transactions_shape";--> statement-breakpoint
+ALTER TABLE "transactions" ADD COLUMN "payer_member_id" uuid;--> statement-breakpoint
+ALTER TABLE "transactions" ADD CONSTRAINT "transactions_payer_member_id_space_members_id_fk" FOREIGN KEY ("payer_member_id") REFERENCES "public"."space_members"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "transactions_payer_member_idx" ON "transactions" USING btree ("payer_member_id");--> statement-breakpoint
+ALTER TABLE "transactions" ADD CONSTRAINT "transactions_settlement_parties" CHECK ("transactions"."type" <> 'SETTLEMENT' OR "transactions"."payer_member_id" <> "transactions"."receiving_member_id");--> statement-breakpoint
+ALTER TABLE "transactions" ADD CONSTRAINT "transactions_shape" CHECK (("transactions"."type" = 'EXPENSE' AND "transactions"."category_id" IS NOT NULL AND "transactions"."source_account_id" IS NULL AND "transactions"."destination_account_id" IS NULL AND "transactions"."receiving_member_id" IS NULL AND "transactions"."payer_member_id" IS NULL)
+        OR ("transactions"."type" = 'INCOME' AND "transactions"."category_id" IS NOT NULL AND "transactions"."source_account_id" IS NULL AND "transactions"."destination_account_id" IS NOT NULL AND "transactions"."receiving_member_id" IS NOT NULL AND "transactions"."payer_member_id" IS NULL)
+        OR ("transactions"."type" = 'TRANSFER' AND "transactions"."category_id" IS NULL AND "transactions"."destination_account_id" IS NOT NULL AND "transactions"."receiving_member_id" IS NULL AND ("transactions"."source_account_id" IS NOT NULL OR "transactions"."payer_member_id" IS NOT NULL))
+        OR ("transactions"."type" = 'SETTLEMENT' AND "transactions"."category_id" IS NULL AND "transactions"."payer_member_id" IS NOT NULL AND "transactions"."receiving_member_id" IS NOT NULL));
