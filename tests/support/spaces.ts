@@ -15,7 +15,7 @@ export const newSharedSpace = async (owner: TestUser, name = "Household"): Promi
 /** The same user acting in another space, for helpers that address `user.spaceId`. */
 export const actingIn = (user: TestUser, spaceId: string): TestUser => ({ ...user, spaceId });
 
-/** The token at the end of an invitation URL (`�/invitations/<token>`). */
+/** The token at the end of an invitation URL (`<origin>/invitations/<token>`). */
 export const tokenOf = (url: string): string => new URL(url).pathname.split("/").at(-1)!;
 
 /** Creates a link invitation over HTTP as `owner`; returns its token. */

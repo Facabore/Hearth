@@ -125,6 +125,7 @@ export const createdInvitationDto = (
 });
 
 const SpacePath = z.object({ spaceId: z.string() });
+const InvitationPath = SpacePath.extend({ invitationId: z.string() });
 
 export const spacesPaths: ZodOpenApiPathsObject = {
   "/api/v1/spaces": {
@@ -232,6 +233,23 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           "404": "SpaceNotFound",
           "409": "AlreadyMember, PersonalSpaceNotShareable",
           "422": "ValidationFailed, InvalidInvitationRole, InvalidEmail",
+        }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/invitations/{invitationId}/revoke": {
+    post: {
+      operationId: "revokeInvitation",
+      summary: "Revoke a pending invitation; revoking twice changes nothing",
+      ...securedByUser,
+      requestParams: { path: InvitationPath },
+      responses: {
+        "200": { description: "The revoked invitation", content: jsonContent(InvitationSchema) },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound, InvitationNotFound",
+          "409": "InvitationAlreadyUsed",
         }),
       },
     },
