@@ -34,3 +34,6 @@ export {
   type CreateSpaceDeps,
   type CreateSpaceInput,
 } from "./create-space";
+export { createChangeMemberRole, type ChangeMemberRole } from "./change-member-role";
+export { createListMembers, type ListMembers } from "./list-members";
+export type { MembersDeps } from "./members-deps";
