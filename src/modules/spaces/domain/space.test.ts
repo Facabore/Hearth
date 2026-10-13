@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { Id } from "@/shared/kernel";
-import { checkedPeriodPolicy, createPersonalSpace, ensureCanAddMember, spaceName } from "./space";
+import {
+  checkedPeriodPolicy,
+  createPersonalSpace,
+  createSharedSpace,
+  ensureCanAddMember,
+  spaceName,
+} from "./space";
 
 const space = createPersonalSpace({
   id: "s-1" as Id<"Space">,
@@ -51,5 +57,55 @@ describe("space settings rules (HU-E1-03)", () => {
       ok: true,
       value: { kind: "SEMI_MONTHLY", day1: 5, day2: 20 },
     });
+  });
+});
+
+describe("shared space (HU-E1-04)", () => {
+  const now = new Date("2026-10-13T12:00:00Z");
+  const shared = (name: string, currency = "COP") =>
+    createSharedSpace({
+      id: "s-2" as Id<"Space">,
+      memberId: "m-2" as Id<"SpaceMember">,
+      ownerUserId: "u-ana",
+      ownerName: "Ana",
+      name,
+      currency,
+      now,
+    });
+
+  it("is SHARED, trimmed, in MONTHLY(1), with its creator as the only OWNER", () => {
+    const result = shared("  Household ");
+    expect(result.ok && result.value).toMatchObject({
+      kind: "SHARED",
+      name: "Household",
+      currency: "COP",
+      periodPolicy: { kind: "MONTHLY", day: 1 },
+      personalOwnerUserId: null,
+    });
+    expect(result.ok && result.value.members).toEqual([
+      {
+        id: "m-2",
+        kind: "USER",
+        userId: "u-ana",
+        displayName: "Ana",
+        role: "OWNER",
+        contactEmail: null,
+        joinedAt: now,
+      },
+    ]);
+  });
+
+  it("requires a name", () => {
+    const result = shared("   ");
+    expect(!result.ok && result.error.code).toBe("InvalidSpaceName");
+  });
+
+  it("rejects currencies the kernel does not support", () => {
+    const result = shared("Household", "XYZ");
+    expect(!result.ok && result.error.code).toBe("UnknownCurrency");
+  });
+
+  it("can receive members", () => {
+    expect(ensureCanAddMember({ kind: "SHARED" })).toEqual({ ok: true, value: undefined });
   });
 });

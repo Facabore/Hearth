@@ -52,21 +52,23 @@ export interface TestUser {
   readonly cookie: string;
   readonly userId: string;
   readonly spaceId: string;
+  readonly email: string;
 }
 
-/** Signs a fresh user up over HTTP; returns their session cookie and personal space id. */
-export const registerUser = async (name = "Ana"): Promise<TestUser> => {
+/** Signs a user up over HTTP (a fresh email unless given); returns their session cookie, personal space id and email. */
+export const registerUser = async (
+  name = "Ana",
+  email = uniqueEmail(name.toLowerCase()),
+): Promise<TestUser> => {
   const created = await signUp(
-    apiRequest("POST", "/api/v1/auth/sign-up", {
-      body: { name, email: uniqueEmail(name.toLowerCase()), password: "123456789012" },
-    }),
+    apiRequest("POST", "/api/v1/auth/sign-up", { body: { name, email, password: "123456789012" } }),
   );
   if (created.status !== 201) throw new Error(`sign-up failed with status ${created.status}`);
   const cookie = cookieHeader(created);
   const { user } = (await created.json()) as { user: { id: string } };
   const spaces = await listSpaces(apiRequest("GET", "/api/v1/spaces", { headers: { cookie } }));
   const { items } = (await spaces.json()) as { items: { id: string }[] };
-  return { cookie, userId: user.id, spaceId: items[0]!.id };
+  return { cookie, userId: user.id, spaceId: items[0]!.id, email };
 };
 
 export const routeParams = (params: Record<string, string>) => ({ params: Promise.resolve(params) });
@@ -95,3 +97,9 @@ export const call = (
     }),
     routeParams(options.params ?? {}),
   );
+
+/** Status and problem code of an error response: `expect(await problemOf(response)).toEqual([404, "SpaceNotFound"])`. */
+export const problemOf = async (response: Response): Promise<[number, string]> => [
+  response.status,
+  ((await response.json()) as { code: string }).code,
+];

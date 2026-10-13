@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { can } from "@/modules/spaces/application";
 import type { LocalDate } from "@/shared/kernel";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
 import {
@@ -202,4 +203,12 @@ describe("editing and deleting (HU-E4-06)", () => {
   ] as const)("lets %s with role %s change a transaction created by u-ana: %s", (userId, role, allowed) => {
     expect(canModify(role, "u-ana", userId)).toBe(allowed);
   });
+
+  // HU-E1-05: changing someone else's transaction mirrors the spaces matrix (money.editAny), so the two never drift.
+  it.each(["OWNER", "ADMIN", "MEMBER", "VIEWER", null] as const)(
+    "lets role %s change a transaction created by someone else exactly when the matrix allows money.editAny",
+    (role) => {
+      expect(canModify(role, "u-ana", "u-luis")).toBe(can(role, "money.editAny"));
+    },
+  );
 });

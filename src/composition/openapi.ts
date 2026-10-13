@@ -9,7 +9,12 @@ import {
 import { authPaths } from "@/modules/identity/contracts/auth.contract";
 import { mePaths } from "@/modules/identity/contracts/me.contract";
 import { ledgerPaths, TransactionSchema } from "@/modules/ledger/contracts/ledger.contract";
-import { SpaceSummarySchema, spacesPaths } from "@/modules/spaces/contracts/spaces.contract";
+import {
+  InvitationSchema,
+  SpaceMemberSchema,
+  SpaceSummarySchema,
+  spacesPaths,
+} from "@/modules/spaces/contracts/spaces.contract";
 import { MoneySchema, PeriodSchema, ProblemSchema } from "@/shared/http/contracts";
 import { healthPaths, openApiPaths } from "@/shared/http/system.contract";
 
@@ -37,6 +42,8 @@ export const buildOpenApiDocument = (): Record<string, unknown> =>
         CategoryGroupSummary: CategoryGroupSummarySchema,
         Account: AccountSchema,
         Space: SpaceSummarySchema,
+        SpaceMember: SpaceMemberSchema,
+        Invitation: InvitationSchema,
         Period: PeriodSchema,
         Transaction: TransactionSchema,
       },

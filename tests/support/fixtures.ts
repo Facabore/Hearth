@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { DrizzleAccountRepository } from "@/modules/accounts/infrastructure/drizzle-account-repository";
 import { DrizzleCategoryRepository } from "@/modules/categories/infrastructure/drizzle-category-repository";
-import { createPersonalSpace } from "@/modules/spaces/domain/space";
+import { createPersonalSpace, createSharedSpace, type Space } from "@/modules/spaces/domain/space";
 import { DrizzleSpaceRepository } from "@/modules/spaces/infrastructure/drizzle-space-repository";
 import type { Database } from "@/shared/infrastructure/db/client";
 import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
@@ -94,4 +94,31 @@ export const guestMemberFixture = async (pool: Pool, space: SpaceFixture, name =
     [id, space.spaceId, name],
   );
   return id;
+};
+
+/** A registered user row (no personal space); `<name>-<id>@example.com` as email. */
+export const userFixture = async (
+  pool: Pool,
+  name = "Ana",
+): Promise<{ id: string; name: string; email: string }> => {
+  const id = randomUUID();
+  const email = `${name.toLowerCase()}-${id}@example.com`;
+  await pool.query('INSERT INTO "user" (id, name, email) VALUES ($1, $2, $3)', [id, name, email]);
+  return { id, name, email };
+};
+
+/** The shared space "Household" (COP) with `ownerId` as its only OWNER "Ana", written through the real spaces repository. */
+export const sharedSpaceFixture = async (db: Database, ownerId: string, now = new Date()): Promise<Space> => {
+  const space = createSharedSpace({
+    id: randomUUID() as Id<"Space">,
+    memberId: randomUUID() as Id<"SpaceMember">,
+    ownerUserId: ownerId,
+    ownerName: "Ana",
+    name: "Household",
+    currency: "COP",
+    now,
+  });
+  if (!space.ok) throw new Error(space.error.code);
+  await new DrizzleSpaceRepository(new DrizzleTransactionManager(db)).add(space.value);
+  return space.value;
 };

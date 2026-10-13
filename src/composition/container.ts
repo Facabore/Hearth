@@ -69,19 +69,39 @@ import {
 import { createAuth } from "@/modules/identity/infrastructure/better-auth";
 import { BetterAuthProvider } from "@/modules/identity/infrastructure/better-auth-provider";
 import {
+  createAcceptInvitation,
+  createAddGuestMember,
+  createChangeMemberRole,
+  createCreateInvitation,
   createCreatePersonalSpace,
+  createCreateSpace,
   createGetSpace,
+  createListMembers,
   createListMySpaces,
   createListSpacePeriods,
+  createRevokeInvitation,
   createSpaceAccess,
   createUpdateSpaceSettings,
+  type AcceptInvitation,
+  type AddGuestMember,
+  type ChangeMemberRole,
+  type CreateInvitation,
   type CreatePersonalSpace,
+  type CreateSpace,
+  type EmailSender,
   type GetSpace,
+  type InvitationsDeps,
+  type ListMembers,
   type ListMySpaces,
   type ListSpacePeriods,
+  type MembersDeps,
+  type RevokeInvitation,
+  type SpaceCreatedListener,
   type StoredPeriodSource,
   type UpdateSpaceSettings,
 } from "@/modules/spaces/application";
+import { cryptoInvitationTokens } from "@/modules/spaces/infrastructure/crypto-invitation-tokens";
+import { DrizzleInvitationRepository } from "@/modules/spaces/infrastructure/drizzle-invitation-repository";
 import { DrizzleSpaceRepository } from "@/modules/spaces/infrastructure/drizzle-space-repository";
 import { createFixedWindowLimiter, jsonLogger, type IdempotencyDeps, type RouteDeps } from "@/shared/http";
 import { createDatabase, type Database } from "@/shared/infrastructure/db/client";
@@ -105,6 +125,13 @@ export interface Container extends RouteDeps {
     readonly getSpace: GetSpace;
     readonly updateSettings: UpdateSpaceSettings;
     readonly listPeriods: ListSpacePeriods;
+    readonly createSpace: CreateSpace;
+    readonly listMembers: ListMembers;
+    readonly createInvitation: CreateInvitation;
+    readonly revokeInvitation: RevokeInvitation;
+    readonly acceptInvitation: AcceptInvitation;
+    readonly addGuest: AddGuestMember;
+    readonly changeMemberRole: ChangeMemberRole;
   };
   readonly categories: {
     readonly listCategories: ListCategories;
@@ -158,6 +185,8 @@ export interface ContainerOptions {
   /** Test seam: replaces the post-sign-up provisioning step. */
   readonly provisionUser?: (user: AuthUser) => Promise<Result<void>>;
   readonly authLimits?: AuthLimits;
+  /** Delivers invitation emails; v1 has no SMTP adapter, so delivery is disabled unless a test passes one. */
+  readonly emailSender?: EmailSender;
 }
 
 export const buildContainer = (env: Env, options: ContainerOptions = {}): Container => {
@@ -226,14 +255,32 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     timeZone: env.APP_TIMEZONE,
     tm,
   };
+  // HU-E3-01: default categories in the creator's locale, seeded in the same transaction as the space.
+  const onSpaceCreated: SpaceCreatedListener = (space, { locale }) =>
+    seedDefaultCategories({ spaceId: space.id, locale });
   const createPersonalSpace = createCreatePersonalSpace({
     spaces: spaceRepository,
     ids,
     clock,
     tm,
-    // HU-E3-01: default categories are seeded in the same transaction as the space.
-    onCreated: (space, { locale }) => seedDefaultCategories({ spaceId: space.id, locale }),
+    onCreated: onSpaceCreated,
   });
+  const membersDeps: MembersDeps = { access, members: spaceRepository, ids, clock, tm };
+  const invitationsDeps: InvitationsDeps = {
+    access,
+    members: spaceRepository,
+    invitations: new DrizzleInvitationRepository(tm),
+    tokens: cryptoInvitationTokens,
+    // No SMTP adapter in v1 (no new dependencies): the response carries the URL and emailSent is false.
+    emailSender: options.emailSender ?? { send: async () => false },
+    // HU-E1-06: refusing to invite current members needs the identity module's users.
+    users: { idByEmail: (email) => provider.findUserIdByEmail(email) },
+    // The web page that accepts an invitation (HU-E9-05); the URL carries only the token.
+    invitationUrl: (token) => new URL(`/invitations/${token}`, env.BETTER_AUTH_URL).toString(),
+    ids,
+    clock,
+    tm,
+  };
   // HU-E1-02: every new user gets a personal space; sign-up compensates if this fails.
   const provisionUser =
     options.provisionUser ??
@@ -270,6 +317,20 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         },
       }),
       listPeriods: createListSpacePeriods({ access, storedPeriods, clock, timeZone: env.APP_TIMEZONE }),
+      createSpace: createCreateSpace({
+        spaces: spaceRepository,
+        createPersonalSpace,
+        onCreated: onSpaceCreated,
+        ids,
+        clock,
+        tm,
+      }),
+      listMembers: createListMembers(membersDeps),
+      createInvitation: createCreateInvitation(invitationsDeps),
+      revokeInvitation: createRevokeInvitation(invitationsDeps),
+      acceptInvitation: createAcceptInvitation(invitationsDeps),
+      addGuest: createAddGuestMember(membersDeps),
+      changeMemberRole: createChangeMemberRole(membersDeps),
     },
     categories: {
       listCategories: createListCategories(categoriesDeps),

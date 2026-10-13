@@ -3,6 +3,7 @@ import type { SessionResolver } from "@/shared/http";
 import type { Database } from "@/shared/infrastructure/db/client";
 import { domainError, err, ok, type AuthUser, type DomainError, type Result } from "@/shared/kernel";
 import type { AuthProvider, AuthSession } from "../application/auth-provider";
+import { normalizeEmail } from "../application/sign-up";
 import { user } from "./auth.schema";
 import type { Auth } from "./better-auth";
 
@@ -59,6 +60,16 @@ export class BetterAuthProvider implements AuthProvider, SessionResolver {
 
   async deleteUser(userId: string): Promise<void> {
     await this.db.delete(user).where(eq(user.id, userId));
+  }
+
+  /** The user registered with `email` (stored lower-cased, HU-E1-01); the spaces module refuses to invite members with it (HU-E1-06). */
+  async findUserIdByEmail(email: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.email, normalizeEmail(email)))
+      .limit(1);
+    return row?.id ?? null;
   }
 
   async resolve(headers: Headers): Promise<AuthUser | null> {
