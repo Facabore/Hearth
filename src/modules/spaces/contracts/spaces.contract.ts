@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { ZodOpenApiPathsObject } from "zod-openapi";
 import { jsonContent, PeriodSchema, problemContent, problems, securedByUser } from "@/shared/http/contracts";
-import type { SpaceMember } from "../application";
+import type { CreatedInvitation, InvitationView, SpaceMember } from "../application";
 
 export const PeriodPolicySchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("MONTHLY"), day: z.number().int().min(1).max(31) }),
@@ -80,6 +80,49 @@ export const ListPeriodsQuerySchema = z.object({
   count: z.coerce.number().int().min(1).max(24).default(6),
 });
 export const ListPeriodsResponseSchema = z.object({ items: z.array(PeriodSchema) });
+
+/** `role` accepts OWNER so the domain answers InvalidInvitationRole (HU-E1-06) instead of ValidationFailed. */
+export const CreateInvitationBodySchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("EMAIL"), email: z.email().max(254), role: RoleSchema }),
+  z.object({ kind: z.literal("LINK"), role: RoleSchema }),
+]);
+
+/** Never carries the token or its hash; EXPIRED is derived from expiresAt. */
+export const InvitationSchema = z.object({
+  id: z.string(),
+  spaceId: z.string(),
+  kind: z.enum(["EMAIL", "LINK"]),
+  email: z.string().nullable(),
+  role: z.enum(["ADMIN", "MEMBER", "VIEWER"]),
+  status: z.enum(["PENDING", "ACCEPTED", "REVOKED", "EXPIRED"]),
+  createdAt: z.iso.datetime(),
+  expiresAt: z.iso.datetime(),
+});
+export const CreatedInvitationSchema = z.object({
+  invitation: InvitationSchema,
+  /** The web URL carrying only the token; shown once, since only the token's hash is stored. */
+  url: z.string(),
+  emailSent: z.boolean(),
+});
+
+export const invitationDto = (view: InvitationView): z.infer<typeof InvitationSchema> => ({
+  id: view.id,
+  spaceId: view.spaceId,
+  kind: view.kind,
+  email: view.email,
+  role: view.role,
+  status: view.status,
+  createdAt: view.createdAt.toISOString(),
+  expiresAt: view.expiresAt.toISOString(),
+});
+
+export const createdInvitationDto = (
+  created: CreatedInvitation,
+): z.infer<typeof CreatedInvitationSchema> => ({
+  invitation: invitationDto(created.invitation),
+  url: created.url,
+  emailSent: created.emailSent,
+});
 
 const SpacePath = z.object({ spaceId: z.string() });
 
@@ -168,6 +211,28 @@ export const spacesPaths: ZodOpenApiPathsObject = {
       responses: {
         "200": { description: "The current members", content: jsonContent(ListMembersResponseSchema) },
         ...problems({ "401": "Unauthenticated", "404": "SpaceNotFound" }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/invitations": {
+    post: {
+      operationId: "createInvitation",
+      summary: "Invite by email (bound to that address) or by shareable link; the response carries the URL",
+      ...securedByUser,
+      requestParams: { path: SpacePath },
+      requestBody: { content: jsonContent(CreateInvitationBodySchema) },
+      responses: {
+        "201": {
+          description: "The pending invitation, its URL and whether an email was sent",
+          content: jsonContent(CreatedInvitationSchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound",
+          "409": "AlreadyMember, PersonalSpaceNotShareable",
+          "422": "ValidationFailed, InvalidInvitationRole, InvalidEmail",
+        }),
       },
     },
   },

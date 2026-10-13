@@ -69,6 +69,7 @@ import {
 import { createAuth } from "@/modules/identity/infrastructure/better-auth";
 import { BetterAuthProvider } from "@/modules/identity/infrastructure/better-auth-provider";
 import {
+  createCreateInvitation,
   createCreatePersonalSpace,
   createCreateSpace,
   createGetSpace,
@@ -77,9 +78,12 @@ import {
   createListSpacePeriods,
   createSpaceAccess,
   createUpdateSpaceSettings,
+  type CreateInvitation,
   type CreatePersonalSpace,
   type CreateSpace,
+  type EmailSender,
   type GetSpace,
+  type InvitationsDeps,
   type ListMembers,
   type ListMySpaces,
   type ListSpacePeriods,
@@ -88,6 +92,8 @@ import {
   type StoredPeriodSource,
   type UpdateSpaceSettings,
 } from "@/modules/spaces/application";
+import { cryptoInvitationTokens } from "@/modules/spaces/infrastructure/crypto-invitation-tokens";
+import { DrizzleInvitationRepository } from "@/modules/spaces/infrastructure/drizzle-invitation-repository";
 import { DrizzleSpaceRepository } from "@/modules/spaces/infrastructure/drizzle-space-repository";
 import { createFixedWindowLimiter, jsonLogger, type IdempotencyDeps, type RouteDeps } from "@/shared/http";
 import { createDatabase, type Database } from "@/shared/infrastructure/db/client";
@@ -113,6 +119,7 @@ export interface Container extends RouteDeps {
     readonly listPeriods: ListSpacePeriods;
     readonly createSpace: CreateSpace;
     readonly listMembers: ListMembers;
+    readonly createInvitation: CreateInvitation;
   };
   readonly categories: {
     readonly listCategories: ListCategories;
@@ -166,6 +173,8 @@ export interface ContainerOptions {
   /** Test seam: replaces the post-sign-up provisioning step. */
   readonly provisionUser?: (user: AuthUser) => Promise<Result<void>>;
   readonly authLimits?: AuthLimits;
+  /** Delivers invitation emails; v1 has no SMTP adapter, so delivery is disabled unless a test passes one. */
+  readonly emailSender?: EmailSender;
 }
 
 export const buildContainer = (env: Env, options: ContainerOptions = {}): Container => {
@@ -245,6 +254,21 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     onCreated: onSpaceCreated,
   });
   const membersDeps: MembersDeps = { access, members: spaceRepository, ids, clock, tm };
+  const invitationsDeps: InvitationsDeps = {
+    access,
+    members: spaceRepository,
+    invitations: new DrizzleInvitationRepository(tm),
+    tokens: cryptoInvitationTokens,
+    // No SMTP adapter in v1 (no new dependencies): the response carries the URL and emailSent is false.
+    emailSender: options.emailSender ?? { send: async () => false },
+    // HU-E1-06: refusing to invite current members needs the identity module's users.
+    users: { idByEmail: (email) => provider.findUserIdByEmail(email) },
+    // The web page that accepts an invitation (HU-E9-05); the URL carries only the token.
+    invitationUrl: (token) => new URL(`/invitations/${token}`, env.BETTER_AUTH_URL).toString(),
+    ids,
+    clock,
+    tm,
+  };
   // HU-E1-02: every new user gets a personal space; sign-up compensates if this fails.
   const provisionUser =
     options.provisionUser ??
@@ -290,6 +314,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         tm,
       }),
       listMembers: createListMembers(membersDeps),
+      createInvitation: createCreateInvitation(invitationsDeps),
     },
     categories: {
       listCategories: createListCategories(categoriesDeps),

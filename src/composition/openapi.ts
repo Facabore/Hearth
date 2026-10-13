@@ -10,6 +10,7 @@ import { authPaths } from "@/modules/identity/contracts/auth.contract";
 import { mePaths } from "@/modules/identity/contracts/me.contract";
 import { ledgerPaths, TransactionSchema } from "@/modules/ledger/contracts/ledger.contract";
 import {
+  InvitationSchema,
   SpaceMemberSchema,
   SpaceSummarySchema,
   spacesPaths,
@@ -42,6 +43,7 @@ export const buildOpenApiDocument = (): Record<string, unknown> =>
         Account: AccountSchema,
         Space: SpaceSummarySchema,
         SpaceMember: SpaceMemberSchema,
+        Invitation: InvitationSchema,
         Period: PeriodSchema,
         Transaction: TransactionSchema,
       },

@@ -1,3 +1,4 @@
+import { POST as createInvitation } from "@/app/api/v1/spaces/[spaceId]/invitations/route";
 import { POST as createSpace } from "@/app/api/v1/spaces/route";
 import { call, type TestUser } from "./app";
 
@@ -13,3 +14,21 @@ export const newSharedSpace = async (owner: TestUser, name = "Household"): Promi
 
 /** The same user acting in another space, for helpers that address `user.spaceId`. */
 export const actingIn = (user: TestUser, spaceId: string): TestUser => ({ ...user, spaceId });
+
+/** The token at the end of an invitation URL (`�/invitations/<token>`). */
+export const tokenOf = (url: string): string => new URL(url).pathname.split("/").at(-1)!;
+
+/** Creates a link invitation over HTTP as `owner`; returns its token. */
+export const inviteByLink = async (
+  owner: TestUser,
+  spaceId: string,
+  role: "ADMIN" | "MEMBER" | "VIEWER",
+): Promise<string> => {
+  const response = await call(createInvitation, "POST", `/api/v1/spaces/${spaceId}/invitations`, {
+    user: owner,
+    params: { spaceId },
+    body: { kind: "LINK", role },
+  });
+  if (response.status !== 201) throw new Error(`invitation failed with status ${response.status}`);
+  return tokenOf(((await response.json()) as { url: string }).url);
+};
