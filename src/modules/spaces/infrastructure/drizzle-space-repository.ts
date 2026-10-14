@@ -1,6 +1,7 @@
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { isUuid } from "@/shared/kernel";
+import type { MemberInSpace } from "../application/direct-space-repository";
 import type {
   AddMemberOutcome,
   ClaimOutcome,
@@ -13,6 +14,7 @@ import type {
   SpaceSettingsRepository,
 } from "../application/space-settings-repository";
 import type { Space, SpaceId, SpaceKind, SpaceMember, SpaceMemberId, SpaceRole } from "../domain/space";
+import { directPairKey } from "../domain/direct-space";
 import { spaceMembers, spaces } from "./spaces.schema";
 
 const memberRow = (spaceId: string, m: SpaceMember): typeof spaceMembers.$inferInsert => ({
@@ -36,6 +38,18 @@ const memberColumns = {
   joinedAt: spaceMembers.joinedAt,
 };
 
+/** One space row; the pair key is set only for a DIRECT space between two registered users (HU-E1-13). */
+const spaceRow = (space: Space): typeof spaces.$inferInsert => ({
+  id: space.id,
+  name: space.name,
+  kind: space.kind,
+  currency: space.currency,
+  periodPolicy: space.periodPolicy,
+  personalOwnerUserId: space.personalOwnerUserId,
+  directPairKey: directPairKey(space),
+  createdAt: space.createdAt,
+});
+
 export class DrizzleSpaceRepository
   implements SpaceRepository, SpaceSettingsRepository, SpaceMemberRepository
 {
@@ -43,15 +57,7 @@ export class DrizzleSpaceRepository
 
   async add(space: Space): Promise<void> {
     const db = this.tm.executor();
-    await db.insert(spaces).values({
-      id: space.id,
-      name: space.name,
-      kind: space.kind,
-      currency: space.currency,
-      periodPolicy: space.periodPolicy,
-      personalOwnerUserId: space.personalOwnerUserId,
-      createdAt: space.createdAt,
-    });
+    await db.insert(spaces).values(spaceRow(space));
     await db.insert(spaceMembers).values(space.members.map((m) => memberRow(space.id, m)));
   }
 
@@ -217,5 +223,49 @@ export class DrizzleSpaceRepository
       )
       .returning({ id: spaceMembers.id });
     return taken.length > 0;
+  }
+
+  async findCurrentMember(memberId: string): Promise<MemberInSpace | null> {
+    // Ids come from request bodies; anything that is not a UUID would fail the uuid cast.
+    if (!isUuid(memberId)) return null;
+    const [row] = await this.tm
+      .executor()
+      .select({ spaceId: spaceMembers.spaceId, spaceKind: spaces.kind, ...memberColumns })
+      .from(spaceMembers)
+      .innerJoin(spaces, eq(spaces.id, spaceMembers.spaceId))
+      .where(and(eq(spaceMembers.id, memberId), isNull(spaceMembers.leftAt)))
+      .limit(1);
+    if (!row) return null;
+    const { spaceId, spaceKind, ...member } = row;
+    return { spaceId: spaceId as SpaceId, spaceKind, member: { ...member, id: member.id as SpaceMemberId } };
+  }
+
+  async findByPairKey(pairKey: string): Promise<SpaceId | null> {
+    const [row] = await this.tm
+      .executor()
+      .select({ id: spaces.id })
+      .from(spaces)
+      .where(and(eq(spaces.directPairKey, pairKey), isNull(spaces.archivedAt)))
+      .limit(1);
+    return row ? (row.id as SpaceId) : null;
+  }
+
+  async addDirect(space: Space): Promise<SpaceId> {
+    const db = this.tm.executor();
+    // No conflict target: spaces_direct_pair_uq counts, so the losing insert of two first splits waits
+    // for the winner, then inserts nothing.
+    const inserted = await db
+      .insert(spaces)
+      .values(spaceRow(space))
+      .onConflictDoNothing()
+      .returning({ id: spaces.id });
+    if (inserted.length === 0) {
+      const pairKey = directPairKey(space);
+      const holder = pairKey === null ? null : await this.findByPairKey(pairKey);
+      if (holder === null) throw new Error(`direct space ${space.id} conflicts with no active pair`);
+      return holder;
+    }
+    await db.insert(spaceMembers).values(space.members.map((m) => memberRow(space.id, m)));
+    return space.id;
   }
 }
