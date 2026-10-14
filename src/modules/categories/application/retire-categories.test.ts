@@ -57,11 +57,16 @@ const setup = async () => {
 
 describe("retiring categories (HU-E3-03)", () => {
   it("deletes a category without transactions", async () => {
-    const { categories, create, remove } = await setup();
+    const { categories, create, remove, activeNames } = await setup();
     const food = categories.groups.find((g) => g.name === "Food")!;
     const bakery = unwrap(await create({ ...asAna, groupId: food.id, name: "Bakery" }));
     unwrap(await remove({ ...asAna, categoryId: bakery.id }));
-    expect(categories.categories.map((c) => c.id)).not.toContain(bakery.id);
+    // D8 (Task 0a): the row stays, marked deleted, and every list, lookup and name check skips it.
+    expect(categories.categories.map((c) => c.id)).toContain(bakery.id);
+    expect(categories.deleted.get(bakery.id)).toEqual(new Date("2026-10-12T12:00:00Z"));
+    expect(await activeNames()).not.toContain("Bakery");
+    expect(codeOf(await remove({ ...asAna, categoryId: bakery.id }))).toBe("CategoryNotFound");
+    expect(unwrap(await create({ ...asAna, groupId: food.id, name: "Bakery" })).id).not.toBe(bakery.id);
   });
 
   it("refuses to delete a referenced category, which can still be archived", async () => {

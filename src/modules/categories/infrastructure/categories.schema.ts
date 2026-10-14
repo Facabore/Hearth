@@ -32,11 +32,15 @@ export const categories = pgTable(
     name: text("name").notNull(),
     key: text("key"),
     archivedAt: tz("archived_at"),
+    // D8 (Task 0a): deleting a category is logical; the row stays for the transactions that name it.
+    deletedAt: tz("deleted_at"),
     createdAt: tz("created_at").notNull(),
   },
   (t) => [
-    // HU-E3-02: unique per parent ignoring case (archived rows included).
-    uniqueIndex("categories_group_name_uq").on(t.groupId, sql`lower(${t.name})`),
+    // HU-E3-02: unique per parent ignoring case among rows not deleted (archived ones included; D8).
+    uniqueIndex("categories_group_name_uq")
+      .on(t.groupId, sql`lower(${t.name})`)
+      .where(sql`${t.deletedAt} IS NULL`),
     // HU-E3-01: seeding twice can never duplicate a catalog key; NULL keys (user categories) never collide.
     uniqueIndex("categories_space_key_uq").on(t.spaceId, t.key),
     index("categories_space_idx").on(t.spaceId),

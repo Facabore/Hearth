@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import type { CategoryRepository } from "../application/category-repository";
 import type { Category, CategoryGroup, CategoryGroupId, CategoryId } from "../domain/category";
@@ -62,7 +62,20 @@ export class DrizzleCategoryRepository implements CategoryRepository {
   }
 
   async listCategories(spaceId: string): Promise<Category[]> {
-    const rows = await this.tm.executor().select().from(categories).where(eq(categories.spaceId, spaceId));
+    // D8 (Task 0a): deleted categories stay stored, but every read skips them, so they answer as missing.
+    const rows = await this.tm
+      .executor()
+      .select({
+        id: categories.id,
+        spaceId: categories.spaceId,
+        groupId: categories.groupId,
+        name: categories.name,
+        key: categories.key,
+        archivedAt: categories.archivedAt,
+        createdAt: categories.createdAt,
+      })
+      .from(categories)
+      .where(and(eq(categories.spaceId, spaceId), isNull(categories.deletedAt)));
     return rows.map((row) => ({ ...row, id: row.id as CategoryId, groupId: row.groupId as CategoryGroupId }));
   }
 
@@ -84,10 +97,11 @@ export class DrizzleCategoryRepository implements CategoryRepository {
     }
   }
 
-  async deleteCategory(spaceId: string, categoryId: string): Promise<void> {
+  async deleteCategory(spaceId: string, categoryId: string, deletedAt: Date): Promise<void> {
     await this.tm
       .executor()
-      .delete(categories)
+      .update(categories)
+      .set({ deletedAt })
       .where(and(eq(categories.spaceId, spaceId), eq(categories.id, categoryId)));
   }
 }

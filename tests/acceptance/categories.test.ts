@@ -200,6 +200,37 @@ describe("retiring categories (HU-E3-03)", () => {
     expect(await names(ana, "?archived=true")).not.toContain("Panadería");
   });
 
+  it("deletes logically: the row stays, every listing and lookup skips it, and its name is free again (D8)", async () => {
+    const ana = await registerUser("Ana");
+    const accountId = await accountOf(ana);
+    const food = (await groupsIn(await treeOf(ana, ana.spaceId))).find((g) => g.name === "Alimentación")!;
+    const createBakery = () =>
+      call(createCategory, "POST", `/api/v1/spaces/${ana.spaceId}/categories`, {
+        user: ana,
+        params: { spaceId: ana.spaceId },
+        body: { groupId: food.id, name: "Panadería" },
+      });
+    const bakery = (await (await createBakery()).json()) as CategoryDto;
+    expect((await onCategory(deleteCategory, "DELETE", ana, bakery.id)).status).toBe(204);
+
+    expect(await names(ana)).not.toContain("Panadería");
+    expect(await names(ana, "?archived=true")).not.toContain("Panadería");
+    const { rows } = await app.pool.query("SELECT deleted_at FROM categories WHERE id = $1", [bakery.id]);
+    expect(rows).toEqual([{ deleted_at: expect.any(Date) }]);
+    const expense = await spend(ana, accountId, bakery.id);
+    expect([expense.status, (await expense.json()).code]).toEqual([404, "CategoryNotFound"]);
+    for (const [handler, method, suffix] of [
+      [deleteCategory, "DELETE", ""],
+      [archiveCategory, "POST", "/archive"],
+      [restoreCategory, "POST", "/restore"],
+    ] as const) {
+      const again = await onCategory(handler, method, ana, bakery.id, suffix);
+      expect([again.status, (await again.json()).code]).toEqual([404, "CategoryNotFound"]);
+    }
+    const recreated = await createBakery();
+    expect([recreated.status, ((await recreated.json()) as CategoryDto).name]).toEqual([201, "Panadería"]);
+  });
+
   it("keeps referenced categories: no delete, archive hides them, new expenses refused, restore brings them back", async () => {
     const ana = await registerUser("Ana");
     const accountId = await accountOf(ana);
