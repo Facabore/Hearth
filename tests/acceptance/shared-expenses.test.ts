@@ -218,3 +218,151 @@ describe("shared expense rules (HU-E4-07, Review Focus 2)", () => {
     expect(items.map((t) => t.id)).toEqual([juans.id]);
   });
 });
+
+describe("non-equal splits (HU-E4-08)", () => {
+  const byAna = (h: Household, pesos: number, split: unknown) => paidBy(h, h.ana, pesos, { split });
+
+  it("splits by percentage, exact amounts and share units", async () => {
+    const h = await household();
+    const [ana, juan] = [h.ana.memberId, h.juan.memberId];
+    const percent = await recordedBy(
+      h.ana,
+      byAna(h, 300_000, {
+        method: "PERCENT",
+        participants: [
+          { memberId: ana, percent: "40" },
+          { memberId: juan, percent: "60" },
+        ],
+      }),
+    );
+    expect(sharesOf(percent)).toEqual([
+      [ana, cop(120_000), "PERCENT"],
+      [juan, cop(180_000), "PERCENT"],
+    ]);
+    const exact = await recordedBy(
+      h.ana,
+      byAna(h, 250_000, {
+        method: "EXACT",
+        participants: [
+          { memberId: ana, amount: cop(100_000) },
+          { memberId: juan, amount: cop(150_000) },
+        ],
+      }),
+    );
+    expect(sharesOf(exact)).toEqual([
+      [ana, cop(100_000), "EXACT"],
+      [juan, cop(150_000), "EXACT"],
+    ]);
+    const units = await recordedBy(
+      h.ana,
+      byAna(h, 90_000, {
+        method: "SHARES",
+        participants: [
+          { memberId: ana, units: 2 },
+          { memberId: juan, units: 1 },
+        ],
+      }),
+    );
+    expect(sharesOf(units)).toEqual([
+      [ana, cop(60_000), "SHARES"],
+      [juan, cop(30_000), "SHARES"],
+    ]);
+  });
+
+  it("accepts percentages with two decimals and still sums exactly (Review Focus 1)", async () => {
+    const h = await household();
+    const luis = await joinHousehold(h, "Luis", "MEMBER");
+    const tx = await recordedBy(
+      h.ana,
+      byAna(h, 100_000, {
+        method: "PERCENT",
+        participants: [
+          { memberId: h.ana.memberId, percent: "33.33" },
+          { memberId: h.juan.memberId, percent: "33.33" },
+          { memberId: luis.memberId, percent: "33.34" },
+        ],
+      }),
+    );
+    expect(sharesOf(tx)).toEqual([
+      [h.ana.memberId, cop(33_330), "PERCENT"],
+      [h.juan.memberId, cop(33_330), "PERCENT"],
+      [luis.memberId, cop(33_340), "PERCENT"],
+    ]);
+  });
+
+  it("rejects splits that do not add up or are malformed", async () => {
+    const h = await household();
+    const [ana, juan] = [h.ana.memberId, h.juan.memberId];
+    const cases: [unknown, number, string][] = [
+      [
+        byAna(h, 300_000, {
+          method: "PERCENT",
+          participants: [
+            { memberId: ana, percent: "40" },
+            { memberId: juan, percent: "50" },
+          ],
+        }),
+        422,
+        "InvalidSplit",
+      ],
+      [
+        byAna(h, 250_000, {
+          method: "EXACT",
+          participants: [
+            { memberId: ana, amount: cop(100_000) },
+            { memberId: juan, amount: cop(120_000) },
+          ],
+        }),
+        409,
+        "SharesDoNotMatchAmount",
+      ],
+      [
+        byAna(h, 90_000, {
+          method: "SHARES",
+          participants: [
+            { memberId: ana, units: 0 },
+            { memberId: juan, units: 0 },
+          ],
+        }),
+        422,
+        "InvalidSplit",
+      ],
+      [
+        byAna(h, 300_000, {
+          method: "PERCENT",
+          participants: [
+            { memberId: ana, percent: "40%" },
+            { memberId: juan, percent: "60" },
+          ],
+        }),
+        422,
+        "ValidationFailed",
+      ],
+      [
+        byAna(h, 90_000, {
+          method: "SHARES",
+          participants: [
+            { memberId: ana, units: 1.5 },
+            { memberId: juan, units: 1 },
+          ],
+        }),
+        422,
+        "ValidationFailed",
+      ],
+      [
+        byAna(h, 250_000, {
+          method: "EXACT",
+          participants: [
+            { memberId: ana, amount: cop(100_000) },
+            { memberId: juan, amount: { amount: "15000000", currency: "USD" } },
+          ],
+        }),
+        422,
+        "CurrencyMismatch",
+      ],
+    ];
+    for (const [body, status, code] of cases) {
+      expect(await problemOf(await post(recordExpense, h.ana, "expenses", body))).toEqual([status, code]);
+    }
+  });
+});

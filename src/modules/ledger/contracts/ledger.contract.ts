@@ -12,7 +12,7 @@ import {
 } from "@/shared/http/contracts";
 import { etagOf } from "@/shared/http/etag";
 import { decodeCursor, encodeCursor, PaginationQuerySchema } from "@/shared/http/pagination";
-import { domainError, err, isUuid, localDate, ok, type Result } from "@/shared/kernel";
+import { domainError, err, isUuid, localDate, ok, type Money, type Result } from "@/shared/kernel";
 import type {
   AuditEntry,
   PaymentInput,
@@ -72,11 +72,33 @@ export const PaymentBodySchema = z.object({
   amount: MoneySchema,
 });
 
-/** HU-E4-07: EQUAL among the chosen members. */
-export const SplitBodySchema = z.object({
-  method: z.literal("EQUAL"),
-  participants: z.array(z.object({ memberId: Id })).max(MAX_PARTS),
-});
+/** "40", "33.33": a percentage with at most two decimals (HU-E4-08), never a float. */
+const PercentSchema = z
+  .string()
+  .regex(/^\d{1,3}(\.\d{1,2})?$/, { error: "A percentage with at most two decimals, e.g. 40 or 33.33" });
+
+/** HU-E4-07/08: EQUAL among the chosen members, or by percentage, exact amount or share units per member. */
+export const SplitBodySchema = z.discriminatedUnion("method", [
+  z.object({ method: z.literal("EQUAL"), participants: z.array(z.object({ memberId: Id })).max(MAX_PARTS) }),
+  z.object({
+    method: z.literal("PERCENT"),
+    participants: z.array(z.object({ memberId: Id, percent: PercentSchema })).max(MAX_PARTS),
+  }),
+  z.object({
+    method: z.literal("EXACT"),
+    participants: z.array(z.object({ memberId: Id, amount: MoneySchema })).max(MAX_PARTS),
+  }),
+  z.object({
+    method: z.literal("SHARES"),
+    participants: z.array(z.object({ memberId: Id, units: z.number().int() })).max(MAX_PARTS),
+  }),
+]);
+
+/** "33.33" → 3333 basis points (the regex guarantees digits). */
+export const basisPointsOf = (percent: string): number => {
+  const [whole = "0", fraction = ""] = percent.split(".");
+  return Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+};
 
 /**
  * HU-E4-01 sends `accountId` (the requester pays everything from that account of theirs); HU-E4-07
@@ -99,13 +121,39 @@ export const RecordExpenseBodySchema = z
   });
 type RecordExpenseBody = z.infer<typeof RecordExpenseBodySchema>;
 
-/** The split as the use case takes it. */
-const splitFromBody = (split: RecordExpenseBody["split"]): Result<SplitInput | undefined> =>
-  ok(
-    split === undefined
-      ? undefined
-      : { method: "EQUAL" as const, participants: split.participants.map((p) => ({ memberId: p.memberId })) },
-  );
+/** The split as the use case takes it; EXACT amounts become Money (UnknownCurrency otherwise). */
+const splitFromBody = (split: RecordExpenseBody["split"]): Result<SplitInput | undefined> => {
+  if (split === undefined) return ok(undefined);
+  switch (split.method) {
+    case "EQUAL":
+      return ok({
+        method: "EQUAL" as const,
+        participants: split.participants.map((p) => ({ memberId: p.memberId })),
+      });
+    case "PERCENT":
+      return ok({
+        method: "PERCENT" as const,
+        participants: split.participants.map((p) => ({
+          memberId: p.memberId,
+          basisPoints: basisPointsOf(p.percent),
+        })),
+      });
+    case "SHARES":
+      return ok({
+        method: "SHARES" as const,
+        participants: split.participants.map((p) => ({ memberId: p.memberId, units: p.units })),
+      });
+    case "EXACT": {
+      const participants: { memberId: string; amount: Money }[] = [];
+      for (const p of split.participants) {
+        const amount = moneyFromDto(p.amount);
+        if (!amount.ok) return amount;
+        participants.push({ memberId: p.memberId, amount: amount.value });
+      }
+      return ok({ method: "EXACT" as const, participants });
+    }
+  }
+};
 
 /** A validated body as RecordExpense input; fails only for impossible dates and currencies the kernel does not know. */
 export const expenseFromBody = (

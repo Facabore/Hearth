@@ -2843,34 +2843,144 @@
                     }
                   },
                   "split": {
-                    "type": "object",
-                    "properties": {
-                      "method": {
-                        "type": "string",
-                        "const": "EQUAL"
-                      },
-                      "participants": {
-                        "maxItems": 100,
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "memberId": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 64
-                            }
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "method": {
+                            "type": "string",
+                            "const": "EQUAL"
                           },
-                          "required": [
-                            "memberId"
-                          ]
-                        }
+                          "participants": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "memberId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                }
+                              },
+                              "required": [
+                                "memberId"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "method",
+                          "participants"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "method": {
+                            "type": "string",
+                            "const": "PERCENT"
+                          },
+                          "participants": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "memberId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                "percent": {
+                                  "type": "string",
+                                  "pattern": "^\\d{1,3}(\\.\\d{1,2})?$"
+                                }
+                              },
+                              "required": [
+                                "memberId",
+                                "percent"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "method",
+                          "participants"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "method": {
+                            "type": "string",
+                            "const": "EXACT"
+                          },
+                          "participants": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "memberId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                "amount": {
+                                  "$ref": "#/components/schemas/Money"
+                                }
+                              },
+                              "required": [
+                                "memberId",
+                                "amount"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "method",
+                          "participants"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "method": {
+                            "type": "string",
+                            "const": "SHARES"
+                          },
+                          "participants": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "memberId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                "units": {
+                                  "type": "integer",
+                                  "minimum": -9007199254740991,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "memberId",
+                                "units"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "method",
+                          "participants"
+                        ]
                       }
-                    },
-                    "required": [
-                      "method",
-                      "participants"
-                    ]
+                    ],
+                    "type": "object"
                   }
                 },
                 "required": [
