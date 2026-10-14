@@ -21,6 +21,9 @@ export const SpaceSummarySchema = z.object({
   role: z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"]).nullable(),
 });
 
+/** HU-E1-09, the M1 convention: `?archived=true` lists the archived spaces too, beside the active ones. */
+export const ListSpacesQuerySchema = z.object({ archived: z.enum(["true", "false"]).optional() });
+
 export const ListSpacesResponseSchema = z.object({ items: z.array(SpaceSummarySchema) });
 
 /** HU-E1-04: shared spaces are created here; PERSONAL answers PersonalSpaceAlreadyExists (HU-E1-02); DIRECT never (D16). */
@@ -139,8 +142,10 @@ export const spacesPaths: ZodOpenApiPathsObject = {
   "/api/v1/spaces": {
     get: {
       operationId: "listMySpaces",
-      summary: "Spaces the authenticated user belongs to",
+      summary:
+        "Spaces the authenticated user belongs to: the active ones, and the archived ones too with archived=true",
       security: [{ cookieAuth: [] }, { bearerAuth: [] }],
+      requestParams: { query: ListSpacesQuerySchema },
       responses: {
         "200": {
           description: "The user's spaces",
@@ -188,7 +193,7 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           "401": "Unauthenticated",
           "403": "InsufficientRole",
           "404": "SpaceNotFound",
-          "409": "SpaceCurrencyLocked",
+          "409": "SpaceCurrencyLocked, SpaceArchived",
           "422": "ValidationFailed, InvalidSpaceName, InvalidPeriodPolicy, UnknownCurrency",
         }),
       },
@@ -239,7 +244,7 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           "401": "Unauthenticated",
           "403": "InsufficientRole",
           "404": "SpaceNotFound",
-          "409": "AlreadyMember, PersonalSpaceNotShareable, DirectSpaceIsFull",
+          "409": "AlreadyMember, PersonalSpaceNotShareable, DirectSpaceIsFull, SpaceArchived",
           "422": "ValidationFailed, InvalidInvitationRole, InvalidEmail",
         }),
       },
@@ -257,7 +262,7 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           "401": "Unauthenticated",
           "403": "InsufficientRole",
           "404": "SpaceNotFound, InvitationNotFound",
-          "409": "InvitationAlreadyUsed",
+          "409": "InvitationAlreadyUsed, SpaceArchived",
         }),
       },
     },
@@ -275,7 +280,7 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           "403": "InvitationEmailMismatch",
           "404": "InvitationNotFound, SpaceNotFound",
           "409":
-            "InvitationExpired, InvitationRevoked, InvitationAlreadyUsed, AlreadyMember, MemberNameTaken",
+            "InvitationExpired, InvitationRevoked, InvitationAlreadyUsed, AlreadyMember, MemberNameTaken, SpaceArchived",
         }),
       },
     },
@@ -293,7 +298,7 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           "401": "Unauthenticated",
           "403": "InsufficientRole",
           "404": "SpaceNotFound",
-          "409": "MemberNameTaken, PersonalSpaceNotShareable, DirectSpaceIsFull",
+          "409": "MemberNameTaken, PersonalSpaceNotShareable, DirectSpaceIsFull, SpaceArchived",
           "422": "ValidationFailed, InvalidMemberName",
         }),
       },
@@ -312,7 +317,8 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           "401": "Unauthenticated",
           "403": "InsufficientRole",
           "404": "SpaceNotFound, MemberNotFound",
-          "409": "LastOwnerRequired, GuestHasNoRole, PersonalSpaceNotShareable, DirectSpaceMembersFixed",
+          "409":
+            "LastOwnerRequired, GuestHasNoRole, PersonalSpaceNotShareable, DirectSpaceMembersFixed, SpaceArchived",
           "422": "ValidationFailed",
         }),
       },
@@ -330,7 +336,7 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           "401": "Unauthenticated",
           "404": "SpaceNotFound",
           "409":
-            "OutstandingBalance (with the outstanding amount), LastOwnerRequired, PersonalSpaceNotShareable, DirectSpaceMembersFixed",
+            "OutstandingBalance (with the outstanding amount), LastOwnerRequired, PersonalSpaceNotShareable, DirectSpaceMembersFixed, SpaceArchived",
         }),
       },
     },
@@ -350,7 +356,7 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           "401": "Unauthenticated",
           "403": "InsufficientRole",
           "404": "SpaceNotFound, MemberNotFound",
-          "409": "NotAGuest",
+          "409": "NotAGuest, SpaceArchived",
         }),
       },
     },
@@ -369,7 +375,7 @@ export const spacesPaths: ZodOpenApiPathsObject = {
         ...problems({
           "401": "Unauthenticated",
           "404": "InvitationNotFound, MemberNotFound",
-          "409": "InvitationExpired, InvitationRevoked, GuestAlreadyClaimed, AlreadyMember",
+          "409": "InvitationExpired, InvitationRevoked, GuestAlreadyClaimed, AlreadyMember, SpaceArchived",
         }),
       },
     },
@@ -388,7 +394,25 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           "403": "InsufficientRole",
           "404": "SpaceNotFound, MemberNotFound",
           "409":
-            "OutstandingBalance (with the outstanding amount), NotAGuest, PersonalSpaceNotShareable, DirectSpaceMembersFixed",
+            "OutstandingBalance (with the outstanding amount), NotAGuest, PersonalSpaceNotShareable, DirectSpaceMembersFixed, SpaceArchived",
+        }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/archive": {
+    post: {
+      operationId: "archiveSpace",
+      summary: "Archive a settled shared or direct space (OWNER only); it then only reads",
+      ...securedByUser,
+      requestParams: { path: SpacePath },
+      responses: {
+        "204": { description: "Archived: listed with ?archived=true; every write answers SpaceArchived" },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound",
+          "409":
+            "OutstandingBalance (with the outstanding amount), PersonalSpaceNotArchivable, SpaceArchived",
         }),
       },
     },

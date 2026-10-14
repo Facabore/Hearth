@@ -358,13 +358,26 @@
     "/api/v1/spaces": {
       "get": {
         "operationId": "listMySpaces",
-        "summary": "Spaces the authenticated user belongs to",
+        "summary": "Spaces the authenticated user belongs to: the active ones, and the archived ones too with archived=true",
         "security": [
           {
             "cookieAuth": []
           },
           {
             "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "archived",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
           }
         ],
         "responses": {
@@ -686,7 +699,7 @@
             }
           },
           "409": {
-            "description": "SpaceCurrencyLocked",
+            "description": "SpaceCurrencyLocked, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1016,7 +1029,7 @@
             }
           },
           "409": {
-            "description": "AlreadyMember, PersonalSpaceNotShareable, DirectSpaceIsFull",
+            "description": "AlreadyMember, PersonalSpaceNotShareable, DirectSpaceIsFull, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1110,7 +1123,7 @@
             }
           },
           "409": {
-            "description": "InvitationAlreadyUsed",
+            "description": "InvitationAlreadyUsed, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1186,7 +1199,7 @@
             }
           },
           "409": {
-            "description": "InvitationExpired, InvitationRevoked, InvitationAlreadyUsed, AlreadyMember, MemberNameTaken",
+            "description": "InvitationExpired, InvitationRevoked, InvitationAlreadyUsed, AlreadyMember, MemberNameTaken, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1286,7 +1299,7 @@
             }
           },
           "409": {
-            "description": "MemberNameTaken, PersonalSpaceNotShareable, DirectSpaceIsFull",
+            "description": "MemberNameTaken, PersonalSpaceNotShareable, DirectSpaceIsFull, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1403,7 +1416,7 @@
             }
           },
           "409": {
-            "description": "LastOwnerRequired, GuestHasNoRole, PersonalSpaceNotShareable, DirectSpaceMembersFixed",
+            "description": "LastOwnerRequired, GuestHasNoRole, PersonalSpaceNotShareable, DirectSpaceMembersFixed, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1472,7 +1485,7 @@
             }
           },
           "409": {
-            "description": "OutstandingBalance (with the outstanding amount), LastOwnerRequired, PersonalSpaceNotShareable, DirectSpaceMembersFixed",
+            "description": "OutstandingBalance (with the outstanding amount), LastOwnerRequired, PersonalSpaceNotShareable, DirectSpaceMembersFixed, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1573,7 +1586,7 @@
             }
           },
           "409": {
-            "description": "NotAGuest",
+            "description": "NotAGuest, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1639,7 +1652,7 @@
             }
           },
           "409": {
-            "description": "InvitationExpired, InvitationRevoked, GuestAlreadyClaimed, AlreadyMember",
+            "description": "InvitationExpired, InvitationRevoked, GuestAlreadyClaimed, AlreadyMember, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1716,7 +1729,76 @@
             }
           },
           "409": {
-            "description": "OutstandingBalance (with the outstanding amount), NotAGuest, PersonalSpaceNotShareable, DirectSpaceMembersFixed",
+            "description": "OutstandingBalance (with the outstanding amount), NotAGuest, PersonalSpaceNotShareable, DirectSpaceMembersFixed, SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/archive": {
+      "post": {
+        "operationId": "archiveSpace",
+        "summary": "Archive a settled shared or direct space (OWNER only); it then only reads",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Archived: listed with ?archived=true; every write answers SpaceArchived"
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "InsufficientRole",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "OutstandingBalance (with the outstanding amount), PersonalSpaceNotArchivable, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1903,7 +1985,7 @@
             }
           },
           "409": {
-            "description": "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived",
+            "description": "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2017,7 +2099,7 @@
             }
           },
           "409": {
-            "description": "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived",
+            "description": "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2102,7 +2184,7 @@
             }
           },
           "409": {
-            "description": "CategoryInUse",
+            "description": "CategoryInUse, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2196,7 +2278,7 @@
             }
           },
           "409": {
-            "description": "CategoryGroupNameTaken",
+            "description": "CategoryGroupNameTaken, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2308,7 +2390,7 @@
             }
           },
           "409": {
-            "description": "CategoryGroupNameTaken",
+            "description": "CategoryGroupNameTaken, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2400,6 +2482,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         }
       }
@@ -2476,7 +2568,7 @@
             }
           },
           "409": {
-            "description": "CategoryGroupArchived",
+            "description": "CategoryGroupArchived, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2551,6 +2643,16 @@
           },
           "404": {
             "description": "SpaceNotFound, CategoryGroupNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2755,7 +2857,7 @@
             }
           },
           "409": {
-            "description": "AccountNameTaken, SharedFundRequiresSharedSpace, PersonalAccountRequiresPersonalSpace",
+            "description": "AccountNameTaken, SharedFundRequiresSharedSpace, PersonalAccountRequiresPersonalSpace, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2958,7 +3060,7 @@
             }
           },
           "409": {
-            "description": "AccountNameTaken, AccountTypeImmutable",
+            "description": "AccountNameTaken, AccountTypeImmutable, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3043,6 +3145,16 @@
           },
           "404": {
             "description": "SpaceNotFound, AccountNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3342,7 +3454,7 @@
             }
           },
           "409": {
-            "description": "AccountArchived, CategoryArchived, PeriodClosed, IdempotencyKeyConflict, SharesDoNotMatchAmount, GuestHasNoAccounts, MixedFundPayment",
+            "description": "AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict, SharesDoNotMatchAmount, GuestHasNoAccounts, MixedFundPayment",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3473,7 +3585,7 @@
             }
           },
           "409": {
-            "description": "AccountArchived, CategoryArchived, PeriodClosed, IdempotencyKeyConflict",
+            "description": "AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3605,7 +3717,7 @@
             }
           },
           "409": {
-            "description": "SameAccountTransfer, AccountArchived, PeriodClosed, IdempotencyKeyConflict",
+            "description": "SameAccountTransfer, AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3748,7 +3860,7 @@
             }
           },
           "409": {
-            "description": "AccountArchived, PeriodClosed, IdempotencyKeyConflict, SameAccountTransfer, GuestHasNoAccounts",
+            "description": "AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict, SameAccountTransfer, GuestHasNoAccounts",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3904,7 +4016,7 @@
             }
           },
           "409": {
-            "description": "AccountArchived, PeriodClosed, IdempotencyKeyConflict, GuestHasNoAccounts",
+            "description": "AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict, GuestHasNoAccounts",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4267,7 +4379,7 @@
             }
           },
           "409": {
-            "description": "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, TransferHasNoCategory, SettlementHasNoCategory",
+            "description": "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4362,7 +4474,7 @@
             }
           },
           "409": {
-            "description": "PeriodClosed",
+            "description": "PeriodClosed, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {

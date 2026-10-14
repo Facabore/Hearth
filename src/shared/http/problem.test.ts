@@ -43,6 +43,8 @@ describe("statusForCode", () => {
     ["MemberNameTaken", 409],
     ["PersonalSpaceAlreadyExists", 409],
     ["PersonalSpaceNotShareable", 409],
+    ["SpaceArchived", 409],
+    ["PersonalSpaceNotArchivable", 409],
     ["DirectSpaceIsFull", 409],
     ["DirectSpaceMembersFixed", 409],
     ["InvalidDirectCounterpart", 422],

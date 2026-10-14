@@ -15,6 +15,7 @@ import {
 import { DrizzleAccountRepository } from "@/modules/accounts/infrastructure/drizzle-account-repository";
 import {
   createGetMemberNetBalance,
+  createGetMemberNetBalances,
   createGetSpaceBalances,
   type GetSpaceBalances,
 } from "@/modules/balances/application";
@@ -94,6 +95,7 @@ import {
   createRevokeInvitation,
   createSpaceAccess,
   createUpdateSpaceSettings,
+  createArchiveSpace,
   createSplitWithPerson,
   createRemoveGuestMember,
   createClaimGuestPlace,
@@ -119,6 +121,7 @@ import {
   type SpaceCreatedListener,
   type StoredPeriodSource,
   type UpdateSpaceSettings,
+  type ArchiveSpace,
   type SplitWithPerson,
   type RemoveGuestMember,
   type LeaveSpace,
@@ -157,6 +160,7 @@ export interface Container extends RouteDeps {
     readonly acceptInvitation: AcceptInvitation;
     readonly addGuest: AddGuestMember;
     readonly changeMemberRole: ChangeMemberRole;
+    readonly archiveSpace: ArchiveSpace;
     readonly splitWithPerson: SplitWithPerson<DirectSplitExpense, RecordedExpense>;
     readonly removeGuest: RemoveGuestMember;
     readonly createGuestClaim: CreateGuestClaim;
@@ -408,6 +412,12 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       acceptInvitation: createAcceptInvitation(invitationsDeps),
       addGuest: createAddGuestMember(membersDeps),
       changeMemberRole: createChangeMemberRole(membersDeps),
+      // HU-E1-09: every current member's net from one aggregate (balances' GetMemberNetBalances).
+      archiveSpace: createArchiveSpace({
+        ...lifecycleDeps,
+        spaces: spaceRepository,
+        netBalances: createGetMemberNetBalances(ledgerQueries),
+      }),
       splitWithPerson: createSplitWithPerson<DirectSplitExpense, RecordedExpense>({
         access,
         spaces: spaceRepository,

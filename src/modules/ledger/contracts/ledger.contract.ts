@@ -502,7 +502,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     {
       "404": "SpaceNotFound, CategoryNotFound, AccountNotFound",
       "409":
-        "AccountArchived, CategoryArchived, PeriodClosed, IdempotencyKeyConflict, SharesDoNotMatchAmount, GuestHasNoAccounts, MixedFundPayment",
+        "AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict, SharesDoNotMatchAmount, GuestHasNoAccounts, MixedFundPayment",
       "422": `${invalidMoney}, CategoryRequired, AccountNotOwned, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount`,
     },
     RecordedExpenseSchema,
@@ -513,7 +513,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     RecordIncomeBodySchema,
     {
       "404": "SpaceNotFound, CategoryNotFound, AccountNotFound",
-      "409": "AccountArchived, CategoryArchived, PeriodClosed, IdempotencyKeyConflict",
+      "409": "AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
       "422": `${invalidMoney}, CategoryRequired, AccountNotOwned, AccountNotInSpace`,
     },
   ),
@@ -523,7 +523,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     RecordTransferBodySchema,
     {
       "404": "SpaceNotFound, AccountNotFound",
-      "409": "SameAccountTransfer, AccountArchived, PeriodClosed, IdempotencyKeyConflict",
+      "409": "SameAccountTransfer, AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
       "422": `${invalidMoney}, AccountNotOwned, AccountNotInSpace`,
     },
   ),
@@ -533,7 +533,8 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     RecordFundContributionBodySchema,
     {
       "404": "SpaceNotFound, AccountNotFound",
-      "409": "AccountArchived, PeriodClosed, IdempotencyKeyConflict, SameAccountTransfer, GuestHasNoAccounts",
+      "409":
+        "AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict, SameAccountTransfer, GuestHasNoAccounts",
       "422": `${invalidMoney}, AccountNotOwned, AccountRequired, InvalidFundAccount, NotASpaceMember`,
     },
   ),
@@ -543,7 +544,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     RecordSettlementBodySchema,
     {
       "404": "SpaceNotFound, AccountNotFound",
-      "409": "AccountArchived, PeriodClosed, IdempotencyKeyConflict, GuestHasNoAccounts",
+      "409": "AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict, GuestHasNoAccounts",
       "422": `${invalidMoney}, AccountNotOwned, NotASpaceMember, InvalidSettlementParties`,
     },
   ),
@@ -593,7 +594,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
           "403": "InsufficientRole",
           "404": "SpaceNotFound, TransactionNotFound, CategoryNotFound",
           "409":
-            "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, TransferHasNoCategory, SettlementHasNoCategory",
+            "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory",
           "412": "PreconditionFailed",
           "422":
             "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, NotASpaceMember",
@@ -611,7 +612,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
           "401": "Unauthenticated",
           "403": "InsufficientRole",
           "404": "SpaceNotFound, TransactionNotFound",
-          "409": "PeriodClosed",
+          "409": "PeriodClosed, SpaceArchived",
           "422": "NotASpaceMember",
         }),
       },
