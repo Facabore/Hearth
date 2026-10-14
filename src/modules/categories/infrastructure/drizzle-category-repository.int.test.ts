@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
@@ -57,7 +58,7 @@ describe("DrizzleCategoryRepository", () => {
       name: "Hogar",
       archivedAt,
     });
-    await repo.deleteCategory(space.spaceId, rent.id);
+    await repo.deleteCategory(space.spaceId, rent.id, archivedAt);
     expect((await repo.listCategories(space.spaceId)).map((c) => c.id)).not.toContain(rent.id);
   });
 
@@ -75,5 +76,28 @@ describe("DrizzleCategoryRepository", () => {
     await expect(
       repo.addCategories([{ ...mercado, id: ids.next<"Category">(), name: "Otro mercado" }]),
     ).rejects.toThrow();
+  });
+
+  it("keeps a deleted category stored and referenced, out of lists and name checks (D8, Task 0a)", async () => {
+    const { space, tree } = await seeded();
+    const mercado = tree.categories.find((c) => c.key === "groceries")!;
+    const transactionId = randomUUID();
+    await pool.query(
+      `INSERT INTO transactions (id, space_id, type, description, date, category_id, amount, currency, created_by, created_at, updated_at)
+       VALUES ($1, $2, 'EXPENSE', 'Market', '2026-10-05', $3, 100, 'COP', $4, now(), now())`,
+      [transactionId, space.spaceId, mercado.id, space.userId],
+    );
+    const deletedAt = new Date("2026-10-14T12:00:00Z");
+    await repo.deleteCategory(space.spaceId, mercado.id, deletedAt);
+    const { rows } = await pool.query(
+      `SELECT c.deleted_at, t.category_id FROM transactions t JOIN categories c ON c.id = t.category_id WHERE t.id = $1`,
+      [transactionId],
+    );
+    expect(rows).toEqual([{ deleted_at: deletedAt, category_id: mercado.id }]);
+    expect((await repo.listCategories(space.spaceId)).map((c) => c.id)).not.toContain(mercado.id);
+    // The name is free again among the categories that are not deleted (partial categories_group_name_uq).
+    await expect(
+      repo.addCategories([{ ...mercado, id: ids.next<"Category">(), name: "MERCADO", key: null }]),
+    ).resolves.toBeUndefined();
   });
 });

@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
 import {
   HOUSEHOLD_MEMBERS,
+  householdSpace,
   InMemorySpaceStore,
   invitationsWorld,
 } from "../../../../tests/support/in-memory-spaces";
-import type { InvitationTarget } from "../domain/invitation";
-import type { SpaceMember } from "../domain/space";
+import { issueInvitation, type InvitationId, type InvitationTarget } from "../domain/invitation";
+import type { SpaceId, SpaceMember } from "../domain/space";
 import { createAcceptInvitation } from "./accept-invitation";
 import { createCreateInvitation } from "./create-invitation";
 import { createRevokeInvitation } from "./revoke-invitation";
@@ -157,5 +158,47 @@ describe("AcceptInvitation (HU-E1-07)", () => {
     expect(juanRows(recovering.members(space)).map((m) => m.displayName)).toEqual(["Juan 3"]);
     const failing = await invited({ kind: "LINK" }, "MEMBER", new NameRaceStore(3));
     expect(codeOf(await failing.accept({ token: "token-1", ...juan }))).toBe("MemberNameTaken");
+  });
+});
+
+describe("AcceptInvitation into a space that cannot gain members (HU-E1-13, D16)", () => {
+  // CreateInvitation refuses these spaces, so the application never issues such an invitation: the rows
+  // are inserted by hand, and accepting one must still join nobody.
+  const handMade = (spaceId: string) => {
+    const store = new InMemorySpaceStore();
+    store.seed({
+      ...householdSpace([HOUSEHOLD_MEMBERS[0]!, HOUSEHOLD_MEMBERS[4]!]),
+      id: "space-direct" as SpaceId,
+      kind: "DIRECT",
+      name: "Ana & Pedro",
+    });
+    const world = invitationsWorld({ store });
+    world.invitations.rows.push(
+      unwrap(
+        issueInvitation({
+          id: "inv-hand-made" as InvitationId,
+          spaceId: spaceId as SpaceId,
+          target: toJuan,
+          role: "MEMBER",
+          tokenHash: "hash(token-hand-made)",
+          createdBy: "u-ana",
+          now: created,
+        }),
+      ),
+    );
+    return { ...world, accept: createAcceptInvitation(world.deps) };
+  };
+
+  it("refuses a third member of a direct space and keeps the invitation unused", async () => {
+    const w = handMade("space-direct");
+    expect(codeOf(await w.accept({ token: "token-hand-made", ...juan }))).toBe("DirectSpaceIsFull");
+    expect(w.store.members("space-direct").map((m) => m.displayName)).toEqual(["Ana", "Pedro"]);
+    expect(w.invitations.rows[0]?.status).toBe("PENDING");
+  });
+
+  it("refuses a second member of a personal space", async () => {
+    const w = handMade("space-ana");
+    expect(codeOf(await w.accept({ token: "token-hand-made", ...juan }))).toBe("PersonalSpaceNotShareable");
+    expect(w.store.members("space-ana")).toHaveLength(1);
   });
 });

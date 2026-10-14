@@ -3,9 +3,11 @@ import { can } from "@/modules/spaces/application";
 import type { LocalDate } from "@/shared/kernel";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
 import {
+  balanceParties,
   canModify,
   changedDebits,
   changesBetween,
+  deletionChanges,
   recordExpense,
   recordFundContribution,
   recordIncome,
@@ -188,9 +190,18 @@ describe("editing and deleting (HU-E4-06)", () => {
     const after = unwrap(
       reviseTransaction(before, { amount: 9_500_000n, date: "2026-11-02" as LocalDate }, later),
     );
+    // D8 (Task 0b): the sole payment and share followed the amount, so both versions are kept.
     expect(changesBetween(before, after)).toEqual({
       date: { from: "2026-10-05", to: "2026-11-02" },
       amount: { from: "8500000", to: "9500000" },
+      payments: {
+        from: '[{"memberId":"member-ana","accountId":"acc-bancolombia","amount":"8500000"}]',
+        to: '[{"memberId":"member-ana","accountId":"acc-bancolombia","amount":"9500000"}]',
+      },
+      shares: {
+        from: '[{"memberId":"member-ana","amount":"8500000","splitMethod":"EQUAL"}]',
+        to: '[{"memberId":"member-ana","amount":"9500000","splitMethod":"EQUAL"}]',
+      },
     });
     expect(changesBetween(before, before)).toEqual({});
   });
@@ -393,5 +404,104 @@ describe("fund-paid expenses (HU-E4-10, D5)", () => {
       { memberId: null, accountId: "acc-other-fund", amount: 40n },
     ]);
     expect(codeOf(twoFunds)).toBe("MixedFundPayment");
+  });
+});
+
+describe("the audit keeps every payment and share (D8, Task 0b)", () => {
+  it("keeps the whole earlier split, in position order, when an edit changes it", () => {
+    const before = shared();
+    const after: Expense = {
+      ...before,
+      shares: [
+        { memberId: "member-juan", amount: 20_000_000n, splitMethod: "EXACT" },
+        { memberId: "member-ana", amount: 10_000_000n, splitMethod: "EXACT" },
+      ],
+    };
+    const changes = changesBetween(before, after);
+    expect(Object.keys(changes)).toEqual(["shares"]);
+    expect(JSON.parse(changes.shares!.from!)).toEqual([
+      { memberId: "member-ana", amount: "15000000", splitMethod: "EQUAL" },
+      { memberId: "member-juan", amount: "15000000", splitMethod: "EQUAL" },
+    ]);
+    expect(JSON.parse(changes.shares!.to!)).toEqual([
+      { memberId: "member-juan", amount: "20000000", splitMethod: "EXACT" },
+      { memberId: "member-ana", amount: "10000000", splitMethod: "EXACT" },
+    ]);
+  });
+
+  it("snapshots the whole last version of a deleted expense", () => {
+    expect(deletionChanges(shared())).toEqual({
+      description: { from: "Market", to: null },
+      date: { from: "2026-10-05", to: null },
+      categoryId: { from: "cat-groceries", to: null },
+      amount: { from: "30000000", to: null },
+      payments: {
+        from: '[{"memberId":"member-ana","accountId":"acc-bancolombia","amount":"30000000"}]',
+        to: null,
+      },
+      shares: {
+        from: '[{"memberId":"member-ana","amount":"15000000","splitMethod":"EQUAL"},{"memberId":"member-juan","amount":"15000000","splitMethod":"EQUAL"}]',
+        to: null,
+      },
+    });
+  });
+
+  it("records no parts for a settlement, on edits and on deletion", () => {
+    const settlement = unwrap(
+      recordSettlement({
+        ...common,
+        amount: 100n,
+        payerMemberId: "member-juan",
+        receivingMemberId: "member-ana",
+        sourceAccountId: null,
+        destinationAccountId: null,
+      }),
+    );
+    const revised = unwrap(reviseTransaction(settlement, { amount: 200n }, later));
+    expect(changesBetween(settlement, revised)).toEqual({ amount: { from: "100", to: "200" } });
+    expect(deletionChanges(settlement)).toEqual({
+      description: { from: "Market", to: null },
+      date: { from: "2026-10-05", to: null },
+      amount: { from: "100", to: null },
+    });
+  });
+});
+
+describe("balance parties (E5 balance rule, Task 4b)", () => {
+  it("names the payers and participants of a member-paid expense once each, and both sides of a settlement", () => {
+    expect(balanceParties(shared())).toEqual(["member-ana", "member-juan"]);
+    const settlement = unwrap(
+      recordSettlement({
+        ...common,
+        amount: 100n,
+        payerMemberId: "member-juan",
+        receivingMemberId: "member-ana",
+        sourceAccountId: null,
+        destinationAccountId: null,
+      }),
+    );
+    expect(balanceParties(settlement)).toEqual(["member-juan", "member-ana"]);
+  });
+
+  it("names nobody for a fund-paid expense or a fund contribution (D5)", () => {
+    const fundPaid = unwrap(
+      recordExpense({
+        ...common,
+        amount: 100n,
+        categoryId: "cat-rent",
+        payments: [{ memberId: null, accountId: "acc-fund", amount: 100n }],
+        shares: [{ memberId: "member-ana", amount: 100n, splitMethod: "EQUAL" }],
+      }),
+    );
+    const contribution = unwrap(
+      recordFundContribution({
+        ...common,
+        amount: 100n,
+        payerMemberId: "member-juan",
+        sourceAccountId: "acc-davivienda",
+        destinationAccountId: "acc-fund",
+      }),
+    );
+    expect([balanceParties(fundPaid), balanceParties(contribution)]).toEqual([[], []]);
   });
 });

@@ -1,4 +1,5 @@
 import type { Invitation } from "../domain/invitation";
+import type { SpaceId, SpaceMemberId } from "../domain/space";
 
 export interface InvitationRepository {
   add(invitation: Invitation): Promise<void>;
@@ -8,4 +9,10 @@ export interface InvitationRepository {
   findByTokenHashForUpdate(tokenHash: string): Promise<Invitation | null>;
   /** Persists status, acceptedAt, acceptedByUserId and revokedAt. */
   save(invitation: Invitation): Promise<void>;
+}
+
+/** HU-E1-12: a removed guest's claim links die with the guest's place. */
+export interface ClaimLinkRepository {
+  /** Revokes every pending claim link of the guest; used and revoked ones keep their status. */
+  revokePendingClaims(spaceId: SpaceId, guestMemberId: SpaceMemberId, revokedAt: Date): Promise<void>;
 }

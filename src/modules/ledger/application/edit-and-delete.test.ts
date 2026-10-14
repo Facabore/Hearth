@@ -9,6 +9,7 @@ import {
   CATEGORIES,
   ledgerFixture,
 } from "../../../../tests/support/in-memory-ledger";
+import { memberOf } from "../../../../tests/support/in-memory-spaces";
 import type { Expense } from "../domain/transaction";
 import { createDeleteTransaction } from "./delete-transaction";
 import { createEditTransaction, type EditChanges } from "./edit-transaction";
@@ -18,6 +19,10 @@ import { createListTransactions } from "./list-transactions";
 const household = membership({ spaceId: "space-household", name: "Household", spaceKind: "SHARED" });
 const luis = membership({ ...household, memberId: "member-luis", userId: "u-luis", role: "MEMBER" });
 const asAna = { spaceId: "space-ana", userId: "u-ana" };
+/** Household's current members as the ledger reads them: Ana and Juan; Luis is not one of them (Task 4b). */
+const currentHousehold = {
+  listCurrent: async () => [memberOf("Ana", "OWNER", 0), memberOf("Juan", "MEMBER", 1)],
+};
 
 const setup = (closed: (date: LocalDate) => boolean = () => false) => {
   const fixture = ledgerFixture({
@@ -59,7 +64,18 @@ describe("EditTransaction (HU-E4-06)", () => {
         action: "UPDATED",
         actorUserId: "u-ana",
         at: deps.clock.now(),
-        changes: { amount: { from: "8500000", to: "9500000" } },
+        // D8 (Task 0b): the sole payment and share followed the amount; the audit keeps both versions.
+        changes: {
+          amount: { from: "8500000", to: "9500000" },
+          payments: {
+            from: '[{"memberId":"member-ana","accountId":"acc-bancolombia","amount":"8500000"}]',
+            to: '[{"memberId":"member-ana","accountId":"acc-bancolombia","amount":"9500000"}]',
+          },
+          shares: {
+            from: '[{"memberId":"member-ana","amount":"8500000","splitMethod":"EQUAL"}]',
+            to: '[{"memberId":"member-ana","amount":"9500000","splitMethod":"EQUAL"}]',
+          },
+        },
       },
     ]);
   });
@@ -202,7 +218,8 @@ describe("EditTransaction keeps personal accounts debited only by their owner (D
     payments: [{ memberId: null, accountId: ACCOUNTS.householdFund.id, amount: 5_000_000n }],
   });
   const setupHousehold = () => {
-    const fixture = ledgerFixture({ access: fakeSpaceAccess(household, juan) });
+    // Task 4b: amount edits check that the parties are current members, so the ledger needs Household's.
+    const fixture = ledgerFixture({ access: fakeSpaceAccess(household, juan), members: currentHousehold });
     fixture.store.rows.push(juansExpense, juansContribution, juansSettlement, fundPaid);
     return { ...fixture, edit: createEditTransaction(fixture.deps) };
   };
@@ -255,6 +272,18 @@ describe("DeleteTransaction (HU-E4-06)", () => {
     expect(await idsIn("2026-10")).toEqual([]);
     const entries = unwrap(await history({ ...asAna, transactionId: market.id }));
     expect(entries.map((e) => [e.action, e.actorUserId])).toEqual([["DELETED", "u-ana"]]);
+    // D8 (Task 0b): the deletion keeps the whole last version, payments and shares included.
+    expect(entries[0]?.changes).toEqual({
+      description: { from: "Market", to: null },
+      date: { from: "2026-10-31", to: null },
+      categoryId: { from: CATEGORIES.groceries.id, to: null },
+      amount: { from: "8500000", to: null },
+      payments: {
+        from: '[{"memberId":"member-ana","accountId":"acc-bancolombia","amount":"8500000"}]',
+        to: null,
+      },
+      shares: { from: '[{"memberId":"member-ana","amount":"8500000","splitMethod":"EQUAL"}]', to: null },
+    });
     expect(codeOf(await remove({ ...asAna, transactionId: market.id }))).toBe("TransactionNotFound");
   });
 
@@ -265,5 +294,63 @@ describe("DeleteTransaction (HU-E4-06)", () => {
     expect(
       codeOf(await remove({ spaceId: "space-household", userId: "u-luis", transactionId: anas.id })),
     ).toBe("InsufficientRole");
+  });
+});
+
+describe("edits and deletes never move a former member's balance (HU-E1-08, HU-E1-12, Task 4b)", () => {
+  // Luis left Household after settling: Ana paid him back for an expense he paid outside the app.
+  const settledWithLuis = aSettlement("2026-10-20", 5_000_000n, {
+    payerMemberId: "member-ana",
+    receivingMemberId: "member-luis",
+  });
+  const luisPaid = anExpense("2026-10-05", 5_000_000n, {
+    spaceId: "space-household",
+    categoryId: CATEGORIES.household.id,
+    payments: [{ memberId: "member-luis", accountId: null, amount: 5_000_000n }],
+    shares: [{ memberId: "member-ana", amount: 5_000_000n, splitMethod: "EQUAL" }],
+  });
+  const setupWithoutLuis = () => {
+    const fixture = ledgerFixture({ access: fakeSpaceAccess(household), members: currentHousehold });
+    fixture.store.rows.push(settledWithLuis, luisPaid);
+    return {
+      ...fixture,
+      edit: createEditTransaction(fixture.deps),
+      remove: createDeleteTransaction(fixture.deps),
+    };
+  };
+  const onHousehold = (transactionId: string) => ({
+    spaceId: "space-household",
+    userId: "u-ana",
+    transactionId,
+  });
+
+  it.each([
+    ["the settlement Luis received", settledWithLuis],
+    ["the expense Luis paid", luisPaid],
+  ])("refuses a new amount for %s and changes nothing", async (_, tx) => {
+    const { edit, store, audit } = setupWithoutLuis();
+    const changes = { amount: money(6_000_000n) };
+    expect(codeOf(await edit({ ...onHousehold(tx.id), expectedVersion: null, changes }))).toBe(
+      "NotASpaceMember",
+    );
+    expect(store.rows.find((t) => t.id === tx.id)).toEqual(tx);
+    expect(audit.entries).toEqual([]);
+  });
+
+  it("refuses deleting them", async () => {
+    const { remove, store, audit } = setupWithoutLuis();
+    for (const tx of [settledWithLuis, luisPaid]) {
+      expect(codeOf(await remove(onHousehold(tx.id)))).toBe("NotASpaceMember");
+    }
+    expect(store.rows.map((t) => t.deletedAt)).toEqual([null, null]);
+    expect(audit.entries).toEqual([]);
+  });
+
+  it("still lets the OWNER correct what moves no balance: description, date and category", async () => {
+    const { edit } = setupWithoutLuis();
+    const changes = { description: "Paid back Luis", date: "2026-10-21" as LocalDate };
+    expect(
+      unwrap(await edit({ ...onHousehold(settledWithLuis.id), expectedVersion: null, changes })),
+    ).toMatchObject({ ...changes, amount: 5_000_000n, version: 2 });
   });
 });

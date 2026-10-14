@@ -1,6 +1,6 @@
 import { domainError, err, ok, type Result } from "@/shared/kernel";
-import { canModify, softDelete } from "../domain/transaction";
-import { openPeriod } from "./checks";
+import { canModify, deletionChanges, softDelete } from "../domain/transaction";
+import { ensureCurrentParties, openPeriod } from "./checks";
 import type { LedgerDeps } from "./deps";
 
 export type DeleteTransaction = (input: {
@@ -23,6 +23,9 @@ export const createDeleteTransaction =
       }
       const open = await openPeriod(deps, current.spaceId, current.date);
       if (!open.ok) return open;
+      // HU-E1-08, HU-E1-12: deleting must not move the balance of a member who left (Task 4b).
+      const parties = await ensureCurrentParties(deps, membership.value.spaceId, current);
+      if (!parties.ok) return parties;
       const now = deps.clock.now();
       if (!(await deps.transactions.save(softDelete(current, now), current.version))) {
         return err(domainError("PreconditionFailed"));
@@ -33,7 +36,7 @@ export const createDeleteTransaction =
         action: "DELETED",
         actorUserId: input.userId,
         at: now,
-        changes: {},
+        changes: deletionChanges(current),
       });
       return ok(undefined);
     });

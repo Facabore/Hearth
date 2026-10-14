@@ -57,6 +57,20 @@
       "when": 1791926539015,
       "tag": "0007_shared_money",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791964103467,
+      "tag": "0008_category_soft_delete",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791987652205,
+      "tag": "0009_member_lifecycle",
+      "breakpoints": true
     }
   ]
 }

@@ -55,7 +55,7 @@ const world = (members = [ANA, JUAN]) => {
     members: spaces,
     source: ledger,
   });
-  return { ledger, getBalances };
+  return { spaces, ledger, getBalances };
 };
 
 const netsOf = async (getBalances: GetSpaceBalances, userId = "u-ana") =>
@@ -194,6 +194,19 @@ describe("GetSpaceBalances (HU-E5-01)", () => {
   it("lets every member read, viewers included, and hides the space from non-members", async () => {
     const { getBalances } = world([ANA, JUAN, memberOf("Sofi", "VIEWER", 2)]);
     expect(codeOf(await getBalances({ spaceId: "space-household", userId: "u-sofi" }))).toBe("ok");
+    expect(codeOf(await getBalances({ spaceId: "space-household", userId: "u-marta" }))).toBe(
+      "SpaceNotFound",
+    );
+  });
+
+  it("still answers for an archived space, which only reads (HU-E1-09)", async () => {
+    const { spaces, ledger, getBalances } = world();
+    await ledger.add(paid("member-ana", pesos(300_000n), ["member-ana", "member-juan"]));
+    spaces.archived.add("space-household");
+    expect(await netsOf(getBalances, "u-juan")).toEqual([
+      ["member-ana", pesos(150_000n)],
+      ["member-juan", -pesos(150_000n)],
+    ]);
     expect(codeOf(await getBalances({ spaceId: "space-household", userId: "u-marta" }))).toBe(
       "SpaceNotFound",
     );

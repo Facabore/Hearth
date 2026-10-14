@@ -13,6 +13,7 @@ import {
 } from "../../../../tests/support/fixtures";
 import type { AuditEntry } from "../application/ports";
 import {
+  changesBetween,
   recordExpense,
   recordFundContribution,
   recordIncome,
@@ -175,5 +176,47 @@ describe("fund contributions and settlements (HU-E4-09, HU-E5-02)", () => {
       await repo.add(tx);
       expect(await repo.findById(w.household.spaceId, tx.id)).toEqual(tx);
     }
+  });
+});
+
+describe("the audit keeps every split an edit replaces (D8, Task 0b)", () => {
+  it("recovers the shares that save replaced from the audit read back from PostgreSQL", async () => {
+    const w = await sharedLedgerFixture(db, pool);
+    const ana = w.household.memberId;
+    const before = unwrap(
+      recordExpense({
+        ...common(10_000_000n),
+        spaceId: w.household.spaceId,
+        categoryId: w.groceries,
+        payments: [{ memberId: ana, accountId: w.bank, amount: 10_000_000n }],
+        shares: [
+          { memberId: ana, amount: 5_000_000n, splitMethod: "EQUAL" },
+          { memberId: w.pedro, amount: 5_000_000n, splitMethod: "EQUAL" },
+        ],
+      }),
+    );
+    await repo.add(before);
+    const after: Expense = {
+      ...before,
+      shares: [
+        { memberId: ana, amount: 2_000_000n, splitMethod: "EXACT" },
+        { memberId: w.pedro, amount: 8_000_000n, splitMethod: "EXACT" },
+      ],
+    };
+    expect(await repo.save(after, 1)).toBe(true);
+    await auditLog.append({
+      id: randomUUID(),
+      transactionId: before.id,
+      action: "UPDATED",
+      actorUserId: w.household.userId,
+      at: now,
+      changes: changesBetween(before, after),
+    });
+    // The rows hold the current version only; the split they replaced lives in the audit.
+    expect(await repo.findById(w.household.spaceId, before.id)).toEqual({ ...after, version: 2 });
+    const [entry] = await auditLog.listFor(before.id);
+    expect(Object.keys(entry!.changes)).toEqual(["shares"]);
+    const earlier = JSON.parse(entry!.changes.shares!.from!) as { amount: string }[];
+    expect(earlier.map((s) => ({ ...s, amount: BigInt(s.amount) }))).toEqual(before.shares);
   });
 });

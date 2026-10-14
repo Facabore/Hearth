@@ -13,7 +13,14 @@ import {
   type UpdateAccount,
 } from "@/modules/accounts/application";
 import { DrizzleAccountRepository } from "@/modules/accounts/infrastructure/drizzle-account-repository";
-import { createGetSpaceBalances, type GetSpaceBalances } from "@/modules/balances/application";
+import {
+  createGetMemberNetBalance,
+  createGetMemberNetBalances,
+  createGetSettlementSuggestions,
+  createGetSpaceBalances,
+  type GetSettlementSuggestions,
+  type GetSpaceBalances,
+} from "@/modules/balances/application";
 import {
   createDeleteTransaction,
   createEditTransaction,
@@ -21,6 +28,7 @@ import {
   createListAudit,
   createListTransactions,
   createRecordExpense,
+  createRecordExpenseByCategoryKey,
   createRecordFundContribution,
   createRecordIncome,
   createRecordSettlement,
@@ -32,6 +40,7 @@ import {
   type ListAudit,
   type ListTransactions,
   type RecordExpense,
+  type RecordedExpense,
   type RecordFundContribution,
   type RecordIncome,
   type RecordSettlement,
@@ -40,6 +49,7 @@ import {
 import { DrizzleAuditLog } from "@/modules/ledger/infrastructure/drizzle-audit-log";
 import { DrizzleLedgerQueries } from "@/modules/ledger/infrastructure/drizzle-ledger-queries";
 import { DrizzleTransactionRepository } from "@/modules/ledger/infrastructure/drizzle-transaction-repository";
+import type { DirectSplitExpense } from "@/modules/ledger/contracts/ledger.contract";
 import {
   createArchiveCategory,
   createArchiveCategoryGroup,
@@ -87,9 +97,18 @@ import {
   createRevokeInvitation,
   createSpaceAccess,
   createUpdateSpaceSettings,
+  createArchiveSpace,
+  createSplitWithPerson,
+  createRemoveGuestMember,
+  createClaimGuestPlace,
+  createCreateGuestClaim,
+  createLeaveSpace,
   type AcceptInvitation,
   type AddGuestMember,
   type ChangeMemberRole,
+  type ClaimGuestPlace,
+  type ClaimsDeps,
+  type CreateGuestClaim,
   type CreateInvitation,
   type CreatePersonalSpace,
   type CreateSpace,
@@ -104,6 +123,11 @@ import {
   type SpaceCreatedListener,
   type StoredPeriodSource,
   type UpdateSpaceSettings,
+  type ArchiveSpace,
+  type SplitWithPerson,
+  type RemoveGuestMember,
+  type LeaveSpace,
+  type LifecycleDeps,
 } from "@/modules/spaces/application";
 import { cryptoInvitationTokens } from "@/modules/spaces/infrastructure/crypto-invitation-tokens";
 import { DrizzleInvitationRepository } from "@/modules/spaces/infrastructure/drizzle-invitation-repository";
@@ -138,6 +162,12 @@ export interface Container extends RouteDeps {
     readonly acceptInvitation: AcceptInvitation;
     readonly addGuest: AddGuestMember;
     readonly changeMemberRole: ChangeMemberRole;
+    readonly archiveSpace: ArchiveSpace;
+    readonly splitWithPerson: SplitWithPerson<DirectSplitExpense, RecordedExpense>;
+    readonly removeGuest: RemoveGuestMember;
+    readonly createGuestClaim: CreateGuestClaim;
+    readonly claimGuestPlace: ClaimGuestPlace;
+    readonly leaveSpace: LeaveSpace;
   };
   readonly categories: {
     readonly listCategories: ListCategories;
@@ -169,7 +199,10 @@ export interface Container extends RouteDeps {
     readonly deleteTransaction: DeleteTransaction;
     readonly listAudit: ListAudit;
   };
-  readonly balances: { readonly getSpaceBalances: GetSpaceBalances };
+  readonly balances: {
+    readonly getSpaceBalances: GetSpaceBalances;
+    readonly getSettlementSuggestions: GetSettlementSuggestions;
+  };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
     readonly signIn: (ip: string, email: string) => boolean;
@@ -270,6 +303,22 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     timeZone: env.APP_TIMEZONE,
     tm,
   };
+  const recordExpense = createRecordExpense(ledgerDeps);
+  // HU-E1-13: a client cannot know a new direct space's category ids, so it names a catalog key (D11).
+  const recordExpenseByCategoryKey = createRecordExpenseByCategoryKey(
+    {
+      access,
+      categoryKeys: {
+        findByKey: async (spaceId, key) => {
+          const category = (await categoriesDeps.categories.listCategories(spaceId)).find(
+            (c) => c.key === key,
+          );
+          return category ? { id: category.id, archived: category.archivedAt !== null } : null;
+        },
+      },
+    },
+    recordExpense,
+  );
   // HU-E3-01: default categories in the creator's locale, seeded in the same transaction as the space.
   const onSpaceCreated: SpaceCreatedListener = (space, { locale }) =>
     seedDefaultCategories({ spaceId: space.id, locale });
@@ -281,10 +330,20 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     onCreated: onSpaceCreated,
   });
   const membersDeps: MembersDeps = { access, members: spaceRepository, ids, clock, tm };
+  // HU-E5-01 GetMemberNetBalance: spaces reads balances through a port, since balances imports spaces.
+  const lifecycleDeps: LifecycleDeps = {
+    access,
+    members: spaceRepository,
+    netBalance: createGetMemberNetBalance(ledgerQueries),
+    clock,
+    tm,
+  };
+  const invitationRepository = new DrizzleInvitationRepository(tm);
   const invitationsDeps: InvitationsDeps = {
     access,
     members: spaceRepository,
-    invitations: new DrizzleInvitationRepository(tm),
+    spaces: spaceRepository,
+    invitations: invitationRepository,
     tokens: cryptoInvitationTokens,
     // No SMTP adapter in v1 (no new dependencies): the response carries the URL and emailSent is false.
     emailSender: options.emailSender ?? { send: async () => false },
@@ -292,6 +351,18 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     users: { idByEmail: (email) => provider.findUserIdByEmail(email) },
     // The web page that accepts an invitation (HU-E9-05); the URL carries only the token.
     invitationUrl: (token) => new URL(`/invitations/${token}`, env.BETTER_AUTH_URL).toString(),
+    ids,
+    clock,
+    tm,
+  };
+  // HU-E1-11: claim links share the invitation store and tokens; the URL carries only the token.
+  const claimsDeps: ClaimsDeps = {
+    access,
+    members: spaceRepository,
+    claims: spaceRepository,
+    invitations: invitationRepository,
+    tokens: cryptoInvitationTokens,
+    claimUrl: (token) => new URL(`/claims/${token}`, env.BETTER_AUTH_URL).toString(),
     ids,
     clock,
     tm,
@@ -346,6 +417,27 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       acceptInvitation: createAcceptInvitation(invitationsDeps),
       addGuest: createAddGuestMember(membersDeps),
       changeMemberRole: createChangeMemberRole(membersDeps),
+      // HU-E1-09: every current member's net from one aggregate (balances' GetMemberNetBalances).
+      archiveSpace: createArchiveSpace({
+        ...lifecycleDeps,
+        spaces: spaceRepository,
+        netBalances: createGetMemberNetBalances(ledgerQueries),
+      }),
+      splitWithPerson: createSplitWithPerson<DirectSplitExpense, RecordedExpense>({
+        access,
+        spaces: spaceRepository,
+        direct: spaceRepository,
+        onCreated: onSpaceCreated,
+        recordExpense: ({ spaceId, userId, expense }) =>
+          recordExpenseByCategoryKey({ spaceId, userId, ...expense }),
+        ids,
+        clock,
+        tm,
+      }),
+      removeGuest: createRemoveGuestMember({ ...lifecycleDeps, invitations: invitationRepository }),
+      createGuestClaim: createCreateGuestClaim(claimsDeps),
+      claimGuestPlace: createClaimGuestPlace(claimsDeps),
+      leaveSpace: createLeaveSpace(lifecycleDeps),
     },
     categories: {
       listCategories: createListCategories(categoriesDeps),
@@ -367,7 +459,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       getAccount,
     },
     ledger: {
-      recordExpense: createRecordExpense(ledgerDeps),
+      recordExpense,
       recordIncome: createRecordIncome(ledgerDeps),
       recordTransfer: createRecordTransfer(ledgerDeps),
       recordFundContribution: createRecordFundContribution(ledgerDeps),
@@ -381,6 +473,12 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     balances: {
       // HU-E5-01: the ledger aggregates per-member totals in SQL (D7); the balances module nets them.
       getSpaceBalances: createGetSpaceBalances({ access, members: spaceRepository, source: ledgerQueries }),
+      // HU-E5-03: suggestions are computed on read from the same balances (D7).
+      getSettlementSuggestions: createGetSettlementSuggestions({
+        access,
+        members: spaceRepository,
+        source: ledgerQueries,
+      }),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.

@@ -1,3 +1,4 @@
+import { authorizeSpaceAction } from "@/modules/spaces/application";
 import { ok, periodByLabel, resolvePeriod, todayIn, type Period, type Result } from "@/shared/kernel";
 import type { Transaction, TransactionType } from "../domain/transaction";
 import type { LedgerDeps } from "./deps";
@@ -30,7 +31,7 @@ export type ListTransactions = (input: ListTransactionsInput) => Promise<Result<
 export const createListTransactions =
   (deps: LedgerDeps): ListTransactions =>
   async (input) => {
-    const membership = await deps.access(input.spaceId, input.userId);
+    const membership = await authorizeSpaceAction(deps.access, input.spaceId, input.userId, "space.read");
     if (!membership.ok) return membership;
     const space = membership.value;
     const stored = await deps.storedPeriods(space.spaceId);

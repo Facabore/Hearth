@@ -1,3 +1,4 @@
+import { authorizeSpaceAction } from "@/modules/spaces/application";
 import { ok, type Result } from "@/shared/kernel";
 import type { Category, CategoryGroup } from "../domain/category";
 import type { CategoriesDeps } from "./deps";
@@ -17,7 +18,7 @@ const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompar
 export const createListCategories =
   (deps: CategoriesDeps): ListCategories =>
   async (input) => {
-    const membership = await deps.access(input.spaceId, input.userId);
+    const membership = await authorizeSpaceAction(deps.access, input.spaceId, input.userId, "space.read");
     if (!membership.ok) return membership;
     const { spaceId } = membership.value;
     const visible = <T extends { archivedAt: Date | null }>(rows: readonly T[]): T[] =>

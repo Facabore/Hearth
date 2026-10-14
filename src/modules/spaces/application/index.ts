@@ -69,3 +69,29 @@ export {
   type AcceptInvitation,
   type AcceptInvitationInput,
 } from "./accept-invitation";
+export type { MemberLifecycleRepository } from "./space-member-repository";
+export type { LifecycleDeps, MemberNetBalance } from "./lifecycle-deps";
+export { createLeaveSpace, type LeaveSpace } from "./leave-space";
+export type { ClaimOutcome, GuestClaimRepository } from "./space-member-repository";
+export type { ClaimsDeps } from "./invitation-ports";
+export { createCreateGuestClaim, type CreateGuestClaim } from "./create-guest-claim";
+export { createClaimGuestPlace, type ClaimGuestPlace } from "./claim-guest-place";
+export type { ClaimLinkRepository } from "./invitation-repository";
+export { createRemoveGuestMember, type RemoveGuestDeps, type RemoveGuestMember } from "./remove-guest-member";
+export type { DirectSpaceRepository, MemberInSpace } from "./direct-space-repository";
+export {
+  createSplitWithPerson,
+  type DirectExpenseRecorder,
+  type DirectSplit,
+  type DirectSplitCounterpart,
+  type SplitWithPerson,
+  type SplitWithPersonDeps,
+  type SplitWithPersonInput,
+} from "./split-with-person";
+export type { SpaceArchiveRepository } from "./space-repository";
+export {
+  createArchiveSpace,
+  type ArchiveSpace,
+  type ArchiveSpaceDeps,
+  type MemberNetBalances,
+} from "./archive-space";

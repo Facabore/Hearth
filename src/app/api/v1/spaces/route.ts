@@ -1,14 +1,16 @@
 import { getContainer } from "@/composition/container";
 import { defineRoute } from "@/composition/route";
-import { CreateSpaceBodySchema } from "@/modules/spaces/contracts/spaces.contract";
+import { CreateSpaceBodySchema, ListSpacesQuerySchema } from "@/modules/spaces/contracts/spaces.contract";
 import { ok } from "@/shared/kernel";
 
 export const runtime = "nodejs";
 
 export const GET = defineRoute({
   auth: "required",
-  handler: async ({ user }) => {
-    const result = await getContainer().spaces.listMySpaces(user!.id);
+  query: ListSpacesQuerySchema,
+  handler: async ({ user, query }) => {
+    const includeArchived = query.archived === "true";
+    const result = await getContainer().spaces.listMySpaces(user!.id, { includeArchived });
     return result.ok ? ok({ status: 200, body: { items: result.value } }) : result;
   },
 });

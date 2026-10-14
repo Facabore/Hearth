@@ -38,14 +38,39 @@ const TITLES: ReadonlyMap<number, string> = new Map([
   [500, "Internal Server Error"],
 ]);
 
+// RFC 9457 extension members: the only details a client ever sees, per code; all others stay in the log.
+const PUBLIC_DETAILS: ReadonlyMap<string, readonly string[]> = new Map([
+  ["OutstandingBalance", ["outstanding"]],
+]);
+
+/** The details of `code` that are part of the API contract, e.g. the outstanding amount (HU-E1-08). */
+export const publicDetailsOf = (
+  code: string,
+  details: Readonly<Record<string, unknown>> = {},
+): Record<string, unknown> =>
+  Object.fromEntries(
+    (PUBLIC_DETAILS.get(code) ?? [])
+      .filter((key) => Object.hasOwn(details, key) && details[key] !== undefined)
+      .map((key) => [key, details[key]]),
+  );
+
 /** Spec section 8: explicit codes first, then naming conventions, then 409 for invariant violations. */
 export const statusForCode = (code: string): number =>
   EXPLICIT.get(code) ?? (code.endsWith("NotFound") ? 404 : code.startsWith("Invalid") ? 422 : 409);
 
-/** RFC 9457 problem details. Carries only the stable code; clients translate it. */
-export const problemResponse = (code: string, requestId: string, errors?: ProblemFieldError[]): Response => {
+/**
+ * RFC 9457 problem details. Carries the stable code, which clients translate, and the extension members
+ * the code makes public (publicDetailsOf); the standard members always win over an extension.
+ */
+export const problemResponse = (
+  code: string,
+  requestId: string,
+  errors?: ProblemFieldError[],
+  extensions: Readonly<Record<string, unknown>> = {},
+): Response => {
   const status = statusForCode(code);
   const body = {
+    ...extensions,
     type: `urn:hearth:problem:${code}`,
     title: TITLES.get(status) ?? "Error",
     status,

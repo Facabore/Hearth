@@ -358,13 +358,26 @@
     "/api/v1/spaces": {
       "get": {
         "operationId": "listMySpaces",
-        "summary": "Spaces the authenticated user belongs to",
+        "summary": "Spaces the authenticated user belongs to: the active ones, and the archived ones too with archived=true",
         "security": [
           {
             "cookieAuth": []
           },
           {
             "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "archived",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
           }
         ],
         "responses": {
@@ -392,6 +405,16 @@
           },
           "401": {
             "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -686,7 +709,7 @@
             }
           },
           "409": {
-            "description": "SpaceCurrencyLocked",
+            "description": "SpaceCurrencyLocked, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1016,7 +1039,7 @@
             }
           },
           "409": {
-            "description": "AlreadyMember, PersonalSpaceNotShareable",
+            "description": "AlreadyMember, PersonalSpaceNotShareable, DirectSpaceIsFull, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1110,7 +1133,7 @@
             }
           },
           "409": {
-            "description": "InvitationAlreadyUsed",
+            "description": "InvitationAlreadyUsed, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1186,7 +1209,7 @@
             }
           },
           "409": {
-            "description": "InvitationExpired, InvitationRevoked, InvitationAlreadyUsed, AlreadyMember, MemberNameTaken",
+            "description": "InvitationExpired, InvitationRevoked, InvitationAlreadyUsed, AlreadyMember, MemberNameTaken, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1286,7 +1309,7 @@
             }
           },
           "409": {
-            "description": "MemberNameTaken, PersonalSpaceNotShareable",
+            "description": "MemberNameTaken, PersonalSpaceNotShareable, DirectSpaceIsFull, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1403,7 +1426,7 @@
             }
           },
           "409": {
-            "description": "LastOwnerRequired, GuestHasNoRole",
+            "description": "LastOwnerRequired, GuestHasNoRole, PersonalSpaceNotShareable, DirectSpaceMembersFixed, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1414,6 +1437,378 @@
           },
           "422": {
             "description": "ValidationFailed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/leave": {
+      "post": {
+        "operationId": "leaveSpace",
+        "summary": "Leave a shared space once your balance is zero; your past movements keep your name",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Left: the space no longer lists you as a current member"
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound, MemberNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "OutstandingBalance (with the outstanding amount), LastOwnerRequired, PersonalSpaceNotShareable, DirectSpaceMembersFixed, SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/guests/{memberId}/claim-links": {
+      "post": {
+        "operationId": "createGuestClaimLink",
+        "summary": "Create a single-use link with which someone takes over a guest's place by signing in",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "memberId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The pending claim link and its URL, valid 7 days; no email is sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "invitation": {
+                      "$ref": "#/components/schemas/Invitation"
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "emailSent": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "invitation",
+                    "url",
+                    "emailSent"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "InsufficientRole",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound, MemberNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "NotAGuest, SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/claims/{token}/accept": {
+      "post": {
+        "operationId": "claimGuestPlace",
+        "summary": "Take over the claim link's guest as the signed-in user: the same member, now registered",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The space, as the new registered member sees it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Space"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "InvitationNotFound, MemberNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "InvitationExpired, InvitationRevoked, GuestAlreadyClaimed, AlreadyMember, SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/guests/{memberId}": {
+      "delete": {
+        "operationId": "removeGuestMember",
+        "summary": "Remove a guest whose balance is zero; history keeps the guest and their claim links are revoked",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "memberId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed: the guest is no longer a current member and the name is free"
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "InsufficientRole",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound, MemberNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "OutstandingBalance (with the outstanding amount), NotAGuest, PersonalSpaceNotShareable, DirectSpaceMembersFixed, SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/archive": {
+      "post": {
+        "operationId": "archiveSpace",
+        "summary": "Archive a settled shared or direct space (OWNER only); it then only reads",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Archived: listed with ?archived=true; every write answers SpaceArchived"
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "InsufficientRole",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "OutstandingBalance (with the outstanding amount), PersonalSpaceNotArchivable, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1600,7 +1995,7 @@
             }
           },
           "409": {
-            "description": "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived",
+            "description": "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1714,7 +2109,7 @@
             }
           },
           "409": {
-            "description": "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived",
+            "description": "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1799,7 +2194,7 @@
             }
           },
           "409": {
-            "description": "CategoryInUse",
+            "description": "CategoryInUse, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1893,7 +2288,7 @@
             }
           },
           "409": {
-            "description": "CategoryGroupNameTaken",
+            "description": "CategoryGroupNameTaken, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2005,7 +2400,7 @@
             }
           },
           "409": {
-            "description": "CategoryGroupNameTaken",
+            "description": "CategoryGroupNameTaken, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2097,6 +2492,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         }
       }
@@ -2173,7 +2578,7 @@
             }
           },
           "409": {
-            "description": "CategoryGroupArchived",
+            "description": "CategoryGroupArchived, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2248,6 +2653,16 @@
           },
           "404": {
             "description": "SpaceNotFound, CategoryGroupNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2452,7 +2867,7 @@
             }
           },
           "409": {
-            "description": "AccountNameTaken, SharedFundRequiresSharedSpace, PersonalAccountRequiresPersonalSpace",
+            "description": "AccountNameTaken, SharedFundRequiresSharedSpace, PersonalAccountRequiresPersonalSpace, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2655,7 +3070,7 @@
             }
           },
           "409": {
-            "description": "AccountNameTaken, AccountTypeImmutable",
+            "description": "AccountNameTaken, AccountTypeImmutable, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2740,6 +3155,16 @@
           },
           "404": {
             "description": "SpaceNotFound, AccountNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3039,7 +3464,7 @@
             }
           },
           "409": {
-            "description": "AccountArchived, CategoryArchived, PeriodClosed, IdempotencyKeyConflict, SharesDoNotMatchAmount, GuestHasNoAccounts, MixedFundPayment",
+            "description": "AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict, SharesDoNotMatchAmount, GuestHasNoAccounts, MixedFundPayment",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3170,7 +3595,7 @@
             }
           },
           "409": {
-            "description": "AccountArchived, CategoryArchived, PeriodClosed, IdempotencyKeyConflict",
+            "description": "AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3302,7 +3727,7 @@
             }
           },
           "409": {
-            "description": "SameAccountTransfer, AccountArchived, PeriodClosed, IdempotencyKeyConflict",
+            "description": "SameAccountTransfer, AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3445,7 +3870,7 @@
             }
           },
           "409": {
-            "description": "AccountArchived, PeriodClosed, IdempotencyKeyConflict, SameAccountTransfer, GuestHasNoAccounts",
+            "description": "AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict, SameAccountTransfer, GuestHasNoAccounts",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3601,7 +4026,7 @@
             }
           },
           "409": {
-            "description": "AccountArchived, PeriodClosed, IdempotencyKeyConflict, GuestHasNoAccounts",
+            "description": "AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict, GuestHasNoAccounts",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3964,7 +4389,7 @@
             }
           },
           "409": {
-            "description": "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, TransferHasNoCategory, SettlementHasNoCategory",
+            "description": "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3984,7 +4409,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned",
+            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, NotASpaceMember",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4059,7 +4484,17 @@
             }
           },
           "409": {
-            "description": "PeriodClosed",
+            "description": "PeriodClosed, SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "NotASpaceMember",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4203,6 +4638,184 @@
         }
       }
     },
+    "/api/v1/direct-splits": {
+      "post": {
+        "operationId": "splitWithPerson",
+        "summary": "Split an expense with one person through your two-member direct space, created on first use",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "idempotency-key",
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "counterpart": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "MEMBER"
+                          },
+                          "memberId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "memberId"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "GUEST"
+                          },
+                          "displayName": {
+                            "type": "string",
+                            "maxLength": 200
+                          },
+                          "contactEmail": {
+                            "type": "string",
+                            "maxLength": 254,
+                            "format": "email",
+                            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "displayName"
+                        ]
+                      }
+                    ],
+                    "type": "object"
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "date": {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  "categoryKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "amount": {
+                    "$ref": "#/components/schemas/Money"
+                  },
+                  "accountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "counterpart",
+                  "categoryKey",
+                  "amount",
+                  "accountId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The direct space, whether this split created it, and the recorded expense",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "spaceId": {
+                      "type": "string"
+                    },
+                    "created": {
+                      "type": "boolean"
+                    },
+                    "expense": {
+                      "$ref": "#/components/schemas/RecordedExpense"
+                    }
+                  },
+                  "required": [
+                    "spaceId",
+                    "created",
+                    "expense"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "MemberNotFound, CategoryNotFound, AccountNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "MemberNameTaken, AccountArchived, CategoryArchived, SpaceArchived, IdempotencyKeyConflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/spaces/{spaceId}/balances": {
       "get": {
         "operationId": "getSpaceBalances",
@@ -4255,6 +4868,92 @@
                   },
                   "required": [
                     "members"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/balances/suggestions": {
+      "get": {
+        "operationId": "getSettlementSuggestions",
+        "summary": "Payments that clear every balance, at most one fewer than the members; computed on read",
+        "description": "Each suggestion has the fields of a settlement; POST it to accept it. A suggestion that names a former member (possible only after the race tracked on #89) cannot be accepted until #89 lands.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Suggested settlements, the largest debts first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "suggestions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "payerMemberId": {
+                            "type": "string"
+                          },
+                          "receivingMemberId": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "$ref": "#/components/schemas/MoneyOutput"
+                          }
+                        },
+                        "required": [
+                          "payerMemberId",
+                          "receivingMemberId",
+                          "amount"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "suggestions"
                   ],
                   "additionalProperties": false
                 }
@@ -4381,6 +5080,9 @@
               ],
               "additionalProperties": false
             }
+          },
+          "outstanding": {
+            "$ref": "#/components/schemas/MoneyOutput"
           }
         },
         "required": [
@@ -4682,7 +5384,8 @@
             "type": "string",
             "enum": [
               "EMAIL",
-              "LINK"
+              "LINK",
+              "CLAIM"
             ]
           },
           "email": {

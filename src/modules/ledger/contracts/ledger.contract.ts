@@ -25,6 +25,7 @@ import type {
   TransactionPage,
   TransactionPosition,
 } from "../application";
+import type { DirectSplit, DirectSplitCounterpart } from "@/modules/spaces/application";
 
 const Id = z.string().min(1).max(64);
 // Length rules live in the domain (InvalidDescription, 200 characters); the cap only bounds payload size.
@@ -380,7 +381,10 @@ export const AuditEntrySchema = z.object({
   action: z.enum(["UPDATED", "DELETED"]),
   actorUserId: z.string(),
   at: z.iso.datetime(),
-  /** Changed fields with their previous and new values; amounts in minor units as strings. */
+  /**
+   * Changed values as strings (amounts in minor units); an expense's `payments` and `shares` are JSON
+   * arrays (D8, Task 0b), and a deletion lists every value it retires with `to: null`.
+   */
   changes: z.record(z.string(), z.object({ from: z.string().nullable(), to: z.string().nullable() })),
 });
 export const ListAuditResponseSchema = z.object({ items: z.array(AuditEntrySchema) });
@@ -391,6 +395,72 @@ export const auditEntryDto = (entry: AuditEntry): z.infer<typeof AuditEntrySchem
   actorUserId: entry.actorUserId,
   at: entry.at.toISOString(),
   changes: entry.changes,
+});
+
+/** HU-E1-13: whom the requester splits with: a member of a space they share, or a new guest. */
+const DirectCounterpartSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("MEMBER"), memberId: Id }),
+  z.object({
+    kind: z.literal("GUEST"),
+    displayName: z.string().max(200),
+    contactEmail: z.email().max(254).optional(),
+  }),
+]);
+
+/**
+ * HU-E1-13: the requester pays the whole amount from one of their own accounts and it is shared EQUAL
+ * with the other person (spec 5.3). The category is a catalog key of the default categories every direct
+ * space is seeded with (HU-E3-01, D11), since a new space's category ids are not known yet.
+ */
+export const DirectSplitBodySchema = z.object({
+  counterpart: DirectCounterpartSchema,
+  description: Description,
+  date: z.iso.date().optional(),
+  categoryKey: z.string().min(1).max(64),
+  amount: MoneySchema,
+  accountId: Id,
+});
+type DirectSplitBody = z.infer<typeof DirectSplitBodySchema>;
+
+/** A direct split's expense as the composition root hands it to RecordExpenseByCategoryKey. */
+export type DirectSplitExpense = Pick<RecordExpenseInput, "description" | "date" | "amount" | "accountId"> & {
+  readonly categoryKey: string;
+};
+
+export const directSplitFromBody = (
+  body: DirectSplitBody,
+): Result<{ counterpart: DirectSplitCounterpart; expense: DirectSplitExpense }> => {
+  const amount = moneyFromDto(body.amount);
+  if (!amount.ok) return amount;
+  const date = optionalLocalDate(body.date);
+  if (!date.ok) return date;
+  const { counterpart } = body;
+  return ok({
+    counterpart:
+      counterpart.kind === "MEMBER"
+        ? { memberId: counterpart.memberId }
+        : { guest: { displayName: counterpart.displayName, contactEmail: counterpart.contactEmail } },
+    expense: {
+      description: body.description,
+      date: date.value,
+      amount: amount.value,
+      accountId: body.accountId,
+      categoryKey: body.categoryKey,
+    },
+  });
+};
+
+/** The direct space the split was recorded in, whether this split created it, and the expense. */
+export const DirectSplitSchema = z.object({
+  spaceId: z.string(),
+  created: z.boolean(),
+  expense: RecordedExpenseSchema,
+});
+
+export const directSplitDto = (split: DirectSplit<RecordedExpense>): z.infer<typeof DirectSplitSchema> => ({
+  spaceId: split.spaceId,
+  created: split.created,
+  expense: recordedExpenseDto(split.recorded),
 });
 
 const SpacePath = z.object({ spaceId: z.string() });
@@ -432,7 +502,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     {
       "404": "SpaceNotFound, CategoryNotFound, AccountNotFound",
       "409":
-        "AccountArchived, CategoryArchived, PeriodClosed, IdempotencyKeyConflict, SharesDoNotMatchAmount, GuestHasNoAccounts, MixedFundPayment",
+        "AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict, SharesDoNotMatchAmount, GuestHasNoAccounts, MixedFundPayment",
       "422": `${invalidMoney}, CategoryRequired, AccountNotOwned, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount`,
     },
     RecordedExpenseSchema,
@@ -443,7 +513,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     RecordIncomeBodySchema,
     {
       "404": "SpaceNotFound, CategoryNotFound, AccountNotFound",
-      "409": "AccountArchived, CategoryArchived, PeriodClosed, IdempotencyKeyConflict",
+      "409": "AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
       "422": `${invalidMoney}, CategoryRequired, AccountNotOwned, AccountNotInSpace`,
     },
   ),
@@ -453,7 +523,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     RecordTransferBodySchema,
     {
       "404": "SpaceNotFound, AccountNotFound",
-      "409": "SameAccountTransfer, AccountArchived, PeriodClosed, IdempotencyKeyConflict",
+      "409": "SameAccountTransfer, AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
       "422": `${invalidMoney}, AccountNotOwned, AccountNotInSpace`,
     },
   ),
@@ -463,7 +533,8 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     RecordFundContributionBodySchema,
     {
       "404": "SpaceNotFound, AccountNotFound",
-      "409": "AccountArchived, PeriodClosed, IdempotencyKeyConflict, SameAccountTransfer, GuestHasNoAccounts",
+      "409":
+        "AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict, SameAccountTransfer, GuestHasNoAccounts",
       "422": `${invalidMoney}, AccountNotOwned, AccountRequired, InvalidFundAccount, NotASpaceMember`,
     },
   ),
@@ -473,7 +544,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     RecordSettlementBodySchema,
     {
       "404": "SpaceNotFound, AccountNotFound",
-      "409": "AccountArchived, PeriodClosed, IdempotencyKeyConflict, GuestHasNoAccounts",
+      "409": "AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict, GuestHasNoAccounts",
       "422": `${invalidMoney}, AccountNotOwned, NotASpaceMember, InvalidSettlementParties`,
     },
   ),
@@ -523,10 +594,10 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
           "403": "InsufficientRole",
           "404": "SpaceNotFound, TransactionNotFound, CategoryNotFound",
           "409":
-            "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, TransferHasNoCategory, SettlementHasNoCategory",
+            "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory",
           "412": "PreconditionFailed",
           "422":
-            "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned",
+            "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, NotASpaceMember",
         }),
       },
     },
@@ -541,7 +612,8 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
           "401": "Unauthenticated",
           "403": "InsufficientRole",
           "404": "SpaceNotFound, TransactionNotFound",
-          "409": "PeriodClosed",
+          "409": "PeriodClosed, SpaceArchived",
+          "422": "NotASpaceMember",
         }),
       },
     },
@@ -555,6 +627,27 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
       responses: {
         "200": { description: "Audit entries", content: jsonContent(ListAuditResponseSchema) },
         ...problems({ "401": "Unauthenticated", "404": "SpaceNotFound, TransactionNotFound" }),
+      },
+    },
+  },
+  "/api/v1/direct-splits": {
+    post: {
+      operationId: "splitWithPerson",
+      summary: "Split an expense with one person through your two-member direct space, created on first use",
+      ...securedByUser,
+      requestParams: { header: IdempotencyHeader },
+      requestBody: { content: jsonContent(DirectSplitBodySchema) },
+      responses: {
+        "201": {
+          description: "The direct space, whether this split created it, and the recorded expense",
+          content: jsonContent(DirectSplitSchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "404": "MemberNotFound, CategoryNotFound, AccountNotFound",
+          "409": "MemberNameTaken, AccountArchived, CategoryArchived, SpaceArchived, IdempotencyKeyConflict",
+          "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned`,
+        }),
       },
     },
   },

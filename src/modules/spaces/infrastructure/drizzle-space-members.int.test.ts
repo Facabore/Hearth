@@ -1,11 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
-import { ok } from "@/shared/kernel";
+import { FixedClock, ok } from "@/shared/kernel";
 import { testDatabase } from "../../../../tests/support/database";
-import { sharedSpaceFixture, userFixture } from "../../../../tests/support/fixtures";
+import { personalSpaceFixture, sharedSpaceFixture, userFixture } from "../../../../tests/support/fixtures";
+import { InMemorySpaceStore } from "../../../../tests/support/in-memory-spaces";
 import { createChangeMemberRole } from "../application/change-member-role";
+import { createLeaveSpace } from "../application/leave-space";
 import { createSpaceAccess } from "../application/space-access";
+import type { GuestClaimRepository, MemberLifecycleRepository } from "../application/space-member-repository";
 import type { SpaceId, SpaceMember, SpaceMemberId, SpaceRole } from "../domain/space";
 import { DrizzleSpaceRepository } from "./drizzle-space-repository";
 
@@ -151,5 +154,254 @@ describe("concurrent member changes (Review Focus 3)", () => {
     expect(results.flatMap((r) => (r.ok ? [] : [r.error.code]))).toEqual(["InsufficientRole"]);
     const owners = "SELECT count(*)::int AS n FROM space_members WHERE space_id = $1 AND role = 'OWNER'";
     expect(await count(owners, [space.id])).toBe(1);
+  });
+});
+
+describe("leaving and removal (HU-E1-08, HU-E1-12)", () => {
+  const lifecycle: MemberLifecycleRepository = repo;
+  const at = new Date("2026-10-14T12:00:00Z");
+
+  it("sets leftAt on a current member of the given kind only, and keeps the row", async () => {
+    const juan = await newUser("Juan");
+    const space = await household(await newUser("Ana"));
+    const pedro = guest("Pedro");
+    const juanMember = registered(juan, "Juan");
+    await repo.addMember(space.id, pedro);
+    await repo.addMember(space.id, juanMember);
+    expect(await lifecycle.markLeft(space.id, pedro.id, "USER", at)).toBe(false);
+    expect(await lifecycle.markLeft(space.id, juanMember.id, "GUEST", at)).toBe(false);
+    expect(await lifecycle.markLeft(space.id, pedro.id, "GUEST", at)).toBe(true);
+    expect(await lifecycle.markLeft(space.id, juanMember.id, "USER", at)).toBe(true);
+    expect(await lifecycle.markLeft(space.id, juanMember.id, "USER", at)).toBe(false);
+    expect(await repo.listCurrent(space.id)).toEqual(space.members);
+    const { rows } = await pool.query(
+      "SELECT id, left_at FROM space_members WHERE id = ANY($1) ORDER BY display_name",
+      [[pedro.id, juanMember.id]],
+    );
+    expect(rows).toEqual([
+      { id: juanMember.id, left_at: at },
+      { id: pedro.id, left_at: at },
+    ]);
+  });
+
+  it("finds no membership and lists no space for a member who left", async () => {
+    const juan = await newUser("Juan");
+    const space = await household(await newUser("Ana"));
+    const member = registered(juan, "Juan");
+    await repo.addMember(space.id, member);
+    await lifecycle.markLeft(space.id, member.id, "USER", at);
+    expect(await repo.findMembership(space.id, juan)).toBeNull();
+    expect(await repo.listForUser(juan)).toEqual([]);
+  });
+
+  it("lets a user who left through markLeft join again with a new row, keeping the old one (HU-E1-07)", async () => {
+    const juan = await newUser("Juan");
+    const space = await household(await newUser("Ana"));
+    const before = registered(juan, "Juan");
+    await repo.addMember(space.id, before);
+    expect(await lifecycle.markLeft(space.id, before.id, "USER", at)).toBe(true);
+    const after = registered(juan, "Juan");
+    // Same user and same name: both partial unique indexes must have freed their slot.
+    expect(await repo.addMember(space.id, after)).toBe("added");
+    expect((await repo.listCurrent(space.id)).filter((m) => m.userId === juan)).toEqual([after]);
+    const current =
+      "SELECT count(*)::int AS n FROM space_members WHERE space_id = $1 AND user_id = $2 AND left_at IS NULL";
+    expect(await count(current, [space.id, juan])).toBe(1);
+    const old = await pool.query("SELECT left_at FROM space_members WHERE id = $1", [before.id]);
+    expect(old.rows).toEqual([{ left_at: at }]);
+  });
+
+  it("answers false for malformed ids and for members of another space", async () => {
+    const ana = await newUser("Ana");
+    const space = await household(ana);
+    const other = await household(ana);
+    expect(await lifecycle.markLeft(space.id, "not-a-uuid" as SpaceMemberId, "USER", at)).toBe(false);
+    expect(await lifecycle.markLeft(other.id, space.members[0]!.id, "USER", at)).toBe(false);
+    expect(await repo.listCurrent(space.id)).toEqual(space.members);
+  });
+
+  it("gives the outcomes of the in-memory twin the use-case tests rely on", async () => {
+    const space = await household(await newUser("Ana"));
+    const pedro = guest("Pedro");
+    await repo.addMember(space.id, pedro);
+    const twin = new InMemorySpaceStore();
+    twin.seed({ ...space, members: [...space.members, pedro] });
+    const steps = async (store: MemberLifecycleRepository) => [
+      await store.markLeft(space.id, pedro.id, "USER", at),
+      await store.markLeft(space.id, pedro.id, "GUEST", at),
+      await store.markLeft(space.id, pedro.id, "GUEST", at),
+      await store.markLeft(space.id, space.members[0]!.id, "USER", at),
+    ];
+    const outcomes = await steps(lifecycle);
+    expect(outcomes).toEqual([false, true, false, true]);
+    expect(await steps(twin)).toEqual(outcomes);
+  });
+});
+
+/**
+ * A balance port that answers 0 once `parties` callers arrived or `ms` passed. Without the row lock both
+ * leavers reach it together and both leave; with it, the second waits on the locked rows and never arrives.
+ */
+const rendezvous = (parties: number, ms: number) => {
+  let arrived = 0;
+  let release: () => void = () => undefined;
+  const everyone = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return async (): Promise<bigint> => {
+    arrived += 1;
+    if (arrived >= parties) release();
+    await Promise.race([everyone, new Promise((resolve) => setTimeout(resolve, ms))]);
+    return 0n;
+  };
+};
+
+describe("concurrent leaving (Review Focus 5)", () => {
+  it("keeps exactly one OWNER when two owners leave at the same time", async () => {
+    const ana = await newUser("Ana");
+    const juan = await newUser("Juan");
+    const space = await household(ana);
+    await repo.addMember(space.id, registered(juan, "Juan", "OWNER"));
+    const leave = createLeaveSpace({
+      access: createSpaceAccess(repo),
+      members: repo,
+      netBalance: rendezvous(2, 2_000),
+      clock: new FixedClock(new Date("2026-10-14T12:00:00Z")),
+      tm,
+    });
+    const results = await Promise.all([
+      leave({ spaceId: space.id, userId: ana }),
+      leave({ spaceId: space.id, userId: juan }),
+    ]);
+    // The second leaver reads the locked rows only after the first left, so it is the last OWNER.
+    expect(results.map((r) => (r.ok ? "ok" : r.error.code)).sort()).toEqual(["LastOwnerRequired", "ok"]);
+    const owners =
+      "SELECT count(*)::int AS n FROM space_members WHERE space_id = $1 AND role = 'OWNER' AND left_at IS NULL";
+    expect(await count(owners, [space.id])).toBe(1);
+  });
+});
+
+describe("claiming guest places (HU-E1-11, Review Focus 2)", () => {
+  const claims: GuestClaimRepository = repo;
+  const at = new Date("2026-10-14T12:00:00Z");
+  const claimedBy = (pedro: SpaceMember, userId: string, role: SpaceRole = "MEMBER"): SpaceMember => ({
+    ...pedro,
+    kind: "USER",
+    userId,
+    role,
+    contactEmail: null,
+  });
+
+  it("turns the current guest into the registered member, same id, and records claimedAt", async () => {
+    const pedroUser = await newUser("Pedro");
+    const space = await household(await newUser("Ana"));
+    const pedro = guest("Pedro", "pedro@example.com");
+    await repo.addMember(space.id, pedro);
+    expect(await claims.claimGuest(space.id, claimedBy(pedro, pedroUser), at)).toBe("claimed");
+    expect(await repo.listCurrent(space.id)).toEqual([...space.members, claimedBy(pedro, pedroUser)]);
+    const { rows } = await pool.query("SELECT claimed_at FROM space_members WHERE id = $1", [pedro.id]);
+    expect(rows[0].claimed_at).toEqual(at);
+    expect(await claims.spaceKindOf(space.id)).toBe("SHARED");
+  });
+
+  it("writes the role it is given, since the domain decides it (D16 makes a direct-space claimant OWNER)", async () => {
+    const lauraUser = await newUser("Laura");
+    const space = await household(await newUser("Ana"));
+    const laura = guest("Laura");
+    await repo.addMember(space.id, laura);
+    expect(await claims.claimGuest(space.id, claimedBy(laura, lauraUser, "OWNER"), at)).toBe("claimed");
+    expect((await repo.findMembership(space.id, lauraUser))?.role).toBe("OWNER");
+  });
+
+  it("answers notAGuest for removed, claimed or malformed guests and alreadyMember for a current user", async () => {
+    const ana = await newUser("Ana");
+    const juan = await newUser("Juan");
+    const pedroUser = await newUser("Pedro");
+    const space = await household(ana);
+    const pedro = guest("Pedro");
+    const removed = guest("Removed");
+    await repo.addMember(space.id, pedro);
+    await repo.addMember(space.id, removed);
+    await repo.markLeft(space.id, removed.id, "GUEST", at);
+    expect(await claims.claimGuest(space.id, claimedBy(removed, pedroUser), at)).toBe("notAGuest");
+    expect(await claims.claimGuest(space.id, claimedBy(pedro, ana), at)).toBe("alreadyMember");
+    expect(await claims.claimGuest(space.id, claimedBy(pedro, pedroUser), at)).toBe("claimed");
+    expect(await claims.claimGuest(space.id, claimedBy(pedro, juan), at)).toBe("notAGuest");
+    const malformed = { ...claimedBy(pedro, juan), id: "not-a-uuid" as SpaceMemberId };
+    expect(await claims.claimGuest(space.id, malformed, at)).toBe("notAGuest");
+    expect((await repo.listCurrent(space.id)).map((m) => [m.displayName, m.userId])).toEqual([
+      ["Ana", ana],
+      ["Pedro", pedroUser],
+    ]);
+  });
+
+  it("never claims a registered member or a guest of another space", async () => {
+    const ana = await newUser("Ana");
+    const juan = await newUser("Juan");
+    const space = await household(ana);
+    const other = await household(ana);
+    const pedro = guest("Pedro");
+    await repo.addMember(other.id, pedro);
+    const member = registered(juan, "Juan");
+    await repo.addMember(space.id, member);
+    expect(await claims.claimGuest(space.id, claimedBy(pedro, await newUser("Marta")), at)).toBe("notAGuest");
+    expect(await claims.claimGuest(space.id, claimedBy(member, await newUser("Marta")), at)).toBe(
+      "notAGuest",
+    );
+    expect(await repo.listCurrent(other.id)).toEqual([...other.members, pedro]);
+    expect(await repo.listCurrent(space.id)).toEqual([...space.members, member]);
+  });
+
+  it("reports alreadyMember before notAGuest when both hold, the order ClaimGuestPlace expects", async () => {
+    const ana = await newUser("Ana");
+    const space = await household(ana);
+    const removed = guest("Removed");
+    await repo.addMember(space.id, removed);
+    await repo.markLeft(space.id, removed.id, "GUEST", at);
+    // Ana is a current member and the guest is gone: her membership is what gets reported.
+    expect(await claims.claimGuest(space.id, claimedBy(removed, ana), at)).toBe("alreadyMember");
+    const malformed = { ...claimedBy(removed, ana), id: "not-a-uuid" as SpaceMemberId };
+    expect(await claims.claimGuest(space.id, malformed, at)).toBe("alreadyMember");
+  });
+
+  it("reads the kind of the space and refuses one that does not exist", async () => {
+    const personal = await personalSpaceFixture(db, pool);
+    expect(await claims.spaceKindOf(personal.spaceId as SpaceId)).toBe("PERSONAL");
+    await expect(claims.spaceKindOf(randomUUID() as SpaceId)).rejects.toThrow(/does not exist/);
+  });
+
+  it("gives the outcomes of the in-memory twin the use-case tests rely on", async () => {
+    const ana = await newUser("Ana");
+    const juan = await newUser("Juan");
+    const pedroUser = await newUser("Pedro");
+    const space = await household(ana);
+    const pedro = guest("Pedro");
+    await repo.addMember(space.id, pedro);
+    const twin = new InMemorySpaceStore();
+    twin.seed({ ...space, members: [...space.members, pedro] });
+    const malformed = (userId: string) => ({
+      ...claimedBy(pedro, userId),
+      id: "not-a-uuid" as SpaceMemberId,
+    });
+    const steps = async (store: GuestClaimRepository) => [
+      await store.claimGuest(space.id, claimedBy(pedro, ana), at),
+      await store.claimGuest(space.id, claimedBy(pedro, pedroUser), at),
+      // No longer a guest and already a member: the membership is reported first.
+      await store.claimGuest(space.id, claimedBy(pedro, pedroUser), at),
+      await store.claimGuest(space.id, claimedBy(pedro, juan), at),
+      await store.claimGuest(space.id, malformed(juan), at),
+      await store.claimGuest(space.id, malformed(ana), at),
+    ];
+    const outcomes = await steps(claims);
+    expect(outcomes).toEqual([
+      "alreadyMember",
+      "claimed",
+      "alreadyMember",
+      "notAGuest",
+      "notAGuest",
+      "alreadyMember",
+    ]);
+    expect(await steps(twin)).toEqual(outcomes);
+    expect(await twin.spaceKindOf(space.id)).toBe(await claims.spaceKindOf(space.id));
   });
 });

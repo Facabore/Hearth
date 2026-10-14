@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { can, rolesFor, SPACE_ACTIONS, type SpaceAction } from "./permissions";
+import { can, isReadOnly, rolesFor, SPACE_ACTIONS, type SpaceAction } from "./permissions";
 import type { SpaceRole } from "./space";
 
 describe("permission matrix (HU-E1-05)", () => {
@@ -18,6 +18,9 @@ describe("permission matrix (HU-E1-05)", () => {
     ["Sofi adds a guest", "VIEWER", "guest.add", false],
     ["Luis records an expense paid by Pedro", "MEMBER", "money.record", true],
     ["Sofi records a settlement for Pedro", "VIEWER", "money.record", false],
+    ["Sofi leaves the space", "VIEWER", "space.leave", true],
+    ["Luis removes the guest Pedro", "MEMBER", "guest.remove", true],
+    ["Sofi removes the guest Pedro", "VIEWER", "guest.remove", false],
   ])("%s", (_scenario, role, action, allowed) => {
     expect(can(role, action)).toBe(allowed);
   });
@@ -30,9 +33,13 @@ describe("permission matrix (HU-E1-05)", () => {
     for (const action of SPACE_ACTIONS) expect(can(null, action)).toBe(false);
   });
 
-  it("lets owners do everything and viewers only read", () => {
+  it("lets owners do everything and viewers only read or leave (HU-E1-08)", () => {
     for (const action of SPACE_ACTIONS) expect(can("OWNER", action)).toBe(true);
-    expect(SPACE_ACTIONS.filter((action) => can("VIEWER", action))).toEqual(["space.read"]);
+    expect(SPACE_ACTIONS.filter((action) => can("VIEWER", action))).toEqual(["space.read", "space.leave"]);
+  });
+
+  it("reads only with space.read, the one action an archived space still allows (HU-E1-09)", () => {
+    expect(SPACE_ACTIONS.filter(isReadOnly)).toEqual(["space.read"]);
   });
 
   it("keeps shared fund management with owners and admins (HU-E2-02)", () => {

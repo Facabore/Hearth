@@ -81,7 +81,7 @@ export const categoriesPaths: ZodOpenApiPathsObject = {
         ...problems({
           ...managed,
           "404": "SpaceNotFound, CategoryGroupNotFound",
-          "409": "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived",
+          "409": "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived, SpaceArchived",
           "422": "ValidationFailed, InvalidCategoryName",
         }),
       },
@@ -99,7 +99,7 @@ export const categoriesPaths: ZodOpenApiPathsObject = {
         ...problems({
           ...managed,
           "404": "SpaceNotFound, CategoryNotFound, CategoryGroupNotFound",
-          "409": "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived",
+          "409": "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived, SpaceArchived",
           "422": "ValidationFailed, InvalidCategoryName",
         }),
       },
@@ -111,7 +111,11 @@ export const categoriesPaths: ZodOpenApiPathsObject = {
       requestParams: { path: CategoryPath },
       responses: {
         "204": { description: "Deleted" },
-        ...problems({ ...managed, "404": "SpaceNotFound, CategoryNotFound", "409": "CategoryInUse" }),
+        ...problems({
+          ...managed,
+          "404": "SpaceNotFound, CategoryNotFound",
+          "409": "CategoryInUse, SpaceArchived",
+        }),
       },
     },
   },
@@ -127,7 +131,7 @@ export const categoriesPaths: ZodOpenApiPathsObject = {
         ...problems({
           ...managed,
           "404": "SpaceNotFound",
-          "409": "CategoryGroupNameTaken",
+          "409": "CategoryGroupNameTaken, SpaceArchived",
           "422": "ValidationFailed, InvalidCategoryName",
         }),
       },
@@ -145,7 +149,7 @@ export const categoriesPaths: ZodOpenApiPathsObject = {
         ...problems({
           ...managed,
           "404": "SpaceNotFound, CategoryGroupNotFound",
-          "409": "CategoryGroupNameTaken",
+          "409": "CategoryGroupNameTaken, SpaceArchived",
           "422": "ValidationFailed, InvalidCategoryName",
         }),
       },
@@ -159,7 +163,7 @@ export const categoriesPaths: ZodOpenApiPathsObject = {
       requestParams: { path: CategoryPath },
       responses: {
         "200": { description: "The archived category", content: jsonContent(CategorySchema) },
-        ...problems({ ...managed, "404": "SpaceNotFound, CategoryNotFound" }),
+        ...problems({ ...managed, "404": "SpaceNotFound, CategoryNotFound", "409": "SpaceArchived" }),
       },
     },
   },
@@ -171,7 +175,11 @@ export const categoriesPaths: ZodOpenApiPathsObject = {
       requestParams: { path: CategoryPath },
       responses: {
         "200": { description: "The restored category", content: jsonContent(CategorySchema) },
-        ...problems({ ...managed, "404": "SpaceNotFound, CategoryNotFound", "409": "CategoryGroupArchived" }),
+        ...problems({
+          ...managed,
+          "404": "SpaceNotFound, CategoryNotFound",
+          "409": "CategoryGroupArchived, SpaceArchived",
+        }),
       },
     },
   },
@@ -183,7 +191,7 @@ export const categoriesPaths: ZodOpenApiPathsObject = {
       requestParams: { path: GroupPath },
       responses: {
         "200": { description: "The archived group", content: jsonContent(CategoryGroupSummarySchema) },
-        ...problems({ ...managed, "404": "SpaceNotFound, CategoryGroupNotFound" }),
+        ...problems({ ...managed, "404": "SpaceNotFound, CategoryGroupNotFound", "409": "SpaceArchived" }),
       },
     },
   },

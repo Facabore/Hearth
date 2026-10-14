@@ -1,6 +1,9 @@
 import {
   createSpaceAccess,
   type AddMemberOutcome,
+  type MemberInSpace,
+  type ClaimOutcome,
+  type ClaimsDeps,
   type EmailSender,
   type Invitation,
   type InvitationEmail,
@@ -10,6 +13,7 @@ import {
   type RegisteredUsers,
   type Space,
   type SpaceId,
+  type SpaceKind,
   type SpaceMember,
   type SpaceMemberId,
   type SpaceMemberRepository,
@@ -21,12 +25,21 @@ import {
   type SpaceSummary,
 } from "@/modules/spaces/application";
 import { createPersonalSpace } from "@/modules/spaces/domain/space";
+import { directPairKey } from "@/modules/spaces/domain/direct-space";
 import type { Clock } from "@/shared/kernel";
 import { memoryTm, sequentialIds } from "./fakes";
 
 /** Spaces with their current members; implements every spaces port the use cases need. */
 export class InMemorySpaceStore implements SpaceRepository, SpaceSettingsRepository, SpaceMemberRepository {
   spaces: Space[] = [];
+  /** Ids of archived spaces (HU-E1-09); PostgreSQL stores archived_at on the space. */
+  readonly archived = new Set<string>();
+  /** Pair keys, like spaces.direct_pair_key: stored when a direct space was added or adopted its pair's key. */
+  private readonly pairKeys = new Map<string, string>();
+  /** Claims applied, in order (PostgreSQL stores claimedAt on the member row). */
+  readonly claimed: { spaceId: string; memberId: string; claimedAt: Date }[] = [];
+  /** Members who left or were removed, in order (PostgreSQL keeps their rows, with left_at). */
+  readonly left: { spaceId: string; memberId: string; leftAt: Date }[] = [];
   /** Space ids whose members were read with `lock: true`, in order. */
   readonly locked: string[] = [];
 
@@ -38,21 +51,22 @@ export class InMemorySpaceStore implements SpaceRepository, SpaceSettingsReposit
     return this.spaces.some((s) => s.kind === "PERSONAL" && s.personalOwnerUserId === userId);
   }
 
-  async listForUser(userId: string): Promise<SpaceSummary[]> {
+  async listForUser(
+    userId: string,
+    options: { readonly includeArchived?: boolean } = {},
+  ): Promise<SpaceSummary[]> {
     return this.spaces.flatMap((s) => {
       const me = s.members.find((m) => m.userId === userId);
-      return me
-        ? [
-            {
-              id: s.id,
-              name: s.name,
-              kind: s.kind,
-              currency: s.currency,
-              periodPolicy: s.periodPolicy,
-              role: me.role,
-            },
-          ]
-        : [];
+      if (!me || (this.archived.has(s.id) && options.includeArchived !== true)) return [];
+      const summary: SpaceSummary = {
+        id: s.id,
+        name: s.name,
+        kind: s.kind,
+        currency: s.currency,
+        periodPolicy: s.periodPolicy,
+        role: me.role,
+      };
+      return [summary];
     });
   }
 
@@ -69,6 +83,7 @@ export class InMemorySpaceStore implements SpaceRepository, SpaceSettingsReposit
       memberId: me.id,
       userId,
       role: me.role,
+      archived: this.archived.has(space.id),
     };
   }
 
@@ -95,6 +110,78 @@ export class InMemorySpaceStore implements SpaceRepository, SpaceSettingsReposit
       ...s,
       members: s.members.map((m) => (m.id === memberId ? { ...m, role } : m)),
     }));
+  }
+
+  /** MemberLifecycleRepository: like DrizzleSpaceRepository.markLeft, only a current member of that kind. */
+  async markLeft(
+    spaceId: string,
+    memberId: string,
+    kind: SpaceMember["kind"],
+    leftAt: Date,
+  ): Promise<boolean> {
+    if (!this.members(spaceId).some((m) => m.id === memberId && m.kind === kind)) return false;
+    this.update(spaceId, (s) => ({ ...s, members: s.members.filter((m) => m.id !== memberId) }));
+    this.left.push({ spaceId, memberId, leftAt });
+    return true;
+  }
+
+  /** GuestClaimRepository, like DrizzleSpaceRepository.spaceKindOf. */
+  async spaceKindOf(spaceId: string): Promise<SpaceKind> {
+    const space = this.spaces.find((s) => s.id === spaceId);
+    if (!space) throw new Error(`space ${spaceId} does not exist`);
+    return space.kind;
+  }
+
+  /** GuestClaimRepository, like DrizzleSpaceRepository.claimGuest (pinned against it by its integration test). */
+  async claimGuest(spaceId: string, claimed: SpaceMember, claimedAt: Date): Promise<ClaimOutcome> {
+    const current = this.members(spaceId);
+    if (current.some((m) => m.userId !== null && m.userId === claimed.userId)) return "alreadyMember";
+    if (!current.some((m) => m.id === claimed.id && m.kind === "GUEST")) return "notAGuest";
+    this.update(spaceId, (s) => ({
+      ...s,
+      members: s.members.map((m) => (m.id === claimed.id ? claimed : m)),
+    }));
+    this.claimed.push({ spaceId, memberId: claimed.id, claimedAt });
+    return "claimed";
+  }
+
+  /** DirectSpaceRepository, like DrizzleSpaceRepository.findCurrentMember. */
+  async findCurrentMember(memberId: string): Promise<MemberInSpace | null> {
+    for (const space of this.spaces) {
+      const member = space.members.find((m) => m.id === memberId);
+      if (member) return { spaceId: space.id, spaceKind: space.kind, member };
+    }
+    return null;
+  }
+
+  /** DirectSpaceRepository, like DrizzleSpaceRepository.findByPairKey: an archived space no longer holds its key. */
+  async findByPairKey(pairKey: string): Promise<SpaceId | null> {
+    const found = [...this.pairKeys].find(([id, key]) => key === pairKey && !this.archived.has(id));
+    return found ? (found[0] as SpaceId) : null;
+  }
+
+  /** GuestClaimRepository, like DrizzleSpaceRepository.adoptPairKey. */
+  async adoptPairKey(spaceId: string, pairKey: string): Promise<boolean> {
+    const space = this.spaces.find((s) => s.id === spaceId);
+    if (space?.kind !== "DIRECT" || this.archived.has(spaceId) || this.pairKeys.has(spaceId)) return false;
+    if ((await this.findByPairKey(pairKey)) !== null) return false;
+    this.pairKeys.set(spaceId, pairKey);
+    return true;
+  }
+
+  /** DirectSpaceRepository, like DrizzleSpaceRepository.addDirect: the pair's active space wins. */
+  async addDirect(space: Space): Promise<SpaceId> {
+    const key = directPairKey(space);
+    const holder = key === null ? null : await this.findByPairKey(key);
+    if (holder !== null) return holder;
+    this.spaces.push(space);
+    if (key !== null) this.pairKeys.set(space.id, key);
+    return space.id;
+  }
+
+  /** SpaceArchiveRepository, like DrizzleSpaceRepository.archive. */
+  async archive(spaceId: string): Promise<void> {
+    this.archived.add(spaceId);
   }
 
   /** Test setup: a space as earlier use cases would have left it. */
@@ -163,6 +250,15 @@ export class InMemoryInvitations implements InvitationRepository {
 
   async save(invitation: Invitation) {
     this.rows = this.rows.map((i) => (i.id === invitation.id ? invitation : i));
+  }
+
+  /** ClaimLinkRepository, like DrizzleInvitationRepository.revokePendingClaims. */
+  async revokePendingClaims(spaceId: string, guestMemberId: string, revokedAt: Date) {
+    this.rows = this.rows.map((i): Invitation =>
+      i.spaceId === spaceId && i.guestMemberId === guestMemberId && i.status === "PENDING"
+        ? { ...i, status: "REVOKED", revokedAt }
+        : i,
+    );
   }
 
   private lock(found: Invitation | undefined): Invitation | null {
@@ -240,17 +336,32 @@ export const invitationsWorld = (
   const invitations = new InMemoryInvitations();
   const emailSender = options.emailSender ?? new RecordingEmailSender();
   const clock = new SettableClock(new Date("2026-10-12T12:00:00Z"));
+  const tokens = fakeTokens();
+  const ids = sequentialIds("id");
   const deps: InvitationsDeps = {
     access: createSpaceAccess(store),
     members: store,
+    spaces: store,
     invitations,
-    tokens: fakeTokens(),
+    tokens,
     emailSender,
     users: registeredUsers(options.users ?? {}),
     invitationUrl: (token) => `https://hearth.test/invitations/${token}`,
-    ids: sequentialIds("id"),
+    ids,
     clock,
     tm: memoryTm,
   };
-  return { store, invitations, emailSender, clock, deps };
+  // HU-E1-11: claim links share the store, tokens, ids and clock of the invitations above.
+  const claims: ClaimsDeps = {
+    access: deps.access,
+    members: store,
+    claims: store,
+    invitations,
+    tokens,
+    claimUrl: (token) => `https://hearth.test/claims/${token}`,
+    ids,
+    clock,
+    tm: memoryTm,
+  };
+  return { store, invitations, emailSender, clock, deps, claims };
 };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { problemResponse, statusForCode } from "./problem";
+import { problemResponse, publicDetailsOf, statusForCode } from "./problem";
 
 describe("statusForCode", () => {
   it.each([
@@ -38,9 +38,16 @@ describe("statusForCode", () => {
     ["InvitationAlreadyUsed", 409],
     ["LastOwnerRequired", 409],
     ["GuestHasNoRole", 409],
+    ["NotAGuest", 409],
+    ["GuestAlreadyClaimed", 409],
     ["MemberNameTaken", 409],
     ["PersonalSpaceAlreadyExists", 409],
     ["PersonalSpaceNotShareable", 409],
+    ["SpaceArchived", 409],
+    ["PersonalSpaceNotArchivable", 409],
+    ["DirectSpaceIsFull", 409],
+    ["DirectSpaceMembersFixed", 409],
+    ["InvalidDirectCounterpart", 422],
     ["SameAccountTransfer", 409],
     ["AccountArchived", 409],
     ["ValidationFailed", 422],
@@ -80,5 +87,39 @@ describe("problemResponse", () => {
       status: 422,
       errors: [{ path: "amount", message: "Required" }],
     });
+  });
+});
+
+describe("public details (HU-E1-08)", () => {
+  it("adds the outstanding amount of OutstandingBalance as an extension member, and no other detail", async () => {
+    const details = publicDetailsOf("OutstandingBalance", {
+      outstanding: { amount: "15000000", currency: "COP" },
+      memberId: "m-1",
+    });
+    expect(details).toEqual({ outstanding: { amount: "15000000", currency: "COP" } });
+    expect(await problemResponse("OutstandingBalance", "req-3", undefined, details).json()).toEqual({
+      type: "urn:hearth:problem:OutstandingBalance",
+      title: "Conflict",
+      status: 409,
+      code: "OutstandingBalance",
+      requestId: "req-3",
+      outstanding: { amount: "15000000", currency: "COP" },
+    });
+  });
+
+  it("keeps the details of every other code private", () => {
+    expect(publicDetailsOf("InvalidSplit", { reason: "duplicatePayer" })).toEqual({});
+    expect(publicDetailsOf("OutstandingBalance")).toEqual({});
+  });
+
+  it("picks only own, defined details: never an inherited key or an undefined value", () => {
+    const inherited = Object.create({ outstanding: { amount: "1", currency: "COP" } });
+    expect(Object.keys(publicDetailsOf("OutstandingBalance", inherited))).toEqual([]);
+    expect(Object.keys(publicDetailsOf("OutstandingBalance", { outstanding: undefined }))).toEqual([]);
+  });
+
+  it("never lets an extension member replace a standard one", async () => {
+    const response = problemResponse("SpaceNotFound", "req-4", undefined, { code: "Other", status: 200 });
+    expect(await response.json()).toMatchObject({ code: "SpaceNotFound", status: 404 });
   });
 });

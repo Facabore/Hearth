@@ -1,5 +1,6 @@
 import { POST as acceptInvitation } from "@/app/api/v1/invitations/[token]/accept/route";
 import { POST as createInvitation } from "@/app/api/v1/spaces/[spaceId]/invitations/route";
+import { POST as createClaimLink } from "@/app/api/v1/spaces/[spaceId]/guests/[memberId]/claim-links/route";
 import { POST as createSpace } from "@/app/api/v1/spaces/route";
 import { call, type TestUser } from "./app";
 
@@ -47,4 +48,24 @@ export const joinAs = async (
     params: { token },
   });
   if (response.status !== 200) throw new Error(`joining failed with status ${response.status}`);
+};
+
+/** HU-E1-11: `owner` creates a claim link for the guest `guestId` over HTTP; returns its id and token. */
+export const claimLink = async (
+  owner: TestUser,
+  spaceId: string,
+  guestId: string,
+): Promise<{ id: string; token: string }> => {
+  const response = await call(
+    createClaimLink,
+    "POST",
+    `/api/v1/spaces/${spaceId}/guests/${guestId}/claim-links`,
+    {
+      user: owner,
+      params: { spaceId, memberId: guestId },
+    },
+  );
+  if (response.status !== 201) throw new Error(`claim link failed with status ${response.status}`);
+  const { invitation, url } = (await response.json()) as { invitation: { id: string }; url: string };
+  return { id: invitation.id, token: tokenOf(url) };
 };

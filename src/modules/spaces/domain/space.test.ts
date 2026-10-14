@@ -4,7 +4,9 @@ import {
   checkedPeriodPolicy,
   createPersonalSpace,
   createSharedSpace,
+  ensureArchivable,
   ensureCanAddMember,
+  ensureMembersCanChange,
   spaceName,
 } from "./space";
 
@@ -107,5 +109,31 @@ describe("shared space (HU-E1-04)", () => {
 
   it("can receive members", () => {
     expect(ensureCanAddMember({ kind: "SHARED" })).toEqual({ ok: true, value: undefined });
+  });
+});
+
+describe("membership changes (HU-E1-08, HU-E1-12, D16)", () => {
+  it("happen in shared spaces only", () => {
+    expect(ensureMembersCanChange({ kind: "SHARED" })).toEqual({ ok: true, value: undefined });
+    const personal = ensureMembersCanChange({ kind: "PERSONAL" });
+    expect(!personal.ok && personal.error.code).toBe("PersonalSpaceNotShareable");
+    const direct = ensureMembersCanChange({ kind: "DIRECT" });
+    expect(!direct.ok && direct.error.code).toBe("DirectSpaceMembersFixed");
+  });
+});
+
+describe("direct space (HU-E1-13, D16)", () => {
+  it("cannot get a third member", () => {
+    const result = ensureCanAddMember({ kind: "DIRECT" });
+    expect(!result.ok && result.error.code).toBe("DirectSpaceIsFull");
+  });
+});
+
+describe("archiving (HU-E1-09)", () => {
+  it("is for shared and direct spaces, never personal ones", () => {
+    expect(ensureArchivable({ kind: "SHARED" })).toEqual({ ok: true, value: undefined });
+    expect(ensureArchivable({ kind: "DIRECT" })).toEqual({ ok: true, value: undefined });
+    const personal = ensureArchivable({ kind: "PERSONAL" });
+    expect(!personal.ok && personal.error.code).toBe("PersonalSpaceNotArchivable");
   });
 });

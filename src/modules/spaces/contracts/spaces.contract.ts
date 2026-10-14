@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { ZodOpenApiPathsObject } from "zod-openapi";
-import { jsonContent, PeriodSchema, problemContent, problems, securedByUser } from "@/shared/http/contracts";
+import { jsonContent, PeriodSchema, problems, securedByUser } from "@/shared/http/contracts";
 import type { CreatedInvitation, InvitationView, SpaceMember } from "../application";
 
 export const PeriodPolicySchema = z.discriminatedUnion("kind", [
@@ -20,6 +20,9 @@ export const SpaceSummarySchema = z.object({
   periodPolicy: PeriodPolicySchema,
   role: z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"]).nullable(),
 });
+
+/** HU-E1-09, the M1 convention: `?archived=true` lists the archived spaces too, beside the active ones. */
+export const ListSpacesQuerySchema = z.object({ archived: z.enum(["true", "false"]).optional() });
 
 export const ListSpacesResponseSchema = z.object({ items: z.array(SpaceSummarySchema) });
 
@@ -98,7 +101,7 @@ export const CreateInvitationBodySchema = z.discriminatedUnion("kind", [
 export const InvitationSchema = z.object({
   id: z.string(),
   spaceId: z.string(),
-  kind: z.enum(["EMAIL", "LINK"]),
+  kind: z.enum(["EMAIL", "LINK", "CLAIM"]),
   email: z.string().nullable(),
   role: z.enum(["ADMIN", "MEMBER", "VIEWER"]),
   status: z.enum(["PENDING", "ACCEPTED", "REVOKED", "EXPIRED"]),
@@ -139,14 +142,16 @@ export const spacesPaths: ZodOpenApiPathsObject = {
   "/api/v1/spaces": {
     get: {
       operationId: "listMySpaces",
-      summary: "Spaces the authenticated user belongs to",
+      summary:
+        "Spaces the authenticated user belongs to: the active ones, and the archived ones too with archived=true",
       security: [{ cookieAuth: [] }, { bearerAuth: [] }],
+      requestParams: { query: ListSpacesQuerySchema },
       responses: {
         "200": {
           description: "The user's spaces",
           content: { "application/json": { schema: ListSpacesResponseSchema } },
         },
-        "401": { description: "Unauthenticated", content: problemContent },
+        ...problems({ "401": "Unauthenticated", "422": "ValidationFailed" }),
       },
     },
     post: {
@@ -188,7 +193,7 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           "401": "Unauthenticated",
           "403": "InsufficientRole",
           "404": "SpaceNotFound",
-          "409": "SpaceCurrencyLocked",
+          "409": "SpaceCurrencyLocked, SpaceArchived",
           "422": "ValidationFailed, InvalidSpaceName, InvalidPeriodPolicy, UnknownCurrency",
         }),
       },
@@ -239,7 +244,7 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           "401": "Unauthenticated",
           "403": "InsufficientRole",
           "404": "SpaceNotFound",
-          "409": "AlreadyMember, PersonalSpaceNotShareable",
+          "409": "AlreadyMember, PersonalSpaceNotShareable, DirectSpaceIsFull, SpaceArchived",
           "422": "ValidationFailed, InvalidInvitationRole, InvalidEmail",
         }),
       },
@@ -257,7 +262,7 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           "401": "Unauthenticated",
           "403": "InsufficientRole",
           "404": "SpaceNotFound, InvitationNotFound",
-          "409": "InvitationAlreadyUsed",
+          "409": "InvitationAlreadyUsed, SpaceArchived",
         }),
       },
     },
@@ -275,7 +280,7 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           "403": "InvitationEmailMismatch",
           "404": "InvitationNotFound, SpaceNotFound",
           "409":
-            "InvitationExpired, InvitationRevoked, InvitationAlreadyUsed, AlreadyMember, MemberNameTaken",
+            "InvitationExpired, InvitationRevoked, InvitationAlreadyUsed, AlreadyMember, MemberNameTaken, SpaceArchived",
         }),
       },
     },
@@ -293,7 +298,7 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           "401": "Unauthenticated",
           "403": "InsufficientRole",
           "404": "SpaceNotFound",
-          "409": "MemberNameTaken, PersonalSpaceNotShareable",
+          "409": "MemberNameTaken, PersonalSpaceNotShareable, DirectSpaceIsFull, SpaceArchived",
           "422": "ValidationFailed, InvalidMemberName",
         }),
       },
@@ -312,8 +317,102 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           "401": "Unauthenticated",
           "403": "InsufficientRole",
           "404": "SpaceNotFound, MemberNotFound",
-          "409": "LastOwnerRequired, GuestHasNoRole",
+          "409":
+            "LastOwnerRequired, GuestHasNoRole, PersonalSpaceNotShareable, DirectSpaceMembersFixed, SpaceArchived",
           "422": "ValidationFailed",
+        }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/leave": {
+    post: {
+      operationId: "leaveSpace",
+      summary: "Leave a shared space once your balance is zero; your past movements keep your name",
+      ...securedByUser,
+      requestParams: { path: SpacePath },
+      responses: {
+        "204": { description: "Left: the space no longer lists you as a current member" },
+        ...problems({
+          "401": "Unauthenticated",
+          "404": "SpaceNotFound, MemberNotFound",
+          "409":
+            "OutstandingBalance (with the outstanding amount), LastOwnerRequired, PersonalSpaceNotShareable, DirectSpaceMembersFixed, SpaceArchived",
+        }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/guests/{memberId}/claim-links": {
+    post: {
+      operationId: "createGuestClaimLink",
+      summary: "Create a single-use link with which someone takes over a guest's place by signing in",
+      ...securedByUser,
+      requestParams: { path: MemberPath },
+      responses: {
+        "201": {
+          description: "The pending claim link and its URL, valid 7 days; no email is sent",
+          content: jsonContent(CreatedInvitationSchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound, MemberNotFound",
+          "409": "NotAGuest, SpaceArchived",
+        }),
+      },
+    },
+  },
+  "/api/v1/claims/{token}/accept": {
+    post: {
+      operationId: "claimGuestPlace",
+      summary: "Take over the claim link's guest as the signed-in user: the same member, now registered",
+      ...securedByUser,
+      requestParams: { path: z.object({ token: z.string() }) },
+      responses: {
+        "200": {
+          description: "The space, as the new registered member sees it",
+          content: jsonContent(SpaceSummarySchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "404": "InvitationNotFound, MemberNotFound",
+          "409": "InvitationExpired, InvitationRevoked, GuestAlreadyClaimed, AlreadyMember, SpaceArchived",
+        }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/guests/{memberId}": {
+    delete: {
+      operationId: "removeGuestMember",
+      summary:
+        "Remove a guest whose balance is zero; history keeps the guest and their claim links are revoked",
+      ...securedByUser,
+      requestParams: { path: MemberPath },
+      responses: {
+        "204": { description: "Removed: the guest is no longer a current member and the name is free" },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound, MemberNotFound",
+          "409":
+            "OutstandingBalance (with the outstanding amount), NotAGuest, PersonalSpaceNotShareable, DirectSpaceMembersFixed, SpaceArchived",
+        }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/archive": {
+    post: {
+      operationId: "archiveSpace",
+      summary: "Archive a settled shared or direct space (OWNER only); it then only reads",
+      ...securedByUser,
+      requestParams: { path: SpacePath },
+      responses: {
+        "204": { description: "Archived: listed with ?archived=true; every write answers SpaceArchived" },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound",
+          "409":
+            "OutstandingBalance (with the outstanding amount), PersonalSpaceNotArchivable, SpaceArchived",
         }),
       },
     },

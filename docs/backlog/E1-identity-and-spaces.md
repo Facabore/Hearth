@@ -371,6 +371,7 @@ Feature: Leave a space
 **Technical notes:**
 - Use case: `LeaveSpace`; reads net balance through the `balances` public query `GetMemberNetBalance`. Endpoint: `POST /api/v1/spaces/{spaceId}/leave`.
 - Former members cannot be selected as payer or participant on new transactions.
+- A direct space (D16) keeps its two members: leaving it, removing its guest or changing a role in it answers `DirectSpaceMembersFixed` (409); a direct space is retired by archiving it (HU-E1-09).
 - The net balance includes debts with guests, who count like any other member; guests never leave themselves but are removed by a member (HU-E1-12).
 
 ---
@@ -629,3 +630,4 @@ Feature: Direct spaces
 - Invariant: a DIRECT space has exactly two current members; `AddGuestMember` and `CreateInvitation` reject a third with `DirectSpaceIsFull`. Both registered members hold the role OWNER; a guest has no role.
 - Reuse key: one DIRECT space per unordered pair of registered users (unique index); with a guest counterpart, the person is identified by the existing direct space's guest, so choosing that guest reuses it. A registered counterpart is picked among people the user already shares a space with, so no user lookup by email is exposed.
 - Currency comes from the creator's personal space; default categories are seeded (HU-E3-01).
+- A counterpart that is the requester, or a guest of a shared space (guests exist only in their space, D15), answers `InvalidDirectCounterpart` (422); someone the requester shares no space with, or an unknown member, answers `MemberNotFound` (404). A guest who claims a direct-space place becomes OWNER, and the claimed space becomes the pair's direct space when the pair has no other active one (D16).

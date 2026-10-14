@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
-import { invitationsWorld, RecordingEmailSender } from "../../../../tests/support/in-memory-spaces";
+import {
+  HOUSEHOLD_MEMBERS,
+  householdSpace,
+  InMemorySpaceStore,
+  invitationsWorld,
+  RecordingEmailSender,
+} from "../../../../tests/support/in-memory-spaces";
+import type { SpaceId } from "../domain/space";
 import type { EmailSender } from "./invitation-ports";
 import { createCreateInvitation } from "./create-invitation";
 import { createRevokeInvitation } from "./revoke-invitation";
@@ -195,5 +202,26 @@ describe("RevokeInvitation (HU-E1-06)", () => {
   it("lets only owners and admins revoke", async () => {
     const { revoke, id } = await pending();
     expect(codeOf(await revoke({ ...as("luis"), invitationId: id }))).toBe("InsufficientRole");
+  });
+});
+
+describe("CreateInvitation in a direct space (HU-E1-13, D16)", () => {
+  it("refuses a third member", async () => {
+    const store = new InMemorySpaceStore();
+    store.seed({
+      ...householdSpace([HOUSEHOLD_MEMBERS[0]!, HOUSEHOLD_MEMBERS[4]!]),
+      id: "space-direct" as SpaceId,
+      kind: "DIRECT",
+      name: "Ana & Pedro",
+    });
+    const { deps, invitations } = invitationsWorld({ store });
+    const link = {
+      spaceId: "space-direct",
+      userId: "u-ana",
+      role: "MEMBER" as const,
+      target: { kind: "LINK" as const },
+    };
+    expect(codeOf(await createCreateInvitation(deps)(link))).toBe("DirectSpaceIsFull");
+    expect(invitations.rows).toEqual([]);
   });
 });
