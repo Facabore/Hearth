@@ -63,3 +63,9 @@ export {
   type EditTransactionInput,
 } from "./edit-transaction";
 export { createListAudit, type ListAudit } from "./list-audit";
+export {
+  createRecordExpenseByCategoryKey,
+  type CategoryKeyReader,
+  type RecordExpenseByCategoryKey,
+  type RecordExpenseByCategoryKeyInput,
+} from "./record-expense-by-category-key";
