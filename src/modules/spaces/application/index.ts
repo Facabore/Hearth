@@ -69,3 +69,6 @@ export {
   type AcceptInvitation,
   type AcceptInvitationInput,
 } from "./accept-invitation";
+export type { MemberLifecycleRepository } from "./space-member-repository";
+export type { LifecycleDeps, MemberNetBalance } from "./lifecycle-deps";
+export { createLeaveSpace, type LeaveSpace } from "./leave-space";

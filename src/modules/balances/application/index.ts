@@ -6,3 +6,4 @@ export {
   type GetSpaceBalances,
   type SpaceBalances,
 } from "./get-space-balances";
+export { createGetMemberNetBalance, type GetMemberNetBalance } from "./get-member-net-balance";

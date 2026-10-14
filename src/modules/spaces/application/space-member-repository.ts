@@ -13,3 +13,17 @@ export interface SpaceMemberRepository {
   addMember(spaceId: SpaceId, member: SpaceMember): Promise<AddMemberOutcome>;
   updateRole(spaceId: SpaceId, memberId: SpaceMemberId, role: SpaceRole): Promise<void>;
 }
+
+/** HU-E1-08, HU-E1-12: members leave or are removed by setting leftAt; their rows stay for history (D15). */
+export interface MemberLifecycleRepository {
+  /**
+   * Sets leftAt on the current member of that kind; false when none matched (left, removed or claimed
+   * meanwhile, or a malformed id), so the database decides races.
+   */
+  markLeft(
+    spaceId: SpaceId,
+    memberId: SpaceMemberId,
+    kind: SpaceMember["kind"],
+    leftAt: Date,
+  ): Promise<boolean>;
+}

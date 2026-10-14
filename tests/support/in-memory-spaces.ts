@@ -27,6 +27,8 @@ import { memoryTm, sequentialIds } from "./fakes";
 /** Spaces with their current members; implements every spaces port the use cases need. */
 export class InMemorySpaceStore implements SpaceRepository, SpaceSettingsRepository, SpaceMemberRepository {
   spaces: Space[] = [];
+  /** Members who left or were removed, in order (PostgreSQL keeps their rows, with left_at). */
+  readonly left: { spaceId: string; memberId: string; leftAt: Date }[] = [];
   /** Space ids whose members were read with `lock: true`, in order. */
   readonly locked: string[] = [];
 
@@ -95,6 +97,19 @@ export class InMemorySpaceStore implements SpaceRepository, SpaceSettingsReposit
       ...s,
       members: s.members.map((m) => (m.id === memberId ? { ...m, role } : m)),
     }));
+  }
+
+  /** MemberLifecycleRepository: like DrizzleSpaceRepository.markLeft, only a current member of that kind. */
+  async markLeft(
+    spaceId: string,
+    memberId: string,
+    kind: SpaceMember["kind"],
+    leftAt: Date,
+  ): Promise<boolean> {
+    if (!this.members(spaceId).some((m) => m.id === memberId && m.kind === kind)) return false;
+    this.update(spaceId, (s) => ({ ...s, members: s.members.filter((m) => m.id !== memberId) }));
+    this.left.push({ spaceId, memberId, leftAt });
+    return true;
   }
 
   /** Test setup: a space as earlier use cases would have left it. */
