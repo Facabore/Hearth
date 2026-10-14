@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { can, rolesFor, SPACE_ACTIONS, type SpaceAction } from "./permissions";
+import { can, isReadOnly, rolesFor, SPACE_ACTIONS, type SpaceAction } from "./permissions";
 import type { SpaceRole } from "./space";
 
 describe("permission matrix (HU-E1-05)", () => {
@@ -36,6 +36,10 @@ describe("permission matrix (HU-E1-05)", () => {
   it("lets owners do everything and viewers only read or leave (HU-E1-08)", () => {
     for (const action of SPACE_ACTIONS) expect(can("OWNER", action)).toBe(true);
     expect(SPACE_ACTIONS.filter((action) => can("VIEWER", action))).toEqual(["space.read", "space.leave"]);
+  });
+
+  it("reads only with space.read, the one action an archived space still allows (HU-E1-09)", () => {
+    expect(SPACE_ACTIONS.filter(isReadOnly)).toEqual(["space.read"]);
   });
 
   it("keeps shared fund management with owners and admins (HU-E2-02)", () => {

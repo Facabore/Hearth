@@ -55,7 +55,11 @@ describe("DrizzleSpaceRepository", () => {
   it("enforces one personal space per user in the database", async () => {
     const userId = await newUser();
     await repo.add(personal(userId));
-    await expect(repo.add(personal(userId))).rejects.toThrow();
+    // Drizzle wraps the PostgreSQL error ("Failed query: …"), so the constraint is read from its cause.
+    const failure: unknown = await repo.add(personal(userId)).catch((error: unknown) => error);
+    expect((failure as { cause?: { constraint?: string } }).cause?.constraint).toBe(
+      "spaces_personal_owner_user_id_unique",
+    );
   });
 
   it("removes the user's personal space when the user is deleted", async () => {
@@ -82,18 +86,28 @@ describe("DrizzleSpaceRepository memberships and settings (HU-E1-03)", () => {
       memberId: space.members[0]!.id,
       userId,
       role: "OWNER",
+      archived: false,
     });
   });
 
-  it("finds nothing for another user, a malformed id or an archived space", async () => {
+  it("finds nothing for another user or a malformed id", async () => {
     const userId = await newUser();
     const other = await newUser();
     const space = personal(userId);
     await repo.add(space);
     expect(await repo.findMembership(space.id, other)).toBeNull();
     expect(await repo.findMembership("not-a-uuid", userId)).toBeNull();
+  });
+
+  it("finds the membership of an archived space, flagged, so reads still reach it (HU-E1-09)", async () => {
+    const userId = await newUser();
+    const other = await newUser();
+    const space = personal(userId);
+    await repo.add(space);
     await pool.query("UPDATE spaces SET archived_at = now() WHERE id = $1", [space.id]);
-    expect(await repo.findMembership(space.id, userId)).toBeNull();
+    expect(await repo.findMembership(space.id, userId)).toMatchObject({ spaceId: space.id, archived: true });
+    // Archived spaces are no less private: a user who is not a member still finds nothing.
+    expect(await repo.findMembership(space.id, other)).toBeNull();
   });
 
   it("updates name, currency and period policy", async () => {

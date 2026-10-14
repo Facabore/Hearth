@@ -101,21 +101,22 @@ export class DrizzleSpaceRepository
         periodPolicy: spaces.periodPolicy,
         memberId: spaceMembers.id,
         role: spaceMembers.role,
+        archivedAt: spaces.archivedAt,
       })
       .from(spaces)
       .innerJoin(spaceMembers, eq(spaceMembers.spaceId, spaces.id))
-      .where(
-        and(
-          eq(spaces.id, spaceId),
-          eq(spaceMembers.userId, userId),
-          isNull(spaceMembers.leftAt),
-          isNull(spaces.archivedAt),
-        ),
-      )
+      // HU-E1-09: archived spaces are found and flagged; SpaceAccess lets only reads through.
+      .where(and(eq(spaces.id, spaceId), eq(spaceMembers.userId, userId), isNull(spaceMembers.leftAt)))
       .limit(1);
-    return row
-      ? { ...row, spaceId: row.spaceId as SpaceId, memberId: row.memberId as SpaceMemberId, userId }
-      : null;
+    if (!row) return null;
+    const { archivedAt, ...membership } = row;
+    return {
+      ...membership,
+      spaceId: row.spaceId as SpaceId,
+      memberId: row.memberId as SpaceMemberId,
+      userId,
+      archived: archivedAt !== null,
+    };
   }
 
   async updateSettings(spaceId: SpaceId, settings: SpaceSettings): Promise<void> {

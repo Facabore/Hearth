@@ -8,7 +8,7 @@ import {
   type Result,
   type StoredPeriod,
 } from "@/shared/kernel";
-import type { SpaceAccess } from "./space-access";
+import { authorizeSpaceAction, type SpaceAccess } from "./space-access";
 
 /** Stored plan boundaries of a space (budgeting, HU-E6-01); empty until plans exist. */
 export type StoredPeriodSource = (spaceId: string) => Promise<readonly StoredPeriod[]>;
@@ -31,7 +31,7 @@ export type ListSpacePeriods = (input: {
 export const createListSpacePeriods =
   (deps: ListSpacePeriodsDeps): ListSpacePeriods =>
   async (input) => {
-    const membership = await deps.access(input.spaceId, input.userId);
+    const membership = await authorizeSpaceAction(deps.access, input.spaceId, input.userId, "space.read");
     if (!membership.ok) return membership;
     const from = input.from ?? todayIn(deps.clock, deps.timeZone);
     const stored = await deps.storedPeriods(membership.value.spaceId);

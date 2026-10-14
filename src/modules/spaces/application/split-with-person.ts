@@ -106,12 +106,16 @@ const directSpaceFor = async (
   const found = await deps.direct.findCurrentMember(counterpart.memberId);
   if (found === null) return err(domainError("MemberNotFound"));
   // Only someone the requester shares a space with: other spaces' members do not exist for them (spec 8).
-  const shared = await deps.access(found.spaceId, requester.userId);
+  // A read: someone in an archived space is still someone the requester shares a space with (HU-E1-09).
+  const shared = await deps.access(found.spaceId, requester.userId, { readOnly: true });
   if (!shared.ok) return shared.error.code === "SpaceNotFound" ? err(domainError("MemberNotFound")) : shared;
   const { member } = found;
   if (member.userId === requester.userId) return err(domainError("InvalidDirectCounterpart"));
-  // Someone picked in a direct space the requester is in: that space, also after its guest claimed it.
-  if (found.spaceKind === "DIRECT") return ok({ spaceId: found.spaceId, created: false });
+  // Someone picked in an active direct space the requester is in: that space, also after its guest claimed it.
+  if (found.spaceKind === "DIRECT" && !shared.value.archived)
+    return ok({ spaceId: found.spaceId, created: false });
+  // HU-E1-09: an archived direct space takes no new expense, and its guest exists only there (D15).
+  if (found.spaceKind === "DIRECT" && member.userId === null) return err(domainError("SpaceArchived"));
   // A guest exists only in its own space (D15): a one-to-one split with them starts from a new guest.
   if (member.userId === null) return err(domainError("InvalidDirectCounterpart"));
   const existing = await deps.direct.findByPairKey(pairKeyOf(requester.userId, member.userId));

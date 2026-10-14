@@ -82,6 +82,7 @@ export class InMemorySpaceStore implements SpaceRepository, SpaceSettingsReposit
       memberId: me.id,
       userId,
       role: me.role,
+      archived: this.archived.has(space.id),
     };
   }
 

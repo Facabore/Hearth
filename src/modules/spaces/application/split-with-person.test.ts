@@ -366,3 +366,28 @@ describe("SplitWithPerson is one transaction (HU-E1-13, Review Focus 3)", () => 
     expect(w.recorded).toHaveLength(1);
   });
 });
+
+describe("SplitWithPerson and archived spaces (HU-E1-09, HU-E1-13, Task 16)", () => {
+  it("still finds a counterpart through an archived shared space, since only their direct space is written", async () => {
+    const w = world();
+    w.store.archived.add("space-household");
+    expect(unwrap(await w.split(byAna({ memberId: "member-juan" })))).toMatchObject({
+      spaceId: "id-1",
+      created: true,
+    });
+  });
+
+  it("refuses the guest of an archived direct space and starts a new one for its registered member", async () => {
+    const w = world();
+    // "Ana & Pedro" is id-1 (members id-2, id-3); "Ana & Juan" is id-4 (members id-5, id-6).
+    unwrap(await w.split(byAna({ guest: { displayName: "Pedro" } })));
+    unwrap(await w.split(byAna({ memberId: "member-juan" })));
+    w.store.archived.add("id-1");
+    w.store.archived.add("id-4");
+    expect(codeOf(await w.split(byAna({ memberId: "id-3" })))).toBe("SpaceArchived");
+    expect(unwrap(await w.split(byAna({ memberId: "id-6" })))).toMatchObject({
+      spaceId: "id-7",
+      created: true,
+    });
+  });
+});

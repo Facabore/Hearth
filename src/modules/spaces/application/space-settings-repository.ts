@@ -11,6 +11,8 @@ export interface SpaceMembership {
   readonly memberId: SpaceMemberId;
   readonly userId: string;
   readonly role: SpaceRole | null;
+  /** HU-E1-09: an archived space only reads; SpaceAccess refuses everything else. */
+  readonly archived: boolean;
 }
 
 export interface SpaceSettings {
@@ -20,7 +22,7 @@ export interface SpaceSettings {
 }
 
 export interface SpaceSettingsRepository {
-  /** Null when the id is malformed, the space is unknown or archived, or the user is not a current member. */
+  /** Null for malformed ids, unknown spaces and non-members; archived spaces are found and flagged. */
   findMembership(spaceId: string, userId: string): Promise<SpaceMembership | null>;
   updateSettings(spaceId: SpaceId, settings: SpaceSettings): Promise<void>;
 }

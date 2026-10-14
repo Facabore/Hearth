@@ -37,3 +37,6 @@ export const rolesFor = (action: SpaceAction): readonly SpaceRole[] => MATRIX[ac
 
 export const can = (role: SpaceRole | null, action: SpaceAction): boolean =>
   role !== null && rolesFor(action).includes(role);
+
+/** HU-E1-09: actions that only read, the only ones an archived space still allows. */
+export const isReadOnly = (action: SpaceAction): boolean => action === "space.read";

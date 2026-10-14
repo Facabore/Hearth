@@ -1,3 +1,4 @@
+import { authorizeSpaceAction } from "@/modules/spaces/application";
 import { domainError, err, ok, type LocalDate, type Result } from "@/shared/kernel";
 import { withBalances, type AccountView } from "./account-view";
 import type { AccountsDeps } from "./deps";
@@ -20,7 +21,7 @@ export type GetAccount = (input: {
 export const createListAccounts =
   (deps: AccountsDeps): ListAccounts =>
   async (input) => {
-    const membership = await deps.access(input.spaceId, input.userId);
+    const membership = await authorizeSpaceAction(deps.access, input.spaceId, input.userId, "space.read");
     if (!membership.ok) return membership;
     const accounts = (await deps.accounts.listBySpace(membership.value.spaceId))
       .filter((a) => input.includeArchived || a.archivedAt === null)
@@ -31,7 +32,7 @@ export const createListAccounts =
 export const createGetAccount =
   (deps: AccountsDeps): GetAccount =>
   async (input) => {
-    const membership = await deps.access(input.spaceId, input.userId);
+    const membership = await authorizeSpaceAction(deps.access, input.spaceId, input.userId, "space.read");
     if (!membership.ok) return membership;
     const account = (await deps.accounts.listBySpace(membership.value.spaceId)).find(
       (a) => a.id === input.accountId,
