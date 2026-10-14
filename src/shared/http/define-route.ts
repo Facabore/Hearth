@@ -45,6 +45,25 @@ const toFieldErrors = (
 const bigintAsString = (_key: string, value: unknown) =>
   typeof value === "bigint" ? value.toString() : value;
 
+const firstLineOf = (message: string): string =>
+  (message.split("\n")[0] ?? "").split(/\bparams:/)[0]?.trim() ?? "";
+
+/**
+ * What an unhandled error may write to the log: its name, the first line of its message without any
+ * `params:` tail, and the SQLSTATE and constraint of a database cause. Drizzle puts the bound SQL
+ * parameters (token hashes, contact emails) in the message, so they are never logged.
+ */
+const summaryOf = (error: unknown): Record<string, string> => {
+  if (!(error instanceof Error)) return { name: "NonErrorThrown", message: firstLineOf(String(error)) };
+  const { code, constraint } = (error.cause ?? {}) as { code?: unknown; constraint?: unknown };
+  return {
+    name: error.name,
+    message: firstLineOf(error.message),
+    ...(typeof code === "string" ? { code } : {}),
+    ...(typeof constraint === "string" ? { constraint } : {}),
+  };
+};
+
 /**
  * Builds Next.js route handlers: resolves the user, validates query and body with Zod,
  * maps `Err` results to problem+json and turns unexpected throws into a logged 500.
@@ -114,7 +133,7 @@ export const createRouteFactory =
         headers,
       });
     } catch (error) {
-      logger.error("unhandled_route_error", { requestId, error: String(error) });
+      logger.error("unhandled_route_error", { requestId, error: summaryOf(error) });
       return problemResponse("InternalError", requestId);
     }
   };

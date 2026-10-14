@@ -152,8 +152,71 @@ describe("defineRoute", () => {
     expect(text).not.toContain("db down");
     expect(logger.error).toHaveBeenCalledWith(
       "unhandled_route_error",
-      expect.objectContaining({ error: "Error: db down", requestId: response.headers.get("x-request-id") }),
+      expect.objectContaining({
+        error: { name: "Error", message: "db down" },
+        requestId: response.headers.get("x-request-id"),
+      }),
     );
+  });
+
+  it("logs a database failure as name, first message line, SQLSTATE and constraint, never its SQL parameters", async () => {
+    const error = vi.fn();
+    const logged = createRouteFactory(() => ({
+      sessionResolver: { resolve: async () => null },
+      logger: { info: vi.fn(), error },
+    }));
+    const failure = Object.assign(
+      new Error(
+        'Failed query: insert into "space_members" ("contact_email") values ($1) \nparams: secret-hash,ana@example.com',
+        { cause: { code: "23505", constraint: "x_uq", detail: "Key (contact_email)=(ana@example.com)" } },
+      ),
+      { name: "DrizzleQueryError" },
+    );
+    const response = await call(
+      logged({
+        auth: "none",
+        handler: async () => {
+          throw failure;
+        },
+      }),
+    );
+    expect(response.status).toBe(500);
+    expect(error).toHaveBeenCalledTimes(1);
+    const record = JSON.stringify(error.mock.calls[0]);
+    expect(error.mock.calls[0]?.[1]).toMatchObject({
+      error: {
+        name: "DrizzleQueryError",
+        message: 'Failed query: insert into "space_members" ("contact_email") values ($1)',
+        code: "23505",
+        constraint: "x_uq",
+      },
+    });
+    expect(record).not.toContain("secret-hash");
+    expect(record).not.toContain("ana@example.com");
+    expect(record).not.toContain("params");
+  });
+
+  it("removes a params tail from a single-line message and tolerates thrown non-errors", async () => {
+    const error = vi.fn();
+    const logged = createRouteFactory(() => ({
+      sessionResolver: { resolve: async () => null },
+      logger: { info: vi.fn(), error },
+    }));
+    for (const thrown of [new Error("Failed query: select 1 params: secret-hash"), "plain string"]) {
+      await call(
+        logged({
+          auth: "none",
+          handler: async () => {
+            throw thrown;
+          },
+        }),
+      );
+    }
+    expect(JSON.stringify(error.mock.calls)).not.toContain("secret-hash");
+    expect(error.mock.calls[0]?.[1]).toMatchObject({
+      error: { name: "Error", message: "Failed query: select 1" },
+    });
+    expect(error.mock.calls[1]?.[1]).toMatchObject({ error: { name: "NonErrorThrown" } });
   });
 
   it("logs Err results that map to a 5xx with their details, but not client errors", async () => {

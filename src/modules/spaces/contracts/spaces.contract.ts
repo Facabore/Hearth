@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { ZodOpenApiPathsObject } from "zod-openapi";
-import { jsonContent, PeriodSchema, problemContent, problems, securedByUser } from "@/shared/http/contracts";
+import { jsonContent, PeriodSchema, problems, securedByUser } from "@/shared/http/contracts";
 import type { CreatedInvitation, InvitationView, SpaceMember } from "../application";
 
 export const PeriodPolicySchema = z.discriminatedUnion("kind", [
@@ -151,7 +151,7 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           description: "The user's spaces",
           content: { "application/json": { schema: ListSpacesResponseSchema } },
         },
-        "401": { description: "Unauthenticated", content: problemContent },
+        ...problems({ "401": "Unauthenticated", "422": "ValidationFailed" }),
       },
     },
     post: {
@@ -334,7 +334,7 @@ export const spacesPaths: ZodOpenApiPathsObject = {
         "204": { description: "Left: the space no longer lists you as a current member" },
         ...problems({
           "401": "Unauthenticated",
-          "404": "SpaceNotFound",
+          "404": "SpaceNotFound, MemberNotFound",
           "409":
             "OutstandingBalance (with the outstanding amount), LastOwnerRequired, PersonalSpaceNotShareable, DirectSpaceMembersFixed, SpaceArchived",
         }),

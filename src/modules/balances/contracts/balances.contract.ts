@@ -18,7 +18,10 @@ export const spaceBalancesDto = (balances: SpaceBalances): z.infer<typeof SpaceB
   })),
 });
 
-/** HU-E5-03: each suggestion has the fields of a settlement (HU-E5-02); POST it to accept it. */
+/**
+ * HU-E5-03: each suggestion has the fields of a settlement (HU-E5-02); POST it to accept it. A suggestion
+ * that names a former member (possible only after the race tracked on #89) cannot be accepted until #89 lands.
+ */
 export const SettlementSuggestionsSchema = z.object({
   suggestions: z.array(
     z.object({ payerMemberId: z.string(), receivingMemberId: z.string(), amount: MoneySchema }),
@@ -57,6 +60,8 @@ export const balancesPaths: ZodOpenApiPathsObject = {
     get: {
       operationId: "getSettlementSuggestions",
       summary: "Payments that clear every balance, at most one fewer than the members; computed on read",
+      description:
+        "Each suggestion has the fields of a settlement; POST it to accept it. A suggestion that names a former member (possible only after the race tracked on #89) cannot be accepted until #89 lands.",
       ...securedByUser,
       requestParams: { path: SpacePath },
       responses: {

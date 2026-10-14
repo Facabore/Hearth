@@ -38,6 +38,15 @@ describe("archive a space (HU-E1-09)", () => {
     );
   });
 
+  it("lists the active spaces for archived=false, as by default, and refuses any other value with 422 ValidationFailed", async () => {
+    const h = await household();
+    expect((await archive(h.ana, h.spaceId)).status).toBe(204);
+    expect(await spaceIdsOf(h.ana, "?archived=false")).toEqual(await spaceIdsOf(h.ana));
+    expect(await spaceIdsOf(h.ana, "?archived=false")).toEqual([h.ana.personal.spaceId]);
+    const response = await call(listSpaces, "GET", "/api/v1/spaces?archived=yes", { user: h.ana });
+    expect(await problemOf(response)).toEqual([422, "ValidationFailed"]);
+  });
+
   it("refuses an expense of 50,000 COP in the archived space with SpaceArchived", async () => {
     const h = await household();
     expect((await archive(h.ana, h.spaceId)).status).toBe(204);

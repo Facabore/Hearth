@@ -412,6 +412,16 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "ValidationFailed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         }
       },
@@ -1475,7 +1485,7 @@
             }
           },
           "404": {
-            "description": "SpaceNotFound",
+            "description": "SpaceNotFound, MemberNotFound",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4891,6 +4901,7 @@
       "get": {
         "operationId": "getSettlementSuggestions",
         "summary": "Payments that clear every balance, at most one fewer than the members; computed on read",
+        "description": "Each suggestion has the fields of a settlement; POST it to accept it. A suggestion that names a former member (possible only after the race tracked on #89) cannot be accepted until #89 lands.",
         "security": [
           {
             "cookieAuth": []
