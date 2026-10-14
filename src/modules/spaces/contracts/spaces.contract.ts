@@ -318,4 +318,21 @@ export const spacesPaths: ZodOpenApiPathsObject = {
       },
     },
   },
+  "/api/v1/spaces/{spaceId}/leave": {
+    post: {
+      operationId: "leaveSpace",
+      summary: "Leave a shared space once your balance is zero; your past movements keep your name",
+      ...securedByUser,
+      requestParams: { path: SpacePath },
+      responses: {
+        "204": { description: "Left: the space no longer lists you as a current member" },
+        ...problems({
+          "401": "Unauthenticated",
+          "404": "SpaceNotFound",
+          "409":
+            "OutstandingBalance (with the outstanding amount), LastOwnerRequired, PersonalSpaceNotShareable, DirectSpaceMembersFixed",
+        }),
+      },
+    },
+  },
 };

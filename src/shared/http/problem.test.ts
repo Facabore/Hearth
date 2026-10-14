@@ -105,6 +105,12 @@ describe("public details (HU-E1-08)", () => {
     expect(publicDetailsOf("OutstandingBalance")).toEqual({});
   });
 
+  it("picks only own, defined details: never an inherited key or an undefined value", () => {
+    const inherited = Object.create({ outstanding: { amount: "1", currency: "COP" } });
+    expect(Object.keys(publicDetailsOf("OutstandingBalance", inherited))).toEqual([]);
+    expect(Object.keys(publicDetailsOf("OutstandingBalance", { outstanding: undefined }))).toEqual([]);
+  });
+
   it("never lets an extension member replace a standard one", async () => {
     const response = problemResponse("SpaceNotFound", "req-4", undefined, { code: "Other", status: 200 });
     expect(await response.json()).toMatchObject({ code: "SpaceNotFound", status: 404 });

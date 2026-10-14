@@ -49,7 +49,9 @@ export const publicDetailsOf = (
   details: Readonly<Record<string, unknown>> = {},
 ): Record<string, unknown> =>
   Object.fromEntries(
-    (PUBLIC_DETAILS.get(code) ?? []).filter((key) => key in details).map((key) => [key, details[key]]),
+    (PUBLIC_DETAILS.get(code) ?? [])
+      .filter((key) => Object.hasOwn(details, key) && details[key] !== undefined)
+      .map((key) => [key, details[key]]),
   );
 
 /** Spec section 8: explicit codes first, then naming conventions, then 409 for invariant violations. */

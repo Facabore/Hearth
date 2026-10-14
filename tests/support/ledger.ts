@@ -4,6 +4,8 @@ import { GET as listCategories } from "@/app/api/v1/spaces/[spaceId]/categories/
 import { POST as addGuestMember } from "@/app/api/v1/spaces/[spaceId]/guests/route";
 import { GET as listMembers } from "@/app/api/v1/spaces/[spaceId]/members/route";
 import { GET as getBalances } from "@/app/api/v1/spaces/[spaceId]/balances/route";
+import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
+import { POST as recordSettlement } from "@/app/api/v1/spaces/[spaceId]/settlements/route";
 import { call, registerUser, type RouteHandler, type TestUser } from "./app";
 import { actingIn, joinAs, newSharedSpace } from "./spaces";
 
@@ -173,4 +175,41 @@ export const balancesOf = async (user: TestUser, spaceId: string): Promise<[stri
   if (response.status !== 200) throw new Error(`balances failed with status ${response.status}`);
   const { members } = (await response.json()) as { members: { memberId: string; net: MoneyDto }[] };
   return members.map((m): [string, MoneyDto] => [m.memberId, m.net]);
+};
+
+/** `payer` pays `pesos` on 2026-10-05 from their own account, split equally among `participants`. */
+export const paysEqually = async (
+  payer: HouseholdMember,
+  pesos: number,
+  participants: readonly string[],
+  categoryId: string,
+  description = "Groceries",
+): Promise<TransactionDto> => {
+  const response = await post(recordExpense, payer, "expenses", {
+    description,
+    date: "2026-10-05",
+    categoryId,
+    amount: cop(pesos),
+    payments: [{ memberId: payer.memberId, accountId: payer.account, amount: cop(pesos) }],
+    split: { method: "EQUAL", participants: participants.map((memberId) => ({ memberId })) },
+  });
+  if (response.status !== 201) throw new Error(`expense failed with status ${response.status}`);
+  return (await response.json()) as TransactionDto;
+};
+
+/** `recorder` records on 2026-10-30 that `payerMemberId` paid `receivingMemberId` `pesos`, outside the app. */
+export const settles = async (
+  recorder: TestUser,
+  payerMemberId: string,
+  receivingMemberId: string,
+  pesos: number,
+): Promise<TransactionDto> => {
+  const response = await post(recordSettlement, recorder, "settlements", {
+    date: "2026-10-30",
+    amount: cop(pesos),
+    payerMemberId,
+    receivingMemberId,
+  });
+  if (response.status !== 201) throw new Error(`settlement failed with status ${response.status}`);
+  return (await response.json()) as TransactionDto;
 };

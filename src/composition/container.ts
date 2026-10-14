@@ -13,7 +13,11 @@ import {
   type UpdateAccount,
 } from "@/modules/accounts/application";
 import { DrizzleAccountRepository } from "@/modules/accounts/infrastructure/drizzle-account-repository";
-import { createGetSpaceBalances, type GetSpaceBalances } from "@/modules/balances/application";
+import {
+  createGetMemberNetBalance,
+  createGetSpaceBalances,
+  type GetSpaceBalances,
+} from "@/modules/balances/application";
 import {
   createDeleteTransaction,
   createEditTransaction,
@@ -87,6 +91,7 @@ import {
   createRevokeInvitation,
   createSpaceAccess,
   createUpdateSpaceSettings,
+  createLeaveSpace,
   type AcceptInvitation,
   type AddGuestMember,
   type ChangeMemberRole,
@@ -104,6 +109,8 @@ import {
   type SpaceCreatedListener,
   type StoredPeriodSource,
   type UpdateSpaceSettings,
+  type LeaveSpace,
+  type LifecycleDeps,
 } from "@/modules/spaces/application";
 import { cryptoInvitationTokens } from "@/modules/spaces/infrastructure/crypto-invitation-tokens";
 import { DrizzleInvitationRepository } from "@/modules/spaces/infrastructure/drizzle-invitation-repository";
@@ -138,6 +145,7 @@ export interface Container extends RouteDeps {
     readonly acceptInvitation: AcceptInvitation;
     readonly addGuest: AddGuestMember;
     readonly changeMemberRole: ChangeMemberRole;
+    readonly leaveSpace: LeaveSpace;
   };
   readonly categories: {
     readonly listCategories: ListCategories;
@@ -281,6 +289,14 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     onCreated: onSpaceCreated,
   });
   const membersDeps: MembersDeps = { access, members: spaceRepository, ids, clock, tm };
+  // HU-E5-01 GetMemberNetBalance: spaces reads balances through a port, since balances imports spaces.
+  const lifecycleDeps: LifecycleDeps = {
+    access,
+    members: spaceRepository,
+    netBalance: createGetMemberNetBalance(ledgerQueries),
+    clock,
+    tm,
+  };
   const invitationsDeps: InvitationsDeps = {
     access,
     members: spaceRepository,
@@ -346,6 +362,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       acceptInvitation: createAcceptInvitation(invitationsDeps),
       addGuest: createAddGuestMember(membersDeps),
       changeMemberRole: createChangeMemberRole(membersDeps),
+      leaveSpace: createLeaveSpace(lifecycleDeps),
     },
     categories: {
       listCategories: createListCategories(categoriesDeps),

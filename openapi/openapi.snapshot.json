@@ -1425,6 +1425,65 @@
         }
       }
     },
+    "/api/v1/spaces/{spaceId}/leave": {
+      "post": {
+        "operationId": "leaveSpace",
+        "summary": "Leave a shared space once your balance is zero; your past movements keep your name",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Left: the space no longer lists you as a current member"
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "OutstandingBalance (with the outstanding amount), LastOwnerRequired, PersonalSpaceNotShareable, DirectSpaceMembersFixed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/spaces/{spaceId}/categories": {
       "get": {
         "operationId": "listCategories",
