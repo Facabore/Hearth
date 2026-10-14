@@ -106,12 +106,12 @@ A UI story is `Done` when:
 | [HU-E1-05](E1-identity-and-spaces.md) | Enforce roles and permissions | E1 | M2 | Must | M | Done | HU-E1-04 |
 | [HU-E1-06](E1-identity-and-spaces.md) | Invite a member by link or email | E1 | M2 | Must | M | Done | HU-E1-05 |
 | [HU-E1-07](E1-identity-and-spaces.md) | Accept an invitation | E1 | M2 | Must | M | Done | HU-E1-06 |
-| [HU-E1-08](E1-identity-and-spaces.md) | Leave a space | E1 | M2 | Must | S | Backlog | HU-E1-07, HU-E5-01 |
-| [HU-E1-09](E1-identity-and-spaces.md) | Archive a space | E1 | M2 | Should | S | Backlog | HU-E1-05, HU-E5-01 |
+| [HU-E1-08](E1-identity-and-spaces.md) | Leave a space | E1 | M2 | Must | S | Done | HU-E1-07, HU-E5-01 |
+| [HU-E1-09](E1-identity-and-spaces.md) | Archive a space | E1 | M2 | Should | S | Done | HU-E1-05, HU-E5-01 |
 | [HU-E1-10](E1-identity-and-spaces.md) | Add a guest member to a space | E1 | M2 | Must | S | Done | HU-E1-05 |
-| [HU-E1-11](E1-identity-and-spaces.md) | Claim a guest place by registering | E1 | M2 | Must | M | Backlog | HU-E1-07, HU-E1-10, HU-E5-01 |
-| [HU-E1-12](E1-identity-and-spaces.md) | Remove a guest | E1 | M2 | Must | S | Backlog | HU-E1-10, HU-E5-01 |
-| [HU-E1-13](E1-identity-and-spaces.md) | Split with one person through a direct space | E1 | M2 | Must | M | Backlog | HU-E1-10, HU-E3-01, HU-E4-07 |
+| [HU-E1-11](E1-identity-and-spaces.md) | Claim a guest place by registering | E1 | M2 | Must | M | Done | HU-E1-07, HU-E1-10, HU-E5-01 |
+| [HU-E1-12](E1-identity-and-spaces.md) | Remove a guest | E1 | M2 | Must | S | Done | HU-E1-10, HU-E5-01 |
+| [HU-E1-13](E1-identity-and-spaces.md) | Split with one person through a direct space | E1 | M2 | Must | M | Done | HU-E1-10, HU-E3-01, HU-E4-07 |
 | [HU-E2-01](E2-accounts.md) | Create a personal account with an opening balance | E2 | M1 | Must | S | Done | HU-E1-02 |
 | [HU-E2-02](E2-accounts.md) | Create a shared fund account | E2 | M2 | Must | S | Done | HU-E1-05, HU-E2-01 |
 | [HU-E2-03](E2-accounts.md) | Edit and archive an account | E2 | M1 | Must | S | Done | HU-E2-01 |
@@ -131,7 +131,7 @@ A UI story is `Done` when:
 | [HU-E4-10](E4-ledger.md) | Record an expense paid from the shared fund | E4 | M2 | Must | S | Done | HU-E2-02, HU-E4-07, HU-E4-08 |
 | [HU-E5-01](E5-balances-and-settlements.md) | Compute who owes whom | E5 | M2 | Must | M | Done | HU-E4-07, HU-E4-10 |
 | [HU-E5-02](E5-balances-and-settlements.md) | Record a settlement | E5 | M2 | Must | M | Done | HU-E5-01, HU-E1-10 |
-| [HU-E5-03](E5-balances-and-settlements.md) | Suggest simplified settlements | E5 | M2 | Should | M | Backlog | HU-E5-01 |
+| [HU-E5-03](E5-balances-and-settlements.md) | Suggest simplified settlements | E5 | M2 | Should | M | Done | HU-E5-01 |
 | [HU-E5-04](E5-balances-and-settlements.md) | Show balance history per member | E5 | M2 | Should | S | Backlog | HU-E5-02 |
 | [HU-E6-01](E6-budgeting.md) | Create a plan for a period | E6 | M3 | Must | S | Backlog | HU-E1-05, HU-E0-04 |
 | [HU-E6-02](E6-budgeting.md) | Set member capacities | E6 | M3 | Must | S | Backlog | HU-E6-01 |
