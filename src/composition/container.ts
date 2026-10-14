@@ -91,6 +91,7 @@ import {
   createRevokeInvitation,
   createSpaceAccess,
   createUpdateSpaceSettings,
+  createRemoveGuestMember,
   createClaimGuestPlace,
   createCreateGuestClaim,
   createLeaveSpace,
@@ -114,6 +115,7 @@ import {
   type SpaceCreatedListener,
   type StoredPeriodSource,
   type UpdateSpaceSettings,
+  type RemoveGuestMember,
   type LeaveSpace,
   type LifecycleDeps,
 } from "@/modules/spaces/application";
@@ -150,6 +152,7 @@ export interface Container extends RouteDeps {
     readonly acceptInvitation: AcceptInvitation;
     readonly addGuest: AddGuestMember;
     readonly changeMemberRole: ChangeMemberRole;
+    readonly removeGuest: RemoveGuestMember;
     readonly createGuestClaim: CreateGuestClaim;
     readonly claimGuestPlace: ClaimGuestPlace;
     readonly leaveSpace: LeaveSpace;
@@ -382,6 +385,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       acceptInvitation: createAcceptInvitation(invitationsDeps),
       addGuest: createAddGuestMember(membersDeps),
       changeMemberRole: createChangeMemberRole(membersDeps),
+      removeGuest: createRemoveGuestMember({ ...lifecycleDeps, invitations: invitationRepository }),
       createGuestClaim: createCreateGuestClaim(claimsDeps),
       claimGuestPlace: createClaimGuestPlace(claimsDeps),
       leaveSpace: createLeaveSpace(lifecycleDeps),

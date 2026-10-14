@@ -374,4 +374,23 @@ export const spacesPaths: ZodOpenApiPathsObject = {
       },
     },
   },
+  "/api/v1/spaces/{spaceId}/guests/{memberId}": {
+    delete: {
+      operationId: "removeGuestMember",
+      summary:
+        "Remove a guest whose balance is zero; history keeps the guest and their claim links are revoked",
+      ...securedByUser,
+      requestParams: { path: MemberPath },
+      responses: {
+        "204": { description: "Removed: the guest is no longer a current member and the name is free" },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound, MemberNotFound",
+          "409":
+            "OutstandingBalance (with the outstanding amount), NotAGuest, PersonalSpaceNotShareable, DirectSpaceMembersFixed",
+        }),
+      },
+    },
+  },
 };
