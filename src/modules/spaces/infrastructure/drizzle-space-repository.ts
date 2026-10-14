@@ -268,4 +268,32 @@ export class DrizzleSpaceRepository
     await db.insert(spaceMembers).values(space.members.map((m) => memberRow(space.id, m)));
     return space.id;
   }
+
+  /**
+   * One conditional UPDATE. It answers false when an active space already holds the key; a first split that
+   * inserts the key between the NOT EXISTS check and the update makes spaces_direct_pair_uq refuse the
+   * update, so the claim fails (500): accepted for v1 (plan Self-Review assumption 5).
+   */
+  async adoptPairKey(spaceId: SpaceId, pairKey: string): Promise<boolean> {
+    // Anything that is not a UUID would fail the uuid cast.
+    if (!isUuid(spaceId)) return false;
+    const adopted = await this.tm
+      .executor()
+      .update(spaces)
+      .set({ directPairKey: pairKey })
+      .where(
+        and(
+          eq(spaces.id, spaceId),
+          // An active, unkeyed direct space: the key never moves and an archived space is not brought back.
+          eq(spaces.kind, "DIRECT"),
+          isNull(spaces.archivedAt),
+          isNull(spaces.directPairKey),
+          // spaces_direct_pair_uq counts active spaces only: an archived holder frees the pair, an active
+          // one keeps it (D16: both are kept).
+          sql`NOT EXISTS (SELECT 1 FROM spaces s WHERE s.direct_pair_key = ${pairKey} AND s.archived_at IS NULL)`,
+        ),
+      )
+      .returning({ id: spaces.id });
+    return adopted.length > 0;
+  }
 }

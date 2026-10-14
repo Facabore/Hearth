@@ -1,4 +1,5 @@
 import { domainError, err, map, type Result } from "@/shared/kernel";
+import { pairKeyOf } from "../domain/direct-space";
 import { ensureClaimable, isClaim, markAccepted } from "../domain/invitation";
 import { claimedGuest } from "../domain/member";
 import type { ClaimsDeps } from "./invitation-ports";
@@ -32,6 +33,12 @@ export const createClaimGuestPlace =
       const outcome = await deps.claims.claimGuest(claim.spaceId, claimed.value, now);
       if (outcome === "alreadyMember") return err(domainError("AlreadyMember"));
       if (outcome === "notAGuest") return err(domainError("GuestAlreadyClaimed"));
+      // D16: a guest's direct space that now holds two users becomes their pair's direct space, unless the
+      // pair already has an active one (then both are kept; merging is deferred).
+      const other = current.find((m) => m.id !== claimed.value.id);
+      if (spaceKind === "DIRECT" && other?.userId) {
+        await deps.claims.adoptPairKey(claim.spaceId, pairKeyOf(other.userId, input.userId));
+      }
       await deps.invitations.save(markAccepted(claim, input.userId, now));
       return map(await deps.access(claim.spaceId, input.userId), toSpaceSummary);
     });

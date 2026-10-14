@@ -32,7 +32,9 @@ import { memoryTm, sequentialIds } from "./fakes";
 /** Spaces with their current members; implements every spaces port the use cases need. */
 export class InMemorySpaceStore implements SpaceRepository, SpaceSettingsRepository, SpaceMemberRepository {
   spaces: Space[] = [];
-  /** Pair keys stored when a direct space was added, like spaces.direct_pair_key; claims never change them. */
+  /** Ids of archived spaces (HU-E1-09); PostgreSQL stores archived_at on the space. */
+  readonly archived = new Set<string>();
+  /** Pair keys, like spaces.direct_pair_key: stored when a direct space was added or adopted its pair's key. */
   private readonly pairKeys = new Map<string, string>();
   /** Claims applied, in order (PostgreSQL stores claimedAt on the member row). */
   readonly claimed: { spaceId: string; memberId: string; claimedAt: Date }[] = [];
@@ -150,10 +152,19 @@ export class InMemorySpaceStore implements SpaceRepository, SpaceSettingsReposit
     return null;
   }
 
-  /** DirectSpaceRepository, like DrizzleSpaceRepository.findByPairKey. */
+  /** DirectSpaceRepository, like DrizzleSpaceRepository.findByPairKey: an archived space no longer holds its key. */
   async findByPairKey(pairKey: string): Promise<SpaceId | null> {
-    const found = [...this.pairKeys].find(([, key]) => key === pairKey);
+    const found = [...this.pairKeys].find(([id, key]) => key === pairKey && !this.archived.has(id));
     return found ? (found[0] as SpaceId) : null;
+  }
+
+  /** GuestClaimRepository, like DrizzleSpaceRepository.adoptPairKey. */
+  async adoptPairKey(spaceId: string, pairKey: string): Promise<boolean> {
+    const space = this.spaces.find((s) => s.id === spaceId);
+    if (space?.kind !== "DIRECT" || this.archived.has(spaceId) || this.pairKeys.has(spaceId)) return false;
+    if ((await this.findByPairKey(pairKey)) !== null) return false;
+    this.pairKeys.set(spaceId, pairKey);
+    return true;
   }
 
   /** DirectSpaceRepository, like DrizzleSpaceRepository.addDirect: the pair's active space wins. */

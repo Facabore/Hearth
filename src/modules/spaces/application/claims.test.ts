@@ -6,6 +6,7 @@ import {
   invitationsWorld,
   memberOf,
 } from "../../../../tests/support/in-memory-spaces";
+import { pairKeyOf } from "../domain/direct-space";
 import type { Space, SpaceId, SpaceMember } from "../domain/space";
 import { createAcceptInvitation } from "./accept-invitation";
 import { createClaimGuestPlace } from "./claim-guest-place";
@@ -244,5 +245,112 @@ describe("ClaimGuestPlace (HU-E1-11)", () => {
       expect(codeOf(await w.claim({ token: "token-1", userId: "u-pedro" }))).toBe(code);
       expect(w.invitations.rows[0]?.status).toBe("PENDING");
     }
+  });
+});
+
+describe("ClaimGuestPlace in a direct space (HU-E1-13, D16, Task 14b)", () => {
+  const addDirect = (store: InMemorySpaceStore, id: string, members: SpaceMember[]) =>
+    store.addDirect({ ...householdSpace(members), id: id as SpaceId, kind: "DIRECT", name: "Ana & Pedro" });
+
+  it("makes the claimed direct space the pair's direct space, so later splits reuse it", async () => {
+    const store = new InMemorySpaceStore();
+    await addDirect(store, "space-direct", [ANA, PEDRO]);
+    const w = world(store);
+    await claimLinkFor(w, "member-pedro", "space-direct");
+    unwrap(await w.claim({ token: "token-1", userId: "u-pedro" }));
+    expect(await store.findByPairKey(pairKeyOf("u-ana", "u-pedro"))).toBe("space-direct");
+  });
+
+  it("leaves the key with the pair's other active direct space: both are kept, merging is deferred", async () => {
+    const store = new InMemorySpaceStore();
+    await addDirect(store, "space-older", [ANA, memberOf("Pedro", "OWNER", 2)]);
+    await addDirect(store, "space-direct", [ANA, PEDRO]);
+    const w = world(store);
+    await claimLinkFor(w, "member-pedro", "space-direct");
+    unwrap(await w.claim({ token: "token-1", userId: "u-pedro" }));
+    expect(await store.findByPairKey(pairKeyOf("u-ana", "u-pedro"))).toBe("space-older");
+  });
+
+  it("takes the key over from an archived direct space of the pair: archiving frees the pair", async () => {
+    const store = new InMemorySpaceStore();
+    await addDirect(store, "space-older", [ANA, memberOf("Pedro", "OWNER", 2)]);
+    store.archived.add("space-older");
+    await addDirect(store, "space-direct", [ANA, PEDRO]);
+    const w = world(store);
+    await claimLinkFor(w, "member-pedro", "space-direct");
+    unwrap(await w.claim({ token: "token-1", userId: "u-pedro" }));
+    expect(await store.findByPairKey(pairKeyOf("u-ana", "u-pedro"))).toBe("space-direct");
+  });
+
+  it("asks for the pair key only after a claim that took a place in a direct space", async () => {
+    const asked: [string, string][] = [];
+    class SpyingStore extends InMemorySpaceStore {
+      claimOutcome: ClaimOutcome | null = null;
+      override async claimGuest(...args: Parameters<InMemorySpaceStore["claimGuest"]>) {
+        return this.claimOutcome ?? super.claimGuest(...args);
+      }
+      override async adoptPairKey(spaceId: SpaceId, pairKey: string) {
+        asked.push([spaceId, pairKey]);
+        return super.adoptPairKey(spaceId, pairKey);
+      }
+    }
+    // A shared space: claiming never pairs two users.
+    const shared = new SpyingStore();
+    const inHousehold = world(shared);
+    await claimLinkFor(inHousehold);
+    unwrap(await inHousehold.claim({ token: "token-1", userId: "u-pedro" }));
+    // A direct space whose claim the database turns away (claimed meanwhile), then one that succeeds.
+    const store = new SpyingStore();
+    await addDirect(store, "space-direct", [ANA, PEDRO]);
+    const w = world(store);
+    await claimLinkFor(w, "member-pedro", "space-direct");
+    store.claimOutcome = "notAGuest";
+    expect(codeOf(await w.claim({ token: "token-1", userId: "u-pedro" }))).toBe("GuestAlreadyClaimed");
+    expect(asked).toEqual([]);
+    store.claimOutcome = null;
+    unwrap(await w.claim({ token: "token-1", userId: "u-pedro" }));
+    expect(asked).toEqual([["space-direct", pairKeyOf("u-ana", "u-pedro")]]);
+  });
+});
+
+// The twin of DrizzleSpaceRepository.adoptPairKey; drizzle-direct-spaces.int.test.ts pins both to the same answers.
+describe("InMemorySpaceStore.adoptPairKey (Task 14b)", () => {
+  const key = pairKeyOf("u-ana", "u-pedro");
+  const direct = (id: string, members: SpaceMember[] = [ANA, PEDRO]): Space => ({
+    ...householdSpace(members),
+    id: id as SpaceId,
+    kind: "DIRECT",
+  });
+
+  it("keys an unkeyed active direct space once", async () => {
+    const store = new InMemorySpaceStore();
+    await store.addDirect(direct("space-claimed"));
+    expect(await store.adoptPairKey("space-claimed" as SpaceId, key)).toBe(true);
+    expect(await store.findByPairKey(key)).toBe("space-claimed");
+    expect(await store.adoptPairKey("space-claimed" as SpaceId, pairKeyOf("u-ana", "u-juan"))).toBe(false);
+    expect(await store.findByPairKey(pairKeyOf("u-ana", "u-juan"))).toBeNull();
+  });
+
+  it("is blocked by an active holder of the key but not by an archived one", async () => {
+    const store = new InMemorySpaceStore();
+    await store.addDirect(direct("space-older", [ANA, memberOf("Pedro", "OWNER", 2)]));
+    await store.addDirect(direct("space-claimed"));
+    expect(await store.adoptPairKey("space-claimed" as SpaceId, key)).toBe(false);
+    expect(await store.findByPairKey(key)).toBe("space-older");
+    store.archived.add("space-older");
+    expect(await store.findByPairKey(key)).toBeNull();
+    expect(await store.adoptPairKey("space-claimed" as SpaceId, key)).toBe(true);
+    expect(await store.findByPairKey(key)).toBe("space-claimed");
+  });
+
+  it("keys neither a shared space, an archived direct space, nor a space that does not exist", async () => {
+    const store = new InMemorySpaceStore();
+    store.seed(householdSpace());
+    await store.addDirect(direct("space-archived"));
+    store.archived.add("space-archived");
+    expect(await store.adoptPairKey("space-household" as SpaceId, key)).toBe(false);
+    expect(await store.adoptPairKey("space-archived" as SpaceId, key)).toBe(false);
+    expect(await store.adoptPairKey("space-unknown" as SpaceId, key)).toBe(false);
+    expect(await store.findByPairKey(key)).toBeNull();
   });
 });

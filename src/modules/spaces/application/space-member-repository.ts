@@ -41,4 +41,12 @@ export interface GuestClaimRepository {
    * member of the space already.
    */
   claimGuest(spaceId: SpaceId, claimed: SpaceMember, claimedAt: Date): Promise<ClaimOutcome>;
+  /**
+   * HU-E1-13, D16: gives the active DIRECT space `spaceId` the pair key when it has none; false when it is
+   * not such a space or an active space already holds the key (the pair had a direct space: both are kept).
+   * A first split of the pair that inserts the key between that check and the update makes
+   * `spaces_direct_pair_uq` refuse the update, so the claim fails (500): accepted for v1 (plan
+   * Self-Review assumption 5).
+   */
+  adoptPairKey(spaceId: SpaceId, pairKey: string): Promise<boolean>;
 }

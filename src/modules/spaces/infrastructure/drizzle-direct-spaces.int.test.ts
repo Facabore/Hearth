@@ -6,19 +6,25 @@ import { DrizzleCategoryRepository } from "@/modules/categories/infrastructure/d
 import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { SystemClock } from "@/shared/infrastructure/system-clock";
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
-import { domainError, err, ok, type Id, type Result } from "@/shared/kernel";
+import { domainError, err, FixedClock, ok, type Id, type Result } from "@/shared/kernel";
 import { testDatabase } from "../../../../tests/support/database";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
 import { sharedSpaceFixture, userFixture } from "../../../../tests/support/fixtures";
+import { InMemorySpaceStore } from "../../../../tests/support/in-memory-spaces";
+import { createClaimGuestPlace } from "../application/claim-guest-place";
 import type { DirectSpaceRepository } from "../application/direct-space-repository";
-import { createSpaceAccess } from "../application/space-access";
+import { createSpaceAccess, type SpaceAccess } from "../application/space-access";
+import type { GuestClaimRepository } from "../application/space-member-repository";
 import {
   createSplitWithPerson,
   type DirectExpenseRecorder,
   type DirectSplitCounterpart,
 } from "../application/split-with-person";
 import { createDirectSpace, pairKeyOf, type DirectCounterpart } from "../domain/direct-space";
-import type { Space, SpaceMember, SpaceMemberId } from "../domain/space";
+import { issueClaim, type InvitationId } from "../domain/invitation";
+import type { Space, SpaceId, SpaceMember, SpaceMemberId } from "../domain/space";
+import { cryptoInvitationTokens } from "./crypto-invitation-tokens";
+import { DrizzleInvitationRepository } from "./drizzle-invitation-repository";
 import { DrizzleSpaceRepository } from "./drizzle-space-repository";
 
 const { db, pool } = testDatabase();
@@ -404,5 +410,197 @@ describe("SplitWithPerson over PostgreSQL (Review Focus 3, 5 and rollback)", () 
     }
     expect(await directSpacesOf(ana.id)).toBe(0);
     expect(await directSpacesOf(juan.id)).toBe(0);
+  });
+});
+
+describe("claimed direct spaces take a free pair key (HU-E1-13, D16, Task 14b)", () => {
+  const claims: GuestClaimRepository = repo;
+  const pedro: DirectCounterpart = { kind: "GUEST", displayName: "Pedro", contactEmail: null };
+  const keyOf = async (spaceId: string): Promise<string | null> =>
+    (await pool.query("SELECT direct_pair_key FROM spaces WHERE id = $1", [spaceId])).rows[0].direct_pair_key;
+  const archive = (spaceId: string) =>
+    pool.query("UPDATE spaces SET archived_at = now() WHERE id = $1", [spaceId]);
+
+  // Juan stands for the user who claimed the guest's place in Ana's direct space.
+  it("adopts the key of a pair with no active direct space, once", async () => {
+    const { ana, juan } = await pair();
+    const claimed = directSpace(ana, pedro);
+    await direct.addDirect(claimed);
+    const key = pairKeyOf(ana.id, juan.id);
+    expect(await claims.adoptPairKey(claimed.id, key)).toBe(true);
+    expect(await direct.findByPairKey(key)).toBe(claimed.id);
+    expect(await claims.adoptPairKey(claimed.id, pairKeyOf(ana.id, randomUUID()))).toBe(false);
+    expect(await keyOf(claimed.id)).toBe(key);
+  });
+
+  it("leaves the key with the pair's active direct space and never keys a shared space", async () => {
+    const { ana, juan } = await pair();
+    const older = directSpace(ana, withUser(juan));
+    await direct.addDirect(older);
+    const claimed = directSpace(ana, pedro);
+    await direct.addDirect(claimed);
+    const key = pairKeyOf(ana.id, juan.id);
+    expect(await claims.adoptPairKey(claimed.id, key)).toBe(false);
+    expect(await direct.findByPairKey(key)).toBe(older.id);
+    expect(await keyOf(claimed.id)).toBeNull();
+    const shared = await sharedSpaceFixture(db, ana.id);
+    expect(await claims.adoptPairKey(shared.id, pairKeyOf(ana.id, randomUUID()))).toBe(false);
+    expect(await keyOf(shared.id)).toBeNull();
+  });
+
+  it("is not blocked by an archived direct space that still holds the key: archiving frees the pair", async () => {
+    const { ana, juan } = await pair();
+    const older = directSpace(ana, withUser(juan));
+    await direct.addDirect(older);
+    await archive(older.id);
+    const claimed = directSpace(ana, pedro);
+    await direct.addDirect(claimed);
+    const key = pairKeyOf(ana.id, juan.id);
+    expect(await claims.adoptPairKey(claimed.id, key)).toBe(true);
+    expect(await direct.findByPairKey(key)).toBe(claimed.id);
+    // Nothing is deleted: the archived space keeps its key, which spaces_direct_pair_uq no longer counts.
+    expect(await keyOf(older.id)).toBe(key);
+  });
+
+  it("keys an active direct space only: an archived one stays as it is", async () => {
+    const { ana, juan } = await pair();
+    const retired = directSpace(ana, pedro);
+    await direct.addDirect(retired);
+    await archive(retired.id);
+    expect(await claims.adoptPairKey(retired.id, pairKeyOf(ana.id, juan.id))).toBe(false);
+    expect(await keyOf(retired.id)).toBeNull();
+  });
+
+  it.each([
+    ["empty", ""],
+    ["not a UUID", "not-a-uuid"],
+    ["SQL text", "'; DROP TABLE spaces; --"],
+    ["a UUID with a trailing character", `${randomUUID()}x`],
+    ["unknown", randomUUID()],
+  ])("answers false, not a database error, for a space id that is %s", async (_shape, spaceId) => {
+    expect(await claims.adoptPairKey(spaceId as SpaceId, pairKeyOf(randomUUID(), randomUUID()))).toBe(false);
+  });
+
+  it("gives the outcomes of the in-memory twin the use-case tests rely on", async () => {
+    const { ana, juan } = await pair();
+    const older = directSpace(ana, withUser(juan));
+    const claimed = directSpace(ana, pedro);
+    const rival = directSpace(ana, pedro);
+    const retired = directSpace(ana, pedro);
+    const shared = await sharedSpaceFixture(db, ana.id);
+    const key = pairKeyOf(ana.id, juan.id);
+    const other = pairKeyOf(ana.id, randomUUID());
+    const twin = new InMemorySpaceStore();
+    twin.seed(shared);
+    for (const space of [older, claimed, rival, retired]) {
+      await direct.addDirect(space);
+      await twin.addDirect(space);
+    }
+    await archive(retired.id);
+    twin.archived.add(retired.id);
+    const steps = async (store: GuestClaimRepository, archiveOlder: () => Promise<unknown>) => {
+      const answers: boolean[] = [];
+      const adopt = async (spaceId: string, pairKey: string) => {
+        answers.push(await store.adoptPairKey(spaceId as SpaceId, pairKey));
+      };
+      // The pair's active direct space holds the key.
+      await adopt(claimed.id, key);
+      await archiveOlder();
+      // Archived, it frees the pair: the first to ask gets the key, a repeat and a rival do not.
+      await adopt(claimed.id, key);
+      await adopt(claimed.id, key);
+      await adopt(rival.id, key);
+      // Not an active, unkeyed direct space.
+      await adopt(shared.id, other);
+      await adopt(retired.id, other);
+      await adopt(randomUUID(), other);
+      await adopt("not-a-uuid", other);
+      return answers;
+    };
+    const outcomes = await steps(claims, () => archive(older.id));
+    expect(outcomes).toEqual([false, true, false, false, false, false, false, false]);
+    expect(await steps(twin, async () => void twin.archived.add(older.id))).toEqual(outcomes);
+  });
+});
+
+describe("a claim that fails after keying its direct space leaves it unkeyed (Task 14b)", () => {
+  const invitations = new DrizzleInvitationRepository(tm);
+  const claimedAt = new Date("2026-10-14T13:00:00Z");
+
+  /** Ana's direct space with the guest Pedro, whose claim link Juan is about to use. */
+  const linkInDirectSpace = async () => {
+    const { ana, juan } = await pair();
+    const space = directSpace(ana, { kind: "GUEST", displayName: "Pedro", contactEmail: null });
+    await direct.addDirect(space);
+    const { token, hash } = cryptoInvitationTokens.issue();
+    const guestId = space.members[1]!.id;
+    const claim = issueClaim({
+      id: randomUUID() as InvitationId,
+      spaceId: space.id,
+      guestMemberId: guestId,
+      current: space.members,
+      tokenHash: hash,
+      createdBy: ana.id,
+      now: new Date("2026-10-14T12:00:00Z"),
+    });
+    await invitations.add(unwrap(claim));
+    return { space, token, juan, key: pairKeyOf(ana.id, juan.id), guestId };
+  };
+  /** ClaimGuestPlace over the real repositories; `adopted` collects what adoptPairKey answered inside it. */
+  const claimWith = (access: SpaceAccess, adopted: boolean[] = []) =>
+    createClaimGuestPlace({
+      access,
+      members: repo,
+      claims: {
+        spaceKindOf: (spaceId) => repo.spaceKindOf(spaceId),
+        claimGuest: (spaceId, claimed, at) => repo.claimGuest(spaceId, claimed, at),
+        adoptPairKey: async (spaceId, pairKey) => {
+          const took = await repo.adoptPairKey(spaceId, pairKey);
+          adopted.push(took);
+          return took;
+        },
+      },
+      invitations,
+      tokens: cryptoInvitationTokens,
+      claimUrl: (t) => t,
+      ids: new UuidV7IdGenerator(),
+      clock: new FixedClock(claimedAt),
+      tm,
+    });
+  const stored = async (spaceId: string, guestId: string) => ({
+    key: (await pool.query("SELECT direct_pair_key FROM spaces WHERE id = $1", [spaceId])).rows[0]
+      .direct_pair_key,
+    guest: (await pool.query("SELECT kind, user_id FROM space_members WHERE id = $1", [guestId])).rows[0],
+  });
+
+  it("commits the key with the claim", async () => {
+    const { space, token, juan, key, guestId } = await linkInDirectSpace();
+    unwrap(await claimWith(createSpaceAccess(repo))({ token, userId: juan.id }));
+    expect(await direct.findByPairKey(key)).toBe(space.id);
+    expect(await stored(space.id, guestId)).toEqual({ key, guest: { kind: "USER", user_id: juan.id } });
+  });
+
+  it.each([
+    ["answers an error", async () => err(domainError("SpaceNotFound")), "SpaceNotFound"],
+    [
+      "throws",
+      async (): Promise<never> => {
+        throw new Error("access crashed");
+      },
+      "access crashed",
+    ],
+  ])("keeps no key when the last step of the claim %s", async (_failure, access, expected) => {
+    const { space, token, juan, key, guestId } = await linkInDirectSpace();
+    const adopted: boolean[] = [];
+    const claim = claimWith(access, adopted);
+    const outcome = await claim({ token, userId: juan.id }).catch((e: Error) => e.message);
+    expect(typeof outcome === "string" ? outcome : codeOf(outcome)).toBe(expected);
+    // The key was taken inside the transaction, then went with the rest of the claim.
+    expect(adopted).toEqual([true]);
+    expect(await direct.findByPairKey(key)).toBeNull();
+    expect(await stored(space.id, guestId)).toEqual({ key: null, guest: { kind: "GUEST", user_id: null } });
+    // The link is still good: claiming again, with nothing failing, keys the space.
+    unwrap(await claimWith(createSpaceAccess(repo))({ token, userId: juan.id }));
+    expect(await direct.findByPairKey(key)).toBe(space.id);
   });
 });
