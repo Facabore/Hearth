@@ -37,6 +37,11 @@ export {
 } from "./record-expense";
 export { createRecordIncome, type RecordIncome, type RecordIncomeInput } from "./record-income";
 export { createRecordTransfer, type RecordTransfer, type RecordTransferInput } from "./record-transfer";
+export {
+  createRecordFundContribution,
+  type RecordFundContribution,
+  type RecordFundContributionInput,
+} from "./record-fund-contribution";
 export { createGetTransaction, type GetTransaction } from "./get-transaction";
 export {
   createListTransactions,
