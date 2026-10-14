@@ -21,6 +21,7 @@ export class DrizzleInvitationRepository implements InvitationRepository {
       spaceId: invitation.spaceId,
       kind: invitation.kind,
       email: invitation.email,
+      guestMemberId: invitation.guestMemberId,
       role: invitation.role,
       tokenHash: invitation.tokenHash,
       status: invitation.status,

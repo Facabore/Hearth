@@ -4754,7 +4754,8 @@
             "type": "string",
             "enum": [
               "EMAIL",
-              "LINK"
+              "LINK",
+              "CLAIM"
             ]
           },
           "email": {

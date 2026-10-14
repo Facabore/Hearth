@@ -46,6 +46,7 @@ describe("issuing invitations (HU-E1-06)", () => {
       spaceId: "space-household",
       kind: "EMAIL",
       email: "juan@example.com",
+      guestMemberId: null,
       role: "MEMBER",
       tokenHash: "hash(token-1)",
       status: "PENDING",

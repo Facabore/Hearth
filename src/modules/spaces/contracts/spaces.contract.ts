@@ -98,7 +98,7 @@ export const CreateInvitationBodySchema = z.discriminatedUnion("kind", [
 export const InvitationSchema = z.object({
   id: z.string(),
   spaceId: z.string(),
-  kind: z.enum(["EMAIL", "LINK"]),
+  kind: z.enum(["EMAIL", "LINK", "CLAIM"]),
   email: z.string().nullable(),
   role: z.enum(["ADMIN", "MEMBER", "VIEWER"]),
   status: z.enum(["PENDING", "ACCEPTED", "REVOKED", "EXPIRED"]),

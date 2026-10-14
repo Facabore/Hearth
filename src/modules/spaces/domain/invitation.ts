@@ -3,7 +3,8 @@ import { normalizedEmail } from "./member";
 import type { SpaceId, SpaceRole } from "./space";
 
 export type InvitationId = Id<"Invitation">;
-export type InvitationKind = "EMAIL" | "LINK";
+/** EMAIL and LINK invitations add a member (HU-E1-06); CLAIM links hand over a guest's place (HU-E1-11). */
+export type InvitationKind = "EMAIL" | "LINK" | "CLAIM";
 /** Stored lifecycle; EXPIRED is derived from expiresAt on read (effectiveStatus). */
 export type InvitationState = "PENDING" | "ACCEPTED" | "REVOKED";
 export type InvitationStatus = InvitationState | "EXPIRED";
@@ -21,6 +22,8 @@ export interface Invitation {
   readonly kind: InvitationKind;
   /** Trimmed and lower-cased; set only for EMAIL invitations, which only that address can accept. */
   readonly email: string | null;
+  /** HU-E1-11: set only for CLAIM links, the guest whose place they hand over. */
+  readonly guestMemberId: string | null;
   readonly role: InvitableRole;
   /** SHA-256 of the bearer token; the token itself is never stored (HU-E1-06). */
   readonly tokenHash: string;
@@ -55,6 +58,7 @@ export const issueInvitation = (input: {
     spaceId: input.spaceId,
     kind: target.kind,
     email,
+    guestMemberId: null,
     role,
     tokenHash: input.tokenHash,
     status: "PENDING",
