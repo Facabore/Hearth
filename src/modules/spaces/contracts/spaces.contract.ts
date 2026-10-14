@@ -355,4 +355,23 @@ export const spacesPaths: ZodOpenApiPathsObject = {
       },
     },
   },
+  "/api/v1/claims/{token}/accept": {
+    post: {
+      operationId: "claimGuestPlace",
+      summary: "Take over the claim link's guest as the signed-in user: the same member, now registered",
+      ...securedByUser,
+      requestParams: { path: z.object({ token: z.string() }) },
+      responses: {
+        "200": {
+          description: "The space, as the new registered member sees it",
+          content: jsonContent(SpaceSummarySchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "404": "InvitationNotFound, MemberNotFound",
+          "409": "InvitationExpired, InvitationRevoked, GuestAlreadyClaimed, AlreadyMember",
+        }),
+      },
+    },
+  },
 };
