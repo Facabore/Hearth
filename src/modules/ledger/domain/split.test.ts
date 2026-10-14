@@ -87,12 +87,15 @@ describe("non-equal splits (HU-E4-08)", () => {
   });
 
   it("accepts percentages with two decimals and still sums exactly (Review Focus 1)", () => {
+    // 100,001 pesos: 33,330.3333 / 33,330.3333 / 33,340.3334, so the leftover peso goes to the largest fraction.
     const split = percent(["member-ana", 3_333], ["member-juan", 3_333], ["member-luis", 3_334]);
-    expect(amounts(pesos(100_000n), split)).toEqual([
+    const shares = amounts(pesos(100_001n), split);
+    expect(shares).toEqual([
       ["member-ana", 3_333_000n],
       ["member-juan", 3_333_000n],
-      ["member-luis", 3_334_000n],
+      ["member-luis", 3_334_100n],
     ]);
+    expect(shares.reduce((sum, [, amount]) => sum + amount, 0n)).toBe(10_000_100n);
   });
 
   it("rejects percentages that do not sum to 100 or are not positive", () => {

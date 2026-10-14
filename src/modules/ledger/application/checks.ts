@@ -55,14 +55,15 @@ export const openPeriod = async (
  * Spec 5.2, D9, D15: the account a current member moves money through. A guest has none
  * (GuestHasNoAccounts); a registered member uses an account their own user owns, which may live in
  * their personal space. `required` is false only where accounts are optional (settlements).
- * `debitedBy` is the requester on debits: nobody spends from another member's account (D9).
+ * `debitedBy` is the requester's user on a debit and null on a credit; it is required so that no debit
+ * path can forget that nobody spends from another member's account (D9).
  */
 export const partyAccount = async (
   deps: Pick<LedgerDeps, "accounts">,
   members: readonly SpaceMember[],
   memberId: string,
   accountId: string | null,
-  options: { readonly required: boolean; readonly debitedBy?: string },
+  options: { readonly required: boolean; readonly debitedBy: string | null },
 ): Promise<Result<string | null>> => {
   const member = members.find((m) => m.id === memberId);
   if (member === undefined) return err(domainError("NotASpaceMember"));
@@ -70,7 +71,7 @@ export const partyAccount = async (
   if (member.userId === null) return accountId === null ? ok(null) : err(domainError("GuestHasNoAccounts"));
   if (accountId === null) return options.required ? err(domainError("AccountRequired")) : ok(null);
   // D9: only the account's owner records a debit from it; crediting another member's account is allowed.
-  if (options.debitedBy !== undefined && options.debitedBy !== member.userId) {
+  if (options.debitedBy !== null && options.debitedBy !== member.userId) {
     return err(domainError("AccountNotOwned"));
   }
   return map(await ownAccount(deps, accountId, member.userId), (account) => account.id);

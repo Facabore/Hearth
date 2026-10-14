@@ -4,6 +4,7 @@ import type { LocalDate } from "@/shared/kernel";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
 import {
   canModify,
+  changedDebits,
   changesBetween,
   recordExpense,
   recordFundContribution,
@@ -14,6 +15,8 @@ import {
   softDelete,
   type Expense,
   type Payment,
+  type Transaction,
+  type TransactionChanges,
   type TransactionId,
 } from "./transaction";
 
@@ -190,6 +193,58 @@ describe("editing and deleting (HU-E4-06)", () => {
       amount: { from: "8500000", to: "9500000" },
     });
     expect(changesBetween(before, before)).toEqual({});
+  });
+
+  // D9: changing how much leaves an account is a debit, so the edit path checks who owns these accounts.
+  it("names the accounts whose debit an edit changes, never credited ones", () => {
+    const parties = { payerMemberId: "member-juan", receivingMemberId: "member-ana" };
+    const settlement = (sourceAccountId: string | null) =>
+      unwrap(
+        recordSettlement({
+          ...common,
+          ...parties,
+          amount: 1_000n,
+          sourceAccountId,
+          destinationAccountId: "acc-bancolombia",
+        }),
+      );
+    const contribution = unwrap(
+      recordFundContribution({
+        ...common,
+        amount: 1_000n,
+        payerMemberId: "member-juan",
+        sourceAccountId: "acc-davivienda",
+        destinationAccountId: "acc-household-fund",
+      }),
+    );
+    const income = unwrap(
+      recordIncome({
+        ...common,
+        amount: 1_000n,
+        categoryId: "cat-salary",
+        destinationAccountId: "acc-bancolombia",
+        receivingMemberId: "member-ana",
+      }),
+    );
+    const guestPaid = unwrap(
+      recordExpense({
+        ...common,
+        amount: 1_000n,
+        categoryId: "cat-groceries",
+        payments: [{ memberId: "member-pedro", accountId: null, amount: 1_000n }],
+        shares: [{ memberId: "member-ana", amount: 1_000n, splitMethod: "EQUAL" }],
+      }),
+    );
+    const debitsAfter = (before: Transaction, changes: TransactionChanges) =>
+      changedDebits(before, unwrap(reviseTransaction(before, changes, later)));
+    const raise = { amount: 2_000n };
+    expect(debitsAfter(unwrap(personal(1_000n)), raise)).toEqual(["acc-bancolombia"]);
+    expect(debitsAfter(contribution, raise)).toEqual(["acc-davivienda"]);
+    expect(debitsAfter(settlement("acc-davivienda"), raise)).toEqual(["acc-davivienda"]);
+    expect(debitsAfter(settlement(null), raise)).toEqual([]);
+    expect(debitsAfter(income, raise)).toEqual([]);
+    expect(debitsAfter(guestPaid, raise)).toEqual([]);
+    expect(debitsAfter(unwrap(personal(1_000n)), { description: "Groceries" })).toEqual([]);
   });
 
   it("soft-deletes by setting deletedAt", () => {

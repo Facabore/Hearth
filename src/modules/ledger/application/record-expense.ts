@@ -60,6 +60,7 @@ const paymentOf = async (
   space: SpaceMembership,
   members: readonly SpaceMember[],
   requested: PaymentInput,
+  userId: string,
 ): Promise<Result<Payment>> => {
   const currency = inSpaceCurrency(space, requested.amount);
   if (!currency.ok) return currency;
@@ -73,7 +74,7 @@ const paymentOf = async (
       amount,
     }));
   }
-  const debit = { required: true, debitedBy: space.userId };
+  const debit = { required: true, debitedBy: userId };
   return map(await partyAccount(deps, members, memberId, accountId, debit), (account) => ({
     memberId,
     accountId: account,
@@ -126,7 +127,7 @@ export const createRecordExpense =
       }
       const payments: Payment[] = [];
       for (const payment of requested) {
-        const resolved = await paymentOf(deps, space, members, payment);
+        const resolved = await paymentOf(deps, space, members, payment, input.userId);
         if (!resolved.ok) return resolved;
         payments.push(resolved.value);
       }

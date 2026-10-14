@@ -3,7 +3,10 @@ import type { ZodOpenApiPathsObject } from "zod-openapi";
 import { jsonContent, MoneySchema, problems, securedByUser } from "@/shared/http/contracts";
 import type { SpaceBalances } from "../application";
 
-/** HU-E5-01: one entry per current member in join order, guests included; positive net means owed money. */
+/**
+ * HU-E5-01: one entry per current member in join order, guests included, then every former member with
+ * a non-zero history in the space; positive net means owed money.
+ */
 export const SpaceBalancesSchema = z.object({
   members: z.array(z.object({ memberId: z.string(), net: MoneySchema })),
 });

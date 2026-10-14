@@ -20,7 +20,7 @@ export interface BalancesDeps {
 export interface SpaceBalances {
   readonly spaceId: string;
   readonly currency: string;
-  /** Current members in join order, guests included; the nets sum to zero. */
+  /** Current members in join order, guests included, then former members with a non-zero history; nets sum to zero. */
   readonly members: readonly MemberBalance[];
 }
 

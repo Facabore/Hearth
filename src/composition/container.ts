@@ -116,6 +116,7 @@ import { loadEnv, type Env } from "@/shared/infrastructure/env";
 import { SystemClock } from "@/shared/infrastructure/system-clock";
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
 import { map, type AuthUser, type Result } from "@/shared/kernel";
+import { accountBalancesFrom } from "./account-balances";
 
 /** Process-wide dependencies, built once from the environment. */
 export interface Container extends RouteDeps {
@@ -263,13 +264,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     closedPeriods: { isClosed: async () => false },
     storedPeriods,
     // HU-E4-10: the accounts module owns the balance formula (opening balance + movements, HU-E2-04).
-    accountBalances: {
-      balanceOf: async (spaceId, userId, accountId) => {
-        const account = await getAccount({ spaceId, userId, accountId });
-        // The fund was found in this space within the same transaction, so this read succeeds.
-        return account.ok ? account.value.balance : 0n;
-      },
-    },
+    accountBalances: accountBalancesFrom(getAccount),
     ids,
     clock,
     timeZone: env.APP_TIMEZONE,

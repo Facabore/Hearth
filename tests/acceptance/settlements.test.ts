@@ -208,6 +208,26 @@ describe("settlements (HU-E5-02)", () => {
     ]);
   });
 
+  it("refuses the OWNER changing the amount Juan settled from his own account (D9)", async () => {
+    const h = await juanOwesAna();
+    const tx = await settled(
+      await settle(h.juan, juanToAna(h, 1_200_000, { sourceAccountId: h.juan.account })),
+    );
+    const path = `/api/v1/spaces/${h.spaceId}/transactions/${tx.id}`;
+    const params = { spaceId: h.spaceId, transactionId: tx.id };
+    const raised = await call(editTransaction, "PATCH", path, {
+      user: h.ana,
+      params,
+      body: { amount: cop(1_500_000) },
+    });
+    expect(await problemOf(raised)).toEqual([422, "AccountNotOwned"]);
+    expect(await balanceOf(h.juan.personal, h.juan.account)).toEqual(cop(800_000));
+    expect(await balancesOf(h.ana, h.spaceId)).toEqual([
+      [h.ana.memberId, cop(0)],
+      [h.juan.memberId, cop(0)],
+    ]);
+  });
+
   it("lists settlements by type without counting them as spending", async () => {
     const h = await juanOwesAna();
     const tx = await settled(await settle(h.juan, juanToAna(h, 1_200_000)));

@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
 import { GET as listTransactions } from "@/app/api/v1/spaces/[spaceId]/transactions/route";
+import {
+  GET as getTransaction,
+  PATCH as editTransaction,
+} from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
 import { actingIn } from "../support/spaces";
@@ -145,6 +149,8 @@ describe("shared expense rules (HU-E4-07, Review Focus 2)", () => {
       // D9: Ana cannot spend from Juan's own account either; Juan records his own payment (last test).
       [paidBy(h, h.ana, 80_000, { split: both, payments: juanPays(h.juan.account) }), 422, "AccountNotOwned"],
       [paidBy(h, h.ana, 80_000, { split: both, payments: juanPays(undefined) }), 422, "AccountRequired"],
+      // Neither accountId nor payments: the requester pays, but names no account of theirs.
+      [paidBy(h, h.ana, 80_000, { split: both, payments: undefined }), 422, "AccountRequired"],
       [
         paidBy(h, h.ana, 80_000, {
           split: both,
@@ -219,6 +225,27 @@ describe("shared expense rules (HU-E4-07, Review Focus 2)", () => {
   });
 });
 
+describe("editing a shared expense (HU-E4-06, D9)", () => {
+  it("refuses an ADMIN changing the amount Juan paid from his own account, but lets them fix the description", async () => {
+    const h = await household();
+    const luis = await joinHousehold(h, "Luis", "ADMIN");
+    const tx = await recordedBy(h.juan, paidBy(h, h.juan, 100_000, { split: equal(h.ana.memberId) }));
+    const path = `/api/v1/spaces/${h.spaceId}/transactions/${tx.id}`;
+    const params = { spaceId: h.spaceId, transactionId: tx.id };
+    const asLuis = (body: unknown) => call(editTransaction, "PATCH", path, { user: luis, params, body });
+    expect(await problemOf(await asLuis({ amount: cop(150_000) }))).toEqual([422, "AccountNotOwned"]);
+    expect(await balanceOf(h.juan.personal, h.juan.account)).toEqual(cop(1_900_000));
+    const current = (await (
+      await call(getTransaction, "GET", path, { user: h.juan, params })
+    ).json()) as TransactionDto;
+    expect([current.amount, current.version]).toEqual([cop(100_000), 1]);
+    const renamed = await asLuis({ description: "Market" });
+    expect(renamed.status).toBe(200);
+    expect(((await renamed.json()) as TransactionDto).description).toBe("Market");
+    expect(await balanceOf(h.juan.personal, h.juan.account)).toEqual(cop(1_900_000));
+  });
+});
+
 describe("non-equal splits (HU-E4-08)", () => {
   const byAna = (h: Household, pesos: number, split: unknown) => paidBy(h, h.ana, pesos, { split });
 
@@ -274,7 +301,8 @@ describe("non-equal splits (HU-E4-08)", () => {
     const luis = await joinHousehold(h, "Luis", "MEMBER");
     const tx = await recordedBy(
       h.ana,
-      byAna(h, 100_000, {
+      // 100,001 pesos: 33,330.3333 / 33,330.3333 / 33,340.3334, so the leftover peso goes to the largest fraction.
+      byAna(h, 100_001, {
         method: "PERCENT",
         participants: [
           { memberId: h.ana.memberId, percent: "33.33" },
@@ -286,8 +314,10 @@ describe("non-equal splits (HU-E4-08)", () => {
     expect(sharesOf(tx)).toEqual([
       [h.ana.memberId, cop(33_330), "PERCENT"],
       [h.juan.memberId, cop(33_330), "PERCENT"],
-      [luis.memberId, cop(33_340), "PERCENT"],
+      [luis.memberId, cop(33_341), "PERCENT"],
     ]);
+    const total = tx.shares.reduce((sum, s) => sum + BigInt(s.amount.amount), 0n);
+    expect([String(total), tx.amount.amount]).toEqual(["10000100", "10000100"]);
   });
 
   it("rejects splits that do not add up or are malformed", async () => {

@@ -285,6 +285,27 @@ export const reviseTransaction = (
   }
 };
 
+/** What each account a transaction debits loses: expense payments and TRANSFER/SETTLEMENT sources. */
+const debitsOf = (tx: Transaction): ReadonlyMap<string, bigint> => {
+  switch (tx.type) {
+    case "EXPENSE":
+      return new Map(
+        tx.payments.flatMap((p) => (p.accountId === null ? [] : [[p.accountId, p.amount] as const])),
+      );
+    case "INCOME":
+      return new Map();
+    case "TRANSFER":
+    case "SETTLEMENT":
+      return new Map(tx.sourceAccountId === null ? [] : [[tx.sourceAccountId, tx.amount] as const]);
+  }
+};
+
+/** D9: the accounts `before` debits whose debited amount differs in `after`; credited accounts never count. */
+export const changedDebits = (before: Transaction, after: Transaction): string[] => {
+  const revised = debitsOf(after);
+  return [...debitsOf(before)].filter(([id, amount]) => revised.get(id) !== amount).map(([id]) => id);
+};
+
 /** D8: transactions are never hard-deleted. */
 export const softDelete = (tx: Transaction, now: Date): Transaction => ({
   ...tx,

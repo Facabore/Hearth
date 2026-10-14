@@ -45,7 +45,7 @@ export const createRecordSettlement =
         members,
         input.receivingMemberId,
         input.destinationAccountId ?? null,
-        { required: false },
+        { required: false, debitedBy: null },
       );
       if (!destination.ok) return destination;
       const date = input.date ?? todayIn(deps.clock, deps.timeZone);
