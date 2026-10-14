@@ -234,6 +234,7 @@ Feature: Role-based authorization in use cases
 **Technical notes:**
 - Use cases: `ChangeMemberRole`; shared `AuthorizeSpaceAction` application service used by every use case. Endpoints: `GET /api/v1/spaces/{spaceId}/members`, `PATCH /api/v1/spaces/{spaceId}/members/{memberId}` (role).
 - Permission matrix lives in the `spaces` domain as a pure policy; it is pending owner confirmation (see docs/product/functional-overview.md).
+- Budget plans (M3-A, ruling P2): `plan.manage` (OWNER, ADMIN) covers plans, capacities, lines, category mappings and allocations; `capacity.setOwn` (OWNER, ADMIN, MEMBER) lets a member set only their own capacity (D17).
 - Authorization is checked in use cases, never only in UI (spec section 8).
 - Guests have no role and cannot sign in, so they never act themselves; any member with role MEMBER or above can add a guest, record expenses and settlements on a guest's behalf, and remove a guest whose balance is zero (spec D15). `createdBy` is always the acting registered user.
 

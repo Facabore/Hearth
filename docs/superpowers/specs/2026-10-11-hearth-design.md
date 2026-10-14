@@ -125,7 +125,7 @@ The core insight: **a personal expense is a shared expense with one participant.
 
 **BudgetLine** — planId, originLineId (the line it was copied from, for rollover), name, plannedAmount, funding (`DIRECT` | `SHARED_FUND` | `SAVINGS`), savingsAccountIds[] (only for `SAVINGS`), rolloverMode (`RESET` | `ROLLOVER` | `ADJUSTED`), isCatchAll, categoryIds[]. A category maps to at most one line per plan. At most one line per plan is the catch-all; unmapped categories consume it. Without a catch-all line, unmapped categories fall into an implicit "Unbudgeted" line. Adding or editing a line that would push Σ plannedAmount above total capacity is rejected; a plan whose capacity was later reduced below Σ plannedAmount cannot be activated.
 
-**Allocation** — lineId, memberId, rule (`PROPORTIONAL` | `PERCENT` | `FIXED`), value. One rule per line, or none: a line without allocation rows has rule `NONE`. Assigned amount per member is derived.
+**Allocation** — lineId, memberId, value. The line carries the rule (`PROPORTIONAL` by default, `PERCENT`, `FIXED` or `NONE`); only `PERCENT` and `FIXED` lines have member rows, so a new member of the space is covered by a proportional line without new rows. Assigned amount per member is derived. (Amended 2026-10-14, M3-A ruling P1.)
 
 ### 5.3 Periods, money and rounding
 
