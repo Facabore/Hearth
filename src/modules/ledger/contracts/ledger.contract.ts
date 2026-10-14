@@ -19,6 +19,7 @@ import type {
   RecordedExpense,
   RecordExpenseInput,
   RecordFundContributionInput,
+  RecordSettlementInput,
   SplitInput,
   Transaction,
   TransactionPage,
@@ -235,6 +236,36 @@ export const fundContributionFromBody = (
   });
 };
 
+/** HU-E5-02: `payerMemberId` paid `receivingMemberId`; both accounts are optional and never sent for a guest. */
+export const RecordSettlementBodySchema = z.object({
+  description: Description,
+  date: z.iso.date().optional(),
+  amount: MoneySchema,
+  payerMemberId: Id,
+  receivingMemberId: Id,
+  sourceAccountId: Id.nullable().optional(),
+  destinationAccountId: Id.nullable().optional(),
+});
+
+/** A validated body as RecordSettlement input; fails only for impossible dates and unknown currencies. */
+export const settlementFromBody = (
+  body: z.infer<typeof RecordSettlementBodySchema>,
+): Result<Omit<RecordSettlementInput, "spaceId" | "userId">> => {
+  const amount = moneyFromDto(body.amount);
+  if (!amount.ok) return amount;
+  const date = optionalLocalDate(body.date);
+  if (!date.ok) return date;
+  return ok({
+    description: body.description,
+    date: date.value,
+    amount: amount.value,
+    payerMemberId: body.payerMemberId,
+    receivingMemberId: body.receivingMemberId,
+    sourceAccountId: body.sourceAccountId ?? null,
+    destinationAccountId: body.destinationAccountId ?? null,
+  });
+};
+
 export const transactionDto = (tx: Transaction): z.infer<typeof TransactionSchema> => {
   const money = (minor: bigint) => ({ amount: minor.toString(), currency: tx.currency });
   return {
@@ -303,7 +334,7 @@ export const ListTransactionsQuerySchema = PaginationQuerySchema.extend({
     .optional(),
   payerMemberId: z.uuid().optional(),
   participantMemberId: z.uuid().optional(),
-  type: z.enum(["EXPENSE", "INCOME", "TRANSFER"]).optional(),
+  type: z.enum(["EXPENSE", "INCOME", "TRANSFER", "SETTLEMENT"]).optional(),
 });
 
 export const ListTransactionsResponseSchema = z.object({
@@ -436,6 +467,16 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
       "422": `${invalidMoney}, AccountNotOwned, AccountRequired, InvalidFundAccount, NotASpaceMember`,
     },
   ),
+  "/api/v1/spaces/{spaceId}/settlements": recording(
+    "recordSettlement",
+    "Record that one member paid another to settle up; accounts are optional",
+    RecordSettlementBodySchema,
+    {
+      "404": "SpaceNotFound, AccountNotFound",
+      "409": "AccountArchived, PeriodClosed, IdempotencyKeyConflict, GuestHasNoAccounts",
+      "422": `${invalidMoney}, AccountNotOwned, NotASpaceMember, InvalidSettlementParties`,
+    },
+  ),
   "/api/v1/spaces/{spaceId}/transactions": {
     get: {
       operationId: "listTransactions",
@@ -481,7 +522,8 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
           "401": "Unauthenticated",
           "403": "InsufficientRole",
           "404": "SpaceNotFound, TransactionNotFound, CategoryNotFound",
-          "409": "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, TransferHasNoCategory",
+          "409":
+            "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, TransferHasNoCategory, SettlementHasNoCategory",
           "412": "PreconditionFailed",
           "422":
             "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency",

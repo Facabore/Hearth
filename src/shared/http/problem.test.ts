@@ -14,6 +14,8 @@ describe("statusForCode", () => {
     ["UnknownCurrency", 422],
     ["CurrencyMismatch", 422],
     ["CategoryRequired", 422],
+    ["InvalidSettlementParties", 422],
+    ["SettlementHasNoCategory", 409],
     ["InvalidFundAccount", 422],
     ["MixedFundPayment", 409],
     ["AccountRequired", 422],

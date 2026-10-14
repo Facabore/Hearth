@@ -23,6 +23,7 @@ import {
   createRecordExpense,
   createRecordFundContribution,
   createRecordIncome,
+  createRecordSettlement,
   createRecordTransfer,
   type DeleteTransaction,
   type EditTransaction,
@@ -33,6 +34,7 @@ import {
   type RecordExpense,
   type RecordFundContribution,
   type RecordIncome,
+  type RecordSettlement,
   type RecordTransfer,
 } from "@/modules/ledger/application";
 import { DrizzleAuditLog } from "@/modules/ledger/infrastructure/drizzle-audit-log";
@@ -159,6 +161,7 @@ export interface Container extends RouteDeps {
     readonly recordIncome: RecordIncome;
     readonly recordTransfer: RecordTransfer;
     readonly recordFundContribution: RecordFundContribution;
+    readonly recordSettlement: RecordSettlement;
     readonly listTransactions: ListTransactions;
     readonly getTransaction: GetTransaction;
     readonly editTransaction: EditTransaction;
@@ -373,6 +376,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       recordIncome: createRecordIncome(ledgerDeps),
       recordTransfer: createRecordTransfer(ledgerDeps),
       recordFundContribution: createRecordFundContribution(ledgerDeps),
+      recordSettlement: createRecordSettlement(ledgerDeps),
       listTransactions: createListTransactions(ledgerDeps),
       getTransaction: createGetTransaction(ledgerDeps),
       editTransaction: createEditTransaction(ledgerDeps),
