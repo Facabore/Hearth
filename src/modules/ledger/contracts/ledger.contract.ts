@@ -529,7 +529,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
             "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, TransferHasNoCategory, SettlementHasNoCategory",
           "412": "PreconditionFailed",
           "422":
-            "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned",
+            "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, NotASpaceMember",
         }),
       },
     },
@@ -545,6 +545,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
           "403": "InsufficientRole",
           "404": "SpaceNotFound, TransactionNotFound",
           "409": "PeriodClosed",
+          "422": "NotASpaceMember",
         }),
       },
     },

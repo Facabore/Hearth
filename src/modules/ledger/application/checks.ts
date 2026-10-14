@@ -1,5 +1,6 @@
 import { authorizeSpaceAction, type SpaceMember, type SpaceMembership } from "@/modules/spaces/application";
 import { domainError, err, map, ok, type LocalDate, type Money, type Result } from "@/shared/kernel";
+import { balanceParties, type Transaction } from "../domain/transaction";
 import type { LedgerDeps } from "./deps";
 import type { LedgerAccount } from "./ports";
 
@@ -90,4 +91,19 @@ export const fundAccount = async (
   if (account === null || account.spaceId !== spaceId) return err(domainError("AccountNotFound"));
   if (!account.isSharedFund) return err(domainError("InvalidFundAccount"));
   return account.archived ? err(domainError("AccountArchived")) : ok(account);
+};
+
+/**
+ * HU-E1-08, HU-E1-12: a member who left or was removed keeps the zero balance they settled with, and
+ * nobody can settle with them any more (HU-E5-02), so no edit or deletion may move it (Task 4b).
+ */
+export const ensureCurrentParties = async (
+  deps: Pick<LedgerDeps, "members">,
+  spaceId: SpaceMembership["spaceId"],
+  tx: Transaction,
+): Promise<Result<void>> => {
+  const parties = balanceParties(tx);
+  if (parties.length === 0) return ok(undefined);
+  const current = new Set<string>((await deps.members.listCurrent(spaceId)).map((m) => m.id));
+  return parties.every((id) => current.has(id)) ? ok(undefined) : err(domainError("NotASpaceMember"));
 };

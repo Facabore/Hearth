@@ -3,6 +3,7 @@ import { can } from "@/modules/spaces/application";
 import type { LocalDate } from "@/shared/kernel";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
 import {
+  balanceParties,
   canModify,
   changedDebits,
   changesBetween,
@@ -463,5 +464,44 @@ describe("the audit keeps every payment and share (D8, Task 0b)", () => {
       date: { from: "2026-10-05", to: null },
       amount: { from: "100", to: null },
     });
+  });
+});
+
+describe("balance parties (E5 balance rule, Task 4b)", () => {
+  it("names the payers and participants of a member-paid expense once each, and both sides of a settlement", () => {
+    expect(balanceParties(shared())).toEqual(["member-ana", "member-juan"]);
+    const settlement = unwrap(
+      recordSettlement({
+        ...common,
+        amount: 100n,
+        payerMemberId: "member-juan",
+        receivingMemberId: "member-ana",
+        sourceAccountId: null,
+        destinationAccountId: null,
+      }),
+    );
+    expect(balanceParties(settlement)).toEqual(["member-juan", "member-ana"]);
+  });
+
+  it("names nobody for a fund-paid expense or a fund contribution (D5)", () => {
+    const fundPaid = unwrap(
+      recordExpense({
+        ...common,
+        amount: 100n,
+        categoryId: "cat-rent",
+        payments: [{ memberId: null, accountId: "acc-fund", amount: 100n }],
+        shares: [{ memberId: "member-ana", amount: 100n, splitMethod: "EQUAL" }],
+      }),
+    );
+    const contribution = unwrap(
+      recordFundContribution({
+        ...common,
+        amount: 100n,
+        payerMemberId: "member-juan",
+        sourceAccountId: "acc-davivienda",
+        destinationAccountId: "acc-fund",
+      }),
+    );
+    expect([balanceParties(fundPaid), balanceParties(contribution)]).toEqual([[], []]);
   });
 });

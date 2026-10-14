@@ -4043,7 +4043,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned",
+            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, NotASpaceMember",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4119,6 +4119,16 @@
           },
           "409": {
             "description": "PeriodClosed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "NotASpaceMember",
             "content": {
               "application/problem+json": {
                 "schema": {

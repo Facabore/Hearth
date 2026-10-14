@@ -3,7 +3,10 @@ import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/ro
 import { POST as leaveSpace } from "@/app/api/v1/spaces/[spaceId]/leave/route";
 import { GET as listMembers } from "@/app/api/v1/spaces/[spaceId]/members/route";
 import { POST as recordSettlement } from "@/app/api/v1/spaces/[spaceId]/settlements/route";
-import { PATCH as editTransaction } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/route";
+import {
+  DELETE as deleteTransaction,
+  PATCH as editTransaction,
+} from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/route";
 import { GET as listTransactions } from "@/app/api/v1/spaces/[spaceId]/transactions/route";
 import { GET as listSpaces } from "@/app/api/v1/spaces/route";
 import { setContainerForTests, type Container } from "@/composition/container";
@@ -163,5 +166,39 @@ describe("leave a space (HU-E1-08)", () => {
     for (const spaceId of [h.spaceId, "not-a-uuid"]) {
       expect(await problemOf(await leave(marta, spaceId))).toEqual([404, "SpaceNotFound"]);
     }
+  });
+});
+
+describe("a former member's balance stays settled (HU-E1-08, Task 4b)", () => {
+  it("refuses changing the amount of, or deleting, what Luis took part in after he left", async () => {
+    const h = await household();
+    const luis = await joinHousehold(h, "Luis", "MEMBER");
+    const groceries = await paysEqually(luis, 100_000, [h.ana.memberId, luis.memberId], h.groceries);
+    const payback = await settles(h.ana, h.ana.memberId, luis.memberId, 50_000);
+    expect((await leave(luis, h.spaceId)).status).toBe(204);
+    const onTransaction = (transactionId: string) => ({
+      user: h.ana,
+      params: { spaceId: h.spaceId, transactionId },
+    });
+    const path = (id: string) => `/api/v1/spaces/${h.spaceId}/transactions/${id}`;
+    const raised = await call(editTransaction, "PATCH", path(payback.id), {
+      ...onTransaction(payback.id),
+      body: { amount: cop(60_000) },
+    });
+    expect(await problemOf(raised)).toEqual([422, "NotASpaceMember"]);
+    for (const tx of [payback, groceries]) {
+      const deleted = await call(deleteTransaction, "DELETE", path(tx.id), onTransaction(tx.id));
+      expect(await problemOf(deleted)).toEqual([422, "NotASpaceMember"]);
+    }
+    const renamed = await call(editTransaction, "PATCH", path(payback.id), {
+      ...onTransaction(payback.id),
+      body: { description: "Paid back Luis" },
+    });
+    expect(renamed.status).toBe(200);
+    expect(await balancesOf(h.ana, h.spaceId)).toEqual([
+      [h.ana.memberId, cop(0)],
+      [h.juan.memberId, cop(0)],
+      [luis.memberId, cop(0)],
+    ]);
   });
 });

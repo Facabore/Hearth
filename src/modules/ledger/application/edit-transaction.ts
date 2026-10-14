@@ -6,7 +6,7 @@ import {
   reviseTransaction,
   type Transaction,
 } from "../domain/transaction";
-import { openPeriod, usableCategory } from "./checks";
+import { ensureCurrentParties, openPeriod, usableCategory } from "./checks";
 import type { LedgerDeps } from "./deps";
 
 export interface EditChanges {
@@ -73,6 +73,11 @@ export const createEditTransaction =
       if (Object.keys(changes).length === 0) return ok(current);
       const debits = await ownedDebits(deps, changedDebits(current, revised.value), input.userId);
       if (!debits.ok) return debits;
+      // HU-E1-08, HU-E1-12: a new amount must not move the balance of a member who left (Task 4b).
+      if (changes.amount) {
+        const parties = await ensureCurrentParties(deps, membership.value.spaceId, current);
+        if (!parties.ok) return parties;
+      }
       if (changes.date) {
         // HU-E4-06: moving a transaction into a closed period is rejected too.
         const target = await openPeriod(deps, current.spaceId, revised.value.date);

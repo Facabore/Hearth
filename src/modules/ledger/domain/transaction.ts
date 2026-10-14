@@ -309,6 +309,18 @@ export const changedDebits = (before: Transaction, after: Transaction): string[]
   return [...debitsOf(before)].filter(([id, amount]) => revised.get(id) !== amount).map(([id]) => id);
 };
 
+/**
+ * E5 balance rule: the members whose net a transaction moves — the payers and participants of a
+ * member-paid expense and both parties of a settlement; nobody for fund-paid expenses, transfers
+ * (fund contributions included) and incomes (D5).
+ */
+export const balanceParties = (tx: Transaction): string[] => {
+  if (tx.type === "SETTLEMENT") return [tx.payerMemberId, tx.receivingMemberId];
+  if (tx.type !== "EXPENSE" || tx.payments.some((p) => p.memberId === null)) return [];
+  const payers = tx.payments.flatMap((p) => (p.memberId === null ? [] : [p.memberId]));
+  return [...new Set([...payers, ...tx.shares.map((s) => s.memberId)])];
+};
+
 /** D8: transactions are never hard-deleted. */
 export const softDelete = (tx: Transaction, now: Date): Transaction => ({
   ...tx,
