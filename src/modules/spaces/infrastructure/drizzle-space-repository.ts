@@ -71,7 +71,10 @@ export class DrizzleSpaceRepository
     return rows.length > 0;
   }
 
-  async listForUser(userId: string): Promise<SpaceSummary[]> {
+  async listForUser(
+    userId: string,
+    options: { readonly includeArchived?: boolean } = {},
+  ): Promise<SpaceSummary[]> {
     return this.tm
       .executor()
       .select({
@@ -84,7 +87,14 @@ export class DrizzleSpaceRepository
       })
       .from(spaces)
       .innerJoin(spaceMembers, eq(spaceMembers.spaceId, spaces.id))
-      .where(and(eq(spaceMembers.userId, userId), isNull(spaceMembers.leftAt), isNull(spaces.archivedAt)))
+      .where(
+        and(
+          eq(spaceMembers.userId, userId),
+          isNull(spaceMembers.leftAt),
+          // HU-E1-09, the M1 archived=true convention: archived spaces only when asked for, beside the active ones.
+          options.includeArchived === true ? undefined : isNull(spaces.archivedAt),
+        ),
+      )
       .orderBy(asc(spaces.createdAt));
   }
 
@@ -296,5 +306,13 @@ export class DrizzleSpaceRepository
       )
       .returning({ id: spaces.id });
     return adopted.length > 0;
+  }
+
+  async archive(spaceId: SpaceId, archivedAt: Date): Promise<void> {
+    await this.tm
+      .executor()
+      .update(spaces)
+      .set({ archivedAt })
+      .where(and(eq(spaces.id, spaceId), isNull(spaces.archivedAt)));
   }
 }

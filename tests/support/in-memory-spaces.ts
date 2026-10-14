@@ -51,21 +51,22 @@ export class InMemorySpaceStore implements SpaceRepository, SpaceSettingsReposit
     return this.spaces.some((s) => s.kind === "PERSONAL" && s.personalOwnerUserId === userId);
   }
 
-  async listForUser(userId: string): Promise<SpaceSummary[]> {
+  async listForUser(
+    userId: string,
+    options: { readonly includeArchived?: boolean } = {},
+  ): Promise<SpaceSummary[]> {
     return this.spaces.flatMap((s) => {
       const me = s.members.find((m) => m.userId === userId);
-      return me
-        ? [
-            {
-              id: s.id,
-              name: s.name,
-              kind: s.kind,
-              currency: s.currency,
-              periodPolicy: s.periodPolicy,
-              role: me.role,
-            },
-          ]
-        : [];
+      if (!me || (this.archived.has(s.id) && options.includeArchived !== true)) return [];
+      const summary: SpaceSummary = {
+        id: s.id,
+        name: s.name,
+        kind: s.kind,
+        currency: s.currency,
+        periodPolicy: s.periodPolicy,
+        role: me.role,
+      };
+      return [summary];
     });
   }
 
@@ -176,6 +177,11 @@ export class InMemorySpaceStore implements SpaceRepository, SpaceSettingsReposit
     this.spaces.push(space);
     if (key !== null) this.pairKeys.set(space.id, key);
     return space.id;
+  }
+
+  /** SpaceArchiveRepository, like DrizzleSpaceRepository.archive. */
+  async archive(spaceId: string): Promise<void> {
+    this.archived.add(spaceId);
   }
 
   /** Test setup: a space as earlier use cases would have left it. */

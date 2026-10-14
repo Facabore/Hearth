@@ -14,3 +14,13 @@ export const createGetMemberNetBalance =
     const totals = (await source.memberTotals(spaceId)).find((t) => t.memberId === memberId);
     return totals === undefined ? 0n : netOf(totals);
   };
+
+/** The nets of several members of one space, in the given order, from one aggregate (HU-E1-09). */
+export type GetMemberNetBalances = (spaceId: string, memberIds: readonly string[]) => Promise<bigint[]>;
+
+export const createGetMemberNetBalances =
+  (source: BalanceSource): GetMemberNetBalances =>
+  async (spaceId, memberIds) => {
+    const byMember = new Map((await source.memberTotals(spaceId)).map((t) => [t.memberId, netOf(t)]));
+    return memberIds.map((id) => byMember.get(id) ?? 0n);
+  };

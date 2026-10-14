@@ -88,3 +88,10 @@ export {
   type SplitWithPersonDeps,
   type SplitWithPersonInput,
 } from "./split-with-person";
+export type { SpaceArchiveRepository } from "./space-repository";
+export {
+  createArchiveSpace,
+  type ArchiveSpace,
+  type ArchiveSpaceDeps,
+  type MemberNetBalances,
+} from "./archive-space";

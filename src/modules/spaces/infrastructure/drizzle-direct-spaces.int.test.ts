@@ -108,6 +108,29 @@ describe("DrizzleSpaceRepository direct spaces (HU-E1-13)", () => {
     expect(await direct.addDirect(fresh)).toBe(fresh.id);
   });
 
+  it("frees the pair once ArchiveSpace archives its direct space, and deletes nothing of it (HU-E1-09)", async () => {
+    const { ana, juan } = await pair();
+    const key = pairKeyOf(ana.id, juan.id);
+    const old = directSpace(ana, withUser(juan));
+    await direct.addDirect(old);
+    expect(await direct.findByPairKey(key)).toBe(old.id);
+    await repo.archive(old.id, new Date("2026-10-14T13:00:00Z"));
+    expect(await direct.findByPairKey(key)).toBeNull();
+    const fresh = directSpace(juan, withUser(ana));
+    expect(await direct.addDirect(fresh)).toBe(fresh.id);
+    expect(await direct.findByPairKey(key)).toBe(fresh.id);
+    // Archiving is logical: the old space keeps its key, its members and its place in the listings that ask for it.
+    expect(await count("SELECT count(*)::int AS n FROM space_members WHERE space_id = $1", [old.id])).toBe(2);
+    expect((await pool.query("SELECT direct_pair_key FROM spaces WHERE id = $1", [old.id])).rows[0]).toEqual({
+      direct_pair_key: key,
+    });
+    expect((await repo.listForUser(ana.id)).map((s) => s.id)).toEqual([fresh.id]);
+    // Both were created at the same instant, so their order is not pinned.
+    expect((await repo.listForUser(ana.id, { includeArchived: true })).map((s) => s.id).sort()).toEqual(
+      [old.id, fresh.id].sort(),
+    );
+  });
+
   it("finds no member for malformed, unknown or former ids (Review Focus 3)", async () => {
     const space = await sharedSpaceFixture(db, (await userFixture(pool, "Ana")).id);
     const owner = space.members[0]!;

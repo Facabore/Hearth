@@ -119,6 +119,10 @@ export const ensureMembersCanChange = (space: Pick<Space, "kind">): Result<void>
   return space.kind === "DIRECT" ? err(domainError("DirectSpaceMembersFixed")) : ok(undefined);
 };
 
+/** HU-E1-09: personal spaces are never archived; shared and direct spaces are, once settled. */
+export const ensureArchivable = (space: Pick<Space, "kind">): Result<void> =>
+  space.kind === "PERSONAL" ? err(domainError("PersonalSpaceNotArchivable")) : ok(undefined);
+
 export const MAX_SPACE_NAME = 80;
 
 /** HU-E1-03: space names are trimmed and 1–80 characters long. */
