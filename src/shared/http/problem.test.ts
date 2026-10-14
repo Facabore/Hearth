@@ -38,6 +38,8 @@ describe("statusForCode", () => {
     ["InvitationAlreadyUsed", 409],
     ["LastOwnerRequired", 409],
     ["GuestHasNoRole", 409],
+    ["NotAGuest", 409],
+    ["GuestAlreadyClaimed", 409],
     ["MemberNameTaken", 409],
     ["PersonalSpaceAlreadyExists", 409],
     ["PersonalSpaceNotShareable", 409],

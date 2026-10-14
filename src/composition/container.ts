@@ -91,10 +91,15 @@ import {
   createRevokeInvitation,
   createSpaceAccess,
   createUpdateSpaceSettings,
+  createClaimGuestPlace,
+  createCreateGuestClaim,
   createLeaveSpace,
   type AcceptInvitation,
   type AddGuestMember,
   type ChangeMemberRole,
+  type ClaimGuestPlace,
+  type ClaimsDeps,
+  type CreateGuestClaim,
   type CreateInvitation,
   type CreatePersonalSpace,
   type CreateSpace,
@@ -145,6 +150,8 @@ export interface Container extends RouteDeps {
     readonly acceptInvitation: AcceptInvitation;
     readonly addGuest: AddGuestMember;
     readonly changeMemberRole: ChangeMemberRole;
+    readonly createGuestClaim: CreateGuestClaim;
+    readonly claimGuestPlace: ClaimGuestPlace;
     readonly leaveSpace: LeaveSpace;
   };
   readonly categories: {
@@ -297,10 +304,11 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     clock,
     tm,
   };
+  const invitationRepository = new DrizzleInvitationRepository(tm);
   const invitationsDeps: InvitationsDeps = {
     access,
     members: spaceRepository,
-    invitations: new DrizzleInvitationRepository(tm),
+    invitations: invitationRepository,
     tokens: cryptoInvitationTokens,
     // No SMTP adapter in v1 (no new dependencies): the response carries the URL and emailSent is false.
     emailSender: options.emailSender ?? { send: async () => false },
@@ -308,6 +316,18 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     users: { idByEmail: (email) => provider.findUserIdByEmail(email) },
     // The web page that accepts an invitation (HU-E9-05); the URL carries only the token.
     invitationUrl: (token) => new URL(`/invitations/${token}`, env.BETTER_AUTH_URL).toString(),
+    ids,
+    clock,
+    tm,
+  };
+  // HU-E1-11: claim links share the invitation store and tokens; the URL carries only the token.
+  const claimsDeps: ClaimsDeps = {
+    access,
+    members: spaceRepository,
+    claims: spaceRepository,
+    invitations: invitationRepository,
+    tokens: cryptoInvitationTokens,
+    claimUrl: (token) => new URL(`/claims/${token}`, env.BETTER_AUTH_URL).toString(),
     ids,
     clock,
     tm,
@@ -362,6 +382,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       acceptInvitation: createAcceptInvitation(invitationsDeps),
       addGuest: createAddGuestMember(membersDeps),
       changeMemberRole: createChangeMemberRole(membersDeps),
+      createGuestClaim: createCreateGuestClaim(claimsDeps),
+      claimGuestPlace: createClaimGuestPlace(claimsDeps),
       leaveSpace: createLeaveSpace(lifecycleDeps),
     },
     categories: {

@@ -1484,6 +1484,107 @@
         }
       }
     },
+    "/api/v1/spaces/{spaceId}/guests/{memberId}/claim-links": {
+      "post": {
+        "operationId": "createGuestClaimLink",
+        "summary": "Create a single-use link with which someone takes over a guest's place by signing in",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "memberId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The pending claim link and its URL, valid 7 days; no email is sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "invitation": {
+                      "$ref": "#/components/schemas/Invitation"
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "emailSent": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "invitation",
+                    "url",
+                    "emailSent"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "InsufficientRole",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound, MemberNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "NotAGuest",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/spaces/{spaceId}/categories": {
       "get": {
         "operationId": "listCategories",

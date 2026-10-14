@@ -335,4 +335,24 @@ export const spacesPaths: ZodOpenApiPathsObject = {
       },
     },
   },
+  "/api/v1/spaces/{spaceId}/guests/{memberId}/claim-links": {
+    post: {
+      operationId: "createGuestClaimLink",
+      summary: "Create a single-use link with which someone takes over a guest's place by signing in",
+      ...securedByUser,
+      requestParams: { path: MemberPath },
+      responses: {
+        "201": {
+          description: "The pending claim link and its URL, valid 7 days; no email is sent",
+          content: jsonContent(CreatedInvitationSchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound, MemberNotFound",
+          "409": "NotAGuest",
+        }),
+      },
+    },
+  },
 };
