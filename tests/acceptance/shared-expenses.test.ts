@@ -1,13 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
+import { GET as listTransactions } from "@/app/api/v1/spaces/[spaceId]/transactions/route";
 import { setContainerForTests, type Container } from "@/composition/container";
-import { startTestApp, type TestUser } from "../support/app";
+import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
+import { actingIn } from "../support/spaces";
 import {
   addGuest,
   balanceOf,
   cop,
   household,
   joinHousehold,
+  memberIdOf,
   post,
   type Household,
   type HouseholdMember,
@@ -111,5 +114,107 @@ describe("shared expense split equally (HU-E4-07)", () => {
       [h.ana.memberId, cop(150_000), "EQUAL"],
       [h.juan.memberId, cop(150_000), "EQUAL"],
     ]);
+  });
+});
+
+describe("shared expense rules (HU-E4-07, Review Focus 2)", () => {
+  it("answers invalid payers and participants with stable codes and leaves Ana's account untouched", async () => {
+    const h = await household();
+    const pedro = await addGuest(h, "Pedro");
+    const marta = await registerUser("Marta");
+    const martasMember = await memberIdOf(marta, marta.spaceId, "Marta");
+    const both = equal(h.ana.memberId, h.juan.memberId);
+    const juanPays = (accountId: string | undefined, pesos = 80_000) => [
+      { memberId: h.juan.memberId, accountId, amount: cop(pesos) },
+    ];
+    const cases: [unknown, number, string][] = [
+      [paidBy(h, h.ana, 80_000, { split: equal(h.ana.memberId, martasMember) }), 422, "NotASpaceMember"],
+      [paidBy(h, h.ana, 80_000, { split: equal("not-a-uuid") }), 422, "NotASpaceMember"],
+      [
+        paidBy(h, h.ana, 80_000, {
+          split: both,
+          payments: [{ memberId: martasMember, accountId: null, amount: cop(80_000) }],
+        }),
+        422,
+        "NotASpaceMember",
+      ],
+      [paidBy(h, h.ana, 80_000, { split: equal() }), 422, "ParticipantsRequired"],
+      [paidBy(h, h.ana, 80_000, { split: equal(h.ana.memberId, h.ana.memberId) }), 422, "InvalidSplit"],
+      [paidBy(h, h.ana, 80_000, { split: both, payments: [] }), 422, "PaymentsRequired"],
+      [paidBy(h, h.ana, 80_000, { split: both, payments: juanPays(h.ana.account) }), 422, "AccountNotOwned"],
+      // D9: Ana cannot spend from Juan's own account either; Juan records his own payment (last test).
+      [paidBy(h, h.ana, 80_000, { split: both, payments: juanPays(h.juan.account) }), 422, "AccountNotOwned"],
+      [paidBy(h, h.ana, 80_000, { split: both, payments: juanPays(undefined) }), 422, "AccountRequired"],
+      [
+        paidBy(h, h.ana, 80_000, {
+          split: both,
+          payments: [
+            { memberId: h.ana.memberId, accountId: h.ana.account, amount: cop(40_000) },
+            { memberId: h.ana.memberId, accountId: h.ana.account, amount: cop(40_000) },
+          ],
+        }),
+        422,
+        "InvalidSplit",
+      ],
+      [
+        paidBy(h, h.ana, 80_000, {
+          split: both,
+          payments: [{ memberId: pedro, accountId: h.ana.account, amount: cop(80_000) }],
+        }),
+        409,
+        "GuestHasNoAccounts",
+      ],
+      [
+        paidBy(h, h.ana, 80_000, {
+          split: both,
+          payments: [{ memberId: h.ana.memberId, accountId: h.ana.account, amount: cop(70_000) }],
+        }),
+        409,
+        "SharesDoNotMatchAmount",
+      ],
+      [paidBy(h, h.ana, 80_000, { split: both, accountId: h.ana.account }), 422, "ValidationFailed"],
+    ];
+    for (const [body, status, code] of cases) {
+      expect(await problemOf(await post(recordExpense, h.ana, "expenses", body))).toEqual([status, code]);
+    }
+    expect(await balanceOf(h.ana.personal, h.ana.account)).toEqual(cop(2_000_000));
+  });
+
+  it("lets members record for guests, but not viewers, and hides the space from non-members", async () => {
+    const h = await household();
+    const pedro = await addGuest(h, "Pedro");
+    const luis = await joinHousehold(h, "Luis", "MEMBER");
+    const sofi = await joinHousehold(h, "Sofi", "VIEWER");
+    const marta = await registerUser("Marta");
+    const byPedro = {
+      description: "Taxi",
+      date: "2026-10-05",
+      categoryId: h.groceries,
+      amount: cop(90_000),
+      payments: [{ memberId: pedro, accountId: null, amount: cop(90_000) }],
+      split: equal(luis.memberId, pedro),
+    };
+    expect((await post(recordExpense, luis, "expenses", byPedro)).status).toBe(201);
+    expect(await problemOf(await post(recordExpense, sofi, "expenses", byPedro))).toEqual([
+      403,
+      "InsufficientRole",
+    ]);
+    expect(
+      await problemOf(await post(recordExpense, actingIn(marta, h.spaceId), "expenses", byPedro)),
+    ).toEqual([404, "SpaceNotFound"]);
+  });
+
+  it("lets Juan record his own payment and filters the household's transactions by payer (HU-E4-05)", async () => {
+    const h = await household();
+    const split = equal(h.ana.memberId, h.juan.memberId);
+    await recordedBy(h.ana, paidBy(h, h.ana, 300_000, { split }));
+    const juans = await recordedBy(h.juan, paidBy(h, h.juan, 100_000, { split }));
+    const path = `/api/v1/spaces/${h.spaceId}/transactions?period=2026-10&payerMemberId=${h.juan.memberId}`;
+    const response = await call(listTransactions, "GET", path, {
+      user: h.ana,
+      params: { spaceId: h.spaceId },
+    });
+    const { items } = (await response.json()) as { items: TransactionDto[] };
+    expect(items.map((t) => t.id)).toEqual([juans.id]);
   });
 });
