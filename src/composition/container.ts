@@ -16,7 +16,9 @@ import { DrizzleAccountRepository } from "@/modules/accounts/infrastructure/driz
 import {
   createGetMemberNetBalance,
   createGetMemberNetBalances,
+  createGetSettlementSuggestions,
   createGetSpaceBalances,
+  type GetSettlementSuggestions,
   type GetSpaceBalances,
 } from "@/modules/balances/application";
 import {
@@ -197,7 +199,10 @@ export interface Container extends RouteDeps {
     readonly deleteTransaction: DeleteTransaction;
     readonly listAudit: ListAudit;
   };
-  readonly balances: { readonly getSpaceBalances: GetSpaceBalances };
+  readonly balances: {
+    readonly getSpaceBalances: GetSpaceBalances;
+    readonly getSettlementSuggestions: GetSettlementSuggestions;
+  };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
     readonly signIn: (ip: string, email: string) => boolean;
@@ -468,6 +473,12 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     balances: {
       // HU-E5-01: the ledger aggregates per-member totals in SQL (D7); the balances module nets them.
       getSpaceBalances: createGetSpaceBalances({ access, members: spaceRepository, source: ledgerQueries }),
+      // HU-E5-03: suggestions are computed on read from the same balances (D7).
+      getSettlementSuggestions: createGetSettlementSuggestions({
+        access,
+        members: spaceRepository,
+        source: ledgerQueries,
+      }),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.
