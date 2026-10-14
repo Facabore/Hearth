@@ -1,5 +1,11 @@
 import { domainError, err, ok, type Result } from "@/shared/kernel";
-import type { SpaceMember, SpaceMemberId, SpaceRole } from "./space";
+import {
+  DIRECT_MEMBER_ROLE,
+  type SpaceKind,
+  type SpaceMember,
+  type SpaceMemberId,
+  type SpaceRole,
+} from "./space";
 
 /** Same bound as a user's name at sign-up. */
 const MAX_MEMBER_NAME = 100;
@@ -141,3 +147,26 @@ export const ensureSettled = (outstanding: bigint, currency: string): Result<voi
   outstanding === 0n
     ? ok(undefined)
     : err(domainError("OutstandingBalance", { outstanding: { amount: outstanding.toString(), currency } }));
+
+/**
+ * HU-E1-11, D15: the guest's member row as the claiming user's: same id, name and join date, so all
+ * history stays attached; registered as MEMBER, or OWNER in a direct space, whose two members are both
+ * OWNER (D16). Only guests carry a contact email, so it is cleared.
+ */
+export const claimedGuest = (
+  current: readonly SpaceMember[],
+  guestId: string,
+  claim: { readonly userId: string; readonly spaceKind: SpaceKind },
+): Result<SpaceMember> => {
+  const guest = current.find((m) => m.id === guestId);
+  if (!guest) return err(domainError("MemberNotFound"));
+  if (guest.kind !== "GUEST") return err(domainError("GuestAlreadyClaimed"));
+  const claimed: SpaceMember = {
+    ...guest,
+    kind: "USER",
+    userId: claim.userId,
+    role: claim.spaceKind === "DIRECT" ? DIRECT_MEMBER_ROLE : "MEMBER",
+    contactEmail: null,
+  };
+  return ok(claimed);
+};

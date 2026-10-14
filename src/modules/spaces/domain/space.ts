@@ -15,6 +15,8 @@ export type SpaceId = Id<"Space">;
 export type SpaceMemberId = Id<"SpaceMember">;
 export type SpaceKind = "PERSONAL" | "SHARED" | "DIRECT";
 export type SpaceRole = "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
+/** D16: every registered member of a direct space is OWNER, its creator and its other person alike. */
+export const DIRECT_MEMBER_ROLE: SpaceRole = "OWNER";
 
 /** Spec 5.2, D15: kind GUEST <=> no user <=> no role; only guests carry a contact email. */
 export interface SpaceMember {

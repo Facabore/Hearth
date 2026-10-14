@@ -1,6 +1,6 @@
 import { domainError, err, ok, type Id, type Result } from "@/shared/kernel";
-import { normalizedEmail } from "./member";
-import type { SpaceId, SpaceRole } from "./space";
+import { currentGuest, normalizedEmail } from "./member";
+import type { SpaceId, SpaceMember, SpaceRole } from "./space";
 
 export type InvitationId = Id<"Invitation">;
 /** EMAIL and LINK invitations add a member (HU-E1-06); CLAIM links hand over a guest's place (HU-E1-11). */
@@ -92,11 +92,14 @@ export const ensureAcceptable = (
   return ok(undefined);
 };
 
-/** HU-E1-07: email invitations are single-use; link invitations stay valid until expiry or revocation. */
+/**
+ * HU-E1-07, HU-E1-11: email invitations and claim links are single-use; link invitations stay valid
+ * until expiry or revocation.
+ */
 export const markAccepted = (invitation: Invitation, userId: string, now: Date): Invitation =>
-  invitation.kind === "EMAIL"
-    ? { ...invitation, status: "ACCEPTED", acceptedAt: now, acceptedByUserId: userId }
-    : invitation;
+  invitation.kind === "LINK"
+    ? invitation
+    : { ...invitation, status: "ACCEPTED", acceptedAt: now, acceptedByUserId: userId };
 
 /** HU-E1-06: revoke a pending (or expired) invitation; revoking twice changes nothing. */
 export const revokeInvitation = (invitation: Invitation, now: Date): Result<Invitation> => {
@@ -104,4 +107,50 @@ export const revokeInvitation = (invitation: Invitation, now: Date): Result<Invi
   if (invitation.status === "ACCEPTED") return err(domainError("InvitationAlreadyUsed"));
   const revoked: Invitation = { ...invitation, status: "REVOKED", revokedAt: now };
   return ok(revoked);
+};
+
+/** HU-E1-11: claim links hand over a guest's place; they never add a member. */
+export const isClaim = (invitation: Invitation): boolean => invitation.kind === "CLAIM";
+
+/**
+ * HU-E1-11: a single-use bearer link for one guest, valid 7 days and not bound to the guest's contact
+ * email. It is stored as MEMBER; claiming grants MEMBER, or OWNER in a direct space (claimedGuest, D16).
+ * `current` are the space's current members (the caller loads them for `spaceId`): the guest must be
+ * one of them and still a guest, which the schema cannot check (migration 0009 only ties the id to a member).
+ */
+export const issueClaim = (input: {
+  id: InvitationId;
+  spaceId: SpaceId;
+  guestMemberId: string;
+  current: readonly SpaceMember[];
+  tokenHash: string;
+  createdBy: string;
+  now: Date;
+}): Result<Invitation> => {
+  const guest = currentGuest(input.current, input.guestMemberId);
+  if (!guest.ok) return guest;
+  const claim: Invitation = {
+    id: input.id,
+    spaceId: input.spaceId,
+    kind: "CLAIM",
+    email: null,
+    guestMemberId: guest.value.id,
+    role: "MEMBER",
+    tokenHash: input.tokenHash,
+    status: "PENDING",
+    createdBy: input.createdBy,
+    createdAt: input.now,
+    expiresAt: new Date(input.now.getTime() + INVITATION_TTL_MS),
+    acceptedAt: null,
+    acceptedByUserId: null,
+    revokedAt: null,
+  };
+  return ok(claim);
+};
+
+/** HU-E1-11: what keeps a claim link from being used; a used link answers GuestAlreadyClaimed. */
+export const ensureClaimable = (claim: Invitation, now: Date): Result<void> => {
+  if (claim.status === "REVOKED") return err(domainError("InvitationRevoked"));
+  if (claim.status === "ACCEPTED") return err(domainError("GuestAlreadyClaimed"));
+  return effectiveStatus(claim, now) === "EXPIRED" ? err(domainError("InvitationExpired")) : ok(undefined);
 };

@@ -3,6 +3,7 @@ import type { Id, Result } from "@/shared/kernel";
 import {
   availableDisplayName,
   changeMemberRole,
+  claimedGuest,
   currentGuest,
   ensureNameAvailable,
   ensureSettled,
@@ -215,5 +216,28 @@ describe("settled balances (HU-E1-08, HU-E1-09, HU-E1-12)", () => {
         details: { outstanding: { amount: "15000000", currency: "COP" } },
       },
     });
+  });
+});
+
+describe("claiming a guest's place (HU-E1-11)", () => {
+  const pedroWithEmail: SpaceMember = { ...pedro, contactEmail: "pedro@example.com" };
+  const withPedro = [ana, luis, pedroWithEmail];
+
+  it("turns the guest into a registered MEMBER with the same id and name and no contact email", () => {
+    expect(claimedGuest(withPedro, "pedro", { userId: "u-pedro", spaceKind: "SHARED" })).toEqual({
+      ok: true,
+      value: { ...pedro, kind: "USER", userId: "u-pedro", role: "MEMBER", contactEmail: null },
+    });
+  });
+
+  it("makes the claimer of a direct space's guest an OWNER, like its other member (D16)", () => {
+    const claimed = claimedGuest([ana, pedro], "pedro", { userId: "u-pedro", spaceKind: "DIRECT" });
+    expect(claimed.ok && claimed.value.role).toBe("OWNER");
+  });
+
+  it("answers GuestAlreadyClaimed for a registered member and MemberNotFound for anyone not current", () => {
+    const claim = { userId: "u-pedro", spaceKind: "SHARED" } as const;
+    expect(code(claimedGuest(withPedro, "luis", claim))).toBe("GuestAlreadyClaimed");
+    expect(code(claimedGuest(withPedro, "nobody", claim))).toBe("MemberNotFound");
   });
 });
