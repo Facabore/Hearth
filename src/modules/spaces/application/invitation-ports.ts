@@ -1,7 +1,7 @@
 import type { Clock, IdGenerator, TransactionManager } from "@/shared/kernel";
 import type { InvitationRepository } from "./invitation-repository";
 import type { SpaceAccess } from "./space-access";
-import type { SpaceMemberRepository } from "./space-member-repository";
+import type { GuestClaimRepository, SpaceMemberRepository } from "./space-member-repository";
 
 /** A bearer token and the hash that is stored instead of it (HU-E1-06). */
 export interface IssuedToken {
@@ -40,6 +40,20 @@ export interface InvitationsDeps {
   readonly users: RegisteredUsers;
   /** The web URL that carries only the token (HU-E1-06), e.g. https://hearth.example/invitations/<token>. */
   readonly invitationUrl: (token: string) => string;
+  readonly ids: IdGenerator;
+  readonly clock: Clock;
+  readonly tm: TransactionManager;
+}
+
+/** HU-E1-11: claim links reuse the invitation store and tokens; claiming takes over the guest's row. */
+export interface ClaimsDeps {
+  readonly access: SpaceAccess;
+  readonly members: Pick<SpaceMemberRepository, "listCurrent">;
+  readonly claims: GuestClaimRepository;
+  readonly invitations: InvitationRepository;
+  readonly tokens: InvitationTokens;
+  /** The web URL that carries only the token, e.g. https://hearth.example/claims/<token>. */
+  readonly claimUrl: (token: string) => string;
   readonly ids: IdGenerator;
   readonly clock: Clock;
   readonly tm: TransactionManager;

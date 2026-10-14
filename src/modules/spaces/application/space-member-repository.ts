@@ -1,4 +1,4 @@
-import type { SpaceId, SpaceMember, SpaceMemberId, SpaceRole } from "../domain/space";
+import type { SpaceId, SpaceKind, SpaceMember, SpaceMemberId, SpaceRole } from "../domain/space";
 
 /** Outcome of adding a member; the database decides races between concurrent additions. */
 export type AddMemberOutcome = "added" | "alreadyMember" | "nameTaken";
@@ -26,4 +26,19 @@ export interface MemberLifecycleRepository {
     kind: SpaceMember["kind"],
     leftAt: Date,
   ): Promise<boolean>;
+}
+
+/** Outcome of claiming a guest's place; the database decides races with removals, claims and joins. */
+export type ClaimOutcome = "claimed" | "notAGuest" | "alreadyMember";
+
+/** HU-E1-11: claiming rewrites the guest's own member row, so no money row changes (D15). */
+export interface GuestClaimRepository {
+  /** The kind of a space that exists (claim links reference it). */
+  spaceKindOf(spaceId: SpaceId): Promise<SpaceKind>;
+  /**
+   * Turns the current guest `claimed.id` into the registered member `claimed` and sets claimedAt;
+   * "notAGuest" when it was removed or claimed meanwhile, "alreadyMember" when its user is a current
+   * member of the space already.
+   */
+  claimGuest(spaceId: SpaceId, claimed: SpaceMember, claimedAt: Date): Promise<ClaimOutcome>;
 }
