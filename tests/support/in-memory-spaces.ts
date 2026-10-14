@@ -205,6 +205,15 @@ export class InMemoryInvitations implements InvitationRepository {
     this.rows = this.rows.map((i) => (i.id === invitation.id ? invitation : i));
   }
 
+  /** ClaimLinkRepository, like DrizzleInvitationRepository.revokePendingClaims. */
+  async revokePendingClaims(spaceId: string, guestMemberId: string, revokedAt: Date) {
+    this.rows = this.rows.map((i): Invitation =>
+      i.spaceId === spaceId && i.guestMemberId === guestMemberId && i.status === "PENDING"
+        ? { ...i, status: "REVOKED", revokedAt }
+        : i,
+    );
+  }
+
   private lock(found: Invitation | undefined): Invitation | null {
     if (!found) return null;
     this.locked.push(found.id);
