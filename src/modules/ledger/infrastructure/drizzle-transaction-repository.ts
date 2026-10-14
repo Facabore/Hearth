@@ -56,6 +56,7 @@ export class DrizzleTransactionRepository implements TransactionRepository {
       .returning({ id: transactions.id });
     if (updated.length === 0) return false;
     if (transaction.type === "EXPENSE") {
+      // D8: these rows hold the current version only; the audit keeps every earlier split (Task 0b).
       await db.delete(payments).where(eq(payments.transactionId, transaction.id));
       await db.delete(shares).where(eq(shares.transactionId, transaction.id));
       await this.insertParts(db, transaction);

@@ -83,7 +83,10 @@ export interface TransactionChanges {
   readonly amount?: bigint;
 }
 
-/** Audited field changes; values are strings so bigints survive JSON. */
+/**
+ * Audited changes; values are strings so bigints survive JSON. An expense's `payments` and `shares`
+ * are JSON arrays in position order, and a deletion lists every value it retires with `to: null` (D8).
+ */
 export type ChangeSet = Readonly<
   Record<string, { readonly from: string | null; readonly to: string | null }>
 >;
@@ -315,13 +318,46 @@ export const softDelete = (tx: Transaction, now: Date): Transaction => ({
 
 const AUDITED = ["description", "date", "categoryId", "amount"] as const;
 
-export const changesBetween = (before: Transaction, after: Transaction): ChangeSet => {
-  const changes: Record<string, { from: string | null; to: string | null }> = {};
-  for (const field of AUDITED) {
-    const from = before[field] === null ? null : String(before[field]);
-    const to = after[field] === null ? null : String(after[field]);
-    if (from !== to) changes[field] = { from, to };
+/**
+ * D8 (Task 0b): every audited value as a string — the fields and, for an expense, its payments and
+ * shares as deterministic JSON in position order (amounts in minor units). Saving an edit replaces
+ * their rows, so the audit is where every earlier split lives.
+ */
+const auditedValues = (tx: Transaction): ReadonlyMap<string, string | null> => {
+  const values = new Map<string, string | null>(
+    AUDITED.map((field): [string, string | null] => [field, tx[field] === null ? null : String(tx[field])]),
+  );
+  if (tx.type === "EXPENSE") {
+    const payments = tx.payments.map((p) => ({
+      memberId: p.memberId,
+      accountId: p.accountId,
+      amount: p.amount.toString(),
+    }));
+    const shares = tx.shares.map((s) => ({
+      memberId: s.memberId,
+      amount: s.amount.toString(),
+      splitMethod: s.splitMethod,
+    }));
+    values.set("payments", JSON.stringify(payments));
+    values.set("shares", JSON.stringify(shares));
   }
+  return values;
+};
+
+export const changesBetween = (before: Transaction, after: Transaction): ChangeSet => {
+  const revised = auditedValues(after);
+  const changes: Record<string, { from: string | null; to: string | null }> = {};
+  for (const [key, from] of auditedValues(before)) {
+    const to = revised.get(key) ?? null;
+    if (from !== to) changes[key] = { from, to };
+  }
+  return changes;
+};
+
+/** D8 (Task 0b): a deletion keeps the whole last version in the audit, every value with `to: null`. */
+export const deletionChanges = (tx: Transaction): ChangeSet => {
+  const changes: Record<string, { from: string; to: null }> = {};
+  for (const [key, from] of auditedValues(tx)) if (from !== null) changes[key] = { from, to: null };
   return changes;
 };
 

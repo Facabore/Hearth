@@ -380,7 +380,10 @@ export const AuditEntrySchema = z.object({
   action: z.enum(["UPDATED", "DELETED"]),
   actorUserId: z.string(),
   at: z.iso.datetime(),
-  /** Changed fields with their previous and new values; amounts in minor units as strings. */
+  /**
+   * Changed values as strings (amounts in minor units); an expense's `payments` and `shares` are JSON
+   * arrays (D8, Task 0b), and a deletion lists every value it retires with `to: null`.
+   */
   changes: z.record(z.string(), z.object({ from: z.string().nullable(), to: z.string().nullable() })),
 });
 export const ListAuditResponseSchema = z.object({ items: z.array(AuditEntrySchema) });

@@ -322,7 +322,8 @@ describe("edit and delete with an audit trail (HU-E4-06)", () => {
         action: "UPDATED",
         actorUserId: ana.userId,
         at: expect.any(String),
-        changes: { amount: { from: "8500000", to: "9500000" } },
+        // Task 0b: the parts that followed the amount are pinned in "the audit keeps every payment and share".
+        changes: expect.objectContaining({ amount: { from: "8500000", to: "9500000" } }),
       }),
     ]);
   });
@@ -407,5 +408,51 @@ describe("dates outside the supported years (Review Focus 4)", () => {
         body: { code: "InvalidPeriodLabel" },
       });
     }
+  });
+});
+
+describe("the audit keeps every payment and share (D8, Task 0b)", () => {
+  const partsOf = (tx: TransactionDto) => ({
+    payments: JSON.stringify(
+      tx.payments.map((p) => ({ memberId: p.memberId, accountId: p.accountId, amount: p.amount.amount })),
+    ),
+    shares: JSON.stringify(
+      tx.shares.map((s) => ({ memberId: s.memberId, amount: s.amount.amount, splitMethod: s.splitMethod })),
+    ),
+  });
+
+  it("returns the split an edit replaced and the whole version a deletion retired", async () => {
+    const ana = await ledgerUser("Ana");
+    const tx = await recorded(post(recordExpense, ana, "expenses", market(ana)));
+    const response = await onTransaction(editTransaction, "PATCH", ana, tx.id, {
+      body: { amount: cop(95_000) },
+    });
+    const edited = (await response.json()) as TransactionDto;
+    expect((await onTransaction(deleteTransaction, "DELETE", ana, tx.id)).status).toBe(204);
+    const [before, after] = [partsOf(tx), partsOf(edited)];
+    expect(JSON.parse(before.payments)).toEqual([
+      { memberId: tx.payments[0]!.memberId, accountId: ana.bancolombia, amount: "8500000" },
+    ]);
+    expect((await auditOf(ana, tx.id)).map((e) => [e.action, e.changes])).toEqual([
+      [
+        "UPDATED",
+        {
+          amount: { from: "8500000", to: "9500000" },
+          payments: { from: before.payments, to: after.payments },
+          shares: { from: before.shares, to: after.shares },
+        },
+      ],
+      [
+        "DELETED",
+        {
+          description: { from: "Market", to: null },
+          date: { from: "2026-10-05", to: null },
+          categoryId: { from: ana.groceries, to: null },
+          amount: { from: "9500000", to: null },
+          payments: { from: after.payments, to: null },
+          shares: { from: after.shares, to: null },
+        },
+      ],
+    ]);
   });
 });

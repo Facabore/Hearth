@@ -59,7 +59,18 @@ describe("EditTransaction (HU-E4-06)", () => {
         action: "UPDATED",
         actorUserId: "u-ana",
         at: deps.clock.now(),
-        changes: { amount: { from: "8500000", to: "9500000" } },
+        // D8 (Task 0b): the sole payment and share followed the amount; the audit keeps both versions.
+        changes: {
+          amount: { from: "8500000", to: "9500000" },
+          payments: {
+            from: '[{"memberId":"member-ana","accountId":"acc-bancolombia","amount":"8500000"}]',
+            to: '[{"memberId":"member-ana","accountId":"acc-bancolombia","amount":"9500000"}]',
+          },
+          shares: {
+            from: '[{"memberId":"member-ana","amount":"8500000","splitMethod":"EQUAL"}]',
+            to: '[{"memberId":"member-ana","amount":"9500000","splitMethod":"EQUAL"}]',
+          },
+        },
       },
     ]);
   });
@@ -255,6 +266,18 @@ describe("DeleteTransaction (HU-E4-06)", () => {
     expect(await idsIn("2026-10")).toEqual([]);
     const entries = unwrap(await history({ ...asAna, transactionId: market.id }));
     expect(entries.map((e) => [e.action, e.actorUserId])).toEqual([["DELETED", "u-ana"]]);
+    // D8 (Task 0b): the deletion keeps the whole last version, payments and shares included.
+    expect(entries[0]?.changes).toEqual({
+      description: { from: "Market", to: null },
+      date: { from: "2026-10-31", to: null },
+      categoryId: { from: CATEGORIES.groceries.id, to: null },
+      amount: { from: "8500000", to: null },
+      payments: {
+        from: '[{"memberId":"member-ana","accountId":"acc-bancolombia","amount":"8500000"}]',
+        to: null,
+      },
+      shares: { from: '[{"memberId":"member-ana","amount":"8500000","splitMethod":"EQUAL"}]', to: null },
+    });
     expect(codeOf(await remove({ ...asAna, transactionId: market.id }))).toBe("TransactionNotFound");
   });
 

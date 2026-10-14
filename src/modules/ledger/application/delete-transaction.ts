@@ -1,5 +1,5 @@
 import { domainError, err, ok, type Result } from "@/shared/kernel";
-import { canModify, softDelete } from "../domain/transaction";
+import { canModify, deletionChanges, softDelete } from "../domain/transaction";
 import { openPeriod } from "./checks";
 import type { LedgerDeps } from "./deps";
 
@@ -33,7 +33,7 @@ export const createDeleteTransaction =
         action: "DELETED",
         actorUserId: input.userId,
         at: now,
-        changes: {},
+        changes: deletionChanges(current),
       });
       return ok(undefined);
     });
