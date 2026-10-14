@@ -629,4 +629,25 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
       },
     },
   },
+  "/api/v1/direct-splits": {
+    post: {
+      operationId: "splitWithPerson",
+      summary: "Split an expense with one person through your two-member direct space, created on first use",
+      ...securedByUser,
+      requestParams: { header: IdempotencyHeader },
+      requestBody: { content: jsonContent(DirectSplitBodySchema) },
+      responses: {
+        "201": {
+          description: "The direct space, whether this split created it, and the recorded expense",
+          content: jsonContent(DirectSplitSchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "404": "MemberNotFound, CategoryNotFound, AccountNotFound",
+          "409": "MemberNameTaken, AccountArchived, CategoryArchived, SpaceArchived, IdempotencyKeyConflict",
+          "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned`,
+        }),
+      },
+    },
+  },
 };

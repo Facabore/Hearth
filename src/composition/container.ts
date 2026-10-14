@@ -25,6 +25,7 @@ import {
   createListAudit,
   createListTransactions,
   createRecordExpense,
+  createRecordExpenseByCategoryKey,
   createRecordFundContribution,
   createRecordIncome,
   createRecordSettlement,
@@ -36,6 +37,7 @@ import {
   type ListAudit,
   type ListTransactions,
   type RecordExpense,
+  type RecordedExpense,
   type RecordFundContribution,
   type RecordIncome,
   type RecordSettlement,
@@ -44,6 +46,7 @@ import {
 import { DrizzleAuditLog } from "@/modules/ledger/infrastructure/drizzle-audit-log";
 import { DrizzleLedgerQueries } from "@/modules/ledger/infrastructure/drizzle-ledger-queries";
 import { DrizzleTransactionRepository } from "@/modules/ledger/infrastructure/drizzle-transaction-repository";
+import type { DirectSplitExpense } from "@/modules/ledger/contracts/ledger.contract";
 import {
   createArchiveCategory,
   createArchiveCategoryGroup,
@@ -91,6 +94,7 @@ import {
   createRevokeInvitation,
   createSpaceAccess,
   createUpdateSpaceSettings,
+  createSplitWithPerson,
   createRemoveGuestMember,
   createClaimGuestPlace,
   createCreateGuestClaim,
@@ -115,6 +119,7 @@ import {
   type SpaceCreatedListener,
   type StoredPeriodSource,
   type UpdateSpaceSettings,
+  type SplitWithPerson,
   type RemoveGuestMember,
   type LeaveSpace,
   type LifecycleDeps,
@@ -152,6 +157,7 @@ export interface Container extends RouteDeps {
     readonly acceptInvitation: AcceptInvitation;
     readonly addGuest: AddGuestMember;
     readonly changeMemberRole: ChangeMemberRole;
+    readonly splitWithPerson: SplitWithPerson<DirectSplitExpense, RecordedExpense>;
     readonly removeGuest: RemoveGuestMember;
     readonly createGuestClaim: CreateGuestClaim;
     readonly claimGuestPlace: ClaimGuestPlace;
@@ -288,6 +294,22 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     timeZone: env.APP_TIMEZONE,
     tm,
   };
+  const recordExpense = createRecordExpense(ledgerDeps);
+  // HU-E1-13: a client cannot know a new direct space's category ids, so it names a catalog key (D11).
+  const recordExpenseByCategoryKey = createRecordExpenseByCategoryKey(
+    {
+      access,
+      categoryKeys: {
+        findByKey: async (spaceId, key) => {
+          const category = (await categoriesDeps.categories.listCategories(spaceId)).find(
+            (c) => c.key === key,
+          );
+          return category ? { id: category.id, archived: category.archivedAt !== null } : null;
+        },
+      },
+    },
+    recordExpense,
+  );
   // HU-E3-01: default categories in the creator's locale, seeded in the same transaction as the space.
   const onSpaceCreated: SpaceCreatedListener = (space, { locale }) =>
     seedDefaultCategories({ spaceId: space.id, locale });
@@ -386,6 +408,17 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       acceptInvitation: createAcceptInvitation(invitationsDeps),
       addGuest: createAddGuestMember(membersDeps),
       changeMemberRole: createChangeMemberRole(membersDeps),
+      splitWithPerson: createSplitWithPerson<DirectSplitExpense, RecordedExpense>({
+        access,
+        spaces: spaceRepository,
+        direct: spaceRepository,
+        onCreated: onSpaceCreated,
+        recordExpense: ({ spaceId, userId, expense }) =>
+          recordExpenseByCategoryKey({ spaceId, userId, ...expense }),
+        ids,
+        clock,
+        tm,
+      }),
       removeGuest: createRemoveGuestMember({ ...lifecycleDeps, invitations: invitationRepository }),
       createGuestClaim: createCreateGuestClaim(claimsDeps),
       claimGuestPlace: createClaimGuestPlace(claimsDeps),
@@ -411,7 +444,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       getAccount,
     },
     ledger: {
-      recordExpense: createRecordExpense(ledgerDeps),
+      recordExpense,
       recordIncome: createRecordIncome(ledgerDeps),
       recordTransfer: createRecordTransfer(ledgerDeps),
       recordFundContribution: createRecordFundContribution(ledgerDeps),

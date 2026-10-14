@@ -1016,7 +1016,7 @@
             }
           },
           "409": {
-            "description": "AlreadyMember, PersonalSpaceNotShareable",
+            "description": "AlreadyMember, PersonalSpaceNotShareable, DirectSpaceIsFull",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1286,7 +1286,7 @@
             }
           },
           "409": {
-            "description": "MemberNameTaken, PersonalSpaceNotShareable",
+            "description": "MemberNameTaken, PersonalSpaceNotShareable, DirectSpaceIsFull",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1403,7 +1403,7 @@
             }
           },
           "409": {
-            "description": "LastOwnerRequired, GuestHasNoRole",
+            "description": "LastOwnerRequired, GuestHasNoRole, PersonalSpaceNotShareable, DirectSpaceMembersFixed",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4505,6 +4505,184 @@
           },
           "404": {
             "description": "SpaceNotFound, TransactionNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/direct-splits": {
+      "post": {
+        "operationId": "splitWithPerson",
+        "summary": "Split an expense with one person through your two-member direct space, created on first use",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "idempotency-key",
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "counterpart": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "MEMBER"
+                          },
+                          "memberId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "memberId"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "GUEST"
+                          },
+                          "displayName": {
+                            "type": "string",
+                            "maxLength": 200
+                          },
+                          "contactEmail": {
+                            "type": "string",
+                            "maxLength": 254,
+                            "format": "email",
+                            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "displayName"
+                        ]
+                      }
+                    ],
+                    "type": "object"
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "date": {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  "categoryKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "amount": {
+                    "$ref": "#/components/schemas/Money"
+                  },
+                  "accountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "counterpart",
+                  "categoryKey",
+                  "amount",
+                  "accountId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The direct space, whether this split created it, and the recorded expense",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "spaceId": {
+                      "type": "string"
+                    },
+                    "created": {
+                      "type": "boolean"
+                    },
+                    "expense": {
+                      "$ref": "#/components/schemas/RecordedExpense"
+                    }
+                  },
+                  "required": [
+                    "spaceId",
+                    "created",
+                    "expense"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "MemberNotFound, CategoryNotFound, AccountNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "MemberNameTaken, AccountArchived, CategoryArchived, SpaceArchived, IdempotencyKeyConflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned",
             "content": {
               "application/problem+json": {
                 "schema": {
