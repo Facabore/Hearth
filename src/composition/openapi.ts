@@ -1,5 +1,6 @@
 import { createDocument, type ZodOpenApiObject } from "zod-openapi";
 import { AccountSchema, accountsPaths } from "@/modules/accounts/contracts/accounts.contract";
+import { balancesPaths } from "@/modules/balances/contracts/balances.contract";
 import {
   categoriesPaths,
   CategoryGroupSchema,
@@ -36,6 +37,7 @@ export const buildOpenApiDocument = (): Record<string, unknown> =>
       ...categoriesPaths,
       ...accountsPaths,
       ...ledgerPaths,
+      ...balancesPaths,
     },
     components: {
       schemas: {

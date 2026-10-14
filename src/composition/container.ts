@@ -13,6 +13,7 @@ import {
   type UpdateAccount,
 } from "@/modules/accounts/application";
 import { DrizzleAccountRepository } from "@/modules/accounts/infrastructure/drizzle-account-repository";
+import { createGetSpaceBalances, type GetSpaceBalances } from "@/modules/balances/application";
 import {
   createDeleteTransaction,
   createEditTransaction,
@@ -161,6 +162,7 @@ export interface Container extends RouteDeps {
     readonly deleteTransaction: DeleteTransaction;
     readonly listAudit: ListAudit;
   };
+  readonly balances: { readonly getSpaceBalances: GetSpaceBalances };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
     readonly signIn: (ip: string, email: string) => boolean;
@@ -372,6 +374,10 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       editTransaction: createEditTransaction(ledgerDeps),
       deleteTransaction: createDeleteTransaction(ledgerDeps),
       listAudit: createListAudit(ledgerDeps),
+    },
+    balances: {
+      // HU-E5-01: the ledger aggregates per-member totals in SQL (D7); the balances module nets them.
+      getSpaceBalances: createGetSpaceBalances({ access, members: spaceRepository, source: ledgerQueries }),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.

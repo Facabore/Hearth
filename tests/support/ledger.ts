@@ -3,6 +3,7 @@ import { GET as getAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accou
 import { GET as listCategories } from "@/app/api/v1/spaces/[spaceId]/categories/route";
 import { POST as addGuestMember } from "@/app/api/v1/spaces/[spaceId]/guests/route";
 import { GET as listMembers } from "@/app/api/v1/spaces/[spaceId]/members/route";
+import { GET as getBalances } from "@/app/api/v1/spaces/[spaceId]/balances/route";
 import { call, registerUser, type RouteHandler, type TestUser } from "./app";
 import { actingIn, joinAs, newSharedSpace } from "./spaces";
 
@@ -161,4 +162,15 @@ export const addGuest = async (h: Household, name: string): Promise<string> => {
   });
   if (response.status !== 201) throw new Error(`guest creation failed with status ${response.status}`);
   return ((await response.json()) as { id: string }).id;
+};
+
+/** HU-E5-01: the household's balances as `user` reads them, as `[memberId, net]` pairs in join order. */
+export const balancesOf = async (user: TestUser, spaceId: string): Promise<[string, MoneyDto][]> => {
+  const response = await call(getBalances, "GET", `/api/v1/spaces/${spaceId}/balances`, {
+    user,
+    params: { spaceId },
+  });
+  if (response.status !== 200) throw new Error(`balances failed with status ${response.status}`);
+  const { members } = (await response.json()) as { members: { memberId: string; net: MoneyDto }[] };
+  return members.map((m): [string, MoneyDto] => [m.memberId, m.net]);
 };
