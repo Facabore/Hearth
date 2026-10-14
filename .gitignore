@@ -12,3 +12,4 @@ next-env.d.ts
 # local agent tooling
 .atl/
 .playwright-mcp/
+.codegraph/
