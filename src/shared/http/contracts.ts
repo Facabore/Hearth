@@ -26,6 +26,8 @@ export const ProblemSchema = z.object({
   code: z.string(),
   requestId: z.string(),
   errors: z.array(z.object({ path: z.string(), message: z.string() })).optional(),
+  /** OutstandingBalance only (HU-E1-08, HU-E1-09, HU-E1-12): what is still owed, a positive amount. */
+  outstanding: MoneySchema.optional(),
 });
 
 export const moneyToDto = (money: Money): MoneyDto => ({

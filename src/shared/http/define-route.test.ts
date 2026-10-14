@@ -40,6 +40,26 @@ describe("defineRoute", () => {
     expect(JSON.stringify(body)).not.toMatch(/[áéíóúñ¿¡]|no encontrado|prohibido|secret/i);
   });
 
+  it("shows the outstanding amount of OutstandingBalance, and only that detail (HU-E1-08)", async () => {
+    const route = defineRoute({
+      auth: "none",
+      handler: async () =>
+        err(
+          domainError("OutstandingBalance", {
+            outstanding: { amount: "15000000", currency: "COP" },
+            memberId: "m-1",
+          }),
+        ),
+    });
+    const body = await (await call(route)).json();
+    expect(body).toMatchObject({
+      status: 409,
+      code: "OutstandingBalance",
+      outstanding: { amount: "15000000", currency: "COP" },
+    });
+    expect(body).not.toHaveProperty("memberId");
+  });
+
   it("rejects unauthenticated requests with 401 Unauthenticated before running the handler", async () => {
     const handler = vi.fn(async () => ok({ status: 200, body: {} }));
     const response = await call(defineRoute({ auth: "required", handler }));

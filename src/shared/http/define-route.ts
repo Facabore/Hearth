@@ -1,7 +1,7 @@
 import type { ZodType } from "zod";
 import type { AuthUser, Result } from "@/shared/kernel";
 import { jsonLogger, type Logger } from "./logger";
-import { problemResponse, statusForCode, type ProblemFieldError } from "./problem";
+import { problemResponse, publicDetailsOf, statusForCode, type ProblemFieldError } from "./problem";
 import { requestIdFrom } from "./request-id";
 import type { SessionResolver } from "./session-resolver";
 
@@ -100,7 +100,8 @@ export const createRouteFactory =
             details: result.error.details,
           });
         }
-        return problemResponse(result.error.code, requestId);
+        const { code, details } = result.error;
+        return problemResponse(code, requestId, undefined, publicDetailsOf(code, details));
       }
 
       const headers = new Headers({ "x-request-id": requestId });

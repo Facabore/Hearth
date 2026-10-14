@@ -4381,6 +4381,9 @@
               ],
               "additionalProperties": false
             }
+          },
+          "outstanding": {
+            "$ref": "#/components/schemas/MoneyOutput"
           }
         },
         "required": [
