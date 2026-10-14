@@ -1,5 +1,11 @@
 import { domainError, err, ok, type LocalDate, type Money, type Result } from "@/shared/kernel";
-import { canModify, changesBetween, reviseTransaction, type Transaction } from "../domain/transaction";
+import {
+  canModify,
+  changedDebits,
+  changesBetween,
+  reviseTransaction,
+  type Transaction,
+} from "../domain/transaction";
 import { openPeriod, usableCategory } from "./checks";
 import type { LedgerDeps } from "./deps";
 
@@ -20,6 +26,23 @@ export interface EditTransactionInput {
 }
 
 export type EditTransaction = (input: EditTransactionInput) => Promise<Result<Transaction>>;
+
+/**
+ * D9: a new amount debits its personal accounts again, so only their owner may change it, even when
+ * money.editAny lets OWNER or ADMIN edit the rest. Any writer may spend the shared fund.
+ */
+const ownedDebits = async (
+  deps: Pick<LedgerDeps, "accounts">,
+  accountIds: readonly string[],
+  userId: string,
+): Promise<Result<void>> => {
+  for (const accountId of accountIds) {
+    const account = await deps.accounts.find(accountId);
+    if (account?.isSharedFund === true) continue;
+    if (account?.ownerUserId !== userId) return err(domainError("AccountNotOwned"));
+  }
+  return ok(undefined);
+};
 
 export const createEditTransaction =
   (deps: LedgerDeps): EditTransaction =>
@@ -48,6 +71,8 @@ export const createEditTransaction =
       if (!revised.ok) return revised;
       const changes = changesBetween(current, revised.value);
       if (Object.keys(changes).length === 0) return ok(current);
+      const debits = await ownedDebits(deps, changedDebits(current, revised.value), input.userId);
+      if (!debits.ok) return debits;
       if (changes.date) {
         // HU-E4-06: moving a transaction into a closed period is rejected too.
         const target = await openPeriod(deps, current.spaceId, revised.value.date);

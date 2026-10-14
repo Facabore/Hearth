@@ -1,10 +1,17 @@
 import { describe, expect, it } from "vitest";
 import type { LocalDate } from "@/shared/kernel";
 import { codeOf, fakeSpaceAccess, membership, money, unwrap } from "../../../../tests/support/fakes";
-import { anExpense, CATEGORIES, ledgerFixture } from "../../../../tests/support/in-memory-ledger";
+import {
+  ACCOUNTS,
+  aSettlement,
+  aTransfer,
+  anExpense,
+  CATEGORIES,
+  ledgerFixture,
+} from "../../../../tests/support/in-memory-ledger";
 import type { Expense } from "../domain/transaction";
 import { createDeleteTransaction } from "./delete-transaction";
-import { createEditTransaction } from "./edit-transaction";
+import { createEditTransaction, type EditChanges } from "./edit-transaction";
 import { createListAudit } from "./list-audit";
 import { createListTransactions } from "./list-transactions";
 
@@ -166,6 +173,77 @@ describe("EditTransaction (HU-E4-06)", () => {
     );
     expect(same.version).toBe(1);
     expect(audit.entries).toEqual([]);
+  });
+});
+
+describe("EditTransaction keeps personal accounts debited only by their owner (D9)", () => {
+  const juan = membership({ ...household, memberId: "member-juan", userId: "u-juan", role: "MEMBER" });
+  const inHousehold = { spaceId: "space-household", createdBy: "u-juan" };
+  // Juan's own records from his Davivienda: an expense he paid for Ana, a contribution and a settlement.
+  const juansExpense = anExpense("2026-10-20", 5_000_000n, {
+    ...inHousehold,
+    categoryId: CATEGORIES.household.id,
+    payments: [{ memberId: "member-juan", accountId: ACCOUNTS.davivienda.id, amount: 5_000_000n }],
+    shares: [{ memberId: "member-ana", amount: 5_000_000n, splitMethod: "EQUAL" }],
+  });
+  const juansContribution = aTransfer("2026-10-20", 5_000_000n, {
+    ...inHousehold,
+    sourceAccountId: ACCOUNTS.davivienda.id,
+    destinationAccountId: ACCOUNTS.householdFund.id,
+    payerMemberId: "member-juan",
+  });
+  const juansSettlement = aSettlement("2026-10-20", 5_000_000n, {
+    createdBy: "u-juan",
+    sourceAccountId: ACCOUNTS.davivienda.id,
+  });
+  const fundPaid = anExpense("2026-10-20", 5_000_000n, {
+    ...inHousehold,
+    categoryId: CATEGORIES.household.id,
+    payments: [{ memberId: null, accountId: ACCOUNTS.householdFund.id, amount: 5_000_000n }],
+  });
+  const setupHousehold = () => {
+    const fixture = ledgerFixture({ access: fakeSpaceAccess(household, juan) });
+    fixture.store.rows.push(juansExpense, juansContribution, juansSettlement, fundPaid);
+    return { ...fixture, edit: createEditTransaction(fixture.deps) };
+  };
+  const editAs = (userId: string, transactionId: string, changes: EditChanges) =>
+    ({ spaceId: "space-household", userId, transactionId, expectedVersion: null, changes }) as const;
+
+  it.each([
+    ["expense payment", juansExpense],
+    ["fund contribution source", juansContribution],
+    ["settlement source", juansSettlement],
+  ])("refuses the OWNER changing the amount of Juan's %s and changes nothing", async (_, tx) => {
+    const { edit, store, audit } = setupHousehold();
+    const result = await edit(editAs("u-ana", tx.id, { amount: money(9_000_000n) }));
+    expect(codeOf(result)).toBe("AccountNotOwned");
+    expect(store.rows.find((t) => t.id === tx.id)).toEqual(tx);
+    expect(store.netOf(ACCOUNTS.davivienda.id)).toBe(-15_000_000n);
+    expect(audit.entries).toEqual([]);
+  });
+
+  it("still lets the OWNER correct the description, category and date of Juan's expense (money.editAny)", async () => {
+    const { edit } = setupHousehold();
+    const changes = { description: "Rent", date: "2026-10-21" as LocalDate };
+    expect(unwrap(await edit(editAs("u-ana", juansExpense.id, changes)))).toMatchObject({
+      ...changes,
+      amount: 5_000_000n,
+      version: 2,
+    });
+  });
+
+  it("lets Juan change the amounts he debited from his own account", async () => {
+    const { edit, store } = setupHousehold();
+    for (const tx of [juansExpense, juansContribution, juansSettlement]) {
+      unwrap(await edit(editAs("u-juan", tx.id, { amount: money(6_000_000n) })));
+    }
+    expect(store.netOf(ACCOUNTS.davivienda.id)).toBe(-18_000_000n);
+  });
+
+  it("lets the OWNER change the amount of an expense paid from the shared fund", async () => {
+    const { edit } = setupHousehold();
+    const edited = unwrap(await edit(editAs("u-ana", fundPaid.id, { amount: money(6_000_000n) })));
+    expect(edited.amount).toBe(6_000_000n);
   });
 });
 

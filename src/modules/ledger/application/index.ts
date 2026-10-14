@@ -3,6 +3,7 @@ export type {
   Expense,
   Income,
   Payment,
+  Settlement,
   Share,
   SplitMethod,
   Transaction,
@@ -10,8 +11,10 @@ export type {
   TransactionType,
   Transfer,
 } from "../domain/transaction";
+export type { SplitInput } from "../domain/split";
 export type { LedgerDeps } from "./deps";
 export type {
+  AccountBalances,
   AccountReader,
   AuditEntry,
   AuditLog,
@@ -19,14 +22,32 @@ export type {
   ClosedPeriodGuard,
   LedgerAccount,
   LedgerCategory,
+  MemberMoneyTotals,
   TransactionFilter,
   TransactionPosition,
   TransactionQuery,
   TransactionRepository,
 } from "./ports";
-export { createRecordExpense, type RecordExpense, type RecordExpenseInput } from "./record-expense";
+export {
+  createRecordExpense,
+  type LedgerWarning,
+  type PaymentInput,
+  type RecordExpense,
+  type RecordedExpense,
+  type RecordExpenseInput,
+} from "./record-expense";
 export { createRecordIncome, type RecordIncome, type RecordIncomeInput } from "./record-income";
 export { createRecordTransfer, type RecordTransfer, type RecordTransferInput } from "./record-transfer";
+export {
+  createRecordFundContribution,
+  type RecordFundContribution,
+  type RecordFundContributionInput,
+} from "./record-fund-contribution";
+export {
+  createRecordSettlement,
+  type RecordSettlement,
+  type RecordSettlementInput,
+} from "./record-settlement";
 export { createGetTransaction, type GetTransaction } from "./get-transaction";
 export {
   createListTransactions,

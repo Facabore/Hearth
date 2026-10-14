@@ -2,7 +2,9 @@ import { z } from "zod";
 import type { ZodOpenApiPathsObject } from "zod-openapi";
 import {
   jsonContent,
+  moneyFromDto,
   MoneySchema,
+  optionalLocalDate,
   PeriodSchema,
   periodDto,
   problems,
@@ -10,8 +12,19 @@ import {
 } from "@/shared/http/contracts";
 import { etagOf } from "@/shared/http/etag";
 import { decodeCursor, encodeCursor, PaginationQuerySchema } from "@/shared/http/pagination";
-import { domainError, err, isUuid, localDate, ok, type Result } from "@/shared/kernel";
-import type { AuditEntry, Transaction, TransactionPage, TransactionPosition } from "../application";
+import { domainError, err, isUuid, localDate, ok, type Money, type Result } from "@/shared/kernel";
+import type {
+  AuditEntry,
+  PaymentInput,
+  RecordedExpense,
+  RecordExpenseInput,
+  RecordFundContributionInput,
+  RecordSettlementInput,
+  SplitInput,
+  Transaction,
+  TransactionPage,
+  TransactionPosition,
+} from "../application";
 
 const Id = z.string().min(1).max(64);
 // Length rules live in the domain (InvalidDescription, 200 characters); the cap only bounds payload size.
@@ -29,7 +42,7 @@ export const ShareSchema = z.object({
 });
 export const TransactionSchema = z.object({
   id: z.string(),
-  type: z.enum(["EXPENSE", "INCOME", "TRANSFER"]),
+  type: z.enum(["EXPENSE", "INCOME", "TRANSFER", "SETTLEMENT"]),
   description: z.string(),
   date: z.iso.date(),
   amount: MoneySchema,
@@ -38,7 +51,10 @@ export const TransactionSchema = z.object({
   shares: z.array(ShareSchema),
   sourceAccountId: z.string().nullable(),
   destinationAccountId: z.string().nullable(),
+  /** The receiving member of an INCOME, or the member a SETTLEMENT is paid to. */
   receivingMemberId: z.string().nullable(),
+  /** The contributor of a TRANSFER into the shared fund (HU-E4-09) or the payer of a SETTLEMENT (HU-E5-02). */
+  payerMemberId: z.string().nullable(),
   createdBy: z.string(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
@@ -46,14 +62,133 @@ export const TransactionSchema = z.object({
   version: z.number().int(),
 });
 
-/** M1 shape (HU-E4-01): one payment by the requester from `accountId`. HU-E4-07 adds payments[] and split. */
-export const RecordExpenseBodySchema = z.object({
-  description: Description,
-  date: z.iso.date().optional(),
-  categoryId: Id.optional(),
+/** Payers and participants per expense: bounds the payload; membership is checked by the domain. */
+const MAX_PARTS = 100;
+
+/**
+ * HU-E4-07/10: one payment. `memberId` is a member of the space (registered or guest) and `accountId`
+ * that member's own account, or null (or absent) for a guest, who pays outside the app; a null
+ * `memberId` names the space's shared fund as payer, and `accountId` is then the fund (spec 5.2).
+ */
+export const PaymentBodySchema = z.object({
+  memberId: Id.nullable(),
+  accountId: Id.nullable().optional(),
   amount: MoneySchema,
-  accountId: Id,
 });
+
+/** "40", "33.33": a percentage with at most two decimals (HU-E4-08), never a float. */
+const PercentSchema = z
+  .string()
+  .regex(/^\d{1,3}(\.\d{1,2})?$/, { error: "A percentage with at most two decimals, e.g. 40 or 33.33" });
+
+/** HU-E4-07/08: EQUAL among the chosen members, or by percentage, exact amount or share units per member. */
+export const SplitBodySchema = z.discriminatedUnion("method", [
+  z.object({ method: z.literal("EQUAL"), participants: z.array(z.object({ memberId: Id })).max(MAX_PARTS) }),
+  z.object({
+    method: z.literal("PERCENT"),
+    participants: z.array(z.object({ memberId: Id, percent: PercentSchema })).max(MAX_PARTS),
+  }),
+  z.object({
+    method: z.literal("EXACT"),
+    participants: z.array(z.object({ memberId: Id, amount: MoneySchema })).max(MAX_PARTS),
+  }),
+  z.object({
+    method: z.literal("SHARES"),
+    participants: z.array(z.object({ memberId: Id, units: z.number().int() })).max(MAX_PARTS),
+  }),
+]);
+
+/** "33.33" → 3333 basis points (the regex guarantees digits). */
+export const basisPointsOf = (percent: string): number => {
+  const [whole = "0", fraction = ""] = percent.split(".");
+  return Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+};
+
+/**
+ * HU-E4-01 sends `accountId` (the requester pays everything from that account of theirs); HU-E4-07
+ * sends `payments` instead. Without `split` the amount is shared EQUAL among every current member
+ * (spec 5.3), which in a personal space is the requester alone.
+ */
+export const RecordExpenseBodySchema = z
+  .object({
+    description: Description,
+    date: z.iso.date().optional(),
+    categoryId: Id.optional(),
+    amount: MoneySchema,
+    accountId: Id.optional(),
+    payments: z.array(PaymentBodySchema).max(MAX_PARTS).optional(),
+    split: SplitBodySchema.optional(),
+  })
+  .refine((body) => body.accountId === undefined || body.payments === undefined, {
+    error: "Send accountId or payments, not both",
+    path: ["payments"],
+  });
+type RecordExpenseBody = z.infer<typeof RecordExpenseBodySchema>;
+
+/** The split as the use case takes it; EXACT amounts become Money (UnknownCurrency otherwise). */
+const splitFromBody = (split: RecordExpenseBody["split"]): Result<SplitInput | undefined> => {
+  if (split === undefined) return ok(undefined);
+  switch (split.method) {
+    case "EQUAL":
+      return ok({
+        method: "EQUAL" as const,
+        participants: split.participants.map((p) => ({ memberId: p.memberId })),
+      });
+    case "PERCENT":
+      return ok({
+        method: "PERCENT" as const,
+        participants: split.participants.map((p) => ({
+          memberId: p.memberId,
+          basisPoints: basisPointsOf(p.percent),
+        })),
+      });
+    case "SHARES":
+      return ok({
+        method: "SHARES" as const,
+        participants: split.participants.map((p) => ({ memberId: p.memberId, units: p.units })),
+      });
+    case "EXACT": {
+      const participants: { memberId: string; amount: Money }[] = [];
+      for (const p of split.participants) {
+        const amount = moneyFromDto(p.amount);
+        if (!amount.ok) return amount;
+        participants.push({ memberId: p.memberId, amount: amount.value });
+      }
+      return ok({ method: "EXACT" as const, participants });
+    }
+  }
+};
+
+/** A validated body as RecordExpense input; fails only for impossible dates and currencies the kernel does not know. */
+export const expenseFromBody = (
+  body: RecordExpenseBody,
+): Result<Omit<RecordExpenseInput, "spaceId" | "userId">> => {
+  const amount = moneyFromDto(body.amount);
+  if (!amount.ok) return amount;
+  const date = optionalLocalDate(body.date);
+  if (!date.ok) return date;
+  let payments: PaymentInput[] | undefined;
+  if (body.payments !== undefined) {
+    payments = [];
+    for (const payment of body.payments) {
+      const paid = moneyFromDto(payment.amount);
+      if (!paid.ok) return paid;
+      payments.push({ memberId: payment.memberId, accountId: payment.accountId ?? null, amount: paid.value });
+    }
+  }
+  const split = splitFromBody(body.split);
+  if (!split.ok) return split;
+  return ok({
+    description: body.description,
+    date: date.value,
+    categoryId: body.categoryId,
+    amount: amount.value,
+    accountId: body.accountId,
+    payments,
+    split: split.value,
+  });
+};
+
 /** `accountId` is the requester's account in this space that receives the money (HU-E4-02). */
 export const RecordIncomeBodySchema = z.object({
   description: Description,
@@ -69,6 +204,67 @@ export const RecordTransferBodySchema = z.object({
   sourceAccountId: Id,
   destinationAccountId: Id,
 });
+
+/**
+ * HU-E4-09: `memberId` defaults to the requester; `sourceAccountId` is the contributor's own account,
+ * omitted (or null) only for a guest, who contributes outside the app.
+ */
+export const RecordFundContributionBodySchema = z.object({
+  description: Description,
+  date: z.iso.date().optional(),
+  amount: MoneySchema,
+  fundAccountId: Id,
+  memberId: Id.optional(),
+  sourceAccountId: Id.nullable().optional(),
+});
+
+/** A validated body as RecordFundContribution input; fails only for impossible dates and unknown currencies. */
+export const fundContributionFromBody = (
+  body: z.infer<typeof RecordFundContributionBodySchema>,
+): Result<Omit<RecordFundContributionInput, "spaceId" | "userId">> => {
+  const amount = moneyFromDto(body.amount);
+  if (!amount.ok) return amount;
+  const date = optionalLocalDate(body.date);
+  if (!date.ok) return date;
+  return ok({
+    description: body.description,
+    date: date.value,
+    amount: amount.value,
+    fundAccountId: body.fundAccountId,
+    memberId: body.memberId,
+    sourceAccountId: body.sourceAccountId ?? null,
+  });
+};
+
+/** HU-E5-02: `payerMemberId` paid `receivingMemberId`; both accounts are optional and never sent for a guest. */
+export const RecordSettlementBodySchema = z.object({
+  description: Description,
+  date: z.iso.date().optional(),
+  amount: MoneySchema,
+  payerMemberId: Id,
+  receivingMemberId: Id,
+  sourceAccountId: Id.nullable().optional(),
+  destinationAccountId: Id.nullable().optional(),
+});
+
+/** A validated body as RecordSettlement input; fails only for impossible dates and unknown currencies. */
+export const settlementFromBody = (
+  body: z.infer<typeof RecordSettlementBodySchema>,
+): Result<Omit<RecordSettlementInput, "spaceId" | "userId">> => {
+  const amount = moneyFromDto(body.amount);
+  if (!amount.ok) return amount;
+  const date = optionalLocalDate(body.date);
+  if (!date.ok) return date;
+  return ok({
+    description: body.description,
+    date: date.value,
+    amount: amount.value,
+    payerMemberId: body.payerMemberId,
+    receivingMemberId: body.receivingMemberId,
+    sourceAccountId: body.sourceAccountId ?? null,
+    destinationAccountId: body.destinationAccountId ?? null,
+  });
+};
 
 export const transactionDto = (tx: Transaction): z.infer<typeof TransactionSchema> => {
   const money = (minor: bigint) => ({ amount: minor.toString(), currency: tx.currency });
@@ -91,9 +287,10 @@ export const transactionDto = (tx: Transaction): z.infer<typeof TransactionSchem
             splitMethod: s.splitMethod,
           }))
         : [],
-    sourceAccountId: tx.type === "TRANSFER" ? tx.sourceAccountId : null,
+    sourceAccountId: tx.type === "TRANSFER" || tx.type === "SETTLEMENT" ? tx.sourceAccountId : null,
     destinationAccountId: tx.type === "EXPENSE" ? null : tx.destinationAccountId,
-    receivingMemberId: tx.type === "INCOME" ? tx.receivingMemberId : null,
+    receivingMemberId: tx.type === "INCOME" || tx.type === "SETTLEMENT" ? tx.receivingMemberId : null,
+    payerMemberId: tx.type === "TRANSFER" || tx.type === "SETTLEMENT" ? tx.payerMemberId : null,
     createdBy: tx.createdBy,
     createdAt: tx.createdAt.toISOString(),
     updatedAt: tx.updatedAt.toISOString(),
@@ -105,6 +302,25 @@ export const transactionHeaders = (tx: Transaction): [string, string][] => [
   ["etag", etagOf(tx.version)],
   ["location", `/api/v1/spaces/${tx.spaceId}/transactions/${tx.id}`],
 ];
+
+/** HU-E4-10: non-blocking conditions of a recorded expense, as codes; the expense was recorded. */
+export const WarningSchema = z.object({
+  code: z.enum(["FundBalanceNegative"]),
+  accountId: z.string(),
+  /** The account balance after the expense. */
+  balance: MoneySchema,
+});
+/** The expense response: the transaction plus its warnings (always present, usually empty). */
+export const RecordedExpenseSchema = TransactionSchema.extend({ warnings: z.array(WarningSchema) });
+
+export const recordedExpenseDto = (recorded: RecordedExpense): z.infer<typeof RecordedExpenseSchema> => ({
+  ...transactionDto(recorded.expense),
+  warnings: recorded.warnings.map((warning) => ({
+    code: warning.code,
+    accountId: warning.accountId,
+    balance: { amount: warning.balance.toString(), currency: recorded.expense.currency },
+  })),
+});
 
 const UUID = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
 
@@ -118,7 +334,7 @@ export const ListTransactionsQuerySchema = PaginationQuerySchema.extend({
     .optional(),
   payerMemberId: z.uuid().optional(),
   participantMemberId: z.uuid().optional(),
-  type: z.enum(["EXPENSE", "INCOME", "TRANSFER"]).optional(),
+  type: z.enum(["EXPENSE", "INCOME", "TRANSFER", "SETTLEMENT"]).optional(),
 });
 
 export const ListTransactionsResponseSchema = z.object({
@@ -187,6 +403,7 @@ const recording = (
   summary: string,
   body: z.ZodType,
   errors: Record<string, string>,
+  response: z.ZodType = TransactionSchema,
 ) => ({
   post: {
     operationId,
@@ -197,7 +414,7 @@ const recording = (
     responses: {
       "201": {
         description: "The recorded transaction; ETag carries its version",
-        content: jsonContent(TransactionSchema),
+        content: jsonContent(response),
       },
       ...problems({ "401": "Unauthenticated", "403": "InsufficientRole", ...errors }),
     },
@@ -210,13 +427,15 @@ const invalidMoney =
 export const ledgerPaths: ZodOpenApiPathsObject = {
   "/api/v1/spaces/{spaceId}/expenses": recording(
     "recordExpense",
-    "Record an expense paid from one of the requester's accounts",
+    "Record an expense paid by members (registered or guest) or by the shared fund, shared among members",
     RecordExpenseBodySchema,
     {
       "404": "SpaceNotFound, CategoryNotFound, AccountNotFound",
-      "409": "AccountArchived, CategoryArchived, PeriodClosed, IdempotencyKeyConflict",
-      "422": `${invalidMoney}, CategoryRequired, AccountNotOwned`,
+      "409":
+        "AccountArchived, CategoryArchived, PeriodClosed, IdempotencyKeyConflict, SharesDoNotMatchAmount, GuestHasNoAccounts, MixedFundPayment",
+      "422": `${invalidMoney}, CategoryRequired, AccountNotOwned, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount`,
     },
+    RecordedExpenseSchema,
   ),
   "/api/v1/spaces/{spaceId}/incomes": recording(
     "recordIncome",
@@ -236,6 +455,26 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
       "404": "SpaceNotFound, AccountNotFound",
       "409": "SameAccountTransfer, AccountArchived, PeriodClosed, IdempotencyKeyConflict",
       "422": `${invalidMoney}, AccountNotOwned, AccountNotInSpace`,
+    },
+  ),
+  "/api/v1/spaces/{spaceId}/fund-contributions": recording(
+    "recordFundContribution",
+    "Contribute to the space's shared fund from a member's own account (a guest from outside the app)",
+    RecordFundContributionBodySchema,
+    {
+      "404": "SpaceNotFound, AccountNotFound",
+      "409": "AccountArchived, PeriodClosed, IdempotencyKeyConflict, SameAccountTransfer, GuestHasNoAccounts",
+      "422": `${invalidMoney}, AccountNotOwned, AccountRequired, InvalidFundAccount, NotASpaceMember`,
+    },
+  ),
+  "/api/v1/spaces/{spaceId}/settlements": recording(
+    "recordSettlement",
+    "Record that one member paid another to settle up; accounts are optional",
+    RecordSettlementBodySchema,
+    {
+      "404": "SpaceNotFound, AccountNotFound",
+      "409": "AccountArchived, PeriodClosed, IdempotencyKeyConflict, GuestHasNoAccounts",
+      "422": `${invalidMoney}, AccountNotOwned, NotASpaceMember, InvalidSettlementParties`,
     },
   ),
   "/api/v1/spaces/{spaceId}/transactions": {
@@ -283,10 +522,11 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
           "401": "Unauthenticated",
           "403": "InsufficientRole",
           "404": "SpaceNotFound, TransactionNotFound, CategoryNotFound",
-          "409": "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, TransferHasNoCategory",
+          "409":
+            "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, TransferHasNoCategory, SettlementHasNoCategory",
           "412": "PreconditionFailed",
           "422":
-            "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency",
+            "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned",
         }),
       },
     },

@@ -28,7 +28,7 @@ export const transactions = pgTable(
     spaceId: uuid("space_id")
       .notNull()
       .references(() => spaces.id, { onDelete: "cascade" }),
-    type: text("type", { enum: ["EXPENSE", "INCOME", "TRANSFER"] }).notNull(),
+    type: text("type", { enum: ["EXPENSE", "INCOME", "TRANSFER", "SETTLEMENT"] }).notNull(),
     description: text("description").notNull(),
     date: date("date", { mode: "string" }).notNull(),
     categoryId: uuid("category_id").references(() => categories.id),
@@ -37,6 +37,8 @@ export const transactions = pgTable(
     sourceAccountId: uuid("source_account_id").references(() => accounts.id),
     destinationAccountId: uuid("destination_account_id").references(() => accounts.id),
     receivingMemberId: uuid("receiving_member_id").references(() => spaceMembers.id),
+    // HU-E4-09: the contributor of a TRANSFER into the shared fund; HU-E5-02: the payer of a SETTLEMENT.
+    payerMemberId: uuid("payer_member_id").references(() => spaceMembers.id),
     createdBy: text("created_by").notNull(),
     createdAt: tz("created_at").notNull(),
     updatedAt: tz("updated_at").notNull(),
@@ -49,12 +51,21 @@ export const transactions = pgTable(
     index("transactions_category_idx").on(t.categoryId),
     index("transactions_source_account_idx").on(t.sourceAccountId),
     index("transactions_destination_account_idx").on(t.destinationAccountId),
+    index("transactions_payer_member_idx").on(t.payerMemberId),
     check("transactions_amount_positive", sql`${t.amount} > 0`),
+    // A TRANSFER without a payer is between own accounts; with a payer it is a fund contribution, whose
+    // source is null only for a guest (spec 5.2). A SETTLEMENT has both parties and optional accounts.
     check(
       "transactions_shape",
-      sql`(${t.type} = 'EXPENSE' AND ${t.categoryId} IS NOT NULL AND ${t.sourceAccountId} IS NULL AND ${t.destinationAccountId} IS NULL AND ${t.receivingMemberId} IS NULL)
-        OR (${t.type} = 'INCOME' AND ${t.categoryId} IS NOT NULL AND ${t.sourceAccountId} IS NULL AND ${t.destinationAccountId} IS NOT NULL AND ${t.receivingMemberId} IS NOT NULL)
-        OR (${t.type} = 'TRANSFER' AND ${t.categoryId} IS NULL AND ${t.sourceAccountId} IS NOT NULL AND ${t.destinationAccountId} IS NOT NULL AND ${t.receivingMemberId} IS NULL)`,
+      sql`(${t.type} = 'EXPENSE' AND ${t.categoryId} IS NOT NULL AND ${t.sourceAccountId} IS NULL AND ${t.destinationAccountId} IS NULL AND ${t.receivingMemberId} IS NULL AND ${t.payerMemberId} IS NULL)
+        OR (${t.type} = 'INCOME' AND ${t.categoryId} IS NOT NULL AND ${t.sourceAccountId} IS NULL AND ${t.destinationAccountId} IS NOT NULL AND ${t.receivingMemberId} IS NOT NULL AND ${t.payerMemberId} IS NULL)
+        OR (${t.type} = 'TRANSFER' AND ${t.categoryId} IS NULL AND ${t.destinationAccountId} IS NOT NULL AND ${t.receivingMemberId} IS NULL AND (${t.sourceAccountId} IS NOT NULL OR ${t.payerMemberId} IS NOT NULL))
+        OR (${t.type} = 'SETTLEMENT' AND ${t.categoryId} IS NULL AND ${t.payerMemberId} IS NOT NULL AND ${t.receivingMemberId} IS NOT NULL)`,
+    ),
+    // HU-E5-02: nobody settles with themselves.
+    check(
+      "transactions_settlement_parties",
+      sql`${t.type} <> 'SETTLEMENT' OR ${t.payerMemberId} <> ${t.receivingMemberId}`,
     ),
   ],
 );

@@ -9,11 +9,14 @@ import {
   categoryFixture,
   guestMemberFixture,
   personalSpaceFixture,
+  sharedLedgerFixture,
 } from "../../../../tests/support/fixtures";
 import type { TransactionFilter, TransactionPosition } from "../application/ports";
 import {
   recordExpense,
+  recordFundContribution,
   recordIncome,
+  recordSettlement,
   recordTransfer,
   softDelete,
   type Share,
@@ -220,5 +223,50 @@ describe("references", () => {
     expect(await queries.isCategoryReferenced(w.groceries)).toBe(true);
     expect(await queries.isCategoryReferenced(w.restaurants)).toBe(false);
     expect(await queries.hasTransactions(w.space.spaceId)).toBe(true);
+  });
+});
+
+describe("net movements of contributions and settlements (HU-E4-09, HU-E5-02)", () => {
+  it("takes money out of the source and into the fund or the receiving account", async () => {
+    const w = await sharedLedgerFixture(db, pool);
+    const inHousehold = (amount: bigint) => ({
+      id: randomUUID() as TransactionId,
+      spaceId: w.household.spaceId,
+      date: "2026-10-02" as LocalDate,
+      amount,
+      currency: "COP",
+      createdBy: w.household.userId,
+      now: new Date(),
+    });
+    await store(
+      unwrap(
+        recordFundContribution({
+          ...inHousehold(48_000_000n),
+          payerMemberId: w.household.memberId,
+          sourceAccountId: w.bank,
+          destinationAccountId: w.fund,
+        }),
+      ),
+      unwrap(
+        recordFundContribution({
+          ...inHousehold(10_000_000n),
+          payerMemberId: w.pedro,
+          sourceAccountId: null,
+          destinationAccountId: w.fund,
+        }),
+      ),
+      unwrap(
+        recordSettlement({
+          ...inHousehold(5_000_000n),
+          payerMemberId: w.pedro,
+          receivingMemberId: w.household.memberId,
+          sourceAccountId: null,
+          destinationAccountId: w.bank,
+        }),
+      ),
+    );
+    const net = await queries.netMovements([w.bank, w.fund], null);
+    expect(net.get(w.bank)).toBe(-43_000_000n);
+    expect(net.get(w.fund)).toBe(58_000_000n);
   });
 });

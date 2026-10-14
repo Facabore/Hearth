@@ -1,7 +1,7 @@
 import { domainError, err, ok, type Id, type LocalDate, type Result } from "@/shared/kernel";
 
 export type TransactionId = Id<"Transaction">;
-export type TransactionType = "EXPENSE" | "INCOME" | "TRANSFER";
+export type TransactionType = "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
 export type SplitMethod = "EQUAL" | "PERCENT" | "EXACT" | "SHARES" | "BY_ALLOCATION";
 type MemberRole = "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
 
@@ -48,14 +48,33 @@ export interface Income extends TransactionBase {
   readonly receivingMemberId: string;
 }
 
+/**
+ * HU-E4-03: money between the requester's own accounts (`payerMemberId` null). HU-E4-09: a fund
+ * contribution into a SHARED_FUND account by `payerMemberId`, from their own account or, for a
+ * guest, from outside the app (`sourceAccountId` null, spec 5.2).
+ */
 export interface Transfer extends TransactionBase {
   readonly type: "TRANSFER";
   readonly categoryId: null;
-  readonly sourceAccountId: string;
+  readonly sourceAccountId: string | null;
   readonly destinationAccountId: string;
+  readonly payerMemberId: string | null;
 }
 
-export type Transaction = Expense | Income | Transfer;
+/**
+ * HU-E5-02: `payerMemberId` pays `receivingMemberId` to clear a balance. Both accounts are
+ * optional and, when set, belong to the respective party; guests never have one.
+ */
+export interface Settlement extends TransactionBase {
+  readonly type: "SETTLEMENT";
+  readonly categoryId: null;
+  readonly payerMemberId: string;
+  readonly receivingMemberId: string;
+  readonly sourceAccountId: string | null;
+  readonly destinationAccountId: string | null;
+}
+
+export type Transaction = Expense | Income | Transfer | Settlement;
 
 export interface TransactionChanges {
   readonly description?: string;
@@ -87,6 +106,10 @@ const sum = (amounts: readonly bigint[]): bigint => amounts.reduce((a, b) => a +
 const checkParts = (amount: bigint, payments: readonly Payment[], shares: readonly Share[]): Result<void> => {
   if (shares.length === 0) return err(domainError("ParticipantsRequired"));
   if (payments.length === 0) return err(domainError("PaymentsRequired"));
+  // D5: a fund-paid expense has one payment, from the fund: it never mixes with member payments or other fund payments.
+  if (payments.length > 1 && payments.some((p) => p.memberId === null)) {
+    return err(domainError("MixedFundPayment"));
+  }
   if ([...payments, ...shares].some((part) => part.amount <= 0n)) return err(domainError("InvalidAmount"));
   if (sum(payments.map((p) => p.amount)) !== amount || sum(shares.map((s) => s.amount)) !== amount) {
     return err(domainError("SharesDoNotMatchAmount"));
@@ -175,6 +198,51 @@ export const recordTransfer = (
     categoryId: null,
     sourceAccountId: input.sourceAccountId,
     destinationAccountId: input.destinationAccountId,
+    payerMemberId: null,
+  });
+};
+
+/** HU-E4-09: a TRANSFER into the shared fund by a member; it belongs to the fund's space (D9). */
+export const recordFundContribution = (
+  input: NewTransaction & {
+    readonly payerMemberId: string;
+    readonly sourceAccountId: string | null;
+    readonly destinationAccountId: string;
+  },
+): Result<Transfer> => {
+  const base = baseOf(input);
+  if (!base.ok) return base;
+  if (input.sourceAccountId === input.destinationAccountId) return err(domainError("SameAccountTransfer"));
+  return ok({
+    ...base.value,
+    type: "TRANSFER" as const,
+    categoryId: null,
+    sourceAccountId: input.sourceAccountId,
+    destinationAccountId: input.destinationAccountId,
+    payerMemberId: input.payerMemberId,
+  });
+};
+
+/** HU-E5-02: a settlement between two different members of the space. */
+export const recordSettlement = (
+  input: NewTransaction & {
+    readonly payerMemberId: string;
+    readonly receivingMemberId: string;
+    readonly sourceAccountId: string | null;
+    readonly destinationAccountId: string | null;
+  },
+): Result<Settlement> => {
+  const base = baseOf(input);
+  if (!base.ok) return base;
+  if (input.payerMemberId === input.receivingMemberId) return err(domainError("InvalidSettlementParties"));
+  return ok({
+    ...base.value,
+    type: "SETTLEMENT" as const,
+    categoryId: null,
+    payerMemberId: input.payerMemberId,
+    receivingMemberId: input.receivingMemberId,
+    sourceAccountId: input.sourceAccountId,
+    destinationAccountId: input.destinationAccountId,
   });
 };
 
@@ -210,7 +278,32 @@ export const reviseTransaction = (
       return changes.categoryId === undefined
         ? ok({ ...tx, ...common })
         : err(domainError("TransferHasNoCategory"));
+    case "SETTLEMENT":
+      return changes.categoryId === undefined
+        ? ok({ ...tx, ...common })
+        : err(domainError("SettlementHasNoCategory"));
   }
+};
+
+/** What each account a transaction debits loses: expense payments and TRANSFER/SETTLEMENT sources. */
+const debitsOf = (tx: Transaction): ReadonlyMap<string, bigint> => {
+  switch (tx.type) {
+    case "EXPENSE":
+      return new Map(
+        tx.payments.flatMap((p) => (p.accountId === null ? [] : [[p.accountId, p.amount] as const])),
+      );
+    case "INCOME":
+      return new Map();
+    case "TRANSFER":
+    case "SETTLEMENT":
+      return new Map(tx.sourceAccountId === null ? [] : [[tx.sourceAccountId, tx.amount] as const]);
+  }
+};
+
+/** D9: the accounts `before` debits whose debited amount differs in `after`; credited accounts never count. */
+export const changedDebits = (before: Transaction, after: Transaction): string[] => {
+  const revised = debitsOf(after);
+  return [...debitsOf(before)].filter(([id, amount]) => revised.get(id) !== amount).map(([id]) => id);
 };
 
 /** D8: transactions are never hard-deleted. */

@@ -122,3 +122,58 @@ export const sharedSpaceFixture = async (db: Database, ownerId: string, now = ne
   await new DrizzleSpaceRepository(new DrizzleTransactionManager(db)).add(space.value);
   return space.value;
 };
+
+/** A SHARED_FUND account (no owner) in the shared space `spaceId`. */
+export const fundAccountFixture = async (
+  db: Database,
+  spaceId: string,
+  name = "Household Fund",
+  openingBalance = 0n,
+): Promise<string> => {
+  const id = randomUUID();
+  await new DrizzleAccountRepository(new DrizzleTransactionManager(db)).add({
+    id: id as Id<"Account">,
+    spaceId,
+    name,
+    type: "SHARED_FUND",
+    ownerUserId: null,
+    openingBalance,
+    archivedAt: null,
+    createdAt: new Date(),
+  });
+  return id;
+};
+
+export interface SharedLedgerFixture {
+  /** Ana's personal space, where her account lives. */
+  readonly personal: SpaceFixture;
+  /** "Household", with Ana as its OWNER (`household.memberId`). */
+  readonly household: SpaceFixture;
+  /** Ana's BANK account "Bancolombia" in her personal space. */
+  readonly bank: string;
+  /** Household's SHARED_FUND account. */
+  readonly fund: string;
+  /** The guest "Pedro" of Household. */
+  readonly pedro: string;
+  /** A category of Household. */
+  readonly groceries: string;
+}
+
+/** Ana with Bancolombia in her personal space, and "Household" with the guest Pedro, its fund and a category. */
+export const sharedLedgerFixture = async (db: Database, pool: Pool): Promise<SharedLedgerFixture> => {
+  const personal = await personalSpaceFixture(db, pool, "Ana");
+  const space = await sharedSpaceFixture(db, personal.userId);
+  const household: SpaceFixture = {
+    userId: personal.userId,
+    spaceId: space.id,
+    memberId: space.members[0]!.id,
+  };
+  return {
+    personal,
+    household,
+    bank: await accountFixture(db, personal, "Bancolombia"),
+    fund: await fundAccountFixture(db, household.spaceId),
+    pedro: await guestMemberFixture(pool, household, "Pedro"),
+    groceries: await categoryFixture(db, household),
+  };
+};

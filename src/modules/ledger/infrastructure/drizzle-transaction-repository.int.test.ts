@@ -8,12 +8,15 @@ import {
   accountFixture,
   categoryFixture,
   personalSpaceFixture,
+  sharedLedgerFixture,
   type SpaceFixture,
 } from "../../../../tests/support/fixtures";
 import type { AuditEntry } from "../application/ports";
 import {
   recordExpense,
+  recordFundContribution,
   recordIncome,
+  recordSettlement,
   recordTransfer,
   softDelete,
   type Expense,
@@ -136,5 +139,41 @@ describe("DrizzleAuditLog", () => {
     await auditLog.append(update);
     expect(await auditLog.listFor(market.id)).toEqual([update, deletion]);
     expect(await auditLog.listFor("not-a-uuid")).toEqual([]);
+  });
+});
+
+describe("fund contributions and settlements (HU-E4-09, HU-E5-02)", () => {
+  it("round-trips contributions from an account and from outside the app, and settlements", async () => {
+    const w = await sharedLedgerFixture(db, pool);
+    const inHousehold = (amount: bigint) => ({ ...common(amount), spaceId: w.household.spaceId });
+    const fromBank = unwrap(
+      recordFundContribution({
+        ...inHousehold(48_000_000n),
+        payerMemberId: w.household.memberId,
+        sourceAccountId: w.bank,
+        destinationAccountId: w.fund,
+      }),
+    );
+    const fromPedro = unwrap(
+      recordFundContribution({
+        ...inHousehold(10_000_000n),
+        payerMemberId: w.pedro,
+        sourceAccountId: null,
+        destinationAccountId: w.fund,
+      }),
+    );
+    const settleUp = unwrap(
+      recordSettlement({
+        ...inHousehold(5_000_000n),
+        payerMemberId: w.pedro,
+        receivingMemberId: w.household.memberId,
+        sourceAccountId: null,
+        destinationAccountId: w.bank,
+      }),
+    );
+    for (const tx of [fromBank, fromPedro, settleUp]) {
+      await repo.add(tx);
+      expect(await repo.findById(w.household.spaceId, tx.id)).toEqual(tx);
+    }
   });
 });

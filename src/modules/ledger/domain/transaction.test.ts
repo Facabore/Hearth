@@ -4,13 +4,19 @@ import type { LocalDate } from "@/shared/kernel";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
 import {
   canModify,
+  changedDebits,
   changesBetween,
   recordExpense,
+  recordFundContribution,
   recordIncome,
+  recordSettlement,
   recordTransfer,
   reviseTransaction,
   softDelete,
   type Expense,
+  type Payment,
+  type Transaction,
+  type TransactionChanges,
   type TransactionId,
 } from "./transaction";
 
@@ -189,6 +195,58 @@ describe("editing and deleting (HU-E4-06)", () => {
     expect(changesBetween(before, before)).toEqual({});
   });
 
+  // D9: changing how much leaves an account is a debit, so the edit path checks who owns these accounts.
+  it("names the accounts whose debit an edit changes, never credited ones", () => {
+    const parties = { payerMemberId: "member-juan", receivingMemberId: "member-ana" };
+    const settlement = (sourceAccountId: string | null) =>
+      unwrap(
+        recordSettlement({
+          ...common,
+          ...parties,
+          amount: 1_000n,
+          sourceAccountId,
+          destinationAccountId: "acc-bancolombia",
+        }),
+      );
+    const contribution = unwrap(
+      recordFundContribution({
+        ...common,
+        amount: 1_000n,
+        payerMemberId: "member-juan",
+        sourceAccountId: "acc-davivienda",
+        destinationAccountId: "acc-household-fund",
+      }),
+    );
+    const income = unwrap(
+      recordIncome({
+        ...common,
+        amount: 1_000n,
+        categoryId: "cat-salary",
+        destinationAccountId: "acc-bancolombia",
+        receivingMemberId: "member-ana",
+      }),
+    );
+    const guestPaid = unwrap(
+      recordExpense({
+        ...common,
+        amount: 1_000n,
+        categoryId: "cat-groceries",
+        payments: [{ memberId: "member-pedro", accountId: null, amount: 1_000n }],
+        shares: [{ memberId: "member-ana", amount: 1_000n, splitMethod: "EQUAL" }],
+      }),
+    );
+    const debitsAfter = (before: Transaction, changes: TransactionChanges) =>
+      changedDebits(before, unwrap(reviseTransaction(before, changes, later)));
+    const raise = { amount: 2_000n };
+    expect(debitsAfter(unwrap(personal(1_000n)), raise)).toEqual(["acc-bancolombia"]);
+    expect(debitsAfter(contribution, raise)).toEqual(["acc-davivienda"]);
+    expect(debitsAfter(settlement("acc-davivienda"), raise)).toEqual(["acc-davivienda"]);
+    expect(debitsAfter(settlement(null), raise)).toEqual([]);
+    expect(debitsAfter(income, raise)).toEqual([]);
+    expect(debitsAfter(guestPaid, raise)).toEqual([]);
+    expect(debitsAfter(unwrap(personal(1_000n)), { description: "Groceries" })).toEqual([]);
+  });
+
   it("soft-deletes by setting deletedAt", () => {
     expect(softDelete(unwrap(personal(100n)), later)).toMatchObject({ deletedAt: later, updatedAt: later });
   });
@@ -211,4 +269,129 @@ describe("editing and deleting (HU-E4-06)", () => {
       expect(canModify(role, "u-ana", "u-luis")).toBe(can(role, "money.editAny"));
     },
   );
+});
+
+describe("fund contributions and settlements (HU-E4-09, HU-E5-02)", () => {
+  const contribution = (overrides: { payerMemberId?: string; sourceAccountId?: string | null } = {}) =>
+    recordFundContribution({
+      ...common,
+      amount: 48_000_000n,
+      payerMemberId: "member-ana",
+      sourceAccountId: "acc-bancolombia",
+      destinationAccountId: "acc-household-fund",
+      ...overrides,
+    });
+  const settlement = (overrides: { receivingMemberId?: string; amount?: bigint } = {}) =>
+    recordSettlement({
+      ...common,
+      amount: 120_000_000n,
+      payerMemberId: "member-juan",
+      receivingMemberId: "member-ana",
+      sourceAccountId: null,
+      destinationAccountId: null,
+      ...overrides,
+    });
+
+  it("records a contribution as a TRANSFER into the fund by the contributing member", () => {
+    expect(unwrap(contribution())).toMatchObject({
+      type: "TRANSFER",
+      categoryId: null,
+      amount: 48_000_000n,
+      sourceAccountId: "acc-bancolombia",
+      destinationAccountId: "acc-household-fund",
+      payerMemberId: "member-ana",
+    });
+  });
+
+  it("lets a guest contribute from outside the app, without a source account", () => {
+    expect(unwrap(contribution({ payerMemberId: "member-pedro", sourceAccountId: null }))).toMatchObject({
+      sourceAccountId: null,
+      payerMemberId: "member-pedro",
+    });
+  });
+
+  it("never contributes the fund to itself", () => {
+    expect(codeOf(contribution({ sourceAccountId: "acc-household-fund" }))).toBe("SameAccountTransfer");
+  });
+
+  it("records transfers between own accounts without a payer", () => {
+    const own = unwrap(
+      recordTransfer({ ...common, amount: 1n, sourceAccountId: "a", destinationAccountId: "b" }),
+    );
+    expect(own.payerMemberId).toBeNull();
+  });
+
+  it("records a settlement from the payer to the receiving member without a category", () => {
+    expect(unwrap(settlement())).toEqual({
+      id: "tx-1",
+      spaceId: "space-ana",
+      type: "SETTLEMENT",
+      description: "Market",
+      date: "2026-10-05",
+      amount: 120_000_000n,
+      currency: "COP",
+      categoryId: null,
+      payerMemberId: "member-juan",
+      receivingMemberId: "member-ana",
+      sourceAccountId: null,
+      destinationAccountId: null,
+      createdBy: "u-ana",
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null,
+      version: 1,
+    });
+  });
+
+  it("rejects a member settling with themselves and non-positive amounts", () => {
+    expect(codeOf(settlement({ receivingMemberId: "member-juan" }))).toBe("InvalidSettlementParties");
+    expect(codeOf(settlement({ amount: 0n }))).toBe("InvalidAmount");
+  });
+
+  it("edits a settlement's amount but never gives it a category", () => {
+    const recorded = unwrap(settlement());
+    expect(unwrap(reviseTransaction(recorded, { amount: 50_000_000n }, later))).toMatchObject({
+      type: "SETTLEMENT",
+      amount: 50_000_000n,
+    });
+    expect(codeOf(reviseTransaction(recorded, { categoryId: "cat-groceries" }, later))).toBe(
+      "SettlementHasNoCategory",
+    );
+  });
+});
+
+describe("fund-paid expenses (HU-E4-10, D5)", () => {
+  const rentOf = (payments: Payment[]) =>
+    recordExpense({
+      ...common,
+      amount: 100n,
+      categoryId: "cat-rent",
+      payments,
+      shares: [{ memberId: "member-ana", amount: 100n, splitMethod: "EQUAL" }],
+    });
+
+  it("records an expense paid by the fund alone", () => {
+    expect(codeOf(rentOf([{ memberId: null, accountId: "acc-fund", amount: 100n }]))).toBe("ok");
+  });
+
+  it("keeps the fund as the only payer of an expense", () => {
+    const mixed = rentOf([
+      { memberId: null, accountId: "acc-fund", amount: 60n },
+      { memberId: "member-ana", accountId: "acc-bancolombia", amount: 40n },
+    ]);
+    expect(codeOf(mixed)).toBe("MixedFundPayment");
+  });
+
+  it("refuses several fund payments: the fund pays once", () => {
+    const twice = rentOf([
+      { memberId: null, accountId: "acc-fund", amount: 60n },
+      { memberId: null, accountId: "acc-fund", amount: 40n },
+    ]);
+    expect(codeOf(twice)).toBe("MixedFundPayment");
+    const twoFunds = rentOf([
+      { memberId: null, accountId: "acc-fund", amount: 60n },
+      { memberId: null, accountId: "acc-other-fund", amount: 40n },
+    ]);
+    expect(codeOf(twoFunds)).toBe("MixedFundPayment");
+  });
 });

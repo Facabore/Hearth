@@ -13,6 +13,7 @@ import {
   type UpdateAccount,
 } from "@/modules/accounts/application";
 import { DrizzleAccountRepository } from "@/modules/accounts/infrastructure/drizzle-account-repository";
+import { createGetSpaceBalances, type GetSpaceBalances } from "@/modules/balances/application";
 import {
   createDeleteTransaction,
   createEditTransaction,
@@ -20,7 +21,9 @@ import {
   createListAudit,
   createListTransactions,
   createRecordExpense,
+  createRecordFundContribution,
   createRecordIncome,
+  createRecordSettlement,
   createRecordTransfer,
   type DeleteTransaction,
   type EditTransaction,
@@ -29,7 +32,9 @@ import {
   type ListAudit,
   type ListTransactions,
   type RecordExpense,
+  type RecordFundContribution,
   type RecordIncome,
+  type RecordSettlement,
   type RecordTransfer,
 } from "@/modules/ledger/application";
 import { DrizzleAuditLog } from "@/modules/ledger/infrastructure/drizzle-audit-log";
@@ -111,6 +116,7 @@ import { loadEnv, type Env } from "@/shared/infrastructure/env";
 import { SystemClock } from "@/shared/infrastructure/system-clock";
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
 import { map, type AuthUser, type Result } from "@/shared/kernel";
+import { accountBalancesFrom } from "./account-balances";
 
 /** Process-wide dependencies, built once from the environment. */
 export interface Container extends RouteDeps {
@@ -155,12 +161,15 @@ export interface Container extends RouteDeps {
     readonly recordExpense: RecordExpense;
     readonly recordIncome: RecordIncome;
     readonly recordTransfer: RecordTransfer;
+    readonly recordFundContribution: RecordFundContribution;
+    readonly recordSettlement: RecordSettlement;
     readonly listTransactions: ListTransactions;
     readonly getTransaction: GetTransaction;
     readonly editTransaction: EditTransaction;
     readonly deleteTransaction: DeleteTransaction;
     readonly listAudit: ListAudit;
   };
+  readonly balances: { readonly getSpaceBalances: GetSpaceBalances };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
     readonly signIn: (ip: string, email: string) => boolean;
@@ -220,9 +229,12 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   };
   // Budget plans (stored period boundaries, D10) arrive with HU-E6-01; until then periods come from the policy.
   const storedPeriods: StoredPeriodSource = async () => [];
+  const getAccount = createGetAccount(accountsDeps);
   const ledgerDeps: LedgerDeps = {
     access,
     transactions: new DrizzleTransactionRepository(tm),
+    // HU-E4-07: payers and participants are current members of the space, in join order.
+    members: spaceRepository,
     query: ledgerQueries,
     audit: new DrizzleAuditLog(tm),
     // Adapters keep the ledger independent of the accounts and categories modules.
@@ -234,6 +246,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
               id: account.id,
               spaceId: account.spaceId,
               ownerUserId: account.ownerUserId,
+              isSharedFund: account.type === "SHARED_FUND",
               archived: account.archivedAt !== null,
             }
           : null;
@@ -250,6 +263,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     // Closing plans arrives with HU-E6-07; until then no period is closed.
     closedPeriods: { isClosed: async () => false },
     storedPeriods,
+    // HU-E4-10: the accounts module owns the balance formula (opening balance + movements, HU-E2-04).
+    accountBalances: accountBalancesFrom(getAccount),
     ids,
     clock,
     timeZone: env.APP_TIMEZONE,
@@ -349,17 +364,23 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       updateAccount: createUpdateAccount(accountsDeps),
       archiveAccount: createArchiveAccount(accountsDeps),
       listAccounts: createListAccounts(accountsDeps),
-      getAccount: createGetAccount(accountsDeps),
+      getAccount,
     },
     ledger: {
       recordExpense: createRecordExpense(ledgerDeps),
       recordIncome: createRecordIncome(ledgerDeps),
       recordTransfer: createRecordTransfer(ledgerDeps),
+      recordFundContribution: createRecordFundContribution(ledgerDeps),
+      recordSettlement: createRecordSettlement(ledgerDeps),
       listTransactions: createListTransactions(ledgerDeps),
       getTransaction: createGetTransaction(ledgerDeps),
       editTransaction: createEditTransaction(ledgerDeps),
       deleteTransaction: createDeleteTransaction(ledgerDeps),
       listAudit: createListAudit(ledgerDeps),
+    },
+    balances: {
+      // HU-E5-01: the ledger aggregates per-member totals in SQL (D7); the balances module nets them.
+      getSpaceBalances: createGetSpaceBalances({ access, members: spaceRepository, source: ledgerQueries }),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.
