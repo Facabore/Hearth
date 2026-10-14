@@ -1,14 +1,18 @@
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { isUuid } from "@/shared/kernel";
-import type { AddMemberOutcome, SpaceMemberRepository } from "../application/space-member-repository";
+import type {
+  AddMemberOutcome,
+  ClaimOutcome,
+  SpaceMemberRepository,
+} from "../application/space-member-repository";
 import type { SpaceRepository, SpaceSummary } from "../application/space-repository";
 import type {
   SpaceMembership,
   SpaceSettings,
   SpaceSettingsRepository,
 } from "../application/space-settings-repository";
-import type { Space, SpaceId, SpaceMember, SpaceMemberId, SpaceRole } from "../domain/space";
+import type { Space, SpaceId, SpaceKind, SpaceMember, SpaceMemberId, SpaceRole } from "../domain/space";
 import { spaceMembers, spaces } from "./spaces.schema";
 
 const memberRow = (spaceId: string, m: SpaceMember): typeof spaceMembers.$inferInsert => ({
@@ -173,5 +177,45 @@ export class DrizzleSpaceRepository
       )
       .returning({ id: spaceMembers.id });
     return left.length > 0;
+  }
+
+  async spaceKindOf(spaceId: SpaceId): Promise<SpaceKind> {
+    const [row] = await this.tm
+      .executor()
+      .select({ kind: spaces.kind })
+      .from(spaces)
+      .where(eq(spaces.id, spaceId));
+    // Claim links reference their space (ON DELETE cascade), so a missing one is a broken invariant.
+    if (!row) throw new Error(`space ${spaceId} does not exist`);
+    return row.kind;
+  }
+
+  async claimGuest(spaceId: SpaceId, claimed: SpaceMember, claimedAt: Date): Promise<ClaimOutcome> {
+    // A malformed id matches no row; it still gets the answers below, in the order every claim gets them.
+    if (isUuid(claimed.id) && (await this.takeOverGuest(spaceId, claimed, claimedAt))) return "claimed";
+    // ClaimGuestPlace refuses a current member before it looks at the guest, so that answer comes first here too.
+    const current = await this.listCurrent(spaceId);
+    return current.some((m) => m.userId === claimed.userId) ? "alreadyMember" : "notAGuest";
+  }
+
+  /** One conditional UPDATE, so the database decides races with removals, other claims and joins. */
+  private async takeOverGuest(spaceId: SpaceId, claimed: SpaceMember, claimedAt: Date): Promise<boolean> {
+    const taken = await this.tm
+      .executor()
+      .update(spaceMembers)
+      .set({ kind: "USER", userId: claimed.userId, role: claimed.role, contactEmail: null, claimedAt })
+      .where(
+        and(
+          eq(spaceMembers.spaceId, spaceId),
+          eq(spaceMembers.id, claimed.id),
+          // Still a current guest: not removed and not claimed meanwhile.
+          eq(spaceMembers.kind, "GUEST"),
+          isNull(spaceMembers.leftAt),
+          // space_members_current_user_uq: the user is not a current member of the space yet.
+          sql`NOT EXISTS (SELECT 1 FROM space_members c WHERE c.space_id = ${spaceId} AND c.user_id = ${claimed.userId} AND c.left_at IS NULL)`,
+        ),
+      )
+      .returning({ id: spaceMembers.id });
+    return taken.length > 0;
   }
 }

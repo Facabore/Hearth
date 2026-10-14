@@ -3,7 +3,7 @@ import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizz
 import { isUuid } from "@/shared/kernel";
 import type { InvitationRepository } from "../application/invitation-repository";
 import type { Invitation, InvitationId } from "../domain/invitation";
-import type { SpaceId } from "../domain/space";
+import type { SpaceId, SpaceMemberId } from "../domain/space";
 import { spaceInvitations } from "./spaces.schema";
 
 const toInvitation = (row: typeof spaceInvitations.$inferSelect): Invitation => ({
@@ -67,5 +67,19 @@ export class DrizzleInvitationRepository implements InvitationRepository {
         revokedAt: invitation.revokedAt,
       })
       .where(eq(spaceInvitations.id, invitation.id));
+  }
+
+  async revokePendingClaims(spaceId: SpaceId, guestMemberId: SpaceMemberId, revokedAt: Date): Promise<void> {
+    await this.tm
+      .executor()
+      .update(spaceInvitations)
+      .set({ status: "REVOKED", revokedAt })
+      .where(
+        and(
+          eq(spaceInvitations.spaceId, spaceId),
+          eq(spaceInvitations.guestMemberId, guestMemberId),
+          eq(spaceInvitations.status, "PENDING"),
+        ),
+      );
   }
 }
