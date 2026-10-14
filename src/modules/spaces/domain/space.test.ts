@@ -120,3 +120,10 @@ describe("membership changes (HU-E1-08, HU-E1-12, D16)", () => {
     expect(!direct.ok && direct.error.code).toBe("DirectSpaceMembersFixed");
   });
 });
+
+describe("direct space (HU-E1-13, D16)", () => {
+  it("cannot get a third member", () => {
+    const result = ensureCanAddMember({ kind: "DIRECT" });
+    expect(!result.ok && result.error.code).toBe("DirectSpaceIsFull");
+  });
+});

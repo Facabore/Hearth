@@ -136,6 +136,7 @@ describe("AcceptInvitation against PostgreSQL (Review Focus 2)", () => {
   const accept = createAcceptInvitation({
     access: createSpaceAccess(spaces),
     members: spaces,
+    spaces,
     invitations: repo,
     tokens: cryptoInvitationTokens,
     ids: new UuidV7IdGenerator(),
@@ -172,6 +173,19 @@ describe("AcceptInvitation against PostgreSQL (Review Focus 2)", () => {
     const input = { token, userId: juan.id, userEmail: juan.email, userName: juan.name };
     expect(codes(await Promise.all([accept(input), accept(input)]))).toEqual(["AlreadyMember", "ok"]);
     expect(await membershipRows(space.id, juan.id)).toBe(1);
+  });
+
+  it("refuses to join a direct space and adds nobody (HU-E1-13, D16)", async () => {
+    const ana = await newUser("Ana");
+    const juan = await newUser("Juan");
+    const space = await household(ana.id);
+    const { token, invitation } = await invite(space, ana.id, { kind: "LINK" });
+    // CreateInvitation never issues one for a direct space, so the kind is changed by hand to get such a row.
+    await pool.query("UPDATE spaces SET kind = 'DIRECT' WHERE id = $1", [space.id]);
+    const input = { token, userId: juan.id, userEmail: juan.email, userName: juan.name };
+    expect(codes([await accept(input)])).toEqual(["DirectSpaceIsFull"]);
+    expect(await membershipRows(space.id, juan.id)).toBe(0);
+    expect(await repo.findForUpdate(space.id, invitation.id)).toMatchObject({ status: "PENDING" });
   });
 });
 

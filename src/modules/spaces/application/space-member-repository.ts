@@ -33,7 +33,7 @@ export type ClaimOutcome = "claimed" | "notAGuest" | "alreadyMember";
 
 /** HU-E1-11: claiming rewrites the guest's own member row, so no money row changes (D15). */
 export interface GuestClaimRepository {
-  /** The kind of a space that exists (claim links reference it). */
+  /** The kind of a space that exists (claim links and invitations reference it). */
   spaceKindOf(spaceId: SpaceId): Promise<SpaceKind>;
   /**
    * Turns the current guest `claimed.id` into the registered member `claimed` and sets claimedAt;

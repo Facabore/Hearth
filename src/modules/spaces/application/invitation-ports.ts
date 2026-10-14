@@ -34,6 +34,8 @@ export interface RegisteredUsers {
 export interface InvitationsDeps {
   readonly access: SpaceAccess;
   readonly members: SpaceMemberRepository;
+  /** AcceptInvitation reads the kind of the invitation's space, so it refuses spaces that cannot gain members. */
+  readonly spaces: Pick<GuestClaimRepository, "spaceKindOf">;
   readonly invitations: InvitationRepository;
   readonly tokens: InvitationTokens;
   readonly emailSender: EmailSender;

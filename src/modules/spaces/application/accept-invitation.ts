@@ -1,7 +1,7 @@
 import { domainError, err, map, type Result } from "@/shared/kernel";
 import { ensureAcceptable, isClaim, markAccepted } from "../domain/invitation";
 import { userMember } from "../domain/member";
-import type { SpaceMember } from "../domain/space";
+import { ensureCanAddMember, type SpaceMember } from "../domain/space";
 import type { InvitationsDeps } from "./invitation-ports";
 import { toSpaceSummary } from "./space-access";
 import type { AddMemberOutcome } from "./space-member-repository";
@@ -24,7 +24,10 @@ const MAX_JOIN_ATTEMPTS = 3;
 /** HU-E1-07: a signed-in user joins the invitation's space with the invited role. */
 export const createAcceptInvitation =
   (
-    deps: Pick<InvitationsDeps, "access" | "members" | "invitations" | "tokens" | "ids" | "clock" | "tm">,
+    deps: Pick<
+      InvitationsDeps,
+      "access" | "members" | "spaces" | "invitations" | "tokens" | "ids" | "clock" | "tm"
+    >,
   ): AcceptInvitation =>
   (input) =>
     deps.tm.run(async () => {
@@ -35,6 +38,10 @@ export const createAcceptInvitation =
       const now = deps.clock.now();
       const acceptable = ensureAcceptable(invitation, { email: input.userEmail, now });
       if (!acceptable.ok) return acceptable;
+      // D16, HU-E1-02: CreateInvitation never issues one for a personal or direct space, but joining either
+      // is refused here too, so no path leaves them with another member.
+      const joinable = ensureCanAddMember({ kind: await deps.spaces.spaceKindOf(invitation.spaceId) });
+      if (!joinable.ok) return joinable;
       const id = deps.ids.next<"SpaceMember">();
       // Names the database refused; lower() may fold letters differently from JavaScript, so never retry one.
       const refused: string[] = [];

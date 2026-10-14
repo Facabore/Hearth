@@ -41,7 +41,7 @@ export interface Space {
 }
 
 /** The creator of a space joins it as its OWNER. */
-const founder = (input: {
+export const founder = (input: {
   memberId: SpaceMemberId;
   ownerUserId: string;
   ownerName: string;
@@ -101,9 +101,14 @@ export const createSharedSpace = (input: {
   return ok(space);
 };
 
-/** Personal spaces have exactly one member (spec 5.2, HU-E1-02); guests never join them either (HU-E1-10). */
-export const ensureCanAddMember = (space: Pick<Space, "kind">): Result<void> =>
-  space.kind === "PERSONAL" ? err(domainError("PersonalSpaceNotShareable")) : ok(undefined);
+/**
+ * Spec 5.2, D16: a personal space has exactly one member and a direct space exactly two, so neither ever
+ * gains one (HU-E1-02, HU-E1-10, HU-E1-13); guests never join personal spaces either.
+ */
+export const ensureCanAddMember = (space: Pick<Space, "kind">): Result<void> => {
+  if (space.kind === "PERSONAL") return err(domainError("PersonalSpaceNotShareable"));
+  return space.kind === "DIRECT" ? err(domainError("DirectSpaceIsFull")) : ok(undefined);
+};
 
 /**
  * HU-E1-08, HU-E1-12, D16: members leave, are removed or change role only in shared spaces; a personal
@@ -114,7 +119,7 @@ export const ensureMembersCanChange = (space: Pick<Space, "kind">): Result<void>
   return space.kind === "DIRECT" ? err(domainError("DirectSpaceMembersFixed")) : ok(undefined);
 };
 
-const MAX_SPACE_NAME = 80;
+export const MAX_SPACE_NAME = 80;
 
 /** HU-E1-03: space names are trimmed and 1–80 characters long. */
 export const spaceName = (raw: string): Result<string> => {

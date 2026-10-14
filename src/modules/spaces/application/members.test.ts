@@ -229,3 +229,44 @@ describe("AddGuestMember (HU-E1-10)", () => {
     expect(codeOf(await addGuest({ ...as("luis"), displayName: "Pedro" }))).toBe("MemberNameTaken");
   });
 });
+
+describe("direct spaces keep their two members (HU-E1-13, D16)", () => {
+  const [ana, juan, , , pedro] = HOUSEHOLD_MEMBERS;
+  const direct = (members: SpaceMember[], name: string): Space => ({
+    ...householdSpace(members),
+    kind: "DIRECT",
+    name,
+  });
+
+  it("refuses a third member as a guest", async () => {
+    const { addGuest, store } = setup(direct([ana!, pedro!], "Ana & Pedro"));
+    expect(codeOf(await addGuest({ ...as("ana"), displayName: "Luis" }))).toBe("DirectSpaceIsFull");
+    expect(store.members(space)).toHaveLength(2);
+  });
+
+  it("keeps both registered members OWNER", async () => {
+    const { changeRole, store } = setup(direct([ana!, { ...juan!, role: "OWNER" }], "Ana & Juan"));
+    expect(codeOf(await changeRole({ ...as("ana"), memberId: "member-juan", role: "MEMBER" }))).toBe(
+      "DirectSpaceMembersFixed",
+    );
+    expect(roleOf(store, "Juan")).toBe("OWNER");
+  });
+
+  it("answers PersonalSpaceNotShareable to a role change in a personal space", async () => {
+    const personal = createPersonalSpace({
+      id: "space-ana" as SpaceId,
+      memberId: "member-ana-personal" as SpaceMemberId,
+      ownerUserId: "u-ana",
+      ownerName: "Ana",
+      now,
+    });
+    const { changeRole } = setup(personal);
+    const demotion = {
+      spaceId: "space-ana",
+      userId: "u-ana",
+      memberId: "member-ana-personal",
+      role: "ADMIN" as const,
+    };
+    expect(codeOf(await changeRole(demotion))).toBe("PersonalSpaceNotShareable");
+  });
+});

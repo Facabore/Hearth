@@ -1,7 +1,7 @@
 import { domainError, err, type Result } from "@/shared/kernel";
 import { changeMemberRole } from "../domain/member";
 import { can } from "../domain/permissions";
-import type { SpaceMember, SpaceRole } from "../domain/space";
+import { ensureMembersCanChange, type SpaceMember, type SpaceRole } from "../domain/space";
 import type { MembersDeps } from "./members-deps";
 import { authorizeSpaceAction } from "./space-access";
 
@@ -20,6 +20,9 @@ export const createChangeMemberRole =
       const owner = await authorizeSpaceAction(deps.access, input.spaceId, input.userId, "member.changeRole");
       if (!owner.ok) return owner;
       const { spaceId, memberId: actorId } = owner.value;
+      // D16: both members of a direct space stay OWNER; a personal space keeps its one owner.
+      const changeable = ensureMembersCanChange({ kind: owner.value.spaceKind });
+      if (!changeable.ok) return changeable;
       // Locked: role changes of one space run one at a time, so two owners demoting each other cannot
       // leave it without an OWNER; the actor's own role is checked again on the locked rows.
       const current = await deps.members.listCurrent(spaceId, { lock: true });

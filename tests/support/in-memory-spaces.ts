@@ -294,6 +294,7 @@ export const invitationsWorld = (
   const deps: InvitationsDeps = {
     access: createSpaceAccess(store),
     members: store,
+    spaces: store,
     invitations,
     tokens,
     emailSender,

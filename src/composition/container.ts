@@ -311,6 +311,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   const invitationsDeps: InvitationsDeps = {
     access,
     members: spaceRepository,
+    spaces: spaceRepository,
     invitations: invitationRepository,
     tokens: cryptoInvitationTokens,
     // No SMTP adapter in v1 (no new dependencies): the response carries the URL and emailSent is false.
