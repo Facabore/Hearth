@@ -90,47 +90,47 @@ A UI story is `Done` when:
 
 | ID | Title | Epic | Milestone | Priority | Size | Status | Depends on |
 |---|---|---|---|---|---|---|---|
-| [HU-E0-01](E0-foundations.md) | Bootstrap the repository with pinned stable versions | E0 | M0 | Must | S | Backlog | — |
-| [HU-E0-02](E0-foundations.md) | Hexagonal module skeleton with boundary lint | E0 | M0 | Must | M | Backlog | HU-E0-01 |
-| [HU-E0-03](E0-foundations.md) | Money value object | E0 | M0 | Must | S | Backlog | HU-E0-02 |
-| [HU-E0-04](E0-foundations.md) | PeriodPolicy, Result, Id and Clock kernel types | E0 | M0 | Must | M | Backlog | HU-E0-02 |
-| [HU-E0-05](E0-foundations.md) | PostgreSQL access with Drizzle, migrations and Testcontainers | E0 | M0 | Must | M | Backlog | HU-E0-02 |
-| [HU-E0-06](E0-foundations.md) | Continuous integration pipeline | E0 | M0 | Must | S | Backlog | HU-E0-02, HU-E0-05, HU-E0-09 |
-| [HU-E0-07](E0-foundations.md) | Deploy to the VPS with Docker Compose and Caddy | E0 | M0 | Must | M | Backlog | HU-E0-06, HU-E0-09 |
-| [HU-E0-09](E0-foundations.md) | API foundation: contracts, OpenAPI, problem+json and auth guard | E0 | M0 | Must | M | Backlog | HU-E0-02, HU-E0-03, HU-E0-04 |
-| [HU-E0-10](E0-foundations.md) | Idempotency, pagination and optimistic concurrency | E0 | M0 | Must | M | Backlog | HU-E0-05, HU-E0-09 |
-| [HU-E1-01](E1-identity-and-spaces.md) | Sign up, sign in and sign out | E1 | M0 | Must | M | Backlog | HU-E0-05, HU-E0-09 |
-| [HU-E1-02](E1-identity-and-spaces.md) | Personal space created on sign up | E1 | M0 | Must | S | Backlog | HU-E1-01 |
-| [HU-E1-03](E1-identity-and-spaces.md) | Configure space settings and period policy | E1 | M1 | Must | S | Backlog | HU-E1-02, HU-E0-04 |
-| [HU-E1-04](E1-identity-and-spaces.md) | Create a shared space | E1 | M2 | Must | S | Backlog | HU-E1-02 |
-| [HU-E1-05](E1-identity-and-spaces.md) | Enforce roles and permissions | E1 | M2 | Must | M | Backlog | HU-E1-04 |
-| [HU-E1-06](E1-identity-and-spaces.md) | Invite a member by link or email | E1 | M2 | Must | M | Backlog | HU-E1-05 |
-| [HU-E1-07](E1-identity-and-spaces.md) | Accept an invitation | E1 | M2 | Must | M | Backlog | HU-E1-06 |
+| [HU-E0-01](E0-foundations.md) | Bootstrap the repository with pinned stable versions | E0 | M0 | Must | S | Done | — |
+| [HU-E0-02](E0-foundations.md) | Hexagonal module skeleton with boundary lint | E0 | M0 | Must | M | Done | HU-E0-01 |
+| [HU-E0-03](E0-foundations.md) | Money value object | E0 | M0 | Must | S | Done | HU-E0-02 |
+| [HU-E0-04](E0-foundations.md) | PeriodPolicy, Result, Id and Clock kernel types | E0 | M0 | Must | M | Done | HU-E0-02 |
+| [HU-E0-05](E0-foundations.md) | PostgreSQL access with Drizzle, migrations and Testcontainers | E0 | M0 | Must | M | Done | HU-E0-02 |
+| [HU-E0-06](E0-foundations.md) | Continuous integration pipeline | E0 | M0 | Must | S | Done | HU-E0-02, HU-E0-05, HU-E0-09 |
+| [HU-E0-07](E0-foundations.md) | Deploy to the VPS with Docker Compose and Caddy | E0 | M0 | Must | M | Done | HU-E0-06, HU-E0-09 |
+| [HU-E0-09](E0-foundations.md) | API foundation: contracts, OpenAPI, problem+json and auth guard | E0 | M0 | Must | M | Done | HU-E0-02, HU-E0-03, HU-E0-04 |
+| [HU-E0-10](E0-foundations.md) | Idempotency, pagination and optimistic concurrency | E0 | M0 | Must | M | Done | HU-E0-05, HU-E0-09 |
+| [HU-E1-01](E1-identity-and-spaces.md) | Sign up, sign in and sign out | E1 | M0 | Must | M | Done | HU-E0-05, HU-E0-09 |
+| [HU-E1-02](E1-identity-and-spaces.md) | Personal space created on sign up | E1 | M0 | Must | S | Done | HU-E1-01 |
+| [HU-E1-03](E1-identity-and-spaces.md) | Configure space settings and period policy | E1 | M1 | Must | S | Done | HU-E1-02, HU-E0-04 |
+| [HU-E1-04](E1-identity-and-spaces.md) | Create a shared space | E1 | M2 | Must | S | Done | HU-E1-02 |
+| [HU-E1-05](E1-identity-and-spaces.md) | Enforce roles and permissions | E1 | M2 | Must | M | Done | HU-E1-04 |
+| [HU-E1-06](E1-identity-and-spaces.md) | Invite a member by link or email | E1 | M2 | Must | M | Done | HU-E1-05 |
+| [HU-E1-07](E1-identity-and-spaces.md) | Accept an invitation | E1 | M2 | Must | M | Done | HU-E1-06 |
 | [HU-E1-08](E1-identity-and-spaces.md) | Leave a space | E1 | M2 | Must | S | Backlog | HU-E1-07, HU-E5-01 |
 | [HU-E1-09](E1-identity-and-spaces.md) | Archive a space | E1 | M2 | Should | S | Backlog | HU-E1-05, HU-E5-01 |
-| [HU-E1-10](E1-identity-and-spaces.md) | Add a guest member to a space | E1 | M2 | Must | S | Backlog | HU-E1-05 |
+| [HU-E1-10](E1-identity-and-spaces.md) | Add a guest member to a space | E1 | M2 | Must | S | Done | HU-E1-05 |
 | [HU-E1-11](E1-identity-and-spaces.md) | Claim a guest place by registering | E1 | M2 | Must | M | Backlog | HU-E1-07, HU-E1-10, HU-E5-01 |
 | [HU-E1-12](E1-identity-and-spaces.md) | Remove a guest | E1 | M2 | Must | S | Backlog | HU-E1-10, HU-E5-01 |
 | [HU-E1-13](E1-identity-and-spaces.md) | Split with one person through a direct space | E1 | M2 | Must | M | Backlog | HU-E1-10, HU-E3-01, HU-E4-07 |
-| [HU-E2-01](E2-accounts.md) | Create a personal account with an opening balance | E2 | M1 | Must | S | Backlog | HU-E1-02 |
-| [HU-E2-02](E2-accounts.md) | Create a shared fund account | E2 | M2 | Must | S | Backlog | HU-E1-05, HU-E2-01 |
-| [HU-E2-03](E2-accounts.md) | Edit and archive an account | E2 | M1 | Must | S | Backlog | HU-E2-01 |
-| [HU-E2-04](E2-accounts.md) | Show the computed account balance | E2 | M1 | Must | M | Backlog | HU-E2-01, HU-E4-01, HU-E4-02, HU-E4-03 |
-| [HU-E3-01](E3-categories.md) | Seed default categories per space | E3 | M1 | Must | S | Backlog | HU-E1-02 |
-| [HU-E3-02](E3-categories.md) | Manage category groups and categories | E3 | M1 | Must | M | Backlog | HU-E3-01 |
-| [HU-E3-03](E3-categories.md) | Archive a referenced category | E3 | M1 | Must | S | Backlog | HU-E3-02, HU-E4-01 |
-| [HU-E4-01](E4-ledger.md) | Record a personal expense | E4 | M1 | Must | M | Backlog | HU-E0-04, HU-E0-10, HU-E2-01, HU-E3-01 |
-| [HU-E4-02](E4-ledger.md) | Record income | E4 | M1 | Must | S | Backlog | HU-E2-01, HU-E3-01 |
-| [HU-E4-03](E4-ledger.md) | Transfer between own accounts | E4 | M1 | Must | S | Backlog | HU-E2-01 |
-| [HU-E4-04](E4-ledger.md) | Assign transactions to periods by period policy | E4 | M1 | Must | S | Backlog | HU-E1-03, HU-E4-01 |
-| [HU-E4-05](E4-ledger.md) | List and filter transactions | E4 | M1 | Must | M | Backlog | HU-E0-10, HU-E4-01, HU-E4-02, HU-E4-03, HU-E4-04 |
-| [HU-E4-06](E4-ledger.md) | Edit or delete a transaction with an audit trail | E4 | M1 | Must | M | Backlog | HU-E0-10, HU-E4-01 |
-| [HU-E4-07](E4-ledger.md) | Record a shared expense split equally | E4 | M2 | Must | M | Backlog | HU-E1-07, HU-E1-10, HU-E4-01 |
-| [HU-E4-08](E4-ledger.md) | Split by percentage, exact amounts or shares | E4 | M2 | Must | M | Backlog | HU-E4-07 |
-| [HU-E4-09](E4-ledger.md) | Contribute to the shared fund | E4 | M2 | Must | S | Backlog | HU-E2-02, HU-E4-03 |
-| [HU-E4-10](E4-ledger.md) | Record an expense paid from the shared fund | E4 | M2 | Must | S | Backlog | HU-E2-02, HU-E4-07, HU-E4-08 |
-| [HU-E5-01](E5-balances-and-settlements.md) | Compute who owes whom | E5 | M2 | Must | M | Backlog | HU-E4-07, HU-E4-10 |
-| [HU-E5-02](E5-balances-and-settlements.md) | Record a settlement | E5 | M2 | Must | M | Backlog | HU-E5-01, HU-E1-10 |
+| [HU-E2-01](E2-accounts.md) | Create a personal account with an opening balance | E2 | M1 | Must | S | Done | HU-E1-02 |
+| [HU-E2-02](E2-accounts.md) | Create a shared fund account | E2 | M2 | Must | S | Done | HU-E1-05, HU-E2-01 |
+| [HU-E2-03](E2-accounts.md) | Edit and archive an account | E2 | M1 | Must | S | Done | HU-E2-01 |
+| [HU-E2-04](E2-accounts.md) | Show the computed account balance | E2 | M1 | Must | M | Done | HU-E2-01, HU-E4-01, HU-E4-02, HU-E4-03 |
+| [HU-E3-01](E3-categories.md) | Seed default categories per space | E3 | M1 | Must | S | Done | HU-E1-02 |
+| [HU-E3-02](E3-categories.md) | Manage category groups and categories | E3 | M1 | Must | M | Done | HU-E3-01 |
+| [HU-E3-03](E3-categories.md) | Archive a referenced category | E3 | M1 | Must | S | Done | HU-E3-02, HU-E4-01 |
+| [HU-E4-01](E4-ledger.md) | Record a personal expense | E4 | M1 | Must | M | Done | HU-E0-04, HU-E0-10, HU-E2-01, HU-E3-01 |
+| [HU-E4-02](E4-ledger.md) | Record income | E4 | M1 | Must | S | Done | HU-E2-01, HU-E3-01 |
+| [HU-E4-03](E4-ledger.md) | Transfer between own accounts | E4 | M1 | Must | S | Done | HU-E2-01 |
+| [HU-E4-04](E4-ledger.md) | Assign transactions to periods by period policy | E4 | M1 | Must | S | Done | HU-E1-03, HU-E4-01 |
+| [HU-E4-05](E4-ledger.md) | List and filter transactions | E4 | M1 | Must | M | Done | HU-E0-10, HU-E4-01, HU-E4-02, HU-E4-03, HU-E4-04 |
+| [HU-E4-06](E4-ledger.md) | Edit or delete a transaction with an audit trail | E4 | M1 | Must | M | Done | HU-E0-10, HU-E4-01 |
+| [HU-E4-07](E4-ledger.md) | Record a shared expense split equally | E4 | M2 | Must | M | Done | HU-E1-07, HU-E1-10, HU-E4-01 |
+| [HU-E4-08](E4-ledger.md) | Split by percentage, exact amounts or shares | E4 | M2 | Must | M | Done | HU-E4-07 |
+| [HU-E4-09](E4-ledger.md) | Contribute to the shared fund | E4 | M2 | Must | S | Done | HU-E2-02, HU-E4-03 |
+| [HU-E4-10](E4-ledger.md) | Record an expense paid from the shared fund | E4 | M2 | Must | S | Done | HU-E2-02, HU-E4-07, HU-E4-08 |
+| [HU-E5-01](E5-balances-and-settlements.md) | Compute who owes whom | E5 | M2 | Must | M | Done | HU-E4-07, HU-E4-10 |
+| [HU-E5-02](E5-balances-and-settlements.md) | Record a settlement | E5 | M2 | Must | M | Done | HU-E5-01, HU-E1-10 |
 | [HU-E5-03](E5-balances-and-settlements.md) | Suggest simplified settlements | E5 | M2 | Should | M | Backlog | HU-E5-01 |
 | [HU-E5-04](E5-balances-and-settlements.md) | Show balance history per member | E5 | M2 | Should | S | Backlog | HU-E5-02 |
 | [HU-E6-01](E6-budgeting.md) | Create a plan for a period | E6 | M3 | Must | S | Backlog | HU-E1-05, HU-E0-04 |
