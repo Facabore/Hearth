@@ -1,4 +1,4 @@
-import { ok, type Result } from "@/shared/kernel";
+import { domainError, err, ok, type Result } from "@/shared/kernel";
 import { ensureSettled, leavingMember, outstandingIn } from "../domain/member";
 import { ensureMembersCanChange } from "../domain/space";
 import type { LifecycleDeps } from "./lifecycle-deps";
@@ -24,7 +24,8 @@ export const createLeaveSpace =
       if (!leaver.ok) return leaver;
       const settled = ensureSettled(outstandingIn([await deps.netBalance(spaceId, memberId)]), currency);
       if (!settled.ok) return settled;
-      // On the locked rows the leaver is a current registered member, so this always matches.
-      await deps.members.markLeft(spaceId, leaver.value.id, "USER", deps.clock.now());
-      return ok(undefined);
+      // false: the member is no longer current (a concurrent claim, removal or leave got there first), so a
+      // leave that did not happen is never answered ok.
+      const left = await deps.members.markLeft(spaceId, leaver.value.id, "USER", deps.clock.now());
+      return left ? ok(undefined) : err(domainError("MemberNotFound"));
     });

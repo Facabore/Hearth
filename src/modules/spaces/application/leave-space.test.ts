@@ -28,9 +28,19 @@ const nets =
   async (spaceId, memberId) =>
     spaceId === space ? (byMember[memberId] ?? 0n) : 1n;
 
+/** A store whose member was moved (claimed, removed or left) by a concurrent change after it was read. */
+class LostRaceStore extends InMemorySpaceStore {
+  override async markLeft(): Promise<boolean> {
+    return false;
+  }
+}
+
 // HU-E1-05 Background members: OWNER Ana, ADMIN Juan, MEMBER Luis, VIEWER Sofi and the guest Pedro.
-const setup = (seeded: Space = householdSpace(), byMember: Record<string, bigint> = {}) => {
-  const store = new InMemorySpaceStore();
+const setup = (
+  seeded: Space = householdSpace(),
+  byMember: Record<string, bigint> = {},
+  store: InMemorySpaceStore = new InMemorySpaceStore(),
+) => {
   store.seed(seeded);
   const deps: LifecycleDeps = {
     access: createSpaceAccess(store),
@@ -106,6 +116,11 @@ describe("LeaveSpace (HU-E1-08)", () => {
       name: "Ana & Juan",
     };
     expect(codeOf(await setup(direct).leave(as("juan")))).toBe("DirectSpaceMembersFixed");
+  });
+
+  it("answers MemberNotFound when a concurrent change already moved the member, never ok", async () => {
+    const { leave } = setup(householdSpace(), {}, new LostRaceStore());
+    expect(await leave(as("luis"))).toEqual({ ok: false, error: { code: "MemberNotFound" } });
   });
 
   it("hides the space from non-members", async () => {

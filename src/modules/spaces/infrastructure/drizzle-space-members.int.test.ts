@@ -1,11 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
-import { ok } from "@/shared/kernel";
+import { FixedClock, ok } from "@/shared/kernel";
 import { testDatabase } from "../../../../tests/support/database";
 import { sharedSpaceFixture, userFixture } from "../../../../tests/support/fixtures";
+import { InMemorySpaceStore } from "../../../../tests/support/in-memory-spaces";
 import { createChangeMemberRole } from "../application/change-member-role";
+import { createLeaveSpace } from "../application/leave-space";
 import { createSpaceAccess } from "../application/space-access";
+import type { MemberLifecycleRepository } from "../application/space-member-repository";
 import type { SpaceId, SpaceMember, SpaceMemberId, SpaceRole } from "../domain/space";
 import { DrizzleSpaceRepository } from "./drizzle-space-repository";
 
@@ -150,6 +153,130 @@ describe("concurrent member changes (Review Focus 3)", () => {
     // The loser re-reads its role on the locked rows, sees itself demoted, and is refused for that.
     expect(results.flatMap((r) => (r.ok ? [] : [r.error.code]))).toEqual(["InsufficientRole"]);
     const owners = "SELECT count(*)::int AS n FROM space_members WHERE space_id = $1 AND role = 'OWNER'";
+    expect(await count(owners, [space.id])).toBe(1);
+  });
+});
+
+describe("leaving and removal (HU-E1-08, HU-E1-12)", () => {
+  const lifecycle: MemberLifecycleRepository = repo;
+  const at = new Date("2026-10-14T12:00:00Z");
+
+  it("sets leftAt on a current member of the given kind only, and keeps the row", async () => {
+    const juan = await newUser("Juan");
+    const space = await household(await newUser("Ana"));
+    const pedro = guest("Pedro");
+    const juanMember = registered(juan, "Juan");
+    await repo.addMember(space.id, pedro);
+    await repo.addMember(space.id, juanMember);
+    expect(await lifecycle.markLeft(space.id, pedro.id, "USER", at)).toBe(false);
+    expect(await lifecycle.markLeft(space.id, juanMember.id, "GUEST", at)).toBe(false);
+    expect(await lifecycle.markLeft(space.id, pedro.id, "GUEST", at)).toBe(true);
+    expect(await lifecycle.markLeft(space.id, juanMember.id, "USER", at)).toBe(true);
+    expect(await lifecycle.markLeft(space.id, juanMember.id, "USER", at)).toBe(false);
+    expect(await repo.listCurrent(space.id)).toEqual(space.members);
+    const { rows } = await pool.query(
+      "SELECT id, left_at FROM space_members WHERE id = ANY($1) ORDER BY display_name",
+      [[pedro.id, juanMember.id]],
+    );
+    expect(rows).toEqual([
+      { id: juanMember.id, left_at: at },
+      { id: pedro.id, left_at: at },
+    ]);
+  });
+
+  it("finds no membership and lists no space for a member who left", async () => {
+    const juan = await newUser("Juan");
+    const space = await household(await newUser("Ana"));
+    const member = registered(juan, "Juan");
+    await repo.addMember(space.id, member);
+    await lifecycle.markLeft(space.id, member.id, "USER", at);
+    expect(await repo.findMembership(space.id, juan)).toBeNull();
+    expect(await repo.listForUser(juan)).toEqual([]);
+  });
+
+  it("lets a user who left through markLeft join again with a new row, keeping the old one (HU-E1-07)", async () => {
+    const juan = await newUser("Juan");
+    const space = await household(await newUser("Ana"));
+    const before = registered(juan, "Juan");
+    await repo.addMember(space.id, before);
+    expect(await lifecycle.markLeft(space.id, before.id, "USER", at)).toBe(true);
+    const after = registered(juan, "Juan");
+    // Same user and same name: both partial unique indexes must have freed their slot.
+    expect(await repo.addMember(space.id, after)).toBe("added");
+    expect((await repo.listCurrent(space.id)).filter((m) => m.userId === juan)).toEqual([after]);
+    const current =
+      "SELECT count(*)::int AS n FROM space_members WHERE space_id = $1 AND user_id = $2 AND left_at IS NULL";
+    expect(await count(current, [space.id, juan])).toBe(1);
+    const old = await pool.query("SELECT left_at FROM space_members WHERE id = $1", [before.id]);
+    expect(old.rows).toEqual([{ left_at: at }]);
+  });
+
+  it("answers false for malformed ids and for members of another space", async () => {
+    const ana = await newUser("Ana");
+    const space = await household(ana);
+    const other = await household(ana);
+    expect(await lifecycle.markLeft(space.id, "not-a-uuid" as SpaceMemberId, "USER", at)).toBe(false);
+    expect(await lifecycle.markLeft(other.id, space.members[0]!.id, "USER", at)).toBe(false);
+    expect(await repo.listCurrent(space.id)).toEqual(space.members);
+  });
+
+  it("gives the outcomes of the in-memory twin the use-case tests rely on", async () => {
+    const space = await household(await newUser("Ana"));
+    const pedro = guest("Pedro");
+    await repo.addMember(space.id, pedro);
+    const twin = new InMemorySpaceStore();
+    twin.seed({ ...space, members: [...space.members, pedro] });
+    const steps = async (store: MemberLifecycleRepository) => [
+      await store.markLeft(space.id, pedro.id, "USER", at),
+      await store.markLeft(space.id, pedro.id, "GUEST", at),
+      await store.markLeft(space.id, pedro.id, "GUEST", at),
+      await store.markLeft(space.id, space.members[0]!.id, "USER", at),
+    ];
+    const outcomes = await steps(lifecycle);
+    expect(outcomes).toEqual([false, true, false, true]);
+    expect(await steps(twin)).toEqual(outcomes);
+  });
+});
+
+/**
+ * A balance port that answers 0 once `parties` callers arrived or `ms` passed. Without the row lock both
+ * leavers reach it together and both leave; with it, the second waits on the locked rows and never arrives.
+ */
+const rendezvous = (parties: number, ms: number) => {
+  let arrived = 0;
+  let release: () => void = () => undefined;
+  const everyone = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return async (): Promise<bigint> => {
+    arrived += 1;
+    if (arrived >= parties) release();
+    await Promise.race([everyone, new Promise((resolve) => setTimeout(resolve, ms))]);
+    return 0n;
+  };
+};
+
+describe("concurrent leaving (Review Focus 5)", () => {
+  it("keeps exactly one OWNER when two owners leave at the same time", async () => {
+    const ana = await newUser("Ana");
+    const juan = await newUser("Juan");
+    const space = await household(ana);
+    await repo.addMember(space.id, registered(juan, "Juan", "OWNER"));
+    const leave = createLeaveSpace({
+      access: createSpaceAccess(repo),
+      members: repo,
+      netBalance: rendezvous(2, 2_000),
+      clock: new FixedClock(new Date("2026-10-14T12:00:00Z")),
+      tm,
+    });
+    const results = await Promise.all([
+      leave({ spaceId: space.id, userId: ana }),
+      leave({ spaceId: space.id, userId: juan }),
+    ]);
+    // The second leaver reads the locked rows only after the first left, so it is the last OWNER.
+    expect(results.map((r) => (r.ok ? "ok" : r.error.code)).sort()).toEqual(["LastOwnerRequired", "ok"]);
+    const owners =
+      "SELECT count(*)::int AS n FROM space_members WHERE space_id = $1 AND role = 'OWNER' AND left_at IS NULL";
     expect(await count(owners, [space.id])).toBe(1);
   });
 });

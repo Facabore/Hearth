@@ -150,4 +150,28 @@ export class DrizzleSpaceRepository
       .set({ role })
       .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.id, memberId)));
   }
+
+  async markLeft(
+    spaceId: SpaceId,
+    memberId: SpaceMemberId,
+    kind: SpaceMember["kind"],
+    leftAt: Date,
+  ): Promise<boolean> {
+    // Ids come from URLs; anything that is not a UUID would fail the uuid cast.
+    if (!isUuid(memberId)) return false;
+    const left = await this.tm
+      .executor()
+      .update(spaceMembers)
+      .set({ leftAt })
+      .where(
+        and(
+          eq(spaceMembers.spaceId, spaceId),
+          eq(spaceMembers.id, memberId),
+          eq(spaceMembers.kind, kind),
+          isNull(spaceMembers.leftAt),
+        ),
+      )
+      .returning({ id: spaceMembers.id });
+    return left.length > 0;
+  }
 }
