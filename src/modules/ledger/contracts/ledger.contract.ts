@@ -16,6 +16,7 @@ import { domainError, err, isUuid, localDate, ok, type Money, type Result } from
 import type {
   AuditEntry,
   PaymentInput,
+  RecordedExpense,
   RecordExpenseInput,
   SplitInput,
   Transaction,
@@ -63,11 +64,12 @@ export const TransactionSchema = z.object({
 const MAX_PARTS = 100;
 
 /**
- * HU-E4-07: one payment by a member of the space (registered or guest). `accountId` is that member's
- * own account, or null (or absent) for a guest, who pays outside the app (spec 5.2).
+ * HU-E4-07/10: one payment. `memberId` is a member of the space (registered or guest) and `accountId`
+ * that member's own account, or null (or absent) for a guest, who pays outside the app; a null
+ * `memberId` names the space's shared fund as payer, and `accountId` is then the fund (spec 5.2).
  */
 export const PaymentBodySchema = z.object({
-  memberId: Id,
+  memberId: Id.nullable(),
   accountId: Id.nullable().optional(),
   amount: MoneySchema,
 });
@@ -238,6 +240,25 @@ export const transactionHeaders = (tx: Transaction): [string, string][] => [
   ["location", `/api/v1/spaces/${tx.spaceId}/transactions/${tx.id}`],
 ];
 
+/** HU-E4-10: non-blocking conditions of a recorded expense, as codes; the expense was recorded. */
+export const WarningSchema = z.object({
+  code: z.enum(["FundBalanceNegative"]),
+  accountId: z.string(),
+  /** The account balance after the expense. */
+  balance: MoneySchema,
+});
+/** The expense response: the transaction plus its warnings (always present, usually empty). */
+export const RecordedExpenseSchema = TransactionSchema.extend({ warnings: z.array(WarningSchema) });
+
+export const recordedExpenseDto = (recorded: RecordedExpense): z.infer<typeof RecordedExpenseSchema> => ({
+  ...transactionDto(recorded.expense),
+  warnings: recorded.warnings.map((warning) => ({
+    code: warning.code,
+    accountId: warning.accountId,
+    balance: { amount: warning.balance.toString(), currency: recorded.expense.currency },
+  })),
+});
+
 const UUID = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
 
 export const ListTransactionsQuerySchema = PaginationQuerySchema.extend({
@@ -319,6 +340,7 @@ const recording = (
   summary: string,
   body: z.ZodType,
   errors: Record<string, string>,
+  response: z.ZodType = TransactionSchema,
 ) => ({
   post: {
     operationId,
@@ -329,7 +351,7 @@ const recording = (
     responses: {
       "201": {
         description: "The recorded transaction; ETag carries its version",
-        content: jsonContent(TransactionSchema),
+        content: jsonContent(response),
       },
       ...problems({ "401": "Unauthenticated", "403": "InsufficientRole", ...errors }),
     },
@@ -342,14 +364,15 @@ const invalidMoney =
 export const ledgerPaths: ZodOpenApiPathsObject = {
   "/api/v1/spaces/{spaceId}/expenses": recording(
     "recordExpense",
-    "Record an expense paid by members (registered or guest) and shared among members",
+    "Record an expense paid by members (registered or guest) or by the shared fund, shared among members",
     RecordExpenseBodySchema,
     {
       "404": "SpaceNotFound, CategoryNotFound, AccountNotFound",
       "409":
-        "AccountArchived, CategoryArchived, PeriodClosed, IdempotencyKeyConflict, SharesDoNotMatchAmount, GuestHasNoAccounts",
-      "422": `${invalidMoney}, CategoryRequired, AccountNotOwned, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit`,
+        "AccountArchived, CategoryArchived, PeriodClosed, IdempotencyKeyConflict, SharesDoNotMatchAmount, GuestHasNoAccounts, MixedFundPayment",
+      "422": `${invalidMoney}, CategoryRequired, AccountNotOwned, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount`,
     },
+    RecordedExpenseSchema,
   ),
   "/api/v1/spaces/{spaceId}/incomes": recording(
     "recordIncome",

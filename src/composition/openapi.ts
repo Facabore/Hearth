@@ -8,7 +8,11 @@ import {
 } from "@/modules/categories/contracts/categories.contract";
 import { authPaths } from "@/modules/identity/contracts/auth.contract";
 import { mePaths } from "@/modules/identity/contracts/me.contract";
-import { ledgerPaths, TransactionSchema } from "@/modules/ledger/contracts/ledger.contract";
+import {
+  ledgerPaths,
+  RecordedExpenseSchema,
+  TransactionSchema,
+} from "@/modules/ledger/contracts/ledger.contract";
 import {
   InvitationSchema,
   SpaceMemberSchema,
@@ -46,6 +50,7 @@ export const buildOpenApiDocument = (): Record<string, unknown> =>
         Invitation: InvitationSchema,
         Period: PeriodSchema,
         Transaction: TransactionSchema,
+        RecordedExpense: RecordedExpenseSchema,
       },
       securitySchemes: {
         cookieAuth: { type: "apiKey", in: "cookie", name: "hearth.session_token" },

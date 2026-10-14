@@ -3,7 +3,7 @@ import { defineRoute, withIdempotency } from "@/composition/route";
 import {
   expenseFromBody,
   RecordExpenseBodySchema,
-  transactionDto,
+  recordedExpenseDto,
   transactionHeaders,
 } from "@/modules/ledger/contracts/ledger.contract";
 import { ok } from "@/shared/kernel";
@@ -25,7 +25,7 @@ export const POST = defineRoute({
     return result.ok
       ? ok({
           status: 201,
-          body: transactionDto(result.value.expense),
+          body: recordedExpenseDto(result.value),
           headers: transactionHeaders(result.value.expense),
         })
       : result;

@@ -326,4 +326,17 @@ describe("fund-paid expenses (HU-E4-10, D5)", () => {
     ]);
     expect(codeOf(mixed)).toBe("MixedFundPayment");
   });
+
+  it("refuses several fund payments: the fund pays once", () => {
+    const twice = rentOf([
+      { memberId: null, accountId: "acc-fund", amount: 60n },
+      { memberId: null, accountId: "acc-fund", amount: 40n },
+    ]);
+    expect(codeOf(twice)).toBe("MixedFundPayment");
+    const twoFunds = rentOf([
+      { memberId: null, accountId: "acc-fund", amount: 60n },
+      { memberId: null, accountId: "acc-other-fund", amount: 40n },
+    ]);
+    expect(codeOf(twoFunds)).toBe("MixedFundPayment");
+  });
 });
