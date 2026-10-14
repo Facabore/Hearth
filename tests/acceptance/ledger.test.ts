@@ -1,7 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { POST as createAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/route";
 import { GET as getAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/route";
-import { GET as listCategories } from "@/app/api/v1/spaces/[spaceId]/categories/route";
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
 import { POST as recordIncome } from "@/app/api/v1/spaces/[spaceId]/incomes/route";
 import { POST as recordTransfer } from "@/app/api/v1/spaces/[spaceId]/transfers/route";
@@ -16,26 +14,17 @@ import {
 import { GET as transactionAudit } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/audit/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, registerUser, startTestApp, type RouteHandler, type TestUser } from "../support/app";
+import {
+  balanceOf,
+  categoryWithKey,
+  cop,
+  inSpace,
+  newAccount,
+  post,
+  type MoneyDto,
+  type TransactionDto,
+} from "../support/ledger";
 
-interface MoneyDto {
-  amount: string;
-  currency: string;
-}
-interface TransactionDto {
-  id: string;
-  type: string;
-  description: string;
-  date: string;
-  amount: MoneyDto;
-  categoryId: string | null;
-  payments: { memberId: string | null; accountId: string | null; amount: MoneyDto }[];
-  shares: { memberId: string; amount: MoneyDto; splitMethod: string }[];
-  sourceAccountId: string | null;
-  destinationAccountId: string | null;
-  receivingMemberId: string | null;
-  createdBy: string;
-  version: number;
-}
 interface LedgerUser extends TestUser {
   bancolombia: string;
   nequi: string;
@@ -52,29 +41,6 @@ afterAll(async () => {
   await app.pool.end();
 });
 
-const cop = (pesos: number): MoneyDto => ({ amount: String(pesos * 100), currency: "COP" });
-const inSpace = (user: TestUser, resource: string) => `/api/v1/spaces/${user.spaceId}/${resource}`;
-
-const newAccount = async (user: TestUser, name: string, pesos: number) => {
-  const response = await call(createAccount, "POST", inSpace(user, "accounts"), {
-    user,
-    params: { spaceId: user.spaceId },
-    body: { name, type: "BANK", openingBalance: cop(pesos) },
-  });
-  return ((await response.json()) as { id: string }).id;
-};
-
-const categoryWithKey = async (user: TestUser, key: string) => {
-  const response = await call(listCategories, "GET", inSpace(user, "categories"), {
-    user,
-    params: { spaceId: user.spaceId },
-  });
-  const { items } = (await response.json()) as {
-    items: { categories: { id: string; key: string | null }[] }[];
-  };
-  return items.flatMap((g) => g.categories).find((c) => c.key === key)!.id;
-};
-
 /** A signed-up user with Bancolombia (2,000,000 COP), Nequi (0 COP) and the seeded categories. */
 const ledgerUser = async (name: string): Promise<LedgerUser> => {
   const user = await registerUser(name);
@@ -85,29 +51,6 @@ const ledgerUser = async (name: string): Promise<LedgerUser> => {
     groceries: await categoryWithKey(user, "groceries"),
     salary: await categoryWithKey(user, "salary"),
   };
-};
-
-const post = (
-  handler: RouteHandler,
-  user: TestUser,
-  resource: string,
-  body: unknown,
-  headers: Record<string, string> = {},
-  spaceOf: TestUser = user,
-) =>
-  call(handler, "POST", inSpace(spaceOf, resource), {
-    user,
-    params: { spaceId: spaceOf.spaceId },
-    body,
-    headers,
-  });
-
-const balanceOf = async (user: TestUser, accountId: string) => {
-  const response = await call(getAccount, "GET", inSpace(user, `accounts/${accountId}`), {
-    user,
-    params: { spaceId: user.spaceId, accountId },
-  });
-  return ((await response.json()) as { balance: MoneyDto }).balance;
 };
 
 const market = (user: LedgerUser, pesos = 85_000, date = "2026-10-05") => ({
