@@ -78,3 +78,13 @@ export { createCreateGuestClaim, type CreateGuestClaim } from "./create-guest-cl
 export { createClaimGuestPlace, type ClaimGuestPlace } from "./claim-guest-place";
 export type { ClaimLinkRepository } from "./invitation-repository";
 export { createRemoveGuestMember, type RemoveGuestDeps, type RemoveGuestMember } from "./remove-guest-member";
+export type { DirectSpaceRepository, MemberInSpace } from "./direct-space-repository";
+export {
+  createSplitWithPerson,
+  type DirectExpenseRecorder,
+  type DirectSplit,
+  type DirectSplitCounterpart,
+  type SplitWithPerson,
+  type SplitWithPersonDeps,
+  type SplitWithPersonInput,
+} from "./split-with-person";

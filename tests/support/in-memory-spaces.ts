@@ -1,6 +1,7 @@
 import {
   createSpaceAccess,
   type AddMemberOutcome,
+  type MemberInSpace,
   type ClaimOutcome,
   type ClaimsDeps,
   type EmailSender,
@@ -24,12 +25,15 @@ import {
   type SpaceSummary,
 } from "@/modules/spaces/application";
 import { createPersonalSpace } from "@/modules/spaces/domain/space";
+import { directPairKey } from "@/modules/spaces/domain/direct-space";
 import type { Clock } from "@/shared/kernel";
 import { memoryTm, sequentialIds } from "./fakes";
 
 /** Spaces with their current members; implements every spaces port the use cases need. */
 export class InMemorySpaceStore implements SpaceRepository, SpaceSettingsRepository, SpaceMemberRepository {
   spaces: Space[] = [];
+  /** Pair keys stored when a direct space was added, like spaces.direct_pair_key; claims never change them. */
+  private readonly pairKeys = new Map<string, string>();
   /** Claims applied, in order (PostgreSQL stores claimedAt on the member row). */
   readonly claimed: { spaceId: string; memberId: string; claimedAt: Date }[] = [];
   /** Members who left or were removed, in order (PostgreSQL keeps their rows, with left_at). */
@@ -135,6 +139,31 @@ export class InMemorySpaceStore implements SpaceRepository, SpaceSettingsReposit
     }));
     this.claimed.push({ spaceId, memberId: claimed.id, claimedAt });
     return "claimed";
+  }
+
+  /** DirectSpaceRepository, like DrizzleSpaceRepository.findCurrentMember. */
+  async findCurrentMember(memberId: string): Promise<MemberInSpace | null> {
+    for (const space of this.spaces) {
+      const member = space.members.find((m) => m.id === memberId);
+      if (member) return { spaceId: space.id, spaceKind: space.kind, member };
+    }
+    return null;
+  }
+
+  /** DirectSpaceRepository, like DrizzleSpaceRepository.findByPairKey. */
+  async findByPairKey(pairKey: string): Promise<SpaceId | null> {
+    const found = [...this.pairKeys].find(([, key]) => key === pairKey);
+    return found ? (found[0] as SpaceId) : null;
+  }
+
+  /** DirectSpaceRepository, like DrizzleSpaceRepository.addDirect: the pair's active space wins. */
+  async addDirect(space: Space): Promise<SpaceId> {
+    const key = directPairKey(space);
+    const holder = key === null ? null : await this.findByPairKey(key);
+    if (holder !== null) return holder;
+    this.spaces.push(space);
+    if (key !== null) this.pairKeys.set(space.id, key);
+    return space.id;
   }
 
   /** Test setup: a space as earlier use cases would have left it. */
