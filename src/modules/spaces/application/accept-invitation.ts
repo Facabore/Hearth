@@ -1,5 +1,5 @@
 import { domainError, err, map, type Result } from "@/shared/kernel";
-import { ensureAcceptable, markAccepted } from "../domain/invitation";
+import { ensureAcceptable, isClaim, markAccepted } from "../domain/invitation";
 import { userMember } from "../domain/member";
 import type { SpaceMember } from "../domain/space";
 import type { InvitationsDeps } from "./invitation-ports";
@@ -30,7 +30,8 @@ export const createAcceptInvitation =
     deps.tm.run(async () => {
       // Locked: concurrent acceptances of one invitation run one at a time (single-use email invitations).
       const invitation = await deps.invitations.findByTokenHashForUpdate(deps.tokens.hash(input.token));
-      if (!invitation) return err(domainError("InvitationNotFound"));
+      // HU-E1-11: a claim link hands over a guest's place (ClaimGuestPlace); it never adds a member.
+      if (!invitation || isClaim(invitation)) return err(domainError("InvitationNotFound"));
       const now = deps.clock.now();
       const acceptable = ensureAcceptable(invitation, { email: input.userEmail, now });
       if (!acceptable.ok) return acceptable;
