@@ -11,12 +11,16 @@ const MATRIX = {
   "space.manage": ["OWNER", "ADMIN"],
   /** HU-E1-09. */
   "space.archive": ["OWNER"],
+  /** HU-E1-08: any current member leaves; the last OWNER and unsettled members cannot. */
+  "space.leave": ["OWNER", "ADMIN", "MEMBER", "VIEWER"],
   /** Create and revoke invitations (HU-E1-06) and guest claim links (HU-E1-11). */
   "member.invite": ["OWNER", "ADMIN"],
   /** Only owners change roles, so nobody can raise their own role (HU-E1-05). */
   "member.changeRole": ["OWNER"],
   /** HU-E1-10, D15. */
   "guest.add": ["OWNER", "ADMIN", "MEMBER"],
+  /** HU-E1-12, D15: remove a guest whose balance is zero. */
+  "guest.remove": ["OWNER", "ADMIN", "MEMBER"],
   /** Expenses, incomes, transfers and settlements, also on a guest's behalf (D15, HU-E4-01). */
   "money.record": ["OWNER", "ADMIN", "MEMBER"],
   /** Change or delete a transaction someone else created (HU-E4-06); creators change their own. */

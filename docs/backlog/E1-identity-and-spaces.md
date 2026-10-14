@@ -371,6 +371,7 @@ Feature: Leave a space
 **Technical notes:**
 - Use case: `LeaveSpace`; reads net balance through the `balances` public query `GetMemberNetBalance`. Endpoint: `POST /api/v1/spaces/{spaceId}/leave`.
 - Former members cannot be selected as payer or participant on new transactions.
+- A direct space (D16) keeps its two members: leaving it, removing its guest or changing a role in it answers `DirectSpaceMembersFixed` (409); a direct space is retired by archiving it (HU-E1-09).
 - The net balance includes debts with guests, who count like any other member; guests never leave themselves but are removed by a member (HU-E1-12).
 
 ---

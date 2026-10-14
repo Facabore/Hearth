@@ -3,9 +3,13 @@ import type { Id, Result } from "@/shared/kernel";
 import {
   availableDisplayName,
   changeMemberRole,
+  currentGuest,
   ensureNameAvailable,
+  ensureSettled,
   guestMember,
+  leavingMember,
   memberName,
+  outstandingIn,
   userMember,
 } from "./member";
 import type { SpaceMember, SpaceRole } from "./space";
@@ -154,5 +158,62 @@ describe("changing roles (HU-E1-05)", () => {
   it("reports unknown or malformed member ids as MemberNotFound", () => {
     expect(code(changeMemberRole(current, "nobody", "ADMIN"))).toBe("MemberNotFound");
     expect(code(changeMemberRole(current, "not-a-uuid", "ADMIN"))).toBe("MemberNotFound");
+  });
+});
+
+describe("leaving (HU-E1-08)", () => {
+  it("lets a current member leave", () => {
+    expect(leavingMember(current, "luis")).toEqual({ ok: true, value: luis });
+  });
+
+  it("keeps the only OWNER, but lets an owner leave once another OWNER exists", () => {
+    expect(code(leavingMember(current, "ana"))).toBe("LastOwnerRequired");
+    const twoOwners = [ana, { ...luis, role: "OWNER" as const }];
+    expect(code(leavingMember(twoOwners, "ana"))).toBe("ok");
+  });
+
+  it("reports someone who is not a current member as MemberNotFound", () => {
+    expect(code(leavingMember(current, "nobody"))).toBe("MemberNotFound");
+  });
+});
+
+describe("removing guests (HU-E1-12)", () => {
+  it("finds a current guest", () => {
+    expect(currentGuest(current, "pedro")).toEqual({ ok: true, value: pedro });
+  });
+
+  it("never treats a registered member as a guest", () => {
+    expect(code(currentGuest(current, "luis"))).toBe("NotAGuest");
+  });
+
+  it("reports unknown and malformed ids as MemberNotFound", () => {
+    expect(code(currentGuest(current, "nobody"))).toBe("MemberNotFound");
+    expect(code(currentGuest(current, "not-a-uuid"))).toBe("MemberNotFound");
+  });
+});
+
+describe("settled balances (HU-E1-08, HU-E1-09, HU-E1-12)", () => {
+  it("lets settled members go", () => {
+    expect(ensureSettled(outstandingIn([0n, 0n]), "COP")).toEqual({ ok: true, value: undefined });
+  });
+
+  it("reports what one member owes or is owed as a positive outstanding amount (Review Focus 1)", () => {
+    expect(outstandingIn([-15_000_000n])).toBe(15_000_000n);
+    expect(outstandingIn([5_000_000n])).toBe(5_000_000n);
+  });
+
+  it("totals what is owed among several members, also when only debtors are listed", () => {
+    expect(outstandingIn([15_000_000n, -10_000_000n, -5_000_000n])).toBe(15_000_000n);
+    expect(outstandingIn([-5_000_000n, -2_000_000n])).toBe(7_000_000n);
+  });
+
+  it("refuses an outstanding amount with OutstandingBalance, carrying it in minor units", () => {
+    expect(ensureSettled(15_000_000n, "COP")).toEqual({
+      ok: false,
+      error: {
+        code: "OutstandingBalance",
+        details: { outstanding: { amount: "15000000", currency: "COP" } },
+      },
+    });
   });
 });

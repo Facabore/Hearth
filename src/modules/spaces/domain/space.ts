@@ -103,6 +103,15 @@ export const createSharedSpace = (input: {
 export const ensureCanAddMember = (space: Pick<Space, "kind">): Result<void> =>
   space.kind === "PERSONAL" ? err(domainError("PersonalSpaceNotShareable")) : ok(undefined);
 
+/**
+ * HU-E1-08, HU-E1-12, D16: members leave, are removed or change role only in shared spaces; a personal
+ * space keeps its one owner and a direct space its two members, both OWNER when registered.
+ */
+export const ensureMembersCanChange = (space: Pick<Space, "kind">): Result<void> => {
+  if (space.kind === "PERSONAL") return err(domainError("PersonalSpaceNotShareable"));
+  return space.kind === "DIRECT" ? err(domainError("DirectSpaceMembersFixed")) : ok(undefined);
+};
+
 const MAX_SPACE_NAME = 80;
 
 /** HU-E1-03: space names are trimmed and 1–80 characters long. */

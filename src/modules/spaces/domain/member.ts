@@ -87,6 +87,10 @@ export const userMember = (input: {
   joinedAt: input.now,
 });
 
+/** A space always keeps an OWNER (HU-E1-04): the only one can neither step down nor leave. */
+const isLastOwner = (current: readonly SpaceMember[], member: SpaceMember): boolean =>
+  member.role === "OWNER" && current.filter((m) => m.role === "OWNER").length === 1;
+
 /** HU-E1-05: a registered member's new role; guests have no role (D15) and a space keeps one OWNER. */
 export const changeMemberRole = (
   current: readonly SpaceMember[],
@@ -96,9 +100,44 @@ export const changeMemberRole = (
   const target = current.find((m) => m.id === memberId);
   if (!target) return err(domainError("MemberNotFound"));
   if (target.kind === "GUEST") return err(domainError("GuestHasNoRole"));
-  const owners = current.filter((m) => m.role === "OWNER").length;
-  if (target.role === "OWNER" && role !== "OWNER" && owners === 1) {
-    return err(domainError("LastOwnerRequired"));
-  }
+  if (role !== "OWNER" && isLastOwner(current, target)) return err(domainError("LastOwnerRequired"));
   return ok({ ...target, role });
 };
+
+/** HU-E1-08: the current member who leaves; the last OWNER stays (HU-E1-04). */
+export const leavingMember = (current: readonly SpaceMember[], memberId: string): Result<SpaceMember> => {
+  const leaver = current.find((m) => m.id === memberId);
+  if (!leaver) return err(domainError("MemberNotFound"));
+  return isLastOwner(current, leaver) ? err(domainError("LastOwnerRequired")) : ok(leaver);
+};
+
+/** HU-E1-11, HU-E1-12: a current guest of the space; registered members are never handled as guests. */
+export const currentGuest = (current: readonly SpaceMember[], memberId: string): Result<SpaceMember> => {
+  const member = current.find((m) => m.id === memberId);
+  if (!member) return err(domainError("MemberNotFound"));
+  return member.kind === "GUEST" ? ok(member) : err(domainError("NotAGuest"));
+};
+
+/**
+ * What keeps the given net balances from being settled, as one positive amount: what the creditors among
+ * them are owed or what the debtors owe, whichever is larger (both are equal when every member of a space
+ * is listed). For a single member it is |net|.
+ */
+export const outstandingIn = (nets: readonly bigint[]): bigint => {
+  let owed = 0n;
+  let owing = 0n;
+  for (const net of nets) {
+    if (net > 0n) owed += net;
+    else owing -= net;
+  }
+  return owed > owing ? owed : owing;
+};
+
+/**
+ * HU-E1-08, HU-E1-09, HU-E1-12: money is settled first. The outstanding amount, in minor units of the
+ * space currency, is the one public detail of an error code (the problem+json member `outstanding`).
+ */
+export const ensureSettled = (outstanding: bigint, currency: string): Result<void> =>
+  outstanding === 0n
+    ? ok(undefined)
+    : err(domainError("OutstandingBalance", { outstanding: { amount: outstanding.toString(), currency } }));

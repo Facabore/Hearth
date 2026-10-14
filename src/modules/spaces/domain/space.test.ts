@@ -5,6 +5,7 @@ import {
   createPersonalSpace,
   createSharedSpace,
   ensureCanAddMember,
+  ensureMembersCanChange,
   spaceName,
 } from "./space";
 
@@ -107,5 +108,15 @@ describe("shared space (HU-E1-04)", () => {
 
   it("can receive members", () => {
     expect(ensureCanAddMember({ kind: "SHARED" })).toEqual({ ok: true, value: undefined });
+  });
+});
+
+describe("membership changes (HU-E1-08, HU-E1-12, D16)", () => {
+  it("happen in shared spaces only", () => {
+    expect(ensureMembersCanChange({ kind: "SHARED" })).toEqual({ ok: true, value: undefined });
+    const personal = ensureMembersCanChange({ kind: "PERSONAL" });
+    expect(!personal.ok && personal.error.code).toBe("PersonalSpaceNotShareable");
+    const direct = ensureMembersCanChange({ kind: "DIRECT" });
+    expect(!direct.ok && direct.error.code).toBe("DirectSpaceMembersFixed");
   });
 });
