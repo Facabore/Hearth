@@ -1,14 +1,33 @@
-import { and, between, desc, eq, exists, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
+import {
+  and,
+  between,
+  desc,
+  eq,
+  exists,
+  inArray,
+  isNull,
+  lt,
+  lte,
+  notExists,
+  or,
+  sql,
+  type AnyColumn,
+} from "drizzle-orm";
+import { alias, unionAll } from "drizzle-orm/pg-core";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { isUuid, type LocalDate } from "@/shared/kernel";
-import type { TransactionFilter, TransactionPosition, TransactionQuery } from "../application/ports";
+import type {
+  MemberMoneyTotals,
+  TransactionFilter,
+  TransactionPosition,
+  TransactionQuery,
+} from "../application/ports";
 import type { Transaction } from "../domain/transaction";
 import { payments, shares, transactions } from "./ledger.schema";
 import { loadTransactions } from "./transaction-rows";
 
 // SUM(bigint) is numeric in PostgreSQL: read it as text and parse it as bigint, so sums never overflow or round.
-const sumAsText = (column: typeof transactions.amount | typeof payments.amount) =>
-  sql<string>`sum(${column})::text`;
+const sumAsText = (column: AnyColumn) => sql<string>`sum(${column})::text`;
 
 /** Read side of the ledger, computed on read (D7): the monthly list, totals, account movements and references. */
 export class DrizzleLedgerQueries implements TransactionQuery {
@@ -110,6 +129,83 @@ export class DrizzleLedgerQueries implements TransactionQuery {
       .where(eq(transactions.spaceId, spaceId))
       .limit(1);
     return rows.length > 0;
+  }
+
+  /**
+   * HU-E5-01, E5 balance rule: per-member sums over the live transactions of one space. Expenses count
+   * only when members paid them (a fund-paid expense creates no debt, D5); transfers, fund contributions
+   * included, never count. One statement, so every sum comes from the same snapshot and Σ net stays 0
+   * under concurrent writes. Sorted by member id; `[]` for malformed ids.
+   */
+  async memberTotals(spaceId: string): Promise<MemberMoneyTotals[]> {
+    if (!isUuid(spaceId)) return [];
+    const db = this.tm.executor();
+    type Field = "paid" | "consumed" | "settledOut" | "settledIn";
+    // Same selection shape in every branch of the UNION ALL: member, field label, sum as text.
+    const memberOf = (column: AnyColumn) => sql<string | null>`${column}`;
+    const fundPayments = alias(payments, "fund_payments");
+    const live = and(eq(transactions.spaceId, spaceId), isNull(transactions.deletedAt));
+    const memberPaid = and(
+      live,
+      eq(transactions.type, "EXPENSE"),
+      notExists(
+        db
+          .select({ one: sql`1` })
+          .from(fundPayments)
+          .where(and(eq(fundPayments.transactionId, transactions.id), isNull(fundPayments.memberId))),
+      ),
+    );
+    const settlements = and(live, eq(transactions.type, "SETTLEMENT"));
+    const rows = await unionAll(
+      db
+        .select({
+          memberId: memberOf(payments.memberId),
+          field: sql<Field>`'paid'::text`,
+          total: sumAsText(payments.amount),
+        })
+        .from(payments)
+        .innerJoin(transactions, eq(transactions.id, payments.transactionId))
+        .where(memberPaid)
+        .groupBy(payments.memberId),
+      db
+        .select({
+          memberId: memberOf(shares.memberId),
+          field: sql<Field>`'consumed'::text`,
+          total: sumAsText(shares.amount),
+        })
+        .from(shares)
+        .innerJoin(transactions, eq(transactions.id, shares.transactionId))
+        .where(memberPaid)
+        .groupBy(shares.memberId),
+      db
+        .select({
+          memberId: memberOf(transactions.payerMemberId),
+          field: sql<Field>`'settledOut'::text`,
+          total: sumAsText(transactions.amount),
+        })
+        .from(transactions)
+        .where(settlements)
+        .groupBy(transactions.payerMemberId),
+      db
+        .select({
+          memberId: memberOf(transactions.receivingMemberId),
+          field: sql<Field>`'settledIn'::text`,
+          total: sumAsText(transactions.amount),
+        })
+        .from(transactions)
+        .where(settlements)
+        .groupBy(transactions.receivingMemberId),
+    );
+    const totals = new Map<string, Record<Field, bigint>>();
+    for (const row of rows) {
+      if (row.memberId === null) continue;
+      const sums = totals.get(row.memberId) ?? { paid: 0n, consumed: 0n, settledOut: 0n, settledIn: 0n };
+      sums[row.field] += BigInt(row.total);
+      totals.set(row.memberId, sums);
+    }
+    return [...totals.entries()]
+      .map(([memberId, sums]) => ({ memberId, ...sums }))
+      .sort((a, b) => (a.memberId < b.memberId ? -1 : a.memberId > b.memberId ? 1 : 0));
   }
 
   private matching(f: TransactionFilter) {
