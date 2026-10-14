@@ -81,3 +81,15 @@ export interface TransactionQuery {
   /** Σ EXPENSE and Σ INCOME amounts of every live matching transaction; transfers are not spending. */
   totals(filter: TransactionFilter): Promise<{ expenses: bigint; income: bigint }>;
 }
+
+/**
+ * HU-E5-01 (E5 balance rule): per-member sums of one space's live, member-paid expenses and its
+ * settlements. Fund-paid expenses and every transfer, fund contributions included, create no debt (D5).
+ */
+export interface MemberMoneyTotals {
+  readonly memberId: string;
+  readonly paid: bigint;
+  readonly consumed: bigint;
+  readonly settledOut: bigint;
+  readonly settledIn: bigint;
+}

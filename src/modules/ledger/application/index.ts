@@ -22,6 +22,7 @@ export type {
   ClosedPeriodGuard,
   LedgerAccount,
   LedgerCategory,
+  MemberMoneyTotals,
   TransactionFilter,
   TransactionPosition,
   TransactionQuery,

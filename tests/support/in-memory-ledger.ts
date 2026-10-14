@@ -7,6 +7,8 @@ import type {
   Income,
   LedgerAccount,
   LedgerDeps,
+  MemberMoneyTotals,
+  Settlement,
   Transaction,
   TransactionFilter,
   TransactionId,
@@ -134,6 +136,32 @@ export class InMemoryTransactions implements TransactionRepository, TransactionQ
     return net;
   }
 
+  /** The in-memory twin of DrizzleLedgerQueries.memberTotals (E5 balance rule); Task 10 pins them together. */
+  async memberTotals(spaceId: string): Promise<MemberMoneyTotals[]> {
+    type Field = "paid" | "consumed" | "settledOut" | "settledIn";
+    const totals = new Map<string, Record<Field, bigint>>();
+    const add = (memberId: string, field: Field, amount: bigint) => {
+      const sums = totals.get(memberId) ?? { paid: 0n, consumed: 0n, settledOut: 0n, settledIn: 0n };
+      sums[field] += amount;
+      totals.set(memberId, sums);
+    };
+    for (const t of this.rows) {
+      if (t.spaceId !== spaceId || t.deletedAt !== null) continue;
+      // D5: an expense paid from the shared fund creates no debt.
+      if (t.type === "EXPENSE" && t.payments.every((p) => p.memberId !== null)) {
+        for (const p of t.payments) if (p.memberId !== null) add(p.memberId, "paid", p.amount);
+        for (const s of t.shares) add(s.memberId, "consumed", s.amount);
+      }
+      if (t.type === "SETTLEMENT") {
+        add(t.payerMemberId, "settledOut", t.amount);
+        add(t.receivingMemberId, "settledIn", t.amount);
+      }
+    }
+    return [...totals.entries()]
+      .map(([memberId, sums]) => ({ memberId, ...sums }))
+      .sort((a, b) => (a.memberId < b.memberId ? -1 : a.memberId > b.memberId ? 1 : 0));
+  }
+
   private matching(f: TransactionFilter): Transaction[] {
     return this.rows
       .filter((t) => t.spaceId === f.spaceId && t.deletedAt === null && t.date >= f.from && t.date <= f.to)
@@ -251,5 +279,21 @@ export const aTransfer = (date: string, amount: bigint, overrides: Partial<Trans
   sourceAccountId: ACCOUNTS.bancolombia.id,
   destinationAccountId: ACCOUNTS.nequi.id,
   payerMemberId: null,
+  ...overrides,
+});
+
+export const aSettlement = (
+  date: string,
+  amount: bigint,
+  overrides: Partial<Settlement> = {},
+): Settlement => ({
+  ...baseOf(date, amount),
+  spaceId: "space-household",
+  type: "SETTLEMENT",
+  categoryId: null,
+  payerMemberId: "member-juan",
+  receivingMemberId: "member-ana",
+  sourceAccountId: null,
+  destinationAccountId: null,
   ...overrides,
 });
