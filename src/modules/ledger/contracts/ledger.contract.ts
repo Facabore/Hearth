@@ -2,7 +2,9 @@ import { z } from "zod";
 import type { ZodOpenApiPathsObject } from "zod-openapi";
 import {
   jsonContent,
+  moneyFromDto,
   MoneySchema,
+  optionalLocalDate,
   PeriodSchema,
   periodDto,
   problems,
@@ -11,7 +13,15 @@ import {
 import { etagOf } from "@/shared/http/etag";
 import { decodeCursor, encodeCursor, PaginationQuerySchema } from "@/shared/http/pagination";
 import { domainError, err, isUuid, localDate, ok, type Result } from "@/shared/kernel";
-import type { AuditEntry, Transaction, TransactionPage, TransactionPosition } from "../application";
+import type {
+  AuditEntry,
+  PaymentInput,
+  RecordExpenseInput,
+  SplitInput,
+  Transaction,
+  TransactionPage,
+  TransactionPosition,
+} from "../application";
 
 const Id = z.string().min(1).max(64);
 // Length rules live in the domain (InvalidDescription, 200 characters); the cap only bounds payload size.
@@ -49,14 +59,84 @@ export const TransactionSchema = z.object({
   version: z.number().int(),
 });
 
-/** M1 shape (HU-E4-01): one payment by the requester from `accountId`. HU-E4-07 adds payments[] and split. */
-export const RecordExpenseBodySchema = z.object({
-  description: Description,
-  date: z.iso.date().optional(),
-  categoryId: Id.optional(),
+/** Payers and participants per expense: bounds the payload; membership is checked by the domain. */
+const MAX_PARTS = 100;
+
+/**
+ * HU-E4-07: one payment by a member of the space (registered or guest). `accountId` is that member's
+ * own account, or null (or absent) for a guest, who pays outside the app (spec 5.2).
+ */
+export const PaymentBodySchema = z.object({
+  memberId: Id,
+  accountId: Id.nullable().optional(),
   amount: MoneySchema,
-  accountId: Id,
 });
+
+/** HU-E4-07: EQUAL among the chosen members. */
+export const SplitBodySchema = z.object({
+  method: z.literal("EQUAL"),
+  participants: z.array(z.object({ memberId: Id })).max(MAX_PARTS),
+});
+
+/**
+ * HU-E4-01 sends `accountId` (the requester pays everything from that account of theirs); HU-E4-07
+ * sends `payments` instead. Without `split` the amount is shared EQUAL among every current member
+ * (spec 5.3), which in a personal space is the requester alone.
+ */
+export const RecordExpenseBodySchema = z
+  .object({
+    description: Description,
+    date: z.iso.date().optional(),
+    categoryId: Id.optional(),
+    amount: MoneySchema,
+    accountId: Id.optional(),
+    payments: z.array(PaymentBodySchema).max(MAX_PARTS).optional(),
+    split: SplitBodySchema.optional(),
+  })
+  .refine((body) => body.accountId === undefined || body.payments === undefined, {
+    error: "Send accountId or payments, not both",
+    path: ["payments"],
+  });
+type RecordExpenseBody = z.infer<typeof RecordExpenseBodySchema>;
+
+/** The split as the use case takes it. */
+const splitFromBody = (split: RecordExpenseBody["split"]): Result<SplitInput | undefined> =>
+  ok(
+    split === undefined
+      ? undefined
+      : { method: "EQUAL" as const, participants: split.participants.map((p) => ({ memberId: p.memberId })) },
+  );
+
+/** A validated body as RecordExpense input; fails only for impossible dates and currencies the kernel does not know. */
+export const expenseFromBody = (
+  body: RecordExpenseBody,
+): Result<Omit<RecordExpenseInput, "spaceId" | "userId">> => {
+  const amount = moneyFromDto(body.amount);
+  if (!amount.ok) return amount;
+  const date = optionalLocalDate(body.date);
+  if (!date.ok) return date;
+  let payments: PaymentInput[] | undefined;
+  if (body.payments !== undefined) {
+    payments = [];
+    for (const payment of body.payments) {
+      const paid = moneyFromDto(payment.amount);
+      if (!paid.ok) return paid;
+      payments.push({ memberId: payment.memberId, accountId: payment.accountId ?? null, amount: paid.value });
+    }
+  }
+  const split = splitFromBody(body.split);
+  if (!split.ok) return split;
+  return ok({
+    description: body.description,
+    date: date.value,
+    categoryId: body.categoryId,
+    amount: amount.value,
+    accountId: body.accountId,
+    payments,
+    split: split.value,
+  });
+};
+
 /** `accountId` is the requester's account in this space that receives the money (HU-E4-02). */
 export const RecordIncomeBodySchema = z.object({
   description: Description,
@@ -214,12 +294,13 @@ const invalidMoney =
 export const ledgerPaths: ZodOpenApiPathsObject = {
   "/api/v1/spaces/{spaceId}/expenses": recording(
     "recordExpense",
-    "Record an expense paid from one of the requester's accounts",
+    "Record an expense paid by members (registered or guest) and shared among members",
     RecordExpenseBodySchema,
     {
       "404": "SpaceNotFound, CategoryNotFound, AccountNotFound",
-      "409": "AccountArchived, CategoryArchived, PeriodClosed, IdempotencyKeyConflict",
-      "422": `${invalidMoney}, CategoryRequired, AccountNotOwned`,
+      "409":
+        "AccountArchived, CategoryArchived, PeriodClosed, IdempotencyKeyConflict, SharesDoNotMatchAmount, GuestHasNoAccounts",
+      "422": `${invalidMoney}, CategoryRequired, AccountNotOwned, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit`,
     },
   ),
   "/api/v1/spaces/{spaceId}/incomes": recording(

@@ -2754,7 +2754,7 @@
     "/api/v1/spaces/{spaceId}/expenses": {
       "post": {
         "operationId": "recordExpense",
-        "summary": "Record an expense paid from one of the requester's accounts",
+        "summary": "Record an expense paid by members (registered or guest) and shared among members",
         "security": [
           {
             "cookieAuth": []
@@ -2808,11 +2808,73 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64
+                  },
+                  "payments": {
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "memberId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "accountId": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "amount": {
+                          "$ref": "#/components/schemas/Money"
+                        }
+                      },
+                      "required": [
+                        "memberId",
+                        "amount"
+                      ]
+                    }
+                  },
+                  "split": {
+                    "type": "object",
+                    "properties": {
+                      "method": {
+                        "type": "string",
+                        "const": "EQUAL"
+                      },
+                      "participants": {
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "memberId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            }
+                          },
+                          "required": [
+                            "memberId"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "method",
+                      "participants"
+                    ]
                   }
                 },
                 "required": [
-                  "amount",
-                  "accountId"
+                  "amount"
                 ]
               }
             }
@@ -2860,7 +2922,7 @@
             }
           },
           "409": {
-            "description": "AccountArchived, CategoryArchived, PeriodClosed, IdempotencyKeyConflict",
+            "description": "AccountArchived, CategoryArchived, PeriodClosed, IdempotencyKeyConflict, SharesDoNotMatchAmount, GuestHasNoAccounts",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2870,7 +2932,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, CategoryRequired, AccountNotOwned",
+            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, CategoryRequired, AccountNotOwned, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit",
             "content": {
               "application/problem+json": {
                 "schema": {
