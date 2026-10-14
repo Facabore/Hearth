@@ -18,6 +18,7 @@ import type {
   PaymentInput,
   RecordedExpense,
   RecordExpenseInput,
+  RecordFundContributionInput,
   SplitInput,
   Transaction,
   TransactionPage,
@@ -202,6 +203,37 @@ export const RecordTransferBodySchema = z.object({
   sourceAccountId: Id,
   destinationAccountId: Id,
 });
+
+/**
+ * HU-E4-09: `memberId` defaults to the requester; `sourceAccountId` is the contributor's own account,
+ * omitted (or null) only for a guest, who contributes outside the app.
+ */
+export const RecordFundContributionBodySchema = z.object({
+  description: Description,
+  date: z.iso.date().optional(),
+  amount: MoneySchema,
+  fundAccountId: Id,
+  memberId: Id.optional(),
+  sourceAccountId: Id.nullable().optional(),
+});
+
+/** A validated body as RecordFundContribution input; fails only for impossible dates and unknown currencies. */
+export const fundContributionFromBody = (
+  body: z.infer<typeof RecordFundContributionBodySchema>,
+): Result<Omit<RecordFundContributionInput, "spaceId" | "userId">> => {
+  const amount = moneyFromDto(body.amount);
+  if (!amount.ok) return amount;
+  const date = optionalLocalDate(body.date);
+  if (!date.ok) return date;
+  return ok({
+    description: body.description,
+    date: date.value,
+    amount: amount.value,
+    fundAccountId: body.fundAccountId,
+    memberId: body.memberId,
+    sourceAccountId: body.sourceAccountId ?? null,
+  });
+};
 
 export const transactionDto = (tx: Transaction): z.infer<typeof TransactionSchema> => {
   const money = (minor: bigint) => ({ amount: minor.toString(), currency: tx.currency });
@@ -392,6 +424,16 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
       "404": "SpaceNotFound, AccountNotFound",
       "409": "SameAccountTransfer, AccountArchived, PeriodClosed, IdempotencyKeyConflict",
       "422": `${invalidMoney}, AccountNotOwned, AccountNotInSpace`,
+    },
+  ),
+  "/api/v1/spaces/{spaceId}/fund-contributions": recording(
+    "recordFundContribution",
+    "Contribute to the space's shared fund from a member's own account (a guest from outside the app)",
+    RecordFundContributionBodySchema,
+    {
+      "404": "SpaceNotFound, AccountNotFound",
+      "409": "AccountArchived, PeriodClosed, IdempotencyKeyConflict, SameAccountTransfer, GuestHasNoAccounts",
+      "422": `${invalidMoney}, AccountNotOwned, AccountRequired, InvalidFundAccount, NotASpaceMember`,
     },
   ),
   "/api/v1/spaces/{spaceId}/transactions": {

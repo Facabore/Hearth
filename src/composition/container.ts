@@ -21,6 +21,7 @@ import {
   createListAudit,
   createListTransactions,
   createRecordExpense,
+  createRecordFundContribution,
   createRecordIncome,
   createRecordTransfer,
   type DeleteTransaction,
@@ -30,6 +31,7 @@ import {
   type ListAudit,
   type ListTransactions,
   type RecordExpense,
+  type RecordFundContribution,
   type RecordIncome,
   type RecordTransfer,
 } from "@/modules/ledger/application";
@@ -156,6 +158,7 @@ export interface Container extends RouteDeps {
     readonly recordExpense: RecordExpense;
     readonly recordIncome: RecordIncome;
     readonly recordTransfer: RecordTransfer;
+    readonly recordFundContribution: RecordFundContribution;
     readonly listTransactions: ListTransactions;
     readonly getTransaction: GetTransaction;
     readonly editTransaction: EditTransaction;
@@ -369,6 +372,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       recordExpense: createRecordExpense(ledgerDeps),
       recordIncome: createRecordIncome(ledgerDeps),
       recordTransfer: createRecordTransfer(ledgerDeps),
+      recordFundContribution: createRecordFundContribution(ledgerDeps),
       listTransactions: createListTransactions(ledgerDeps),
       getTransaction: createGetTransaction(ledgerDeps),
       editTransaction: createEditTransaction(ledgerDeps),
