@@ -42,6 +42,11 @@ export {
   type RecordFundContribution,
   type RecordFundContributionInput,
 } from "./record-fund-contribution";
+export {
+  createRecordSettlement,
+  type RecordSettlement,
+  type RecordSettlementInput,
+} from "./record-settlement";
 export { createGetTransaction, type GetTransaction } from "./get-transaction";
 export {
   createListTransactions,
