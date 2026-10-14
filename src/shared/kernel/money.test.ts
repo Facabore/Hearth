@@ -66,6 +66,18 @@ describe("Money", () => {
     }
   });
 
+  it("allocates by bigint weights, such as capacities in minor units (HU-E6-05)", () => {
+    expect(majors(unwrap(cop("1470000").allocate([160_000_000n, 240_000_000n])))).toEqual([588000n, 882000n]);
+    const beyondSafeIntegers = 9_007_199_254_740_993n;
+    expect(
+      majors(unwrap(cop("100000").allocate([beyondSafeIntegers, beyondSafeIntegers, beyondSafeIntegers]))),
+    ).toEqual([33334n, 33333n, 33333n]);
+    // Weights one apart beyond 2^53 are not equal: converting them to numbers would tie them and favour the first.
+    expect(majors(unwrap(cop("1").allocate([2n ** 53n, 2n ** 53n + 1n])))).toEqual([0n, 1n]);
+    expect(isErr(cop("10").allocate([-1n, 2n]))).toBe(true);
+    expect(isErr(cop("10").allocate([0n, 0n]))).toBe(true);
+  });
+
   it("allocates negative amounts without losing units", () => {
     const parts = unwrap(unwrap(Money.ofMinor(-100n, "USD")).allocate([1, 1, 1]));
     expect(parts.map((p) => p.minor)).toEqual([-34n, -33n, -33n]);
