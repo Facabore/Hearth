@@ -2,6 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as archiveAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/archive/route";
 import { POST as archiveSpace } from "@/app/api/v1/spaces/[spaceId]/archive/route";
 import { POST as leaveSpace } from "@/app/api/v1/spaces/[spaceId]/leave/route";
+import { POST as createAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/route";
+import { PATCH as updateSpace } from "@/app/api/v1/spaces/[spaceId]/route";
+import { POST as recordTransfer } from "@/app/api/v1/spaces/[spaceId]/transfers/route";
 import { PATCH as patchLineRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/lines/[lineId]/route";
 import { POST as postLineRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/lines/route";
 import { setContainerForTests, type Container } from "@/composition/container";
@@ -20,7 +23,8 @@ import {
   type LineSpec,
   type PlanDto,
 } from "../support/budgeting";
-import { cop, household, joinHousehold, newAccount } from "../support/ledger";
+import { cop, household, joinHousehold, newAccount, post } from "../support/ledger";
+import { actingIn, joinAs } from "../support/spaces";
 
 let app: Container;
 beforeAll(() => {
@@ -58,11 +62,11 @@ const patchRaw = (h: Awaited<ReturnType<typeof household>>, planId: string, line
     body,
   });
 
-/** What a refusal tells the caller, without its per-request id. */
-const disclosed = async (response: Response) => {
-  const problem = await response.json();
-  return [response.status, problem.type, problem.title, problem.code, problem.errors];
-};
+/** Everything a refusal tells the caller but its per-request id: nothing in it tells two ids apart. */
+const disclosed = async (response: Response) => [
+  response.status,
+  { ...(await response.json()), requestId: undefined },
+];
 
 describe("budget lines and unallocated capacity (HU-E6-03)", () => {
   it("reports 1,330,000 COP unallocated after Rent and Home, with Home at 36.75 % (golden)", async () => {
@@ -139,7 +143,7 @@ describe("budget lines and unallocated capacity (HU-E6-03)", () => {
     expect((await planOf(h.ana, h.spaceId, planId)).lines.map((l) => l.name)).toEqual(["Home"]);
   });
 
-  it("requires a SAVINGS account of a current member on a SAVINGS line (Review Focus 5)", async () => {
+  it("requires the caller's own SAVINGS account on a SAVINGS line (Review Focus 5, P8)", async () => {
     const { h, planId } = await background();
     const savings = (savingsAccountIds?: string[]) =>
       postLine(h.ana, h.spaceId, planId, {
@@ -150,35 +154,88 @@ describe("budget lines and unallocated capacity (HU-E6-03)", () => {
       });
     expect(await problemOf(await savings())).toEqual([422, "SavingsAccountRequired"]);
     expect(await problemOf(await savings([]))).toEqual([422, "SavingsAccountRequired"]);
-    expect(await problemOf(await savings([h.juan.account]))).toEqual([422, "InvalidSavingsAccount"]);
+    expect(await problemOf(await savings([h.ana.account]))).toEqual([422, "InvalidSavingsAccount"]);
     const marta = await registerUser("Marta");
     const martas = await newAccount(marta, "Ahorros", 0, "SAVINGS");
     expect(await problemOf(await savings([martas]))).toEqual([404, "AccountNotFound"]);
     expect(await problemOf(await savings(["not-a-uuid"]))).toEqual([404, "AccountNotFound"]);
     const juans = await newAccount(h.juan.personal, "Ahorros", 0, "SAVINGS");
-    expect((await savings([juans])).status).toBe(201);
+    expect(await problemOf(await savings([juans]))).toEqual([404, "AccountNotFound"]);
+    const anas = await newAccount(h.ana.personal, "Ahorros", 0, "SAVINGS");
+    expect((await savings([anas])).status).toBe(201);
   });
 
-  it("treats the savings account of a member who left the space as one that does not exist (P8)", async () => {
+  it("counts nothing from the account of an owner who left the space, for every reader, and never lets another attach it (P8)", async () => {
     const { h, planId } = await background();
-    const juans = await newAccount(h.juan.personal, "Ahorros", 0, "SAVINGS");
-    const savings = (id: string) =>
-      postLine(h.ana, h.spaceId, id, {
-        name: "Savings",
-        pesos: 600_000,
-        funding: "SAVINGS",
-        savingsAccountIds: [juans],
-      });
-    expect((await savings(planId)).status).toBe(201);
+    const luis = await joinHousehold(h, "Luis", "ADMIN");
+    const vera = await joinHousehold(h, "Vera", "VIEWER");
+    const luiss = await newAccount(luis.personal, "Ahorros", 0, "SAVINGS");
+    const attached = await postLine(luis, h.spaceId, planId, {
+      name: "Savings",
+      pesos: 600_000,
+      funding: "SAVINGS",
+      savingsAccountIds: [luiss],
+    });
+    expect(attached.status).toBe(201);
+    const transfer = await post(recordTransfer, luis.personal, "transfers", {
+      description: "Ahorro",
+      date: "2026-11-05",
+      amount: cop(200_000),
+      sourceAccountId: luis.account,
+      destinationAccountId: luiss,
+    });
+    expect(transfer.status).toBe(201);
+    expect(lineNamed(await planOf(vera, h.spaceId, planId), "Savings").spent).toEqual(cop(200_000));
+
     const left = await call(leaveSpace, "POST", `/api/v1/spaces/${h.spaceId}/leave`, {
-      user: h.juan,
+      user: luis,
       params: { spaceId: h.spaceId },
     });
     expect(left.status).toBe(204);
+    for (const reader of [vera, h.ana]) {
+      expect(lineNamed(await planOf(reader, h.spaceId, planId), "Savings")).toMatchObject({
+        savingsAccountIds: [luiss],
+        spent: cop(0),
+        available: cop(600_000),
+      });
+    }
     const { id: december } = await newPlan(h.ana, h.spaceId, "2026-12");
     await setCapacities(h.ana, h.spaceId, december, [[h.ana.memberId, 1_600_000]]);
-    expect(await problemOf(await savings(december))).toEqual([404, "AccountNotFound"]);
+    const again = await postLine(h.ana, h.spaceId, december, {
+      name: "Savings",
+      pesos: 600_000,
+      funding: "SAVINGS",
+      savingsAccountIds: [luiss],
+    });
+    expect(await problemOf(again)).toEqual([404, "AccountNotFound"]);
     expect((await planOf(h.ana, h.spaceId, december)).lines).toEqual([]);
+  });
+
+  it("refuses an own SAVINGS account kept in another currency than the plan's (D6)", async () => {
+    const { h, planId } = await background();
+    const sofi = await registerUser("Sofi");
+    const dollars = await call(updateSpace, "PATCH", `/api/v1/spaces/${sofi.spaceId}`, {
+      user: sofi,
+      params: { spaceId: sofi.spaceId },
+      body: { currency: "USD" },
+    });
+    expect(dollars.status).toBe(200);
+    const account = await call(createAccount, "POST", `/api/v1/spaces/${sofi.spaceId}/accounts`, {
+      user: sofi,
+      params: { spaceId: sofi.spaceId },
+      body: { name: "Chase savings", type: "SAVINGS", openingBalance: { amount: "0", currency: "USD" } },
+    });
+    expect(account.status).toBe(201);
+    const chase = ((await account.json()) as { id: string }).id;
+    await joinAs(h.ana, h.spaceId, sofi, "ADMIN");
+    const savings = await postLine(actingIn(sofi, h.spaceId), h.spaceId, planId, {
+      name: "Savings",
+      pesos: 600_000,
+      funding: "SAVINGS",
+      savingsAccountIds: [chase],
+    });
+    expect(await problemOf(savings.clone())).toEqual([422, "CurrencyMismatch"]);
+    expect((await planOf(h.ana, h.spaceId, planId)).lines).toEqual([]);
   });
 
   it("answers the same for another user's account as for one that does not exist, and exposes only ids", async () => {
@@ -192,10 +249,28 @@ describe("budget lines and unallocated capacity (HU-E6-03)", () => {
       });
     const marta = await registerUser("Marta");
     const martas = await newAccount(marta, "Ahorros de Marta", 500_000, "SAVINGS");
+    const juans = await newAccount(h.juan.personal, "Ahorros de Juan", 500_000, "SAVINGS");
     const foreign = await savings([martas]);
     const unknown = await savings(["0190a000-0000-7000-8000-000000000000"]);
     expect(await problemOf(foreign.clone())).toEqual([404, "AccountNotFound"]);
-    expect(await disclosed(foreign)).toEqual(await disclosed(unknown));
+    const expected = await disclosed(unknown);
+    expect(await disclosed(foreign)).toEqual(expected);
+    // A co-member's accounts too, whatever they are: savings, bank, archived. Not even their type is revealed.
+    const juansOld = await newAccount(h.juan.personal, "Viejo", 0, "SAVINGS");
+    const archived = await call(
+      archiveAccount,
+      "POST",
+      `/api/v1/spaces/${h.juan.personal.spaceId}/accounts/${juansOld}/archive`,
+      { user: h.juan.personal, params: { spaceId: h.juan.personal.spaceId, accountId: juansOld } },
+    );
+    expect(archived.status).toBe(200);
+    for (const id of [juans, h.juan.account, juansOld]) {
+      expect(await disclosed(await savings([id]))).toEqual(expected);
+    }
+    // The household's shared fund has no owner: it is nobody's to attach either.
+    const fund = await newAccount(h.ana, "Fondo", 0, "SHARED_FUND");
+    expect(await disclosed(await savings([fund]))).toEqual(expected);
+    expect((await planOf(h.ana, h.spaceId, planId)).lines).toEqual([]);
 
     const anas = await newAccount(h.ana.personal, "Mis ahorros", 750_000, "SAVINGS");
     const response = await savings([anas]);
@@ -455,16 +530,16 @@ describe("editing lines (HU-E6-03, HU-E6-04)", () => {
     const edit = (name: string, changes: Partial<LineSpec>) =>
       patchLine(h.ana, h.spaceId, planId, lineId(name), changes);
     const refusal = async (name: string, changes: Partial<LineSpec>) => problemOf(await edit(name, changes));
-    const juans = await newAccount(h.juan.personal, "Ahorros", 0, "SAVINGS");
+    const reserve = await newAccount(h.ana.personal, "Reserva", 0, "SAVINGS");
 
     expect(await refusal("Home", { funding: "SAVINGS" })).toEqual([422, "SavingsAccountRequired"]);
     expect(await refusal("Savings", { savingsAccountIds: [] })).toEqual([422, "SavingsAccountRequired"]);
-    expect(await refusal("Free", { savingsAccountIds: [juans] })).toEqual([422, "InvalidSavingsAccount"]);
+    expect(await refusal("Free", { savingsAccountIds: [reserve] })).toEqual([422, "InvalidSavingsAccount"]);
     expect(await refusal("Savings", { savingsAccountIds: [savings, savings] })).toEqual([
       422,
       "InvalidSavingsAccount",
     ]);
-    expect(await refusal("Savings", { savingsAccountIds: [h.juan.account] })).toEqual([
+    expect(await refusal("Savings", { savingsAccountIds: [h.ana.account] })).toEqual([
       422,
       "InvalidSavingsAccount",
     ]);
@@ -476,8 +551,8 @@ describe("editing lines (HU-E6-03, HU-E6-04)", () => {
 
     const renamed = (await (await edit("Savings", { name: "Nest egg" })).json()) as PlanDto;
     expect(lineNamed(renamed, "Nest egg").savingsAccountIds).toEqual([savings]);
-    const swapped = (await (await edit("Savings", { savingsAccountIds: [juans] })).json()) as PlanDto;
-    expect(lineNamed(swapped, "Nest egg").savingsAccountIds).toEqual([juans]);
+    const swapped = (await (await edit("Savings", { savingsAccountIds: [reserve] })).json()) as PlanDto;
+    expect(lineNamed(swapped, "Nest egg").savingsAccountIds).toEqual([reserve]);
     const home = await edit("Home", { funding: "SAVINGS", savingsAccountIds: [savings] });
     expect(lineNamed((await home.json()) as PlanDto, "Home")).toMatchObject({
       funding: "SAVINGS",
@@ -493,10 +568,15 @@ describe("editing lines (HU-E6-03, HU-E6-04)", () => {
       patchLine(h.ana, h.spaceId, planId, lineId("Savings"), changes);
     const marta = await registerUser("Marta");
     const martas = await newAccount(marta, "Ahorros de Marta", 500_000, "SAVINGS");
+    const juans = await newAccount(h.juan.personal, "Ahorros de Juan", 500_000, "SAVINGS");
     const foreign = await edit({ savingsAccountIds: [martas] });
     const unknown = await edit({ savingsAccountIds: ["0190a000-0000-7000-8000-000000000000"] });
     expect(await problemOf(foreign.clone())).toEqual([404, "AccountNotFound"]);
-    expect(await disclosed(foreign)).toEqual(await disclosed(unknown));
+    const expected = await disclosed(unknown);
+    expect(await disclosed(foreign)).toEqual(expected);
+    for (const id of [juans, h.juan.account]) {
+      expect(await disclosed(await edit({ savingsAccountIds: [id] }))).toEqual(expected);
+    }
     expect(await problemOf(await edit({ savingsAccountIds: ["not-a-uuid"] }))).toEqual([
       404,
       "AccountNotFound",
@@ -515,7 +595,7 @@ describe("editing lines (HU-E6-03, HU-E6-04)", () => {
 
   it("refuses to turn a line with mapped categories into a SAVINGS line, and unmaps nothing (spec 5.4)", async () => {
     const { h, planId, lineId } = await referencePlan();
-    const juans = await newAccount(h.juan.personal, "Ahorros", 0, "SAVINGS");
+    const reserve = await newAccount(h.ana.personal, "Reserva", 0, "SAVINGS");
     const home = lineId("Home");
     // Category mapping has no endpoint yet (Task 15): the mapping is arranged directly in the table.
     await app.pool.query(
@@ -524,7 +604,7 @@ describe("editing lines (HU-E6-03, HU-E6-04)", () => {
     );
     const toSavings = await patchLine(h.ana, h.spaceId, planId, home, {
       funding: "SAVINGS",
-      savingsAccountIds: [juans],
+      savingsAccountIds: [reserve],
     });
     expect(await problemOf(toSavings)).toEqual([409, "SavingsLineNotMappable"]);
     expect(lineNamed(await planOf(h.ana, h.spaceId, planId), "Home")).toMatchObject({

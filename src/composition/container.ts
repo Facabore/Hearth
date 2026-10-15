@@ -381,18 +381,23 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     const { income } = await ledgerQueries.totals({ spaceId: personal.id, from, to });
     return { amount: income, currency: personal.currency };
   };
-  // HU-E6-03: SAVINGS lines name members' savings accounts, which live in their personal spaces (D9).
+  // HU-E6-03: SAVINGS lines name their callers' own savings accounts, which live in their personal spaces (D9).
   const savingsAccounts: SavingsAccountReader = {
     find: async (accountId) => {
       // Ids come from request bodies; the port answers null for anything that is not a UUID.
       if (!isUuid(accountId)) return null;
       const account = await accountsDeps.accounts.findById(accountId);
-      return account
+      // A shared fund has no owner, so no line names it. An owned account follows its owner's currency: it lives in
+      // the owner's personal space (HU-E2-01), where the owner is always a member.
+      if (!account || account.ownerUserId === null) return null;
+      const home = await spaceRepository.findMembership(account.spaceId, account.ownerUserId);
+      return home
         ? {
             id: account.id,
             ownerUserId: account.ownerUserId,
             isSavings: account.type === "SAVINGS",
             archived: account.archivedAt !== null,
+            currency: home.currency,
           }
         : null;
     },

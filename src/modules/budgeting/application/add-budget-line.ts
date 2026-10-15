@@ -4,7 +4,7 @@ import type { BudgetingDeps } from "./deps";
 import { inSpaceCurrency, lineContext, usableSavingsAccounts } from "./line-checks";
 import { planForWrite } from "./plan-access";
 import { loadPlanView, type BudgetPlanView } from "./plan-view";
-import type { BudgetLineRepository, SavingsAccountReader } from "./ports";
+import type { BudgetLineRepository } from "./ports";
 
 /** HU-E6-03: a new line; DIRECT and RESET unless given. */
 export interface LineInput {
@@ -24,10 +24,7 @@ export type AddBudgetLine = (input: {
   line: LineInput;
 }) => Promise<Result<BudgetPlanView>>;
 
-export type LineDeps = BudgetingDeps & {
-  readonly lines: BudgetLineRepository;
-  readonly savingsAccounts: SavingsAccountReader;
-};
+export type LineDeps = BudgetingDeps & { readonly lines: BudgetLineRepository };
 
 /**
  * HU-E6-03: an OWNER or ADMIN adds a line whose positive planned amount fits the capacity not yet planned
@@ -59,11 +56,7 @@ export const createAddBudgetLine =
         lineContext(parts, members, null),
       );
       if (!line.ok) return line;
-      const accounts = await usableSavingsAccounts(
-        deps.savingsAccounts,
-        members,
-        line.value.savingsAccountIds,
-      );
+      const accounts = await usableSavingsAccounts(deps.savingsAccounts, space, line.value.savingsAccountIds);
       if (!accounts.ok) return accounts;
       await deps.lines.addLine(line.value, deps.clock.now());
       return ok(await loadPlanView(deps, space, plan));

@@ -1,13 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { aLine } from "../../../../tests/support/budget-fixtures";
-import {
-  ACCOUNTS,
-  BUDGET_MEMBERS,
-  budgetingWorld,
-  HOUSEHOLD,
-  NOW,
-  savingsAccounts,
-} from "../../../../tests/support/budgeting-world";
+import { budgetingWorld, HOUSEHOLD, NOW, savingsAccounts } from "../../../../tests/support/budgeting-world";
 import { codeOf, money, unwrap } from "../../../../tests/support/fakes";
 import { memberOf } from "../../../../tests/support/in-memory-spaces";
 import { createAddBudgetLine, type LineInput } from "./add-budget-line";
@@ -41,7 +34,7 @@ const FREE: LineInput = { name: "Free", plannedAmount: cop(730_000) };
 /** HU-E6-03 Background: a DRAFT plan for 2026-11 with capacities Ana 1,600,000 COP and Juan 2,400,000 COP. */
 const world = async () => {
   const w = budgetingWorld();
-  const deps = { ...w.deps, capacities: w.plans, lines: w.plans, savingsAccounts };
+  const deps = { ...w.deps, capacities: w.plans, lines: w.plans };
   const create = createCreateBudgetPlan(deps);
   const plan = unwrap(await create({ spaceId: HOUSEHOLD, userId: "u-ana", period: "2026-11" })).plan;
   const capacities = [
@@ -113,23 +106,42 @@ describe("AddBudgetLine (HU-E6-03)", () => {
     expect(codeOf(await addLine({ name: "Big", plannedAmount: cop(4_000_000) }))).toBe("ok");
   });
 
-  it("requires a savings account of a current member on a SAVINGS line (Review Focus 5)", async () => {
+  it("requires the caller's own SAVINGS accounts, not archived and in the plan currency, on a SAVINGS line (Review Focus 5, P8, I1)", async () => {
     const { addLine } = await world();
     const savingsWith = (savingsAccountIds: string[]) => addLine({ ...SAVINGS, savingsAccountIds });
     expect(codeOf(await savingsWith([]))).toBe("SavingsAccountRequired");
     expect(codeOf(await savingsWith(["acc-bank"]))).toBe("InvalidSavingsAccount");
     expect(codeOf(await savingsWith(["acc-old-savings"]))).toBe("AccountArchived");
-    expect(codeOf(await savingsWith(["acc-marta-savings"]))).toBe("AccountNotFound");
-    expect(codeOf(await savingsWith(["acc-unknown"]))).toBe("AccountNotFound");
-    const view = unwrap(await savingsWith(["acc-savings", "acc-juan-savings"]));
-    expect(view.figures.lines[0]!.line.savingsAccountIds).toEqual(["acc-savings", "acc-juan-savings"]);
+    expect(codeOf(await savingsWith(["acc-usd-savings"]))).toBe("CurrencyMismatch");
+    const view = unwrap(await savingsWith(["acc-savings", "acc-reserve"]));
+    expect(view.figures.lines[0]!.line.savingsAccountIds).toEqual(["acc-savings", "acc-reserve"]);
+  });
+
+  it("answers the identical AccountNotFound for every account the caller cannot attach, so none is revealed (P8)", async () => {
+    const { addLine, plans } = await world();
+    const attach = (id: string) => addLine({ ...SAVINGS, savingsAccountIds: [id] });
+    const unknown = await attach("acc-unknown");
+    expect(codeOf(unknown)).toBe("AccountNotFound");
+    // A member's savings, bank and archived accounts, a non-member's, a malformed id: all answer as unknown does.
+    for (const id of [
+      "acc-juan-savings",
+      "acc-juan-bank",
+      "acc-juan-old-savings",
+      "acc-marta-savings",
+      "acc-luis-savings",
+      "not-a-uuid",
+      "",
+    ]) {
+      expect(await attach(id)).toEqual(unknown);
+    }
+    expect(plans.lines).toEqual([]);
   });
 
   it("lets one savings account back one SAVINGS line of the plan", async () => {
     const { addLine } = await world();
     unwrap(await addLine(SAVINGS));
     expect(codeOf(await addLine({ ...SAVINGS, name: "More savings" }))).toBe("SavingsAccountAlreadyUsed");
-    expect(codeOf(await addLine({ ...SAVINGS, name: "Juan", savingsAccountIds: ["acc-juan-savings"] }))).toBe(
+    expect(codeOf(await addLine({ ...SAVINGS, name: "Reserve", savingsAccountIds: ["acc-reserve"] }))).toBe(
       "ok",
     );
   });
@@ -188,23 +200,39 @@ describe("line checks (HU-E6-03)", () => {
     }
   });
 
+  const ana = { userId: "u-ana", currency: "COP" };
+
   it("checks the accounts a line newly names, and skips those it already named (Task 12b)", async () => {
     const check = (ids: string[], already: string[] = []) =>
-      usableSavingsAccounts(savingsAccounts, BUDGET_MEMBERS, ids, already);
+      usableSavingsAccounts(savingsAccounts, ana, ids, already);
     expect(codeOf(await check(["acc-old-savings"]))).toBe("AccountArchived");
     expect(codeOf(await check(["acc-old-savings"], ["acc-old-savings"]))).toBe("ok");
     expect(codeOf(await check(["acc-savings", "acc-old-savings"], ["acc-old-savings"]))).toBe("ok");
     expect(codeOf(await check(["acc-marta-savings"], ["acc-savings"]))).toBe("AccountNotFound");
+    // What the line named before stays, whoever owns it and whatever currency it keeps (P8, I1).
+    const kept = ["acc-juan-savings", "acc-usd-savings"];
+    expect(codeOf(await check(kept, kept))).toBe("ok");
   });
 
-  it("answers AccountNotFound for an account without an owner and for one that does not exist", async () => {
-    const accounts = {
-      find: async (id: string) =>
-        id === "acc-orphan" ? { id, ownerUserId: null, isSavings: true, archived: false } : null,
-    };
-    const check = (ids: string[]) => usableSavingsAccounts(accounts, BUDGET_MEMBERS, ids);
-    expect(codeOf(await check(["acc-orphan"]))).toBe("AccountNotFound");
-    expect(codeOf(await check(["acc-nothing"]))).toBe("AccountNotFound");
+  it("lets the caller attach only an account they own: another owner's is AccountNotFound (P8)", async () => {
+    const as = (userId: string, ids: string[]) =>
+      usableSavingsAccounts(savingsAccounts, { userId, currency: "COP" }, ids);
+    expect(codeOf(await as("u-ana", ["acc-savings"]))).toBe("ok");
+    expect(codeOf(await as("u-ana", ["acc-juan-savings"]))).toBe("AccountNotFound");
+    expect(codeOf(await as("u-juan", ["acc-juan-savings"]))).toBe("ok");
+    expect(codeOf(await as("u-juan", ["acc-savings"]))).toBe("AccountNotFound");
+    expect(codeOf(await as("u-ana", ["acc-nothing"]))).toBe("AccountNotFound");
+  });
+
+  it("refuses an own account in another currency than the space's with CurrencyMismatch, naming both (D6, I1)", async () => {
+    const check = (currency: string, ids: string[]) =>
+      usableSavingsAccounts(savingsAccounts, { userId: "u-ana", currency }, ids);
+    expect(codeOf(await check("COP", ["acc-usd-savings"]))).toBe("CurrencyMismatch");
+    expect(await check("COP", ["acc-usd-savings"])).toMatchObject({
+      error: { details: { expected: "COP", actual: "USD" } },
+    });
+    expect(codeOf(await check("USD", ["acc-usd-savings"]))).toBe("ok");
+    expect(codeOf(await check("USD", ["acc-savings"]))).toBe("CurrencyMismatch");
   });
 });
 
@@ -286,7 +314,7 @@ describe("UpdateBudgetLine and RemoveBudgetLine (HU-E6-03, HU-E6-04)", () => {
       },
     });
     expect(codeOf(await archivedSince({ ...input(id("Savings")), changes: { name: "Ahorro" } }))).toBe("ok");
-    const more = { savingsAccountIds: ["acc-savings", "acc-juan-savings"] };
+    const more = { savingsAccountIds: ["acc-savings", "acc-reserve"] };
     expect(codeOf(await archivedSince({ ...input(id("Savings")), changes: more }))).toBe("AccountArchived");
     const onHome = await archivedSince({
       ...input(id("Home")),
@@ -356,7 +384,7 @@ describe("UpdateBudgetLine and RemoveBudgetLine (HU-E6-03, HU-E6-04)", () => {
     expect(codeOf(await as("Free", { isCatchAll: true }))).toBe("ok");
     expect(codeOf(await as("Free", { isCatchAll: true }))).toBe("ok");
     expect(codeOf(await as("Savings", { isCatchAll: true }))).toBe("SavingsLineNotMappable");
-    const toSavings = { funding: "SAVINGS" as const, savingsAccountIds: ["acc-juan-savings"] };
+    const toSavings = { funding: "SAVINGS" as const, savingsAccountIds: ["acc-reserve"] };
     expect(codeOf(await as("Free", toSavings))).toBe("SavingsLineNotMappable");
     expect(unwrap(await as("Free", { isCatchAll: false })).figures.unbudgeted).not.toBeNull();
     expect(unwrap(await as("Home", { isCatchAll: true })).figures.unbudgeted).toBeNull();
@@ -365,7 +393,7 @@ describe("UpdateBudgetLine and RemoveBudgetLine (HU-E6-03, HU-E6-04)", () => {
   it("refuses to turn a line with mapped categories into a SAVINGS line, and unmaps nothing", async () => {
     const { id, input, update, plans, plan } = await reference();
     plans.seed(plan.id, { mappings: [{ lineId: id("Home"), categoryId: "cat-groceries" }] });
-    const toSavings = { funding: "SAVINGS" as const, savingsAccountIds: ["acc-juan-savings"] };
+    const toSavings = { funding: "SAVINGS" as const, savingsAccountIds: ["acc-reserve"] };
     expect(codeOf(await update({ ...input(id("Home")), changes: toSavings }))).toBe("SavingsLineNotMappable");
     expect(plans.mappings.map((m) => m.unmappedAt)).toEqual([null]);
     expect(codeOf(await update({ ...input(id("Free")), changes: toSavings }))).toBe("ok");
@@ -390,55 +418,52 @@ describe("UpdateBudgetLine and RemoveBudgetLine (HU-E6-03, HU-E6-04)", () => {
     expect(codeOf(await onSavings(["acc-savings", "acc-savings"]))).toBe("InvalidSavingsAccount");
     expect(codeOf(await onSavings(["acc-bank"]))).toBe("InvalidSavingsAccount");
     expect(codeOf(await onSavings(["acc-old-savings"]))).toBe("AccountArchived");
+    expect(codeOf(await onSavings(["acc-usd-savings"]))).toBe("CurrencyMismatch");
     expect(codeOf(await onSavings(["acc-marta-savings"]))).toBe("AccountNotFound");
+    expect(codeOf(await onSavings(["acc-juan-savings"]))).toBe("AccountNotFound");
     expect(codeOf(await onSavings(["acc-unknown"]))).toBe("AccountNotFound");
-    const replaced = unwrap(await onSavings(["acc-juan-savings"]));
+    const replaced = unwrap(await onSavings(["acc-reserve"]));
     const savings = replaced.figures.lines.find((l) => l.line.name === "Savings")!.line;
-    expect(savings.savingsAccountIds).toEqual(["acc-juan-savings"]);
+    expect(savings.savingsAccountIds).toEqual(["acc-reserve"]);
   });
 
   it("lets one savings account back one SAVINGS line of the plan, on edits too", async () => {
     const { id, input, update } = await reference();
     const as = (name: string, changes: LineChanges) => update({ ...input(id(name)), changes });
-    expect(codeOf(await as("Home", { funding: "SAVINGS", savingsAccountIds: ["acc-juan-savings"] }))).toBe(
-      "ok",
-    );
+    expect(codeOf(await as("Home", { funding: "SAVINGS", savingsAccountIds: ["acc-reserve"] }))).toBe("ok");
     expect(codeOf(await as("Home", { savingsAccountIds: ["acc-savings"] }))).toBe(
       "SavingsAccountAlreadyUsed",
     );
-    const both = { savingsAccountIds: ["acc-savings", "acc-juan-savings"] };
+    const both = { savingsAccountIds: ["acc-savings", "acc-reserve"] };
     expect(codeOf(await as("Savings", both))).toBe("SavingsAccountAlreadyUsed");
     const free = { funding: "SAVINGS" as const, savingsAccountIds: ["acc-savings"] };
     expect(codeOf(await as("Free", free))).toBe("SavingsAccountAlreadyUsed");
     // The line's own accounts are not taken by another line.
-    expect(codeOf(await as("Home", { name: "Juan savings", savingsAccountIds: ["acc-juan-savings"] }))).toBe(
-      "ok",
-    );
+    expect(codeOf(await as("Home", { name: "Reserve", savingsAccountIds: ["acc-reserve"] }))).toBe("ok");
   });
 
-  it("accepts the savings account of a VIEWER and refuses one of a member who left, unless the line already named it (P8)", async () => {
-    const { id, input, spaces, deps } = await reference();
-    await spaces.addMember(HOUSEHOLD, memberOf("Luis", "MEMBER", 4));
-    const accounts = [
-      ...ACCOUNTS,
-      { id: "acc-sofi-savings", ownerUserId: "u-sofi", isSavings: true, archived: false },
-      { id: "acc-luis-savings", ownerUserId: "u-luis", isSavings: true, archived: false },
-      { id: "acc-luis-other", ownerUserId: "u-luis", isSavings: true, archived: false },
+  it("lets an ADMIN attach only their own account, and keeps it on the line after they left, without its transfers (P8)", async () => {
+    const { id, input, update, spaces, spending } = await reference();
+    await spaces.addMember(HOUSEHOLD, memberOf("Luis", "ADMIN", 4));
+    spending.byAccount = [
+      { accountId: "acc-savings", amount: 10_000_000n },
+      { accountId: "acc-luis-savings", amount: 5_000_000n },
     ];
-    const update = createUpdateBudgetLine({
-      ...deps,
-      savingsAccounts: { find: async (accountId) => accounts.find((a) => a.id === accountId) ?? null },
-    });
-    const as = (name: string, changes: LineChanges) => update({ ...input(id(name)), changes });
-    expect(codeOf(await as("Savings", { savingsAccountIds: ["acc-savings", "acc-luis-savings"] }))).toBe(
-      "ok",
-    );
+    const as = (userId: string, name: string, changes: LineChanges) =>
+      update({ ...input(id(name)), userId, changes });
+    const both = { savingsAccountIds: ["acc-savings", "acc-luis-savings"] };
+    // Ana cannot attach Luis's account; Luis attaches it, and the account Ana's line already names stays unchecked.
+    expect(codeOf(await as("u-ana", "Savings", both))).toBe("AccountNotFound");
+    const attached = unwrap(await as("u-luis", "Savings", both));
+    expect(attached.figures.lines.find((l) => l.line.name === "Savings")!.spent).toBe(15_000_000n);
+
     expect(await spaces.markLeft(HOUSEHOLD, "member-luis", "USER", NOW)).toBe(true);
-    expect(codeOf(await as("Savings", { name: "Ahorro" }))).toBe("ok");
-    const withSofi = { savingsAccountIds: ["acc-savings", "acc-luis-savings", "acc-sofi-savings"] };
-    expect(codeOf(await as("Savings", withSofi))).toBe("ok");
+    const renamed = unwrap(await as("u-ana", "Savings", { name: "Ahorro" }));
+    const ahorro = renamed.figures.lines.find((l) => l.line.name === "Ahorro")!;
+    expect([ahorro.line.savingsAccountIds, ahorro.spent]).toEqual([both.savingsAccountIds, 10_000_000n]);
+    // Luis's other accounts remain his: nobody attaches them for him.
     const toLuis = { funding: "SAVINGS" as const, savingsAccountIds: ["acc-luis-other"] };
-    expect(codeOf(await as("Home", toLuis))).toBe("AccountNotFound");
+    expect(codeOf(await as("u-ana", "Home", toLuis))).toBe("AccountNotFound");
   });
 
   it("ends the mappings of a removed line and leaves its allocations unsuperseded but out of every read (D8)", async () => {

@@ -129,6 +129,16 @@ const household = async () => {
     members: spaces,
     plans,
     spending: nothingSpent,
+    // Any account is one of Ana's COP savings accounts: only the plan's lines decide whether it is still free.
+    savingsAccounts: {
+      find: async (id: string) => ({
+        id,
+        ownerUserId: ana.id,
+        isSavings: true,
+        archived: false,
+        currency: "COP",
+      }),
+    },
     ids: new UuidV7IdGenerator(),
     clock: new FixedClock(at),
     tm,
@@ -147,8 +157,6 @@ const planWith = async (capacity: bigint) => {
     ...deps,
     plans: repository,
     lines: plans,
-    // Any account is one of Ana's savings accounts: only the plan's lines decide whether it is still free.
-    savingsAccounts: { find: async (id) => ({ id, ownerUserId: ana.id, isSavings: true, archived: false }) },
   });
   const write = { spaceId: space.id, userId: ana.id, planId: plan.id, expectedVersion: null };
   const addLines = (repository: BudgetPlanRepository) => {

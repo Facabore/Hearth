@@ -31,24 +31,27 @@ export const lineContext = (
 });
 
 /**
- * HU-E6-03: the accounts a SAVINGS line newly names are SAVINGS accounts, not archived, owned by a current
- * registered member of the space (they live in their owners' personal spaces, D9). Any other account answers
- * AccountNotFound, so no other user's account is revealed. Accounts the line already named are not checked again.
+ * HU-E6-03, P8 (amended after the final review): the accounts a SAVINGS line newly names are SAVINGS accounts the
+ * caller owns, like the ledger's `ownAccount` (D9): a member's savings reach the group only by their own act. Every
+ * account the caller cannot attach (unknown, malformed, ownerless, another user's, whatever its type or state)
+ * answers the same AccountNotFound, so none is revealed. Of the caller's own, a non-SAVINGS account answers
+ * InvalidSavingsAccount, an archived one AccountArchived and one in another currency than the space's
+ * CurrencyMismatch (D6). Accounts the line already named are not checked again.
  */
 export const usableSavingsAccounts = async (
   accounts: SavingsAccountReader,
-  members: readonly SpaceMember[],
+  caller: Pick<SpaceMembership, "userId" | "currency">,
   accountIds: readonly string[],
   already: readonly string[] = [],
 ): Promise<Result<void>> => {
-  const owners = new Set(members.flatMap((m) => (m.userId === null ? [] : [m.userId])));
   for (const accountId of accountIds.filter((id) => !already.includes(id))) {
     const account = await accounts.find(accountId);
-    if (account === null || account.ownerUserId === null || !owners.has(account.ownerUserId)) {
-      return err(domainError("AccountNotFound"));
-    }
+    if (account === null || account.ownerUserId !== caller.userId) return err(domainError("AccountNotFound"));
     if (!account.isSavings) return err(domainError("InvalidSavingsAccount", { reason: "notSavingsAccount" }));
     if (account.archived) return err(domainError("AccountArchived"));
+    if (account.currency !== caller.currency) {
+      return err(domainError("CurrencyMismatch", { expected: caller.currency, actual: account.currency }));
+    }
   }
   return ok(undefined);
 };

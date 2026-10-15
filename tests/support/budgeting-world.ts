@@ -75,6 +75,7 @@ export const budgetingWorld = (
     members: spaces,
     plans,
     spending,
+    savingsAccounts,
     ids: sequentialIds("budget"),
     clock: new FixedClock(NOW),
     tm: memoryTm,
@@ -92,13 +93,29 @@ export const fixedIncome = (byUser: Readonly<Record<string, bigint>>, currency =
   return { previousIncome, asked };
 };
 
-/** HU-E6-03 accounts: Ana's savings account, her archived one and her BANK account; Juan's and Marta's savings. */
+/**
+ * HU-E6-03 accounts, in COP unless named: Ana's savings account, a second one (`acc-reserve`), her archived one, her
+ * BANK account and her USD one; Juan's, Marta's (not a member) and Luis's (who joins in some tests), a few of them
+ * archived or not SAVINGS, so a test can show that another user's account answers the same as an unknown one.
+ */
+const account = (
+  id: string,
+  ownerUserId: string,
+  overrides: Partial<Omit<BudgetAccount, "id" | "ownerUserId">> = {},
+): BudgetAccount => ({ id, ownerUserId, isSavings: true, archived: false, currency: "COP", ...overrides });
+
 export const ACCOUNTS: readonly BudgetAccount[] = [
-  { id: "acc-savings", ownerUserId: "u-ana", isSavings: true, archived: false },
-  { id: "acc-old-savings", ownerUserId: "u-ana", isSavings: true, archived: true },
-  { id: "acc-bank", ownerUserId: "u-ana", isSavings: false, archived: false },
-  { id: "acc-juan-savings", ownerUserId: "u-juan", isSavings: true, archived: false },
-  { id: "acc-marta-savings", ownerUserId: "u-marta", isSavings: true, archived: false },
+  account("acc-savings", "u-ana"),
+  account("acc-reserve", "u-ana"),
+  account("acc-old-savings", "u-ana", { archived: true }),
+  account("acc-bank", "u-ana", { isSavings: false }),
+  account("acc-usd-savings", "u-ana", { currency: "USD" }),
+  account("acc-juan-savings", "u-juan"),
+  account("acc-juan-bank", "u-juan", { isSavings: false }),
+  account("acc-juan-old-savings", "u-juan", { archived: true }),
+  account("acc-marta-savings", "u-marta"),
+  account("acc-luis-savings", "u-luis"),
+  account("acc-luis-other", "u-luis"),
 ];
 
 export const savingsAccounts: SavingsAccountReader = {

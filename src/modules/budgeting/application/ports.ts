@@ -77,13 +77,18 @@ export interface BudgetLineRepository {
 /** What budgeting needs to know about an account a SAVINGS line names; bound to the accounts module. */
 export interface BudgetAccount {
   readonly id: string;
-  readonly ownerUserId: string | null;
+  readonly ownerUserId: string;
   readonly isSavings: boolean;
   readonly archived: boolean;
+  /** D6: the currency of the space the account lives in; its movements are in it. */
+  readonly currency: string;
 }
 
 export interface SavingsAccountReader {
-  /** Any account by id, whatever its space; null for unknown or malformed ids. */
+  /**
+   * Any account with an owner by id, whatever its space; null for unknown or malformed ids and for accounts nobody
+   * owns (a shared fund), which a SAVINGS line never names.
+   */
   find(accountId: string): Promise<BudgetAccount | null>;
 }
 

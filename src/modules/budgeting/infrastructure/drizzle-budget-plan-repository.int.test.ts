@@ -481,6 +481,7 @@ describe("SetMemberCapacities over PostgreSQL (HU-E6-02, spec 7)", () => {
       members: spaces,
       plans: repo,
       capacities: repo,
+      savingsAccounts: { find: async () => null },
       spending: { expensesByCategory: async () => [], transfersIntoAccounts: async () => [] },
       ids: sequentialIds("budget"),
       clock: new FixedClock(later),
@@ -679,7 +680,9 @@ describe("AddBudgetLine over PostgreSQL (HU-E6-03, spec 7)", () => {
       // Ana owns `account` and `other` belongs to nobody the space knows.
       savingsAccounts: {
         find: async (id: string) =>
-          id === account ? { id, ownerUserId: fixture.userId, isSavings: true, archived: false } : null,
+          id === account
+            ? { id, ownerUserId: fixture.userId, isSavings: true, archived: false, currency: "COP" }
+            : null,
       },
       spending: { expensesByCategory: async () => [], transfersIntoAccounts: async () => [] },
       ids: new UuidV7IdGenerator(),
@@ -780,7 +783,9 @@ describe("UpdateBudgetLine and RemoveBudgetLine over PostgreSQL (HU-E6-03, HU-E6
       // Ana owns `account` and `other` belongs to nobody the space knows.
       savingsAccounts: {
         find: async (id: string) =>
-          id === account ? { id, ownerUserId: fixture.userId, isSavings: true, archived: false } : null,
+          id === account
+            ? { id, ownerUserId: fixture.userId, isSavings: true, archived: false, currency: "COP" }
+            : null,
       },
       spending: { expensesByCategory: async () => [], transfersIntoAccounts: async () => [] },
       ids: new UuidV7IdGenerator(),
@@ -1026,7 +1031,9 @@ describe("MapCategoriesToLine over PostgreSQL (HU-E6-04, Review Focus 5, 6, spec
       categories,
       savingsAccounts: {
         find: async (id: string) =>
-          id === account ? { id, ownerUserId: fixture.userId, isSavings: true, archived: false } : null,
+          id === account
+            ? { id, ownerUserId: fixture.userId, isSavings: true, archived: false, currency: "COP" }
+            : null,
       },
       spending: { expensesByCategory: async () => [], transfersIntoAccounts: async () => [] },
       ids: new UuidV7IdGenerator(),

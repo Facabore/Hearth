@@ -48,7 +48,7 @@ export const createUpdateBudgetLine =
       if (!revised.ok) return revised;
       const accounts = await usableSavingsAccounts(
         deps.savingsAccounts,
-        members,
+        space,
         revised.value.savingsAccountIds,
         line.value.savingsAccountIds,
       );

@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { requirePermission, type SpaceId } from "@/modules/spaces/application";
-import { referenceLines } from "../../../../tests/support/budget-fixtures";
+import { aLine, referenceLines } from "../../../../tests/support/budget-fixtures";
 import { budgetingWorld, HOUSEHOLD, NOW } from "../../../../tests/support/budgeting-world";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
+import { memberOf } from "../../../../tests/support/in-memory-spaces";
 import { createCreateBudgetPlan } from "./create-budget-plan";
 import { createGetBudgetPlan } from "./get-budget-plan";
 import { planForWrite } from "./plan-access";
@@ -146,6 +147,38 @@ describe("GetBudgetPlan (HU-E6-01)", () => {
     const view = unwrap(await read({ spaceId: HOUSEHOLD, userId: "u-ana", planId: plan.id }));
     expect(transfers).toHaveBeenCalledWith(["acc-savings"], "2026-11-01", "2026-11-30");
     expect(view.figures.lines.find((l) => l.line.name === "Savings")!.spent).toBe(60_000_000n);
+  });
+
+  it("counts the transfers into an account only while its owner is a current registered member, whoever reads (P8)", async () => {
+    const { deps, plans, spending, spaces } = budgetingWorld();
+    const transfers = vi.spyOn(spending, "transfersIntoAccounts");
+    const plan = unwrap(await createCreateBudgetPlan(deps)(as("u-ana"))).plan;
+    await spaces.addMember(HOUSEHOLD, memberOf("Luis", "ADMIN", 4));
+    // Marta never belonged to the space: only data written outside the use cases can name her account.
+    const accounts = ["acc-savings", "acc-luis-savings", "acc-marta-savings"];
+    plans.seed(plan.id, {
+      lines: [aLine("Savings", 60_000_000n, { funding: "SAVINGS", savingsAccountIds: accounts })],
+    });
+    spending.byAccount = [
+      { accountId: "acc-savings", amount: 10_000_000n },
+      { accountId: "acc-luis-savings", amount: 5_000_000n },
+      { accountId: "acc-marta-savings", amount: 2_000_000n },
+    ];
+    const spentAs = async (userId: string) =>
+      unwrap(await createGetBudgetPlan(deps)({ spaceId: HOUSEHOLD, userId, planId: plan.id })).figures
+        .lines[0]!.spent;
+    expect(await spentAs("u-ana")).toBe(15_000_000n);
+    expect(transfers).toHaveBeenLastCalledWith(
+      ["acc-savings", "acc-luis-savings"],
+      "2026-11-01",
+      "2026-11-30",
+    );
+
+    expect(await spaces.markLeft(HOUSEHOLD, "member-luis", "USER", NOW)).toBe(true);
+    // Sofi the VIEWER and Ana read the same figure, with nothing from the account of the owner who left.
+    expect(await spentAs("u-sofi")).toBe(10_000_000n);
+    expect(await spentAs("u-ana")).toBe(10_000_000n);
+    expect(transfers).toHaveBeenLastCalledWith(["acc-savings"], "2026-11-01", "2026-11-30");
   });
 
   it("derives the figures from the current lines, mappings, allocations and members only (D8, D15)", async () => {
