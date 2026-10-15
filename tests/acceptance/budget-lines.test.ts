@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as archiveAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/archive/route";
 import { POST as archiveSpace } from "@/app/api/v1/spaces/[spaceId]/archive/route";
 import { POST as leaveSpace } from "@/app/api/v1/spaces/[spaceId]/leave/route";
+import { PATCH as patchLineRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/lines/[lineId]/route";
 import { POST as postLineRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/lines/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, problemOf, registerUser, startTestApp } from "../support/app";
@@ -9,11 +10,14 @@ import {
   addLine,
   lineNamed,
   newPlan,
+  patchLine,
   planOf,
   plansPath,
   postLine,
   referencePlan,
   setCapacities,
+  type LineSpec,
+  type PlanDto,
 } from "../support/budgeting";
 import { cop, household, joinHousehold, newAccount } from "../support/ledger";
 
@@ -42,6 +46,14 @@ const postRaw = (h: Awaited<ReturnType<typeof household>>, planId: string, body:
   call(postLineRoute, "POST", plansPath(h.spaceId, `/${planId}/lines`), {
     user: h.ana,
     params: { spaceId: h.spaceId, planId },
+    body,
+  });
+
+/** A PATCH with an arbitrary body, for requests the typed helper cannot build. */
+const patchRaw = (h: Awaited<ReturnType<typeof household>>, planId: string, lineId: string, body: unknown) =>
+  call(patchLineRoute, "PATCH", plansPath(h.spaceId, `/${planId}/lines/${lineId}`), {
+    user: h.ana,
+    params: { spaceId: h.spaceId, planId, lineId },
     body,
   });
 
@@ -338,5 +350,328 @@ describe("budget lines and unallocated capacity (HU-E6-03)", () => {
     expect(home.id).not.toBe("0190a000-0000-7000-8000-000000000000");
     expect(home).toMatchObject({ spent: cop(0), allocation: { rule: "PROPORTIONAL" } });
     expect(home).not.toHaveProperty("colour");
+  });
+});
+
+describe("editing lines (HU-E6-03, HU-E6-04)", () => {
+  it("marks Free as the plan's catch-all line, and refuses a second one", async () => {
+    const { h, planId, lineId } = await referencePlan();
+    const free = await patchLine(h.ana, h.spaceId, planId, lineId("Free"), { isCatchAll: true });
+    expect(free.status).toBe(200);
+    const plan = (await free.json()) as PlanDto;
+    expect([lineNamed(plan, "Free").isCatchAll, plan.unbudgeted]).toEqual([true, null]);
+    const home = await patchLine(h.ana, h.spaceId, planId, lineId("Home"), { isCatchAll: true });
+    expect(await problemOf(home)).toEqual([409, "CatchAllLineAlreadySet"]);
+  });
+
+  it("moves the catch-all line: unmarking Free brings Unbudgeted back, and then Home takes it", async () => {
+    const { h, planId, lineId } = await referencePlan();
+    const mark = (name: string, isCatchAll: boolean) =>
+      patchLine(h.ana, h.spaceId, planId, lineId(name), { isCatchAll });
+    expect((await mark("Free", true)).status).toBe(200);
+    expect((await mark("Free", true)).status).toBe(200);
+    const unmarked = (await (await mark("Free", false)).json()) as PlanDto;
+    expect([unmarked.lines.some((l) => l.isCatchAll), unmarked.unbudgeted === null]).toEqual([false, false]);
+    const moved = (await (await mark("Home", true)).json()) as PlanDto;
+    expect([moved.lines.filter((l) => l.isCatchAll).map((l) => l.name), moved.unbudgeted]).toEqual([
+      ["Home"],
+      null,
+    ]);
+  });
+
+  it("refuses an increase past the capacity, and renames and lowers a line", async () => {
+    const { h, planId, lineId } = await referencePlan();
+    const edit = (changes: Partial<LineSpec>) => patchLine(h.ana, h.spaceId, planId, lineId("Home"), changes);
+    expect(await problemOf(await edit({ pesos: 1_470_001 }))).toEqual([409, "PlanExceedsCapacity"]);
+    const raise = await edit({ pesos: 1_500_000 });
+    expect(await problemOf(raise)).toEqual([409, "PlanExceedsCapacity"]);
+    const changed = await edit({ pesos: 1_400_000, name: "House" });
+    const plan = (await changed.json()) as PlanDto;
+    expect([lineNamed(plan, "House").plannedAmount, plan.unallocated]).toEqual([cop(1_400_000), cop(70_000)]);
+    const back = (await (await edit({ pesos: 1_470_000 })).json()) as PlanDto;
+    expect(back.unallocated).toEqual(cop(0));
+  });
+
+  it("lets a line be renamed, re-saved and lowered once the capacity fell below the plan, but not raised", async () => {
+    const { h, planId, lineId } = await referencePlan();
+    const over = await setCapacities(h.ana, h.spaceId, planId, [[h.juan.memberId, 2_000_000]]);
+    expect(over.unallocated).toEqual(cop(-400_000));
+    const edit = (name: string, changes: Partial<LineSpec>) =>
+      patchLine(h.ana, h.spaceId, planId, lineId(name), changes);
+    const renamed = await edit("Rent", { name: "Housing fund" });
+    expect([
+      renamed.status,
+      lineNamed((await renamed.json()) as PlanDto, "Housing fund").plannedAmount,
+    ]).toEqual([200, cop(1_200_000)]);
+    expect((await edit("Home", { pesos: 1_470_000 })).status).toBe(200);
+    const lowered = (await (await edit("Free", { pesos: 700_000 })).json()) as PlanDto;
+    expect(lowered.unallocated).toEqual(cop(-370_000));
+    expect(await problemOf(await edit("Free", { pesos: 700_001 }))).toEqual([409, "PlanExceedsCapacity"]);
+  });
+
+  it("keeps line names unique ignoring case and planned amounts positive when a line is edited", async () => {
+    const { h, planId, lineId, plan } = await referencePlan();
+    const edit = (changes: Partial<LineSpec>) => patchLine(h.ana, h.spaceId, planId, lineId("Home"), changes);
+    expect(await problemOf(await edit({ name: "rent" }))).toEqual([409, "BudgetLineNameTaken"]);
+    expect(await problemOf(await edit({ pesos: 0 }))).toEqual([422, "InvalidPlannedAmount"]);
+    expect(await problemOf(await edit({ pesos: -1 }))).toEqual([422, "InvalidPlannedAmount"]);
+    expect(await problemOf(await edit({ name: "   " }))).toEqual([422, "InvalidBudgetLineName"]);
+    expect(await problemOf(await edit({ name: "x".repeat(61) }))).toEqual([422, "InvalidBudgetLineName"]);
+    expect(await planOf(h.ana, h.spaceId, planId)).toEqual(plan);
+    const sameName = (await (await edit({ name: "HOME" })).json()) as PlanDto;
+    expect(sameName.lines.map((l) => l.name)).toEqual(["Rent", "HOME", "Savings", "Free"]);
+    const trimmed = (await (await edit({ name: "  House  " })).json()) as PlanDto;
+    expect(trimmed.lines.map((l) => l.name)).toEqual(["Rent", "House", "Savings", "Free"]);
+  });
+
+  it("changes only the fields it names, and answers the whole plan with its new ETag", async () => {
+    const { h, planId, lineId, plan } = await referencePlan();
+    const response = await patchLine(
+      h.ana,
+      h.spaceId,
+      planId,
+      lineId("Home"),
+      { funding: "SHARED_FUND", rolloverMode: "ROLLOVER" },
+      plan.version,
+    );
+    expect([response.status, response.headers.get("etag")]).toEqual([200, `"${plan.version + 1}"`]);
+    const changed = (await response.json()) as PlanDto;
+    expect(changed.version).toBe(plan.version + 1);
+    expect(changed.lines.map((l) => l.name)).toEqual(["Rent", "Home", "Savings", "Free"]);
+    expect(lineNamed(changed, "Home")).toEqual({
+      ...lineNamed(plan, "Home"),
+      funding: "SHARED_FUND",
+      rolloverMode: "ROLLOVER",
+    });
+    expect(changed.lines.filter((l) => l.name !== "Home")).toEqual(
+      plan.lines.filter((l) => l.name !== "Home"),
+    );
+    expect(await planOf(h.ana, h.spaceId, planId)).toEqual(changed);
+  });
+
+  it("applies the SAVINGS rules when a line is edited: accounts required, kept, replaced and dropped", async () => {
+    const { h, savings, planId, lineId } = await referencePlan();
+    const edit = (name: string, changes: Partial<LineSpec>) =>
+      patchLine(h.ana, h.spaceId, planId, lineId(name), changes);
+    const refusal = async (name: string, changes: Partial<LineSpec>) => problemOf(await edit(name, changes));
+    const juans = await newAccount(h.juan.personal, "Ahorros", 0, "SAVINGS");
+
+    expect(await refusal("Home", { funding: "SAVINGS" })).toEqual([422, "SavingsAccountRequired"]);
+    expect(await refusal("Savings", { savingsAccountIds: [] })).toEqual([422, "SavingsAccountRequired"]);
+    expect(await refusal("Free", { savingsAccountIds: [juans] })).toEqual([422, "InvalidSavingsAccount"]);
+    expect(await refusal("Savings", { savingsAccountIds: [savings, savings] })).toEqual([
+      422,
+      "InvalidSavingsAccount",
+    ]);
+    expect(await refusal("Savings", { savingsAccountIds: [h.juan.account] })).toEqual([
+      422,
+      "InvalidSavingsAccount",
+    ]);
+    expect(await refusal("Home", { funding: "SAVINGS", savingsAccountIds: [savings] })).toEqual([
+      409,
+      "SavingsAccountAlreadyUsed",
+    ]);
+    expect(await refusal("Savings", { isCatchAll: true })).toEqual([409, "SavingsLineNotMappable"]);
+
+    const renamed = (await (await edit("Savings", { name: "Nest egg" })).json()) as PlanDto;
+    expect(lineNamed(renamed, "Nest egg").savingsAccountIds).toEqual([savings]);
+    const swapped = (await (await edit("Savings", { savingsAccountIds: [juans] })).json()) as PlanDto;
+    expect(lineNamed(swapped, "Nest egg").savingsAccountIds).toEqual([juans]);
+    const home = await edit("Home", { funding: "SAVINGS", savingsAccountIds: [savings] });
+    expect(lineNamed((await home.json()) as PlanDto, "Home")).toMatchObject({
+      funding: "SAVINGS",
+      savingsAccountIds: [savings],
+    });
+    const dropped = (await (await edit("Savings", { funding: "DIRECT" })).json()) as PlanDto;
+    expect(lineNamed(dropped, "Nest egg")).toMatchObject({ funding: "DIRECT", savingsAccountIds: [] });
+  });
+
+  it("answers the same for another user's account as for one that does not exist, and refuses an archived one", async () => {
+    const { h, planId, lineId } = await referencePlan();
+    const edit = (changes: Partial<LineSpec>) =>
+      patchLine(h.ana, h.spaceId, planId, lineId("Savings"), changes);
+    const marta = await registerUser("Marta");
+    const martas = await newAccount(marta, "Ahorros de Marta", 500_000, "SAVINGS");
+    const foreign = await edit({ savingsAccountIds: [martas] });
+    const unknown = await edit({ savingsAccountIds: ["0190a000-0000-7000-8000-000000000000"] });
+    expect(await problemOf(foreign.clone())).toEqual([404, "AccountNotFound"]);
+    expect(await disclosed(foreign)).toEqual(await disclosed(unknown));
+    expect(await problemOf(await edit({ savingsAccountIds: ["not-a-uuid"] }))).toEqual([
+      404,
+      "AccountNotFound",
+    ]);
+
+    const old = await newAccount(h.ana.personal, "Viejo", 0, "SAVINGS");
+    const archived = await call(
+      archiveAccount,
+      "POST",
+      `/api/v1/spaces/${h.ana.personal.spaceId}/accounts/${old}/archive`,
+      { user: h.ana.personal, params: { spaceId: h.ana.personal.spaceId, accountId: old } },
+    );
+    expect(archived.status).toBe(200);
+    expect(await problemOf(await edit({ savingsAccountIds: [old] }))).toEqual([409, "AccountArchived"]);
+  });
+
+  it("refuses to turn a line with mapped categories into a SAVINGS line, and unmaps nothing (spec 5.4)", async () => {
+    const { h, planId, lineId } = await referencePlan();
+    const juans = await newAccount(h.juan.personal, "Ahorros", 0, "SAVINGS");
+    const home = lineId("Home");
+    // Category mapping has no endpoint yet (Task 15): the mapping is arranged directly in the table.
+    await app.pool.query(
+      "INSERT INTO budget_line_categories (plan_id, line_id, category_id, mapped_at) VALUES ($1, $2, $3, now())",
+      [planId, home, h.groceries],
+    );
+    const toSavings = await patchLine(h.ana, h.spaceId, planId, home, {
+      funding: "SAVINGS",
+      savingsAccountIds: [juans],
+    });
+    expect(await problemOf(toSavings)).toEqual([409, "SavingsLineNotMappable"]);
+    expect(lineNamed(await planOf(h.ana, h.spaceId, planId), "Home")).toMatchObject({
+      funding: "DIRECT",
+      savingsAccountIds: [],
+      categoryIds: [h.groceries],
+    });
+    const { rows } = await app.pool.query(
+      "SELECT unmapped_at FROM budget_line_categories WHERE line_id = $1",
+      [home],
+    );
+    expect(rows.map((r) => r.unmapped_at)).toEqual([null]);
+  });
+
+  it("refuses MEMBER Juan and a stale If-Match, and keeps the plan as it was", async () => {
+    const { h, planId, lineId, plan } = await referencePlan();
+    const juans = await patchLine(h.juan, h.spaceId, planId, lineId("Home"), { name: "X" });
+    expect(await problemOf(juans)).toEqual([403, "InsufficientRole"]);
+    const stale = await patchLine(h.ana, h.spaceId, planId, lineId("Home"), { name: "X" }, plan.version - 1);
+    expect(await problemOf(stale)).toEqual([412, "PreconditionFailed"]);
+    expect(await planOf(h.ana, h.spaceId, planId)).toEqual(plan);
+    const current = await patchLine(
+      h.ana,
+      h.spaceId,
+      planId,
+      lineId("Home"),
+      { name: "House" },
+      plan.version,
+    );
+    expect(current.status).toBe(200);
+  });
+
+  it("lets an ADMIN edit, refuses a VIEWER, and answers 404 to a stranger, a foreign plan and a foreign or malformed line", async () => {
+    const { h, planId, lineId } = await referencePlan();
+    const home = lineId("Home");
+    const luis = await joinHousehold(h, "Luis", "ADMIN");
+    expect((await patchLine(luis, h.spaceId, planId, home, { name: "House" })).status).toBe(200);
+    const vera = await joinHousehold(h, "Vera", "VIEWER");
+    expect(await problemOf(await patchLine(vera, h.spaceId, planId, home, { name: "Den" }))).toEqual([
+      403,
+      "InsufficientRole",
+    ]);
+    const marta = await registerUser("Marta");
+    expect(await problemOf(await patchLine(marta, h.spaceId, planId, home, { name: "Den" }))).toEqual([
+      404,
+      "SpaceNotFound",
+    ]);
+    const foreign = await newPlan(marta, marta.spaceId, "2026-11");
+    expect(await problemOf(await patchLine(h.ana, h.spaceId, foreign.id, home, { name: "Den" }))).toEqual([
+      404,
+      "BudgetPlanNotFound",
+    ]);
+    expect(await problemOf(await patchLine(h.ana, h.spaceId, "not-a-uuid", home, { name: "Den" }))).toEqual([
+      404,
+      "BudgetPlanNotFound",
+    ]);
+
+    const { id: december } = await newPlan(h.ana, h.spaceId, "2026-12");
+    await setCapacities(h.ana, h.spaceId, december, [[h.ana.memberId, 1_600_000]]);
+    const later = lineNamed(
+      await addLine(h.ana, h.spaceId, december, { name: "Food", pesos: 500_000 }),
+      "Food",
+    );
+    const other = await referencePlan();
+    for (const lineOfElsewhere of [
+      later.id,
+      other.lineId("Home"),
+      "0190a000-0000-7000-8000-000000000000",
+      "not-a-uuid",
+    ]) {
+      const response = await patchLine(h.ana, h.spaceId, planId, lineOfElsewhere, { name: "Den" });
+      expect(await problemOf(response)).toEqual([404, "BudgetLineNotFound"]);
+    }
+    expect((await planOf(h.ana, h.spaceId, planId)).lines.map((l) => l.name)).toEqual([
+      "Rent",
+      "House",
+      "Savings",
+      "Free",
+    ]);
+    expect((await planOf(h.ana, h.spaceId, december)).lines.map((l) => l.name)).toEqual(["Food"]);
+  });
+
+  it("refuses an edit in an archived space (HU-E1-09)", async () => {
+    const { h, planId, lineId, plan } = await referencePlan();
+    const archived = await call(archiveSpace, "POST", `/api/v1/spaces/${h.spaceId}/archive`, {
+      user: h.ana,
+      params: { spaceId: h.spaceId },
+    });
+    expect(archived.status).toBe(204);
+    const refused = await patchLine(h.ana, h.spaceId, planId, lineId("Home"), { name: "House" });
+    expect(await problemOf(refused)).toEqual([409, "SpaceArchived"]);
+    expect(await planOf(h.ana, h.spaceId, planId)).toEqual(plan);
+  });
+
+  it("validates the body: at least one field, known values, at most 20 accounts, other currencies", async () => {
+    const { h, planId, lineId, plan } = await referencePlan();
+    const refusal = async (body: unknown) => problemOf(await patchRaw(h, planId, lineId("Home"), body));
+    expect(await refusal({})).toEqual([422, "ValidationFailed"]);
+    expect(await refusal({ colour: "red" })).toEqual([422, "ValidationFailed"]);
+    expect(await refusal([])).toEqual([422, "ValidationFailed"]);
+    expect(await refusal(null)).toEqual([422, "ValidationFailed"]);
+    expect(await refusal({ funding: "CASH" })).toEqual([422, "ValidationFailed"]);
+    expect(await refusal({ rolloverMode: "FOREVER" })).toEqual([422, "ValidationFailed"]);
+    expect(await refusal({ isCatchAll: "yes" })).toEqual([422, "ValidationFailed"]);
+    expect(await refusal({ name: 5 })).toEqual([422, "ValidationFailed"]);
+    expect(await refusal({ plannedAmount: "100" })).toEqual([422, "ValidationFailed"]);
+    expect(await refusal({ plannedAmount: { amount: "12.5", currency: "COP" } })).toEqual([
+      422,
+      "ValidationFailed",
+    ]);
+    const accounts = Array.from({ length: 21 }, (_, i) => `account-${i}`);
+    expect(await refusal({ funding: "SAVINGS", savingsAccountIds: accounts })).toEqual([
+      422,
+      "ValidationFailed",
+    ]);
+    expect(await refusal({ plannedAmount: { amount: "100", currency: "USD" } })).toEqual([
+      422,
+      "CurrencyMismatch",
+    ]);
+    expect(await refusal({ plannedAmount: { amount: "100", currency: "ZZZ" } })).toEqual([
+      422,
+      "UnknownCurrency",
+    ]);
+    expect(await planOf(h.ana, h.spaceId, planId)).toEqual(plan);
+  });
+
+  it("explains an empty body in the problem's field errors", async () => {
+    const { h, planId, lineId } = await referencePlan();
+    const problem = await (await patchRaw(h, planId, lineId("Home"), {})).json();
+    expect(problem.errors).toEqual([{ path: "", message: expect.stringContaining("at least one field") }]);
+  });
+
+  it("ignores fields it does not know, and never lets the client choose the id or the allocation", async () => {
+    const { h, planId, lineId, plan } = await referencePlan();
+    const response = await patchRaw(h, planId, lineId("Home"), {
+      name: "House",
+      id: "0190a000-0000-7000-8000-000000000000",
+      planId: "0190a000-0000-7000-8000-000000000001",
+      allocationRule: "FIXED",
+      deletedAt: "2026-11-01T00:00:00.000Z",
+      spent: cop(5),
+      colour: "red",
+    });
+    expect(response.status).toBe(200);
+    const changed = (await response.json()) as PlanDto;
+    const house = lineNamed(changed, "House");
+    expect(house).toEqual({ ...lineNamed(plan, "Home"), name: "House" });
+    expect(house).not.toHaveProperty("colour");
+    expect(changed.lines).toHaveLength(4);
   });
 });

@@ -2,6 +2,7 @@ import { GET as getPlanRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId
 import { POST as createPlanRoute } from "@/app/api/v1/spaces/[spaceId]/plans/route";
 import { PUT as putCapacitiesRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/capacities/route";
 import { GET as suggestionRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/capacity-suggestion/route";
+import { PATCH as patchLineRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/lines/[lineId]/route";
 import { POST as postLineRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/lines/route";
 import { call, type TestUser } from "./app";
 import { cop, household, newAccount, type MoneyDto } from "./ledger";
@@ -156,4 +157,22 @@ export const referencePlan = async () => {
   await add({ name: "Savings", pesos: 600_000, funding: "SAVINGS", savingsAccountIds: [savings] });
   const plan = await add({ name: "Free", pesos: 730_000, funding: "DIRECT" });
   return { h, savings, planId, plan, lineId: (name: string) => lineNamed(plan, name).id };
+};
+
+/** HU-E6-03, HU-E6-04: `user` changes the line; `pesos` becomes `plannedAmount`. */
+export const patchLine = (
+  user: TestUser,
+  spaceId: string,
+  planId: string,
+  lineId: string,
+  changes: Partial<LineSpec>,
+  version?: number,
+) => {
+  const { pesos, ...fields } = changes;
+  return call(patchLineRoute, "PATCH", plansPath(spaceId, `/${planId}/lines/${lineId}`), {
+    user,
+    params: { spaceId, planId, lineId },
+    body: pesos === undefined ? fields : { ...fields, plannedAmount: cop(pesos) },
+    headers: ifMatch(version),
+  });
 };

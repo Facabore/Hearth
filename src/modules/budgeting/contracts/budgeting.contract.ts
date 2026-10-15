@@ -21,6 +21,7 @@ import {
   ROLLOVER_MODES,
   type BudgetPlanView,
   type CapacitySuggestion,
+  type LineChanges,
   type LineFigure,
   type LineInput,
 } from "../application";
@@ -151,6 +152,30 @@ export const lineFromBody = (body: z.infer<typeof AddLineBodySchema>): Result<Li
   return plannedAmount.ok ? ok({ ...body, plannedAmount: plannedAmount.value }) : plannedAmount;
 };
 
+/**
+ * HU-E6-03, HU-E6-04: what a PATCH changes, at least one field; `isCatchAll` makes the line the plan's
+ * catch-all (SetCatchAllLine). Unknown fields are stripped before the check, so a body with only those is empty.
+ */
+export const UpdateLineBodySchema = z
+  .object({
+    name: z.string().max(200).optional(),
+    plannedAmount: MoneySchema.optional(),
+    funding: z.enum(FUNDINGS).optional(),
+    rolloverMode: z.enum(ROLLOVER_MODES).optional(),
+    savingsAccountIds: z.array(Id).max(MAX_ACCOUNTS).optional(),
+    isCatchAll: z.boolean().optional(),
+  })
+  .refine((body) => Object.values(body).some((value) => value !== undefined), {
+    error: "Provide at least one field to change",
+  });
+
+/** The body as UpdateBudgetLine takes it; fails only for currencies the kernel does not know. */
+export const lineChangesFromBody = (body: z.infer<typeof UpdateLineBodySchema>): Result<LineChanges> => {
+  if (body.plannedAmount === undefined) return ok({ ...body, plannedAmount: undefined });
+  const plannedAmount = moneyFromDto(body.plannedAmount);
+  return plannedAmount.ok ? ok({ ...body, plannedAmount: plannedAmount.value }) : plannedAmount;
+};
+
 const lineDto = (figure: LineFigure, currency: string): z.infer<typeof BudgetLineSchema> => {
   const { line, allocation } = figure;
   return {
@@ -226,6 +251,7 @@ export const planCreated = (view: BudgetPlanView): HttpSuccess => ({
 
 const SpacePath = z.object({ spaceId: z.string() });
 const PlanPath = SpacePath.extend({ planId: z.string() });
+const LinePath = PlanPath.extend({ lineId: z.string() });
 const planResponse = (description: string) => ({ description, content: jsonContent(BudgetPlanSchema) });
 
 const IfMatchHeader = z.object({ "if-match": z.string().optional() });
@@ -328,6 +354,21 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
           "ValidationFailed, InvalidBudgetLineName, InvalidPlannedAmount, SavingsAccountRequired, InvalidSavingsAccount, CurrencyMismatch, UnknownCurrency",
       },
       "201",
+    ),
+  },
+  "/api/v1/spaces/{spaceId}/plans/{planId}/lines/{lineId}": {
+    patch: planWrite(
+      "updateBudgetLine",
+      "Change a line's name, planned amount, funding, savings accounts, rollover mode or catch-all flag",
+      LinePath,
+      UpdateLineBodySchema,
+      {
+        "404": "SpaceNotFound, BudgetPlanNotFound, BudgetLineNotFound, AccountNotFound",
+        "409":
+          "PlanExceedsCapacity, BudgetLineNameTaken, CatchAllLineAlreadySet, SavingsAccountAlreadyUsed, SavingsLineNotMappable, AccountArchived, SpaceArchived",
+        "422":
+          "ValidationFailed, InvalidBudgetLineName, InvalidPlannedAmount, SavingsAccountRequired, InvalidSavingsAccount, CurrencyMismatch, UnknownCurrency",
+      },
     ),
   },
 };
