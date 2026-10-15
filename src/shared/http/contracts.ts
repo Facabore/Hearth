@@ -70,3 +70,18 @@ export const periodDto = (period: Period): z.infer<typeof PeriodSchema> => ({
   startDate: period.start,
   endDate: period.end,
 });
+
+/** "40", "33.33": a percentage with at most two decimals (HU-E4-08, HU-E6-05), never a float. */
+export const PercentSchema = z
+  .string()
+  .regex(/^\d{1,3}(\.\d{1,2})?$/, { error: "A percentage with at most two decimals, e.g. 40 or 33.33" });
+
+/** "33.33" → 3333 basis points (the regex guarantees digits). */
+export const basisPointsOf = (percent: string): number => {
+  const [whole = "0", fraction = ""] = percent.split(".");
+  return Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+};
+
+/** 3675 basis points → "36.75": exactly two decimals, as HU-E6-02 and HU-E6-03 report shares. */
+export const percentOf = (basisPoints: number): string =>
+  `${Math.floor(basisPoints / 100)}.${String(basisPoints % 100).padStart(2, "0")}`;

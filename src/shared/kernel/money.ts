@@ -59,15 +59,17 @@ export class Money {
    * Largest-remainder allocation in the currency rounding unit (spec 5.3).
    * Ties go to the earlier ratio. A sub-unit remainder (amount not a multiple
    * of the rounding unit) is added to the first part. Negative amounts are split by
-   * allocating their absolute value and negating every part, so the total stays exact.
+   * allocating their absolute value and negating every part, so the total stays exact. Ratios are
+   * non-negative integers, as numbers or bigints (HU-E6-05 weighs by capacities in minor units).
    */
-  allocate(ratios: readonly number[]): Result<Money[]> {
-    if (ratios.length === 0 || ratios.some((r) => !Number.isInteger(r) || r < 0)) {
-      return err(domainError("InvalidRatio", { ratios }));
-    }
-    const weights = ratios.map(BigInt);
+  allocate(ratios: readonly (number | bigint)[]): Result<Money[]> {
+    const valid = (r: number | bigint) => (typeof r === "bigint" ? r >= 0n : Number.isInteger(r) && r >= 0);
+    // Details stay strings: a bigint never reaches a log serializer.
+    const invalid = () => err(domainError("InvalidRatio", { ratios: ratios.map(String) }));
+    if (ratios.length === 0 || !ratios.every(valid)) return invalid();
+    const weights = ratios.map((r) => BigInt(r));
     const totalWeight = weights.reduce((a, b) => a + b, 0n);
-    if (totalWeight === 0n) return err(domainError("InvalidRatio", { ratios }));
+    if (totalWeight === 0n) return invalid();
     if (this.minor < 0n) {
       return map(new Money(-this.minor, this.currency).allocate(ratios), (parts) =>
         parts.map((part) => new Money(-part.minor, this.currency)),

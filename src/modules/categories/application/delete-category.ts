@@ -4,8 +4,8 @@ import type { CategoriesDeps } from "./deps";
 import { categoryById } from "./lookups";
 
 /**
- * Whether anything references a category (HU-E3-03). Bound to the ledger, where soft-deleted
- * transactions still count (D8); budget-line mappings join with HU-E6-04.
+ * Whether anything references a category (HU-E3-03). Bound to the ledger, where soft-deleted transactions still
+ * count, and to budgeting, where every budget-line mapping counts, ended ones included (D8, HU-E6-04).
  */
 export interface CategoryUsage {
   isCategoryReferenced(categoryId: string): Promise<boolean>;

@@ -12,7 +12,10 @@ import { MANAGERS, requireRole, toSpaceSummary, type SpaceAccess } from "./space
 import type { SpaceSummary } from "./space-repository";
 import type { SpaceSettingsRepository } from "./space-settings-repository";
 
-/** Whether a space already holds accounts or transactions; bound by the composition root. */
+/**
+ * Whether a space already holds accounts, transactions or plans (their amounts are in its currency); bound by the
+ * composition root.
+ */
 export interface SpaceUsage {
   hasMoneyRecords(spaceId: string): Promise<boolean>;
 }

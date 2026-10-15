@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { Money, type LocalDate } from "@/shared/kernel";
 import {
+  basisPointsOf,
+  percentOf,
+  PercentSchema,
   MoneySchema,
   moneyFromDto,
   moneyToDto,
@@ -76,5 +79,23 @@ describe("periodDto", () => {
     expect(
       periodDto({ start: "2026-10-25" as LocalDate, end: "2026-11-24" as LocalDate, label: "2026-11" }),
     ).toEqual({ label: "2026-11", startDate: "2026-10-25", endDate: "2026-11-24" });
+  });
+});
+
+describe("percentages (HU-E4-08, HU-E6-03, HU-E6-05)", () => {
+  it("parses percentages with at most two decimals into basis points", () => {
+    expect(["40", "33.33", "0.5", "100"].map(basisPointsOf)).toEqual([4000, 3333, 50, 10_000]);
+    expect(["40", "33.33", "100"].every((p) => PercentSchema.safeParse(p).success)).toBe(true);
+    expect(["40.123", "-1", "4e1", ""].some((p) => PercentSchema.safeParse(p).success)).toBe(false);
+  });
+
+  it("prints basis points with exactly two decimals", () => {
+    expect([4000, 3675, 1825, 5, 11_111].map(percentOf)).toEqual([
+      "40.00",
+      "36.75",
+      "18.25",
+      "0.05",
+      "111.11",
+    ]);
   });
 });

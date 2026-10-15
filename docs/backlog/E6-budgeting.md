@@ -58,6 +58,8 @@ Feature: Create a period plan
 **Technical notes:**
 - Use case: `CreateBudgetPlan`; port `BudgetPlanRepository`. Endpoints: `POST /api/v1/spaces/{spaceId}/plans` (body: period label), `GET /api/v1/spaces/{spaceId}/plans/{planId}` (with `ETag`, HU-E0-10).
 - Invariant: unique (spaceId, startDate); the period is resolved with the space `periodPolicy`, and its label, startDate and endDate are stored on the plan at creation (spec 5.2, D10).
+- Authorization: the matrix action `plan.manage` (OWNER, ADMIN; in a personal space, its owner) creates and edits plans, and an archived space refuses it (`SpaceArchived`, HU-E1-09); reads are `space.read`, so an archived space still reads its plans (HU-E1-09). Errors: `PlanAlreadyExists` (409), `InvalidPeriodLabel` (422), `BudgetPlanNotFound` (404, also for malformed ids and other spaces' plans).
+- Every plan response carries `ETag: "<version>"`; every write to a plan or its parts bumps the version and honours an optional `If-Match` (412 `PreconditionFailed`, spec 7). Plans' stored periods take precedence over the policy in `GET …/periods` and in the ledger's period labels (D10), and a space with a plan cannot change its currency (`SpaceCurrencyLocked`, D6).
 
 ---
 
@@ -105,6 +107,8 @@ Feature: Member capacities
 - A member without an explicit capacity counts as 0 COP.
 - Capacities and allocations reference `memberId` (SpaceMember), so guests can hold capacity and be assigned budget lines like registered members (spec D15).
 - Changing capacities re-derives every PROPORTIONAL assignment (computed on read).
+- `PUT …/capacities` sets the listed members' capacities and keeps the others' (an edit in place, never a delete). OWNER and ADMIN set anyone's (`plan.manage`); a registered MEMBER sets only their own (`capacity.setOwn`, D17); VIEWER none. Errors: `InvalidCapacity` (422: negative, or a member listed twice), `NotASpaceMember` (422), `CurrencyMismatch` (422). Only current members count toward total capacity: a member who left keeps their row but drops out.
+- `GET …/capacity-suggestion` answers `{ memberId, period, suggested }` for the caller's own member: the income recorded in their personal space during the period before the plan's (the previous period of the policy, spec 5.3); `suggested` is null when that space keeps another currency.
 
 ---
 
@@ -157,6 +161,10 @@ Feature: Budget lines
 - `SAVINGS` lines reference one or more `SAVINGS` accounts; their spending is the transfers into those accounts (spec 5.4).
 - Invariant: Σ plannedAmount ≤ total capacity when adding or increasing a line.
 - Percent of total returned with two decimals; unallocated = capacity − Σ planned.
+- Every line write answers the whole plan (`201` on `POST`, `200` on `PATCH` and `DELETE`); funding defaults to `DIRECT` and rollover to `RESET`. Errors: `InvalidBudgetLineName` (422, 1–60 characters), `InvalidPlannedAmount` (422), `SavingsAccountRequired` (422), `InvalidSavingsAccount` (422: one of the caller's own accounts that is not SAVINGS, an account listed twice, or accounts on a line that is not SAVINGS), `CurrencyMismatch` (422: a planned amount, or an account a line newly names, in another currency than the space's, D6), `AccountNotFound` (404: every account the caller does not own, unknown or malformed ids included, always with the same answer), `AccountArchived` (409, for the caller's own accounts a line newly names), `SavingsAccountAlreadyUsed` (409: an account backs one SAVINGS line per plan), `BudgetLineNameTaken` (409), `PlanExceedsCapacity` (409, only when a line is added or increased), `CatchAllLineAlreadySet` (409: one catch-all line per plan, also on `POST` with `isCatchAll`), `SavingsLineNotMappable` (409: a SAVINGS line is never the catch-all and maps no categories), `BudgetLineNotFound` (404).
+- SAVINGS accounts live in their owners' personal spaces (D9). A line newly names only SAVINGS accounts the caller owns, as the ledger admits a personal account only for its owner (`ownAccount`), so a member's savings reach the group only by their own act. Whatever the caller cannot attach, another member's account included, answers the same `404 AccountNotFound` with identical details: the answer never tells whether an id is a SAVINGS account, an archived one or someone else's. Of the caller's own accounts the answers are `InvalidSavingsAccount`, `AccountArchived` and `CurrencyMismatch`: the account must live in a space with the plan space's currency (one currency per space, D6), because its transfers are summed as the plan's money. The check is made when an account is newly named; accounts a line already names stay and are not checked again on unrelated edits. Consequence: only OWNER and ADMIN, who write lines, can back one with their savings; a MEMBER's or VIEWER's savings never do. A line's spending is the transfers into its accounts during the plan's period, whatever space recorded them, counted only for accounts whose owner is a current registered member of the space, and that filter is applied each time the plan is read, to the whole period: an account whose owner left stays on the line but stops counting, for every reader, and an owner who rejoins makes the period's transfers count again. Owner consent for sharing a personal account with a plan is a follow-up of HU-E9-08.
+- `PATCH …/lines/{lineId}` takes at least one field: an empty body (or one with only unknown fields) answers `422 ValidationFailed` with the problem's field errors. Like every plan write it bumps the plan's version and answers the new `ETag`, even when the change repeats what the line already holds.
+- `DELETE …/lines/{lineId}` is logical (D8): the line keeps its row with `deletedAt`, leaves every figure, ends its category mappings and frees its name.
 
 ---
 
@@ -206,8 +214,10 @@ Feature: Category to line mapping
 
 **Technical notes:**
 - Use cases: `MapCategoriesToLine`, `SetCatchAllLine`. Endpoints: `PUT /api/v1/spaces/{spaceId}/plans/{planId}/lines/{lineId}/categories`, `PATCH .../plans/{planId}/lines/{lineId}` with `isCatchAll`.
-- Invariants: (planId, categoryId) unique; archived categories cannot be newly mapped; at most one `isCatchAll` line per plan.
+- Invariants: (planId, categoryId) unique; archived categories cannot be newly mapped; at most one `isCatchAll` line per plan (`CatchAllLineAlreadySet`, 409, answered by `PATCH …/lines/{lineId}` with `isCatchAll`, and by `POST …/lines` with it).
 - "Unbudgeted" is computed on read, never persisted, and only exists when the plan has no catch-all line.
+- `PUT …/lines/{lineId}/categories` takes the line's whole category set; categories left out are unmapped (the rows stay, D8), and removing a line ends its mappings. Errors: `CategoryNotInSpace` (422: any id that is not a live category of the plan's space, so other spaces' categories never leak), `CategoryArchived` (409, for categories newly mapped), `CategoryAlreadyMapped` (409), `SavingsLineNotMappable` (409: a SAVINGS line takes no categories and is never the catch-all line, spec 5.4).
+- Each line reports `spent` and `available` (planned − spent; HU-E6-09's carry-over is 0 until lines are copied), and the plan reports `unbudgeted` (`spent`, `available`) only when it has no catch-all line. A category that any plan maps or once mapped can no longer be deleted (`CategoryInUse`, HU-E3-03); it can be archived.
 
 ---
 
@@ -263,6 +273,8 @@ Feature: Line allocation rules
 - One rule per line (all member rows share the rule); assigned amounts are derived, never stored.
 - Rule `NONE` stores no member rows; `assigned`, `contributed` and `gap` are not reported for that line.
 - Percentages stored as basis points (42% = 4200).
+- `PUT …/lines/{lineId}/allocation` takes `{ "rule": "PROPORTIONAL" | "NONE" }`, `{ "rule": "PERCENT", "members": [{ "memberId", "percent": "42" }] }` or `{ "rule": "FIXED", "members": [{ "memberId", "amount" }] }`. The rule is stored on the line (PROPORTIONAL for a new line); PERCENT and FIXED values are member rows that a new allocation supersedes (`superseded_at`, D8). Errors: `InvalidAllocation` (422: values that do not sum to 100 % or to the planned amount, a value that is not positive, a member listed twice, or no members), `NotASpaceMember` (422), `CurrencyMismatch` (422).
+- Assigned amounts are derived on read for the current members in join order (largest remainder in rounding units, spec 5.3). A line answers `allocation.error: "InvalidAllocation"` and no assigned amounts while a PROPORTIONAL line has no capacity to follow, or while PERCENT or FIXED values no longer add up (for instance after a member who held one left).
 
 ---
 

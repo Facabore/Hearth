@@ -1,0 +1,68 @@
+import {
+  authorizeSpaceAction,
+  requirePermission,
+  type SpaceMember,
+  type SpaceMembership,
+} from "@/modules/spaces/application";
+import { domainError, err, ok, type Result } from "@/shared/kernel";
+import type { BudgetPlan } from "../domain/plan";
+import type { BudgetingDeps } from "./deps";
+import type { PlanContents } from "./ports";
+
+/** A plan of a space the user may read (space.read); archived spaces read too (HU-E1-09). */
+export const readablePlan = async (
+  deps: Pick<BudgetingDeps, "access" | "plans">,
+  input: { readonly spaceId: string; readonly userId: string; readonly planId: string },
+): Promise<Result<{ space: SpaceMembership; plan: BudgetPlan }>> => {
+  const reader = await authorizeSpaceAction(deps.access, input.spaceId, input.userId, "space.read");
+  if (!reader.ok) return reader;
+  const plan = await deps.plans.find(reader.value.spaceId, input.planId);
+  return plan === null ? err(domainError("BudgetPlanNotFound")) : ok({ space: reader.value, plan });
+};
+
+/** HU-E6-01 … HU-E6-05: writing a plan is the matrix action plan.manage (OWNER, ADMIN). */
+export const managePlan = (membership: SpaceMembership): Result<SpaceMembership> =>
+  requirePermission(membership, "plan.manage");
+
+/** What a write to a plan sees once it holds the plan's version lock. */
+export interface PlanWrite {
+  readonly space: SpaceMembership;
+  /** The plan with the version this write gives it (its new ETag). */
+  readonly plan: BudgetPlan;
+  /** Current members in join order. */
+  readonly members: readonly SpaceMember[];
+  /** The plan's parts as committed before this write. */
+  readonly parts: PlanContents;
+}
+
+/**
+ * Every plan write starts here, inside its transaction: the membership (an archived space refuses, HU-E1-09),
+ * the matrix (`authorize`), the plan, then the version lock (If-Match, spec 7), and only then the members and
+ * parts, so writes to one plan run one at a time on committed data. HU-E6-07 adds its CLOSED check here, but
+ * `plan` is read before the lock and can be stale: the check must read the status AFTER `lockForWrite`, by
+ * finding the plan again inside this transaction (or by `lockForWrite` returning the locked row), or a
+ * concurrent close slips through.
+ */
+export const planForWrite = async (
+  deps: Pick<BudgetingDeps, "access" | "members" | "plans" | "clock">,
+  input: {
+    readonly spaceId: string;
+    readonly userId: string;
+    readonly planId: string;
+    readonly expectedVersion: number | null;
+  },
+  authorize: (membership: SpaceMembership) => Result<SpaceMembership> = managePlan,
+): Promise<Result<PlanWrite>> => {
+  const membership = await deps.access(input.spaceId, input.userId);
+  if (!membership.ok) return membership;
+  const allowed = authorize(membership.value);
+  if (!allowed.ok) return allowed;
+  const space = allowed.value;
+  const plan = await deps.plans.find(space.spaceId, input.planId);
+  if (plan === null) return err(domainError("BudgetPlanNotFound"));
+  const version = await deps.plans.lockForWrite(plan.id, input.expectedVersion, deps.clock.now());
+  if (version === null) return err(domainError("PreconditionFailed"));
+  const members = await deps.members.listCurrent(space.spaceId);
+  const parts = await deps.plans.contents(plan.id);
+  return ok({ space, plan: { ...plan, version }, members, parts });
+};

@@ -270,3 +270,104 @@ describe("net movements of contributions and settlements (HU-E4-09, HU-E5-02)", 
     expect(net.get(w.fund)).toBe(58_000_000n);
   });
 });
+
+describe("spending of a plan's period (HU-E6-03, HU-E6-04, spec 5.4)", () => {
+  const from = "2026-11-01" as LocalDate;
+  const to = "2026-11-30" as LocalDate;
+
+  it("sums the live expenses of one space per category within the dates", async () => {
+    const w = await world();
+    const elsewhere = await world();
+    await store(
+      expense(w, "2026-11-01", 8_500_000n),
+      expense(w, "2026-11-30", 10_000_000n),
+      expense(w, "2026-11-15", 6_000_000n, { categoryId: w.restaurants }),
+      expense(w, "2026-10-31", 1_000_000n),
+      expense(w, "2026-12-01", 2_000_000n),
+      income(w, "2026-11-25", 320_000_000n),
+      softDelete(expense(w, "2026-11-20", 4_000_000n), new Date()),
+      expense(elsewhere, "2026-11-10", 7_000_000n),
+    );
+    const expected = [
+      { categoryId: w.groceries, amount: 18_500_000n },
+      { categoryId: w.restaurants, amount: 6_000_000n },
+    ].sort((a, b) => (a.categoryId < b.categoryId ? -1 : 1));
+    expect(await queries.expensesByCategory(w.space.spaceId, from, to)).toEqual(expected);
+    expect(await queries.expensesByCategory("not-a-uuid", from, to)).toEqual([]);
+  });
+
+  it("counts expenses paid from the shared fund like member-paid ones (spec 5.3)", async () => {
+    const w = await sharedLedgerFixture(db, pool);
+    const ana = w.household.memberId;
+    const inHousehold = (date: string, amount: bigint) => ({
+      id: randomUUID() as TransactionId,
+      spaceId: w.household.spaceId,
+      date: date as LocalDate,
+      amount,
+      currency: "COP",
+      createdBy: w.household.userId,
+      now: new Date(),
+    });
+    const groceries = (date: string, amount: bigint, payer: { memberId: string | null; accountId: string }) =>
+      unwrap(
+        recordExpense({
+          ...inHousehold(date, amount),
+          categoryId: w.groceries,
+          payments: [{ ...payer, amount }],
+          shares: [
+            { memberId: ana, amount: amount / 2n, splitMethod: "EQUAL" },
+            { memberId: w.pedro, amount: amount - amount / 2n, splitMethod: "EQUAL" },
+          ],
+        }),
+      );
+    await store(
+      groceries("2026-11-03", 8_500_000n, { memberId: ana, accountId: w.bank }),
+      groceries("2026-11-12", 12_000_000n, { memberId: null, accountId: w.fund }),
+    );
+    expect(await queries.expensesByCategory(w.household.spaceId, from, to)).toEqual([
+      { categoryId: w.groceries, amount: 20_500_000n },
+    ]);
+  });
+
+  it("sums the live transfers into each account within the dates, whatever space recorded them", async () => {
+    const w = await world();
+    const elsewhere = await world();
+    await store(
+      transfer(w, "2026-11-01", 20_000_000n),
+      // Recorded in another space than the account's: a savings account lives in its owner's personal space.
+      unwrap(
+        recordTransfer({
+          ...common(elsewhere, "2026-11-30", 5_000_000n),
+          sourceAccountId: elsewhere.bank,
+          destinationAccountId: w.wallet,
+        }),
+      ),
+      transfer(w, "2026-10-31", 4_000_000n),
+      transfer(w, "2026-12-01", 9_000_000n),
+      softDelete(transfer(w, "2026-11-06", 3_000_000n), new Date()),
+      expense(w, "2026-11-07", 1_000_000n),
+      income(w, "2026-11-25", 320_000_000n),
+      transfer(elsewhere, "2026-11-10", 7_000_000n),
+    );
+    expect(await queries.transfersIntoAccounts([w.wallet, w.bank, "not-a-uuid"], from, to)).toEqual([
+      { accountId: w.wallet, amount: 25_000_000n },
+    ]);
+    expect(await queries.transfersIntoAccounts([], from, to)).toEqual([]);
+  });
+
+  it("stays exact beyond the bigint range", async () => {
+    const w = await world();
+    await store(
+      expense(w, "2026-11-01", 6_000_000_000_000_000_001n),
+      expense(w, "2026-11-02", 6_000_000_000_000_000_001n),
+      transfer(w, "2026-11-01", 6_000_000_000_000_000_001n),
+      transfer(w, "2026-11-02", 6_000_000_000_000_000_001n),
+    );
+    expect(await queries.expensesByCategory(w.space.spaceId, from, to)).toEqual([
+      { categoryId: w.groceries, amount: 12_000_000_000_000_000_002n },
+    ]);
+    expect(await queries.transfersIntoAccounts([w.wallet], from, to)).toEqual([
+      { accountId: w.wallet, amount: 12_000_000_000_000_000_002n },
+    ]);
+  });
+});
