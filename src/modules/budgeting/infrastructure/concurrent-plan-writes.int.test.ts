@@ -1,17 +1,29 @@
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
+import { createRecordExpense } from "@/modules/ledger/application";
+import { DrizzleAuditLog } from "@/modules/ledger/infrastructure/drizzle-audit-log";
+import { DrizzleLedgerQueries } from "@/modules/ledger/infrastructure/drizzle-ledger-queries";
+import { DrizzleTransactionRepository } from "@/modules/ledger/infrastructure/drizzle-transaction-repository";
 import { createSpaceAccess } from "@/modules/spaces/application";
 import { DrizzleSpaceRepository } from "@/modules/spaces/infrastructure/drizzle-space-repository";
 import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
-import { FixedClock, type Result } from "@/shared/kernel";
+import { FixedClock, type LocalDate, type Result } from "@/shared/kernel";
 import { testDatabase } from "../../../../tests/support/database";
 import { codeOf, money, unwrap } from "../../../../tests/support/fakes";
-import { categoryFixture, sharedSpaceFixture, userFixture } from "../../../../tests/support/fixtures";
+import {
+  accountFixture,
+  categoryFixture,
+  sharedSpaceFixture,
+  userFixture,
+} from "../../../../tests/support/fixtures";
 import { createAddBudgetLine, type LineDeps, type LineInput } from "../application/add-budget-line";
+import { createClosedPeriodGuard, type ClosedPeriods } from "../application/closed-periods";
+import { createCopyBudgetPlan } from "../application/copy-budget-plan";
 import { createCreateBudgetPlan } from "../application/create-budget-plan";
 import { createMapCategoriesToLine } from "../application/map-categories-to-line";
+import { createCloseBudgetPlan } from "../application/plan-lifecycle";
 import type { BudgetPlanRepository, PlanSpending } from "../application/ports";
 import { createUpdateBudgetLine, type LineChanges } from "../application/update-budget-line";
 import { DrizzleBudgetPlanRepository } from "./drizzle-budget-plan-repository";
@@ -68,6 +80,32 @@ const rendezvous = () => {
       async () => arrivals > 1 || (await someoneWaitsFor(pid)),
     );
   };
+};
+
+/**
+ * A transaction that stops in `hold()` until another backend queues behind a lock it holds, or until `release()`
+ * says the other side finished without queueing; `held` resolves once it stopped there. Both ends are observed
+ * events, never a delay.
+ */
+const holder = () => {
+  let released = false;
+  let stopped: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => {
+    stopped = resolve;
+  });
+  const hold = async () => {
+    const { rows } = await tm.executor().execute(sql`SELECT pg_backend_pid() AS pid`);
+    const pid = Number(rows[0]?.pid);
+    stopped();
+    await until(
+      `another backend to queue behind backend ${pid}, or the other side to finish`,
+      async () => released || (await someoneWaitsFor(pid)),
+    );
+  };
+  const release = () => {
+    released = true;
+  };
+  return { held, hold, release };
 };
 
 /** What a writer that failed reports: the database's own message when there is one, so it reads in the diff. */
@@ -253,5 +291,214 @@ describe("concurrent writes to one plan (Review Focus 1)", () => {
     const outcomes = await outcomesOf(create(input), create(input));
     expect(outcomes).toEqual(["PlanAlreadyExists", "ok"]);
     expect(await plans.storedPeriods(space.id)).toHaveLength(1);
+  });
+});
+
+describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Focus 1)", () => {
+  type Household = Awaited<ReturnType<typeof household>>;
+
+  /** An ACTIVE 2026-11 plan in which Ana has 1,000,000 COP, and its close, which stops in `h.hold` once it set CLOSED. */
+  const activePlan = async () => {
+    const { ana, space, deps } = await household();
+    const { plan } = unwrap(
+      await createCreateBudgetPlan(deps)({ spaceId: space.id, userId: ana.id, period: "2026-11" }),
+    );
+    await plans.setCapacities(plan.id, [{ memberId: space.members[0]!.id, amount: 100_000_000n }], at);
+    await plans.setStatus(plan.id, "ACTIVE", at);
+    const write = { spaceId: space.id, userId: ana.id, planId: plan.id, expectedVersion: null };
+    const closeHolding = (h: ReturnType<typeof holder>) =>
+      createCloseBudgetPlan({
+        ...deps,
+        statuses: {
+          setStatus: async (planId, status, changedAt) => {
+            await plans.setStatus(planId, status, changedAt);
+            await h.hold();
+          },
+        },
+      })(write);
+    return { ana, space, deps, plan, write, closeHolding };
+  };
+
+  /**
+   * A line added to the active plan while a close of it holds its lock; `staleIfMatch` sends the version the plan had
+   * before that close as the adder's If-Match.
+   */
+  const lineAddedWhileClosing = async (staleIfMatch: boolean) => {
+    const { deps, plan, write, closeHolding } = await activePlan();
+    const h = holder();
+    const closing = closeHolding(h);
+    await h.held;
+    const adding = createAddBudgetLine({ ...deps, lines: plans })({
+      ...write,
+      expectedVersion: staleIfMatch ? plan.version : null,
+      line: { name: "Home", plannedAmount: money(10_000_000n) },
+    }).finally(h.release);
+    return { outcomes: await outcomesOf(closing, adding), lines: (await plans.contents(plan.id)).lines };
+  };
+
+  /**
+   * The ledger's RecordExpense for an expense dated 2026-11-15, as `src/composition/container.ts` builds it: the real
+   * transaction repository and the closed-period guard `closedPeriods` over the same `tm`, so the guard runs inside
+   * the expense's own transaction. Only the account and category readers are fakes.
+   */
+  const expenseInNovember = async ({ ana, space, deps }: Household, closedPeriods: ClosedPeriods) => {
+    const member = { userId: ana.id, spaceId: space.id, memberId: space.members[0]!.id };
+    const bank = await accountFixture(db, member, "Bancolombia");
+    const groceries = await categoryFixture(db, member);
+    const record = createRecordExpense({
+      access: deps.access,
+      members: spaces,
+      transactions: new DrizzleTransactionRepository(tm),
+      query: new DrizzleLedgerQueries(tm),
+      audit: new DrizzleAuditLog(tm),
+      accounts: {
+        find: async (id) => ({
+          id,
+          spaceId: space.id,
+          ownerUserId: ana.id,
+          isSharedFund: false,
+          archived: false,
+        }),
+      },
+      accountBalances: { balanceOf: async () => 0n },
+      categories: { find: async (_, id) => ({ id, archived: false }) },
+      closedPeriods,
+      storedPeriods: (spaceId) => plans.storedPeriods(spaceId),
+      ids: deps.ids,
+      clock: deps.clock,
+      timeZone: "America/Bogota",
+      tm,
+    });
+    return () =>
+      record({
+        spaceId: space.id,
+        userId: ana.id,
+        date: "2026-11-15" as LocalDate,
+        categoryId: groceries,
+        amount: money(8_500_000n),
+        accountId: bank,
+      });
+  };
+
+  const recordedExpenses = async (spaceId: string) =>
+    (await pool.query("SELECT 1 FROM transactions WHERE space_id = $1", [spaceId])).rowCount;
+
+  /** CopyBudgetPlan over `repository` for the plans, and the real repository for the parts. */
+  const copyOver = ({ deps }: Household, repository: BudgetPlanRepository = plans) =>
+    createCopyBudgetPlan({
+      ...deps,
+      plans: repository,
+      capacities: plans,
+      lines: plans,
+      mappings: plans,
+      allocations: plans,
+      categories: { list: async () => [] },
+    });
+
+  it("refuses a line added while the plan was being closed: its status is read after the lock (N4)", async () => {
+    expect(await lineAddedWhileClosing(false)).toEqual({ outcomes: ["PeriodClosed", "ok"], lines: [] });
+  });
+
+  it("answers an If-Match from before the close with PreconditionFailed: the version is compared before the status", async () => {
+    expect(await lineAddedWhileClosing(true)).toEqual({ outcomes: ["PreconditionFailed", "ok"], lines: [] });
+  });
+
+  it("makes a ledger write wait for a close in progress, which it then sees (P14)", async () => {
+    const active = await activePlan();
+    const record = await expenseInNovember(active, createClosedPeriodGuard(plans));
+    const h = holder();
+    const closing = active.closeHolding(h);
+    await h.held;
+    const recording = record().finally(h.release);
+    expect(await outcomesOf(closing, recording)).toEqual(["PeriodClosed", "ok"]);
+    expect(await recordedExpenses(active.space.id)).toBe(0);
+  });
+
+  it("makes a close wait for a ledger write that already checked the period (P14)", async () => {
+    const active = await activePlan();
+    const guard = createClosedPeriodGuard(plans);
+    const h = holder();
+    const record = await expenseInNovember(active, {
+      isClosed: async (spaceId, date) => {
+        const closed = await guard.isClosed(spaceId, date);
+        await h.hold();
+        return closed;
+      },
+    });
+    const order: string[] = [];
+    const recording = record().then((result) => {
+      order.push("ledger write");
+      return result;
+    });
+    await h.held;
+    const closing = createCloseBudgetPlan({ ...active.deps, statuses: plans })(active.write)
+      .then((result) => {
+        order.push("close");
+        return result;
+      })
+      .finally(h.release);
+    expect(await outcomesOf(recording, closing)).toEqual(["ok", "ok"]);
+    expect(order).toEqual(["ledger write", "close"]);
+    expect(await recordedExpenses(active.space.id)).toBe(1);
+  });
+
+  it("copies the version of its source that a write in progress commits (P14)", async () => {
+    const { ana, space, deps } = await household();
+    const { plan: november } = unwrap(
+      await createCreateBudgetPlan(deps)({ spaceId: space.id, userId: ana.id, period: "2026-11" }),
+    );
+    await plans.setCapacities(november.id, [{ memberId: space.members[0]!.id, amount: 100_000_000n }], at);
+    const write = { spaceId: space.id, userId: ana.id, planId: november.id, expectedVersion: null };
+    unwrap(
+      await createAddBudgetLine({ ...deps, lines: plans })({
+        ...write,
+        line: { name: "Home", plannedAmount: money(30_000_000n) },
+      }),
+    );
+    const [home] = (await plans.contents(november.id)).lines;
+    const h = holder();
+    const updating = createUpdateBudgetLine({
+      ...deps,
+      lines: {
+        addLine: (line, addedAt) => plans.addLine(line, addedAt),
+        deleteLine: (planId, lineId, deletedAt) => plans.deleteLine(planId, lineId, deletedAt),
+        saveLine: async (line, savedAt) => {
+          await plans.saveLine(line, savedAt);
+          await h.hold();
+        },
+      },
+    })({ ...write, lineId: home!.id, changes: { plannedAmount: money(40_000_000n) } });
+    await h.held;
+    const copying = copyOver({ ana, space, deps })({
+      spaceId: space.id,
+      userId: ana.id,
+      period: "2026-12",
+    }).finally(h.release);
+    expect(await outcomesOf(updating, copying)).toEqual(["ok", "ok"]);
+    const december = unwrap(await copying).view;
+    expect(
+      december.figures.lines.map((l) => [l.line.name, l.line.plannedAmount, l.line.originLineId]),
+    ).toEqual([["Home", 40_000_000n, home!.id]]);
+  });
+
+  it("creates one of two simultaneous copies of the same period and answers the other PlanAlreadyExists", async () => {
+    const active = await activePlan();
+    const input = { spaceId: active.space.id, userId: active.ana.id, period: "2026-12" };
+    const h = holder();
+    // The first copy stops once its plan is inserted and uncommitted; the second then queues behind that row.
+    const first = copyOver(
+      active,
+      repositoryWith({
+        add: async (plan) => {
+          const added = await plans.add(plan);
+          await h.hold();
+          return added;
+        },
+      }),
+    )(input);
+    await h.held;
+    const second = copyOver(active)(input).finally(h.release);
+    expect(await outcomesOf(first, second)).toEqual(["PlanAlreadyExists", "ok"]);
+    expect(await plans.storedPeriods(active.space.id)).toHaveLength(2);
   });
 });
