@@ -108,6 +108,7 @@ Feature: Member capacities
 - Capacities and allocations reference `memberId` (SpaceMember), so guests can hold capacity and be assigned budget lines like registered members (spec D15).
 - Changing capacities re-derives every PROPORTIONAL assignment (computed on read).
 - `PUT …/capacities` sets the listed members' capacities and keeps the others' (an edit in place, never a delete). OWNER and ADMIN set anyone's (`plan.manage`); a registered MEMBER sets only their own (`capacity.setOwn`, D17); VIEWER none. Errors: `InvalidCapacity` (422: negative, or a member listed twice), `NotASpaceMember` (422), `CurrencyMismatch` (422). Only current members count toward total capacity: a member who left keeps their row but drops out.
+- `GET …/capacity-suggestion` answers `{ memberId, period, suggested }` for the caller's own member: the income recorded in their personal space during the period before the plan's (the previous period of the policy, spec 5.3); `suggested` is null when that space keeps another currency.
 
 ---
 

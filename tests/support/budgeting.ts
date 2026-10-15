@@ -1,6 +1,7 @@
 import { GET as getPlanRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/route";
 import { POST as createPlanRoute } from "@/app/api/v1/spaces/[spaceId]/plans/route";
 import { PUT as putCapacitiesRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/capacities/route";
+import { GET as suggestionRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/capacity-suggestion/route";
 import { call, type TestUser } from "./app";
 import { cop, type MoneyDto } from "./ledger";
 
@@ -87,3 +88,10 @@ export const setCapacities = async (...args: Parameters<typeof putCapacities>): 
   if (response.status !== 200) throw new Error(`capacities failed with status ${response.status}`);
   return (await response.json()) as PlanDto;
 };
+
+/** HU-E6-02, D17: the caller's own capacity suggestion. */
+export const getSuggestion = (user: TestUser, spaceId: string, planId: string) =>
+  call(suggestionRoute, "GET", plansPath(spaceId, `/${planId}/capacity-suggestion`), {
+    user,
+    params: { spaceId, planId },
+  });

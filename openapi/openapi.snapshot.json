@@ -5297,6 +5297,94 @@
           }
         }
       }
+    },
+    "/api/v1/spaces/{spaceId}/plans/{planId}/capacity-suggestion": {
+      "get": {
+        "operationId": "suggestCapacity",
+        "summary": "The caller's own previous-period personal income as a capacity suggestion; saved nowhere (D17)",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "planId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The caller's suggestion",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "memberId": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "$ref": "#/components/schemas/Period"
+                    },
+                    "suggested": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "memberId",
+                    "period",
+                    "suggested"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound, BudgetPlanNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

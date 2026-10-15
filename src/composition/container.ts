@@ -25,9 +25,12 @@ import {
   createCreateBudgetPlan,
   createGetBudgetPlan,
   createSetMemberCapacities,
+  createSuggestCapacity,
   type CreateBudgetPlan,
   type GetBudgetPlan,
+  type PreviousIncome,
   type SetMemberCapacities,
+  type SuggestCapacity,
 } from "@/modules/budgeting/application";
 import { DrizzleBudgetPlanRepository } from "@/modules/budgeting/infrastructure/drizzle-budget-plan-repository";
 import {
@@ -216,6 +219,7 @@ export interface Container extends RouteDeps {
     readonly createPlan: CreateBudgetPlan;
     readonly getPlan: GetBudgetPlan;
     readonly setCapacities: SetMemberCapacities;
+    readonly suggestCapacity: SuggestCapacity;
   };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
@@ -353,12 +357,20 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     clock,
     tm,
   };
+  // D17: only the caller's own personal-space income is ever read for a capacity suggestion.
+  const previousIncome: PreviousIncome = async (userId, from, to) => {
+    const personal = (await spaceRepository.listForUser(userId)).find((s) => s.kind === "PERSONAL");
+    if (!personal) return null;
+    const { income } = await ledgerQueries.totals({ spaceId: personal.id, from, to });
+    return { amount: income, currency: personal.currency };
+  };
   // HU-E6-01 … HU-E6-05: plans reach members, accounts, categories and the ledger's spending only through ports.
   const budgetingDeps = {
     access,
     members: spaceRepository,
     plans: budgetPlans,
     capacities: budgetPlans,
+    previousIncome,
     spending: ledgerQueries,
     ids,
     clock,
@@ -512,6 +524,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       createPlan: createCreateBudgetPlan(budgetingDeps),
       getPlan: createGetBudgetPlan(budgetingDeps),
       setCapacities: createSetMemberCapacities(budgetingDeps),
+      suggestCapacity: createSuggestCapacity(budgetingDeps),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.

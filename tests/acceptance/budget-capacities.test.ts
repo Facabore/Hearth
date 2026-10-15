@@ -1,12 +1,34 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { POST as createAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/route";
 import { POST as archiveSpace } from "@/app/api/v1/spaces/[spaceId]/archive/route";
+import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
 import { DELETE as removeGuestMember } from "@/app/api/v1/spaces/[spaceId]/guests/[memberId]/route";
+import { POST as recordIncome } from "@/app/api/v1/spaces/[spaceId]/incomes/route";
+import { GET as suggestionRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/capacity-suggestion/route";
 import { PUT as putCapacitiesRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/capacities/route";
 import { PATCH as updateSpace } from "@/app/api/v1/spaces/[spaceId]/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
-import { newPlan, planOf, plansPath, putCapacities, setCapacities } from "../support/budgeting";
-import { addGuest, cop, household, joinHousehold, memberIdOf } from "../support/ledger";
+import {
+  getSuggestion,
+  newPlan,
+  planOf,
+  plansPath,
+  putCapacities,
+  setCapacities,
+} from "../support/budgeting";
+import {
+  addGuest,
+  categoryWithKey,
+  cop,
+  household,
+  joinHousehold,
+  memberIdOf,
+  newAccount,
+  post,
+  type MoneyDto,
+} from "../support/ledger";
+import { joinAs } from "../support/spaces";
 
 let app: Container;
 beforeAll(() => {
@@ -22,6 +44,20 @@ const draft = async () => {
   const h = await household();
   const plan = await newPlan(h.ana, h.spaceId, "2026-11");
   return { h, planId: plan.id };
+};
+
+const OCTOBER = { label: "2026-10", startDate: "2026-10-01", endDate: "2026-10-31" };
+
+/** `user` records an income in their own personal space, into `account`: the income a suggestion reads (D17). */
+const earns = async (user: TestUser, account: string, date: string, amount: MoneyDto) => {
+  const response = await post(recordIncome, user, "incomes", {
+    description: "Salary",
+    date,
+    categoryId: await categoryWithKey(user, "salary"),
+    amount,
+    accountId: account,
+  });
+  if (response.status !== 201) throw new Error(`income failed with status ${response.status}`);
 };
 
 /** A PUT with an arbitrary body, for requests the typed helper cannot build. */
@@ -259,5 +295,149 @@ describe("member capacities (HU-E6-02)", () => {
     await setCapacities(ana, ana.spaceId, h1.id, [[member, 800_000]]);
     expect((await planOf(ana, ana.spaceId, h1.id)).totalCapacity).toEqual(cop(800_000));
     expect((await planOf(ana, ana.spaceId, h2.id)).totalCapacity).toEqual(cop(0));
+  });
+});
+
+describe("capacity suggestion (HU-E6-02, D17)", () => {
+  it("suggests Ana her 2026-10 personal income, saves nothing, and never shows it to Juan", async () => {
+    const { h, planId } = await draft();
+    await earns(h.ana.personal, h.ana.account, "2026-10-15", cop(1_650_000));
+    const suggestion = await getSuggestion(h.ana, h.spaceId, planId);
+    expect([suggestion.status, await suggestion.json()]).toEqual([
+      200,
+      { memberId: h.ana.memberId, period: OCTOBER, suggested: cop(1_650_000) },
+    ]);
+    expect((await planOf(h.ana, h.spaceId, planId)).capacities[0]!.amount).toEqual(cop(0));
+    const juans = await (await getSuggestion(h.juan, h.spaceId, planId)).text();
+    expect(JSON.parse(juans)).toEqual({ memberId: h.juan.memberId, period: OCTOBER, suggested: cop(0) });
+    expect(juans).not.toContain("165000000");
+    expect(JSON.stringify(await planOf(h.juan, h.spaceId, planId))).not.toContain("165000000");
+    await setCapacities(h.ana, h.spaceId, planId, [[h.ana.memberId, 1_650_000]]);
+    expect((await planOf(h.juan, h.spaceId, planId)).capacities[0]!.amount).toEqual(cop(1_650_000));
+  });
+
+  it("counts the income dated within the previous period, first and last day included, and nothing else", async () => {
+    const { h, planId } = await draft();
+    const personal = h.ana.personal;
+    await earns(personal, h.ana.account, "2026-09-30", cop(100_000));
+    await earns(personal, h.ana.account, "2026-10-01", cop(200_000));
+    await earns(personal, h.ana.account, "2026-10-31", cop(300_000));
+    await earns(personal, h.ana.account, "2026-11-01", cop(400_000));
+    const spent = await post(recordExpense, personal, "expenses", {
+      description: "Market",
+      date: "2026-10-10",
+      categoryId: await categoryWithKey(personal, "groceries"),
+      amount: cop(50_000),
+      accountId: h.ana.account,
+    });
+    expect(spent.status).toBe(201);
+    const suggestion = await (await getSuggestion(h.ana, h.spaceId, planId)).json();
+    expect(suggestion.suggested).toEqual(cop(500_000));
+  });
+
+  it("answers each member with the income of their own personal space only", async () => {
+    const { h, planId } = await draft();
+    await earns(h.ana.personal, h.ana.account, "2026-10-15", cop(1_650_000));
+    await earns(h.juan.personal, h.juan.account, "2026-10-20", cop(2_400_000));
+    const juans = await (await getSuggestion(h.juan, h.spaceId, planId)).json();
+    expect(juans).toEqual({ memberId: h.juan.memberId, period: OCTOBER, suggested: cop(2_400_000) });
+    const anas = await (await getSuggestion(h.ana, h.spaceId, planId)).json();
+    expect(anas).toEqual({ memberId: h.ana.memberId, period: OCTOBER, suggested: cop(1_650_000) });
+  });
+
+  it("lets a VIEWER read her own suggestion", async () => {
+    const { h, planId } = await draft();
+    const vera = await joinHousehold(h, "Vera", "VIEWER");
+    await earns(vera.personal, vera.account, "2026-10-28", cop(900_000));
+    const response = await getSuggestion(vera, h.spaceId, planId);
+    expect([response.status, await response.json()]).toEqual([
+      200,
+      { memberId: vera.memberId, period: OCTOBER, suggested: cop(900_000) },
+    ]);
+  });
+
+  it("suggests nothing, not zero, when the personal space keeps another currency (D6)", async () => {
+    const { h, planId } = await draft();
+    const sofi = await registerUser("Sofi");
+    const dollars = await call(updateSpace, "PATCH", `/api/v1/spaces/${sofi.spaceId}`, {
+      user: sofi,
+      params: { spaceId: sofi.spaceId },
+      body: { currency: "USD" },
+    });
+    expect(dollars.status).toBe(200);
+    const usd = (minor: string) => ({ amount: minor, currency: "USD" });
+    const account = await call(createAccount, "POST", `/api/v1/spaces/${sofi.spaceId}/accounts`, {
+      user: sofi,
+      params: { spaceId: sofi.spaceId },
+      body: { name: "Chase", type: "BANK", openingBalance: usd("0") },
+    });
+    expect(account.status).toBe(201);
+    await earns(sofi, ((await account.json()) as { id: string }).id, "2026-10-15", usd("500000"));
+    await joinAs(h.ana, h.spaceId, sofi, "MEMBER");
+    const response = await getSuggestion(sofi, h.spaceId, planId);
+    expect([response.status, await response.json()]).toEqual([
+      200,
+      { memberId: await memberIdOf(h.ana, h.spaceId, "Sofi"), period: OCTOBER, suggested: null },
+    ]);
+  });
+
+  it("hides the plan from a stranger and from other ids, and asks for a session", async () => {
+    const { h, planId } = await draft();
+    const marta = await registerUser("Marta");
+    expect(await problemOf(await getSuggestion(marta, h.spaceId, planId))).toEqual([404, "SpaceNotFound"]);
+    const foreign = await newPlan(marta, marta.spaceId, "2026-11");
+    expect(await problemOf(await getSuggestion(h.ana, h.spaceId, foreign.id))).toEqual([
+      404,
+      "BudgetPlanNotFound",
+    ]);
+    expect(await problemOf(await getSuggestion(h.ana, h.spaceId, "not-a-uuid"))).toEqual([
+      404,
+      "BudgetPlanNotFound",
+    ]);
+    expect(await problemOf(await getSuggestion(h.ana, "not-a-uuid", planId))).toEqual([404, "SpaceNotFound"]);
+    const anonymous = await call(
+      suggestionRoute,
+      "GET",
+      plansPath(h.spaceId, `/${planId}/capacity-suggestion`),
+      {
+        params: { spaceId: h.spaceId, planId },
+      },
+    );
+    expect(await problemOf(anonymous)).toEqual([401, "Unauthenticated"]);
+  });
+
+  it("keeps answering in an archived space, since asking only reads (HU-E1-09)", async () => {
+    const { h, planId } = await draft();
+    await earns(h.ana.personal, h.ana.account, "2026-10-15", cop(1_650_000));
+    const archived = await call(archiveSpace, "POST", `/api/v1/spaces/${h.spaceId}/archive`, {
+      user: h.ana,
+      params: { spaceId: h.spaceId },
+    });
+    expect(archived.status).toBe(204);
+    const response = await getSuggestion(h.ana, h.spaceId, planId);
+    expect([response.status, (await response.json()).suggested]).toEqual([200, cop(1_650_000)]);
+  });
+
+  it("looks at the previous period of the policy: 2026-11 H1 for a 2026-11 H2 plan", async () => {
+    const ana = await registerUser("Ana");
+    const semi = await call(updateSpace, "PATCH", `/api/v1/spaces/${ana.spaceId}`, {
+      user: ana,
+      params: { spaceId: ana.spaceId },
+      body: { periodPolicy: { kind: "SEMI_MONTHLY", day1: 1, day2: 16 } },
+    });
+    expect(semi.status).toBe(200);
+    const h2 = await newPlan(ana, ana.spaceId, "2026-11 H2");
+    const account = await newAccount(ana, "Bancolombia", 0);
+    await earns(ana, account, "2026-11-10", cop(700_000));
+    await earns(ana, account, "2026-11-20", cop(50_000));
+    const response = await getSuggestion(ana, ana.spaceId, h2.id);
+    expect([response.status, await response.json()]).toEqual([
+      200,
+      {
+        memberId: h2.capacities[0]!.memberId,
+        period: { label: "2026-11 H1", startDate: "2026-11-01", endDate: "2026-11-15" },
+        suggested: cop(700_000),
+      },
+    ]);
   });
 });

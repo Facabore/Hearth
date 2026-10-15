@@ -20,6 +20,7 @@ import {
   PLAN_STATUSES,
   ROLLOVER_MODES,
   type BudgetPlanView,
+  type CapacitySuggestion,
   type LineFigure,
 } from "../application";
 
@@ -114,6 +115,21 @@ export const capacitiesFromBody = (
   }
   return ok(capacities);
 };
+
+/** HU-E6-02, D17: only ever the caller's own suggestion. */
+export const CapacitySuggestionSchema = z.object({
+  memberId: z.string(),
+  /** The period whose income is suggested: the one before the plan's (spec 5.3). */
+  period: PeriodSchema,
+  /** Null when the caller's personal space keeps another currency (no conversion, D6). */
+  suggested: MoneySchema.nullable(),
+});
+
+export const capacitySuggestionDto = (s: CapacitySuggestion): z.infer<typeof CapacitySuggestionSchema> => ({
+  memberId: s.memberId,
+  period: periodDto(s.period),
+  suggested: s.suggested === null ? null : moneyOf(s.suggested, s.currency),
+});
 
 const lineDto = (figure: LineFigure, currency: string): z.infer<typeof BudgetLineSchema> => {
   const { line, allocation } = figure;
@@ -264,5 +280,18 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
         "422": "ValidationFailed, InvalidCapacity, NotASpaceMember, CurrencyMismatch, UnknownCurrency",
       },
     ),
+  },
+  "/api/v1/spaces/{spaceId}/plans/{planId}/capacity-suggestion": {
+    get: {
+      operationId: "suggestCapacity",
+      summary:
+        "The caller's own previous-period personal income as a capacity suggestion; saved nowhere (D17)",
+      ...securedByUser,
+      requestParams: { path: PlanPath },
+      responses: {
+        "200": { description: "The caller's suggestion", content: jsonContent(CapacitySuggestionSchema) },
+        ...problems({ "401": "Unauthenticated", "404": "SpaceNotFound, BudgetPlanNotFound" }),
+      },
+    },
   },
 };
