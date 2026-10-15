@@ -1,7 +1,8 @@
 import { GET as getPlanRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/route";
 import { POST as createPlanRoute } from "@/app/api/v1/spaces/[spaceId]/plans/route";
+import { PUT as putCapacitiesRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/capacities/route";
 import { call, type TestUser } from "./app";
-import type { MoneyDto } from "./ledger";
+import { cop, type MoneyDto } from "./ledger";
 
 export interface AllocationMemberDto {
   memberId: string;
@@ -58,5 +59,31 @@ export const getPlan = (user: TestUser, spaceId: string, planId: string) =>
 export const planOf = async (user: TestUser, spaceId: string, planId: string): Promise<PlanDto> => {
   const response = await getPlan(user, spaceId, planId);
   if (response.status !== 200) throw new Error(`plan read failed with status ${response.status}`);
+  return (await response.json()) as PlanDto;
+};
+
+/** `If-Match: "<version>"` when a version is given. */
+export const ifMatch = (version?: number): Record<string, string> =>
+  version === undefined ? {} : { "if-match": `"${version}"` };
+
+/** HU-E6-02: `user` sets the capacities of `[memberId, pesos]` pairs. */
+export const putCapacities = (
+  user: TestUser,
+  spaceId: string,
+  planId: string,
+  capacities: [string, number][],
+  version?: number,
+) =>
+  call(putCapacitiesRoute, "PUT", plansPath(spaceId, `/${planId}/capacities`), {
+    user,
+    params: { spaceId, planId },
+    body: { capacities: capacities.map(([memberId, pesos]) => ({ memberId, amount: cop(pesos) })) },
+    headers: ifMatch(version),
+  });
+
+/** Sets the capacities and returns the plan; throws unless 200. */
+export const setCapacities = async (...args: Parameters<typeof putCapacities>): Promise<PlanDto> => {
+  const response = await putCapacities(...args);
+  if (response.status !== 200) throw new Error(`capacities failed with status ${response.status}`);
   return (await response.json()) as PlanDto;
 };

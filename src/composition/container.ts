@@ -24,8 +24,10 @@ import {
 import {
   createCreateBudgetPlan,
   createGetBudgetPlan,
+  createSetMemberCapacities,
   type CreateBudgetPlan,
   type GetBudgetPlan,
+  type SetMemberCapacities,
 } from "@/modules/budgeting/application";
 import { DrizzleBudgetPlanRepository } from "@/modules/budgeting/infrastructure/drizzle-budget-plan-repository";
 import {
@@ -213,6 +215,7 @@ export interface Container extends RouteDeps {
   readonly budgeting: {
     readonly createPlan: CreateBudgetPlan;
     readonly getPlan: GetBudgetPlan;
+    readonly setCapacities: SetMemberCapacities;
   };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
@@ -355,6 +358,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     access,
     members: spaceRepository,
     plans: budgetPlans,
+    capacities: budgetPlans,
     spending: ledgerQueries,
     ids,
     clock,
@@ -507,6 +511,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     budgeting: {
       createPlan: createCreateBudgetPlan(budgetingDeps),
       getPlan: createGetBudgetPlan(budgetingDeps),
+      setCapacities: createSetMemberCapacities(budgetingDeps),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.

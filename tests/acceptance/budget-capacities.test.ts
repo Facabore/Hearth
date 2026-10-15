@@ -1,0 +1,263 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { POST as archiveSpace } from "@/app/api/v1/spaces/[spaceId]/archive/route";
+import { DELETE as removeGuestMember } from "@/app/api/v1/spaces/[spaceId]/guests/[memberId]/route";
+import { PUT as putCapacitiesRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/capacities/route";
+import { PATCH as updateSpace } from "@/app/api/v1/spaces/[spaceId]/route";
+import { setContainerForTests, type Container } from "@/composition/container";
+import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
+import { newPlan, planOf, plansPath, putCapacities, setCapacities } from "../support/budgeting";
+import { addGuest, cop, household, joinHousehold, memberIdOf } from "../support/ledger";
+
+let app: Container;
+beforeAll(() => {
+  app = startTestApp();
+});
+afterAll(async () => {
+  setContainerForTests(undefined);
+  await app.pool.end();
+});
+
+/** HU-E6-02 Background: a DRAFT plan for 2026-11 in Household with Ana and Juan. */
+const draft = async () => {
+  const h = await household();
+  const plan = await newPlan(h.ana, h.spaceId, "2026-11");
+  return { h, planId: plan.id };
+};
+
+/** A PUT with an arbitrary body, for requests the typed helper cannot build. */
+const putRaw = (user: TestUser, spaceId: string, planId: string, body: unknown, headers = {}) =>
+  call(putCapacitiesRoute, "PUT", plansPath(spaceId, `/${planId}/capacities`), {
+    user,
+    params: { spaceId, planId },
+    body,
+    headers,
+  });
+
+describe("member capacities (HU-E6-02)", () => {
+  it("sets capacities that define the proportional ratio Ana 40.00 % and Juan 60.00 % (golden)", async () => {
+    const { h, planId } = await draft();
+    const response = await putCapacities(h.ana, h.spaceId, planId, [
+      [h.ana.memberId, 1_600_000],
+      [h.juan.memberId, 2_400_000],
+    ]);
+    expect([response.status, response.headers.get("etag")]).toEqual([200, '"2"']);
+    const plan = await response.json();
+    expect(plan.totalCapacity).toEqual(cop(4_000_000));
+    expect(plan.capacities).toEqual([
+      { memberId: h.ana.memberId, amount: cop(1_600_000), share: "40.00" },
+      { memberId: h.juan.memberId, amount: cop(2_400_000), share: "60.00" },
+    ]);
+  });
+
+  it("answers the whole plan with its new ETag and keeps the members it does not list (P5, P9)", async () => {
+    const { h, planId } = await draft();
+    await setCapacities(h.ana, h.spaceId, planId, [[h.ana.memberId, 1_600_000]]);
+    const response = await putCapacities(h.ana, h.spaceId, planId, [[h.juan.memberId, 2_000_000]]);
+    expect([response.status, response.headers.get("etag")]).toEqual([200, '"3"']);
+    const plan = await response.json();
+    expect([plan.id, plan.version, plan.status, plan.lines]).toEqual([planId, 3, "DRAFT", []]);
+    expect(plan.capacities).toEqual([
+      { memberId: h.ana.memberId, amount: cop(1_600_000), share: "44.44" },
+      { memberId: h.juan.memberId, amount: cop(2_000_000), share: "55.56" },
+    ]);
+    expect(plan.totalCapacity).toEqual(cop(3_600_000));
+    expect(await planOf(h.ana, h.spaceId, planId)).toEqual(plan);
+  });
+
+  it("rejects a negative capacity, a capacity for Marta, and an empty request", async () => {
+    const { h, planId } = await draft();
+    const negative = await putCapacities(h.ana, h.spaceId, planId, [[h.juan.memberId, -100_000]]);
+    expect(await problemOf(negative)).toEqual([422, "InvalidCapacity"]);
+    const marta = await registerUser("Marta");
+    const martaMember = await memberIdOf(marta, marta.spaceId, "Marta");
+    const foreign = await putCapacities(h.ana, h.spaceId, planId, [[martaMember, 100_000]]);
+    expect(await problemOf(foreign)).toEqual([422, "NotASpaceMember"]);
+    expect(await problemOf(await putCapacities(h.ana, h.spaceId, planId, []))).toEqual([
+      422,
+      "ValidationFailed",
+    ]);
+  });
+
+  it("changes nothing when one entry of the request is refused", async () => {
+    const { h, planId } = await draft();
+    const marta = await registerUser("Marta");
+    const martaMember = await memberIdOf(marta, marta.spaceId, "Marta");
+    const mixed = await putCapacities(h.ana, h.spaceId, planId, [
+      [h.ana.memberId, 1_600_000],
+      [martaMember, 100_000],
+    ]);
+    expect(await problemOf(mixed)).toEqual([422, "NotASpaceMember"]);
+    const plan = await planOf(h.ana, h.spaceId, planId);
+    expect([plan.version, plan.totalCapacity]).toEqual([1, cop(0)]);
+  });
+
+  it("refuses a member listed twice, an unknown id, a malformed plan id and more than 100 entries", async () => {
+    const { h, planId } = await draft();
+    const twice = await putCapacities(h.ana, h.spaceId, planId, [
+      [h.juan.memberId, 1],
+      [h.juan.memberId, 2],
+    ]);
+    expect(await problemOf(twice)).toEqual([422, "InvalidCapacity"]);
+    const unknown = await putCapacities(h.ana, h.spaceId, planId, [["not-a-member", 1]]);
+    expect(await problemOf(unknown)).toEqual([422, "NotASpaceMember"]);
+    const malformed = await putCapacities(h.ana, h.spaceId, "not-a-uuid", [[h.ana.memberId, 1]]);
+    expect(await problemOf(malformed)).toEqual([404, "BudgetPlanNotFound"]);
+    const many = Array.from({ length: 101 }, (_, i) => ({ memberId: `member-${i}`, amount: cop(1) }));
+    expect(await problemOf(await putRaw(h.ana, h.spaceId, planId, { capacities: many }))).toEqual([
+      422,
+      "ValidationFailed",
+    ]);
+    expect((await planOf(h.ana, h.spaceId, planId)).version).toBe(1);
+  });
+
+  it("refuses a capacity in another currency or in a currency the app does not know", async () => {
+    const { h, planId } = await draft();
+    const entry = (currency: string) => ({
+      capacities: [{ memberId: h.ana.memberId, amount: { amount: "100", currency } }],
+    });
+    expect(await problemOf(await putRaw(h.ana, h.spaceId, planId, entry("USD")))).toEqual([
+      422,
+      "CurrencyMismatch",
+    ]);
+    expect(await problemOf(await putRaw(h.ana, h.spaceId, planId, entry("ZZZ")))).toEqual([
+      422,
+      "UnknownCurrency",
+    ]);
+    expect((await planOf(h.ana, h.spaceId, planId)).version).toBe(1);
+  });
+
+  it("lets the guest Pedro hold capacity, and Juan the MEMBER set only his own (D15, D17)", async () => {
+    const { h, planId } = await draft();
+    const pedro = await addGuest(h, "Pedro");
+    await setCapacities(h.ana, h.spaceId, planId, [[pedro, 300_000]]);
+    await setCapacities(h.juan, h.spaceId, planId, [[h.juan.memberId, 2_400_000]]);
+    const anas = await putCapacities(h.juan, h.spaceId, planId, [[h.ana.memberId, 1]]);
+    expect(await problemOf(anas)).toEqual([403, "InsufficientRole"]);
+    const plan = await planOf(h.ana, h.spaceId, planId);
+    expect(plan.capacities.map((c) => [c.memberId, c.amount])).toEqual([
+      [h.ana.memberId, cop(0)],
+      [h.juan.memberId, cop(2_400_000)],
+      [pedro, cop(300_000)],
+    ]);
+  });
+
+  it("refuses a MEMBER who lists the guest Pedro, or himself together with Ana, and changes nothing", async () => {
+    const { h, planId } = await draft();
+    const pedro = await addGuest(h, "Pedro");
+    const guest = await putCapacities(h.juan, h.spaceId, planId, [[pedro, 1]]);
+    expect(await problemOf(guest)).toEqual([403, "InsufficientRole"]);
+    const both = await putCapacities(h.juan, h.spaceId, planId, [
+      [h.juan.memberId, 1],
+      [h.ana.memberId, 1],
+    ]);
+    expect(await problemOf(both)).toEqual([403, "InsufficientRole"]);
+    expect((await planOf(h.ana, h.spaceId, planId)).version).toBe(1);
+  });
+
+  it("lets an ADMIN set anyone's capacity, the guest Pedro's included", async () => {
+    const { h, planId } = await draft();
+    const luis = await joinHousehold(h, "Luis", "ADMIN");
+    const pedro = await addGuest(h, "Pedro");
+    const plan = await setCapacities(luis, h.spaceId, planId, [
+      [h.juan.memberId, 2_400_000],
+      [pedro, 300_000],
+    ]);
+    expect(plan.totalCapacity).toEqual(cop(2_700_000));
+  });
+
+  it("refuses a VIEWER, even for his own capacity, and a stranger gets 404", async () => {
+    const { h, planId } = await draft();
+    const vera = await joinHousehold(h, "Vera", "VIEWER");
+    expect(await problemOf(await putCapacities(vera, h.spaceId, planId, [[vera.memberId, 1]]))).toEqual([
+      403,
+      "InsufficientRole",
+    ]);
+    const marta = await registerUser("Marta");
+    expect(await problemOf(await putCapacities(marta, h.spaceId, planId, [[h.ana.memberId, 1]]))).toEqual([
+      404,
+      "SpaceNotFound",
+    ]);
+    const anonymous = await call(putCapacitiesRoute, "PUT", plansPath(h.spaceId, `/${planId}/capacities`), {
+      params: { spaceId: h.spaceId, planId },
+      body: { capacities: [{ memberId: h.ana.memberId, amount: cop(1) }] },
+    });
+    expect(await problemOf(anonymous)).toEqual([401, "Unauthenticated"]);
+    expect((await planOf(h.ana, h.spaceId, planId)).version).toBe(1);
+  });
+
+  it("answers 404 for a plan the space does not have", async () => {
+    const { h } = await draft();
+    const other = await newPlan(h.ana, h.spaceId, "2026-12");
+    const marta = await registerUser("Marta");
+    const foreign = await newPlan(marta, marta.spaceId, "2026-11");
+    expect(await problemOf(await putCapacities(h.ana, h.spaceId, foreign.id, [[h.ana.memberId, 1]]))).toEqual(
+      [404, "BudgetPlanNotFound"],
+    );
+    expect((await planOf(h.ana, h.spaceId, other.id)).version).toBe(1);
+  });
+
+  it("refuses a change in an archived space (HU-E1-09)", async () => {
+    const { h, planId } = await draft();
+    const archived = await call(archiveSpace, "POST", `/api/v1/spaces/${h.spaceId}/archive`, {
+      user: h.ana,
+      params: { spaceId: h.spaceId },
+    });
+    expect(archived.status).toBe(204);
+    const refused = await putCapacities(h.ana, h.spaceId, planId, [[h.ana.memberId, 1_600_000]]);
+    expect(await problemOf(refused)).toEqual([409, "SpaceArchived"]);
+    expect((await planOf(h.ana, h.spaceId, planId)).totalCapacity).toEqual(cop(0));
+  });
+
+  it("drops a guest who was removed from the total and refuses a capacity for him (P7)", async () => {
+    const { h, planId } = await draft();
+    const pedro = await addGuest(h, "Pedro");
+    await setCapacities(h.ana, h.spaceId, planId, [
+      [h.ana.memberId, 1_600_000],
+      [pedro, 300_000],
+    ]);
+    const removed = await call(removeGuestMember, "DELETE", `/api/v1/spaces/${h.spaceId}/guests/${pedro}`, {
+      user: h.ana,
+      params: { spaceId: h.spaceId, memberId: pedro },
+    });
+    expect(removed.status).toBe(204);
+    const refused = await putCapacities(h.ana, h.spaceId, planId, [[pedro, 1]]);
+    expect(await problemOf(refused)).toEqual([422, "NotASpaceMember"]);
+    const plan = await planOf(h.ana, h.spaceId, planId);
+    expect(plan.capacities.map((c) => c.memberId)).toEqual([h.ana.memberId, h.juan.memberId]);
+    expect(plan.totalCapacity).toEqual(cop(1_600_000));
+  });
+
+  it("refuses a stale If-Match with 412 and changes nothing (Review Focus 1)", async () => {
+    const { h, planId } = await draft();
+    await setCapacities(h.ana, h.spaceId, planId, [[h.ana.memberId, 1_600_000]], 1);
+    const stale = await putCapacities(h.ana, h.spaceId, planId, [[h.ana.memberId, 1]], 1);
+    expect(await problemOf(stale)).toEqual([412, "PreconditionFailed"]);
+    const plan = await planOf(h.ana, h.spaceId, planId);
+    expect([plan.version, plan.capacities[0]!.amount]).toEqual([2, cop(1_600_000)]);
+  });
+
+  it("refuses a malformed If-Match with 412, and writes without If-Match too", async () => {
+    const { h, planId } = await draft();
+    const body = { capacities: [{ memberId: h.ana.memberId, amount: cop(1_600_000) }] };
+    const weak = await putRaw(h.ana, h.spaceId, planId, body, { "if-match": 'W/"1"' });
+    expect(await problemOf(weak)).toEqual([412, "PreconditionFailed"]);
+    expect((await planOf(h.ana, h.spaceId, planId)).version).toBe(1);
+    expect((await putRaw(h.ana, h.spaceId, planId, body)).status).toBe(200);
+  });
+
+  it("gives each plan of a semi-monthly space its own capacities (HU-E6-01)", async () => {
+    const ana = await registerUser("Ana");
+    const semi = await call(updateSpace, "PATCH", `/api/v1/spaces/${ana.spaceId}`, {
+      user: ana,
+      params: { spaceId: ana.spaceId },
+      body: { periodPolicy: { kind: "SEMI_MONTHLY", day1: 1, day2: 16 } },
+    });
+    expect(semi.status).toBe(200);
+    const h1 = await newPlan(ana, ana.spaceId, "2026-11 H1");
+    const h2 = await newPlan(ana, ana.spaceId, "2026-11 H2");
+    const member = h1.capacities[0]!.memberId;
+    await setCapacities(ana, ana.spaceId, h1.id, [[member, 800_000]]);
+    expect((await planOf(ana, ana.spaceId, h1.id)).totalCapacity).toEqual(cop(800_000));
+    expect((await planOf(ana, ana.spaceId, h2.id)).totalCapacity).toEqual(cop(0));
+  });
+});

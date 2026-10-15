@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { ZodOpenApiPathsObject } from "zod-openapi";
 import {
   jsonContent,
+  moneyFromDto,
   MoneySchema,
   percentOf,
   PeriodSchema,
@@ -12,6 +13,7 @@ import {
 } from "@/shared/http/contracts";
 import type { HttpSuccess } from "@/shared/http/define-route";
 import { etagOf } from "@/shared/http/etag";
+import { ok, type Money, type Result } from "@/shared/kernel";
 import {
   ALLOCATION_RULES,
   FUNDINGS,
@@ -87,6 +89,31 @@ export const BudgetPlanSchema = z.object({
 
 /** HU-E6-01: the period's label in the space policy, e.g. "2026-11" (MONTHLY) or "2026-11 H1" (SEMI_MONTHLY). */
 export const CreatePlanBodySchema = z.object({ period: z.string().max(20) });
+
+const Id = z.string().min(1).max(64);
+/** Members per request: bounds the payload; membership is checked by the domain. */
+const MAX_MEMBERS = 100;
+
+/** HU-E6-02: the listed members' capacities; members not listed keep theirs. */
+export const SetCapacitiesBodySchema = z.object({
+  capacities: z
+    .array(z.object({ memberId: Id, amount: MoneySchema }))
+    .min(1)
+    .max(MAX_MEMBERS),
+});
+
+/** HU-E6-02: the capacities as the use case takes them; fails only for currencies the kernel does not know. */
+export const capacitiesFromBody = (
+  body: z.infer<typeof SetCapacitiesBodySchema>,
+): Result<{ memberId: string; amount: Money }[]> => {
+  const capacities: { memberId: string; amount: Money }[] = [];
+  for (const entry of body.capacities) {
+    const amount = moneyFromDto(entry.amount);
+    if (!amount.ok) return amount;
+    capacities.push({ memberId: entry.memberId, amount: amount.value });
+  }
+  return ok(capacities);
+};
 
 const lineDto = (figure: LineFigure, currency: string): z.infer<typeof BudgetLineSchema> => {
   const { line, allocation } = figure;
@@ -165,6 +192,33 @@ const SpacePath = z.object({ spaceId: z.string() });
 const PlanPath = SpacePath.extend({ planId: z.string() });
 const planResponse = (description: string) => ({ description, content: jsonContent(BudgetPlanSchema) });
 
+const IfMatchHeader = z.object({ "if-match": z.string().optional() });
+
+/** A write to a plan (HU-E6-02 … HU-E6-05): If-Match is optional, and the answer is the plan with its new ETag. */
+const planWrite = <P extends z.ZodObject>(
+  operationId: string,
+  summary: string,
+  path: P,
+  body: z.ZodType | null,
+  errors: Record<string, string>,
+  status: "200" | "201" = "200",
+) => ({
+  operationId,
+  summary,
+  ...securedByUser,
+  requestParams: { path, header: IfMatchHeader },
+  ...(body === null ? {} : { requestBody: { content: jsonContent(body) } }),
+  responses: {
+    [status]: planResponse("The plan with its new ETag"),
+    ...problems({
+      "401": "Unauthenticated",
+      "403": "InsufficientRole",
+      "412": "PreconditionFailed",
+      ...errors,
+    }),
+  },
+});
+
 export const budgetingPaths: ZodOpenApiPathsObject = {
   "/api/v1/spaces/{spaceId}/plans": {
     post: {
@@ -197,5 +251,18 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
         ...problems({ "401": "Unauthenticated", "404": "SpaceNotFound, BudgetPlanNotFound" }),
       },
     },
+  },
+  "/api/v1/spaces/{spaceId}/plans/{planId}/capacities": {
+    put: planWrite(
+      "setMemberCapacities",
+      "Set the listed members' capacities; the others keep theirs, and a MEMBER may set only their own (D17)",
+      PlanPath,
+      SetCapacitiesBodySchema,
+      {
+        "404": "SpaceNotFound, BudgetPlanNotFound",
+        "409": "SpaceArchived",
+        "422": "ValidationFailed, InvalidCapacity, NotASpaceMember, CurrencyMismatch, UnknownCurrency",
+      },
+    ),
   },
 };
