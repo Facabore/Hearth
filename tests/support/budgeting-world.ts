@@ -1,4 +1,4 @@
-import type { BudgetingDeps, PlanSpending } from "@/modules/budgeting/application";
+import type { BudgetingDeps, PlanSpending, PreviousIncome } from "@/modules/budgeting/application";
 import {
   createSpaceAccess,
   type SpaceId,
@@ -73,4 +73,14 @@ export const budgetingWorld = (
     tm: memoryTm,
   };
   return { spaces, plans, spending, deps };
+};
+
+/** D17 PreviousIncome over fixed personal-space incomes per user (COP unless given); records who was asked. */
+export const fixedIncome = (byUser: Readonly<Record<string, bigint>>, currency = "COP") => {
+  const asked: { userId: string; from: LocalDate; to: LocalDate }[] = [];
+  const previousIncome: PreviousIncome = async (userId, from, to) => {
+    asked.push({ userId, from, to });
+    return { amount: byUser[userId] ?? 0n, currency };
+  };
+  return { previousIncome, asked };
 };

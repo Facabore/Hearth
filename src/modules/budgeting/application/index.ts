@@ -20,9 +20,21 @@ export type {
   PlanFigures,
   PlanParts,
 } from "../domain/plan-figures";
-export type { BudgetPlanRepository, PlanContents } from "./ports";
-export type { PlanSpending } from "./ports";
+export type {
+  BudgetPlanRepository,
+  CapacityRepository,
+  PlanContents,
+  PlanSpending,
+  PreviousIncome,
+} from "./ports";
 export type { BudgetingDeps } from "./deps";
 export type { BudgetPlanView } from "./plan-view";
 export { createCreateBudgetPlan, type CreateBudgetPlan } from "./create-budget-plan";
 export { createGetBudgetPlan, type GetBudgetPlan } from "./get-budget-plan";
+export {
+  createSetMemberCapacities,
+  type CapacityDeps,
+  type SetMemberCapacities,
+  type SetMemberCapacitiesInput,
+} from "./set-member-capacities";
+export { createSuggestCapacity, type CapacitySuggestion, type SuggestCapacity } from "./suggest-capacity";

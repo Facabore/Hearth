@@ -3,6 +3,7 @@ import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizz
 import { isUuid, type LocalDate, type StoredPeriod } from "@/shared/kernel";
 import type { BudgetPlanRepository, PlanContents } from "../application/ports";
 import type { BudgetLine, BudgetLineId } from "../domain/budget-line";
+import type { MemberCapacity } from "../domain/capacity";
 import type { BudgetPlan, BudgetPlanId } from "../domain/plan";
 import {
   budgetAllocations,
@@ -151,5 +152,18 @@ export class DrizzleBudgetPlanRepository implements BudgetPlanRepository {
             .where(and(inArray(budgetAllocations.lineId, lineIds), isNull(budgetAllocations.supersededAt)))
             .orderBy(asc(budgetAllocations.lineId), asc(budgetAllocations.memberId));
     return { capacities, lines: lineRows.map(toLine), mappings, allocations };
+  }
+
+  async setCapacities(planId: BudgetPlanId, capacities: readonly MemberCapacity[], at: Date): Promise<void> {
+    if (capacities.length === 0) return;
+    await this.tm
+      .executor()
+      .insert(budgetMemberCapacities)
+      .values(capacities.map((c) => ({ planId, memberId: c.memberId, amount: c.amount, updatedAt: at })))
+      // HU-E6-02: an edit, not a delete: the member's row keeps its key and takes the new amount.
+      .onConflictDoUpdate({
+        target: [budgetMemberCapacities.planId, budgetMemberCapacities.memberId],
+        set: { amount: sql`excluded.amount`, updatedAt: sql`excluded.updated_at` },
+      });
   }
 }

@@ -1,4 +1,5 @@
 import type { LocalDate, StoredPeriod } from "@/shared/kernel";
+import type { MemberCapacity } from "../domain/capacity";
 import type { BudgetPlan, BudgetPlanId } from "../domain/plan";
 import type { PlanParts } from "../domain/plan-figures";
 
@@ -42,3 +43,19 @@ export interface PlanSpending {
     to: LocalDate,
   ): Promise<{ accountId: string; amount: bigint }[]>;
 }
+
+/** HU-E6-02: capacities are edited in place; a member without one counts as 0. */
+export interface CapacityRepository {
+  /** Inserts or replaces the capacity of each listed member; members not listed keep theirs. */
+  setCapacities(planId: BudgetPlanId, capacities: readonly MemberCapacity[], at: Date): Promise<void>;
+}
+
+/**
+ * D17: the income `userId` recorded in their personal space dated within [from, to], in its currency; null when
+ * the user has no personal space. Bound to the spaces and ledger modules; only the caller's income is asked for.
+ */
+export type PreviousIncome = (
+  userId: string,
+  from: LocalDate,
+  to: LocalDate,
+) => Promise<{ readonly amount: bigint; readonly currency: string } | null>;

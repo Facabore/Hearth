@@ -74,6 +74,11 @@ export class InMemoryBudgetPlans implements BudgetPlanRepository {
     };
   }
 
+  /** CapacityRepository, like DrizzleBudgetPlanRepository.setCapacities. */
+  async setCapacities(planId: string, capacities: readonly MemberCapacity[]): Promise<void> {
+    this.mergeCapacities(planId, capacities);
+  }
+
   /** Test setup: parts of a plan as earlier writes would have left them. */
   seed(planId: string, parts: Partial<PlanContents>): void {
     this.mergeCapacities(planId, parts.capacities ?? []);

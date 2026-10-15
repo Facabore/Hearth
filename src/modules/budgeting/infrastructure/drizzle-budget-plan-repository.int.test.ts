@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
+import { createSpaceAccess } from "@/modules/spaces/application";
+import { DrizzleSpaceRepository } from "@/modules/spaces/infrastructure/drizzle-space-repository";
 import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
-import { domainError, err, ok, type LocalDate, type Result } from "@/shared/kernel";
+import { domainError, err, FixedClock, ok, type LocalDate, type Money, type Result } from "@/shared/kernel";
 import { aLine } from "../../../../tests/support/budget-fixtures";
 import { testDatabase } from "../../../../tests/support/database";
 import {
@@ -11,8 +13,10 @@ import {
   sharedSpaceFixture,
   userFixture,
 } from "../../../../tests/support/fixtures";
+import { codeOf, money, sequentialIds } from "../../../../tests/support/fakes";
 import { InMemoryBudgetPlans } from "../../../../tests/support/in-memory-budgeting";
-import type { BudgetPlanRepository } from "../application/ports";
+import type { BudgetPlanRepository, CapacityRepository } from "../application/ports";
+import { createSetMemberCapacities } from "../application/set-member-capacities";
 import type { BudgetLine, BudgetLineId } from "../domain/budget-line";
 import type { BudgetPlan, BudgetPlanId } from "../domain/plan";
 import { DrizzleBudgetPlanRepository } from "./drizzle-budget-plan-repository";
@@ -420,5 +424,74 @@ describe("DrizzleBudgetPlanRepository lockForWrite (spec 7)", () => {
       [plan.id],
     );
     expect(rows[0].n).toBe(1);
+  });
+});
+
+describe("DrizzleBudgetPlanRepository capacities (HU-E6-02)", () => {
+  it("inserts and replaces capacities like its in-memory twin, keeping the members not listed", async () => {
+    const { space, fixture } = await household();
+    const pedro = await guestMemberFixture(pool, fixture, "Pedro");
+    const november = aPlan(space.id, "2026-11", "2026-11-01", "2026-11-30");
+    const run = async (plans: BudgetPlanRepository & CapacityRepository) => {
+      await plans.add(november);
+      await plans.setCapacities(
+        november.id,
+        [
+          { memberId: fixture.memberId, amount: 160_000_000n },
+          { memberId: pedro, amount: 1n },
+        ],
+        at,
+      );
+      await plans.setCapacities(november.id, [{ memberId: pedro, amount: 30_000_000n }], at);
+      await plans.setCapacities(november.id, [], at);
+      return (await plans.contents(november.id)).capacities;
+    };
+    const expected = [
+      { memberId: fixture.memberId, amount: 160_000_000n },
+      { memberId: pedro, amount: 30_000_000n },
+    ].sort((a, b) => (a.memberId < b.memberId ? -1 : 1));
+    expect(await run(new InMemoryBudgetPlans())).toEqual(expected);
+    expect(await run(repo)).toEqual(expected);
+  });
+});
+
+describe("SetMemberCapacities over PostgreSQL (HU-E6-02, spec 7)", () => {
+  it("rolls the version lock back with a refused write and leaves the capacities as they were", async () => {
+    const { space, fixture } = await household();
+    const plan = aPlan(space.id, "2026-11", "2026-11-01", "2026-11-30");
+    await repo.add(plan);
+    const spaces = new DrizzleSpaceRepository(tm);
+    const set = createSetMemberCapacities({
+      access: createSpaceAccess(spaces),
+      members: spaces,
+      plans: repo,
+      capacities: repo,
+      spending: { expensesByCategory: async () => [], transfersIntoAccounts: async () => [] },
+      ids: sequentialIds("budget"),
+      clock: new FixedClock(later),
+      tm,
+    });
+    const as = (capacities: { memberId: string; amount: Money }[], expectedVersion: number | null = null) =>
+      set({ spaceId: space.id, userId: fixture.userId, planId: plan.id, expectedVersion, capacities });
+    const stored = async () => ({
+      version: (await repo.find(space.id, plan.id))?.version,
+      capacities: (await repo.contents(plan.id)).capacities,
+    });
+
+    expect(codeOf(await as([{ memberId: fixture.memberId, amount: money(160_000_000n) }]))).toBe("ok");
+    const written = { version: 2, capacities: [{ memberId: fixture.memberId, amount: 160_000_000n }] };
+    expect(await stored()).toEqual(written);
+
+    // The first two pass the lock and are refused afterwards, the third is refused by the lock itself.
+    const refused = [
+      await as([
+        { memberId: fixture.memberId, amount: money(1n) },
+        { memberId: randomUUID(), amount: money(1n) },
+      ]),
+      await as([{ memberId: fixture.memberId, amount: money(1n, "USD") }]),
+      await as([{ memberId: fixture.memberId, amount: money(1n) }], 1),
+    ];
+    expect(refused.map(codeOf)).toEqual(["NotASpaceMember", "CurrencyMismatch", "PreconditionFailed"]);
+    expect(await stored()).toEqual(written);
   });
 });
