@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { aLine, referenceLines } from "../../../../tests/support/budget-fixtures";
+import { codeOf } from "../../../../tests/support/fakes";
 import {
+  activationCheck,
   lineForCategory,
   planFigures,
   type PeriodSpending,
@@ -236,5 +238,59 @@ describe("plan figures beyond the reference plan", () => {
       [JUAN, 70_560_000n],
       [PEDRO, 29_400_000n],
     ]);
+  });
+});
+
+describe("activationCheck (HU-E6-07)", () => {
+  it("accepts the reference plan: its lines fit its capacity and every allocation holds", () => {
+    expect(codeOf(activationCheck(figures(reference())))).toBe("ok");
+  });
+
+  it("refuses Free at 42 % / 57 %, naming it", () => {
+    const allocations = [
+      { lineId: "line-free", memberId: ANA, value: 4200n },
+      { lineId: "line-free", memberId: JUAN, value: 5700n },
+    ];
+    expect(activationCheck(figures(reference({ allocations })))).toEqual({
+      ok: false,
+      error: { code: "InvalidAllocation", details: { lineIds: ["line-free"] } },
+    });
+  });
+
+  it("refuses a plan whose capacity was reduced below its lines: Juan at 2,000,000 COP", () => {
+    const capacities = [
+      { memberId: ANA, amount: 160_000_000n },
+      { memberId: JUAN, amount: 200_000_000n },
+    ];
+    expect(codeOf(activationCheck(figures(reference({ capacities }))))).toBe("PlanExceedsCapacity");
+  });
+
+  it("does not read spending: an overspent line neither blocks activation nor changes the answer", () => {
+    const overspending: PeriodSpending = {
+      byCategory: [{ categoryId: "cat-rent", amount: 150_000_000n }],
+      byAccount: [],
+    };
+    const overspent = figures(reference(), [ANA, JUAN], overspending);
+    expect(line(overspent, "Rent").available).toBe(-30_000_000n);
+    expect(codeOf(activationCheck(overspent))).toBe("ok");
+  });
+
+  it("names every flagged line in plan order, and reports the capacity first when both fail", () => {
+    const lines = reference().lines.map((l) =>
+      l.name === "Home" ? { ...l, allocationRule: "FIXED" as const } : l,
+    );
+    const allocations = [
+      { lineId: "line-home", memberId: ANA, value: 50_000_000n },
+      { lineId: "line-free", memberId: ANA, value: 4200n },
+      { lineId: "line-free", memberId: JUAN, value: 5700n },
+    ];
+    expect(activationCheck(figures(reference({ lines, allocations })))).toEqual({
+      ok: false,
+      error: { code: "InvalidAllocation", details: { lineIds: ["line-home", "line-free"] } },
+    });
+    const capacities = [{ memberId: ANA, amount: 100_000_000n }];
+    expect(codeOf(activationCheck(figures(reference({ lines, allocations, capacities }))))).toBe(
+      "PlanExceedsCapacity",
+    );
   });
 });

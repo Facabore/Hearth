@@ -1,3 +1,4 @@
+import { domainError, err, ok, type Result } from "@/shared/kernel";
 import { assignedAmounts, type LineAllocation } from "./allocation";
 import type { AllocationRule, BudgetLine, CategoryMapping } from "./budget-line";
 import { capacityOf, shareOfTotal, totalCapacity, type MemberCapacity } from "./capacity";
@@ -143,4 +144,15 @@ export const planFigures = (input: {
     lines,
     unbudgeted: parts.lines.some((l) => l.isCatchAll) ? null : { spent: unbudgeted, available: -unbudgeted },
   };
+};
+
+/**
+ * HU-E6-07, spec 5.2: a plan is activated only while its lines fit its capacity (PlanExceedsCapacity, checked
+ * first) and every allocation holds (InvalidAllocation, its `lineIds` naming every flagged line in plan order,
+ * ruling P13). Neither depends on what was spent.
+ */
+export const activationCheck = (figures: Pick<PlanFigures, "unallocated" | "lines">): Result<void> => {
+  if (figures.unallocated < 0n) return err(domainError("PlanExceedsCapacity"));
+  const lineIds = figures.lines.filter((l) => l.allocation.invalid).map((l) => l.line.id);
+  return lineIds.length === 0 ? ok(undefined) : err(domainError("InvalidAllocation", { lineIds }));
 };

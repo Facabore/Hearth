@@ -9,7 +9,7 @@ export interface BudgetPlan {
   readonly id: BudgetPlanId;
   readonly spaceId: string;
   readonly period: Period;
-  /** DRAFT until HU-E6-07 activates and closes plans; DRAFT plans never drive splits (spec 5.3). */
+  /** HU-E6-07: DRAFT → ACTIVE → CLOSED; only ACTIVE plans drive splits (spec 5.3), CLOSED ones never change. */
   readonly status: PlanStatus;
   /** HU-E6-06: the plan this one was copied from; null for a plan created empty. */
   readonly createdFrom: BudgetPlanId | null;
@@ -44,3 +44,22 @@ export const openPlan = (input: {
         createdBy: input.createdBy,
         createdAt: input.now,
       });
+
+/** HU-E6-07: the only moves of a plan's status; nothing leaves CLOSED (no reopening in v1). */
+const NEXT = new Map<PlanStatus, PlanStatus>([
+  ["DRAFT", "ACTIVE"],
+  ["ACTIVE", "CLOSED"],
+]);
+
+/** HU-E6-07: the plan moved to `to`; any other move is InvalidPlanTransition (ruling P12). */
+export const transitioned = (plan: BudgetPlan, to: PlanStatus): Result<BudgetPlan> =>
+  NEXT.get(plan.status) === to
+    ? ok({ ...plan, status: to })
+    : err(domainError("InvalidPlanTransition", { from: plan.status, to }));
+
+/**
+ * HU-E6-07: a CLOSED plan's figures are frozen, so neither the plan nor its parts change any more (PeriodClosed);
+ * DRAFT and ACTIVE plans are edited (ruling P13).
+ */
+export const editablePlan = (plan: BudgetPlan): Result<BudgetPlan> =>
+  plan.status === "CLOSED" ? err(domainError("PeriodClosed")) : ok(plan);
