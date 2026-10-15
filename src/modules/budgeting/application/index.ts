@@ -55,3 +55,12 @@ export {
   type AllocationDeps,
 } from "./allocate-budget-line";
 export { createClosedPeriodGuard, type ClosedPeriods } from "./closed-periods";
+export type { PlanStatusRepository } from "./ports";
+export {
+  createActivateBudgetPlan,
+  createCloseBudgetPlan,
+  type ActivateBudgetPlan,
+  type CloseBudgetPlan,
+  type PlanStatusDeps,
+  type PlanTransitionInput,
+} from "./plan-lifecycle";
