@@ -26,11 +26,18 @@ import {
   createGetBudgetPlan,
   createSetMemberCapacities,
   createSuggestCapacity,
+  createAddBudgetLine,
+  createRemoveBudgetLine,
+  createUpdateBudgetLine,
   type CreateBudgetPlan,
   type GetBudgetPlan,
   type PreviousIncome,
   type SetMemberCapacities,
   type SuggestCapacity,
+  type AddBudgetLine,
+  type RemoveBudgetLine,
+  type SavingsAccountReader,
+  type UpdateBudgetLine,
 } from "@/modules/budgeting/application";
 import { DrizzleBudgetPlanRepository } from "@/modules/budgeting/infrastructure/drizzle-budget-plan-repository";
 import {
@@ -151,7 +158,7 @@ import { DrizzleIdempotencyStore } from "@/shared/infrastructure/drizzle-idempot
 import { loadEnv, type Env } from "@/shared/infrastructure/env";
 import { SystemClock } from "@/shared/infrastructure/system-clock";
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
-import { map, type AuthUser, type Result } from "@/shared/kernel";
+import { isUuid, map, type AuthUser, type Result } from "@/shared/kernel";
 import { accountBalancesFrom } from "./account-balances";
 
 /** Process-wide dependencies, built once from the environment. */
@@ -220,6 +227,9 @@ export interface Container extends RouteDeps {
     readonly getPlan: GetBudgetPlan;
     readonly setCapacities: SetMemberCapacities;
     readonly suggestCapacity: SuggestCapacity;
+    readonly addLine: AddBudgetLine;
+    readonly updateLine: UpdateBudgetLine;
+    readonly removeLine: RemoveBudgetLine;
   };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
@@ -364,11 +374,29 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     const { income } = await ledgerQueries.totals({ spaceId: personal.id, from, to });
     return { amount: income, currency: personal.currency };
   };
+  // HU-E6-03: SAVINGS lines name members' savings accounts, which live in their personal spaces (D9).
+  const savingsAccounts: SavingsAccountReader = {
+    find: async (accountId) => {
+      // Ids come from request bodies; the port answers null for anything that is not a UUID.
+      if (!isUuid(accountId)) return null;
+      const account = await accountsDeps.accounts.findById(accountId);
+      return account
+        ? {
+            id: account.id,
+            ownerUserId: account.ownerUserId,
+            isSavings: account.type === "SAVINGS",
+            archived: account.archivedAt !== null,
+          }
+        : null;
+    },
+  };
   // HU-E6-01 … HU-E6-05: plans reach members, accounts, categories and the ledger's spending only through ports.
   const budgetingDeps = {
     access,
     members: spaceRepository,
     plans: budgetPlans,
+    lines: budgetPlans,
+    savingsAccounts,
     capacities: budgetPlans,
     previousIncome,
     spending: ledgerQueries,
@@ -525,6 +553,9 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       getPlan: createGetBudgetPlan(budgetingDeps),
       setCapacities: createSetMemberCapacities(budgetingDeps),
       suggestCapacity: createSuggestCapacity(budgetingDeps),
+      addLine: createAddBudgetLine(budgetingDeps),
+      updateLine: createUpdateBudgetLine(budgetingDeps),
+      removeLine: createRemoveBudgetLine(budgetingDeps),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.

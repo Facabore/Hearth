@@ -22,6 +22,7 @@ import {
   type BudgetPlanView,
   type CapacitySuggestion,
   type LineFigure,
+  type LineInput,
 } from "../application";
 
 const moneyOf = (minor: bigint, currency: string): MoneyDto => ({ amount: minor.toString(), currency });
@@ -130,6 +131,25 @@ export const capacitySuggestionDto = (s: CapacitySuggestion): z.infer<typeof Cap
   period: periodDto(s.period),
   suggested: s.suggested === null ? null : moneyOf(s.suggested, s.currency),
 });
+
+/** Savings accounts per line: bounds the payload; ownership is checked by the use case. */
+const MAX_ACCOUNTS = 20;
+
+/** HU-E6-03: a new line; DIRECT and RESET unless given, and not the catch-all unless asked (HU-E6-04). */
+export const AddLineBodySchema = z.object({
+  name: z.string().max(200),
+  plannedAmount: MoneySchema,
+  funding: z.enum(FUNDINGS).optional(),
+  rolloverMode: z.enum(ROLLOVER_MODES).optional(),
+  savingsAccountIds: z.array(Id).max(MAX_ACCOUNTS).optional(),
+  isCatchAll: z.boolean().optional(),
+});
+
+/** HU-E6-03: the body as AddBudgetLine takes it; fails only for currencies the kernel does not know. */
+export const lineFromBody = (body: z.infer<typeof AddLineBodySchema>): Result<LineInput> => {
+  const plannedAmount = moneyFromDto(body.plannedAmount);
+  return plannedAmount.ok ? ok({ ...body, plannedAmount: plannedAmount.value }) : plannedAmount;
+};
 
 const lineDto = (figure: LineFigure, currency: string): z.infer<typeof BudgetLineSchema> => {
   const { line, allocation } = figure;
@@ -293,5 +313,21 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
         ...problems({ "401": "Unauthenticated", "404": "SpaceNotFound, BudgetPlanNotFound" }),
       },
     },
+  },
+  "/api/v1/spaces/{spaceId}/plans/{planId}/lines": {
+    post: planWrite(
+      "addBudgetLine",
+      "Add a line with a planned amount, funding and rollover mode; Σ planned never exceeds total capacity",
+      PlanPath,
+      AddLineBodySchema,
+      {
+        "404": "SpaceNotFound, BudgetPlanNotFound, AccountNotFound",
+        "409":
+          "PlanExceedsCapacity, BudgetLineNameTaken, CatchAllLineAlreadySet, SavingsAccountAlreadyUsed, SavingsLineNotMappable, AccountArchived, SpaceArchived",
+        "422":
+          "ValidationFailed, InvalidBudgetLineName, InvalidPlannedAmount, SavingsAccountRequired, InvalidSavingsAccount, CurrencyMismatch, UnknownCurrency",
+      },
+      "201",
+    ),
   },
 };

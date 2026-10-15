@@ -2,8 +2,9 @@ import { GET as getPlanRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId
 import { POST as createPlanRoute } from "@/app/api/v1/spaces/[spaceId]/plans/route";
 import { PUT as putCapacitiesRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/capacities/route";
 import { GET as suggestionRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/capacity-suggestion/route";
+import { POST as postLineRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/lines/route";
 import { call, type TestUser } from "./app";
-import { cop, type MoneyDto } from "./ledger";
+import { cop, household, newAccount, type MoneyDto } from "./ledger";
 
 export interface AllocationMemberDto {
   memberId: string;
@@ -95,3 +96,64 @@ export const getSuggestion = (user: TestUser, spaceId: string, planId: string) =
     user,
     params: { spaceId, planId },
   });
+
+/** A line as the tests write it: `pesos` becomes `plannedAmount` in COP. */
+export interface LineSpec {
+  name: string;
+  pesos: number;
+  funding?: string;
+  rolloverMode?: string;
+  savingsAccountIds?: string[];
+  isCatchAll?: boolean;
+}
+
+/** HU-E6-03: `user` adds a line to the plan. */
+export const postLine = (
+  user: TestUser,
+  spaceId: string,
+  planId: string,
+  line: LineSpec,
+  version?: number,
+) => {
+  const { pesos, ...fields } = line;
+  return call(postLineRoute, "POST", plansPath(spaceId, `/${planId}/lines`), {
+    user,
+    params: { spaceId, planId },
+    body: { ...fields, plannedAmount: cop(pesos) },
+    headers: ifMatch(version),
+  });
+};
+
+/** Adds the line and returns the plan; throws unless 201. */
+export const addLine = async (...args: Parameters<typeof postLine>): Promise<PlanDto> => {
+  const response = await postLine(...args);
+  if (response.status !== 201) throw new Error(`line failed with status ${response.status}`);
+  return (await response.json()) as PlanDto;
+};
+
+/** The line of `plan` named `name`; throws when there is none. */
+export const lineNamed = (plan: PlanDto, name: string): LineDto => {
+  const line = plan.lines.find((l) => l.name === name);
+  if (!line) throw new Error(`no line named ${name}`);
+  return line;
+};
+
+/**
+ * Spec section 4 in Household: capacities Ana 1,600,000 and Juan 2,400,000 COP and the lines Rent (SHARED_FUND),
+ * Home, Savings (SAVINGS, into Ana's "Ahorros" account) and Free, all RESET and PROPORTIONAL; no catch-all yet.
+ */
+export const referencePlan = async () => {
+  const h = await household();
+  const savings = await newAccount(h.ana.personal, "Ahorros", 0, "SAVINGS");
+  const { id: planId } = await newPlan(h.ana, h.spaceId, "2026-11");
+  await setCapacities(h.ana, h.spaceId, planId, [
+    [h.ana.memberId, 1_600_000],
+    [h.juan.memberId, 2_400_000],
+  ]);
+  const add = (line: LineSpec) => addLine(h.ana, h.spaceId, planId, { rolloverMode: "RESET", ...line });
+  await add({ name: "Rent", pesos: 1_200_000, funding: "SHARED_FUND" });
+  await add({ name: "Home", pesos: 1_470_000, funding: "DIRECT" });
+  await add({ name: "Savings", pesos: 600_000, funding: "SAVINGS", savingsAccountIds: [savings] });
+  const plan = await add({ name: "Free", pesos: 730_000, funding: "DIRECT" });
+  return { h, savings, planId, plan, lineId: (name: string) => lineNamed(plan, name).id };
+};

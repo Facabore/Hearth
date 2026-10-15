@@ -161,6 +161,9 @@ Feature: Budget lines
 - `SAVINGS` lines reference one or more `SAVINGS` accounts; their spending is the transfers into those accounts (spec 5.4).
 - Invariant: Σ plannedAmount ≤ total capacity when adding or increasing a line.
 - Percent of total returned with two decimals; unallocated = capacity − Σ planned.
+- Every line write answers the whole plan (`201` on `POST`, `200` on `PATCH` and `DELETE`); funding defaults to `DIRECT` and rollover to `RESET`. Errors: `InvalidBudgetLineName` (422, 1–60 characters), `InvalidPlannedAmount` (422), `SavingsAccountRequired` (422), `InvalidSavingsAccount` (422: a non-SAVINGS account, an account listed twice, or accounts on a line that is not SAVINGS), `AccountNotFound` (404: unknown, or not owned by a current registered member of the space), `AccountArchived` (409, for accounts a line newly names), `SavingsAccountAlreadyUsed` (409: an account backs one SAVINGS line per plan), `BudgetLineNameTaken` (409), `PlanExceedsCapacity` (409, only when a line is added or increased), `CatchAllLineAlreadySet` (409: one catch-all line per plan, also on `POST` with `isCatchAll`), `SavingsLineNotMappable` (409: a SAVINGS line is never the catch-all and maps no categories), `BudgetLineNotFound` (404).
+- SAVINGS accounts live in their owners' personal spaces, so a shared space's SAVINGS line names its registered members' savings accounts (D9); its spending is the transfers into them during the plan's period, whatever space recorded them.
+- `DELETE …/lines/{lineId}` is logical (D8): the line keeps its row with `deletedAt`, leaves every figure, ends its category mappings and frees its name.
 
 ---
 
