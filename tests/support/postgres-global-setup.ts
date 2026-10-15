@@ -53,6 +53,10 @@ const startContainer = (): string =>
     "POSTGRES_USER=hearth",
     "-e",
     "POSTGRES_PASSWORD=hearth",
+    // The image declares a volume at /var/lib/postgresql; a tmpfs there keeps the throwaway data in memory, so no
+    // anonymous Docker volume is left behind when a run is interrupted before its teardown.
+    "--tmpfs",
+    "/var/lib/postgresql",
     "-p",
     `${process.env.TEST_DOCKER_PUBLISH_HOST ?? "127.0.0.1"}::5432`,
     POSTGRES_IMAGE,
@@ -61,7 +65,7 @@ const startContainer = (): string =>
 /** Best effort: a failed removal is reported but never hides the error that triggered it. */
 const removeContainer = (id: string): void => {
   try {
-    docker("rm", "-f", id);
+    docker("rm", "-f", "--volumes", id);
   } catch (error) {
     console.warn(`Could not remove test database container ${id}`, error);
   }
