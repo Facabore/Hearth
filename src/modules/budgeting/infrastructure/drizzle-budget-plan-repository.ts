@@ -38,6 +38,16 @@ const toLine = (row: typeof budgetLines.$inferSelect): BudgetLine => ({
   createdAt: row.createdAt,
 });
 
+/** The columns a request may change on a line; the allocation rule changes only with its allocation. */
+const lineColumns = (line: BudgetLine) => ({
+  name: line.name,
+  plannedAmount: line.plannedAmount,
+  funding: line.funding,
+  savingsAccountIds: [...line.savingsAccountIds],
+  rolloverMode: line.rolloverMode,
+  isCatchAll: line.isCatchAll,
+});
+
 /** Plans and their parts (D7: figures are derived on read; D8: nothing is deleted). */
 export class DrizzleBudgetPlanRepository implements BudgetPlanRepository {
   constructor(private readonly tm: DrizzleTransactionManager) {}
@@ -165,5 +175,47 @@ export class DrizzleBudgetPlanRepository implements BudgetPlanRepository {
         target: [budgetMemberCapacities.planId, budgetMemberCapacities.memberId],
         set: { amount: sql`excluded.amount`, updatedAt: sql`excluded.updated_at` },
       });
+  }
+
+  async addLine(line: BudgetLine, at: Date): Promise<void> {
+    await this.tm
+      .executor()
+      .insert(budgetLines)
+      .values({
+        ...lineColumns(line),
+        id: line.id,
+        planId: line.planId,
+        originLineId: line.originLineId,
+        allocationRule: line.allocationRule,
+        createdAt: line.createdAt,
+        updatedAt: at,
+      });
+  }
+
+  async saveLine(line: BudgetLine, at: Date): Promise<void> {
+    await this.tm
+      .executor()
+      .update(budgetLines)
+      .set({ ...lineColumns(line), updatedAt: at })
+      .where(and(eq(budgetLines.id, line.id), isNull(budgetLines.deletedAt)));
+  }
+
+  async deleteLine(planId: BudgetPlanId, lineId: BudgetLineId, at: Date): Promise<void> {
+    const db = this.tm.executor();
+    // D8: the row stays; the partial unique indexes free its name, its catch-all flag and its categories.
+    await db
+      .update(budgetLines)
+      .set({ deletedAt: at, updatedAt: at })
+      .where(and(eq(budgetLines.id, lineId), eq(budgetLines.planId, planId), isNull(budgetLines.deletedAt)));
+    await db
+      .update(budgetLineCategories)
+      .set({ unmappedAt: at })
+      .where(
+        and(
+          eq(budgetLineCategories.planId, planId),
+          eq(budgetLineCategories.lineId, lineId),
+          isNull(budgetLineCategories.unmappedAt),
+        ),
+      );
   }
 }

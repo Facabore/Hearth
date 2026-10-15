@@ -1,5 +1,6 @@
 import type { LocalDate, StoredPeriod } from "@/shared/kernel";
 import type { MemberCapacity } from "../domain/capacity";
+import type { BudgetLine, BudgetLineId } from "../domain/budget-line";
 import type { BudgetPlan, BudgetPlanId } from "../domain/plan";
 import type { PlanParts } from "../domain/plan-figures";
 
@@ -59,3 +60,25 @@ export type PreviousIncome = (
   from: LocalDate,
   to: LocalDate,
 ) => Promise<{ readonly amount: bigint; readonly currency: string } | null>;
+
+/** HU-E6-03: lines are edited in place and removed logically (D8). */
+export interface BudgetLineRepository {
+  addLine(line: BudgetLine, at: Date): Promise<void>;
+  /** Persists the name, planned amount, funding, savings accounts, rollover mode and catch-all flag of a current line. */
+  saveLine(line: BudgetLine, at: Date): Promise<void>;
+  /** D8: sets deletedAt once and ends the line's current category mappings; its name and categories are free again. */
+  deleteLine(planId: BudgetPlanId, lineId: BudgetLineId, at: Date): Promise<void>;
+}
+
+/** What budgeting needs to know about an account a SAVINGS line names; bound to the accounts module. */
+export interface BudgetAccount {
+  readonly id: string;
+  readonly ownerUserId: string | null;
+  readonly isSavings: boolean;
+  readonly archived: boolean;
+}
+
+export interface SavingsAccountReader {
+  /** Any account by id, whatever its space; null for unknown or malformed ids. */
+  find(accountId: string): Promise<BudgetAccount | null>;
+}

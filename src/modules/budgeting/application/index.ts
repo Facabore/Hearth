@@ -38,3 +38,5 @@ export {
   type SetMemberCapacitiesInput,
 } from "./set-member-capacities";
 export { createSuggestCapacity, type CapacitySuggestion, type SuggestCapacity } from "./suggest-capacity";
+export type { BudgetAccount, BudgetLineRepository, SavingsAccountReader } from "./ports";
+export { createAddBudgetLine, type AddBudgetLine, type LineDeps, type LineInput } from "./add-budget-line";

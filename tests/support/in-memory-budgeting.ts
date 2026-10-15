@@ -79,6 +79,32 @@ export class InMemoryBudgetPlans implements BudgetPlanRepository {
     this.mergeCapacities(planId, capacities);
   }
 
+  /** BudgetLineRepository, like DrizzleBudgetPlanRepository.addLine. */
+  async addLine(line: BudgetLine): Promise<void> {
+    this.lines.push({ line, deletedAt: null });
+  }
+
+  /** BudgetLineRepository: every field but the allocation rule, which only setAllocation changes. */
+  async saveLine(line: BudgetLine): Promise<void> {
+    this.lines = this.lines.map((r) =>
+      r.line.id === line.id && r.deletedAt === null
+        ? { ...r, line: { ...line, allocationRule: r.line.allocationRule } }
+        : r,
+    );
+  }
+
+  /** BudgetLineRepository: the row stays with deletedAt, and the line's current mappings end. */
+  async deleteLine(planId: string, lineId: string, at: Date): Promise<void> {
+    this.lines = this.lines.map((r) =>
+      r.line.id === lineId && r.line.planId === planId && r.deletedAt === null ? { ...r, deletedAt: at } : r,
+    );
+    this.mappings = this.mappings.map((r) =>
+      r.planId === planId && r.mapping.lineId === lineId && r.unmappedAt === null
+        ? { ...r, unmappedAt: at }
+        : r,
+    );
+  }
+
   /** Test setup: parts of a plan as earlier writes would have left them. */
   seed(planId: string, parts: Partial<PlanContents>): void {
     this.mergeCapacities(planId, parts.capacities ?? []);

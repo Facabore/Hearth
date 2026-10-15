@@ -1,4 +1,10 @@
-import type { BudgetingDeps, PlanSpending, PreviousIncome } from "@/modules/budgeting/application";
+import type {
+  BudgetAccount,
+  BudgetingDeps,
+  PlanSpending,
+  PreviousIncome,
+  SavingsAccountReader,
+} from "@/modules/budgeting/application";
 import {
   createSpaceAccess,
   type SpaceId,
@@ -83,4 +89,17 @@ export const fixedIncome = (byUser: Readonly<Record<string, bigint>>, currency =
     return { amount: byUser[userId] ?? 0n, currency };
   };
   return { previousIncome, asked };
+};
+
+/** HU-E6-03 accounts: Ana's savings account, her archived one and her BANK account; Juan's and Marta's savings. */
+export const ACCOUNTS: readonly BudgetAccount[] = [
+  { id: "acc-savings", ownerUserId: "u-ana", isSavings: true, archived: false },
+  { id: "acc-old-savings", ownerUserId: "u-ana", isSavings: true, archived: true },
+  { id: "acc-bank", ownerUserId: "u-ana", isSavings: false, archived: false },
+  { id: "acc-juan-savings", ownerUserId: "u-juan", isSavings: true, archived: false },
+  { id: "acc-marta-savings", ownerUserId: "u-marta", isSavings: true, archived: false },
+];
+
+export const savingsAccounts: SavingsAccountReader = {
+  find: async (accountId) => ACCOUNTS.find((a) => a.id === accountId) ?? null,
 };
