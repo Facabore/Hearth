@@ -32,7 +32,10 @@ import {
   createMapCategoriesToLine,
   createAllocateBudgetLine,
   createActivateBudgetPlan,
+  createCloseBudgetPlan,
+  createClosedPeriodGuard,
   type ActivateBudgetPlan,
+  type CloseBudgetPlan,
   type CreateBudgetPlan,
   type GetBudgetPlan,
   type PreviousIncome,
@@ -240,6 +243,7 @@ export interface Container extends RouteDeps {
     readonly mapCategories: MapCategoriesToLine;
     readonly allocateLine: AllocateBudgetLine;
     readonly activatePlan: ActivateBudgetPlan;
+    readonly closePlan: CloseBudgetPlan;
   };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
@@ -332,8 +336,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         return category ? { id: category.id, archived: category.archivedAt !== null } : null;
       },
     },
-    // Closing plans arrives with HU-E6-07; until then no period is closed.
-    closedPeriods: { isClosed: async () => false },
+    // HU-E4-06, HU-E6-07: a CLOSED plan's period takes no change; budgeting answers, the ledger never imports it.
+    closedPeriods: createClosedPeriodGuard(budgetPlans),
     storedPeriods,
     // HU-E4-10: the accounts module owns the balance formula (opening balance + movements, HU-E2-04).
     accountBalances: accountBalancesFrom(getAccount),
@@ -593,6 +597,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       mapCategories: createMapCategoriesToLine(budgetingDeps),
       allocateLine: createAllocateBudgetLine(budgetingDeps),
       activatePlan: createActivateBudgetPlan(budgetingDeps),
+      closePlan: createCloseBudgetPlan(budgetingDeps),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.

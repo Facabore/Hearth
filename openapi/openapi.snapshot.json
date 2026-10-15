@@ -5266,7 +5266,7 @@
             }
           },
           "409": {
-            "description": "SpaceArchived",
+            "description": "PeriodClosed, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5515,7 +5515,7 @@
             }
           },
           "409": {
-            "description": "PlanExceedsCapacity, BudgetLineNameTaken, CatchAllLineAlreadySet, SavingsAccountAlreadyUsed, SavingsLineNotMappable, AccountArchived, SpaceArchived",
+            "description": "PeriodClosed, PlanExceedsCapacity, BudgetLineNameTaken, CatchAllLineAlreadySet, SavingsAccountAlreadyUsed, SavingsLineNotMappable, AccountArchived, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5681,7 +5681,7 @@
             }
           },
           "409": {
-            "description": "PlanExceedsCapacity, BudgetLineNameTaken, CatchAllLineAlreadySet, SavingsAccountAlreadyUsed, SavingsLineNotMappable, AccountArchived, SpaceArchived",
+            "description": "PeriodClosed, PlanExceedsCapacity, BudgetLineNameTaken, CatchAllLineAlreadySet, SavingsAccountAlreadyUsed, SavingsLineNotMappable, AccountArchived, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5798,7 +5798,7 @@
             }
           },
           "409": {
-            "description": "SpaceArchived",
+            "description": "PeriodClosed, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5930,7 +5930,7 @@
             }
           },
           "409": {
-            "description": "CategoryAlreadyMapped, CategoryArchived, SavingsLineNotMappable, SpaceArchived",
+            "description": "PeriodClosed, CategoryAlreadyMapped, CategoryArchived, SavingsLineNotMappable, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6153,7 +6153,7 @@
             }
           },
           "409": {
-            "description": "SpaceArchived",
+            "description": "PeriodClosed, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6285,6 +6285,107 @@
           },
           "422": {
             "description": "InvalidAllocation (lineIds names the lines whose allocation does not hold)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/plans/{planId}/close": {
+      "post": {
+        "operationId": "closeBudgetPlan",
+        "summary": "Close an ACTIVE plan: it and the space's transactions dated in its period can no longer be edited; its derived figures may still move",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "planId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "header",
+            "name": "if-match",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The plan with its new ETag",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetPlan"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "InsufficientRole",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound, BudgetPlanNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "InvalidPlanTransition, SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "PreconditionFailed",
             "content": {
               "application/problem+json": {
                 "schema": {

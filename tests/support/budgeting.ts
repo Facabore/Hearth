@@ -10,6 +10,7 @@ import { POST as postLineRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[plan
 import { PUT as putCategoriesRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/lines/[lineId]/categories/route";
 import { PUT as putAllocationRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/lines/[lineId]/allocation/route";
 import { POST as activateRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/activate/route";
+import { POST as closeRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/close/route";
 import { call, type TestUser } from "./app";
 import { cop, household, newAccount, type MoneyDto } from "./ledger";
 
@@ -232,6 +233,14 @@ export const putAllocation = (
 /** HU-E6-07: `user` activates the plan. */
 export const activatePlan = (user: TestUser, spaceId: string, planId: string, version?: number) =>
   call(activateRoute, "POST", plansPath(spaceId, `/${planId}/activate`), {
+    user,
+    params: { spaceId, planId },
+    headers: ifMatch(version),
+  });
+
+/** HU-E6-07: `user` closes the plan. */
+export const closePlan = (user: TestUser, spaceId: string, planId: string, version?: number) =>
+  call(closeRoute, "POST", plansPath(spaceId, `/${planId}/close`), {
     user,
     params: { spaceId, planId },
     headers: ifMatch(version),

@@ -31,7 +31,10 @@ export interface CategoryReader {
   find(spaceId: string, categoryId: string): Promise<LedgerCategory | null>;
 }
 
-/** HU-E4-06: transactions in a CLOSED plan period never change. Always open until HU-E6-07. */
+/**
+ * HU-E4-06: transactions in a CLOSED plan period never change. The composition root binds it to budgeting's
+ * closed-period guard (HU-E6-07).
+ */
 export interface ClosedPeriodGuard {
   isClosed(spaceId: string, date: LocalDate): Promise<boolean>;
 }

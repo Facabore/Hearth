@@ -192,7 +192,7 @@ Notes on placement:
 - HU-E2-02 (shared fund account) belongs to epic E2 but ships in M2, because shared spaces first exist in M2.
 - HU-E1-13 (direct spaces) lives in E1 because creating and reusing the space belongs to `spaces`; it reuses the shared-expense flow of HU-E4-07.
 - The unified-view assertions of HU-E1-11 (M2) become testable once HU-E7-04 (M4) lands.
-- The closed-period scenario of HU-E4-06 (M1) activates once HU-E6-07 (M3) provides the `ClosedPeriodGuard` adapter.
+- The closed-period scenario of HU-E4-06 (M1) is active since HU-E6-07 (M3-B) provides the `ClosedPeriodGuard` adapter.
 - E9 parallel track: HU-E9-01 and HU-E9-02 can start after M0; HU-E9-03 and HU-E9-04 after M1; HU-E9-05 … HU-E9-07 after M2; HU-E9-08 and HU-E9-09 after M3; HU-E9-10 and HU-E9-11 after M4. The default-split scenarios of HU-E9-06 activate once HU-E6-08 (M3) is `Done`.
 - HU-E8-07 (PWA) is a web UI story kept in E8 as a Won't-v1 placeholder; it depends on HU-E9-01 and HU-E9-11 and follows the UI Definition of Done.
 

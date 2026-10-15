@@ -303,7 +303,11 @@ const planResponse = (description: string) => ({ description, content: jsonConte
 
 const IfMatchHeader = z.object({ "if-match": z.string().optional() });
 
-/** A write to a plan (HU-E6-02 … HU-E6-05): If-Match is optional, and the answer is the plan with its new ETag. */
+/**
+ * A write to a plan (HU-E6-02 … HU-E6-07): If-Match is optional, and the answer is the plan with its new ETag. Every
+ * edit of a plan or its parts answers 409 PeriodClosed once the plan is CLOSED; its transitions (`editsPlan` false)
+ * answer InvalidPlanTransition instead.
+ */
 const planWrite = <P extends z.ZodObject>(
   operationId: string,
   summary: string,
@@ -311,6 +315,7 @@ const planWrite = <P extends z.ZodObject>(
   body: z.ZodType | null,
   errors: Record<string, string>,
   status: "200" | "201" = "200",
+  editsPlan = true,
 ) => ({
   operationId,
   summary,
@@ -324,6 +329,7 @@ const planWrite = <P extends z.ZodObject>(
       "403": "InsufficientRole",
       "412": "PreconditionFailed",
       ...errors,
+      ...(editsPlan ? { "409": ["PeriodClosed", errors["409"]].filter(Boolean).join(", ") } : {}),
     }),
   },
 });
@@ -466,6 +472,19 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
         "409": "InvalidPlanTransition, PlanExceedsCapacity, SpaceArchived",
         "422": "InvalidAllocation (lineIds names the lines whose allocation does not hold)",
       },
+      "200",
+      false,
+    ),
+  },
+  "/api/v1/spaces/{spaceId}/plans/{planId}/close": {
+    post: planWrite(
+      "closeBudgetPlan",
+      "Close an ACTIVE plan: it and the space's transactions dated in its period can no longer be edited; its derived figures may still move",
+      PlanPath,
+      null,
+      { "404": "SpaceNotFound, BudgetPlanNotFound", "409": "InvalidPlanTransition, SpaceArchived" },
+      "200",
+      false,
     ),
   },
 };
