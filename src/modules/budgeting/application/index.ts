@@ -64,3 +64,6 @@ export {
   type PlanStatusDeps,
   type PlanTransitionInput,
 } from "./plan-lifecycle";
+export type { CopyDrops } from "../domain/plan-copy";
+export type { NewPlanInput } from "./create-budget-plan";
+export { createCopyBudgetPlan, type CopyBudgetPlan, type CopyDeps, type PlanCopy } from "./copy-budget-plan";

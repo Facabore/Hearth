@@ -59,3 +59,24 @@ export const usableSavingsAccounts = async (
   }
   return ok(undefined);
 };
+
+/**
+ * HU-E6-06, ruling P10: of the accounts a source plan's SAVINGS lines name, the ones its copy keeps: still a SAVINGS
+ * account, not archived, in the plan space's currency (D6), and owned by a current registered member of the space
+ * (P8 amended). Their owners attached them (P8), so a copy names no account anew and asks nothing of its caller.
+ */
+export const copyableSavingsAccounts = async (
+  accounts: SavingsAccountReader,
+  space: { readonly members: readonly SpaceMember[]; readonly spaceCurrency: string },
+  accountIds: readonly string[],
+): Promise<string[]> => {
+  const owners = new Set(space.members.flatMap((m) => (m.userId === null ? [] : [m.userId])));
+  const kept: string[] = [];
+  for (const accountId of new Set(accountIds)) {
+    const account = await accounts.find(accountId);
+    if (account === null || !owners.has(account.ownerUserId)) continue;
+    if (account.isSavings && !account.archived && account.currency === space.spaceCurrency)
+      kept.push(accountId);
+  }
+  return kept;
+};
