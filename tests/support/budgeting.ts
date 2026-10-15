@@ -8,6 +8,7 @@ import {
 } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/lines/[lineId]/route";
 import { POST as postLineRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/lines/route";
 import { PUT as putCategoriesRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/lines/[lineId]/categories/route";
+import { PUT as putAllocationRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/lines/[lineId]/allocation/route";
 import { call, type TestUser } from "./app";
 import { cop, household, newAccount, type MoneyDto } from "./ledger";
 
@@ -208,5 +209,21 @@ export const putCategories = (
     user,
     params: { spaceId, planId, lineId },
     body: { categoryIds },
+    headers: ifMatch(version),
+  });
+
+/** HU-E6-05: `user` allocates the line; `allocation` is the request body. */
+export const putAllocation = (
+  user: TestUser,
+  spaceId: string,
+  planId: string,
+  lineId: string,
+  allocation: unknown,
+  version?: number,
+) =>
+  call(putAllocationRoute, "PUT", plansPath(spaceId, `/${planId}/lines/${lineId}/allocation`), {
+    user,
+    params: { spaceId, planId, lineId },
+    body: allocation,
     headers: ifMatch(version),
   });

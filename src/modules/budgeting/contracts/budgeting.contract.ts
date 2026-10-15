@@ -1,10 +1,12 @@
 import { z } from "zod";
 import type { ZodOpenApiPathsObject } from "zod-openapi";
 import {
+  basisPointsOf,
   jsonContent,
   moneyFromDto,
   MoneySchema,
   percentOf,
+  PercentSchema,
   PeriodSchema,
   periodDto,
   problems,
@@ -19,6 +21,7 @@ import {
   FUNDINGS,
   PLAN_STATUSES,
   ROLLOVER_MODES,
+  type AllocationInput,
   type BudgetPlanView,
   type CapacitySuggestion,
   type LineChanges,
@@ -181,6 +184,44 @@ const MAX_CATEGORIES = 200;
 
 /** HU-E6-04: the line's whole category set; categories left out are unmapped (the rows stay, D8). */
 export const MapCategoriesBodySchema = z.object({ categoryIds: z.array(Id).max(MAX_CATEGORIES) });
+
+/** HU-E6-05: one rule per line; PERCENT and FIXED name current members (guests too) with positive values. */
+export const AllocationBodySchema = z.discriminatedUnion("rule", [
+  z.object({ rule: z.literal("PROPORTIONAL") }),
+  z.object({ rule: z.literal("NONE") }),
+  z.object({
+    rule: z.literal("PERCENT"),
+    members: z.array(z.object({ memberId: Id, percent: PercentSchema })).max(MAX_MEMBERS),
+  }),
+  z.object({
+    rule: z.literal("FIXED"),
+    members: z.array(z.object({ memberId: Id, amount: MoneySchema })).max(MAX_MEMBERS),
+  }),
+]);
+
+/** The body as AllocateBudgetLine takes it: percentages become basis points and FIXED amounts Money. */
+export const allocationFromBody = (body: z.infer<typeof AllocationBodySchema>): Result<AllocationInput> => {
+  switch (body.rule) {
+    case "PROPORTIONAL":
+      return ok({ rule: "PROPORTIONAL" as const });
+    case "NONE":
+      return ok({ rule: "NONE" as const });
+    case "PERCENT":
+      return ok({
+        rule: "PERCENT" as const,
+        members: body.members.map((m) => ({ memberId: m.memberId, basisPoints: basisPointsOf(m.percent) })),
+      });
+    case "FIXED": {
+      const members: { memberId: string; amount: Money }[] = [];
+      for (const m of body.members) {
+        const amount = moneyFromDto(m.amount);
+        if (!amount.ok) return amount;
+        members.push({ memberId: m.memberId, amount: amount.value });
+      }
+      return ok({ rule: "FIXED" as const, members });
+    }
+  }
+};
 
 const lineDto = (figure: LineFigure, currency: string): z.infer<typeof BudgetLineSchema> => {
   const { line, allocation } = figure;
@@ -394,6 +435,19 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
         "404": "SpaceNotFound, BudgetPlanNotFound, BudgetLineNotFound",
         "409": "CategoryAlreadyMapped, CategoryArchived, SavingsLineNotMappable, SpaceArchived",
         "422": "ValidationFailed, CategoryNotInSpace",
+      },
+    ),
+  },
+  "/api/v1/spaces/{spaceId}/plans/{planId}/lines/{lineId}/allocation": {
+    put: planWrite(
+      "allocateBudgetLine",
+      "Allocate a line among members proportionally to capacity, by percentage, by fixed amount, or not at all",
+      LinePath,
+      AllocationBodySchema,
+      {
+        "404": "SpaceNotFound, BudgetPlanNotFound, BudgetLineNotFound",
+        "409": "SpaceArchived",
+        "422": "ValidationFailed, InvalidAllocation, NotASpaceMember, CurrencyMismatch, UnknownCurrency",
       },
     ),
   },

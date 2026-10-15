@@ -30,6 +30,7 @@ import {
   createRemoveBudgetLine,
   createUpdateBudgetLine,
   createMapCategoriesToLine,
+  createAllocateBudgetLine,
   type CreateBudgetPlan,
   type GetBudgetPlan,
   type PreviousIncome,
@@ -41,6 +42,7 @@ import {
   type UpdateBudgetLine,
   type BudgetCategories,
   type MapCategoriesToLine,
+  type AllocateBudgetLine,
 } from "@/modules/budgeting/application";
 import { DrizzleBudgetPlanRepository } from "@/modules/budgeting/infrastructure/drizzle-budget-plan-repository";
 import {
@@ -234,6 +236,7 @@ export interface Container extends RouteDeps {
     readonly updateLine: UpdateBudgetLine;
     readonly removeLine: RemoveBudgetLine;
     readonly mapCategories: MapCategoriesToLine;
+    readonly allocateLine: AllocateBudgetLine;
   };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
@@ -407,6 +410,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     access,
     members: spaceRepository,
     plans: budgetPlans,
+    allocations: budgetPlans,
     mappings: budgetPlans,
     categories: budgetCategories,
     lines: budgetPlans,
@@ -578,6 +582,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       updateLine: createUpdateBudgetLine(budgetingDeps),
       removeLine: createRemoveBudgetLine(budgetingDeps),
       mapCategories: createMapCategoriesToLine(budgetingDeps),
+      allocateLine: createAllocateBudgetLine(budgetingDeps),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.

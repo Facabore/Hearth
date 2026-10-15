@@ -272,6 +272,8 @@ Feature: Line allocation rules
 - One rule per line (all member rows share the rule); assigned amounts are derived, never stored.
 - Rule `NONE` stores no member rows; `assigned`, `contributed` and `gap` are not reported for that line.
 - Percentages stored as basis points (42% = 4200).
+- `PUT …/lines/{lineId}/allocation` takes `{ "rule": "PROPORTIONAL" | "NONE" }`, `{ "rule": "PERCENT", "members": [{ "memberId", "percent": "42" }] }` or `{ "rule": "FIXED", "members": [{ "memberId", "amount" }] }`. The rule is stored on the line (PROPORTIONAL for a new line); PERCENT and FIXED values are member rows that a new allocation supersedes (`superseded_at`, D8). Errors: `InvalidAllocation` (422: values that do not sum to 100 % or to the planned amount, a value that is not positive, a member listed twice, or no members), `NotASpaceMember` (422), `CurrencyMismatch` (422).
+- Assigned amounts are derived on read for the current members in join order (largest remainder in rounding units, spec 5.3). A line answers `allocation.error: "InvalidAllocation"` and no assigned amounts while a PROPORTIONAL line has no capacity to follow, or while PERCENT or FIXED values no longer add up (for instance after a member who held one left).
 
 ---
 
