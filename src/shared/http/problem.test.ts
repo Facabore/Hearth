@@ -62,6 +62,7 @@ describe("statusForCode", () => {
     ["CatchAllLineAlreadySet", 409],
     ["SavingsLineNotMappable", 409],
     ["InvalidAllocation", 422],
+    ["InvalidPlanTransition", 409],
     ["CategoryNotInSpace", 422],
     ["CategoryAlreadyMapped", 409],
     ["SameAccountTransfer", 409],
@@ -137,5 +138,12 @@ describe("public details (HU-E1-08)", () => {
   it("never lets an extension member replace a standard one", async () => {
     const response = problemResponse("SpaceNotFound", "req-4", undefined, { code: "Other", status: 200 });
     expect(await response.json()).toMatchObject({ code: "SpaceNotFound", status: 404 });
+  });
+
+  it("names the flagged lines of an InvalidAllocation, and none of AllocateBudgetLine's reasons (HU-E6-07)", () => {
+    expect(publicDetailsOf("InvalidAllocation", { lineIds: ["line-free"] })).toEqual({
+      lineIds: ["line-free"],
+    });
+    expect(publicDetailsOf("InvalidAllocation", { reason: "percentNotHundred" })).toEqual({});
   });
 });

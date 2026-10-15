@@ -28,6 +28,8 @@ export const ProblemSchema = z.object({
   errors: z.array(z.object({ path: z.string(), message: z.string() })).optional(),
   /** OutstandingBalance only (HU-E1-08, HU-E1-09, HU-E1-12): what is still owed, a positive amount. */
   outstanding: MoneySchema.optional(),
+  /** InvalidAllocation on activation only (HU-E6-07): the lines whose allocation does not hold, in plan order. */
+  lineIds: z.array(z.string()).optional(),
 });
 
 export const moneyToDto = (money: Money): MoneyDto => ({

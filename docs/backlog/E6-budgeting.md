@@ -369,6 +369,7 @@ Feature: Plan lifecycle
 - Use cases: `ActivateBudgetPlan`, `CloseBudgetPlan`. Endpoints: `POST /api/v1/spaces/{spaceId}/plans/{planId}/activate`, `POST .../plans/{planId}/close` (both honour `If-Match`, HU-E0-10).
 - State machine: DRAFT → ACTIVE → CLOSED; no reopening in v1.
 - Provides the `ClosedPeriodGuard` adapter used by `ledger` (HU-E4-06).
+- `POST …/plans/{planId}/activate` has no body, honours an optional `If-Match` and answers the whole plan with its new `ETag` (like every plan write). Activation checks, in this order, that Σ planned does not exceed the current members' capacity (`PlanExceedsCapacity`, 409) and that every allocation holds (`InvalidAllocation`, 422, whose problem lists the flagged lines in `lineIds`). An ACTIVE plan stays editable and is not checked again. Other errors: `InvalidPlanTransition` (409: any move other than DRAFT → ACTIVE → CLOSED), `BudgetPlanNotFound` (404, malformed ids included), `SpaceArchived` (409).
 
 ---
 

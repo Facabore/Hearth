@@ -455,4 +455,17 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
       },
     ),
   },
+  "/api/v1/spaces/{spaceId}/plans/{planId}/activate": {
+    post: planWrite(
+      "activateBudgetPlan",
+      "Activate a DRAFT plan whose lines fit its capacity and whose every allocation holds; it then drives default splits",
+      PlanPath,
+      null,
+      {
+        "404": "SpaceNotFound, BudgetPlanNotFound",
+        "409": "InvalidPlanTransition, PlanExceedsCapacity, SpaceArchived",
+        "422": "InvalidAllocation (lineIds names the lines whose allocation does not hold)",
+      },
+    ),
+  },
 };

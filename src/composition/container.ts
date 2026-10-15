@@ -31,6 +31,8 @@ import {
   createUpdateBudgetLine,
   createMapCategoriesToLine,
   createAllocateBudgetLine,
+  createActivateBudgetPlan,
+  type ActivateBudgetPlan,
   type CreateBudgetPlan,
   type GetBudgetPlan,
   type PreviousIncome,
@@ -237,6 +239,7 @@ export interface Container extends RouteDeps {
     readonly removeLine: RemoveBudgetLine;
     readonly mapCategories: MapCategoriesToLine;
     readonly allocateLine: AllocateBudgetLine;
+    readonly activatePlan: ActivateBudgetPlan;
   };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
@@ -416,6 +419,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     members: spaceRepository,
     plans: budgetPlans,
     allocations: budgetPlans,
+    statuses: budgetPlans,
     mappings: budgetPlans,
     categories: budgetCategories,
     lines: budgetPlans,
@@ -588,6 +592,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       removeLine: createRemoveBudgetLine(budgetingDeps),
       mapCategories: createMapCategoriesToLine(budgetingDeps),
       allocateLine: createAllocateBudgetLine(budgetingDeps),
+      activatePlan: createActivateBudgetPlan(budgetingDeps),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.

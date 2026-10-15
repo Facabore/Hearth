@@ -20,6 +20,8 @@ const EXPLICIT: ReadonlyMap<string, number> = new Map([
   ["AccountNotInSpace", 422],
   ["SavingsAccountRequired", 422],
   ["CategoryNotInSpace", 422],
+  // HU-E6-07: the plan's state, not the request, refuses the move (ruling P12).
+  ["InvalidPlanTransition", 409],
   ["InvitationEmailMismatch", 403],
   ["PasswordTooShort", 422],
   ["EmailTaken", 409],
@@ -43,6 +45,7 @@ const TITLES: ReadonlyMap<number, string> = new Map([
 // RFC 9457 extension members: the only details a client ever sees, per code; all others stay in the log.
 const PUBLIC_DETAILS: ReadonlyMap<string, readonly string[]> = new Map([
   ["OutstandingBalance", ["outstanding"]],
+  ["InvalidAllocation", ["lineIds"]],
 ]);
 
 /** The details of `code` that are part of the API contract, e.g. the outstanding amount (HU-E1-08). */
