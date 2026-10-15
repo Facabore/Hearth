@@ -2,12 +2,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as archiveSpace } from "@/app/api/v1/spaces/[spaceId]/archive/route";
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
 import { GET as listPeriods } from "@/app/api/v1/spaces/[spaceId]/periods/route";
+import { GET as getPlanRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/route";
 import { POST as createPlanRoute } from "@/app/api/v1/spaces/[spaceId]/plans/route";
 import { PATCH as updateSpace } from "@/app/api/v1/spaces/[spaceId]/route";
 import { GET as listTransactions } from "@/app/api/v1/spaces/[spaceId]/transactions/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
-import { createPlan, newPlan, plansPath } from "../support/budgeting";
+import { createPlan, getPlan, newPlan, planOf, plansPath } from "../support/budgeting";
 import { categoryWithKey, cop, household, inSpace, newAccount, post } from "../support/ledger";
 import { joinAs, newSharedSpace } from "../support/spaces";
 
@@ -143,6 +144,113 @@ describe("create a plan for a period (HU-E6-01)", () => {
       body: { period: 202611 },
     });
     expect(await problemOf(malformed)).toEqual([422, "ValidationFailed"]);
+  });
+});
+
+describe("read a plan (HU-E6-01)", () => {
+  it("reads the plan back with its ETag, and a plan without capacities has null shares and an Unbudgeted line at zero", async () => {
+    const h = await household();
+    const plan = await newPlan(h.ana, h.spaceId, "2026-11");
+    const read = await getPlan(h.juan, h.spaceId, plan.id);
+    expect([read.status, read.headers.get("etag")]).toEqual([200, '"1"']);
+    const body = await read.json();
+    expect(body).toEqual(plan);
+    expect(body.capacities).toEqual([
+      { memberId: h.ana.memberId, amount: cop(0), share: null },
+      { memberId: h.juan.memberId, amount: cop(0), share: null },
+    ]);
+    expect([body.lines, body.totalCapacity, body.planned, body.unallocated]).toEqual([
+      [],
+      cop(0),
+      cop(0),
+      cop(0),
+    ]);
+    expect(body.unbudgeted).toEqual({ spent: cop(0), available: cop(0) });
+  });
+
+  it("lets every member read, a VIEWER included", async () => {
+    const h = await household();
+    const viewer = await registerUser("Vera");
+    await joinAs(h.ana, h.spaceId, viewer, "VIEWER");
+    const plan = await newPlan(h.ana, h.spaceId, "2026-11");
+    for (const reader of [h.ana, h.juan, viewer]) {
+      const read = await getPlan(reader, h.spaceId, plan.id);
+      expect([read.status, read.headers.get("etag")]).toEqual([200, '"1"']);
+    }
+    expect((await planOf(viewer, h.spaceId, plan.id)).id).toBe(plan.id);
+  });
+
+  it("hides plans from non-members, other spaces and malformed ids (Review Focus 5)", async () => {
+    const h = await household();
+    const marta = await registerUser("Marta");
+    const plan = await newPlan(h.ana, h.spaceId, "2026-11");
+    expect(await problemOf(await getPlan(marta, h.spaceId, plan.id))).toEqual([404, "SpaceNotFound"]);
+    expect(await problemOf(await getPlan(h.ana, "not-a-uuid", plan.id))).toEqual([404, "SpaceNotFound"]);
+    expect(await problemOf(await getPlan(h.ana, h.spaceId, "not-a-uuid"))).toEqual([
+      404,
+      "BudgetPlanNotFound",
+    ]);
+    expect(await problemOf(await getPlan(h.ana, h.spaceId, crypto.randomUUID()))).toEqual([
+      404,
+      "BudgetPlanNotFound",
+    ]);
+    const personal = await newPlan(h.ana.personal, h.ana.personal.spaceId, "2026-11");
+    expect(await problemOf(await getPlan(h.ana, h.spaceId, personal.id))).toEqual([
+      404,
+      "BudgetPlanNotFound",
+    ]);
+    expect(await problemOf(await getPlan(h.ana.personal, h.ana.personal.spaceId, plan.id))).toEqual([
+      404,
+      "BudgetPlanNotFound",
+    ]);
+    const anonymous = await call(getPlanRoute, "GET", plansPath(h.spaceId, `/${plan.id}`), {
+      params: { spaceId: h.spaceId, planId: plan.id },
+    });
+    expect(await problemOf(anonymous)).toEqual([401, "Unauthenticated"]);
+  });
+
+  it("keeps answering reads in an archived space (HU-E1-09)", async () => {
+    const h = await household();
+    const plan = await newPlan(h.ana, h.spaceId, "2026-11");
+    const archived = await call(archiveSpace, "POST", `/api/v1/spaces/${h.spaceId}/archive`, {
+      user: h.ana,
+      params: { spaceId: h.spaceId },
+    });
+    expect(archived.status).toBe(204);
+    for (const reader of [h.ana, h.juan]) {
+      const read = await getPlan(reader, h.spaceId, plan.id);
+      expect([read.status, read.headers.get("etag")]).toEqual([200, '"1"']);
+      expect(await read.json()).toEqual(plan);
+    }
+  });
+
+  it("computes the spending on read, within the plan's stored dates", async () => {
+    const ana = await registerUser("Ana");
+    const accountId = await newAccount(ana, "Bancolombia", 2_000_000);
+    const categoryId = await categoryWithKey(ana, "groceries");
+    const spendOn = async (date: string, pesos: number) =>
+      expect(
+        (
+          await post(recordExpense, ana, "expenses", {
+            description: "Market",
+            amount: cop(pesos),
+            date,
+            categoryId,
+            accountId,
+          })
+        ).status,
+      ).toBe(201);
+    const plan = await newPlan(ana, ana.spaceId, "2026-11");
+    expect((await patchSpace(ana, ana.spaceId, { periodPolicy: { kind: "MONTHLY", day: 25 } })).status).toBe(
+      200,
+    );
+    await spendOn("2026-10-28", 40_000);
+    await spendOn("2026-11-01", 85_000);
+    await spendOn("2026-11-30", 15_000);
+    await spendOn("2026-12-01", 60_000);
+    const read = await planOf(ana, ana.spaceId, plan.id);
+    expect(read.unbudgeted).toEqual({ spent: cop(100_000), available: cop(-100_000) });
+    expect([read.period, read.version]).toEqual([plan.period, 1]);
   });
 });
 

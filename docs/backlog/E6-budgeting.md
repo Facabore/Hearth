@@ -58,7 +58,7 @@ Feature: Create a period plan
 **Technical notes:**
 - Use case: `CreateBudgetPlan`; port `BudgetPlanRepository`. Endpoints: `POST /api/v1/spaces/{spaceId}/plans` (body: period label), `GET /api/v1/spaces/{spaceId}/plans/{planId}` (with `ETag`, HU-E0-10).
 - Invariant: unique (spaceId, startDate); the period is resolved with the space `periodPolicy`, and its label, startDate and endDate are stored on the plan at creation (spec 5.2, D10).
-- Authorization: the matrix action `plan.manage` (OWNER, ADMIN; in a personal space, its owner) creates and edits plans, and an archived space refuses it (`SpaceArchived`, HU-E1-09). Errors: `PlanAlreadyExists` (409), `InvalidPeriodLabel` (422).
+- Authorization: the matrix action `plan.manage` (OWNER, ADMIN; in a personal space, its owner) creates and edits plans, and an archived space refuses it (`SpaceArchived`, HU-E1-09); reads are `space.read`, so an archived space still reads its plans (HU-E1-09). Errors: `PlanAlreadyExists` (409), `InvalidPeriodLabel` (422), `BudgetPlanNotFound` (404, also for malformed ids and other spaces' plans).
 - Every plan response carries `ETag: "<version>"`; every write to a plan or its parts bumps the version and honours an optional `If-Match` (412 `PreconditionFailed`, spec 7). Plans' stored periods take precedence over the policy in `GET …/periods` and in the ledger's period labels (D10), and a space with a plan cannot change its currency (`SpaceCurrencyLocked`, D6).
 
 ---

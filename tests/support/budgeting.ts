@@ -1,3 +1,4 @@
+import { GET as getPlanRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/route";
 import { POST as createPlanRoute } from "@/app/api/v1/spaces/[spaceId]/plans/route";
 import { call, type TestUser } from "./app";
 import type { MoneyDto } from "./ledger";
@@ -47,5 +48,15 @@ export const createPlan = (user: TestUser, spaceId: string, period: string) =>
 export const newPlan = async (user: TestUser, spaceId: string, period: string): Promise<PlanDto> => {
   const response = await createPlan(user, spaceId, period);
   if (response.status !== 201) throw new Error(`plan creation failed with status ${response.status}`);
+  return (await response.json()) as PlanDto;
+};
+
+export const getPlan = (user: TestUser, spaceId: string, planId: string) =>
+  call(getPlanRoute, "GET", plansPath(spaceId, `/${planId}`), { user, params: { spaceId, planId } });
+
+/** The plan as `user` reads it; throws unless 200. */
+export const planOf = async (user: TestUser, spaceId: string, planId: string): Promise<PlanDto> => {
+  const response = await getPlan(user, spaceId, planId);
+  if (response.status !== 200) throw new Error(`plan read failed with status ${response.status}`);
   return (await response.json()) as PlanDto;
 };

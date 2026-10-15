@@ -162,6 +162,7 @@ export const planCreated = (view: BudgetPlanView): HttpSuccess => ({
 });
 
 const SpacePath = z.object({ spaceId: z.string() });
+const PlanPath = SpacePath.extend({ planId: z.string() });
 const planResponse = (description: string) => ({ description, content: jsonContent(BudgetPlanSchema) });
 
 export const budgetingPaths: ZodOpenApiPathsObject = {
@@ -181,6 +182,19 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
           "409": "PlanAlreadyExists, SpaceArchived",
           "422": "ValidationFailed, InvalidPeriodLabel",
         }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/plans/{planId}": {
+    get: {
+      operationId: "getBudgetPlan",
+      summary:
+        "A plan with its capacities, lines and every figure computed on read; ETag carries its version",
+      ...securedByUser,
+      requestParams: { path: PlanPath },
+      responses: {
+        "200": planResponse("The plan"),
+        ...problems({ "401": "Unauthenticated", "404": "SpaceNotFound, BudgetPlanNotFound" }),
       },
     },
   },
