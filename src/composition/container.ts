@@ -29,6 +29,7 @@ import {
   createAddBudgetLine,
   createRemoveBudgetLine,
   createUpdateBudgetLine,
+  createMapCategoriesToLine,
   type CreateBudgetPlan,
   type GetBudgetPlan,
   type PreviousIncome,
@@ -38,6 +39,8 @@ import {
   type RemoveBudgetLine,
   type SavingsAccountReader,
   type UpdateBudgetLine,
+  type BudgetCategories,
+  type MapCategoriesToLine,
 } from "@/modules/budgeting/application";
 import { DrizzleBudgetPlanRepository } from "@/modules/budgeting/infrastructure/drizzle-budget-plan-repository";
 import {
@@ -230,6 +233,7 @@ export interface Container extends RouteDeps {
     readonly addLine: AddBudgetLine;
     readonly updateLine: UpdateBudgetLine;
     readonly removeLine: RemoveBudgetLine;
+    readonly mapCategories: MapCategoriesToLine;
   };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
@@ -390,11 +394,21 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         : null;
     },
   };
+  // HU-E6-04: plans map the space's live categories; deleted ones never appear (D8).
+  const budgetCategories: BudgetCategories = {
+    list: async (spaceId) =>
+      (await categoriesDeps.categories.listCategories(spaceId)).map((c) => ({
+        id: c.id,
+        archived: c.archivedAt !== null,
+      })),
+  };
   // HU-E6-01 … HU-E6-05: plans reach members, accounts, categories and the ledger's spending only through ports.
   const budgetingDeps = {
     access,
     members: spaceRepository,
     plans: budgetPlans,
+    mappings: budgetPlans,
+    categories: budgetCategories,
     lines: budgetPlans,
     savingsAccounts,
     capacities: budgetPlans,
@@ -513,8 +527,15 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       renameCategoryGroup: createRenameCategoryGroup(categoriesDeps),
       createCategory: createCreateCategory(categoriesDeps),
       updateCategory: createUpdateCategory(categoriesDeps),
-      // HU-E3-03: soft-deleted transactions still count as references (D8).
-      deleteCategory: createDeleteCategory({ ...categoriesDeps, usage: ledgerQueries }),
+      // HU-E3-03: soft-deleted transactions and every budget-line mapping, ended ones included, are references (D8).
+      deleteCategory: createDeleteCategory({
+        ...categoriesDeps,
+        usage: {
+          isCategoryReferenced: async (categoryId) =>
+            (await ledgerQueries.isCategoryReferenced(categoryId)) ||
+            (await budgetPlans.isCategoryMapped(categoryId)),
+        },
+      }),
       archiveCategory: createArchiveCategory(categoriesDeps),
       restoreCategory: createRestoreCategory(categoriesDeps),
       archiveCategoryGroup: createArchiveCategoryGroup(categoriesDeps),
@@ -556,6 +577,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       addLine: createAddBudgetLine(budgetingDeps),
       updateLine: createUpdateBudgetLine(budgetingDeps),
       removeLine: createRemoveBudgetLine(budgetingDeps),
+      mapCategories: createMapCategoriesToLine(budgetingDeps),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.

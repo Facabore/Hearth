@@ -176,6 +176,12 @@ export const lineChangesFromBody = (body: z.infer<typeof UpdateLineBodySchema>):
   return plannedAmount.ok ? ok({ ...body, plannedAmount: plannedAmount.value }) : plannedAmount;
 };
 
+/** Categories per line: bounds the payload; the use case checks that each is a category of the space. */
+const MAX_CATEGORIES = 200;
+
+/** HU-E6-04: the line's whole category set; categories left out are unmapped (the rows stay, D8). */
+export const MapCategoriesBodySchema = z.object({ categoryIds: z.array(Id).max(MAX_CATEGORIES) });
+
 const lineDto = (figure: LineFigure, currency: string): z.infer<typeof BudgetLineSchema> => {
   const { line, allocation } = figure;
   return {
@@ -376,6 +382,19 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
       LinePath,
       null,
       { "404": "SpaceNotFound, BudgetPlanNotFound, BudgetLineNotFound", "409": "SpaceArchived" },
+    ),
+  },
+  "/api/v1/spaces/{spaceId}/plans/{planId}/lines/{lineId}/categories": {
+    put: planWrite(
+      "mapCategoriesToLine",
+      "Replace the categories a line consumes; a category maps to one line per plan, unmapped ones to the catch-all",
+      LinePath,
+      MapCategoriesBodySchema,
+      {
+        "404": "SpaceNotFound, BudgetPlanNotFound, BudgetLineNotFound",
+        "409": "CategoryAlreadyMapped, CategoryArchived, SavingsLineNotMappable, SpaceArchived",
+        "422": "ValidationFailed, CategoryNotInSpace",
+      },
     ),
   },
 };

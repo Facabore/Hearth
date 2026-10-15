@@ -19,6 +19,7 @@ const EXPLICIT: ReadonlyMap<string, number> = new Map([
   ["AccountNotOwned", 422],
   ["AccountNotInSpace", 422],
   ["SavingsAccountRequired", 422],
+  ["CategoryNotInSpace", 422],
   ["InvitationEmailMismatch", 403],
   ["PasswordTooShort", 422],
   ["EmailTaken", 409],

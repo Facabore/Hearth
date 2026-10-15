@@ -62,6 +62,8 @@ describe("statusForCode", () => {
     ["CatchAllLineAlreadySet", 409],
     ["SavingsLineNotMappable", 409],
     ["InvalidAllocation", 422],
+    ["CategoryNotInSpace", 422],
+    ["CategoryAlreadyMapped", 409],
     ["SameAccountTransfer", 409],
     ["AccountArchived", 409],
     ["ValidationFailed", 422],

@@ -215,6 +215,8 @@ Feature: Category to line mapping
 - Use cases: `MapCategoriesToLine`, `SetCatchAllLine`. Endpoints: `PUT /api/v1/spaces/{spaceId}/plans/{planId}/lines/{lineId}/categories`, `PATCH .../plans/{planId}/lines/{lineId}` with `isCatchAll`.
 - Invariants: (planId, categoryId) unique; archived categories cannot be newly mapped; at most one `isCatchAll` line per plan.
 - "Unbudgeted" is computed on read, never persisted, and only exists when the plan has no catch-all line.
+- `PUT …/lines/{lineId}/categories` takes the line's whole category set; categories left out are unmapped (the rows stay, D8), and removing a line ends its mappings. Errors: `CategoryNotInSpace` (422: any id that is not a live category of the plan's space, so other spaces' categories never leak), `CategoryArchived` (409, for categories newly mapped), `CategoryAlreadyMapped` (409), `SavingsLineNotMappable` (409: a SAVINGS line takes no categories and is never the catch-all line, spec 5.4), `CatchAllLineAlreadySet` (409).
+- Each line reports `spent` and `available` (planned − spent; HU-E6-09's carry-over is 0 until lines are copied), and the plan reports `unbudgeted` (`spent`, `available`) only when it has no catch-all line. A category that any plan maps or once mapped can no longer be deleted (`CategoryInUse`, HU-E3-03); it can be archived.
 
 ---
 

@@ -7,6 +7,7 @@ import {
   PATCH as patchLineRoute,
 } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/lines/[lineId]/route";
 import { POST as postLineRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/lines/route";
+import { PUT as putCategoriesRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/lines/[lineId]/categories/route";
 import { call, type TestUser } from "./app";
 import { cop, household, newAccount, type MoneyDto } from "./ledger";
 
@@ -191,5 +192,21 @@ export const deleteLine = (
   call(deleteLineRoute, "DELETE", plansPath(spaceId, `/${planId}/lines/${lineId}`), {
     user,
     params: { spaceId, planId, lineId },
+    headers: ifMatch(version),
+  });
+
+/** HU-E6-04: `user` replaces the categories of the line. */
+export const putCategories = (
+  user: TestUser,
+  spaceId: string,
+  planId: string,
+  lineId: string,
+  categoryIds: string[],
+  version?: number,
+) =>
+  call(putCategoriesRoute, "PUT", plansPath(spaceId, `/${planId}/lines/${lineId}/categories`), {
+    user,
+    params: { spaceId, planId, lineId },
+    body: { categoryIds },
     headers: ifMatch(version),
   });
