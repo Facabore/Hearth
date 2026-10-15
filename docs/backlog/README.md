@@ -133,11 +133,11 @@ A UI story is `Done` when:
 | [HU-E5-02](E5-balances-and-settlements.md) | Record a settlement | E5 | M2 | Must | M | Done | HU-E5-01, HU-E1-10 |
 | [HU-E5-03](E5-balances-and-settlements.md) | Suggest simplified settlements | E5 | M2 | Should | M | Done | HU-E5-01 |
 | [HU-E5-04](E5-balances-and-settlements.md) | Show balance history per member | E5 | M2 | Should | S | Backlog | HU-E5-02 |
-| [HU-E6-01](E6-budgeting.md) | Create a plan for a period | E6 | M3 | Must | S | Backlog | HU-E1-05, HU-E0-04 |
-| [HU-E6-02](E6-budgeting.md) | Set member capacities | E6 | M3 | Must | S | Backlog | HU-E6-01 |
-| [HU-E6-03](E6-budgeting.md) | Add budget lines and show unallocated capacity | E6 | M3 | Must | M | Backlog | HU-E6-02 |
-| [HU-E6-04](E6-budgeting.md) | Map categories to budget lines | E6 | M3 | Must | S | Backlog | HU-E6-03, HU-E3-02 |
-| [HU-E6-05](E6-budgeting.md) | Allocate a budget line among members | E6 | M3 | Must | M | Backlog | HU-E6-03 |
+| [HU-E6-01](E6-budgeting.md) | Create a plan for a period | E6 | M3 | Must | S | Done | HU-E1-05, HU-E0-04 |
+| [HU-E6-02](E6-budgeting.md) | Set member capacities | E6 | M3 | Must | S | Done | HU-E6-01 |
+| [HU-E6-03](E6-budgeting.md) | Add budget lines and show unallocated capacity | E6 | M3 | Must | M | Done | HU-E6-02 |
+| [HU-E6-04](E6-budgeting.md) | Map categories to budget lines | E6 | M3 | Must | S | Done | HU-E6-03, HU-E3-02 |
+| [HU-E6-05](E6-budgeting.md) | Allocate a budget line among members | E6 | M3 | Must | M | Done | HU-E6-03 |
 | [HU-E6-06](E6-budgeting.md) | Copy a plan from the previous period | E6 | M3 | Must | M | Backlog | HU-E6-04, HU-E6-05 |
 | [HU-E6-07](E6-budgeting.md) | Activate and close a plan | E6 | M3 | Must | M | Backlog | HU-E6-05 |
 | [HU-E6-08](E6-budgeting.md) | Default split by allocation | E6 | M3 | Must | M | Backlog | HU-E6-04, HU-E6-05, HU-E6-07, HU-E4-07, HU-E5-01 |
