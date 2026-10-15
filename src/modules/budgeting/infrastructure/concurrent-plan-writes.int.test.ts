@@ -8,9 +8,10 @@ import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator"
 import { FixedClock, type Result } from "@/shared/kernel";
 import { testDatabase } from "../../../../tests/support/database";
 import { codeOf, money, unwrap } from "../../../../tests/support/fakes";
-import { sharedSpaceFixture, userFixture } from "../../../../tests/support/fixtures";
+import { categoryFixture, sharedSpaceFixture, userFixture } from "../../../../tests/support/fixtures";
 import { createAddBudgetLine, type LineDeps, type LineInput } from "../application/add-budget-line";
 import { createCreateBudgetPlan } from "../application/create-budget-plan";
+import { createMapCategoriesToLine } from "../application/map-categories-to-line";
 import type { BudgetPlanRepository, PlanSpending } from "../application/ports";
 import { createUpdateBudgetLine, type LineChanges } from "../application/update-budget-line";
 import { DrizzleBudgetPlanRepository } from "./drizzle-budget-plan-repository";
@@ -159,7 +160,26 @@ const planWith = async (capacity: bigint) => {
     return (lineId: string, changes: LineChanges) => update({ ...write, lineId, changes });
   };
   const currentLines = async () => (await plans.contents(plan.id)).lines;
-  return { addLines, updateLines, currentLines };
+  const currentMappings = async () => (await plans.contents(plan.id)).mappings;
+  const mapCategories = async (repository: BudgetPlanRepository) => {
+    const groceries = await categoryFixture(db, {
+      userId: ana.id,
+      spaceId: space.id,
+      memberId: space.members[0]!.id,
+    });
+    const map = createMapCategoriesToLine({
+      ...lineDeps(repository),
+      mappings: plans,
+      categories: {
+        list: async () => [{ id: groceries, archived: false }],
+      },
+    });
+    return {
+      groceries,
+      mapTo: (lineId: string, categoryIds: string[]) => map({ ...write, lineId, categoryIds }),
+    };
+  };
+  return { addLines, updateLines, currentLines, currentMappings, mapCategories };
 };
 
 describe("concurrent writes to one plan (Review Focus 1)", () => {
@@ -203,6 +223,18 @@ describe("concurrent writes to one plan (Review Focus 1)", () => {
     const outcomes = await outcomesOf(saving("Trip"), saving("Holiday"));
     expect(outcomes).toEqual(["SavingsAccountAlreadyUsed", "ok"]);
     expect(await currentLines()).toHaveLength(1);
+  });
+
+  it("maps a category to one of two lines that both ask for it", async () => {
+    const { addLines, currentLines, currentMappings, mapCategories } = await planWith(100_000_000n);
+    const seed = addLines(plans);
+    unwrap(await seed({ name: "Home", plannedAmount: money(30_000_000n) }));
+    unwrap(await seed({ name: "Rent", plannedAmount: money(30_000_000n) }));
+    const [home, rent] = await currentLines();
+    const { groceries, mapTo } = await mapCategories(meetingAfterParts());
+    const outcomes = await outcomesOf(mapTo(home!.id, [groceries]), mapTo(rent!.id, [groceries]));
+    expect(outcomes).toEqual(["CategoryAlreadyMapped", "ok"]);
+    expect(await currentMappings()).toHaveLength(1);
   });
 
   it("creates one of two simultaneous plans for the same period", async () => {

@@ -221,4 +221,49 @@ export class DrizzleBudgetPlanRepository implements BudgetPlanRepository {
         ),
       );
   }
+
+  async mapCategories(
+    planId: BudgetPlanId,
+    lineId: BudgetLineId,
+    categoryIds: readonly string[],
+    at: Date,
+  ): Promise<void> {
+    const db = this.tm.executor();
+    const current = await db
+      .select({ categoryId: budgetLineCategories.categoryId })
+      .from(budgetLineCategories)
+      .where(and(eq(budgetLineCategories.lineId, lineId), isNull(budgetLineCategories.unmappedAt)));
+    const mapped = new Set(current.map((row) => row.categoryId));
+    const ended = [...mapped].filter((id) => !categoryIds.includes(id));
+    if (ended.length > 0) {
+      // D8: an ended mapping keeps its row; the partial unique index frees the category for other lines.
+      await db
+        .update(budgetLineCategories)
+        .set({ unmappedAt: at })
+        .where(
+          and(
+            eq(budgetLineCategories.lineId, lineId),
+            isNull(budgetLineCategories.unmappedAt),
+            inArray(budgetLineCategories.categoryId, ended),
+          ),
+        );
+    }
+    const added = categoryIds.filter((id) => !mapped.has(id));
+    if (added.length > 0) {
+      await db
+        .insert(budgetLineCategories)
+        .values(added.map((categoryId) => ({ planId, lineId, categoryId, mappedAt: at })));
+    }
+  }
+
+  async isCategoryMapped(categoryId: string): Promise<boolean> {
+    if (!isUuid(categoryId)) return false;
+    const rows = await this.tm
+      .executor()
+      .select({ id: budgetLineCategories.id })
+      .from(budgetLineCategories)
+      .where(eq(budgetLineCategories.categoryId, categoryId))
+      .limit(1);
+    return rows.length > 0;
+  }
 }

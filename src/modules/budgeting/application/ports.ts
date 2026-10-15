@@ -85,3 +85,21 @@ export interface SavingsAccountReader {
   /** Any account by id, whatever its space; null for unknown or malformed ids. */
   find(accountId: string): Promise<BudgetAccount | null>;
 }
+
+/** HU-E6-04: a line's categories are replaced as a set; ended mappings keep their rows (D8). */
+export interface CategoryMappingRepository {
+  /** Makes `categoryIds` the line's current categories: ends the others' mappings and maps the new ones. */
+  mapCategories(
+    planId: BudgetPlanId,
+    lineId: BudgetLineId,
+    categoryIds: readonly string[],
+    at: Date,
+  ): Promise<void>;
+  /** HU-E3-03: whether any plan maps or once mapped the category (ended mappings count, like deleted transactions). */
+  isCategoryMapped(categoryId: string): Promise<boolean>;
+}
+
+/** The live categories of a space (deleted ones never appear, D8), archived ones flagged; bound to categories. */
+export interface BudgetCategories {
+  list(spaceId: string): Promise<{ readonly id: string; readonly archived: boolean }[]>;
+}

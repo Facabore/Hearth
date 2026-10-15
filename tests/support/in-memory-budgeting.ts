@@ -112,6 +112,34 @@ export class InMemoryBudgetPlans implements BudgetPlanRepository {
     );
   }
 
+  /** CategoryMappingRepository, like DrizzleBudgetPlanRepository.mapCategories. */
+  async mapCategories(
+    planId: string,
+    lineId: string,
+    categoryIds: readonly string[],
+    at: Date,
+  ): Promise<void> {
+    const keep = new Set(categoryIds);
+    this.mappings = this.mappings.map((r) =>
+      r.mapping.lineId === lineId && r.unmappedAt === null && !keep.has(r.mapping.categoryId)
+        ? { ...r, unmappedAt: at }
+        : r,
+    );
+    const current = new Set(
+      this.mappings
+        .filter((r) => r.mapping.lineId === lineId && r.unmappedAt === null)
+        .map((r) => r.mapping.categoryId),
+    );
+    for (const categoryId of categoryIds.filter((id) => !current.has(id))) {
+      this.mappings.push({ planId, mapping: { lineId, categoryId }, mappedAt: at, unmappedAt: null });
+    }
+  }
+
+  /** CategoryMappingRepository: every mapping ever made counts. */
+  async isCategoryMapped(categoryId: string): Promise<boolean> {
+    return this.mappings.some((r) => r.mapping.categoryId === categoryId);
+  }
+
   /** Test setup: parts of a plan as earlier writes would have left them. */
   seed(planId: string, parts: Partial<PlanContents>): void {
     this.mergeCapacities(planId, parts.capacities ?? []);

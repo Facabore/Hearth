@@ -1,5 +1,6 @@
 import type {
   BudgetAccount,
+  BudgetCategories,
   BudgetingDeps,
   PlanSpending,
   PreviousIncome,
@@ -102,4 +103,18 @@ export const ACCOUNTS: readonly BudgetAccount[] = [
 
 export const savingsAccounts: SavingsAccountReader = {
   find: async (accountId) => ACCOUNTS.find((a) => a.id === accountId) ?? null,
+};
+
+/** HU-E6-04: Household's live categories (`cat-old` archived); every other space has only `cat-personal`. */
+export const householdCategories: BudgetCategories = {
+  list: async (spaceId) =>
+    spaceId === HOUSEHOLD
+      ? [
+          { id: "cat-groceries", archived: false },
+          { id: "cat-utilities", archived: false },
+          { id: "cat-outings", archived: false },
+          { id: "cat-restaurants", archived: false },
+          { id: "cat-old", archived: true },
+        ]
+      : [{ id: "cat-personal", archived: false }],
 };

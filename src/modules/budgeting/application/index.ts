@@ -42,3 +42,9 @@ export type { BudgetAccount, BudgetLineRepository, SavingsAccountReader } from "
 export { createAddBudgetLine, type AddBudgetLine, type LineDeps, type LineInput } from "./add-budget-line";
 export { createUpdateBudgetLine, type LineChanges, type UpdateBudgetLine } from "./update-budget-line";
 export { createRemoveBudgetLine, type RemoveBudgetLine } from "./remove-budget-line";
+export type { BudgetCategories, CategoryMappingRepository } from "./ports";
+export {
+  createMapCategoriesToLine,
+  type MapCategoriesToLine,
+  type MappingDeps,
+} from "./map-categories-to-line";

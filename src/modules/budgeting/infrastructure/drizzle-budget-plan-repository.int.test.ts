@@ -16,8 +16,14 @@ import {
 } from "../../../../tests/support/fixtures";
 import { codeOf, money, sequentialIds, unwrap } from "../../../../tests/support/fakes";
 import { InMemoryBudgetPlans } from "../../../../tests/support/in-memory-budgeting";
-import type { BudgetLineRepository, BudgetPlanRepository, CapacityRepository } from "../application/ports";
+import type {
+  BudgetLineRepository,
+  BudgetPlanRepository,
+  CapacityRepository,
+  CategoryMappingRepository,
+} from "../application/ports";
 import { createAddBudgetLine, type LineInput } from "../application/add-budget-line";
+import { createMapCategoriesToLine } from "../application/map-categories-to-line";
 import { createRemoveBudgetLine } from "../application/remove-budget-line";
 import { createSetMemberCapacities } from "../application/set-member-capacities";
 import { createUpdateBudgetLine, type LineChanges } from "../application/update-budget-line";
@@ -918,5 +924,254 @@ describe("UpdateBudgetLine and RemoveBudgetLine over PostgreSQL (HU-E6-03, HU-E6
       "PreconditionFailed",
     ]);
     expect(await stored()).toEqual(written);
+  });
+});
+
+describe("DrizzleBudgetPlanRepository category mappings (HU-E6-04, HU-E3-03, D8)", () => {
+  it("replaces a line's categories and ends a removed line's mappings like its in-memory twin", async () => {
+    const { space, fixture } = await household();
+    const groceries = await categoryFixture(db, fixture, "Groceries");
+    const utilities = await categoryFixture(db, fixture, "Utilities");
+    const outings = await categoryFixture(db, fixture, "Outings");
+    const november = aPlan(space.id, "2026-11", "2026-11-01", "2026-11-30");
+    const home = aLine("Home", 147_000_000n, {
+      id: randomUUID() as BudgetLineId,
+      planId: november.id,
+      createdAt: at,
+    });
+    const free = aLine("Free", 73_000_000n, {
+      id: randomUUID() as BudgetLineId,
+      planId: november.id,
+      createdAt: new Date("2026-10-14T12:01:00Z"),
+    });
+    const run = async (plans: BudgetPlanRepository & BudgetLineRepository & CategoryMappingRepository) => {
+      await plans.add(november);
+      await plans.addLine(home, at);
+      await plans.addLine(free, at);
+      await plans.mapCategories(november.id, home.id, [groceries, utilities], at);
+      await plans.mapCategories(november.id, home.id, [groceries], at);
+      await plans.mapCategories(november.id, free.id, [utilities, outings], at);
+      await plans.deleteLine(november.id, free.id, at);
+      await plans.mapCategories(november.id, home.id, [groceries, outings], at);
+      return {
+        mappings: (await plans.contents(november.id)).mappings,
+        mapped: [
+          await plans.isCategoryMapped(utilities),
+          await plans.isCategoryMapped(randomUUID()),
+          await plans.isCategoryMapped("not-a-uuid"),
+        ],
+      };
+    };
+    const expected = {
+      mappings: [
+        { lineId: home.id, categoryId: groceries },
+        { lineId: home.id, categoryId: outings },
+      ].sort((a, b) => (a.categoryId < b.categoryId ? -1 : 1)),
+      mapped: [true, false, false],
+    };
+    expect(await run(new InMemoryBudgetPlans())).toEqual(expected);
+    expect(await run(repo)).toEqual(expected);
+    const { rows } = await pool.query(
+      "SELECT count(*)::int AS n FROM budget_line_categories WHERE plan_id = $1",
+      [november.id],
+    );
+    expect(rows[0].n).toBe(5);
+  });
+});
+
+describe("MapCategoriesToLine over PostgreSQL (HU-E6-04, Review Focus 5, 6, spec 7)", () => {
+  it("replaces a line's categories logically and rolls the version lock back with a refused mapping, leaving every row as it was", async () => {
+    const { space, fixture } = await household();
+    const { fixture: elsewhere } = await household();
+    const plan = aPlan(space.id, "2026-11", "2026-11-01", "2026-11-30");
+    await repo.add(plan);
+    const [groceries, utilities, outings, restaurants, old] = [
+      await categoryFixture(db, fixture, "Groceries"),
+      await categoryFixture(db, fixture, "Utilities"),
+      await categoryFixture(db, fixture, "Outings"),
+      await categoryFixture(db, fixture, "Restaurants"),
+      await categoryFixture(db, fixture, "Old"),
+    ];
+    // Another space's category, and one of Household's that is gone: the port lists neither.
+    const [foreign, deleted] = [
+      await categoryFixture(db, elsewhere, "Personal"),
+      await categoryFixture(db, fixture, "Deleted"),
+    ];
+    const categories = {
+      list: async (spaceId: string) =>
+        spaceId === space.id
+          ? [
+              { id: groceries, archived: false },
+              { id: utilities, archived: false },
+              { id: outings, archived: false },
+              { id: restaurants, archived: false },
+              { id: old, archived: true },
+            ]
+          : [],
+    };
+    const spaces = new DrizzleSpaceRepository(tm);
+    const account = randomUUID();
+    const deps = {
+      access: createSpaceAccess(spaces),
+      members: spaces,
+      plans: repo,
+      capacities: repo,
+      lines: repo,
+      mappings: repo,
+      categories,
+      savingsAccounts: {
+        find: async (id: string) =>
+          id === account ? { id, ownerUserId: fixture.userId, isSavings: true, archived: false } : null,
+      },
+      spending: { expensesByCategory: async () => [], transfersIntoAccounts: async () => [] },
+      ids: new UuidV7IdGenerator(),
+      clock: new FixedClock(at),
+      tm,
+    };
+    const base = { spaceId: space.id, userId: fixture.userId, planId: plan.id };
+    const mapAt = (clock: Date) => createMapCategoriesToLine({ ...deps, clock: new FixedClock(clock) });
+    const mapTo = (
+      lineId: string,
+      categoryIds: string[],
+      expectedVersion: number | null = null,
+      clock = later,
+    ) => mapAt(clock)({ ...base, lineId, expectedVersion, categoryIds });
+    // Everything this use case may touch: the plan's version and every mapping row, ended ones included.
+    const stored = async () => ({
+      version: (await repo.find(space.id, plan.id))?.version,
+      mappings: (
+        await pool.query(
+          `SELECT l.name AS line, c.name AS category, m.mapped_at, m.unmapped_at
+             FROM budget_line_categories m
+             JOIN budget_lines l ON l.id = m.line_id
+             JOIN categories c ON c.id = m.category_id
+            WHERE m.plan_id = $1 ORDER BY c.name, m.mapped_at, l.name`,
+          [plan.id],
+        )
+      ).rows,
+    });
+
+    unwrap(
+      await createSetMemberCapacities(deps)({
+        ...base,
+        expectedVersion: null,
+        capacities: [{ memberId: fixture.memberId, amount: money(200_000_000n) }],
+      }),
+    );
+    const add = createAddBudgetLine(deps);
+    unwrap(
+      await add({
+        ...base,
+        expectedVersion: null,
+        line: { name: "Home", plannedAmount: money(100_000_000n) },
+      }),
+    );
+    unwrap(
+      await add({
+        ...base,
+        expectedVersion: null,
+        line: { name: "Free", plannedAmount: money(10_000_000n) },
+      }),
+    );
+    unwrap(
+      await add({
+        ...base,
+        expectedVersion: null,
+        line: {
+          name: "Savings",
+          plannedAmount: money(60_000_000n),
+          funding: "SAVINGS",
+          savingsAccountIds: [account],
+        },
+      }),
+    );
+    const idOf = async (name: string) =>
+      (await repo.contents(plan.id)).lines.find((l) => l.name === name)!.id;
+    const [home, free, savings] = [await idOf("Home"), await idOf("Free"), await idOf("Savings")];
+    const row = (line: string, category: string, mappedAt: Date, unmappedAt: Date | null) => ({
+      line,
+      category,
+      mapped_at: mappedAt,
+      unmapped_at: unmappedAt,
+    });
+
+    // Home takes Groceries and Utilities; sending the same set again, in another order, changes no row.
+    expect(unwrap(await mapTo(home, [utilities, groceries], null, at)).plan.version).toBe(6);
+    const first = await stored();
+    expect(first).toEqual({
+      version: 6,
+      mappings: [row("Home", "Groceries", at, null), row("Home", "Utilities", at, null)],
+    });
+    expect(unwrap(await mapTo(home, [groceries, utilities, groceries])).plan.version).toBe(7);
+    expect(await stored()).toEqual({ ...first, version: 7 });
+
+    // Home keeps Groceries (its row untouched) and lets Utilities go; Free then takes it; Home takes Outings.
+    unwrap(await mapTo(home, [groceries, outings]));
+    unwrap(await mapTo(free, [utilities]));
+    const written = {
+      version: 9,
+      mappings: [
+        row("Home", "Groceries", at, null),
+        row("Home", "Outings", later, null),
+        row("Home", "Utilities", at, later),
+        row("Free", "Utilities", later, null),
+      ],
+    };
+    expect(await stored()).toEqual(written);
+
+    // Review Focus 6: a removed line frees its categories and keeps its ended mappings.
+    const remove = createRemoveBudgetLine({ ...deps, clock: new FixedClock(later) });
+    unwrap(await remove({ ...base, lineId: free, expectedVersion: null }));
+    unwrap(await mapTo(home, [groceries, outings, utilities]));
+    expect(await stored()).toEqual({
+      version: 11,
+      mappings: [
+        row("Home", "Groceries", at, null),
+        row("Home", "Outings", later, null),
+        row("Home", "Utilities", at, later),
+        row("Free", "Utilities", later, later),
+        row("Home", "Utilities", later, null),
+      ],
+    });
+
+    // Each refusal passes the lock and is refused afterwards (the last by the lock itself), one bad id among good
+    // ones: nothing is mapped, nothing is ended, and the version is the one before.
+    unwrap(
+      await add({
+        ...base,
+        expectedVersion: null,
+        line: { name: "Trips", plannedAmount: money(5_000_000n) },
+      }),
+    );
+    const trips = await idOf("Trips");
+    const before = await stored();
+    expect(before.version).toBe(12);
+    const refused = [
+      await mapTo(home, [groceries, restaurants, foreign]),
+      await mapTo(home, [restaurants, deleted]),
+      await mapTo(home, [restaurants, "not-a-uuid"]),
+      await mapTo(home, [restaurants, randomUUID()]),
+      await mapTo(home, [restaurants, old]),
+      await mapTo(trips, [restaurants, outings]),
+      await mapTo(savings, [restaurants]),
+      await mapTo(free, [restaurants]),
+      await mapTo(randomUUID(), [restaurants]),
+      await mapTo("not-a-uuid", [restaurants]),
+      await mapTo(home, [restaurants], 3),
+    ];
+    expect(refused.map(codeOf)).toEqual([
+      "CategoryNotInSpace",
+      "CategoryNotInSpace",
+      "CategoryNotInSpace",
+      "CategoryNotInSpace",
+      "CategoryArchived",
+      "CategoryAlreadyMapped",
+      "SavingsLineNotMappable",
+      "BudgetLineNotFound",
+      "BudgetLineNotFound",
+      "BudgetLineNotFound",
+      "PreconditionFailed",
+    ]);
+    expect(await stored()).toEqual(before);
   });
 });
