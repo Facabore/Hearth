@@ -1,5 +1,15 @@
 import { z } from "zod";
-import { MoneySchema, percentOf, PeriodSchema, periodDto, type MoneyDto } from "@/shared/http/contracts";
+import type { ZodOpenApiPathsObject } from "zod-openapi";
+import {
+  jsonContent,
+  MoneySchema,
+  percentOf,
+  PeriodSchema,
+  periodDto,
+  problems,
+  securedByUser,
+  type MoneyDto,
+} from "@/shared/http/contracts";
 import type { HttpSuccess } from "@/shared/http/define-route";
 import { etagOf } from "@/shared/http/etag";
 import {
@@ -75,6 +85,9 @@ export const BudgetPlanSchema = z.object({
   unbudgeted: z.object({ spent: MoneySchema, available: MoneySchema }).nullable(),
 });
 
+/** HU-E6-01: the period's label in the space policy, e.g. "2026-11" (MONTHLY) or "2026-11 H1" (SEMI_MONTHLY). */
+export const CreatePlanBodySchema = z.object({ period: z.string().max(20) });
+
 const lineDto = (figure: LineFigure, currency: string): z.infer<typeof BudgetLineSchema> => {
   const { line, allocation } = figure;
   return {
@@ -147,3 +160,28 @@ export const planCreated = (view: BudgetPlanView): HttpSuccess => ({
     ["location", `/api/v1/spaces/${view.plan.spaceId}/plans/${view.plan.id}`],
   ],
 });
+
+const SpacePath = z.object({ spaceId: z.string() });
+const planResponse = (description: string) => ({ description, content: jsonContent(BudgetPlanSchema) });
+
+export const budgetingPaths: ZodOpenApiPathsObject = {
+  "/api/v1/spaces/{spaceId}/plans": {
+    post: {
+      operationId: "createBudgetPlan",
+      summary: "Create a DRAFT plan for a period of the space's policy; its boundaries are stored (D10)",
+      ...securedByUser,
+      requestParams: { path: SpacePath },
+      requestBody: { content: jsonContent(CreatePlanBodySchema) },
+      responses: {
+        "201": planResponse("The new plan; ETag carries its version, Location its URL"),
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound",
+          "409": "PlanAlreadyExists, SpaceArchived",
+          "422": "ValidationFailed, InvalidPeriodLabel",
+        }),
+      },
+    },
+  },
+};

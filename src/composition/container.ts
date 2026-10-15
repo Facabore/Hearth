@@ -21,6 +21,8 @@ import {
   type GetSettlementSuggestions,
   type GetSpaceBalances,
 } from "@/modules/balances/application";
+import { createCreateBudgetPlan, type CreateBudgetPlan } from "@/modules/budgeting/application";
+import { DrizzleBudgetPlanRepository } from "@/modules/budgeting/infrastructure/drizzle-budget-plan-repository";
 import {
   createDeleteTransaction,
   createEditTransaction,
@@ -203,6 +205,9 @@ export interface Container extends RouteDeps {
     readonly getSpaceBalances: GetSpaceBalances;
     readonly getSettlementSuggestions: GetSettlementSuggestions;
   };
+  readonly budgeting: {
+    readonly createPlan: CreateBudgetPlan;
+  };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
     readonly signIn: (ip: string, email: string) => boolean;
@@ -260,8 +265,9 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     clock,
     tm,
   };
-  // Budget plans (stored period boundaries, D10) arrive with HU-E6-01; until then periods come from the policy.
-  const storedPeriods: StoredPeriodSource = async () => [];
+  // HU-E6-01, D10: plans store their period boundaries; periods without a plan follow the space policy.
+  const budgetPlans = new DrizzleBudgetPlanRepository(tm);
+  const storedPeriods: StoredPeriodSource = (spaceId) => budgetPlans.storedPeriods(spaceId);
   const getAccount = createGetAccount(accountsDeps);
   const ledgerDeps: LedgerDeps = {
     access,
@@ -338,6 +344,16 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     clock,
     tm,
   };
+  // HU-E6-01 … HU-E6-05: plans reach members, accounts, categories and the ledger's spending only through ports.
+  const budgetingDeps = {
+    access,
+    members: spaceRepository,
+    plans: budgetPlans,
+    spending: ledgerQueries,
+    ids,
+    clock,
+    tm,
+  };
   const invitationRepository = new DrizzleInvitationRepository(tm);
   const invitationsDeps: InvitationsDeps = {
     access,
@@ -397,9 +413,11 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         access,
         tm,
         usage: {
+          // D6: a plan's capacities and lines are amounts in the space currency too (HU-E6-01).
           hasMoneyRecords: async (spaceId) =>
             (await accountsDeps.accounts.listBySpace(spaceId)).length > 0 ||
-            (await ledgerQueries.hasTransactions(spaceId)),
+            (await ledgerQueries.hasTransactions(spaceId)) ||
+            (await budgetPlans.hasPlans(spaceId)),
         },
       }),
       listPeriods: createListSpacePeriods({ access, storedPeriods, clock, timeZone: env.APP_TIMEZONE }),
@@ -479,6 +497,9 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         members: spaceRepository,
         source: ledgerQueries,
       }),
+    },
+    budgeting: {
+      createPlan: createCreateBudgetPlan(budgetingDeps),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.
