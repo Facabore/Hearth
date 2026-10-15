@@ -1,10 +1,12 @@
 import { z } from "zod";
 import type { ZodOpenApiPathsObject } from "zod-openapi";
 import {
+  basisPointsOf,
   jsonContent,
   moneyFromDto,
   MoneySchema,
   optionalLocalDate,
+  PercentSchema,
   PeriodSchema,
   periodDto,
   problems,
@@ -77,11 +79,6 @@ export const PaymentBodySchema = z.object({
   amount: MoneySchema,
 });
 
-/** "40", "33.33": a percentage with at most two decimals (HU-E4-08), never a float. */
-const PercentSchema = z
-  .string()
-  .regex(/^\d{1,3}(\.\d{1,2})?$/, { error: "A percentage with at most two decimals, e.g. 40 or 33.33" });
-
 /** HU-E4-07/08: EQUAL among the chosen members, or by percentage, exact amount or share units per member. */
 export const SplitBodySchema = z.discriminatedUnion("method", [
   z.object({ method: z.literal("EQUAL"), participants: z.array(z.object({ memberId: Id })).max(MAX_PARTS) }),
@@ -98,12 +95,6 @@ export const SplitBodySchema = z.discriminatedUnion("method", [
     participants: z.array(z.object({ memberId: Id, units: z.number().int() })).max(MAX_PARTS),
   }),
 ]);
-
-/** "33.33" → 3333 basis points (the regex guarantees digits). */
-export const basisPointsOf = (percent: string): number => {
-  const [whole = "0", fraction = ""] = percent.split(".");
-  return Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
-};
 
 /**
  * HU-E4-01 sends `accountId` (the requester pays everything from that account of theirs); HU-E4-07
