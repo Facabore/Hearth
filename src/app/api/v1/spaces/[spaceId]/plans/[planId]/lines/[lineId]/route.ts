@@ -30,3 +30,19 @@ export const PATCH = defineRoute({
     return result.ok ? ok(planSuccess(result.value)) : result;
   },
 });
+
+export const DELETE = defineRoute({
+  auth: "required",
+  handler: async ({ request, user, params }) => {
+    const expectedVersion = ifMatchVersion(request);
+    if (!expectedVersion.ok) return expectedVersion;
+    const result = await getContainer().budgeting.removeLine({
+      spaceId: params.spaceId!,
+      userId: user!.id,
+      planId: params.planId!,
+      lineId: params.lineId!,
+      expectedVersion: expectedVersion.value,
+    });
+    return result.ok ? ok(planSuccess(result.value)) : result;
+  },
+});

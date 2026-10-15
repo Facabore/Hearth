@@ -8,6 +8,7 @@ import { setContainerForTests, type Container } from "@/composition/container";
 import { call, problemOf, registerUser, startTestApp } from "../support/app";
 import {
   addLine,
+  deleteLine,
   lineNamed,
   newPlan,
   patchLine,
@@ -673,5 +674,186 @@ describe("editing lines (HU-E6-03, HU-E6-04)", () => {
     expect(house).toEqual({ ...lineNamed(plan, "Home"), name: "House" });
     expect(house).not.toHaveProperty("colour");
     expect(changed.lines).toHaveLength(4);
+  });
+});
+
+describe("removing lines (HU-E6-03, D8)", () => {
+  /** The stored rows of the plan's lines named `name`, oldest first: removed rows stay (D8). */
+  const rowsNamed = async (planId: string, name: string) => {
+    const { rows } = await app.pool.query(
+      "SELECT id, is_catch_all, deleted_at FROM budget_lines WHERE plan_id = $1 AND name = $2 ORDER BY created_at, id",
+      [planId, name],
+    );
+    return rows as { id: string; is_catch_all: boolean; deleted_at: Date | null }[];
+  };
+  /** Category mapping has no endpoint yet (Task 15): a mapping is arranged directly in the table. */
+  const mapCategory = (planId: string, lineId: string, categoryId: string) =>
+    app.pool.query(
+      "INSERT INTO budget_line_categories (plan_id, line_id, category_id, mapped_at) VALUES ($1, $2, $3, now())",
+      [planId, lineId, categoryId],
+    );
+
+  it("removes a line logically: the plan drops it, its name is free again and its row stays (D8, Review Focus 6)", async () => {
+    const { h, planId, lineId, plan } = await referencePlan();
+    const home = lineId("Home");
+    const removed = await deleteLine(h.ana, h.spaceId, planId, home);
+    expect([removed.status, removed.headers.get("etag")]).toEqual([200, `"${plan.version + 1}"`]);
+    const after = (await removed.json()) as PlanDto;
+    expect([after.version, after.lines.map((l) => l.name), after.planned, after.unallocated]).toEqual([
+      plan.version + 1,
+      ["Rent", "Savings", "Free"],
+      cop(2_530_000),
+      cop(1_470_000),
+    ]);
+    expect(after.lines.map((l) => l.capacityShare)).toEqual(["30.00", "15.00", "18.25"]);
+    expect(await planOf(h.ana, h.spaceId, planId)).toEqual(after);
+
+    const again = await addLine(h.ana, h.spaceId, planId, { name: "Home", pesos: 1_470_000 });
+    const rows = await rowsNamed(planId, "Home");
+    expect(rows.map((r) => [r.id, r.deleted_at !== null])).toEqual([
+      [home, true],
+      [lineNamed(again, "Home").id, false],
+    ]);
+  });
+
+  it("answers 404 to a second removal and to an edit of a removed line, and keeps its row removed", async () => {
+    const { h, planId, lineId } = await referencePlan();
+    const home = lineId("Home");
+    expect((await deleteLine(h.ana, h.spaceId, planId, home)).status).toBe(200);
+    expect(await problemOf(await deleteLine(h.ana, h.spaceId, planId, home))).toEqual([
+      404,
+      "BudgetLineNotFound",
+    ]);
+    const edit = await patchLine(h.ana, h.spaceId, planId, home, { name: "House" });
+    expect(await problemOf(edit)).toEqual([404, "BudgetLineNotFound"]);
+    expect((await rowsNamed(planId, "Home")).map((r) => r.deleted_at !== null)).toEqual([true]);
+    expect((await planOf(h.ana, h.spaceId, planId)).lines.map((l) => l.name)).toEqual([
+      "Rent",
+      "Savings",
+      "Free",
+    ]);
+  });
+
+  it("frees the catch-all slot: Unbudgeted is back, another line can take it, and the removed row keeps its flag", async () => {
+    const { h, planId, lineId } = await referencePlan();
+    expect((await patchLine(h.ana, h.spaceId, planId, lineId("Free"), { isCatchAll: true })).status).toBe(
+      200,
+    );
+    const removed = (await (await deleteLine(h.ana, h.spaceId, planId, lineId("Free"))).json()) as PlanDto;
+    expect([removed.lines.some((l) => l.isCatchAll), removed.unbudgeted === null]).toEqual([false, false]);
+    const marked = await patchLine(h.ana, h.spaceId, planId, lineId("Home"), { isCatchAll: true });
+    expect(marked.status).toBe(200);
+    expect(lineNamed((await marked.json()) as PlanDto, "Home").isCatchAll).toBe(true);
+    const free = await rowsNamed(planId, "Free");
+    expect(free.map((r) => [r.is_catch_all, r.deleted_at !== null])).toEqual([[true, true]]);
+  });
+
+  it("ends the line's mappings and frees its categories for another line", async () => {
+    const { h, planId, lineId } = await referencePlan();
+    const home = lineId("Home");
+    await mapCategory(planId, home, h.groceries);
+    expect(lineNamed(await planOf(h.ana, h.spaceId, planId), "Home").categoryIds).toEqual([h.groceries]);
+    expect((await deleteLine(h.ana, h.spaceId, planId, home)).status).toBe(200);
+    const { rows } = await app.pool.query(
+      "SELECT unmapped_at FROM budget_line_categories WHERE line_id = $1",
+      [home],
+    );
+    expect(rows.map((r) => r.unmapped_at !== null)).toEqual([true]);
+    await mapCategory(planId, lineId("Rent"), h.groceries);
+    expect(lineNamed(await planOf(h.ana, h.spaceId, planId), "Rent").categoryIds).toEqual([h.groceries]);
+  });
+
+  it("frees the savings account of a removed SAVINGS line for another line", async () => {
+    const { h, savings, planId, lineId } = await referencePlan();
+    const taken = await patchLine(h.ana, h.spaceId, planId, lineId("Home"), {
+      funding: "SAVINGS",
+      savingsAccountIds: [savings],
+    });
+    expect(await problemOf(taken)).toEqual([409, "SavingsAccountAlreadyUsed"]);
+    expect((await deleteLine(h.ana, h.spaceId, planId, lineId("Savings"))).status).toBe(200);
+    const moved = await patchLine(h.ana, h.spaceId, planId, lineId("Home"), {
+      funding: "SAVINGS",
+      savingsAccountIds: [savings],
+    });
+    expect(lineNamed((await moved.json()) as PlanDto, "Home")).toMatchObject({
+      funding: "SAVINGS",
+      savingsAccountIds: [savings],
+    });
+  });
+
+  it("never needs a capacity check: a plan over its capacity loses a line and regains room", async () => {
+    const { h, planId, lineId } = await referencePlan();
+    const over = await setCapacities(h.ana, h.spaceId, planId, [[h.juan.memberId, 2_000_000]]);
+    expect(over.unallocated).toEqual(cop(-400_000));
+    const removed = (await (await deleteLine(h.ana, h.spaceId, planId, lineId("Free"))).json()) as PlanDto;
+    expect([removed.planned, removed.unallocated]).toEqual([cop(3_270_000), cop(330_000)]);
+  });
+
+  it("refuses MEMBER Juan and a stale If-Match, and keeps the plan as it was", async () => {
+    const { h, planId, lineId, plan } = await referencePlan();
+    const juans = await deleteLine(h.juan, h.spaceId, planId, lineId("Home"));
+    expect(await problemOf(juans)).toEqual([403, "InsufficientRole"]);
+    const stale = await deleteLine(h.ana, h.spaceId, planId, lineId("Home"), plan.version - 1);
+    expect(await problemOf(stale)).toEqual([412, "PreconditionFailed"]);
+    expect(await planOf(h.ana, h.spaceId, planId)).toEqual(plan);
+    expect((await deleteLine(h.ana, h.spaceId, planId, lineId("Home"), plan.version)).status).toBe(200);
+  });
+
+  it("lets an ADMIN remove, refuses a VIEWER, and answers 404 to a stranger, a foreign plan and a foreign or malformed line", async () => {
+    const { h, planId, lineId } = await referencePlan();
+    const luis = await joinHousehold(h, "Luis", "ADMIN");
+    const vera = await joinHousehold(h, "Vera", "VIEWER");
+    const marta = await registerUser("Marta");
+    const home = lineId("Home");
+    expect(await problemOf(await deleteLine(vera, h.spaceId, planId, home))).toEqual([
+      403,
+      "InsufficientRole",
+    ]);
+    expect(await problemOf(await deleteLine(marta, h.spaceId, planId, home))).toEqual([404, "SpaceNotFound"]);
+    const foreign = await newPlan(marta, marta.spaceId, "2026-11");
+    expect(await problemOf(await deleteLine(h.ana, h.spaceId, foreign.id, home))).toEqual([
+      404,
+      "BudgetPlanNotFound",
+    ]);
+    expect(await problemOf(await deleteLine(h.ana, h.spaceId, "not-a-uuid", home))).toEqual([
+      404,
+      "BudgetPlanNotFound",
+    ]);
+
+    const { id: december } = await newPlan(h.ana, h.spaceId, "2026-12");
+    await setCapacities(h.ana, h.spaceId, december, [[h.ana.memberId, 1_600_000]]);
+    const later = lineNamed(
+      await addLine(h.ana, h.spaceId, december, { name: "Food", pesos: 500_000 }),
+      "Food",
+    );
+    const other = await referencePlan();
+    for (const lineOfElsewhere of [
+      later.id,
+      other.lineId("Home"),
+      "0190a000-0000-7000-8000-000000000000",
+      "not-a-uuid",
+    ]) {
+      const response = await deleteLine(h.ana, h.spaceId, planId, lineOfElsewhere);
+      expect(await problemOf(response)).toEqual([404, "BudgetLineNotFound"]);
+    }
+    expect((await planOf(h.ana, h.spaceId, planId)).lines).toHaveLength(4);
+    expect((await planOf(h.ana, h.spaceId, december)).lines.map((l) => l.name)).toEqual(["Food"]);
+    expect((await planOf(other.h.ana, other.h.spaceId, other.planId)).lines).toHaveLength(4);
+
+    const removed = (await (await deleteLine(luis, h.spaceId, planId, home)).json()) as PlanDto;
+    expect(removed.lines.map((l) => l.name)).toEqual(["Rent", "Savings", "Free"]);
+  });
+
+  it("refuses a removal in an archived space (HU-E1-09), and the line stays", async () => {
+    const { h, planId, lineId, plan } = await referencePlan();
+    const archived = await call(archiveSpace, "POST", `/api/v1/spaces/${h.spaceId}/archive`, {
+      user: h.ana,
+      params: { spaceId: h.spaceId },
+    });
+    expect(archived.status).toBe(204);
+    const refused = await deleteLine(h.ana, h.spaceId, planId, lineId("Home"));
+    expect(await problemOf(refused)).toEqual([409, "SpaceArchived"]);
+    expect(await planOf(h.ana, h.spaceId, planId)).toEqual(plan);
+    expect((await rowsNamed(planId, "Home")).map((r) => r.deleted_at)).toEqual([null]);
   });
 });

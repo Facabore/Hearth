@@ -370,5 +370,12 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
           "ValidationFailed, InvalidBudgetLineName, InvalidPlannedAmount, SavingsAccountRequired, InvalidSavingsAccount, CurrencyMismatch, UnknownCurrency",
       },
     ),
+    delete: planWrite(
+      "removeBudgetLine",
+      "Remove a line logically: its row stays, it leaves every figure and frees its name and categories",
+      LinePath,
+      null,
+      { "404": "SpaceNotFound, BudgetPlanNotFound, BudgetLineNotFound", "409": "SpaceArchived" },
+    ),
   },
 };

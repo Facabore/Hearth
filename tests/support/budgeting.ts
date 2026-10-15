@@ -2,7 +2,10 @@ import { GET as getPlanRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId
 import { POST as createPlanRoute } from "@/app/api/v1/spaces/[spaceId]/plans/route";
 import { PUT as putCapacitiesRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/capacities/route";
 import { GET as suggestionRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/capacity-suggestion/route";
-import { PATCH as patchLineRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/lines/[lineId]/route";
+import {
+  DELETE as deleteLineRoute,
+  PATCH as patchLineRoute,
+} from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/lines/[lineId]/route";
 import { POST as postLineRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/lines/route";
 import { call, type TestUser } from "./app";
 import { cop, household, newAccount, type MoneyDto } from "./ledger";
@@ -176,3 +179,17 @@ export const patchLine = (
     headers: ifMatch(version),
   });
 };
+
+/** HU-E6-03, D8: `user` removes the line (logically). */
+export const deleteLine = (
+  user: TestUser,
+  spaceId: string,
+  planId: string,
+  lineId: string,
+  version?: number,
+) =>
+  call(deleteLineRoute, "DELETE", plansPath(spaceId, `/${planId}/lines/${lineId}`), {
+    user,
+    params: { spaceId, planId, lineId },
+    headers: ifMatch(version),
+  });
