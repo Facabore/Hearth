@@ -21,6 +21,11 @@ describe("permission matrix (HU-E1-05)", () => {
     ["Sofi leaves the space", "VIEWER", "space.leave", true],
     ["Luis removes the guest Pedro", "MEMBER", "guest.remove", true],
     ["Sofi removes the guest Pedro", "VIEWER", "guest.remove", false],
+    ["Ana creates a plan", "OWNER", "plan.manage", true],
+    ["Juan edits a plan", "ADMIN", "plan.manage", true],
+    ["Luis creates a plan", "MEMBER", "plan.manage", false],
+    ["Luis sets his own capacity", "MEMBER", "capacity.setOwn", true],
+    ["Sofi sets her own capacity", "VIEWER", "capacity.setOwn", false],
   ])("%s", (_scenario, role, action, allowed) => {
     expect(can(role, action)).toBe(allowed);
   });

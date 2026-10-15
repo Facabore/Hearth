@@ -1,4 +1,4 @@
-import type { StoredPeriod } from "@/shared/kernel";
+import type { LocalDate, StoredPeriod } from "@/shared/kernel";
 import type { BudgetPlan, BudgetPlanId } from "../domain/plan";
 import type { PlanParts } from "../domain/plan-figures";
 
@@ -25,4 +25,20 @@ export interface BudgetPlanRepository {
   lockForWrite(planId: BudgetPlanId, expectedVersion: number | null, at: Date): Promise<number | null>;
   /** Capacities by member; lines that are not deleted in creation order; current mappings and values by line. */
   contents(planId: BudgetPlanId): Promise<PlanContents>;
+}
+
+/** Spec 5.4, D7: spending within dates, summed on read by the ledger and bound by the composition root. */
+export interface PlanSpending {
+  /** Σ live expenses of the space dated within [from, to] per category; categories without any are absent. */
+  expensesByCategory(
+    spaceId: string,
+    from: LocalDate,
+    to: LocalDate,
+  ): Promise<{ categoryId: string; amount: bigint }[]>;
+  /** Σ live transfers dated within [from, to] into each of the accounts, whatever space recorded them. */
+  transfersIntoAccounts(
+    accountIds: readonly string[],
+    from: LocalDate,
+    to: LocalDate,
+  ): Promise<{ accountId: string; amount: bigint }[]>;
 }

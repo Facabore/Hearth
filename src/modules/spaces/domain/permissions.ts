@@ -27,6 +27,10 @@ const MATRIX = {
   "money.editAny": ["OWNER", "ADMIN"],
   /** Create, edit and archive shared fund accounts (HU-E2-02). */
   "fund.manage": ["OWNER", "ADMIN"],
+  /** HU-E6-01 … HU-E6-05: create plans and edit their capacities, lines, category mappings and allocations. */
+  "plan.manage": ["OWNER", "ADMIN"],
+  /** HU-E6-02, D17: a registered member records their own capacity; anyone else's is plan.manage. */
+  "capacity.setOwn": ["OWNER", "ADMIN", "MEMBER"],
 } as const satisfies Record<string, readonly SpaceRole[]>;
 
 export type SpaceAction = keyof typeof MATRIX;
