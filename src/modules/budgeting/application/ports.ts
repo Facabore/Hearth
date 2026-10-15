@@ -94,7 +94,10 @@ export interface SavingsAccountReader {
 
 /** HU-E6-04: a line's categories are replaced as a set; ended mappings keep their rows (D8). */
 export interface CategoryMappingRepository {
-  /** Makes `categoryIds` the line's current categories: ends the others' mappings and maps the new ones. */
+  /**
+   * Makes `categoryIds` the line's current categories: ends the others' mappings and maps the new ones. Only for a
+   * current line of the plan; a line of another plan or a removed one is not found and nothing changes.
+   */
   mapCategories(
     planId: BudgetPlanId,
     lineId: BudgetLineId,
@@ -112,7 +115,12 @@ export interface BudgetCategories {
 
 /** HU-E6-05: allocating a line sets its rule and supersedes its earlier member values; nothing is deleted (D8). */
 export interface AllocationRepository {
+  /**
+   * Sets the rule of a current line of the plan, supersedes its current member values and stores `values`; a line of
+   * another plan or a removed one is not found and nothing changes.
+   */
   setAllocation(
+    planId: BudgetPlanId,
     lineId: BudgetLineId,
     rule: AllocationRule,
     values: readonly AllocationValue[],

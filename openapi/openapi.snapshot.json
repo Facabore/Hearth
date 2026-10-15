@@ -5559,6 +5559,7 @@
             "bearerAuth": []
           }
         ],
+        "description": "The body needs at least one field: an empty body, or one with only unknown fields, answers 422 ValidationFailed. Like every plan write it bumps the plan's version, even when the change repeats what the line already holds.",
         "parameters": [
           {
             "in": "path",

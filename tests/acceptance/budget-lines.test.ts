@@ -500,6 +500,13 @@ describe("editing lines (HU-E6-03, HU-E6-04)", () => {
     expect(trimmed.lines.map((l) => l.name)).toEqual(["Rent", "House", "Savings", "Free"]);
   });
 
+  it("bumps the version even when the change repeats what the line holds", async () => {
+    const { h, planId, lineId, plan } = await referencePlan();
+    const same = await patchLine(h.ana, h.spaceId, planId, lineId("Home"), { name: "Home" }, plan.version);
+    expect([same.status, same.headers.get("etag")]).toEqual([200, `"${plan.version + 1}"`]);
+    expect(await same.json()).toEqual({ ...plan, version: plan.version + 1 });
+  });
+
   it("changes only the fields it names, and answers the whole plan with its new ETag", async () => {
     const { h, planId, lineId, plan } = await referencePlan();
     const response = await patchLine(

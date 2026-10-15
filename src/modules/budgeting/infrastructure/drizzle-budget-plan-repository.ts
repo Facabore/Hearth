@@ -230,6 +230,13 @@ export class DrizzleBudgetPlanRepository implements BudgetPlanRepository {
     at: Date,
   ): Promise<void> {
     const db = this.tm.executor();
+    // A line of another plan, or a removed one, is not found: nothing is ended and nothing is mapped.
+    const [line] = await db
+      .select({ id: budgetLines.id })
+      .from(budgetLines)
+      .where(and(eq(budgetLines.id, lineId), eq(budgetLines.planId, planId), isNull(budgetLines.deletedAt)))
+      .limit(1);
+    if (!line) return;
     const current = await db
       .select({ categoryId: budgetLineCategories.categoryId })
       .from(budgetLineCategories)
@@ -269,16 +276,20 @@ export class DrizzleBudgetPlanRepository implements BudgetPlanRepository {
   }
 
   async setAllocation(
+    planId: BudgetPlanId,
     lineId: BudgetLineId,
     rule: AllocationRule,
     values: readonly AllocationValue[],
     at: Date,
   ): Promise<void> {
     const db = this.tm.executor();
-    await db
+    // A line of another plan, or a removed one, is not found: its rule and its values stay.
+    const updated = await db
       .update(budgetLines)
       .set({ allocationRule: rule, updatedAt: at })
-      .where(eq(budgetLines.id, lineId));
+      .where(and(eq(budgetLines.id, lineId), eq(budgetLines.planId, planId), isNull(budgetLines.deletedAt)))
+      .returning({ id: budgetLines.id });
+    if (updated.length === 0) return;
     // D8: the earlier values stay with supersededAt; the partial unique index admits the new current ones.
     await db
       .update(budgetAllocations)

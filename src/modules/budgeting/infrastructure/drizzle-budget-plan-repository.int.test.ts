@@ -938,7 +938,7 @@ describe("UpdateBudgetLine and RemoveBudgetLine over PostgreSQL (HU-E6-03, HU-E6
 });
 
 describe("DrizzleBudgetPlanRepository category mappings (HU-E6-04, HU-E3-03, D8)", () => {
-  it("replaces a line's categories and ends a removed line's mappings like its in-memory twin", async () => {
+  it("replaces a line's categories, ends a removed line's mappings and leaves other plans' lines alone like its in-memory twin", async () => {
     const { space, fixture } = await household();
     const groceries = await categoryFixture(db, fixture, "Groceries");
     const utilities = await categoryFixture(db, fixture, "Utilities");
@@ -954,17 +954,32 @@ describe("DrizzleBudgetPlanRepository category mappings (HU-E6-04, HU-E3-03, D8)
       planId: november.id,
       createdAt: new Date("2026-10-14T12:01:00Z"),
     });
+    const december = aPlan(space.id, "2026-12", "2026-12-01", "2026-12-31");
+    const gift = aLine("Gift", 10_000_000n, {
+      id: randomUUID() as BudgetLineId,
+      planId: december.id,
+      createdAt: at,
+    });
     const run = async (plans: BudgetPlanRepository & BudgetLineRepository & CategoryMappingRepository) => {
       await plans.add(november);
+      await plans.add(december);
       await plans.addLine(home, at);
       await plans.addLine(free, at);
+      await plans.addLine(gift, at);
       await plans.mapCategories(november.id, home.id, [groceries, utilities], at);
       await plans.mapCategories(november.id, home.id, [groceries], at);
       await plans.mapCategories(november.id, free.id, [utilities, outings], at);
       await plans.deleteLine(november.id, free.id, at);
       await plans.mapCategories(november.id, home.id, [groceries, outings], at);
+      // M4: a removed line, or a line of another plan, handed to this plan's write is not found: nothing is mapped,
+      // nothing is ended (not even the other plan's own mapping of that line).
+      await plans.mapCategories(december.id, gift.id, [outings], at);
+      await plans.mapCategories(november.id, free.id, [utilities], at);
+      await plans.mapCategories(november.id, gift.id, [], at);
+      await plans.mapCategories(november.id, gift.id, [utilities], at);
       return {
         mappings: (await plans.contents(november.id)).mappings,
+        elsewhere: (await plans.contents(december.id)).mappings,
         mapped: [
           await plans.isCategoryMapped(utilities),
           await plans.isCategoryMapped(randomUUID()),
@@ -977,6 +992,7 @@ describe("DrizzleBudgetPlanRepository category mappings (HU-E6-04, HU-E3-03, D8)
         { lineId: home.id, categoryId: groceries },
         { lineId: home.id, categoryId: outings },
       ].sort((a, b) => (a.categoryId < b.categoryId ? -1 : 1)),
+      elsewhere: [{ lineId: gift.id, categoryId: outings }],
       mapped: [true, false, false],
     };
     expect(await run(new InMemoryBudgetPlans())).toEqual(expected);
@@ -986,6 +1002,11 @@ describe("DrizzleBudgetPlanRepository category mappings (HU-E6-04, HU-E3-03, D8)
       [november.id],
     );
     expect(rows[0].n).toBe(5);
+    const { rows: ofGift } = await pool.query(
+      "SELECT plan_id, unmapped_at FROM budget_line_categories WHERE line_id = $1",
+      [gift.id],
+    );
+    expect(ofGift).toEqual([{ plan_id: december.id, unmapped_at: null }]);
   });
 });
 
@@ -1189,7 +1210,7 @@ describe("MapCategoriesToLine over PostgreSQL (HU-E6-04, Review Focus 5, 6, spec
 });
 
 describe("DrizzleBudgetPlanRepository allocations (HU-E6-05, D8)", () => {
-  it("sets a line's rule and supersedes its earlier values like its in-memory twin", async () => {
+  it("sets a line's rule, supersedes its earlier values and leaves other plans' lines alone like its in-memory twin", async () => {
     const { space, fixture } = await household();
     const pedro = await guestMemberFixture(pool, fixture, "Pedro");
     const november = aPlan(space.id, "2026-11", "2026-11-01", "2026-11-30");
@@ -1198,34 +1219,59 @@ describe("DrizzleBudgetPlanRepository allocations (HU-E6-05, D8)", () => {
       planId: november.id,
       createdAt: at,
     });
+    const december = aPlan(space.id, "2026-12", "2026-12-01", "2026-12-31");
+    const gift = aLine("Gift", 10_000_000n, {
+      id: randomUUID() as BudgetLineId,
+      planId: december.id,
+      createdAt: at,
+    });
     const run = async (plans: BudgetPlanRepository & BudgetLineRepository & AllocationRepository) => {
       await plans.add(november);
+      await plans.add(december);
       await plans.addLine(free, at);
+      await plans.addLine(gift, at);
       const split = [
         { memberId: fixture.memberId, value: 4200n },
         { memberId: pedro, value: 5800n },
       ];
-      await plans.setAllocation(free.id, "PERCENT", split, at);
-      await plans.setAllocation(free.id, "FIXED", [{ memberId: pedro, value: 73_000_000n }], at);
+      await plans.setAllocation(november.id, free.id, "PERCENT", split, at);
+      await plans.setAllocation(november.id, free.id, "FIXED", [{ memberId: pedro, value: 73_000_000n }], at);
       const fixedParts = await plans.contents(november.id);
-      await plans.setAllocation(free.id, "NONE", [], at);
+      await plans.setAllocation(november.id, free.id, "NONE", [], at);
       const noneParts = await plans.contents(november.id);
+      // M4: a removed line, or a line of another plan, handed to this plan's write is not found: its rule and its
+      // values stay as they are.
+      await plans.setAllocation(
+        december.id,
+        gift.id,
+        "PERCENT",
+        [{ memberId: fixture.memberId, value: 10000n }],
+        at,
+      );
+      await plans.setAllocation(november.id, gift.id, "NONE", [], at);
+      await plans.setAllocation(november.id, gift.id, "FIXED", [{ memberId: pedro, value: 10_000_000n }], at);
+      const elsewhere = await plans.contents(december.id);
+      await plans.deleteLine(november.id, free.id, at);
+      await plans.setAllocation(november.id, free.id, "FIXED", [{ memberId: pedro, value: 73_000_000n }], at);
       return {
         fixed: [fixedParts.lines[0]!.allocationRule, fixedParts.allocations],
         none: [noneParts.lines[0]!.allocationRule, noneParts.allocations],
+        elsewhere: [elsewhere.lines[0]!.allocationRule, elsewhere.allocations],
       };
     };
     const expected = {
       fixed: ["FIXED", [{ lineId: free.id, memberId: pedro, value: 73_000_000n }]],
       none: ["NONE", []],
+      elsewhere: ["PERCENT", [{ lineId: gift.id, memberId: fixture.memberId, value: 10000n }]],
     };
     expect(await run(new InMemoryBudgetPlans())).toEqual(expected);
     expect(await run(repo)).toEqual(expected);
+    // Every value row ever written stays, all superseded: the attempt on the removed line stored nothing.
     const { rows } = await pool.query(
-      "SELECT count(*)::int AS n FROM budget_allocations WHERE line_id = $1 AND superseded_at IS NOT NULL",
+      "SELECT count(*)::int AS n, count(superseded_at)::int AS superseded FROM budget_allocations WHERE line_id = $1",
       [free.id],
     );
-    expect(rows[0].n).toBe(3);
+    expect(rows[0]).toEqual({ n: 3, superseded: 3 });
   });
 });
 

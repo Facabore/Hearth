@@ -136,6 +136,45 @@ describe("budget_line_categories (HU-E6-04, D8)", () => {
   });
 });
 
+describe("foreign keys (D8: no cascade)", () => {
+  it("refuses to delete a plan that has a line and a line that has an allocation", async () => {
+    const { fixture, planId } = await world();
+    const lonely = randomUUID();
+    // The plan holds one line and nothing else, so only the line's key stands between it and a cascade.
+    await line(planId, "Home", {}, lonely);
+    await expect(pool.query("DELETE FROM budget_plans WHERE id = $1", [planId])).rejects.toMatchObject({
+      code: "23503",
+    });
+    await pool.query(
+      "INSERT INTO budget_allocations (line_id, member_id, rule, value, set_at) VALUES ($1, $2, 'PERCENT', 10000, now())",
+      [lonely, fixture.memberId],
+    );
+    await expect(pool.query("DELETE FROM budget_lines WHERE id = $1", [lonely])).rejects.toMatchObject({
+      code: "23503",
+    });
+    const { rows } = await pool.query(
+      `SELECT (SELECT count(*)::int FROM budget_plans WHERE id = $1) AS plans,
+              (SELECT count(*)::int FROM budget_lines WHERE id = $2) AS lines,
+              (SELECT count(*)::int FROM budget_allocations WHERE line_id = $2) AS allocations`,
+      [planId, lonely],
+    );
+    expect(rows[0]).toEqual({ plans: 1, lines: 1, allocations: 1 });
+  });
+
+  it("declares all eleven keys of the budgeting tables NO ACTION, so a migration cannot cascade one unnoticed", async () => {
+    const { rows } = await pool.query(
+      `SELECT c.conname, c.confdeltype
+         FROM pg_constraint c
+         JOIN pg_class t ON t.oid = c.conrelid
+        WHERE c.contype = 'f' AND t.relname LIKE 'budget\\_%'
+        ORDER BY c.conname`,
+    );
+    expect(rows).toHaveLength(11);
+    // 'a' is NO ACTION; 'c' would be CASCADE, 'n' SET NULL, 'r' RESTRICT, 'd' SET DEFAULT.
+    expect(rows.filter((r) => r.confdeltype !== "a").map((r) => r.conname)).toEqual([]);
+  });
+});
+
 describe("budget_allocations (HU-E6-05, D8)", () => {
   it("holds one current positive value per member of a line; superseded values stay", async () => {
     const { fixture, planId } = await world();

@@ -121,6 +121,7 @@ export class InMemoryBudgetPlans implements BudgetPlanRepository {
     categoryIds: readonly string[],
     at: Date,
   ): Promise<void> {
+    if (!this.hasCurrentLine(planId, lineId)) return;
     const keep = new Set(categoryIds);
     this.mappings = this.mappings.map((r) =>
       r.mapping.lineId === lineId && r.unmappedAt === null && !keep.has(r.mapping.categoryId)
@@ -144,11 +145,13 @@ export class InMemoryBudgetPlans implements BudgetPlanRepository {
 
   /** AllocationRepository, like DrizzleBudgetPlanRepository.setAllocation. */
   async setAllocation(
+    planId: string,
     lineId: string,
     rule: AllocationRule,
     values: readonly AllocationValue[],
     at: Date,
   ): Promise<void> {
+    if (!this.hasCurrentLine(planId, lineId)) return;
     this.lines = this.lines.map((r) =>
       r.line.id === lineId ? { ...r, line: { ...r.line, allocationRule: rule } } : r,
     );
@@ -168,6 +171,11 @@ export class InMemoryBudgetPlans implements BudgetPlanRepository {
     for (const allocation of parts.allocations ?? []) {
       this.allocations.push({ allocation, setAt: SEEDED, supersededAt: null });
     }
+  }
+
+  /** Writes to a line's parts are scoped to its plan: a line of another plan, or a removed one, is not found. */
+  private hasCurrentLine(planId: string, lineId: string): boolean {
+    return this.lines.some((r) => r.line.id === lineId && r.line.planId === planId && r.deletedAt === null);
   }
 
   private mergeCapacities(planId: string, capacities: readonly MemberCapacity[]): void {

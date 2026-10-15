@@ -200,7 +200,7 @@ describe("line checks (HU-E6-03)", () => {
     }
   });
 
-  const ana = { userId: "u-ana", currency: "COP" };
+  const ana = { callerUserId: "u-ana", spaceCurrency: "COP" };
 
   it("checks the accounts a line newly names, and skips those it already named (Task 12b)", async () => {
     const check = (ids: string[], already: string[] = []) =>
@@ -215,8 +215,8 @@ describe("line checks (HU-E6-03)", () => {
   });
 
   it("lets the caller attach only an account they own: another owner's is AccountNotFound (P8)", async () => {
-    const as = (userId: string, ids: string[]) =>
-      usableSavingsAccounts(savingsAccounts, { userId, currency: "COP" }, ids);
+    const as = (callerUserId: string, ids: string[]) =>
+      usableSavingsAccounts(savingsAccounts, { callerUserId, spaceCurrency: "COP" }, ids);
     expect(codeOf(await as("u-ana", ["acc-savings"]))).toBe("ok");
     expect(codeOf(await as("u-ana", ["acc-juan-savings"]))).toBe("AccountNotFound");
     expect(codeOf(await as("u-juan", ["acc-juan-savings"]))).toBe("ok");
@@ -225,8 +225,8 @@ describe("line checks (HU-E6-03)", () => {
   });
 
   it("refuses an own account in another currency than the space's with CurrencyMismatch, naming both (D6, I1)", async () => {
-    const check = (currency: string, ids: string[]) =>
-      usableSavingsAccounts(savingsAccounts, { userId: "u-ana", currency }, ids);
+    const check = (spaceCurrency: string, ids: string[]) =>
+      usableSavingsAccounts(savingsAccounts, { callerUserId: "u-ana", spaceCurrency }, ids);
     expect(codeOf(await check("COP", ["acc-usd-savings"]))).toBe("CurrencyMismatch");
     expect(await check("COP", ["acc-usd-savings"])).toMatchObject({
       error: { details: { expected: "COP", actual: "USD" } },

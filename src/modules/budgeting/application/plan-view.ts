@@ -21,12 +21,13 @@ const accountsOfMembers = async (
   accountIds: readonly string[],
 ): Promise<string[]> => {
   const owners = new Set(members.flatMap((m) => (m.userId === null ? [] : [m.userId])));
-  const counted: string[] = [];
-  for (const accountId of accountIds) {
-    const account = await accounts.find(accountId);
-    if (account !== null && owners.has(account.ownerUserId)) counted.push(accountId);
-  }
-  return counted;
+  // Resolved together; Promise.all keeps the order of the ids, so the counted ones keep the lines' order.
+  const found = await Promise.all(
+    accountIds.map(async (accountId) => ({ accountId, account: await accounts.find(accountId) })),
+  );
+  return found
+    .filter(({ account }) => account !== null && owners.has(account.ownerUserId))
+    .map(({ accountId }) => accountId);
 };
 
 /** The plan's parts, its space's current members and the spending within its stored dates, as figures. */

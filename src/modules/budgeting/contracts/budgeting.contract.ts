@@ -404,19 +404,23 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
     ),
   },
   "/api/v1/spaces/{spaceId}/plans/{planId}/lines/{lineId}": {
-    patch: planWrite(
-      "updateBudgetLine",
-      "Change a line's name, planned amount, funding, savings accounts, rollover mode or catch-all flag",
-      LinePath,
-      UpdateLineBodySchema,
-      {
-        "404": "SpaceNotFound, BudgetPlanNotFound, BudgetLineNotFound, AccountNotFound",
-        "409":
-          "PlanExceedsCapacity, BudgetLineNameTaken, CatchAllLineAlreadySet, SavingsAccountAlreadyUsed, SavingsLineNotMappable, AccountArchived, SpaceArchived",
-        "422":
-          "ValidationFailed, InvalidBudgetLineName, InvalidPlannedAmount, SavingsAccountRequired, InvalidSavingsAccount, CurrencyMismatch, UnknownCurrency",
-      },
-    ),
+    patch: {
+      ...planWrite(
+        "updateBudgetLine",
+        "Change a line's name, planned amount, funding, savings accounts, rollover mode or catch-all flag",
+        LinePath,
+        UpdateLineBodySchema,
+        {
+          "404": "SpaceNotFound, BudgetPlanNotFound, BudgetLineNotFound, AccountNotFound",
+          "409":
+            "PlanExceedsCapacity, BudgetLineNameTaken, CatchAllLineAlreadySet, SavingsAccountAlreadyUsed, SavingsLineNotMappable, AccountArchived, SpaceArchived",
+          "422":
+            "ValidationFailed, InvalidBudgetLineName, InvalidPlannedAmount, SavingsAccountRequired, InvalidSavingsAccount, CurrencyMismatch, UnknownCurrency",
+        },
+      ),
+      description:
+        "The body needs at least one field: an empty body, or one with only unknown fields, answers 422 ValidationFailed. Like every plan write it bumps the plan's version, even when the change repeats what the line already holds.",
+    },
     delete: planWrite(
       "removeBudgetLine",
       "Remove a line logically: its row stays, it leaves every figure and frees its name and categories",

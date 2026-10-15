@@ -230,6 +230,9 @@ describe("member capacities (HU-E6-02)", () => {
       [404, "BudgetPlanNotFound"],
     );
     expect((await planOf(h.ana, h.spaceId, other.id)).version).toBe(1);
+    // The plan the request targeted, Marta's, is untouched as well.
+    const martas = await planOf(marta, marta.spaceId, foreign.id);
+    expect([martas.version, martas.totalCapacity]).toEqual([1, cop(0)]);
   });
 
   it("refuses a change in an archived space (HU-E1-09)", async () => {

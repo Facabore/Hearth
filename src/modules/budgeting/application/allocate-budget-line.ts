@@ -38,6 +38,7 @@ export const createAllocateBudgetLine =
       );
       if (!allocation.ok) return allocation;
       await deps.allocations.setAllocation(
+        plan.id,
         line.value.id,
         allocation.value.rule,
         allocation.value.values,

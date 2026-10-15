@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { requirePermission, type SpaceId } from "@/modules/spaces/application";
 import { aLine, referenceLines } from "../../../../tests/support/budget-fixtures";
-import { budgetingWorld, HOUSEHOLD, NOW } from "../../../../tests/support/budgeting-world";
+import { budgetingWorld, HOUSEHOLD, NOW, savingsAccounts } from "../../../../tests/support/budgeting-world";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
 import { memberOf } from "../../../../tests/support/in-memory-spaces";
 import { createCreateBudgetPlan } from "./create-budget-plan";
 import { createGetBudgetPlan } from "./get-budget-plan";
 import { planForWrite } from "./plan-access";
+import type { BudgetAccount, SavingsAccountReader } from "./ports";
 
 const as = (userId: string, period = "2026-11", spaceId = HOUSEHOLD) => ({ spaceId, userId, period });
 
@@ -179,6 +180,36 @@ describe("GetBudgetPlan (HU-E6-01)", () => {
     expect(await spentAs("u-sofi")).toBe(10_000_000n);
     expect(await spentAs("u-ana")).toBe(10_000_000n);
     expect(transfers).toHaveBeenLastCalledWith(["acc-savings"], "2026-11-01", "2026-11-30");
+
+    // The filter runs on every read, over the whole period: Luis rejoins and his transfers count again.
+    expect(await spaces.addMember(HOUSEHOLD, memberOf("Luis", "MEMBER", 5))).toBe("added");
+    expect(await spentAs("u-sofi")).toBe(15_000_000n);
+  });
+
+  it("asks for every named account before waiting for any, and keeps the lines' order whichever answers first", async () => {
+    const { deps, plans, spending } = budgetingWorld();
+    const transfers = vi.spyOn(spending, "transfersIntoAccounts");
+    const plan = unwrap(await createCreateBudgetPlan(deps)(as("u-ana"))).plan;
+    const named = ["acc-savings", "acc-reserve"];
+    plans.seed(plan.id, {
+      lines: [aLine("Savings", 60_000_000n, { funding: "SAVINGS", savingsAccountIds: named })],
+    });
+    // Each lookup stays pending until the test answers it.
+    const pending = new Map<string, (account: BudgetAccount | null) => void>();
+    const slow: SavingsAccountReader = {
+      find: (id) => new Promise((resolve) => pending.set(id, resolve)),
+    };
+    const read = createGetBudgetPlan({ ...deps, savingsAccounts: slow })({
+      spaceId: HOUSEHOLD,
+      userId: "u-ana",
+      planId: plan.id,
+    });
+    await vi.waitFor(() => expect([...pending.keys()]).toEqual(named));
+    // The second answers first.
+    pending.get("acc-reserve")!(await savingsAccounts.find("acc-reserve"));
+    pending.get("acc-savings")!(await savingsAccounts.find("acc-savings"));
+    unwrap(await read);
+    expect(transfers).toHaveBeenCalledWith(named, "2026-11-01", "2026-11-30");
   });
 
   it("derives the figures from the current lines, mappings, allocations and members only (D8, D15)", async () => {

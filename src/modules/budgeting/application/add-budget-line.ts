@@ -56,7 +56,11 @@ export const createAddBudgetLine =
         lineContext(parts, members, null),
       );
       if (!line.ok) return line;
-      const accounts = await usableSavingsAccounts(deps.savingsAccounts, space, line.value.savingsAccountIds);
+      const accounts = await usableSavingsAccounts(
+        deps.savingsAccounts,
+        { callerUserId: space.userId, spaceCurrency: space.currency },
+        line.value.savingsAccountIds,
+      );
       if (!accounts.ok) return accounts;
       await deps.lines.addLine(line.value, deps.clock.now());
       return ok(await loadPlanView(deps, space, plan));

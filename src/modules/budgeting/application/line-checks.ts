@@ -40,17 +40,21 @@ export const lineContext = (
  */
 export const usableSavingsAccounts = async (
   accounts: SavingsAccountReader,
-  caller: Pick<SpaceMembership, "userId" | "currency">,
+  attach: { readonly callerUserId: string; readonly spaceCurrency: string },
   accountIds: readonly string[],
   already: readonly string[] = [],
 ): Promise<Result<void>> => {
   for (const accountId of accountIds.filter((id) => !already.includes(id))) {
     const account = await accounts.find(accountId);
-    if (account === null || account.ownerUserId !== caller.userId) return err(domainError("AccountNotFound"));
+    if (account === null || account.ownerUserId !== attach.callerUserId) {
+      return err(domainError("AccountNotFound"));
+    }
     if (!account.isSavings) return err(domainError("InvalidSavingsAccount", { reason: "notSavingsAccount" }));
     if (account.archived) return err(domainError("AccountArchived"));
-    if (account.currency !== caller.currency) {
-      return err(domainError("CurrencyMismatch", { expected: caller.currency, actual: account.currency }));
+    if (account.currency !== attach.spaceCurrency) {
+      return err(
+        domainError("CurrencyMismatch", { expected: attach.spaceCurrency, actual: account.currency }),
+      );
     }
   }
   return ok(undefined);
