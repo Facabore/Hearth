@@ -1,11 +1,11 @@
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { isUuid, type LocalDate, type StoredPeriod } from "@/shared/kernel";
 import type { BudgetPlanRepository, PlanContents } from "../application/ports";
 import type { AllocationValue } from "../domain/allocation";
 import type { AllocationRule, BudgetLine, BudgetLineId } from "../domain/budget-line";
 import type { MemberCapacity } from "../domain/capacity";
-import type { BudgetPlan, BudgetPlanId } from "../domain/plan";
+import type { BudgetPlan, BudgetPlanId, PlanStatus } from "../domain/plan";
 import {
   budgetAllocations,
   budgetLineCategories,
@@ -108,6 +108,31 @@ export class DrizzleBudgetPlanRepository implements BudgetPlanRepository {
       .where(eq(budgetPlans.spaceId, spaceId))
       .limit(1);
     return rows.length > 0;
+  }
+
+  async covering(
+    spaceId: string,
+    date: LocalDate,
+    options: { readonly share?: boolean } = {},
+  ): Promise<BudgetPlan | null> {
+    if (!isUuid(spaceId)) return null;
+    const query = this.tm
+      .executor()
+      .select()
+      .from(budgetPlans)
+      .where(
+        and(
+          eq(budgetPlans.spaceId, spaceId),
+          lte(budgetPlans.startDate, date),
+          gte(budgetPlans.endDate, date),
+        ),
+      )
+      // D10 keeps stored periods from overlapping; the order only makes a violation deterministic.
+      .orderBy(desc(budgetPlans.startDate))
+      .limit(1);
+    // P14: FOR SHARE conflicts with the FOR NO KEY UPDATE of lockForWrite and with nothing other readers take.
+    const [row] = options.share === true ? await query.for("share") : await query;
+    return row ? toPlan(row) : null;
   }
 
   async lockForWrite(planId: BudgetPlanId, expectedVersion: number | null, at: Date): Promise<number | null> {
@@ -303,5 +328,13 @@ export class DrizzleBudgetPlanRepository implements BudgetPlanRepository {
           values.map((v) => ({ lineId, memberId: v.memberId, rule: stored, value: v.value, setAt: at })),
         );
     }
+  }
+
+  async setStatus(planId: BudgetPlanId, status: PlanStatus, at: Date): Promise<void> {
+    await this.tm
+      .executor()
+      .update(budgetPlans)
+      .set({ status, updatedAt: at })
+      .where(eq(budgetPlans.id, planId));
   }
 }

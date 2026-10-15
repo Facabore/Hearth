@@ -2,7 +2,7 @@ import type { LocalDate, StoredPeriod } from "@/shared/kernel";
 import type { MemberCapacity } from "../domain/capacity";
 import type { AllocationValue } from "../domain/allocation";
 import type { AllocationRule, BudgetLine, BudgetLineId } from "../domain/budget-line";
-import type { BudgetPlan, BudgetPlanId } from "../domain/plan";
+import type { BudgetPlan, BudgetPlanId, PlanStatus } from "../domain/plan";
 import type { PlanParts } from "../domain/plan-figures";
 
 /** A plan's capacities, lines that are not deleted, current category mappings and current allocation values. */
@@ -26,6 +26,19 @@ export interface BudgetPlanRepository {
    * bump (possible only outside a transaction, which holds no lock).
    */
   lockForWrite(planId: BudgetPlanId, expectedVersion: number | null, at: Date): Promise<number | null>;
+  /**
+   * HU-E6-06 … HU-E6-08: the space's plan whose stored period covers `date` (stored periods never overlap, D10);
+   * null when none does and for malformed ids. With `share`, the row is locked FOR SHARE until the caller's
+   * transaction ends: the read waits for a write to the plan in progress (FOR NO KEY UPDATE, `lockForWrite`) and
+   * keeps new writes waiting until then, while other readers share it (ruling P14). A transaction that will write the
+   * plan takes `lockForWrite` first: one that reads it with `share` and then calls `lockForWrite` on the same plan
+   * deadlocks with another doing the same (a share lock cannot be upgraded).
+   */
+  covering(
+    spaceId: string,
+    date: LocalDate,
+    options?: { readonly share?: boolean },
+  ): Promise<BudgetPlan | null>;
   /** Capacities by member; lines that are not deleted in creation order; current mappings and values by line. */
   contents(planId: BudgetPlanId): Promise<PlanContents>;
 }
@@ -126,4 +139,10 @@ export interface AllocationRepository {
     values: readonly AllocationValue[],
     at: Date,
   ): Promise<void>;
+}
+
+/** HU-E6-07: a plan's status changes only through its transitions, under the plan's version lock. */
+export interface PlanStatusRepository {
+  /** Sets the status and the update time; the version is the one `lockForWrite` already gave the plan. */
+  setStatus(planId: BudgetPlanId, status: PlanStatus, at: Date): Promise<void>;
 }

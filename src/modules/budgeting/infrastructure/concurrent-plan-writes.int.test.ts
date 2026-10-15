@@ -91,6 +91,7 @@ const repositoryWith = (overrides: Partial<BudgetPlanRepository>): BudgetPlanRep
   find: (spaceId, planId) => plans.find(spaceId, planId),
   storedPeriods: (spaceId) => plans.storedPeriods(spaceId),
   hasPlans: (spaceId) => plans.hasPlans(spaceId),
+  covering: (spaceId, date, options) => plans.covering(spaceId, date, options),
   lockForWrite: (planId, expectedVersion, lockedAt) => plans.lockForWrite(planId, expectedVersion, lockedAt),
   contents: (planId) => plans.contents(planId),
   ...overrides,

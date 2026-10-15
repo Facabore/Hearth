@@ -8,8 +8,9 @@ import type {
   LineAllocation,
   MemberCapacity,
   PlanContents,
+  PlanStatus,
 } from "@/modules/budgeting/application";
-import type { StoredPeriod } from "@/shared/kernel";
+import type { LocalDate, StoredPeriod } from "@/shared/kernel";
 
 const SEEDED = new Date("2026-10-14T12:00:00Z");
 const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
@@ -46,6 +47,15 @@ export class InMemoryBudgetPlans implements BudgetPlanRepository {
 
   async hasPlans(spaceId: string): Promise<boolean> {
     return this.plans.some((p) => p.spaceId === spaceId);
+  }
+
+  /** Like DrizzleBudgetPlanRepository.covering; there is nothing to lock in memory. */
+  async covering(spaceId: string, date: LocalDate): Promise<BudgetPlan | null> {
+    const matching = this.plans.filter(
+      (p) => p.spaceId === spaceId && p.period.start <= date && date <= p.period.end,
+    );
+    // D10 keeps stored periods from overlapping; the order only makes a violation deterministic.
+    return matching.sort((a, b) => compare(b.period.start, a.period.start))[0] ?? null;
   }
 
   async lockForWrite(planId: string, expectedVersion: number | null): Promise<number | null> {
@@ -160,6 +170,11 @@ export class InMemoryBudgetPlans implements BudgetPlanRepository {
     );
     for (const value of values)
       this.allocations.push({ allocation: { lineId, ...value }, setAt: at, supersededAt: null });
+  }
+
+  /** PlanStatusRepository, like DrizzleBudgetPlanRepository.setStatus: the version stays. */
+  async setStatus(planId: string, status: PlanStatus): Promise<void> {
+    this.plans = this.plans.map((p) => (p.id === planId ? { ...p, status } : p));
   }
 
   /** Test setup: parts of a plan as earlier writes would have left them. */
