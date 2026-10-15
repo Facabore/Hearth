@@ -22,6 +22,7 @@ export interface AllocationMemberDto {
 }
 export interface LineDto {
   id: string;
+  originLineId: string | null;
   name: string;
   plannedAmount: MoneyDto;
   funding: string;
@@ -47,6 +48,12 @@ export interface PlanDto {
   unallocated: MoneyDto;
   lines: LineDto[];
   unbudgeted: { spent: MoneyDto; available: MoneyDto } | null;
+  /** HU-E6-06: only in the answer to a copy. */
+  dropped?: {
+    mappings: { lineId: string; categoryId: string }[];
+    savingsAccounts: { lineId: string; accountId: string }[];
+    lines: { originLineId: string; name: string }[];
+  };
 }
 
 export const plansPath = (spaceId: string, rest = "") => `/api/v1/spaces/${spaceId}/plans${rest}`;
@@ -244,4 +251,12 @@ export const closePlan = (user: TestUser, spaceId: string, planId: string, versi
     user,
     params: { spaceId, planId },
     headers: ifMatch(version),
+  });
+
+/** HU-E6-06: `user` creates the plan for `period` as a copy of the previous period's plan. */
+export const copyPlan = (user: TestUser, spaceId: string, period: string) =>
+  call(createPlanRoute, "POST", plansPath(spaceId), {
+    user,
+    params: { spaceId },
+    body: { period, copyFrom: "previous" },
   });

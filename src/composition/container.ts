@@ -36,6 +36,8 @@ import {
   createClosedPeriodGuard,
   type ActivateBudgetPlan,
   type CloseBudgetPlan,
+  createCopyBudgetPlan,
+  type CopyBudgetPlan,
   type CreateBudgetPlan,
   type GetBudgetPlan,
   type PreviousIncome,
@@ -234,6 +236,7 @@ export interface Container extends RouteDeps {
   };
   readonly budgeting: {
     readonly createPlan: CreateBudgetPlan;
+    readonly copyPlan: CopyBudgetPlan;
     readonly getPlan: GetBudgetPlan;
     readonly setCapacities: SetMemberCapacities;
     readonly suggestCapacity: SuggestCapacity;
@@ -588,6 +591,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     },
     budgeting: {
       createPlan: createCreateBudgetPlan(budgetingDeps),
+      copyPlan: createCopyBudgetPlan(budgetingDeps),
       getPlan: createGetBudgetPlan(budgetingDeps),
       setCapacities: createSetMemberCapacities(budgetingDeps),
       suggestCapacity: createSuggestCapacity(budgetingDeps),

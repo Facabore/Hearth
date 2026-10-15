@@ -51,6 +51,7 @@ describe("statusForCode", () => {
     ["BudgetPlanNotFound", 404],
     ["BudgetLineNotFound", 404],
     ["PlanAlreadyExists", 409],
+    ["NoPreviousPlan", 409],
     ["InvalidCapacity", 422],
     ["PlanExceedsCapacity", 409],
     ["InvalidBudgetLineName", 422],
