@@ -84,11 +84,18 @@ export class InMemoryBudgetPlans implements BudgetPlanRepository {
     this.lines.push({ line, deletedAt: null });
   }
 
-  /** BudgetLineRepository: every field but the allocation rule, which only setAllocation changes. */
+  /**
+   * BudgetLineRepository, like DrizzleBudgetPlanRepository.saveLine: a current line of the line's own plan, and only
+   * the fields a request changes; its plan, origin, creation time and allocation rule stay.
+   */
   async saveLine(line: BudgetLine): Promise<void> {
+    const { name, plannedAmount, funding, savingsAccountIds, rolloverMode, isCatchAll } = line;
     this.lines = this.lines.map((r) =>
-      r.line.id === line.id && r.deletedAt === null
-        ? { ...r, line: { ...line, allocationRule: r.line.allocationRule } }
+      r.line.id === line.id && r.line.planId === line.planId && r.deletedAt === null
+        ? {
+            ...r,
+            line: { ...r.line, name, plannedAmount, funding, savingsAccountIds, rolloverMode, isCatchAll },
+          }
         : r,
     );
   }

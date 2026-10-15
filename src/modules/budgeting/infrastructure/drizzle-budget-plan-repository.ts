@@ -197,7 +197,10 @@ export class DrizzleBudgetPlanRepository implements BudgetPlanRepository {
       .executor()
       .update(budgetLines)
       .set({ ...lineColumns(line), updatedAt: at })
-      .where(and(eq(budgetLines.id, line.id), isNull(budgetLines.deletedAt)));
+      // A line of another plan, or a removed one, is not found: nothing is saved.
+      .where(
+        and(eq(budgetLines.id, line.id), eq(budgetLines.planId, line.planId), isNull(budgetLines.deletedAt)),
+      );
   }
 
   async deleteLine(planId: BudgetPlanId, lineId: BudgetLineId, at: Date): Promise<void> {

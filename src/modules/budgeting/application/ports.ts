@@ -64,7 +64,10 @@ export type PreviousIncome = (
 /** HU-E6-03: lines are edited in place and removed logically (D8). */
 export interface BudgetLineRepository {
   addLine(line: BudgetLine, at: Date): Promise<void>;
-  /** Persists the name, planned amount, funding, savings accounts, rollover mode and catch-all flag of a current line. */
+  /**
+   * Persists the name, planned amount, funding, savings accounts, rollover mode and catch-all flag of a current line
+   * of the line's own plan; a line of another plan or a removed one is not found and nothing is saved.
+   */
   saveLine(line: BudgetLine, at: Date): Promise<void>;
   /** D8: sets deletedAt once and ends the line's current category mappings; its name and categories are free again. */
   deleteLine(planId: BudgetPlanId, lineId: BudgetLineId, at: Date): Promise<void>;

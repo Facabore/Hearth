@@ -18,7 +18,9 @@ import { codeOf, money, sequentialIds, unwrap } from "../../../../tests/support/
 import { InMemoryBudgetPlans } from "../../../../tests/support/in-memory-budgeting";
 import type { BudgetLineRepository, BudgetPlanRepository, CapacityRepository } from "../application/ports";
 import { createAddBudgetLine, type LineInput } from "../application/add-budget-line";
+import { createRemoveBudgetLine } from "../application/remove-budget-line";
 import { createSetMemberCapacities } from "../application/set-member-capacities";
+import { createUpdateBudgetLine, type LineChanges } from "../application/update-budget-line";
 import type { BudgetLine, BudgetLineId } from "../domain/budget-line";
 import type { BudgetPlan, BudgetPlanId } from "../domain/plan";
 import { DrizzleBudgetPlanRepository } from "./drizzle-budget-plan-repository";
@@ -543,6 +545,53 @@ describe("DrizzleBudgetPlanRepository lines (HU-E6-03, D8)", () => {
       { name: "Savings", allocation_rule: "PROPORTIONAL", deleted_at: at },
     ]);
   });
+
+  it("saves a line only through its own plan and never rewrites where or when it was made, like its twin", async () => {
+    const { space } = await household();
+    const [november, december] = [
+      aPlan(space.id, "2026-11", "2026-11-01", "2026-11-30"),
+      aPlan(space.id, "2026-12", "2026-12-01", "2026-12-31"),
+    ];
+    const home = aLine("Home", 147_000_000n, {
+      id: randomUUID() as BudgetLineId,
+      planId: november.id,
+      createdAt: at,
+    });
+    const decemberHome = aLine("Home", 100n, {
+      id: randomUUID() as BudgetLineId,
+      planId: december.id,
+      createdAt: at,
+    });
+    const run = async (plans: BudgetPlanRepository & BudgetLineRepository) => {
+      await plans.add(november);
+      await plans.add(december);
+      await plans.addLine(home, at);
+      await plans.addLine(decemberHome, at);
+      // Asked through the other plan, the line is not found: nothing is saved, in either plan.
+      await plans.saveLine({ ...home, planId: december.id, name: "Elsewhere" }, later);
+      await plans.saveLine({ ...decemberHome, planId: november.id, name: "Elsewhere" }, later);
+      // Asked through its own plan, only what a request may change is saved.
+      await plans.saveLine(
+        { ...home, name: "House", originLineId: decemberHome.id, createdAt: later },
+        later,
+      );
+      return {
+        november: (await plans.contents(november.id)).lines,
+        december: (await plans.contents(december.id)).lines,
+      };
+    };
+    const expected = { november: [{ ...home, name: "House" }], december: [decemberHome] };
+    expect(await run(new InMemoryBudgetPlans())).toEqual(expected);
+    expect(await run(repo)).toEqual(expected);
+    const { rows } = await pool.query(
+      "SELECT name, plan_id, origin_line_id, created_at, updated_at FROM budget_lines WHERE id = ANY($1) ORDER BY name",
+      [[home.id, decemberHome.id]],
+    );
+    expect(rows).toEqual([
+      { name: "Home", plan_id: december.id, origin_line_id: null, created_at: at, updated_at: at },
+      { name: "House", plan_id: november.id, origin_line_id: null, created_at: at, updated_at: later },
+    ]);
+  });
 });
 
 describe("DrizzleBudgetPlanRepository deleteLine mappings (HU-E6-03, D8)", () => {
@@ -698,6 +747,174 @@ describe("AddBudgetLine over PostgreSQL (HU-E6-03, spec 7)", () => {
       "SavingsAccountAlreadyUsed",
       "AccountNotFound",
       "CurrencyMismatch",
+      "PreconditionFailed",
+    ]);
+    expect(await stored()).toEqual(written);
+  });
+});
+
+describe("UpdateBudgetLine and RemoveBudgetLine over PostgreSQL (HU-E6-03, HU-E6-04, spec 7)", () => {
+  it("stores accepted edits and removals, and rolls the version lock back with a refused one, leaving every row as it was", async () => {
+    const { space, fixture } = await household();
+    const plan = aPlan(space.id, "2026-11", "2026-11-01", "2026-11-30");
+    await repo.add(plan);
+    const spaces = new DrizzleSpaceRepository(tm);
+    const [account, other] = [randomUUID(), randomUUID()];
+    const deps = {
+      access: createSpaceAccess(spaces),
+      members: spaces,
+      plans: repo,
+      capacities: repo,
+      lines: repo,
+      // Ana owns `account` and `other` belongs to nobody the space knows.
+      savingsAccounts: {
+        find: async (id: string) =>
+          id === account ? { id, ownerUserId: fixture.userId, isSavings: true, archived: false } : null,
+      },
+      spending: { expensesByCategory: async () => [], transfersIntoAccounts: async () => [] },
+      ids: new UuidV7IdGenerator(),
+      clock: new FixedClock(later),
+      tm,
+    };
+    const base = { spaceId: space.id, userId: fixture.userId, planId: plan.id };
+    const [add, update, remove] = [
+      createAddBudgetLine(deps),
+      createUpdateBudgetLine(deps),
+      createRemoveBudgetLine(deps),
+    ];
+    const edit = (lineId: string, changes: LineChanges, expectedVersion: number | null = null) =>
+      update({ ...base, lineId, expectedVersion, changes });
+    const drop = (lineId: string, expectedVersion: number | null = null) =>
+      remove({ ...base, lineId, expectedVersion });
+    // Everything these use cases may touch: the plan's version, its lines, and the mappings and values of its lines.
+    const stored = async () => ({
+      version: (await repo.find(space.id, plan.id))?.version,
+      lines: (
+        await pool.query(
+          `SELECT name, planned_amount::text, funding, savings_account_ids, rollover_mode, is_catch_all,
+             allocation_rule, deleted_at FROM budget_lines WHERE plan_id = $1 ORDER BY name`,
+          [plan.id],
+        )
+      ).rows,
+      mappings: (
+        await pool.query("SELECT unmapped_at FROM budget_line_categories WHERE plan_id = $1", [plan.id])
+      ).rows,
+      allocations: (
+        await pool.query(
+          `SELECT superseded_at FROM budget_allocations WHERE line_id IN (SELECT id FROM budget_lines WHERE plan_id = $1)`,
+          [plan.id],
+        )
+      ).rows,
+    });
+
+    const capacities = [{ memberId: fixture.memberId, amount: money(200_000_000n) }];
+    unwrap(await createSetMemberCapacities(deps)({ ...base, expectedVersion: null, capacities }));
+    const lines: [string, bigint][] = [
+      ["Home", 100_000_000n],
+      ["Gifts", 10_000_000n],
+      ["Free", 5_000_000n],
+    ];
+    for (const [name, amount] of lines) {
+      unwrap(await add({ ...base, expectedVersion: null, line: { name, plannedAmount: money(amount) } }));
+    }
+    const added = unwrap(
+      await add({
+        ...base,
+        expectedVersion: null,
+        line: {
+          name: "Savings",
+          plannedAmount: money(60_000_000n),
+          funding: "SAVINGS",
+          savingsAccountIds: [account],
+        },
+      }),
+    );
+    const id = (name: string) => added.figures.lines.find((l) => l.line.name === name)!.line.id;
+    // Gifts maps a category and holds a FIXED value, which its removal must not touch beyond ending the mapping (D8).
+    const groceries = await categoryFixture(db, fixture, "Groceries");
+    await pool.query(
+      "INSERT INTO budget_line_categories (plan_id, line_id, category_id, mapped_at) VALUES ($1, $2, $3, $4)",
+      [plan.id, id("Gifts"), groceries, at],
+    );
+    await pool.query(
+      "INSERT INTO budget_allocations (line_id, member_id, rule, value, set_at) VALUES ($1, $2, 'FIXED', '5', $3)",
+      [id("Gifts"), fixture.memberId, at],
+    );
+    await pool.query("UPDATE budget_lines SET allocation_rule = 'FIXED' WHERE id = $1", [id("Gifts")]);
+
+    // The home becomes the plan's catch-all House, Savings is renamed keeping its account, Gifts is removed.
+    const house = {
+      name: "House",
+      plannedAmount: money(105_000_000n),
+      funding: "SHARED_FUND" as const,
+      rolloverMode: "ROLLOVER" as const,
+      isCatchAll: true,
+    };
+    expect(unwrap(await edit(id("Home"), house)).plan.version).toBe(7);
+    expect(unwrap(await edit(id("Savings"), { name: "Ahorro" })).plan.version).toBe(8);
+    const removed = unwrap(await drop(id("Gifts")));
+    expect(removed.plan.version).toBe(9);
+    expect(removed.figures.lines.map((l) => l.line.name).sort()).toEqual(["Ahorro", "Free", "House"]);
+    expect((await repo.contents(plan.id)).allocations).toEqual([]);
+    const row = (name: string, planned: string, rest: Record<string, unknown>) => ({
+      name,
+      planned_amount: planned,
+      funding: "DIRECT",
+      savings_account_ids: [],
+      rollover_mode: "RESET",
+      is_catch_all: false,
+      allocation_rule: "PROPORTIONAL",
+      deleted_at: null,
+      ...rest,
+    });
+    const written = {
+      version: 9,
+      lines: [
+        row("Ahorro", "60000000", { funding: "SAVINGS", savings_account_ids: [account] }),
+        row("Free", "5000000", {}),
+        row("Gifts", "10000000", { allocation_rule: "FIXED", deleted_at: later }),
+        row("House", "105000000", {
+          funding: "SHARED_FUND",
+          rollover_mode: "ROLLOVER",
+          is_catch_all: true,
+        }),
+      ],
+      mappings: [{ unmapped_at: later }],
+      allocations: [{ superseded_at: null }],
+    };
+    expect(await stored()).toEqual(written);
+
+    // All but the last two pass the lock and are refused afterwards; those are refused by the lock itself.
+    const refused = [
+      await edit(id("Home"), { plannedAmount: money(200_000_000n) }),
+      await edit(id("Savings"), { name: "house" }),
+      await edit(id("Free"), { isCatchAll: true }),
+      await edit(id("Savings"), { isCatchAll: true }),
+      await edit(id("Free"), { funding: "SAVINGS", savingsAccountIds: [account] }),
+      await edit(id("Savings"), { savingsAccountIds: [account, other] }),
+      await edit(id("Home"), { plannedAmount: money(1n, "USD") }),
+      await edit(randomUUID(), { name: "Unknown" }),
+      await edit("not-a-uuid", { name: "Unknown" }),
+      await edit(id("Gifts"), { name: "Revived" }),
+      await drop(randomUUID()),
+      await drop(id("Gifts")),
+      await edit(id("Home"), { name: "Late" }, 1),
+      await drop(id("Home"), 1),
+    ];
+    expect(refused.map(codeOf)).toEqual([
+      "PlanExceedsCapacity",
+      "BudgetLineNameTaken",
+      "CatchAllLineAlreadySet",
+      "SavingsLineNotMappable",
+      "SavingsAccountAlreadyUsed",
+      "AccountNotFound",
+      "CurrencyMismatch",
+      "BudgetLineNotFound",
+      "BudgetLineNotFound",
+      "BudgetLineNotFound",
+      "BudgetLineNotFound",
+      "BudgetLineNotFound",
+      "PreconditionFailed",
       "PreconditionFailed",
     ]);
     expect(await stored()).toEqual(written);

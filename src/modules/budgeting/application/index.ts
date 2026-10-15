@@ -40,3 +40,5 @@ export {
 export { createSuggestCapacity, type CapacitySuggestion, type SuggestCapacity } from "./suggest-capacity";
 export type { BudgetAccount, BudgetLineRepository, SavingsAccountReader } from "./ports";
 export { createAddBudgetLine, type AddBudgetLine, type LineDeps, type LineInput } from "./add-budget-line";
+export { createUpdateBudgetLine, type LineChanges, type UpdateBudgetLine } from "./update-budget-line";
+export { createRemoveBudgetLine, type RemoveBudgetLine } from "./remove-budget-line";
