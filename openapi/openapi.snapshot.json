@@ -5850,6 +5850,285 @@
           "archivedAt"
         ],
         "additionalProperties": false
+      },
+      "BudgetPlan": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "spaceId": {
+            "type": "string"
+          },
+          "period": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "startDate": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              "endDate": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              }
+            },
+            "required": [
+              "label",
+              "startDate",
+              "endDate"
+            ],
+            "additionalProperties": false
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "ACTIVE",
+              "CLOSED"
+            ]
+          },
+          "createdFrom": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "capacities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "memberId": {
+                  "type": "string"
+                },
+                "amount": {
+                  "$ref": "#/components/schemas/MoneyOutput"
+                },
+                "share": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "memberId",
+                "amount",
+                "share"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "totalCapacity": {
+            "$ref": "#/components/schemas/MoneyOutput"
+          },
+          "planned": {
+            "$ref": "#/components/schemas/MoneyOutput"
+          },
+          "unallocated": {
+            "$ref": "#/components/schemas/MoneyOutput"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "plannedAmount": {
+                  "$ref": "#/components/schemas/MoneyOutput"
+                },
+                "funding": {
+                  "type": "string",
+                  "enum": [
+                    "DIRECT",
+                    "SHARED_FUND",
+                    "SAVINGS"
+                  ]
+                },
+                "rolloverMode": {
+                  "type": "string",
+                  "enum": [
+                    "RESET",
+                    "ROLLOVER",
+                    "ADJUSTED"
+                  ]
+                },
+                "isCatchAll": {
+                  "type": "boolean"
+                },
+                "savingsAccountIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "categoryIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "capacityShare": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "allocation": {
+                  "type": "object",
+                  "properties": {
+                    "rule": {
+                      "type": "string",
+                      "enum": [
+                        "PROPORTIONAL",
+                        "PERCENT",
+                        "FIXED",
+                        "NONE"
+                      ]
+                    },
+                    "members": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "memberId": {
+                            "type": "string"
+                          },
+                          "percent": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "amount": {
+                            "anyOf": [
+                              {
+                                "$ref": "#/components/schemas/MoneyOutput"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "assigned": {
+                            "anyOf": [
+                              {
+                                "$ref": "#/components/schemas/MoneyOutput"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "memberId",
+                          "percent",
+                          "amount",
+                          "assigned"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "error": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "InvalidAllocation"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "rule",
+                    "members",
+                    "error"
+                  ],
+                  "additionalProperties": false
+                },
+                "spent": {
+                  "$ref": "#/components/schemas/MoneyOutput"
+                },
+                "available": {
+                  "$ref": "#/components/schemas/MoneyOutput"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "plannedAmount",
+                "funding",
+                "rolloverMode",
+                "isCatchAll",
+                "savingsAccountIds",
+                "categoryIds",
+                "capacityShare",
+                "allocation",
+                "spent",
+                "available"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "unbudgeted": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "spent": {
+                    "$ref": "#/components/schemas/MoneyOutput"
+                  },
+                  "available": {
+                    "$ref": "#/components/schemas/MoneyOutput"
+                  }
+                },
+                "required": [
+                  "spent",
+                  "available"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "spaceId",
+          "period",
+          "status",
+          "createdFrom",
+          "version",
+          "capacities",
+          "totalCapacity",
+          "planned",
+          "unallocated",
+          "lines",
+          "unbudgeted"
+        ],
+        "additionalProperties": false
       }
     },
     "securitySchemes": {
