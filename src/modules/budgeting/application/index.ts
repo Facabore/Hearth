@@ -54,3 +54,4 @@ export {
   type AllocateBudgetLine,
   type AllocationDeps,
 } from "./allocate-budget-line";
+export { createClosedPeriodGuard, type ClosedPeriods } from "./closed-periods";
