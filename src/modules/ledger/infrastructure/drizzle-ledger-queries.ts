@@ -1,5 +1,6 @@
 import {
   and,
+  asc,
   between,
   desc,
   eq,
@@ -206,6 +207,62 @@ export class DrizzleLedgerQueries implements TransactionQuery {
     return [...totals.entries()]
       .map(([memberId, sums]) => ({ memberId, ...sums }))
       .sort((a, b) => (a.memberId < b.memberId ? -1 : a.memberId > b.memberId ? 1 : 0));
+  }
+
+  /** Spec 5.4, HU-E6-04: Σ live expenses of the space per category within [from, to], for budget lines (D7). */
+  async expensesByCategory(
+    spaceId: string,
+    from: LocalDate,
+    to: LocalDate,
+  ): Promise<{ categoryId: string; amount: bigint }[]> {
+    if (!isUuid(spaceId)) return [];
+    const rows = await this.tm
+      .executor()
+      .select({ categoryId: transactions.categoryId, total: sumAsText(transactions.amount) })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.spaceId, spaceId),
+          eq(transactions.type, "EXPENSE"),
+          isNull(transactions.deletedAt),
+          between(transactions.date, from, to),
+        ),
+      )
+      .groupBy(transactions.categoryId)
+      .orderBy(asc(transactions.categoryId));
+    return rows.flatMap((row) =>
+      row.categoryId === null ? [] : [{ categoryId: row.categoryId, amount: BigInt(row.total) }],
+    );
+  }
+
+  /**
+   * Spec 5.4, HU-E6-03: Σ live transfers into each account within [from, to], for SAVINGS lines. Not scoped to a
+   * space: a savings account lives in its owner's personal space while the line may belong to a shared space.
+   */
+  async transfersIntoAccounts(
+    accountIds: readonly string[],
+    from: LocalDate,
+    to: LocalDate,
+  ): Promise<{ accountId: string; amount: bigint }[]> {
+    const ids = accountIds.filter(isUuid);
+    if (ids.length === 0) return [];
+    const rows = await this.tm
+      .executor()
+      .select({ accountId: transactions.destinationAccountId, total: sumAsText(transactions.amount) })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.type, "TRANSFER"),
+          isNull(transactions.deletedAt),
+          between(transactions.date, from, to),
+          inArray(transactions.destinationAccountId, ids),
+        ),
+      )
+      .groupBy(transactions.destinationAccountId)
+      .orderBy(asc(transactions.destinationAccountId));
+    return rows.flatMap((row) =>
+      row.accountId === null ? [] : [{ accountId: row.accountId, amount: BigInt(row.total) }],
+    );
   }
 
   private matching(f: TransactionFilter) {
