@@ -4986,7 +4986,8 @@
     "/api/v1/spaces/{spaceId}/plans": {
       "post": {
         "operationId": "createBudgetPlan",
-        "summary": "Create a DRAFT plan for a period of the space's policy; its boundaries are stored (D10)",
+        "summary": "Create a DRAFT plan for a period of the space's policy, empty or copied from the previous period's plan",
+        "description": "The period's boundaries are stored (D10). With copyFrom: previous, the plan covering the day before the period starts is deep-copied with new ids. Capacities and allocation values of former members are left out without being listed. The answer's dropped member, present only in the answer to a copy, lists mappings to archived or deleted categories and savings accounts that no longer qualify, by the copied line, and SAVINGS lines left without accounts, which are not copied, by their source line.",
         "security": [
           {
             "cookieAuth": []
@@ -5014,6 +5015,12 @@
                   "period": {
                     "type": "string",
                     "maxLength": 20
+                  },
+                  "copyFrom": {
+                    "type": "string",
+                    "enum": [
+                      "previous"
+                    ]
                   }
                 },
                 "required": [
@@ -5065,7 +5072,7 @@
             }
           },
           "409": {
-            "description": "PlanAlreadyExists, SpaceArchived",
+            "description": "PlanAlreadyExists, NoPreviousPlan, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7308,6 +7315,12 @@
                 "id": {
                   "type": "string"
                 },
+                "originLineId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
                 "name": {
                   "type": "string"
                 },
@@ -7437,6 +7450,7 @@
               },
               "required": [
                 "id",
+                "originLineId",
                 "name",
                 "plannedAmount",
                 "funding",
@@ -7474,6 +7488,74 @@
                 "type": "null"
               }
             ]
+          },
+          "dropped": {
+            "type": "object",
+            "properties": {
+              "mappings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "lineId": {
+                      "type": "string"
+                    },
+                    "categoryId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "lineId",
+                    "categoryId"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "savingsAccounts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "lineId": {
+                      "type": "string"
+                    },
+                    "accountId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "lineId",
+                    "accountId"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "lines": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "originLineId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "originLineId",
+                    "name"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "mappings",
+              "savingsAccounts",
+              "lines"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [

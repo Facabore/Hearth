@@ -24,6 +24,8 @@ import {
   type AllocationInput,
   type BudgetPlanView,
   type CapacitySuggestion,
+  type CopyDrops,
+  type PlanCopy,
   type LineChanges,
   type LineFigure,
   type LineInput,
@@ -35,6 +37,8 @@ const percentOrNull = (basisPoints: number | null): string | null =>
 
 export const BudgetLineSchema = z.object({
   id: z.string(),
+  /** HU-E6-06, HU-E6-09: the line of the previous period's plan this one was copied from; null for new lines. */
+  originLineId: z.string().nullable(),
   name: z.string(),
   plannedAmount: MoneySchema,
   funding: z.enum(FUNDINGS),
@@ -91,10 +95,28 @@ export const BudgetPlanSchema = z.object({
   lines: z.array(BudgetLineSchema),
   /** HU-E6-04: unmapped spending when the plan has no catch-all line; null when it has one. */
   unbudgeted: z.object({ spent: MoneySchema, available: MoneySchema }).nullable(),
+  /**
+   * HU-E6-06: only in the answer to a copy (`copyFrom: "previous"`), what it left out (rulings P10, P11): mappings to
+   * archived or deleted categories and savings accounts that no longer qualify, by the copied line, and SAVINGS lines
+   * left without accounts, by the source line.
+   */
+  dropped: z
+    .object({
+      mappings: z.array(z.object({ lineId: z.string(), categoryId: z.string() })),
+      savingsAccounts: z.array(z.object({ lineId: z.string(), accountId: z.string() })),
+      lines: z.array(z.object({ originLineId: z.string(), name: z.string() })),
+    })
+    .optional(),
 });
 
-/** HU-E6-01: the period's label in the space policy, e.g. "2026-11" (MONTHLY) or "2026-11 H1" (SEMI_MONTHLY). */
-export const CreatePlanBodySchema = z.object({ period: z.string().max(20) });
+/**
+ * HU-E6-01: the period's label in the space policy, e.g. "2026-11" (MONTHLY) or "2026-11 H1" (SEMI_MONTHLY).
+ * HU-E6-06: with `copyFrom: "previous"`, the plan of the previous period of the policy is copied into it.
+ */
+export const CreatePlanBodySchema = z.object({
+  period: z.string().max(20),
+  copyFrom: z.enum(["previous"]).optional(),
+});
 
 const Id = z.string().min(1).max(64);
 /** Members per request: bounds the payload; membership is checked by the domain. */
@@ -227,6 +249,7 @@ const lineDto = (figure: LineFigure, currency: string): z.infer<typeof BudgetLin
   const { line, allocation } = figure;
   return {
     id: line.id,
+    originLineId: line.originLineId,
     name: line.name,
     plannedAmount: moneyOf(line.plannedAmount, currency),
     funding: line.funding,
@@ -296,6 +319,18 @@ export const planCreated = (view: BudgetPlanView): HttpSuccess => ({
   ],
 });
 
+const droppedDto = (dropped: CopyDrops): NonNullable<z.infer<typeof BudgetPlanSchema>["dropped"]> => ({
+  mappings: dropped.mappings.map((m) => ({ lineId: m.lineId, categoryId: m.categoryId })),
+  savingsAccounts: dropped.savingsAccounts.map((s) => ({ lineId: s.lineId, accountId: s.accountId })),
+  lines: dropped.lines.map((l) => ({ originLineId: l.originLineId, name: l.name })),
+});
+
+/** HU-E6-06: 201 like a creation, its body also listing what the copy left out (ruling P11). */
+export const planCopied = ({ view, dropped }: PlanCopy): HttpSuccess => ({
+  ...planCreated(view),
+  body: { ...budgetPlanDto(view), dropped: droppedDto(dropped) },
+});
+
 const SpacePath = z.object({ spaceId: z.string() });
 const PlanPath = SpacePath.extend({ planId: z.string() });
 const LinePath = PlanPath.extend({ lineId: z.string() });
@@ -338,7 +373,10 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
   "/api/v1/spaces/{spaceId}/plans": {
     post: {
       operationId: "createBudgetPlan",
-      summary: "Create a DRAFT plan for a period of the space's policy; its boundaries are stored (D10)",
+      summary:
+        "Create a DRAFT plan for a period of the space's policy, empty or copied from the previous period's plan",
+      description:
+        "The period's boundaries are stored (D10). With copyFrom: previous, the plan covering the day before the period starts is deep-copied with new ids. Capacities and allocation values of former members are left out without being listed. The answer's dropped member, present only in the answer to a copy, lists mappings to archived or deleted categories and savings accounts that no longer qualify, by the copied line, and SAVINGS lines left without accounts, which are not copied, by their source line.",
       ...securedByUser,
       requestParams: { path: SpacePath },
       requestBody: { content: jsonContent(CreatePlanBodySchema) },
@@ -348,7 +386,7 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
           "401": "Unauthenticated",
           "403": "InsufficientRole",
           "404": "SpaceNotFound",
-          "409": "PlanAlreadyExists, SpaceArchived",
+          "409": "PlanAlreadyExists, NoPreviousPlan, SpaceArchived",
           "422": "ValidationFailed, InvalidPeriodLabel",
         }),
       },
