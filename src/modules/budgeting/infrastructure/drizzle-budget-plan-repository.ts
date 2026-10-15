@@ -2,7 +2,8 @@ import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { isUuid, type LocalDate, type StoredPeriod } from "@/shared/kernel";
 import type { BudgetPlanRepository, PlanContents } from "../application/ports";
-import type { BudgetLine, BudgetLineId } from "../domain/budget-line";
+import type { AllocationValue } from "../domain/allocation";
+import type { AllocationRule, BudgetLine, BudgetLineId } from "../domain/budget-line";
 import type { MemberCapacity } from "../domain/capacity";
 import type { BudgetPlan, BudgetPlanId } from "../domain/plan";
 import {
@@ -265,5 +266,31 @@ export class DrizzleBudgetPlanRepository implements BudgetPlanRepository {
       .where(eq(budgetLineCategories.categoryId, categoryId))
       .limit(1);
     return rows.length > 0;
+  }
+
+  async setAllocation(
+    lineId: BudgetLineId,
+    rule: AllocationRule,
+    values: readonly AllocationValue[],
+    at: Date,
+  ): Promise<void> {
+    const db = this.tm.executor();
+    await db
+      .update(budgetLines)
+      .set({ allocationRule: rule, updatedAt: at })
+      .where(eq(budgetLines.id, lineId));
+    // D8: the earlier values stay with supersededAt; the partial unique index admits the new current ones.
+    await db
+      .update(budgetAllocations)
+      .set({ supersededAt: at })
+      .where(and(eq(budgetAllocations.lineId, lineId), isNull(budgetAllocations.supersededAt)));
+    const stored = rule === "PERCENT" || rule === "FIXED" ? rule : null;
+    if (stored !== null && values.length > 0) {
+      await db
+        .insert(budgetAllocations)
+        .values(
+          values.map((v) => ({ lineId, memberId: v.memberId, rule: stored, value: v.value, setAt: at })),
+        );
+    }
   }
 }

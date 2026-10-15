@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
-import { createSpaceAccess } from "@/modules/spaces/application";
+import { createSpaceAccess, type SpaceMemberId } from "@/modules/spaces/application";
 import { DrizzleSpaceRepository } from "@/modules/spaces/infrastructure/drizzle-space-repository";
 import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
@@ -17,16 +17,21 @@ import {
 import { codeOf, money, sequentialIds, unwrap } from "../../../../tests/support/fakes";
 import { InMemoryBudgetPlans } from "../../../../tests/support/in-memory-budgeting";
 import type {
+  AllocationRepository,
   BudgetLineRepository,
   BudgetPlanRepository,
   CapacityRepository,
   CategoryMappingRepository,
 } from "../application/ports";
 import { createAddBudgetLine, type LineInput } from "../application/add-budget-line";
+import { createAllocateBudgetLine } from "../application/allocate-budget-line";
+import { createGetBudgetPlan } from "../application/get-budget-plan";
 import { createMapCategoriesToLine } from "../application/map-categories-to-line";
+import type { BudgetPlanView } from "../application/plan-view";
 import { createRemoveBudgetLine } from "../application/remove-budget-line";
 import { createSetMemberCapacities } from "../application/set-member-capacities";
 import { createUpdateBudgetLine, type LineChanges } from "../application/update-budget-line";
+import type { AllocationInput } from "../domain/allocation";
 import type { BudgetLine, BudgetLineId } from "../domain/budget-line";
 import type { BudgetPlan, BudgetPlanId } from "../domain/plan";
 import { DrizzleBudgetPlanRepository } from "./drizzle-budget-plan-repository";
@@ -1173,5 +1178,233 @@ describe("MapCategoriesToLine over PostgreSQL (HU-E6-04, Review Focus 5, 6, spec
       "PreconditionFailed",
     ]);
     expect(await stored()).toEqual(before);
+  });
+});
+
+describe("DrizzleBudgetPlanRepository allocations (HU-E6-05, D8)", () => {
+  it("sets a line's rule and supersedes its earlier values like its in-memory twin", async () => {
+    const { space, fixture } = await household();
+    const pedro = await guestMemberFixture(pool, fixture, "Pedro");
+    const november = aPlan(space.id, "2026-11", "2026-11-01", "2026-11-30");
+    const free = aLine("Free", 73_000_000n, {
+      id: randomUUID() as BudgetLineId,
+      planId: november.id,
+      createdAt: at,
+    });
+    const run = async (plans: BudgetPlanRepository & BudgetLineRepository & AllocationRepository) => {
+      await plans.add(november);
+      await plans.addLine(free, at);
+      const split = [
+        { memberId: fixture.memberId, value: 4200n },
+        { memberId: pedro, value: 5800n },
+      ];
+      await plans.setAllocation(free.id, "PERCENT", split, at);
+      await plans.setAllocation(free.id, "FIXED", [{ memberId: pedro, value: 73_000_000n }], at);
+      const fixedParts = await plans.contents(november.id);
+      await plans.setAllocation(free.id, "NONE", [], at);
+      const noneParts = await plans.contents(november.id);
+      return {
+        fixed: [fixedParts.lines[0]!.allocationRule, fixedParts.allocations],
+        none: [noneParts.lines[0]!.allocationRule, noneParts.allocations],
+      };
+    };
+    const expected = {
+      fixed: ["FIXED", [{ lineId: free.id, memberId: pedro, value: 73_000_000n }]],
+      none: ["NONE", []],
+    };
+    expect(await run(new InMemoryBudgetPlans())).toEqual(expected);
+    expect(await run(repo)).toEqual(expected);
+    const { rows } = await pool.query(
+      "SELECT count(*)::int AS n FROM budget_allocations WHERE line_id = $1 AND superseded_at IS NOT NULL",
+      [free.id],
+    );
+    expect(rows[0].n).toBe(3);
+  });
+});
+
+describe("AllocateBudgetLine over PostgreSQL (HU-E6-05, Review Focus 2, 6, spec 7)", () => {
+  it("supersedes values logically, flags a line whose member left, and rolls the version lock back with a refused allocation, leaving every row as it was", async () => {
+    const { space, fixture } = await household();
+    const pedro = await guestMemberFixture(pool, fixture, "Pedro");
+    const plan = aPlan(space.id, "2026-11", "2026-11-01", "2026-11-30");
+    await repo.add(plan);
+    const spaces = new DrizzleSpaceRepository(tm);
+    const deps = {
+      access: createSpaceAccess(spaces),
+      members: spaces,
+      plans: repo,
+      capacities: repo,
+      lines: repo,
+      allocations: repo,
+      savingsAccounts: { find: async () => null },
+      spending: { expensesByCategory: async () => [], transfersIntoAccounts: async () => [] },
+      ids: new UuidV7IdGenerator(),
+      clock: new FixedClock(at),
+      tm,
+    };
+    const base = { spaceId: space.id, userId: fixture.userId, planId: plan.id };
+    const [t3, t4, t5] = [
+      new Date("2026-10-14T12:10:00Z"),
+      new Date("2026-10-14T12:15:00Z"),
+      new Date("2026-10-14T12:20:00Z"),
+    ];
+    const allocate = (
+      lineId: string,
+      allocation: AllocationInput,
+      expectedVersion: number | null = null,
+      clock = later,
+    ) =>
+      createAllocateBudgetLine({ ...deps, clock: new FixedClock(clock) })({
+        ...base,
+        lineId,
+        expectedVersion,
+        allocation,
+      });
+    const percent = (ana: number, guest: number): AllocationInput => ({
+      rule: "PERCENT",
+      members: [
+        { memberId: fixture.memberId, basisPoints: ana },
+        { memberId: pedro, basisPoints: guest },
+      ],
+    });
+    const fixedHome = (ana: bigint, guest: bigint): AllocationInput => ({
+      rule: "FIXED",
+      members: [
+        { memberId: fixture.memberId, amount: money(ana) },
+        { memberId: pedro, amount: money(guest) },
+      ],
+    });
+    // Everything this use case may touch: the plan's version, the rule of each line and every value row, superseded
+    // ones included.
+    const stored = async () => ({
+      version: (await repo.find(space.id, plan.id))?.version,
+      rules: (
+        await pool.query("SELECT name, allocation_rule FROM budget_lines WHERE plan_id = $1 ORDER BY name", [
+          plan.id,
+        ])
+      ).rows,
+      values: (
+        await pool.query(
+          `SELECT l.name AS line, m.display_name AS member, a.rule, a.value::text, a.set_at, a.superseded_at
+             FROM budget_allocations a
+             JOIN budget_lines l ON l.id = a.line_id
+             JOIN space_members m ON m.id = a.member_id
+            WHERE l.plan_id = $1 ORDER BY l.name, a.set_at, m.display_name`,
+          [plan.id],
+        )
+      ).rows,
+    });
+    const row = (
+      line: string,
+      member: string,
+      rule: string,
+      value: string,
+      setAt: Date,
+      supersededAt: Date | null,
+    ) => ({ line, member, rule, value, set_at: setAt, superseded_at: supersededAt });
+    const lineIn = (view: BudgetPlanView, name: string) =>
+      view.figures.lines.find((l) => l.line.name === name)!;
+    const assignedIn = (view: BudgetPlanView, name: string) =>
+      Object.fromEntries(lineIn(view, name).allocation.members.map((m) => [m.memberId, m.assigned]));
+    const invalidIn = (view: BudgetPlanView) =>
+      Object.fromEntries(view.figures.lines.map((l) => [l.line.name, l.allocation.invalid]));
+
+    unwrap(
+      await createSetMemberCapacities(deps)({
+        ...base,
+        expectedVersion: null,
+        capacities: [{ memberId: fixture.memberId, amount: money(200_000_000n) }],
+      }),
+    );
+    const add = createAddBudgetLine(deps);
+    for (const [name, amount] of [
+      ["Home", 100_000_000n],
+      ["Free", 73_000_000n],
+    ] as const) {
+      unwrap(await add({ ...base, expectedVersion: null, line: { name, plannedAmount: money(amount) } }));
+    }
+    const idOf = async (name: string) =>
+      (await repo.contents(plan.id)).lines.find((l) => l.name === name)!.id;
+    const [home, free] = [await idOf("Home"), await idOf("Free")];
+
+    // Free is split 42 / 58 and 50 / 50 and then follows capacity; Home is fixed, set aside (NONE) and fixed again.
+    const first = unwrap(await allocate(home, fixedHome(60_000_000n, 40_000_000n), null, at));
+    expect(assignedIn(first, "Home")).toEqual({ [fixture.memberId]: 60_000_000n, [pedro]: 40_000_000n });
+    unwrap(await allocate(free, percent(4200, 5800), null, at));
+    unwrap(await allocate(free, percent(5000, 5000)));
+    unwrap(await allocate(free, { rule: "PROPORTIONAL" }, null, t3));
+    unwrap(await allocate(home, { rule: "NONE" }, null, t3));
+    const view = unwrap(await allocate(home, fixedHome(60_000_000n, 40_000_000n), null, t4));
+    expect(assignedIn(view, "Home")).toEqual({ [fixture.memberId]: 60_000_000n, [pedro]: 40_000_000n });
+    const written = {
+      version: 10,
+      rules: [
+        { name: "Free", allocation_rule: "PROPORTIONAL" },
+        { name: "Home", allocation_rule: "FIXED" },
+      ],
+      values: [
+        row("Free", "Ana", "PERCENT", "4200", at, later),
+        row("Free", "Pedro", "PERCENT", "5800", at, later),
+        row("Free", "Ana", "PERCENT", "5000", later, t3),
+        row("Free", "Pedro", "PERCENT", "5000", later, t3),
+        row("Home", "Ana", "FIXED", "60000000", at, t3),
+        row("Home", "Pedro", "FIXED", "40000000", at, t3),
+        row("Home", "Ana", "FIXED", "60000000", t4, null),
+        row("Home", "Pedro", "FIXED", "40000000", t4, null),
+      ],
+    };
+    expect(await stored()).toEqual(written);
+
+    // Each refusal passes the lock and is refused afterwards (the last by the lock itself): nothing is superseded,
+    // nothing is stored, and the version is the one before.
+    const refused = [
+      await allocate(free, percent(4200, 5700)),
+      await allocate(home, fixedHome(60_000_000n, 39_999_900n)),
+      await allocate(free, { rule: "PERCENT", members: [{ memberId: randomUUID(), basisPoints: 10_000 }] }),
+      await allocate(free, { rule: "PERCENT", members: [{ memberId: "not-a-uuid", basisPoints: 10_000 }] }),
+      await allocate(free, {
+        rule: "FIXED",
+        members: [{ memberId: pedro, amount: money(73_000_000n, "USD") }],
+      }),
+      await allocate(free, { rule: "PERCENT", members: [] }),
+      await allocate(randomUUID(), { rule: "NONE" }),
+      await allocate("not-a-uuid", { rule: "NONE" }),
+      await allocate(free, { rule: "NONE" }, 3),
+    ];
+    expect(refused.map(codeOf)).toEqual([
+      "InvalidAllocation",
+      "InvalidAllocation",
+      "NotASpaceMember",
+      "NotASpaceMember",
+      "CurrencyMismatch",
+      "InvalidAllocation",
+      "BudgetLineNotFound",
+      "BudgetLineNotFound",
+      "PreconditionFailed",
+    ]);
+    expect(await stored()).toEqual(written);
+
+    // Review Focus 2: Pedro leaves. His rows stay, Home reads as InvalidAllocation and takes no value of his again
+    // until it is allocated once more to the current members; Free, which follows capacity, is not affected.
+    const read = createGetBudgetPlan(deps);
+    expect(await spaces.markLeft(space.id, pedro as SpaceMemberId, "GUEST", later)).toBe(true);
+    expect(invalidIn(unwrap(await read(base)))).toEqual({ Home: true, Free: false });
+    expect(codeOf(await allocate(home, fixedHome(60_000_000n, 40_000_000n)))).toBe("NotASpaceMember");
+    expect(await stored()).toEqual(written);
+    const alone: AllocationInput = {
+      rule: "FIXED",
+      members: [{ memberId: fixture.memberId, amount: money(100_000_000n) }],
+    };
+    expect(invalidIn(unwrap(await allocate(home, alone, null, t5)))).toEqual({ Home: false, Free: false });
+    expect(await stored()).toEqual({
+      ...written,
+      version: 11,
+      values: [
+        ...written.values.slice(0, 6),
+        row("Home", "Ana", "FIXED", "60000000", t4, t5),
+        row("Home", "Pedro", "FIXED", "40000000", t4, t5),
+        row("Home", "Ana", "FIXED", "100000000", t5, null),
+      ],
+    });
   });
 });

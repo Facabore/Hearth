@@ -1,4 +1,6 @@
 import type {
+  AllocationRule,
+  AllocationValue,
   BudgetLine,
   BudgetPlan,
   BudgetPlanRepository,
@@ -138,6 +140,23 @@ export class InMemoryBudgetPlans implements BudgetPlanRepository {
   /** CategoryMappingRepository: every mapping ever made counts. */
   async isCategoryMapped(categoryId: string): Promise<boolean> {
     return this.mappings.some((r) => r.mapping.categoryId === categoryId);
+  }
+
+  /** AllocationRepository, like DrizzleBudgetPlanRepository.setAllocation. */
+  async setAllocation(
+    lineId: string,
+    rule: AllocationRule,
+    values: readonly AllocationValue[],
+    at: Date,
+  ): Promise<void> {
+    this.lines = this.lines.map((r) =>
+      r.line.id === lineId ? { ...r, line: { ...r.line, allocationRule: rule } } : r,
+    );
+    this.allocations = this.allocations.map((r) =>
+      r.allocation.lineId === lineId && r.supersededAt === null ? { ...r, supersededAt: at } : r,
+    );
+    for (const value of values)
+      this.allocations.push({ allocation: { lineId, ...value }, setAt: at, supersededAt: null });
   }
 
   /** Test setup: parts of a plan as earlier writes would have left them. */

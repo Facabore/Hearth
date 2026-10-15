@@ -48,3 +48,9 @@ export {
   type MapCategoriesToLine,
   type MappingDeps,
 } from "./map-categories-to-line";
+export type { AllocationRepository } from "./ports";
+export {
+  createAllocateBudgetLine,
+  type AllocateBudgetLine,
+  type AllocationDeps,
+} from "./allocate-budget-line";

@@ -1,6 +1,7 @@
 import type { LocalDate, StoredPeriod } from "@/shared/kernel";
 import type { MemberCapacity } from "../domain/capacity";
-import type { BudgetLine, BudgetLineId } from "../domain/budget-line";
+import type { AllocationValue } from "../domain/allocation";
+import type { AllocationRule, BudgetLine, BudgetLineId } from "../domain/budget-line";
 import type { BudgetPlan, BudgetPlanId } from "../domain/plan";
 import type { PlanParts } from "../domain/plan-figures";
 
@@ -102,4 +103,14 @@ export interface CategoryMappingRepository {
 /** The live categories of a space (deleted ones never appear, D8), archived ones flagged; bound to categories. */
 export interface BudgetCategories {
   list(spaceId: string): Promise<{ readonly id: string; readonly archived: boolean }[]>;
+}
+
+/** HU-E6-05: allocating a line sets its rule and supersedes its earlier member values; nothing is deleted (D8). */
+export interface AllocationRepository {
+  setAllocation(
+    lineId: BudgetLineId,
+    rule: AllocationRule,
+    values: readonly AllocationValue[],
+    at: Date,
+  ): Promise<void>;
 }
