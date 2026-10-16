@@ -7444,6 +7444,9 @@
                 "spent": {
                   "$ref": "#/components/schemas/MoneyOutput"
                 },
+                "carryOver": {
+                  "$ref": "#/components/schemas/MoneyOutput"
+                },
                 "available": {
                   "$ref": "#/components/schemas/MoneyOutput"
                 }
@@ -7461,6 +7464,7 @@
                 "capacityShare",
                 "allocation",
                 "spent",
+                "carryOver",
                 "available"
               ],
               "additionalProperties": false

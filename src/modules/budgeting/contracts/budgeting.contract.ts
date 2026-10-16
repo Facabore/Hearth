@@ -69,7 +69,9 @@ export const BudgetLineSchema = z.object({
   }),
   /** Spec 5.4: spent in the plan's period, computed on read (D7). */
   spent: MoneySchema,
-  /** planned + carry-over − spent; the carry-over is 0 until lines are copied (HU-E6-06, HU-E6-09). */
+  /** HU-E6-09: carried from the line this one was copied from (`originLineId`), by this line's rollover mode. */
+  carryOver: MoneySchema,
+  /** planned + carry-over − spent, computed on read (D7). */
   available: MoneySchema,
 });
 
@@ -269,6 +271,7 @@ const lineDto = (figure: LineFigure, currency: string): z.infer<typeof BudgetLin
       error: allocation.invalid ? "InvalidAllocation" : null,
     },
     spent: moneyOf(figure.spent, currency),
+    carryOver: moneyOf(figure.carryOver, currency),
     available: moneyOf(figure.available, currency),
   };
 };

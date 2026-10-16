@@ -217,7 +217,7 @@ Feature: Category to line mapping
 - Invariants: (planId, categoryId) unique; archived categories cannot be newly mapped; at most one `isCatchAll` line per plan (`CatchAllLineAlreadySet`, 409, answered by `PATCH …/lines/{lineId}` with `isCatchAll`, and by `POST …/lines` with it).
 - "Unbudgeted" is computed on read, never persisted, and only exists when the plan has no catch-all line.
 - `PUT …/lines/{lineId}/categories` takes the line's whole category set; categories left out are unmapped (the rows stay, D8), and removing a line ends its mappings. Errors: `CategoryNotInSpace` (422: any id that is not a live category of the plan's space, so other spaces' categories never leak), `CategoryArchived` (409, for categories newly mapped), `CategoryAlreadyMapped` (409), `SavingsLineNotMappable` (409: a SAVINGS line takes no categories and is never the catch-all line, spec 5.4).
-- Each line reports `spent` and `available` (planned − spent; HU-E6-09's carry-over is 0 until lines are copied), and the plan reports `unbudgeted` (`spent`, `available`) only when it has no catch-all line. A category that any plan maps or once mapped can no longer be deleted (`CategoryInUse`, HU-E3-03); it can be archived.
+- Each line reports `spent` and `available` (planned + carry-over − spent; the carry-over of HU-E6-09), and the plan reports `unbudgeted` (`spent`, `available`) only when it has no catch-all line. A category that any plan maps or once mapped can no longer be deleted (`CategoryInUse`, HU-E3-03); it can be archived.
 
 ---
 
@@ -472,3 +472,4 @@ Feature: Rollover modes
 - Domain service `RolloverCalculator`: available(L) = planned + carry − spent(L); RESET carry 0; ROLLOVER max(prevAvailable, 0); ADJUSTED min(prevAvailable, 0).
 - Previous line resolved via the copied line's origin link (not by name); lines without an origin get carry 0.
 - Computed on read (D7); recursion bounded by the plan chain. Exposed as `available` and `carryOver` on each line of `GET /api/v1/spaces/{spaceId}/plans/{planId}`.
+- The mode that decides is the receiving line's own `rolloverMode`; the previous available is the origin line's `available` in the plan the line was copied from (itself with its own carry-over), whatever that plan's status. An origin removed from its plan after the copy carries 0. Every write's answer carries the same figures.

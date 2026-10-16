@@ -91,6 +91,7 @@ describe("BudgetPlan on the wire (HU-E6-01 … HU-E6-05)", () => {
         error: null,
       },
       spent: cop(900_000),
+      carryOver: cop(0),
       available: cop(570_000),
     });
     expect(dto.lines.find((l) => l.name === "Free")!.allocation.members).toEqual([

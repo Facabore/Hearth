@@ -33,6 +33,7 @@ export interface LineDto {
   capacityShare: string | null;
   allocation: { rule: string; members: AllocationMemberDto[]; error: string | null };
   spent: MoneyDto;
+  carryOver: MoneyDto;
   available: MoneyDto;
 }
 export interface PlanDto {
