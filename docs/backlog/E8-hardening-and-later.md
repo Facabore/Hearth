@@ -252,7 +252,7 @@ Feature: Notifications
 
 **Technical notes:**
 - `Notifier` port fed by domain events (`ExpenseRecorded`, `SettlementRecorded`); reuses the `EmailSender` adapter.
-- The preference is part of the user profile (`PATCH /api/v1/me`); a settings screen for it would be a later E9 story.
+- The preference is part of the user profile (`PATCH /api/v1/me`); its toggle would join the settings screen (HU-E9-13).
 
 ---
 
@@ -718,3 +718,74 @@ Feature: Net worth history
 - Endpoint: `GET /api/v1/spaces/{spaceId}/reports/net-worth?endPeriod=<label>&periods=<n>`; `POST .../accounts/{accountId}/valuations`. An area chart of assets and debts is a later E9 story.
 - With multi-currency (HU-E8-06), each point would convert with the TRM of its date.
 - **Spec impact:** 5.2 (new `AccountValuation`), 5.4 (net worth series).
+
+---
+
+## HU-E8-18 — Installation rules for a white-label deployment
+
+- **Milestone:** M5 · **Priority:** Should · **Size:** M · **Depends on:** HU-E1-14, HU-E1-15 · **Module(s):** `identity`
+
+**User story:** As the installation administrator, I want to set the brand, the defaults and the locks of my deployment, so that Hearth runs as my own product and the people who use it start from the formats and region I chose.
+
+```gherkin
+Feature: Installation rules
+
+  Background:
+    Given the installation rules are the built-in ones: brand name "Hearth", numberFormat "DOT_COMMA", timeFormat "H24", dateFormat "DMY", weekStart "MONDAY", timezone "America/Bogota", locale "es", newSpaceCurrency "COP" and no locks
+    And "Ana" is an installation administrator
+
+  Scenario: The brand name and accent are shown to everyone
+    When "Ana" sets the brand name "Casa Gómez" and the accent color "PLUM"
+    Then a visitor without a session who requests "GET /api/v1/installation" receives the brand name "Casa Gómez" and the accent color "PLUM"
+    And a signed-in user receives the same brand
+
+  Scenario: A default applies to people without an override
+    Given "Juan" has stored the timeFormat "H24" and "Luis" has stored no preference
+    When "Ana" sets the default timeFormat to "H12" and the default numberFormat to "COMMA_DOT"
+    Then the effective timeFormat is "H12" for "Luis" and "H24" for "Juan"
+    And the effective numberFormat is "COMMA_DOT" for both, because neither stored one
+
+  Scenario: Locking a field takes away the choice and keeps people on the rule
+    Given "Juan" has stored the dateFormat "MDY"
+    When "Ana" locks the dateFormat
+    Then "Juan" has the effective dateFormat "DMY" and "GET /api/v1/me" lists "dateFormat" among his locked preferences
+    And "Juan" setting his dateFormat fails with status 409 and the code "PreferenceLocked"
+    When "Ana" lifts the lock
+    Then "Juan" has the effective dateFormat "MDY" again
+
+  Scenario: Only an installation administrator can change the rules
+    Given "Juan" is an ordinary user
+    When "Juan" updates the brand name to "Casa Juan"
+    Then the result is the error "InstallationAdminRequired"
+    And the brand name is unchanged
+    When a visitor without a session sends the same update
+    Then the request fails with status 401 and the code "Unauthenticated"
+
+  Scenario: The currency default applies only to new spaces
+    Given "Ana" has the shared space "Household" with the currency "COP"
+    When "Ana" sets the default newSpaceCurrency to "USD"
+    Then "Household" keeps the currency "COP"
+    And "Juan" creating the shared space "Trip" without a currency gets "USD"
+    And a user who signs up afterwards gets a personal space in "USD"
+
+  Scenario: Every change is audited
+    When "Ana" changes the brand name from "Hearth" to "Casa Gómez" and locks the weekStart
+    Then "GET /api/v1/installation/audit" lists two entries, one per changed field and newest first, each with "Ana", the instant, the field and the values before and after
+    And "Juan", an ordinary user, requesting the audit gets the error "InstallationAdminRequired"
+```
+
+**Technical notes:**
+- Use cases: `GetInstallationRules` (a public query, also called by the profile query of HU-E1-15, by sign-up and by `spaces`), `UpdateInstallationRules`, `SetInstallationLogo`, `RemoveInstallationLogo`, `ListInstallationAudit` and `GrantInstallationAdmin`. Endpoints: `GET /api/v1/installation` (a public route like `GET /api/v1/health`), `PATCH /api/v1/installation` (honours `If-Match`, 412 on a stale ETag, HU-E0-10), `PUT` and `DELETE /api/v1/installation/logo`, `GET /api/v1/installation/logo` (public) and `GET /api/v1/installation/audit` (cursor pagination, HU-E0-10).
+- Model: one `InstallationSettings` record, inserted by the migration with the built-in values, so the cascade works before anyone edits it:
+  - brand: `brandName` (1–40 characters), `logo` (optional image) and `accentColor` (a palette key of HU-E3-05, never a hex value);
+  - defaults: `numberFormat`, `timeFormat`, `dateFormat`, `weekStart` (HU-E1-15), `timezone` (an IANA zone, valid as in HU-E1-14), `locale` (the UI language, `es` or `en`) and `newSpaceCurrency` (a supported ISO 4217 currency, as in HU-E1-04);
+  - `lockedFields`: the person-level fields that people may not change, any of `numberFormat`, `timeFormat`, `dateFormat`, `weekStart`, `timezone` and `locale`.
+- The cascade (decided 2026-10-16): installation rules → space (currency, period policy) → person (formats, time zone, theme, language), except what the rules lock. The effective value of a person's field is the rule when the field is locked, otherwise the stored value, otherwise the rule. A lock never deletes stored values, so lifting it brings them back. This story replaces the built-in adapter of `InstallationRulesReader` (HU-E1-15), so `GET /api/v1/me` reports the real defaults and locks, and `GET /api/v1/me` also returns `installationAdmin`.
+- Time zone and language are concrete values per person, not "follow the rule" values: the defaults are the sign-up fallbacks, replacing the literal `es` of HU-E1-01 and the `APP_TIMEZONE` fallback of HU-E1-14, and a lock makes the rule the effective value and ignores the browser's zone at sign-up. `APP_TIMEZONE` seeds the installation `timezone` at first boot and still drives the space-level clocks. Changing a default never rewrites stored values. The theme (light, dark or system) is a device setting of the settings screen (HU-E9-13), outside the rules and not lockable.
+- Space level: `newSpaceCurrency` is the default when `POST /api/v1/spaces` omits the currency (HU-E1-04) and the currency of the personal space created at sign-up (HU-E1-02); `spaces` reads it through the public query. A space's currency stays immutable once it has transactions (HU-E1-03), and its period policy stays a space decision. The built-in values equal the literals they replace (`es`, `COP`), so HU-E1-01 and HU-E1-02 behave as delivered until an administrator edits the rules.
+- Role: `User.installationRole` is `ADMIN` or null, separate from the space roles of HU-E1-05; no space role grants it, and the use cases check it (`InstallationAdminRequired`, 403), never only the handler. Proposed bootstrap: the operator grants it to an existing user by email with a script run inside the app container (`GrantInstallationAdmin`, with a revoke option); no HTTP endpoint grants it and sign-up never does. The first user is not made administrator automatically, because on a public deployment a stranger could sign up before the owner; an environment variable of emails is not used either, because sign-up does not verify email, so whoever registered that address first would gain the role.
+- Placement: the story lives in `identity` and not in a new `installation` module. The role is an attribute of the user, and the profile query of `identity` reads the rules to compute effective values; a separate module would depend on `identity` for the role and `identity` on it for the rules, a cycle. `spaces` consumes the rules through the public query.
+- Logo: PNG, JPEG or WebP up to 256 KB, checked by its content and not by its file name, stored in the settings record and served with an `ETag`. SVG is not accepted, because it can carry scripts. A rejected file answers `InvalidLogo` (422); other invalid input answers `ValidationFailed`, `InvalidTimeZone` or `UnsupportedCurrency`.
+- Audit: every change is an entry in an append-only `installation_audit` table written through an `InstallationAuditLog` port (the `AuditLog` of HU-E4-06 belongs to `ledger`). Entries are never edited or deleted, and each keeps only the logical change: actor, instant, field, and the values before and after; a logo change records the content hash of the image, never its bytes.
+- Out of scope: a brand name per language, branding per space, several installations in one database, custom domains and email templates. The screen is HU-E9-14.
+- **Spec impact:** 5.2 (new `InstallationSettings`; **User** gains `installationRole`), section 3 (`APP_TIMEZONE` seeds the installation time zone), section 6 (a new decision: a rules level above spaces and people for white-label deployments, with the cascade and the locks), section 7 (the installation endpoints and a public route).

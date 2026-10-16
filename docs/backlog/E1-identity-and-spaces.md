@@ -679,3 +679,73 @@ Feature: User time zone
 - Consumers: the default date and time of new transactions and the current period of `ListTransactions` (HU-E4-14), and the local hour of reminders (HU-E8-16). Space-level clocks (the recurrence scheduler's "today", closing a plan) keep `APP_TIMEZONE`; this story adds no per-space time zone.
 - The last scenario becomes testable with HU-E4-14.
 - **Spec impact:** section 3 (America/Bogota becomes the deployment default; each user has a zone), 5.2 **User** (`timezone`: an IANA zone, taken from the browser at sign-up, `APP_TIMEZONE` as the fallback), 7 HTTP conventions (`PATCH /api/v1/me`; time zones are IANA names).
+
+---
+
+## HU-E1-15 — Formatting preferences
+
+- **Milestone:** M3-D · **Priority:** Must · **Size:** S · **Depends on:** HU-E1-01, HU-E1-14 · **Module(s):** `identity`
+
+**User story:** As a user, I want to choose how numbers, dates and times are written and which day my week starts on, independently of the language of the interface, so that the app reads the way I am used to.
+
+```gherkin
+Feature: Formatting preferences
+
+  Background:
+    Given the installation rules are numberFormat "DOT_COMMA", timeFormat "H24", dateFormat "DMY" and weekStart "MONDAY"
+    And "Ana" is signed in with the locale "es"
+
+  Scenario: Without an override the installation rules apply
+    Given "Ana" has set no formatting preference
+    When "Ana" requests "GET /api/v1/me"
+    Then every stored preference is null
+    And the effective preferences are numberFormat "DOT_COMMA", timeFormat "H24", dateFormat "DMY" and weekStart "MONDAY"
+    And no preference is locked
+
+  Scenario: A person overrides the time format
+    Given "Juan" has set no formatting preference
+    When "Ana" sets her timeFormat to "H12"
+    Then "GET /api/v1/me" returns the stored timeFormat "H12" and the effective timeFormat "H12"
+    And her numberFormat, dateFormat and weekStart are still null and follow the installation rules
+    And "Juan" still has the effective timeFormat "H24"
+
+  Scenario: The language does not change the formats
+    When "Ana" sets her numberFormat to "COMMA_DOT" and her timeFormat to "H12"
+    Then "GET /api/v1/me" returns the locale "es", the effective numberFormat "COMMA_DOT" and the effective timeFormat "H12"
+    When "Ana" sets her locale to "en"
+    Then her effective numberFormat is still "COMMA_DOT" and her effective timeFormat is still "H12"
+    And her dateFormat and weekStart still follow the installation rules
+
+  Scenario: Reset a preference to the default
+    Given "Ana" has stored the timeFormat "H12"
+    When "Ana" sets her timeFormat to null
+    Then her stored timeFormat is null
+    And her effective timeFormat is "H24", the installation rule
+
+  Scenario: A locked preference is refused
+    Given the installation rules lock the dateFormat
+    When "Ana" sets her dateFormat to "MDY"
+    Then the request fails with status 409 and the code "PreferenceLocked"
+    And "GET /api/v1/me" lists "dateFormat" among the locked preferences and returns the effective dateFormat "DMY"
+
+  Scenario: An unknown value is rejected
+    When "Ana" sets her numberFormat to "DOT_DOT"
+    Then the request fails with status 422 and the code "ValidationFailed"
+    And her stored numberFormat is unchanged
+```
+
+**Technical notes:**
+- Use case: `UpdateProfile` (identity, HU-E1-14) accepts the four preferences and `locale`; the profile query behind `GET /api/v1/me` resolves the effective values. Endpoints: `PATCH /api/v1/me` (partial: an omitted field is unchanged, a value sets it, `null` clears it) and `GET /api/v1/me`.
+- Model: the user profile gains four nullable columns, stored as constrained text and validated by the Zod contract:
+  - `numberFormat`: `DOT_COMMA` (`1.234.567,89`), `COMMA_DOT` (`1,234,567.89`) or `SPACE_COMMA` (`1 234 567,89`);
+  - `timeFormat`: `H24` or `H12`;
+  - `dateFormat`: `DMY`, `MDY` or `YMD`;
+  - `weekStart`: `MONDAY` or `SUNDAY`.
+
+  `null` means "follow the installation rule", so clearing a field is how a person goes back to the default. Nothing here derives from the language (decided 2026-10-16).
+- Resolution: the effective value of a field is the installation rule when the field is locked, otherwise the stored value, otherwise the rule. The rules come through a port `InstallationRulesReader`. Its built-in adapter returns the es-CO defaults (`DOT_COMMA`, `H24`, `DMY`, `MONDAY`) and no locks, so this story works before HU-E8-18, which replaces it with the stored rules. A lock never deletes a stored value: when the lock is lifted, the person's choice applies again.
+- `GET /api/v1/me` gains `preferences` (additive; `locale` and `timezone` stay where they are): `stored`, `effective` and `defaults` carry the four fields, and `locked` lists the names of the locked fields. The settings screen (HU-E9-13) needs the default to label "Default (24-hour)" and the list to show the lock badge.
+- `locale` (`es` or `en`) joins `timezone` (HU-E1-14) on `PATCH /api/v1/me`, because no earlier story lets a user change the interface language; HU-E1-01 still creates users with `es`. Neither is nullable. The lock list can also name `timezone` and `locale` (HU-E8-18), and both honour it.
+- A locked field answers `PreferenceLocked` (409), even to clear it or to set the value it already has. The check lives in the use case, never only in the handler, and the code is mapped in `src/shared/http/problem.ts`. The locked scenario runs against a fake `InstallationRulesReader` until HU-E8-18 supplies stored locks.
+- Formatting is a client concern: the API keeps returning amounts as minor-unit strings, dates as `YYYY-MM-DD` and instants in RFC 3339 (HU-E0-09), whatever the preferences; the preferences only travel with the profile. Consumers: HU-E9-02 (formatters), HU-E9-03 (the date and time sheet reads `timeFormat` and `weekStart`), HU-E9-13 (settings screen) and HU-E8-18 (rules and locks).
+- **Spec impact:** section 3 (the primary locale es-CO becomes the built-in default of the installation rules, no longer a rule of the language), 5.2 **User** (four nullable preferences), 7 HTTP conventions (`GET` and `PATCH /api/v1/me` with `preferences` and the enum values), section 6 (a new decision: formats never derive from the language).

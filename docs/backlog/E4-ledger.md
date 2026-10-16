@@ -596,7 +596,7 @@ Feature: Occurrences pending confirmation
 
 - **Milestone:** M3-D · **Priority:** Must · **Size:** M · **Depends on:** HU-E1-14, HU-E4-05, HU-E4-06, HU-E4-12, HU-E4-13 · **Module(s):** `ledger`
 
-**User story:** As a user, I want every transaction to keep the time it happened in my time zone, and lists to show the newest first within each day, so that I can see what I spent today and at what time.
+**User story:** As a user, I want every transaction I record to keep the time it happened in my time zone, and lists to show the newest first within each day, so that I can see what I spent today and at what time.
 
 ```gherkin
 Feature: Transaction time
@@ -617,9 +617,10 @@ Feature: Transaction time
     Then the expense of "Ana" is dated 2026-10-16 at 22:30 "America/Bogota"
     And the expense of "Juan" is dated 2026-10-17 at 05:30 "Europe/Madrid"
 
-  Scenario: A date without a time is recorded without a time
+  Scenario: A date alone takes the current time of day
+    Given the Clock reads 2026-10-17T03:30:00Z
     When "Ana" records an expense of 30,000 COP dated 2026-10-15 without a time
-    Then it is dated 2026-10-15 with no occurredAt and no timeZone
+    Then it has occurredAt "2026-10-16T03:30:00Z", date 2026-10-15 and timeZone "America/Bogota"
     When "Ana" records an expense dated 2026-10-15 at 2026-10-16T14:32:00-05:00
     Then the result is the error "DateTimeMismatch"
 
@@ -634,13 +635,17 @@ Feature: Transaction time
     Then they are returned in the order "Lunch", "Market", "Rent", "Taxi"
     And "Rent" has no occurredAt
 
-  Scenario: Editing the date keeps the local time, and the time can be removed
+  Scenario: Editing keeps the local time, a time can be replaced or added, and it cannot be removed
     Given the expense "Coffee" recorded at 2026-10-16T14:32:00-05:00
     When "Ana" changes its date to 2026-10-14
     Then it has occurredAt "2026-10-14T19:32:00Z" and date 2026-10-14
     And an audit entry records its date and time before and after
-    When "Ana" removes its time
-    Then it is dated 2026-10-14 without a time
+    When "Ana" patches its occurredAt to null
+    Then the request fails with status 422 and the code "TimeRequired"
+    And the expense still has occurredAt "2026-10-14T19:32:00Z"
+    Given the expense "Old market" migrated from before M3-D, dated 2026-09-20 with no occurredAt
+    When "Ana" sets its occurredAt to 2026-09-20T10:00:00-05:00
+    Then it has occurredAt "2026-09-20T15:00:00Z" and timeZone "America/Bogota"
 
   Scenario: The period follows the local date, whatever happens later
     Given "Ana" recorded an expense of 85,000 COP at 2026-10-31T23:30:00-05:00
@@ -652,19 +657,21 @@ Feature: Transaction time
 
 **Technical notes:**
 - Model: `Transaction.date` keeps its meaning, the local calendar date the transaction counts in (periods, plans, balances `asOf`, budgets and reports). It gains `occurredAt` (a UTC instant, nullable) and `timeZone` (an IANA zone, set exactly when `occurredAt` is set); `hasTime` is `occurredAt !== null`. This applies to every type: expenses, incomes, transfers, fund contributions, settlements and direct splits.
+- Every transaction a person records has a time, and "no time" is not offered (decided 2026-10-16). `occurredAt` stays null only for occurrences recorded by the scheduler (HU-E4-12) and for rows migrated from before M3-D.
 - Inputs on every create endpoint: an optional `date` (`YYYY-MM-DD`), an optional `occurredAt` (RFC 3339 with an offset) and an optional `timeZone` (IANA; the recording user's zone by default, HU-E1-14; the web UI sends the device's zone). Rules:
   - with `occurredAt`, the `date` is its local date in `timeZone`; a `date` sent along that differs answers `DateTimeMismatch` (422, mapped explicitly in `src/shared/http/problem.ts` because the default would be 409);
-  - with only a `date`, the transaction has no time;
-  - with neither, `occurredAt` is the Clock's now and `date` is today in the zone. This replaces the "today in the space timezone" default of HU-E4-01 (today the deployment's `APP_TIMEZONE`).
+  - with only a `date`, `occurredAt` is that date at the Clock's current wall-clock time in `timeZone`, so a date alone is never recorded without a time (a past day takes the time of day of now);
+  - with neither, `occurredAt` is the Clock's now and `date` is today in the zone. This replaces the "today in the space timezone" default of HU-E4-01 (today the deployment's `APP_TIMEZONE`);
+  - an explicit `occurredAt: null` answers `TimeRequired` (422, mapped explicitly like `DateTimeMismatch`).
 - The zone is the recording user's (`createdBy`), not the payer's: a guest has no zone, so an expense recorded on a guest's behalf uses the recorder's.
-- Edits (`PATCH /api/v1/spaces/{spaceId}/transactions/{transactionId}`, HU-E4-06): `occurredAt: null` removes the time; a new `date` alone keeps the wall-clock time in the stored `timeZone`; a new `occurredAt` recomputes `date` in the sent or the stored zone. The closed-period rules apply to the resulting date, and the audit records `date`, `occurredAt` and `timeZone` before and after.
+- Edits (`PATCH /api/v1/spaces/{spaceId}/transactions/{transactionId}`, HU-E4-06): `occurredAt: null` answers `TimeRequired` (422), because a recorded time is replaced, never removed; a new `date` alone keeps the wall-clock time in the stored `timeZone`; a new `occurredAt` recomputes `date` in the sent or the stored zone, and gives a row without a time its first one (its zone is then the sent one or the editor's). A new `date` alone on a row without a time leaves it without one. The closed-period rules apply to the resulting date, and the audit records `date`, `occurredAt` and `timeZone` before and after.
 - Ordering: `ORDER BY date DESC, occurred_at DESC NULLS LAST, created_at DESC, id DESC`. The cursor `TransactionPosition` grows from (date, id) to (date, occurredAt, createdAt, id), and the list index follows the same columns. Without a period, `ListTransactions` uses today in the requesting user's zone.
-- Items without a time:
-  - AUTO occurrences (HU-E4-12) and confirmed occurrences (HU-E4-13) carry only their date;
-  - imports (HU-E8-04, HU-E8-05) have no time unless the file has a time column, which is read in the importing user's zone;
-  - existing rows migrate with `occurredAt = null` and are never back-filled from `createdAt`.
+- Items without a time are written by system paths, never by a person through the create endpoints:
+  - AUTO occurrences recorded by the scheduler (HU-E4-12) carry only their date;
+  - existing rows migrate with `occurredAt = null` and are never back-filled from `createdAt`;
+  - confirmed occurrences (HU-E4-13) and imports (HU-E8-04, HU-E8-05) keep the date-only behaviour of their own stories, because the moment of confirming or importing is not when the money moved; an import has no time unless the file has a time column, which is read in the importing user's zone.
 
-  Any of them can get a time later by editing.
+  Any of them can get a time later by editing, and then keeps one.
 - `occurredAt` serves ordering and display only; no period, balance or report boundary reads it. A record keeps its date and zone when its author travels or changes their preference.
-- Display (HU-E9-03): the wall-clock time in the record's zone, plus the zone's name when it differs from the viewer's.
-- **Spec impact:** section 5 table (the period derives from the local date), 5.2 **Transaction** (`date` as the local date it counts in, plus `occurredAt` and `timeZone`), 5.2 **Recurrence** (occurrences are recorded without a time), 7 HTTP conventions (instants in RFC 3339, returned in UTC with `Z`; local dates as `YYYY-MM-DD`; IANA zone names; list ordering and cursor), section 6 (a new decision for the transaction time model).
+- Display (HU-E9-03): the wall-clock time in the record's zone, written in the viewer's time format (HU-E1-15), plus the zone's name when it differs from the viewer's.
+- **Spec impact:** section 5 table (the period derives from the local date), 5.2 **Transaction** (`date` as the local date it counts in, plus `occurredAt` and `timeZone`; `occurredAt` is null only for scheduler occurrences and migrated rows), 5.2 **Recurrence** (occurrences are recorded without a time), 7 HTTP conventions (instants in RFC 3339, returned in UTC with `Z`; local dates as `YYYY-MM-DD`; IANA zone names; list ordering and cursor; `TimeRequired`), section 6 (a new decision for the transaction time model: every transaction a person records has a time).

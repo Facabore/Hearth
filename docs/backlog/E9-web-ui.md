@@ -9,9 +9,9 @@
 - **Parallel track (milestone M6):** an area's UI story may start as soon as the API stories it depends on are `Done`; it never waits for the whole M0–M5 sequence.
 - **Container-presentational:** containers load data and call server actions; presentational components receive DTOs and props only. Pages and server actions are thin wrappers over the same use cases as `/api/v1` (or call the API); no component touches the database.
 - **Design first:** every screen is designed with `/design` and reviewed by the owner before its UI story moves to `Ready`.
-- **Stack:** shadcn/ui + Tailwind CSS, atomic design for shared components, Recharts for charts, next-intl for `es` (default) and `en`.
+- **Stack:** shadcn/ui + Tailwind CSS, atomic design for shared components, Recharts for charts, next-intl for `es` (default) and `en` (UI texts only: formats come from the user's preferences, HU-E1-15).
 - **Errors and copy:** the API returns stable codes, never translated text; the UI translates every error code (`errors.<Code>`), warning code and reason code through i18n keys.
-- **Acceptance:** scenarios describe UI behaviour. `@e2e` scenarios run with Playwright + playwright-bdd against the running app and PostgreSQL; the others run as component or container tests. Amounts are written in backlog form (`1,200,000 COP`) and rendered per locale (HU-E9-02).
+- **Acceptance:** scenarios describe UI behaviour. `@e2e` scenarios run with Playwright + playwright-bdd against the running app and PostgreSQL; the others run as component or container tests. Amounts are written in backlog form (`1,200,000 COP`) and rendered from the user's formatting preferences, never from the locale (HU-E1-15, HU-E9-02).
 
 ---
 
@@ -65,9 +65,9 @@ Feature: App shell and authentication screens
 
 ## HU-E9-02 — Internationalization setup (es, en)
 
-- **Milestone:** M6 · **Priority:** Must · **Size:** S · **Depends on:** HU-E0-01, HU-E1-01 · **Module(s):** `app/(web)`, `shared/infrastructure`
+- **Milestone:** M6 · **Priority:** Must · **Size:** S · **Depends on:** HU-E0-01, HU-E1-01, HU-E1-15 · **Module(s):** `app/(web)`, `shared/infrastructure`
 
-**User story:** As a user, I want the interface in Spanish by default and available in English, so that I can use the app in my language.
+**User story:** As a user, I want the interface in Spanish by default and available in English, and numbers, dates and times written the way I chose, so that I can use the app in my language and my formats.
 
 **Note:** moved from HU-E0-08 (retired) on 2026-10-11. The API returns stable error codes only (spec section 7, D18); all translation happens here.
 
@@ -85,16 +85,18 @@ Feature: Localized interface
     When the user opens the home page
     Then the page is rendered in English
 
-  Scenario Outline: Amounts and dates are formatted per locale
-    Given a user whose locale is "<locale>"
-    When the amount 1,600,000 COP and the date 2026-10-05 are displayed
+  Scenario Outline: Numbers, dates and times follow the user's preferences, not the language
+    Given a user whose locale is "<locale>" and whose effective preferences are numberFormat "<numberFormat>", dateFormat "<dateFormat>" and timeFormat "<timeFormat>"
+    When the amount 1,600,000 COP, the date 2026-10-05 and the time 14:30 are displayed
     Then the amount reads "<amount>"
     And the date reads "<date>"
+    And the time reads "<time>"
 
     Examples:
-      | locale | amount        | date       |
-      | es     | $ 1.600.000   | 5/10/2026  |
-      | en     | COP 1,600,000 | 10/5/2026  |
+      | locale | numberFormat | dateFormat | timeFormat | amount      | date      | time    |
+      | es     | DOT_COMMA    | DMY        | H24        | $ 1.600.000 | 5/10/2026 | 14:30   |
+      | es     | COMMA_DOT    | MDY        | H12        | $ 1,600,000 | 10/5/2026 | 2:30 PM |
+      | en     | DOT_COMMA    | DMY        | H24        | $ 1.600.000 | 5/10/2026 | 14:30   |
 
   Scenario: API error codes are translated, with a fallback
     Given a user whose locale is "es"
@@ -109,16 +111,23 @@ Feature: Localized interface
 ```
 
 **Technical notes:**
-- next-intl with `es` (default, es-CO formats) and `en`; the user's stored locale wins over `Accept-Language`.
-- COP displayed with zero fraction digits when the fraction is zero; whitespace normalized in tests (Intl may emit non-breaking spaces).
-- Dates rendered in `America/Bogota` unless the user timezone differs.
+- next-intl with `es` (default) and `en` picks the UI texts only; the user's stored locale wins over `Accept-Language`. The language is changed on the settings screen (HU-E9-13).
+- Numbers, dates, times and the first day of the week come from the user's effective preferences (`GET /api/v1/me`, HU-E1-15: `numberFormat`, `dateFormat`, `timeFormat`, `weekStart`), never from the locale (decided 2026-10-16). A shared `formatters` module takes the preferences as arguments and does not read the locale; a test fails on any component that formats with the locale's defaults.
+- Patterns:
+  - `numberFormat`: `DOT_COMMA` `1.234.567,89`, `COMMA_DOT` `1,234,567.89`, `SPACE_COMMA` `1 234 567,89`;
+  - `dateFormat`: numeric dates with `/` and no leading zeros, ordered `DMY` (`5/10/2026`), `MDY` (`10/5/2026`) or `YMD` (`2026/10/5`);
+  - `timeFormat`: `H24` `14:30`, `H12` `2:30 PM`.
+
+  Until HU-E1-15 is `Done`, the formatters use the built-in es-CO defaults (`DOT_COMMA`, `DMY`, `H24`, `MONDAY`), the same ones the installation rules start with, and switch to the preferences of `GET /api/v1/me` when it lands.
+- COP displayed with zero fraction digits when the fraction is zero; the currency symbol belongs to the currency (COP is `$`), not to the language; whitespace normalized in tests (Intl may emit non-breaking spaces).
+- Instants render in the user's time zone (HU-E1-14), `America/Bogota` unless it differs; a transaction shows the time of its own zone (HU-E9-03).
 - `pnpm i18n:check` verifies both catalogs have the same keys and that every error code in the OpenAPI document has an `errors.<Code>` key.
 
 ---
 
 ## HU-E9-03 — Personal ledger screens
 
-- **Milestone:** M6 · **Priority:** Must · **Size:** M · **Depends on:** HU-E1-14, HU-E2-01, HU-E2-03, HU-E2-04, HU-E2-05, HU-E2-06, HU-E2-07, HU-E3-04, HU-E3-05, HU-E4-01, HU-E4-02, HU-E4-03, HU-E4-05, HU-E4-14, HU-E9-01 · **Module(s):** `accounts/ui`, `ledger/ui`
+- **Milestone:** M6 · **Priority:** Must · **Size:** M · **Depends on:** HU-E1-14, HU-E1-15, HU-E2-01, HU-E2-03, HU-E2-04, HU-E2-05, HU-E2-06, HU-E2-07, HU-E3-04, HU-E3-05, HU-E4-01, HU-E4-02, HU-E4-03, HU-E4-05, HU-E4-14, HU-E9-01 · **Module(s):** `accounts/ui`, `ledger/ui`
 
 **User story:** As a user, I want screens for my accounts, my transaction list and forms to record expenses, income and transfers, so that I manage my personal money without calling the API.
 
@@ -132,9 +141,10 @@ Feature: Personal ledger screens
   Scenario: Record a personal expense from the form
     Given the Clock reads 2026-11-01T04:30:00Z
     When "Ana" opens the new expense form
-    Then the date field defaults to 2026-10-31 and the time field to 23:30
+    Then the date and time chip reads "Today · 23:30"
     When "Ana" enters "Market", 85,000 COP, "Groceries" and "Bancolombia" and saves
-    Then the transaction list shows "Market" with 85,000 COP at 23:30 under the day heading of the key "ledger.day.today"
+    Then the transaction has date 2026-10-31, occurredAt "2026-11-01T04:30:00Z" and timeZone "America/Bogota"
+    And the transaction list shows "Market" with 85,000 COP at 23:30 under the day heading of the key "ledger.day.today"
     And the accounts screen shows "Bancolombia" with a balance of 1,915,000 COP
 
   Scenario: Accounts screen shows types, balances and totals
@@ -162,10 +172,23 @@ Feature: Personal ledger screens
     And 4 transactions are shown with total expenses 245,000 COP and total income 3,200,000 COP
     And filtering by "Groceries" shows 2 transactions totalling 185,000 COP, including the one in "Vegetables"
 
-  Scenario: Validation errors are shown next to the field
-    When "Ana" saves an expense of 0 COP
-    Then the amount field shows the message of the key "errors.InvalidAmount"
-    And no transaction is created
+  @e2e
+  Scenario Outline: Pick yesterday at 19:00 in two steps
+    Given the Clock reads 2026-10-17T03:30:00Z
+    And "Ana" has the timeFormat "<timeFormat>" and the weekStart "MONDAY"
+    When "Ana" opens the date and time sheet of the new expense form
+    Then the quick-day buttons "Today", "Yesterday" and "The day before yesterday" are shown above a month calendar whose week starts on Monday
+    When "Ana" chooses "Yesterday"
+    And sets the time to 19:00
+    Then the sheet clock shows "<clock>"
+    And the chip reads "<chip>"
+    When "Ana" enters "Market", 85,000 COP, "Groceries" and "Bancolombia" and saves
+    Then the transaction has date 2026-10-15, occurredAt "2026-10-16T00:00:00Z" and timeZone "America/Bogota"
+
+    Examples:
+      | timeFormat | clock                   | chip                |
+      | H24        | 19 : 00                 | Yesterday · 19:00   |
+      | H12        | 7 : 00 with PM selected | Yesterday · 7:00 PM |
 
   Scenario: Pay the credit card with a transfer
     Given an expense of 200,000 COP in "Groceries" paid from the CREDIT_CARD "Visa"
@@ -179,7 +202,14 @@ Feature: Personal ledger screens
 - Containers per screen (`AccountsContainer`, `TransactionListContainer`, `ExpenseFormContainer`, `IncomeFormContainer`, `TransferFormContainer`); presentational components receive DTOs only.
 - Forms validate with the same Zod contracts as `/api/v1` (`contracts/`), then call server actions wrapping `RecordExpense`, `RecordIncome`, `RecordTransfer`; each submit sends a fresh `Idempotency-Key` so double clicks never duplicate (HU-E0-10).
 - The list uses cursor pagination with a "Load more" control (50 per page) and the period selector follows the space period policy (HU-E4-04).
-- Time (HU-E4-14, HU-E1-14): the forms default to now in the user's time zone and send `occurredAt` with the browser's zone; clearing the time sends only `date`. The list groups by day under headings with i18n keys (`ledger.day.today`, `ledger.day.yesterday`, then the localized date) and orders each day by time, untimed rows last. A row shows the wall-clock time in the record's zone, plus the zone's name when it differs from the viewer's; recurring and imported rows show no time.
+- Time (HU-E4-14, HU-E1-14): every transaction a person records has a time. The forms default to now in the user's time zone and always send `occurredAt` with the browser's zone; the form never sends a date alone and offers no way to clear the time. A row that has no time (a scheduler occurrence or a migrated row) gets its first time by editing. The list groups by day under headings with i18n keys (`ledger.day.today`, `ledger.day.yesterday`, then the date in the user's date format) and orders each day by time, untimed rows last. A row shows the wall-clock time in the record's zone, in the user's time format (HU-E1-15), plus the zone's name when it differs from the viewer's; recurring and imported rows show no time.
+- Date and time sheet: the chip in the form opens it. The chip reads the day, a middle dot and the time in the user's time format, such as "Today · 23:30", "Yesterday · 19:00" or "Yesterday · 7:00 PM"; an older day shows its date in the user's date format. The day names are the keys `ledger.day.today`, `ledger.day.yesterday` and `ledger.day.dayBeforeYesterday`. The sheet holds, from top to bottom:
+  - three quick-day buttons: Today, Yesterday and The day before yesterday;
+  - a month calendar whose week starts on the user's `weekStart` (HU-E1-15);
+  - an hour stepper and a minute stepper; the minute moves in 5-minute steps and snaps to the nearest multiple of 5, so a carried-over :32 becomes :30;
+  - minute shortcuts `:00`, `:15`, `:30` and `:45`, and a "Now" button;
+  - a clock that follows `timeFormat`: hours 00–23 for `H24`, or hours 1–12 with an AM/PM toggle for `H12`.
+- Validation errors from the API, such as `errors.InvalidAmount` for 0 COP, are shown next to their field and nothing is created (the pattern of HU-E9-01).
 - Category picker (HU-E3-04, HU-E3-05): parent categories first, each with its icon and color; choosing one shows its subcategories as optional chips in the same sheet; a subcategory is never required. Creating or editing a category from the form is HU-E9-12.
 - Accounts screen (HU-E2-05 … HU-E2-07): type icon and color, institution and last four digits per account; card limit, available credit and next cut-off and payment dates; the "Available" and "Net worth" totals of the space. The account form shows only the attributes of the chosen type and the two switches; the type cannot change after creation.
 
@@ -594,7 +624,7 @@ Feature: Personal dashboards
 **Technical notes:**
 - Containers `UnifiedViewContainer`, `LineTrendContainer`, `PersonalTrendContainer`; Recharts line charts with a default window of 6 periods (moved from HU-E7-05).
 - The unified view uses the viewer's personal period and catalog-key grouping from the API (spec D11); custom categories show as "space / category".
-- The change status `NEW` renders the `reports.trend.new` badge; percentages use the locale's number format with two decimals.
+- The change status `NEW` renders the `reports.trend.new` badge; percentages use the user's number format (HU-E1-15) with two decimals.
 
 ---
 
@@ -637,3 +667,104 @@ Feature: Manage categories without leaving the expense form
 - Creating returns with the new category or subcategory selected. A toast offers undo: a logical delete of the still-unreferenced category, or patching back the previous values.
 - The new-category sheet suggests the group of the current category and lets the member place the new one as a category of that group or as a subcategory of the current category. A subcategory takes its parent's style, so its sheet hides the icon and color pickers.
 - Archive and delete stay on the categories screen (HU-E9-04).
+
+---
+
+## HU-E9-13 — Settings screen
+
+- **Milestone:** M6 · **Priority:** Must · **Size:** S · **Depends on:** HU-E1-14, HU-E1-15, HU-E9-01 · **Module(s):** `identity/ui`
+
+**User story:** As a user, I want one Settings screen where I choose my formats, region, appearance and language and see the result at once, so that the app reads the way I am used to.
+
+```gherkin
+Feature: Settings screen
+
+  Background:
+    Given "Ana" is signed in with the locale "es" and the timezone "America/Bogota"
+    And the installation rules are numberFormat "DOT_COMMA", timeFormat "H24", dateFormat "DMY" and weekStart "MONDAY"
+
+  @e2e
+  Scenario: Change the formats and see them applied at once
+    When "Ana" opens the Settings screen
+    Then it shows the sections "Formats", "Region" and "Appearance and language"
+    And the preview reads "1.234.567,89", "16/10/2026" and "14:30"
+    When "Ana" chooses the number format "1,234,567.89", the date format "10/16/2026" and the time format "12-hour"
+    Then each choice is stored as she makes it and the preview reads "1,234,567.89", "10/16/2026" and "2:30 PM"
+    And the transaction list shows her amounts, dates and times in the new formats
+
+  Scenario: The language changes only the texts
+    Given "Ana" saved the number format "1,234,567.89" and the time format "12-hour"
+    When "Ana" chooses the language "English"
+    Then the screen is shown in English
+    And the preview still reads "1,234,567.89" and "2:30 PM"
+
+  Scenario: A field following the rule says "Default", and Reset returns a changed field to the rule
+    Given "Ana" never changed the date format
+    Then the date format shows "16/10/2026" with the label of the key "settings.default"
+    Given "Ana" saved the time format "12-hour"
+    Then the time format offers "Reset" instead of the default label
+    When "Ana" chooses "Reset" on the time format
+    Then the preview reads "14:30" and the time format shows the label of the key "settings.default"
+    And "GET /api/v1/me" returns the stored timeFormat null
+
+  Scenario: A field locked by the installation rules shows a lock badge
+    Given the installation rules lock the dateFormat
+    And "Ana" had stored the dateFormat "MDY" before the lock
+    When "Ana" opens the Settings screen
+    Then the date format shows "DMY" with the badge of the key "settings.locked"
+    And its selector and "Reset" are disabled
+    And the other fields stay editable
+```
+
+**Technical notes:**
+- Container `SettingsContainer` over presentational `SettingsForm`, `FormatPreview` and `LockBadge`. It loads `GET /api/v1/me` (`preferences.stored`, `effective`, `defaults`, `locked`) and saves with `PATCH /api/v1/me` (HU-E1-14, HU-E1-15); a problem+json code such as `InvalidTimeZone` maps to its `errors.<Code>` key and shows next to the field.
+- Sections:
+  - Formats: number format, date format, time format and the first day of the week;
+  - Region: the time zone, from a searchable list of IANA zones;
+  - Appearance and language: the theme (system, light or dark) and the language (`es` or `en`).
+- There is no "Save" button: each choice is sent with `PATCH /api/v1/me` as it is made (optimistic, rolled back with its error next to the field on failure). The live preview renders fixed sample values (1,234,567.89, 2026-10-16 and 14:30) with the same `formatters` as the rest of the app (HU-E9-02).
+- A field that follows the installation rule shows the label `settings.default`. A field the person changed shows "Reset", which returns it to the rule: for the four formats it clears the stored value (`null`); for the time zone and the language it stores the installation's value.
+- A field named in `preferences.locked` is shown read-only with a lock badge (`settings.locked`) and its effective value. Until HU-E8-18 is `Done` (M5) no field is ever locked, so the badge scenario runs as a component test with a stubbed `locked` list.
+- The theme is a device setting kept in the browser, outside the profile and the installation rules. Choosing the language reloads the screen with the new texts; the formats never change with it.
+
+---
+
+## HU-E9-14 — Installation rules screen
+
+- **Milestone:** M6 · **Priority:** Should · **Size:** S · **Depends on:** HU-E8-18, HU-E9-01 · **Module(s):** `identity/ui`
+
+**User story:** As the installation administrator, I want a screen for the brand and the defaults, with a switch per field to let people change it or not, and a live preview, so that I can brand my installation and set its rules without calling the API.
+
+```gherkin
+Feature: Installation rules screen
+
+  Background:
+    Given "Ana" is an installation administrator and "Juan" is an ordinary user
+
+  @e2e
+  Scenario: Brand the installation and see it at once
+    When "Ana" opens the Installation rules screen
+    And enters the brand name "Casa Gómez", chooses the accent "PLUM" and uploads a logo
+    Then the preview shows the app header with "Casa Gómez", the logo and the "PLUM" accent
+    When "Ana" saves
+    Then the sign-in screen of a visitor shows "Casa Gómez", the logo and the "PLUM" accent
+    And "Juan" sees the same brand in the app shell
+
+  Scenario: Set a default and stop people from changing it
+    When "Ana" sets the default time format "12-hour" and turns off "People may change it" for it
+    Then the preview of a sample person's Settings screen shows the time format "12-hour" with a lock badge
+    And after saving, "Juan" sees the time format "12-hour" with the badge of the key "settings.locked" on his Settings screen
+
+  Scenario: Ordinary users do not see the screen
+    When "Juan" opens the user menu
+    Then it offers no "Installation rules" entry
+    When "Juan" opens the Installation rules page directly
+    Then the message of the key "errors.InstallationAdminRequired" is shown and nothing can be saved
+```
+
+**Technical notes:**
+- Container `InstallationRulesContainer` over presentational `InstallationRulesForm` and `BrandPreview`; it calls `GET` and `PATCH /api/v1/installation` (with `If-Match`; a 412 shows `errors.PreconditionFailed` and reloads, HU-E0-10), and the logo endpoints (HU-E8-18).
+- Sections: Brand (name, logo, accent from the HU-E3-05 palette) and Defaults (the four formats, time zone, language and the currency of new spaces). Each default has a "People may change it" switch; turning it off adds the field to `lockedFields`.
+- The preview shows the app header with the brand and a sample of the formats; nothing is stored before "Save".
+- The entry appears in the user menu only when `GET /api/v1/me` returns `installationAdmin`; the use cases still enforce it. The role is granted outside the app (HU-E8-18).
+- From this story on the app shell and the sign-in and sign-up screens (HU-E9-01) take the brand from the public `GET /api/v1/installation`; until HU-E8-18 is `Done` they show the built-in Hearth brand and the default accent.
