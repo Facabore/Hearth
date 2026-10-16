@@ -67,3 +67,14 @@ export {
 export type { CopyDrops } from "../domain/plan-copy";
 export type { NewPlanInput } from "./create-budget-plan";
 export { createCopyBudgetPlan, type CopyBudgetPlan, type CopyDeps, type PlanCopy } from "./copy-budget-plan";
+export {
+  createResolveDefaultSplit,
+  defaultSplitOf,
+  SPLIT_METHODS,
+  type DefaultSplit,
+  type DefaultSplitDeps,
+  type DefaultSplitView,
+  type ExpenseToSplit,
+  type ResolveDefaultSplit,
+  type SplitMethodName,
+} from "./default-split";
