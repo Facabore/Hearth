@@ -350,7 +350,7 @@ Feature: Plan lifecycle
 
   @critical
   Scenario: Closed period rejects ledger changes
-    Given the plan is "ACTIVE"
+    Given the plan is "ACTIVE" and today is 2026-12-01
     When "Ana" closes the plan
     Then the plan status is "CLOSED"
     And recording an expense dated 2026-11-15 fails with the error "PeriodClosed"
@@ -364,6 +364,12 @@ Feature: Plan lifecycle
   Scenario: Only an active plan can be closed
     When "Ana" closes the plan while it is "DRAFT"
     Then the result is the error "InvalidPlanTransition"
+
+  Scenario: A plan cannot be closed before its period has ended
+    Given the plan is "ACTIVE" and today is 2026-11-30
+    When "Ana" closes the plan
+    Then the result is the error "PeriodNotOver"
+    And the plan status is "ACTIVE"
 ```
 
 **Technical notes:**
@@ -371,7 +377,7 @@ Feature: Plan lifecycle
 - State machine: DRAFT → ACTIVE → CLOSED; no reopening in v1.
 - Provides the `ClosedPeriodGuard` adapter used by `ledger` (HU-E4-06).
 - `POST …/plans/{planId}/activate` has no body, honours an optional `If-Match` and answers the whole plan with its new `ETag` (like every plan write). Activation checks, in this order, that Σ planned does not exceed the current members' capacity (`PlanExceedsCapacity`, 409) and that every allocation holds (`InvalidAllocation`, 422, whose problem lists the flagged lines in `lineIds`). An ACTIVE plan stays editable and is not checked again. Other errors: `InvalidPlanTransition` (409: any move other than DRAFT → ACTIVE → CLOSED), `BudgetPlanNotFound` (404, malformed ids included), `SpaceArchived` (409).
-- `POST …/plans/{planId}/close` mirrors activation and checks nothing but the transition (ACTIVE → CLOSED). Once CLOSED, every edit of the plan or its parts answers `PeriodClosed` (409), and so does every write of the space's ledger dated within the plan's stored dates (record, edit on either date, delete; HU-E4-06). The guard reads the plan covering the date `FOR SHARE`, so a ledger write and a close of its period run one after the other. Figures stay derived on read: a transfer recorded in a personal space into a SAVINGS line's account, or a member leaving, still changes a closed plan's figures.
+- `POST …/plans/{planId}/close` mirrors activation and checks two things, in this order: the transition (ACTIVE → CLOSED, else `InvalidPlanTransition`) and that the plan's period has ended, which means that today in the deployment time zone (`APP_TIMEZONE`, the zone the ledger dates undated records in) is after the plan's stored last day, else `PeriodNotOver` (409) and nothing changes. A close at 2026-11-30 22:00 in Bogota, already 2026-12-01 in UTC, is refused. v1 has no reopening, so an early close would refuse every ledger write of the space dated in the rest of the period (ruling P17, amended after the final review); activation stays free, before or after the period. Once CLOSED, every edit of the plan or its parts answers `PeriodClosed` (409), and so does every write of the space's ledger dated within the plan's stored dates (record, edit on either date, delete; HU-E4-06). The guard reads the plan covering the date `FOR SHARE`, so a ledger write and a close of its period run one after the other. Figures stay derived on read: a transfer recorded in a personal space into a SAVINGS line's account, or a member leaving, still changes a closed plan's figures.
 
 ---
 

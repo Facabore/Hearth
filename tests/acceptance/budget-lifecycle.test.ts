@@ -12,6 +12,7 @@ import {
   PATCH as editTransaction,
 } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/route";
 import { setContainerForTests, type Container } from "@/composition/container";
+import { FixedClock } from "@/shared/kernel";
 import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
 import {
   activatePlan,
@@ -38,9 +39,12 @@ import {
   type HouseholdMember,
 } from "../support/ledger";
 
+/** 2027-01-15 at noon in Bogota: after the 2026-11 and 2026-12 periods ended, in the middle of 2027-01. */
+const NOW = new Date("2027-01-15T17:00:00Z");
+
 let app: Container;
 beforeAll(() => {
-  app = startTestApp();
+  app = startTestApp({ clock: new FixedClock(NOW) });
 });
 afterAll(async () => {
   setContainerForTests(undefined);
@@ -404,6 +408,28 @@ describe("closing a plan (HU-E6-07)", () => {
     ]);
     expect(await planOf(h.ana, h.spaceId, planId)).toEqual(plan);
     expect((await getPlan(h.ana, h.spaceId, planId)).headers.get("etag")).toBe(`"${plan.version}"`);
+  });
+
+  it("refuses to close a plan whose period has not ended with 409 PeriodNotOver, and changes nothing (P17 amended)", async () => {
+    // The clock reads 2027-01-15, so the plan of 2027-01 (until 2027-01-31) is the current period, still open.
+    const ana = await registerUser("Ana");
+    const { id: planId } = await newPlan(ana, ana.spaceId, "2027-01");
+    await activated(ana, ana.spaceId, planId);
+    const before = await statusAndEtag(ana, ana.spaceId, planId);
+    expect(before[0]).toBe("ACTIVE");
+    expect(await problemOf(await closePlan(ana, ana.spaceId, planId))).toEqual([409, "PeriodNotOver"]);
+    expect(await statusAndEtag(ana, ana.spaceId, planId)).toEqual(before);
+    // Nothing was frozen: the rest of the period still records.
+    const bank = await newAccount(ana, "Bancolombia", 1_000_000);
+    const groceries = await categoryWithKey(ana, "groceries");
+    const spent = await post(recordExpense, ana, "expenses", {
+      description: "Market",
+      date: "2027-01-20",
+      categoryId: groceries,
+      amount: cop(50_000),
+      accountId: bank,
+    });
+    expect(spent.status).toBe(201);
   });
 
   it("closes only an ACTIVE plan, only for owners and admins", async () => {

@@ -554,10 +554,14 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
   "/api/v1/spaces/{spaceId}/plans/{planId}/close": {
     post: planWrite(
       "closeBudgetPlan",
-      "Close an ACTIVE plan: it and the space's transactions dated in its period can no longer be edited; its derived figures may still move",
+      "Close an ACTIVE plan once its period has ended: it and the space's transactions dated in its period can no longer be edited; its derived figures may still move",
       PlanPath,
       null,
-      { "404": "SpaceNotFound, BudgetPlanNotFound", "409": "InvalidPlanTransition, SpaceArchived" },
+      {
+        "404": "SpaceNotFound, BudgetPlanNotFound",
+        "409":
+          "InvalidPlanTransition, PeriodNotOver (today is not after the period's last day), SpaceArchived",
+      },
       "200",
       false,
     ),

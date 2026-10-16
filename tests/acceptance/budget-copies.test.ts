@@ -4,6 +4,7 @@ import { POST as archiveCategory } from "@/app/api/v1/spaces/[spaceId]/categorie
 import { POST as leaveSpace } from "@/app/api/v1/spaces/[spaceId]/leave/route";
 import { POST as createPlanRoute } from "@/app/api/v1/spaces/[spaceId]/plans/route";
 import { setContainerForTests, type Container } from "@/composition/container";
+import { FixedClock } from "@/shared/kernel";
 import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
 import {
   activatePlan,
@@ -24,9 +25,12 @@ import {
 } from "../support/budgeting";
 import { categoryWithKey, household, joinHousehold, newAccount } from "../support/ledger";
 
+/** 2027-01-15 at noon in Bogota: after the 2026-11 period ended, so its plan may close. */
+const NOW = new Date("2027-01-15T17:00:00Z");
+
 let app: Container;
 beforeAll(() => {
-  app = startTestApp();
+  app = startTestApp({ clock: new FixedClock(NOW) });
 });
 afterAll(async () => {
   setContainerForTests(undefined);

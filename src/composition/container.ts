@@ -173,7 +173,7 @@ import { DrizzleIdempotencyStore } from "@/shared/infrastructure/drizzle-idempot
 import { loadEnv, type Env } from "@/shared/infrastructure/env";
 import { SystemClock } from "@/shared/infrastructure/system-clock";
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
-import { isUuid, map, type AuthUser, type Result } from "@/shared/kernel";
+import { isUuid, map, type AuthUser, type Clock, type Result } from "@/shared/kernel";
 import { accountBalancesFrom } from "./account-balances";
 
 /** Process-wide dependencies, built once from the environment. */
@@ -278,13 +278,15 @@ export interface ContainerOptions {
   readonly authLimits?: AuthLimits;
   /** Delivers invitation emails; v1 has no SMTP adapter, so delivery is disabled unless a test passes one. */
   readonly emailSender?: EmailSender;
+  /** Test seam: replaces the system clock, so a test decides what "today" is (a plan closes only after its period). */
+  readonly clock?: Clock;
 }
 
 export const buildContainer = (env: Env, options: ContainerOptions = {}): Container => {
   const { db, pool } = createDatabase(env.DATABASE_URL);
   const tm = new DrizzleTransactionManager(db);
   const ids = new UuidV7IdGenerator();
-  const clock = new SystemClock();
+  const clock = options.clock ?? new SystemClock();
   const provider = new BetterAuthProvider(
     createAuth({ db, secret: env.BETTER_AUTH_SECRET, baseURL: env.BETTER_AUTH_URL }),
     db,
@@ -448,6 +450,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     spending: ledgerQueries,
     ids,
     clock,
+    timeZone: env.APP_TIMEZONE,
     tm,
   };
   const invitationRepository = new DrizzleInvitationRepository(tm);

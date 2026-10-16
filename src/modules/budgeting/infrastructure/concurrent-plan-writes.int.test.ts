@@ -33,6 +33,8 @@ const tm = new DrizzleTransactionManager(db);
 const plans = new DrizzleBudgetPlanRepository(tm);
 const spaces = new DrizzleSpaceRepository(tm);
 const at = new Date("2026-10-14T12:00:00Z");
+/** What a close reads "today" from: 2026-12-01 at noon in Bogota, the day after the 2026-11 plans' period ended. */
+const afterNovember = { clock: new FixedClock(new Date("2026-12-01T17:00:00Z")), timeZone: "America/Bogota" };
 const nothingSpent: PlanSpending = {
   expensesByCategory: async () => [],
   transfersIntoAccounts: async () => [],
@@ -297,9 +299,13 @@ describe("concurrent writes to one plan (Review Focus 1)", () => {
 describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Focus 1)", () => {
   type Household = Awaited<ReturnType<typeof household>>;
 
-  /** An ACTIVE 2026-11 plan in which Ana has 1,000,000 COP, and its close, which stops in `h.hold` once it set CLOSED. */
+  /**
+   * An ACTIVE 2026-11 plan in which Ana has 1,000,000 COP, and its close, which stops in `h.hold` once it set CLOSED.
+   * `closeDeps` are its deps once the period is over (a plan closes only after its period has ended).
+   */
   const activePlan = async () => {
     const { ana, space, deps } = await household();
+    const closeDeps = { ...deps, ...afterNovember };
     const { plan } = unwrap(
       await createCreateBudgetPlan(deps)({ spaceId: space.id, userId: ana.id, period: "2026-11" }),
     );
@@ -308,7 +314,7 @@ describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Foc
     const write = { spaceId: space.id, userId: ana.id, planId: plan.id, expectedVersion: null };
     const closeHolding = (h: ReturnType<typeof holder>) =>
       createCloseBudgetPlan({
-        ...deps,
+        ...closeDeps,
         statuses: {
           setStatus: async (planId, status, changedAt) => {
             await plans.setStatus(planId, status, changedAt);
@@ -316,7 +322,7 @@ describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Foc
           },
         },
       })(write);
-    return { ana, space, deps, plan, write, closeHolding };
+    return { ana, space, deps, closeDeps, plan, write, closeHolding };
   };
 
   /**
@@ -432,7 +438,7 @@ describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Foc
       return result;
     });
     await h.held;
-    const closing = createCloseBudgetPlan({ ...active.deps, statuses: plans })(active.write)
+    const closing = createCloseBudgetPlan({ ...active.closeDeps, statuses: plans })(active.write)
       .then((result) => {
         order.push("close");
         return result;

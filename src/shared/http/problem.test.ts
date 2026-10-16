@@ -64,6 +64,7 @@ describe("statusForCode", () => {
     ["SavingsLineNotMappable", 409],
     ["InvalidAllocation", 422],
     ["InvalidPlanTransition", 409],
+    ["PeriodNotOver", 409],
     ["CategoryNotInSpace", 422],
     ["CategoryAlreadyMapped", 409],
     ["SameAccountTransfer", 409],

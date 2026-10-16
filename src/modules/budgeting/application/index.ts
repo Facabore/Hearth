@@ -61,6 +61,7 @@ export {
   createCloseBudgetPlan,
   type ActivateBudgetPlan,
   type CloseBudgetPlan,
+  type CloseDeps,
   type PlanStatusDeps,
   type PlanTransitionInput,
 } from "./plan-lifecycle";

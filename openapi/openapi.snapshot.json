@@ -6306,7 +6306,7 @@
     "/api/v1/spaces/{spaceId}/plans/{planId}/close": {
       "post": {
         "operationId": "closeBudgetPlan",
-        "summary": "Close an ACTIVE plan: it and the space's transactions dated in its period can no longer be edited; its derived figures may still move",
+        "summary": "Close an ACTIVE plan once its period has ended: it and the space's transactions dated in its period can no longer be edited; its derived figures may still move",
         "security": [
           {
             "cookieAuth": []
@@ -6382,7 +6382,7 @@
             }
           },
           "409": {
-            "description": "InvalidPlanTransition, SpaceArchived",
+            "description": "InvalidPlanTransition, PeriodNotOver (today is not after the period's last day), SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {

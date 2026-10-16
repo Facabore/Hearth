@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { periodByLabel, type Period, type PeriodPolicy, type StoredPeriod } from "@/shared/kernel";
+import {
+  periodByLabel,
+  type LocalDate,
+  type Period,
+  type PeriodPolicy,
+  type StoredPeriod,
+} from "@/shared/kernel";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
 import {
+  closedOn,
   editablePlan,
   openPlan,
   transitioned,
@@ -93,5 +100,24 @@ describe("plan lifecycle (HU-E6-07)", () => {
     expect(unwrap(editablePlan(draft))).toEqual(draft);
     expect(unwrap(editablePlan(active))).toEqual(active);
     expect(codeOf(editablePlan(november("CLOSED")))).toBe("PeriodClosed");
+  });
+
+  it("closes an ACTIVE plan only after its period has ended: the last day refuses, the next day closes (P17)", () => {
+    const active = november("ACTIVE");
+    expect(closedOn(active, "2026-11-30" as LocalDate)).toEqual({
+      ok: false,
+      error: { code: "PeriodNotOver", details: { end: "2026-11-30" } },
+    });
+    expect(unwrap(closedOn(active, "2026-12-01" as LocalDate))).toEqual({ ...active, status: "CLOSED" });
+  });
+
+  it("refuses a plan whose period has not even started, and any other move first: status before period", () => {
+    expect(codeOf(closedOn(november("ACTIVE"), "2026-10-14" as LocalDate))).toBe("PeriodNotOver");
+    for (const status of ["DRAFT", "CLOSED"] as const) {
+      expect(closedOn(november(status), "2026-11-15" as LocalDate)).toEqual({
+        ok: false,
+        error: { code: "InvalidPlanTransition", details: { from: status, to: "CLOSED" } },
+      });
+    }
   });
 });

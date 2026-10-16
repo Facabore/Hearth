@@ -1,4 +1,14 @@
-import { domainError, err, ok, type Id, type Period, type Result, type StoredPeriod } from "@/shared/kernel";
+import {
+  domainError,
+  err,
+  flatMap,
+  ok,
+  type Id,
+  type LocalDate,
+  type Period,
+  type Result,
+  type StoredPeriod,
+} from "@/shared/kernel";
 
 export type BudgetPlanId = Id<"BudgetPlan">;
 export const PLAN_STATUSES = ["DRAFT", "ACTIVE", "CLOSED"] as const;
@@ -56,6 +66,17 @@ export const transitioned = (plan: BudgetPlan, to: PlanStatus): Result<BudgetPla
   NEXT.get(plan.status) === to
     ? ok({ ...plan, status: to })
     : err(domainError("InvalidPlanTransition", { from: plan.status, to }));
+
+/**
+ * HU-E6-07 (ruling P17, amended after the final review): the plan moved to CLOSED on `today`, the date in the
+ * deployment time zone, which must be after the last day of the plan's period. v1 has no reopening, so closing
+ * early would refuse every ledger write of the space dated in the rest of the period for good. The transition rule
+ * judges first (N4): a plan that is not ACTIVE answers InvalidPlanTransition whatever the date.
+ */
+export const closedOn = (plan: BudgetPlan, today: LocalDate): Result<BudgetPlan> =>
+  flatMap(transitioned(plan, "CLOSED"), (closed) =>
+    plan.period.end < today ? ok(closed) : err(domainError("PeriodNotOver", { end: plan.period.end })),
+  );
 
 /**
  * HU-E6-07: a CLOSED plan's figures are frozen, so neither the plan nor its parts change any more (PeriodClosed);
