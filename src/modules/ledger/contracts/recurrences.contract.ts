@@ -413,6 +413,26 @@ const INVALID_EDIT =
 const INVALID_RECURRENCE =
   "InvalidRecurrence (an end date before the start; no schedule date from the start, or from the day it is defined if that is later, through the end date)";
 
+/** HU-E4-11: a move of a recurrence; no body, and the answer is the recurrence after it. */
+const recurrenceMove = (operationId: string, summary: string, errors: Record<string, string> = {}) => ({
+  post: {
+    operationId,
+    summary,
+    ...securedByUser,
+    requestParams: { path: RecurrencePath },
+    responses: {
+      "200": recurrenceResponse("The recurrence after the move"),
+      ...problems({
+        "401": "Unauthenticated",
+        "403": "InsufficientRole",
+        "404": "SpaceNotFound, RecurrenceNotFound",
+        "409": "InvalidRecurrenceTransition, SpaceArchived",
+        ...errors,
+      }),
+    },
+  },
+});
+
 export const recurrencesPaths: ZodOpenApiPathsObject = {
   "/api/v1/spaces/{spaceId}/recurrences": {
     get: {
@@ -494,4 +514,21 @@ export const recurrencesPaths: ZodOpenApiPathsObject = {
       },
     },
   },
+  "/api/v1/spaces/{spaceId}/recurrences/{recurrenceId}/pause": recurrenceMove(
+    "pauseRecurrence",
+    "Pause an ACTIVE recurrence: nothing is recorded until it resumes",
+  ),
+  "/api/v1/spaces/{spaceId}/recurrences/{recurrenceId}/resume": recurrenceMove(
+    "resumeRecurrence",
+    "Resume a PAUSED recurrence from today, never back-filling the days it was paused",
+    {
+      "404": `SpaceNotFound, RecurrenceNotFound, ${TEMPLATE_404}`,
+      "409": `InvalidRecurrenceTransition, ${TEMPLATE_409}, SpaceArchived`,
+      "422": TEMPLATE_422,
+    },
+  ),
+  "/api/v1/spaces/{spaceId}/recurrences/{recurrenceId}/end": recurrenceMove(
+    "endRecurrence",
+    "End a recurrence: it and its occurrences stay, and nothing more is recorded",
+  ),
 };

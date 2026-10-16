@@ -92,6 +92,31 @@ describe("OpenAPI document", () => {
     }
   });
 
+  it("documents pausing, resuming and ending a recurrence as POSTs with no body that answer the recurrence", () => {
+    type Operation = {
+      requestBody?: unknown;
+      responses: Record<string, { content: Record<string, { schema: { $ref: string } }> }>;
+    };
+    const documented = ["pause", "resume", "end"].map((name) => {
+      const path = doc.paths[`/api/v1/spaces/{spaceId}/recurrences/{recurrenceId}/${name}`] as
+        Record<string, Operation> | undefined;
+      const post = path?.post;
+      return {
+        methods: Object.keys(path ?? {}),
+        body: post?.requestBody,
+        statuses: Object.keys(post?.responses ?? {}),
+        answer: post?.responses["200"]?.content["application/json"]?.schema.$ref,
+      };
+    });
+    const answer = "#/components/schemas/Recurrence";
+    expect(documented).toEqual([
+      { methods: ["post"], body: undefined, statuses: ["200", "401", "403", "404", "409"], answer },
+      // Resuming checks the template again, as recording would: its 404, 409 and 422 are that check's.
+      { methods: ["post"], body: undefined, statuses: ["200", "401", "403", "404", "409", "422"], answer },
+      { methods: ["post"], body: undefined, statuses: ["200", "401", "403", "404", "409"], answer },
+    ]);
+  });
+
   it("names the operations that were added, removed or changed", () => {
     const before = {
       paths: { "/api/v1/me": { get: { summary: "a" } }, "/x": { post: {} }, "/gone": { delete: {} } },

@@ -8,6 +8,9 @@ import {
   PATCH as patchRecurrenceRoute,
 } from "@/app/api/v1/spaces/[spaceId]/recurrences/[recurrenceId]/route";
 import { GET as upcomingRoute } from "@/app/api/v1/spaces/[spaceId]/recurrences/[recurrenceId]/occurrences/route";
+import { POST as endRoute } from "@/app/api/v1/spaces/[spaceId]/recurrences/[recurrenceId]/end/route";
+import { POST as pauseRoute } from "@/app/api/v1/spaces/[spaceId]/recurrences/[recurrenceId]/pause/route";
+import { POST as resumeRoute } from "@/app/api/v1/spaces/[spaceId]/recurrences/[recurrenceId]/resume/route";
 import { FixedClock } from "@/shared/kernel";
 import { call, type TestUser } from "./app";
 import { categoryWithKey, cop, household, newAccount, type Household, type MoneyDto } from "./ledger";
@@ -151,3 +154,15 @@ export const patchRecurrence = (user: TestUser, spaceId: string, recurrenceId: s
     params: { spaceId, recurrenceId },
     body,
   });
+
+const move =
+  (route: typeof pauseRoute, name: string) => (user: TestUser, spaceId: string, recurrenceId: string) =>
+    call(route, "POST", recurrencesPath(spaceId, `/${recurrenceId}/${name}`), {
+      user,
+      params: { spaceId, recurrenceId },
+    });
+
+/** HU-E4-11: `user` pauses, resumes or ends the recurrence. */
+export const pauseRecurrence = move(pauseRoute, "pause");
+export const resumeRecurrence = move(resumeRoute, "resume");
+export const endRecurrence = move(endRoute, "end");

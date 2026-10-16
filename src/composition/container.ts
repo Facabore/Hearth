@@ -78,6 +78,12 @@ import {
   type ListUpcomingOccurrences,
   createUpdateRecurrence,
   type UpdateRecurrence,
+  createEndRecurrence,
+  createPauseRecurrence,
+  createResumeRecurrence,
+  type EndRecurrence,
+  type PauseRecurrence,
+  type ResumeRecurrence,
   type DeleteTransaction,
   type EditTransaction,
   type GetTransaction,
@@ -249,6 +255,9 @@ export interface Container extends RouteDeps {
     readonly getRecurrence: GetRecurrence;
     readonly listUpcomingOccurrences: ListUpcomingOccurrences;
     readonly updateRecurrence: UpdateRecurrence;
+    readonly pauseRecurrence: PauseRecurrence;
+    readonly resumeRecurrence: ResumeRecurrence;
+    readonly endRecurrence: EndRecurrence;
   };
   readonly balances: {
     readonly getSpaceBalances: GetSpaceBalances;
@@ -622,6 +631,9 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       getRecurrence: createGetRecurrence(recurrenceDeps),
       listUpcomingOccurrences: createListUpcomingOccurrences(recurrenceDeps),
       updateRecurrence: createUpdateRecurrence(recurrenceDeps),
+      pauseRecurrence: createPauseRecurrence(recurrenceDeps),
+      resumeRecurrence: createResumeRecurrence(recurrenceDeps),
+      endRecurrence: createEndRecurrence(recurrenceDeps),
     },
     balances: {
       // HU-E5-01: the ledger aggregates per-member totals in SQL (D7); the balances module nets them.

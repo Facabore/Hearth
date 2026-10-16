@@ -22,6 +22,8 @@ const EXPLICIT: ReadonlyMap<string, number> = new Map([
   ["CategoryNotInSpace", 422],
   // HU-E6-07: the plan's state, not the request, refuses the move (ruling P12).
   ["InvalidPlanTransition", 409],
+  // HU-E4-11: the recurrence's state, not the request, refuses the move (ruling P27).
+  ["InvalidRecurrenceTransition", 409],
   ["InvitationEmailMismatch", 403],
   ["PasswordTooShort", 422],
   ["EmailTaken", 409],
