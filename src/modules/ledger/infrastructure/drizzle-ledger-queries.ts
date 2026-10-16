@@ -18,6 +18,9 @@ import { alias, unionAll } from "drizzle-orm/pg-core";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { isUuid, type LocalDate } from "@/shared/kernel";
 import type {
+  BalanceMovement,
+  HistoryRange,
+  MemberBalanceHistory,
   MemberMoneyTotals,
   TransactionFilter,
   TransactionPosition,
@@ -263,6 +266,71 @@ export class DrizzleLedgerQueries implements TransactionQuery {
     return rows.flatMap((row) =>
       row.accountId === null ? [] : [{ accountId: row.accountId, amount: BigInt(row.total) }],
     );
+  }
+
+  /**
+   * HU-E5-04 (E5 balance rule, D7): one member's balance-affecting movements in one space with a window function's
+   * running balance over every earlier movement: live member-paid expenses they paid for or share (paid − share;
+   * fund-paid expenses create no debt, D5) and settlements they paid (+) or received (−), in date, creation and id
+   * order, through `to`. The statement itself keeps only the last movement before `from` and flags it `before_range`:
+   * its balance is the opening, and the application only splits it from the entries, so the opening and the entries
+   * come from one statement and one snapshot. Malformed ids answer an empty history.
+   */
+  async memberHistory(spaceId: string, memberId: string, range: HistoryRange): Promise<MemberBalanceHistory> {
+    if (!isUuid(spaceId) || !isUuid(memberId)) return { opening: 0n, entries: [] };
+    interface HistoryRow {
+      readonly id: string;
+      readonly date: string;
+      readonly type: "EXPENSE" | "SETTLEMENT";
+      readonly description: string;
+      readonly change: string;
+      readonly balance: string;
+      /** The last movement before `from`, whose balance is the opening; false for every entry. */
+      readonly before_range: boolean;
+    }
+    const { rows } = await this.tm.executor().execute(sql`
+      WITH movements AS (
+        SELECT t.id, t.date, t.created_at, t.type, t.description,
+          coalesce((SELECT sum(p.amount) FROM ${payments} p WHERE p.transaction_id = t.id AND p.member_id = ${memberId}), 0)
+            - coalesce((SELECT sum(s.amount) FROM ${shares} s WHERE s.transaction_id = t.id AND s.member_id = ${memberId}), 0)
+            AS change
+        FROM ${transactions} t
+        WHERE t.space_id = ${spaceId} AND t.deleted_at IS NULL AND t.type = 'EXPENSE'
+          AND NOT EXISTS (SELECT 1 FROM ${payments} f WHERE f.transaction_id = t.id AND f.member_id IS NULL)
+        UNION ALL
+        SELECT t.id, t.date, t.created_at, t.type, t.description,
+          CASE WHEN t.payer_member_id = ${memberId} THEN t.amount ELSE -t.amount END
+        FROM ${transactions} t
+        WHERE t.space_id = ${spaceId} AND t.deleted_at IS NULL AND t.type = 'SETTLEMENT'
+          AND ${memberId} IN (t.payer_member_id, t.receiving_member_id)
+      ), running AS (
+        SELECT id, date, created_at, type, description, change,
+          sum(change) OVER (ORDER BY date, created_at, id) AS balance,
+          lead(date) OVER (ORDER BY date, created_at, id) AS next_date
+        FROM movements
+        WHERE change <> 0 AND (${range.to}::date IS NULL OR date <= ${range.to}::date)
+      )
+      SELECT id, date::text AS date, type, description, change::text AS change, balance::text AS balance,
+        coalesce(date < ${range.from}::date, false) AS before_range
+      FROM running
+      WHERE ${range.from}::date IS NULL OR date >= ${range.from}::date
+        OR next_date IS NULL OR next_date >= ${range.from}::date
+      ORDER BY running.date, running.created_at, running.id`);
+    const history = rows as unknown as HistoryRow[];
+    const opening = history.find((row) => row.before_range);
+    return {
+      opening: opening === undefined ? 0n : BigInt(opening.balance),
+      entries: history
+        .filter((row) => !row.before_range)
+        .map((row): BalanceMovement => ({
+          transactionId: row.id,
+          type: row.type,
+          date: row.date as LocalDate,
+          description: row.description,
+          change: BigInt(row.change),
+          balance: BigInt(row.balance),
+        })),
+    };
   }
 
   private matching(f: TransactionFilter) {

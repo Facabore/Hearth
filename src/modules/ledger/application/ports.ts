@@ -123,3 +123,27 @@ export interface MemberMoneyTotals {
   readonly settledOut: bigint;
   readonly settledIn: bigint;
 }
+
+/** HU-E5-04: a span of dates, open on either side when null. */
+export interface HistoryRange {
+  readonly from: LocalDate | null;
+  readonly to: LocalDate | null;
+}
+
+/** HU-E5-04: one movement of a member's net balance (E5 balance rule) and their running net after it. */
+export interface BalanceMovement {
+  readonly transactionId: string;
+  readonly type: "EXPENSE" | "SETTLEMENT";
+  readonly date: LocalDate;
+  readonly description: string;
+  /** What it did to the member's net: paid − share of a member-paid expense, + paid or − received of a settlement. */
+  readonly change: bigint;
+  /** The member's net after it, over every earlier movement of the space. */
+  readonly balance: bigint;
+}
+
+/** HU-E5-04: the member's net before `from` and their movements within the range, by date, creation and id. */
+export interface MemberBalanceHistory {
+  readonly opening: bigint;
+  readonly entries: readonly BalanceMovement[];
+}
