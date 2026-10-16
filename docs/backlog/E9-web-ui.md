@@ -545,9 +545,9 @@ Feature: Recurring transactions screens
 
 ## HU-E9-10 — Space dashboards: lines, member matrix and fund tracking
 
-- **Milestone:** M6 · **Priority:** Must · **Size:** M · **Depends on:** HU-E7-01, HU-E7-02, HU-E7-03, HU-E9-08 · **Module(s):** `reporting/ui`
+- **Milestone:** M6 · **Priority:** Must · **Size:** M · **Depends on:** HU-E7-01, HU-E7-02, HU-E7-03, HU-E7-06, HU-E9-08 · **Module(s):** `reporting/ui`
 
-**User story:** As a household member, I want dashboards for budget lines, the member matrix and fund contributions, so that we see at a glance how the month is going against the plan.
+**User story:** As a household member, I want dashboards for budget lines, the member matrix, fund contributions and spending by category group, so that we see at a glance how the month is going against the plan and where the money went.
 
 ```gherkin
 Feature: Space dashboards
@@ -586,20 +586,33 @@ Feature: Space dashboards
     Given "Ana" contributed 480,000 COP on 2026-11-02 and "Juan" contributed 500,000 COP on 2026-11-03
     When "Ana" opens fund tracking for 2026-11
     Then "Juan" shows expected 720,000 COP, actual 500,000 COP and difference -220,000 COP
+
+  Scenario: Spending by group drills down to categories and subcategories
+    Given "Groceries" has the subcategories "Vegetables" and "Meat"
+    And its 900,000 COP of the E7 shared fixture is recorded as 450,000 COP in "Groceries", 270,000 COP in "Vegetables" and 180,000 COP in "Meat"
+    When "Ana" opens the dashboard of "Household" for 2026-11 and chooses the view "By group"
+    Then the chart shows "Housing" 1,600,000 COP (56.94%), "Food" 960,000 COP (34.16%) and "Leisure" 250,000 COP (8.90%)
+    When "Ana" taps "Food"
+    Then the chart shows "Groceries" 900,000 COP (93.75%) and "Restaurants" 60,000 COP (6.25%) under the breadcrumb "Food"
+    When "Ana" taps "Groceries"
+    Then the chart shows the slice of the key "reports.byGroup.noSubcategory" with 450,000 COP (50.00%), "Vegetables" 270,000 COP (30.00%) and "Meat" 180,000 COP (20.00%) under the breadcrumb "Food › Groceries"
+    When "Ana" taps "Food" in the breadcrumb
+    Then the categories of "Food" are shown again
 ```
 
 **Technical notes:**
 - Containers `LineDashboardContainer`, `MemberMatrixContainer`, `FundTrackingContainer`; presentational chart components (Recharts bar per line) receive DTOs only (moved from HU-E7-01).
 - Reason and status codes (`TRACKED_AT_FUND_LEVEL`, `NOT_ALLOCATED`, `OVER_CONTRIBUTED`) map to `reports.reason.<Code>` and `reports.status.<Code>` keys.
 - Viewers see every dashboard; period navigation follows the space period policy.
+- Spending by group (HU-E7-06): `SpendingByGroupContainer` loads `GET /api/v1/spaces/{spaceId}/reports/spending-by-group` once and passes the tree to a presentational `SpendingChart` (a Recharts donut or bar chart of the groups, with a table of the same figures) and a `DrillBreadcrumb`. Tapping a slice or row goes one level down, from group to category to subcategory, and the breadcrumb (`Food › Groceries`) goes back up; drilling is done on the client over the one response and makes no further request. The entry without a subcategory (`subcategoryId` null) reads the key `reports.byGroup.noSubcategory`, and an `archived` node carries the badge of the key `reports.byGroup.archived`. Amounts and shares come from the API and are rendered with the user's number format (HU-E1-15); the UI never recomputes them.
 
 ---
 
 ## HU-E9-11 — Personal dashboards: unified view and trends
 
-- **Milestone:** M6 · **Priority:** Must · **Size:** M · **Depends on:** HU-E7-04, HU-E7-05, HU-E9-01 · **Module(s):** `reporting/ui`
+- **Milestone:** M6 · **Priority:** Must · **Size:** M · **Depends on:** HU-E7-04, HU-E7-05, HU-E7-06, HU-E9-01 · **Module(s):** `reporting/ui`
 
-**User story:** As a user, I want my unified personal view and trend charts on screen, so that I know my real consumption and cash out across all my spaces and how they evolve.
+**User story:** As a user, I want my unified personal view, my spending by category group and trend charts on screen, so that I know my real consumption and cash out across all my spaces, where the money went and how it evolves.
 
 ```gherkin
 Feature: Personal dashboards
@@ -631,12 +644,21 @@ Feature: Personal dashboards
     Given "Ana" had consumption in each period from 2026-06 to 2026-11
     When "Ana" opens her personal trend ending 2026-11
     Then a line chart with 6 points from 2026-06 to 2026-11 is shown
+
+  Scenario: Spending by group merges seeded groups and labels custom ones by space
+    Given "Ana" has the November 2026 movements of the HU-E7-04 fixture
+    And "Household" has the custom group "Pets" with the category "Vet", where "Ana"'s share of a 50,000 COP expense is 25,000 COP
+    When "Ana" opens her unified view for 2026-11 and chooses the view "By group"
+    Then the chart shows "Food" 1,095,000 COP (68.44%), "Housing" 480,000 COP (30.00%) and "Household / Pets" 25,000 COP (1.56%)
+    When "Ana" taps "Food"
+    Then the chart shows "Groceries" from her personal space and "Household" as one slice of 1,035,000 COP (94.52%) and "Restaurants" 60,000 COP (5.48%) under the breadcrumb "Food"
 ```
 
 **Technical notes:**
 - Containers `UnifiedViewContainer`, `LineTrendContainer`, `PersonalTrendContainer`; Recharts line charts with a default window of 6 periods (moved from HU-E7-05).
 - The unified view uses the viewer's personal period and catalog-key grouping from the API (spec D11); custom categories show as "space / category".
 - The change status `NEW` renders the `reports.trend.new` badge; percentages use the user's number format (HU-E1-15) with two decimals.
+- Spending by group (HU-E7-06): `PersonalSpendingByGroupContainer` loads `GET /api/v1/me/reports/spending-by-group` once and uses the same presentational `SpendingChart` and `DrillBreadcrumb` as HU-E9-10 (shared in `reporting/ui`; whichever story lands first builds them), with the same drill-down on the client and the same keys. Seeded rows arrive merged by catalog key. A custom group or category shows as "space / group" or "space / category", written from the row's `space.name` and `name` through one i18n pattern, never by joining strings, and a subcategory shows as "space / subcategory" because subcategories carry no key.
 
 ---
 

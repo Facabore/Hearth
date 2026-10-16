@@ -158,6 +158,7 @@ A UI story is `Done` when:
 | [HU-E7-03](E7-reporting.md) | Shared fund contribution tracking | E7 | M4 | Must | S | Backlog | HU-E4-09, HU-E6-05 |
 | [HU-E7-04](E7-reporting.md) | Unified personal view | E7 | M4 | Must | M | Backlog | HU-E4-07, HU-E4-10 |
 | [HU-E7-05](E7-reporting.md) | Period-over-period trend | E7 | M4 | Should | S | Backlog | HU-E7-01, HU-E7-04 |
+| [HU-E7-06](E7-reporting.md) | Spending by category group with drill-down | E7 | M4 | Must | M | Backlog | HU-E3-02, HU-E3-04, HU-E3-05, HU-E7-04 |
 | [HU-E8-01](E8-hardening-and-later.md) | Nightly backups and restore drill | E8 | M5 | Must | M | Backlog | HU-E0-07 |
 | [HU-E8-02](E8-hardening-and-later.md) | Structured logging and health check | E8 | M5 | Should | M | Backlog | HU-E0-07 |
 | [HU-E8-04](E8-hardening-and-later.md) | Import transactions from CSV | E8 | M5 | Could | M | Backlog | HU-E4-01, HU-E4-02 |
@@ -184,13 +185,13 @@ A UI story is `Done` when:
 | [HU-E9-07](E9-web-ui.md) | Balances and settle-up screen | E9 | M6 | Must | M | Backlog | HU-E5-01, HU-E5-02, HU-E5-03, HU-E5-04, HU-E9-05 |
 | [HU-E9-08](E9-web-ui.md) | Budget planner screens | E9 | M6 | Must | M | Backlog | HU-E6-01, HU-E6-02, HU-E6-03, HU-E6-04, HU-E6-05, HU-E6-06, HU-E6-07, HU-E6-09, HU-E9-05 |
 | [HU-E9-09](E9-web-ui.md) | Recurring transactions and pending confirmations screens | E9 | M6 | Should | M | Backlog | HU-E4-11, HU-E4-12, HU-E4-13, HU-E9-06 |
-| [HU-E9-10](E9-web-ui.md) | Space dashboards: lines, member matrix and fund tracking | E9 | M6 | Must | M | Backlog | HU-E7-01, HU-E7-02, HU-E7-03, HU-E9-08 |
-| [HU-E9-11](E9-web-ui.md) | Personal dashboards: unified view and trends | E9 | M6 | Must | M | Backlog | HU-E7-04, HU-E7-05, HU-E9-01 |
+| [HU-E9-10](E9-web-ui.md) | Space dashboards: lines, member matrix and fund tracking | E9 | M6 | Must | M | Backlog | HU-E7-01, HU-E7-02, HU-E7-03, HU-E7-06, HU-E9-08 |
+| [HU-E9-11](E9-web-ui.md) | Personal dashboards: unified view and trends | E9 | M6 | Must | M | Backlog | HU-E7-04, HU-E7-05, HU-E7-06, HU-E9-01 |
 | [HU-E9-12](E9-web-ui.md) | Manage categories without leaving the expense form | E9 | M6 | Should | S | Backlog | HU-E3-02, HU-E3-04, HU-E3-05, HU-E9-03, HU-E9-04 |
 | [HU-E9-13](E9-web-ui.md) | Settings screen | E9 | M6 | Must | S | Backlog | HU-E1-14, HU-E1-15, HU-E9-01 |
 | [HU-E9-14](E9-web-ui.md) | Installation rules screen | E9 | M6 | Should | S | Backlog | HU-E8-18, HU-E9-01 |
 
-**Totals:** 99 active stories — E0: 9 · E1: 15 · E2: 7 · E3: 5 · E4: 14 · E5: 4 · E6: 9 · E7: 5 · E8: 17 · E9: 14. Retired IDs: HU-E0-08 (moved to HU-E9-02) and HU-E8-03 (moved to HU-E4-11 … HU-E4-13).
+**Totals:** 100 active stories — E0: 9 · E1: 15 · E2: 7 · E3: 5 · E4: 14 · E5: 4 · E6: 9 · E7: 6 · E8: 17 · E9: 14. Retired IDs: HU-E0-08 (moved to HU-E9-02) and HU-E8-03 (moved to HU-E4-11 … HU-E4-13).
 
 ## Milestone map
 
@@ -201,7 +202,7 @@ A UI story is `Done` when:
 | **M2** Shared spaces API | Invitations, guests, direct spaces, shared expenses with split methods, balances, settlements | HU-E1-04 … HU-E1-13, HU-E2-02, HU-E4-07 … HU-E4-10, HU-E5-01 … HU-E5-04 |
 | **M3** Allocated budgets API | Plans, capacity, lines, allocations, default split by allocation, rollover, recurring transactions | HU-E6-01 … HU-E6-09, HU-E4-11 … HU-E4-13 |
 | **M3-D** Ledger refinements for the UI | Proposed 2026-10-16, not yet in spec section 10: each user's time zone and formatting preferences, the time of every transaction, optional subcategories, category icons and colors, more account types with their attributes, available money and net worth | HU-E1-14, HU-E1-15, HU-E2-05 … HU-E2-07, HU-E3-04, HU-E3-05, HU-E4-14 |
-| **M4** Insight API | Member/category dashboards, shared fund tracking, unified personal view | HU-E7-01 … HU-E7-05 |
+| **M4** Insight API | Member/category dashboards, shared fund tracking, unified personal view | HU-E7-01 … HU-E7-06 |
 | **M5** Hardening | Backups, observability, import from Splitwise/CSV | HU-E8-01, HU-E8-02, HU-E8-04 … HU-E8-18 (HU-E8-06 … HU-E8-10 are Won't-v1 placeholders; HU-E8-11 … HU-E8-17 are Could follow-ups of the account types; HU-E8-18 is the Should installation rules for white-label deployments) |
 | **M6** Web UI | Screens for every area (epic E9); an area's UI may start as soon as its API milestone is done | HU-E9-01 … HU-E9-14 |
 
@@ -218,6 +219,7 @@ Notes on placement:
 - M3-D (proposed 2026-10-16) runs after M3-C and before M4. It settles the model that M4's reports and E9's screens read (transaction time, formatting preferences, category depth, account types and totals), so both are built once on the final model. Its stories keep their epics: HU-E1-14 and HU-E1-15 in E1 because the time zone and the formats belong to the user (`identity`), HU-E4-14 in E4, HU-E3-04 and HU-E3-05 in E3 and HU-E2-05 … HU-E2-07 in E2. The GitHub milestone does not exist yet.
 - M3-D amends delivered stories: HU-E3-02's invariant and depth scenario (a fourth level is refused) take effect with HU-E3-04; HU-E4-01's default date and HU-E4-05's ordering are refined by HU-E4-14, which also makes the time mandatory for every transaction a person records (only scheduler occurrences and migrated rows stay without one). Until then those stories behave as delivered.
 - HU-E1-15 (M3-D) and HU-E8-18 (M5) come from one decision of 2026-10-16: formats never come from the language, and a rules level above spaces and people lets a deployment run as a white label (installation rules → space → person, except what the rules lock). HU-E1-15 ships first, reading built-in es-CO defaults behind the `InstallationRulesReader` port; HU-E8-18 replaces them with stored rules, brand and locks, and the lock scenario of HU-E1-15 runs against a fake reader until then. HU-E8-18 lives in `identity` and amends delivered HU-E1-01 and HU-E1-02 (the sign-up language and the personal-space currency come from the rules; the built-in values equal the old literals, so nothing changes until an administrator edits them). Like M3-D, this decision is not yet in spec section 10.
+- HU-E7-06 (M4) comes from the owner decision of 2026-10-16 that category groups feed analytics. The immutable catalog `key` it needs on seeded category groups is added in M3-D by HU-E3-05, with the migration that back-fills styles, so HU-E7-06 reads the key and does not add it. Lines still map categories, the unified view still groups by catalog key and trends still go by line. HU-E9-10 and HU-E9-11 show the breakdown and depend on it.
 - HU-E8-11 … HU-E8-17 build on the account attributes of HU-E2-06 and HU-E2-07. HU-E8-16 (reminders) depends on HU-E8-08's `Notifier`, so bringing it forward brings that Won't-v1 placeholder with it.
 
 ## Open questions affecting the backlog
