@@ -92,6 +92,8 @@ import {
   createSkipOccurrence,
   type ListPendingOccurrences,
   type SkipOccurrence,
+  createConfirmOccurrence,
+  type ConfirmOccurrence,
   type DeleteTransaction,
   type EditTransaction,
   type GetTransaction,
@@ -269,6 +271,7 @@ export interface Container extends RouteDeps {
     readonly materializeDueOccurrences: MaterializeDueOccurrences;
     readonly listPendingOccurrences: ListPendingOccurrences;
     readonly skipOccurrence: SkipOccurrence;
+    readonly confirmOccurrence: ConfirmOccurrence;
   };
   readonly balances: {
     readonly getSpaceBalances: GetSpaceBalances;
@@ -650,6 +653,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       materializeDueOccurrences: createMaterializeDueOccurrences(materializeDeps),
       listPendingOccurrences: createListPendingOccurrences(recurrenceDeps),
       skipOccurrence: createSkipOccurrence(recurrenceDeps),
+      confirmOccurrence: createConfirmOccurrence(materializeDeps),
     },
     balances: {
       // HU-E5-01: the ledger aggregates per-member totals in SQL (D7); the balances module nets them.

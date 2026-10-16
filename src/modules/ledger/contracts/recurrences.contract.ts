@@ -5,13 +5,15 @@ import {
   jsonContent,
   moneyFromDto,
   MoneySchema,
+  optionalLocalDate,
   PercentSchema,
   percentOf,
   problems,
   securedByUser,
 } from "@/shared/http/contracts";
-import { localDate, ok, type Result } from "@/shared/kernel";
+import { localDate, ok, type LocalDate, type Money, type Result } from "@/shared/kernel";
 import type {
+  ConfirmedOccurrence,
   DefineRecurrenceInput,
   RecurrenceEdit,
   Occurrence,
@@ -21,6 +23,7 @@ import type {
   RecurrenceView,
   TemplateInput,
 } from "../application";
+import { RecordedExpenseSchema, transactionDto, warningsDto } from "./ledger.contract";
 
 const Id = z.string().min(1).max(64);
 /** Participants per split: bounds the payload; membership is checked by the domain. */
@@ -394,6 +397,30 @@ export const recurrenceEditFromBody = (
 /** HU-E4-13: the space's pending occurrences, earliest date first (not paginated, ruling P28). */
 export const PendingOccurrenceListSchema = z.object({ items: z.array(OccurrenceSchema) });
 
+/** HU-E4-13: the real amount, and optionally another day of the occurrence's period. */
+export const ConfirmOccurrenceBodySchema = z.object({
+  amount: MoneySchema,
+  date: z.iso.date().optional(),
+});
+
+/** A validated confirmation; fails for a date before 1900, which the kernel refuses, and for currencies it does not know. */
+export const confirmationFromBody = (
+  body: z.infer<typeof ConfirmOccurrenceBodySchema>,
+): Result<{ amount: Money; date?: LocalDate }> => {
+  const amount = moneyFromDto(body.amount);
+  if (!amount.ok) return amount;
+  const date = optionalLocalDate(body.date);
+  return date.ok ? ok({ amount: amount.value, date: date.value }) : date;
+};
+
+/** The confirmation's answer: the recorded transaction and its warnings, as a recorded expense answers (HU-E4-10). */
+export const recordedOccurrenceDto = (
+  confirmed: ConfirmedOccurrence,
+): z.infer<typeof RecordedExpenseSchema> => ({
+  ...transactionDto(confirmed.transaction),
+  warnings: warningsDto(confirmed.warnings, confirmed.transaction.currency),
+});
+
 /** The Location header of a new recurrence (HU-E4-11). */
 export const recurrenceHeaders = (view: RecurrenceView): [string, string][] => [
   ["location", `/api/v1/spaces/${view.recurrence.spaceId}/recurrences/${view.recurrence.id}`],
@@ -564,6 +591,28 @@ export const recurrencesPaths: ZodOpenApiPathsObject = {
           "403": "InsufficientRole",
           "404": "SpaceNotFound, OccurrenceNotFound",
           "409": "OccurrenceNotPending, SpaceArchived",
+        }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/pending-occurrences/{occurrenceId}/confirm": {
+    post: {
+      operationId: "confirmOccurrence",
+      summary: "Record a pending occurrence with the real amount, and optionally another day of its period",
+      ...securedByUser,
+      requestParams: { path: OccurrencePath, header: IdempotencyHeader },
+      requestBody: { content: jsonContent(ConfirmOccurrenceBodySchema) },
+      responses: {
+        "201": {
+          description: "The recorded transaction and its warnings; ETag carries its version",
+          content: jsonContent(RecordedExpenseSchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": `SpaceNotFound, OccurrenceNotFound, ${TEMPLATE_404}`,
+          "409": `OccurrenceNotPending, PeriodClosed, ${TEMPLATE_409}, SpaceArchived, IdempotencyKeyConflict`,
+          "422": `ValidationFailed, InvalidAmount, InvalidDate, InvalidOccurrenceDate, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, ${TEMPLATE_422}`,
         }),
       },
     },

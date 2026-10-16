@@ -593,6 +593,7 @@ Feature: Occurrences pending confirmation
 - Endpoints: `GET /api/v1/spaces/{spaceId}/pending-occurrences`, `POST .../pending-occurrences/{occurrenceId}/confirm` (amount, optional date), `POST .../pending-occurrences/{occurrenceId}/skip`.
 - Pending occurrences are listed for members with role MEMBER or above and may be returned by the line dashboard as "expected" (HU-E7-01).
 - Confirming reuses the recurrence template; only the amount (and optionally the date within the same period) can change.
+- `GET …/pending-occurrences` lists the space's PENDING occurrences, earliest first, for members with `money.record` (archived spaces included). `POST …/confirm` (honours `Idempotency-Key`) takes `{ amount, date? }`, records the occurrence through the use case a member would call, with the confirming member as requester (M3-C ruling P21: D9 means only the owner of the paying account confirms a debit from it), the recurrence's current template and the default split of its date, and answers `201` with the transaction and its `warnings`; the date may move only within the occurrence's period (`InvalidOccurrenceDate`, 422), and a CLOSED period answers `PeriodClosed` (409, ruling P25). `POST …/skip` marks it `SKIPPED` with no reason and records nothing. Only a PENDING occurrence is confirmed or skipped (`OccurrenceNotPending`, 409); a confirm and a skip of one occurrence take turns on its row. New codes: `OccurrenceNotFound` (404), `OccurrenceNotPending` (409), `InvalidOccurrenceDate` (422).
 
 ---
 

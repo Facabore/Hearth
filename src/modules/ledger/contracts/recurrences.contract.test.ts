@@ -10,6 +10,8 @@ import {
   type RecurrenceSplit,
 } from "../application";
 import {
+  ConfirmOccurrenceBodySchema,
+  confirmationFromBody,
   DefineRecurrenceBodySchema,
   OccurrenceSchema,
   occurrenceDto,
@@ -104,6 +106,17 @@ describe("the recurrence definition on the wire (HU-E4-11)", () => {
       ok: false,
       error: { code: "InvalidDate" },
     });
+  });
+
+  it("reads a confirmation's amount and optional date, and answers InvalidDate for a date the kernel refuses (HU-E4-13)", () => {
+    const confirmation = (date?: string) =>
+      confirmationFromBody(
+        ConfirmOccurrenceBodySchema.parse({ amount: { amount: "20530000", currency: "COP" }, date }),
+      );
+    expect(unwrap(confirmation())).toEqual({ amount: money(20_530_000n) });
+    expect(unwrap(confirmation("2026-12-28"))).toEqual({ amount: money(20_530_000n), date: "2026-12-28" });
+    // z.iso.date() accepts any four-digit year; the kernel refuses the ones before 1900.
+    expect(confirmation("1899-12-31")).toMatchObject({ ok: false, error: { code: "InvalidDate" } });
   });
 
   it("refuses an EXACT split with its amounts too: the request never offers fixed amounts (ruling P23)", () => {

@@ -1,5 +1,6 @@
 import { POST as archiveSpaceRoute } from "@/app/api/v1/spaces/[spaceId]/archive/route";
 import { GET as pendingRoute } from "@/app/api/v1/spaces/[spaceId]/pending-occurrences/route";
+import { POST as confirmRoute } from "@/app/api/v1/spaces/[spaceId]/pending-occurrences/[occurrenceId]/confirm/route";
 import { POST as skipRoute } from "@/app/api/v1/spaces/[spaceId]/pending-occurrences/[occurrenceId]/skip/route";
 import { GET as listTransactionsRoute } from "@/app/api/v1/spaces/[spaceId]/transactions/route";
 import {
@@ -299,4 +300,19 @@ export const skipOccurrence = (user: TestUser, spaceId: string, occurrenceId: st
   call(skipRoute, "POST", pendingPath(spaceId, `/${occurrenceId}/skip`), {
     user,
     params: { spaceId, occurrenceId },
+  });
+
+/** HU-E4-13: `user` confirms the pending occurrence with `body` (`{ amount, date? }`). */
+export const confirmOccurrence = (
+  user: TestUser,
+  spaceId: string,
+  occurrenceId: string,
+  body: unknown,
+  headers: Record<string, string> = {},
+) =>
+  call(confirmRoute, "POST", pendingPath(spaceId, `/${occurrenceId}/confirm`), {
+    user,
+    params: { spaceId, occurrenceId },
+    body,
+    headers,
   });
