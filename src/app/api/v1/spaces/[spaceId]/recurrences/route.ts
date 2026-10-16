@@ -27,3 +27,16 @@ export const POST = defineRoute({
       : result;
   },
 });
+
+export const GET = defineRoute({
+  auth: "required",
+  handler: async ({ user, params }) => {
+    const result = await getContainer().ledger.listRecurrences({
+      spaceId: params.spaceId!,
+      userId: user!.id,
+    });
+    return result.ok
+      ? ok({ status: 200, body: { items: result.value.map((view) => recurrenceDto(view)) } })
+      : result;
+  },
+});

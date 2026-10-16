@@ -1,5 +1,10 @@
 import { POST as archiveSpaceRoute } from "@/app/api/v1/spaces/[spaceId]/archive/route";
-import { POST as defineRecurrenceRoute } from "@/app/api/v1/spaces/[spaceId]/recurrences/route";
+import {
+  POST as defineRecurrenceRoute,
+  GET as listRecurrencesRoute,
+} from "@/app/api/v1/spaces/[spaceId]/recurrences/route";
+import { GET as getRecurrenceRoute } from "@/app/api/v1/spaces/[spaceId]/recurrences/[recurrenceId]/route";
+import { GET as upcomingRoute } from "@/app/api/v1/spaces/[spaceId]/recurrences/[recurrenceId]/occurrences/route";
 import { FixedClock } from "@/shared/kernel";
 import { call, type TestUser } from "./app";
 import { categoryWithKey, cop, household, newAccount, type Household, type MoneyDto } from "./ledger";
@@ -105,3 +110,33 @@ export const archiveHousehold = async (h: Household): Promise<void> => {
   });
   if (response.status !== 204) throw new Error(`archiving failed with status ${response.status}`);
 };
+
+/** HU-E4-11: the space's recurrences as `user` reads them. */
+export const listRecurrences = (user: TestUser, spaceId: string) =>
+  call(listRecurrencesRoute, "GET", recurrencesPath(spaceId), { user, params: { spaceId } });
+
+export const getRecurrence = (user: TestUser, spaceId: string, recurrenceId: string) =>
+  call(getRecurrenceRoute, "GET", recurrencesPath(spaceId, `/${recurrenceId}`), {
+    user,
+    params: { spaceId, recurrenceId },
+  });
+
+/** The recurrence as `user` reads it; throws unless 200. */
+export const recurrenceOf = async (
+  user: TestUser,
+  spaceId: string,
+  recurrenceId: string,
+): Promise<RecurrenceDto> => {
+  const response = await getRecurrence(user, spaceId, recurrenceId);
+  if (response.status !== 200) throw new Error(`recurrence read failed with status ${response.status}`);
+  return (await response.json()) as RecurrenceDto;
+};
+
+/** HU-E4-11: its next `count` dates (`GET …/occurrences?count=<count>`; the default when absent). */
+export const upcoming = (user: TestUser, spaceId: string, recurrenceId: string, count?: string) =>
+  call(
+    upcomingRoute,
+    "GET",
+    recurrencesPath(spaceId, `/${recurrenceId}/occurrences${count === undefined ? "" : `?count=${count}`}`),
+    { user, params: { spaceId, recurrenceId } },
+  );

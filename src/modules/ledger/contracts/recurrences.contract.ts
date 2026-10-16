@@ -327,6 +327,15 @@ export const recurrenceDto = (view: RecurrenceView): z.infer<typeof RecurrenceSc
   };
 };
 
+/** HU-E4-11: the space's recurrences in the order they were defined (not paginated, ruling P28). */
+export const RecurrenceListSchema = z.object({ items: z.array(RecurrenceSchema) });
+
+/** HU-E4-11: how many upcoming dates to list, 1–24 (3 by default). */
+export const UpcomingOccurrencesQuerySchema = z.object({
+  count: z.coerce.number().int().min(1).max(24).default(3),
+});
+export const UpcomingOccurrencesSchema = z.object({ dates: z.array(z.iso.date()) });
+
 /** The Location header of a new recurrence (HU-E4-11). */
 export const recurrenceHeaders = (view: RecurrenceView): [string, string][] => [
   ["location", `/api/v1/spaces/${view.recurrence.spaceId}/recurrences/${view.recurrence.id}`],
@@ -334,6 +343,7 @@ export const recurrenceHeaders = (view: RecurrenceView): [string, string][] => [
 
 const SpacePath = z.object({ spaceId: z.string() });
 const IdempotencyHeader = z.object({ "idempotency-key": z.string().max(255).optional() });
+const RecurrencePath = SpacePath.extend({ recurrenceId: z.string() });
 
 const recurrenceResponse = (description: string) => ({ description, content: jsonContent(RecurrenceSchema) });
 /** What checking a template answers (ruling P21): the codes of the record use cases. */
@@ -347,6 +357,17 @@ const INVALID_RECURRENCE =
 
 export const recurrencesPaths: ZodOpenApiPathsObject = {
   "/api/v1/spaces/{spaceId}/recurrences": {
+    get: {
+      operationId: "listRecurrences",
+      summary:
+        "The space's recurrences in the order they were defined, with their status and next and last occurrences",
+      ...securedByUser,
+      requestParams: { path: SpacePath },
+      responses: {
+        "200": { description: "Recurrences", content: jsonContent(RecurrenceListSchema) },
+        ...problems({ "401": "Unauthenticated", "404": "SpaceNotFound" }),
+      },
+    },
     post: {
       operationId: "defineRecurrence",
       summary:
@@ -362,6 +383,37 @@ export const recurrencesPaths: ZodOpenApiPathsObject = {
           "404": `SpaceNotFound, ${TEMPLATE_404}`,
           "409": `${TEMPLATE_409}, SpaceArchived, IdempotencyKeyConflict`,
           "422": `ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, InvalidPeriodPolicy, ${INVALID_RECURRENCE}, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, ${TEMPLATE_422}`,
+        }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/recurrences/{recurrenceId}": {
+    get: {
+      operationId: "getRecurrence",
+      summary: "One recurrence with its status and its next and last occurrences",
+      ...securedByUser,
+      requestParams: { path: RecurrencePath },
+      responses: {
+        "200": recurrenceResponse("The recurrence"),
+        ...problems({ "401": "Unauthenticated", "404": "SpaceNotFound, RecurrenceNotFound" }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/recurrences/{recurrenceId}/occurrences": {
+    get: {
+      operationId: "listUpcomingOccurrences",
+      summary: "The next dates a recurrence will record (none while paused or ended)",
+      ...securedByUser,
+      requestParams: { path: RecurrencePath, query: UpcomingOccurrencesQuerySchema },
+      responses: {
+        "200": {
+          description: "Upcoming dates, earliest first",
+          content: jsonContent(UpcomingOccurrencesSchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "404": "SpaceNotFound, RecurrenceNotFound",
+          "422": "ValidationFailed (count is not an integer from 1 to 24)",
         }),
       },
     },

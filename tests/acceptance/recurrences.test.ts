@@ -6,9 +6,14 @@ import { cop, joinHousehold } from "../support/ledger";
 import {
   archiveHousehold,
   DEFINITION_DAY_CLOCK,
+  defined,
+  getRecurrence,
   householdWithFund,
+  listRecurrences,
   postRecurrence,
+  recurrenceOf,
   rentBody,
+  upcoming,
   type RecurrenceDto,
 } from "../support/recurrences";
 
@@ -161,5 +166,141 @@ describe("defining a recurrence (HU-E4-11)", () => {
       409,
       "SpaceArchived",
     ]);
+  });
+});
+
+/** An error response without its per-request id: what a client can tell two refusals apart by. */
+const problemBodyOf = async (response: Response): Promise<[number, Record<string, unknown>]> => {
+  const body = (await response.json()) as Record<string, unknown>;
+  return [response.status, Object.fromEntries(Object.entries(body).filter(([key]) => key !== "requestId"))];
+};
+
+describe("reading recurrences (HU-E4-11)", () => {
+  it("previews MONTHLY(31) from 2027-01-01 as 2027-01-31, 2027-02-28 and 2027-03-31", async () => {
+    const h = await householdWithFund();
+    const clamped = await defined(
+      h.ana,
+      h.spaceId,
+      rentBody(h, { schedule: { kind: "MONTHLY", day: 31 }, startDate: "2027-01-01" }),
+    );
+    const response = await upcoming(h.ana, h.spaceId, clamped.id, "3");
+    expect([response.status, await response.json()]).toEqual([
+      200,
+      { dates: ["2027-01-31", "2027-02-28", "2027-03-31"] },
+    ]);
+  });
+
+  it("lists Cleaning's December 2026 occurrences as 2026-12-01 and 2026-12-16 (SEMI_MONTHLY(1, 16))", async () => {
+    const h = await householdWithFund();
+    const cleaning = await defined(
+      h.ana,
+      h.spaceId,
+      rentBody(h, {
+        description: "Cleaning",
+        amount: cop(80_000),
+        schedule: { kind: "SEMI_MONTHLY", day1: 1, day2: 16 },
+        startDate: "2026-12-01",
+      }),
+    );
+    expect(await (await upcoming(h.ana, h.spaceId, cleaning.id, "2")).json()).toEqual({
+      dates: ["2026-12-01", "2026-12-16"],
+    });
+    expect(
+      ((await (await upcoming(h.ana, h.spaceId, cleaning.id)).json()) as { dates: string[] }).dates,
+    ).toHaveLength(3);
+  });
+
+  it("previews at least 1 and at most 24 dates", async () => {
+    const h = await householdWithFund();
+    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    const sizes: number[] = [];
+    for (const count of ["1", "24"]) {
+      const response = await upcoming(h.ana, h.spaceId, rent.id, count);
+      expect(response.status).toBe(200);
+      sizes.push(((await response.json()) as { dates: string[] }).dates.length);
+    }
+    expect(sizes).toEqual([1, 24]);
+  });
+
+  it("lists and reads the space's recurrences for every member, Sofi the VIEWER included", async () => {
+    const h = await householdWithFund();
+    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    const cleaning = await defined(
+      h.ana,
+      h.spaceId,
+      rentBody(h, { description: "Cleaning", amount: cop(80_000) }),
+    );
+    const sofi = await joinHousehold(h, "Sofi", "VIEWER");
+    const list = await listRecurrences(sofi, h.spaceId);
+    expect([list.status, ((await list.json()) as { items: RecurrenceDto[] }).items.map((r) => r.id)]).toEqual(
+      [200, [rent.id, cleaning.id]],
+    );
+    expect(await recurrenceOf(sofi, h.spaceId, rent.id)).toEqual(rent);
+    const preview = await upcoming(sofi, h.spaceId, rent.id);
+    expect([preview.status, await preview.json()]).toEqual([
+      200,
+      { dates: ["2026-12-01", "2027-01-01", "2027-02-01"] },
+    ]);
+  });
+
+  it("lists only its own space's recurrences: a household that defined none reads an empty list", async () => {
+    const h = await householdWithFund();
+    const other = await householdWithFund();
+    await defined(other.ana, other.spaceId, rentBody(other));
+    const response = await listRecurrences(h.ana, h.spaceId);
+    expect([response.status, await response.json()]).toEqual([200, { items: [] }]);
+  });
+
+  it("hides the household from a user who is not a member: Luis answers 404 SpaceNotFound on every read", async () => {
+    const h = await householdWithFund();
+    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    const luis = await registerUser("Luis");
+    expect([
+      await problemOf(await listRecurrences(luis, h.spaceId)),
+      await problemOf(await getRecurrence(luis, h.spaceId, rent.id)),
+      await problemOf(await upcoming(luis, h.spaceId, rent.id)),
+    ]).toEqual([
+      [404, "SpaceNotFound"],
+      [404, "SpaceNotFound"],
+      [404, "SpaceNotFound"],
+    ]);
+  });
+
+  it("answers the same 404 RecurrenceNotFound for another space's, an unknown and a malformed id", async () => {
+    const h = await householdWithFund();
+    const other = await householdWithFund();
+    const theirs = await defined(other.ana, other.spaceId, rentBody(other));
+    const answers = [
+      await problemBodyOf(await getRecurrence(h.ana, h.spaceId, theirs.id)),
+      await problemBodyOf(await getRecurrence(h.ana, h.spaceId, randomUUID())),
+      await problemBodyOf(await getRecurrence(h.ana, h.spaceId, "not-a-uuid")),
+      await problemBodyOf(await upcoming(h.ana, h.spaceId, theirs.id)),
+      await problemBodyOf(await upcoming(h.ana, h.spaceId, randomUUID())),
+      await problemBodyOf(await upcoming(h.ana, h.spaceId, "not-a-uuid")),
+    ];
+    expect(answers[0]).toMatchObject([404, { code: "RecurrenceNotFound" }]);
+    for (const answer of answers) expect(answer).toEqual(answers[0]);
+  });
+
+  it("refuses a count that is not an integer from 1 to 24 with 422 ValidationFailed", async () => {
+    const h = await householdWithFund();
+    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    const counts = ["0", "-1", "25", "1.5", "many", "NaN", "Infinity", "-Infinity", ""];
+    const answers: [string, number, string][] = [];
+    for (const count of counts) {
+      answers.push([count, ...(await problemOf(await upcoming(h.ana, h.spaceId, rent.id, count)))]);
+    }
+    expect(answers).toEqual(counts.map((count) => [count, 422, "ValidationFailed"]));
+  });
+
+  it("still reads the recurrences of an archived space (HU-E1-09)", async () => {
+    const h = await householdWithFund();
+    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    await archiveHousehold(h);
+    expect([
+      (await listRecurrences(h.ana, h.spaceId)).status,
+      (await getRecurrence(h.ana, h.spaceId, rent.id)).status,
+      (await upcoming(h.ana, h.spaceId, rent.id)).status,
+    ]).toEqual([200, 200, 200]);
   });
 });
