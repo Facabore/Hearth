@@ -40,6 +40,7 @@ import {
   type CopyBudgetPlan,
   createResolveDefaultSplit,
   type ResolveDefaultSplit,
+  defaultSplitOf,
   type CreateBudgetPlan,
   type GetBudgetPlan,
   type PreviousIncome,
@@ -344,8 +345,14 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     },
     // HU-E4-06, HU-E6-07: a CLOSED plan's period takes no change; budgeting answers, the ledger never imports it.
     closedPeriods: createClosedPeriodGuard(budgetPlans),
-    // HU-E6-08: EQUAL until the composition root binds budgeting's allocation weights.
-    defaultSplits: { allocationWeights: async () => null },
+    // HU-E6-08, spec 5.3: an expense recorded without a split follows its line's allocation in the ACTIVE plan;
+    // the ledger asks budgeting through its own port, so neither module imports the other.
+    defaultSplits: {
+      allocationWeights: async (expense) => {
+        const split = await defaultSplitOf({ members: spaceRepository, plans: budgetPlans }, expense);
+        return split.method === "BY_ALLOCATION" ? split.weights : null;
+      },
+    },
     storedPeriods,
     // HU-E4-10: the accounts module owns the balance formula (opening balance + movements, HU-E2-04).
     accountBalances: accountBalancesFrom(getAccount),

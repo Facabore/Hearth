@@ -1,16 +1,36 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { POST as directSplit } from "@/app/api/v1/direct-splits/route";
 import { POST as archiveSpace } from "@/app/api/v1/spaces/[spaceId]/archive/route";
+import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
+import { GET as getTransaction } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, problemOf, registerUser, startTestApp } from "../support/app";
 import {
   activatePlan,
+  addLine,
+  copyPlan,
   getDefaultSplit,
+  lineNamed,
+  newPlan,
   patchLine,
+  planOf,
   putAllocation,
   putCategories,
   referencePlan,
+  setCapacities,
 } from "../support/budgeting";
-import { categoryWithKey, cop } from "../support/ledger";
+import {
+  balancesOf,
+  categoryWithKey,
+  cop,
+  memberIdOf,
+  newAccount,
+  post,
+  type HouseholdMember,
+  type MoneyDto,
+  type TransactionDto,
+} from "../support/ledger";
+import { actingIn } from "../support/spaces";
 
 let app: Container;
 beforeAll(() => {
@@ -168,5 +188,192 @@ describe("previewing the default split (HU-E6-08)", () => {
       date: "2026-11-08",
     });
     expect(response.status).toBe(200);
+  });
+});
+
+/** `payer` pays `amount` (whole pesos, or exact money) on `date` in `categoryId` from their own account, with `split` when given. */
+const pays = async (
+  payer: HouseholdMember,
+  categoryId: string,
+  amount: number | MoneyDto,
+  date: string,
+  split?: unknown,
+): Promise<TransactionDto> => {
+  const response = await post(recordExpense, payer, "expenses", {
+    description: "Market",
+    date,
+    categoryId,
+    amount: typeof amount === "number" ? cop(amount) : amount,
+    accountId: payer.account,
+    ...(split === undefined ? {} : { split }),
+  });
+  expect(response.status).toBe(201);
+  return (await response.json()) as TransactionDto;
+};
+const sharesOf = (tx: TransactionDto) => tx.shares.map((s) => [s.memberId, s.amount, s.splitMethod]);
+
+describe("expenses default to their line's allocation (HU-E6-08, D4)", () => {
+  it("splits Ana's 2,000,000 COP Groceries expense 800,000 / 1,200,000 BY_ALLOCATION: Juan owes Ana 1,200,000 COP (@critical, golden)", async () => {
+    const { h } = await activeReference();
+    expect(await balancesOf(h.ana, h.spaceId)).toEqual([
+      [h.ana.memberId, cop(0)],
+      [h.juan.memberId, cop(0)],
+    ]);
+    const tx = await pays(h.ana, h.groceries, 2_000_000, "2026-11-08");
+    expect(sharesOf(tx)).toEqual([
+      [h.ana.memberId, cop(800_000), "BY_ALLOCATION"],
+      [h.juan.memberId, cop(1_200_000), "BY_ALLOCATION"],
+    ]);
+    expect(await balancesOf(h.ana, h.spaceId)).toEqual([
+      [h.ana.memberId, cop(1_200_000)],
+      [h.juan.memberId, cop(-1_200_000)],
+    ]);
+  });
+
+  it("records exactly the shares the preview shows for 1,000,001.50 COP, which does not divide 40 % / 60 %", async () => {
+    const { h } = await activeReference();
+    const amount = { amount: "100000150", currency: "COP" };
+    const preview = await getDefaultSplit(h.juan, h.spaceId, {
+      categoryId: h.groceries,
+      date: "2026-11-08",
+      amount: amount.amount,
+    });
+    const { shares } = (await preview.json()) as { shares: { memberId: string; amount: MoneyDto }[] };
+    const tx = await pays(h.ana, h.groceries, amount, "2026-11-08");
+    // Member by member and in order; the leftover peso goes to Juan, the 50 minor units below the unit to Ana.
+    expect(sharesOf(tx)).toEqual(shares.map((s) => [s.memberId, s.amount, "BY_ALLOCATION"]));
+    expect(sharesOf(tx)).toEqual([
+      [h.ana.memberId, { amount: "40000050", currency: "COP" }, "BY_ALLOCATION"],
+      [h.juan.memberId, { amount: "60000100", currency: "COP" }, "BY_ALLOCATION"],
+    ]);
+  });
+
+  it("keeps the split a member chooses: EQUAL gives 1,000,000 COP each", async () => {
+    const { h } = await activeReference();
+    const equal = {
+      method: "EQUAL",
+      participants: [{ memberId: h.ana.memberId }, { memberId: h.juan.memberId }],
+    };
+    expect(sharesOf(await pays(h.ana, h.groceries, 2_000_000, "2026-11-08", equal))).toEqual([
+      [h.ana.memberId, cop(1_000_000), "EQUAL"],
+      [h.juan.memberId, cop(1_000_000), "EQUAL"],
+    ]);
+  });
+
+  it("splits by fixed amounts: Home FIXED 490,000 / 980,000 COP shares Juan's 300,000 COP as 100,000 / 200,000", async () => {
+    const { h, planId, lineId } = await activeReference();
+    const fixed = {
+      rule: "FIXED",
+      members: [
+        { memberId: h.ana.memberId, amount: cop(490_000) },
+        { memberId: h.juan.memberId, amount: cop(980_000) },
+      ],
+    };
+    expect((await putAllocation(h.ana, h.spaceId, planId, lineId("Home"), fixed)).status).toBe(200);
+    expect(sharesOf(await pays(h.juan, h.groceries, 300_000, "2026-11-10"))).toEqual([
+      [h.ana.memberId, cop(100_000), "BY_ALLOCATION"],
+      [h.juan.memberId, cop(200_000), "BY_ALLOCATION"],
+    ]);
+  });
+
+  it("keeps recorded shares as a snapshot when Home is allocated 50 % / 50 % afterwards", async () => {
+    const { h, planId, lineId } = await activeReference();
+    const tx = await pays(h.ana, h.groceries, 2_000_000, "2026-11-08");
+    expect(sharesOf(tx).map((share) => share[2])).toEqual(["BY_ALLOCATION", "BY_ALLOCATION"]);
+    const half = {
+      rule: "PERCENT",
+      members: [
+        { memberId: h.ana.memberId, percent: "50" },
+        { memberId: h.juan.memberId, percent: "50" },
+      ],
+    };
+    expect((await putAllocation(h.ana, h.spaceId, planId, lineId("Home"), half)).status).toBe(200);
+    const read = await call(getTransaction, "GET", `/api/v1/spaces/${h.spaceId}/transactions/${tx.id}`, {
+      user: h.ana,
+      params: { spaceId: h.spaceId, transactionId: tx.id },
+    });
+    expect(sharesOf((await read.json()) as TransactionDto)).toEqual(sharesOf(tx));
+  });
+
+  it("defaults an unmapped Outings expense to EQUAL through the NONE catch-all Free, which it consumes", async () => {
+    const { h, planId, outings } = await activeReference({ freeIsGroupMoney: true });
+    expect(sharesOf(await pays(h.ana, outings, 50_000, "2026-11-12"))).toEqual([
+      [h.ana.memberId, cop(25_000), "EQUAL"],
+      [h.juan.memberId, cop(25_000), "EQUAL"],
+    ]);
+    expect(lineNamed(await planOf(h.ana, h.spaceId, planId), "Free").spent).toEqual(cop(50_000));
+  });
+
+  it("defaults to EQUAL in a DRAFT plan: the 2026-12 copy does not drive splits", async () => {
+    const { h } = await activeReference();
+    expect((await copyPlan(h.ana, h.spaceId, "2026-12")).status).toBe(201);
+    expect(sharesOf(await pays(h.ana, h.groceries, 100_000, "2026-12-05"))).toEqual([
+      [h.ana.memberId, cop(50_000), "EQUAL"],
+      [h.juan.memberId, cop(50_000), "EQUAL"],
+    ]);
+  });
+
+  it("applies the same default in a DIRECT space once its plan is ACTIVE: a later split with Pedro follows the line (HU-E1-13)", async () => {
+    const ana = await registerUser("Ana");
+    const bancolombia = await newAccount(ana, "Bancolombia", 2_000_000);
+    const splitWithPedro = async (counterpart: unknown, pesos: number) => {
+      const response = await call(directSplit, "POST", "/api/v1/direct-splits", {
+        user: ana,
+        body: {
+          counterpart,
+          description: "Dinner",
+          date: "2026-10-14",
+          categoryKey: "restaurants",
+          amount: cop(pesos),
+          accountId: bancolombia,
+        },
+      });
+      expect(response.status).toBe(201);
+      return (await response.json()) as { spaceId: string; expense: TransactionDto };
+    };
+    // A new direct space has no plan, so its first split stays EQUAL.
+    const first = await splitWithPedro({ kind: "GUEST", displayName: "Pedro" }, 120_000);
+    const { spaceId } = first;
+    const anaId = await memberIdOf(ana, spaceId, "Ana");
+    const pedroId = await memberIdOf(ana, spaceId, "Pedro");
+    expect(sharesOf(first.expense)).toEqual([
+      [anaId, cop(60_000), "EQUAL"],
+      [pedroId, cop(60_000), "EQUAL"],
+    ]);
+    // The space is Ana's to plan (OWNER, plan.manage): Dining takes the restaurants category, FIXED 100,000 / 200,000.
+    const restaurants = await categoryWithKey(actingIn(ana, spaceId), "restaurants");
+    const { id: planId } = await newPlan(ana, spaceId, "2026-10");
+    await setCapacities(ana, spaceId, planId, [
+      [anaId, 1_000_000],
+      [pedroId, 1_000_000],
+    ]);
+    const plan = await addLine(ana, spaceId, planId, {
+      name: "Dining",
+      pesos: 300_000,
+      funding: "DIRECT",
+      rolloverMode: "RESET",
+    });
+    const diningId = lineNamed(plan, "Dining").id;
+    expect((await putCategories(ana, spaceId, planId, diningId, [restaurants])).status).toBe(200);
+    const fixed = {
+      rule: "FIXED",
+      members: [
+        { memberId: anaId, amount: cop(100_000) },
+        { memberId: pedroId, amount: cop(200_000) },
+      ],
+    };
+    expect((await putAllocation(ana, spaceId, planId, diningId, fixed)).status).toBe(200);
+    expect((await activatePlan(ana, spaceId, planId)).status).toBe(200);
+    const taxi = await splitWithPedro({ kind: "MEMBER", memberId: pedroId }, 300_000);
+    expect(taxi.spaceId).toBe(spaceId);
+    expect(sharesOf(taxi.expense)).toEqual([
+      [anaId, cop(100_000), "BY_ALLOCATION"],
+      [pedroId, cop(200_000), "BY_ALLOCATION"],
+    ]);
+    // Ana paid 420,000 COP and owes 60,000 + 100,000 COP: Pedro owes her 260,000 COP.
+    expect(await balancesOf(ana, spaceId)).toEqual([
+      [anaId, cop(260_000)],
+      [pedroId, cop(-260_000)],
+    ]);
   });
 });
