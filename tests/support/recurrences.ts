@@ -3,7 +3,10 @@ import {
   POST as defineRecurrenceRoute,
   GET as listRecurrencesRoute,
 } from "@/app/api/v1/spaces/[spaceId]/recurrences/route";
-import { GET as getRecurrenceRoute } from "@/app/api/v1/spaces/[spaceId]/recurrences/[recurrenceId]/route";
+import {
+  GET as getRecurrenceRoute,
+  PATCH as patchRecurrenceRoute,
+} from "@/app/api/v1/spaces/[spaceId]/recurrences/[recurrenceId]/route";
 import { GET as upcomingRoute } from "@/app/api/v1/spaces/[spaceId]/recurrences/[recurrenceId]/occurrences/route";
 import { FixedClock } from "@/shared/kernel";
 import { call, type TestUser } from "./app";
@@ -140,3 +143,11 @@ export const upcoming = (user: TestUser, spaceId: string, recurrenceId: string, 
     recurrencesPath(spaceId, `/${recurrenceId}/occurrences${count === undefined ? "" : `?count=${count}`}`),
     { user, params: { spaceId, recurrenceId } },
   );
+
+/** HU-E4-11: `user` changes the recurrence; `body` names only what changes. */
+export const patchRecurrence = (user: TestUser, spaceId: string, recurrenceId: string, body: unknown) =>
+  call(patchRecurrenceRoute, "PATCH", recurrencesPath(spaceId, `/${recurrenceId}`), {
+    user,
+    params: { spaceId, recurrenceId },
+    body,
+  });

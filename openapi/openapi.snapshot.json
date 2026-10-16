@@ -4986,6 +4986,340 @@
       }
     },
     "/api/v1/spaces/{spaceId}/recurrences/{recurrenceId}": {
+      "patch": {
+        "operationId": "updateRecurrence",
+        "summary": "Change a recurrence's description, amount, category, split, schedule, mode or end date for its occurrences not recorded yet",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "recurrenceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "amount": {
+                    "$ref": "#/components/schemas/Money"
+                  },
+                  "categoryId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "split": {
+                    "anyOf": [
+                      {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "method": {
+                                "type": "string",
+                                "const": "EQUAL"
+                              },
+                              "participants": {
+                                "maxItems": 100,
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "memberId": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    }
+                                  },
+                                  "required": [
+                                    "memberId"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "method",
+                              "participants"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "method": {
+                                "type": "string",
+                                "const": "PERCENT"
+                              },
+                              "participants": {
+                                "maxItems": 100,
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "memberId": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    },
+                                    "percent": {
+                                      "type": "string",
+                                      "pattern": "^\\d{1,3}(\\.\\d{1,2})?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "memberId",
+                                    "percent"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "method",
+                              "participants"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "method": {
+                                "type": "string",
+                                "const": "SHARES"
+                              },
+                              "participants": {
+                                "maxItems": 100,
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "memberId": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    },
+                                    "units": {
+                                      "type": "integer",
+                                      "minimum": -9007199254740991,
+                                      "maximum": 9007199254740991
+                                    }
+                                  },
+                                  "required": [
+                                    "memberId",
+                                    "units"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "method",
+                              "participants"
+                            ]
+                          }
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "schedule": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "MONTHLY"
+                          },
+                          "day": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "day"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "SEMI_MONTHLY"
+                          },
+                          "day1": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "day2": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "day1",
+                          "day2"
+                        ]
+                      }
+                    ],
+                    "type": "object"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "AUTO",
+                      "CONFIRM"
+                    ]
+                  },
+                  "endDate": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "template": {
+                    "description": "Cannot be sent: an edit does not change it (422 ValidationFailed)",
+                    "not": {}
+                  },
+                  "type": {
+                    "description": "Cannot be sent: an edit does not change it (422 ValidationFailed)",
+                    "not": {}
+                  },
+                  "payer": {
+                    "description": "Cannot be sent: an edit does not change it (422 ValidationFailed)",
+                    "not": {}
+                  },
+                  "payerMemberId": {
+                    "description": "Cannot be sent: an edit does not change it (422 ValidationFailed)",
+                    "not": {}
+                  },
+                  "accountId": {
+                    "description": "Cannot be sent: an edit does not change it (422 ValidationFailed)",
+                    "not": {}
+                  },
+                  "fundAccountId": {
+                    "description": "Cannot be sent: an edit does not change it (422 ValidationFailed)",
+                    "not": {}
+                  },
+                  "memberId": {
+                    "description": "Cannot be sent: an edit does not change it (422 ValidationFailed)",
+                    "not": {}
+                  },
+                  "sourceAccountId": {
+                    "description": "Cannot be sent: an edit does not change it (422 ValidationFailed)",
+                    "not": {}
+                  },
+                  "destinationAccountId": {
+                    "description": "Cannot be sent: an edit does not change it (422 ValidationFailed)",
+                    "not": {}
+                  },
+                  "startDate": {
+                    "description": "Cannot be sent: an edit does not change it (422 ValidationFailed)",
+                    "not": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The recurrence as changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recurrence"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "InsufficientRole",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound, RecurrenceNotFound, CategoryNotFound, AccountNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "RecurrenceEnded, AccountArchived, CategoryArchived, GuestHasNoAccounts, SameAccountTransfer, SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed (including the template, type, payer, accounts or start date, which an edit cannot change), InvalidAmount, InvalidDate, InvalidDescription, InvalidPeriodPolicy, InvalidRecurrence (an end date before the start; a category or split its type does not have), CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, InvalidFundAccount, NotASpaceMember, InvalidSplit, ParticipantsRequired",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
       "get": {
         "operationId": "getRecurrence",
         "summary": "One recurrence with its status and its next and last occurrences",

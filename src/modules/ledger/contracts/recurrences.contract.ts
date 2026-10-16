@@ -13,6 +13,7 @@ import {
 import { localDate, ok, type Result } from "@/shared/kernel";
 import type {
   DefineRecurrenceInput,
+  RecurrenceEdit,
   Occurrence,
   Recurrence,
   RecurrenceSplit,
@@ -336,6 +337,60 @@ export const UpcomingOccurrencesQuerySchema = z.object({
 });
 export const UpcomingOccurrencesSchema = z.object({ dates: z.array(z.iso.date()) });
 
+/** A key the definition takes and an edit cannot change: sent, it answers 422 ValidationFailed naming the field. */
+const FIXED_ONCE_DEFINED = z
+  .never({ error: "Cannot be changed once the recurrence is defined" })
+  .optional()
+  .meta({ description: "Cannot be sent: an edit does not change it (422 ValidationFailed)" });
+
+/**
+ * HU-E4-11: what a PATCH may change (ruling P22). Unknown keys are stripped, as in every body here, but the type, the
+ * payer and the accounts stay as defined, so the keys that would name them are refused instead of being ignored: a
+ * client never believes it changed what no edit can change. They are the definition's `template` and, flat, the keys
+ * inside it and the ones a read answers with, as well as `startDate`.
+ */
+export const UpdateRecurrenceBodySchema = z.object({
+  description: z.string().max(1000).optional(),
+  amount: MoneySchema.optional(),
+  categoryId: Id.optional(),
+  /** Null returns to the default split of each occurrence (ruling P23). */
+  split: RecurrenceSplitSchema.nullable().optional(),
+  schedule: ScheduleInputSchema.optional(),
+  mode: z.enum(MODES).optional(),
+  /** Null removes the end date. */
+  endDate: z.iso.date().nullable().optional(),
+  template: FIXED_ONCE_DEFINED,
+  type: FIXED_ONCE_DEFINED,
+  payer: FIXED_ONCE_DEFINED,
+  payerMemberId: FIXED_ONCE_DEFINED,
+  accountId: FIXED_ONCE_DEFINED,
+  fundAccountId: FIXED_ONCE_DEFINED,
+  memberId: FIXED_ONCE_DEFINED,
+  sourceAccountId: FIXED_ONCE_DEFINED,
+  destinationAccountId: FIXED_ONCE_DEFINED,
+  startDate: FIXED_ONCE_DEFINED,
+});
+
+/** A validated PATCH body as UpdateRecurrence changes; fails only for impossible dates and unknown currencies. */
+export const recurrenceEditFromBody = (
+  body: z.infer<typeof UpdateRecurrenceBodySchema>,
+): Result<RecurrenceEdit> => {
+  const amount = body.amount === undefined ? ok(undefined) : moneyFromDto(body.amount);
+  if (!amount.ok) return amount;
+  const endDate =
+    body.endDate === undefined || body.endDate === null ? ok(body.endDate) : localDate(body.endDate);
+  if (!endDate.ok) return endDate;
+  return ok({
+    description: body.description,
+    amount: amount.value,
+    categoryId: body.categoryId,
+    split: body.split === undefined ? undefined : body.split === null ? null : splitOf(body.split),
+    schedule: body.schedule,
+    mode: body.mode,
+    endDate: endDate.value,
+  });
+};
+
 /** The Location header of a new recurrence (HU-E4-11). */
 export const recurrenceHeaders = (view: RecurrenceView): [string, string][] => [
   ["location", `/api/v1/spaces/${view.recurrence.spaceId}/recurrences/${view.recurrence.id}`],
@@ -351,6 +406,9 @@ const TEMPLATE_404 = "CategoryNotFound, AccountNotFound";
 const TEMPLATE_409 = "AccountArchived, CategoryArchived, GuestHasNoAccounts, SameAccountTransfer";
 const TEMPLATE_422 =
   "AccountNotOwned, AccountNotInSpace, AccountRequired, InvalidFundAccount, NotASpaceMember, InvalidSplit, ParticipantsRequired";
+/** HU-E4-11: what makes an edit invalid by itself; an edit that leaves no date to record ends the recurrence instead. */
+const INVALID_EDIT =
+  "InvalidRecurrence (an end date before the start; a category or split its type does not have)";
 /** HU-E4-11: the two ways a definition is invalid by itself, whatever its template. */
 const INVALID_RECURRENCE =
   "InvalidRecurrence (an end date before the start; no schedule date from the start, or from the day it is defined if that is later, through the end date)";
@@ -388,6 +446,24 @@ export const recurrencesPaths: ZodOpenApiPathsObject = {
     },
   },
   "/api/v1/spaces/{spaceId}/recurrences/{recurrenceId}": {
+    patch: {
+      operationId: "updateRecurrence",
+      summary:
+        "Change a recurrence's description, amount, category, split, schedule, mode or end date for its occurrences not recorded yet",
+      ...securedByUser,
+      requestParams: { path: RecurrencePath },
+      requestBody: { content: jsonContent(UpdateRecurrenceBodySchema) },
+      responses: {
+        "200": recurrenceResponse("The recurrence as changed"),
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": `SpaceNotFound, RecurrenceNotFound, ${TEMPLATE_404}`,
+          "409": `RecurrenceEnded, ${TEMPLATE_409}, SpaceArchived`,
+          "422": `ValidationFailed (including the template, type, payer, accounts or start date, which an edit cannot change), InvalidAmount, InvalidDate, InvalidDescription, InvalidPeriodPolicy, ${INVALID_EDIT}, CurrencyMismatch, UnknownCurrency, ${TEMPLATE_422}`,
+        }),
+      },
+    },
     get: {
       operationId: "getRecurrence",
       summary: "One recurrence with its status and its next and last occurrences",
