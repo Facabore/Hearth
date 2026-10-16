@@ -18,12 +18,15 @@ export type {
   AccountReader,
   AuditEntry,
   AuditLog,
+  BalanceMovement,
   CategoryReader,
   ClosedPeriodGuard,
   DefaultSplitQuery,
   DefaultSplitSource,
+  HistoryRange,
   LedgerAccount,
   LedgerCategory,
+  MemberBalanceHistory,
   MemberMoneyTotals,
   TransactionFilter,
   TransactionPosition,
@@ -71,3 +74,72 @@ export {
   type RecordExpenseByCategoryKey,
   type RecordExpenseByCategoryKeyInput,
 } from "./record-expense-by-category-key";
+export type {
+  Recurrence,
+  RecurrenceChanges,
+  RecurrenceId,
+  RecurrenceMode,
+  RecurrenceSplit,
+  RecurrenceStatus,
+  RecurrenceTemplate,
+  RecurrenceType,
+} from "../domain/recurrence";
+export type { Schedule } from "../domain/recurrence-schedule";
+export type { Occurrence, OccurrenceId, OccurrenceStatus } from "../domain/occurrence";
+export type {
+  ActiveRecurrence,
+  OccurrenceRepository,
+  RecurrenceDeps,
+  RecurrenceRepository,
+} from "./recurrence-ports";
+export {
+  createDefineRecurrence,
+  type DefineRecurrence,
+  type DefineRecurrenceInput,
+} from "./define-recurrence";
+export { checkTemplate, type TemplateInput, type TemplateOwner } from "./recurrence-template";
+export { recurrenceView, viewsOf, type RecurrenceView } from "./recurrence-view";
+export {
+  createEndRecurrence,
+  createPauseRecurrence,
+  createResumeRecurrence,
+  createUpdateRecurrence,
+  type EndRecurrence,
+  type PauseRecurrence,
+  type RecurrenceEdit,
+  type RecurrenceWriteInput,
+  type ResumeRecurrence,
+  type UpdateRecurrence,
+} from "./manage-recurrence";
+export {
+  createGetRecurrence,
+  createListRecurrences,
+  createListUpcomingOccurrences,
+  type GetRecurrence,
+  type ListRecurrences,
+  type ListUpcomingOccurrences,
+} from "./recurrence-queries";
+export {
+  occurrenceRecorders,
+  recordOccurrence,
+  type OccurrenceRecorders,
+  type RecordedOccurrence,
+} from "./record-occurrence";
+export { CATCH_UP_LIMIT, type MaterializeDeps, type RecurrenceRun } from "./materialize-recurrence";
+export {
+  createMaterializeDueOccurrences,
+  failureOf,
+  type MaterializationReport,
+  type MaterializeDueOccurrences,
+} from "./materialize-occurrences";
+export {
+  createConfirmOccurrence,
+  createListPendingOccurrences,
+  createSkipOccurrence,
+  type ConfirmedOccurrence,
+  type ConfirmOccurrence,
+  type ConfirmOccurrenceInput,
+  type ListPendingOccurrences,
+  type PendingOccurrenceView,
+  type SkipOccurrence,
+} from "./pending-occurrences";

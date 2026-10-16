@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { ZodOpenApiPathsObject } from "zod-openapi";
 import { jsonContent, MoneySchema, problems, securedByUser } from "@/shared/http/contracts";
-import type { SettlementSuggestions, SpaceBalances } from "../application";
+import type { MemberBalanceHistoryView, SettlementSuggestions, SpaceBalances } from "../application";
 
 /**
  * HU-E5-01: one entry per current member in join order, guests included, then every former member with
@@ -38,7 +38,60 @@ export const settlementSuggestionsDto = (
   })),
 });
 
+/** HU-E5-04: an optional span of dates; `from` must not be after `to`. */
+export const BalanceHistoryQuerySchema = z
+  .object({ from: z.iso.date().optional(), to: z.iso.date().optional() })
+  .refine((query) => query.from === undefined || query.to === undefined || query.from <= query.to, {
+    error: "from must not be after to",
+    path: ["to"],
+  });
+
+/** HU-E5-04: a member's running net balance, movement by movement (ruling P29). */
+export const BalanceHistorySchema = z.object({
+  memberId: z.string(),
+  from: z.iso.date().nullable(),
+  to: z.iso.date().nullable(),
+  /** The net as of the day before `from` (0 without `from`). */
+  opening: MoneySchema,
+  /** The net after the last entry, or the opening balance without entries. */
+  closing: MoneySchema,
+  entries: z.array(
+    z.object({
+      transactionId: z.string(),
+      type: z.enum(["EXPENSE", "SETTLEMENT"]),
+      date: z.iso.date(),
+      description: z.string(),
+      /** What the movement did to the member's net. */
+      change: MoneySchema,
+      /** The member's net after it. */
+      balance: MoneySchema,
+    }),
+  ),
+});
+
+export const balanceHistoryDto = (
+  history: MemberBalanceHistoryView,
+): z.infer<typeof BalanceHistorySchema> => {
+  const money = (minor: bigint) => ({ amount: minor.toString(), currency: history.currency });
+  return {
+    memberId: history.memberId,
+    from: history.from,
+    to: history.to,
+    opening: money(history.opening),
+    closing: money(history.closing),
+    entries: history.entries.map((entry) => ({
+      transactionId: entry.transactionId,
+      type: entry.type,
+      date: entry.date,
+      description: entry.description,
+      change: money(entry.change),
+      balance: money(entry.balance),
+    })),
+  };
+};
+
 const SpacePath = z.object({ spaceId: z.string() });
+const MemberPath = SpacePath.extend({ memberId: z.string() });
 
 export const balancesPaths: ZodOpenApiPathsObject = {
   "/api/v1/spaces/{spaceId}/balances": {
@@ -70,6 +123,28 @@ export const balancesPaths: ZodOpenApiPathsObject = {
           content: jsonContent(SettlementSuggestionsSchema),
         },
         ...problems({ "401": "Unauthenticated", "404": "SpaceNotFound" }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/members/{memberId}/balance-history": {
+    get: {
+      operationId: "getMemberBalanceHistory",
+      summary:
+        "How a member's net balance evolved: each expense and settlement that moved it, with the running balance",
+      description:
+        "Both bounds are optional and inclusive. `opening` is the balance after every movement before `from`, and each entry's running `balance` counts every earlier movement, also those before `from`. `closing` is the balance after the last entry, or `opening` when there are none. `from` after `to` is a 422 ValidationFailed.",
+      ...securedByUser,
+      requestParams: { path: MemberPath, query: BalanceHistoryQuerySchema },
+      responses: {
+        "200": {
+          description: "The opening balance, the movements by date and the closing balance",
+          content: jsonContent(BalanceHistorySchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "404": "SpaceNotFound, MemberNotFound",
+          "422": "ValidationFailed, InvalidDate",
+        }),
       },
     },
   },

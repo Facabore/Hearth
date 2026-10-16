@@ -17,6 +17,7 @@ import { decodeCursor, encodeCursor, PaginationQuerySchema } from "@/shared/http
 import { domainError, err, isUuid, localDate, ok, type Money, type Result } from "@/shared/kernel";
 import type {
   AuditEntry,
+  LedgerWarning,
   PaymentInput,
   RecordedExpense,
   RecordExpenseInput,
@@ -306,13 +307,20 @@ export const WarningSchema = z.object({
 /** The expense response: the transaction plus its warnings (always present, usually empty). */
 export const RecordedExpenseSchema = TransactionSchema.extend({ warnings: z.array(WarningSchema) });
 
-export const recordedExpenseDto = (recorded: RecordedExpense): z.infer<typeof RecordedExpenseSchema> => ({
-  ...transactionDto(recorded.expense),
-  warnings: recorded.warnings.map((warning) => ({
+/** The wire form of the warnings of a recorded expense; `currency` is the transaction's, which is the balance's. */
+export const warningsDto = (
+  warnings: readonly LedgerWarning[],
+  currency: string,
+): z.infer<typeof WarningSchema>[] =>
+  warnings.map((warning) => ({
     code: warning.code,
     accountId: warning.accountId,
-    balance: { amount: warning.balance.toString(), currency: recorded.expense.currency },
-  })),
+    balance: { amount: warning.balance.toString(), currency },
+  }));
+
+export const recordedExpenseDto = (recorded: RecordedExpense): z.infer<typeof RecordedExpenseSchema> => ({
+  ...transactionDto(recorded.expense),
+  warnings: warningsDto(recorded.warnings, recorded.expense.currency),
 });
 
 const UUID = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";

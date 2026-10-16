@@ -18,6 +18,8 @@ import {
   createGetMemberNetBalances,
   createGetSettlementSuggestions,
   createGetSpaceBalances,
+  createGetMemberBalanceHistory,
+  type GetMemberBalanceHistory,
   type GetSettlementSuggestions,
   type GetSpaceBalances,
 } from "@/modules/balances/application";
@@ -67,6 +69,33 @@ import {
   createRecordIncome,
   createRecordSettlement,
   createRecordTransfer,
+  createDefineRecurrence,
+  type DefineRecurrence,
+  type RecurrenceDeps,
+  createGetRecurrence,
+  createListRecurrences,
+  createListUpcomingOccurrences,
+  type GetRecurrence,
+  type ListRecurrences,
+  type ListUpcomingOccurrences,
+  createUpdateRecurrence,
+  type UpdateRecurrence,
+  createEndRecurrence,
+  createPauseRecurrence,
+  createResumeRecurrence,
+  type EndRecurrence,
+  type PauseRecurrence,
+  type ResumeRecurrence,
+  createMaterializeDueOccurrences,
+  occurrenceRecorders,
+  type MaterializeDeps,
+  type MaterializeDueOccurrences,
+  createListPendingOccurrences,
+  createSkipOccurrence,
+  type ListPendingOccurrences,
+  type SkipOccurrence,
+  createConfirmOccurrence,
+  type ConfirmOccurrence,
   type DeleteTransaction,
   type EditTransaction,
   type GetTransaction,
@@ -83,6 +112,7 @@ import {
 import { DrizzleAuditLog } from "@/modules/ledger/infrastructure/drizzle-audit-log";
 import { DrizzleLedgerQueries } from "@/modules/ledger/infrastructure/drizzle-ledger-queries";
 import { DrizzleTransactionRepository } from "@/modules/ledger/infrastructure/drizzle-transaction-repository";
+import { DrizzleRecurrenceRepository } from "@/modules/ledger/infrastructure/drizzle-recurrence-repository";
 import type { DirectSplitExpense } from "@/modules/ledger/contracts/ledger.contract";
 import {
   createArchiveCategory,
@@ -232,10 +262,23 @@ export interface Container extends RouteDeps {
     readonly editTransaction: EditTransaction;
     readonly deleteTransaction: DeleteTransaction;
     readonly listAudit: ListAudit;
+    readonly defineRecurrence: DefineRecurrence;
+    readonly listRecurrences: ListRecurrences;
+    readonly getRecurrence: GetRecurrence;
+    readonly listUpcomingOccurrences: ListUpcomingOccurrences;
+    readonly updateRecurrence: UpdateRecurrence;
+    readonly pauseRecurrence: PauseRecurrence;
+    readonly resumeRecurrence: ResumeRecurrence;
+    readonly endRecurrence: EndRecurrence;
+    readonly materializeDueOccurrences: MaterializeDueOccurrences;
+    readonly listPendingOccurrences: ListPendingOccurrences;
+    readonly skipOccurrence: SkipOccurrence;
+    readonly confirmOccurrence: ConfirmOccurrence;
   };
   readonly balances: {
     readonly getSpaceBalances: GetSpaceBalances;
     readonly getSettlementSuggestions: GetSettlementSuggestions;
+    readonly getMemberBalanceHistory: GetMemberBalanceHistory;
   };
   readonly budgeting: {
     readonly createPlan: CreateBudgetPlan;
@@ -364,6 +407,15 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     tm,
   };
   const recordExpense = createRecordExpense(ledgerDeps);
+  // HU-E4-11 … HU-E4-13: recurrences live in the ledger and record through its own use cases (ruling P21).
+  const recurrenceRepository = new DrizzleRecurrenceRepository(tm);
+  const recurrenceDeps: RecurrenceDeps = {
+    ...ledgerDeps,
+    recurrences: recurrenceRepository,
+    occurrences: recurrenceRepository,
+  };
+  // HU-E4-12, HU-E4-13: the scheduler's job and confirmations record through the ledger's own use cases (P21).
+  const materializeDeps: MaterializeDeps = { ...recurrenceDeps, recorders: occurrenceRecorders(ledgerDeps) };
   // HU-E1-13: a client cannot know a new direct space's category ids, so it names a catalog key (D11).
   const recordExpenseByCategoryKey = createRecordExpenseByCategoryKey(
     {
@@ -593,10 +645,28 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       editTransaction: createEditTransaction(ledgerDeps),
       deleteTransaction: createDeleteTransaction(ledgerDeps),
       listAudit: createListAudit(ledgerDeps),
+      defineRecurrence: createDefineRecurrence(recurrenceDeps),
+      listRecurrences: createListRecurrences(recurrenceDeps),
+      getRecurrence: createGetRecurrence(recurrenceDeps),
+      listUpcomingOccurrences: createListUpcomingOccurrences(recurrenceDeps),
+      updateRecurrence: createUpdateRecurrence(recurrenceDeps),
+      pauseRecurrence: createPauseRecurrence(recurrenceDeps),
+      resumeRecurrence: createResumeRecurrence(recurrenceDeps),
+      endRecurrence: createEndRecurrence(recurrenceDeps),
+      materializeDueOccurrences: createMaterializeDueOccurrences(materializeDeps),
+      listPendingOccurrences: createListPendingOccurrences(recurrenceDeps),
+      skipOccurrence: createSkipOccurrence(recurrenceDeps),
+      confirmOccurrence: createConfirmOccurrence(materializeDeps),
     },
     balances: {
       // HU-E5-01: the ledger aggregates per-member totals in SQL (D7); the balances module nets them.
       getSpaceBalances: createGetSpaceBalances({ access, members: spaceRepository, source: ledgerQueries }),
+      // HU-E5-04: a member's running net, movement by movement, from one SQL window function (D7).
+      getMemberBalanceHistory: createGetMemberBalanceHistory({
+        access,
+        members: spaceRepository,
+        history: ledgerQueries,
+      }),
       // HU-E5-03: suggestions are computed on read from the same balances (D7).
       getSettlementSuggestions: createGetSettlementSuggestions({
         access,
@@ -627,10 +697,16 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   };
 };
 
-let container: Container | undefined;
+/**
+ * The process-wide container lives on `globalThis`, not in this module: Next.js bundles `instrumentation.ts`, which
+ * starts the recurring-transactions job (HU-E4-12), apart from the route handlers, so each loads its own copy of this
+ * module, and a module-level variable would give the process two containers and two database pools.
+ */
+const CONTAINER = Symbol.for("hearth.container");
+const shared = globalThis as { [CONTAINER]?: Container };
 
-export const getContainer = (): Container => (container ??= buildContainer(loadEnv()));
+export const getContainer = (): Container => (shared[CONTAINER] ??= buildContainer(loadEnv()));
 
 export const setContainerForTests = (next: Container | undefined): void => {
-  container = next;
+  shared[CONTAINER] = next;
 };

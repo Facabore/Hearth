@@ -22,6 +22,10 @@ const EXPLICIT: ReadonlyMap<string, number> = new Map([
   ["CategoryNotInSpace", 422],
   // HU-E6-07: the plan's state, not the request, refuses the move (ruling P12).
   ["InvalidPlanTransition", 409],
+  // HU-E4-11: the recurrence's state, not the request, refuses the move (ruling P27).
+  ["InvalidRecurrenceTransition", 409],
+  // HU-E4-13: a confirm or a skip of an occurrence that is not PENDING any more lost the race to the other.
+  ["OccurrenceNotPending", 409],
   ["InvitationEmailMismatch", 403],
   ["PasswordTooShort", 422],
   ["EmailTaken", 409],
@@ -46,6 +50,9 @@ const TITLES: ReadonlyMap<number, string> = new Map([
 const PUBLIC_DETAILS: ReadonlyMap<string, readonly string[]> = new Map([
   ["OutstandingBalance", ["outstanding"]],
   ["InvalidAllocation", ["lineIds"]],
+  // HU-E4-11: "creator" when a recurrence's creator, not the requester, is why a resume or an edit is refused.
+  ["InsufficientRole", ["member"]],
+  ["NotASpaceMember", ["member"]],
 ]);
 
 /** The details of `code` that are part of the API contract, e.g. the outstanding amount (HU-E1-08). */

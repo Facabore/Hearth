@@ -9,9 +9,9 @@
 - **Parallel track (milestone M6):** an area's UI story may start as soon as the API stories it depends on are `Done`; it never waits for the whole M0–M5 sequence.
 - **Container-presentational:** containers load data and call server actions; presentational components receive DTOs and props only. Pages and server actions are thin wrappers over the same use cases as `/api/v1` (or call the API); no component touches the database.
 - **Design first:** every screen is designed with `/design` and reviewed by the owner before its UI story moves to `Ready`.
-- **Stack:** shadcn/ui + Tailwind CSS, atomic design for shared components, Recharts for charts, next-intl for `es` (default) and `en`.
+- **Stack:** shadcn/ui + Tailwind CSS, atomic design for shared components, Recharts for charts, next-intl for `es` (default) and `en` (UI texts only: formats come from the user's preferences, HU-E1-15).
 - **Errors and copy:** the API returns stable codes, never translated text; the UI translates every error code (`errors.<Code>`), warning code and reason code through i18n keys.
-- **Acceptance:** scenarios describe UI behaviour. `@e2e` scenarios run with Playwright + playwright-bdd against the running app and PostgreSQL; the others run as component or container tests. Amounts are written in backlog form (`1,200,000 COP`) and rendered per locale (HU-E9-02).
+- **Acceptance:** scenarios describe UI behaviour. `@e2e` scenarios run with Playwright + playwright-bdd against the running app and PostgreSQL; the others run as component or container tests. Amounts are written in backlog form (`1,200,000 COP`) and rendered from the user's formatting preferences, never from the locale (HU-E1-15, HU-E9-02).
 
 ---
 
@@ -65,9 +65,9 @@ Feature: App shell and authentication screens
 
 ## HU-E9-02 — Internationalization setup (es, en)
 
-- **Milestone:** M6 · **Priority:** Must · **Size:** S · **Depends on:** HU-E0-01, HU-E1-01 · **Module(s):** `app/(web)`, `shared/infrastructure`
+- **Milestone:** M6 · **Priority:** Must · **Size:** S · **Depends on:** HU-E0-01, HU-E1-01, HU-E1-15 · **Module(s):** `app/(web)`, `shared/infrastructure`
 
-**User story:** As a user, I want the interface in Spanish by default and available in English, so that I can use the app in my language.
+**User story:** As a user, I want the interface in Spanish by default and available in English, and numbers, dates and times written the way I chose, so that I can use the app in my language and my formats.
 
 **Note:** moved from HU-E0-08 (retired) on 2026-10-11. The API returns stable error codes only (spec section 7, D18); all translation happens here.
 
@@ -85,16 +85,18 @@ Feature: Localized interface
     When the user opens the home page
     Then the page is rendered in English
 
-  Scenario Outline: Amounts and dates are formatted per locale
-    Given a user whose locale is "<locale>"
-    When the amount 1,600,000 COP and the date 2026-10-05 are displayed
+  Scenario Outline: Numbers, dates and times follow the user's preferences, not the language
+    Given a user whose locale is "<locale>" and whose effective preferences are numberFormat "<numberFormat>", dateFormat "<dateFormat>" and timeFormat "<timeFormat>"
+    When the amount 1,600,000 COP, the date 2026-10-05 and the time 14:30 are displayed
     Then the amount reads "<amount>"
     And the date reads "<date>"
+    And the time reads "<time>"
 
     Examples:
-      | locale | amount        | date       |
-      | es     | $ 1.600.000   | 5/10/2026  |
-      | en     | COP 1,600,000 | 10/5/2026  |
+      | locale | numberFormat | dateFormat | timeFormat | amount      | date      | time    |
+      | es     | DOT_COMMA    | DMY        | H24        | $ 1.600.000 | 5/10/2026 | 14:30   |
+      | es     | COMMA_DOT    | MDY        | H12        | $ 1,600,000 | 10/5/2026 | 2:30 PM |
+      | en     | DOT_COMMA    | DMY        | H24        | $ 1.600.000 | 5/10/2026 | 14:30   |
 
   Scenario: API error codes are translated, with a fallback
     Given a user whose locale is "es"
@@ -109,16 +111,23 @@ Feature: Localized interface
 ```
 
 **Technical notes:**
-- next-intl with `es` (default, es-CO formats) and `en`; the user's stored locale wins over `Accept-Language`.
-- COP displayed with zero fraction digits when the fraction is zero; whitespace normalized in tests (Intl may emit non-breaking spaces).
-- Dates rendered in `America/Bogota` unless the user timezone differs.
+- next-intl with `es` (default) and `en` picks the UI texts only; the user's stored locale wins over `Accept-Language`. The language is changed on the settings screen (HU-E9-13).
+- Numbers, dates, times and the first day of the week come from the user's effective preferences (`GET /api/v1/me`, HU-E1-15: `numberFormat`, `dateFormat`, `timeFormat`, `weekStart`), never from the locale (decided 2026-10-16). A shared `formatters` module takes the preferences as arguments and does not read the locale; a test fails on any component that formats with the locale's defaults.
+- Patterns:
+  - `numberFormat`: `DOT_COMMA` `1.234.567,89`, `COMMA_DOT` `1,234,567.89`, `SPACE_COMMA` `1 234 567,89`;
+  - `dateFormat`: numeric dates with `/` and no leading zeros, ordered `DMY` (`5/10/2026`), `MDY` (`10/5/2026`) or `YMD` (`2026/10/5`);
+  - `timeFormat`: `H24` `14:30`, `H12` `2:30 PM`.
+
+  Until HU-E1-15 is `Done`, the formatters use the built-in es-CO defaults (`DOT_COMMA`, `DMY`, `H24`, `MONDAY`), the same ones the installation rules start with, and switch to the preferences of `GET /api/v1/me` when it lands.
+- COP displayed with zero fraction digits when the fraction is zero; the currency symbol belongs to the currency (COP is `$`), not to the language; whitespace normalized in tests (Intl may emit non-breaking spaces).
+- Instants render in the user's time zone (HU-E1-14), `America/Bogota` unless it differs; a transaction shows the time of its own zone (HU-E9-03).
 - `pnpm i18n:check` verifies both catalogs have the same keys and that every error code in the OpenAPI document has an `errors.<Code>` key.
 
 ---
 
 ## HU-E9-03 — Personal ledger screens
 
-- **Milestone:** M6 · **Priority:** Must · **Size:** M · **Depends on:** HU-E2-01, HU-E2-03, HU-E2-04, HU-E4-01, HU-E4-02, HU-E4-03, HU-E4-05, HU-E9-01 · **Module(s):** `accounts/ui`, `ledger/ui`
+- **Milestone:** M6 · **Priority:** Must · **Size:** M · **Depends on:** HU-E1-14, HU-E1-15, HU-E2-01, HU-E2-03, HU-E2-04, HU-E2-05, HU-E2-06, HU-E2-07, HU-E3-04, HU-E3-05, HU-E4-01, HU-E4-02, HU-E4-03, HU-E4-05, HU-E4-14, HU-E9-01 · **Module(s):** `accounts/ui`, `ledger/ui`
 
 **User story:** As a user, I want screens for my accounts, my transaction list and forms to record expenses, income and transfers, so that I manage my personal money without calling the API.
 
@@ -126,57 +135,91 @@ Feature: Localized interface
 Feature: Personal ledger screens
 
   Background:
-    Given "Ana" is signed in with the account "Bancolombia" with opening balance 2,000,000 COP and the category "Groceries" in her personal space
+    Given "Ana" is signed in with the timezone "America/Bogota", the account "Bancolombia" with opening balance 2,000,000 COP and the category "Groceries" in her personal space
 
   @e2e
   Scenario: Record a personal expense from the form
     Given the Clock reads 2026-11-01T04:30:00Z
     When "Ana" opens the new expense form
-    Then the date field defaults to 2026-10-31
+    Then the date and time chip reads "Today · 23:30"
     When "Ana" enters "Market", 85,000 COP, "Groceries" and "Bancolombia" and saves
-    Then the transaction list shows "Market" with 85,000 COP
+    Then the transaction has date 2026-10-31, occurredAt "2026-11-01T04:30:00Z" and timeZone "America/Bogota"
+    And the transaction list shows "Market" with 85,000 COP at 23:30 under the day heading of the key "ledger.day.today"
     And the accounts screen shows "Bancolombia" with a balance of 1,915,000 COP
 
-  Scenario: Accounts screen shows computed balances
-    Given an income of 3,000,000 COP into "Bancolombia", an expense of 85,000 COP from "Bancolombia" and a transfer of 500,000 COP from "Bancolombia" to "Nequi"
+  Scenario: Accounts screen shows types, balances and totals
+    Given an income of 3,000,000 COP into "Bancolombia", an expense of 85,000 COP from "Bancolombia" and a transfer of 500,000 COP from "Bancolombia" to the WALLET "Nequi" opened with 0 COP
+    And the CREDIT_CARD "Visa" with balance -350,000 COP, credit limit 5,000,000 COP and payment day 15
+    And "Ana" archived the account "Old wallet"
     When "Ana" opens the accounts screen
-    Then "Bancolombia" shows a balance of 4,415,000 COP
+    Then "Bancolombia" shows a balance of 4,415,000 COP with its type icon, color, institution and last four digits
+    And "Visa" shows -350,000 COP with an available credit of 4,650,000 COP and its next payment date
+    And the header shows "Available" 4,915,000 COP and "Net worth" 4,565,000 COP
+    And "Old wallet" is listed under archived accounts and is not offered in the account picker of the new expense form
 
-  Scenario: Archived accounts are not offered in pickers
-    Given "Ana" archived the account "Nequi"
-    When "Ana" opens the new expense form
-    Then "Nequi" is not offered in the account picker
-    And the accounts screen lists "Nequi" under archived accounts
+  Scenario: Pick an optional subcategory
+    Given "Groceries" has the subcategories "Vegetables" and "Meat"
+    When "Ana" chooses "Groceries" in the new expense form
+    Then "Vegetables" and "Meat" are offered as optional chips in the same sheet
+    And saving without choosing one records the expense in "Groceries"
+    And choosing "Vegetables" records it in "Vegetables", shown as "Groceries › Vegetables" in the list
 
-  Scenario: Transaction list totals, filters and more pages
-    Given the October 2026 transactions Market 85,000 COP, Market 100,000 COP, Dinner 60,000 COP and Salary 3,200,000 COP
+  Scenario: Transaction list by day and time, with totals and filters
+    Given the October 2026 transactions Market 85,000 COP on 2026-10-05 at 08:10, Market 100,000 COP in "Vegetables" on 2026-10-12 at 18:02, Dinner 60,000 COP on 2026-10-12 at 20:45 and Salary 3,200,000 COP on 2026-10-25 recorded by a recurrence without a time
     When "Ana" opens the transaction list for 2026-10
-    Then 4 transactions are shown with total expenses 245,000 COP and total income 3,200,000 COP
-    And filtering by "Groceries" shows 2 transactions totalling 185,000 COP
+    Then the transactions are grouped by day, newest day first, with "Dinner" before "Market" on 2026-10-12
+    And "Dinner" shows "20:45" while "Salary" shows no time
+    And 4 transactions are shown with total expenses 245,000 COP and total income 3,200,000 COP
+    And filtering by "Groceries" shows 2 transactions totalling 185,000 COP, including the one in "Vegetables"
 
-  Scenario: Validation errors are shown next to the field
-    When "Ana" saves an expense of 0 COP
-    Then the amount field shows the message of the key "errors.InvalidAmount"
-    And no transaction is created
+  @e2e
+  Scenario Outline: Pick yesterday at 19:00 in two steps
+    Given the Clock reads 2026-10-17T03:30:00Z
+    And "Ana" has the timeFormat "<timeFormat>" and the weekStart "MONDAY"
+    When "Ana" opens the date and time sheet of the new expense form
+    Then the quick-day buttons "Today", "Yesterday" and "The day before yesterday" are shown above a month calendar whose week starts on Monday
+    When "Ana" chooses "Yesterday"
+    And sets the time to 19:00
+    Then the sheet clock shows "<clock>"
+    And the chip reads "<chip>"
+    When "Ana" enters "Market", 85,000 COP, "Groceries" and "Bancolombia" and saves
+    Then the transaction has date 2026-10-15, occurredAt "2026-10-16T00:00:00Z" and timeZone "America/Bogota"
 
-  Scenario: Record a transfer between own accounts
-    When "Ana" records a transfer of 500,000 COP from "Bancolombia" to "Nequi" on 2026-10-06
+    Examples:
+      | timeFormat | clock                   | chip                |
+      | H24        | 19 : 00                 | Yesterday · 19:00   |
+      | H12        | 7 : 00 with PM selected | Yesterday · 7:00 PM |
+
+  Scenario: Pay the credit card with a transfer
+    Given an expense of 200,000 COP in "Groceries" paid from the CREDIT_CARD "Visa"
+    When "Ana" records a transfer of 200,000 COP from "Bancolombia" to "Visa" on 2026-10-25
     Then the transaction list shows the transfer without a category
-    And the period expense total does not change
+    And the period expense total still counts the 200,000 COP once
+    And "Available" decreases by 200,000 COP while "Net worth" does not change
 ```
 
 **Technical notes:**
 - Containers per screen (`AccountsContainer`, `TransactionListContainer`, `ExpenseFormContainer`, `IncomeFormContainer`, `TransferFormContainer`); presentational components receive DTOs only.
 - Forms validate with the same Zod contracts as `/api/v1` (`contracts/`), then call server actions wrapping `RecordExpense`, `RecordIncome`, `RecordTransfer`; each submit sends a fresh `Idempotency-Key` so double clicks never duplicate (HU-E0-10).
 - The list uses cursor pagination with a "Load more" control (50 per page) and the period selector follows the space period policy (HU-E4-04).
+- Time (HU-E4-14, HU-E1-14): every transaction a person records has a time. The forms default to now in the user's time zone and always send `occurredAt` with the browser's zone; the form never sends a date alone and offers no way to clear the time. A row that has no time (a scheduler occurrence or a migrated row) gets its first time by editing. The list groups by day under headings with i18n keys (`ledger.day.today`, `ledger.day.yesterday`, then the date in the user's date format) and orders each day by time, untimed rows last. A row shows the wall-clock time in the record's zone, in the user's time format (HU-E1-15), plus the zone's name when it differs from the viewer's; recurring and imported rows show no time.
+- Date and time sheet: the chip in the form opens it. The chip reads the day, a middle dot and the time in the user's time format, such as "Today · 23:30", "Yesterday · 19:00" or "Yesterday · 7:00 PM"; an older day shows its date in the user's date format. The day names are the keys `ledger.day.today`, `ledger.day.yesterday` and `ledger.day.dayBeforeYesterday`. The sheet holds, from top to bottom:
+  - three quick-day buttons: Today, Yesterday and The day before yesterday;
+  - a month calendar whose week starts on the user's `weekStart` (HU-E1-15);
+  - an hour stepper and a minute stepper; the minute moves in 5-minute steps and snaps to the nearest multiple of 5, so a carried-over :32 becomes :30;
+  - minute shortcuts `:00`, `:15`, `:30` and `:45`, and a "Now" button;
+  - a clock that follows `timeFormat`: hours 00–23 for `H24`, or hours 1–12 with an AM/PM toggle for `H12`.
+- Validation errors from the API, such as `errors.InvalidAmount` for 0 COP, are shown next to their field and nothing is created (the pattern of HU-E9-01).
+- Category picker (HU-E3-04, HU-E3-05): parent categories first, each with its icon and color; choosing one shows its subcategories as optional chips in the same sheet; a subcategory is never required. Creating or editing a category from the form is HU-E9-12.
+- Accounts screen (HU-E2-05 … HU-E2-07): type icon and color, institution and last four digits per account; card limit, available credit and next cut-off and payment dates; the "Available" and "Net worth" totals of the space. The account form shows only the attributes of the chosen type and the two switches; the type cannot change after creation.
 
 ---
 
 ## HU-E9-04 — Categories management screen
 
-- **Milestone:** M6 · **Priority:** Should · **Size:** S · **Depends on:** HU-E3-01, HU-E3-02, HU-E3-03, HU-E9-01 · **Module(s):** `categories/ui`
+- **Milestone:** M6 · **Priority:** Should · **Size:** S · **Depends on:** HU-E3-01, HU-E3-02, HU-E3-03, HU-E3-04, HU-E3-05, HU-E9-01 · **Module(s):** `categories/ui`
 
-**User story:** As a space admin, I want a screen to organize the two-level category tree, so that I can keep categories tidy without breaking history.
+**User story:** As a space admin, I want a screen to organize the category tree and its optional subcategories, so that I can keep categories tidy without breaking history.
 
 ```gherkin
 Feature: Categories screen
@@ -186,9 +229,26 @@ Feature: Categories screen
     When "Ana" opens the categories screen
     Then the group "Vivienda" lists "Arriendo", "Servicios" and "Mantenimiento"
 
-  Scenario: Create a category in a group
+  Scenario: Create a group, a category and a subcategory, and no deeper level is offered
+    When "Ana" taps "New group" on the screen and creates "Pets" with the symbol "paw" and the color "OLIVE"
+    Then "Pets" appears as a group without reloading the page
     When "Ana" adds the category "Bakery" to the group "Food" in "Household"
     Then "Bakery" appears under "Food" without reloading the page
+    When "Ana" adds the subcategory "Vegetables" to the category "Groceries"
+    Then "Vegetables" appears nested under "Groceries"
+    And "Vegetables" offers no control to add a subcategory under it
+
+  Scenario: Change a category's icon, color and group
+    Given "Groceries" shows the symbol "cart" in "SAND" and has the subcategories "Vegetables" and "Meat"
+    When "Ana" opens "Groceries" from the categories screen
+    Then the icon picker shows 11 quick choices and a "see all" tile
+    And the color row shows all 16 colors
+    When "Ana" taps "see all", opens the Emoji tab of the library, finds "🛒" by searching for its name and chooses it
+    And chooses the color "PLUM"
+    And taps "New group" in the group choice of the category form and creates "Pantry"
+    And saves
+    Then the tree and the expense form show "Groceries" with "🛒" in "PLUM" under the group "Pantry"
+    And its subcategories "Vegetables" and "Meat" move with it and show the same icon and color
 
   @e2e
   Scenario: A referenced category is offered for archiving instead of deletion
@@ -205,13 +265,19 @@ Feature: Categories screen
   Scenario: Viewers see the tree read-only
     Given "Sofi" is VIEWER of "Household"
     When "Sofi" opens the categories screen of "Household"
-    Then no create, rename, move, archive or delete controls are shown
+    Then no create, edit, move, archive or delete controls are shown, "New group" among them
 ```
 
 **Technical notes:**
-- `CategoryTreeContainer` over a presentational `CategoryTree`; actions call `CreateCategory`, `RenameCategory`, `MoveCategory`, `ArchiveCategory`, `RestoreCategory`, `DeleteCategory`.
+- `CategoryTreeContainer` over a presentational `CategoryTree`; actions call `CreateCategory`, `CreateCategoryGroup`, `RenameCategory`, `MoveCategory`, `ArchiveCategory`, `RestoreCategory`, `DeleteCategory`.
 - Control visibility follows the role returned for the current member; the use cases still enforce authorization (HU-E1-05).
 - Seeded names are user data and are shown as stored, never re-translated (HU-E3-01).
+- Subcategories (HU-E3-04) are nested and collapsible under their category; moving a category moves its subcategories, and archiving a category says that its subcategories are archived too. A `CategoryDepthExceeded` or `ParentCategoryArchived` from the API is shown through its `errors.<Code>` key.
+- Edit sheet (HU-E3-05): tapping a row opens it, with the name, the group choice, an icon picker, the color row, the list of subcategories, and archive or delete. Choosing another group moves the category with its subcategories. A subcategory row hides the icon and color pickers, because it shows its parent's style. Entry points: Avatar › Categories, and "Manage" in the category picker of the expense form.
+- Icon picker: an "Icons" and an "Emoji" tab, each with 11 quick choices and a "see all" tile. The quick symbols are cart, bread, cup, fork, bus, home, bulb, heart, gift, book and gym; the quick emoji are the first 11 of the emoji library. A current choice outside the quick set takes the first slot, so it is always visible and selected. The edit sheet, the new-group sheet and the sheets of HU-E9-12 share this picker.
+- Icon library: "see all" opens a sheet over the current one, which keeps its draft. It has the same "Icons" and "Emoji" tabs, a search field and the choices in sections (the nine of HU-E3-05 for symbols, its own for emoji). The search ignores case and matches a choice's label or its section's name; with no match it says so. Choosing applies the choice and closes the library; back closes it unchanged. Labels and section names come from the message catalogs (HU-E9-02); sections are UI-only, so the API still receives one symbol name or one emoji.
+- Color row: all 16 palette keys of HU-E3-05 as swatches, each named by its localized label for assistive technology; each key takes its light or dark tokens from the theme.
+- Groups: "New group" is a "+" on the screen's header and the last choice of the group choice in the category form. Both open one sheet (name, icon picker, color row, "Create group", calling `CreateCategoryGroup`); from the category form, creating selects the new group there and the form keeps its draft, and back leaves without creating. Like every create control, both show only to roles that manage the tree.
 
 ---
 
@@ -479,9 +545,9 @@ Feature: Recurring transactions screens
 
 ## HU-E9-10 — Space dashboards: lines, member matrix and fund tracking
 
-- **Milestone:** M6 · **Priority:** Must · **Size:** M · **Depends on:** HU-E7-01, HU-E7-02, HU-E7-03, HU-E9-08 · **Module(s):** `reporting/ui`
+- **Milestone:** M6 · **Priority:** Must · **Size:** M · **Depends on:** HU-E7-01, HU-E7-02, HU-E7-03, HU-E7-06, HU-E9-08 · **Module(s):** `reporting/ui`
 
-**User story:** As a household member, I want dashboards for budget lines, the member matrix and fund contributions, so that we see at a glance how the month is going against the plan.
+**User story:** As a household member, I want dashboards for budget lines, the member matrix, fund contributions and spending by category group, so that we see at a glance how the month is going against the plan and where the money went.
 
 ```gherkin
 Feature: Space dashboards
@@ -520,20 +586,33 @@ Feature: Space dashboards
     Given "Ana" contributed 480,000 COP on 2026-11-02 and "Juan" contributed 500,000 COP on 2026-11-03
     When "Ana" opens fund tracking for 2026-11
     Then "Juan" shows expected 720,000 COP, actual 500,000 COP and difference -220,000 COP
+
+  Scenario: Spending by group drills down to categories and subcategories
+    Given "Groceries" has the subcategories "Vegetables" and "Meat"
+    And its 900,000 COP of the E7 shared fixture is recorded as 450,000 COP in "Groceries", 270,000 COP in "Vegetables" and 180,000 COP in "Meat"
+    When "Ana" opens the dashboard of "Household" for 2026-11 and chooses the view "By group"
+    Then the chart shows "Housing" 1,600,000 COP (56.94%), "Food" 960,000 COP (34.16%) and "Leisure" 250,000 COP (8.90%)
+    When "Ana" taps "Food"
+    Then the chart shows "Groceries" 900,000 COP (93.75%) and "Restaurants" 60,000 COP (6.25%) under the breadcrumb "Food"
+    When "Ana" taps "Groceries"
+    Then the chart shows the slice of the key "reports.byGroup.noSubcategory" with 450,000 COP (50.00%), "Vegetables" 270,000 COP (30.00%) and "Meat" 180,000 COP (20.00%) under the breadcrumb "Food › Groceries"
+    When "Ana" taps "Food" in the breadcrumb
+    Then the categories of "Food" are shown again
 ```
 
 **Technical notes:**
 - Containers `LineDashboardContainer`, `MemberMatrixContainer`, `FundTrackingContainer`; presentational chart components (Recharts bar per line) receive DTOs only (moved from HU-E7-01).
 - Reason and status codes (`TRACKED_AT_FUND_LEVEL`, `NOT_ALLOCATED`, `OVER_CONTRIBUTED`) map to `reports.reason.<Code>` and `reports.status.<Code>` keys.
 - Viewers see every dashboard; period navigation follows the space period policy.
+- Spending by group (HU-E7-06): `SpendingByGroupContainer` loads `GET /api/v1/spaces/{spaceId}/reports/spending-by-group` once and passes the tree to a presentational `SpendingChart` (a Recharts donut or bar chart of the groups, with a table of the same figures) and a `DrillBreadcrumb`. Tapping a slice or row goes one level down, from group to category to subcategory, and the breadcrumb (`Food › Groceries`) goes back up; drilling is done on the client over the one response and makes no further request. The entry without a subcategory (`subcategoryId` null) reads the key `reports.byGroup.noSubcategory`, and an `archived` node carries the badge of the key `reports.byGroup.archived`. Amounts and shares come from the API and are rendered with the user's number format (HU-E1-15); the UI never recomputes them.
 
 ---
 
 ## HU-E9-11 — Personal dashboards: unified view and trends
 
-- **Milestone:** M6 · **Priority:** Must · **Size:** M · **Depends on:** HU-E7-04, HU-E7-05, HU-E9-01 · **Module(s):** `reporting/ui`
+- **Milestone:** M6 · **Priority:** Must · **Size:** M · **Depends on:** HU-E7-04, HU-E7-05, HU-E7-06, HU-E9-01 · **Module(s):** `reporting/ui`
 
-**User story:** As a user, I want my unified personal view and trend charts on screen, so that I know my real consumption and cash out across all my spaces and how they evolve.
+**User story:** As a user, I want my unified personal view, my spending by category group and trend charts on screen, so that I know my real consumption and cash out across all my spaces, where the money went and how it evolves.
 
 ```gherkin
 Feature: Personal dashboards
@@ -565,9 +644,172 @@ Feature: Personal dashboards
     Given "Ana" had consumption in each period from 2026-06 to 2026-11
     When "Ana" opens her personal trend ending 2026-11
     Then a line chart with 6 points from 2026-06 to 2026-11 is shown
+
+  Scenario: Spending by group merges seeded groups and labels custom ones by space
+    Given "Ana" has the November 2026 movements of the HU-E7-04 fixture
+    And "Household" has the custom group "Pets" with the category "Vet", where "Ana"'s share of a 50,000 COP expense is 25,000 COP
+    When "Ana" opens her unified view for 2026-11 and chooses the view "By group"
+    Then the chart shows "Food" 1,095,000 COP (68.44%), "Housing" 480,000 COP (30.00%) and "Household / Pets" 25,000 COP (1.56%)
+    When "Ana" taps "Food"
+    Then the chart shows "Groceries" from her personal space and "Household" as one slice of 1,035,000 COP (94.52%) and "Restaurants" 60,000 COP (5.48%) under the breadcrumb "Food"
 ```
 
 **Technical notes:**
 - Containers `UnifiedViewContainer`, `LineTrendContainer`, `PersonalTrendContainer`; Recharts line charts with a default window of 6 periods (moved from HU-E7-05).
 - The unified view uses the viewer's personal period and catalog-key grouping from the API (spec D11); custom categories show as "space / category".
-- The change status `NEW` renders the `reports.trend.new` badge; percentages use the locale's number format with two decimals.
+- The change status `NEW` renders the `reports.trend.new` badge; percentages use the user's number format (HU-E1-15) with two decimals.
+- Spending by group (HU-E7-06): `PersonalSpendingByGroupContainer` loads `GET /api/v1/me/reports/spending-by-group` once and uses the same presentational `SpendingChart` and `DrillBreadcrumb` as HU-E9-10 (shared in `reporting/ui`; whichever story lands first builds them), with the same drill-down on the client and the same keys. Seeded rows arrive merged by catalog key. A custom group or category shows as "space / group" or "space / category", written from the row's `space.name` and `name` through one i18n pattern, never by joining strings, and a subcategory shows as "space / subcategory" because subcategories carry no key.
+
+---
+
+## HU-E9-12 — Manage categories without leaving the expense form
+
+- **Milestone:** M6 · **Priority:** Should · **Size:** S · **Depends on:** HU-E3-02, HU-E3-04, HU-E3-05, HU-E9-03, HU-E9-04 · **Module(s):** `ledger/ui`, `categories/ui`
+
+**User story:** As a member who manages the category tree, I want to create or edit a category from the expense form without losing what I typed, so that recording an expense never stops for housekeeping.
+
+```gherkin
+Feature: Manage categories without leaving the expense form
+
+  Background:
+    Given "Ana" is signed in, and her personal space has the category "Groceries" with the subcategories "Vegetables" and "Meat" in the group "Food"
+
+  Scenario: Create a category without leaving the expense form
+    Given "Ana" entered 45,000 COP and "Bread" in the new expense form
+    When "Ana" opens the category picker, chooses "New category" and creates "Bakery" in the group "Food"
+    Then the form still shows 45,000 COP and "Bread", now with "Bakery" selected
+    And saving records the expense in "Bakery"
+    And creating "Bakery" as a subcategory of "Groceries" instead returns with "Groceries › Bakery" selected
+
+  Scenario: Create a group from the new-category sheet
+    Given "Ana" entered 45,000 COP and "Bread" in the new expense form
+    When "Ana" opens the category picker, chooses "New category" and types "Bakery"
+    And taps "New group" in the sheet and creates "Treats" with the emoji "🍰" and the color "ROSE"
+    Then the new-category sheet is back with "Bakery" typed and "Treats" selected as its group
+    When "Ana" saves the category
+    Then "Bakery" is created in "Treats" and selected
+    And the form still shows 45,000 COP and "Bread"
+
+  Scenario: Edit the chosen category from the expense form
+    Given "Ana" entered 45,000 COP and "Bread" in the new expense form and selected "Groceries"
+    When "Ana" chooses the edit control of "Groceries" in the form, opens the icon library with "see all", picks the emoji "🛒" there and picks the color "PLUM"
+    And saves the category
+    Then the form keeps 45,000 COP, "Bread" and "Groceries"
+    And "Groceries" is now shown with "🛒" in "PLUM"
+
+  Scenario: Members who cannot manage categories see no create or edit control in the form
+    Given "Sofi" is MEMBER of "Household", a role that may record expenses there but not manage its categories
+    When "Sofi" opens the new expense form and its category picker
+    Then the picker offers no "New category"
+    And no edit controls are shown
+```
+
+**Technical notes:**
+- The category picker offers "New category" and an edit control per row. The subcategory chips row offers an "Edit" control for the chosen category. All of these appear only when the member's role manages the category tree.
+- Each opens a sheet stacked over the form. The form state lives in `ExpenseFormContainer`, and the sheets never reset it.
+- Creating returns with the new category or subcategory selected. A toast offers undo: a logical delete of the still-unreferenced category, or patching back the previous values.
+- The new-category sheet suggests the group of the current category and lets the member place the new one as a category of that group or as a subcategory of the current category. A subcategory takes its parent's style, so its sheet hides the icon and color pickers.
+- Its group choice ends with "New group", which stacks the new-group sheet of HU-E9-04 over it (name, icon, color, `CreateCategoryGroup`). "Create group" records the group at once and returns to the sheet with the new group selected, so the category being created is placed in it; the typed name and the choices made so far are kept, and back leaves without creating the group. Undo (above) covers the category only: a group is archived, never deleted (spec 5.2), so the new group stays until it is archived from the categories screen.
+- The icon and color choices of these sheets are those of HU-E9-04: 11 quick choices and a "see all" tile that opens the icon library (sections, search, an "Icons" and an "Emoji" tab). The library is one more sheet stacked over the sheet that asked for it, so neither the expense form nor the draft category is reset.
+- Archive and delete stay on the categories screen (HU-E9-04).
+
+---
+
+## HU-E9-13 — Settings screen
+
+- **Milestone:** M6 · **Priority:** Must · **Size:** S · **Depends on:** HU-E1-14, HU-E1-15, HU-E9-01 · **Module(s):** `identity/ui`
+
+**User story:** As a user, I want one Settings screen where I choose my formats, region, appearance and language and see the result at once, so that the app reads the way I am used to.
+
+```gherkin
+Feature: Settings screen
+
+  Background:
+    Given "Ana" is signed in with the locale "es" and the timezone "America/Bogota"
+    And the installation rules are numberFormat "DOT_COMMA", timeFormat "H24", dateFormat "DMY" and weekStart "MONDAY"
+
+  @e2e
+  Scenario: Change the formats and see them applied at once
+    When "Ana" opens the Settings screen
+    Then it shows the sections "Formats", "Region" and "Appearance and language"
+    And the preview reads "1.234.567,89", "16/10/2026" and "14:30"
+    When "Ana" chooses the number format "1,234,567.89", the date format "10/16/2026" and the time format "12-hour"
+    Then each choice is stored as she makes it and the preview reads "1,234,567.89", "10/16/2026" and "2:30 PM"
+    And the transaction list shows her amounts, dates and times in the new formats
+
+  Scenario: The language changes only the texts
+    Given "Ana" saved the number format "1,234,567.89" and the time format "12-hour"
+    When "Ana" chooses the language "English"
+    Then the screen is shown in English
+    And the preview still reads "1,234,567.89" and "2:30 PM"
+
+  Scenario: A field following the rule says "Default", and Reset returns a changed field to the rule
+    Given "Ana" never changed the date format
+    Then the date format shows "16/10/2026" with the label of the key "settings.default"
+    Given "Ana" saved the time format "12-hour"
+    Then the time format offers "Reset" instead of the default label
+    When "Ana" chooses "Reset" on the time format
+    Then the preview reads "14:30" and the time format shows the label of the key "settings.default"
+    And "GET /api/v1/me" returns the stored timeFormat null
+
+  Scenario: A field locked by the installation rules shows a lock badge
+    Given the installation rules lock the dateFormat
+    And "Ana" had stored the dateFormat "MDY" before the lock
+    When "Ana" opens the Settings screen
+    Then the date format shows "DMY" with the badge of the key "settings.locked"
+    And its selector and "Reset" are disabled
+    And the other fields stay editable
+```
+
+**Technical notes:**
+- Container `SettingsContainer` over presentational `SettingsForm`, `FormatPreview` and `LockBadge`. It loads `GET /api/v1/me` (`preferences.stored`, `effective`, `defaults`, `locked`) and saves with `PATCH /api/v1/me` (HU-E1-14, HU-E1-15); a problem+json code such as `InvalidTimeZone` maps to its `errors.<Code>` key and shows next to the field.
+- Sections:
+  - Formats: number format, date format, time format and the first day of the week;
+  - Region: the time zone, from a searchable list of IANA zones;
+  - Appearance and language: the theme (system, light or dark) and the language (`es` or `en`).
+- There is no "Save" button: each choice is sent with `PATCH /api/v1/me` as it is made (optimistic, rolled back with its error next to the field on failure). The live preview renders fixed sample values (1,234,567.89, 2026-10-16 and 14:30) with the same `formatters` as the rest of the app (HU-E9-02).
+- A field that follows the installation rule shows the label `settings.default`. A field the person changed shows "Reset", which returns it to the rule: for the four formats it clears the stored value (`null`); for the time zone and the language it stores the installation's value.
+- A field named in `preferences.locked` is shown read-only with a lock badge (`settings.locked`) and its effective value. Until HU-E8-18 is `Done` (M5) no field is ever locked, so the badge scenario runs as a component test with a stubbed `locked` list.
+- The theme is a device setting kept in the browser, outside the profile and the installation rules. Choosing the language reloads the screen with the new texts; the formats never change with it.
+
+---
+
+## HU-E9-14 — Installation rules screen
+
+- **Milestone:** M6 · **Priority:** Should · **Size:** S · **Depends on:** HU-E8-18, HU-E9-01 · **Module(s):** `identity/ui`
+
+**User story:** As the installation administrator, I want a screen for the brand and the defaults, with a switch per field to let people change it or not, and a live preview, so that I can brand my installation and set its rules without calling the API.
+
+```gherkin
+Feature: Installation rules screen
+
+  Background:
+    Given "Ana" is an installation administrator and "Juan" is an ordinary user
+
+  @e2e
+  Scenario: Brand the installation and see it at once
+    When "Ana" opens the Installation rules screen
+    And enters the brand name "Casa Gómez", chooses the accent "PLUM" and uploads a logo
+    Then the preview shows the app header with "Casa Gómez", the logo and the "PLUM" accent
+    When "Ana" saves
+    Then the sign-in screen of a visitor shows "Casa Gómez", the logo and the "PLUM" accent
+    And "Juan" sees the same brand in the app shell
+
+  Scenario: Set a default and stop people from changing it
+    When "Ana" sets the default time format "12-hour" and turns off "People may change it" for it
+    Then the preview of a sample person's Settings screen shows the time format "12-hour" with a lock badge
+    And after saving, "Juan" sees the time format "12-hour" with the badge of the key "settings.locked" on his Settings screen
+
+  Scenario: Ordinary users do not see the screen
+    When "Juan" opens the user menu
+    Then it offers no "Installation rules" entry
+    When "Juan" opens the Installation rules page directly
+    Then the message of the key "errors.InstallationAdminRequired" is shown and nothing can be saved
+```
+
+**Technical notes:**
+- Container `InstallationRulesContainer` over presentational `InstallationRulesForm` and `BrandPreview`; it calls `GET` and `PATCH /api/v1/installation` (with `If-Match`; a 412 shows `errors.PreconditionFailed` and reloads, HU-E0-10), and the logo endpoints (HU-E8-18).
+- Sections: Brand (name, logo, accent from the HU-E3-05 palette) and Defaults (the four formats, time zone, language and the currency of new spaces). Each default has a "People may change it" switch; turning it off adds the field to `lockedFields`.
+- The preview shows the app header with the brand and a sample of the formats; nothing is stored before "Save".
+- The entry appears in the user menu only when `GET /api/v1/me` returns `installationAdmin`; the use cases still enforce it. The role is granted outside the app (HU-E8-18).
+- From this story on the app shell and the sign-in and sign-up screens (HU-E9-01) take the brand from the public `GET /api/v1/installation`; until HU-E8-18 is `Done` they show the built-in Hearth brand and the default accent.

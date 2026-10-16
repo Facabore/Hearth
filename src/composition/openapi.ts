@@ -16,6 +16,12 @@ import {
   TransactionSchema,
 } from "@/modules/ledger/contracts/ledger.contract";
 import {
+  DefineRecurrenceBodySchema,
+  OccurrenceSchema,
+  RecurrenceSchema,
+  recurrencesPaths,
+} from "@/modules/ledger/contracts/recurrences.contract";
+import {
   InvitationSchema,
   SpaceMemberSchema,
   SpaceSummarySchema,
@@ -38,6 +44,7 @@ export const buildOpenApiDocument = (): Record<string, unknown> =>
       ...categoriesPaths,
       ...accountsPaths,
       ...ledgerPaths,
+      ...recurrencesPaths,
       ...balancesPaths,
       ...budgetingPaths,
     },
@@ -55,7 +62,10 @@ export const buildOpenApiDocument = (): Record<string, unknown> =>
         Period: PeriodSchema,
         Transaction: TransactionSchema,
         RecordedExpense: RecordedExpenseSchema,
+        RecurrenceDefinition: DefineRecurrenceBodySchema,
         BudgetPlan: BudgetPlanSchema,
+        Recurrence: RecurrenceSchema,
+        Occurrence: OccurrenceSchema,
       },
       securitySchemes: {
         cookieAuth: { type: "apiKey", in: "cookie", name: "hearth.session_token" },

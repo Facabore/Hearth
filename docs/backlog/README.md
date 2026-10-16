@@ -138,18 +138,27 @@ A UI story is `Done` when:
 | [HU-E6-03](E6-budgeting.md) | Add budget lines and show unallocated capacity | E6 | M3 | Must | M | Done | HU-E6-02 |
 | [HU-E6-04](E6-budgeting.md) | Map categories to budget lines | E6 | M3 | Must | S | Done | HU-E6-03, HU-E3-02 |
 | [HU-E6-05](E6-budgeting.md) | Allocate a budget line among members | E6 | M3 | Must | M | Done | HU-E6-03 |
-| [HU-E6-06](E6-budgeting.md) | Copy a plan from the previous period | E6 | M3 | Must | M | Backlog | HU-E6-04, HU-E6-05 |
-| [HU-E6-07](E6-budgeting.md) | Activate and close a plan | E6 | M3 | Must | M | Backlog | HU-E6-05 |
-| [HU-E6-08](E6-budgeting.md) | Default split by allocation | E6 | M3 | Must | M | Backlog | HU-E6-04, HU-E6-05, HU-E6-07, HU-E4-07, HU-E5-01 |
-| [HU-E6-09](E6-budgeting.md) | Apply rollover modes | E6 | M3 | Must | M | Backlog | HU-E6-04, HU-E6-07 |
+| [HU-E6-06](E6-budgeting.md) | Copy a plan from the previous period | E6 | M3 | Must | M | Done | HU-E6-04, HU-E6-05 |
+| [HU-E6-07](E6-budgeting.md) | Activate and close a plan | E6 | M3 | Must | M | Done | HU-E6-05 |
+| [HU-E6-08](E6-budgeting.md) | Default split by allocation | E6 | M3 | Must | M | Done | HU-E6-04, HU-E6-05, HU-E6-07, HU-E4-07, HU-E5-01 |
+| [HU-E6-09](E6-budgeting.md) | Apply rollover modes | E6 | M3 | Must | M | Done | HU-E6-04, HU-E6-07 |
 | [HU-E4-11](E4-ledger.md) | Define and manage recurring transactions | E4 | M3 | Must | M | Backlog | HU-E4-07, HU-E0-04, HU-E1-10 |
 | [HU-E4-12](E4-ledger.md) | Record due occurrences automatically | E4 | M3 | Must | M | Backlog | HU-E4-11, HU-E6-07, HU-E6-08 |
 | [HU-E4-13](E4-ledger.md) | Confirm variable-amount occurrences | E4 | M3 | Must | S | Backlog | HU-E4-12 |
+| [HU-E1-14](E1-identity-and-spaces.md) | Set my time zone | E1 | M3-D | Must | S | Backlog | HU-E1-01 |
+| [HU-E1-15](E1-identity-and-spaces.md) | Formatting preferences | E1 | M3-D | Must | S | Backlog | HU-E1-01, HU-E1-14 |
+| [HU-E4-14](E4-ledger.md) | Record the time of a transaction | E4 | M3-D | Must | M | Backlog | HU-E1-14, HU-E4-05, HU-E4-06, HU-E4-12, HU-E4-13 |
+| [HU-E3-04](E3-categories.md) | Optional subcategories | E3 | M3-D | Must | M | Backlog | HU-E3-02, HU-E3-03, HU-E4-05, HU-E6-04 |
+| [HU-E3-05](E3-categories.md) | Category icon and color | E3 | M3-D | Must | S | Backlog | HU-E3-01, HU-E3-02, HU-E3-04 |
+| [HU-E2-05](E2-accounts.md) | More account types with common attributes | E2 | M3-D | Must | S | Backlog | HU-E2-01, HU-E2-03 |
+| [HU-E2-06](E2-accounts.md) | Type-specific account attributes | E2 | M3-D | Must | M | Backlog | HU-E2-05 |
+| [HU-E2-07](E2-accounts.md) | Available money and net worth | E2 | M3-D | Must | M | Backlog | HU-E2-04, HU-E2-05 |
 | [HU-E7-01](E7-reporting.md) | Budget line dashboard | E7 | M4 | Must | M | Backlog | HU-E6-09 |
 | [HU-E7-02](E7-reporting.md) | Member by line matrix | E7 | M4 | Must | M | Backlog | HU-E6-08, HU-E7-01 |
 | [HU-E7-03](E7-reporting.md) | Shared fund contribution tracking | E7 | M4 | Must | S | Backlog | HU-E4-09, HU-E6-05 |
 | [HU-E7-04](E7-reporting.md) | Unified personal view | E7 | M4 | Must | M | Backlog | HU-E4-07, HU-E4-10 |
 | [HU-E7-05](E7-reporting.md) | Period-over-period trend | E7 | M4 | Should | S | Backlog | HU-E7-01, HU-E7-04 |
+| [HU-E7-06](E7-reporting.md) | Spending by category group with drill-down | E7 | M4 | Must | M | Backlog | HU-E3-02, HU-E3-04, HU-E3-05, HU-E7-04 |
 | [HU-E8-01](E8-hardening-and-later.md) | Nightly backups and restore drill | E8 | M5 | Must | M | Backlog | HU-E0-07 |
 | [HU-E8-02](E8-hardening-and-later.md) | Structured logging and health check | E8 | M5 | Should | M | Backlog | HU-E0-07 |
 | [HU-E8-04](E8-hardening-and-later.md) | Import transactions from CSV | E8 | M5 | Could | M | Backlog | HU-E4-01, HU-E4-02 |
@@ -159,19 +168,30 @@ A UI story is `Done` when:
 | [HU-E8-08](E8-hardening-and-later.md) | Notifications | E8 | M5 | Won't-v1 | M | Backlog | HU-E1-07, HU-E5-02 |
 | [HU-E8-09](E8-hardening-and-later.md) | Weekly and biweekly period policies | E8 | M5 | Won't-v1 | S | Backlog | HU-E0-04, HU-E1-03 |
 | [HU-E8-10](E8-hardening-and-later.md) | Keycloak as an external OIDC identity provider | E8 | M5 | Won't-v1 | M | Backlog | HU-E1-01, HU-E1-02 |
+| [HU-E8-11](E8-hardening-and-later.md) | Credit card purchases in installments with interest | E8 | M5 | Could | M | Backlog | HU-E2-06, HU-E2-07, HU-E4-01, HU-E4-13 |
+| [HU-E8-12](E8-hardening-and-later.md) | CDT yield projection with withholding tax | E8 | M5 | Could | S | Backlog | HU-E2-06, HU-E2-07 |
+| [HU-E8-13](E8-hardening-and-later.md) | Loan amortization schedule and extra payments | E8 | M5 | Could | M | Backlog | HU-E2-06, HU-E4-01, HU-E4-03 |
+| [HU-E8-14](E8-hardening-and-later.md) | Personal and shared savings goals | E8 | M5 | Could | M | Backlog | HU-E2-05, HU-E4-03, HU-E4-11 |
+| [HU-E8-15](E8-hardening-and-later.md) | Debts with people outside my spaces | E8 | M5 | Could | S | Backlog | HU-E2-05, HU-E2-07, HU-E4-03, HU-E5-01 |
+| [HU-E8-16](E8-hardening-and-later.md) | Reminders for card dates, CDT maturity and recurrences | E8 | M5 | Could | M | Backlog | HU-E1-14, HU-E2-06, HU-E4-12, HU-E4-13, HU-E8-08 |
+| [HU-E8-17](E8-hardening-and-later.md) | Net worth over time | E8 | M5 | Could | M | Backlog | HU-E2-04, HU-E2-07 |
+| [HU-E8-18](E8-hardening-and-later.md) | Installation rules for a white-label deployment | E8 | M5 | Should | M | Backlog | HU-E1-14, HU-E1-15 |
 | [HU-E9-01](E9-web-ui.md) | App shell, sign-in and sign-up screens | E9 | M6 | Must | M | Backlog | HU-E1-01, HU-E1-02, HU-E9-02 |
-| [HU-E9-02](E9-web-ui.md) | Internationalization setup (es, en) | E9 | M6 | Must | S | Backlog | HU-E0-01, HU-E1-01 |
-| [HU-E9-03](E9-web-ui.md) | Personal ledger screens | E9 | M6 | Must | M | Backlog | HU-E2-01, HU-E2-03, HU-E2-04, HU-E4-01, HU-E4-02, HU-E4-03, HU-E4-05, HU-E9-01 |
-| [HU-E9-04](E9-web-ui.md) | Categories management screen | E9 | M6 | Should | S | Backlog | HU-E3-01, HU-E3-02, HU-E3-03, HU-E9-01 |
+| [HU-E9-02](E9-web-ui.md) | Internationalization setup (es, en) | E9 | M6 | Must | S | Backlog | HU-E0-01, HU-E1-01, HU-E1-15 |
+| [HU-E9-03](E9-web-ui.md) | Personal ledger screens | E9 | M6 | Must | M | Backlog | HU-E1-14, HU-E1-15, HU-E2-01, HU-E2-03, HU-E2-04, HU-E2-05, HU-E2-06, HU-E2-07, HU-E3-04, HU-E3-05, HU-E4-01, HU-E4-02, HU-E4-03, HU-E4-05, HU-E4-14, HU-E9-01 |
+| [HU-E9-04](E9-web-ui.md) | Categories management screen | E9 | M6 | Should | S | Backlog | HU-E3-01, HU-E3-02, HU-E3-03, HU-E3-04, HU-E3-05, HU-E9-01 |
 | [HU-E9-05](E9-web-ui.md) | Shared spaces, members, guests and invitations screens | E9 | M6 | Must | M | Backlog | HU-E1-04, HU-E1-05, HU-E1-06, HU-E1-07, HU-E1-10, HU-E1-11, HU-E1-12, HU-E9-01 |
 | [HU-E9-06](E9-web-ui.md) | Record a shared expense with split options | E9 | M6 | Must | M | Backlog | HU-E1-13, HU-E4-07, HU-E4-08, HU-E4-10, HU-E9-03, HU-E9-05 |
 | [HU-E9-07](E9-web-ui.md) | Balances and settle-up screen | E9 | M6 | Must | M | Backlog | HU-E5-01, HU-E5-02, HU-E5-03, HU-E5-04, HU-E9-05 |
 | [HU-E9-08](E9-web-ui.md) | Budget planner screens | E9 | M6 | Must | M | Backlog | HU-E6-01, HU-E6-02, HU-E6-03, HU-E6-04, HU-E6-05, HU-E6-06, HU-E6-07, HU-E6-09, HU-E9-05 |
 | [HU-E9-09](E9-web-ui.md) | Recurring transactions and pending confirmations screens | E9 | M6 | Should | M | Backlog | HU-E4-11, HU-E4-12, HU-E4-13, HU-E9-06 |
-| [HU-E9-10](E9-web-ui.md) | Space dashboards: lines, member matrix and fund tracking | E9 | M6 | Must | M | Backlog | HU-E7-01, HU-E7-02, HU-E7-03, HU-E9-08 |
-| [HU-E9-11](E9-web-ui.md) | Personal dashboards: unified view and trends | E9 | M6 | Must | M | Backlog | HU-E7-04, HU-E7-05, HU-E9-01 |
+| [HU-E9-10](E9-web-ui.md) | Space dashboards: lines, member matrix and fund tracking | E9 | M6 | Must | M | Backlog | HU-E7-01, HU-E7-02, HU-E7-03, HU-E7-06, HU-E9-08 |
+| [HU-E9-11](E9-web-ui.md) | Personal dashboards: unified view and trends | E9 | M6 | Must | M | Backlog | HU-E7-04, HU-E7-05, HU-E7-06, HU-E9-01 |
+| [HU-E9-12](E9-web-ui.md) | Manage categories without leaving the expense form | E9 | M6 | Should | S | Backlog | HU-E3-02, HU-E3-04, HU-E3-05, HU-E9-03, HU-E9-04 |
+| [HU-E9-13](E9-web-ui.md) | Settings screen | E9 | M6 | Must | S | Backlog | HU-E1-14, HU-E1-15, HU-E9-01 |
+| [HU-E9-14](E9-web-ui.md) | Installation rules screen | E9 | M6 | Should | S | Backlog | HU-E8-18, HU-E9-01 |
 
-**Totals:** 80 active stories — E0: 9 · E1: 13 · E2: 4 · E3: 3 · E4: 13 · E5: 4 · E6: 9 · E7: 5 · E8: 9 · E9: 11. Retired IDs: HU-E0-08 (moved to HU-E9-02) and HU-E8-03 (moved to HU-E4-11 … HU-E4-13).
+**Totals:** 100 active stories — E0: 9 · E1: 15 · E2: 7 · E3: 5 · E4: 14 · E5: 4 · E6: 9 · E7: 6 · E8: 17 · E9: 14. Retired IDs: HU-E0-08 (moved to HU-E9-02) and HU-E8-03 (moved to HU-E4-11 … HU-E4-13).
 
 ## Milestone map
 
@@ -181,9 +201,10 @@ A UI story is `Done` when:
 | **M1** Personal ledger API | Accounts, categories, personal expenses and income, period queries | HU-E1-03, HU-E2-01, HU-E2-03, HU-E2-04, HU-E3-01 … HU-E3-03, HU-E4-01 … HU-E4-06 |
 | **M2** Shared spaces API | Invitations, guests, direct spaces, shared expenses with split methods, balances, settlements | HU-E1-04 … HU-E1-13, HU-E2-02, HU-E4-07 … HU-E4-10, HU-E5-01 … HU-E5-04 |
 | **M3** Allocated budgets API | Plans, capacity, lines, allocations, default split by allocation, rollover, recurring transactions | HU-E6-01 … HU-E6-09, HU-E4-11 … HU-E4-13 |
-| **M4** Insight API | Member/category dashboards, shared fund tracking, unified personal view | HU-E7-01 … HU-E7-05 |
-| **M5** Hardening | Backups, observability, import from Splitwise/CSV | HU-E8-01, HU-E8-02, HU-E8-04 … HU-E8-10 (HU-E8-06 … HU-E8-10 are Won't-v1 placeholders) |
-| **M6** Web UI | Screens for every area (epic E9); an area's UI may start as soon as its API milestone is done | HU-E9-01 … HU-E9-11 |
+| **M3-D** Ledger refinements for the UI | Proposed 2026-10-16, not yet in spec section 10: each user's time zone and formatting preferences, the time of every transaction, optional subcategories, category icons and colors, more account types with their attributes, available money and net worth | HU-E1-14, HU-E1-15, HU-E2-05 … HU-E2-07, HU-E3-04, HU-E3-05, HU-E4-14 |
+| **M4** Insight API | Member/category dashboards, shared fund tracking, unified personal view | HU-E7-01 … HU-E7-06 |
+| **M5** Hardening | Backups, observability, import from Splitwise/CSV | HU-E8-01, HU-E8-02, HU-E8-04 … HU-E8-18 (HU-E8-06 … HU-E8-10 are Won't-v1 placeholders; HU-E8-11 … HU-E8-17 are Could follow-ups of the account types; HU-E8-18 is the Should installation rules for white-label deployments) |
+| **M6** Web UI | Screens for every area (epic E9); an area's UI may start as soon as its API milestone is done | HU-E9-01 … HU-E9-14 |
 
 Notes on placement:
 
@@ -193,8 +214,13 @@ Notes on placement:
 - HU-E1-13 (direct spaces) lives in E1 because creating and reusing the space belongs to `spaces`; it reuses the shared-expense flow of HU-E4-07.
 - The unified-view assertions of HU-E1-11 (M2) become testable once HU-E7-04 (M4) lands.
 - The closed-period scenario of HU-E4-06 (M1) is active since HU-E6-07 (M3-B) provides the `ClosedPeriodGuard` adapter.
-- E9 parallel track: HU-E9-01 and HU-E9-02 can start after M0; HU-E9-03 and HU-E9-04 after M1; HU-E9-05 … HU-E9-07 after M2; HU-E9-08 and HU-E9-09 after M3; HU-E9-10 and HU-E9-11 after M4. The default-split scenarios of HU-E9-06 activate once HU-E6-08 (M3) is `Done`.
+- E9 parallel track: HU-E9-01 and HU-E9-02 can start after M0, with HU-E9-02 formatting from the built-in es-CO defaults until HU-E1-15 (M3-D) is `Done` and the preferences of `GET /api/v1/me` take over; HU-E9-03 and HU-E9-04 after M1, with their time, date and time sheet, subcategory, category icon and color, and account-type scenarios once M3-D is `Done`, and HU-E9-12 after both; HU-E9-05 … HU-E9-07 after M2; HU-E9-08 and HU-E9-09 after M3; HU-E9-10 and HU-E9-11 after M4; HU-E9-13 once HU-E1-14 and HU-E1-15 (M3-D) are `Done`; HU-E9-14 once HU-E8-18 (M5) is `Done`. The default-split scenarios of HU-E9-06 activate once HU-E6-08 (M3) is `Done`.
 - HU-E8-07 (PWA) is a web UI story kept in E8 as a Won't-v1 placeholder; it depends on HU-E9-01 and HU-E9-11 and follows the UI Definition of Done.
+- M3-D (proposed 2026-10-16) runs after M3-C and before M4. It settles the model that M4's reports and E9's screens read (transaction time, formatting preferences, category depth, account types and totals), so both are built once on the final model. Its stories keep their epics: HU-E1-14 and HU-E1-15 in E1 because the time zone and the formats belong to the user (`identity`), HU-E4-14 in E4, HU-E3-04 and HU-E3-05 in E3 and HU-E2-05 … HU-E2-07 in E2. The GitHub milestone does not exist yet.
+- M3-D amends delivered stories: HU-E3-02's invariant and depth scenario (a fourth level is refused) take effect with HU-E3-04; HU-E4-01's default date and HU-E4-05's ordering are refined by HU-E4-14, which also makes the time mandatory for every transaction a person records (only scheduler occurrences and migrated rows stay without one). Until then those stories behave as delivered.
+- HU-E1-15 (M3-D) and HU-E8-18 (M5) come from one decision of 2026-10-16: formats never come from the language, and a rules level above spaces and people lets a deployment run as a white label (installation rules → space → person, except what the rules lock). HU-E1-15 ships first, reading built-in es-CO defaults behind the `InstallationRulesReader` port; HU-E8-18 replaces them with stored rules, brand and locks, and the lock scenario of HU-E1-15 runs against a fake reader until then. HU-E8-18 lives in `identity` and amends delivered HU-E1-01 and HU-E1-02 (the sign-up language and the personal-space currency come from the rules; the built-in values equal the old literals, so nothing changes until an administrator edits them). Like M3-D, this decision is not yet in spec section 10.
+- HU-E7-06 (M4) comes from the owner decision of 2026-10-16 that category groups feed analytics. The immutable catalog `key` it needs on seeded category groups is added in M3-D by HU-E3-05, with the migration that back-fills styles, so HU-E7-06 reads the key and does not add it. Lines still map categories, the unified view still groups by catalog key and trends still go by line. HU-E9-10 and HU-E9-11 show the breakdown and depend on it.
+- HU-E8-11 … HU-E8-17 build on the account attributes of HU-E2-06 and HU-E2-07. HU-E8-16 (reminders) depends on HU-E8-08's `Notifier`, so bringing it forward brings that Won't-v1 placeholder with it.
 
 ## Open questions affecting the backlog
 

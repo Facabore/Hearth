@@ -2,11 +2,14 @@ import type {
   AccountReader,
   AuditEntry,
   AuditLog,
+  BalanceMovement,
   CategoryReader,
   Expense,
+  HistoryRange,
   Income,
   LedgerAccount,
   LedgerDeps,
+  MemberBalanceHistory,
   MemberMoneyTotals,
   Settlement,
   Transaction,
@@ -160,6 +163,57 @@ export class InMemoryTransactions implements TransactionRepository, TransactionQ
     return [...totals.entries()]
       .map(([memberId, sums]) => ({ memberId, ...sums }))
       .sort((a, b) => (a.memberId < b.memberId ? -1 : a.memberId > b.memberId ? 1 : 0));
+  }
+
+  /** The in-memory twin of DrizzleLedgerQueries.memberHistory (HU-E5-04); drizzle-balance-history.int.test.ts pins them. */
+  async memberHistory(spaceId: string, memberId: string, range: HistoryRange): Promise<MemberBalanceHistory> {
+    const changeOf = (t: Transaction): bigint => {
+      if (t.type === "SETTLEMENT") {
+        return t.payerMemberId === memberId ? t.amount : t.receivingMemberId === memberId ? -t.amount : 0n;
+      }
+      // D5: a fund-paid expense creates no debt.
+      if (t.type !== "EXPENSE" || t.payments.some((p) => p.memberId === null)) return 0n;
+      const paid = t.payments.filter((p) => p.memberId === memberId).reduce((sum, p) => sum + p.amount, 0n);
+      const share = t.shares.filter((s) => s.memberId === memberId).reduce((sum, s) => sum + s.amount, 0n);
+      return paid - share;
+    };
+    const byDateThenCreation = (a: Transaction, b: Transaction) =>
+      a.date !== b.date
+        ? a.date < b.date
+          ? -1
+          : 1
+        : a.createdAt.getTime() !== b.createdAt.getTime()
+          ? a.createdAt.getTime() - b.createdAt.getTime()
+          : a.id < b.id
+            ? -1
+            : a.id > b.id
+              ? 1
+              : 0;
+    const live = this.rows
+      .filter(
+        (t) => t.spaceId === spaceId && t.deletedAt === null && (range.to === null || t.date <= range.to),
+      )
+      .sort(byDateThenCreation);
+    let balance = 0n;
+    let opening = 0n;
+    const entries: BalanceMovement[] = [];
+    for (const t of live) {
+      const change = changeOf(t);
+      if (change === 0n) continue;
+      balance += change;
+      if (range.from !== null && t.date < range.from) opening = balance;
+      else {
+        entries.push({
+          transactionId: t.id,
+          type: t.type === "SETTLEMENT" ? "SETTLEMENT" : "EXPENSE",
+          date: t.date,
+          description: t.description,
+          change,
+          balance,
+        });
+      }
+    }
+    return { opening, entries };
   }
 
   private matching(f: TransactionFilter): Transaction[] {

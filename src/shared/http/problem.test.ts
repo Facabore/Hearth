@@ -64,6 +64,13 @@ describe("statusForCode", () => {
     ["SavingsLineNotMappable", 409],
     ["InvalidAllocation", 422],
     ["InvalidPlanTransition", 409],
+    ["InvalidRecurrenceTransition", 409],
+    ["RecurrenceNotFound", 404],
+    ["RecurrenceEnded", 409],
+    ["InvalidRecurrence", 422],
+    ["OccurrenceNotFound", 404],
+    ["OccurrenceNotPending", 409],
+    ["InvalidOccurrenceDate", 422],
     ["PeriodNotOver", 409],
     ["CategoryNotInSpace", 422],
     ["CategoryAlreadyMapped", 409],
@@ -140,6 +147,24 @@ describe("public details (HU-E1-08)", () => {
   it("never lets an extension member replace a standard one", async () => {
     const response = problemResponse("SpaceNotFound", "req-4", undefined, { code: "Other", status: 200 });
     expect(await response.json()).toMatchObject({ code: "SpaceNotFound", status: 404 });
+  });
+
+  it("names the member a recurrence's resume or edit is refused for: its creator, not the requester (HU-E4-11)", async () => {
+    expect([
+      publicDetailsOf("InsufficientRole", { member: "creator" }),
+      publicDetailsOf("NotASpaceMember", { member: "creator", memberId: "m-1" }),
+      publicDetailsOf("InsufficientRole"),
+      publicDetailsOf("AccountNotOwned", { member: "creator" }),
+    ]).toEqual([{ member: "creator" }, { member: "creator" }, {}, {}]);
+    const response = problemResponse("NotASpaceMember", "req-5", undefined, { member: "creator" });
+    expect(await response.json()).toEqual({
+      type: "urn:hearth:problem:NotASpaceMember",
+      title: "Unprocessable Content",
+      status: 422,
+      code: "NotASpaceMember",
+      requestId: "req-5",
+      member: "creator",
+    });
   });
 
   it("names the flagged lines of an InvalidAllocation, and none of AllocateBudgetLine's reasons (HU-E6-07)", () => {

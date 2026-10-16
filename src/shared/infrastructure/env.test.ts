@@ -9,7 +9,12 @@ const valid = {
 
 describe("loadEnv", () => {
   it("parses a valid environment with defaults", () => {
-    expect(loadEnv(valid)).toEqual({ ...valid, APP_TIMEZONE: "America/Bogota", LOG_LEVEL: "info" });
+    expect(loadEnv(valid)).toEqual({
+      ...valid,
+      APP_TIMEZONE: "America/Bogota",
+      LOG_LEVEL: "info",
+      RECURRENCE_JOB_INTERVAL_SECONDS: 300,
+    });
   });
 
   it("names every missing or invalid variable, sorted", () => {
@@ -29,5 +34,30 @@ describe("loadEnv", () => {
       "postgresql://h@db/h",
     );
     expect(() => loadEnv({ ...valid, BETTER_AUTH_SECRET: "leaky" })).not.toThrow(/leaky/);
+  });
+
+  it("reads the recurring-transactions interval in seconds, 0 turning the job off (HU-E4-12)", () => {
+    expect(loadEnv({ ...valid, RECURRENCE_JOB_INTERVAL_SECONDS: "0" }).RECURRENCE_JOB_INTERVAL_SECONDS).toBe(
+      0,
+    );
+    expect(loadEnv({ ...valid, RECURRENCE_JOB_INTERVAL_SECONDS: "60" }).RECURRENCE_JOB_INTERVAL_SECONDS).toBe(
+      60,
+    );
+    expect(() => loadEnv({ ...valid, RECURRENCE_JOB_INTERVAL_SECONDS: "-1" })).toThrow(
+      /RECURRENCE_JOB_INTERVAL_SECONDS/,
+    );
+    expect(() => loadEnv({ ...valid, RECURRENCE_JOB_INTERVAL_SECONDS: "1.5" })).toThrow(
+      /RECURRENCE_JOB_INTERVAL_SECONDS/,
+    );
+    expect(() => loadEnv({ ...valid, RECURRENCE_JOB_INTERVAL_SECONDS: "86401" })).toThrow(
+      /RECURRENCE_JOB_INTERVAL_SECONDS/,
+    );
+  });
+
+  it("refuses a blank or non-decimal interval instead of reading it as 0, which would turn the job off", () => {
+    for (const blank of ["", " ", "1e3", "0x10", "abc"])
+      expect(() => loadEnv({ ...valid, RECURRENCE_JOB_INTERVAL_SECONDS: blank })).toThrow(
+        /RECURRENCE_JOB_INTERVAL_SECONDS/,
+      );
   });
 });
