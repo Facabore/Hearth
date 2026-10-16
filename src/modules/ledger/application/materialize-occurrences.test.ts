@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import type { SpaceMemberId } from "@/modules/spaces/application";
 import { FixedClock, type LocalDate } from "@/shared/kernel";
 import { money, unwrap } from "../../../../tests/support/fakes";
 import { ACCOUNTS, CATEGORIES } from "../../../../tests/support/in-memory-ledger";
 import { materializerWorld, rentDefinition } from "../../../../tests/support/in-memory-recurrences";
+import type { InMemorySpaceStore } from "../../../../tests/support/in-memory-spaces";
 import { recordedOccurrence, type OccurrenceId } from "../domain/occurrence";
 import { statusOf } from "../domain/recurrence";
 import type { Expense, Transaction } from "../domain/transaction";
@@ -20,6 +22,9 @@ const cop = (pesos: bigint) => money(pesos * 100n);
 const day = (iso: string) => iso as LocalDate;
 const sharesOf = (tx: Transaction) =>
   (tx as Expense).shares.map((s) => [s.memberId, s.amount, s.splitMethod]);
+/** The member (a registered one, or the guest) `member-<name>` leaves, or is removed from, Household. */
+const leaves = (spaces: InMemorySpaceStore, name: string, kind: "USER" | "GUEST" = "USER") =>
+  spaces.markLeft("space-household", `member-${name}`, kind, new Date("2026-11-20T12:00:00Z"));
 
 /** HU-E4-12 Background: AUTO "Rent", 1,200,000 COP from the Household Fund, MONTHLY(1), 2026-12-01 to 2027-01-31. */
 const rentToJanuary = rentDefinition({ endDate: day("2027-01-31") });
@@ -41,6 +46,8 @@ const internet = rentDefinition({
 const traced = (w: ReturnType<typeof materializerWorld>): MaterializeDeps => {
   const { recurrences } = w;
   const { events } = w.tm;
+  // Only the run's own reads of the members: the recorders keep the untraced ones they were built with.
+  const listCurrent = w.deps.members.listCurrent.bind(w.deps.members);
   const lockForWrite = recurrences.lockForWrite.bind(recurrences);
   recurrences.lockForWrite = async (spaceId, recurrenceId) => {
     events.push("lock");
@@ -58,6 +65,12 @@ const traced = (w: ReturnType<typeof materializerWorld>): MaterializeDeps => {
   };
   return {
     ...w.deps,
+    members: {
+      listCurrent: async (spaceId, options) => {
+        events.push("members");
+        return listCurrent(spaceId, options);
+      },
+    },
     recorders: {
       ...w.deps.recorders,
       expense: async (input) => {
@@ -363,6 +376,7 @@ describe("MaterializeDueOccurrences (HU-E4-12)", () => {
       expect(w.tm.events).toEqual([
         "begin",
         "lock",
+        "members",
         "record 2026-12-01",
         "occurrence 2026-12-01",
         "record 2027-01-01",
@@ -378,19 +392,60 @@ describe("MaterializeDueOccurrences (HU-E4-12)", () => {
       expect(w.store.rows.map((t) => t.date)).toEqual(["2027-01-01"]);
     });
 
-    it("stores the code that refused a date, whatever it is", async () => {
+    it("reads who left after taking the recurrence's lock and inside its transaction, with a due date or none, and calls no recorder for a payer who left (P26)", async () => {
+      const eventsOf = async (today: string) => {
+        const w = materializerWorld();
+        await w.define(internet);
+        await leaves(w.spaces, "juan");
+        const deps = traced(w);
+        w.tm.events.length = 0;
+        await createMaterializeDueOccurrences(deps)({ today: day(today) });
+        return w.tm.events;
+      };
+      expect(await eventsOf("2026-12-05")).toEqual([
+        "begin",
+        "lock",
+        "members",
+        "occurrence 2026-12-05",
+        "save dueFrom 2026-12-06",
+        "commit",
+      ]);
+      expect(await eventsOf("2026-12-03")).toEqual([
+        "begin",
+        "lock",
+        "members",
+        "save dueFrom 2026-12-01",
+        "commit",
+      ]);
+    });
+
+    it("pauses the recurrence with the code that refused its first date, whatever it is, and stores that date SKIPPED (P26)", async () => {
       const w = materializerWorld();
-      await w.define(rentDefinition());
+      const rent = await w.define(rentDefinition());
       const retired = occurrenceRecorders({
         ...w.deps,
         categories: { find: async (_spaceId, id) => ({ id, archived: true }) },
       });
       const report = await createMaterializeDueOccurrences({ ...w.deps, recorders: retired })({
-        today: day("2026-12-01"),
+        today: day("2027-01-01"),
       });
-      expect([report.occurrences.map((o) => [o.status, o.reason, o.transactionId]), w.store.rows]).toEqual([
-        [["SKIPPED", "CategoryArchived", null]],
+      // 2027-01-01 was due too, and is not considered: the refusal of 2026-12-01 would refuse it as well.
+      expect([
+        report.occurrences.map((o) => [o.date, o.status, o.reason, o.transactionId]),
+        report.paused,
+        report.failures,
+        w.store.rows,
+      ]).toEqual([
+        [["2026-12-01", "SKIPPED", "CategoryArchived", null]],
+        [{ recurrenceId: rent.id, spaceId: "space-household", reason: "CategoryArchived" }],
         [],
+        [],
+      ]);
+      const paused = w.recurrences.rows[0]!;
+      expect([statusOf(paused), paused.pauseReason, paused.dueFrom]).toEqual([
+        "PAUSED",
+        "CategoryArchived",
+        "2026-12-02",
       ]);
     });
 
@@ -587,5 +642,306 @@ describe("MaterializeDueOccurrences (HU-E4-12)", () => {
       ]);
       expect([(await run("2029-05-01")).occurrences, store.rows.length]).toEqual([[], 30]);
     });
+  });
+});
+
+describe("pausing recurrences that can record no more (HU-E4-11, P26)", () => {
+  /** Ana's AUTO "Shared", paid from the fund, split equally between Ana and `memberId`. */
+  const sharedWith = (memberId: string) =>
+    rentDefinition({
+      description: "Shared",
+      template: {
+        type: "EXPENSE",
+        categoryId: CATEGORIES.household.id,
+        payer: { memberId: null, accountId: ACCOUNTS.householdFund.id },
+        split: { method: "EQUAL", participants: [{ memberId: "member-ana" }, { memberId }] },
+      },
+    });
+  /** Ana's AUTO "Pedro's lunch", 30,000 COP paid by the guest Pedro out of his own pocket. */
+  const pedrosLunch = rentDefinition({
+    description: "Pedro's lunch",
+    amount: cop(30_000n),
+    template: {
+      type: "EXPENSE",
+      categoryId: CATEGORIES.household.id,
+      payer: { memberId: "member-pedro", accountId: null },
+      split: null,
+    },
+  });
+
+  it("pauses Internet with reason PayerLeft once Juan left, skipping its due date and recording nothing", async () => {
+    const { define, run, store, recurrences, spaces } = materializerWorld();
+    const recurrence = await define(internet);
+    await leaves(spaces, "juan");
+    const report = await run("2026-12-05");
+    expect([
+      report.occurrences.map((o) => [o.date, o.status, o.reason, o.transactionId]),
+      report.paused,
+      report.failures,
+      store.rows,
+    ]).toEqual([
+      [["2026-12-05", "SKIPPED", "PayerLeft", null]],
+      [{ recurrenceId: recurrence.id, spaceId: "space-household", reason: "PayerLeft" }],
+      [],
+      [],
+    ]);
+    const paused = recurrences.rows[0]!;
+    expect([statusOf(paused), paused.pauseReason, paused.dueFrom]).toEqual([
+      "PAUSED",
+      "PayerLeft",
+      "2026-12-06",
+    ]);
+    expect(await run("2027-01-05")).toEqual({ occurrences: [], paused: [], failures: [] });
+  });
+
+  it("pauses as soon as a run sees the payer gone, before any date is due", async () => {
+    const { define, run, store, recurrences, spaces } = materializerWorld();
+    const recurrence = await define(internet);
+    await leaves(spaces, "juan");
+    // Internet is listed from 2026-12-01 and its first date is the 5th: nothing is due on the 3rd.
+    const report = await run("2026-12-03");
+    expect([report.occurrences, report.paused, report.failures, store.rows]).toEqual([
+      [],
+      [{ recurrenceId: recurrence.id, spaceId: "space-household", reason: "PayerLeft" }],
+      [],
+      [],
+    ]);
+    const paused = recurrences.rows[0]!;
+    expect([statusOf(paused), paused.pauseReason, paused.dueFrom]).toEqual([
+      "PAUSED",
+      "PayerLeft",
+      "2026-12-01",
+    ]);
+    expect(await recurrences.listActive(day("2026-12-31"))).toEqual([]);
+  });
+
+  it("pauses the removed guest Pedro's expense with PayerLeft and Ana's fund-paid Rent with CreatorLeft once she left, and records Juan's", async () => {
+    const { define, run, store, recurrences, spaces } = materializerWorld();
+    const lunch = await define(pedrosLunch);
+    const juans = await define(rentDefinition({ userId: "u-juan", description: "Juan's rent" }));
+    const rent = await define(rentDefinition());
+    await leaves(spaces, "pedro", "GUEST");
+    await leaves(spaces, "ana");
+    const report = await run("2026-12-01");
+    expect(report.occurrences.map((o) => [o.recurrenceId, o.date, o.status, o.reason])).toEqual([
+      [lunch.id, "2026-12-01", "SKIPPED", "PayerLeft"],
+      [juans.id, "2026-12-01", "RECORDED", null],
+      [rent.id, "2026-12-01", "SKIPPED", "CreatorLeft"],
+    ]);
+    expect([report.paused, report.failures]).toEqual([
+      [
+        { recurrenceId: lunch.id, spaceId: "space-household", reason: "PayerLeft" },
+        { recurrenceId: rent.id, spaceId: "space-household", reason: "CreatorLeft" },
+      ],
+      [],
+    ]);
+    expect(recurrences.rows.map((r) => [r.description, statusOf(r), r.pauseReason, r.dueFrom])).toEqual([
+      ["Pedro's lunch", "PAUSED", "PayerLeft", "2026-12-02"],
+      ["Juan's rent", "ACTIVE", null, "2026-12-02"],
+      ["Rent", "PAUSED", "CreatorLeft", "2026-12-02"],
+    ]);
+    expect(store.rows.map((t) => [t.description, t.createdBy])).toEqual([["Juan's rent", "u-juan"]]);
+  });
+
+  it("pauses on any other refusal with its code, at the first refused date: a split member who left, a creator now VIEWER", async () => {
+    const { define, run, store, recurrences, spaces } = materializerWorld();
+    const shared = await define(sharedWith("member-luis"));
+    const juans = await define(rentDefinition({ userId: "u-juan", description: "Juan's rent" }));
+    await leaves(spaces, "luis");
+    await spaces.updateRole("space-household", "member-juan" as SpaceMemberId, "VIEWER");
+    const report = await run("2027-01-01");
+    // 2027-01-01 was due too, and is not considered: the refusal of 2026-12-01 would refuse it as well.
+    expect(
+      report.occurrences.map((o) => [o.recurrenceId, o.date, o.status, o.reason, o.transactionId]),
+    ).toEqual([
+      [shared.id, "2026-12-01", "SKIPPED", "NotASpaceMember", null],
+      [juans.id, "2026-12-01", "SKIPPED", "InsufficientRole", null],
+    ]);
+    expect([report.paused, report.failures, store.rows]).toEqual([
+      [
+        { recurrenceId: shared.id, spaceId: "space-household", reason: "NotASpaceMember" },
+        { recurrenceId: juans.id, spaceId: "space-household", reason: "InsufficientRole" },
+      ],
+      [],
+      [],
+    ]);
+    expect(recurrences.rows.map((r) => [r.description, statusOf(r), r.pauseReason, r.dueFrom])).toEqual([
+      ["Shared", "PAUSED", "NotASpaceMember", "2026-12-02"],
+      ["Juan's rent", "PAUSED", "InsufficientRole", "2026-12-02"],
+    ]);
+  });
+
+  it("pauses the Rent of an archived space with reason SpaceArchived, recording nothing (HU-E1-09, P26)", async () => {
+    const { define, run, store, recurrences, spaces } = materializerWorld();
+    const rent = await define(rentDefinition());
+    await spaces.archive("space-household");
+    const report = await run("2026-12-01");
+    expect([
+      report.occurrences.map((o) => [o.date, o.status, o.reason, o.transactionId]),
+      report.paused,
+      report.failures,
+      store.rows,
+    ]).toEqual([
+      [["2026-12-01", "SKIPPED", "SpaceArchived", null]],
+      [{ recurrenceId: rent.id, spaceId: "space-household", reason: "SpaceArchived" }],
+      [],
+      [],
+    ]);
+    const paused = recurrences.rows[0]!;
+    expect([statusOf(paused), paused.pauseReason, paused.dueFrom]).toEqual([
+      "PAUSED",
+      "SpaceArchived",
+      "2026-12-02",
+    ]);
+  });
+
+  describe("a CONFIRM recurrence pauses like an AUTO one (HU-E4-13, P26)", () => {
+    /** Ana's CONFIRM "Electricity", an estimated 180,000 COP on the 10th, paid from the fund. */
+    const electricity = (overrides: Parameters<typeof rentDefinition>[0] = {}) =>
+      rentDefinition({
+        description: "Electricity",
+        amount: cop(180_000n),
+        mode: "CONFIRM",
+        schedule: { kind: "MONTHLY", day: 10 },
+        ...overrides,
+      });
+
+    it("pauses with PayerLeft once its paying guest was removed and with CreatorLeft once its creator left, leaving no PENDING occurrence, and still leaves a healthy one PENDING", async () => {
+      const { define, run, store, recurrences, spaces } = materializerWorld();
+      const pedros = await define(
+        electricity({
+          description: "Pedro's gas",
+          template: {
+            type: "EXPENSE",
+            categoryId: CATEGORIES.household.id,
+            payer: { memberId: "member-pedro", accountId: null },
+            split: null,
+          },
+        }),
+      );
+      const juans = await define(electricity({ userId: "u-juan", description: "Juan's water" }));
+      const anas = await define(electricity({ description: "Ana's power" }));
+      await leaves(spaces, "pedro", "GUEST");
+      await leaves(spaces, "juan");
+      const report = await run("2026-12-10");
+      expect(report.occurrences.map((o) => [o.recurrenceId, o.date, o.status, o.reason, o.amount])).toEqual([
+        [pedros.id, "2026-12-10", "SKIPPED", "PayerLeft", 18_000_000n],
+        [juans.id, "2026-12-10", "SKIPPED", "CreatorLeft", 18_000_000n],
+        [anas.id, "2026-12-10", "PENDING", null, 18_000_000n],
+      ]);
+      expect([report.paused, report.failures, store.rows]).toEqual([
+        [
+          { recurrenceId: pedros.id, spaceId: "space-household", reason: "PayerLeft" },
+          { recurrenceId: juans.id, spaceId: "space-household", reason: "CreatorLeft" },
+        ],
+        [],
+        [],
+      ]);
+      expect(recurrences.rows.map((r) => [r.description, statusOf(r), r.pauseReason, r.dueFrom])).toEqual([
+        ["Pedro's gas", "PAUSED", "PayerLeft", "2026-12-11"],
+        ["Juan's water", "PAUSED", "CreatorLeft", "2026-12-11"],
+        ["Ana's power", "ACTIVE", null, "2026-12-11"],
+      ]);
+      expect((await recurrences.pendingOccurrences("space-household")).map((o) => o.recurrenceId)).toEqual([
+        anas.id,
+      ]);
+    });
+
+    it("pauses an archived space's Electricity with SpaceArchived and writes no PENDING occurrence, as for an AUTO one (HU-E1-09, P26)", async () => {
+      const { define, run, store, recurrences, spaces } = materializerWorld();
+      const power = await define(electricity());
+      await spaces.archive("space-household");
+      // 2027-01-10 was due too, and is not considered: the refusal of 2026-12-10 would refuse it as well.
+      const report = await run("2027-01-10");
+      expect(report.occurrences.map((o) => [o.recurrenceId, o.date, o.status, o.reason, o.amount])).toEqual([
+        [power.id, "2026-12-10", "SKIPPED", "SpaceArchived", 18_000_000n],
+      ]);
+      expect([report.paused, report.failures, store.rows]).toEqual([
+        [{ recurrenceId: power.id, spaceId: "space-household", reason: "SpaceArchived" }],
+        [],
+        [],
+      ]);
+      const paused = recurrences.rows[0]!;
+      expect([statusOf(paused), paused.pauseReason, paused.dueFrom]).toEqual([
+        "PAUSED",
+        "SpaceArchived",
+        "2026-12-11",
+      ]);
+      expect([
+        recurrences.occurrenceRows.map((o) => o.status),
+        await recurrences.pendingOccurrences("space-household"),
+      ]).toEqual([["SKIPPED"], []]);
+    });
+  });
+
+  it("ends rather than pauses a recurrence whose last date is the one refused, past its end date, so no run lists it again", async () => {
+    const { define, run, recurrences, spaces } = materializerWorld();
+    await define(rentDefinition({ endDate: day("2026-12-31") }));
+    await leaves(spaces, "ana");
+    const report = await run("2027-01-01");
+    expect([
+      report.occurrences.map((o) => [o.date, o.status, o.reason]),
+      report.paused,
+      report.failures,
+    ]).toEqual([[["2026-12-01", "SKIPPED", "CreatorLeft"]], [], []]);
+    const ended = recurrences.rows[0]!;
+    expect([statusOf(ended), ended.pauseReason, ended.dueFrom]).toEqual(["ENDED", null, "2027-01-01"]);
+    expect(await recurrences.listActive(day("2027-03-01"))).toEqual([]);
+  });
+
+  it("never pauses for PeriodClosed, which goes on to the next date, beside a refusal that does (P25, P26)", async () => {
+    const { define, run, store, recurrences, spaces } = materializerWorld({
+      closed: (date) => date >= "2026-12-01" && date <= "2026-12-31",
+    });
+    const rent = await define(rentDefinition());
+    const shared = await define(sharedWith("member-luis"));
+    await leaves(spaces, "luis");
+    const report = await run("2027-02-01");
+    // The closed December is skipped without pausing either; Shared pauses at 2027-01-01 and never considers 2027-02-01.
+    expect(report.occurrences.map((o) => [o.recurrenceId, o.date, o.status, o.reason])).toEqual([
+      [rent.id, "2026-12-01", "SKIPPED", "PeriodClosed"],
+      [rent.id, "2027-01-01", "RECORDED", null],
+      [rent.id, "2027-02-01", "RECORDED", null],
+      [shared.id, "2026-12-01", "SKIPPED", "PeriodClosed"],
+      [shared.id, "2027-01-01", "SKIPPED", "NotASpaceMember"],
+    ]);
+    expect(report.paused).toEqual([
+      { recurrenceId: shared.id, spaceId: "space-household", reason: "NotASpaceMember" },
+    ]);
+    expect(recurrences.rows.map((r) => [r.description, statusOf(r), r.pauseReason, r.dueFrom])).toEqual([
+      ["Rent", "ACTIVE", null, "2027-02-02"],
+      ["Shared", "PAUSED", "NotASpaceMember", "2027-01-02"],
+    ]);
+    expect(store.rows.map((t) => [t.description, t.date])).toEqual([
+      ["Rent", "2027-01-01"],
+      ["Rent", "2027-02-01"],
+    ]);
+  });
+
+  it("stores only domain codes as pause reasons, never text: exactly PayerLeft, CreatorLeft, NotASpaceMember and InsufficientRole", async () => {
+    const { define, run, recurrences, spaces } = materializerWorld();
+    await define(pedrosLunch);
+    await define(rentDefinition({ userId: "u-luis", description: "Luis's rent" }));
+    await define(sharedWith("member-sofi"));
+    await define(rentDefinition({ userId: "u-juan", description: "Juan's rent" }));
+    await leaves(spaces, "pedro", "GUEST");
+    await leaves(spaces, "luis");
+    await leaves(spaces, "sofi");
+    await spaces.updateRole("space-household", "member-juan" as SpaceMemberId, "VIEWER");
+    const report = await run("2026-12-01");
+    const codes = ["PayerLeft", "CreatorLeft", "NotASpaceMember", "InsufficientRole"];
+    expect([
+      recurrences.rows.map((r) => r.pauseReason),
+      report.paused.map((p) => p.reason),
+      report.occurrences.map((o) => o.reason),
+    ]).toEqual([codes, codes, codes]);
+    // What the system stored and reported, not the list above: a code is one word, never a message.
+    const stored = [
+      ...recurrences.rows.map((r) => r.pauseReason),
+      ...recurrences.occurrenceRows.map((o) => o.reason),
+      ...report.paused.map((p) => p.reason),
+    ];
+    expect(stored).toHaveLength(codes.length * 3);
+    for (const reason of stored) expect(reason).toMatch(/^[A-Z][A-Za-z]+$/);
   });
 });

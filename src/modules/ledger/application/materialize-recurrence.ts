@@ -1,3 +1,4 @@
+import type { SpaceId } from "@/modules/spaces/application";
 import { addDays, Money, ok, type LocalDate, type Result } from "@/shared/kernel";
 import {
   pendingOccurrence,
@@ -5,7 +6,7 @@ import {
   skippedOccurrence,
   type Occurrence,
 } from "../domain/occurrence";
-import { statusOf, type Recurrence } from "../domain/recurrence";
+import { blockerOf, pausedRecurrence, statusOf, type Recurrence } from "../domain/recurrence";
 import { scheduleDates } from "../domain/recurrence-schedule";
 import { openPeriod } from "./checks";
 import { recordOccurrence, type OccurrenceRecorders } from "./record-occurrence";
@@ -22,7 +23,7 @@ export interface MaterializeDeps extends RecurrenceDeps {
 /** What one run did to one recurrence. */
 export interface RecurrenceRun {
   readonly occurrences: readonly Occurrence[];
-  /** The reason this run paused it (ruling P26); null when it did not. */
+  /** The domain code this run paused it for (ruling P26); null when it did not. */
   readonly pausedFor: string | null;
 }
 
@@ -33,8 +34,8 @@ class InvalidStoredAmount extends Error {
 
 /**
  * One date of a recurrence (HU-E4-12, HU-E4-13): AUTO records it through the ledger's own use case on behalf of its
- * creator (ruling P21), CONFIRM leaves it pending unless its period is CLOSED (ruling P25); a refused date is
- * SKIPPED with the refusing code.
+ * creator (ruling P21), CONFIRM leaves it pending unless its space is archived or its period is CLOSED (ruling P25); a
+ * refused date is SKIPPED with the refusing code.
  *
  * The ledger refuses before it writes anything, so a refusal leaves no transaction behind and there is nothing to roll
  * back: the SKIPPED occurrence is written and the run goes on. Anything the ledger throws is not a refusal and rolls the
@@ -48,6 +49,10 @@ const occurrenceOn = async (
 ): Promise<Occurrence> => {
   const id = deps.ids.next<"Occurrence">();
   if (recurrence.mode === "CONFIRM") {
+    // An archived space takes no writes, a PENDING occurrence included: the refusal AUTO gets from RecordExpense
+    // (HU-E1-09, ruling P26). The check is the space's only; whoever confirms it is authorized then.
+    const space = await deps.access(recurrence.spaceId, recurrence.createdBy);
+    if (!space.ok) return skippedOccurrence(id, recurrence, date, space.error.code, now);
     const open = await openPeriod(deps, recurrence.spaceId, date);
     return open.ok
       ? pendingOccurrence(id, recurrence, date, now)
@@ -93,6 +98,14 @@ const cursorFrom = (recurrence: Pick<Recurrence, "schedule" | "endDate">, next: 
  * late. A recurrence with no schedule date left from `dueFrom` through its end date counts as finished (ENDED):
  * nothing is due, and that is no failure. Its `dueFrom` goes past the end date, as soon as a run records its last date
  * or finds that an edit left it none, so that `listActive` stops listing it and no run locks it again.
+ *
+ * Ruling P26: a recurrence that can record no more is paused with a domain code, never text. First, whether its paying
+ * member or the user it records for left the space (`blockerOf`): that is checked on every run that handles it, even
+ * with no date due, and each date due is then stored SKIPPED with that code instead of being recorded. Then, any date
+ * the ledger refuses for another reason than a closed period (an archived account or category, a split participant who
+ * left, a creator who became a VIEWER, an archived space) would refuse every later date too, so the recurrence pauses
+ * with that code at the first one, and the later dates are not considered. `PeriodClosed` alone never pauses (ruling
+ * P25): a later date may fall in an open period. A recurrence whose last date was just refused is ENDED, not paused.
  */
 export const materializeRecurrence = (
   deps: MaterializeDeps,
@@ -111,16 +124,37 @@ export const materializeRecurrence = (
         await deps.recurrences.save({ ...recurrence, dueFrom, updatedAt: now });
       return nothingDue();
     }
+    const blocker = blockerOf(recurrence, await deps.members.listCurrent(recurrence.spaceId as SpaceId));
     const through = recurrence.endDate !== null && recurrence.endDate < today ? recurrence.endDate : today;
     const dates = scheduleDates(recurrence.schedule, { from: recurrence.dueFrom, through }, CATCH_UP_LIMIT);
-    if (dates.length === 0) return nothingDue();
+    if (dates.length === 0 && blocker === null) return nothingDue();
     const occurrences: Occurrence[] = [];
+    let pausedFor: string | null = blocker;
     for (const date of dates) {
-      const occurrence = await occurrenceOn(deps, recurrence, date, now);
+      const occurrence =
+        blocker === null
+          ? await occurrenceOn(deps, recurrence, date, now)
+          : skippedOccurrence(deps.ids.next<"Occurrence">(), recurrence, date, blocker, now);
       await deps.occurrences.addOccurrence(occurrence);
       occurrences.push(occurrence);
+      if (occurrence.status === "SKIPPED" && occurrence.reason !== "PeriodClosed") {
+        pausedFor = occurrence.reason;
+        break;
+      }
     }
-    const dueFrom = cursorFrom(recurrence, addDays(dates.at(-1)!, 1));
-    await deps.recurrences.save({ ...recurrence, dueFrom, updatedAt: now });
-    return ok({ occurrences, pausedFor: null });
+    const last = occurrences.at(-1);
+    const advanced: Recurrence =
+      last === undefined
+        ? recurrence
+        : { ...recurrence, dueFrom: cursorFrom(recurrence, addDays(last.date, 1)), updatedAt: now };
+    // A recurrence out of dates is ENDED and cannot be paused: it stays ENDED, whatever refused its last date.
+    if (pausedFor === null || statusOf(advanced) === "ENDED") {
+      await deps.recurrences.save(advanced);
+      return ok({ occurrences, pausedFor: null });
+    }
+    // Any other refusal to pause an ACTIVE recurrence is unexpected: the run fails, rolls back and is retried.
+    const paused = pausedRecurrence(advanced, now, pausedFor);
+    if (!paused.ok) return paused;
+    await deps.recurrences.save(paused.value);
+    return ok({ occurrences, pausedFor });
   });
