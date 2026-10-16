@@ -118,7 +118,7 @@ Feature: Localized interface
 
 ## HU-E9-03 — Personal ledger screens
 
-- **Milestone:** M6 · **Priority:** Must · **Size:** M · **Depends on:** HU-E2-01, HU-E2-03, HU-E2-04, HU-E4-01, HU-E4-02, HU-E4-03, HU-E4-05, HU-E9-01 · **Module(s):** `accounts/ui`, `ledger/ui`
+- **Milestone:** M6 · **Priority:** Must · **Size:** M · **Depends on:** HU-E1-14, HU-E2-01, HU-E2-03, HU-E2-04, HU-E2-05, HU-E2-06, HU-E2-07, HU-E3-04, HU-E4-01, HU-E4-02, HU-E4-03, HU-E4-05, HU-E4-14, HU-E9-01 · **Module(s):** `accounts/ui`, `ledger/ui`
 
 **User story:** As a user, I want screens for my accounts, my transaction list and forms to record expenses, income and transfers, so that I manage my personal money without calling the API.
 
@@ -126,57 +126,70 @@ Feature: Localized interface
 Feature: Personal ledger screens
 
   Background:
-    Given "Ana" is signed in with the account "Bancolombia" with opening balance 2,000,000 COP and the category "Groceries" in her personal space
+    Given "Ana" is signed in with the timezone "America/Bogota", the account "Bancolombia" with opening balance 2,000,000 COP and the category "Groceries" in her personal space
 
   @e2e
   Scenario: Record a personal expense from the form
     Given the Clock reads 2026-11-01T04:30:00Z
     When "Ana" opens the new expense form
-    Then the date field defaults to 2026-10-31
+    Then the date field defaults to 2026-10-31 and the time field to 23:30
     When "Ana" enters "Market", 85,000 COP, "Groceries" and "Bancolombia" and saves
-    Then the transaction list shows "Market" with 85,000 COP
+    Then the transaction list shows "Market" with 85,000 COP at 23:30 under the day heading of the key "ledger.day.today"
     And the accounts screen shows "Bancolombia" with a balance of 1,915,000 COP
 
-  Scenario: Accounts screen shows computed balances
-    Given an income of 3,000,000 COP into "Bancolombia", an expense of 85,000 COP from "Bancolombia" and a transfer of 500,000 COP from "Bancolombia" to "Nequi"
+  Scenario: Accounts screen shows types, balances and totals
+    Given an income of 3,000,000 COP into "Bancolombia", an expense of 85,000 COP from "Bancolombia" and a transfer of 500,000 COP from "Bancolombia" to the WALLET "Nequi" opened with 0 COP
+    And the CREDIT_CARD "Visa" with balance -350,000 COP, credit limit 5,000,000 COP and payment day 15
+    And "Ana" archived the account "Old wallet"
     When "Ana" opens the accounts screen
-    Then "Bancolombia" shows a balance of 4,415,000 COP
+    Then "Bancolombia" shows a balance of 4,415,000 COP with its type icon, color, institution and last four digits
+    And "Visa" shows -350,000 COP with an available credit of 4,650,000 COP and its next payment date
+    And the header shows "Available" 4,915,000 COP and "Net worth" 4,565,000 COP
+    And "Old wallet" is listed under archived accounts and is not offered in the account picker of the new expense form
 
-  Scenario: Archived accounts are not offered in pickers
-    Given "Ana" archived the account "Nequi"
-    When "Ana" opens the new expense form
-    Then "Nequi" is not offered in the account picker
-    And the accounts screen lists "Nequi" under archived accounts
+  Scenario: Pick an optional subcategory
+    Given "Groceries" has the subcategories "Vegetables" and "Meat"
+    When "Ana" chooses "Groceries" in the new expense form
+    Then "Vegetables" and "Meat" are offered as optional chips in the same sheet
+    And saving without choosing one records the expense in "Groceries"
+    And choosing "Vegetables" records it in "Vegetables", shown as "Groceries › Vegetables" in the list
 
-  Scenario: Transaction list totals, filters and more pages
-    Given the October 2026 transactions Market 85,000 COP, Market 100,000 COP, Dinner 60,000 COP and Salary 3,200,000 COP
+  Scenario: Transaction list by day and time, with totals and filters
+    Given the October 2026 transactions Market 85,000 COP on 2026-10-05 at 08:10, Market 100,000 COP in "Vegetables" on 2026-10-12 at 18:02, Dinner 60,000 COP on 2026-10-12 at 20:45 and Salary 3,200,000 COP on 2026-10-25 recorded by a recurrence without a time
     When "Ana" opens the transaction list for 2026-10
-    Then 4 transactions are shown with total expenses 245,000 COP and total income 3,200,000 COP
-    And filtering by "Groceries" shows 2 transactions totalling 185,000 COP
+    Then the transactions are grouped by day, newest day first, with "Dinner" before "Market" on 2026-10-12
+    And "Dinner" shows "20:45" while "Salary" shows no time
+    And 4 transactions are shown with total expenses 245,000 COP and total income 3,200,000 COP
+    And filtering by "Groceries" shows 2 transactions totalling 185,000 COP, including the one in "Vegetables"
 
   Scenario: Validation errors are shown next to the field
     When "Ana" saves an expense of 0 COP
     Then the amount field shows the message of the key "errors.InvalidAmount"
     And no transaction is created
 
-  Scenario: Record a transfer between own accounts
-    When "Ana" records a transfer of 500,000 COP from "Bancolombia" to "Nequi" on 2026-10-06
+  Scenario: Pay the credit card with a transfer
+    Given an expense of 200,000 COP in "Groceries" paid from the CREDIT_CARD "Visa"
+    When "Ana" records a transfer of 200,000 COP from "Bancolombia" to "Visa" on 2026-10-25
     Then the transaction list shows the transfer without a category
-    And the period expense total does not change
+    And the period expense total still counts the 200,000 COP once
+    And "Available" decreases by 200,000 COP while "Net worth" does not change
 ```
 
 **Technical notes:**
 - Containers per screen (`AccountsContainer`, `TransactionListContainer`, `ExpenseFormContainer`, `IncomeFormContainer`, `TransferFormContainer`); presentational components receive DTOs only.
 - Forms validate with the same Zod contracts as `/api/v1` (`contracts/`), then call server actions wrapping `RecordExpense`, `RecordIncome`, `RecordTransfer`; each submit sends a fresh `Idempotency-Key` so double clicks never duplicate (HU-E0-10).
 - The list uses cursor pagination with a "Load more" control (50 per page) and the period selector follows the space period policy (HU-E4-04).
+- Time (HU-E4-14, HU-E1-14): the forms default to now in the user's time zone and send `occurredAt` with the browser's zone; clearing the time sends only `date`. The list groups by day under headings with i18n keys (`ledger.day.today`, `ledger.day.yesterday`, then the localized date) and orders each day by time, untimed rows last. A row shows the wall-clock time in the record's zone, plus the zone's name when it differs from the viewer's; recurring and imported rows show no time.
+- Category picker (HU-E3-04): parent categories first; choosing one shows its subcategories as optional chips in the same sheet; a subcategory is never required.
+- Accounts screen (HU-E2-05 … HU-E2-07): type icon and color, institution and last four digits per account; card limit, available credit and next cut-off and payment dates; the "Available" and "Net worth" totals of the space. The account form shows only the attributes of the chosen type and the two switches; the type cannot change after creation.
 
 ---
 
 ## HU-E9-04 — Categories management screen
 
-- **Milestone:** M6 · **Priority:** Should · **Size:** S · **Depends on:** HU-E3-01, HU-E3-02, HU-E3-03, HU-E9-01 · **Module(s):** `categories/ui`
+- **Milestone:** M6 · **Priority:** Should · **Size:** S · **Depends on:** HU-E3-01, HU-E3-02, HU-E3-03, HU-E3-04, HU-E9-01 · **Module(s):** `categories/ui`
 
-**User story:** As a space admin, I want a screen to organize the two-level category tree, so that I can keep categories tidy without breaking history.
+**User story:** As a space admin, I want a screen to organize the category tree and its optional subcategories, so that I can keep categories tidy without breaking history.
 
 ```gherkin
 Feature: Categories screen
@@ -189,6 +202,11 @@ Feature: Categories screen
   Scenario: Create a category in a group
     When "Ana" adds the category "Bakery" to the group "Food" in "Household"
     Then "Bakery" appears under "Food" without reloading the page
+
+  Scenario: Add a subcategory, and no deeper level is offered
+    When "Ana" adds the subcategory "Vegetables" to the category "Groceries"
+    Then "Vegetables" appears nested under "Groceries"
+    And "Vegetables" offers no control to add a subcategory under it
 
   @e2e
   Scenario: A referenced category is offered for archiving instead of deletion
@@ -212,6 +230,7 @@ Feature: Categories screen
 - `CategoryTreeContainer` over a presentational `CategoryTree`; actions call `CreateCategory`, `RenameCategory`, `MoveCategory`, `ArchiveCategory`, `RestoreCategory`, `DeleteCategory`.
 - Control visibility follows the role returned for the current member; the use cases still enforce authorization (HU-E1-05).
 - Seeded names are user data and are shown as stored, never re-translated (HU-E3-01).
+- Subcategories (HU-E3-04) are nested and collapsible under their category; moving a category moves its subcategories, and archiving a category says that its subcategories are archived too. A `CategoryDepthExceeded` or `ParentCategoryArchived` from the API is shown through its `errors.<Code>` key.
 
 ---
 

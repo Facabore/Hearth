@@ -200,6 +200,7 @@ Feature: Unified personal view
 - consumption = Σ shares of u; cash out = Σ payments by u + Σ fund contributions by u + Σ savings transfers by u (spec 5.4).
 - Seeded categories share a catalog key across spaces; custom categories group under "space / category".
 - Shared transactions are placed by date into the viewer's personal-space period; grouping uses the category catalog key (spec D11).
+- A subcategory (HU-E3-04, M3-D) groups under its parent category: under the parent's catalog key, or as "space / category" when the parent is custom.
 
 ---
 

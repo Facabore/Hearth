@@ -632,3 +632,50 @@ Feature: Direct spaces
 - Reuse key: one DIRECT space per unordered pair of registered users (unique index); with a guest counterpart, the person is identified by the existing direct space's guest, so choosing that guest reuses it. A registered counterpart is picked among people the user already shares a space with, so no user lookup by email is exposed.
 - Currency comes from the creator's personal space; default categories are seeded (HU-E3-01).
 - A counterpart that is the requester, or a guest of a shared space (guests exist only in their space, D15), answers `InvalidDirectCounterpart` (422); someone the requester shares no space with, or an unknown member, answers `MemberNotFound` (404). A guest who claims a direct-space place becomes OWNER, and the claimed space becomes the pair's direct space when the pair has no other active one (D16).
+
+---
+
+## HU-E1-14 — Set my time zone
+
+- **Milestone:** M3-D · **Priority:** Must · **Size:** S · **Depends on:** HU-E1-01 · **Module(s):** `identity`
+
+**User story:** As a user, I want my own time zone stored on my profile, so that "today" and the time of what I record follow where I live, not where the server runs.
+
+```gherkin
+Feature: User time zone
+
+  Scenario: Sign up takes the browser's time zone
+    When a visitor signs up as "Juan" with the timezone "Europe/Madrid"
+    Then the user "Juan" has the timezone "Europe/Madrid"
+    And "GET /api/v1/me" returns "timezone": "Europe/Madrid"
+
+  Scenario: Without a usable browser time zone the deployment default applies
+    Given APP_TIMEZONE is "America/Bogota"
+    When a visitor signs up as "Ana" without a timezone
+    And another visitor signs up as "Luis" with the timezone "Mars/Olympus"
+    Then both users have the timezone "America/Bogota"
+
+  Scenario: Change my time zone
+    Given "Ana" has the timezone "America/Bogota"
+    When "Ana" sets her timezone to "America/New_York"
+    Then "GET /api/v1/me" returns "timezone": "America/New_York"
+
+  Scenario: An unknown time zone is rejected when set explicitly
+    When "Ana" sets her timezone to "Bogota"
+    Then the result is the error "InvalidTimeZone"
+    And her timezone is still "America/Bogota"
+
+  Scenario: Changing the time zone never moves recorded transactions
+    Given "Ana" recorded an expense at 2026-10-16T21:30:00-05:00 dated 2026-10-16 with the time zone "America/Bogota"
+    When "Ana" sets her timezone to "Europe/Madrid"
+    Then the expense is still dated 2026-10-16 with the time zone "America/Bogota"
+```
+
+**Technical notes:**
+- Use case: `UpdateProfile` (identity). Endpoints: `PATCH /api/v1/me` with `timezone` (the profile endpoint that HU-E8-08 also uses for notification preferences); `GET /api/v1/me` already returns `timezone`; `POST /api/v1/auth/sign-up` accepts an optional `timezone`.
+- The `timezone` column exists (`src/modules/identity/infrastructure/auth.schema.ts`), but Better Auth declares it `input: false` with the literal default `"America/Bogota"` (`better-auth.ts`, `better-auth-provider.ts`). This story makes it a sign-up input and replaces the literal with `APP_TIMEZONE`.
+- Validation: a zone is valid when `new Intl.DateTimeFormat("en", { timeZone })` accepts it; the canonical name from `resolvedOptions().timeZone` is stored. At sign-up an invalid or missing zone falls back to `APP_TIMEZONE`, so an unusual browser never blocks registration; `PATCH /api/v1/me` rejects it with `InvalidTimeZone` (422).
+- The web sign-up form sends `Intl.DateTimeFormat().resolvedOptions().timeZone`, the browser's zone (HU-E9-01).
+- Consumers: the default date and time of new transactions and the current period of `ListTransactions` (HU-E4-14), and the local hour of reminders (HU-E8-16). Space-level clocks (the recurrence scheduler's "today", closing a plan) keep `APP_TIMEZONE`; this story adds no per-space time zone.
+- The last scenario becomes testable with HU-E4-14.
+- **Spec impact:** section 3 (America/Bogota becomes the deployment default; each user has a zone), 5.2 **User** (`timezone`: an IANA zone, taken from the browser at sign-up, `APP_TIMEZONE` as the fallback), 7 HTTP conventions (`PATCH /api/v1/me`; time zones are IANA names).
