@@ -54,3 +54,28 @@ export {
   type AllocateBudgetLine,
   type AllocationDeps,
 } from "./allocate-budget-line";
+export { createClosedPeriodGuard, type ClosedPeriods } from "./closed-periods";
+export type { PlanStatusRepository } from "./ports";
+export {
+  createActivateBudgetPlan,
+  createCloseBudgetPlan,
+  type ActivateBudgetPlan,
+  type CloseBudgetPlan,
+  type CloseDeps,
+  type PlanStatusDeps,
+  type PlanTransitionInput,
+} from "./plan-lifecycle";
+export type { CopyDrops } from "../domain/plan-copy";
+export type { NewPlanInput } from "./create-budget-plan";
+export { createCopyBudgetPlan, type CopyBudgetPlan, type CopyDeps, type PlanCopy } from "./copy-budget-plan";
+export {
+  createResolveDefaultSplit,
+  defaultSplitOf,
+  SPLIT_METHODS,
+  type DefaultSplit,
+  type DefaultSplitDeps,
+  type DefaultSplitView,
+  type ExpenseToSplit,
+  type ResolveDefaultSplit,
+  type SplitMethodName,
+} from "./default-split";

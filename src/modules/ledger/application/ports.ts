@@ -1,3 +1,4 @@
+import type { SpaceId } from "@/modules/spaces/application";
 import type { LocalDate } from "@/shared/kernel";
 import type { ChangeSet, Transaction, TransactionType } from "../domain/transaction";
 
@@ -31,9 +32,38 @@ export interface CategoryReader {
   find(spaceId: string, categoryId: string): Promise<LedgerCategory | null>;
 }
 
-/** HU-E4-06: transactions in a CLOSED plan period never change. Always open until HU-E6-07. */
+/**
+ * HU-E4-06: transactions in a CLOSED plan period never change. The composition root binds it to budgeting's
+ * closed-period guard (HU-E6-07).
+ */
 export interface ClosedPeriodGuard {
   isClosed(spaceId: string, date: LocalDate): Promise<boolean>;
+}
+
+/** HU-E6-08: the expense whose default split is asked for. */
+export interface DefaultSplitQuery {
+  readonly spaceId: SpaceId;
+  readonly currency: string;
+  readonly categoryId: string;
+  readonly date: LocalDate;
+  /**
+   * The space's current members in join order, as the ledger read them for this very expense: the weights name only
+   * these, so a member who joined or left since can never make the split refuse (NotASpaceMember).
+   */
+  readonly memberIds: readonly string[];
+}
+
+/**
+ * HU-E6-08, spec 5.3: the BY_ALLOCATION weights of an expense recorded without a split, bound by the composition
+ * root to budgeting (the ledger never imports it). Null means EQUAL among every current member: no ACTIVE plan
+ * covers the date, the category resolves to no line, or the line is NONE or its allocation does not hold.
+ * Weights, when given, are non-empty, name only the query's `memberIds` and are positive: anything else is
+ * refused as `InvalidSplit` or `NotASpaceMember` for the whole expense, never replaced by EQUAL.
+ */
+export interface DefaultSplitSource {
+  allocationWeights(
+    expense: DefaultSplitQuery,
+  ): Promise<readonly { readonly memberId: string; readonly weight: bigint }[] | null>;
 }
 
 export interface TransactionRepository {

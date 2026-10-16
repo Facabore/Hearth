@@ -6,6 +6,7 @@ import type {
   AuditLog,
   CategoryReader,
   ClosedPeriodGuard,
+  DefaultSplitSource,
   TransactionQuery,
   TransactionRepository,
 } from "./ports";
@@ -22,6 +23,8 @@ export interface LedgerDeps {
   readonly accountBalances: AccountBalances;
   readonly categories: CategoryReader;
   readonly closedPeriods: ClosedPeriodGuard;
+  /** HU-E6-08: the default split of an expense recorded without one (BY_ALLOCATION or EQUAL). */
+  readonly defaultSplits: DefaultSplitSource;
   readonly storedPeriods: StoredPeriodSource;
   readonly ids: IdGenerator;
   readonly clock: Clock;

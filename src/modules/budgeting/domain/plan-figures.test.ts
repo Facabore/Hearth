@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { aLine, referenceLines } from "../../../../tests/support/budget-fixtures";
+import { codeOf } from "../../../../tests/support/fakes";
+import type { BudgetLine, BudgetLineId, RolloverMode } from "./budget-line";
 import {
+  activationCheck,
   lineForCategory,
   planFigures,
   type PeriodSpending,
@@ -235,6 +238,200 @@ describe("plan figures beyond the reference plan", () => {
       [ANA, 47_040_000n],
       [JUAN, 70_560_000n],
       [PEDRO, 29_400_000n],
+    ]);
+  });
+});
+
+describe("activationCheck (HU-E6-07)", () => {
+  it("accepts the reference plan: its lines fit its capacity and every allocation holds", () => {
+    expect(codeOf(activationCheck(figures(reference())))).toBe("ok");
+  });
+
+  it("refuses Free at 42 % / 57 %, naming it", () => {
+    const allocations = [
+      { lineId: "line-free", memberId: ANA, value: 4200n },
+      { lineId: "line-free", memberId: JUAN, value: 5700n },
+    ];
+    expect(activationCheck(figures(reference({ allocations })))).toEqual({
+      ok: false,
+      error: { code: "InvalidAllocation", details: { lineIds: ["line-free"] } },
+    });
+  });
+
+  it("refuses a plan whose capacity was reduced below its lines: Juan at 2,000,000 COP", () => {
+    const capacities = [
+      { memberId: ANA, amount: 160_000_000n },
+      { memberId: JUAN, amount: 200_000_000n },
+    ];
+    expect(codeOf(activationCheck(figures(reference({ capacities }))))).toBe("PlanExceedsCapacity");
+  });
+
+  it("does not read spending: an overspent line neither blocks activation nor changes the answer", () => {
+    const overspending: PeriodSpending = {
+      byCategory: [{ categoryId: "cat-rent", amount: 150_000_000n }],
+      byAccount: [],
+    };
+    const overspent = figures(reference(), [ANA, JUAN], overspending);
+    expect(line(overspent, "Rent").available).toBe(-30_000_000n);
+    expect(codeOf(activationCheck(overspent))).toBe("ok");
+  });
+
+  it("names every flagged line in plan order, and reports the capacity first when both fail", () => {
+    const lines = reference().lines.map((l) =>
+      l.name === "Home" ? { ...l, allocationRule: "FIXED" as const } : l,
+    );
+    const allocations = [
+      { lineId: "line-home", memberId: ANA, value: 50_000_000n },
+      { lineId: "line-free", memberId: ANA, value: 4200n },
+      { lineId: "line-free", memberId: JUAN, value: 5700n },
+    ];
+    expect(activationCheck(figures(reference({ lines, allocations })))).toEqual({
+      ok: false,
+      error: { code: "InvalidAllocation", details: { lineIds: ["line-home", "line-free"] } },
+    });
+    const capacities = [{ memberId: ANA, amount: 100_000_000n }];
+    expect(codeOf(activationCheck(figures(reference({ lines, allocations, capacities }))))).toBe(
+      "PlanExceedsCapacity",
+    );
+  });
+});
+
+describe("carry-over (HU-E6-09)", () => {
+  const groceries = [{ lineId: "line-home", categoryId: "cat-groceries" }];
+  const spentOnGroceries = (amount: bigint): PeriodSpending => ({
+    byCategory: [{ categoryId: "cat-groceries", amount }],
+    byAccount: [],
+  });
+  const home = (mode: RolloverMode, overrides: Partial<BudgetLine> = {}) =>
+    aLine("Home", 147_000_000n, { rolloverMode: mode, ...overrides });
+  /** Home in 2026-11, spent `spent`; the figures of its 2026-12 copies `december`, before any December spending. */
+  const rolled = (mode: RolloverMode, spent: bigint, december: BudgetLine[]) => {
+    const nov = figures(
+      reference({ lines: [home(mode)], mappings: groceries, allocations: [] }),
+      [ANA, JUAN],
+      spentOnGroceries(spent),
+    );
+    const dec = planFigures({
+      currency: "COP",
+      memberIds: [ANA, JUAN],
+      parts: reference({ lines: december, mappings: [], allocations: [] }),
+      spending: NOTHING,
+      previousAvailable: nov.lines.map((l) => ({ lineId: l.line.id, available: l.available })),
+    });
+    return { nov, dec };
+  };
+  const copied = (mode: RolloverMode) =>
+    home(mode, { id: "dec-home" as BudgetLineId, originLineId: "line-home" });
+
+  it.each<[RolloverMode, bigint, bigint, bigint]>([
+    ["RESET", 127_000_000n, 20_000_000n, 147_000_000n],
+    ["RESET", 160_000_000n, -13_000_000n, 147_000_000n],
+    ["ROLLOVER", 127_000_000n, 20_000_000n, 167_000_000n],
+    ["ROLLOVER", 160_000_000n, -13_000_000n, 147_000_000n],
+    ["ADJUSTED", 127_000_000n, 20_000_000n, 147_000_000n],
+    ["ADJUSTED", 160_000_000n, -13_000_000n, 134_000_000n],
+  ])(
+    "%s, spent %s in 2026-11: November available %s, December available %s (golden outline)",
+    (mode, spent, nov, dec) => {
+      const result = rolled(mode, spent, [copied(mode)]);
+      expect([line(result.nov, "Home").available, line(result.dec, "Home").available]).toEqual([nov, dec]);
+      expect(line(result.dec, "Home").carryOver).toBe(dec - 147_000_000n);
+    },
+  );
+
+  it("is decided by the receiving line's own mode, not by the line it was copied from (ruling P15)", () => {
+    expect(line(rolled("RESET", 127_000_000n, [copied("ROLLOVER")]).dec, "Home").carryOver).toBe(20_000_000n);
+    expect(line(rolled("ROLLOVER", 127_000_000n, [copied("RESET")]).dec, "Home").carryOver).toBe(0n);
+    expect(line(rolled("ROLLOVER", 160_000_000n, [copied("ADJUSTED")]).dec, "Home").carryOver).toBe(
+      -13_000_000n,
+    );
+  });
+
+  it("follows the origin link, not the name: House carries Home's 200,000 COP, a new Home carries nothing", () => {
+    const house = home("ROLLOVER", {
+      id: "dec-house" as BudgetLineId,
+      name: "House",
+      originLineId: "line-home",
+    });
+    const newHome = home("ROLLOVER", { id: "dec-home" as BudgetLineId });
+    const { dec } = rolled("ROLLOVER", 127_000_000n, [house, newHome]);
+    expect(dec.lines.map((l) => [l.line.name, l.carryOver, l.available])).toEqual([
+      ["House", 20_000_000n, 167_000_000n],
+      ["Home", 0n, 147_000_000n],
+    ]);
+  });
+
+  it("carries 0 from an origin the previous figures do not list, and nothing at all without previous figures", () => {
+    const orphan = home("ROLLOVER", { id: "dec-home" as BudgetLineId, originLineId: "line-removed" });
+    expect(line(rolled("ROLLOVER", 127_000_000n, [orphan]).dec, "Home").carryOver).toBe(0n);
+    expect(figures(reference()).lines.map((l) => l.carryOver)).toEqual([0n, 0n, 0n, 0n]);
+  });
+
+  it.each<[string, bigint, bigint, string]>([
+    ["a plan that fits its capacity", 240_000_000n, 0n, "ok"],
+    ["a plan whose capacity was reduced below its lines", 200_000_000n, -40_000_000n, "PlanExceedsCapacity"],
+  ])(
+    "changes only available: %s keeps every other line figure, unallocated, Unbudgeted and the activation check",
+    (_, juan, unallocated, activation) => {
+      const lines = reference().lines.map((l) => ({
+        ...l,
+        isCatchAll: false,
+        rolloverMode: "ROLLOVER" as const,
+        originLineId: `old-${l.id}`,
+      }));
+      const capacities = [
+        { memberId: ANA, amount: 160_000_000n },
+        { memberId: JUAN, amount: juan },
+      ];
+      const parts = reference({ lines, capacities });
+      const previousAvailable = lines.map((l) => ({ lineId: `old-${l.id}`, available: 20_000_000n }));
+      const plain = figures(parts);
+      const carried = planFigures({
+        currency: "COP",
+        memberIds: [ANA, JUAN],
+        parts,
+        spending: NOVEMBER,
+        previousAvailable,
+      });
+      expect(carried.lines.map((l) => l.carryOver)).toEqual([
+        20_000_000n,
+        20_000_000n,
+        20_000_000n,
+        20_000_000n,
+      ]);
+      expect(carried.lines.map((l) => l.available)).toEqual(
+        plain.lines.map((l) => l.available + 20_000_000n),
+      );
+      // Every other field of every line (line, planned, categoryIds, share, allocation, spent) is untouched.
+      const sansCarry = (f: PlanFigures) => f.lines.map((l) => ({ ...l, carryOver: 0n, available: 0n }));
+      expect(sansCarry(carried)).toEqual(sansCarry(plain));
+      expect({ ...carried, lines: [] }).toEqual({ ...plain, lines: [] });
+      expect(carried.unbudgeted).toEqual({ spent: 25_000_000n, available: -25_000_000n });
+      expect([carried.planned, carried.unallocated]).toEqual([400_000_000n, unallocated]);
+      expect(codeOf(activationCheck(carried))).toBe(activation);
+    },
+  );
+
+  it("chains an ADJUSTED overspend through three periods exactly, and stops at the first period left in credit (Review Focus 4)", () => {
+    const adjusted = (id: string, origin: string | null) =>
+      home("ADJUSTED", { id: id as BudgetLineId, originLineId: origin, isCatchAll: true });
+    const period = (line: BudgetLine, spent: bigint, previous?: PlanFigures) =>
+      planFigures({
+        currency: "COP",
+        memberIds: [ANA, JUAN],
+        parts: reference({ lines: [line], mappings: [], allocations: [] }),
+        spending: spentOnGroceries(spent),
+        previousAvailable: previous?.lines.map((l) => ({ lineId: l.line.id, available: l.available })) ?? [],
+      });
+    const nov = period(adjusted("nov-home", null), 160_000_000n);
+    const dec = period(adjusted("dec-home", "nov-home"), 170_000_000n, nov);
+    const jan = period(adjusted("jan-home", "dec-home"), 100_000_000n, dec);
+    const feb = period(adjusted("feb-home", "jan-home"), 0n, jan);
+    expect([nov, dec, jan, feb].map((f) => [f.lines[0]!.carryOver, f.lines[0]!.available])).toEqual([
+      [0n, -13_000_000n],
+      [-13_000_000n, -36_000_000n],
+      [-36_000_000n, 11_000_000n],
+      [0n, 147_000_000n],
     ]);
   });
 });

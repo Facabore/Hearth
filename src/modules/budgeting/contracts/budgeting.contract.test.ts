@@ -1,9 +1,21 @@
 import { describe, expect, it } from "vitest";
-import type { BudgetPlan, BudgetPlanId, BudgetPlanView } from "@/modules/budgeting/application";
+import {
+  SPLIT_METHODS,
+  type BudgetPlan,
+  type BudgetPlanId,
+  type BudgetPlanView,
+} from "@/modules/budgeting/application";
+import { SplitBodySchema } from "@/modules/ledger/contracts/ledger.contract";
 import { planFigures } from "@/modules/budgeting/domain/plan-figures";
 import type { LocalDate } from "@/shared/kernel";
 import { referenceLines } from "../../../../tests/support/budget-fixtures";
-import { budgetPlanDto, planCreated, planSuccess } from "./budgeting.contract";
+import {
+  budgetPlanDto,
+  CreatePlanBodySchema,
+  planCopied,
+  planCreated,
+  planSuccess,
+} from "./budgeting.contract";
 
 const cop = (pesos: number) => ({ amount: String(pesos * 100), currency: "COP" });
 const plan: BudgetPlan = {
@@ -67,6 +79,7 @@ describe("BudgetPlan on the wire (HU-E6-01 … HU-E6-05)", () => {
     const home = dto.lines.find((l) => l.name === "Home")!;
     expect(home).toEqual({
       id: "line-home",
+      originLineId: null,
       name: "Home",
       plannedAmount: cop(1_470_000),
       funding: "DIRECT",
@@ -84,6 +97,7 @@ describe("BudgetPlan on the wire (HU-E6-01 … HU-E6-05)", () => {
         error: null,
       },
       spent: cop(900_000),
+      carryOver: cop(0),
       available: cop(570_000),
     });
     expect(dto.lines.find((l) => l.name === "Free")!.allocation.members).toEqual([
@@ -142,5 +156,61 @@ describe("BudgetPlan on the wire (HU-E6-01 … HU-E6-05)", () => {
         ["location", "/api/v1/spaces/space-household/plans/plan-november"],
       ],
     });
+  });
+
+  it("prints a copy's line origins and what it left out (HU-E6-06)", () => {
+    const lines = referenceLines().map((l) => ({ ...l, originLineId: `nov-${l.id}` }));
+    const dropped = {
+      mappings: [{ lineId: "line-home", categoryId: "cat-utilities" }],
+      savingsAccounts: [{ lineId: "line-savings", accountId: "acc-juan-savings" }],
+      lines: [{ originLineId: "nov-line-trip", name: "Trip" }],
+    };
+    const copied = planCopied({ view: view(lines), dropped });
+    expect(copied).toMatchObject({
+      status: 201,
+      headers: [
+        ["etag", '"4"'],
+        ["location", "/api/v1/spaces/space-household/plans/plan-november"],
+      ],
+    });
+    const body = copied.body as ReturnType<typeof budgetPlanDto>;
+    expect(body.lines.map((l) => l.originLineId)).toEqual([
+      "nov-line-rent",
+      "nov-line-home",
+      "nov-line-savings",
+      "nov-line-free",
+    ]);
+    expect(body.dropped).toEqual(dropped);
+  });
+
+  it("leaves dropped out, not null, of every other answer, and prints originLineId null on lines not copied", () => {
+    for (const body of [budgetPlanDto(view()), planCreated(view()).body, planSuccess(view()).body]) {
+      expect(body).not.toHaveProperty("dropped");
+      expect((body as ReturnType<typeof budgetPlanDto>).lines.map((l) => l.originLineId)).toEqual([
+        null,
+        null,
+        null,
+        null,
+      ]);
+    }
+    const empty = planCopied({ view: view(), dropped: { mappings: [], savingsAccounts: [], lines: [] } });
+    expect(empty.body).toHaveProperty("dropped", { mappings: [], savingsAccounts: [], lines: [] });
+  });
+
+  it("takes copyFrom: previous, and nothing else, on POST …/plans", () => {
+    expect(CreatePlanBodySchema.safeParse({ period: "2026-12", copyFrom: "previous" }).success).toBe(true);
+    expect(CreatePlanBodySchema.safeParse({ period: "2026-12" }).success).toBe(true);
+    for (const copyFrom of ["template", "Previous", "", 1, true, null, ["previous"], { from: "previous" }]) {
+      expect(CreatePlanBodySchema.safeParse({ period: "2026-12", copyFrom }).success).toBe(false);
+    }
+  });
+});
+
+describe("the default split's methods (HU-E6-08)", () => {
+  it("offers, besides BY_ALLOCATION, exactly the methods the ledger accepts in a split", () => {
+    // The module boundary keeps budgeting from importing the ledger, so SPLIT_METHODS mirrors its list: a method
+    // the ledger gained would silently be missing from the preview's availableMethods.
+    const ledgerMethods = SplitBodySchema.options.map((option) => option.shape.method.value);
+    expect(SPLIT_METHODS.filter((method) => method !== "BY_ALLOCATION")).toEqual(ledgerMethods);
   });
 });

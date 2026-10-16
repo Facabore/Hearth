@@ -31,6 +31,16 @@ import {
   createUpdateBudgetLine,
   createMapCategoriesToLine,
   createAllocateBudgetLine,
+  createActivateBudgetPlan,
+  createCloseBudgetPlan,
+  createClosedPeriodGuard,
+  type ActivateBudgetPlan,
+  type CloseBudgetPlan,
+  createCopyBudgetPlan,
+  type CopyBudgetPlan,
+  createResolveDefaultSplit,
+  type ResolveDefaultSplit,
+  defaultSplitOf,
   type CreateBudgetPlan,
   type GetBudgetPlan,
   type PreviousIncome,
@@ -163,7 +173,7 @@ import { DrizzleIdempotencyStore } from "@/shared/infrastructure/drizzle-idempot
 import { loadEnv, type Env } from "@/shared/infrastructure/env";
 import { SystemClock } from "@/shared/infrastructure/system-clock";
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
-import { isUuid, map, type AuthUser, type Result } from "@/shared/kernel";
+import { isUuid, map, type AuthUser, type Clock, type Result } from "@/shared/kernel";
 import { accountBalancesFrom } from "./account-balances";
 
 /** Process-wide dependencies, built once from the environment. */
@@ -229,6 +239,7 @@ export interface Container extends RouteDeps {
   };
   readonly budgeting: {
     readonly createPlan: CreateBudgetPlan;
+    readonly copyPlan: CopyBudgetPlan;
     readonly getPlan: GetBudgetPlan;
     readonly setCapacities: SetMemberCapacities;
     readonly suggestCapacity: SuggestCapacity;
@@ -237,6 +248,9 @@ export interface Container extends RouteDeps {
     readonly removeLine: RemoveBudgetLine;
     readonly mapCategories: MapCategoriesToLine;
     readonly allocateLine: AllocateBudgetLine;
+    readonly activatePlan: ActivateBudgetPlan;
+    readonly closePlan: CloseBudgetPlan;
+    readonly resolveDefaultSplit: ResolveDefaultSplit;
   };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
@@ -264,13 +278,15 @@ export interface ContainerOptions {
   readonly authLimits?: AuthLimits;
   /** Delivers invitation emails; v1 has no SMTP adapter, so delivery is disabled unless a test passes one. */
   readonly emailSender?: EmailSender;
+  /** Test seam: replaces the system clock, so a test decides what "today" is (a plan closes only after its period). */
+  readonly clock?: Clock;
 }
 
 export const buildContainer = (env: Env, options: ContainerOptions = {}): Container => {
   const { db, pool } = createDatabase(env.DATABASE_URL);
   const tm = new DrizzleTransactionManager(db);
   const ids = new UuidV7IdGenerator();
-  const clock = new SystemClock();
+  const clock = options.clock ?? new SystemClock();
   const provider = new BetterAuthProvider(
     createAuth({ db, secret: env.BETTER_AUTH_SECRET, baseURL: env.BETTER_AUTH_URL }),
     db,
@@ -329,8 +345,16 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         return category ? { id: category.id, archived: category.archivedAt !== null } : null;
       },
     },
-    // Closing plans arrives with HU-E6-07; until then no period is closed.
-    closedPeriods: { isClosed: async () => false },
+    // HU-E4-06, HU-E6-07: a CLOSED plan's period takes no change; budgeting answers, the ledger never imports it.
+    closedPeriods: createClosedPeriodGuard(budgetPlans),
+    // HU-E6-08, spec 5.3: an expense recorded without a split follows its line's allocation in the ACTIVE plan;
+    // the ledger asks budgeting through its own port, so neither module imports the other.
+    defaultSplits: {
+      allocationWeights: async (expense) => {
+        const split = await defaultSplitOf({ plans: budgetPlans }, expense);
+        return split.method === "BY_ALLOCATION" ? split.weights : null;
+      },
+    },
     storedPeriods,
     // HU-E4-10: the accounts module owns the balance formula (opening balance + movements, HU-E2-04).
     accountBalances: accountBalancesFrom(getAccount),
@@ -416,6 +440,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     members: spaceRepository,
     plans: budgetPlans,
     allocations: budgetPlans,
+    statuses: budgetPlans,
     mappings: budgetPlans,
     categories: budgetCategories,
     lines: budgetPlans,
@@ -425,6 +450,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     spending: ledgerQueries,
     ids,
     clock,
+    timeZone: env.APP_TIMEZONE,
     tm,
   };
   const invitationRepository = new DrizzleInvitationRepository(tm);
@@ -580,6 +606,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     },
     budgeting: {
       createPlan: createCreateBudgetPlan(budgetingDeps),
+      copyPlan: createCopyBudgetPlan(budgetingDeps),
       getPlan: createGetBudgetPlan(budgetingDeps),
       setCapacities: createSetMemberCapacities(budgetingDeps),
       suggestCapacity: createSuggestCapacity(budgetingDeps),
@@ -588,6 +615,9 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       removeLine: createRemoveBudgetLine(budgetingDeps),
       mapCategories: createMapCategoriesToLine(budgetingDeps),
       allocateLine: createAllocateBudgetLine(budgetingDeps),
+      activatePlan: createActivateBudgetPlan(budgetingDeps),
+      closePlan: createCloseBudgetPlan(budgetingDeps),
+      resolveDefaultSplit: createResolveDefaultSplit(budgetingDeps),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.

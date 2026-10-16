@@ -255,7 +255,7 @@ Feature: Edit and soft delete with audit
 
 **Technical notes:**
 - Use cases: `EditTransaction`, `DeleteTransaction`; port `AuditLog`. Endpoints: `PATCH /api/v1/spaces/{spaceId}/transactions/{transactionId}` (honours `If-Match`, 412 on a stale ETag, HU-E0-10), `DELETE /api/v1/spaces/{spaceId}/transactions/{transactionId}`, `GET .../transactions/{transactionId}/audit`.
-- The closed-period scenario becomes active with HU-E6-07; until then the `ClosedPeriodGuard` port has an always-open adapter.
+- The closed-period scenario is active since HU-E6-07 (M3-B): the composition root binds `ClosedPeriodGuard` to budgeting's guard, which reads the plan covering the date `FOR SHARE`, so a write and a close of that period run one after the other.
 - Moving a transaction into a closed period is also rejected.
 
 ---

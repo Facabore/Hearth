@@ -24,6 +24,9 @@ import {
   type AllocationInput,
   type BudgetPlanView,
   type CapacitySuggestion,
+  type CopyDrops,
+  type PlanCopy,
+  type DefaultSplitView,
   type LineChanges,
   type LineFigure,
   type LineInput,
@@ -35,6 +38,8 @@ const percentOrNull = (basisPoints: number | null): string | null =>
 
 export const BudgetLineSchema = z.object({
   id: z.string(),
+  /** HU-E6-06, HU-E6-09: the line of the previous period's plan this one was copied from; null for new lines. */
+  originLineId: z.string().nullable(),
   name: z.string(),
   plannedAmount: MoneySchema,
   funding: z.enum(FUNDINGS),
@@ -65,7 +70,9 @@ export const BudgetLineSchema = z.object({
   }),
   /** Spec 5.4: spent in the plan's period, computed on read (D7). */
   spent: MoneySchema,
-  /** planned + carry-over − spent; the carry-over is 0 until lines are copied (HU-E6-06, HU-E6-09). */
+  /** HU-E6-09: carried from the line this one was copied from (`originLineId`), by this line's rollover mode. */
+  carryOver: MoneySchema,
+  /** planned + carry-over − spent, computed on read (D7). */
   available: MoneySchema,
 });
 
@@ -91,10 +98,28 @@ export const BudgetPlanSchema = z.object({
   lines: z.array(BudgetLineSchema),
   /** HU-E6-04: unmapped spending when the plan has no catch-all line; null when it has one. */
   unbudgeted: z.object({ spent: MoneySchema, available: MoneySchema }).nullable(),
+  /**
+   * HU-E6-06: only in the answer to a copy (`copyFrom: "previous"`), what it left out (rulings P10, P11): mappings to
+   * archived categories and savings accounts that no longer qualify, by the copied line, and SAVINGS lines
+   * left without accounts, by the source line.
+   */
+  dropped: z
+    .object({
+      mappings: z.array(z.object({ lineId: z.string(), categoryId: z.string() })),
+      savingsAccounts: z.array(z.object({ lineId: z.string(), accountId: z.string() })),
+      lines: z.array(z.object({ originLineId: z.string(), name: z.string() })),
+    })
+    .optional(),
 });
 
-/** HU-E6-01: the period's label in the space policy, e.g. "2026-11" (MONTHLY) or "2026-11 H1" (SEMI_MONTHLY). */
-export const CreatePlanBodySchema = z.object({ period: z.string().max(20) });
+/**
+ * HU-E6-01: the period's label in the space policy, e.g. "2026-11" (MONTHLY) or "2026-11 H1" (SEMI_MONTHLY).
+ * HU-E6-06: with `copyFrom: "previous"`, the plan of the previous period of the policy is copied into it.
+ */
+export const CreatePlanBodySchema = z.object({
+  period: z.string().max(20),
+  copyFrom: z.enum(["previous"]).optional(),
+});
 
 const Id = z.string().min(1).max(64);
 /** Members per request: bounds the payload; membership is checked by the domain. */
@@ -223,10 +248,44 @@ export const allocationFromBody = (body: z.infer<typeof AllocationBodySchema>): 
   }
 };
 
+/** HU-E6-08: the expense whose default split is previewed; `amount` in minor units of the space currency. */
+export const DefaultSplitQuerySchema = z.object({
+  categoryId: Id,
+  date: z.iso.date(),
+  // At most 18 digits (below 10^18 minor units, under the ledger's int64 bound), so any value it accepts fits and
+  // BigInt() only ever sees what matched; a preview needs no amount beyond that.
+  amount: z
+    .string()
+    .regex(/^[1-9]\d{0,17}$/, { error: "A positive amount in minor units, digits only" })
+    .optional(),
+});
+
+/** HU-E6-08: the default method, what a member may pick instead, the line it follows and the preview of the amount. */
+export const DefaultSplitSchema = z.object({
+  method: z.enum(["BY_ALLOCATION", "EQUAL"]),
+  /** BY_ALLOCATION is listed only when it is the default; a client gets it by sending no split. */
+  availableMethods: z.array(z.enum(["BY_ALLOCATION", "EQUAL", "PERCENT", "EXACT", "SHARES"])),
+  /** The line of the ACTIVE plan covering the date that the category consumes; null without one. */
+  lineId: z.string().nullable(),
+  /** The amount shared by the default, in join order; null without an amount. */
+  shares: z.array(z.object({ memberId: z.string(), amount: MoneySchema })).nullable(),
+});
+
+export const defaultSplitDto = (view: DefaultSplitView): z.infer<typeof DefaultSplitSchema> => ({
+  method: view.method,
+  availableMethods: [...view.availableMethods],
+  lineId: view.lineId,
+  shares:
+    view.shares === null
+      ? null
+      : view.shares.map((s) => ({ memberId: s.memberId, amount: moneyOf(s.amount, view.currency) })),
+});
+
 const lineDto = (figure: LineFigure, currency: string): z.infer<typeof BudgetLineSchema> => {
   const { line, allocation } = figure;
   return {
     id: line.id,
+    originLineId: line.originLineId,
     name: line.name,
     plannedAmount: moneyOf(line.plannedAmount, currency),
     funding: line.funding,
@@ -246,6 +305,7 @@ const lineDto = (figure: LineFigure, currency: string): z.infer<typeof BudgetLin
       error: allocation.invalid ? "InvalidAllocation" : null,
     },
     spent: moneyOf(figure.spent, currency),
+    carryOver: moneyOf(figure.carryOver, currency),
     available: moneyOf(figure.available, currency),
   };
 };
@@ -296,6 +356,18 @@ export const planCreated = (view: BudgetPlanView): HttpSuccess => ({
   ],
 });
 
+const droppedDto = (dropped: CopyDrops): NonNullable<z.infer<typeof BudgetPlanSchema>["dropped"]> => ({
+  mappings: dropped.mappings.map((m) => ({ lineId: m.lineId, categoryId: m.categoryId })),
+  savingsAccounts: dropped.savingsAccounts.map((s) => ({ lineId: s.lineId, accountId: s.accountId })),
+  lines: dropped.lines.map((l) => ({ originLineId: l.originLineId, name: l.name })),
+});
+
+/** HU-E6-06: 201 like a creation, its body also listing what the copy left out (ruling P11). */
+export const planCopied = ({ view, dropped }: PlanCopy): HttpSuccess => ({
+  ...planCreated(view),
+  body: { ...budgetPlanDto(view), dropped: droppedDto(dropped) },
+});
+
 const SpacePath = z.object({ spaceId: z.string() });
 const PlanPath = SpacePath.extend({ planId: z.string() });
 const LinePath = PlanPath.extend({ lineId: z.string() });
@@ -303,7 +375,11 @@ const planResponse = (description: string) => ({ description, content: jsonConte
 
 const IfMatchHeader = z.object({ "if-match": z.string().optional() });
 
-/** A write to a plan (HU-E6-02 … HU-E6-05): If-Match is optional, and the answer is the plan with its new ETag. */
+/**
+ * A write to a plan (HU-E6-02 … HU-E6-07): If-Match is optional, and the answer is the plan with its new ETag. Every
+ * edit of a plan or its parts answers 409 PeriodClosed once the plan is CLOSED; its transitions (`editsPlan` false)
+ * answer InvalidPlanTransition instead.
+ */
 const planWrite = <P extends z.ZodObject>(
   operationId: string,
   summary: string,
@@ -311,6 +387,7 @@ const planWrite = <P extends z.ZodObject>(
   body: z.ZodType | null,
   errors: Record<string, string>,
   status: "200" | "201" = "200",
+  editsPlan = true,
 ) => ({
   operationId,
   summary,
@@ -324,6 +401,7 @@ const planWrite = <P extends z.ZodObject>(
       "403": "InsufficientRole",
       "412": "PreconditionFailed",
       ...errors,
+      ...(editsPlan ? { "409": ["PeriodClosed", errors["409"]].filter(Boolean).join(", ") } : {}),
     }),
   },
 });
@@ -332,7 +410,10 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
   "/api/v1/spaces/{spaceId}/plans": {
     post: {
       operationId: "createBudgetPlan",
-      summary: "Create a DRAFT plan for a period of the space's policy; its boundaries are stored (D10)",
+      summary:
+        "Create a DRAFT plan for a period of the space's policy, empty or copied from the previous period's plan",
+      description:
+        "The period's boundaries are stored (D10). With copyFrom: previous, the plan covering the day before the period starts is deep-copied with new ids. Capacities and allocation values of former members are left out without being listed. The answer's dropped member, present only in the answer to a copy, lists mappings to archived categories and savings accounts that no longer qualify, by the copied line, and SAVINGS lines left without accounts, which are not copied, by their source line.",
       ...securedByUser,
       requestParams: { path: SpacePath },
       requestBody: { content: jsonContent(CreatePlanBodySchema) },
@@ -342,7 +423,7 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
           "401": "Unauthenticated",
           "403": "InsufficientRole",
           "404": "SpaceNotFound",
-          "409": "PlanAlreadyExists, SpaceArchived",
+          "409": "PlanAlreadyExists, NoPreviousPlan, SpaceArchived",
           "422": "ValidationFailed, InvalidPeriodLabel",
         }),
       },
@@ -454,5 +535,55 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
         "422": "ValidationFailed, InvalidAllocation, NotASpaceMember, CurrencyMismatch, UnknownCurrency",
       },
     ),
+  },
+  "/api/v1/spaces/{spaceId}/plans/{planId}/activate": {
+    post: planWrite(
+      "activateBudgetPlan",
+      "Activate a DRAFT plan whose lines fit its capacity and whose every allocation holds; it then drives default splits",
+      PlanPath,
+      null,
+      {
+        "404": "SpaceNotFound, BudgetPlanNotFound",
+        "409": "InvalidPlanTransition, PlanExceedsCapacity, SpaceArchived",
+        "422": "InvalidAllocation (lineIds names the lines whose allocation does not hold)",
+      },
+      "200",
+      false,
+    ),
+  },
+  "/api/v1/spaces/{spaceId}/plans/{planId}/close": {
+    post: planWrite(
+      "closeBudgetPlan",
+      "Close an ACTIVE plan once its period has ended: it and the space's transactions dated in its period can no longer be edited; its derived figures may still move",
+      PlanPath,
+      null,
+      {
+        "404": "SpaceNotFound, BudgetPlanNotFound",
+        "409":
+          "InvalidPlanTransition, PeriodNotOver (today is not after the period's last day), SpaceArchived",
+      },
+      "200",
+      false,
+    ),
+  },
+  "/api/v1/spaces/{spaceId}/default-split": {
+    get: {
+      operationId: "resolveDefaultSplit",
+      summary:
+        "The default split of an expense in a category on a date: BY_ALLOCATION by its line in the ACTIVE plan, else EQUAL",
+      ...securedByUser,
+      requestParams: { path: SpacePath, query: DefaultSplitQuerySchema },
+      responses: {
+        "200": {
+          description: "The default method, the methods a member may pick and the preview of the amount",
+          content: jsonContent(DefaultSplitSchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "404": "SpaceNotFound",
+          "422": "ValidationFailed, InvalidDate, CategoryNotInSpace",
+        }),
+      },
+    },
   },
 };

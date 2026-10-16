@@ -4794,7 +4794,7 @@
             }
           },
           "409": {
-            "description": "MemberNameTaken, AccountArchived, CategoryArchived, SpaceArchived, IdempotencyKeyConflict",
+            "description": "MemberNameTaken, AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4986,7 +4986,8 @@
     "/api/v1/spaces/{spaceId}/plans": {
       "post": {
         "operationId": "createBudgetPlan",
-        "summary": "Create a DRAFT plan for a period of the space's policy; its boundaries are stored (D10)",
+        "summary": "Create a DRAFT plan for a period of the space's policy, empty or copied from the previous period's plan",
+        "description": "The period's boundaries are stored (D10). With copyFrom: previous, the plan covering the day before the period starts is deep-copied with new ids. Capacities and allocation values of former members are left out without being listed. The answer's dropped member, present only in the answer to a copy, lists mappings to archived categories and savings accounts that no longer qualify, by the copied line, and SAVINGS lines left without accounts, which are not copied, by their source line.",
         "security": [
           {
             "cookieAuth": []
@@ -5014,6 +5015,12 @@
                   "period": {
                     "type": "string",
                     "maxLength": 20
+                  },
+                  "copyFrom": {
+                    "type": "string",
+                    "enum": [
+                      "previous"
+                    ]
                   }
                 },
                 "required": [
@@ -5065,7 +5072,7 @@
             }
           },
           "409": {
-            "description": "PlanAlreadyExists, SpaceArchived",
+            "description": "PlanAlreadyExists, NoPreviousPlan, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5266,7 +5273,7 @@
             }
           },
           "409": {
-            "description": "SpaceArchived",
+            "description": "PeriodClosed, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5515,7 +5522,7 @@
             }
           },
           "409": {
-            "description": "PlanExceedsCapacity, BudgetLineNameTaken, CatchAllLineAlreadySet, SavingsAccountAlreadyUsed, SavingsLineNotMappable, AccountArchived, SpaceArchived",
+            "description": "PeriodClosed, PlanExceedsCapacity, BudgetLineNameTaken, CatchAllLineAlreadySet, SavingsAccountAlreadyUsed, SavingsLineNotMappable, AccountArchived, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5681,7 +5688,7 @@
             }
           },
           "409": {
-            "description": "PlanExceedsCapacity, BudgetLineNameTaken, CatchAllLineAlreadySet, SavingsAccountAlreadyUsed, SavingsLineNotMappable, AccountArchived, SpaceArchived",
+            "description": "PeriodClosed, PlanExceedsCapacity, BudgetLineNameTaken, CatchAllLineAlreadySet, SavingsAccountAlreadyUsed, SavingsLineNotMappable, AccountArchived, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5798,7 +5805,7 @@
             }
           },
           "409": {
-            "description": "SpaceArchived",
+            "description": "PeriodClosed, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5930,7 +5937,7 @@
             }
           },
           "409": {
-            "description": "CategoryAlreadyMapped, CategoryArchived, SavingsLineNotMappable, SpaceArchived",
+            "description": "PeriodClosed, CategoryAlreadyMapped, CategoryArchived, SavingsLineNotMappable, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6153,7 +6160,7 @@
             }
           },
           "409": {
-            "description": "SpaceArchived",
+            "description": "PeriodClosed, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6174,6 +6181,373 @@
           },
           "422": {
             "description": "ValidationFailed, InvalidAllocation, NotASpaceMember, CurrencyMismatch, UnknownCurrency",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/plans/{planId}/activate": {
+      "post": {
+        "operationId": "activateBudgetPlan",
+        "summary": "Activate a DRAFT plan whose lines fit its capacity and whose every allocation holds; it then drives default splits",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "planId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "header",
+            "name": "if-match",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The plan with its new ETag",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetPlan"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "InsufficientRole",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound, BudgetPlanNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "InvalidPlanTransition, PlanExceedsCapacity, SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "PreconditionFailed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "InvalidAllocation (lineIds names the lines whose allocation does not hold)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/plans/{planId}/close": {
+      "post": {
+        "operationId": "closeBudgetPlan",
+        "summary": "Close an ACTIVE plan once its period has ended: it and the space's transactions dated in its period can no longer be edited; its derived figures may still move",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "planId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "header",
+            "name": "if-match",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The plan with its new ETag",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetPlan"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "InsufficientRole",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound, BudgetPlanNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "InvalidPlanTransition, PeriodNotOver (today is not after the period's last day), SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "PreconditionFailed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/default-split": {
+      "get": {
+        "operationId": "resolveDefaultSplit",
+        "summary": "The default split of an expense in a category on a date: BY_ALLOCATION by its line in the ACTIVE plan, else EQUAL",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "categoryId",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "date",
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "amount",
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,17}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The default method, the methods a member may pick and the preview of the amount",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "method": {
+                      "type": "string",
+                      "enum": [
+                        "BY_ALLOCATION",
+                        "EQUAL"
+                      ]
+                    },
+                    "availableMethods": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "BY_ALLOCATION",
+                          "EQUAL",
+                          "PERCENT",
+                          "EXACT",
+                          "SHARES"
+                        ]
+                      }
+                    },
+                    "lineId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "shares": {
+                      "anyOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "memberId": {
+                                "type": "string"
+                              },
+                              "amount": {
+                                "$ref": "#/components/schemas/MoneyOutput"
+                              }
+                            },
+                            "required": [
+                              "memberId",
+                              "amount"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "method",
+                    "availableMethods",
+                    "lineId",
+                    "shares"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed, InvalidDate, CategoryNotInSpace",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6285,6 +6659,12 @@
           },
           "outstanding": {
             "$ref": "#/components/schemas/MoneyOutput"
+          },
+          "lineIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -7090,6 +7470,12 @@
                 "id": {
                   "type": "string"
                 },
+                "originLineId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
                 "name": {
                   "type": "string"
                 },
@@ -7213,12 +7599,16 @@
                 "spent": {
                   "$ref": "#/components/schemas/MoneyOutput"
                 },
+                "carryOver": {
+                  "$ref": "#/components/schemas/MoneyOutput"
+                },
                 "available": {
                   "$ref": "#/components/schemas/MoneyOutput"
                 }
               },
               "required": [
                 "id",
+                "originLineId",
                 "name",
                 "plannedAmount",
                 "funding",
@@ -7229,6 +7619,7 @@
                 "capacityShare",
                 "allocation",
                 "spent",
+                "carryOver",
                 "available"
               ],
               "additionalProperties": false
@@ -7256,6 +7647,74 @@
                 "type": "null"
               }
             ]
+          },
+          "dropped": {
+            "type": "object",
+            "properties": {
+              "mappings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "lineId": {
+                      "type": "string"
+                    },
+                    "categoryId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "lineId",
+                    "categoryId"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "savingsAccounts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "lineId": {
+                      "type": "string"
+                    },
+                    "accountId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "lineId",
+                    "accountId"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "lines": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "originLineId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "originLineId",
+                    "name"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "mappings",
+              "savingsAccounts",
+              "lines"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [

@@ -9,6 +9,9 @@ import {
 import { POST as postLineRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/lines/route";
 import { PUT as putCategoriesRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/lines/[lineId]/categories/route";
 import { PUT as putAllocationRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/lines/[lineId]/allocation/route";
+import { POST as activateRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/activate/route";
+import { POST as closeRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/close/route";
+import { GET as defaultSplitRoute } from "@/app/api/v1/spaces/[spaceId]/default-split/route";
 import { call, type TestUser } from "./app";
 import { cop, household, newAccount, type MoneyDto } from "./ledger";
 
@@ -20,6 +23,7 @@ export interface AllocationMemberDto {
 }
 export interface LineDto {
   id: string;
+  originLineId: string | null;
   name: string;
   plannedAmount: MoneyDto;
   funding: string;
@@ -30,6 +34,7 @@ export interface LineDto {
   capacityShare: string | null;
   allocation: { rule: string; members: AllocationMemberDto[]; error: string | null };
   spent: MoneyDto;
+  carryOver: MoneyDto;
   available: MoneyDto;
 }
 export interface PlanDto {
@@ -45,6 +50,12 @@ export interface PlanDto {
   unallocated: MoneyDto;
   lines: LineDto[];
   unbudgeted: { spent: MoneyDto; available: MoneyDto } | null;
+  /** HU-E6-06: only in the answer to a copy. */
+  dropped?: {
+    mappings: { lineId: string; categoryId: string }[];
+    savingsAccounts: { lineId: string; accountId: string }[];
+    lines: { originLineId: string; name: string }[];
+  };
 }
 
 export const plansPath = (spaceId: string, rest = "") => `/api/v1/spaces/${spaceId}/plans${rest}`;
@@ -227,3 +238,42 @@ export const putAllocation = (
     body: allocation,
     headers: ifMatch(version),
   });
+
+/** HU-E6-07: `user` activates the plan. */
+export const activatePlan = (user: TestUser, spaceId: string, planId: string, version?: number) =>
+  call(activateRoute, "POST", plansPath(spaceId, `/${planId}/activate`), {
+    user,
+    params: { spaceId, planId },
+    headers: ifMatch(version),
+  });
+
+/** HU-E6-07: `user` closes the plan. */
+export const closePlan = (user: TestUser, spaceId: string, planId: string, version?: number) =>
+  call(closeRoute, "POST", plansPath(spaceId, `/${planId}/close`), {
+    user,
+    params: { spaceId, planId },
+    headers: ifMatch(version),
+  });
+
+/** HU-E6-06: `user` creates the plan for `period` as a copy of the previous period's plan. */
+export const copyPlan = (user: TestUser, spaceId: string, period: string) =>
+  call(createPlanRoute, "POST", plansPath(spaceId), {
+    user,
+    params: { spaceId },
+    body: { period, copyFrom: "previous" },
+  });
+
+/** HU-E6-08: the default split `user` would get for an expense in `query.categoryId` on `query.date`. */
+export const getDefaultSplit = (
+  user: TestUser,
+  spaceId: string,
+  query: { categoryId: string; date: string; amount?: string },
+) => {
+  const search = new URLSearchParams(
+    Object.entries(query).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  );
+  return call(defaultSplitRoute, "GET", `/api/v1/spaces/${spaceId}/default-split?${search.toString()}`, {
+    user,
+    params: { spaceId },
+  });
+};

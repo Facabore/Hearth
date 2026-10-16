@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { requirePermission, type SpaceId } from "@/modules/spaces/application";
+import { ok } from "@/shared/kernel";
 import { aLine, referenceLines } from "../../../../tests/support/budget-fixtures";
 import { budgetingWorld, HOUSEHOLD, NOW, savingsAccounts } from "../../../../tests/support/budgeting-world";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
 import { memberOf } from "../../../../tests/support/in-memory-spaces";
 import { createCreateBudgetPlan } from "./create-budget-plan";
 import { createGetBudgetPlan } from "./get-budget-plan";
-import { planForWrite } from "./plan-access";
+import { managePlan, planForWrite } from "./plan-access";
 import type { BudgetAccount, SavingsAccountReader } from "./ports";
 
 const as = (userId: string, period = "2026-11", spaceId = HOUSEHOLD) => ({ spaceId, userId, period });
@@ -331,5 +332,26 @@ describe("planForWrite (spec 7, every plan write)", () => {
       requirePermission(m, "capacity.setOwn");
     expect(codeOf(await planForWrite(deps, write("u-juan", plan.id), ownCapacity))).toBe("ok");
     expect(codeOf(await planForWrite(deps, write("u-sofi", plan.id), ownCapacity))).toBe("InsufficientRole");
+  });
+
+  it("checks the status read after the lock, so a close committed while it waited refuses the write (N4)", async () => {
+    const { deps, plans } = budgetingWorld();
+    const plan = unwrap(await createCreateBudgetPlan(deps)(as("u-ana"))).plan;
+    const lockForWrite = plans.lockForWrite.bind(plans);
+    // A close commits while this write waits for the row lock: the plan it read before the lock is still DRAFT.
+    plans.lockForWrite = async (planId, expectedVersion) => {
+      await plans.setStatus(planId, "CLOSED");
+      return lockForWrite(planId, expectedVersion);
+    };
+    expect(codeOf(await planForWrite(deps, write("u-ana", plan.id)))).toBe("PeriodClosed");
+  });
+
+  it("applies the status rule a transition passes instead of refusing CLOSED plans", async () => {
+    const { deps, plans } = budgetingWorld();
+    const plan = unwrap(await createCreateBudgetPlan(deps)(as("u-ana"))).plan;
+    await plans.setStatus(plan.id, "CLOSED");
+    const anyStatus = () => ok(undefined);
+    expect(codeOf(await planForWrite(deps, write("u-ana", plan.id), managePlan, anyStatus))).toBe("ok");
+    expect(codeOf(await planForWrite(deps, write("u-ana", plan.id)))).toBe("PeriodClosed");
   });
 });

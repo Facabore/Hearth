@@ -133,11 +133,11 @@ A UI story is `Done` when:
 | [HU-E5-02](E5-balances-and-settlements.md) | Record a settlement | E5 | M2 | Must | M | Done | HU-E5-01, HU-E1-10 |
 | [HU-E5-03](E5-balances-and-settlements.md) | Suggest simplified settlements | E5 | M2 | Should | M | Done | HU-E5-01 |
 | [HU-E5-04](E5-balances-and-settlements.md) | Show balance history per member | E5 | M2 | Should | S | Backlog | HU-E5-02 |
-| [HU-E6-01](E6-budgeting.md) | Create a plan for a period | E6 | M3 | Must | S | Backlog | HU-E1-05, HU-E0-04 |
-| [HU-E6-02](E6-budgeting.md) | Set member capacities | E6 | M3 | Must | S | Backlog | HU-E6-01 |
-| [HU-E6-03](E6-budgeting.md) | Add budget lines and show unallocated capacity | E6 | M3 | Must | M | Backlog | HU-E6-02 |
-| [HU-E6-04](E6-budgeting.md) | Map categories to budget lines | E6 | M3 | Must | S | Backlog | HU-E6-03, HU-E3-02 |
-| [HU-E6-05](E6-budgeting.md) | Allocate a budget line among members | E6 | M3 | Must | M | Backlog | HU-E6-03 |
+| [HU-E6-01](E6-budgeting.md) | Create a plan for a period | E6 | M3 | Must | S | Done | HU-E1-05, HU-E0-04 |
+| [HU-E6-02](E6-budgeting.md) | Set member capacities | E6 | M3 | Must | S | Done | HU-E6-01 |
+| [HU-E6-03](E6-budgeting.md) | Add budget lines and show unallocated capacity | E6 | M3 | Must | M | Done | HU-E6-02 |
+| [HU-E6-04](E6-budgeting.md) | Map categories to budget lines | E6 | M3 | Must | S | Done | HU-E6-03, HU-E3-02 |
+| [HU-E6-05](E6-budgeting.md) | Allocate a budget line among members | E6 | M3 | Must | M | Done | HU-E6-03 |
 | [HU-E6-06](E6-budgeting.md) | Copy a plan from the previous period | E6 | M3 | Must | M | Backlog | HU-E6-04, HU-E6-05 |
 | [HU-E6-07](E6-budgeting.md) | Activate and close a plan | E6 | M3 | Must | M | Backlog | HU-E6-05 |
 | [HU-E6-08](E6-budgeting.md) | Default split by allocation | E6 | M3 | Must | M | Backlog | HU-E6-04, HU-E6-05, HU-E6-07, HU-E4-07, HU-E5-01 |
@@ -192,7 +192,7 @@ Notes on placement:
 - HU-E2-02 (shared fund account) belongs to epic E2 but ships in M2, because shared spaces first exist in M2.
 - HU-E1-13 (direct spaces) lives in E1 because creating and reusing the space belongs to `spaces`; it reuses the shared-expense flow of HU-E4-07.
 - The unified-view assertions of HU-E1-11 (M2) become testable once HU-E7-04 (M4) lands.
-- The closed-period scenario of HU-E4-06 (M1) activates once HU-E6-07 (M3) provides the `ClosedPeriodGuard` adapter.
+- The closed-period scenario of HU-E4-06 (M1) is active since HU-E6-07 (M3-B) provides the `ClosedPeriodGuard` adapter.
 - E9 parallel track: HU-E9-01 and HU-E9-02 can start after M0; HU-E9-03 and HU-E9-04 after M1; HU-E9-05 … HU-E9-07 after M2; HU-E9-08 and HU-E9-09 after M3; HU-E9-10 and HU-E9-11 after M4. The default-split scenarios of HU-E9-06 activate once HU-E6-08 (M3) is `Done`.
 - HU-E8-07 (PWA) is a web UI story kept in E8 as a Won't-v1 placeholder; it depends on HU-E9-01 and HU-E9-11 and follows the UI Definition of Done.
 

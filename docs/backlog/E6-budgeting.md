@@ -217,7 +217,7 @@ Feature: Category to line mapping
 - Invariants: (planId, categoryId) unique; archived categories cannot be newly mapped; at most one `isCatchAll` line per plan (`CatchAllLineAlreadySet`, 409, answered by `PATCH …/lines/{lineId}` with `isCatchAll`, and by `POST …/lines` with it).
 - "Unbudgeted" is computed on read, never persisted, and only exists when the plan has no catch-all line.
 - `PUT …/lines/{lineId}/categories` takes the line's whole category set; categories left out are unmapped (the rows stay, D8), and removing a line ends its mappings. Errors: `CategoryNotInSpace` (422: any id that is not a live category of the plan's space, so other spaces' categories never leak), `CategoryArchived` (409, for categories newly mapped), `CategoryAlreadyMapped` (409), `SavingsLineNotMappable` (409: a SAVINGS line takes no categories and is never the catch-all line, spec 5.4).
-- Each line reports `spent` and `available` (planned − spent; HU-E6-09's carry-over is 0 until lines are copied), and the plan reports `unbudgeted` (`spent`, `available`) only when it has no catch-all line. A category that any plan maps or once mapped can no longer be deleted (`CategoryInUse`, HU-E3-03); it can be archived.
+- Each line reports `spent` and `available` (planned + carry-over − spent; the carry-over of HU-E6-09), and the plan reports `unbudgeted` (`spent`, `available`) only when it has no catch-all line. A category that any plan maps or once mapped can no longer be deleted (`CategoryInUse`, HU-E3-03); it can be archived.
 
 ---
 
@@ -318,6 +318,7 @@ Feature: Copy previous plan
 - Use case: `CopyBudgetPlan` (endpoint `POST /api/v1/spaces/{spaceId}/plans` with `copyFrom: "previous"`; the response lists dropped mappings); the source is the plan of the previous period of the same policy (for `SEMI_MONTHLY`, "2026-11 H2" copies from "2026-11 H1" and "2026-12 H1" from "2026-11 H2"), never simply the previous calendar month.
 - Copy is a deep clone with new ids; former members and archived categories excluded.
 - Supports success criterion "plan in under 5 minutes".
+- The copy answers `201` like a creation (`ETag`, `Location`), and only that answer carries `dropped`: `mappings` (to categories archived since, by the copied line), `savingsAccounts` (accounts that no longer qualify, by the copied line) and `lines` (SAVINGS lines left without accounts, by the source line). Each copied line keeps its name, planned amount, funding, rollover mode, catch-all flag and allocation rule, links to its source through `originLineId` and is listed in the source's order; capacities and PERCENT/FIXED values of former members are left out, so a line that named one is flagged `InvalidAllocation` until it is allocated again. A savings account is kept while it is a SAVINGS account, not archived, in the plan's currency and owned by a current registered member of the space; the copy names no account anew, so it does not depend on who copies. Nothing is checked against capacity: activation does (HU-E6-07). Errors: `NoPreviousPlan` (409), `PlanAlreadyExists` (409), `InvalidPeriodLabel` (422), `SpaceArchived` (409).
 
 ---
 
@@ -349,7 +350,7 @@ Feature: Plan lifecycle
 
   @critical
   Scenario: Closed period rejects ledger changes
-    Given the plan is "ACTIVE"
+    Given the plan is "ACTIVE" and today is 2026-12-01
     When "Ana" closes the plan
     Then the plan status is "CLOSED"
     And recording an expense dated 2026-11-15 fails with the error "PeriodClosed"
@@ -363,12 +364,20 @@ Feature: Plan lifecycle
   Scenario: Only an active plan can be closed
     When "Ana" closes the plan while it is "DRAFT"
     Then the result is the error "InvalidPlanTransition"
+
+  Scenario: A plan cannot be closed before its period has ended
+    Given the plan is "ACTIVE" and today is 2026-11-30
+    When "Ana" closes the plan
+    Then the result is the error "PeriodNotOver"
+    And the plan status is "ACTIVE"
 ```
 
 **Technical notes:**
 - Use cases: `ActivateBudgetPlan`, `CloseBudgetPlan`. Endpoints: `POST /api/v1/spaces/{spaceId}/plans/{planId}/activate`, `POST .../plans/{planId}/close` (both honour `If-Match`, HU-E0-10).
 - State machine: DRAFT → ACTIVE → CLOSED; no reopening in v1.
 - Provides the `ClosedPeriodGuard` adapter used by `ledger` (HU-E4-06).
+- `POST …/plans/{planId}/activate` has no body, honours an optional `If-Match` and answers the whole plan with its new `ETag` (like every plan write). Activation checks, in this order, that Σ planned does not exceed the current members' capacity (`PlanExceedsCapacity`, 409) and that every allocation holds (`InvalidAllocation`, 422, whose problem lists the flagged lines in `lineIds`). An ACTIVE plan stays editable and is not checked again. Other errors: `InvalidPlanTransition` (409: any move other than DRAFT → ACTIVE → CLOSED), `BudgetPlanNotFound` (404, malformed ids included), `SpaceArchived` (409).
+- `POST …/plans/{planId}/close` mirrors activation and checks two things, in this order: the transition (ACTIVE → CLOSED, else `InvalidPlanTransition`) and that the plan's period has ended, which means that today in the deployment time zone (`APP_TIMEZONE`, the zone the ledger dates undated records in) is after the plan's stored last day, else `PeriodNotOver` (409) and nothing changes. A close at 2026-11-30 22:00 in Bogota, already 2026-12-01 in UTC, is refused. v1 has no reopening, so an early close would refuse every ledger write of the space dated in the rest of the period (ruling P17, amended after the final review); activation stays free, before or after the period. Once CLOSED, every edit of the plan or its parts answers `PeriodClosed` (409), and so does every write of the space's ledger dated within the plan's stored dates (record, edit on either date, delete; HU-E4-06). The guard reads the plan covering the date `FOR SHARE`, so a ledger write and a close of its period run one after the other. Figures stay derived on read: a transfer recorded in a personal space into a SAVINGS line's account, or a member leaving, still changes a closed plan's figures.
 
 ---
 
@@ -425,6 +434,8 @@ Feature: BY_ALLOCATION default split
 - BY_ALLOCATION ratios = assigned amounts of the line for the expense's period; computed via `Money.allocate`.
 - Share rows store `splitMethod = BY_ALLOCATION` as a snapshot (spec 5.2).
 - EQUAL is the default when the resolved line has rule `NONE`, when there is no line, or when the plan is not `ACTIVE` (spec 5.3).
+- `GET …/default-split` is `space.read` (any member; archived spaces answer too) and takes `categoryId` and `date` (required) and `amount` (optional, positive minor units of the space currency, digits only, at most 18). It answers `{ method, availableMethods, lineId, shares }`: `shares` is null without an amount; `availableMethods` lists `BY_ALLOCATION` only when it is the default, because a client gets it by sending no split (it is never requested explicitly). The weights are the line's assigned amounts for the current members, positive ones only (a member without capacity or without a FIXED amount takes no share); EQUAL weighs every current member alike, and so does an allocation that does not hold. Errors: `ValidationFailed` (422: also an empty `categoryId` or one longer than 64 characters), `CategoryNotInSpace` (422: every other id that is not a live category of the space; archived categories still resolve), `InvalidDate` (422), `SpaceNotFound` (404).
+- `RecordExpense` asks for the default only when the request has no `split`, after checking the closed period (HU-E4-06 first); its shares store `splitMethod = BY_ALLOCATION` and are never recomputed when the plan changes. `BY_ALLOCATION` cannot be requested explicitly: the split methods a client sends stay `EQUAL`, `PERCENT`, `EXACT` and `SHARES`. The ledger passes budgeting the current member ids it already read for the expense, so the weights can only name members the split is shared among. In a personal or DIRECT space with an ACTIVE plan, an expense without a split whose category resolves to an allocated line records `BY_ALLOCATION` shares like any other space (personal: one share, for the owner).
 
 ---
 
@@ -469,3 +480,4 @@ Feature: Rollover modes
 - Domain service `RolloverCalculator`: available(L) = planned + carry − spent(L); RESET carry 0; ROLLOVER max(prevAvailable, 0); ADJUSTED min(prevAvailable, 0).
 - Previous line resolved via the copied line's origin link (not by name); lines without an origin get carry 0.
 - Computed on read (D7); recursion bounded by the plan chain. Exposed as `available` and `carryOver` on each line of `GET /api/v1/spaces/{spaceId}/plans/{planId}`.
+- The mode that decides is the receiving line's own `rolloverMode`; the previous available is the origin line's `available` in the plan the line was copied from (itself with its own carry-over), whatever that plan's status. An origin removed from its plan after the copy carries 0. Every write's answer carries the same figures.

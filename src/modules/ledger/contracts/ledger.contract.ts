@@ -98,8 +98,9 @@ export const SplitBodySchema = z.discriminatedUnion("method", [
 
 /**
  * HU-E4-01 sends `accountId` (the requester pays everything from that account of theirs); HU-E4-07
- * sends `payments` instead. Without `split` the amount is shared EQUAL among every current member
- * (spec 5.3), which in a personal space is the requester alone.
+ * sends `payments` instead. Without `split` the amount takes the default split (spec 5.3, HU-E6-08):
+ * BY_ALLOCATION when the category resolves to an allocated line of the ACTIVE plan covering the date, else
+ * EQUAL among every current member, which in a personal space is the requester alone.
  */
 export const RecordExpenseBodySchema = z
   .object({
@@ -399,9 +400,11 @@ const DirectCounterpartSchema = z.discriminatedUnion("kind", [
 ]);
 
 /**
- * HU-E1-13: the requester pays the whole amount from one of their own accounts and it is shared EQUAL
- * with the other person (spec 5.3). The category is a catalog key of the default categories every direct
- * space is seeded with (HU-E3-01, D11), since a new space's category ids are not known yet.
+ * HU-E1-13: the requester pays the whole amount from one of their own accounts and it takes the default
+ * split with the other person (spec 5.3, HU-E6-08): EQUAL, as a new direct space has no plan, and
+ * BY_ALLOCATION once an ACTIVE plan of the space allocates the category's line. The category is a catalog
+ * key of the default categories every direct space is seeded with (HU-E3-01, D11), since a new space's
+ * category ids are not known yet.
  */
 export const DirectSplitBodySchema = z.object({
   counterpart: DirectCounterpartSchema,
@@ -636,7 +639,8 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
         ...problems({
           "401": "Unauthenticated",
           "404": "MemberNotFound, CategoryNotFound, AccountNotFound",
-          "409": "MemberNameTaken, AccountArchived, CategoryArchived, SpaceArchived, IdempotencyKeyConflict",
+          "409":
+            "MemberNameTaken, AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
           "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned`,
         }),
       },
