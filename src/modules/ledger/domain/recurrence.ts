@@ -1,0 +1,211 @@
+import { domainError, err, ok, type Id, type LocalDate, type Result } from "@/shared/kernel";
+import { scheduleDates, type Schedule } from "./recurrence-schedule";
+import type { SplitInput } from "./split";
+import { positiveAmount } from "./transaction";
+
+export type RecurrenceId = Id<"Recurrence">;
+export type RecurrenceMode = "AUTO" | "CONFIRM";
+export type RecurrenceStatus = "ACTIVE" | "PAUSED" | "ENDED";
+
+/** Ruling P23: a recurrence shares by ratios only; EXACT amounts could not follow an estimate or a later amount. */
+export type RecurrenceSplit = Exclude<SplitInput, { readonly method: "EXACT" }>;
+
+/**
+ * Spec 5.2: what every occurrence records besides its date and amount. Its type, payer and accounts stay as defined
+ * (ruling P22); an expense's category and split, and an income's category, may change.
+ */
+export type RecurrenceTemplate =
+  | {
+      readonly type: "EXPENSE";
+      readonly categoryId: string;
+      /** A member (registered, or a guest with no account) and their account, or the fund (memberId null). */
+      readonly payer: { readonly memberId: string | null; readonly accountId: string | null };
+      /** Null: the default split of each occurrence (spec 5.3, ruling P23). */
+      readonly split: RecurrenceSplit | null;
+    }
+  | { readonly type: "INCOME"; readonly categoryId: string; readonly accountId: string }
+  | { readonly type: "TRANSFER"; readonly sourceAccountId: string; readonly destinationAccountId: string }
+  | {
+      readonly type: "FUND_CONTRIBUTION";
+      readonly fundAccountId: string;
+      readonly memberId: string;
+      /** Null for a guest, who contributes from outside the app (HU-E4-09). */
+      readonly sourceAccountId: string | null;
+    };
+
+export type RecurrenceType = RecurrenceTemplate["type"];
+
+export interface Recurrence {
+  readonly id: RecurrenceId;
+  readonly spaceId: string;
+  readonly description: string;
+  /** AUTO: what each occurrence records; CONFIRM: the estimate a pending occurrence suggests. Minor units. */
+  readonly amount: bigint;
+  readonly currency: string;
+  readonly template: RecurrenceTemplate;
+  readonly schedule: Schedule;
+  readonly mode: RecurrenceMode;
+  readonly startDate: LocalDate;
+  readonly endDate: LocalDate | null;
+  /** The first date the scheduler has not considered yet: catch-up starts here (spec 5.2, ruling P24). */
+  readonly dueFrom: LocalDate;
+  readonly pausedAt: Date | null;
+  /** Null when a member paused it; PayerLeft, CreatorLeft or the code that refused an occurrence otherwise (P26). */
+  readonly pauseReason: string | null;
+  readonly endedAt: Date | null;
+  /** The user who defined it: every AUTO occurrence is recorded on their behalf (ruling P21). */
+  readonly createdBy: string;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+}
+
+const MAX_DESCRIPTION = 200;
+/** HU-E4-11: GET …/occurrences lists at most this many upcoming dates. */
+export const MAX_UPCOMING = 24;
+
+const describedAs = (raw: string): Result<string> => {
+  const text = raw.trim();
+  return text.length > 0 && text.length <= MAX_DESCRIPTION
+    ? ok(text)
+    : err(domainError("InvalidDescription", { length: text.length }));
+};
+
+const endsOnOrAfter = (startDate: LocalDate, endDate: LocalDate | null): Result<void> =>
+  endDate === null || endDate >= startDate
+    ? ok(undefined)
+    : err(domainError("InvalidRecurrence", { reason: "endsBeforeStart" }));
+
+export interface NewRecurrence {
+  readonly id: RecurrenceId;
+  readonly spaceId: string;
+  readonly description: string;
+  readonly amount: bigint;
+  readonly currency: string;
+  readonly template: RecurrenceTemplate;
+  readonly schedule: Schedule;
+  readonly mode: RecurrenceMode;
+  readonly startDate: LocalDate;
+  readonly endDate: LocalDate | null;
+  readonly createdBy: string;
+  readonly now: Date;
+  /** The definition day in the space timezone. */
+  readonly today: LocalDate;
+}
+
+/** The schedule dates from the first not considered yet through the end date, at most `limit`. */
+const datesLeft = (
+  recurrence: Pick<Recurrence, "schedule" | "dueFrom" | "endDate">,
+  limit: number,
+): LocalDate[] =>
+  scheduleDates(recurrence.schedule, { from: recurrence.dueFrom, through: recurrence.endDate }, limit);
+
+/**
+ * HU-E4-11: a new recurrence is ACTIVE. It is due from its start date, or from the definition day when it starts
+ * earlier: a recurrence never back-fills days before it existed (ruling P24). A definition with no schedule date
+ * from there through its end date could never record anything and is refused.
+ */
+export const defineRecurrence = (input: NewRecurrence): Result<Recurrence> => {
+  const amount = positiveAmount(input.amount);
+  if (!amount.ok) return amount;
+  const description = describedAs(input.description);
+  if (!description.ok) return description;
+  const dates = endsOnOrAfter(input.startDate, input.endDate);
+  if (!dates.ok) return dates;
+  const dueFrom = input.startDate > input.today ? input.startDate : input.today;
+  if (datesLeft({ schedule: input.schedule, dueFrom, endDate: input.endDate }, 1).length === 0) {
+    return err(domainError("InvalidRecurrence", { reason: "noOccurrence" }));
+  }
+  return ok({
+    id: input.id,
+    spaceId: input.spaceId,
+    description: description.value,
+    amount: amount.value,
+    currency: input.currency,
+    template: input.template,
+    schedule: input.schedule,
+    mode: input.mode,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    dueFrom,
+    pausedAt: null,
+    pauseReason: null,
+    endedAt: null,
+    createdBy: input.createdBy,
+    createdAt: input.now,
+    updatedAt: input.now,
+  });
+};
+
+/** HU-E4-11: the next `count` dates it will record, from the first not considered yet; none while paused or ended. */
+export const upcomingDates = (recurrence: Recurrence, count: number): LocalDate[] =>
+  recurrence.pausedAt !== null || recurrence.endedAt !== null ? [] : datesLeft(recurrence, count);
+
+/** ENDED once ended or once no schedule date is left up to its end date, PAUSED while paused, ACTIVE otherwise. */
+export const statusOf = (recurrence: Recurrence): RecurrenceStatus => {
+  if (recurrence.endedAt !== null) return "ENDED";
+  if (datesLeft(recurrence, 1).length === 0) return "ENDED";
+  return recurrence.pausedAt === null ? "ACTIVE" : "PAUSED";
+};
+
+/** HU-E4-11: what an edit may change (ruling P22); the type, payer and accounts stay as defined. */
+export interface RecurrenceChanges {
+  readonly description?: string;
+  readonly amount?: bigint;
+  readonly categoryId?: string;
+  /** Null returns to the default split of each occurrence (ruling P23). */
+  readonly split?: RecurrenceSplit | null;
+  readonly schedule?: Schedule;
+  readonly mode?: RecurrenceMode;
+  readonly endDate?: LocalDate | null;
+}
+
+const revisedTemplate = (
+  template: RecurrenceTemplate,
+  changes: RecurrenceChanges,
+): Result<RecurrenceTemplate> => {
+  let revised = template;
+  if (changes.categoryId !== undefined) {
+    if (revised.type !== "EXPENSE" && revised.type !== "INCOME") {
+      return err(domainError("InvalidRecurrence", { reason: "noCategory" }));
+    }
+    revised = { ...revised, categoryId: changes.categoryId };
+  }
+  if (changes.split !== undefined) {
+    if (revised.type !== "EXPENSE") return err(domainError("InvalidRecurrence", { reason: "noSplit" }));
+    revised = { ...revised, split: changes.split };
+  }
+  return ok(revised);
+};
+
+/**
+ * HU-E4-11: an edit applies to every occurrence not recorded yet; recorded ones are snapshots (ruling P24). An ENDED
+ * recurrence takes no edit, whether it was ended or ran out of dates: extending it would back-fill the days it was
+ * over, so a finished recurrence is continued by defining a new one.
+ */
+export const revisedRecurrence = (
+  current: Recurrence,
+  changes: RecurrenceChanges,
+  now: Date,
+): Result<Recurrence> => {
+  if (statusOf(current) === "ENDED") return err(domainError("RecurrenceEnded"));
+  const description =
+    changes.description === undefined ? ok(current.description) : describedAs(changes.description);
+  if (!description.ok) return description;
+  const amount = changes.amount === undefined ? ok(current.amount) : positiveAmount(changes.amount);
+  if (!amount.ok) return amount;
+  const template = revisedTemplate(current.template, changes);
+  if (!template.ok) return template;
+  const endDate = changes.endDate === undefined ? current.endDate : changes.endDate;
+  const dates = endsOnOrAfter(current.startDate, endDate);
+  if (!dates.ok) return dates;
+  return ok({
+    ...current,
+    description: description.value,
+    amount: amount.value,
+    template: template.value,
+    schedule: changes.schedule ?? current.schedule,
+    mode: changes.mode ?? current.mode,
+    endDate,
+    updatedAt: now,
+  });
+};
