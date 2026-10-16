@@ -4794,7 +4794,7 @@
             }
           },
           "409": {
-            "description": "MemberNameTaken, AccountArchived, CategoryArchived, SpaceArchived, IdempotencyKeyConflict",
+            "description": "MemberNameTaken, AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4987,7 +4987,7 @@
       "post": {
         "operationId": "createBudgetPlan",
         "summary": "Create a DRAFT plan for a period of the space's policy, empty or copied from the previous period's plan",
-        "description": "The period's boundaries are stored (D10). With copyFrom: previous, the plan covering the day before the period starts is deep-copied with new ids. Capacities and allocation values of former members are left out without being listed. The answer's dropped member, present only in the answer to a copy, lists mappings to archived or deleted categories and savings accounts that no longer qualify, by the copied line, and SAVINGS lines left without accounts, which are not copied, by their source line.",
+        "description": "The period's boundaries are stored (D10). With copyFrom: previous, the plan covering the day before the period starts is deep-copied with new ids. Capacities and allocation values of former members are left out without being listed. The answer's dropped member, present only in the answer to a copy, lists mappings to archived categories and savings accounts that no longer qualify, by the copied line, and SAVINGS lines left without accounts, which are not copied, by their source line.",
         "security": [
           {
             "cookieAuth": []

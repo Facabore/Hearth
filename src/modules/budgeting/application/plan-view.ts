@@ -2,6 +2,7 @@ import type { SpaceMember, SpaceMembership } from "@/modules/spaces/application"
 import type { BudgetPlan } from "../domain/plan";
 import { planFigures, type PlanFigures, type PreviousAvailable } from "../domain/plan-figures";
 import type { BudgetingDeps } from "./deps";
+import { ownedByRegisteredMember } from "./line-checks";
 import type { PlanContents, SavingsAccountReader } from "./ports";
 
 /** A plan with every figure derived on read (D7), its amounts in the space currency. */
@@ -22,14 +23,12 @@ const accountsOfMembers = async (
   members: readonly SpaceMember[],
   accountIds: readonly string[],
 ): Promise<string[]> => {
-  const owners = new Set(members.flatMap((m) => (m.userId === null ? [] : [m.userId])));
+  const counts = ownedByRegisteredMember(members);
   // Resolved together; Promise.all keeps the order of the ids, so the counted ones keep the lines' order.
   const found = await Promise.all(
     accountIds.map(async (accountId) => ({ accountId, account: await accounts.find(accountId) })),
   );
-  return found
-    .filter(({ account }) => account !== null && owners.has(account.ownerUserId))
-    .map(({ accountId }) => accountId);
+  return found.filter(({ account }) => account !== null && counts(account)).map(({ accountId }) => accountId);
 };
 
 /**

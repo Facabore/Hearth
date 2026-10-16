@@ -351,7 +351,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     // the ledger asks budgeting through its own port, so neither module imports the other.
     defaultSplits: {
       allocationWeights: async (expense) => {
-        const split = await defaultSplitOf({ members: spaceRepository, plans: budgetPlans }, expense);
+        const split = await defaultSplitOf({ plans: budgetPlans }, expense);
         return split.method === "BY_ALLOCATION" ? split.weights : null;
       },
     },

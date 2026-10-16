@@ -46,13 +46,18 @@ export interface DefaultSplitQuery {
   readonly currency: string;
   readonly categoryId: string;
   readonly date: LocalDate;
+  /**
+   * The space's current members in join order, as the ledger read them for this very expense: the weights name only
+   * these, so a member who joined or left since can never make the split refuse (NotASpaceMember).
+   */
+  readonly memberIds: readonly string[];
 }
 
 /**
  * HU-E6-08, spec 5.3: the BY_ALLOCATION weights of an expense recorded without a split, bound by the composition
  * root to budgeting (the ledger never imports it). Null means EQUAL among every current member: no ACTIVE plan
  * covers the date, the category resolves to no line, or the line is NONE or its allocation does not hold.
- * Weights, when given, are non-empty, name only current members of the space and are positive: anything else is
+ * Weights, when given, are non-empty, name only the query's `memberIds` and are positive: anything else is
  * refused as `InvalidSplit` or `NotASpaceMember` for the whole expense, never replaced by EQUAL.
  */
 export interface DefaultSplitSource {

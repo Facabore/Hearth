@@ -639,7 +639,8 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
         ...problems({
           "401": "Unauthenticated",
           "404": "MemberNotFound, CategoryNotFound, AccountNotFound",
-          "409": "MemberNameTaken, AccountArchived, CategoryArchived, SpaceArchived, IdempotencyKeyConflict",
+          "409":
+            "MemberNameTaken, AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
           "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned`,
         }),
       },

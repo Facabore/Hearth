@@ -48,8 +48,16 @@ describe("the default split of RecordExpense (HU-E6-08, spec 5.3)", () => {
       ["member-ana", 80_000_000n, "BY_ALLOCATION"],
       ["member-juan", 120_000_000n, "BY_ALLOCATION"],
     ]);
+    // The members it read for the split: budgeting weighs these and nobody else (a member who joined or left since
+    // would make the weights name someone the split cannot).
     expect(asked).toEqual([
-      { spaceId: "space-household", currency: "COP", categoryId: "cat-household", date: "2026-11-08" },
+      {
+        spaceId: "space-household",
+        currency: "COP",
+        categoryId: "cat-household",
+        date: "2026-11-08",
+        memberIds: ["member-ana", "member-juan", "member-luis", "member-sofi", "member-pedro"],
+      },
     ]);
   });
 

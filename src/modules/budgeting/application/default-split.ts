@@ -16,6 +16,8 @@ export interface ExpenseToSplit {
   readonly currency: string;
   readonly categoryId: string;
   readonly date: LocalDate;
+  /** The space's current members in join order, as the caller read them: the only members the split may name. */
+  readonly memberIds: readonly string[];
 }
 
 export interface DefaultSplit {
@@ -29,19 +31,18 @@ export interface DefaultSplit {
 /**
  * HU-E6-08, spec 5.3, D4: the default split of an expense. BY_ALLOCATION by the line the category consumes (its
  * mapped line, else the catch-all line, HU-E6-04) in the ACTIVE plan covering the date, weighted by the line's
- * assigned amounts for the current members, the positive ones only; EQUAL among every current member otherwise: no
- * plan, a DRAFT or CLOSED one, no line, a NONE line, or an allocation that does not hold (ruling P16). It authorizes
- * nothing: its callers have.
+ * assigned amounts for the expense's `memberIds`, the positive ones only; EQUAL among them otherwise: no plan, a
+ * DRAFT or CLOSED one, no line, a NONE line, or an allocation that does not hold (ruling P16). The caller read those
+ * ids (the space's current members) and nobody else is ever named. It authorizes nothing: its callers have.
  */
 export const defaultSplitOf = async (
-  deps: Pick<BudgetingDeps, "members" | "plans">,
+  deps: Pick<BudgetingDeps, "plans">,
   expense: ExpenseToSplit,
 ): Promise<DefaultSplit> => {
-  const members = await deps.members.listCurrent(expense.spaceId);
   const equal = (lineId: string | null): DefaultSplit => ({
     method: "EQUAL",
     lineId,
-    weights: members.map((m) => ({ memberId: m.id, weight: 1n })),
+    weights: expense.memberIds.map((memberId) => ({ memberId, weight: 1n })),
   });
   const plan = await deps.plans.covering(expense.spaceId, expense.date);
   if (plan === null || plan.status !== "ACTIVE") return equal(null);
@@ -52,7 +53,7 @@ export const defaultSplitOf = async (
   const assigned = assignedAmounts(
     line,
     parts.allocations.filter((a) => a.lineId === line.id),
-    members.map((m) => ({ memberId: m.id, capacity: capacityOf(parts.capacities, m.id) })),
+    expense.memberIds.map((memberId) => ({ memberId, capacity: capacityOf(parts.capacities, memberId) })),
     expense.currency,
   );
   const weights =
@@ -97,11 +98,13 @@ export const createResolveDefaultSplit =
     // P6: any id that is not a live category of this space, unknown ones included, answers the same.
     const categories = await deps.categories.list(space.spaceId);
     if (!categories.some((c) => c.id === input.categoryId)) return err(domainError("CategoryNotInSpace"));
+    const members = await deps.members.listCurrent(space.spaceId);
     const split = await defaultSplitOf(deps, {
       spaceId: space.spaceId,
       currency: space.currency,
       categoryId: input.categoryId,
       date: input.date,
+      memberIds: members.map((m) => m.id),
     });
     let shares: { memberId: string; amount: bigint }[] | null = null;
     if (input.amount !== null) {

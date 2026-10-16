@@ -345,7 +345,9 @@ describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Foc
   /**
    * The ledger's RecordExpense for an expense dated 2026-11-15, as `src/composition/container.ts` builds it: the real
    * transaction repository and the closed-period guard `closedPeriods` over the same `tm`, so the guard runs inside
-   * the expense's own transaction. Only the account and category readers are fakes.
+   * the expense's own transaction. The stand-ins are the account and category readers, `accountBalances` (always 0)
+   * and `defaultSplits` (no allocation, so EQUAL); the members, the ledger queries, the audit log and `storedPeriods`
+   * are the real adapters.
    */
   const expenseInNovember = async ({ ana, space, deps }: Household, closedPeriods: ClosedPeriods) => {
     const member = { userId: ana.id, spaceId: space.id, memberId: space.members[0]!.id };

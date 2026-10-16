@@ -100,7 +100,7 @@ export const BudgetPlanSchema = z.object({
   unbudgeted: z.object({ spent: MoneySchema, available: MoneySchema }).nullable(),
   /**
    * HU-E6-06: only in the answer to a copy (`copyFrom: "previous"`), what it left out (rulings P10, P11): mappings to
-   * archived or deleted categories and savings accounts that no longer qualify, by the copied line, and SAVINGS lines
+   * archived categories and savings accounts that no longer qualify, by the copied line, and SAVINGS lines
    * left without accounts, by the source line.
    */
   dropped: z
@@ -413,7 +413,7 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
       summary:
         "Create a DRAFT plan for a period of the space's policy, empty or copied from the previous period's plan",
       description:
-        "The period's boundaries are stored (D10). With copyFrom: previous, the plan covering the day before the period starts is deep-copied with new ids. Capacities and allocation values of former members are left out without being listed. The answer's dropped member, present only in the answer to a copy, lists mappings to archived or deleted categories and savings accounts that no longer qualify, by the copied line, and SAVINGS lines left without accounts, which are not copied, by their source line.",
+        "The period's boundaries are stored (D10). With copyFrom: previous, the plan covering the day before the period starts is deep-copied with new ids. Capacities and allocation values of former members are left out without being listed. The answer's dropped member, present only in the answer to a copy, lists mappings to archived categories and savings accounts that no longer qualify, by the copied line, and SAVINGS lines left without accounts, which are not copied, by their source line.",
       ...securedByUser,
       requestParams: { path: SpacePath },
       requestBody: { content: jsonContent(CreatePlanBodySchema) },

@@ -90,11 +90,10 @@ const paymentOf = async (
 const defaultSplit = async (
   deps: Pick<LedgerDeps, "defaultSplits">,
   expense: DefaultSplitQuery,
-  members: readonly SpaceMember[],
 ): Promise<SplitInput | AllocationSplit> => {
   const weights = await deps.defaultSplits.allocationWeights(expense);
   return weights === null
-    ? { method: "EQUAL", participants: members.map((m) => ({ memberId: m.id })) }
+    ? { method: "EQUAL", participants: expense.memberIds.map((memberId) => ({ memberId })) }
     : { method: "BY_ALLOCATION", participants: weights };
 };
 
@@ -133,6 +132,7 @@ export const createRecordExpense =
       const category = await usableCategory(deps, space.spaceId, input.categoryId);
       if (!category.ok) return category;
       const members = await deps.members.listCurrent(space.spaceId);
+      const memberIds = members.map((m) => m.id);
       const requested: readonly PaymentInput[] = input.payments ?? [
         { memberId: space.memberId, accountId: input.accountId ?? null, amount: input.amount },
       ];
@@ -154,16 +154,14 @@ export const createRecordExpense =
       if (!open.ok) return open;
       const split =
         input.split ??
-        (await defaultSplit(
-          deps,
-          { spaceId: space.spaceId, currency: space.currency, categoryId: category.value, date },
-          members,
-        ));
-      const shares = splitShares(
-        input.amount,
-        split,
-        members.map((m) => m.id),
-      );
+        (await defaultSplit(deps, {
+          spaceId: space.spaceId,
+          currency: space.currency,
+          categoryId: category.value,
+          date,
+          memberIds,
+        }));
+      const shares = splitShares(input.amount, split, memberIds);
       if (!shares.ok) return shares;
       const expense = recordExpense({
         id: deps.ids.next<"Transaction">(),

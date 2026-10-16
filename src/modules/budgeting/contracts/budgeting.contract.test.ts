@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { BudgetPlan, BudgetPlanId, BudgetPlanView } from "@/modules/budgeting/application";
+import {
+  SPLIT_METHODS,
+  type BudgetPlan,
+  type BudgetPlanId,
+  type BudgetPlanView,
+} from "@/modules/budgeting/application";
+import { SplitBodySchema } from "@/modules/ledger/contracts/ledger.contract";
 import { planFigures } from "@/modules/budgeting/domain/plan-figures";
 import type { LocalDate } from "@/shared/kernel";
 import { referenceLines } from "../../../../tests/support/budget-fixtures";
@@ -197,5 +203,14 @@ describe("BudgetPlan on the wire (HU-E6-01 … HU-E6-05)", () => {
     for (const copyFrom of ["template", "Previous", "", 1, true, null, ["previous"], { from: "previous" }]) {
       expect(CreatePlanBodySchema.safeParse({ period: "2026-12", copyFrom }).success).toBe(false);
     }
+  });
+});
+
+describe("the default split's methods (HU-E6-08)", () => {
+  it("offers, besides BY_ALLOCATION, exactly the methods the ledger accepts in a split", () => {
+    // The module boundary keeps budgeting from importing the ledger, so SPLIT_METHODS mirrors its list: a method
+    // the ledger gained would silently be missing from the preview's availableMethods.
+    const ledgerMethods = SplitBodySchema.options.map((option) => option.shape.method.value);
+    expect(SPLIT_METHODS.filter((method) => method !== "BY_ALLOCATION")).toEqual(ledgerMethods);
   });
 });
