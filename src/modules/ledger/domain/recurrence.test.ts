@@ -12,6 +12,7 @@ import {
   resumedRecurrence,
   revisedRecurrence,
   statusOf,
+  touchesPersonalAccount,
   upcomingDates,
   type NewRecurrence,
   type Recurrence,
@@ -707,6 +708,14 @@ describe("who a recurrence depends on (D9, P22, P26)", () => {
         debitsPersonalAccount,
       ),
     ).toEqual([false, true, false, true, false, false, true]);
+  });
+
+  it("touches a member's own account wherever money moves into or out of one: also an income's credit (D9, P22)", () => {
+    expect(
+      [RENT, internet, guestPays, contribution, guestContributes, income, transfer].map(
+        touchesPersonalAccount,
+      ),
+    ).toEqual([false, true, false, true, false, true, true]);
   });
 
   it("is paid by the member an expense or a contribution names, and by nobody for the fund, an income or a transfer", () => {

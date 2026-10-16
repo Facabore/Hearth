@@ -96,3 +96,23 @@ export {
 } from "./define-recurrence";
 export { checkTemplate, type TemplateInput, type TemplateOwner } from "./recurrence-template";
 export { recurrenceView, viewsOf, type RecurrenceView } from "./recurrence-view";
+export {
+  createEndRecurrence,
+  createPauseRecurrence,
+  createResumeRecurrence,
+  createUpdateRecurrence,
+  type EndRecurrence,
+  type PauseRecurrence,
+  type RecurrenceEdit,
+  type RecurrenceWriteInput,
+  type ResumeRecurrence,
+  type UpdateRecurrence,
+} from "./manage-recurrence";
+export {
+  createGetRecurrence,
+  createListRecurrences,
+  createListUpcomingOccurrences,
+  type GetRecurrence,
+  type ListRecurrences,
+  type ListUpcomingOccurrences,
+} from "./recurrence-queries";

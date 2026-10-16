@@ -267,6 +267,14 @@ export const debitsPersonalAccount = (template: RecurrenceTemplate): boolean => 
   }
 };
 
+/**
+ * D9 (ruling P22), as extended: whether its occurrences move money into or out of a member's own account, so only that
+ * member, its creator, changes or resumes it. Recording allows only a member's own accounts for incomes and
+ * transfers, so an income credits the creator's account.
+ */
+export const touchesPersonalAccount = (template: RecurrenceTemplate): boolean =>
+  template.type === "INCOME" || debitsPersonalAccount(template);
+
 /** The member its occurrences take money from: an expense's paying member or a contribution's; null for the fund. */
 export const payerOf = (template: RecurrenceTemplate): string | null =>
   template.type === "EXPENSE"
