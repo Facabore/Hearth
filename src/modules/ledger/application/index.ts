@@ -129,3 +129,14 @@ export {
   type MaterializationReport,
   type MaterializeDueOccurrences,
 } from "./materialize-occurrences";
+export {
+  createConfirmOccurrence,
+  createListPendingOccurrences,
+  createSkipOccurrence,
+  type ConfirmedOccurrence,
+  type ConfirmOccurrence,
+  type ConfirmOccurrenceInput,
+  type ListPendingOccurrences,
+  type PendingOccurrenceView,
+  type SkipOccurrence,
+} from "./pending-occurrences";
