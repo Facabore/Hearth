@@ -222,6 +222,78 @@ describe("MaterializeDueOccurrences (HU-E4-12)", () => {
     ]);
   });
 
+  describe("a schedule change (final review I1)", () => {
+    const reschedule = async (w: ReturnType<typeof materializerWorld>, recurrenceId: string, day: number) =>
+      unwrap(
+        await createUpdateRecurrence(w.deps)({
+          spaceId: "space-household",
+          userId: "u-ana",
+          recurrenceId,
+          changes: { schedule: { kind: "MONTHLY", day } },
+        }),
+      );
+
+    it("never back-dates nor charges December twice: Rent recorded on 2026-12-01, moved to the 15th on 2026-12-20, next on 2027-01-15", async () => {
+      const w = materializerWorld();
+      const rent = await w.define(rentDefinition());
+      await w.run("2026-12-01");
+      w.clock.set("2026-12-20");
+      const view = await reschedule(w, rent.id, 15);
+      await w.run("2026-12-20");
+      await w.run("2027-01-20");
+      expect([view.nextOccurrence, w.store.rows.map((t) => t.date)]).toEqual([
+        "2027-01-15",
+        ["2026-12-01", "2027-01-15"],
+      ]);
+    });
+
+    it("never records a date before the edit in catch-up: with the job down, MONTHLY(1) moved to the 5th on 2026-12-03 records 2026-12-05 only", async () => {
+      const w = materializerWorld();
+      const rent = await w.define(rentDefinition({ startDate: day("2026-11-01") }));
+      await w.run("2026-11-01");
+      // The job is down from 2026-11-02 to 2026-12-03: the 2026-12-01 Rent is overdue when Ana moves it to the 5th.
+      w.clock.set("2026-12-03");
+      await reschedule(w, rent.id, 5);
+      await w.run("2026-12-05");
+      expect(w.store.rows.map((t) => t.date)).toEqual(["2026-11-01", "2026-12-05"]);
+    });
+
+    it("counts a SKIPPED last occurrence as its slot's: the Rent skipped in a CLOSED December is not charged on the 15th", async () => {
+      const w = materializerWorld({ closed: (date) => date >= "2026-12-01" && date <= "2026-12-31" });
+      const rent = await w.define(rentDefinition());
+      await w.run("2026-12-01");
+      w.clock.set("2026-12-10");
+      expect((await reschedule(w, rent.id, 15)).nextOccurrence).toBe("2027-01-15");
+      await w.run("2027-01-15");
+      expect([
+        w.recurrences.occurrenceRows.map((o) => [o.date, o.status]),
+        w.store.rows.map((t) => t.date),
+      ]).toEqual([
+        [
+          ["2026-12-01", "SKIPPED"],
+          ["2027-01-15", "RECORDED"],
+        ],
+        ["2027-01-15"],
+      ]);
+    });
+
+    it("takes the edit day in APP_TIMEZONE, not UTC's: moved to the 14th at 22:00 of 2026-12-14 in Bogotá, next that day", async () => {
+      const w = materializerWorld();
+      const rent = await w.define(rentDefinition({ startDate: day("2026-12-14") }));
+      // 03:00 UTC on the 15th is still 22:00 of the 14th in Bogotá: the 14th is not past there.
+      const lateEvening = { ...w.deps, clock: new FixedClock(new Date("2026-12-15T03:00:00Z")) };
+      const view = unwrap(
+        await createUpdateRecurrence(lateEvening)({
+          spaceId: "space-household",
+          userId: "u-ana",
+          recurrenceId: rent.id,
+          changes: { schedule: { kind: "MONTHLY", day: 14 } },
+        }),
+      );
+      expect([view.recurrence.dueFrom, view.nextOccurrence]).toEqual(["2026-12-14", "2026-12-14"]);
+    });
+  });
+
   it("records for the user who defined the recurrence, whoever edited it: Juan raises Ana's Rent and it is still recorded as Ana (P21)", async () => {
     const { define, run, store, deps } = materializerWorld();
     const rent = await define(rentDefinition());

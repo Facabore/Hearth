@@ -50,6 +50,9 @@ const TITLES: ReadonlyMap<number, string> = new Map([
 const PUBLIC_DETAILS: ReadonlyMap<string, readonly string[]> = new Map([
   ["OutstandingBalance", ["outstanding"]],
   ["InvalidAllocation", ["lineIds"]],
+  // HU-E4-11: "creator" when a recurrence's creator, not the requester, is why a resume or an edit is refused.
+  ["InsufficientRole", ["member"]],
+  ["NotASpaceMember", ["member"]],
 ]);
 
 /** The details of `code` that are part of the API contract, e.g. the outstanding amount (HU-E1-08). */

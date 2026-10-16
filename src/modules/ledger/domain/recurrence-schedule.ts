@@ -1,6 +1,10 @@
 import {
   addDays,
+  addMonths,
+  daysInMonth,
+  fromParts,
   monthly,
+  partsOf,
   periodFor,
   semiMonthly,
   type LocalDate,
@@ -18,6 +22,29 @@ export type Schedule = PeriodPolicy;
 /** The schedule a request names; invalid anchors answer InvalidPeriodPolicy, as for a space's policy (HU-E1-03). */
 export const scheduleOf = (input: PeriodPolicy): Result<Schedule> =>
   input.kind === "MONTHLY" ? monthly(input.day) : semiMonthly(input.day1, input.day2);
+
+/**
+ * The first day of the slot after the one holding `date` (final review I1). A slot holds one date of the schedule: a
+ * calendar month for MONTHLY; for SEMI_MONTHLY a half of one, the second half starting on the second anchor, clamped
+ * to the month, and a whole month when both anchors clamp to the same day (SEMI_MONTHLY(30, 31) in February).
+ */
+export const nextSlotStart = (schedule: Schedule, date: LocalDate): LocalDate => {
+  const { year, month, day } = partsOf(date);
+  if (schedule.kind === "SEMI_MONTHLY") {
+    const last = daysInMonth(year, month);
+    const secondHalf = Math.min(schedule.day2, last);
+    if (Math.min(schedule.day1, last) < secondHalf && day < secondHalf)
+      return fromParts(year, month, secondHalf);
+  }
+  const next = addMonths(year, month, 1);
+  return fromParts(next.year, next.month, 1);
+};
+
+/** Whether two schedules have the same kind and anchors. */
+export const sameSchedule = (a: Schedule, b: Schedule): boolean =>
+  a.kind === "MONTHLY"
+    ? b.kind === "MONTHLY" && a.day === b.day
+    : b.kind === "SEMI_MONTHLY" && a.day1 === b.day1 && a.day2 === b.day2;
 
 /** The first schedule date on or after `from`. */
 export const firstDateFrom = (schedule: Schedule, from: LocalDate): LocalDate => {

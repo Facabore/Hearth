@@ -212,6 +212,8 @@ export const trackedRecurrences = () => {
       defines.push({ user, spaceId, id: recurrence.id });
       return recurrence;
     },
+    /** Remembers a recurrence defined otherwise, for `user` to end: one whose definer leaves, for instance. */
+    track: (user: TestUser, spaceId: string, id: string): void => void defines.push({ user, spaceId, id }),
     /** The ids of the recurrences defined since the last `endAll`. */
     ids: (): string[] => defines.map((d) => d.id),
     endAll: async (): Promise<void> => {

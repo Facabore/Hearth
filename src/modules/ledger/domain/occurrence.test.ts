@@ -82,7 +82,8 @@ describe("occurrences (HU-E4-12, HU-E4-13)", () => {
   });
 
   it("takes the amount of the recurrence as it is when the occurrence is made, not a later edit", () => {
-    const edited = unwrap(revisedRecurrence(electricity, { amount: 19_000_000n }, later));
+    const edit = { now: later, today: day("2026-12-11"), lastOccurrence: null };
+    const edited = unwrap(revisedRecurrence(electricity, { amount: 19_000_000n }, edit));
     const second = pendingOccurrence("occ-5" as OccurrenceId, edited, day("2027-01-10"), later);
     expect([pending.amount, second.amount]).toEqual([18_000_000n, 19_000_000n]);
   });

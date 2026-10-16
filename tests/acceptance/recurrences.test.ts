@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { POST as leaveSpace } from "@/app/api/v1/spaces/[spaceId]/leave/route";
 import { PATCH as changeMemberRole } from "@/app/api/v1/spaces/[spaceId]/members/[memberId]/route";
 import { setContainerForTests, type Container } from "@/composition/container";
@@ -17,10 +17,11 @@ import {
   listRecurrences,
   patchRecurrence,
   pauseRecurrence,
-  postRecurrence,
+  postRecurrence as postUntracked,
   recurrenceOf,
   rentBody,
   resumeRecurrence,
+  trackedRecurrences,
   upcoming,
   type RecurrenceDto,
 } from "../support/recurrences";
@@ -33,6 +34,29 @@ afterAll(async () => {
   setContainerForTests(undefined);
   await app.pool.end();
 });
+
+/**
+ * The job handles every active recurrence of the database, so each test ends its own after it ran, logically (D8): a
+ * later run, of this file or of another, must not find one of them due. `endAll` reads each one back and fails the
+ * test unless it is ENDED. An archived space refuses every write, ending included (HU-E1-09), so what a test left in
+ * one is ended in the database first.
+ */
+const recurrences = trackedRecurrences();
+const { define, track } = recurrences;
+afterEach(async () => {
+  await app.pool.query(
+    `UPDATE recurrences SET ended_at = now(), updated_at = now()
+     WHERE id = ANY($1) AND ended_at IS NULL AND space_id IN (SELECT id FROM spaces WHERE archived_at IS NOT NULL)`,
+    [recurrences.ids()],
+  );
+  await recurrences.endAll();
+});
+/** `user` defines a recurrence of `spaceId` through the route; what it defines (a 201) is ended after the test. */
+const postRecurrence = async (...args: Parameters<typeof postUntracked>): Promise<Response> => {
+  const response = await postUntracked(...args);
+  if (response.status === 201) track(args[0], args[1], ((await response.clone().json()) as RecurrenceDto).id);
+  return response;
+};
 
 describe("defining a recurrence (HU-E4-11)", () => {
   it("defines the monthly Rent paid from the shared fund: 201, ACTIVE, next on 2026-12-01", async () => {
@@ -186,7 +210,7 @@ const problemBodyOf = async (response: Response): Promise<[number, Record<string
 describe("reading recurrences (HU-E4-11)", () => {
   it("previews MONTHLY(31) from 2027-01-01 as 2027-01-31, 2027-02-28 and 2027-03-31", async () => {
     const h = await householdWithFund();
-    const clamped = await defined(
+    const clamped = await define(
       h.ana,
       h.spaceId,
       rentBody(h, { schedule: { kind: "MONTHLY", day: 31 }, startDate: "2027-01-01" }),
@@ -200,7 +224,7 @@ describe("reading recurrences (HU-E4-11)", () => {
 
   it("lists Cleaning's December 2026 occurrences as 2026-12-01 and 2026-12-16 (SEMI_MONTHLY(1, 16))", async () => {
     const h = await householdWithFund();
-    const cleaning = await defined(
+    const cleaning = await define(
       h.ana,
       h.spaceId,
       rentBody(h, {
@@ -220,7 +244,7 @@ describe("reading recurrences (HU-E4-11)", () => {
 
   it("previews at least 1 and at most 24 dates", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
     const sizes: number[] = [];
     for (const count of ["1", "24"]) {
       const response = await upcoming(h.ana, h.spaceId, rent.id, count);
@@ -232,8 +256,8 @@ describe("reading recurrences (HU-E4-11)", () => {
 
   it("lists and reads the space's recurrences for every member, Sofi the VIEWER included", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
-    const cleaning = await defined(
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
+    const cleaning = await define(
       h.ana,
       h.spaceId,
       rentBody(h, { description: "Cleaning", amount: cop(80_000) }),
@@ -254,14 +278,14 @@ describe("reading recurrences (HU-E4-11)", () => {
   it("lists only its own space's recurrences: a household that defined none reads an empty list", async () => {
     const h = await householdWithFund();
     const other = await householdWithFund();
-    await defined(other.ana, other.spaceId, rentBody(other));
+    await define(other.ana, other.spaceId, rentBody(other));
     const response = await listRecurrences(h.ana, h.spaceId);
     expect([response.status, await response.json()]).toEqual([200, { items: [] }]);
   });
 
   it("hides the household from a user who is not a member: Luis answers 404 SpaceNotFound on every read", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
     const luis = await registerUser("Luis");
     expect([
       await problemOf(await listRecurrences(luis, h.spaceId)),
@@ -277,7 +301,7 @@ describe("reading recurrences (HU-E4-11)", () => {
   it("answers the same 404 RecurrenceNotFound for another space's, an unknown and a malformed id", async () => {
     const h = await householdWithFund();
     const other = await householdWithFund();
-    const theirs = await defined(other.ana, other.spaceId, rentBody(other));
+    const theirs = await define(other.ana, other.spaceId, rentBody(other));
     const answers = [
       await problemBodyOf(await getRecurrence(h.ana, h.spaceId, theirs.id)),
       await problemBodyOf(await getRecurrence(h.ana, h.spaceId, randomUUID())),
@@ -292,7 +316,7 @@ describe("reading recurrences (HU-E4-11)", () => {
 
   it("refuses a count that is not an integer from 1 to 24 with 422 ValidationFailed", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
     const counts = ["0", "-1", "25", "1.5", "many", "NaN", "Infinity", "-Infinity", ""];
     const answers: [string, number, string][] = [];
     for (const count of counts) {
@@ -303,7 +327,7 @@ describe("reading recurrences (HU-E4-11)", () => {
 
   it("still reads the recurrences of an archived space (HU-E1-09)", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
     await archiveHousehold(h);
     expect([
       (await listRecurrences(h.ana, h.spaceId)).status,
@@ -341,7 +365,7 @@ describe("editing a recurrence (HU-E4-11)", () => {
 
   it("changes the Rent to 1,300,000 COP and gives it an end, for the occurrences not recorded yet", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
     const response = await patchRecurrence(h.ana, h.spaceId, rent.id, {
       amount: cop(1_300_000),
       endDate: "2027-06-30",
@@ -359,7 +383,7 @@ describe("editing a recurrence (HU-E4-11)", () => {
 
   it("keeps the split and the end date a body does not name: renaming the Rent changes only its description", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, splitRentBody(h));
+    const rent = await define(h.ana, h.spaceId, splitRentBody(h));
     expect(rent).toMatchObject({ split: sharesOf(h), endDate: "2027-06-30" });
     const response = await patchRecurrence(h.ana, h.spaceId, rent.id, { description: "Rent, renewed" });
     expect(response.status).toBe(200);
@@ -371,7 +395,7 @@ describe("editing a recurrence (HU-E4-11)", () => {
 
   it("removes the end with endDate null and the split with split null, each leaving the other as it was", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, splitRentBody(h));
+    const rent = await define(h.ana, h.spaceId, splitRentBody(h));
     expect((await patchRecurrence(h.ana, h.spaceId, rent.id, { endDate: null })).status).toBe(200);
     expect(await recurrenceOf(h.ana, h.spaceId, rent.id)).toStrictEqual({ ...rent, endDate: null });
     expect((await patchRecurrence(h.ana, h.spaceId, rent.id, { split: null })).status).toBe(200);
@@ -384,7 +408,7 @@ describe("editing a recurrence (HU-E4-11)", () => {
 
   it("renames a fund contribution, which has no split or category to name: 200 and the rest as it was", async () => {
     const h = await householdWithFund();
-    const contribution = await defined(h.ana, h.spaceId, contributionBody(h));
+    const contribution = await define(h.ana, h.spaceId, contributionBody(h));
     const response = await patchRecurrence(h.ana, h.spaceId, contribution.id, {
       description: "Fund, renewed",
     });
@@ -397,7 +421,7 @@ describe("editing a recurrence (HU-E4-11)", () => {
 
   it("splits by share units, then returns to the default split with split null (P23)", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
     const shares = sharesOf(h);
     const split = (await (
       await patchRecurrence(h.ana, h.spaceId, rent.id, { split: shares })
@@ -412,7 +436,7 @@ describe("editing a recurrence (HU-E4-11)", () => {
   it("lets only Ana change her Gym, debited from her own account: Luis the ADMIN answers 422 AccountNotOwned (D9)", async () => {
     const h = await householdWithFund();
     const luis = await joinHousehold(h, "Luis", "ADMIN");
-    const gym = await defined(h.ana, h.spaceId, {
+    const gym = await define(h.ana, h.spaceId, {
       description: "Gym",
       amount: cop(90_000),
       template: {
@@ -440,15 +464,15 @@ describe("editing a recurrence (HU-E4-11)", () => {
   it("lets an ADMIN change the Rent paid from the shared fund, which debits nobody's own account", async () => {
     const h = await householdWithFund();
     const luis = await joinHousehold(h, "Luis", "ADMIN");
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
     expect((await patchRecurrence(luis, h.spaceId, rent.id, { amount: cop(1_300_000) })).status).toBe(200);
     expect((await recurrenceOf(h.ana, h.spaceId, rent.id)).amount).toEqual(cop(1_300_000));
   });
 
   it("refuses a MEMBER who did not define it (403) and lets Juan change the one he defined", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
-    const water = await defined(h.juan, h.spaceId, rentBody(h, { description: "Water" }));
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
+    const water = await define(h.juan, h.spaceId, rentBody(h, { description: "Water" }));
     expect(
       await problemOf(await patchRecurrence(h.juan, h.spaceId, rent.id, { description: "Juan's rent" })),
     ).toEqual([403, "InsufficientRole"]);
@@ -460,7 +484,7 @@ describe("editing a recurrence (HU-E4-11)", () => {
 
   it("refuses Sofi the VIEWER with 403, a stranger with 404 SpaceNotFound and an archived space with 409 SpaceArchived", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
     const sofi = await joinHousehold(h, "Sofi", "VIEWER");
     const luis = await registerUser("Luis");
     const change = { description: "Other" };
@@ -481,7 +505,7 @@ describe("editing a recurrence (HU-E4-11)", () => {
   it("answers the same 404 RecurrenceNotFound for another space's, an unknown and a malformed id", async () => {
     const h = await householdWithFund();
     const other = await householdWithFund();
-    const theirs = await defined(other.ana, other.spaceId, rentBody(other));
+    const theirs = await define(other.ana, other.spaceId, rentBody(other));
     const change = { description: "Theirs" };
     const answers = [
       await problemBodyOf(await patchRecurrence(h.ana, h.spaceId, theirs.id, change)),
@@ -495,7 +519,7 @@ describe("editing a recurrence (HU-E4-11)", () => {
 
   it("refuses each key that fixes the type, the payer or an account, naming the field: 422 ValidationFailed", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
     const immutable: Record<string, unknown>[] = [
       { template: { type: "INCOME", categoryId: h.rent, accountId: h.ana.account } },
       { type: "INCOME" },
@@ -528,7 +552,7 @@ describe("editing a recurrence (HU-E4-11)", () => {
 
   it("refuses an EXACT split and a null amount or category: 422 ValidationFailed", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
     const refused: Record<string, unknown>[] = [
       { split: { method: "EXACT", participants: [] } },
       { amount: null },
@@ -543,7 +567,7 @@ describe("editing a recurrence (HU-E4-11)", () => {
 
   it("strips a key it does not know, as every body here does: foo is ignored and the rest applies", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
     const response = await patchRecurrence(h.ana, h.spaceId, rent.id, {
       foo: 1,
       description: "Rent, renewed",
@@ -555,8 +579,8 @@ describe("editing a recurrence (HU-E4-11)", () => {
   it("answers the domain's refusals: an end before the start, an empty description, a zero amount, another currency, an unknown currency, a schedule that is not one, another space's category", async () => {
     const h = await householdWithFund();
     const other = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
-    const contribution = await defined(h.ana, h.spaceId, contributionBody(h));
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
+    const contribution = await define(h.ana, h.spaceId, contributionBody(h));
     const refused: [string, Record<string, unknown>, number, string][] = [
       [rent.id, { endDate: "2026-11-30" }, 422, "InvalidRecurrence"],
       [rent.id, { description: "" }, 422, "InvalidDescription"],
@@ -583,7 +607,7 @@ describe("editing a recurrence (HU-E4-11)", () => {
 
   it("refuses every edit of an ended recurrence: 409 RecurrenceEnded", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h, { endDate: "2027-06-30" }));
+    const rent = await define(h.ana, h.spaceId, rentBody(h, { endDate: "2027-06-30" }));
     expect((await endRecurrence(h.ana, h.spaceId, rent.id)).status).toBe(200);
     expect([
       await problemOf(await patchRecurrence(h.ana, h.spaceId, rent.id, { endDate: null })),
@@ -648,7 +672,7 @@ describe("pausing, resuming and ending a recurrence (HU-E4-11)", () => {
 
   it("pauses Rent with no next occurrence, then resumes it: next on 2026-12-01", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
     expect(await read(await pauseRecurrence(h.ana, h.spaceId, rent.id))).toEqual([200, "PAUSED"]);
     expect(await recurrenceOf(h.ana, h.spaceId, rent.id)).toMatchObject({
       pauseReason: null,
@@ -660,7 +684,7 @@ describe("pausing, resuming and ending a recurrence (HU-E4-11)", () => {
 
   it("answers 409 InvalidRecurrenceTransition to pausing a paused recurrence or resuming an active one", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
     expect(await problemOf(await resumeRecurrence(h.ana, h.spaceId, rent.id))).toEqual([
       409,
       "InvalidRecurrenceTransition",
@@ -674,7 +698,7 @@ describe("pausing, resuming and ending a recurrence (HU-E4-11)", () => {
 
   it("ends Rent logically: ENDED and still read, refusing edits (409 RecurrenceEnded) and every move", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
     expect(await read(await endRecurrence(h.ana, h.spaceId, rent.id))).toEqual([200, "ENDED"]);
     expect([
       (await recurrenceOf(h.ana, h.spaceId, rent.id)).nextOccurrence,
@@ -694,7 +718,7 @@ describe("pausing, resuming and ending a recurrence (HU-E4-11)", () => {
   it("treats a recurrence an edit left no date to record as ended too: every move and every edit is refused", async () => {
     const h = await householdWithFund();
     // MONTHLY(1) from 2026-12-02 first records on 2027-01-01: an end date before it leaves nothing to record.
-    const rent = await defined(h.ana, h.spaceId, rentBody(h, { startDate: "2026-12-02" }));
+    const rent = await define(h.ana, h.spaceId, rentBody(h, { startDate: "2026-12-02" }));
     expect(await read(await patchRecurrence(h.ana, h.spaceId, rent.id, { endDate: "2026-12-15" }))).toEqual([
       200,
       "ENDED",
@@ -714,7 +738,7 @@ describe("pausing, resuming and ending a recurrence (HU-E4-11)", () => {
 
   it("previews no dates while Rent is paused or ended, and its dates again once it resumes", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
     const preview = async (count?: string) => {
       const response = await upcoming(h.ana, h.spaceId, rent.id, count);
       return [response.status, await response.json()];
@@ -733,7 +757,7 @@ describe("pausing, resuming and ending a recurrence (HU-E4-11)", () => {
 
   it("edits a paused recurrence as the domain says: 200, still PAUSED with no next date, and the edit is what resumes", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
     await pauseRecurrence(h.ana, h.spaceId, rent.id);
     const edit = { amount: cop(1_300_000), description: "Rent, renewed", endDate: "2027-06-30" };
     const response = await patchRecurrence(h.ana, h.spaceId, rent.id, edit);
@@ -749,7 +773,7 @@ describe("pausing, resuming and ending a recurrence (HU-E4-11)", () => {
 
   it("reads pauseReason null once a paused recurrence resumes or ends, a reason the scheduler gave it included", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.juan, h.spaceId, rentBody(h));
+    const rent = await define(h.juan, h.spaceId, rentBody(h));
     // Every occurrence is recorded on behalf of the recurrence's creator (P21): once Juan is a VIEWER the ledger refuses
     // it and the scheduler pauses the recurrence with that code (P26). The job handles every active recurrence of the
     // database, so only this test's is looked at. A payer or creator who left could not resume it, so Juan stays.
@@ -785,8 +809,8 @@ describe("pausing, resuming and ending a recurrence (HU-E4-11)", () => {
 
   it("lets Juan, a MEMBER, manage only the recurrences he defined (P30)", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
-    const his = await defined(h.juan, h.spaceId, rentBody(h, { description: "Juan's share of rent" }));
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
+    const his = await define(h.juan, h.spaceId, rentBody(h, { description: "Juan's share of rent" }));
     expect([
       await problemOf(await pauseRecurrence(h.juan, h.spaceId, rent.id)),
       (await pauseRecurrence(h.juan, h.spaceId, his.id)).status,
@@ -796,7 +820,7 @@ describe("pausing, resuming and ending a recurrence (HU-E4-11)", () => {
 
   it("refuses Juan every move of Ana's Rent, active or paused: 403 InsufficientRole, and Rent is as she left it", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
     const refusals = async () => {
       const answers: [number, string][] = [];
       for (const move of moves) answers.push(await problemOf(await move(h.juan, h.spaceId, rent.id)));
@@ -814,7 +838,7 @@ describe("pausing, resuming and ending a recurrence (HU-E4-11)", () => {
   it("lets Luis the ADMIN pause, resume and end the Rent paid from the shared fund, which debits nobody's own account", async () => {
     const h = await householdWithFund();
     const luis = await joinHousehold(h, "Luis", "ADMIN");
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
     const answers: unknown[] = [];
     for (const move of moves) answers.push(await read(await move(luis, h.spaceId, rent.id)));
     expect(answers).toEqual([
@@ -829,7 +853,7 @@ describe("pausing, resuming and ending a recurrence (HU-E4-11)", () => {
     const luis = await joinHousehold(h, "Luis", "ADMIN");
     const outcomes: unknown[] = [];
     for (const body of fromHerOwnAccount(h)) {
-      const own = await defined(h.ana, h.spaceId, body);
+      const own = await define(h.ana, h.spaceId, body);
       outcomes.push([
         (await pauseRecurrence(luis, h.spaceId, own.id)).status,
         await problemOf(await resumeRecurrence(luis, h.spaceId, own.id)),
@@ -843,20 +867,35 @@ describe("pausing, resuming and ending a recurrence (HU-E4-11)", () => {
 
   it("refuses to resume what its creator, demoted to VIEWER, can no longer record: 403 InsufficientRole (P21)", async () => {
     const h = await householdWithFund();
-    const his = await defined(h.juan, h.spaceId, rentBody(h, { description: "Juan's share of rent" }));
+    const his = await define(h.juan, h.spaceId, rentBody(h, { description: "Juan's share of rent" }));
     expect((await pauseRecurrence(h.juan, h.spaceId, his.id)).status).toBe(200);
     await changeRole(h, h.juan.memberId, "VIEWER");
+    const insufficientRole = {
+      type: "urn:hearth:problem:InsufficientRole",
+      title: "Forbidden",
+      status: 403,
+      code: "InsufficientRole",
+    };
     expect([
-      await problemOf(await resumeRecurrence(h.ana, h.spaceId, his.id)),
+      await problemBodyOf(await resumeRecurrence(h.ana, h.spaceId, his.id)),
       (await recurrenceOf(h.ana, h.spaceId, his.id)).status,
-      await problemOf(await resumeRecurrence(h.juan, h.spaceId, his.id)),
+      await problemBodyOf(await resumeRecurrence(h.juan, h.spaceId, his.id)),
       (await endRecurrence(h.ana, h.spaceId, his.id)).status,
-    ]).toEqual([[403, "InsufficientRole"], "PAUSED", [403, "InsufficientRole"], 200]);
+    ]).toEqual([
+      // Ana may resume it: its creator may not record, and the problem says so.
+      [403, { ...insufficientRole, member: "creator" }],
+      "PAUSED",
+      // Juan, a VIEWER now, may not resume anything: his own role refuses him.
+      [403, insufficientRole],
+      200,
+    ]);
   });
 
   it("refuses to resume what its creator left behind: 422 NotASpaceMember, while Ana can still end it (P26)", async () => {
     const h = await householdWithFund();
+    // Juan leaves, so Ana ends it after the test.
     const his = await defined(h.juan, h.spaceId, rentBody(h, { description: "Juan's share of rent" }));
+    track(h.ana, h.spaceId, his.id);
     expect((await pauseRecurrence(h.ana, h.spaceId, his.id)).status).toBe(200);
     await leave(h.juan, h.spaceId);
     expect([
@@ -869,7 +908,7 @@ describe("pausing, resuming and ending a recurrence (HU-E4-11)", () => {
   it("answers the same 404 RecurrenceNotFound on every move for another space's, an unknown and a malformed id", async () => {
     const h = await householdWithFund();
     const other = await householdWithFund();
-    const theirs = await defined(other.ana, other.spaceId, rentBody(other));
+    const theirs = await define(other.ana, other.spaceId, rentBody(other));
     const answers: [number, Record<string, unknown>][] = [];
     for (const id of [theirs.id, randomUUID(), "not-a-uuid"]) {
       for (const move of moves) answers.push(await problemBodyOf(await move(h.ana, h.spaceId, id)));
@@ -882,7 +921,7 @@ describe("pausing, resuming and ending a recurrence (HU-E4-11)", () => {
 
   it("refuses Sofi the VIEWER with 403 and a stranger with 404 SpaceNotFound on every move", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
     const sofi = await joinHousehold(h, "Sofi", "VIEWER");
     const luis = await registerUser("Luis");
     const answers: [number, string][] = [];
@@ -898,8 +937,8 @@ describe("pausing, resuming and ending a recurrence (HU-E4-11)", () => {
 
   it("refuses every move in an archived space with 409 SpaceArchived, paused or not, while it still reads (HU-E1-09)", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
-    const paused = await defined(h.ana, h.spaceId, rentBody(h, { description: "Paused rent" }));
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
+    const paused = await define(h.ana, h.spaceId, rentBody(h, { description: "Paused rent" }));
     await pauseRecurrence(h.ana, h.spaceId, paused.id);
     await archiveHousehold(h);
     const answers: [number, string][] = [];

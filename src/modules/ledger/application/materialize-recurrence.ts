@@ -101,11 +101,12 @@ const cursorFrom = (recurrence: Pick<Recurrence, "schedule" | "endDate">, next: 
  *
  * Ruling P26: a recurrence that can record no more is paused with a domain code, never text. First, whether its paying
  * member or the user it records for left the space (`blockerOf`): that is checked on every run that handles it, even
- * with no date due, and each date due is then stored SKIPPED with that code instead of being recorded. Then, any date
- * the ledger refuses for another reason than a closed period (an archived account or category, a split participant who
- * left, a creator who became a VIEWER, an archived space) would refuse every later date too, so the recurrence pauses
- * with that code at the first one, and the later dates are not considered. `PeriodClosed` alone never pauses (ruling
- * P25): a later date may fall in an open period. A recurrence whose last date was just refused is ENDED, not paused.
+ * with no date due, and the first date due is then stored SKIPPED with that code and the recurrence pauses. Then, any
+ * date the ledger refuses for another reason than a closed period (an archived account or category, a split participant
+ * who left, a creator who became a VIEWER, an archived space) would refuse every later date too, so the recurrence
+ * pauses with that code at the first one, and the later dates are not considered. `PeriodClosed` alone never pauses
+ * (ruling P25): a later date may fall in an open period. A recurrence whose last date was just refused is ENDED, not
+ * paused.
  */
 export const materializeRecurrence = (
   deps: MaterializeDeps,

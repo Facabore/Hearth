@@ -5309,7 +5309,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed (including the template, type, payer, accounts or start date, which an edit cannot change), InvalidAmount, InvalidDate, InvalidDescription, InvalidPeriodPolicy, InvalidRecurrence (an end date before the start; a category or split its type does not have), CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, InvalidFundAccount, NotASpaceMember, InvalidSplit, ParticipantsRequired",
+            "description": "ValidationFailed (including the template, type, payer, accounts or start date, which an edit cannot change), InvalidAmount, InvalidDate, InvalidDescription, InvalidPeriodPolicy, InvalidRecurrence (an end date before the start; a category or split its type does not have), CurrencyMismatch, UnknownCurrency, AccountNotOwned (it moves money into or out of its creator's own account: only its creator changes it), AccountNotInSpace, AccountRequired, InvalidFundAccount, NotASpaceMember (a payer or a split participant left; with member \"creator\", the recurrence's creator left), InvalidSplit, ParticipantsRequired",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5617,7 +5617,7 @@
             }
           },
           "403": {
-            "description": "InsufficientRole",
+            "description": "InsufficientRole (the requester may not manage it; with member \"creator\", the recurrence's creator no longer holds money.record)",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5647,7 +5647,7 @@
             }
           },
           "422": {
-            "description": "AccountNotOwned, AccountNotInSpace, AccountRequired, InvalidFundAccount, NotASpaceMember, InvalidSplit, ParticipantsRequired",
+            "description": "AccountNotOwned (it moves money into or out of its creator's own account: only its creator resumes it), AccountNotInSpace, AccountRequired, InvalidFundAccount, NotASpaceMember (a payer or a split participant left; with member \"creator\", the recurrence's creator left), InvalidSplit, ParticipantsRequired",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8406,6 +8406,12 @@
             "items": {
               "type": "string"
             }
+          },
+          "member": {
+            "type": "string",
+            "enum": [
+              "creator"
+            ]
           }
         },
         "required": [

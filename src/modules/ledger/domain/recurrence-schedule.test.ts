@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LocalDate, PeriodPolicy } from "@/shared/kernel";
-import { firstDateFrom, scheduleDates, scheduleOf } from "./recurrence-schedule";
+import { firstDateFrom, nextSlotStart, scheduleDates, scheduleOf } from "./recurrence-schedule";
 
 const day = (iso: string) => iso as LocalDate;
 const monthlyOn = (anchor: number): PeriodPolicy => ({ kind: "MONTHLY", day: anchor });
@@ -86,5 +86,42 @@ describe("recurrence schedules (HU-E4-11, spec 5.2)", () => {
       ok: false,
       error: { code: "InvalidPeriodPolicy" },
     });
+  });
+});
+
+describe("the slots of a schedule, one date each (final review I1)", () => {
+  const after = (schedule: PeriodPolicy, days: string[]) => days.map((d) => nextSlotStart(schedule, day(d)));
+
+  it("are calendar months for MONTHLY: the next slot starts on the 1st of the next month, whatever the anchor", () => {
+    expect([
+      after(monthlyOn(15), ["2026-12-01", "2026-12-15", "2026-12-31"]),
+      after(monthlyOn(1), ["2026-11-30"]),
+    ]).toEqual([["2027-01-01", "2027-01-01", "2027-01-01"], ["2026-12-01"]]);
+  });
+
+  it("are the halves of a month for SEMI_MONTHLY, the second starting on the second anchor: (5, 20)", () => {
+    expect(after(twiceMonthly(5, 20), ["2026-12-01", "2026-12-19", "2026-12-20", "2026-12-31"])).toEqual([
+      "2026-12-20",
+      "2026-12-20",
+      "2027-01-01",
+      "2027-01-01",
+    ]);
+  });
+
+  it("start the second half on the clamped anchor: (15, 31) in February, in a leap year and in April", () => {
+    expect(after(twiceMonthly(15, 31), ["2027-02-10", "2027-02-28", "2028-02-28", "2027-04-29"])).toEqual([
+      "2027-02-28",
+      "2027-03-01",
+      "2028-02-29",
+      "2027-04-30",
+    ]);
+  });
+
+  it("make a month whose anchors clamp to one day one slot: (30, 31) and (28, 31) in February 2027", () => {
+    expect([
+      after(twiceMonthly(30, 31), ["2027-02-10", "2027-02-28", "2027-03-10"]),
+      after(twiceMonthly(28, 31), ["2027-02-10"]),
+      after(twiceMonthly(28, 31), ["2028-02-10"]),
+    ]).toEqual([["2027-03-01", "2027-03-01", "2027-03-31"], ["2027-03-01"], ["2028-02-29"]]);
   });
 });

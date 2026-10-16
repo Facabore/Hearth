@@ -1,5 +1,5 @@
 import { domainError, err, ok, type Id, type LocalDate, type Result } from "@/shared/kernel";
-import { scheduleDates, type Schedule } from "./recurrence-schedule";
+import { nextSlotStart, sameSchedule, scheduleDates, type Schedule } from "./recurrence-schedule";
 import type { SplitInput } from "./split";
 import { positiveAmount } from "./transaction";
 
@@ -177,15 +177,35 @@ const revisedTemplate = (
   return ok(revised);
 };
 
+/** When an edit is made, and where the schedule it may change stands then. */
+export interface EditContext {
+  readonly now: Date;
+  /** The edit day in the space timezone. */
+  readonly today: LocalDate;
+  /** The date of the recurrence's last occurrence, whatever its status; null before the first. */
+  readonly lastOccurrence: LocalDate | null;
+}
+
 /**
- * HU-E4-11: an edit applies to every occurrence not recorded yet; recorded ones are snapshots (ruling P24). An ENDED
- * recurrence takes no edit, whether it was ended or ran out of dates: extending it would back-fill the days it was
- * over, so a finished recurrence is continued by defining a new one.
+ * Final review I1: where a new schedule is due from. It never creates a date before the edit day, nor a second
+ * occurrence in the slot of the last one (`nextSlotStart`): it is due from the later of the edit day and the start of
+ * the next slot, or, before any occurrence, from the later of the edit day and where it was due from.
+ */
+const rescheduledFrom = (current: Recurrence, schedule: Schedule, edit: EditContext): LocalDate => {
+  const from = edit.lastOccurrence === null ? current.dueFrom : nextSlotStart(schedule, edit.lastOccurrence);
+  return from > edit.today ? from : edit.today;
+};
+
+/**
+ * HU-E4-11: an edit applies to every occurrence not recorded yet, an overdue date no run has considered included;
+ * recorded ones are snapshots (ruling P24). A schedule change is the exception: it is due from `rescheduledFrom`. An
+ * ENDED recurrence takes no edit, whether it was ended or ran out of dates: extending it would back-fill the days it
+ * was over, so a finished recurrence is continued by defining a new one.
  */
 export const revisedRecurrence = (
   current: Recurrence,
   changes: RecurrenceChanges,
-  now: Date,
+  edit: EditContext,
 ): Result<Recurrence> => {
   if (statusOf(current) === "ENDED") return err(domainError("RecurrenceEnded"));
   const description =
@@ -198,15 +218,18 @@ export const revisedRecurrence = (
   const endDate = changes.endDate === undefined ? current.endDate : changes.endDate;
   const dates = endsOnOrAfter(current.startDate, endDate);
   if (!dates.ok) return dates;
+  const rescheduled = changes.schedule !== undefined && !sameSchedule(changes.schedule, current.schedule);
+  const schedule = changes.schedule ?? current.schedule;
   return ok({
     ...current,
     description: description.value,
     amount: amount.value,
     template: template.value,
-    schedule: changes.schedule ?? current.schedule,
+    schedule,
     mode: changes.mode ?? current.mode,
     endDate,
-    updatedAt: now,
+    dueFrom: rescheduled ? rescheduledFrom(current, schedule, edit) : current.dueFrom,
+    updatedAt: edit.now,
   });
 };
 

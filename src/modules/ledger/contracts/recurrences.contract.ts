@@ -435,8 +435,20 @@ const recurrenceResponse = (description: string) => ({ description, content: jso
 /** What checking a template answers (ruling P21): the codes of the record use cases. */
 const TEMPLATE_404 = "CategoryNotFound, AccountNotFound";
 const TEMPLATE_409 = "AccountArchived, CategoryArchived, GuestHasNoAccounts, SameAccountTransfer";
-const TEMPLATE_422 =
-  "AccountNotOwned, AccountNotInSpace, AccountRequired, InvalidFundAccount, NotASpaceMember, InvalidSplit, ParticipantsRequired";
+const templateRefusals422 = (accountNotOwned = "AccountNotOwned", notASpaceMember = "NotASpaceMember") =>
+  `${accountNotOwned}, AccountNotInSpace, AccountRequired, InvalidFundAccount, ${notASpaceMember}, InvalidSplit, ParticipantsRequired`;
+const TEMPLATE_422 = templateRefusals422();
+/**
+ * HU-E4-11: what an edit or a resume refuses because of the recurrence's creator, not the requester (rulings P21, P26,
+ * D9 extended); the problem's `member` is "creator" when the creator is the one refused.
+ */
+const CREATOR_403 =
+  'InsufficientRole (the requester may not manage it; with member "creator", the recurrence\'s creator no longer holds money.record)';
+const creatorRefusals422 = (only: string) =>
+  templateRefusals422(
+    `AccountNotOwned (it moves money into or out of its creator's own account: only its creator ${only} it)`,
+    'NotASpaceMember (a payer or a split participant left; with member "creator", the recurrence\'s creator left)',
+  );
 /** HU-E4-11: what makes an edit invalid by itself; an edit that leaves no date to record ends the recurrence instead. */
 const INVALID_EDIT =
   "InvalidRecurrence (an end date before the start; a category or split its type does not have)";
@@ -511,7 +523,7 @@ export const recurrencesPaths: ZodOpenApiPathsObject = {
           "403": "InsufficientRole",
           "404": `SpaceNotFound, RecurrenceNotFound, ${TEMPLATE_404}`,
           "409": `RecurrenceEnded, ${TEMPLATE_409}, SpaceArchived`,
-          "422": `ValidationFailed (including the template, type, payer, accounts or start date, which an edit cannot change), InvalidAmount, InvalidDate, InvalidDescription, InvalidPeriodPolicy, ${INVALID_EDIT}, CurrencyMismatch, UnknownCurrency, ${TEMPLATE_422}`,
+          "422": `ValidationFailed (including the template, type, payer, accounts or start date, which an edit cannot change), InvalidAmount, InvalidDate, InvalidDescription, InvalidPeriodPolicy, ${INVALID_EDIT}, CurrencyMismatch, UnknownCurrency, ${creatorRefusals422("changes")}`,
         }),
       },
     },
@@ -553,9 +565,10 @@ export const recurrencesPaths: ZodOpenApiPathsObject = {
     "resumeRecurrence",
     "Resume a PAUSED recurrence from today, never back-filling the days it was paused",
     {
+      "403": CREATOR_403,
       "404": `SpaceNotFound, RecurrenceNotFound, ${TEMPLATE_404}`,
       "409": `InvalidRecurrenceTransition, ${TEMPLATE_409}, SpaceArchived`,
-      "422": TEMPLATE_422,
+      "422": creatorRefusals422("resumes"),
     },
   ),
   "/api/v1/spaces/{spaceId}/recurrences/{recurrenceId}/end": recurrenceMove(

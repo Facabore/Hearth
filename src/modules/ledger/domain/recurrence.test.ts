@@ -14,6 +14,7 @@ import {
   statusOf,
   touchesPersonalAccount,
   upcomingDates,
+  type EditContext,
   type NewRecurrence,
   type Recurrence,
   type RecurrenceChanges,
@@ -25,6 +26,12 @@ import {
 const day = (iso: string) => iso as LocalDate;
 /** Noon of `iso` in Bogotá. */
 const at = (iso: string) => new Date(`${iso}T17:00:00Z`);
+/** An edit made at noon of `iso` in Bogotá, after an occurrence on `lastOccurrence` (none by default). */
+const on = (iso: string, lastOccurrence: string | null = null): EditContext => ({
+  now: at(iso),
+  today: day(iso),
+  lastOccurrence: lastOccurrence === null ? null : day(lastOccurrence),
+});
 const RENT: RecurrenceTemplate = {
   type: "EXPENSE",
   categoryId: "cat-rent",
@@ -253,7 +260,7 @@ describe("editing a recurrence (HU-E4-11, P22)", () => {
   it("changes what the next occurrences record: Rent at 1,300,000 COP", () => {
     const original = rent();
     const edited = unwrap(
-      revisedRecurrence(original, { amount: 130_000_000n, description: "Rent 2027" }, at("2026-12-15")),
+      revisedRecurrence(original, { amount: 130_000_000n, description: "Rent 2027" }, on("2026-12-15")),
     );
     expect([edited.amount, edited.description, edited.updatedAt, edited.dueFrom]).toEqual([
       130_000_000n,
@@ -270,7 +277,7 @@ describe("editing a recurrence (HU-E4-11, P22)", () => {
 
   it("changes nothing but what the edit names: dates, state and authorship stay", () => {
     const current: Recurrence = { ...rent(), pausedAt: paused, pauseReason: "PayerLeft" };
-    const edited = unwrap(revisedRecurrence(current, { mode: "CONFIRM" }, at("2026-11-03")));
+    const edited = unwrap(revisedRecurrence(current, { mode: "CONFIRM" }, on("2026-11-03")));
     expect(edited).toEqual({ ...current, mode: "CONFIRM", updatedAt: at("2026-11-03") });
     expect(statusOf(edited)).toBe("PAUSED");
   });
@@ -283,13 +290,13 @@ describe("editing a recurrence (HU-E4-11, P22)", () => {
       template: { type: "INCOME", categoryId: "cat-salary", accountId: "acc-bancolombia" },
     });
     expect([
-      codeOf(revisedRecurrence(transfer, { categoryId: "cat-other" }, at("2026-11-01"))),
-      codeOf(revisedRecurrence(salary, { split: half }, at("2026-11-01"))),
-      codeOf(revisedRecurrence(salary, { categoryId: "cat-bonus" }, at("2026-11-01"))),
+      codeOf(revisedRecurrence(transfer, { categoryId: "cat-other" }, on("2026-11-01"))),
+      codeOf(revisedRecurrence(salary, { split: half }, on("2026-11-01"))),
+      codeOf(revisedRecurrence(salary, { categoryId: "cat-bonus" }, on("2026-11-01"))),
     ]).toEqual(["InvalidRecurrence", "InvalidRecurrence", "ok"]);
-    const split = unwrap(revisedRecurrence(rent(), { split: half }, at("2026-11-01")));
+    const split = unwrap(revisedRecurrence(rent(), { split: half }, on("2026-11-01")));
     expect(split.template).toEqual({ ...RENT, split: half });
-    expect(unwrap(revisedRecurrence(split, { split: null }, at("2026-11-02"))).template).toEqual(RENT);
+    expect(unwrap(revisedRecurrence(split, { split: null }, on("2026-11-02"))).template).toEqual(RENT);
   });
 
   it("refuses a category or a split on a transfer or a contribution, and a split on an income", () => {
@@ -304,12 +311,12 @@ describe("editing a recurrence (HU-E4-11, P22)", () => {
         sourceAccountId: "acc-bancolombia",
       },
     });
-    const now = at("2026-11-01");
+    const edit = on("2026-11-01");
     expect([
-      codeOf(revisedRecurrence(transfer, { split: half }, now)),
-      codeOf(revisedRecurrence(transfer, { split: null }, now)),
-      codeOf(revisedRecurrence(contribution, { categoryId: "cat-other" }, now)),
-      codeOf(revisedRecurrence(contribution, { split: half }, now)),
+      codeOf(revisedRecurrence(transfer, { split: half }, edit)),
+      codeOf(revisedRecurrence(transfer, { split: null }, edit)),
+      codeOf(revisedRecurrence(contribution, { categoryId: "cat-other" }, edit)),
+      codeOf(revisedRecurrence(contribution, { split: half }, edit)),
     ]).toEqual(["InvalidRecurrence", "InvalidRecurrence", "InvalidRecurrence", "InvalidRecurrence"]);
   });
 
@@ -319,10 +326,10 @@ describe("editing a recurrence (HU-E4-11, P22)", () => {
       categoryId: "cat-salary",
       accountId: "acc-bancolombia",
     };
-    const now = at("2026-11-01");
+    const edit = on("2026-11-01");
     expect([
-      unwrap(revisedRecurrence(rent({ template: salary }), { categoryId: "cat-bonus" }, now)).template,
-      unwrap(revisedRecurrence(rent(), { categoryId: "cat-utilities", split: half }, now)).template,
+      unwrap(revisedRecurrence(rent({ template: salary }), { categoryId: "cat-bonus" }, edit)).template,
+      unwrap(revisedRecurrence(rent(), { categoryId: "cat-utilities", split: half }, edit)).template,
     ]).toEqual([
       { type: "INCOME", categoryId: "cat-bonus", accountId: "acc-bancolombia" },
       { ...RENT, categoryId: "cat-utilities", split: half },
@@ -346,15 +353,15 @@ describe("editing a recurrence (HU-E4-11, P22)", () => {
       },
     ];
     expect(
-      ratios.map((split) => unwrap(revisedRecurrence(rent(), { split }, at("2026-11-01"))).template),
+      ratios.map((split) => unwrap(revisedRecurrence(rent(), { split }, on("2026-11-01"))).template),
     ).toEqual(ratios.map((split) => ({ ...RENT, split })));
   });
 
   it("returns to the default split with null and keeps the split when the edit does not name it (P23)", () => {
-    const shared = unwrap(revisedRecurrence(rent(), { split: half }, at("2026-11-01")));
+    const shared = unwrap(revisedRecurrence(rent(), { split: half }, on("2026-11-01")));
     expect([
-      unwrap(revisedRecurrence(shared, { amount: 1n }, at("2026-11-02"))).template,
-      unwrap(revisedRecurrence(shared, { split: null }, at("2026-11-02"))).template,
+      unwrap(revisedRecurrence(shared, { amount: 1n }, on("2026-11-02"))).template,
+      unwrap(revisedRecurrence(shared, { split: null }, on("2026-11-02"))).template,
     ]).toEqual([{ ...RENT, split: half }, RENT]);
   });
 
@@ -390,7 +397,7 @@ describe("editing a recurrence (HU-E4-11, P22)", () => {
       memberId: "member-juan",
     } as RecurrenceChanges;
     const edited = templates.map((template) =>
-      unwrap(revisedRecurrence(rent({ template }), smuggled, at("2026-11-01"))),
+      unwrap(revisedRecurrence(rent({ template }), smuggled, on("2026-11-01"))),
     );
     expect([edited.map((r) => r.template), edited.map((r) => r.amount)]).toEqual([
       templates,
@@ -399,7 +406,7 @@ describe("editing a recurrence (HU-E4-11, P22)", () => {
   });
 
   it("validates the description and amount of an edit as when defining", () => {
-    const edit = (changes: RecurrenceChanges) => codeOf(revisedRecurrence(rent(), changes, at("2026-11-01")));
+    const edit = (changes: RecurrenceChanges) => codeOf(revisedRecurrence(rent(), changes, on("2026-11-01")));
     expect([
       edit({ description: "" }),
       edit({ description: "x".repeat(201) }),
@@ -409,7 +416,7 @@ describe("editing a recurrence (HU-E4-11, P22)", () => {
       edit({ amount: 1n }),
     ]).toEqual(["InvalidDescription", "InvalidDescription", "ok", "InvalidAmount", "InvalidAmount", "ok"]);
     expect(
-      unwrap(revisedRecurrence(rent(), { description: "  Rent 2027  " }, at("2026-11-01"))).description,
+      unwrap(revisedRecurrence(rent(), { description: "  Rent 2027  " }, on("2026-11-01"))).description,
     ).toBe("Rent 2027");
   });
 
@@ -422,7 +429,7 @@ describe("editing a recurrence (HU-E4-11, P22)", () => {
           mode: "CONFIRM",
           endDate: day("2026-12-15"),
         },
-        at("2026-11-01"),
+        on("2026-11-01"),
       ),
     );
     expect([edited.schedule, edited.mode, edited.endDate, upcomingDates(edited, 5)]).toEqual([
@@ -436,63 +443,165 @@ describe("editing a recurrence (HU-E4-11, P22)", () => {
   it("removes the end date with null and keeps it when the edit does not name it", () => {
     const bounded = rent({ endDate: day("2027-01-01") });
     expect([
-      unwrap(revisedRecurrence(bounded, { amount: 1n }, at("2026-11-01"))).endDate,
-      unwrap(revisedRecurrence(bounded, { endDate: null }, at("2026-11-01"))).endDate,
+      unwrap(revisedRecurrence(bounded, { amount: 1n }, on("2026-11-01"))).endDate,
+      unwrap(revisedRecurrence(bounded, { endDate: null }, on("2026-11-01"))).endDate,
     ]).toEqual(["2027-01-01", null]);
   });
 
   it("ends on the start date at the earliest: the day before it is refused, the start date itself is not", () => {
-    const edit = (endDate: LocalDate) => codeOf(revisedRecurrence(rent(), { endDate }, at("2026-11-01")));
+    const edit = (endDate: LocalDate) => codeOf(revisedRecurrence(rent(), { endDate }, on("2026-11-01")));
     expect([edit(day("2026-11-30")), edit(day("2026-12-01"))]).toEqual(["InvalidRecurrence", "ok"]);
   });
 
   it("validates the end date against the start date it keeps, not against the days already recorded", () => {
     const advanced = { ...rent(), dueFrom: day("2027-03-01") };
-    const edited = unwrap(revisedRecurrence(advanced, { endDate: day("2027-01-01") }, at("2027-03-02")));
+    const edited = unwrap(revisedRecurrence(advanced, { endDate: day("2027-01-01") }, on("2027-03-02")));
     expect([edited.endDate, statusOf(edited), upcomingDates(edited, 1)]).toEqual(["2027-01-01", "ENDED", []]);
   });
 
   it("refuses edits of an ended recurrence, end dates before the start and non-positive amounts", () => {
     const ended = { ...rent(), endedAt: at("2026-11-01") };
     expect([
-      codeOf(revisedRecurrence(ended, { amount: 1n }, at("2026-11-02"))),
-      codeOf(revisedRecurrence(rent(), { endDate: day("2026-11-01") }, at("2026-11-02"))),
-      codeOf(revisedRecurrence(rent(), { amount: -1n }, at("2026-11-02"))),
+      codeOf(revisedRecurrence(ended, { amount: 1n }, on("2026-11-02"))),
+      codeOf(revisedRecurrence(rent(), { endDate: day("2026-11-01") }, on("2026-11-02"))),
+      codeOf(revisedRecurrence(rent(), { amount: -1n }, on("2026-11-02"))),
     ]).toEqual(["RecurrenceEnded", "InvalidRecurrence", "InvalidAmount"]);
   });
 
   it("refuses every edit of an ended recurrence, paused or not, before looking at what it changes", () => {
-    const now = at("2026-11-03");
+    const edit = on("2026-11-03");
     const stopped = { ...rent(), endedAt: ended };
     const stoppedWhilePaused = { ...stopped, pausedAt: paused };
     expect([
-      codeOf(revisedRecurrence(stopped, {}, now)),
-      codeOf(revisedRecurrence(stopped, { amount: -1n }, now)),
-      codeOf(revisedRecurrence(stopped, { description: "" }, now)),
-      codeOf(revisedRecurrence(stoppedWhilePaused, { mode: "CONFIRM" }, now)),
+      codeOf(revisedRecurrence(stopped, {}, edit)),
+      codeOf(revisedRecurrence(stopped, { amount: -1n }, edit)),
+      codeOf(revisedRecurrence(stopped, { description: "" }, edit)),
+      codeOf(revisedRecurrence(stoppedWhilePaused, { mode: "CONFIRM" }, edit)),
     ]).toEqual(["RecurrenceEnded", "RecurrenceEnded", "RecurrenceEnded", "RecurrenceEnded"]);
   });
 
   it("refuses every edit of a recurrence that ran out of dates, a later end date included: define a new one (P24)", () => {
-    const now = at("2027-01-05");
+    const edit = on("2027-01-05");
     const exhausted = { ...rent({ endDate: day("2027-01-01") }), dueFrom: day("2027-01-02") };
     expect([
       statusOf(exhausted),
-      codeOf(revisedRecurrence(exhausted, { endDate: day("2027-03-01") }, now)),
-      codeOf(revisedRecurrence(exhausted, { endDate: null }, now)),
-      codeOf(revisedRecurrence(exhausted, {}, now)),
-      codeOf(revisedRecurrence(exhausted, { amount: -1n }, now)),
-      codeOf(revisedRecurrence({ ...exhausted, pausedAt: paused }, { amount: 1n }, now)),
+      codeOf(revisedRecurrence(exhausted, { endDate: day("2027-03-01") }, edit)),
+      codeOf(revisedRecurrence(exhausted, { endDate: null }, edit)),
+      codeOf(revisedRecurrence(exhausted, {}, edit)),
+      codeOf(revisedRecurrence(exhausted, { amount: -1n }, edit)),
+      codeOf(revisedRecurrence({ ...exhausted, pausedAt: paused }, { amount: 1n }, edit)),
     ]).toEqual(["ENDED", ...Array.from({ length: 5 }, () => "RecurrenceEnded")]);
   });
 
   it("takes an edit while paused, and with one schedule date left on its end date", () => {
     const lastDate = { ...rent({ endDate: day("2027-01-01") }), dueFrom: day("2027-01-01") };
     expect([
-      codeOf(revisedRecurrence({ ...rent(), pausedAt: paused }, { amount: 1n }, at("2026-11-03"))),
+      codeOf(revisedRecurrence({ ...rent(), pausedAt: paused }, { amount: 1n }, on("2026-11-03"))),
       statusOf(lastDate),
-      codeOf(revisedRecurrence(lastDate, { amount: 1n }, at("2026-12-31"))),
+      codeOf(revisedRecurrence(lastDate, { amount: 1n }, on("2026-12-31"))),
     ]).toEqual(["ok", "ACTIVE", "ok"]);
+  });
+});
+
+describe("changing the schedule of a recurrence (final review I1)", () => {
+  const monthlyOn = (anchor: number) => ({ kind: "MONTHLY", day: anchor }) as const;
+  const twiceMonthly = (day1: number, day2: number) => ({ kind: "SEMI_MONTHLY", day1, day2 }) as const;
+  /** The Rent once a run recorded 2026-12-01: due from the day after. */
+  const recordedInDecember = (): Recurrence => ({ ...rent(), dueFrom: day("2026-12-02") });
+  const reschedule = (current: Recurrence, schedule: RecurrenceChanges["schedule"], edit: EditContext) => {
+    const edited = unwrap(revisedRecurrence(current, { schedule }, edit));
+    return [edited.dueFrom, upcomingDates(edited, 2)];
+  };
+
+  it("never charges a slot twice: MONTHLY(1) recorded on 2026-12-01, moved to the 15th on 2026-12-20, next on 2027-01-15", () => {
+    expect(reschedule(recordedInDecember(), monthlyOn(15), on("2026-12-20", "2026-12-01"))).toEqual([
+      "2027-01-01",
+      ["2027-01-15", "2027-02-15"],
+    ]);
+  });
+
+  it("waits for the next month even when the new day is still ahead: moved to the 20th on 2026-12-10, next on 2027-01-20", () => {
+    expect(reschedule(recordedInDecember(), monthlyOn(20), on("2026-12-10", "2026-12-01"))).toEqual([
+      "2027-01-01",
+      ["2027-01-20", "2027-02-20"],
+    ]);
+  });
+
+  it("never creates a date before the edit day, before any occurrence: from the start date or the edit day, the later", () => {
+    // No run recorded the 2026-12-01 Rent yet (the job was down): it is due from its start date.
+    const overdue = rent();
+    expect([
+      reschedule(overdue, monthlyOn(15), on("2026-11-01")),
+      reschedule(overdue, monthlyOn(5), on("2026-12-03")),
+      reschedule(overdue, monthlyOn(2), on("2026-12-03")),
+    ]).toEqual([
+      ["2026-12-01", ["2026-12-15", "2027-01-15"]],
+      ["2026-12-03", ["2026-12-05", "2027-01-05"]],
+      ["2026-12-03", ["2027-01-02", "2027-02-02"]],
+    ]);
+  });
+
+  it("takes the halves of SEMI_MONTHLY from the new anchors: recorded on the 1st, moved to (5, 20) on the 3rd, next on the 20th", () => {
+    const cleaning = { ...rent({ schedule: twiceMonthly(1, 16) }), dueFrom: day("2026-12-02") };
+    expect(reschedule(cleaning, twiceMonthly(5, 20), on("2026-12-03", "2026-12-01"))).toEqual([
+      "2026-12-20",
+      ["2026-12-20", "2027-01-05"],
+    ]);
+  });
+
+  it("counts the clamped dates of short months as their slot's date: MONTHLY(31) and February", () => {
+    const endOfJanuary = { ...rent({ schedule: monthlyOn(31) }), dueFrom: day("2027-02-01") };
+    const firstOfFebruary = { ...rent(), dueFrom: day("2027-02-02") };
+    expect([
+      // January was charged on the 31st: February's slot is new, and its clamped date is the 28th.
+      reschedule(endOfJanuary, monthlyOn(30), on("2027-01-31", "2027-01-31")),
+      reschedule(endOfJanuary, monthlyOn(28), on("2027-02-05", "2027-01-31")),
+      // February was charged on the 1st: its clamped 28th would charge it twice.
+      reschedule(firstOfFebruary, monthlyOn(31), on("2027-02-10", "2027-02-01")),
+    ]).toEqual([
+      ["2027-02-01", ["2027-02-28", "2027-03-30"]],
+      ["2027-02-05", ["2027-02-28", "2027-03-28"]],
+      ["2027-03-01", ["2027-03-31", "2027-04-30"]],
+    ]);
+  });
+
+  it("splits a February at its clamped second anchor, and keeps it whole when both anchors clamp to one day", () => {
+    const firstHalf = { ...rent({ schedule: twiceMonthly(1, 16) }), dueFrom: day("2027-02-02") };
+    const secondHalf = { ...rent({ schedule: twiceMonthly(1, 16) }), dueFrom: day("2027-02-17") };
+    expect([
+      reschedule(firstHalf, twiceMonthly(15, 31), on("2027-02-03", "2027-02-01")),
+      reschedule(secondHalf, twiceMonthly(30, 31), on("2027-02-20", "2027-02-16")),
+      reschedule(firstHalf, twiceMonthly(30, 31), on("2027-02-03", "2027-02-01")),
+    ]).toEqual([
+      ["2027-02-28", ["2027-02-28", "2027-03-15"]],
+      ["2027-03-01", ["2027-03-30", "2027-03-31"]],
+      ["2027-03-01", ["2027-03-30", "2027-03-31"]],
+    ]);
+  });
+
+  it("moves no date for an edit that keeps the schedule, and P24 still records an overdue date no run considered", () => {
+    const overdue = rent();
+    const edit = on("2026-12-20", "2026-12-01");
+    expect([
+      unwrap(revisedRecurrence(recordedInDecember(), { amount: 1n }, edit)).dueFrom,
+      unwrap(revisedRecurrence(recordedInDecember(), { schedule: monthlyOn(1), mode: "CONFIRM" }, edit))
+        .dueFrom,
+      reschedule(overdue, monthlyOn(1), on("2026-12-03")),
+    ]).toEqual(["2026-12-02", "2026-12-02", ["2026-12-01", ["2026-12-01", "2027-01-01"]]]);
+  });
+
+  it("ends a recurrence for good when the new schedule has no date from the next slot through its end date (P24)", () => {
+    // MONTHLY(1) still had 2027-01-01 before its end; MONTHLY(15) has no date from 2027-01-01 through 2027-01-10.
+    const untilJanuary = { ...rent({ endDate: day("2027-01-10") }), dueFrom: day("2026-12-02") };
+    const edited = unwrap(
+      revisedRecurrence(untilJanuary, { schedule: monthlyOn(15) }, on("2026-12-10", "2026-12-01")),
+    );
+    expect([statusOf(untilJanuary), edited.dueFrom, statusOf(edited), upcomingDates(edited, 1)]).toEqual([
+      "ACTIVE",
+      "2027-01-01",
+      "ENDED",
+      [],
+    ]);
   });
 });
 
@@ -601,7 +710,7 @@ describe("pausing, resuming and ending (HU-E4-11)", () => {
       "ok",
     ]);
     expect([statusOf(ended), upcomingDates(ended, 1)]).toEqual(["ENDED", []]);
-    expect(codeOf(revisedRecurrence(ended, { amount: 1n }, at("2026-11-02")))).toBe("RecurrenceEnded");
+    expect(codeOf(revisedRecurrence(ended, { amount: 1n }, on("2026-11-02")))).toBe("RecurrenceEnded");
   });
 
   it("allows only ACTIVE to PAUSED, PAUSED to ACTIVE and a status that is not ENDED to ENDED (P27)", () => {

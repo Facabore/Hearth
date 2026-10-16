@@ -179,4 +179,24 @@ describe("recording due occurrences (HU-E4-12)", () => {
       ["2027-01-01", cop(1_300_000)],
     ]);
   });
+
+  it("never back-dates nor charges December twice when the Rent moves to the 15th on 2026-12-20: next on 2027-01-15 (final review I1)", async () => {
+    const h = await householdWithFund();
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
+    await schedulerRunsOn("2026-12-01");
+    clock.set("2026-12-20");
+    const moved = { schedule: { kind: "MONTHLY", day: 15 } };
+    expect((await patchRecurrence(h.ana, h.spaceId, rent.id, moved)).status).toBe(200);
+    await schedulerRunsOn("2026-12-20");
+    await schedulerRunsOn("2027-01-14");
+    expect([
+      (await expensesIn(h, "2026-12")).map((t) => t.date),
+      await expensesIn(h, "2027-01"),
+      (await recurrenceOf(h.ana, h.spaceId, rent.id)).nextOccurrence,
+    ]).toEqual([["2026-12-01"], [], "2027-01-15"]);
+    await schedulerRunsOn("2027-01-15");
+    expect((await expensesIn(h, "2027-01")).map((t) => [t.description, t.date, t.amount])).toEqual([
+      ["Rent", "2027-01-15", cop(1_200_000)],
+    ]);
+  });
 });

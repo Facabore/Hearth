@@ -30,6 +30,11 @@ export const ProblemSchema = z.object({
   outstanding: MoneySchema.optional(),
   /** InvalidAllocation on activation only (HU-E6-07): the lines whose allocation does not hold, in plan order. */
   lineIds: z.array(z.string()).optional(),
+  /**
+   * InsufficientRole and NotASpaceMember of a recurrence's resume or edit only (HU-E4-11): the recurrence's creator,
+   * not the requester, may no longer record money or left the space.
+   */
+  member: z.enum(["creator"]).optional(),
 });
 
 export const moneyToDto = (money: Money): MoneyDto => ({

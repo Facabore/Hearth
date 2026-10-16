@@ -125,10 +125,11 @@ const saved = async (deps: RecurrenceDeps, recurrence: Recurrence): Promise<Resu
 
 /**
  * HU-E4-11 UpdateRecurrence: description, amount, category, split, schedule, mode and end date change for every
- * occurrence not recorded yet (ruling P24). D9 (ruling P22): a recurrence that moves money into or out of a member's
- * own account (an expense they pay, a contribution, a transfer, an income) is changed by that member, its creator,
- * only, in every field: the amount, but also how often it records and whether it records unasked. A new category,
- * split or amount is checked again as recording would check it (ruling P21).
+ * occurrence not recorded yet (ruling P24). A new schedule is due from the edit day, in APP_TIMEZONE, at the earliest,
+ * and never adds an occurrence to the slot of the last one (final review I1). D9 (ruling P22): a recurrence that moves
+ * money into or out of a member's own account (an expense they pay, a contribution, a transfer, an income) is changed
+ * by that member, its creator, only, in every field: the amount, but also how often it records and whether it records
+ * unasked. A new category, split or amount is checked again as recording would check it (ruling P21).
  *
  * An ENDED recurrence takes no edit, whatever the edit says (`RecurrenceEnded`, checked before anything else of it is
  * looked at). An edit can also end one: a schedule or end date that leaves no date to record from the first one not
@@ -152,10 +153,16 @@ export const createUpdateRecurrence =
       const { amount, schedule, ...rest } = input.changes;
       const nextSchedule = schedule === undefined ? ok(undefined) : scheduleOf(schedule);
       if (!nextSchedule.ok) return nextSchedule;
+      // A new schedule starts from the edit day and the last occurrence, whatever its status (final review I1).
+      const latest = await deps.occurrences.latestOccurrences(space.spaceId, [recurrence.id]);
       const revised = revisedRecurrence(
         recurrence,
         { ...rest, amount: amount?.minor, schedule: nextSchedule.value },
-        deps.clock.now(),
+        {
+          now: deps.clock.now(),
+          today: todayIn(deps.clock, deps.timeZone),
+          lastOccurrence: latest.get(recurrence.id)?.date ?? null,
+        },
       );
       if (!revised.ok) return revised;
       if (amount !== undefined) {
