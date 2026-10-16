@@ -13,6 +13,14 @@ export {
   type GetMemberNetBalances,
 } from "./get-member-net-balance";
 export {
+  createGetMemberBalanceHistory,
+  type BalanceEntry,
+  type BalanceHistoryDeps,
+  type BalanceHistorySource,
+  type GetMemberBalanceHistory,
+  type MemberBalanceHistoryView,
+} from "./get-member-balance-history";
+export {
   createGetSettlementSuggestions,
   type GetSettlementSuggestions,
   type SettlementSuggestions,
