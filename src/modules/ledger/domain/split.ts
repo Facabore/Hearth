@@ -20,16 +20,29 @@ export type SplitInput =
       readonly participants: readonly { readonly memberId: string; readonly units: number }[];
     };
 
+/**
+ * HU-E6-08: BY_ALLOCATION, the default split of an expense whose category resolves to an allocated line of the
+ * ACTIVE plan (spec 5.3). Never requested by a client (ruling P16): the weights are the line's assigned amounts.
+ */
+export interface AllocationSplit {
+  readonly method: "BY_ALLOCATION";
+  readonly participants: readonly { readonly memberId: string; readonly weight: bigint }[];
+}
+
 /** 100 % in basis points. */
 const WHOLE = 10_000;
 
 const invalid = (reason: string): Result<never> => err(domainError("InvalidSplit", { reason }));
 
-const allocated = (amount: Money, weights: readonly number[]): Result<bigint[]> =>
+const allocated = (amount: Money, weights: readonly (number | bigint)[]): Result<bigint[]> =>
   map(amount.allocate(weights), (parts) => parts.map((part) => part.minor));
 
 /** Amounts per participant; `order` lists the participants' request indexes in join order. */
-const amountsOf = (amount: Money, split: SplitInput, order: readonly number[]): Result<bigint[]> => {
+const amountsOf = (
+  amount: Money,
+  split: SplitInput | AllocationSplit,
+  order: readonly number[],
+): Result<bigint[]> => {
   switch (split.method) {
     case "EQUAL":
       return allocated(
@@ -46,6 +59,11 @@ const amountsOf = (amount: Money, split: SplitInput, order: readonly number[]): 
       const units = order.map((index) => split.participants[index]!.units);
       if (units.some((u) => !Number.isSafeInteger(u) || u <= 0)) return invalid("unitsNotPositive");
       return allocated(amount, units);
+    }
+    case "BY_ALLOCATION": {
+      const weights = order.map((index) => split.participants[index]!.weight);
+      if (weights.some((weight) => weight <= 0n)) return invalid("weightNotPositive");
+      return allocated(amount, weights);
     }
     case "EXACT": {
       const parts = order.map((index) => split.participants[index]!.amount);
@@ -72,7 +90,7 @@ const amountsOf = (amount: Money, split: SplitInput, order: readonly number[]): 
  */
 export const splitShares = (
   amount: Money,
-  split: SplitInput,
+  split: SplitInput | AllocationSplit,
   memberIds: readonly string[],
 ): Result<Share[]> => {
   const ids = split.participants.map((participant) => participant.memberId);

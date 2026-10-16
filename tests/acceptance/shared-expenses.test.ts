@@ -179,6 +179,14 @@ describe("shared expense rules (HU-E4-07, Review Focus 2)", () => {
         "SharesDoNotMatchAmount",
       ],
       [paidBy(h, h.ana, 80_000, { split: both, accountId: h.ana.account }), 422, "ValidationFailed"],
+      // HU-E6-08, ruling P16: BY_ALLOCATION is the default split only; no client can request it.
+      [
+        paidBy(h, h.ana, 80_000, {
+          split: { method: "BY_ALLOCATION", participants: [{ memberId: h.ana.memberId, weight: "1" }] },
+        }),
+        422,
+        "ValidationFailed",
+      ],
     ];
     for (const [body, status, code] of cases) {
       expect(await problemOf(await post(recordExpense, h.ana, "expenses", body))).toEqual([status, code]);

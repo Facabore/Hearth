@@ -205,6 +205,8 @@ export const ledgerFixture = (overrides: Partial<LedgerDeps> = {}) => {
     accounts: accountReader(Object.values(ACCOUNTS)),
     categories: categoryReader(Object.values(CATEGORIES)),
     closedPeriods: { isClosed: async () => false },
+    // HU-E6-08: EQUAL unless a test binds budgeting's allocation weights.
+    defaultSplits: { allocationWeights: async () => null },
     // HU-E2-04 as the accounts module computes it: opening balance plus movements.
     accountBalances: {
       balanceOf: async (_spaceId, _userId, accountId) =>

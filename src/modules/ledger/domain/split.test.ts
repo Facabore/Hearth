@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Money } from "@/shared/kernel";
 import { codeOf, money, unwrap } from "../../../../tests/support/fakes";
-import { splitShares, type SplitInput } from "./split";
+import { splitShares, type AllocationSplit, type SplitInput } from "./split";
 
 // Current members of Household in join order.
 const MEMBERS = ["member-ana", "member-juan", "member-luis"];
@@ -146,5 +146,53 @@ describe("non-equal splits (HU-E4-08)", () => {
       ["member-ana", 12_000_000n],
       ["member-juan", 18_000_000n],
     ]);
+  });
+});
+
+describe("BY_ALLOCATION (HU-E6-08)", () => {
+  const byAllocation = (...weights: [string, bigint][]): AllocationSplit => ({
+    method: "BY_ALLOCATION",
+    participants: weights.map(([memberId, weight]) => ({ memberId, weight })),
+  });
+
+  it("splits 2,000,000 COP by Home's assigned 588,000 / 882,000 COP: 800,000 / 1,200,000 (golden)", () => {
+    const split = byAllocation(["member-juan", 88_200_000n], ["member-ana", 58_800_000n]);
+    expect(unwrap(splitShares(pesos(2_000_000n), split, MEMBERS))).toEqual([
+      { memberId: "member-ana", amount: 80_000_000n, splitMethod: "BY_ALLOCATION" },
+      { memberId: "member-juan", amount: 120_000_000n, splitMethod: "BY_ALLOCATION" },
+    ]);
+  });
+
+  it("splits 300,000 COP by fixed amounts of 490,000 / 980,000 COP: 100,000 / 200,000", () => {
+    const split = byAllocation(["member-ana", 49_000_000n], ["member-juan", 98_000_000n]);
+    expect(unwrap(splitShares(pesos(300_000n), split, MEMBERS)).map((s) => s.amount)).toEqual([
+      10_000_000n,
+      20_000_000n,
+    ]);
+  });
+
+  it("gives the leftover peso to the earliest-joined member on a tie, whatever the request order", () => {
+    // 3 COP over equal weights is 1.5 / 1.5 pesos: one peso is left over and the tie goes to the earlier member.
+    const split = byAllocation(["member-juan", 5_000n], ["member-ana", 5_000n]);
+    expect(unwrap(splitShares(pesos(3n), split, MEMBERS)).map((s) => [s.memberId, s.amount])).toEqual([
+      ["member-ana", 200n],
+      ["member-juan", 100n],
+    ]);
+  });
+
+  it("gives the leftover peso to the largest remainder, and the shares sum to the amount", () => {
+    // 1,000 COP over 1 : 2 is 333.33 / 666.67 pesos: the leftover peso goes to the larger fraction.
+    const split = byAllocation(["member-ana", 1n], ["member-juan", 2n]);
+    const shares = unwrap(splitShares(pesos(1_000n), split, MEMBERS)).map((s) => s.amount);
+    expect(shares).toEqual([33_300n, 66_700n]);
+    expect(shares.reduce((a, b) => a + b, 0n)).toBe(100_000n);
+  });
+
+  it("refuses a weight that is not positive", () => {
+    const split = byAllocation(["member-ana", 0n], ["member-juan", 98_000_000n]);
+    expect(splitShares(pesos(300_000n), split, MEMBERS)).toEqual({
+      ok: false,
+      error: { code: "InvalidSplit", details: { reason: "weightNotPositive" } },
+    });
   });
 });

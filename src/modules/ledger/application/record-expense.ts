@@ -1,6 +1,6 @@
 import type { SpaceMember, SpaceMembership } from "@/modules/spaces/application";
 import { domainError, err, map, ok, todayIn, type LocalDate, type Money, type Result } from "@/shared/kernel";
-import { splitShares, type SplitInput } from "../domain/split";
+import { splitShares, type AllocationSplit, type SplitInput } from "../domain/split";
 import { positiveAmount, recordExpense, type Expense, type Payment } from "../domain/transaction";
 import {
   authorizeWriter,
@@ -11,6 +11,7 @@ import {
   usableCategory,
 } from "./checks";
 import type { LedgerDeps } from "./deps";
+import type { DefaultSplitQuery } from "./ports";
 
 /** One requested payment (spec 5.2). */
 export interface PaymentInput {
@@ -32,7 +33,7 @@ export interface RecordExpenseInput {
   readonly accountId?: string;
   /** HU-E4-07: who paid, registered members, guests or the shared fund; the v1 UI offers one payer. */
   readonly payments?: readonly PaymentInput[];
-  /** HU-E4-07/08: how the amount is shared; EQUAL among every current member when absent (spec 5.3). */
+  /** HU-E4-07/08: how the amount is shared; when absent, the default split (spec 5.3, HU-E6-08). */
   readonly split?: SplitInput;
 }
 
@@ -80,6 +81,21 @@ const paymentOf = async (
     accountId: account,
     amount,
   }));
+};
+
+/**
+ * Spec 5.3, HU-E6-08: without a chosen split, BY_ALLOCATION by the line the category consumes in the ACTIVE plan
+ * covering the date, else EQUAL among every current member. The member can always choose another split.
+ */
+const defaultSplit = async (
+  deps: Pick<LedgerDeps, "defaultSplits">,
+  expense: DefaultSplitQuery,
+  members: readonly SpaceMember[],
+): Promise<SplitInput | AllocationSplit> => {
+  const weights = await deps.defaultSplits.allocationWeights(expense);
+  return weights === null
+    ? { method: "EQUAL", participants: members.map((m) => ({ memberId: m.id })) }
+    : { method: "BY_ALLOCATION", participants: weights };
 };
 
 /** HU-E4-10: the fund may go negative; the expense is recorded and the response warns. */
@@ -131,19 +147,24 @@ export const createRecordExpense =
         if (!resolved.ok) return resolved;
         payments.push(resolved.value);
       }
-      const split: SplitInput = input.split ?? {
-        method: "EQUAL",
-        participants: members.map((m) => ({ memberId: m.id })),
-      };
+      const date = input.date ?? todayIn(deps.clock, deps.timeZone);
+      // HU-E4-06 first (P14): a closed period takes nothing, and the guard's FOR SHARE lock on the covering plan keeps
+      // plan writes out while the default split reads it.
+      const open = await openPeriod(deps, space.spaceId, date);
+      if (!open.ok) return open;
+      const split =
+        input.split ??
+        (await defaultSplit(
+          deps,
+          { spaceId: space.spaceId, currency: space.currency, categoryId: category.value, date },
+          members,
+        ));
       const shares = splitShares(
         input.amount,
         split,
         members.map((m) => m.id),
       );
       if (!shares.ok) return shares;
-      const date = input.date ?? todayIn(deps.clock, deps.timeZone);
-      const open = await openPeriod(deps, space.spaceId, date);
-      if (!open.ok) return open;
       const expense = recordExpense({
         id: deps.ids.next<"Transaction">(),
         spaceId: space.spaceId,

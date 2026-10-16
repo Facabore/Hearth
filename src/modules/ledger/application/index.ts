@@ -11,7 +11,7 @@ export type {
   TransactionType,
   Transfer,
 } from "../domain/transaction";
-export type { SplitInput } from "../domain/split";
+export type { AllocationSplit, SplitInput } from "../domain/split";
 export type { LedgerDeps } from "./deps";
 export type {
   AccountBalances,
@@ -20,6 +20,8 @@ export type {
   AuditLog,
   CategoryReader,
   ClosedPeriodGuard,
+  DefaultSplitQuery,
+  DefaultSplitSource,
   LedgerAccount,
   LedgerCategory,
   MemberMoneyTotals,

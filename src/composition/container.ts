@@ -341,6 +341,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     },
     // HU-E4-06, HU-E6-07: a CLOSED plan's period takes no change; budgeting answers, the ledger never imports it.
     closedPeriods: createClosedPeriodGuard(budgetPlans),
+    // HU-E6-08: EQUAL until the composition root binds budgeting's allocation weights.
+    defaultSplits: { allocationWeights: async () => null },
     storedPeriods,
     // HU-E4-10: the accounts module owns the balance formula (opening balance + movements, HU-E2-04).
     accountBalances: accountBalancesFrom(getAccount),
