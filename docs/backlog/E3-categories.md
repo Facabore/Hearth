@@ -270,8 +270,19 @@ Feature: Category icon and color
 ```
 
 **Technical notes:**
-- Model: `CategoryGroup` and `Category` gain `icon` and `color`. `icon` is `{ kind: "SYMBOL", name }`, where `name` belongs to a fixed set kept in the `categories` domain (for example cart, bread, cup, fork, bus, home, bulb, heart, gift, book, gym and fuel; the plan fixes the full list), or `{ kind: "EMOJI", value }`, where `value` is exactly one emoji grapheme. `color` is one of 10 palette keys: `PINE`, `SAGE`, `SAND`, `MUSTARD`, `EMBER`, `ROSE`, `PLUM`, `INDIGO`, `STEEL` and `GRAPHITE`. The UI maps each key to light and dark theme tokens; no hex value is ever stored.
-- Seeds (HU-E3-01): every seeded group and category gets a default icon and color by its catalog `key`, and a seeded category takes its group's color. A category created without an `icon` or a `color` takes its group's icon and color, copied at creation.
+- Model: `CategoryGroup` and `Category` gain `icon` and `color`. `icon` is `{ kind: "SYMBOL", name }`, where `name` is one of the 58 names of the fixed set below, kept in the `categories` domain, or `{ kind: "EMOJI", value }`, where `value` is exactly one emoji grapheme. `color` is one of 16 palette keys: `PINE`, `SAGE`, `OLIVE`, `SAND`, `MUSTARD`, `AMBER`, `EMBER`, `CORAL`, `ROSE`, `PLUM`, `LAVENDER`, `INDIGO`, `SKY`, `TEAL`, `STEEL` and `GRAPHITE`. The UI maps each key to light and dark theme tokens; no hex value is ever stored.
+- Symbol set: 58 names in nine sections, the order and labels of the icon library of the UI (HU-E9-04). The plan fixes the exact spelling; every name is lower case.
+  - Food: cart, bread, cup, fork, apple, wine, pizza, basket
+  - Home: home, bulb, droplet, flame, wifi, wrench, key, sofa
+  - Transport: bus, car, fuel, bike, plane, train, parking
+  - Health and care: heart, pill, cross, tooth, gym, scissors, leaf
+  - Leisure: ticket, music, game, tv, book, gift, globe
+  - Shopping: shirt, bag, tag, phone, laptop
+  - Money: card, bank, piggy, coins, chart, receipt, percent
+  - People and work: users, paw, graduation, briefcase
+  - Other: star, umbrella, shield, calendar, dots
+- A section is UI metadata only: the domain, the API and the database know the flat names, never the section, and regrouping the library changes no stored value. The emoji tab of the library is sectioned the same way and is equally UI-only: the API accepts any single emoji, listed or not.
+- Seeds (HU-E3-01): every seeded group and category gets a default icon and color by its catalog `key`, and a seeded category takes its group's color; every default icon is a name of the set above. A category created without an `icon` or a `color` takes its group's icon and color, copied at creation.
 - Subcategories (HU-E3-04) have no style of their own: they always show their parent's icon and color. The style is derived, not copied, so they follow when the parent changes. Sending `icon` or `color` for a subcategory (`POST` with `parentCategoryId`, or `PATCH` of a subcategory) answers `ValidationFailed`. When a subcategory becomes a category (`PATCH` `parentCategoryId: null` with a `groupId`), it keeps a copy of its former parent's current style.
 - Errors: an unknown symbol name, or an emoji `value` that is not exactly one emoji, answers `InvalidCategoryIcon`; a color outside the palette answers `ValidationFailed`.
 - Endpoints: `POST` and `PATCH` of groups and categories (HU-E3-02) accept optional `icon` and `color`. `GET /api/v1/spaces/{spaceId}/categories` returns them on every group, category and subcategory; a subcategory returns its parent's values.

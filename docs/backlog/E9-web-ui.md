@@ -229,18 +229,26 @@ Feature: Categories screen
     When "Ana" opens the categories screen
     Then the group "Vivienda" lists "Arriendo", "Servicios" and "Mantenimiento"
 
-  Scenario: Create a category and a subcategory, and no deeper level is offered
+  Scenario: Create a group, a category and a subcategory, and no deeper level is offered
+    When "Ana" taps "New group" on the screen and creates "Pets" with the symbol "paw" and the color "OLIVE"
+    Then "Pets" appears as a group without reloading the page
     When "Ana" adds the category "Bakery" to the group "Food" in "Household"
     Then "Bakery" appears under "Food" without reloading the page
     When "Ana" adds the subcategory "Vegetables" to the category "Groceries"
     Then "Vegetables" appears nested under "Groceries"
     And "Vegetables" offers no control to add a subcategory under it
 
-  Scenario: Change a category's icon and color
+  Scenario: Change a category's icon, color and group
     Given "Groceries" shows the symbol "cart" in "SAND" and has the subcategories "Vegetables" and "Meat"
-    When "Ana" opens "Groceries" from the categories screen, chooses the emoji "🛒" and the color "PLUM", and saves
-    Then the tree and the expense form show "Groceries" with "🛒" in "PLUM"
-    And its subcategories "Vegetables" and "Meat" show the same icon and color
+    When "Ana" opens "Groceries" from the categories screen
+    Then the icon picker shows 11 quick choices and a "see all" tile
+    And the color row shows all 16 colors
+    When "Ana" taps "see all", opens the Emoji tab of the library, finds "🛒" by searching for its name and chooses it
+    And chooses the color "PLUM"
+    And taps "New group" in the group choice of the category form and creates "Pantry"
+    And saves
+    Then the tree and the expense form show "Groceries" with "🛒" in "PLUM" under the group "Pantry"
+    And its subcategories "Vegetables" and "Meat" move with it and show the same icon and color
 
   @e2e
   Scenario: A referenced category is offered for archiving instead of deletion
@@ -257,15 +265,19 @@ Feature: Categories screen
   Scenario: Viewers see the tree read-only
     Given "Sofi" is VIEWER of "Household"
     When "Sofi" opens the categories screen of "Household"
-    Then no create, edit, move, archive or delete controls are shown
+    Then no create, edit, move, archive or delete controls are shown, "New group" among them
 ```
 
 **Technical notes:**
-- `CategoryTreeContainer` over a presentational `CategoryTree`; actions call `CreateCategory`, `RenameCategory`, `MoveCategory`, `ArchiveCategory`, `RestoreCategory`, `DeleteCategory`.
+- `CategoryTreeContainer` over a presentational `CategoryTree`; actions call `CreateCategory`, `CreateCategoryGroup`, `RenameCategory`, `MoveCategory`, `ArchiveCategory`, `RestoreCategory`, `DeleteCategory`.
 - Control visibility follows the role returned for the current member; the use cases still enforce authorization (HU-E1-05).
 - Seeded names are user data and are shown as stored, never re-translated (HU-E3-01).
 - Subcategories (HU-E3-04) are nested and collapsible under their category; moving a category moves its subcategories, and archiving a category says that its subcategories are archived too. A `CategoryDepthExceeded` or `ParentCategoryArchived` from the API is shown through its `errors.<Code>` key.
-- Edit sheet (HU-E3-05): tapping a row opens it, with the name, the group, an icon picker with "Icons" and "Emoji" tabs, the 10-color palette, the list of subcategories, and archive or delete. A subcategory row hides the icon and color pickers, because it shows its parent's style. Entry points: Avatar › Categories, and "Manage" in the category picker of the expense form.
+- Edit sheet (HU-E3-05): tapping a row opens it, with the name, the group choice, an icon picker, the color row, the list of subcategories, and archive or delete. Choosing another group moves the category with its subcategories. A subcategory row hides the icon and color pickers, because it shows its parent's style. Entry points: Avatar › Categories, and "Manage" in the category picker of the expense form.
+- Icon picker: an "Icons" and an "Emoji" tab, each with 11 quick choices and a "see all" tile. The quick symbols are cart, bread, cup, fork, bus, home, bulb, heart, gift, book and gym; the quick emoji are the first 11 of the emoji library. A current choice outside the quick set takes the first slot, so it is always visible and selected. The edit sheet, the new-group sheet and the sheets of HU-E9-12 share this picker.
+- Icon library: "see all" opens a sheet over the current one, which keeps its draft. It has the same "Icons" and "Emoji" tabs, a search field and the choices in sections (the nine of HU-E3-05 for symbols, its own for emoji). The search ignores case and matches a choice's label or its section's name; with no match it says so. Choosing applies the choice and closes the library; back closes it unchanged. Labels and section names come from the message catalogs (HU-E9-02); sections are UI-only, so the API still receives one symbol name or one emoji.
+- Color row: all 16 palette keys of HU-E3-05 as swatches, each named by its localized label for assistive technology; each key takes its light or dark tokens from the theme.
+- Groups: "New group" is a "+" on the screen's header and the last choice of the group choice in the category form. Both open one sheet (name, icon picker, color row, "Create group", calling `CreateCategoryGroup`); from the category form, creating selects the new group there and the form keeps its draft, and back leaves without creating. Like every create control, both show only to roles that manage the tree.
 
 ---
 
@@ -647,9 +659,18 @@ Feature: Manage categories without leaving the expense form
     And saving records the expense in "Bakery"
     And creating "Bakery" as a subcategory of "Groceries" instead returns with "Groceries › Bakery" selected
 
+  Scenario: Create a group from the new-category sheet
+    Given "Ana" entered 45,000 COP and "Bread" in the new expense form
+    When "Ana" opens the category picker, chooses "New category" and types "Bakery"
+    And taps "New group" in the sheet and creates "Treats" with the emoji "🍰" and the color "ROSE"
+    Then the new-category sheet is back with "Bakery" typed and "Treats" selected as its group
+    When "Ana" saves the category
+    Then "Bakery" is created in "Treats" and selected
+    And the form still shows 45,000 COP and "Bread"
+
   Scenario: Edit the chosen category from the expense form
     Given "Ana" entered 45,000 COP and "Bread" in the new expense form and selected "Groceries"
-    When "Ana" chooses the edit control of "Groceries" in the form and picks the emoji "🛒" and the color "PLUM"
+    When "Ana" chooses the edit control of "Groceries" in the form, opens the icon library with "see all", picks the emoji "🛒" there and picks the color "PLUM"
     And saves the category
     Then the form keeps 45,000 COP, "Bread" and "Groceries"
     And "Groceries" is now shown with "🛒" in "PLUM"
@@ -666,6 +687,8 @@ Feature: Manage categories without leaving the expense form
 - Each opens a sheet stacked over the form. The form state lives in `ExpenseFormContainer`, and the sheets never reset it.
 - Creating returns with the new category or subcategory selected. A toast offers undo: a logical delete of the still-unreferenced category, or patching back the previous values.
 - The new-category sheet suggests the group of the current category and lets the member place the new one as a category of that group or as a subcategory of the current category. A subcategory takes its parent's style, so its sheet hides the icon and color pickers.
+- Its group choice ends with "New group", which stacks the new-group sheet of HU-E9-04 over it (name, icon, color, `CreateCategoryGroup`). "Create group" records the group at once and returns to the sheet with the new group selected, so the category being created is placed in it; the typed name and the choices made so far are kept, and back leaves without creating the group. Undo (above) covers the category only: a group is archived, never deleted (spec 5.2), so the new group stays until it is archived from the categories screen.
+- The icon and color choices of these sheets are those of HU-E9-04: 11 quick choices and a "see all" tile that opens the icon library (sections, search, an "Icons" and an "Emoji" tab). The library is one more sheet stacked over the sheet that asked for it, so neither the expense form nor the draft category is reset.
 - Archive and delete stay on the categories screen (HU-E9-04).
 
 ---
