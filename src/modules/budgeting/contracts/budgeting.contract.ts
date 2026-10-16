@@ -26,6 +26,7 @@ import {
   type CapacitySuggestion,
   type CopyDrops,
   type PlanCopy,
+  type DefaultSplitView,
   type LineChanges,
   type LineFigure,
   type LineInput,
@@ -246,6 +247,39 @@ export const allocationFromBody = (body: z.infer<typeof AllocationBodySchema>): 
     }
   }
 };
+
+/** HU-E6-08: the expense whose default split is previewed; `amount` in minor units of the space currency. */
+export const DefaultSplitQuerySchema = z.object({
+  categoryId: Id,
+  date: z.iso.date(),
+  // At most 18 digits (below 10^18 minor units, under the ledger's int64 bound), so any value it accepts fits and
+  // BigInt() only ever sees what matched; a preview needs no amount beyond that.
+  amount: z
+    .string()
+    .regex(/^[1-9]\d{0,17}$/, { error: "A positive amount in minor units, digits only" })
+    .optional(),
+});
+
+/** HU-E6-08: the default method, what a member may pick instead, the line it follows and the preview of the amount. */
+export const DefaultSplitSchema = z.object({
+  method: z.enum(["BY_ALLOCATION", "EQUAL"]),
+  /** BY_ALLOCATION is listed only when it is the default; a client gets it by sending no split. */
+  availableMethods: z.array(z.enum(["BY_ALLOCATION", "EQUAL", "PERCENT", "EXACT", "SHARES"])),
+  /** The line of the ACTIVE plan covering the date that the category consumes; null without one. */
+  lineId: z.string().nullable(),
+  /** The amount shared by the default, in join order; null without an amount. */
+  shares: z.array(z.object({ memberId: z.string(), amount: MoneySchema })).nullable(),
+});
+
+export const defaultSplitDto = (view: DefaultSplitView): z.infer<typeof DefaultSplitSchema> => ({
+  method: view.method,
+  availableMethods: [...view.availableMethods],
+  lineId: view.lineId,
+  shares:
+    view.shares === null
+      ? null
+      : view.shares.map((s) => ({ memberId: s.memberId, amount: moneyOf(s.amount, view.currency) })),
+});
 
 const lineDto = (figure: LineFigure, currency: string): z.infer<typeof BudgetLineSchema> => {
   const { line, allocation } = figure;
@@ -527,5 +561,25 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
       "200",
       false,
     ),
+  },
+  "/api/v1/spaces/{spaceId}/default-split": {
+    get: {
+      operationId: "resolveDefaultSplit",
+      summary:
+        "The default split of an expense in a category on a date: BY_ALLOCATION by its line in the ACTIVE plan, else EQUAL",
+      ...securedByUser,
+      requestParams: { path: SpacePath, query: DefaultSplitQuerySchema },
+      responses: {
+        "200": {
+          description: "The default method, the methods a member may pick and the preview of the amount",
+          content: jsonContent(DefaultSplitSchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "404": "SpaceNotFound",
+          "422": "ValidationFailed, InvalidDate, CategoryNotInSpace",
+        }),
+      },
+    },
   },
 };

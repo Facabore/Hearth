@@ -38,6 +38,8 @@ import {
   type CloseBudgetPlan,
   createCopyBudgetPlan,
   type CopyBudgetPlan,
+  createResolveDefaultSplit,
+  type ResolveDefaultSplit,
   type CreateBudgetPlan,
   type GetBudgetPlan,
   type PreviousIncome,
@@ -247,6 +249,7 @@ export interface Container extends RouteDeps {
     readonly allocateLine: AllocateBudgetLine;
     readonly activatePlan: ActivateBudgetPlan;
     readonly closePlan: CloseBudgetPlan;
+    readonly resolveDefaultSplit: ResolveDefaultSplit;
   };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
@@ -604,6 +607,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       allocateLine: createAllocateBudgetLine(budgetingDeps),
       activatePlan: createActivateBudgetPlan(budgetingDeps),
       closePlan: createCloseBudgetPlan(budgetingDeps),
+      resolveDefaultSplit: createResolveDefaultSplit(budgetingDeps),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.

@@ -428,6 +428,7 @@ Feature: BY_ALLOCATION default split
 - BY_ALLOCATION ratios = assigned amounts of the line for the expense's period; computed via `Money.allocate`.
 - Share rows store `splitMethod = BY_ALLOCATION` as a snapshot (spec 5.2).
 - EQUAL is the default when the resolved line has rule `NONE`, when there is no line, or when the plan is not `ACTIVE` (spec 5.3).
+- `GET …/default-split` is `space.read` (any member; archived spaces answer too) and takes `categoryId` and `date` (required) and `amount` (optional, positive minor units of the space currency, digits only, at most 18). It answers `{ method, availableMethods, lineId, shares }`: `shares` is null without an amount; `availableMethods` lists `BY_ALLOCATION` only when it is the default, because a client gets it by sending no split (it is never requested explicitly). The weights are the line's assigned amounts for the current members, positive ones only (a member without capacity or without a FIXED amount takes no share); EQUAL weighs every current member alike, and so does an allocation that does not hold. Errors: `ValidationFailed` (422: also an empty `categoryId` or one longer than 64 characters), `CategoryNotInSpace` (422: every other id that is not a live category of the space; archived categories still resolve), `InvalidDate` (422), `SpaceNotFound` (404).
 
 ---
 

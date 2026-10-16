@@ -6403,6 +6403,161 @@
           }
         }
       }
+    },
+    "/api/v1/spaces/{spaceId}/default-split": {
+      "get": {
+        "operationId": "resolveDefaultSplit",
+        "summary": "The default split of an expense in a category on a date: BY_ALLOCATION by its line in the ACTIVE plan, else EQUAL",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "categoryId",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "date",
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "amount",
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,17}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The default method, the methods a member may pick and the preview of the amount",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "method": {
+                      "type": "string",
+                      "enum": [
+                        "BY_ALLOCATION",
+                        "EQUAL"
+                      ]
+                    },
+                    "availableMethods": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "BY_ALLOCATION",
+                          "EQUAL",
+                          "PERCENT",
+                          "EXACT",
+                          "SHARES"
+                        ]
+                      }
+                    },
+                    "lineId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "shares": {
+                      "anyOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "memberId": {
+                                "type": "string"
+                              },
+                              "amount": {
+                                "$ref": "#/components/schemas/MoneyOutput"
+                              }
+                            },
+                            "required": [
+                              "memberId",
+                              "amount"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "method",
+                    "availableMethods",
+                    "lineId",
+                    "shares"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed, InvalidDate, CategoryNotInSpace",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

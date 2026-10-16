@@ -11,6 +11,7 @@ import { PUT as putCategoriesRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[
 import { PUT as putAllocationRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/lines/[lineId]/allocation/route";
 import { POST as activateRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/activate/route";
 import { POST as closeRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/close/route";
+import { GET as defaultSplitRoute } from "@/app/api/v1/spaces/[spaceId]/default-split/route";
 import { call, type TestUser } from "./app";
 import { cop, household, newAccount, type MoneyDto } from "./ledger";
 
@@ -261,3 +262,18 @@ export const copyPlan = (user: TestUser, spaceId: string, period: string) =>
     params: { spaceId },
     body: { period, copyFrom: "previous" },
   });
+
+/** HU-E6-08: the default split `user` would get for an expense in `query.categoryId` on `query.date`. */
+export const getDefaultSplit = (
+  user: TestUser,
+  spaceId: string,
+  query: { categoryId: string; date: string; amount?: string },
+) => {
+  const search = new URLSearchParams(
+    Object.entries(query).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  );
+  return call(defaultSplitRoute, "GET", `/api/v1/spaces/${spaceId}/default-split?${search.toString()}`, {
+    user,
+    params: { spaceId },
+  });
+};
