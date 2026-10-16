@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
+import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
+import { ok, type LocalDate } from "@/shared/kernel";
 import { testDatabase } from "../../../../tests/support/database";
 import {
   accountFixture,
@@ -7,8 +9,14 @@ import {
   guestMemberFixture,
   sharedLedgerFixture,
 } from "../../../../tests/support/fixtures";
+import { InMemoryRecurrences } from "../../../../tests/support/in-memory-recurrences";
+import type { RecurrenceRepository } from "../application";
+import { statusOf, type Recurrence, type RecurrenceId, type RecurrenceTemplate } from "../domain/recurrence";
+import { DrizzleRecurrenceRepository } from "./drizzle-recurrence-repository";
 
 const { db, pool } = testDatabase();
+const tm = new DrizzleTransactionManager(db);
+const repo = new DrizzleRecurrenceRepository(tm);
 
 afterAll(() => pool.end());
 
@@ -98,6 +106,89 @@ const insertTransaction = async (f: World): Promise<string> => {
 
 const count = async (table: string, id: string): Promise<number> =>
   (await pool.query(`SELECT count(*)::int AS n FROM ${table} WHERE id = $1`, [id])).rows[0].n;
+
+const day = (iso: string) => iso as LocalDate;
+
+let created = 0;
+/** A recurrence with `template`, MONTHLY(1), AUTO, due from 2026-12-01; each created one millisecond after the last. */
+const recurrence = (
+  f: World,
+  spaceId: string,
+  template: RecurrenceTemplate,
+  overrides: Partial<Recurrence> = {},
+): Recurrence => {
+  const at = new Date(Date.UTC(2026, 9, 28, 17, 0, 0, ++created));
+  return {
+    id: randomUUID() as RecurrenceId,
+    spaceId,
+    description: "Rent",
+    amount: 120_000_000n,
+    currency: "COP",
+    template,
+    schedule: { kind: "MONTHLY", day: 1 },
+    mode: "AUTO",
+    startDate: day("2026-12-01"),
+    endDate: null,
+    dueFrom: day("2026-12-01"),
+    pausedAt: null,
+    pauseReason: null,
+    endedAt: null,
+    createdBy: f.household.userId,
+    createdAt: at,
+    updatedAt: at,
+    ...overrides,
+  };
+};
+
+/** One recurrence of every template shape: the fund pays 40 / 60 %, Pedro pays alone, Ana's salary, saving, contribution. */
+const everyShape = (f: World): Recurrence[] => [
+  recurrence(f, f.household.spaceId, {
+    type: "EXPENSE",
+    categoryId: f.groceries,
+    payer: { memberId: null, accountId: f.fund },
+    split: {
+      method: "PERCENT",
+      participants: [
+        { memberId: f.household.memberId, basisPoints: 4000 },
+        { memberId: f.pedro, basisPoints: 6000 },
+      ],
+    },
+  }),
+  recurrence(
+    f,
+    f.household.spaceId,
+    { type: "EXPENSE", categoryId: f.groceries, payer: { memberId: f.pedro, accountId: null }, split: null },
+    { mode: "CONFIRM", schedule: { kind: "SEMI_MONTHLY", day1: 1, day2: 16 }, endDate: day("2027-06-30") },
+  ),
+  recurrence(f, f.personal.spaceId, { type: "INCOME", categoryId: f.salary, accountId: f.bank }),
+  recurrence(f, f.personal.spaceId, {
+    type: "TRANSFER",
+    sourceAccountId: f.bank,
+    destinationAccountId: f.savings,
+  }),
+  recurrence(f, f.household.spaceId, {
+    type: "FUND_CONTRIBUTION",
+    fundAccountId: f.fund,
+    memberId: f.household.memberId,
+    sourceAccountId: f.bank,
+  }),
+];
+
+/** An expense the fund pays and the default split divides: the cheapest template. */
+const paidByFund = (f: World): RecurrenceTemplate => ({
+  type: "EXPENSE",
+  categoryId: f.groceries,
+  payer: { memberId: null, accountId: f.fund },
+  split: null,
+});
+
+/** Stores the same recurrences in PostgreSQL and in the in-memory twin. */
+const storeInBoth = async (memory: InMemoryRecurrences, rows: readonly Recurrence[]) => {
+  for (const row of rows) {
+    await repo.add(row);
+    await memory.add(row);
+  }
+};
 
 describe("the recurrence tables (HU-E4-11, HU-E4-12)", () => {
   it("refuses templates of the wrong shape (recurrences_shape) and an end before the start (recurrences_dates)", async () => {
@@ -518,5 +609,311 @@ describe("foreign keys (D8: only logical deletes)", () => {
       await count("recurrences", transfer),
       await count("transactions", transaction),
     ]).toEqual([1, 1, 1, 1, 1, 1, 1]);
+  });
+});
+
+describe("DrizzleRecurrenceRepository: recurrences (HU-E4-11)", () => {
+  it("stores every template shape and reads it back like the in-memory twin", async () => {
+    const f = await fixture();
+    const memory = new InMemoryRecurrences();
+    const rows = everyShape(f);
+    await storeInBoth(memory, rows);
+    for (const row of rows) expect(await repo.find(row.spaceId, row.id)).toEqual(row);
+    for (const spaceId of [f.household.spaceId, f.personal.spaceId]) {
+      expect(await repo.list(spaceId)).toEqual(await memory.list(spaceId));
+    }
+  });
+
+  it("saves what an edit, a pause, a resume and an end change, and deletes nothing (D8)", async () => {
+    const f = await fixture();
+    const memory = new InMemoryRecurrences();
+    const rows = everyShape(f);
+    const [rent, pedros, salary, saving, contribution] = rows as [
+      Recurrence,
+      Recurrence,
+      Recurrence,
+      Recurrence,
+      Recurrence,
+    ];
+    await storeInBoth(memory, rows);
+    const utilities = await categoryFixture(db, f.household, "Utilities");
+    const bonus = await categoryFixture(db, f.personal, "Bonus");
+    const later = new Date("2026-12-20T17:00:00Z");
+    const changed: [Recurrence, Recurrence, Recurrence, Recurrence] = [
+      {
+        ...rent,
+        description: "Rent 2027",
+        amount: 130_000_000n,
+        template: {
+          type: "EXPENSE",
+          categoryId: utilities,
+          payer: { memberId: null, accountId: f.fund },
+          split: null,
+        },
+        schedule: { kind: "MONTHLY", day: 5 },
+        mode: "CONFIRM",
+        endDate: day("2027-12-31"),
+        dueFrom: day("2027-01-01"),
+        updatedAt: later,
+      },
+      { ...pedros, pausedAt: later, pauseReason: "PayerLeft", updatedAt: later },
+      { ...salary, template: { type: "INCOME", categoryId: bonus, accountId: f.bank }, updatedAt: later },
+      { ...saving, endedAt: later, updatedAt: later },
+    ];
+    const stored = (source: RecurrenceRepository) =>
+      Promise.all(rows.map((row) => source.find(row.spaceId, row.id)));
+    for (const row of changed) {
+      await repo.save(row);
+      await memory.save(row);
+    }
+    for (const source of [repo, memory]) expect(await stored(source)).toEqual([...changed, contribution]);
+
+    // And back: a resume clears the pause and its reason, and an edit may remove the end date.
+    const evenLater = new Date("2026-12-21T17:00:00Z");
+    const reopened: [Recurrence, Recurrence] = [
+      { ...changed[0], endDate: null, updatedAt: evenLater },
+      { ...changed[1], pausedAt: null, pauseReason: null, dueFrom: day("2027-01-01"), updatedAt: evenLater },
+    ];
+    for (const row of reopened) {
+      await repo.save(row);
+      await memory.save(row);
+    }
+    for (const source of [repo, memory]) {
+      expect(await stored(source)).toEqual([...reopened, changed[2], changed[3], contribution]);
+      // The ended recurrence stays listed: nothing is deleted.
+      expect(await source.list(f.household.spaceId)).toEqual([...reopened, contribution]);
+      expect(await source.list(f.personal.spaceId)).toEqual([changed[2], changed[3]]);
+    }
+  });
+
+  it("never changes through a save what the recurrence was defined with (ruling P22)", async () => {
+    const f = await fixture();
+    const memory = new InMemoryRecurrences();
+    const rows = everyShape(f);
+    const [rent, pedros, salary, saving, contribution] = rows as [
+      Recurrence,
+      Recurrence,
+      Recurrence,
+      Recurrence,
+      Recurrence,
+    ];
+    await storeInBoth(memory, rows);
+    const utilities = await categoryFixture(db, f.household, "Utilities");
+    const later = new Date("2026-12-20T17:00:00Z");
+    const redirect = (row: Recurrence, template: RecurrenceTemplate): Recurrence => ({
+      ...row,
+      description: "Redirected",
+      template,
+      updatedAt: later,
+    });
+    // Each is saved as if someone had pointed it at another payer, account or member, which no edit may do.
+    const saved: Recurrence[] = [
+      {
+        // Another category and no split are edits; the payer, the currency, the start and the creator are not.
+        ...redirect(rent, {
+          type: "EXPENSE",
+          categoryId: utilities,
+          payer: { memberId: f.pedro, accountId: null },
+          split: null,
+        }),
+        currency: "USD",
+        startDate: day("2026-11-01"),
+        createdBy: "someone-else",
+        createdAt: new Date(0),
+      },
+      redirect(pedros, {
+        type: "EXPENSE",
+        categoryId: f.groceries,
+        payer: { memberId: null, accountId: f.fund },
+        split: null,
+      }),
+      redirect(salary, { type: "INCOME", categoryId: f.salary, accountId: f.savings }),
+      redirect(saving, { type: "TRANSFER", sourceAccountId: f.savings, destinationAccountId: f.bank }),
+      redirect(contribution, {
+        type: "FUND_CONTRIBUTION",
+        fundAccountId: f.savings,
+        memberId: f.pedro,
+        sourceAccountId: null,
+      }),
+    ];
+    for (const row of saved) {
+      await repo.save(row);
+      await memory.save(row);
+    }
+    const edited = (row: Recurrence): Recurrence => ({ ...row, description: "Redirected", updatedAt: later });
+    const expected = [
+      {
+        ...edited(rent),
+        // The category and the split are what an expense's edit changes; its payer and fund stay.
+        template: {
+          type: "EXPENSE",
+          categoryId: utilities,
+          payer: { memberId: null, accountId: f.fund },
+          split: null,
+        },
+      },
+      edited(pedros),
+      edited(salary),
+      edited(saving),
+      edited(contribution),
+    ];
+    for (const source of [repo, memory]) {
+      expect(await Promise.all(rows.map((row) => source.find(row.spaceId, row.id)))).toEqual(expected);
+    }
+  });
+
+  it("throws, and writes nothing, for a recurrence no stored one matches by id, space and type (ruling P22)", async () => {
+    const f = await fixture();
+    const memory = new InMemoryRecurrences();
+    const [rent] = everyShape(f) as [Recurrence];
+    await storeInBoth(memory, [rent]);
+    const edited: Recurrence = {
+      ...rent,
+      description: "Edited",
+      updatedAt: new Date("2026-12-20T17:00:00Z"),
+    };
+    const misdirected: Recurrence[] = [
+      // Another type than the one it was defined with.
+      {
+        ...edited,
+        template: { type: "TRANSFER", sourceAccountId: f.bank, destinationAccountId: f.savings },
+      },
+      // Another space's.
+      { ...edited, spaceId: f.personal.spaceId },
+      // One that was never stored.
+      { ...edited, id: randomUUID() as RecurrenceId },
+    ];
+    for (const row of misdirected) {
+      const refused = new Error(`recurrence ${row.id} (${row.template.type}) is not stored in its space`);
+      await expect(repo.save(row)).rejects.toThrow(refused);
+      await expect(memory.save(row)).rejects.toThrow(refused);
+    }
+    // Inside a transaction the throw rolls back what was saved before it.
+    await expect(
+      tm.run(async () => {
+        await repo.save(edited);
+        await repo.save(misdirected[0]!);
+        return ok(undefined);
+      }),
+    ).rejects.toThrow(/is not stored/);
+    expect([await repo.find(rent.spaceId, rent.id), await memory.find(rent.spaceId, rent.id)]).toEqual([
+      rent,
+      rent,
+    ]);
+  });
+
+  it("lists as active, for a day, every space's recurrences due by then that are neither paused, ended nor past their end (HU-E4-12)", async () => {
+    const f = await fixture();
+    const memory = new InMemoryRecurrences();
+    const household = f.household.spaceId;
+    const byFund = paidByFund(f);
+    const later = new Date("2026-12-20T17:00:00Z");
+    // Created in this order, so that the answer is told apart from the order they were defined in.
+    const dueToday = recurrence(f, household, byFund, { dueFrom: day("2026-12-15") });
+    const dueTomorrow = recurrence(f, household, byFund, { dueFrom: day("2026-12-16") });
+    const paused = recurrence(f, household, byFund, {
+      dueFrom: day("2026-12-15"),
+      pausedAt: later,
+      pauseReason: "PayerLeft",
+    });
+    const behind = recurrence(f, household, byFund, { dueFrom: day("2026-12-05") });
+    const ended = recurrence(f, household, byFund, { dueFrom: day("2026-12-15"), endedAt: later });
+    const pastItsEnd = recurrence(f, household, byFund, {
+      startDate: day("2026-11-01"),
+      endDate: day("2026-12-04"),
+      dueFrom: day("2026-12-05"),
+    });
+    // Its last date is its end date, today.
+    const onItsEnd = recurrence(f, household, byFund, {
+      schedule: { kind: "MONTHLY", day: 15 },
+      endDate: day("2026-12-15"),
+      dueFrom: day("2026-12-15"),
+    });
+    // Its end date is not a schedule date: the next date, 2027-01-01, is past it.
+    const noDateLeft = recurrence(f, household, byFund, {
+      endDate: day("2026-12-20"),
+      dueFrom: day("2026-12-10"),
+    });
+    const elsewhere = recurrence(
+      f,
+      f.personal.spaceId,
+      { type: "TRANSFER", sourceAccountId: f.bank, destinationAccountId: f.savings },
+      { dueFrom: day("2026-12-15") },
+    );
+    const rows = [dueToday, dueTomorrow, paused, behind, ended, pastItsEnd, onItsEnd, noDateLeft, elsewhere];
+    await storeInBoth(memory, rows);
+
+    const ids: string[] = rows.map((r) => r.id);
+    // Other files share the database: only this test's recurrences are compared.
+    const active = async (source: RecurrenceRepository, today: string) =>
+      (await source.listActive(day(today))).filter((a) => ids.includes(a.id));
+    const named = (...of: Recurrence[]) => of.map(({ id, spaceId }) => ({ id, spaceId }));
+    const answers: [string, ReturnType<typeof named>][] = [
+      // Nothing is due yet.
+      ["2026-12-04", named()],
+      // One due today, one behind that catches up, one whose last date is today, one without a date left, one of
+      // another space.
+      ["2026-12-15", named(dueToday, behind, onItsEnd, noDateLeft, elsewhere)],
+      // The day after, the one due tomorrow is due.
+      ["2026-12-16", named(dueToday, dueTomorrow, behind, onItsEnd, noDateLeft, elsewhere)],
+    ];
+    for (const [today, expected] of answers) {
+      expect(await active(repo, today)).toEqual(expected);
+      expect(await active(memory, today)).toEqual(expected);
+    }
+    // Looser than statusOf on purpose: the scheduler's run reads it under the lock and marks it finished.
+    expect([statusOf(onItsEnd), statusOf(noDateLeft)]).toEqual(["ACTIVE", "ENDED"]);
+  });
+
+  it("answers in the order recurrences were defined, ties broken by id, like the in-memory twin", async () => {
+    const f = await fixture();
+    const memory = new InMemoryRecurrences();
+    const household = f.household.spaceId;
+    const [low, high] = [randomUUID(), randomUUID()].sort() as [RecurrenceId, RecurrenceId];
+    const sameMoment = new Date("2026-10-28T17:00:00.000Z");
+    const laterMoment = new Date("2026-10-28T17:00:01.000Z");
+    const definedAt = (id: RecurrenceId, at: Date) =>
+      recurrence(f, household, paidByFund(f), { id, createdAt: at, updatedAt: at });
+    // Stored out of order: the later one first, then the larger id of the two defined at the same moment.
+    const rows = [
+      definedAt(randomUUID() as RecurrenceId, laterMoment),
+      definedAt(high, sameMoment),
+      definedAt(low, sameMoment),
+    ];
+    await storeInBoth(memory, rows);
+    const expected: string[] = [low, high, rows[0]!.id];
+    for (const source of [repo, memory]) {
+      expect((await source.list(household)).map((r) => r.id)).toEqual(expected);
+      const active = await source.listActive(day("2026-12-31"));
+      expect(active.map((a) => a.id).filter((id) => expected.includes(id))).toEqual(expected);
+    }
+  });
+
+  it("reads a recurrence under its row lock, and answers null or [] for malformed and foreign ids (Review Focus 5)", async () => {
+    const f = await fixture();
+    const memory = new InMemoryRecurrences();
+    const rows = everyShape(f);
+    const [rent] = rows as [Recurrence, ...Recurrence[]];
+    await storeInBoth(memory, rows);
+    expect(await tm.run(async () => ok(await repo.lockForWrite(f.household.spaceId, rent.id)))).toEqual(
+      ok(rent),
+    );
+    expect(await memory.lockForWrite(f.household.spaceId, rent.id)).toEqual(rent);
+    expect(memory.locked).toEqual([rent.id]);
+
+    const strangers = async (source: RecurrenceRepository) => [
+      await source.find(f.household.spaceId, "not-a-uuid"),
+      await source.find("not-a-uuid", rent.id),
+      await source.find(f.household.spaceId, randomUUID()),
+      // Another space's recurrence never answers.
+      await source.find(f.personal.spaceId, rent.id),
+      await source.lockForWrite(f.household.spaceId, "not-a-uuid"),
+      await source.lockForWrite("not-a-uuid", rent.id),
+      await source.lockForWrite(f.personal.spaceId, rent.id),
+      await source.list("not-a-uuid"),
+      await source.list(randomUUID()),
+    ];
+    expect(await strangers(repo)).toEqual([null, null, null, null, null, null, null, [], []]);
+    expect(await strangers(memory)).toEqual(await strangers(repo));
   });
 });

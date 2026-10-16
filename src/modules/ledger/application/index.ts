@@ -71,3 +71,15 @@ export {
   type RecordExpenseByCategoryKey,
   type RecordExpenseByCategoryKeyInput,
 } from "./record-expense-by-category-key";
+export type {
+  Recurrence,
+  RecurrenceChanges,
+  RecurrenceId,
+  RecurrenceMode,
+  RecurrenceSplit,
+  RecurrenceStatus,
+  RecurrenceTemplate,
+  RecurrenceType,
+} from "../domain/recurrence";
+export type { Schedule } from "../domain/recurrence-schedule";
+export type { ActiveRecurrence, RecurrenceRepository } from "./recurrence-ports";
