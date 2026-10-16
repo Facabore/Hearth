@@ -2,9 +2,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { setContainerForTests, type Container } from "@/composition/container";
 import type { MaterializationReport } from "@/modules/ledger/application";
 import { domainError, err, FixedClock, type LocalDate } from "@/shared/kernel";
-import { startTestApp, type TestUser } from "../support/app";
+import { startTestApp } from "../support/app";
 import { cop } from "../support/ledger";
-import { defined, endRecurrence, householdWithFund, rentBody } from "../support/recurrences";
+import { householdWithFund, rentBody, trackedRecurrences } from "../support/recurrences";
 
 /**
  * The scheduler's job reads and writes through the ports `buildContainer` wires, and each of them must run on the
@@ -34,17 +34,12 @@ afterAll(async () => {
   await app.pool.end();
 });
 
-/** The recurrences the running test defined, with who defined them (who can end them). */
-const defines: { user: TestUser; spaceId: string; id: string }[] = [];
-const define = async (user: TestUser, spaceId: string, body: unknown) => {
-  const recurrence = await defined(user, spaceId, body);
-  defines.push({ user, spaceId, id: recurrence.id });
-  return recurrence;
-};
+/** The recurrences the running test defined, ended after it. */
+const recurrences = trackedRecurrences();
+const { define } = recurrences;
 afterEach(async () => {
-  const ids = defines.map((d) => d.id);
-  for (const { user, spaceId, id } of defines.splice(0))
-    expect((await endRecurrence(user, spaceId, id)).status).toBe(200);
+  const ids = recurrences.ids();
+  await recurrences.endAll();
   const stillRunning = await app.pool.query(
     "SELECT count(*)::int AS n FROM recurrences WHERE id = ANY($1) AND ended_at IS NULL",
     [ids],

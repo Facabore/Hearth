@@ -1,4 +1,5 @@
 import { POST as archiveSpaceRoute } from "@/app/api/v1/spaces/[spaceId]/archive/route";
+import { GET as listTransactionsRoute } from "@/app/api/v1/spaces/[spaceId]/transactions/route";
 import {
   POST as defineRecurrenceRoute,
   GET as listRecurrencesRoute,
@@ -13,7 +14,24 @@ import { POST as pauseRoute } from "@/app/api/v1/spaces/[spaceId]/recurrences/[r
 import { POST as resumeRoute } from "@/app/api/v1/spaces/[spaceId]/recurrences/[recurrenceId]/resume/route";
 import { FixedClock } from "@/shared/kernel";
 import { call, type TestUser } from "./app";
-import { categoryWithKey, cop, household, newAccount, type Household, type MoneyDto } from "./ledger";
+import {
+  activatePlan,
+  addLine,
+  lineNamed,
+  newPlan,
+  putAllocation,
+  putCategories,
+  setCapacities,
+} from "./budgeting";
+import {
+  categoryWithKey,
+  cop,
+  household,
+  newAccount,
+  type Household,
+  type MoneyDto,
+  type TransactionDto,
+} from "./ledger";
 
 /**
  * The clock of the M3-C acceptance files that close no plan: recurrences are defined on 2026-10-28 in Bogotá
@@ -166,3 +184,98 @@ const move =
 export const pauseRecurrence = move(pauseRoute, "pause");
 export const resumeRecurrence = move(resumeRoute, "resume");
 export const endRecurrence = move(endRoute, "end");
+
+/**
+ * The recurrences a test defines and ends. The scheduler's job handles every active recurrence of the database, so a
+ * suite that defines recurrences ends them (logically, D8) after each test, or a later run, of its own file or of
+ * another, finds them due. `endAll` ends every one of them, even if ending one fails, and then throws once with all
+ * the failures; it forgets them only after trying them all.
+ */
+export const trackedRecurrences = () => {
+  const defines: { user: TestUser; spaceId: string; id: string }[] = [];
+  const endedOrThrow = async ({ user, spaceId, id }: (typeof defines)[number]) => {
+    // One that ran out of dates is ENDED already, and a move of an ENDED recurrence is refused.
+    if ((await recurrenceOf(user, spaceId, id)).status !== "ENDED") {
+      const ended = await endRecurrence(user, spaceId, id);
+      if (ended.status !== 200) throw new Error(`ending ${id} failed with status ${ended.status}`);
+    }
+    const { status } = await recurrenceOf(user, spaceId, id);
+    if (status !== "ENDED") throw new Error(`${id} is ${status} after it was ended`);
+  };
+  return {
+    /** Defines the recurrence as `user` (throws unless 201) and remembers it. */
+    define: async (...[user, spaceId, body, headers]: Parameters<typeof postRecurrence>) => {
+      const recurrence = await defined(user, spaceId, body, headers);
+      defines.push({ user, spaceId, id: recurrence.id });
+      return recurrence;
+    },
+    /** The ids of the recurrences defined since the last `endAll`. */
+    ids: (): string[] => defines.map((d) => d.id),
+    endAll: async (): Promise<void> => {
+      const failures: unknown[] = [];
+      for (const recurrence of defines) {
+        try {
+          await endedOrThrow(recurrence);
+        } catch (error: unknown) {
+          failures.push(error);
+        }
+      }
+      const attempted = defines.splice(0).length;
+      if (failures.length > 0)
+        throw new AggregateError(failures, `${failures.length} of ${attempted} recurrences were not ended`);
+    },
+  };
+};
+
+/** HU-E4-05: the space's transactions of `period` ("2026-12") as `user` lists them, newest first. */
+export const transactionsIn = async (
+  user: TestUser,
+  spaceId: string,
+  period: string,
+): Promise<TransactionDto[]> => {
+  const response = await call(
+    listTransactionsRoute,
+    "GET",
+    `/api/v1/spaces/${spaceId}/transactions?period=${encodeURIComponent(period)}`,
+    { user, params: { spaceId } },
+  );
+  if (response.status !== 200) throw new Error(`listing failed with status ${response.status}`);
+  return ((await response.json()) as { items: TransactionDto[] }).items;
+};
+
+/**
+ * Household's ACTIVE plan for `period`: capacities Ana 1,600,000 and Juan 2,400,000 COP and the line Home (1,470,000
+ * COP, PROPORTIONAL, so 40 % / 60 %, unless `percent` allocates it) consuming Utilities. Returns the plan id.
+ */
+export const homePlan = async (
+  h: HouseholdWithFund,
+  period: string,
+  percent?: readonly [string, string],
+): Promise<string> => {
+  const succeeded = async (response: Promise<Response>) => {
+    const answer = await response;
+    if (answer.status !== 200) throw new Error(`plan setup failed with status ${answer.status}`);
+  };
+  const { id } = await newPlan(h.ana, h.spaceId, period);
+  await setCapacities(h.ana, h.spaceId, id, [
+    [h.ana.memberId, 1_600_000],
+    [h.juan.memberId, 2_400_000],
+  ]);
+  const plan = await addLine(h.ana, h.spaceId, id, {
+    name: "Home",
+    pesos: 1_470_000,
+    funding: "DIRECT",
+    rolloverMode: "RESET",
+  });
+  const home = lineNamed(plan, "Home").id;
+  await succeeded(putCategories(h.ana, h.spaceId, id, home, [h.utilities]));
+  if (percent !== undefined) {
+    const members = [
+      { memberId: h.ana.memberId, percent: percent[0] },
+      { memberId: h.juan.memberId, percent: percent[1] },
+    ];
+    await succeeded(putAllocation(h.ana, h.spaceId, id, home, { rule: "PERCENT", members }));
+  }
+  await succeeded(activatePlan(h.ana, h.spaceId, id));
+  return id;
+};

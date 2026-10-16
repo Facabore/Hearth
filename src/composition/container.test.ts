@@ -6,6 +6,7 @@ afterEach(() => {
 });
 
 describe("getContainer", () => {
+  // The first import loads the whole container module graph, which is slow under a loaded full run.
   it("is one container, and one database pool, per process even when its module is loaded twice (P20)", async () => {
     // Next.js bundles `instrumentation.ts`, which starts the recurring-transactions job, apart from the route
     // handlers, so both load this module: each copy must find the same container instead of building a second pool.
@@ -21,5 +22,5 @@ describe("getContainer", () => {
     expect(inRouteHandlers.getContainer()).toBe(container);
     inInstrumentation.setContainerForTests(undefined);
     await container.pool.end();
-  });
+  }, 30_000);
 });

@@ -526,9 +526,11 @@ Feature: Automatic occurrences
     And the 2027-01-05 shares are 60,000 COP for "Ana" and 60,000 COP for "Juan"
 
   Scenario: Closed period skips the occurrence
-    Given the plan for 2026-12 is CLOSED before the scheduler runs on 2026-12-01
-    When the scheduler runs
-    Then no expense is created and the skip is logged with reason "PeriodClosed"
+    Given the scheduler did not run between 2026-12-01 and 2027-01-01
+    And the plan for 2026-12 was CLOSED once its period had ended
+    When the scheduler runs on 2027-01-02
+    Then no expense is created for 2026-12-01 and the skip is logged with reason "PeriodClosed"
+    And the "Rent" expense dated 2027-01-01 is recorded
 
   Scenario: Recurrence stops after its end date
     When the scheduler runs on 2027-02-01
@@ -539,6 +541,7 @@ Feature: Automatic occurrences
 - Use case: `MaterializeDueOccurrences`; idempotency key = (recurrenceId, occurrenceDate).
 - Recorded through `RecordExpense` (or the matching use case per type), so all ledger invariants and default-split rules apply; shares are snapshots.
 - Runs behind a `Scheduler` port (adapter: in-container cron job) and uses `Clock`; catch-up processes every due date not yet materialized. No public endpoint triggers it; recorded occurrences are read through `GET /api/v1/spaces/{spaceId}/transactions`.
+- `MaterializeDueOccurrences` runs in the app container (M3-C ruling P20): `src/instrumentation.ts` starts a timer that runs it when the server starts and then every `RECURRENCE_JOB_INTERVAL_SECONDS` (default 300; `0` turns it off). Each active recurrence is handled in its own transaction under its row lock: every schedule date from the first not considered yet through today (and its end date) becomes one occurrence, at most 24 per run, and the unique key (`recurrence_id`, `occurrence_date`) refuses a second occurrence of a date. Each AUTO occurrence is recorded by `RecordExpense` (or the matching use case) on behalf of the member who defined the recurrence (ruling P21), so the matrix, D9, the closed-period guard and the default split of its own date apply. A date in a CLOSED plan's period is stored `SKIPPED` with reason `PeriodClosed` and logged (`recurrence_occurrence_skipped`), and the recurrence goes on (ruling P25). A recurrence whose payer left pauses with `PayerLeft`, one whose creator left with `CreatorLeft`, and one refused for any other reason with that code, at the first refused date (ruling P26). A recurrence's `lastOccurrence` links it to the transaction it recorded (ruling P31).
 
 ---
 

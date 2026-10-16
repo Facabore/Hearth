@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as leaveSpace } from "@/app/api/v1/spaces/[spaceId]/leave/route";
 import { PATCH as changeMemberRole } from "@/app/api/v1/spaces/[spaceId]/members/[memberId]/route";
 import { setContainerForTests, type Container } from "@/composition/container";
+import type { LocalDate } from "@/shared/kernel";
 import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
 import { cop, joinHousehold } from "../support/ledger";
 import {
@@ -746,27 +747,35 @@ describe("pausing, resuming and ending a recurrence (HU-E4-11)", () => {
     });
   });
 
-  it("reads pauseReason null once a paused recurrence resumes or ends, a reason the system gave it included", async () => {
+  it("reads pauseReason null once a paused recurrence resumes or ends, a reason the scheduler gave it included", async () => {
     const h = await householdWithFund();
-    const rent = await defined(h.ana, h.spaceId, rentBody(h));
-    // The scheduler pauses with a reason (P26, Task 8c); until it runs here the row is what says so.
-    const pausedBySystem = () =>
-      app.pool.query("UPDATE recurrences SET paused_at = now(), pause_reason = 'PayerLeft' WHERE id = $1", [
-        rent.id,
-      ]);
+    const rent = await defined(h.juan, h.spaceId, rentBody(h));
+    // Every occurrence is recorded on behalf of the recurrence's creator (P21): once Juan is a VIEWER the ledger refuses
+    // it and the scheduler pauses the recurrence with that code (P26). The job handles every active recurrence of the
+    // database, so only this test's is looked at. A payer or creator who left could not resume it, so Juan stays.
+    const schedulerPausesOn = async (today: string) => {
+      await changeRole(h, h.juan.memberId, "VIEWER");
+      const report = await app.ledger.materializeDueOccurrences({ today: today as LocalDate });
+      expect([
+        report.failures.filter((f) => f.recurrenceId === rent.id),
+        report.paused.filter((p) => p.recurrenceId === rent.id).map((p) => p.reason),
+      ]).toEqual([[], ["InsufficientRole"]]);
+    };
     const reasonOf = async (response: Response) => {
       const { status, pauseReason } = (await response.json()) as RecurrenceDto;
       return [response.status, status, pauseReason];
     };
-    await pausedBySystem();
+    await schedulerPausesOn("2026-12-01");
     const seen = [await reasonOf(await getRecurrence(h.ana, h.spaceId, rent.id))];
+    // Resuming asks that its creator can record again.
+    await changeRole(h, h.juan.memberId, "MEMBER");
     seen.push(await reasonOf(await resumeRecurrence(h.ana, h.spaceId, rent.id)));
     seen.push(await reasonOf(await getRecurrence(h.ana, h.spaceId, rent.id)));
-    await pausedBySystem();
+    await schedulerPausesOn("2027-01-01");
     seen.push(await reasonOf(await endRecurrence(h.ana, h.spaceId, rent.id)));
     seen.push(await reasonOf(await getRecurrence(h.ana, h.spaceId, rent.id)));
     expect(seen).toEqual([
-      [200, "PAUSED", "PayerLeft"],
+      [200, "PAUSED", "InsufficientRole"],
       [200, "ACTIVE", null],
       [200, "ACTIVE", null],
       [200, "ENDED", null],
