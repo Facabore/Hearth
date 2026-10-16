@@ -391,6 +391,9 @@ export const recurrenceEditFromBody = (
   });
 };
 
+/** HU-E4-13: the space's pending occurrences, earliest date first (not paginated, ruling P28). */
+export const PendingOccurrenceListSchema = z.object({ items: z.array(OccurrenceSchema) });
+
 /** The Location header of a new recurrence (HU-E4-11). */
 export const recurrenceHeaders = (view: RecurrenceView): [string, string][] => [
   ["location", `/api/v1/spaces/${view.recurrence.spaceId}/recurrences/${view.recurrence.id}`],
@@ -399,6 +402,7 @@ export const recurrenceHeaders = (view: RecurrenceView): [string, string][] => [
 const SpacePath = z.object({ spaceId: z.string() });
 const IdempotencyHeader = z.object({ "idempotency-key": z.string().max(255).optional() });
 const RecurrencePath = SpacePath.extend({ recurrenceId: z.string() });
+const OccurrencePath = SpacePath.extend({ occurrenceId: z.string() });
 
 const recurrenceResponse = (description: string) => ({ description, content: jsonContent(RecurrenceSchema) });
 /** What checking a template answers (ruling P21): the codes of the record use cases. */
@@ -531,4 +535,37 @@ export const recurrencesPaths: ZodOpenApiPathsObject = {
     "endRecurrence",
     "End a recurrence: it and its occurrences stay, and nothing more is recorded",
   ),
+  "/api/v1/spaces/{spaceId}/pending-occurrences": {
+    get: {
+      operationId: "listPendingOccurrences",
+      summary:
+        "Occurrences of CONFIRM recurrences waiting for the real amount; listed for members who record money",
+      ...securedByUser,
+      requestParams: { path: SpacePath },
+      responses: {
+        "200": {
+          description: "Pending occurrences, earliest first",
+          content: jsonContent(PendingOccurrenceListSchema),
+        },
+        ...problems({ "401": "Unauthenticated", "403": "InsufficientRole", "404": "SpaceNotFound" }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/pending-occurrences/{occurrenceId}/skip": {
+    post: {
+      operationId: "skipOccurrence",
+      summary: "Skip a pending occurrence: nothing is recorded and the recurrence goes on",
+      ...securedByUser,
+      requestParams: { path: OccurrencePath },
+      responses: {
+        "200": { description: "The occurrence, now SKIPPED", content: jsonContent(OccurrenceSchema) },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound, OccurrenceNotFound",
+          "409": "OccurrenceNotPending, SpaceArchived",
+        }),
+      },
+    },
+  },
 };

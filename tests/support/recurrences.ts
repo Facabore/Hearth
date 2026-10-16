@@ -1,4 +1,6 @@
 import { POST as archiveSpaceRoute } from "@/app/api/v1/spaces/[spaceId]/archive/route";
+import { GET as pendingRoute } from "@/app/api/v1/spaces/[spaceId]/pending-occurrences/route";
+import { POST as skipRoute } from "@/app/api/v1/spaces/[spaceId]/pending-occurrences/[occurrenceId]/skip/route";
 import { GET as listTransactionsRoute } from "@/app/api/v1/spaces/[spaceId]/transactions/route";
 import {
   POST as defineRecurrenceRoute,
@@ -279,3 +281,22 @@ export const homePlan = async (
   await succeeded(activatePlan(h.ana, h.spaceId, id));
   return id;
 };
+
+const pendingPath = (spaceId: string, rest = "") => `/api/v1/spaces/${spaceId}/pending-occurrences${rest}`;
+
+/** HU-E4-13: the space's pending occurrences as `user` lists them. */
+export const pendingIn = (user: TestUser, spaceId: string) =>
+  call(pendingRoute, "GET", pendingPath(spaceId), { user, params: { spaceId } });
+
+export const pendingOf = async (user: TestUser, spaceId: string): Promise<OccurrenceDto[]> => {
+  const response = await pendingIn(user, spaceId);
+  if (response.status !== 200) throw new Error(`pending list failed with status ${response.status}`);
+  return ((await response.json()) as { items: OccurrenceDto[] }).items;
+};
+
+/** HU-E4-13: `user` skips the pending occurrence. */
+export const skipOccurrence = (user: TestUser, spaceId: string, occurrenceId: string) =>
+  call(skipRoute, "POST", pendingPath(spaceId, `/${occurrenceId}/skip`), {
+    user,
+    params: { spaceId, occurrenceId },
+  });

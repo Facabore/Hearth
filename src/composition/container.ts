@@ -88,6 +88,10 @@ import {
   occurrenceRecorders,
   type MaterializeDeps,
   type MaterializeDueOccurrences,
+  createListPendingOccurrences,
+  createSkipOccurrence,
+  type ListPendingOccurrences,
+  type SkipOccurrence,
   type DeleteTransaction,
   type EditTransaction,
   type GetTransaction,
@@ -263,6 +267,8 @@ export interface Container extends RouteDeps {
     readonly resumeRecurrence: ResumeRecurrence;
     readonly endRecurrence: EndRecurrence;
     readonly materializeDueOccurrences: MaterializeDueOccurrences;
+    readonly listPendingOccurrences: ListPendingOccurrences;
+    readonly skipOccurrence: SkipOccurrence;
   };
   readonly balances: {
     readonly getSpaceBalances: GetSpaceBalances;
@@ -642,6 +648,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       resumeRecurrence: createResumeRecurrence(recurrenceDeps),
       endRecurrence: createEndRecurrence(recurrenceDeps),
       materializeDueOccurrences: createMaterializeDueOccurrences(materializeDeps),
+      listPendingOccurrences: createListPendingOccurrences(recurrenceDeps),
+      skipOccurrence: createSkipOccurrence(recurrenceDeps),
     },
     balances: {
       // HU-E5-01: the ledger aggregates per-member totals in SQL (D7); the balances module nets them.

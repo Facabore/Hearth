@@ -24,6 +24,8 @@ const EXPLICIT: ReadonlyMap<string, number> = new Map([
   ["InvalidPlanTransition", 409],
   // HU-E4-11: the recurrence's state, not the request, refuses the move (ruling P27).
   ["InvalidRecurrenceTransition", 409],
+  // HU-E4-13: a confirm or a skip of an occurrence that is not PENDING any more lost the race to the other.
+  ["OccurrenceNotPending", 409],
   ["InvitationEmailMismatch", 403],
   ["PasswordTooShort", 422],
   ["EmailTaken", 409],

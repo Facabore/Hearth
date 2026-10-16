@@ -17,6 +17,7 @@ import {
 } from "@/modules/ledger/contracts/ledger.contract";
 import {
   DefineRecurrenceBodySchema,
+  OccurrenceSchema,
   RecurrenceSchema,
   recurrencesPaths,
 } from "@/modules/ledger/contracts/recurrences.contract";
@@ -64,6 +65,7 @@ export const buildOpenApiDocument = (): Record<string, unknown> =>
         RecurrenceDefinition: DefineRecurrenceBodySchema,
         BudgetPlan: BudgetPlanSchema,
         Recurrence: RecurrenceSchema,
+        Occurrence: OccurrenceSchema,
       },
       securitySchemes: {
         cookieAuth: { type: "apiKey", in: "cookie", name: "hearth.session_token" },
