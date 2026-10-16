@@ -4816,6 +4816,109 @@
         }
       }
     },
+    "/api/v1/spaces/{spaceId}/recurrences": {
+      "post": {
+        "operationId": "defineRecurrence",
+        "summary": "Define a recurring expense, income, transfer or fund contribution on a MONTHLY or SEMI_MONTHLY schedule",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "header",
+            "name": "idempotency-key",
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecurrenceDefinition"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The recurrence; Location names it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recurrence"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "InsufficientRole",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound, CategoryNotFound, AccountNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "AccountArchived, CategoryArchived, GuestHasNoAccounts, SameAccountTransfer, SpaceArchived, IdempotencyKeyConflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, InvalidPeriodPolicy, InvalidRecurrence (an end date before the start; no schedule date from the start, or from the day it is defined if that is later, through the end date), CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, AccountNotOwned, AccountNotInSpace, AccountRequired, InvalidFundAccount, NotASpaceMember, InvalidSplit, ParticipantsRequired",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/spaces/{spaceId}/balances": {
       "get": {
         "operationId": "getSpaceBalances",
@@ -6618,6 +6721,356 @@
           "archivedAt"
         ]
       },
+      "RecurrenceDefinition": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "amount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "template": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "EXPENSE"
+                  },
+                  "categoryId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "payer": {
+                    "type": "object",
+                    "properties": {
+                      "memberId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "accountId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "memberId"
+                    ]
+                  },
+                  "split": {
+                    "anyOf": [
+                      {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "method": {
+                                "type": "string",
+                                "const": "EQUAL"
+                              },
+                              "participants": {
+                                "maxItems": 100,
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "memberId": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    }
+                                  },
+                                  "required": [
+                                    "memberId"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "method",
+                              "participants"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "method": {
+                                "type": "string",
+                                "const": "PERCENT"
+                              },
+                              "participants": {
+                                "maxItems": 100,
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "memberId": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    },
+                                    "percent": {
+                                      "type": "string",
+                                      "pattern": "^\\d{1,3}(\\.\\d{1,2})?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "memberId",
+                                    "percent"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "method",
+                              "participants"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "method": {
+                                "type": "string",
+                                "const": "SHARES"
+                              },
+                              "participants": {
+                                "maxItems": 100,
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "memberId": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    },
+                                    "units": {
+                                      "type": "integer",
+                                      "minimum": -9007199254740991,
+                                      "maximum": 9007199254740991
+                                    }
+                                  },
+                                  "required": [
+                                    "memberId",
+                                    "units"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "method",
+                              "participants"
+                            ]
+                          }
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "categoryId",
+                  "payer"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "INCOME"
+                  },
+                  "categoryId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "accountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "type",
+                  "categoryId",
+                  "accountId"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "TRANSFER"
+                  },
+                  "sourceAccountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "destinationAccountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "type",
+                  "sourceAccountId",
+                  "destinationAccountId"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "FUND_CONTRIBUTION"
+                  },
+                  "fundAccountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "memberId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "sourceAccountId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "fundAccountId"
+                ]
+              }
+            ],
+            "type": "object"
+          },
+          "schedule": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "MONTHLY"
+                  },
+                  "day": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "kind",
+                  "day"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "SEMI_MONTHLY"
+                  },
+                  "day1": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "day2": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "kind",
+                  "day1",
+                  "day2"
+                ]
+              }
+            ],
+            "type": "object"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "AUTO",
+              "CONFIRM"
+            ]
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "endDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "description",
+          "amount",
+          "template",
+          "schedule",
+          "mode",
+          "startDate"
+        ]
+      },
       "Problem": {
         "type": "object",
         "properties": {
@@ -7733,64 +8186,6 @@
         ],
         "additionalProperties": false
       },
-      "MoneyOutput": {
-        "type": "object",
-        "properties": {
-          "amount": {
-            "type": "string",
-            "pattern": "^-?\\d{1,19}$"
-          },
-          "currency": {
-            "type": "string",
-            "pattern": "^[A-Z]{3}$"
-          }
-        },
-        "required": [
-          "amount",
-          "currency"
-        ],
-        "additionalProperties": false
-      },
-      "CategoryOutput": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "groupId": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "key": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "archivedAt": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "id",
-          "groupId",
-          "name",
-          "key",
-          "archivedAt"
-        ],
-        "additionalProperties": false
-      },
       "Recurrence": {
         "type": "object",
         "properties": {
@@ -8135,6 +8530,64 @@
           "lastOccurrence",
           "createdBy",
           "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "MoneyOutput": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d{1,19}$"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          }
+        },
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "additionalProperties": false
+      },
+      "CategoryOutput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "groupId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "archivedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "groupId",
+          "name",
+          "key",
+          "archivedAt"
         ],
         "additionalProperties": false
       }

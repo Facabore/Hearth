@@ -1,5 +1,15 @@
 import { z } from "zod";
-import { basisPointsOf, moneyFromDto, MoneySchema, PercentSchema, percentOf } from "@/shared/http/contracts";
+import type { ZodOpenApiPathsObject } from "zod-openapi";
+import {
+  basisPointsOf,
+  jsonContent,
+  moneyFromDto,
+  MoneySchema,
+  PercentSchema,
+  percentOf,
+  problems,
+  securedByUser,
+} from "@/shared/http/contracts";
 import { localDate, ok, type Result } from "@/shared/kernel";
 import type {
   DefineRecurrenceInput,
@@ -321,3 +331,39 @@ export const recurrenceDto = (view: RecurrenceView): z.infer<typeof RecurrenceSc
 export const recurrenceHeaders = (view: RecurrenceView): [string, string][] => [
   ["location", `/api/v1/spaces/${view.recurrence.spaceId}/recurrences/${view.recurrence.id}`],
 ];
+
+const SpacePath = z.object({ spaceId: z.string() });
+const IdempotencyHeader = z.object({ "idempotency-key": z.string().max(255).optional() });
+
+const recurrenceResponse = (description: string) => ({ description, content: jsonContent(RecurrenceSchema) });
+/** What checking a template answers (ruling P21): the codes of the record use cases. */
+const TEMPLATE_404 = "CategoryNotFound, AccountNotFound";
+const TEMPLATE_409 = "AccountArchived, CategoryArchived, GuestHasNoAccounts, SameAccountTransfer";
+const TEMPLATE_422 =
+  "AccountNotOwned, AccountNotInSpace, AccountRequired, InvalidFundAccount, NotASpaceMember, InvalidSplit, ParticipantsRequired";
+/** HU-E4-11: the two ways a definition is invalid by itself, whatever its template. */
+const INVALID_RECURRENCE =
+  "InvalidRecurrence (an end date before the start; no schedule date from the start, or from the day it is defined if that is later, through the end date)";
+
+export const recurrencesPaths: ZodOpenApiPathsObject = {
+  "/api/v1/spaces/{spaceId}/recurrences": {
+    post: {
+      operationId: "defineRecurrence",
+      summary:
+        "Define a recurring expense, income, transfer or fund contribution on a MONTHLY or SEMI_MONTHLY schedule",
+      ...securedByUser,
+      requestParams: { path: SpacePath, header: IdempotencyHeader },
+      requestBody: { content: jsonContent(DefineRecurrenceBodySchema) },
+      responses: {
+        "201": recurrenceResponse("The recurrence; Location names it"),
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": `SpaceNotFound, ${TEMPLATE_404}`,
+          "409": `${TEMPLATE_409}, SpaceArchived, IdempotencyKeyConflict`,
+          "422": `ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, InvalidPeriodPolicy, ${INVALID_RECURRENCE}, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, ${TEMPLATE_422}`,
+        }),
+      },
+    },
+  },
+};

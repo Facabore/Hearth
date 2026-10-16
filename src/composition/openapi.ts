@@ -15,7 +15,11 @@ import {
   RecordedExpenseSchema,
   TransactionSchema,
 } from "@/modules/ledger/contracts/ledger.contract";
-import { RecurrenceSchema } from "@/modules/ledger/contracts/recurrences.contract";
+import {
+  DefineRecurrenceBodySchema,
+  RecurrenceSchema,
+  recurrencesPaths,
+} from "@/modules/ledger/contracts/recurrences.contract";
 import {
   InvitationSchema,
   SpaceMemberSchema,
@@ -39,6 +43,7 @@ export const buildOpenApiDocument = (): Record<string, unknown> =>
       ...categoriesPaths,
       ...accountsPaths,
       ...ledgerPaths,
+      ...recurrencesPaths,
       ...balancesPaths,
       ...budgetingPaths,
     },
@@ -56,6 +61,7 @@ export const buildOpenApiDocument = (): Record<string, unknown> =>
         Period: PeriodSchema,
         Transaction: TransactionSchema,
         RecordedExpense: RecordedExpenseSchema,
+        RecurrenceDefinition: DefineRecurrenceBodySchema,
         BudgetPlan: BudgetPlanSchema,
         Recurrence: RecurrenceSchema,
       },

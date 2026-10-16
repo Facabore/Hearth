@@ -32,7 +32,7 @@ describe("OpenAPI document", () => {
 
   it("registers the recurrence components of M3-C, and no Output variant of them", () => {
     const names = Object.keys(doc.components.schemas);
-    expect(names).toEqual(expect.arrayContaining(["Recurrence"]));
+    expect(names).toEqual(expect.arrayContaining(["RecurrenceDefinition", "Recurrence"]));
     expect(names.filter((name) => /^(Recurrence|Occurrence|RecurrenceDefinition)Output$/.test(name))).toEqual(
       [],
     );
