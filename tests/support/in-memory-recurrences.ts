@@ -1,15 +1,19 @@
-import type {
-  ActiveRecurrence,
-  DefineRecurrenceInput,
-  Occurrence,
-  OccurrenceRepository,
-  Recurrence,
-  RecurrenceDeps,
-  RecurrenceRepository,
-  RecurrenceTemplate,
+import {
+  createDefineRecurrence,
+  createMaterializeDueOccurrences,
+  occurrenceRecorders,
+  type ActiveRecurrence,
+  type DefineRecurrenceInput,
+  type MaterializeDeps,
+  type Occurrence,
+  type OccurrenceRepository,
+  type Recurrence,
+  type RecurrenceDeps,
+  type RecurrenceRepository,
+  type RecurrenceTemplate,
 } from "@/modules/ledger/application";
 import { createSpaceAccess, type Space, type SpaceId } from "@/modules/spaces/application";
-import { Money, type Clock, type LocalDate } from "@/shared/kernel";
+import { Money, type Clock, type LocalDate, type Result, type TransactionManager } from "@/shared/kernel";
 import { unwrap } from "./fakes";
 import { ACCOUNTS, CATEGORIES, ledgerFixture } from "./in-memory-ledger";
 import { HOUSEHOLD_MEMBERS, householdSpace, InMemorySpaceStore, memberOf } from "./in-memory-spaces";
@@ -102,7 +106,10 @@ export class InMemoryRecurrences implements RecurrenceRepository, OccurrenceRepo
         (o) => o.recurrenceId === occurrence.recurrenceId && o.date === occurrence.date,
       )
     ) {
-      throw new Error(`duplicate occurrence of ${occurrence.recurrenceId} on ${occurrence.date}`);
+      // As Drizzle reports the unique index: an Error whose cause is the database's, with its SQLSTATE and constraint.
+      throw new Error(`duplicate occurrence of ${occurrence.recurrenceId} on ${occurrence.date}`, {
+        cause: { code: "23505", constraint: "recurrence_occurrences_date_uq" },
+      });
     }
     this.occurrenceRows.push(occurrence);
   }
@@ -220,3 +227,78 @@ export const rentDefinition = (overrides: Partial<DefineRecurrenceInput> = {}): 
   endDate: null,
   ...overrides,
 });
+
+/**
+ * A transaction manager over the in-memory stores that does for one transaction at a time what PostgreSQL does: nested
+ * runs join the outermost, which commits when its work returns ok and otherwise, on an Err or a throw, puts every store
+ * back as it was. `events` records `begin`, then `commit` or `rollback`. Its transaction is one flag of the instance,
+ * not of the async context as in `DrizzleTransactionManager`, so it is not safe for concurrent runs in one test.
+ */
+export class RollingBackTm implements TransactionManager {
+  private open = false;
+
+  /** `snapshot` copies the stores and returns the function that restores that copy. */
+  constructor(
+    private readonly snapshot: () => () => void,
+    readonly events: string[] = [],
+  ) {}
+
+  async run<T>(work: () => Promise<Result<T>>): Promise<Result<T>> {
+    if (this.open) return work();
+    const restore = this.snapshot();
+    this.open = true;
+    this.events.push("begin");
+    try {
+      const result = await work();
+      this.events.push(result.ok ? "commit" : "rollback");
+      if (!result.ok) restore();
+      return result;
+    } catch (error) {
+      this.events.push("rollback");
+      restore();
+      throw error;
+    } finally {
+      this.open = false;
+    }
+  }
+}
+
+/** What budgeting answers for a due date, as M3-B binds it: whether its period is CLOSED, and its default split. */
+export interface BudgetingStandIn {
+  readonly closed?: (date: LocalDate) => boolean;
+  readonly weights?: (
+    date: LocalDate,
+  ) => readonly { readonly memberId: string; readonly weight: bigint }[] | null;
+}
+
+/**
+ * The recurrence world with the ledger's own record use cases as recorders (ruling P21) and a transaction manager that
+ * rolls back (`tm`, whose `events` the tests read); `closed` and `weights` stand in for budgeting's ClosedPeriodGuard
+ * and DefaultSplitSource, per date.
+ */
+export const materializerWorld = (budgeting: BudgetingStandIn = {}) => {
+  const w = recurrenceWorld();
+  const tm = new RollingBackTm(() => {
+    const kept = {
+      transactions: [...w.store.rows],
+      recurrences: [...w.recurrences.rows],
+      occurrences: [...w.recurrences.occurrenceRows],
+    };
+    return () => {
+      w.store.rows = kept.transactions;
+      w.recurrences.rows = kept.recurrences;
+      w.recurrences.occurrenceRows = kept.occurrences;
+    };
+  });
+  const ledger: RecurrenceDeps = {
+    ...w.deps,
+    tm,
+    closedPeriods: { isClosed: async (_spaceId, date) => budgeting.closed?.(date) ?? false },
+    defaultSplits: { allocationWeights: async (expense) => budgeting.weights?.(expense.date) ?? null },
+  };
+  const deps: MaterializeDeps = { ...ledger, recorders: occurrenceRecorders(ledger) };
+  const define = async (definition: DefineRecurrenceInput): Promise<Recurrence> =>
+    unwrap(await createDefineRecurrence(deps)(definition)).recurrence;
+  const run = (today: string) => createMaterializeDueOccurrences(deps)({ today: today as LocalDate });
+  return { ...w, deps, tm, define, run };
+};

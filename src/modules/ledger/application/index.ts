@@ -122,3 +122,9 @@ export {
   type OccurrenceRecorders,
   type RecordedOccurrence,
 } from "./record-occurrence";
+export { CATCH_UP_LIMIT, type MaterializeDeps, type RecurrenceRun } from "./materialize-recurrence";
+export {
+  createMaterializeDueOccurrences,
+  type MaterializationReport,
+  type MaterializeDueOccurrences,
+} from "./materialize-occurrences";
