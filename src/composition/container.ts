@@ -18,6 +18,8 @@ import {
   createGetMemberNetBalances,
   createGetSettlementSuggestions,
   createGetSpaceBalances,
+  createGetMemberBalanceHistory,
+  type GetMemberBalanceHistory,
   type GetSettlementSuggestions,
   type GetSpaceBalances,
 } from "@/modules/balances/application";
@@ -276,6 +278,7 @@ export interface Container extends RouteDeps {
   readonly balances: {
     readonly getSpaceBalances: GetSpaceBalances;
     readonly getSettlementSuggestions: GetSettlementSuggestions;
+    readonly getMemberBalanceHistory: GetMemberBalanceHistory;
   };
   readonly budgeting: {
     readonly createPlan: CreateBudgetPlan;
@@ -658,6 +661,12 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     balances: {
       // HU-E5-01: the ledger aggregates per-member totals in SQL (D7); the balances module nets them.
       getSpaceBalances: createGetSpaceBalances({ access, members: spaceRepository, source: ledgerQueries }),
+      // HU-E5-04: a member's running net, movement by movement, from one SQL window function (D7).
+      getMemberBalanceHistory: createGetMemberBalanceHistory({
+        access,
+        members: spaceRepository,
+        history: ledgerQueries,
+      }),
       // HU-E5-03: suggestions are computed on read from the same balances (D7).
       getSettlementSuggestions: createGetSettlementSuggestions({
         access,
