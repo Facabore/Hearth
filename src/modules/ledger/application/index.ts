@@ -116,3 +116,9 @@ export {
   type ListRecurrences,
   type ListUpcomingOccurrences,
 } from "./recurrence-queries";
+export {
+  occurrenceRecorders,
+  recordOccurrence,
+  type OccurrenceRecorders,
+  type RecordedOccurrence,
+} from "./record-occurrence";
