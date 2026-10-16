@@ -205,3 +205,76 @@ Feature: Optional subcategories
 - The unified-view assertion becomes testable once HU-E7-04 (M4) lands.
 - Not in scope: tags and splitting one transaction into lines, which the research proposed as an alternative to a third level.
 - **Spec impact:** 5.2 **CategoryGroup / Category** ("two levels" becomes group, category and optional subcategory; archive cascade), 5.2 **BudgetLine** ("a category maps to at most one line per plan": only categories are mapped and subcategories follow their parent), 5.3 default split (resolved through the parent), 5.4 `spent(L)` (category or parent category maps to L) and the unified view grouping (a subcategory groups under its parent's key), section 6 (a new decision recording the optional third level and the roll-up).
+
+---
+
+## HU-E3-05 — Category icon and color
+
+- **Milestone:** M3-D · **Priority:** Must · **Size:** S · **Depends on:** HU-E3-01, HU-E3-02, HU-E3-04 · **Module(s):** `categories`
+
+**User story:** As a space admin, I want each category group and category to have an icon (from a fixed icon set, or one emoji) and a color from a fixed palette, so that members recognize categories at a glance when they record and read transactions.
+
+```gherkin
+Feature: Category icon and color
+
+  Scenario: Seeded and new categories start with a default icon and color
+    Given "Ana" has locale "en"
+    When "Ana" creates the shared space "Household"
+    Then the group "Food" has the color "SAND"
+    And "Groceries" has the symbol icon "cart" and the color "SAND"
+    And every seeded category has the color of its group
+    When "Ana" creates the category "Bakery" in "Food" without an icon or a color
+    Then "Bakery" has the icon and the color of "Food", copied at creation
+
+  Scenario: Change the icon and color of a category
+    Given "Groceries" in "Household" has the symbol icon "cart" and the color "SAND"
+    When "Ana" sets the symbol icon "bread" and the color "ROSE" on "Groceries"
+    Then "Groceries" is returned with the symbol icon "bread" and the color "ROSE"
+    And the group "Food" keeps its own icon and color
+    When "Sofi", who is VIEWER of "Household", sets the color "PINE" on "Groceries"
+    Then the result is the error "InsufficientRole"
+
+  Scenario: Choose an emoji as the icon
+    Given "Groceries" has the symbol icon "cart" and the color "SAND"
+    When "Ana" sets the emoji icon "🛒" on "Groceries"
+    Then "Groceries" is returned with the emoji icon "🛒" and the color "SAND"
+    And setting the symbol icon "cart" again replaces the emoji
+
+  Scenario: Invalid icons, emojis and colors are rejected
+    Given "Groceries" has the symbol icon "cart" and the color "SAND"
+    When "Ana" sets the symbol icon "unicorn" on "Groceries"
+    Then the result is the error "InvalidCategoryIcon"
+    When "Ana" sets the emoji icon "🛒🍞" on "Groceries"
+    Then the result is the error "InvalidCategoryIcon"
+    When "Ana" sets the emoji icon "a" on "Groceries"
+    Then the result is the error "InvalidCategoryIcon"
+    When "Ana" sets the color "#C0FFEE" on "Groceries"
+    Then the result is the error "ValidationFailed"
+    And "Groceries" keeps the symbol icon "cart" and the color "SAND"
+
+  Scenario: Subcategories show their parent's icon and color
+    Given "Groceries" in "Household" has the subcategories "Vegetables" and "Meat"
+    When "Ana" sets the emoji icon "🛒" and the color "PLUM" on "Groceries"
+    Then the categories list returns "Vegetables" and "Meat" with the emoji icon "🛒" and the color "PLUM"
+    When "Ana" sets the color "ROSE" on the subcategory "Vegetables"
+    Then the result is the error "ValidationFailed"
+    And "Vegetables" still shows the color "PLUM"
+
+  Scenario: A subcategory that becomes a category keeps a copy of its parent's style
+    Given "Groceries" has the emoji icon "🛒" and the color "PLUM"
+    And "Groceries" has the subcategory "Vegetables"
+    When "Ana" makes "Vegetables" a category of the group "Food"
+    Then "Vegetables" is a category of "Food" with the emoji icon "🛒" and the color "PLUM"
+    When "Ana" sets the color "SAGE" on "Groceries"
+    Then "Vegetables" keeps the color "PLUM"
+```
+
+**Technical notes:**
+- Model: `CategoryGroup` and `Category` gain `icon` and `color`. `icon` is `{ kind: "SYMBOL", name }`, where `name` belongs to a fixed set kept in the `categories` domain (for example cart, bread, cup, fork, bus, home, bulb, heart, gift, book, gym and fuel; the plan fixes the full list), or `{ kind: "EMOJI", value }`, where `value` is exactly one emoji grapheme. `color` is one of 10 palette keys: `PINE`, `SAGE`, `SAND`, `MUSTARD`, `EMBER`, `ROSE`, `PLUM`, `INDIGO`, `STEEL` and `GRAPHITE`. The UI maps each key to light and dark theme tokens; no hex value is ever stored.
+- Seeds (HU-E3-01): every seeded group and category gets a default icon and color by its catalog `key`, and a seeded category takes its group's color. A category created without an `icon` or a `color` takes its group's icon and color, copied at creation.
+- Subcategories (HU-E3-04) have no style of their own: they always show their parent's icon and color. The style is derived, not copied, so they follow when the parent changes. Sending `icon` or `color` for a subcategory (`POST` with `parentCategoryId`, or `PATCH` of a subcategory) answers `ValidationFailed`. When a subcategory becomes a category (`PATCH` `parentCategoryId: null` with a `groupId`), it keeps a copy of its former parent's current style.
+- Errors: an unknown symbol name, or an emoji `value` that is not exactly one emoji, answers `InvalidCategoryIcon`; a color outside the palette answers `ValidationFailed`.
+- Endpoints: `POST` and `PATCH` of groups and categories (HU-E3-02) accept optional `icon` and `color`. `GET /api/v1/spaces/{spaceId}/categories` returns them on every group, category and subcategory; a subcategory returns its parent's values.
+- Allowed roles: the same as for the category tree (HU-E3-02): OWNER, ADMIN (personal space: its owner). A VIEWER or MEMBER gets `InsufficientRole`.
+- Not in scope: uploaded images, arbitrary hex colors and per-member styles.
+- **Spec impact:** 5.2 **CategoryGroup / Category** (gain `icon` and `color`), the seed tables (a default style per catalog key), section 6 (a new decision recording that colors are palette keys and never hex values).

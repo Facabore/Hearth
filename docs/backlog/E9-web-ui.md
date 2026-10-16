@@ -118,7 +118,7 @@ Feature: Localized interface
 
 ## HU-E9-03 — Personal ledger screens
 
-- **Milestone:** M6 · **Priority:** Must · **Size:** M · **Depends on:** HU-E1-14, HU-E2-01, HU-E2-03, HU-E2-04, HU-E2-05, HU-E2-06, HU-E2-07, HU-E3-04, HU-E4-01, HU-E4-02, HU-E4-03, HU-E4-05, HU-E4-14, HU-E9-01 · **Module(s):** `accounts/ui`, `ledger/ui`
+- **Milestone:** M6 · **Priority:** Must · **Size:** M · **Depends on:** HU-E1-14, HU-E2-01, HU-E2-03, HU-E2-04, HU-E2-05, HU-E2-06, HU-E2-07, HU-E3-04, HU-E3-05, HU-E4-01, HU-E4-02, HU-E4-03, HU-E4-05, HU-E4-14, HU-E9-01 · **Module(s):** `accounts/ui`, `ledger/ui`
 
 **User story:** As a user, I want screens for my accounts, my transaction list and forms to record expenses, income and transfers, so that I manage my personal money without calling the API.
 
@@ -180,14 +180,14 @@ Feature: Personal ledger screens
 - Forms validate with the same Zod contracts as `/api/v1` (`contracts/`), then call server actions wrapping `RecordExpense`, `RecordIncome`, `RecordTransfer`; each submit sends a fresh `Idempotency-Key` so double clicks never duplicate (HU-E0-10).
 - The list uses cursor pagination with a "Load more" control (50 per page) and the period selector follows the space period policy (HU-E4-04).
 - Time (HU-E4-14, HU-E1-14): the forms default to now in the user's time zone and send `occurredAt` with the browser's zone; clearing the time sends only `date`. The list groups by day under headings with i18n keys (`ledger.day.today`, `ledger.day.yesterday`, then the localized date) and orders each day by time, untimed rows last. A row shows the wall-clock time in the record's zone, plus the zone's name when it differs from the viewer's; recurring and imported rows show no time.
-- Category picker (HU-E3-04): parent categories first; choosing one shows its subcategories as optional chips in the same sheet; a subcategory is never required.
+- Category picker (HU-E3-04, HU-E3-05): parent categories first, each with its icon and color; choosing one shows its subcategories as optional chips in the same sheet; a subcategory is never required. Creating or editing a category from the form is HU-E9-12.
 - Accounts screen (HU-E2-05 … HU-E2-07): type icon and color, institution and last four digits per account; card limit, available credit and next cut-off and payment dates; the "Available" and "Net worth" totals of the space. The account form shows only the attributes of the chosen type and the two switches; the type cannot change after creation.
 
 ---
 
 ## HU-E9-04 — Categories management screen
 
-- **Milestone:** M6 · **Priority:** Should · **Size:** S · **Depends on:** HU-E3-01, HU-E3-02, HU-E3-03, HU-E3-04, HU-E9-01 · **Module(s):** `categories/ui`
+- **Milestone:** M6 · **Priority:** Should · **Size:** S · **Depends on:** HU-E3-01, HU-E3-02, HU-E3-03, HU-E3-04, HU-E3-05, HU-E9-01 · **Module(s):** `categories/ui`
 
 **User story:** As a space admin, I want a screen to organize the category tree and its optional subcategories, so that I can keep categories tidy without breaking history.
 
@@ -199,14 +199,18 @@ Feature: Categories screen
     When "Ana" opens the categories screen
     Then the group "Vivienda" lists "Arriendo", "Servicios" and "Mantenimiento"
 
-  Scenario: Create a category in a group
+  Scenario: Create a category and a subcategory, and no deeper level is offered
     When "Ana" adds the category "Bakery" to the group "Food" in "Household"
     Then "Bakery" appears under "Food" without reloading the page
-
-  Scenario: Add a subcategory, and no deeper level is offered
     When "Ana" adds the subcategory "Vegetables" to the category "Groceries"
     Then "Vegetables" appears nested under "Groceries"
     And "Vegetables" offers no control to add a subcategory under it
+
+  Scenario: Change a category's icon and color
+    Given "Groceries" shows the symbol "cart" in "SAND" and has the subcategories "Vegetables" and "Meat"
+    When "Ana" opens "Groceries" from the categories screen, chooses the emoji "🛒" and the color "PLUM", and saves
+    Then the tree and the expense form show "Groceries" with "🛒" in "PLUM"
+    And its subcategories "Vegetables" and "Meat" show the same icon and color
 
   @e2e
   Scenario: A referenced category is offered for archiving instead of deletion
@@ -223,7 +227,7 @@ Feature: Categories screen
   Scenario: Viewers see the tree read-only
     Given "Sofi" is VIEWER of "Household"
     When "Sofi" opens the categories screen of "Household"
-    Then no create, rename, move, archive or delete controls are shown
+    Then no create, edit, move, archive or delete controls are shown
 ```
 
 **Technical notes:**
@@ -231,6 +235,7 @@ Feature: Categories screen
 - Control visibility follows the role returned for the current member; the use cases still enforce authorization (HU-E1-05).
 - Seeded names are user data and are shown as stored, never re-translated (HU-E3-01).
 - Subcategories (HU-E3-04) are nested and collapsible under their category; moving a category moves its subcategories, and archiving a category says that its subcategories are archived too. A `CategoryDepthExceeded` or `ParentCategoryArchived` from the API is shown through its `errors.<Code>` key.
+- Edit sheet (HU-E3-05): tapping a row opens it, with the name, the group, an icon picker with "Icons" and "Emoji" tabs, the 10-color palette, the list of subcategories, and archive or delete. A subcategory row hides the icon and color pickers, because it shows its parent's style. Entry points: Avatar › Categories, and "Manage" in the category picker of the expense form.
 
 ---
 
@@ -590,3 +595,45 @@ Feature: Personal dashboards
 - Containers `UnifiedViewContainer`, `LineTrendContainer`, `PersonalTrendContainer`; Recharts line charts with a default window of 6 periods (moved from HU-E7-05).
 - The unified view uses the viewer's personal period and catalog-key grouping from the API (spec D11); custom categories show as "space / category".
 - The change status `NEW` renders the `reports.trend.new` badge; percentages use the locale's number format with two decimals.
+
+---
+
+## HU-E9-12 — Manage categories without leaving the expense form
+
+- **Milestone:** M6 · **Priority:** Should · **Size:** S · **Depends on:** HU-E3-02, HU-E3-04, HU-E3-05, HU-E9-03, HU-E9-04 · **Module(s):** `ledger/ui`, `categories/ui`
+
+**User story:** As a member who manages the category tree, I want to create or edit a category from the expense form without losing what I typed, so that recording an expense never stops for housekeeping.
+
+```gherkin
+Feature: Manage categories without leaving the expense form
+
+  Background:
+    Given "Ana" is signed in, and her personal space has the category "Groceries" with the subcategories "Vegetables" and "Meat" in the group "Food"
+
+  Scenario: Create a category without leaving the expense form
+    Given "Ana" entered 45,000 COP and "Bread" in the new expense form
+    When "Ana" opens the category picker, chooses "New category" and creates "Bakery" in the group "Food"
+    Then the form still shows 45,000 COP and "Bread", now with "Bakery" selected
+    And saving records the expense in "Bakery"
+    And creating "Bakery" as a subcategory of "Groceries" instead returns with "Groceries › Bakery" selected
+
+  Scenario: Edit the chosen category from the expense form
+    Given "Ana" entered 45,000 COP and "Bread" in the new expense form and selected "Groceries"
+    When "Ana" chooses the edit control of "Groceries" in the form and picks the emoji "🛒" and the color "PLUM"
+    And saves the category
+    Then the form keeps 45,000 COP, "Bread" and "Groceries"
+    And "Groceries" is now shown with "🛒" in "PLUM"
+
+  Scenario: Members who cannot manage categories see no create or edit control in the form
+    Given "Sofi" is MEMBER of "Household", a role that may record expenses there but not manage its categories
+    When "Sofi" opens the new expense form and its category picker
+    Then the picker offers no "New category"
+    And no edit controls are shown
+```
+
+**Technical notes:**
+- The category picker offers "New category" and an edit control per row. The subcategory chips row offers an "Edit" control for the chosen category. All of these appear only when the member's role manages the category tree.
+- Each opens a sheet stacked over the form. The form state lives in `ExpenseFormContainer`, and the sheets never reset it.
+- Creating returns with the new category or subcategory selected. A toast offers undo: a logical delete of the still-unreferenced category, or patching back the previous values.
+- The new-category sheet suggests the group of the current category and lets the member place the new one as a category of that group or as a subcategory of the current category. A subcategory takes its parent's style, so its sheet hides the icon and color pickers.
+- Archive and delete stay on the categories screen (HU-E9-04).
