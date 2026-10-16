@@ -138,10 +138,10 @@ A UI story is `Done` when:
 | [HU-E6-03](E6-budgeting.md) | Add budget lines and show unallocated capacity | E6 | M3 | Must | M | Done | HU-E6-02 |
 | [HU-E6-04](E6-budgeting.md) | Map categories to budget lines | E6 | M3 | Must | S | Done | HU-E6-03, HU-E3-02 |
 | [HU-E6-05](E6-budgeting.md) | Allocate a budget line among members | E6 | M3 | Must | M | Done | HU-E6-03 |
-| [HU-E6-06](E6-budgeting.md) | Copy a plan from the previous period | E6 | M3 | Must | M | Backlog | HU-E6-04, HU-E6-05 |
-| [HU-E6-07](E6-budgeting.md) | Activate and close a plan | E6 | M3 | Must | M | Backlog | HU-E6-05 |
-| [HU-E6-08](E6-budgeting.md) | Default split by allocation | E6 | M3 | Must | M | Backlog | HU-E6-04, HU-E6-05, HU-E6-07, HU-E4-07, HU-E5-01 |
-| [HU-E6-09](E6-budgeting.md) | Apply rollover modes | E6 | M3 | Must | M | Backlog | HU-E6-04, HU-E6-07 |
+| [HU-E6-06](E6-budgeting.md) | Copy a plan from the previous period | E6 | M3 | Must | M | Done | HU-E6-04, HU-E6-05 |
+| [HU-E6-07](E6-budgeting.md) | Activate and close a plan | E6 | M3 | Must | M | Done | HU-E6-05 |
+| [HU-E6-08](E6-budgeting.md) | Default split by allocation | E6 | M3 | Must | M | Done | HU-E6-04, HU-E6-05, HU-E6-07, HU-E4-07, HU-E5-01 |
+| [HU-E6-09](E6-budgeting.md) | Apply rollover modes | E6 | M3 | Must | M | Done | HU-E6-04, HU-E6-07 |
 | [HU-E4-11](E4-ledger.md) | Define and manage recurring transactions | E4 | M3 | Must | M | Backlog | HU-E4-07, HU-E0-04, HU-E1-10 |
 | [HU-E4-12](E4-ledger.md) | Record due occurrences automatically | E4 | M3 | Must | M | Backlog | HU-E4-11, HU-E6-07, HU-E6-08 |
 | [HU-E4-13](E4-ledger.md) | Confirm variable-amount occurrences | E4 | M3 | Must | S | Backlog | HU-E4-12 |
