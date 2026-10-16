@@ -209,3 +209,81 @@ export const revisedRecurrence = (
     updatedAt: now,
   });
 };
+
+const refused = (from: RecurrenceStatus, to: RecurrenceStatus): Result<never> =>
+  err(domainError("InvalidRecurrenceTransition", { from, to }));
+
+/** HU-E4-11: only an ACTIVE recurrence pauses; `reason` is null when a member pauses it (ruling P26). */
+export const pausedRecurrence = (
+  recurrence: Recurrence,
+  now: Date,
+  reason: string | null = null,
+): Result<Recurrence> => {
+  const status = statusOf(recurrence);
+  return status === "ACTIVE"
+    ? ok({ ...recurrence, pausedAt: now, pauseReason: reason, updatedAt: now })
+    : refused(status, "PAUSED");
+};
+
+/**
+ * HU-E4-11: a PAUSED recurrence resumes from `today` at the earliest, so the days it was paused are never back-filled
+ * and a resume never moves `dueFrom` backwards (ruling P24). One whose end date passed during the pause would resume
+ * into ENDED, a move no transition allows, so it is refused like any ENDED one; a member can still end it (ruling P27).
+ */
+export const resumedRecurrence = (
+  recurrence: Recurrence,
+  now: Date,
+  today: LocalDate,
+): Result<Recurrence> => {
+  const status = statusOf(recurrence);
+  if (status !== "PAUSED") return refused(status, "ACTIVE");
+  const resumed: Recurrence = {
+    ...recurrence,
+    pausedAt: null,
+    pauseReason: null,
+    dueFrom: recurrence.dueFrom > today ? recurrence.dueFrom : today,
+    updatedAt: now,
+  };
+  return statusOf(resumed) === "ENDED" ? refused(status, "ACTIVE") : ok(resumed);
+};
+
+/** HU-E4-11, D8: ending is logical; the recurrence and its occurrences stay, and nothing else is ever recorded. */
+export const endedRecurrence = (recurrence: Recurrence, now: Date): Result<Recurrence> => {
+  const status = statusOf(recurrence);
+  return status === "ENDED" ? refused(status, "ENDED") : ok({ ...recurrence, endedAt: now, updatedAt: now });
+};
+
+/** D9 (ruling P22): whether its occurrences debit a member's own account, so only that member changes how much. */
+export const debitsPersonalAccount = (template: RecurrenceTemplate): boolean => {
+  switch (template.type) {
+    case "EXPENSE":
+      return template.payer.memberId !== null && template.payer.accountId !== null;
+    case "FUND_CONTRIBUTION":
+      return template.sourceAccountId !== null;
+    case "TRANSFER":
+      return true;
+    case "INCOME":
+      return false;
+  }
+};
+
+/** The member its occurrences take money from: an expense's paying member or a contribution's; null for the fund. */
+export const payerOf = (template: RecurrenceTemplate): string | null =>
+  template.type === "EXPENSE"
+    ? template.payer.memberId
+    : template.type === "FUND_CONTRIBUTION"
+      ? template.memberId
+      : null;
+
+/**
+ * Ruling P26: why a recurrence can record nothing more because someone left the space: its paying member first
+ * (PayerLeft, HU-E4-11), then the user who defined it, on whose behalf it records (CreatorLeft).
+ */
+export const blockerOf = (
+  recurrence: Recurrence,
+  current: readonly { readonly id: string; readonly userId: string | null }[],
+): "PayerLeft" | "CreatorLeft" | null => {
+  const payer = payerOf(recurrence.template);
+  if (payer !== null && !current.some((member) => member.id === payer)) return "PayerLeft";
+  return current.some((member) => member.userId === recurrence.createdBy) ? null : "CreatorLeft";
+};

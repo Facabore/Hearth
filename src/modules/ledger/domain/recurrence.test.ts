@@ -1,9 +1,15 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
-import type { LocalDate } from "@/shared/kernel";
+import type { LocalDate, Result } from "@/shared/kernel";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
 import {
   MAX_UPCOMING,
+  blockerOf,
+  debitsPersonalAccount,
   defineRecurrence,
+  endedRecurrence,
+  payerOf,
+  pausedRecurrence,
+  resumedRecurrence,
   revisedRecurrence,
   statusOf,
   upcomingDates,
@@ -486,5 +492,280 @@ describe("editing a recurrence (HU-E4-11, P22)", () => {
       statusOf(lastDate),
       codeOf(revisedRecurrence(lastDate, { amount: 1n }, at("2026-12-31"))),
     ]).toEqual(["ok", "ACTIVE", "ok"]);
+  });
+});
+
+describe("pausing, resuming and ending (HU-E4-11)", () => {
+  it("skips the paused span without back-filling: paused on 2026-12-20, resumed on 2027-02-10, next on 2027-02-16", () => {
+    const cleaning = rent({ description: "Cleaning", schedule: { kind: "SEMI_MONTHLY", day1: 1, day2: 16 } });
+    // A run already considered 2026-12-01 and 2026-12-16 (Task 8b moves dueFrom past them).
+    const scheduled = { ...cleaning, dueFrom: day("2026-12-17") };
+    const paused = unwrap(pausedRecurrence(scheduled, at("2026-12-20")));
+    expect([statusOf(paused), upcomingDates(paused, 1), paused.pauseReason]).toEqual(["PAUSED", [], null]);
+    const resumed = unwrap(resumedRecurrence(paused, at("2027-02-10"), day("2027-02-10")));
+    expect([statusOf(resumed), upcomingDates(resumed, 2), resumed.pausedAt, resumed.dueFrom]).toEqual([
+      "ACTIVE",
+      ["2027-02-16", "2027-03-01"],
+      null,
+      "2027-02-10",
+    ]);
+  });
+
+  it("keeps its first date when it resumes before that date is due, and records why it paused", () => {
+    const paused = unwrap(pausedRecurrence(rent(), at("2026-10-29"), "PayerLeft"));
+    expect(paused.pauseReason).toBe("PayerLeft");
+    const resumed = unwrap(resumedRecurrence(paused, at("2026-11-02"), day("2026-11-02")));
+    expect([upcomingDates(resumed, 1), resumed.pauseReason]).toEqual([["2026-12-01"], null]);
+  });
+
+  it("never moves dueFrom backwards: resuming before its start adds no date before the start (P24)", () => {
+    const cleaning = rent({ description: "Cleaning", schedule: { kind: "SEMI_MONTHLY", day1: 1, day2: 16 } });
+    const paused = unwrap(pausedRecurrence(cleaning, at("2026-10-29")));
+    const resumed = unwrap(resumedRecurrence(paused, at("2026-11-02"), day("2026-11-02")));
+    expect([resumed.dueFrom, upcomingDates(resumed, 2)]).toEqual([
+      "2026-12-01",
+      ["2026-12-01", "2026-12-16"],
+    ]);
+  });
+
+  it("records the schedule date it resumes on, and resuming the day it paused changes no date (P24)", () => {
+    const cleaning = rent({ description: "Cleaning", schedule: { kind: "SEMI_MONTHLY", day1: 1, day2: 16 } });
+    const paused = unwrap(pausedRecurrence({ ...cleaning, dueFrom: day("2026-12-17") }, at("2026-12-20")));
+    const onADate = unwrap(resumedRecurrence(paused, at("2027-02-16"), day("2027-02-16")));
+    const sameDay = unwrap(resumedRecurrence(paused, at("2026-12-20"), day("2026-12-20")));
+    expect([upcomingDates(onADate, 2), upcomingDates(sameDay, 2)]).toEqual([
+      ["2027-02-16", "2027-03-01"],
+      ["2027-01-01", "2027-01-16"],
+    ]);
+  });
+
+  it("refuses to resume once its end date passed while it was paused, and a member can still end it (P24, P27)", () => {
+    const bounded = rent({ endDate: day("2027-01-01") });
+    const paused = unwrap(pausedRecurrence(bounded, at("2026-12-20"), "PayerLeft"));
+    const resume = (iso: string) => resumedRecurrence(paused, at(iso), day(iso));
+    const refusal = resume("2027-02-10");
+    expect([codeOf(refusal), refusal.ok ? null : refusal.error.details]).toEqual([
+      "InvalidRecurrenceTransition",
+      { from: "PAUSED", to: "ACTIVE" },
+    ]);
+    // The end date is inclusive: resuming on it leaves one schedule date, the day after leaves none.
+    expect([codeOf(resume("2027-01-01")), codeOf(resume("2027-01-02"))]).toEqual([
+      "ok",
+      "InvalidRecurrenceTransition",
+    ]);
+    const ended = unwrap(endedRecurrence(paused, at("2027-02-10")));
+    expect([statusOf(paused), statusOf(ended), ended.endedAt, ended.pauseReason]).toEqual([
+      "PAUSED",
+      "ENDED",
+      at("2027-02-10"),
+      "PayerLeft",
+    ]);
+  });
+
+  it("pauses an ACTIVE recurrence at that moment, with no reason when a member pauses it, and changes no date", () => {
+    const active = rent();
+    const paused = unwrap(pausedRecurrence(active, at("2026-11-05")));
+    expect([paused.pausedAt, paused.pauseReason, paused.updatedAt, paused.dueFrom, paused.endedAt]).toEqual([
+      at("2026-11-05"),
+      null,
+      at("2026-11-05"),
+      "2026-12-01",
+      null,
+    ]);
+    expect([statusOf(active), active.pausedAt, active.updatedAt]).toEqual(["ACTIVE", null, at("2026-10-28")]);
+  });
+
+  it("ends logically: it keeps its dates and any pause, lists no date and takes no edit (D8)", () => {
+    const paused = unwrap(pausedRecurrence(rent(), at("2026-11-01"), "CreatorLeft"));
+    const ended = unwrap(endedRecurrence(paused, at("2026-11-02")));
+    expect(ended).toEqual({ ...paused, endedAt: at("2026-11-02"), updatedAt: at("2026-11-02") });
+    expect([statusOf(ended), upcomingDates(ended, 1)]).toEqual(["ENDED", []]);
+  });
+
+  it("refuses moves from the wrong status with InvalidRecurrenceTransition", () => {
+    const active = rent();
+    const paused = unwrap(pausedRecurrence(active, at("2026-11-01")));
+    const ended = unwrap(endedRecurrence(active, at("2026-11-01")));
+    expect([
+      codeOf(pausedRecurrence(paused, at("2026-11-02"))),
+      codeOf(resumedRecurrence(active, at("2026-11-02"), day("2026-11-02"))),
+      codeOf(endedRecurrence(ended, at("2026-11-02"))),
+      codeOf(pausedRecurrence(ended, at("2026-11-02"))),
+      codeOf(endedRecurrence(paused, at("2026-11-02"))),
+    ]).toEqual([
+      "InvalidRecurrenceTransition",
+      "InvalidRecurrenceTransition",
+      "InvalidRecurrenceTransition",
+      "InvalidRecurrenceTransition",
+      "ok",
+    ]);
+    expect([statusOf(ended), upcomingDates(ended, 1)]).toEqual(["ENDED", []]);
+    expect(codeOf(revisedRecurrence(ended, { amount: 1n }, at("2026-11-02")))).toBe("RecurrenceEnded");
+  });
+
+  it("allows only ACTIVE to PAUSED, PAUSED to ACTIVE and a status that is not ENDED to ENDED (P27)", () => {
+    const now = at("2027-01-05");
+    const today = day("2027-01-05");
+    const active = rent();
+    const paused = { ...active, pausedAt: at("2026-11-01") };
+    const ended = { ...active, endedAt: at("2026-11-01") };
+    const endedWhilePaused = { ...paused, endedAt: at("2026-11-02") };
+    // Ran out of dates: no schedule date is left up to its end date, so it is ENDED without ever being ended.
+    const exhausted = { ...rent({ endDate: day("2027-01-01") }), dueFrom: day("2027-01-02") };
+    const exhaustedWhilePaused = { ...exhausted, pausedAt: at("2026-11-01") };
+    // Paused when its end date was still ahead; today it is past: still PAUSED, but resuming would leave it ENDED.
+    const pausedPastItsEnd = { ...rent({ endDate: day("2027-01-01") }), pausedAt: at("2026-12-20") };
+    const moves = (r: Recurrence) => [
+      statusOf(r),
+      codeOf(pausedRecurrence(r, now)),
+      codeOf(resumedRecurrence(r, now, today)),
+      codeOf(endedRecurrence(r, now)),
+    ];
+    const refused = "InvalidRecurrenceTransition";
+    expect({
+      active: moves(active),
+      paused: moves(paused),
+      ended: moves(ended),
+      endedWhilePaused: moves(endedWhilePaused),
+      exhausted: moves(exhausted),
+      exhaustedWhilePaused: moves(exhaustedWhilePaused),
+      pausedPastItsEnd: moves(pausedPastItsEnd),
+    }).toEqual({
+      active: ["ACTIVE", "ok", refused, "ok"],
+      paused: ["PAUSED", refused, "ok", "ok"],
+      ended: ["ENDED", refused, refused, refused],
+      endedWhilePaused: ["ENDED", refused, refused, refused],
+      exhausted: ["ENDED", refused, refused, refused],
+      exhaustedWhilePaused: ["ENDED", refused, refused, refused],
+      pausedPastItsEnd: ["PAUSED", refused, refused, "ok"],
+    });
+  });
+
+  it("names the status it left and the one it was asked to move to", () => {
+    const now = at("2026-11-02");
+    const active = rent();
+    const paused = unwrap(pausedRecurrence(active, at("2026-11-01")));
+    const ended = unwrap(endedRecurrence(active, at("2026-11-01")));
+    const details = (result: Result<Recurrence>) => (result.ok ? null : result.error.details);
+    expect([
+      details(pausedRecurrence(paused, now)),
+      details(resumedRecurrence(active, now, day("2026-11-02"))),
+      details(endedRecurrence(ended, now)),
+      details(pausedRecurrence(ended, now)),
+    ]).toEqual([
+      { from: "PAUSED", to: "PAUSED" },
+      { from: "ACTIVE", to: "ACTIVE" },
+      { from: "ENDED", to: "ENDED" },
+      { from: "ENDED", to: "PAUSED" },
+    ]);
+  });
+});
+
+describe("who a recurrence depends on (D9, P22, P26)", () => {
+  const internet: RecurrenceTemplate = {
+    type: "EXPENSE",
+    categoryId: "cat-utilities",
+    payer: { memberId: "member-juan", accountId: "acc-davivienda" },
+    split: null,
+  };
+  const guestPays: RecurrenceTemplate = {
+    type: "EXPENSE",
+    categoryId: "cat-utilities",
+    payer: { memberId: "member-pedro", accountId: null },
+    split: null,
+  };
+  const contribution: RecurrenceTemplate = {
+    type: "FUND_CONTRIBUTION",
+    fundAccountId: "acc-household-fund",
+    memberId: "member-ana",
+    sourceAccountId: "acc-bancolombia",
+  };
+  const guestContributes: RecurrenceTemplate = {
+    type: "FUND_CONTRIBUTION",
+    fundAccountId: "acc-household-fund",
+    memberId: "member-pedro",
+    sourceAccountId: null,
+  };
+  const income: RecurrenceTemplate = {
+    type: "INCOME",
+    categoryId: "cat-salary",
+    accountId: "acc-bancolombia",
+  };
+  const transfer: RecurrenceTemplate = {
+    type: "TRANSFER",
+    sourceAccountId: "acc-bancolombia",
+    destinationAccountId: "acc-nequi",
+  };
+  const ana = { id: "member-ana", userId: "u-ana" };
+  const juan = { id: "member-juan", userId: "u-juan" };
+  /** Pedro is a guest: a member with no user. */
+  const pedro = { id: "member-pedro", userId: null };
+
+  it("debits a member's own account for member-paid expenses, contributions from an account and transfers", () => {
+    expect(
+      [RENT, internet, guestPays, contribution, guestContributes, income, transfer].map(
+        debitsPersonalAccount,
+      ),
+    ).toEqual([false, true, false, true, false, false, true]);
+  });
+
+  it("is paid by the member an expense or a contribution names, and by nobody for the fund, an income or a transfer", () => {
+    expect(
+      [RENT, internet, guestPays, contribution, guestContributes, income, transfer].map(payerOf),
+    ).toEqual([null, "member-juan", "member-pedro", "member-ana", "member-pedro", null, null]);
+  });
+
+  it("waits on its paying member first, then on its creator", () => {
+    expect([
+      blockerOf(rent({ template: internet }), [ana, juan]),
+      blockerOf(rent({ template: internet }), [ana]),
+      blockerOf(rent({ template: internet, createdBy: "u-juan" }), [ana]),
+      blockerOf(rent(), [juan]),
+      blockerOf(rent(), [ana]),
+      blockerOf(rent({ template: guestContributes }), [ana]),
+    ]).toEqual([null, "PayerLeft", "PayerLeft", "CreatorLeft", null, "PayerLeft"]);
+  });
+
+  it("is PayerLeft when the paying member left, however long the creator stays (Juan pays Internet and leaves)", () => {
+    expect(blockerOf(rent({ template: internet }), [ana])).toBe("PayerLeft");
+  });
+
+  it("is PayerLeft when the guest who pays was removed, and blocks nothing while the guest stays", () => {
+    const pedroPays = rent({ template: guestPays });
+    expect([blockerOf(pedroPays, [ana]), blockerOf(pedroPays, [ana, pedro])]).toEqual(["PayerLeft", null]);
+  });
+
+  it("is CreatorLeft when its creator left and the paying member stays, a guest never standing in for them", () => {
+    expect([
+      blockerOf(rent({ template: internet }), [juan]),
+      blockerOf(rent({ template: guestPays }), [pedro]),
+      blockerOf(rent({ template: internet }), [juan, pedro]),
+      blockerOf(rent({ template: internet, createdBy: "u-sofi" }), [ana, juan]),
+    ]).toEqual(["CreatorLeft", "CreatorLeft", "CreatorLeft", "CreatorLeft"]);
+  });
+
+  it("is null while both the paying member and its creator are in the space", () => {
+    expect([
+      blockerOf(rent({ template: internet }), [ana, juan]),
+      blockerOf(rent({ template: guestPays }), [ana, pedro]),
+      blockerOf(rent({ template: contribution }), [ana]),
+    ]).toEqual([null, null, null]);
+  });
+
+  it("names the paying member when both the payer and the creator left", () => {
+    expect([
+      blockerOf(rent({ template: internet }), []),
+      blockerOf(rent({ template: internet, createdBy: "u-juan" }), [ana]),
+    ]).toEqual(["PayerLeft", "PayerLeft"]);
+  });
+
+  it("depends on its creator alone when it has no paying member: the fund, an income or a transfer", () => {
+    expect(
+      [rent(), rent({ template: income }), rent({ template: transfer })].map((r) => [
+        blockerOf(r, [ana]),
+        blockerOf(r, [juan]),
+        blockerOf(r, []),
+      ]),
+    ).toEqual(Array.from({ length: 3 }, () => [null, "CreatorLeft", "CreatorLeft"]));
   });
 });
