@@ -67,6 +67,9 @@ import {
   createRecordIncome,
   createRecordSettlement,
   createRecordTransfer,
+  createDefineRecurrence,
+  type DefineRecurrence,
+  type RecurrenceDeps,
   type DeleteTransaction,
   type EditTransaction,
   type GetTransaction,
@@ -83,6 +86,7 @@ import {
 import { DrizzleAuditLog } from "@/modules/ledger/infrastructure/drizzle-audit-log";
 import { DrizzleLedgerQueries } from "@/modules/ledger/infrastructure/drizzle-ledger-queries";
 import { DrizzleTransactionRepository } from "@/modules/ledger/infrastructure/drizzle-transaction-repository";
+import { DrizzleRecurrenceRepository } from "@/modules/ledger/infrastructure/drizzle-recurrence-repository";
 import type { DirectSplitExpense } from "@/modules/ledger/contracts/ledger.contract";
 import {
   createArchiveCategory,
@@ -232,6 +236,7 @@ export interface Container extends RouteDeps {
     readonly editTransaction: EditTransaction;
     readonly deleteTransaction: DeleteTransaction;
     readonly listAudit: ListAudit;
+    readonly defineRecurrence: DefineRecurrence;
   };
   readonly balances: {
     readonly getSpaceBalances: GetSpaceBalances;
@@ -364,6 +369,13 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     tm,
   };
   const recordExpense = createRecordExpense(ledgerDeps);
+  // HU-E4-11 … HU-E4-13: recurrences live in the ledger and record through its own use cases (ruling P21).
+  const recurrenceRepository = new DrizzleRecurrenceRepository(tm);
+  const recurrenceDeps: RecurrenceDeps = {
+    ...ledgerDeps,
+    recurrences: recurrenceRepository,
+    occurrences: recurrenceRepository,
+  };
   // HU-E1-13: a client cannot know a new direct space's category ids, so it names a catalog key (D11).
   const recordExpenseByCategoryKey = createRecordExpenseByCategoryKey(
     {
@@ -593,6 +605,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       editTransaction: createEditTransaction(ledgerDeps),
       deleteTransaction: createDeleteTransaction(ledgerDeps),
       listAudit: createListAudit(ledgerDeps),
+      defineRecurrence: createDefineRecurrence(recurrenceDeps),
     },
     balances: {
       // HU-E5-01: the ledger aggregates per-member totals in SQL (D7); the balances module nets them.

@@ -316,3 +316,8 @@ export const recurrenceDto = (view: RecurrenceView): z.infer<typeof RecurrenceSc
     createdAt: recurrence.createdAt.toISOString(),
   };
 };
+
+/** The Location header of a new recurrence (HU-E4-11). */
+export const recurrenceHeaders = (view: RecurrenceView): [string, string][] => [
+  ["location", `/api/v1/spaces/${view.recurrence.spaceId}/recurrences/${view.recurrence.id}`],
+];
