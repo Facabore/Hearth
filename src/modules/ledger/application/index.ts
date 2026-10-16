@@ -82,4 +82,10 @@ export type {
   RecurrenceType,
 } from "../domain/recurrence";
 export type { Schedule } from "../domain/recurrence-schedule";
-export type { ActiveRecurrence, RecurrenceRepository } from "./recurrence-ports";
+export type { Occurrence, OccurrenceId, OccurrenceStatus } from "../domain/occurrence";
+export type {
+  ActiveRecurrence,
+  OccurrenceRepository,
+  RecurrenceDeps,
+  RecurrenceRepository,
+} from "./recurrence-ports";

@@ -1,9 +1,14 @@
-import { and, asc, eq, isNull, lte, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lte, or } from "drizzle-orm";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { isUuid, type LocalDate } from "@/shared/kernel";
-import type { ActiveRecurrence, RecurrenceRepository } from "../application/recurrence-ports";
+import type {
+  ActiveRecurrence,
+  OccurrenceRepository,
+  RecurrenceRepository,
+} from "../application/recurrence-ports";
+import type { Occurrence, OccurrenceId } from "../domain/occurrence";
 import type { Recurrence, RecurrenceId, RecurrenceTemplate } from "../domain/recurrence";
-import { recurrences } from "./recurrences.schema";
+import { recurrenceOccurrences, recurrences } from "./recurrences.schema";
 
 type RecurrenceRow = typeof recurrences.$inferSelect;
 
@@ -111,7 +116,26 @@ const changeable = (recurrence: Recurrence) => ({
 const notStored = (recurrence: Recurrence) =>
   `recurrence ${recurrence.id} (${recurrence.template.type}) is not stored in its space`;
 
-export class DrizzleRecurrenceRepository implements RecurrenceRepository {
+type OccurrenceRow = typeof recurrenceOccurrences.$inferSelect;
+
+const toOccurrence = (row: OccurrenceRow): Occurrence => ({
+  id: row.id as OccurrenceId,
+  recurrenceId: row.recurrenceId as RecurrenceId,
+  spaceId: row.spaceId,
+  date: row.occurrenceDate as LocalDate,
+  status: row.status,
+  amount: row.amount,
+  transactionId: row.transactionId,
+  reason: row.reason,
+  resolvedBy: row.resolvedBy,
+  createdAt: row.createdAt,
+  resolvedAt: row.resolvedAt,
+});
+
+const occurrenceNotStored = (occurrence: Occurrence) =>
+  `occurrence ${occurrence.id} is not stored in its space`;
+
+export class DrizzleRecurrenceRepository implements RecurrenceRepository, OccurrenceRepository {
   constructor(private readonly tm: DrizzleTransactionManager) {}
 
   async add(recurrence: Recurrence): Promise<void> {
@@ -201,5 +225,90 @@ export class DrizzleRecurrenceRepository implements RecurrenceRepository {
       )
       .orderBy(asc(recurrences.createdAt), asc(recurrences.id));
     return rows.map((row) => ({ id: row.id as RecurrenceId, spaceId: row.spaceId }));
+  }
+
+  async addOccurrence(occurrence: Occurrence): Promise<void> {
+    // A second occurrence of the same date fails recurrence_occurrences_date_uq, rolling its transaction back.
+    await this.tm.executor().insert(recurrenceOccurrences).values({
+      id: occurrence.id,
+      recurrenceId: occurrence.recurrenceId,
+      spaceId: occurrence.spaceId,
+      occurrenceDate: occurrence.date,
+      status: occurrence.status,
+      amount: occurrence.amount,
+      transactionId: occurrence.transactionId,
+      reason: occurrence.reason,
+      resolvedBy: occurrence.resolvedBy,
+      createdAt: occurrence.createdAt,
+      resolvedAt: occurrence.resolvedAt,
+    });
+  }
+
+  async saveOccurrence(occurrence: Occurrence): Promise<void> {
+    // Id and space are the key; the recurrence, the date and the creation stay as inserted.
+    const saved = await this.tm
+      .executor()
+      .update(recurrenceOccurrences)
+      .set({
+        status: occurrence.status,
+        amount: occurrence.amount,
+        transactionId: occurrence.transactionId,
+        reason: occurrence.reason,
+        resolvedBy: occurrence.resolvedBy,
+        resolvedAt: occurrence.resolvedAt,
+      })
+      .where(
+        and(
+          eq(recurrenceOccurrences.id, occurrence.id),
+          eq(recurrenceOccurrences.spaceId, occurrence.spaceId),
+        ),
+      )
+      .returning({ id: recurrenceOccurrences.id });
+    // Callers lock the row first and nothing is deleted (D8): no match is a bug, and it must not pass as saved.
+    if (saved.length === 0) throw new Error(occurrenceNotStored(occurrence));
+  }
+
+  async findOccurrence(
+    spaceId: string,
+    occurrenceId: string,
+    options: { readonly lock?: boolean } = {},
+  ): Promise<Occurrence | null> {
+    if (!isUuid(spaceId) || !isUuid(occurrenceId)) return null;
+    const query = this.tm
+      .executor()
+      .select()
+      .from(recurrenceOccurrences)
+      .where(and(eq(recurrenceOccurrences.id, occurrenceId), eq(recurrenceOccurrences.spaceId, spaceId)));
+    // HU-E4-13: a confirm and a skip of one occurrence take turns, and the second reads what the first committed.
+    const [row] = options.lock === true ? await query.for("no key update") : await query;
+    return row ? toOccurrence(row) : null;
+  }
+
+  async pendingOccurrences(spaceId: string): Promise<Occurrence[]> {
+    if (!isUuid(spaceId)) return [];
+    const rows = await this.tm
+      .executor()
+      .select()
+      .from(recurrenceOccurrences)
+      .where(and(eq(recurrenceOccurrences.spaceId, spaceId), eq(recurrenceOccurrences.status, "PENDING")))
+      .orderBy(asc(recurrenceOccurrences.occurrenceDate), asc(recurrenceOccurrences.id));
+    return rows.map(toOccurrence);
+  }
+
+  async latestOccurrences(
+    spaceId: string,
+    recurrenceIds: readonly string[],
+  ): Promise<ReadonlyMap<string, Occurrence>> {
+    const ids = recurrenceIds.filter(isUuid);
+    if (!isUuid(spaceId) || ids.length === 0) return new Map();
+    const rows = await this.tm
+      .executor()
+      .selectDistinctOn([recurrenceOccurrences.recurrenceId])
+      .from(recurrenceOccurrences)
+      .where(
+        and(eq(recurrenceOccurrences.spaceId, spaceId), inArray(recurrenceOccurrences.recurrenceId, ids)),
+      )
+      .orderBy(recurrenceOccurrences.recurrenceId, desc(recurrenceOccurrences.occurrenceDate));
+    return new Map(rows.map((row) => [row.recurrenceId, toOccurrence(row)]));
   }
 }

@@ -10,9 +10,20 @@ import {
   sharedLedgerFixture,
 } from "../../../../tests/support/fixtures";
 import { InMemoryRecurrences } from "../../../../tests/support/in-memory-recurrences";
-import type { RecurrenceRepository } from "../application";
+import { unwrap } from "../../../../tests/support/fakes";
+import type { OccurrenceRepository, RecurrenceRepository } from "../application";
+import {
+  confirmedOccurrence,
+  pendingOccurrence,
+  recordedOccurrence,
+  skippedByMember,
+  skippedOccurrence,
+  type OccurrenceId,
+} from "../domain/occurrence";
 import { statusOf, type Recurrence, type RecurrenceId, type RecurrenceTemplate } from "../domain/recurrence";
+import { recordExpense, type TransactionId } from "../domain/transaction";
 import { DrizzleRecurrenceRepository } from "./drizzle-recurrence-repository";
+import { DrizzleTransactionRepository } from "./drizzle-transaction-repository";
 
 const { db, pool } = testDatabase();
 const tm = new DrizzleTransactionManager(db);
@@ -915,5 +926,279 @@ describe("DrizzleRecurrenceRepository: recurrences (HU-E4-11)", () => {
     ];
     expect(await strangers(repo)).toEqual([null, null, null, null, null, null, null, [], []]);
     expect(await strangers(memory)).toEqual(await strangers(repo));
+  });
+});
+
+describe("DrizzleRecurrenceRepository: occurrences (HU-E4-12, HU-E4-13)", () => {
+  const at = new Date("2026-12-01T17:00:00Z");
+  const occurrenceId = () => randomUUID() as OccurrenceId;
+
+  /** A fresh Household and Ana with every shape of recurrence stored in both, and a recorded 2026-12-01 expense to link one to. */
+  const withRent = async () => {
+    const f = await fixture();
+    const memory = new InMemoryRecurrences();
+    const shapes = everyShape(f);
+    await storeInBoth(memory, shapes);
+    // The fund-paid rent and Pedro's recurrence (Household), Ana's salary (her personal space) and her contribution.
+    const [rent, pedros, salary, , contribution] = shapes as [
+      Recurrence,
+      Recurrence,
+      Recurrence,
+      Recurrence,
+      Recurrence,
+    ];
+    const expense = unwrap(
+      recordExpense({
+        id: randomUUID() as TransactionId,
+        spaceId: f.household.spaceId,
+        date: day("2026-12-01"),
+        amount: 120_000_000n,
+        currency: "COP",
+        createdBy: f.household.userId,
+        now: at,
+        categoryId: f.groceries,
+        payments: [{ memberId: null, accountId: f.fund, amount: 120_000_000n }],
+        shares: [{ memberId: f.household.memberId, amount: 120_000_000n, splitMethod: "EQUAL" }],
+      }),
+    );
+    await new DrizzleTransactionRepository(tm).add(expense);
+    return { f, memory, rent, pedros, salary, contribution, expense };
+  };
+  /** What a recurrence's reads ask of the repository. */
+  const reads = async (
+    source: OccurrenceRepository,
+    spaceId: string,
+    recurrenceId: string,
+    occurrenceId: string,
+  ) => [
+    await source.findOccurrence(spaceId, occurrenceId),
+    await source.pendingOccurrences(spaceId),
+    [...(await source.latestOccurrences(spaceId, [recurrenceId]))],
+  ];
+  /** An occurrence read the way a confirm or a skip reads it: under its lock, inside a transaction. */
+  const lockedRead = async (source: OccurrenceRepository, spaceId: string, occurrenceId: string) =>
+    unwrap(await tm.run(async () => ok(await source.findOccurrence(spaceId, occurrenceId, { lock: true }))));
+
+  it("stores, resolves and reads occurrences like the in-memory twin", async () => {
+    const { f, memory, rent, expense } = await withRent();
+    const recorded = recordedOccurrence(occurrenceId(), rent, day("2026-12-01"), expense.id, at);
+    const skipped = skippedOccurrence(occurrenceId(), rent, day("2027-01-01"), "PeriodClosed", at);
+    const pending = pendingOccurrence(occurrenceId(), rent, day("2027-02-01"), at);
+    for (const occurrence of [recorded, skipped, pending]) {
+      await repo.addOccurrence(occurrence);
+      await memory.addOccurrence(occurrence);
+    }
+    const space = f.household.spaceId;
+    expect(await reads(repo, space, rent.id, pending.id)).toEqual([pending, [pending], [[rent.id, pending]]]);
+    expect(await reads(memory, space, rent.id, pending.id)).toEqual(
+      await reads(repo, space, rent.id, pending.id),
+    );
+    const resolved = unwrap(skippedByMember(pending, f.household.userId, at));
+    await repo.saveOccurrence(resolved);
+    await memory.saveOccurrence(resolved);
+    expect(await reads(repo, space, rent.id, pending.id)).toEqual([resolved, [], [[rent.id, resolved]]]);
+    expect(await reads(memory, space, rent.id, pending.id)).toEqual(
+      await reads(repo, space, rent.id, pending.id),
+    );
+    expect(await lockedRead(repo, space, recorded.id)).toEqual(recorded);
+    expect(await lockedRead(memory, space, recorded.id)).toEqual(recorded);
+  });
+
+  it("keeps one occurrence per recurrence and date, and a RECORDED one only with its transaction (Review Focus 1)", async () => {
+    const { rent } = await withRent();
+    await repo.addOccurrence(pendingOccurrence(occurrenceId(), rent, day("2026-12-01"), at));
+    await expect(
+      repo.addOccurrence(skippedOccurrence(occurrenceId(), rent, day("2026-12-01"), "PeriodClosed", at)),
+    ).rejects.toMatchObject({ cause: { constraint: "recurrence_occurrences_date_uq" } });
+    await expect(
+      repo.addOccurrence({
+        ...pendingOccurrence(occurrenceId(), rent, day("2027-01-01"), at),
+        status: "RECORDED",
+      }),
+    ).rejects.toMatchObject({ cause: { constraint: "recurrence_occurrences_recorded" } });
+    const { rows } = await pool.query(
+      "SELECT count(*)::int AS n FROM recurrence_occurrences WHERE recurrence_id = $1",
+      [rent.id],
+    );
+    expect(rows[0].n).toBe(1);
+    const memory = new InMemoryRecurrences();
+    await memory.addOccurrence(pendingOccurrence(occurrenceId(), rent, day("2026-12-01"), at));
+    await expect(
+      memory.addOccurrence(pendingOccurrence(occurrenceId(), rent, day("2026-12-01"), at)),
+    ).rejects.toThrow(/duplicate occurrence/);
+  });
+
+  it("rolls back the whole transaction, the expense it recorded included, when the date already has an occurrence (Review Focus 1)", async () => {
+    const { f, memory, rent, expense } = await withRent();
+    const first = recordedOccurrence(occurrenceId(), rent, day("2026-12-01"), expense.id, at);
+    await repo.addOccurrence(first);
+    await memory.addOccurrence(first);
+    // A second run of the same date: its own expense, an occurrence of another date, then the duplicate that fails.
+    const again = { ...expense, id: randomUUID() as TransactionId };
+    const next = pendingOccurrence(occurrenceId(), rent, day("2027-01-01"), at);
+    const duplicate = recordedOccurrence(occurrenceId(), rent, day("2026-12-01"), again.id, at);
+    await expect(
+      tm.run(async () => {
+        await new DrizzleTransactionRepository(tm).add(again);
+        await repo.addOccurrence(next);
+        await repo.addOccurrence(duplicate);
+        return ok(undefined);
+      }),
+    ).rejects.toMatchObject({ cause: { constraint: "recurrence_occurrences_date_uq" } });
+    expect([
+      await count("transactions", again.id),
+      await count("recurrence_occurrences", next.id),
+      await count("recurrence_occurrences", duplicate.id),
+      await count("transactions", expense.id),
+      await count("recurrence_occurrences", first.id),
+    ]).toEqual([0, 0, 0, 1, 1]);
+    expect(await repo.pendingOccurrences(f.household.spaceId)).toEqual([]);
+    // The twin refuses the same date the same way, and keeps the first.
+    await expect(memory.addOccurrence(duplicate)).rejects.toThrow(/duplicate occurrence/);
+    expect(memory.occurrenceRows).toEqual([first]);
+  });
+
+  it("answers null, [] or an empty map for malformed and foreign ids, and never another space's (Review Focus 5)", async () => {
+    const { f, memory, rent } = await withRent();
+    const pending = pendingOccurrence(occurrenceId(), rent, day("2026-12-01"), at);
+    await repo.addOccurrence(pending);
+    await memory.addOccurrence(pending);
+    const strangers = async (source: OccurrenceRepository) => [
+      await source.findOccurrence(f.household.spaceId, "not-a-uuid"),
+      await source.findOccurrence("not-a-uuid", pending.id),
+      await source.findOccurrence(f.household.spaceId, randomUUID()),
+      // Another space's occurrence never answers, locked or not.
+      await source.findOccurrence(f.personal.spaceId, pending.id),
+      await lockedRead(source, f.household.spaceId, "not-a-uuid"),
+      await lockedRead(source, f.personal.spaceId, pending.id),
+      await source.pendingOccurrences("not-a-uuid"),
+      await source.pendingOccurrences(randomUUID()),
+      await source.pendingOccurrences(f.personal.spaceId),
+      [...(await source.latestOccurrences("not-a-uuid", [rent.id]))],
+      [...(await source.latestOccurrences(f.household.spaceId, ["not-a-uuid"]))],
+      [...(await source.latestOccurrences(f.household.spaceId, []))],
+      [...(await source.latestOccurrences(f.personal.spaceId, [rent.id]))],
+    ];
+    expect(await strangers(repo)).toEqual([null, null, null, null, null, null, [], [], [], [], [], [], []]);
+    expect(await strangers(memory)).toEqual(await strangers(repo));
+  });
+
+  it("lists a space's PENDING occurrences only, earliest date first and ties by id, like the in-memory twin", async () => {
+    const { f, memory, rent, pedros, salary, expense } = await withRent();
+    const [low, high] = [occurrenceId(), occurrenceId()].sort() as [OccurrenceId, OccurrenceId];
+    const lastOne = pendingOccurrence(occurrenceId(), pedros, day("2027-03-01"), at);
+    const tiedHigh = pendingOccurrence(high, rent, day("2027-02-01"), at);
+    const tiedLow = pendingOccurrence(low, pedros, day("2027-02-01"), at);
+    const hers = pendingOccurrence(occurrenceId(), salary, day("2026-11-01"), at);
+    // Stored out of order, with the resolved ones and another space's among them.
+    const rows = [
+      lastOne,
+      tiedHigh,
+      recordedOccurrence(occurrenceId(), rent, day("2026-12-01"), expense.id, at),
+      tiedLow,
+      skippedOccurrence(occurrenceId(), pedros, day("2026-12-01"), "PeriodClosed", at),
+      hers,
+    ];
+    for (const occurrence of rows) {
+      await repo.addOccurrence(occurrence);
+      await memory.addOccurrence(occurrence);
+    }
+    for (const source of [repo, memory]) {
+      expect(await source.pendingOccurrences(f.household.spaceId)).toEqual([tiedLow, tiedHigh, lastOne]);
+      expect(await source.pendingOccurrences(f.personal.spaceId)).toEqual([hers]);
+    }
+  });
+
+  it("answers exactly the latest occurrence of each recurrence, whatever its status or the order it was stored in", async () => {
+    const { f, memory, rent, pedros, salary, contribution, expense } = await withRent();
+    const rentRecorded = recordedOccurrence(occurrenceId(), rent, day("2026-12-01"), expense.id, at);
+    const rentPending = pendingOccurrence(occurrenceId(), rent, day("2027-01-01"), at);
+    const rentSkipped = skippedOccurrence(occurrenceId(), rent, day("2027-02-01"), "PeriodClosed", at);
+    const pedrosOnly = pendingOccurrence(occurrenceId(), pedros, day("2026-12-01"), at);
+    const hers = pendingOccurrence(occurrenceId(), salary, day("2026-11-01"), at);
+    // The rent's latest date is stored in the middle, and its status is the least telling.
+    for (const occurrence of [rentPending, rentSkipped, rentRecorded, pedrosOnly, hers]) {
+      await repo.addOccurrence(occurrence);
+      await memory.addOccurrence(occurrence);
+    }
+    const asked = [rent.id, pedros.id, salary.id, contribution.id, "not-a-uuid"];
+    for (const source of [repo, memory]) {
+      // The contribution has none, the salary is another space's, and the malformed id is ignored.
+      expect(await source.latestOccurrences(f.household.spaceId, asked)).toEqual(
+        new Map([
+          [rent.id, rentSkipped],
+          [pedros.id, pedrosOnly],
+        ]),
+      );
+      expect(await source.latestOccurrences(f.personal.spaceId, asked)).toEqual(new Map([[salary.id, hers]]));
+      expect(await source.latestOccurrences(f.household.spaceId, [rent.id])).toEqual(
+        new Map([[rent.id, rentSkipped]]),
+      );
+    }
+  });
+
+  it("saves what a confirm or a skip changes, throws for an occurrence no stored one matches by id and space, and deletes nothing (D8)", async () => {
+    const { f, memory, rent, pedros, expense } = await withRent();
+    const space = f.household.spaceId;
+    const toSkip = pendingOccurrence(occurrenceId(), rent, day("2027-02-01"), at);
+    const toConfirm = pendingOccurrence(occurrenceId(), rent, day("2027-03-01"), at);
+    for (const occurrence of [toSkip, toConfirm]) {
+      await repo.addOccurrence(occurrence);
+      await memory.addOccurrence(occurrence);
+    }
+    const skipped = unwrap(skippedByMember(toSkip, f.household.userId, at));
+    const confirmed = unwrap(
+      confirmedOccurrence(toConfirm, {
+        transactionId: expense.id,
+        amount: 130_000_000n,
+        userId: f.household.userId,
+        now: at,
+      }),
+    );
+    // Saved as if someone had also pointed it at another recurrence, date and creation time, which no resolution may do.
+    const redirected = {
+      ...skipped,
+      recurrenceId: pedros.id,
+      date: day("2027-04-01"),
+      createdAt: new Date(0),
+    };
+    for (const occurrence of [redirected, confirmed]) {
+      await repo.saveOccurrence(occurrence);
+      await memory.saveOccurrence(occurrence);
+    }
+    for (const source of [repo, memory]) {
+      expect(await source.findOccurrence(space, toSkip.id)).toEqual(skipped);
+      expect(await source.findOccurrence(space, toConfirm.id)).toEqual(confirmed);
+    }
+
+    const resolvedLater = { ...skipped, resolvedAt: new Date("2026-12-20T17:00:00Z") };
+    const misdirected = [
+      // Another space's.
+      { ...resolvedLater, spaceId: f.personal.spaceId },
+      // One that was never stored.
+      { ...resolvedLater, id: occurrenceId() },
+    ];
+    for (const occurrence of misdirected) {
+      const refused = new Error(`occurrence ${occurrence.id} is not stored in its space`);
+      await expect(repo.saveOccurrence(occurrence)).rejects.toThrow(refused);
+      await expect(memory.saveOccurrence(occurrence)).rejects.toThrow(refused);
+    }
+    // Inside a transaction the throw rolls back what was saved before it.
+    await expect(
+      tm.run(async () => {
+        await repo.saveOccurrence(resolvedLater);
+        await repo.saveOccurrence(misdirected[0]!);
+        return ok(undefined);
+      }),
+    ).rejects.toThrow(/is not stored/);
+    expect([
+      await repo.findOccurrence(space, toSkip.id),
+      await memory.findOccurrence(space, toSkip.id),
+    ]).toEqual([skipped, skipped]);
+    const { rows } = await pool.query(
+      "SELECT count(*)::int AS n FROM recurrence_occurrences WHERE space_id = $1",
+      [space],
+    );
+    expect([rows[0].n, memory.occurrenceRows.length]).toEqual([2, 2]);
   });
 });
