@@ -3,6 +3,7 @@ export * from "./result";
 export * from "./id";
 export * from "./local-date";
 export * from "./clock";
+export * from "./scheduler";
 export * from "./currency";
 export * from "./money";
 export * from "./period-policy";

@@ -6,6 +6,16 @@ const EnvSchema = z.object({
   BETTER_AUTH_URL: z.url(),
   APP_TIMEZONE: z.string().min(1).default("America/Bogota"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+  /**
+   * HU-E4-12: seconds between runs of the recurring-transactions job; 0 turns it off. Digits only: a blank value must
+   * not read as 0 (`Number("")`), which would turn the job off. One day at most, far below the largest timer delay.
+   */
+  RECURRENCE_JOB_INTERVAL_SECONDS: z
+    .string()
+    .regex(/^\d+$/)
+    .transform(Number)
+    .pipe(z.number().max(86_400))
+    .default(300),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

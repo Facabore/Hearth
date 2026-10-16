@@ -32,9 +32,9 @@ export type MaterializeDueOccurrences = (input: {
 /**
  * What is safe to say about a thrown error: its name and, when it carries a database error (Drizzle wraps the driver's
  * as the `cause`), its SQLSTATE and constraint. Never the message, the query or its parameters, which can carry
- * personal data.
+ * personal data. The job reports its own failures with it too (`logJobFailure`).
  */
-const failureOf = (error: unknown): Pick<MaterializationFailure, "error" | "code" | "constraint"> => {
+export const failureOf = (error: unknown): Pick<MaterializationFailure, "error" | "code" | "constraint"> => {
   if (!(error instanceof Error)) return { error: "NonErrorThrown" };
   const { code, constraint } = (error.cause ?? error) as { code?: unknown; constraint?: unknown };
   return {

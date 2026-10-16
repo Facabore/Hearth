@@ -19,6 +19,17 @@
 
 If a required variable is missing, Compose refuses to start and names it; a missing or invalid `BETTER_AUTH_SECRET` makes the `app` container exit with status 1 and the message `Missing or invalid environment variables: BETTER_AUTH_SECRET`.
 
+## Recurring transactions job
+
+The `app` container records due recurring transactions itself (HU-E4-12): a timer runs the job when the server starts, so a restart catches up the days it missed, and then `RECURRENCE_JOB_INTERVAL_SECONDS` after each run ends (default 300; `0` turns it off), so two runs of one container never overlap. No endpoint triggers it. Running it in two containers is safe: runs of one recurrence take turns on its row and a date is never recorded twice. Each run logs JSON lines, and never an error message, a query or its parameters:
+
+- `recurrence_occurrence_skipped` (`recurrenceId`, `spaceId`, `date`, `reason`): a date that was not recorded, with its reason, e.g. `PeriodClosed` for a closed plan's period.
+- `recurrence_paused` (`recurrenceId`, `spaceId`, `reason`): the recurrence paused, for `PayerLeft`, `CreatorLeft` or the code that refused its date.
+- `recurrence_materialization_failed` (`recurrenceId`, `spaceId`, `error`, and `code` and `constraint` for a database error): one recurrence failed and rolled back; the next run retries it.
+- `recurrence_job_failed` (`name`, and `code` and `constraint` for a database error): a whole run failed, for example because the database was unreachable; the next tick runs again.
+
+`next build` never starts the job. `next dev` does, every 300 s by default like the server: set `RECURRENCE_JOB_INTERVAL_SECONDS=0` in your local environment to keep it off while you develop.
+
 ## Reverse proxy and client addresses
 
 The sign-in and sign-up throttles key on the client address from `X-Forwarded-For`. Caddy replaces any client-sent value with the real peer address because no `trusted_proxies` are configured, and the `app` service publishes no port, so it is reachable only through Caddy. Keep both properties: never publish port 3000, and only add `trusted_proxies` if another proxy you control sits in front of Caddy.

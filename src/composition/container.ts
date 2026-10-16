@@ -84,6 +84,10 @@ import {
   type EndRecurrence,
   type PauseRecurrence,
   type ResumeRecurrence,
+  createMaterializeDueOccurrences,
+  occurrenceRecorders,
+  type MaterializeDeps,
+  type MaterializeDueOccurrences,
   type DeleteTransaction,
   type EditTransaction,
   type GetTransaction,
@@ -258,6 +262,7 @@ export interface Container extends RouteDeps {
     readonly pauseRecurrence: PauseRecurrence;
     readonly resumeRecurrence: ResumeRecurrence;
     readonly endRecurrence: EndRecurrence;
+    readonly materializeDueOccurrences: MaterializeDueOccurrences;
   };
   readonly balances: {
     readonly getSpaceBalances: GetSpaceBalances;
@@ -397,6 +402,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     recurrences: recurrenceRepository,
     occurrences: recurrenceRepository,
   };
+  // HU-E4-12, HU-E4-13: the scheduler's job and confirmations record through the ledger's own use cases (P21).
+  const materializeDeps: MaterializeDeps = { ...recurrenceDeps, recorders: occurrenceRecorders(ledgerDeps) };
   // HU-E1-13: a client cannot know a new direct space's category ids, so it names a catalog key (D11).
   const recordExpenseByCategoryKey = createRecordExpenseByCategoryKey(
     {
@@ -634,6 +641,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       pauseRecurrence: createPauseRecurrence(recurrenceDeps),
       resumeRecurrence: createResumeRecurrence(recurrenceDeps),
       endRecurrence: createEndRecurrence(recurrenceDeps),
+      materializeDueOccurrences: createMaterializeDueOccurrences(materializeDeps),
     },
     balances: {
       // HU-E5-01: the ledger aggregates per-member totals in SQL (D7); the balances module nets them.
@@ -668,10 +676,16 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   };
 };
 
-let container: Container | undefined;
+/**
+ * The process-wide container lives on `globalThis`, not in this module: Next.js bundles `instrumentation.ts`, which
+ * starts the recurring-transactions job (HU-E4-12), apart from the route handlers, so each loads its own copy of this
+ * module, and a module-level variable would give the process two containers and two database pools.
+ */
+const CONTAINER = Symbol.for("hearth.container");
+const shared = globalThis as { [CONTAINER]?: Container };
 
-export const getContainer = (): Container => (container ??= buildContainer(loadEnv()));
+export const getContainer = (): Container => (shared[CONTAINER] ??= buildContainer(loadEnv()));
 
 export const setContainerForTests = (next: Container | undefined): void => {
-  container = next;
+  shared[CONTAINER] = next;
 };

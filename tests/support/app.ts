@@ -21,6 +21,8 @@ export const startTestApp = (options: ContainerOptions = {}): Container => {
       BETTER_AUTH_URL: "http://localhost:3000",
       APP_TIMEZONE: "America/Bogota",
       LOG_LEVEL: "error",
+      // Only fills the required Env field: buildContainer never starts the job (register() does).
+      RECURRENCE_JOB_INTERVAL_SECONDS: 0,
     },
     { authLimits: RELAXED_LIMITS, ...options },
   );

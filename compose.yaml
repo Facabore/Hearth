@@ -34,6 +34,7 @@ services:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
       BETTER_AUTH_URL: https://${HEARTH_DOMAIN}
       APP_TIMEZONE: ${APP_TIMEZONE:-America/Bogota}
+      RECURRENCE_JOB_INTERVAL_SECONDS: ${RECURRENCE_JOB_INTERVAL_SECONDS:-300}
     depends_on:
       migrate: { condition: service_completed_successfully }
     networks: [internal]
