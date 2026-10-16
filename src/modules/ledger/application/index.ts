@@ -89,3 +89,10 @@ export type {
   RecurrenceDeps,
   RecurrenceRepository,
 } from "./recurrence-ports";
+export {
+  createDefineRecurrence,
+  type DefineRecurrence,
+  type DefineRecurrenceInput,
+} from "./define-recurrence";
+export { checkTemplate, type TemplateInput, type TemplateOwner } from "./recurrence-template";
+export { recurrenceView, viewsOf, type RecurrenceView } from "./recurrence-view";
