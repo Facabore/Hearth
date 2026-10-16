@@ -1,7 +1,15 @@
 import { z } from "zod";
-import { basisPointsOf, moneyFromDto, MoneySchema, PercentSchema } from "@/shared/http/contracts";
+import { basisPointsOf, moneyFromDto, MoneySchema, PercentSchema, percentOf } from "@/shared/http/contracts";
 import { localDate, ok, type Result } from "@/shared/kernel";
-import type { DefineRecurrenceInput, RecurrenceSplit, TemplateInput } from "../application";
+import type {
+  DefineRecurrenceInput,
+  Occurrence,
+  Recurrence,
+  RecurrenceSplit,
+  RecurrenceTemplate,
+  RecurrenceView,
+  TemplateInput,
+} from "../application";
 
 const Id = z.string().min(1).max(64);
 /** Participants per split: bounds the payload; membership is checked by the domain. */
@@ -134,4 +142,177 @@ export const recurrenceFromBody = (
     startDate: startDate.value,
     endDate: endDate.value,
   });
+};
+
+const TYPES = ["EXPENSE", "INCOME", "TRANSFER", "FUND_CONTRIBUTION"] as const;
+const OCCURRENCE_STATUSES = ["RECORDED", "PENDING", "SKIPPED"] as const;
+
+/** Spec 5.2: a recurrence's schedule follows the PeriodPolicy anchor rules (HU-E1-03). */
+export const ScheduleSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("MONTHLY"), day: z.number().int().min(1).max(31) }),
+  z.object({
+    kind: z.literal("SEMI_MONTHLY"),
+    day1: z.number().int().min(1).max(31),
+    day2: z.number().int().min(1).max(31),
+  }),
+]);
+
+const splitDto = (split: RecurrenceSplit): RecurrenceSplitDto => {
+  switch (split.method) {
+    case "EQUAL":
+      return { method: "EQUAL", participants: split.participants.map((p) => ({ memberId: p.memberId })) };
+    case "PERCENT":
+      return {
+        method: "PERCENT",
+        participants: split.participants.map((p) => ({
+          memberId: p.memberId,
+          percent: percentOf(p.basisPoints),
+        })),
+      };
+    case "SHARES":
+      return {
+        method: "SHARES",
+        participants: split.participants.map((p) => ({ memberId: p.memberId, units: p.units })),
+      };
+  }
+};
+
+/** HU-E4-12, HU-E4-13: one date of a recurrence and what became of it (ruling P31). */
+export const OccurrenceSchema = z.object({
+  id: z.string(),
+  recurrenceId: z.string(),
+  type: z.enum(TYPES),
+  description: z.string(),
+  date: z.iso.date(),
+  status: z.enum(OCCURRENCE_STATUSES),
+  /** RECORDED: the amount recorded; PENDING: the suggested estimate; SKIPPED: what it would have recorded. */
+  amount: MoneySchema,
+  categoryId: z.string().nullable(),
+  /** The transaction recorded for it; null unless RECORDED. */
+  transactionId: z.string().nullable(),
+  /** SKIPPED only: PeriodClosed, PayerLeft, CreatorLeft or the refusing code; null when a member skipped it. */
+  reason: z.string().nullable(),
+});
+
+/**
+ * HU-E4-11: a recurrence. Its template's references follow the Transaction fields: an expense's paying member (null:
+ * the fund) and paying account, an income's account, a transfer's two accounts, a contribution's member, source and fund.
+ */
+export const RecurrenceSchema = z.object({
+  id: z.string(),
+  type: z.enum(TYPES),
+  description: z.string(),
+  amount: MoneySchema,
+  mode: z.enum(MODES),
+  schedule: ScheduleSchema,
+  startDate: z.iso.date(),
+  endDate: z.iso.date().nullable(),
+  status: z.enum(["ACTIVE", "PAUSED", "ENDED"]),
+  /** PAUSED only: null when a member paused it, else PayerLeft, CreatorLeft or the code that refused an occurrence. */
+  pauseReason: z.string().nullable(),
+  /** The next date it will record; null while paused or once ended. */
+  nextOccurrence: z.iso.date().nullable(),
+  categoryId: z.string().nullable(),
+  payerMemberId: z.string().nullable(),
+  sourceAccountId: z.string().nullable(),
+  destinationAccountId: z.string().nullable(),
+  /** An expense's split; null is the default split of each occurrence (ruling P23). */
+  split: RecurrenceSplitSchema.nullable(),
+  /** The latest date it considered: the transaction recorded for it, or why it was skipped (ruling P31). */
+  lastOccurrence: z
+    .object({
+      id: z.string(),
+      date: z.iso.date(),
+      status: z.enum(OCCURRENCE_STATUSES),
+      amount: MoneySchema,
+      transactionId: z.string().nullable(),
+      reason: z.string().nullable(),
+    })
+    .nullable(),
+  createdBy: z.string(),
+  createdAt: z.iso.datetime(),
+});
+
+const references = (template: RecurrenceTemplate) => {
+  switch (template.type) {
+    case "EXPENSE":
+      return {
+        categoryId: template.categoryId,
+        payerMemberId: template.payer.memberId,
+        sourceAccountId: template.payer.accountId,
+        destinationAccountId: null,
+        split: template.split === null ? null : splitDto(template.split),
+      };
+    case "INCOME":
+      return {
+        categoryId: template.categoryId,
+        payerMemberId: null,
+        sourceAccountId: null,
+        destinationAccountId: template.accountId,
+        split: null,
+      };
+    case "TRANSFER":
+      return {
+        categoryId: null,
+        payerMemberId: null,
+        sourceAccountId: template.sourceAccountId,
+        destinationAccountId: template.destinationAccountId,
+        split: null,
+      };
+    case "FUND_CONTRIBUTION":
+      return {
+        categoryId: null,
+        payerMemberId: template.memberId,
+        sourceAccountId: template.sourceAccountId,
+        destinationAccountId: template.fundAccountId,
+        split: null,
+      };
+  }
+};
+
+export const occurrenceDto = (
+  occurrence: Occurrence,
+  recurrence: Recurrence,
+): z.infer<typeof OccurrenceSchema> => ({
+  id: occurrence.id,
+  recurrenceId: occurrence.recurrenceId,
+  type: recurrence.template.type,
+  description: recurrence.description,
+  date: occurrence.date,
+  status: occurrence.status,
+  amount: { amount: occurrence.amount.toString(), currency: recurrence.currency },
+  categoryId: references(recurrence.template).categoryId,
+  transactionId: occurrence.transactionId,
+  reason: occurrence.reason,
+});
+
+export const recurrenceDto = (view: RecurrenceView): z.infer<typeof RecurrenceSchema> => {
+  const { recurrence, lastOccurrence: last } = view;
+  return {
+    id: recurrence.id,
+    type: recurrence.template.type,
+    description: recurrence.description,
+    amount: { amount: recurrence.amount.toString(), currency: recurrence.currency },
+    mode: recurrence.mode,
+    schedule: recurrence.schedule,
+    startDate: recurrence.startDate,
+    endDate: recurrence.endDate,
+    status: view.status,
+    pauseReason: view.status === "PAUSED" ? recurrence.pauseReason : null,
+    nextOccurrence: view.nextOccurrence,
+    ...references(recurrence.template),
+    lastOccurrence:
+      last === null
+        ? null
+        : {
+            id: last.id,
+            date: last.date,
+            status: last.status,
+            amount: { amount: last.amount.toString(), currency: recurrence.currency },
+            transactionId: last.transactionId,
+            reason: last.reason,
+          },
+    createdBy: recurrence.createdBy,
+    createdAt: recurrence.createdAt.toISOString(),
+  };
 };
