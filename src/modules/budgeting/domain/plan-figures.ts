@@ -2,6 +2,7 @@ import { domainError, err, ok, type Result } from "@/shared/kernel";
 import { assignedAmounts, type LineAllocation } from "./allocation";
 import type { AllocationRule, BudgetLine, CategoryMapping } from "./budget-line";
 import { capacityOf, shareOfTotal, totalCapacity, type MemberCapacity } from "./capacity";
+import { carryOver } from "./rollover";
 
 /** What a plan holds: its capacities, current lines, current category mappings and current allocation values. */
 export interface PlanParts {
@@ -17,6 +18,12 @@ export interface PeriodSpending {
   readonly byCategory: readonly { readonly categoryId: string; readonly amount: bigint }[];
   /** Σ live transfers into each account that a SAVINGS line names. */
   readonly byAccount: readonly { readonly accountId: string; readonly amount: bigint }[];
+}
+
+/** HU-E6-09: what a line of the plan this one was copied from has available, by that line's id. */
+export interface PreviousAvailable {
+  readonly lineId: string;
+  readonly available: bigint;
 }
 
 export interface CapacityFigure {
@@ -46,6 +53,8 @@ export interface LineFigure {
   readonly capacityShareBasisPoints: number | null;
   readonly allocation: AllocationFigure;
   readonly spent: bigint;
+  /** HU-E6-09: carried from the line this one was copied from, by this line's rollover mode; 0 without one. */
+  readonly carryOver: bigint;
   readonly available: bigint;
 }
 
@@ -95,17 +104,19 @@ const allocationFigure = (
 };
 
 /**
- * HU-E6-02 … HU-E6-05, spec 5.4: every figure of a plan for its current members (`memberIds`, join order),
- * derived on read (D7). available = planned + carry-over − spent, and the carry-over is 0 until lines have an
- * origin (HU-E6-06, HU-E6-09).
+ * HU-E6-02 … HU-E6-05, HU-E6-09, spec 5.4: every figure of a plan for its current members (`memberIds`, join
+ * order), derived on read (D7). available = planned + carry-over − spent; a line's carry-over follows its origin
+ * line in `previousAvailable` (the figures of the plan it was copied from), by its own rollover mode (ruling P15),
+ * and is 0 without one.
  */
 export const planFigures = (input: {
   readonly currency: string;
   readonly memberIds: readonly string[];
   readonly parts: PlanParts;
   readonly spending: PeriodSpending;
+  readonly previousAvailable?: readonly PreviousAvailable[];
 }): PlanFigures => {
-  const { currency, memberIds, parts, spending } = input;
+  const { currency, memberIds, parts, spending, previousAvailable = [] } = input;
   const total = totalCapacity(parts.capacities, memberIds);
   const members = memberIds.map((memberId) => ({
     memberId,
@@ -121,13 +132,17 @@ export const planFigures = (input: {
   const lines = parts.lines.map((line): LineFigure => {
     const spent =
       line.funding === "SAVINGS" ? transfersInto(line.savingsAccountIds) : (spentOn.get(line.id) ?? 0n);
+    // HU-E6-09: by the origin link only, never by name.
+    const origin = previousAvailable.find((p) => p.lineId === line.originLineId);
+    const carried = carryOver(line.rolloverMode, origin?.available ?? null);
     return {
       line,
       categoryIds: parts.mappings.filter((m) => m.lineId === line.id).map((m) => m.categoryId),
       capacityShareBasisPoints: shareOfTotal(line.plannedAmount, total),
       allocation: allocationFigure(line, parts.allocations, members, currency),
       spent,
-      available: line.plannedAmount - spent,
+      carryOver: carried,
+      available: line.plannedAmount + carried - spent,
     };
   });
   const planned = parts.lines.reduce((sum, line) => sum + line.plannedAmount, 0n);
