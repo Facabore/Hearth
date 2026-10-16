@@ -15,6 +15,7 @@ import {
   RecordedExpenseSchema,
   TransactionSchema,
 } from "@/modules/ledger/contracts/ledger.contract";
+import { RecurrenceSchema } from "@/modules/ledger/contracts/recurrences.contract";
 import {
   InvitationSchema,
   SpaceMemberSchema,
@@ -56,6 +57,7 @@ export const buildOpenApiDocument = (): Record<string, unknown> =>
         Transaction: TransactionSchema,
         RecordedExpense: RecordedExpenseSchema,
         BudgetPlan: BudgetPlanSchema,
+        Recurrence: RecurrenceSchema,
       },
       securitySchemes: {
         cookieAuth: { type: "apiKey", in: "cookie", name: "hearth.session_token" },
