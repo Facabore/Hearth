@@ -105,6 +105,7 @@ const world = async (definition: DefineRecurrenceInput = rentDefinition()) => {
             : await w.deps.categories.find(spaceId, id);
         return category !== null && retired.has(id) ? { id, archived: true } : category;
       },
+      subcategoriesOf: (spaceId, ids) => w.deps.categories.subcategoriesOf(spaceId, ids),
     },
   };
   const defined = unwrap(await createDefineRecurrence(deps)(definition)).recurrence;

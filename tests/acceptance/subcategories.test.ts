@@ -10,9 +10,11 @@ import {
 import { POST as archiveCategory } from "@/app/api/v1/spaces/[spaceId]/categories/[categoryId]/archive/route";
 import { POST as restoreCategory } from "@/app/api/v1/spaces/[spaceId]/categories/[categoryId]/restore/route";
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
+import { GET as listTransactions } from "@/app/api/v1/spaces/[spaceId]/transactions/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
-import { categoryWithKey, cop, inSpace, newAccount, post } from "../support/ledger";
+import { activatePlan, lineNamed, planOf, putCategories, referencePlan } from "../support/budgeting";
+import { categoryWithKey, cop, household, inSpace, newAccount, post } from "../support/ledger";
 
 let app: Container;
 beforeAll(() => {
@@ -208,5 +210,88 @@ describe("the parent of a subcategory (HU-E3-04)", () => {
       });
       expect(await problemOf(moved)).toEqual([404, "CategoryNotFound"]);
     }
+  });
+});
+
+describe("subcategories roll up (HU-E3-04)", () => {
+  /** The October 2026 transactions of `user`'s space filtered by `categoryId`, with their totals. */
+  const listedBy = async (user: TestUser, categoryId: string) =>
+    (await (
+      await call(
+        listTransactions,
+        "GET",
+        inSpace(user, `transactions?period=2026-10&categoryIds=${categoryId}`),
+        { user, params: { spaceId: user.spaceId } },
+      )
+    ).json()) as { items: { categoryId: string }[]; totals: { expenses: { amount: string } } };
+
+  it("never requires a subcategory, and filters a category with its subcategories", async () => {
+    const h = await household();
+    const vegetables = await subcategory(h.ana, h.groceries, "Vegetables");
+    const restaurants = await categoryWithKey(h.ana, "restaurants");
+    for (const [categoryId, pesos] of [
+      [h.groceries, 85_000],
+      [vegetables.id, 40_000],
+      [restaurants, 60_000],
+    ] as const) {
+      const recorded = await post(recordExpense, h.ana, "expenses", {
+        date: "2026-10-12",
+        categoryId,
+        amount: cop(pesos),
+        accountId: h.ana.account,
+      });
+      expect(recorded.status).toBe(201);
+    }
+    const byGroceries = await listedBy(h.ana, h.groceries);
+    expect([byGroceries.items.length, byGroceries.totals.expenses]).toEqual([2, cop(125_000)]);
+    expect((await listedBy(h.ana, vegetables.id)).items.map((t) => t.categoryId)).toEqual([vegetables.id]);
+  });
+
+  // Archiving keeps a subcategory's transactions, so they stay in its category's list and totals.
+  it("still lists an archived subcategory's expense under its category, totals included", async () => {
+    const h = await household();
+    const vegetables = await subcategory(h.ana, h.groceries, "Vegetables");
+    const recorded = await post(recordExpense, h.ana, "expenses", {
+      date: "2026-10-12",
+      categoryId: vegetables.id,
+      amount: cop(40_000),
+      accountId: h.ana.account,
+    });
+    expect(recorded.status).toBe(201);
+    expect((await onCategory(archiveCategory, "POST", h.ana, vegetables.id)).status).toBe(200);
+    const byGroceries = await listedBy(h.ana, h.groceries);
+    expect([byGroceries.items.map((t) => t.categoryId), byGroceries.totals.expenses]).toEqual([
+      [vegetables.id],
+      cop(40_000),
+    ]);
+    expect((await listedBy(h.ana, vegetables.id)).items.map((t) => t.categoryId)).toEqual([vegetables.id]);
+  });
+
+  it("counts Vegetables and Meat as spent in Home and splits a Meat expense by Home's allocation", async () => {
+    const { h, planId, lineId } = await referencePlan();
+    const vegetables = await subcategory(h.ana, h.groceries, "Vegetables");
+    const meat = await subcategory(h.ana, h.groceries, "Meat");
+    expect((await putCategories(h.ana, h.spaceId, planId, lineId("Home"), [h.groceries])).status).toBe(200);
+    expect((await activatePlan(h.ana, h.spaceId, planId)).status).toBe(200);
+    let meatExpense: { shares: { splitMethod: string }[] } | undefined;
+    for (const [categoryId, pesos] of [
+      [vegetables.id, 40_000],
+      [meat.id, 60_000],
+      [h.groceries, 85_000],
+    ] as const) {
+      const recorded = await post(recordExpense, h.ana, "expenses", {
+        date: "2026-11-10",
+        categoryId,
+        amount: cop(pesos),
+        accountId: h.ana.account,
+      });
+      expect(recorded.status).toBe(201);
+      if (categoryId === meat.id) meatExpense = await recorded.json();
+    }
+    expect(lineNamed(await planOf(h.ana, h.spaceId, planId), "Home").spent).toEqual(cop(185_000));
+    expect(meatExpense?.shares.map((s) => s.splitMethod)).toEqual(["BY_ALLOCATION", "BY_ALLOCATION"]);
+    expect(
+      await problemOf(await putCategories(h.ana, h.spaceId, planId, lineId("Free"), [vegetables.id])),
+    ).toEqual([409, "SubcategoryNotMappable"]);
   });
 });

@@ -49,6 +49,7 @@ describe("RecordIncome (HU-E4-02)", () => {
       access: fakeSpaceAccess(household),
       categories: {
         find: async (spaceId, id) => (spaceId === "space-household" ? { id, archived: false } : null),
+        subcategoriesOf: async () => [],
       },
     });
     expect(codeOf(await createRecordIncome(deps)({ ...salary, spaceId: "space-household" }))).toBe(

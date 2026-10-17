@@ -46,11 +46,21 @@ export const createListTransactions =
           )
         : periodByLabel(space.periodPolicy, stored, input.period);
     if (!period.ok) return period;
+    // HU-E3-04, ruling P48: a category's filter also matches its subcategories; a subcategory matches itself.
+    const categoryIds =
+      input.categoryIds === undefined || input.categoryIds.length === 0
+        ? input.categoryIds
+        : [
+            ...new Set([
+              ...input.categoryIds,
+              ...(await deps.categories.subcategoriesOf(space.spaceId, input.categoryIds)),
+            ]),
+          ];
     const filter: TransactionFilter = {
       spaceId: space.spaceId,
       from: period.value.start,
       to: period.value.end,
-      categoryIds: input.categoryIds,
+      categoryIds,
       payerMemberId: input.payerMemberId,
       participantMemberId: input.participantMemberId,
       type: input.type,

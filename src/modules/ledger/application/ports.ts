@@ -30,6 +30,8 @@ export interface LedgerCategory {
 export interface CategoryReader {
   /** A category of the given space, archived ones included; null otherwise. */
   find(spaceId: string, categoryId: string): Promise<LedgerCategory | null>;
+  /** HU-E3-04: the ids of the subcategories (archived ones included, deleted ones not) of the listed categories. */
+  subcategoriesOf(spaceId: string, categoryIds: readonly string[]): Promise<string[]>;
 }
 
 /**

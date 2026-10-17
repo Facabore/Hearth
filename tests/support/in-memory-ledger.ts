@@ -73,11 +73,19 @@ interface CategoryRow {
   readonly id: string;
   readonly spaceId: string;
   readonly archived: boolean;
+  readonly parentCategoryId?: string;
 }
 
 export const CATEGORIES = {
   groceries: { id: "cat-groceries", spaceId: "space-ana", archived: false },
   restaurants: { id: "cat-restaurants", spaceId: "space-ana", archived: false },
+  // HU-E3-04: a subcategory of Groceries.
+  vegetables: {
+    id: "cat-vegetables",
+    spaceId: "space-ana",
+    archived: false,
+    parentCategoryId: "cat-groceries",
+  },
   salary: { id: "cat-salary", spaceId: "space-ana", archived: false },
   archived: { id: "cat-archived", spaceId: "space-ana", archived: true },
   juanFood: { id: "cat-juan-food", spaceId: "space-juan", archived: false },
@@ -93,6 +101,12 @@ const categoryReader = (rows: readonly CategoryRow[]): CategoryReader => ({
     const row = rows.find((r) => r.spaceId === spaceId && r.id === id);
     return row ? { id: row.id, archived: row.archived } : null;
   },
+  subcategoriesOf: async (spaceId, ids) =>
+    rows
+      .filter(
+        (r) => r.spaceId === spaceId && r.parentCategoryId !== undefined && ids.includes(r.parentCategoryId),
+      )
+      .map((r) => r.id),
 });
 
 type Ordered = Pick<Transaction, "date" | "occurredAt" | "createdAt"> & { readonly id: string };

@@ -412,6 +412,11 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         );
         return category ? { id: category.id, archived: category.archivedAt !== null } : null;
       },
+      // HU-E3-04: the filter's subcategories; listCategories skips deleted rows and keeps archived ones.
+      subcategoriesOf: async (spaceId, categoryIds) =>
+        (await categoriesDeps.categories.listCategories(spaceId))
+          .filter((c) => c.parentCategoryId !== null && categoryIds.includes(c.parentCategoryId))
+          .map((c) => c.id),
     },
     // HU-E4-06, HU-E6-07: a CLOSED plan's period takes no change; budgeting answers, the ledger never imports it.
     closedPeriods: createClosedPeriodGuard(budgetPlans),

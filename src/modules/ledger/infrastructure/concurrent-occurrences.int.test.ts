@@ -72,6 +72,7 @@ const ledgerDeps = (): LedgerDeps => ({
       const category = (await categories.listCategories(spaceId)).find((c) => c.id === categoryId);
       return category ? { id: category.id, archived: category.archivedAt !== null } : null;
     },
+    subcategoriesOf: async () => [],
   },
   closedPeriods: { isClosed: async () => false },
   defaultSplits: { allocationWeights: async () => null },

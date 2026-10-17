@@ -370,7 +370,7 @@ describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Foc
         }),
       },
       accountBalances: { balanceOf: async () => 0n },
-      categories: { find: async (_, id) => ({ id, archived: false }) },
+      categories: { find: async (_, id) => ({ id, archived: false }), subcategoriesOf: async () => [] },
       closedPeriods,
       defaultSplits: { allocationWeights: async () => null },
       storedPeriods: (spaceId) => plans.storedPeriods(spaceId),
