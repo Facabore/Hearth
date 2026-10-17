@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { NO_ATTRIBUTES } from "@/modules/accounts/domain/account";
 import { DrizzleAccountRepository } from "@/modules/accounts/infrastructure/drizzle-account-repository";
+import { CUSTOM_GROUP_STYLE } from "@/modules/categories/domain/category-style";
 import { DrizzleCategoryRepository } from "@/modules/categories/infrastructure/drizzle-category-repository";
 import { createPersonalSpace, createSharedSpace, type Space } from "@/modules/spaces/domain/space";
 import { DrizzleSpaceRepository } from "@/modules/spaces/infrastructure/drizzle-space-repository";
@@ -70,6 +71,8 @@ export const categoryFixture = async (
       id: groupId,
       spaceId: space.spaceId,
       name: `Group ${groupId}`,
+      key: null,
+      style: CUSTOM_GROUP_STYLE,
       archivedAt: null,
       createdAt: new Date(),
     },
@@ -81,6 +84,7 @@ export const categoryFixture = async (
       groupId,
       parentCategoryId: null,
       name,
+      style: CUSTOM_GROUP_STYLE,
       key: null,
       archivedAt: null,
       createdAt: new Date(),

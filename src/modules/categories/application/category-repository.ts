@@ -14,9 +14,9 @@ export interface CategoryRepository {
   listGroups(spaceId: string): Promise<CategoryGroup[]>;
   /** Every category of the space that is not deleted (D8, Task 0a), archived ones included. */
   listCategories(spaceId: string): Promise<Category[]>;
-  /** Persists name and archive state. */
+  /** Persists name, style and archive state. */
   saveGroup(group: CategoryGroup): Promise<void>;
-  /** Persists name, group and archive state of each category. */
+  /** Persists name, group, parent, style and archive state of each category. */
   saveCategories(categories: readonly Category[]): Promise<void>;
   /** D8 (Task 0a): logical; the row and every reference to it stay, and `listCategories` skips it. */
   deleteCategory(spaceId: string, categoryId: string, deletedAt: Date): Promise<void>;

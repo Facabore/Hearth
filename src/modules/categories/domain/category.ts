@@ -1,4 +1,11 @@
 import { domainError, err, ok, type Id, type Result } from "@/shared/kernel";
+import {
+  CUSTOM_GROUP_STYLE,
+  changesStyle,
+  restyled,
+  type CategoryStyle,
+  type StyleChange,
+} from "./category-style";
 
 export type CategoryGroupId = Id<"CategoryGroup">;
 export type CategoryId = Id<"Category">;
@@ -7,6 +14,10 @@ export interface CategoryGroup {
   readonly id: CategoryGroupId;
   readonly spaceId: string;
   readonly name: string;
+  /** HU-E3-05: the immutable catalog key of a seeded group (spec D11, like `Category.key`); null for groups users create. */
+  readonly key: string | null;
+  /** HU-E3-05: the group's icon and color. */
+  readonly style: CategoryStyle;
   readonly archivedAt: Date | null;
   readonly createdAt: Date;
 }
@@ -20,6 +31,8 @@ export interface Category {
   readonly name: string;
   /** Stable catalog key of seeded categories (spec D11); null for categories users create. */
   readonly key: string | null;
+  /** HU-E3-05: its own icon and color; null for a subcategory, which shows its parent's (`shownStyle`). */
+  readonly style: CategoryStyle | null;
   readonly archivedAt: Date | null;
   readonly createdAt: Date;
 }
@@ -60,12 +73,14 @@ const usableParent = (parent: Category): Result<Category> => {
   return parent.archivedAt === null ? ok(parent) : err(domainError("ParentCategoryArchived"));
 };
 
+/** HU-E3-02, HU-E3-05: a group takes `style` over the custom default (`tag`, `GRAPHITE`) and has no catalog key. */
 export const newGroup = (input: {
   id: CategoryGroupId;
   spaceId: string;
   name: string;
   now: Date;
   groups: readonly CategoryGroup[];
+  style?: StyleChange;
 }): Result<CategoryGroup> => {
   const name = nameOf(input.name);
   if (!name.ok) return name;
@@ -75,10 +90,18 @@ export const newGroup = (input: {
     id: input.id,
     spaceId: input.spaceId,
     name: name.value,
+    key: null,
+    style: restyled(CUSTOM_GROUP_STYLE, input.style ?? {}),
     archivedAt: null,
     createdAt: input.now,
   });
 };
+
+/** HU-E3-05: a new icon and/or color for a group; its categories keep theirs (each copied its own at creation). */
+export const restyleGroup = (group: CategoryGroup, change: StyleChange): CategoryGroup => ({
+  ...group,
+  style: restyled(group.style, change),
+});
 
 export const renameGroup = (
   group: CategoryGroup,
@@ -93,9 +116,27 @@ export const renameGroup = (
   return ok({ ...group, name: name.value });
 };
 
+/** HU-E3-05, ruling P58: a category's own style, `change` over `base`; a subcategory has none and refuses one. */
+const ownStyle = (
+  parentCategoryId: string | null,
+  base: CategoryStyle,
+  change: StyleChange,
+): Result<CategoryStyle | null> => {
+  if (parentCategoryId === null) return ok(restyled(base, change));
+  return changesStyle(change) ? err(domainError("ValidationFailed", { field: "style" })) : ok(null);
+};
+
 /**
- * HU-E3-02, HU-E3-04: a category of `group`, or, with `parent`, a subcategory of it. `group` must be the parent's
- * group: the use case derives it from the parent, and this function does not check the pair.
+ * HU-E3-05, ruling P57: the style a category shows: its own, or a subcategory's parent's, derived on every read so it
+ * follows the parent. A live subcategory's parent is never deleted (HU-E3-04), so the fallback is never reached.
+ */
+export const shownStyle = (category: Category, categories: readonly Category[]): CategoryStyle =>
+  category.style ?? categories.find((c) => c.id === category.parentCategoryId)?.style ?? CUSTOM_GROUP_STYLE;
+
+/**
+ * HU-E3-02, HU-E3-04, HU-E3-05: a category of `group`, or, with `parent`, a subcategory of it. `group` must be the
+ * parent's group: the use case derives it from the parent, and this function does not check the pair. A category
+ * starts from a copy of its group's style with `style` over it; a subcategory has none.
  */
 export const newCategory = (input: {
   id: CategoryId;
@@ -104,6 +145,7 @@ export const newCategory = (input: {
   name: string;
   now: Date;
   categories: readonly Category[];
+  style?: StyleChange;
 }): Result<Category> => {
   if (input.group.archivedAt !== null) return err(domainError("CategoryGroupArchived"));
   if (input.parent !== undefined) {
@@ -114,6 +156,8 @@ export const newCategory = (input: {
   if (!name.ok) return name;
   const siblings = { groupId: input.group.id, parentCategoryId: input.parent?.id ?? null };
   if (nameTakenIn(input.categories, siblings, name.value)) return err(domainError("CategoryNameTaken"));
+  const style = ownStyle(siblings.parentCategoryId, input.group.style, input.style ?? {});
+  if (!style.ok) return style;
   return ok({
     id: input.id,
     spaceId: input.group.spaceId,
@@ -121,6 +165,7 @@ export const newCategory = (input: {
     parentCategoryId: siblings.parentCategoryId,
     name: name.value,
     key: null,
+    style: style.value,
     archivedAt: null,
     createdAt: input.now,
   });
@@ -134,7 +179,13 @@ export const newCategory = (input: {
  */
 export const reviseCategory = (
   category: Category,
-  change: { readonly name?: string; readonly group?: CategoryGroup; readonly parent?: Category | null },
+  change: {
+    readonly name?: string;
+    readonly group?: CategoryGroup;
+    readonly parent?: Category | null;
+    /** HU-E3-05: a new icon and/or color; `ValidationFailed` when the result is a subcategory. */
+    readonly style?: StyleChange;
+  },
   categories: readonly Category[],
 ): Result<Category> => {
   const name = change.name === undefined ? ok(category.name) : nameOf(change.name);
@@ -158,7 +209,10 @@ export const reviseCategory = (
   if (nameTakenIn(categories, { groupId, parentCategoryId }, name.value, category.id)) {
     return err(domainError("CategoryNameTaken"));
   }
-  return ok({ ...category, name: name.value, groupId, parentCategoryId });
+  // HU-E3-05: a category keeps the style it shows, so a subcategory that becomes one keeps a copy of its parent's.
+  const style = ownStyle(parentCategoryId, shownStyle(category, categories), change.style ?? {});
+  if (!style.ok) return style;
+  return ok({ ...category, name: name.value, groupId, parentCategoryId, style: style.value });
 };
 
 /** HU-E3-04: a category's subcategories follow it to its group; the revised category comes first. */
