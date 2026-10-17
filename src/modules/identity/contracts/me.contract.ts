@@ -3,6 +3,7 @@ import type { ZodOpenApiPathsObject } from "zod-openapi";
 import { problemContent } from "@/shared/http/contracts";
 import {
   DATE_FORMATS,
+  LOCALES,
   LOCKABLE_FIELDS,
   NUMBER_FORMATS,
   TIME_FORMATS,
@@ -45,17 +46,23 @@ export const ProfileResponseSchema = MeResponseSchema.extend({
   }),
 });
 
-/** HU-E1-14: the profile fields a user changes; validity of the zone is checked by the use case. */
-export const UpdateMeBodySchema = z.object({ timezone: z.string().min(1).max(64).optional() });
+/**
+ * HU-E1-14, HU-E1-15: the profile fields a user changes. An omitted field is unchanged and `null` returns a format to
+ * the installation rule; the zone's validity and the locks are the use case's.
+ */
+export const UpdateMeBodySchema = z.object({
+  timezone: z.string().min(1).max(64).optional(),
+  locale: z.enum(LOCALES).optional(),
+  numberFormat: NumberFormat.nullable().optional(),
+  timeFormat: TimeFormat.nullable().optional(),
+  dateFormat: DateFormat.nullable().optional(),
+  weekStart: WeekStart.nullable().optional(),
+});
 
-/** HU-E1-15: the profile as `GET /api/v1/me` answers it (and `PATCH` from Task 18b-2). */
+/** HU-E1-15: the profile as `GET` and `PATCH /api/v1/me` answer it. */
 export const meDto = (view: ProfileView) => ({ ...view.user, preferences: view.preferences });
 
 const security: Record<string, string[]>[] = [{ cookieAuth: [] }, { bearerAuth: [] }];
-const user = (description: string) => ({
-  description,
-  content: { "application/json": { schema: MeResponseSchema } },
-});
 const profile = (description: string) => ({
   description,
   content: { "application/json": { schema: ProfileResponseSchema } },
@@ -74,12 +81,13 @@ export const mePaths: ZodOpenApiPathsObject = {
     },
     patch: {
       operationId: "updateMe",
-      summary: "Change the signed-in user's time zone (HU-E1-14)",
+      summary: "Change the signed-in user's time zone, language and formats (HU-E1-14, HU-E1-15)",
       security,
       requestBody: { content: { "application/json": { schema: UpdateMeBodySchema } } },
       responses: {
-        "200": user("The updated user"),
+        "200": profile("The updated user"),
         "401": { description: "Not signed in", content: problemContent },
+        "409": { description: "PreferenceLocked", content: problemContent },
         "422": { description: "ValidationFailed, InvalidTimeZone", content: problemContent },
       },
     },

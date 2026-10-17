@@ -202,3 +202,9 @@ describe("statusForCode (HU-E1-14, HU-E4-14)", () => {
     expect(statusForCode(code)).toBe(status);
   });
 });
+
+describe("statusForCode (HU-E1-15)", () => {
+  it("maps PreferenceLocked to 409", () => {
+    expect(statusForCode("PreferenceLocked")).toBe(409);
+  });
+});

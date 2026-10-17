@@ -33,6 +33,8 @@ const EXPLICIT: ReadonlyMap<string, number> = new Map([
   ["InvitationEmailMismatch", 403],
   ["PasswordTooShort", 422],
   ["EmailTaken", 409],
+  // HU-E1-15: the installation rules lock the field; explicit, as the story asks.
+  ["PreferenceLocked", 409],
   ["IdempotencyKeyConflict", 409],
   ["PreconditionFailed", 412],
   ["TooManyRequests", 429],

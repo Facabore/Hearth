@@ -18,7 +18,11 @@ export const PATCH = defineRoute({
   auth: "required",
   body: UpdateMeBodySchema,
   handler: async ({ user, body }) => {
-    const result = await getContainer().identity.updateProfile({ user: user!, timezone: body.timezone });
-    return result.ok ? ok({ status: 200, body: result.value }) : result;
+    const { identity } = getContainer();
+    const updated = await identity.updateProfile({ ...body, user: user! });
+    if (!updated.ok) return updated;
+    // HU-E1-15: the answer shows what applies after the change.
+    const profile = await identity.getProfile({ user: updated.value });
+    return profile.ok ? ok({ status: 200, body: meDto(profile.value) }) : profile;
   },
 });
