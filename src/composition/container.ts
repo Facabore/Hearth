@@ -374,6 +374,15 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   const budgetPlans = new DrizzleBudgetPlanRepository(tm);
   const storedPeriods: StoredPeriodSource = (spaceId) => budgetPlans.storedPeriods(spaceId);
   const getAccount = createGetAccount(accountsDeps);
+  // HU-E6-04: plans map the space's live categories; deleted ones never appear (D8).
+  const budgetCategories: BudgetCategories = {
+    list: async (spaceId) =>
+      (await categoriesDeps.categories.listCategories(spaceId)).map((c) => ({
+        id: c.id,
+        archived: c.archivedAt !== null,
+        parentCategoryId: c.parentCategoryId,
+      })),
+  };
   const ledgerDeps: LedgerDeps = {
     access,
     transactions: new DrizzleTransactionRepository(tm),
@@ -410,7 +419,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     // the ledger asks budgeting through its own port, so neither module imports the other.
     defaultSplits: {
       allocationWeights: async (expense) => {
-        const split = await defaultSplitOf({ plans: budgetPlans }, expense);
+        const split = await defaultSplitOf({ plans: budgetPlans, categories: budgetCategories }, expense);
         return split.method === "BY_ALLOCATION" ? split.weights : null;
       },
     },
@@ -495,14 +504,6 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
           }
         : null;
     },
-  };
-  // HU-E6-04: plans map the space's live categories; deleted ones never appear (D8).
-  const budgetCategories: BudgetCategories = {
-    list: async (spaceId) =>
-      (await categoriesDeps.categories.listCategories(spaceId)).map((c) => ({
-        id: c.id,
-        archived: c.archivedAt !== null,
-      })),
   };
   // HU-E6-01 … HU-E6-05: plans reach members, accounts, categories and the ledger's spending only through ports.
   const budgetingDeps = {

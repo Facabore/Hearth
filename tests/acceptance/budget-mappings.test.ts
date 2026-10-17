@@ -63,6 +63,17 @@ const newCategory = async (user: TestUser, name: string) => {
   return ((await created.json()) as { id: string }).id;
 };
 
+/** `user` adds a subcategory named `name` under `parentCategoryId` (HU-E3-04); returns its id. */
+const newSubcategory = async (user: TestUser, parentCategoryId: string, name: string) => {
+  const created = await call(createCategory, "POST", `/api/v1/spaces/${user.spaceId}/categories`, {
+    user,
+    params: { spaceId: user.spaceId },
+    body: { parentCategoryId, name },
+  });
+  expect(created.status).toBe(201);
+  return ((await created.json()) as { id: string }).id;
+};
+
 /** The reference plan with Groceries and Utilities mapped to Home (HU-E6-04 Background and first scenario). */
 const mapped = async () => {
   const ref = await referencePlan();
@@ -117,6 +128,19 @@ describe("category to line mapping (HU-E6-04)", () => {
       spent: cop(60_000),
       available: cop(-60_000),
     });
+  });
+
+  it("counts a Vegetables expense, a subcategory of Groceries, as spent in Home, and refuses to map Vegetables (HU-E3-04)", async () => {
+    const { h, planId, lineId, categories } = await mapped();
+    const vegetables = await newSubcategory(h.ana, categories.groceries, "Vegetables");
+    await spends(h.ana, vegetables, 40_000, "2026-11-10");
+    const plan = await planOf(h.juan, h.spaceId, planId);
+    expect([lineNamed(plan, "Home").spent, plan.unbudgeted]).toEqual([
+      cop(40_000),
+      { spent: cop(0), available: cop(0) },
+    ]);
+    const refused = await putCategories(h.ana, h.spaceId, planId, lineId("Free"), [vegetables]);
+    expect(await problemOf(refused)).toEqual([409, "SubcategoryNotMappable"]);
   });
 
   it("counts live expenses dated within the plan's period, and the transfers into the savings account", async () => {

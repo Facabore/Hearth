@@ -7554,7 +7554,7 @@
             }
           },
           "409": {
-            "description": "PeriodClosed, CategoryAlreadyMapped, CategoryArchived, SavingsLineNotMappable, SpaceArchived",
+            "description": "PeriodClosed, CategoryAlreadyMapped, CategoryArchived, SavingsLineNotMappable, SpaceArchived, SubcategoryNotMappable",
             "content": {
               "application/problem+json": {
                 "schema": {

@@ -1,6 +1,6 @@
 import type { SpaceAccess, SpaceMemberRepository } from "@/modules/spaces/application";
 import type { Clock, IdGenerator, TransactionManager } from "@/shared/kernel";
-import type { BudgetPlanRepository, PlanSpending, SavingsAccountReader } from "./ports";
+import type { BudgetCategories, BudgetPlanRepository, PlanSpending, SavingsAccountReader } from "./ports";
 
 /** What every budgeting use case needs; the composition root binds each port (budgeting imports only spaces). */
 export interface BudgetingDeps {
@@ -11,6 +11,8 @@ export interface BudgetingDeps {
   readonly spending: PlanSpending;
   /** The accounts SAVINGS lines name: lines attach only their caller's own, and figures count only current members'. */
   readonly savingsAccounts: SavingsAccountReader;
+  /** HU-E3-04: the space's live categories with their parents, so subcategories roll up (D20). */
+  readonly categories: BudgetCategories;
   readonly ids: IdGenerator;
   readonly clock: Clock;
   readonly tm: TransactionManager;

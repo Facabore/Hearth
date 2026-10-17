@@ -2,9 +2,9 @@ import { authorizeSpaceAction, type SpaceId } from "@/modules/spaces/application
 import { domainError, err, Money, ok, type LocalDate, type Result } from "@/shared/kernel";
 import { assignedAmounts } from "../domain/allocation";
 import { capacityOf } from "../domain/capacity";
+import { rolledUpCategory, type CategoryParent } from "../domain/category-rollup";
 import { lineForCategory } from "../domain/plan-figures";
 import type { BudgetingDeps } from "./deps";
-import type { BudgetCategories } from "./ports";
 
 /** The ledger's split methods, as a member picks them (spec 5.2 Share); BY_ALLOCATION only as the default. */
 export const SPLIT_METHODS = ["BY_ALLOCATION", "EQUAL", "PERCENT", "EXACT", "SHARES"] as const;
@@ -34,10 +34,13 @@ export interface DefaultSplit {
  * assigned amounts for the expense's `memberIds`, the positive ones only; EQUAL among them otherwise: no plan, a
  * DRAFT or CLOSED one, no line, a NONE line, or an allocation that does not hold (ruling P16). The caller read those
  * ids (the space's current members) and nobody else is ever named. It authorizes nothing: its callers have.
+ * HU-E3-04: an expense in a subcategory follows its parent's line, by the space's categories; a caller that read
+ * them passes them as `categories`, and without them they are read here once, when a plan applies.
  */
 export const defaultSplitOf = async (
-  deps: Pick<BudgetingDeps, "plans">,
+  deps: Pick<BudgetingDeps, "plans" | "categories">,
   expense: ExpenseToSplit,
+  categories?: readonly CategoryParent[],
 ): Promise<DefaultSplit> => {
   const equal = (lineId: string | null): DefaultSplit => ({
     method: "EQUAL",
@@ -47,7 +50,11 @@ export const defaultSplitOf = async (
   const plan = await deps.plans.covering(expense.spaceId, expense.date);
   if (plan === null || plan.status !== "ACTIVE") return equal(null);
   const parts = await deps.plans.contents(plan.id);
-  const lineId = lineForCategory(expense.categoryId, parts);
+  const categoryId = rolledUpCategory(
+    expense.categoryId,
+    categories ?? (await deps.categories.list(expense.spaceId)),
+  );
+  const lineId = lineForCategory(categoryId, parts);
   const line = parts.lines.find((l) => l.id === lineId);
   if (line === undefined) return equal(null);
   const assigned = assignedAmounts(
@@ -82,15 +89,13 @@ export type ResolveDefaultSplit = (input: {
   amount: bigint | null;
 }) => Promise<Result<DefaultSplitView>>;
 
-export type DefaultSplitDeps = BudgetingDeps & { readonly categories: BudgetCategories };
-
 /**
  * HU-E6-08 ResolveDefaultSplit, the public query behind GET …/default-split: any member previews the default split
  * of an expense in a live category of the space (archived ones included), and of an amount when given. A preview
  * records nothing, so it is space.read and archived spaces answer it too.
  */
 export const createResolveDefaultSplit =
-  (deps: DefaultSplitDeps): ResolveDefaultSplit =>
+  (deps: BudgetingDeps): ResolveDefaultSplit =>
   async (input) => {
     const reader = await authorizeSpaceAction(deps.access, input.spaceId, input.userId, "space.read");
     if (!reader.ok) return reader;
@@ -99,13 +104,17 @@ export const createResolveDefaultSplit =
     const categories = await deps.categories.list(space.spaceId);
     if (!categories.some((c) => c.id === input.categoryId)) return err(domainError("CategoryNotInSpace"));
     const members = await deps.members.listCurrent(space.spaceId);
-    const split = await defaultSplitOf(deps, {
-      spaceId: space.spaceId,
-      currency: space.currency,
-      categoryId: input.categoryId,
-      date: input.date,
-      memberIds: members.map((m) => m.id),
-    });
+    const split = await defaultSplitOf(
+      deps,
+      {
+        spaceId: space.spaceId,
+        currency: space.currency,
+        categoryId: input.categoryId,
+        date: input.date,
+        memberIds: members.map((m) => m.id),
+      },
+      categories,
+    );
     let shares: { memberId: string; amount: bigint }[] | null = null;
     if (input.amount !== null) {
       const total = Money.ofMinor(input.amount, space.currency);

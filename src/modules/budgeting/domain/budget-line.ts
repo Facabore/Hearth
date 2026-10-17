@@ -144,7 +144,11 @@ export const checkedMapping = (
   line: Pick<BudgetLine, "id" | "funding">,
   categoryIds: readonly string[],
   context: {
-    readonly categories: readonly { readonly id: string; readonly archived: boolean }[];
+    readonly categories: readonly {
+      readonly id: string;
+      readonly archived: boolean;
+      readonly parentCategoryId?: string | null;
+    }[];
     readonly mappings: readonly CategoryMapping[];
   },
 ): Result<string[]> => {
@@ -155,6 +159,8 @@ export const checkedMapping = (
     if (own.has(categoryId)) continue;
     const category = context.categories.find((c) => c.id === categoryId);
     if (category === undefined) return err(domainError("CategoryNotInSpace"));
+    // HU-E3-04: only categories are mapped; a subcategory follows its parent (D20).
+    if ((category.parentCategoryId ?? null) !== null) return err(domainError("SubcategoryNotMappable"));
     if (category.archived) return err(domainError("CategoryArchived"));
     if (context.mappings.some((m) => m.categoryId === categoryId))
       return err(domainError("CategoryAlreadyMapped"));

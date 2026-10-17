@@ -170,6 +170,7 @@ const household = async () => {
     members: spaces,
     plans,
     spending: nothingSpent,
+    categories: { list: async () => [] },
     // Any account is one of Ana's COP savings accounts: only the plan's lines decide whether it is still free.
     savingsAccounts: {
       find: async (id: string) => ({

@@ -213,6 +213,21 @@ describe("ResolveDefaultSplit (HU-E6-08, spec 5.3)", () => {
 });
 
 describe("defaultSplitOf (what the ledger's DefaultSplitSource answers)", () => {
+  it("ignores a mapping of Meat, which became a subcategory of Groceries: the expense follows Home (HU-E3-04)", async () => {
+    const { deps, spaces, plans, plan } = await world();
+    plans.seed(plan.id, { mappings: [{ lineId: "line-free", categoryId: "cat-meat" }] });
+    const split = await defaultSplitOf(deps, { ...(await askedBy(spaces)), categoryId: "cat-meat" });
+    expect([split.method, split.lineId]).toEqual(["BY_ALLOCATION", "line-home"]);
+  });
+
+  it("gives a Meat expense, a subcategory of Groceries, Home's allocation like Groceries itself (HU-E3-04)", async () => {
+    const { deps, spaces } = await world();
+    const asked = await askedBy(spaces);
+    const parent = await defaultSplitOf(deps, asked);
+    expect(parent.method).toBe("BY_ALLOCATION");
+    expect(await defaultSplitOf(deps, { ...asked, categoryId: "cat-meat" })).toEqual(parent);
+  });
+
   it("weighs the current members only: once Juan left, Ana alone carries Home", async () => {
     const { deps, spaces } = await world();
     expect(await defaultSplitOf(deps, await askedBy(spaces))).toEqual({
@@ -306,6 +321,27 @@ describe("defaultSplitOf (what the ledger's DefaultSplitSource answers)", () => 
       lineId: "line-home",
       weights: ids.map((memberId) => ({ memberId, weight: 1n })),
     });
+  });
+});
+
+describe("the categories a default split reads", () => {
+  it("are read once per preview, for the membership check and the roll-up alike", async () => {
+    const { deps } = await world();
+    const asked: string[] = [];
+    const categories = {
+      list: async (spaceId: string) => {
+        asked.push(spaceId);
+        return householdCategories.list(spaceId);
+      },
+    };
+    const meat = await createResolveDefaultSplit({ ...deps, categories })({
+      spaceId: HOUSEHOLD,
+      userId: "u-ana",
+      categoryId: "cat-meat",
+      date: "2026-11-08" as LocalDate,
+      amount: null,
+    });
+    expect([unwrap(meat).lineId, asked]).toEqual(["line-home", [HOUSEHOLD]]);
   });
 });
 

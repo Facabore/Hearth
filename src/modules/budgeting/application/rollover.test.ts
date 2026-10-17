@@ -89,6 +89,22 @@ describe("carry-over along the chain of copies (HU-E6-09)", () => {
     expect(home(december)).toEqual(["Home", pesos(200_000), pesos(1_670_000)]);
   });
 
+  it("reads the space's categories once for the whole chain it walks, not once per plan (HU-E3-04)", async () => {
+    const { copyInto, deps } = await world("ROLLOVER", { "2026-11-01": pesos(1_270_000) });
+    await copyInto("2026-12");
+    const january = await copyInto("2027-01");
+    const asked: string[] = [];
+    const categories = {
+      list: async (spaceId: string) => {
+        asked.push(spaceId);
+        return householdCategories.list(spaceId);
+      },
+    };
+    const read = createGetBudgetPlan({ ...deps, categories });
+    unwrap(await read({ spaceId: HOUSEHOLD, userId: "u-ana", planId: january.plan.id }));
+    expect(asked).toEqual([HOUSEHOLD]);
+  });
+
   it("reads no earlier plan when no line carries over", async () => {
     const { copyInto, spending } = await world("RESET", { "2026-11-01": pesos(1_270_000) });
     spending.asked.length = 0;

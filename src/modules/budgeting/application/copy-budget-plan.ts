@@ -1,4 +1,5 @@
 import { addDays, domainError, err, ok, type Result } from "@/shared/kernel";
+import { mappable } from "../domain/category-rollup";
 import { copiedParts, type CopyDrops } from "../domain/plan-copy";
 import { openedPlan, type NewPlanInput } from "./create-budget-plan";
 import type { BudgetingDeps } from "./deps";
@@ -6,7 +7,6 @@ import { copyableSavingsAccounts } from "./line-checks";
 import { loadPlanView, type BudgetPlanView } from "./plan-view";
 import type {
   AllocationRepository,
-  BudgetCategories,
   BudgetLineRepository,
   CapacityRepository,
   CategoryMappingRepository,
@@ -25,7 +25,6 @@ export type CopyDeps = BudgetingDeps & {
   readonly lines: BudgetLineRepository;
   readonly mappings: CategoryMappingRepository;
   readonly allocations: AllocationRepository;
-  readonly categories: BudgetCategories;
 };
 
 /**
@@ -56,7 +55,8 @@ export const createCopyBudgetPlan =
         source: parts,
         lineIds: parts.lines.map(() => deps.ids.next<"BudgetLine">()),
         memberIds: members.map((m) => m.id),
-        categories: await deps.categories.list(space.spaceId),
+        // HU-E3-04, ruling P48: a mapping of a category that became a subcategory is dropped like an archived one.
+        categories: mappable(await deps.categories.list(space.spaceId)),
         usableAccountIds: await copyableSavingsAccounts(
           deps.savingsAccounts,
           { members, spaceCurrency: space.currency },

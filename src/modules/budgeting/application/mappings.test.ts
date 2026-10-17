@@ -198,3 +198,62 @@ describe("MapCategoriesToLine (HU-E6-04)", () => {
     expect(plans.mappings).toEqual([]);
   });
 });
+
+describe("subcategories (HU-E3-04)", () => {
+  it("counts Vegetables and Meat as spent where Groceries is mapped, and refuses to map them", async () => {
+    const { mapTo, spending, lineIn } = await world();
+    spending.byCategory = [
+      { categoryId: "cat-vegetables", amount: 4_000_000n },
+      { categoryId: "cat-meat", amount: 6_000_000n },
+      { categoryId: "cat-groceries", amount: 8_500_000n },
+    ];
+    const view = unwrap(await mapTo("home", ["cat-groceries"]));
+    expect(lineIn(view, "Home").spent).toBe(18_500_000n);
+    expect(view.figures.unbudgeted).toEqual({ spent: 0n, available: 0n });
+    expect(codeOf(await mapTo("free", ["cat-vegetables"]))).toBe("SubcategoryNotMappable");
+  });
+
+  it("ignores a mapping of Vegetables, which became a subcategory of Groceries: it counts where Groceries is mapped", async () => {
+    const { mapTo, plans, plan, spending, lineIn } = await world();
+    plans.seed(plan.id, { mappings: [{ lineId: "line-free", categoryId: "cat-vegetables" }] });
+    spending.byCategory = [{ categoryId: "cat-vegetables", amount: 4_000_000n }];
+    const view = unwrap(await mapTo("home", ["cat-groceries"]));
+    expect([lineIn(view, "Free").categoryIds, lineIn(view, "Free").spent]).toEqual([["cat-vegetables"], 0n]);
+    expect(lineIn(view, "Home").spent).toBe(4_000_000n);
+    expect(view.figures.unbudgeted).toEqual({ spent: 0n, available: 0n });
+  });
+
+  it("puts an unmapped subcategory of an unmapped category in the catch-all line, with its parent's own spending", async () => {
+    const { mapTo, spending, deps, plan, lineIn } = await world();
+    spending.byCategory = [
+      { categoryId: "cat-vegetables", amount: 4_000_000n },
+      { categoryId: "cat-groceries", amount: 1_000_000n },
+    ];
+    const update = createUpdateBudgetLine(deps);
+    unwrap(
+      await update({
+        spaceId: HOUSEHOLD,
+        userId: "u-ana",
+        planId: plan.id,
+        lineId: "line-free",
+        expectedVersion: null,
+        changes: { isCatchAll: true },
+      }),
+    );
+    const view = unwrap(await mapTo("home", ["cat-utilities"]));
+    expect([lineIn(view, "Free").spent, lineIn(view, "Home").spent, view.figures.unbudgeted]).toEqual([
+      5_000_000n,
+      0n,
+      null,
+    ]);
+  });
+
+  it("counts an unmapped subcategory of an unmapped category as Unbudgeted", async () => {
+    const { mapTo, spending } = await world();
+    spending.byCategory = [{ categoryId: "cat-vegetables", amount: 4_000_000n }];
+    expect(unwrap(await mapTo("home", ["cat-utilities"])).figures.unbudgeted).toEqual({
+      spent: 4_000_000n,
+      available: -4_000_000n,
+    });
+  });
+});
