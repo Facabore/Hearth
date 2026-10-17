@@ -1,5 +1,5 @@
 import type { SpaceMember, SpaceMembership } from "@/modules/spaces/application";
-import { rolledUpSpending, type CategoryParent } from "../domain/category-rollup";
+import { rolledUpCategory, rolledUpSpending, type CategoryParent } from "../domain/category-rollup";
 import type { BudgetPlan } from "../domain/plan";
 import { planFigures, type PlanFigures, type PreviousAvailable } from "../domain/plan-figures";
 import type { BudgetingDeps } from "./deps";
@@ -75,7 +75,13 @@ const figuresOf = async (
   seen: ReadonlySet<string>,
 ): Promise<PlanFigures> => {
   const { members, categories } = reads;
-  const parts = await deps.plans.contents(plan.id);
+  const stored = await deps.plans.contents(plan.id);
+  // A line lists a category exactly when it counts there: the mapping of a category that became a subcategory stays
+  // stored (D8) but is hidden, since its spending counts where its parent is mapped (HU-E3-04). Promoted, it shows again.
+  const parts = {
+    ...stored,
+    mappings: stored.mappings.filter((m) => rolledUpCategory(m.categoryId, categories) === m.categoryId),
+  };
   const { start, end } = plan.period;
   const accountIds = await accountsOfMembers(
     deps.savingsAccounts,

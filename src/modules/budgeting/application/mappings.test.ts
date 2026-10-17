@@ -213,14 +213,34 @@ describe("subcategories (HU-E3-04)", () => {
     expect(codeOf(await mapTo("free", ["cat-vegetables"]))).toBe("SubcategoryNotMappable");
   });
 
-  it("ignores a mapping of Vegetables, which became a subcategory of Groceries: it counts where Groceries is mapped", async () => {
+  it("lists no mapping of Vegetables, which became a subcategory of Groceries: it counts where Groceries is mapped", async () => {
     const { mapTo, plans, plan, spending, lineIn } = await world();
     plans.seed(plan.id, { mappings: [{ lineId: "line-free", categoryId: "cat-vegetables" }] });
     spending.byCategory = [{ categoryId: "cat-vegetables", amount: 4_000_000n }];
     const view = unwrap(await mapTo("home", ["cat-groceries"]));
-    expect([lineIn(view, "Free").categoryIds, lineIn(view, "Free").spent]).toEqual([["cat-vegetables"], 0n]);
-    expect(lineIn(view, "Home").spent).toBe(4_000_000n);
+    expect([lineIn(view, "Free").categoryIds, lineIn(view, "Free").spent]).toEqual([[], 0n]);
+    expect([lineIn(view, "Home").categoryIds, lineIn(view, "Home").spent]).toEqual([
+      ["cat-groceries"],
+      4_000_000n,
+    ]);
     expect(view.figures.unbudgeted).toEqual({ spent: 0n, available: 0n });
+  });
+
+  it("lists the old mapping of Vegetables again, and counts on it, once it is promoted back to a category", async () => {
+    const { mapTo, plans, plan, spending, deps, lineIn } = await world();
+    plans.seed(plan.id, { mappings: [{ lineId: "line-free", categoryId: "cat-vegetables" }] });
+    spending.byCategory = [{ categoryId: "cat-vegetables", amount: 4_000_000n }];
+    const underGroceries = await householdCategories.list(HOUSEHOLD);
+    deps.categories = {
+      list: async () =>
+        underGroceries.map((c) => (c.id === "cat-vegetables" ? { ...c, parentCategoryId: null } : c)),
+    };
+    const view = unwrap(await mapTo("home", ["cat-groceries"]));
+    expect([lineIn(view, "Free").categoryIds, lineIn(view, "Free").spent]).toEqual([
+      ["cat-vegetables"],
+      4_000_000n,
+    ]);
+    expect(lineIn(view, "Home").spent).toBe(0n);
   });
 
   it("puts an unmapped subcategory of an unmapped category in the catch-all line, with its parent's own spending", async () => {
