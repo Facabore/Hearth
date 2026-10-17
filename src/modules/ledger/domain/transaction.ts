@@ -22,8 +22,12 @@ interface TransactionBase {
   readonly id: TransactionId;
   readonly spaceId: string;
   readonly description: string;
-  /** Calendar date in the space timezone; its period is derived on read (HU-E4-04). */
+  /** The local calendar date it counts in; its period is derived on read (HU-E4-04, HU-E4-14). */
   readonly date: LocalDate;
+  /** HU-E4-14, D19: when it happened (UTC); null for a transaction without a time. */
+  readonly occurredAt: Date | null;
+  /** HU-E4-14: the recorder's IANA zone; set exactly when `occurredAt` is. */
+  readonly timeZone: string | null;
   readonly amount: bigint;
   readonly currency: string;
   readonly createdBy: string;
@@ -79,6 +83,9 @@ export type Transaction = Expense | Income | Transfer | Settlement;
 export interface TransactionChanges {
   readonly description?: string;
   readonly date?: LocalDate;
+  /** HU-E4-14: the resulting time; null keeps a row without one untimed and never clears a stored one (P66). */
+  readonly occurredAt?: Date | null;
+  readonly timeZone?: string | null;
   readonly categoryId?: string;
   readonly amount?: bigint;
 }
@@ -129,11 +136,18 @@ interface NewTransaction {
   readonly currency: string;
   readonly createdBy: string;
   readonly now: Date;
+  /** HU-E4-14: both absent for a transaction without a time. */
+  readonly occurredAt?: Date | null;
+  readonly timeZone?: string | null;
 }
 
 const baseOf = (input: NewTransaction): Result<TransactionBase> => {
   const amount = positiveAmount(input.amount);
   if (!amount.ok) return amount;
+  const occurredAt = input.occurredAt ?? null;
+  const timeZone = input.timeZone ?? null;
+  // HU-E4-14: an instant and its zone come together (transactions_time_zone); never reachable over HTTP.
+  if ((occurredAt === null) !== (timeZone === null)) return err(domainError("InvalidTransactionTime"));
   const description = descriptionOf(input.description);
   if (!description.ok) return description;
   return ok({
@@ -141,6 +155,8 @@ const baseOf = (input: NewTransaction): Result<TransactionBase> => {
     spaceId: input.spaceId,
     description: description.value,
     date: input.date,
+    occurredAt,
+    timeZone,
     amount: amount.value,
     currency: input.currency,
     createdBy: input.createdBy,
@@ -260,12 +276,23 @@ export const reviseTransaction = (
   if (!description.ok) return description;
   const amount = changes.amount === undefined ? ok(tx.amount) : positiveAmount(changes.amount);
   if (!amount.ok) return amount;
+  // HU-E4-14, ruling P66: a recorded time is replaced, never removed, neither its instant nor its zone
+  // (retimed refuses the request first).
+  if (tx.occurredAt !== null && (changes.occurredAt === null || changes.timeZone === null)) {
+    return err(domainError("TimeRequired"));
+  }
   const common = {
     description: description.value,
     date: changes.date ?? tx.date,
+    occurredAt: changes.occurredAt === undefined ? tx.occurredAt : changes.occurredAt,
+    timeZone: changes.timeZone === undefined ? tx.timeZone : changes.timeZone,
     amount: amount.value,
     updatedAt: now,
   };
+  // HU-E4-14: the pair stays whole, as when recording (transactions_time_zone); never reachable over HTTP.
+  if ((common.occurredAt === null) !== (common.timeZone === null)) {
+    return err(domainError("InvalidTransactionTime"));
+  }
   switch (tx.type) {
     case "EXPENSE": {
       const payments =
@@ -339,6 +366,9 @@ const auditedValues = (tx: Transaction): ReadonlyMap<string, string | null> => {
   const values = new Map<string, string | null>(
     AUDITED.map((field): [string, string | null] => [field, tx[field] === null ? null : String(tx[field])]),
   );
+  // HU-E4-14: the instant as ISO UTC and its zone, so an edit records the time before and after.
+  values.set("occurredAt", tx.occurredAt?.toISOString() ?? null);
+  values.set("timeZone", tx.timeZone);
   if (tx.type === "EXPENSE") {
     const payments = tx.payments.map((p) => ({
       memberId: p.memberId,

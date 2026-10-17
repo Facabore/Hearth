@@ -301,6 +301,8 @@ const baseOf = (date: string, amount: bigint) => ({
   spaceId: "space-ana",
   description: "",
   date: date as LocalDate,
+  occurredAt: null,
+  timeZone: null,
   amount,
   currency: "COP",
   createdBy: "u-ana",

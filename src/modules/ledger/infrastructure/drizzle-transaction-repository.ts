@@ -46,6 +46,8 @@ export class DrizzleTransactionRepository implements TransactionRepository {
       .set({
         description: transaction.description,
         date: transaction.date,
+        occurredAt: transaction.occurredAt,
+        timeZone: transaction.timeZone,
         categoryId: transaction.categoryId,
         amount: transaction.amount,
         updatedAt: transaction.updatedAt,

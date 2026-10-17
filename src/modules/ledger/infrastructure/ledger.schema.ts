@@ -31,6 +31,9 @@ export const transactions = pgTable(
     type: text("type", { enum: ["EXPENSE", "INCOME", "TRANSFER", "SETTLEMENT"] }).notNull(),
     description: text("description").notNull(),
     date: date("date", { mode: "string" }).notNull(),
+    // HU-E4-14, D19: when it happened (UTC) and the recorder's zone; both null for a transaction without a time.
+    occurredAt: tz("occurred_at"),
+    timeZone: text("time_zone"),
     categoryId: uuid("category_id").references(() => categories.id),
     amount: money("amount").notNull(),
     currency: text("currency").notNull(),
@@ -46,13 +49,20 @@ export const transactions = pgTable(
     version: integer("version").notNull().default(1),
   },
   (t) => [
-    // The monthly view: one space, a date range, newest first (keyset on date, id).
-    index("transactions_space_date_idx").on(t.spaceId, t.date, t.id),
+    // HU-E4-14, ruling P43: the list order and its keyset: date, time with untimed rows last, creation, id.
+    index("transactions_space_order_idx").on(
+      t.spaceId,
+      t.date,
+      sql`coalesce(${t.occurredAt}, '-infinity'::timestamptz)`,
+      t.createdAt,
+      t.id,
+    ),
     index("transactions_category_idx").on(t.categoryId),
     index("transactions_source_account_idx").on(t.sourceAccountId),
     index("transactions_destination_account_idx").on(t.destinationAccountId),
     index("transactions_payer_member_idx").on(t.payerMemberId),
     check("transactions_amount_positive", sql`${t.amount} > 0`),
+    check("transactions_time_zone", sql`(${t.occurredAt} IS NULL) = (${t.timeZone} IS NULL)`),
     // A TRANSFER without a payer is between own accounts; with a payer it is a fund contribution, whose
     // source is null only for a guest (spec 5.2). A SETTLEMENT has both parties and optional accounts.
     check(

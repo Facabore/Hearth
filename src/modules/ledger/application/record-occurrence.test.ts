@@ -64,6 +64,8 @@ const recordedForAna = {
   createdAt: new Date("2026-10-28T17:00:00Z"),
   updatedAt: new Date("2026-10-28T17:00:00Z"),
   deletedAt: null,
+  occurredAt: null,
+  timeZone: null,
   version: 1,
 };
 const HOUSEHOLD_MEMBER_IDS = ["member-ana", "member-juan", "member-luis", "member-sofi", "member-pedro"];
