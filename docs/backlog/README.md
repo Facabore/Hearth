@@ -145,14 +145,14 @@ A UI story is `Done` when:
 | [HU-E4-11](E4-ledger.md) | Define and manage recurring transactions | E4 | M3 | Must | M | Done | HU-E4-07, HU-E0-04, HU-E1-10 |
 | [HU-E4-12](E4-ledger.md) | Record due occurrences automatically | E4 | M3 | Must | M | Done | HU-E4-11, HU-E6-07, HU-E6-08 |
 | [HU-E4-13](E4-ledger.md) | Confirm variable-amount occurrences | E4 | M3 | Must | S | Done | HU-E4-12 |
-| [HU-E1-14](E1-identity-and-spaces.md) | Set my time zone | E1 | M3-D | Must | S | Backlog | HU-E1-01 |
-| [HU-E1-15](E1-identity-and-spaces.md) | Formatting preferences | E1 | M3-D | Must | S | Backlog | HU-E1-01, HU-E1-14 |
-| [HU-E4-14](E4-ledger.md) | Record the time of a transaction | E4 | M3-D | Must | M | Backlog | HU-E1-14, HU-E4-05, HU-E4-06, HU-E4-12, HU-E4-13 |
-| [HU-E3-04](E3-categories.md) | Optional subcategories | E3 | M3-D | Must | M | Backlog | HU-E3-02, HU-E3-03, HU-E4-05, HU-E6-04 |
-| [HU-E3-05](E3-categories.md) | Category icon and color | E3 | M3-D | Must | S | Backlog | HU-E3-01, HU-E3-02, HU-E3-04 |
-| [HU-E2-05](E2-accounts.md) | More account types with common attributes | E2 | M3-D | Must | S | Backlog | HU-E2-01, HU-E2-03 |
-| [HU-E2-06](E2-accounts.md) | Type-specific account attributes | E2 | M3-D | Must | M | Backlog | HU-E2-05 |
-| [HU-E2-07](E2-accounts.md) | Available money and net worth | E2 | M3-D | Must | M | Backlog | HU-E2-04, HU-E2-05 |
+| [HU-E1-14](E1-identity-and-spaces.md) | Set my time zone | E1 | M3-D | Must | S | Done | HU-E1-01 |
+| [HU-E1-15](E1-identity-and-spaces.md) | Formatting preferences | E1 | M3-D | Must | S | Done | HU-E1-01, HU-E1-14 |
+| [HU-E4-14](E4-ledger.md) | Record the time of a transaction | E4 | M3-D | Must | M | Done | HU-E1-14, HU-E4-05, HU-E4-06, HU-E4-12, HU-E4-13 |
+| [HU-E3-04](E3-categories.md) | Optional subcategories | E3 | M3-D | Must | M | Done | HU-E3-02, HU-E3-03, HU-E4-05, HU-E6-04 |
+| [HU-E3-05](E3-categories.md) | Category icon and color | E3 | M3-D | Must | S | Done | HU-E3-01, HU-E3-02, HU-E3-04 |
+| [HU-E2-05](E2-accounts.md) | More account types with common attributes | E2 | M3-D | Must | S | Done | HU-E2-01, HU-E2-03 |
+| [HU-E2-06](E2-accounts.md) | Type-specific account attributes | E2 | M3-D | Must | M | Done | HU-E2-05 |
+| [HU-E2-07](E2-accounts.md) | Available money and net worth | E2 | M3-D | Must | M | Done | HU-E2-04, HU-E2-05 |
 | [HU-E7-01](E7-reporting.md) | Budget line dashboard | E7 | M4 | Must | M | Backlog | HU-E6-09 |
 | [HU-E7-02](E7-reporting.md) | Member by line matrix | E7 | M4 | Must | M | Backlog | HU-E6-08, HU-E7-01 |
 | [HU-E7-03](E7-reporting.md) | Shared fund contribution tracking | E7 | M4 | Must | S | Backlog | HU-E4-09, HU-E6-05 |
