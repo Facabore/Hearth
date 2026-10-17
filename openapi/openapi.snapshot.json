@@ -8610,6 +8610,66 @@
                 "type": "null"
               }
             ]
+          },
+          "icon": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "SYMBOL"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "name"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "EMOJI"
+                  },
+                  "value": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ]
+              }
+            ],
+            "type": "object"
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "PINE",
+              "SAGE",
+              "OLIVE",
+              "SAND",
+              "MUSTARD",
+              "AMBER",
+              "EMBER",
+              "CORAL",
+              "ROSE",
+              "PLUM",
+              "LAVENDER",
+              "INDIGO",
+              "SKY",
+              "TEAL",
+              "STEEL",
+              "GRAPHITE"
+            ]
           }
         },
         "required": [
@@ -8618,7 +8678,9 @@
           "parentCategoryId",
           "name",
           "key",
-          "archivedAt"
+          "archivedAt",
+          "icon",
+          "color"
         ]
       },
       "RecurrenceDefinition": {
@@ -9047,6 +9109,12 @@
           "name": {
             "type": "string"
           },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "archivedAt": {
             "anyOf": [
               {
@@ -9057,6 +9125,68 @@
               {
                 "type": "null"
               }
+            ]
+          },
+          "icon": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "SYMBOL"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "EMOJI"
+                  },
+                  "value": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            ],
+            "type": "object"
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "PINE",
+              "SAGE",
+              "OLIVE",
+              "SAND",
+              "MUSTARD",
+              "AMBER",
+              "EMBER",
+              "CORAL",
+              "ROSE",
+              "PLUM",
+              "LAVENDER",
+              "INDIGO",
+              "SKY",
+              "TEAL",
+              "STEEL",
+              "GRAPHITE"
             ]
           },
           "categories": {
@@ -9097,6 +9227,68 @@
                     }
                   ]
                 },
+                "icon": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "SYMBOL"
+                        },
+                        "name": {
+                          "type": "string",
+                          "maxLength": 64
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "EMOJI"
+                        },
+                        "value": {
+                          "type": "string",
+                          "maxLength": 64
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ],
+                  "type": "object"
+                },
+                "color": {
+                  "type": "string",
+                  "enum": [
+                    "PINE",
+                    "SAGE",
+                    "OLIVE",
+                    "SAND",
+                    "MUSTARD",
+                    "AMBER",
+                    "EMBER",
+                    "CORAL",
+                    "ROSE",
+                    "PLUM",
+                    "LAVENDER",
+                    "INDIGO",
+                    "SKY",
+                    "TEAL",
+                    "STEEL",
+                    "GRAPHITE"
+                  ]
+                },
                 "subcategories": {
                   "type": "array",
                   "items": {
@@ -9111,6 +9303,8 @@
                 "name",
                 "key",
                 "archivedAt",
+                "icon",
+                "color",
                 "subcategories"
               ],
               "additionalProperties": false
@@ -9120,7 +9314,10 @@
         "required": [
           "id",
           "name",
+          "key",
           "archivedAt",
+          "icon",
+          "color",
           "categories"
         ],
         "additionalProperties": false
@@ -9134,6 +9331,12 @@
           "name": {
             "type": "string"
           },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "archivedAt": {
             "anyOf": [
               {
@@ -9145,12 +9348,77 @@
                 "type": "null"
               }
             ]
+          },
+          "icon": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "SYMBOL"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "EMOJI"
+                  },
+                  "value": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            ],
+            "type": "object"
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "PINE",
+              "SAGE",
+              "OLIVE",
+              "SAND",
+              "MUSTARD",
+              "AMBER",
+              "EMBER",
+              "CORAL",
+              "ROSE",
+              "PLUM",
+              "LAVENDER",
+              "INDIGO",
+              "SKY",
+              "TEAL",
+              "STEEL",
+              "GRAPHITE"
+            ]
           }
         },
         "required": [
           "id",
           "name",
-          "archivedAt"
+          "key",
+          "archivedAt",
+          "icon",
+          "color"
         ],
         "additionalProperties": false
       },
@@ -10910,6 +11178,68 @@
                 "type": "null"
               }
             ]
+          },
+          "icon": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "SYMBOL"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "EMOJI"
+                  },
+                  "value": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            ],
+            "type": "object"
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "PINE",
+              "SAGE",
+              "OLIVE",
+              "SAND",
+              "MUSTARD",
+              "AMBER",
+              "EMBER",
+              "CORAL",
+              "ROSE",
+              "PLUM",
+              "LAVENDER",
+              "INDIGO",
+              "SKY",
+              "TEAL",
+              "STEEL",
+              "GRAPHITE"
+            ]
           }
         },
         "required": [
@@ -10918,7 +11248,9 @@
           "parentCategoryId",
           "name",
           "key",
-          "archivedAt"
+          "archivedAt",
+          "icon",
+          "color"
         ],
         "additionalProperties": false
       }

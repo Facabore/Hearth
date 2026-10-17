@@ -1,7 +1,20 @@
 import { z } from "zod";
 import type { ZodOpenApiPathsObject } from "zod-openapi";
 import { jsonContent, problems, securedByUser } from "@/shared/http/contracts";
-import type { Category, CategoryGroup, CategoryGroupView } from "../application";
+import {
+  CATEGORY_COLORS,
+  type CategoryGroup,
+  type CategoryGroupView,
+  type CategoryView,
+} from "../application";
+
+/** HU-E3-05: a symbol of the fixed set or exactly one emoji, judged by the domain (InvalidCategoryIcon). */
+const IconSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("SYMBOL"), name: z.string().max(64) }),
+  z.object({ kind: z.literal("EMOJI"), value: z.string().max(64) }),
+]);
+/** HU-E3-05, D22: a palette key, never a hex value; anything else is ValidationFailed. */
+const ColorSchema = z.enum(CATEGORY_COLORS);
 
 export const CategorySchema = z.object({
   id: z.string(),
@@ -12,11 +25,19 @@ export const CategorySchema = z.object({
   /** Stable catalog key of seeded categories; null for user-created ones. */
   key: z.string().nullable(),
   archivedAt: z.iso.datetime().nullable(),
+  /** HU-E3-05: the icon and color it shows; a subcategory shows its parent's. */
+  icon: IconSchema,
+  color: ColorSchema,
 });
 export const CategoryGroupSummarySchema = z.object({
   id: z.string(),
   name: z.string(),
+  /** HU-E3-05: stable catalog key of seeded groups (`food`); null for groups users create. Read-only: no body takes it. */
+  key: z.string().nullable(),
   archivedAt: z.iso.datetime().nullable(),
+  /** HU-E3-05: the group's icon and color. */
+  icon: IconSchema,
+  color: ColorSchema,
 });
 export const CategoryGroupSchema = CategoryGroupSummarySchema.extend({
   /** HU-E3-04: the group's categories, each with its subcategories. */
@@ -51,19 +72,24 @@ export const UpdateCategoryBodySchema = z
 
 const isoOrNull = (date: Date | null) => date?.toISOString() ?? null;
 
-export const categoryDto = (c: Category): z.infer<typeof CategorySchema> => ({
+export const categoryDto = (c: CategoryView): z.infer<typeof CategorySchema> => ({
   id: c.id,
   groupId: c.groupId,
   parentCategoryId: c.parentCategoryId,
   name: c.name,
   key: c.key,
   archivedAt: isoOrNull(c.archivedAt),
+  icon: c.shown.icon,
+  color: c.shown.color,
 });
 
 export const categoryGroupDto = (g: CategoryGroup): z.infer<typeof CategoryGroupSummarySchema> => ({
   id: g.id,
   name: g.name,
+  key: g.key,
   archivedAt: isoOrNull(g.archivedAt),
+  icon: g.style.icon,
+  color: g.style.color,
 });
 
 export const categoryTreeDto = (g: CategoryGroupView): z.infer<typeof CategoryGroupSchema> => ({
