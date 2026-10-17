@@ -1,6 +1,7 @@
-import { domainError, err, type Result } from "@/shared/kernel";
-import { restoreCategory, type Category } from "../domain/category";
+import { domainError, err, ok, type Result } from "@/shared/kernel";
+import { restoreCategory } from "../domain/category";
 import { authorizeManager } from "./authorize";
+import { viewOf, type CategoryView } from "./category-view";
 import type { CategoriesDeps } from "./deps";
 import { categoryById } from "./lookups";
 
@@ -8,7 +9,7 @@ export type RestoreCategory = (input: {
   spaceId: string;
   userId: string;
   categoryId: string;
-}) => Promise<Result<Category>>;
+}) => Promise<Result<CategoryView>>;
 
 export const createRestoreCategory =
   (deps: CategoriesDeps): RestoreCategory =>
@@ -28,5 +29,5 @@ export const createRestoreCategory =
       const restored = restoreCategory(category.value, group, parent);
       if (!restored.ok) return restored;
       await deps.categories.saveCategories([restored.value]);
-      return restored;
+      return ok(viewOf(restored.value, categories));
     });

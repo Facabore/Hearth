@@ -1,4 +1,14 @@
 export type { Category, CategoryGroup, CategoryGroupId, CategoryId } from "../domain/category";
+export {
+  CATEGORY_COLORS,
+  CATEGORY_SYMBOLS,
+  CUSTOM_GROUP_STYLE,
+  type CategoryColor,
+  type CategoryIcon,
+  type CategoryStyle,
+  type IconInput,
+} from "../domain/category-style";
+export type { CategoryView } from "./category-view";
 export type { CategoryRepository } from "./category-repository";
 export type { CategoriesDeps } from "./deps";
 export {

@@ -1,6 +1,7 @@
 import { ok, type Result } from "@/shared/kernel";
-import { archivedTree, type Category } from "../domain/category";
+import { archivedTree } from "../domain/category";
 import { authorizeManager } from "./authorize";
+import { viewOf, type CategoryView } from "./category-view";
 import type { CategoriesDeps } from "./deps";
 import { categoryById } from "./lookups";
 
@@ -8,7 +9,7 @@ export type ArchiveCategory = (input: {
   spaceId: string;
   userId: string;
   categoryId: string;
-}) => Promise<Result<Category>>;
+}) => Promise<Result<CategoryView>>;
 
 export const createArchiveCategory =
   (deps: CategoriesDeps): ArchiveCategory =>
@@ -24,5 +25,6 @@ export const createArchiveCategory =
       // HU-E3-04: its subcategories are archived with it.
       const archived = archivedTree(category.value, categories, deps.clock.now());
       await deps.categories.saveCategories(archived);
-      return ok(archived[0]!);
+      // HU-E3-05: a subcategory answers with its parent's style.
+      return ok(viewOf(archived[0]!, categories));
     });
