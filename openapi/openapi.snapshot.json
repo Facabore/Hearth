@@ -80,6 +80,186 @@
                     },
                     "timezone": {
                       "type": "string"
+                    },
+                    "preferences": {
+                      "type": "object",
+                      "properties": {
+                        "stored": {
+                          "type": "object",
+                          "properties": {
+                            "numberFormat": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "DOT_COMMA",
+                                    "COMMA_DOT",
+                                    "SPACE_COMMA"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "timeFormat": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "H24",
+                                    "H12"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "dateFormat": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "DMY",
+                                    "MDY",
+                                    "YMD"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "weekStart": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "MONDAY",
+                                    "SUNDAY"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "numberFormat",
+                            "timeFormat",
+                            "dateFormat",
+                            "weekStart"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "effective": {
+                          "type": "object",
+                          "properties": {
+                            "numberFormat": {
+                              "type": "string",
+                              "enum": [
+                                "DOT_COMMA",
+                                "COMMA_DOT",
+                                "SPACE_COMMA"
+                              ]
+                            },
+                            "timeFormat": {
+                              "type": "string",
+                              "enum": [
+                                "H24",
+                                "H12"
+                              ]
+                            },
+                            "dateFormat": {
+                              "type": "string",
+                              "enum": [
+                                "DMY",
+                                "MDY",
+                                "YMD"
+                              ]
+                            },
+                            "weekStart": {
+                              "type": "string",
+                              "enum": [
+                                "MONDAY",
+                                "SUNDAY"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "numberFormat",
+                            "timeFormat",
+                            "dateFormat",
+                            "weekStart"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "defaults": {
+                          "type": "object",
+                          "properties": {
+                            "numberFormat": {
+                              "type": "string",
+                              "enum": [
+                                "DOT_COMMA",
+                                "COMMA_DOT",
+                                "SPACE_COMMA"
+                              ]
+                            },
+                            "timeFormat": {
+                              "type": "string",
+                              "enum": [
+                                "H24",
+                                "H12"
+                              ]
+                            },
+                            "dateFormat": {
+                              "type": "string",
+                              "enum": [
+                                "DMY",
+                                "MDY",
+                                "YMD"
+                              ]
+                            },
+                            "weekStart": {
+                              "type": "string",
+                              "enum": [
+                                "MONDAY",
+                                "SUNDAY"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "numberFormat",
+                            "timeFormat",
+                            "dateFormat",
+                            "weekStart"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "locked": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "numberFormat",
+                              "timeFormat",
+                              "dateFormat",
+                              "weekStart",
+                              "timezone",
+                              "locale"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "stored",
+                        "effective",
+                        "defaults",
+                        "locked"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -87,7 +267,8 @@
                     "name",
                     "email",
                     "locale",
-                    "timezone"
+                    "timezone",
+                    "preferences"
                   ],
                   "additionalProperties": false
                 }

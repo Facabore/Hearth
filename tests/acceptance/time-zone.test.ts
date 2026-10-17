@@ -64,7 +64,8 @@ describe("user time zone (HU-E1-14)", () => {
     const before = await meOf(juan);
     const response = await call(patchMe, "PATCH", "/api/v1/me", { headers: { cookie: juan }, body });
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual(before);
+    // Task 18b-1: GET answers `preferences`; PATCH answers the user alone until Task 18b-2 (which restores `before`).
+    expect(await response.json()).toEqual({ ...before, preferences: undefined });
     expect(await meOf(juan)).toEqual(before);
   });
 
