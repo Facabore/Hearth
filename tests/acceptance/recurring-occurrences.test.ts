@@ -200,3 +200,13 @@ describe("recording due occurrences (HU-E4-12)", () => {
     ]);
   });
 });
+
+describe("occurrences have no time (HU-E4-14)", () => {
+  it("records the Rent with its date and no time", async () => {
+    const h = await householdWithFund();
+    await define(h.ana, h.spaceId, rentBody(h, { endDate: "2027-01-31" }));
+    await schedulerRunsOn("2026-12-01");
+    const [rent] = await expensesIn(h, "2026-12");
+    expect(rent).toMatchObject({ date: "2026-12-01", occurredAt: null, timeZone: null });
+  });
+});

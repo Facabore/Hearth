@@ -1,8 +1,12 @@
 import { getContainer } from "@/composition/container";
 import { defineRoute } from "@/composition/route";
-import { EditTransactionBodySchema, transactionDto } from "@/modules/ledger/contracts/ledger.contract";
+import {
+  EditTransactionBodySchema,
+  transactionDto,
+  whenFromBody,
+} from "@/modules/ledger/contracts/ledger.contract";
 import { etagOf, ifMatchVersion } from "@/shared/http";
-import { moneyFromDto, optionalLocalDate } from "@/shared/http/contracts";
+import { moneyFromDto } from "@/shared/http/contracts";
 import { ok } from "@/shared/kernel";
 
 export const runtime = "nodejs";
@@ -34,8 +38,9 @@ export const PATCH = defineRoute({
     if (!expectedVersion.ok) return expectedVersion;
     const amount = body.amount === undefined ? ok(undefined) : moneyFromDto(body.amount);
     if (!amount.ok) return amount;
-    const date = optionalLocalDate(body.date);
-    if (!date.ok) return date;
+    // Ruling P66: an explicit null `occurredAt` reaches the use case, which answers TimeRequired.
+    const when = whenFromBody(body);
+    if (!when.ok) return when;
     const result = await getContainer().ledger.editTransaction({
       spaceId: params.spaceId!,
       userId: user!.id,
@@ -43,7 +48,7 @@ export const PATCH = defineRoute({
       expectedVersion: expectedVersion.value,
       changes: {
         description: body.description,
-        date: date.value,
+        ...when.value,
         categoryId: body.categoryId,
         amount: amount.value,
       },

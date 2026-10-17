@@ -439,6 +439,9 @@ export const positionFromCursor = (raw: string): Result<TransactionPosition> => 
 export const EditTransactionBodySchema = z.object({
   description: Description,
   date: z.iso.date().optional(),
+  /** HU-E4-14: a new instant (any offset); null answers TimeRequired, since a time is never removed. */
+  occurredAt: Instant.nullable().optional(),
+  timeZone: TimeZoneName.optional(),
   categoryId: Id.optional(),
   amount: MoneySchema.optional(),
 });
@@ -654,7 +657,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     },
     patch: {
       operationId: "editTransaction",
-      summary: "Change description, date, category or amount; send If-Match with the current ETag",
+      summary: "Change description, date, time, category or amount; send If-Match with the current ETag",
       ...securedByUser,
       requestParams: { path: TransactionPath, header: IfMatchHeader },
       requestBody: { content: jsonContent(EditTransactionBodySchema) },
@@ -671,7 +674,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
             "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory",
           "412": "PreconditionFailed",
           "422":
-            "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, NotASpaceMember",
+            "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone",
         }),
       },
     },
