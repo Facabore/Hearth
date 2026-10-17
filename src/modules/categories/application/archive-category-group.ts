@@ -16,6 +16,7 @@ export const createArchiveCategoryGroup =
       const manager = await authorizeManager(deps.access, input.spaceId, input.userId);
       if (!manager.ok) return manager;
       const { spaceId } = manager.value;
+      await deps.categories.lockTree(spaceId);
       const group = (await deps.categories.listGroups(spaceId)).find((g) => g.id === input.groupId);
       if (!group) return err(domainError("CategoryGroupNotFound"));
       const archived = archiveGroup(group, await deps.categories.listCategories(spaceId), deps.clock.now());

@@ -16,6 +16,7 @@ export const createCreateCategoryGroup =
       const manager = await authorizeManager(deps.access, input.spaceId, input.userId);
       if (!manager.ok) return manager;
       const { spaceId } = manager.value;
+      await deps.categories.lockTree(spaceId);
       const group = newGroup({
         id: deps.ids.next<"CategoryGroup">(),
         spaceId,

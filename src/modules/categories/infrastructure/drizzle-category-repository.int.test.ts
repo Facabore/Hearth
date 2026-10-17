@@ -4,6 +4,7 @@ import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-tr
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
 import { testDatabase } from "../../../../tests/support/database";
 import { personalSpaceFixture } from "../../../../tests/support/fixtures";
+import type { Category, CategoryGroupId, CategoryId } from "../domain/category";
 import { seedTree } from "../domain/default-catalog";
 import { DrizzleCategoryRepository } from "./drizzle-category-repository";
 
@@ -95,9 +96,71 @@ describe("DrizzleCategoryRepository", () => {
     );
     expect(rows).toEqual([{ deleted_at: deletedAt, category_id: mercado.id }]);
     expect((await repo.listCategories(space.spaceId)).map((c) => c.id)).not.toContain(mercado.id);
-    // The name is free again among the categories that are not deleted (partial categories_group_name_uq).
+    // The name is free again among the categories that are not deleted (partial categories_parent_name_uq).
     await expect(
       repo.addCategories([{ ...mercado, id: ids.next<"Category">(), name: "MERCADO", key: null }]),
     ).resolves.toBeUndefined();
+  });
+});
+
+/** A fresh space with the group "Food"; `category(name, parentId)` builds a live category of it. */
+const subcategoryWorld = async () => {
+  const space = (await personalSpaceFixture(db, pool)).spaceId;
+  const food = randomUUID();
+  await repo.addGroups([
+    { id: food as CategoryGroupId, spaceId: space, name: "Food", archivedAt: null, createdAt: new Date() },
+  ]);
+  const category = (name: string, parentId: string | null): Category => ({
+    id: randomUUID() as CategoryId,
+    spaceId: space,
+    groupId: food as CategoryGroupId,
+    parentCategoryId: parentId as CategoryId | null,
+    name,
+    key: null,
+    archivedAt: null,
+    createdAt: new Date("2026-10-16T12:00:00.000Z"),
+  });
+  return { repo, space, food, category };
+};
+
+describe("subcategories (HU-E3-04)", () => {
+  it("stores a subcategory under its parent and moves it with its siblings' names", async () => {
+    const { repo, space, food, category } = await subcategoryWorld();
+    const groceries = category("Groceries", null);
+    const vegetables = category("Vegetables", groceries.id);
+    await repo.addCategories([groceries, vegetables]);
+    expect((await repo.listCategories(space)).find((c) => c.id === vegetables.id)).toEqual(vegetables);
+    // A subcategory may share its name with a category elsewhere, never with a sibling.
+    await repo.addCategories([category("Vegetables", null)]);
+    await expect(repo.addCategories([category("vegetables", groceries.id)])).rejects.toMatchObject({
+      cause: { constraint: "categories_parent_name_uq" },
+    });
+    await repo.saveCategories([{ ...vegetables, parentCategoryId: null, name: "Veggies" }]);
+    expect((await repo.listCategories(space)).find((c) => c.id === vegetables.id)).toMatchObject({
+      parentCategoryId: null,
+      groupId: food,
+    });
+  });
+
+  it("lets subcategories of different parents share a name", async () => {
+    const { repo, space, category } = await subcategoryWorld();
+    const groceries = category("Groceries", null);
+    const dairy = category("Dairy", null);
+    await repo.addCategories([
+      groceries,
+      dairy,
+      category("Organic", groceries.id),
+      category("Organic", dairy.id),
+    ]);
+    expect((await repo.listCategories(space)).filter((c) => c.name === "Organic")).toHaveLength(2);
+  });
+
+  it("refuses a category that is its own parent", async () => {
+    const { repo, category } = await subcategoryWorld();
+    const groceries = category("Groceries", null);
+    await repo.addCategories([groceries]);
+    await expect(
+      repo.saveCategories([{ ...groceries, parentCategoryId: groceries.id }]),
+    ).rejects.toMatchObject({ cause: { constraint: "categories_not_own_parent" } });
   });
 });

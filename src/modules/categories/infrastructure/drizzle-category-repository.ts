@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import type { CategoryRepository } from "../application/category-repository";
 import type { Category, CategoryGroup, CategoryGroupId, CategoryId } from "../domain/category";
@@ -7,6 +7,17 @@ import { categories, categoryGroups } from "./categories.schema";
 // Space ids always come from a resolved membership, so they are valid UUIDs here.
 export class DrizzleCategoryRepository implements CategoryRepository {
   constructor(private readonly tm: DrizzleTransactionManager) {}
+
+  /**
+   * An advisory lock on the space's category tree, held until the caller's transaction ends. It is not a row lock on
+   * `spaces`: this module does not reach into spaces, and FOR UPDATE there would conflict with the key-share locks that
+   * foreign keys take on the space row.
+   */
+  async lockTree(spaceId: string): Promise<void> {
+    await this.tm
+      .executor()
+      .execute(sql`SELECT pg_advisory_xact_lock(hashtextextended('categories:' || ${spaceId}::text, 0))`);
+  }
 
   async hasAny(spaceId: string): Promise<boolean> {
     const rows = await this.tm
@@ -44,6 +55,7 @@ export class DrizzleCategoryRepository implements CategoryRepository {
           id: c.id,
           spaceId: c.spaceId,
           groupId: c.groupId,
+          parentCategoryId: c.parentCategoryId,
           name: c.name,
           key: c.key,
           archivedAt: c.archivedAt,
@@ -69,6 +81,7 @@ export class DrizzleCategoryRepository implements CategoryRepository {
         id: categories.id,
         spaceId: categories.spaceId,
         groupId: categories.groupId,
+        parentCategoryId: categories.parentCategoryId,
         name: categories.name,
         key: categories.key,
         archivedAt: categories.archivedAt,
@@ -80,8 +93,7 @@ export class DrizzleCategoryRepository implements CategoryRepository {
       ...row,
       id: row.id as CategoryId,
       groupId: row.groupId as CategoryGroupId,
-      // HU-E3-04: stored from Task 9a's migration on.
-      parentCategoryId: null,
+      parentCategoryId: row.parentCategoryId as CategoryId | null,
     }));
   }
 
@@ -98,7 +110,12 @@ export class DrizzleCategoryRepository implements CategoryRepository {
     for (const c of rows) {
       await db
         .update(categories)
-        .set({ name: c.name, groupId: c.groupId, archivedAt: c.archivedAt })
+        .set({
+          name: c.name,
+          groupId: c.groupId,
+          parentCategoryId: c.parentCategoryId,
+          archivedAt: c.archivedAt,
+        })
         .where(eq(categories.id, c.id));
     }
   }

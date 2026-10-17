@@ -16,6 +16,7 @@ export const createRenameCategoryGroup =
     deps.tm.run(async () => {
       const manager = await authorizeManager(deps.access, input.spaceId, input.userId);
       if (!manager.ok) return manager;
+      await deps.categories.lockTree(manager.value.spaceId);
       const groups = await deps.categories.listGroups(manager.value.spaceId);
       const group = groups.find((g) => g.id === input.groupId);
       if (!group) return err(domainError("CategoryGroupNotFound"));

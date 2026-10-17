@@ -1,5 +1,5 @@
 import { ok, type Result } from "@/shared/kernel";
-import { reviseCategory, type Category } from "../domain/category";
+import { movedTree, reviseCategory, type Category } from "../domain/category";
 import { authorizeManager } from "./authorize";
 import type { CategoriesDeps } from "./deps";
 import { categoryById, groupById } from "./lookups";
@@ -10,6 +10,8 @@ export type UpdateCategory = (input: {
   categoryId: string;
   name?: string;
   groupId?: string;
+  /** HU-E3-04: a category to become its subcategory, or null to become a category of `groupId` (or its group). */
+  parentCategoryId?: string | null;
 }) => Promise<Result<Category>>;
 
 /** HU-E3-02: rename and/or move; existing transactions keep the category (its id never changes). */
@@ -20,6 +22,7 @@ export const createUpdateCategory =
       const manager = await authorizeManager(deps.access, input.spaceId, input.userId);
       if (!manager.ok) return manager;
       const { spaceId } = manager.value;
+      await deps.categories.lockTree(spaceId);
       const categories = await deps.categories.listCategories(spaceId);
       const category = categoryById(categories, input.categoryId);
       if (!category.ok) return category;
@@ -28,8 +31,18 @@ export const createUpdateCategory =
           ? ok(undefined)
           : groupById(await deps.categories.listGroups(spaceId), categories, input.groupId);
       if (!target.ok) return target;
-      const revised = reviseCategory(category.value, { name: input.name, group: target.value }, categories);
+      const parent =
+        input.parentCategoryId === undefined || input.parentCategoryId === null
+          ? ok(input.parentCategoryId)
+          : categoryById(categories, input.parentCategoryId);
+      if (!parent.ok) return parent;
+      const revised = reviseCategory(
+        category.value,
+        { name: input.name, group: target.value, parent: parent.value },
+        categories,
+      );
       if (!revised.ok) return revised;
-      await deps.categories.saveCategories([revised.value]);
+      // HU-E3-04: its subcategories follow it to the new group.
+      await deps.categories.saveCategories(movedTree(revised.value, categories));
       return revised;
     });

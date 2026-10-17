@@ -1,5 +1,5 @@
 import { ok, type Result } from "@/shared/kernel";
-import { archiveCategory, type Category } from "../domain/category";
+import { archivedTree, type Category } from "../domain/category";
 import { authorizeManager } from "./authorize";
 import type { CategoriesDeps } from "./deps";
 import { categoryById } from "./lookups";
@@ -16,12 +16,13 @@ export const createArchiveCategory =
     deps.tm.run(async () => {
       const manager = await authorizeManager(deps.access, input.spaceId, input.userId);
       if (!manager.ok) return manager;
-      const category = categoryById(
-        await deps.categories.listCategories(manager.value.spaceId),
-        input.categoryId,
-      );
+      const { spaceId } = manager.value;
+      await deps.categories.lockTree(spaceId);
+      const categories = await deps.categories.listCategories(spaceId);
+      const category = categoryById(categories, input.categoryId);
       if (!category.ok) return category;
-      const archived = archiveCategory(category.value, deps.clock.now());
-      await deps.categories.saveCategories([archived]);
-      return ok(archived);
+      // HU-E3-04: its subcategories are archived with it.
+      const archived = archivedTree(category.value, categories, deps.clock.now());
+      await deps.categories.saveCategories(archived);
+      return ok(archived[0]!);
     });

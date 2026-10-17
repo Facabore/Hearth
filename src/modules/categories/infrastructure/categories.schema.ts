@@ -1,5 +1,14 @@
 import { sql } from "drizzle-orm";
-import { index, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import {
+  check,
+  index,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+  type AnyPgColumn,
+} from "drizzle-orm/pg-core";
 import { spaces } from "@/modules/spaces/infrastructure/spaces.schema";
 
 const tz = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
@@ -29,6 +38,8 @@ export const categories = pgTable(
     groupId: uuid("group_id")
       .notNull()
       .references(() => categoryGroups.id),
+    // HU-E3-04: the category a subcategory refines; null for a category directly in its group.
+    parentCategoryId: uuid("parent_category_id").references((): AnyPgColumn => categories.id),
     name: text("name").notNull(),
     key: text("key"),
     archivedAt: tz("archived_at"),
@@ -37,10 +48,13 @@ export const categories = pgTable(
     createdAt: tz("created_at").notNull(),
   },
   (t) => [
-    // HU-E3-02: unique per parent ignoring case among rows not deleted (archived ones included; D8).
-    uniqueIndex("categories_group_name_uq")
-      .on(t.groupId, sql`lower(${t.name})`)
+    // HU-E3-02, HU-E3-04: unique among siblings ignoring case, rows not deleted (archived ones included; D8). Siblings
+    // share a parent: the parent category of a subcategory, else the group (UUIDs never collide across the two).
+    uniqueIndex("categories_parent_name_uq")
+      .on(sql`coalesce(${t.parentCategoryId}, ${t.groupId})`, sql`lower(${t.name})`)
       .where(sql`${t.deletedAt} IS NULL`),
+    index("categories_parent_idx").on(t.parentCategoryId),
+    check("categories_not_own_parent", sql`${t.parentCategoryId} <> ${t.id}`),
     // HU-E3-01: seeding twice can never duplicate a catalog key; NULL keys (user categories) never collide.
     uniqueIndex("categories_space_key_uq").on(t.spaceId, t.key),
     index("categories_space_idx").on(t.spaceId),

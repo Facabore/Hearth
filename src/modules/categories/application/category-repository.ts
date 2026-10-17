@@ -1,6 +1,12 @@
 import type { Category, CategoryGroup } from "../domain/category";
 
 export interface CategoryRepository {
+  /**
+   * Ruling P90: serializes the writers of one space's category tree. Taken first thing after authorization by every
+   * use case that writes groups or categories, it joins the caller's transaction and is released when it ends, so the
+   * writer that waits reads what the first one wrote and decides on that (a name taken, a parent gone or archived).
+   */
+  lockTree(spaceId: string): Promise<void>;
   hasAny(spaceId: string): Promise<boolean>;
   addGroups(groups: readonly CategoryGroup[]): Promise<void>;
   addCategories(categories: readonly Category[]): Promise<void>;

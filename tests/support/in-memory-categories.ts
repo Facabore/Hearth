@@ -6,6 +6,8 @@ export class InMemoryCategories implements CategoryRepository {
   /** D8 (Task 0a): when each deleted category was deleted; the rows stay, and lists skip them. */
   readonly deleted = new Map<string, Date>();
 
+  /** Ruling P90: nothing runs concurrently here, so there is nothing to serialize. */
+  async lockTree() {}
   async hasAny(spaceId: string) {
     return this.groups.some((g) => g.spaceId === spaceId);
   }
