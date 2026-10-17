@@ -4,6 +4,8 @@ import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-tr
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
 import { testDatabase } from "../../../../tests/support/database";
 import { personalSpaceFixture } from "../../../../tests/support/fixtures";
+import type { Category, CategoryGroupId, CategoryId } from "../domain/category";
+import { CUSTOM_GROUP_STYLE, type CategoryStyle } from "../domain/category-style";
 import { seedTree } from "../domain/default-catalog";
 import { DrizzleCategoryRepository } from "./drizzle-category-repository";
 
@@ -95,9 +97,145 @@ describe("DrizzleCategoryRepository", () => {
     );
     expect(rows).toEqual([{ deleted_at: deletedAt, category_id: mercado.id }]);
     expect((await repo.listCategories(space.spaceId)).map((c) => c.id)).not.toContain(mercado.id);
-    // The name is free again among the categories that are not deleted (partial categories_group_name_uq).
+    // The name is free again among the categories that are not deleted (partial categories_parent_name_uq).
     await expect(
       repo.addCategories([{ ...mercado, id: ids.next<"Category">(), name: "MERCADO", key: null }]),
     ).resolves.toBeUndefined();
+  });
+});
+
+/** A fresh space with the group "Food"; `category(name, parentId)` builds a live category of it. */
+const subcategoryWorld = async () => {
+  const space = (await personalSpaceFixture(db, pool)).spaceId;
+  const food = randomUUID();
+  await repo.addGroups([
+    {
+      id: food as CategoryGroupId,
+      spaceId: space,
+      name: "Food",
+      key: null,
+      style: CUSTOM_GROUP_STYLE,
+      archivedAt: null,
+      createdAt: new Date(),
+    },
+  ]);
+  const category = (name: string, parentId: string | null): Category => ({
+    id: randomUUID() as CategoryId,
+    spaceId: space,
+    groupId: food as CategoryGroupId,
+    parentCategoryId: parentId as CategoryId | null,
+    name,
+    key: null,
+    style: parentId === null ? CUSTOM_GROUP_STYLE : null,
+    archivedAt: null,
+    createdAt: new Date("2026-10-16T12:00:00.000Z"),
+  });
+  return { repo, space, food, category };
+};
+
+describe("subcategories (HU-E3-04)", () => {
+  it("stores a subcategory under its parent and moves it with its siblings' names", async () => {
+    const { repo, space, food, category } = await subcategoryWorld();
+    const groceries = category("Groceries", null);
+    const vegetables = category("Vegetables", groceries.id);
+    await repo.addCategories([groceries, vegetables]);
+    expect((await repo.listCategories(space)).find((c) => c.id === vegetables.id)).toEqual(vegetables);
+    // A subcategory may share its name with a category elsewhere, never with a sibling.
+    await repo.addCategories([category("Vegetables", null)]);
+    await expect(repo.addCategories([category("vegetables", groceries.id)])).rejects.toMatchObject({
+      cause: { constraint: "categories_parent_name_uq" },
+    });
+    await repo.saveCategories([
+      { ...vegetables, parentCategoryId: null, name: "Veggies", style: CUSTOM_GROUP_STYLE },
+    ]);
+    expect((await repo.listCategories(space)).find((c) => c.id === vegetables.id)).toMatchObject({
+      parentCategoryId: null,
+      groupId: food,
+    });
+  });
+
+  it("lets subcategories of different parents share a name", async () => {
+    const { repo, space, category } = await subcategoryWorld();
+    const groceries = category("Groceries", null);
+    const dairy = category("Dairy", null);
+    await repo.addCategories([
+      groceries,
+      dairy,
+      category("Organic", groceries.id),
+      category("Organic", dairy.id),
+    ]);
+    expect((await repo.listCategories(space)).filter((c) => c.name === "Organic")).toHaveLength(2);
+  });
+
+  it("refuses a category that is its own parent", async () => {
+    const { repo, category } = await subcategoryWorld();
+    const groceries = category("Groceries", null);
+    await repo.addCategories([groceries]);
+    await expect(
+      repo.saveCategories([{ ...groceries, parentCategoryId: groceries.id, style: null }]),
+    ).rejects.toMatchObject({ cause: { constraint: "categories_not_own_parent" } });
+  });
+});
+
+describe("category styles (HU-E3-05)", () => {
+  it("stores a symbol, an emoji and no style for a subcategory, and refuses a style on the wrong level", async () => {
+    const { space, tree } = await seeded();
+    const food = tree.groups[1]!;
+    const mercado = tree.categories.find((c) => c.key === "groceries")!;
+    const verduras: Category = {
+      ...mercado,
+      id: ids.next<"Category">(),
+      parentCategoryId: mercado.id,
+      name: "Verduras",
+      key: null,
+      style: null,
+    };
+    await repo.addCategories([verduras]);
+    const family: CategoryStyle = { icon: { kind: "EMOJI", value: "👨‍👩‍👧" }, color: "PLUM" };
+    await repo.saveCategories([{ ...mercado, style: family }]);
+    await repo.saveGroup({ ...food, style: family });
+    const stored = await repo.listCategories(space.spaceId);
+    expect(stored.find((c) => c.id === mercado.id)?.style).toEqual(family);
+    expect(stored.find((c) => c.id === verduras.id)?.style).toBeNull();
+    const groups = await repo.listGroups(space.spaceId);
+    expect(groups.find((g) => g.id === food.id)?.style).toEqual(family);
+    expect(groups.find((g) => g.id === tree.groups[0]!.id)?.style).toEqual({
+      icon: { kind: "SYMBOL", name: "home" },
+      color: "INDIGO",
+    });
+    // categories_style_by_level: a category always has its own style, a subcategory never.
+    await expect(repo.saveCategories([{ ...mercado, style: null }])).rejects.toMatchObject({
+      cause: { constraint: "categories_style_by_level" },
+    });
+    await expect(repo.saveCategories([{ ...verduras, style: family }])).rejects.toMatchObject({
+      cause: { constraint: "categories_style_by_level" },
+    });
+  });
+
+  it("stores a seeded group's catalog key, never rewrites it, and allows one group per key and space", async () => {
+    const { space, tree } = await seeded();
+    const food = tree.groups[1]!;
+    await repo.saveGroup({ ...food, name: "Comida", key: "transport" });
+    const groups = await repo.listGroups(space.spaceId);
+    expect(groups.map((g) => g.key).sort()).toEqual([
+      "food",
+      "health",
+      "housing",
+      "income",
+      "leisure",
+      "transport",
+    ]);
+    expect(groups.find((g) => g.id === food.id)).toMatchObject({ name: "Comida", key: "food" });
+    // category_groups_space_key_uq: a second group of the space cannot take a held key; groups without one never collide.
+    const pets = { ...food, id: ids.next<"CategoryGroup">(), name: "Mascotas" };
+    await expect(repo.addGroups([{ ...pets, key: "food" }])).rejects.toMatchObject({
+      cause: { constraint: "category_groups_space_key_uq" },
+    });
+    await repo.addGroups([
+      { ...pets, key: null },
+      { ...pets, id: ids.next<"CategoryGroup">(), name: "Viajes", key: null },
+    ]);
+    // Another space seeds the same six keys.
+    await seeded();
   });
 });

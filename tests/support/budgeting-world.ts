@@ -76,6 +76,7 @@ export const budgetingWorld = (
     plans,
     spending,
     savingsAccounts,
+    categories: householdCategories,
     ids: sequentialIds("budget"),
     clock: new FixedClock(NOW),
     tm: memoryTm,
@@ -132,6 +133,9 @@ export const householdCategories: BudgetCategories = {
           { id: "cat-outings", archived: false },
           { id: "cat-restaurants", archived: false },
           { id: "cat-old", archived: true },
+          // HU-E3-04: Groceries' subcategories.
+          { id: "cat-vegetables", archived: false, parentCategoryId: "cat-groceries" },
+          { id: "cat-meat", archived: false, parentCategoryId: "cat-groceries" },
         ]
       : [{ id: "cat-personal", archived: false }],
 };

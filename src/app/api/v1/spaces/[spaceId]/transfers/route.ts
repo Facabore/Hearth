@@ -4,8 +4,9 @@ import {
   RecordTransferBodySchema,
   transactionDto,
   transactionHeaders,
+  whenFromBody,
 } from "@/modules/ledger/contracts/ledger.contract";
-import { moneyFromDto, optionalLocalDate } from "@/shared/http/contracts";
+import { moneyFromDto } from "@/shared/http/contracts";
 import { ok } from "@/shared/kernel";
 
 export const runtime = "nodejs";
@@ -17,13 +18,13 @@ export const POST = defineRoute({
   handler: async ({ user, params, body }) => {
     const amount = moneyFromDto(body.amount);
     if (!amount.ok) return amount;
-    const date = optionalLocalDate(body.date);
-    if (!date.ok) return date;
+    const when = whenFromBody(body);
+    if (!when.ok) return when;
     const result = await getContainer().ledger.recordTransfer({
       spaceId: params.spaceId!,
       userId: user!.id,
       description: body.description,
-      date: date.value,
+      ...when.value,
       amount: amount.value,
       sourceAccountId: body.sourceAccountId,
       destinationAccountId: body.destinationAccountId,

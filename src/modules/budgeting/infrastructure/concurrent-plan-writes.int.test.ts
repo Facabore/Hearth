@@ -11,7 +11,7 @@ import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-tr
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
 import { FixedClock, type LocalDate, type Result } from "@/shared/kernel";
 import { testDatabase } from "../../../../tests/support/database";
-import { codeOf, money, unwrap } from "../../../../tests/support/fakes";
+import { codeOf, fixedTimeZones, money, unwrap } from "../../../../tests/support/fakes";
 import {
   accountFixture,
   categoryFixture,
@@ -170,6 +170,7 @@ const household = async () => {
     members: spaces,
     plans,
     spending: nothingSpent,
+    categories: { list: async () => [] },
     // Any account is one of Ana's COP savings accounts: only the plan's lines decide whether it is still free.
     savingsAccounts: {
       find: async (id: string) => ({
@@ -369,13 +370,14 @@ describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Foc
         }),
       },
       accountBalances: { balanceOf: async () => 0n },
-      categories: { find: async (_, id) => ({ id, archived: false }) },
+      categories: { find: async (_, id) => ({ id, archived: false }), subcategoriesOf: async () => [] },
       closedPeriods,
       defaultSplits: { allocationWeights: async () => null },
       storedPeriods: (spaceId) => plans.storedPeriods(spaceId),
       ids: deps.ids,
       clock: deps.clock,
       timeZone: "America/Bogota",
+      userTimeZones: fixedTimeZones(),
       tm,
     });
     return () =>

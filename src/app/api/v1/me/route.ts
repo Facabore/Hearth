@@ -1,9 +1,28 @@
-import { ok } from "@/shared/kernel";
+import { getContainer } from "@/composition/container";
 import { defineRoute } from "@/composition/route";
+import { meDto, UpdateMeBodySchema } from "@/modules/identity/contracts/me.contract";
+import { ok } from "@/shared/kernel";
 
 export const runtime = "nodejs";
 
 export const GET = defineRoute({
   auth: "required",
-  handler: async ({ user }) => ok({ status: 200, body: user }),
+  handler: async ({ user }) => {
+    // HU-E1-15: the user with their formatting preferences, as they apply.
+    const profile = await getContainer().identity.getProfile({ user: user! });
+    return profile.ok ? ok({ status: 200, body: meDto(profile.value) }) : profile;
+  },
+});
+
+export const PATCH = defineRoute({
+  auth: "required",
+  body: UpdateMeBodySchema,
+  handler: async ({ user, body }) => {
+    const { identity } = getContainer();
+    const updated = await identity.updateProfile({ ...body, user: user! });
+    if (!updated.ok) return updated;
+    // HU-E1-15: the answer shows what applies after the change.
+    const profile = await identity.getProfile({ user: updated.value });
+    return profile.ok ? ok({ status: 200, body: meDto(profile.value) }) : profile;
+  },
 });

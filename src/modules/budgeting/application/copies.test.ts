@@ -13,10 +13,17 @@ import type { BudgetCategories } from "./ports";
 const ANA_AND_JUAN = BUDGET_MEMBERS.filter((m) => m.displayName === "Ana" || m.displayName === "Juan");
 const MARTA = memberOf("Marta", "MEMBER", 4);
 
-/** Household's live categories; `archived` names those archived since the source plan was made. */
-const categories = (archived: readonly string[]): BudgetCategories => ({
+/**
+ * Household's live categories; `archived` names those archived since the source plan was made and `subcategories`
+ * those moved under Groceries since (HU-E3-04).
+ */
+const categories = (archived: readonly string[], subcategories: readonly string[]): BudgetCategories => ({
   list: async () =>
-    ["cat-groceries", "cat-utilities", "cat-outings"].map((id) => ({ id, archived: archived.includes(id) })),
+    ["cat-groceries", "cat-utilities", "cat-outings"].map((id) => ({
+      id,
+      archived: archived.includes(id),
+      parentCategoryId: subcategories.includes(id) ? "cat-groceries" : null,
+    })),
 });
 
 /**
@@ -28,6 +35,7 @@ const world = async (
     readonly members?: readonly SpaceMember[];
     readonly parts?: Partial<PlanParts>;
     readonly archived?: readonly string[];
+    readonly subcategories?: readonly string[];
     readonly periodPolicy?: PeriodPolicy;
     readonly periods?: readonly string[];
   } = {},
@@ -39,7 +47,7 @@ const world = async (
     lines: w.plans,
     mappings: w.plans,
     allocations: w.plans,
-    categories: categories(options.archived ?? []),
+    categories: categories(options.archived ?? [], options.subcategories ?? []),
   };
   const create = createCreateBudgetPlan(deps);
   const [first] = options.periods ?? ["2026-11"];
@@ -190,6 +198,15 @@ describe("CopyBudgetPlan (HU-E6-06)", () => {
 
   it("drops the mapping of Utilities, archived after the 2026-11 plan was made, and lists it", async () => {
     const { copyInto } = await world({ archived: ["cat-utilities"] });
+    const copy = unwrap(await copyInto("2026-12"));
+    expect(line(copy, "Home").categoryIds).toEqual(["cat-groceries"]);
+    expect(copy.dropped.mappings).toEqual([
+      { lineId: line(copy, "Home").line.id, categoryId: "cat-utilities" },
+    ]);
+  });
+
+  it("drops the mapping of Utilities, moved under Groceries after the 2026-11 plan was made, and lists it (P48)", async () => {
+    const { copyInto } = await world({ subcategories: ["cat-utilities"] });
     const copy = unwrap(await copyInto("2026-12"));
     expect(line(copy, "Home").categoryIds).toEqual(["cat-groceries"]);
     expect(copy.dropped.mappings).toEqual([

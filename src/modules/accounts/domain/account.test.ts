@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
-import { archiveAccount, openAccount, reviseAccount, type Account, type AccountId } from "./account";
+import {
+  ACCOUNT_TYPES,
+  archiveAccount,
+  iconOf,
+  NO_ATTRIBUTES,
+  openAccount,
+  reviseAccount,
+  type Account,
+  type AccountId,
+} from "./account";
 
 const now = new Date("2026-10-12T12:00:00Z");
 const open = (overrides: Partial<Parameters<typeof openAccount>[0]> = {}) =>
@@ -30,6 +39,7 @@ describe("opening accounts (HU-E2-01)", () => {
       openingBalance: 200_000_000n,
       archivedAt: null,
       createdAt: now,
+      ...NO_ATTRIBUTES,
     });
   });
 
@@ -85,5 +95,79 @@ describe("revising and archiving accounts (HU-E2-03)", () => {
   it("archives once and keeps the first archive time", () => {
     const archived = archiveAccount(bancolombia, now);
     expect(archiveAccount(archived, new Date("2027-01-01T00:00:00Z")).archivedAt).toEqual(now);
+  });
+});
+
+describe("account types and common attributes (HU-E2-05)", () => {
+  it("opens a wallet with its institution, last four digits, color and icon", () => {
+    const wallet = unwrap(
+      open({
+        name: "Nequi",
+        type: "WALLET",
+        attributes: { institution: "Nequi", lastFour: "4821", color: "pine", icon: "wallet" },
+      }),
+    );
+    expect(wallet).toMatchObject({
+      type: "WALLET",
+      institution: "Nequi",
+      lastFour: "4821",
+      color: "pine",
+      icon: "wallet",
+    });
+  });
+
+  it("leaves attributes empty and shows each type's default icon", () => {
+    const cash = unwrap(open({ name: "Efectivo", type: "CASH" }));
+    expect([cash.institution, cash.lastFour, cash.color, cash.icon, iconOf(cash)]).toEqual([
+      null,
+      null,
+      null,
+      null,
+      "banknote",
+    ]);
+    expect(ACCOUNT_TYPES.map((type) => iconOf({ type, icon: null }))).toEqual([
+      "banknote",
+      "landmark",
+      "wallet",
+      "credit-card",
+      "piggy-bank",
+      "trending-up",
+      "hand-coins",
+      "circle-ellipsis",
+      "users",
+    ]);
+  });
+
+  it("shows an explicit icon instead of the type's default", () => {
+    const loan = unwrap(open({ name: "Carro", type: "LOAN", attributes: { icon: "car" } }));
+    expect(iconOf(loan)).toBe("car");
+  });
+
+  it.each(["WALLET", "INVESTMENT", "LOAN", "OTHER"] as const)(
+    "keeps %s accounts in personal spaces",
+    (type) => {
+      expect(codeOf(open({ type, spaceKind: "SHARED" }))).toBe("PersonalAccountRequiresPersonalSpace");
+    },
+  );
+
+  it("changes and clears attributes, and never the type, whatever else the change holds", () => {
+    const wallet = unwrap(
+      open({
+        type: "WALLET",
+        attributes: { color: "pine", institution: "Nequi", icon: "car", lastFour: "4821" },
+      }),
+    );
+    const revised = unwrap(
+      reviseAccount(
+        wallet,
+        { attributes: { color: "ember", institution: null, icon: null, lastFour: null } },
+        [wallet],
+      ),
+    );
+    expect(revised).toMatchObject({ color: "ember", institution: null, icon: null, lastFour: null });
+    expect(iconOf(revised)).toBe("wallet");
+    expect(codeOf(reviseAccount(wallet, { type: "BANK", attributes: { color: "sky" } }, [wallet]))).toBe(
+      "AccountTypeImmutable",
+    );
   });
 });

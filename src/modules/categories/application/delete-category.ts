@@ -23,11 +23,13 @@ export const createDeleteCategory =
     deps.tm.run(async () => {
       const manager = await authorizeManager(deps.access, input.spaceId, input.userId);
       if (!manager.ok) return manager;
-      const category = categoryById(
-        await deps.categories.listCategories(manager.value.spaceId),
-        input.categoryId,
-      );
+      await deps.categories.lockTree(manager.value.spaceId);
+      const categories = await deps.categories.listCategories(manager.value.spaceId);
+      const category = categoryById(categories, input.categoryId);
       if (!category.ok) return category;
+      // HU-E3-04, ruling P48: subcategories that are not deleted, archived ones included, keep their category.
+      if (categories.some((c) => c.parentCategoryId === category.value.id))
+        return err(domainError("CategoryInUse"));
       if (await deps.usage.isCategoryReferenced(category.value.id)) return err(domainError("CategoryInUse"));
       // D8 (Task 0a): logical; the row stays, and lists, lookups and name checks skip it.
       await deps.categories.deleteCategory(manager.value.spaceId, category.value.id, deps.clock.now());

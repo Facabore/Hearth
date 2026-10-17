@@ -2,8 +2,12 @@ import { getContainer } from "@/composition/container";
 import { defineRoute } from "@/composition/route";
 import {
   accountDto,
+  accountListDto,
+  attributesFromBody,
   CreateAccountBodySchema,
   ListAccountsQuerySchema,
+  termsFromBody,
+  withPublicField,
 } from "@/modules/accounts/contracts/accounts.contract";
 import { moneyFromDto, optionalLocalDate } from "@/shared/http/contracts";
 import { ok } from "@/shared/kernel";
@@ -22,7 +26,7 @@ export const GET = defineRoute({
       includeArchived: query.archived === "true",
       asOf: asOf.value,
     });
-    return result.ok ? ok({ status: 200, body: { items: result.value.map(accountDto) } }) : result;
+    return result.ok ? ok({ status: 200, body: accountListDto(result.value) }) : result;
   },
 });
 
@@ -32,13 +36,17 @@ export const POST = defineRoute({
   handler: async ({ user, params, body }) => {
     const openingBalance = moneyFromDto(body.openingBalance);
     if (!openingBalance.ok) return openingBalance;
+    const terms = termsFromBody(body.terms);
+    if (!terms.ok) return terms;
     const result = await getContainer().accounts.createAccount({
       spaceId: params.spaceId!,
       userId: user!.id,
       name: body.name,
       type: body.type,
       openingBalance: openingBalance.value,
+      attributes: attributesFromBody(body),
+      terms: terms.value,
     });
-    return result.ok ? ok({ status: 201, body: accountDto(result.value) }) : result;
+    return result.ok ? ok({ status: 201, body: accountDto(result.value) }) : withPublicField(result);
   },
 });

@@ -37,14 +37,30 @@ export const createListTransactions =
     const stored = await deps.storedPeriods(space.spaceId);
     const period =
       input.period === undefined
-        ? ok(resolvePeriod(space.periodPolicy, stored, todayIn(deps.clock, deps.timeZone)))
+        ? ok(
+            resolvePeriod(
+              space.periodPolicy,
+              stored,
+              todayIn(deps.clock, await deps.userTimeZones.timeZoneOf(input.userId)),
+            ),
+          )
         : periodByLabel(space.periodPolicy, stored, input.period);
     if (!period.ok) return period;
+    // HU-E3-04, ruling P48: a category's filter also matches its subcategories; a subcategory matches itself.
+    const categoryIds =
+      input.categoryIds === undefined || input.categoryIds.length === 0
+        ? input.categoryIds
+        : [
+            ...new Set([
+              ...input.categoryIds,
+              ...(await deps.categories.subcategoriesOf(space.spaceId, input.categoryIds)),
+            ]),
+          ];
     const filter: TransactionFilter = {
       spaceId: space.spaceId,
       from: period.value.start,
       to: period.value.end,
-      categoryIds: input.categoryIds,
+      categoryIds,
       payerMemberId: input.payerMemberId,
       participantMemberId: input.participantMemberId,
       type: input.type,
@@ -58,6 +74,14 @@ export const createListTransactions =
       currency: space.currency,
       totals: await deps.query.totals(filter),
       items,
-      nextPosition: rows.length > input.limit && last ? { date: last.date, id: last.id } : null,
+      nextPosition: rows.length > input.limit && last ? positionOf(last) : null,
     });
   };
+
+/** Ruling P43: where `tx` stands in the list order, for the next page's cursor. */
+export const positionOf = (tx: Transaction): TransactionPosition => ({
+  date: tx.date,
+  occurredAt: tx.occurredAt,
+  createdAt: tx.createdAt,
+  id: tx.id,
+});

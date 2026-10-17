@@ -496,7 +496,10 @@ describe("MaterializeDueOccurrences (HU-E4-12)", () => {
       const rent = await w.define(rentDefinition());
       const retired = occurrenceRecorders({
         ...w.deps,
-        categories: { find: async (_spaceId, id) => ({ id, archived: true }) },
+        categories: {
+          find: async (_spaceId, id) => ({ id, archived: true }),
+          subcategoriesOf: async () => [],
+        },
       });
       const report = await createMaterializeDueOccurrences({ ...w.deps, recorders: retired })({
         today: day("2027-01-01"),

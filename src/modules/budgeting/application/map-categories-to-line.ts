@@ -4,7 +4,7 @@ import type { BudgetingDeps } from "./deps";
 import { lineOf } from "./line-checks";
 import { planForWrite } from "./plan-access";
 import { loadPlanView, type BudgetPlanView } from "./plan-view";
-import type { BudgetCategories, CategoryMappingRepository } from "./ports";
+import type { CategoryMappingRepository } from "./ports";
 
 export type MapCategoriesToLine = (input: {
   spaceId: string;
@@ -15,10 +15,7 @@ export type MapCategoriesToLine = (input: {
   categoryIds: readonly string[];
 }) => Promise<Result<BudgetPlanView>>;
 
-export type MappingDeps = BudgetingDeps & {
-  readonly mappings: CategoryMappingRepository;
-  readonly categories: BudgetCategories;
-};
+export type MappingDeps = BudgetingDeps & { readonly mappings: CategoryMappingRepository };
 
 /**
  * HU-E6-04: an OWNER or ADMIN replaces the categories a line consumes. A category maps to one line per plan, newly

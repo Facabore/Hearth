@@ -518,7 +518,8 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
       MapCategoriesBodySchema,
       {
         "404": "SpaceNotFound, BudgetPlanNotFound, BudgetLineNotFound",
-        "409": "CategoryAlreadyMapped, CategoryArchived, SavingsLineNotMappable, SpaceArchived",
+        "409":
+          "CategoryAlreadyMapped, CategoryArchived, SavingsLineNotMappable, SpaceArchived, SubcategoryNotMappable",
         "422": "ValidationFailed, CategoryNotInSpace",
       },
     ),

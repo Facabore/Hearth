@@ -1,4 +1,5 @@
 import type { SpaceMember, SpaceMembership } from "@/modules/spaces/application";
+import { rolledUpCategory, rolledUpSpending, type CategoryParent } from "../domain/category-rollup";
 import type { BudgetPlan } from "../domain/plan";
 import { planFigures, type PlanFigures, type PreviousAvailable } from "../domain/plan-figures";
 import type { BudgetingDeps } from "./deps";
@@ -12,7 +13,16 @@ export interface BudgetPlanView {
   readonly figures: PlanFigures;
 }
 
-type ViewDeps = Pick<BudgetingDeps, "members" | "plans" | "spending" | "savingsAccounts">;
+type ViewDeps = Pick<BudgetingDeps, "members" | "plans" | "spending" | "savingsAccounts" | "categories">;
+
+/**
+ * What one view reads once and shares along the chain of plans it walks: the space's current members and its
+ * categories with their parents (HU-E3-04), so every plan of the chain is figured against the same tree.
+ */
+interface ViewReads {
+  readonly members: readonly SpaceMember[];
+  readonly categories: readonly CategoryParent[];
+}
 
 /**
  * P8: of the accounts SAVINGS lines name, the ones whose owner is a current registered member of the plan's space.
@@ -42,7 +52,7 @@ const previousAvailable = async (
   plan: BudgetPlan,
   context: {
     readonly parts: PlanContents;
-    readonly members: readonly SpaceMember[];
+    readonly reads: ViewReads;
     readonly seen: ReadonlySet<string>;
   },
 ): Promise<PreviousAvailable[]> => {
@@ -52,7 +62,7 @@ const previousAvailable = async (
   if (!rolls || plan.createdFrom === null || context.seen.has(plan.createdFrom)) return [];
   const source = await deps.plans.find(space.spaceId, plan.createdFrom);
   if (source === null) return [];
-  const figures = await figuresOf(deps, space, source, context.members, new Set([...context.seen, plan.id]));
+  const figures = await figuresOf(deps, space, source, context.reads, new Set([...context.seen, plan.id]));
   return figures.lines.map((figure) => ({ lineId: figure.line.id, available: figure.available }));
 };
 
@@ -61,10 +71,17 @@ const figuresOf = async (
   deps: ViewDeps,
   space: SpaceMembership,
   plan: BudgetPlan,
-  members: readonly SpaceMember[],
+  reads: ViewReads,
   seen: ReadonlySet<string>,
 ): Promise<PlanFigures> => {
-  const parts = await deps.plans.contents(plan.id);
+  const { members, categories } = reads;
+  const stored = await deps.plans.contents(plan.id);
+  // A line lists a category exactly when it counts there: the mapping of a category that became a subcategory stays
+  // stored (D8) but is hidden, since its spending counts where its parent is mapped (HU-E3-04). Promoted, it shows again.
+  const parts = {
+    ...stored,
+    mappings: stored.mappings.filter((m) => rolledUpCategory(m.categoryId, categories) === m.categoryId),
+  };
   const { start, end } = plan.period;
   const accountIds = await accountsOfMembers(
     deps.savingsAccounts,
@@ -72,7 +89,11 @@ const figuresOf = async (
     parts.lines.flatMap((line) => line.savingsAccountIds),
   );
   const spending = {
-    byCategory: await deps.spending.expensesByCategory(space.spaceId, start, end),
+    // HU-E3-04: a subcategory's expenses count where its category is mapped, the catch-all and Unbudgeted included.
+    byCategory: rolledUpSpending(
+      await deps.spending.expensesByCategory(space.spaceId, start, end),
+      categories,
+    ),
     byAccount:
       accountIds.length === 0 ? [] : await deps.spending.transfersIntoAccounts(accountIds, start, end),
   };
@@ -81,7 +102,7 @@ const figuresOf = async (
     memberIds: members.map((m) => m.id),
     parts,
     spending,
-    previousAvailable: await previousAvailable(deps, space, plan, { parts, members, seen }),
+    previousAvailable: await previousAvailable(deps, space, plan, { parts, reads, seen }),
   });
 };
 
@@ -92,5 +113,7 @@ export const loadPlanView = async (
   plan: BudgetPlan,
 ): Promise<BudgetPlanView> => {
   const members = await deps.members.listCurrent(space.spaceId);
-  return { plan, currency: space.currency, figures: await figuresOf(deps, space, plan, members, new Set()) };
+  const categories = await deps.categories.list(space.spaceId);
+  const figures = await figuresOf(deps, space, plan, { members, categories }, new Set());
+  return { plan, currency: space.currency, figures };
 };

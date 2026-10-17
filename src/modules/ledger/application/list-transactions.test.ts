@@ -170,3 +170,26 @@ describe("GetTransaction", () => {
     }
   });
 });
+
+describe("subcategories (HU-E3-04)", () => {
+  it("lists a category with its subcategories, totals included, and a subcategory alone", async () => {
+    const { deps, store } = ledgerFixture();
+    store.rows.push(
+      anExpense("2026-10-05", 8_500_000n, { description: "Groceries" }),
+      anExpense("2026-10-06", 4_000_000n, {
+        description: "Vegetables",
+        categoryId: CATEGORIES.vegetables.id,
+      }),
+      anExpense("2026-10-07", 6_000_000n, { description: "Dinner", categoryId: CATEGORIES.restaurants.id }),
+    );
+    const byGroceries = unwrap(
+      await list(deps, { period: "2026-10", categoryIds: [CATEGORIES.groceries.id] }),
+    );
+    expect(byGroceries.items.map((t) => t.description)).toEqual(["Vegetables", "Groceries"]);
+    expect(byGroceries.totals.expenses).toBe(12_500_000n);
+    const byVegetables = unwrap(
+      await list(deps, { period: "2026-10", categoryIds: [CATEGORIES.vegetables.id] }),
+    );
+    expect(byVegetables.items.map((t) => t.description)).toEqual(["Vegetables"]);
+  });
+});

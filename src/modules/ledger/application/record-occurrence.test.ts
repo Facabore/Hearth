@@ -64,6 +64,8 @@ const recordedForAna = {
   createdAt: new Date("2026-10-28T17:00:00Z"),
   updatedAt: new Date("2026-10-28T17:00:00Z"),
   deletedAt: null,
+  occurredAt: null,
+  timeZone: null,
   version: 1,
 };
 const HOUSEHOLD_MEMBER_IDS = ["member-ana", "member-juan", "member-luis", "member-sofi", "member-pedro"];
@@ -346,5 +348,15 @@ describe("recordOccurrence (HU-E4-12, P21)", () => {
     await spaces.archive("space-household");
     expect(codeOf(await recordOccurrence(recorders, rent, on("u-ana", 1_200_000n)))).toBe("SpaceArchived");
     expect(store.rows).toStrictEqual([]);
+  });
+});
+
+describe("occurrences have no time (HU-E4-14, ruling P66)", () => {
+  it("records an occurrence with its date and no time, as the scheduler and a confirmation do", async () => {
+    const { deps } = recurrenceWorld();
+    const recorded = unwrap(
+      await recordOccurrence(occurrenceRecorders(deps), recurrenceOf(fromTheFund), on("u-ana", 1_200_000n)),
+    );
+    expect(recorded.transaction).toMatchObject({ date: "2026-12-01", occurredAt: null, timeZone: null });
   });
 });

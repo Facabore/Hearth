@@ -72,6 +72,8 @@ describe("recording transactions", () => {
       createdAt: now,
       updatedAt: now,
       deletedAt: null,
+      occurredAt: null,
+      timeZone: null,
       version: 1,
     });
   });
@@ -350,6 +352,8 @@ describe("fund contributions and settlements (HU-E4-09, HU-E5-02)", () => {
       createdAt: now,
       updatedAt: now,
       deletedAt: null,
+      occurredAt: null,
+      timeZone: null,
       version: 1,
     });
   });
@@ -503,5 +507,109 @@ describe("balance parties (E5 balance rule, Task 4b)", () => {
       }),
     );
     expect([balanceParties(fundPaid), balanceParties(contribution)]).toEqual([[], []]);
+  });
+});
+
+describe("transaction time (HU-E4-14)", () => {
+  const at = new Date("2026-10-16T19:32:00Z");
+  const transfer = (time: { occurredAt?: Date; timeZone?: string } = {}) =>
+    unwrap(
+      recordTransfer({
+        id: "tx-time" as TransactionId,
+        spaceId: "space-ana",
+        date: "2026-10-16" as LocalDate,
+        ...time,
+        amount: 50_000_000n,
+        currency: "COP",
+        createdBy: "u-ana",
+        now: at,
+        sourceAccountId: "acc-bancolombia",
+        destinationAccountId: "acc-nequi",
+      }),
+    );
+  const timed = () => transfer({ occurredAt: at, timeZone: "America/Bogota" });
+  // As the migration leaves an existing row: no time (ruling P40).
+  const untimed = () => transfer();
+
+  it("keeps the instant and the zone it was recorded in", () => {
+    expect(timed()).toMatchObject({ date: "2026-10-16", occurredAt: at, timeZone: "America/Bogota" });
+  });
+
+  it("refuses an instant without a zone, and a zone without an instant", () => {
+    const base = {
+      id: "tx-x" as TransactionId,
+      spaceId: "space-ana",
+      date: "2026-10-16" as LocalDate,
+      amount: 1n,
+    };
+    const shape = {
+      currency: "COP",
+      createdBy: "u-ana",
+      now: at,
+      sourceAccountId: "a",
+      destinationAccountId: "b",
+    };
+    expect(codeOf(recordTransfer({ ...base, ...shape, occurredAt: at }))).toBe("InvalidTransactionTime");
+    expect(codeOf(recordTransfer({ ...base, ...shape, timeZone: "America/Bogota" }))).toBe(
+      "InvalidTransactionTime",
+    );
+  });
+
+  it("revises the time and audits it before and after, and never removes it", () => {
+    const before = timed();
+    const after = unwrap(
+      reviseTransaction(
+        before,
+        { date: "2026-10-14" as LocalDate, occurredAt: new Date("2026-10-14T19:32:00Z") },
+        at,
+      ),
+    );
+    expect(changesBetween(before, after)).toEqual({
+      date: { from: "2026-10-16", to: "2026-10-14" },
+      occurredAt: { from: "2026-10-16T19:32:00.000Z", to: "2026-10-14T19:32:00.000Z" },
+    });
+    // HU-E4-14, ruling P66: a recorded time is replaced, never removed.
+    expect(codeOf(reviseTransaction(after, { occurredAt: null, timeZone: null }, at))).toBe("TimeRequired");
+  });
+
+  it("audits a change of zone beside the instant", () => {
+    const before = timed();
+    const after = unwrap(reviseTransaction(before, { timeZone: "America/New_York" }, at));
+    expect(changesBetween(before, after)).toEqual({
+      timeZone: { from: "America/Bogota", to: "America/New_York" },
+    });
+  });
+
+  it("refuses to clear half of a stored time, and refuses to build half a time", () => {
+    // P66: dropping only the zone is a removal too.
+    expect(codeOf(reviseTransaction(timed(), { timeZone: null }, at))).toBe("TimeRequired");
+    // The pair comes whole or not at all (transactions_time_zone): no instant without a zone, no zone without an instant.
+    expect(codeOf(reviseTransaction(untimed(), { occurredAt: at }, at))).toBe("InvalidTransactionTime");
+    expect(codeOf(reviseTransaction(untimed(), { timeZone: "America/Bogota" }, at))).toBe(
+      "InvalidTransactionTime",
+    );
+  });
+
+  it("gives a row without a time its first one, or leaves it untimed", () => {
+    const before = untimed();
+    const first = unwrap(reviseTransaction(before, { occurredAt: at, timeZone: "America/Bogota" }, at));
+    expect(first).toMatchObject({ occurredAt: at, timeZone: "America/Bogota" });
+    expect(changesBetween(before, first)).toEqual({
+      occurredAt: { from: null, to: "2026-10-16T19:32:00.000Z" },
+      timeZone: { from: null, to: "America/Bogota" },
+    });
+    // null keeps a row without a time untimed; it is not a removal.
+    expect(unwrap(reviseTransaction(before, { occurredAt: null, timeZone: null }, at))).toMatchObject({
+      occurredAt: null,
+      timeZone: null,
+    });
+  });
+
+  it("retires the time with the rest of a deleted transaction (D8)", () => {
+    expect(deletionChanges(timed())).toMatchObject({
+      occurredAt: { from: "2026-10-16T19:32:00.000Z", to: null },
+      timeZone: { from: "America/Bogota", to: null },
+    });
+    expect(deletionChanges(untimed())).not.toHaveProperty("occurredAt");
   });
 });

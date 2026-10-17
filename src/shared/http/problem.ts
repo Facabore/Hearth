@@ -20,6 +20,10 @@ const EXPLICIT: ReadonlyMap<string, number> = new Map([
   ["AccountNotInSpace", 422],
   ["SavingsAccountRequired", 422],
   ["CategoryNotInSpace", 422],
+  // HU-E4-14: the request's date and instant disagree; the default would be 409.
+  ["DateTimeMismatch", 422],
+  // HU-E4-14, ruling P66: `occurredAt: null`; a time is replaced, never removed; the default would be 409.
+  ["TimeRequired", 422],
   // HU-E6-07: the plan's state, not the request, refuses the move (ruling P12).
   ["InvalidPlanTransition", 409],
   // HU-E4-11: the recurrence's state, not the request, refuses the move (ruling P27).
@@ -29,6 +33,8 @@ const EXPLICIT: ReadonlyMap<string, number> = new Map([
   ["InvitationEmailMismatch", 403],
   ["PasswordTooShort", 422],
   ["EmailTaken", 409],
+  // HU-E1-15: the installation rules lock the field; explicit, as the story asks.
+  ["PreferenceLocked", 409],
   ["IdempotencyKeyConflict", 409],
   ["PreconditionFailed", 412],
   ["TooManyRequests", 429],
@@ -53,6 +59,8 @@ const PUBLIC_DETAILS: ReadonlyMap<string, readonly string[]> = new Map([
   // HU-E4-11: "creator" when a recurrence's creator, not the requester, is why a resume or an edit is refused.
   ["InsufficientRole", ["member"]],
   ["NotASpaceMember", ["member"]],
+  // HU-E2-06: the term an account type refuses, as the key inside the body's `terms`; the stored key stays private.
+  ["AccountAttributeNotAllowed", ["field"]],
 ]);
 
 /** The details of `code` that are part of the API contract, e.g. the outstanding amount (HU-E1-08). */

@@ -123,7 +123,11 @@ export interface CategoryMappingRepository {
 
 /** The live categories of a space (deleted ones never appear, D8), archived ones flagged; bound to categories. */
 export interface BudgetCategories {
-  list(spaceId: string): Promise<{ readonly id: string; readonly archived: boolean }[]>;
+  list(
+    spaceId: string,
+  ): Promise<
+    { readonly id: string; readonly archived: boolean; readonly parentCategoryId?: string | null }[]
+  >;
 }
 
 /** HU-E6-05: allocating a line sets its rule and supersedes its earlier member values; nothing is deleted (D8). */

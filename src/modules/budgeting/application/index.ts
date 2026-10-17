@@ -73,7 +73,6 @@ export {
   defaultSplitOf,
   SPLIT_METHODS,
   type DefaultSplit,
-  type DefaultSplitDeps,
   type DefaultSplitView,
   type ExpenseToSplit,
   type ResolveDefaultSplit,

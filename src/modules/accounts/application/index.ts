@@ -1,5 +1,20 @@
-export type { Account, AccountId, AccountType } from "../domain/account";
-export { ACCOUNT_TYPES } from "../domain/account";
+export type {
+  Account,
+  AccountAttributes,
+  AccountColor,
+  AccountIcon,
+  AccountId,
+  AccountType,
+  AttributeChanges,
+} from "../domain/account";
+export {
+  ACCOUNT_COLORS,
+  ACCOUNT_ICONS,
+  ACCOUNT_TYPES,
+  iconOf,
+  NO_ATTRIBUTES,
+  switchesOf,
+} from "../domain/account";
 export type { AccountMovements } from "./account-movements";
 export type { AccountRepository } from "./account-repository";
 export type { AccountView } from "./account-view";
@@ -7,5 +22,16 @@ export { createCreateAccount, type CreateAccount, type CreateAccountInput } from
 export type { AccountsDeps } from "./deps";
 
 export { createArchiveAccount, type ArchiveAccount } from "./archive-account";
-export { createGetAccount, createListAccounts, type GetAccount, type ListAccounts } from "./list-accounts";
+export {
+  createGetAccount,
+  createListAccounts,
+  type AccountList,
+  type GetAccount,
+  type ListAccounts,
+} from "./list-accounts";
+export type { AccountTotals } from "../domain/account-totals";
 export { createUpdateAccount, type AccountChanges, type UpdateAccount } from "./update-account";
+export type { AccountTerms, TermFigures, TermsChange } from "../domain/account-terms";
+export { NO_TERMS } from "../domain/account-terms";
+export { percentText, ratePpmOf } from "../domain/rate";
+export type { TermsInput } from "./currency";

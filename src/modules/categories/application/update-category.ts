@@ -1,6 +1,8 @@
 import { ok, type Result } from "@/shared/kernel";
-import { reviseCategory, type Category } from "../domain/category";
+import { movedTree, reviseCategory } from "../domain/category";
+import { styleChangeOf, type CategoryColor, type IconInput } from "../domain/category-style";
 import { authorizeManager } from "./authorize";
+import { viewOf, type CategoryView } from "./category-view";
 import type { CategoriesDeps } from "./deps";
 import { categoryById, groupById } from "./lookups";
 
@@ -10,7 +12,12 @@ export type UpdateCategory = (input: {
   categoryId: string;
   name?: string;
   groupId?: string;
-}) => Promise<Result<Category>>;
+  /** HU-E3-04: a category to become its subcategory, or null to become a category of `groupId` (or its group). */
+  parentCategoryId?: string | null;
+  /** HU-E3-05: `ValidationFailed` when the result is a subcategory (ruling P58). */
+  icon?: IconInput;
+  color?: CategoryColor;
+}) => Promise<Result<CategoryView>>;
 
 /** HU-E3-02: rename and/or move; existing transactions keep the category (its id never changes). */
 export const createUpdateCategory =
@@ -20,6 +27,7 @@ export const createUpdateCategory =
       const manager = await authorizeManager(deps.access, input.spaceId, input.userId);
       if (!manager.ok) return manager;
       const { spaceId } = manager.value;
+      await deps.categories.lockTree(spaceId);
       const categories = await deps.categories.listCategories(spaceId);
       const category = categoryById(categories, input.categoryId);
       if (!category.ok) return category;
@@ -28,8 +36,20 @@ export const createUpdateCategory =
           ? ok(undefined)
           : groupById(await deps.categories.listGroups(spaceId), categories, input.groupId);
       if (!target.ok) return target;
-      const revised = reviseCategory(category.value, { name: input.name, group: target.value }, categories);
+      const parent =
+        input.parentCategoryId === undefined || input.parentCategoryId === null
+          ? ok(input.parentCategoryId)
+          : categoryById(categories, input.parentCategoryId);
+      if (!parent.ok) return parent;
+      const style = styleChangeOf(input);
+      if (!style.ok) return style;
+      const revised = reviseCategory(
+        category.value,
+        { name: input.name, group: target.value, parent: parent.value, style: style.value },
+        categories,
+      );
       if (!revised.ok) return revised;
-      await deps.categories.saveCategories([revised.value]);
-      return revised;
+      // HU-E3-04: its subcategories follow it to the new group.
+      await deps.categories.saveCategories(movedTree(revised.value, categories));
+      return ok(viewOf(revised.value, categories));
     });

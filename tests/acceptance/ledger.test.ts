@@ -447,6 +447,9 @@ describe("the audit keeps every payment and share (D8, Task 0b)", () => {
         {
           description: { from: "Market", to: null },
           date: { from: "2026-10-05", to: null },
+          // HU-E4-14: a date alone took the time of day of recording; a deletion retires it too.
+          occurredAt: { from: expect.any(String), to: null },
+          timeZone: { from: "America/Bogota", to: null },
           categoryId: { from: ana.groceries, to: null },
           amount: { from: "9500000", to: null },
           payments: { from: after.payments, to: null },

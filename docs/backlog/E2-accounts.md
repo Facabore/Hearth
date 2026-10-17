@@ -206,6 +206,7 @@ Feature: Account types and common attributes
 - An INVESTMENT account's balance comes from the ledger only: contributions are transfers into it. Manual market values are HU-E8-17; market data and brokerage sync stay out of scope.
 - Migration: nullable columns; existing accounts get their type's default icon.
 - Currency stays the space currency (HU-E2-01); a currency per account is future work (HU-E8-06).
+- Errors (catalogue, spec 8): `ValidationFailed` (422) for an unknown type, color or icon, a `lastFour` that is not four digits, or an `institution` outside 1–60 characters; `PersonalAccountRequiresPersonalSpace` (409) for the new types in a shared space; `AccountTypeImmutable` (409) (M3-D Task 13).
 - **Spec impact:** 5.2 **Account** (new types, common attributes, sign of liabilities); section 2 Non-goals ("investments": an investment account's ledger balance is in scope; market data and sync are not).
 
 ---
@@ -265,6 +266,7 @@ Feature: Type-specific account attributes
 - The warning against the certified usury cap belongs to card installments (HU-E8-11); this story stores rates without judging them.
 - "Today" for the next dates is the requesting user's local date (HU-E1-14).
 - Consumers: card installments (HU-E8-11), CDT projection (HU-E8-12), loan schedule (HU-E8-13) and reminders (HU-E8-16). This story only stores and validates the terms.
+- Errors (catalogue, spec 8): `AccountAttributeNotAllowed` (409; its `field` names the refused term as the key inside the body's `terms`, e.g. `monthlyRate`); `InvalidCreditLimit`, `InvalidBillingDay`, `InvalidRate`, `InvalidTermDeposit`, `InvalidTerm` (422); a loan principal that is not positive is `InvalidAmount` (422); a money term in another currency is `CurrencyMismatch` (422); a rate that is not a string and a money term beyond the PostgreSQL `bigint` range are `ValidationFailed` (422) (M3-D Task 15b).
 - **Spec impact:** 5.2 **Account** (attributes per type, derived fields, clamping of billing days); 7 HTTP conventions (rates as decimal strings, like money amounts).
 
 ---
@@ -319,7 +321,7 @@ Feature: Available and net worth totals
 ```
 
 **Technical notes:**
-- `Account` gains `includeInAvailable` and `includeInNetWorth`, editable with `PATCH /api/v1/spaces/{spaceId}/accounts/{accountId}`. Defaults by type: CASH, BANK, WALLET and SHARED_FUND count in both; SAVINGS, INVESTMENT, CREDIT_CARD, LOAN and OTHER count in net worth only. Either switch may be turned on or off for any type, for example to count a card in available and see money net of the card. The migration sets existing accounts to their type defaults.
+- `Account` gains `includeInAvailable` and `includeInNetWorth`, editable with `PATCH /api/v1/spaces/{spaceId}/accounts/{accountId}`. Defaults by type: CASH, BANK, WALLET and SHARED_FUND count in both; SAVINGS, INVESTMENT, CREDIT_CARD, LOAN and OTHER count in net worth only. Either switch may be turned on or off for any type, for example to count a card in available and see money net of the card. The migration adds two nullable columns and back-fills nothing: a null switch means the type's default, so existing accounts show those defaults, and `PATCH` with `null` returns a switch to its default.
 - Formulas, over the space's active (not archived) accounts and their computed balances (HU-E2-04):
   - `available = Σ balance(a)` over the accounts with `includeInAvailable`;
   - `netWorth = Σ balance(a)` over the accounts with `includeInNetWorth`.
@@ -328,4 +330,5 @@ Feature: Available and net worth totals
 - Computed on read (D7) by `GetAccountBalances`. `GET /api/v1/spaces/{spaceId}/accounts?asOf=<date>` returns `totals: { available, netWorth }` next to `items`, at the same `asOf` as the balances.
 - Totals are per space and never mix spaces: a personal space totals its owner's accounts and a shared space totals its SHARED_FUND accounts (D5). A cross-space "all my money" figure is not part of this story.
 - A card payment is a `TRANSFER` from the paying account to the card (HU-E4-03): no category, never spending. The purchase is the expense, on its date and with its category. In a shared space the split applies to the purchase, never to the payment. Interest and fees become new expenses when they are charged (HU-E8-11 estimates them).
+- Delivered (M3-D Task 16): `GET …/accounts` answers `totals: { available, netWorth }` over the active accounts at `asOf`, whatever `archived` lists; `PATCH` with `null` returns a switch to its type's default. No new error code.
 - **Spec impact:** 5.2 **Account** (the two switches and their defaults), 5.2 **Transaction** (`TRANSFER`: a card payment is a transfer), 5.4 (new derived metrics `available` and `netWorth` per space), section 6 (a new decision recording the switches and the card-payment rule).

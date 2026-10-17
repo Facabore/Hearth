@@ -138,15 +138,22 @@ import {
 } from "@/modules/categories/application";
 import { DrizzleCategoryRepository } from "@/modules/categories/infrastructure/drizzle-category-repository";
 import {
+  createGetProfile,
   createSignIn,
   createSignOut,
   createSignUp,
+  createUpdateProfile,
+  type GetProfile,
+  type InstallationRulesReader,
   type SignIn,
   type SignOut,
   type SignUp,
+  type UpdateProfile,
 } from "@/modules/identity/application";
 import { createAuth } from "@/modules/identity/infrastructure/better-auth";
 import { BetterAuthProvider } from "@/modules/identity/infrastructure/better-auth-provider";
+import { BuiltInInstallationRules } from "@/modules/identity/infrastructure/built-in-installation-rules";
+import { DrizzleUserProfiles } from "@/modules/identity/infrastructure/drizzle-user-profiles";
 import {
   createAcceptInvitation,
   createAddGuestMember,
@@ -212,7 +219,13 @@ export interface Container extends RouteDeps {
   readonly pool: Pool;
   readonly tm: DrizzleTransactionManager;
   readonly idempotency: IdempotencyDeps;
-  readonly identity: { readonly signUp: SignUp; readonly signIn: SignIn; readonly signOut: SignOut };
+  readonly identity: {
+    readonly signUp: SignUp;
+    readonly signIn: SignIn;
+    readonly signOut: SignOut;
+    readonly updateProfile: UpdateProfile;
+    readonly getProfile: GetProfile;
+  };
   readonly spaces: {
     readonly createPersonalSpace: CreatePersonalSpace;
     readonly listMySpaces: ListMySpaces;
@@ -323,6 +336,8 @@ export interface ContainerOptions {
   readonly emailSender?: EmailSender;
   /** Test seam: replaces the system clock, so a test decides what "today" is (a plan closes only after its period). */
   readonly clock?: Clock;
+  /** Test seam: the installation's defaults and locks (HU-E1-15); the built-in es-CO rules until HU-E8-18. */
+  readonly installationRules?: InstallationRulesReader;
 }
 
 export const buildContainer = (env: Env, options: ContainerOptions = {}): Container => {
@@ -331,9 +346,19 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   const ids = new UuidV7IdGenerator();
   const clock = options.clock ?? new SystemClock();
   const provider = new BetterAuthProvider(
-    createAuth({ db, secret: env.BETTER_AUTH_SECRET, baseURL: env.BETTER_AUTH_URL }),
+    createAuth({
+      db,
+      secret: env.BETTER_AUTH_SECRET,
+      baseURL: env.BETTER_AUTH_URL,
+      defaultTimeZone: env.APP_TIMEZONE,
+    }),
     db,
+    env.APP_TIMEZONE,
   );
+  // HU-E1-14: every user's own zone; the ledger and accounts read it through the kernel's UserTimeZones.
+  const profiles = new DrizzleUserProfiles(tm, env.APP_TIMEZONE);
+  // HU-E1-15: the installation's defaults and locks; HU-E8-18 binds its stored rules here.
+  const installationRules = options.installationRules ?? new BuiltInInstallationRules();
   const spaceRepository = new DrizzleSpaceRepository(tm);
   const access = createSpaceAccess(spaceRepository);
   const categoriesDeps: CategoriesDeps = {
@@ -352,12 +377,23 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     movements: ledgerQueries,
     ids,
     clock,
+    // HU-E1-14, HU-E2-06: the requester's today for next billing dates; accounts never import identity.
+    userTimeZones: profiles,
     tm,
   };
   // HU-E6-01, D10: plans store their period boundaries; periods without a plan follow the space policy.
   const budgetPlans = new DrizzleBudgetPlanRepository(tm);
   const storedPeriods: StoredPeriodSource = (spaceId) => budgetPlans.storedPeriods(spaceId);
   const getAccount = createGetAccount(accountsDeps);
+  // HU-E6-04: plans map the space's live categories; deleted ones never appear (D8).
+  const budgetCategories: BudgetCategories = {
+    list: async (spaceId) =>
+      (await categoriesDeps.categories.listCategories(spaceId)).map((c) => ({
+        id: c.id,
+        archived: c.archivedAt !== null,
+        parentCategoryId: c.parentCategoryId,
+      })),
+  };
   const ledgerDeps: LedgerDeps = {
     access,
     transactions: new DrizzleTransactionRepository(tm),
@@ -387,6 +423,11 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         );
         return category ? { id: category.id, archived: category.archivedAt !== null } : null;
       },
+      // HU-E3-04: the filter's subcategories; listCategories skips deleted rows and keeps archived ones.
+      subcategoriesOf: async (spaceId, categoryIds) =>
+        (await categoriesDeps.categories.listCategories(spaceId))
+          .filter((c) => c.parentCategoryId !== null && categoryIds.includes(c.parentCategoryId))
+          .map((c) => c.id),
     },
     // HU-E4-06, HU-E6-07: a CLOSED plan's period takes no change; budgeting answers, the ledger never imports it.
     closedPeriods: createClosedPeriodGuard(budgetPlans),
@@ -394,13 +435,15 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     // the ledger asks budgeting through its own port, so neither module imports the other.
     defaultSplits: {
       allocationWeights: async (expense) => {
-        const split = await defaultSplitOf({ plans: budgetPlans }, expense);
+        const split = await defaultSplitOf({ plans: budgetPlans, categories: budgetCategories }, expense);
         return split.method === "BY_ALLOCATION" ? split.weights : null;
       },
     },
     storedPeriods,
     // HU-E4-10: the accounts module owns the balance formula (opening balance + movements, HU-E2-04).
     accountBalances: accountBalancesFrom(getAccount),
+    // HU-E1-14, HU-E4-14: each recorder's own zone; the ledger never imports identity.
+    userTimeZones: profiles,
     ids,
     clock,
     timeZone: env.APP_TIMEZONE,
@@ -478,14 +521,6 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         : null;
     },
   };
-  // HU-E6-04: plans map the space's live categories; deleted ones never appear (D8).
-  const budgetCategories: BudgetCategories = {
-    list: async (spaceId) =>
-      (await categoriesDeps.categories.listCategories(spaceId)).map((c) => ({
-        id: c.id,
-        archived: c.archivedAt !== null,
-      })),
-  };
   // HU-E6-01 … HU-E6-05: plans reach members, accounts, categories and the ledger's spending only through ports.
   const budgetingDeps = {
     access,
@@ -551,7 +586,9 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     sessionResolver: provider,
     idempotency: { tm, store: new DrizzleIdempotencyStore(tm) },
     identity: {
-      signUp: createSignUp({ auth: provider, provisionUser }),
+      signUp: createSignUp({ auth: provider, provisionUser, profiles, defaultTimeZone: env.APP_TIMEZONE }),
+      updateProfile: createUpdateProfile({ profiles, rules: installationRules }),
+      getProfile: createGetProfile({ profiles, rules: installationRules }),
       signIn: createSignIn(provider),
       signOut: createSignOut(provider),
     },

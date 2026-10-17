@@ -3,6 +3,7 @@ import { FixedClock, type Result } from "@/shared/kernel";
 import {
   codeOf,
   fakeSpaceAccess,
+  fixedTimeZones,
   memoryTm,
   membership,
   money,
@@ -10,7 +11,7 @@ import {
   unwrap,
 } from "../../../../tests/support/fakes";
 import { FixedMovements, InMemoryAccounts } from "../../../../tests/support/in-memory-accounts";
-import type { Account, AccountId } from "../domain/account";
+import { NO_ATTRIBUTES, type Account, type AccountId } from "../domain/account";
 import { createArchiveAccount } from "./archive-account";
 import { createCreateAccount } from "./create-account";
 import type { AccountsDeps } from "./deps";
@@ -29,6 +30,7 @@ const account = (id: string, name: string, overrides: Partial<Account> = {}): Ac
   openingBalance: 200_000_000n,
   archivedAt: null,
   createdAt: now,
+  ...NO_ATTRIBUTES,
   ...overrides,
 });
 
@@ -57,6 +59,7 @@ const world = (where: "ana" | "household", archived: boolean) => {
     movements: new FixedMovements(),
     ids: sequentialIds("acc"),
     clock: new FixedClock(now),
+    userTimeZones: fixedTimeZones(),
     tm: memoryTm,
   };
   return {
@@ -113,7 +116,7 @@ describe("archived spaces only read: accounts (HU-E1-09, Review Focus 4)", () =>
 
   it("still lists its accounts, archived ones on request, and reads each one", async () => {
     const w = world("ana", true);
-    expect(unwrap(await w.list({ ...ana, includeArchived: false })).map((a) => a.id)).toEqual([
+    expect(unwrap(await w.list({ ...ana, includeArchived: false })).items.map((a) => a.id)).toEqual([
       "acc-bancolombia",
     ]);
     expect(unwrap(await w.get({ ...ana, accountId: "acc-bancolombia" }))).toMatchObject({

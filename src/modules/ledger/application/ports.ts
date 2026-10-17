@@ -30,6 +30,8 @@ export interface LedgerCategory {
 export interface CategoryReader {
   /** A category of the given space, archived ones included; null otherwise. */
   find(spaceId: string, categoryId: string): Promise<LedgerCategory | null>;
+  /** HU-E3-04: the ids of the subcategories (archived ones included, deleted ones not) of the listed categories. */
+  subcategoriesOf(spaceId: string, categoryIds: readonly string[]): Promise<string[]>;
 }
 
 /**
@@ -99,9 +101,11 @@ export interface TransactionFilter {
   readonly type?: TransactionType;
 }
 
-/** Keyset position in the newest-first order (date desc, id desc). */
+/** Keyset position in the list order (ruling P43): date, time with untimed rows last, creation, id, all descending. */
 export interface TransactionPosition {
   readonly date: LocalDate;
+  readonly occurredAt: Date | null;
+  readonly createdAt: Date;
   readonly id: string;
 }
 

@@ -31,13 +31,13 @@ A self-hosted, multi-user web application that unifies:
 
 ### Non-goals (v1)
 
-- Bank synchronization, OCR receipts, investments, multi-currency conversion, native mobile apps.
+- Bank synchronization, OCR receipts, investment market data and brokerage sync (an `INVESTMENT` account's ledger balance is in scope, HU-E2-05), multi-currency conversion, native mobile apps.
 - Strict double-entry accounting (see decision D3).
 
 ## 3. Users and context
 
 - Self-hosted on a VPS by the owner. Small number of users (a household, a few friends' groups).
-- Primary locale es-CO, currency COP, timezone America/Bogota. Code, identifiers and docs in English; UI i18n-ready (es, en).
+- Primary locale es-CO, currency COP. es-CO's formats (`1.234.567,89`, a 24-hour clock, day-month-year dates, weeks from Monday) are the built-in defaults of the installation rules, which each user may override; the interface language never sets them (HU-E1-15, D23). Each user has their own time zone; America/Bogota is the deployment default (`APP_TIMEZONE`), which also drives the space-level clocks (the recurrence scheduler, closing a plan). Code, identifiers and docs in English; UI i18n-ready (es, en).
 
 ## 4. Reference example (acceptance anchor)
 
@@ -68,7 +68,7 @@ The core insight: **a personal expense is a shared expense with one participant.
 | Payment | Which pocket did the money leave? | `Payment` (payer member + source account) |
 | Share | How much of it is whose? | `Share` (participant + amount) |
 | Category / budget line | What is it for, and which envelope does it consume? | `Category` → `BudgetLine` |
-| Period | Which month does it count in? | `Period` (derived from date + space period settings) |
+| Period | Which month does it count in? | `Period` (derived from the transaction's local date + space period settings; its time of day never moves it) |
 
 ### 5.1 Bounded contexts (modules)
 
@@ -85,7 +85,8 @@ The core insight: **a personal expense is a shared expense with one participant.
 
 ### 5.2 Entities
 
-**User** — id, name, email, locale, timezone.
+**User** — id, name, email, locale, timezone, numberFormat, timeFormat, dateFormat, weekStart. `timezone` is an IANA zone, taken from the browser at sign-up (`APP_TIMEZONE` when it is missing or unknown) and changed with `PATCH /api/v1/me`. It decides "today" and the time of what the user records; changing it never moves recorded transactions. `locale` (`es` | `en`) is the interface language, also changed with `PATCH /api/v1/me`.
+- **Formats (HU-E1-15, D23):** `numberFormat` (`DOT_COMMA` `1.234.567,89` | `COMMA_DOT` `1,234,567.89` | `SPACE_COMMA` `1 234 567,89`), `timeFormat` (`H24` | `H12`), `dateFormat` (`DMY` | `MDY` | `YMD`) and `weekStart` (`MONDAY` | `SUNDAY`), each nullable: null follows the installation rule. The effective value is the rule when the installation locks the field, otherwise the stored value, otherwise the rule; a lock never deletes a stored value, and a locked field refuses every change (`PreferenceLocked`). Until stored rules exist (HU-E8-18), the rules are built in: es-CO's formats and no lock. Formats never derive from `locale`, and the API's wire forms (minor-unit amounts, `YYYY-MM-DD` dates, RFC 3339 instants) never depend on them.
 
 **Space** — id, name, kind (`PERSONAL` | `SHARED` | `DIRECT`), currency, periodPolicy, archivedAt. Every user gets exactly one personal space on sign-up. A `DIRECT` space (D16) has exactly two members, is created implicitly the first time a user splits with one specific person, is named after both ("Ana & Pedro"), and is reused for later splits with that person. The other person is either a registered user the creator already shares a space with, or a new guest (who can later claim). Both members of a direct space are OWNER. If a guest in a direct space claims and the two users already had another direct space, both are kept (merging is deferred).
 
@@ -102,28 +103,43 @@ The core insight: **a personal expense is a shared expense with one participant.
 - Guests have no accounts, so their money movements have no account: a guest payment, settlement or fund contribution is recorded with `accountId = null` ("outside the app"). Guests have no income or personal finances; their capacity is entered manually like anyone's.
 - **Claim:** an OWNER or ADMIN can create a claim link for a guest (shareable, not bound to `contactEmail`). Accepting it while signed in (new or existing account) sets `userId`, switches `kind` to `USER` with role `MEMBER`, and keeps the same SpaceMember id, so all history stays attached. A user who is already a member of that space cannot claim another guest in it. Claims are per space.
 
-**Account** — id, spaceId, name, type (`CASH` | `BANK` | `CREDIT_CARD` | `SAVINGS` | `SHARED_FUND`), ownerUserId (null for shared accounts), openingBalance, archivedAt. A personal account belongs to the user's personal space; a `SHARED_FUND` account belongs to a shared space.
+**Account** — id, spaceId, name, type (`CASH` | `BANK` | `WALLET` | `CREDIT_CARD` | `SAVINGS` | `INVESTMENT` | `LOAN` | `OTHER` | `SHARED_FUND`), ownerUserId (null for shared accounts), openingBalance, archivedAt. A personal account belongs to the user's personal space; a `SHARED_FUND` account belongs to a shared space. The type never changes.
+- Common optional attributes on every type: institution, lastFour (exactly four digits; a full card or account number is never stored), color (a palette key) and icon (an allow-listed name; null means the type's default).
+- Type-specific terms, optional, refused on any other type (`AccountAttributeNotAllowed`): `CREDIT_CARD` creditLimit, cutOffDay and paymentDay (1–31, clamped to the month's last day like `PeriodPolicy`) and monthlyRate; `SAVINGS` annualRate and, for a term deposit (CDT), termDays and maturityDate together; `LOAN` principal, annualRate and termMonths. Derived on read: available credit (limit + balance), the next cut-off and payment dates on or after the requesting user's today, the equivalent rates (`EA = (1 + i_m)^12 − 1`) and a term deposit's start date.
+- Switches `includeInAvailable` and `includeInNetWorth` (D21), null meaning the type's default: CASH, BANK, WALLET and SHARED_FUND count in both; SAVINGS, INVESTMENT, CREDIT_CARD, LOAN and OTHER in net worth only.
+- Liabilities (`CREDIT_CARD`, `LOAN`) carry negative balances for the money owed, so a signed sum is assets minus debts.
 
-**Transaction** — id, spaceId, type, description, date, categoryId (nullable for transfers and settlements), amount (minor units), currency, createdBy, deletedAt.
+**Transaction** — id, spaceId, type, description, date, occurredAt, timeZone, categoryId (nullable for transfers and settlements), amount (minor units), currency, createdBy, deletedAt.
+- **Time (D19):** `date` is the local calendar date the transaction counts in (periods, plans, balances `asOf`, budgets, reports). `occurredAt` is the UTC instant it happened; `timeZone` is the IANA zone of the user who recorded it (`createdBy`, never the payer or the space), set exactly when `occurredAt` is. With `occurredAt`, `date` is its local date in `timeZone`. Every transaction a person records has a time: a date alone takes the current time of day in the zone, and `occurredAt: null` answers `TimeRequired`. Only recurring occurrences (automatic or confirmed), imports and rows older than M3-D have no time, until someone edits one in; a time is then replaced, never removed. `occurredAt` only orders and displays; no boundary ever reads it.
 - **Space ownership rule (D9):** a transaction belongs to the space whose budget and balances it affects. Its source accounts may live in a member's personal space, provided the account owner is a member of the transaction's space and is the paying member. A fund contribution belongs to the shared space (its destination). Other members see the paying member's name, never the details of their personal account.
 - `EXPENSE`: one or more `Payment` rows (the v1 API accepts several payers; the v1 web UI offers one) and one or more `Share` rows. Σ payments = Σ shares = amount.
 - `INCOME`: destination account + receiving member.
 - `TRANSFER`: source account → destination account. A transfer from a personal account to a `SHARED_FUND` account is a **fund contribution**.
+- Paying a credit card is a `TRANSFER` from the paying account to the card: no category, never spending, never split (D21). The purchase is the expense, on its date and with its category; interest and fees are new expenses when they are charged.
 - `SETTLEMENT`: member A pays member B to clear balance; optional accounts.
 
 **Payment** — transactionId, memberId (nullable), accountId (nullable), amount. `memberId` is null if and only if the payment comes from a `SHARED_FUND` account. `accountId` is null if and only if the payer is a guest (guests have no accounts; the money left their pocket outside the app). For registered payers, the account must be owned by that member's user.
 
 **Share** — transactionId, memberId, amount, splitMethod snapshot (`EQUAL` | `PERCENT` | `EXACT` | `SHARES` | `BY_ALLOCATION`).
 
-**Recurrence** — id, spaceId, template (transaction type, amount or estimated amount, category, payer SpaceMember or fund, account, and a split by ratios, `EQUAL`, `PERCENT` or `SHARES`, or none, which takes the default split of each occurrence), schedule (same anchor rules as `PeriodPolicy`: MONTHLY(day) or SEMI_MONTHLY(day1, day2), clamped), mode (`AUTO` records the transaction on its date; `CONFIRM` creates a pending occurrence that a member confirms with the real amount or skips), startDate, endDate, pausedAt. Occurrences are idempotent per (recurrenceId, date); missed runs are caught up, from the day the recurrence was defined and never across a pause; occurrences in a CLOSED period are skipped. `BY_ALLOCATION` is resolved with the plan of each occurrence's period. Every AUTO occurrence is recorded on behalf of the member who defined the recurrence, and a pending one on behalf of the member who confirms it, through the same use cases a member calls. An edit applies to every occurrence not recorded yet, an overdue date no run has considered included; recorded occurrences keep their snapshot. A schedule change never creates a date before the day it is made, nor a second occurrence in the slot of the last one (a calendar month for MONTHLY, a half of one split at the second anchor for SEMI_MONTHLY): the new schedule is due from the later of that day and the start of the next slot. The type, payer and accounts never change. (Amended 2026-10-16, M3-C rulings P21–P24 and the final review's I1 ruling.)
+**Recurrence** — id, spaceId, template (transaction type, amount or estimated amount, category, payer SpaceMember or fund, account, and a split by ratios, `EQUAL`, `PERCENT` or `SHARES`, or none, which takes the default split of each occurrence), schedule (same anchor rules as `PeriodPolicy`: MONTHLY(day) or SEMI_MONTHLY(day1, day2), clamped), mode (`AUTO` records the transaction on its date; `CONFIRM` creates a pending occurrence that a member confirms with the real amount or skips), startDate, endDate, pausedAt. Occurrences are idempotent per (recurrenceId, date); missed runs are caught up, from the day the recurrence was defined and never across a pause; occurrences in a CLOSED period are skipped. `BY_ALLOCATION` is resolved with the plan of each occurrence's period. Every AUTO occurrence is recorded on behalf of the member who defined the recurrence, and a pending one on behalf of the member who confirms it, through the same use cases a member calls. An edit applies to every occurrence not recorded yet, an overdue date no run has considered included; recorded occurrences keep their snapshot. A schedule change never creates a date before the day it is made, nor a second occurrence in the slot of the last one (a calendar month for MONTHLY, a half of one split at the second anchor for SEMI_MONTHLY): the new schedule is due from the later of that day and the start of the next slot. The type, payer and accounts never change. (Amended 2026-10-16, M3-C rulings P21–P24 and the final review's I1 ruling.) Occurrences are recorded with their date and no time (D19).
 
-**CategoryGroup / Category** — two levels, per space, seeded from defaults, renamable and archivable. A category nothing references can also be deleted, logically (`deleted_at`, D8): the row stays, it leaves every list and lookup, and its name is free again; a referenced one is archived instead. Groups are archived, never deleted.
+**CategoryGroup / Category** — per space, seeded from defaults, renamable and archivable, at most three levels: group → category → optional subcategory (D20). A subcategory (`parentCategoryId`) is always in its parent's group and moves with it; a subcategory never has subcategories, and a category with subcategories never becomes one (`CategoryDepthExceeded`). Names are unique among siblings (the same parent, or the same group for categories). Subcategories are never seeded and get no catalog key; a seeded category moved under another keeps its key, and every grouping by key rolls a subcategory up into its parent first. A seeded group has an immutable catalog `key` too, stable across spaces and renames like a category's (`housing`, `food`, `transport`, `health`, `leisure`, `income`); groups users create have none, no rename, move or archive changes a key, and at most one group per space holds a given key. Archiving a group archives its categories, and archiving a category archives its subcategories; a subcategory is restored only while its parent is not archived (`ParentCategoryArchived`). A category nothing references can also be deleted, logically (`deleted_at`, D8): the row stays, it leaves every list and lookup, and its name is free again; a referenced one, or one with live subcategories, is archived instead (`CategoryInUse`). Groups are archived, never deleted. Every group and category has an icon, one of a fixed set of 58 symbols or exactly one emoji (one grapheme: a ZWJ sequence or a skin tone counts as one), and a color, one of sixteen palette keys (D22); a category created without them copies its group's at creation, and a group created without them takes `tag` in `GRAPHITE`. A subcategory has no style of its own: it always shows its parent's, and keeps a copy of it when it becomes a category. Seeded groups and categories take their default style by catalog key (HU-E3-01, HU-E3-05); a seeded category takes its group's color:
+
+| Seeded group | Key | Icon | Color | Its categories' icons, by catalog key |
+|---|---|---|---|---|
+| Housing | `housing` | `home` | `INDIGO` | `rent` → `key`, `utilities` → `bulb`, `maintenance` → `wrench` |
+| Food | `food` | `apple` | `SAND` | `groceries` → `cart`, `restaurants` → `fork` |
+| Transport | `transport` | `car` | `STEEL` | `fuel` → `fuel`, `public_transport` → `bus` |
+| Health | `health` | `heart` | `ROSE` | `medical` → `cross`, `pharmacy` → `pill` |
+| Leisure | `leisure` | `ticket` | `PLUM` | `entertainment` → `tv`, `travel` → `plane` |
+| Income | `income` | `coins` | `PINE` | `salary` → `briefcase`, `other_income` → `gift` |
 
 **BudgetPlan** — spaceId, label, startDate, endDate, status (`DRAFT` | `ACTIVE` | `CLOSED`), createdFrom (previous plan or template). One plan per period, so a semi-monthly space has two plans per month and capacities are per period. Boundaries are stored when the plan is created, so changing the period policy only affects periods without a plan yet; history never moves (D10). If a policy change would make a new period overlap an existing plan, the new period starts the day after that plan ends.
 
 **MemberCapacity** — planId, memberId, amount. When a registered member sets their own capacity, the app suggests the sum of income they recorded in the previous period (D17); the suggestion is computed only for that member and never shown to others, and only the saved amount is shared. Sum = total capacity.
 
-**BudgetLine** — planId, originLineId (the line it was copied from, for rollover), name, plannedAmount, funding (`DIRECT` | `SHARED_FUND` | `SAVINGS`), savingsAccountIds[] (only for `SAVINGS`), rolloverMode (`RESET` | `ROLLOVER` | `ADJUSTED`), isCatchAll, categoryIds[]. A category maps to at most one line per plan. At most one line per plan is the catch-all; unmapped categories consume it. Without a catch-all line, unmapped categories fall into an implicit "Unbudgeted" line. Adding or editing a line that would push Σ plannedAmount above total capacity is rejected; a plan whose capacity was later reduced below Σ plannedAmount cannot be activated.
+**BudgetLine** — planId, originLineId (the line it was copied from, for rollover), name, plannedAmount, funding (`DIRECT` | `SHARED_FUND` | `SAVINGS`), savingsAccountIds[] (only for `SAVINGS`), rolloverMode (`RESET` | `ROLLOVER` | `ADJUSTED`), isCatchAll, categoryIds[]. Only categories are mapped, never subcategories (`SubcategoryNotMappable`); a category maps to at most one line per plan, and its subcategories' expenses count where it is mapped (D20). At most one line per plan is the catch-all; unmapped categories consume it. Without a catch-all line, unmapped categories fall into an implicit "Unbudgeted" line. Adding or editing a line that would push Σ plannedAmount above total capacity is rejected; a plan whose capacity was later reduced below Σ plannedAmount cannot be activated.
 
 **Allocation** — lineId, memberId, value. The line carries the rule (`PROPORTIONAL` by default, `PERCENT`, `FIXED` or `NONE`); only `PERCENT` and `FIXED` lines have member rows, so a new member of the space is covered by a proportional line without new rows. Assigned amount per member is derived. (Amended 2026-10-14, M3-A ruling P1.)
 
@@ -135,14 +151,15 @@ The core insight: **a personal expense is a shared expense with one participant.
 - **Comparisons and trends** compare a period with the previous period of the same policy, not with the calendar month.
 - **Money:** stored in ISO 4217 minor units. Each currency also has a *rounding unit* for splits and allocations (COP: 1 peso = 100 minor units), so amounts never show cents.
 - **Rounding:** splits and allocations use largest-remainder rounding in rounding units; ties go to members in membership join order. Σ parts always equals the total exactly.
-- **Default split:** expenses that resolve (by mapping or catch-all) to an allocated line of an `ACTIVE` plan default to `BY_ALLOCATION`; all other expenses, including those in `NONE` lines, default to `EQUAL` among active members. `DRAFT` plans never drive splits. The member can always override the split.
+- **Default split:** expenses that resolve (through their category, or a subcategory's parent, by mapping or catch-all) to an allocated line of an `ACTIVE` plan default to `BY_ALLOCATION`; all other expenses, including those in `NONE` lines, default to `EQUAL` among active members. `DRAFT` plans never drive splits. The member can always override the split.
 
 ### 5.4 Derived metrics (computed on read, never stored)
 
 For a line L, member m, period P:
 
 - `assigned(m)` = from Allocation rule.
-- `spent(L)` = Σ amount of EXPENSE transactions in P whose category maps to L. For `SAVINGS` lines: Σ transfers in P into the line's savings accounts.
+- `spent(L)` = Σ amount of EXPENSE transactions in P whose category, or whose subcategory's parent, maps to L. For `SAVINGS` lines: Σ transfers in P into the line's savings accounts.
+- Figures follow the current category tree and the current members, closed plans and the carry-over chain included: moving a category moves its spending in every plan.
 - `available(L)` = plannedAmount + carry-over from rolloverMode − spent(L).
   - RESET: carry-over 0.
   - ROLLOVER: previous available, floored at 0 if negative (Firefly semantics).
@@ -157,10 +174,12 @@ For a line L, member m, period P:
 
 Fund level, per period: `expectedFundContribution(m)` = Σ assigned(m) over SHARED_FUND lines; `actualFundContribution(m)` = Σ fund-contribution transfers by m.
 
+Accounts, per space, at a date (HU-E2-07, D21): `available` = Σ balance(a) over the space's active accounts with `includeInAvailable`; `netWorth` = Σ balance(a) over those with `includeInNetWorth`. Balances are the computed, signed ones (opening balance + movements up to the date). A personal space totals its owner's accounts and a shared space its shared funds; spaces never mix.
+
 Unified personal view for user u (D11). It works through every SpaceMember row linked to u, including history recorded while u was a guest before claiming:
 
 - **Period:** u's personal-space period; shared transactions are placed by date into it.
-- **Grouping:** by category catalog key. Categories seeded from the default catalog carry a stable `key` shared across spaces; custom categories group under "space / category".
+- **Grouping:** by category catalog key. Categories seeded from the default catalog carry a stable `key` shared across spaces; custom categories group under "space / category". A subcategory groups under its parent category.
 - **Consumption:** personal-space expenses + u's shares in every shared space.
 - **Cash out:** Σ payments by u + Σ fund contributions by u + Σ savings transfers by u. Movements without an account (recorded while u was a guest) are included and labelled "outside the app".
 
@@ -186,6 +205,11 @@ Unified personal view for user u (D11). It works through every SpaceMember row l
 | D16 | Splitting with one person creates or reuses a two-member `DIRECT` space | Keeps one ledger model (D2) while supporting quick one-to-one splits | A separate "friend balance" model outside spaces |
 | D17 | Capacity is suggested from the member's own previous-period income, privately, and is always editable | Saves typing without leaking personal income to the group | Auto-filling capacity visible to all members |
 | D18 | Next.js is the BFF of a modular monolith; the versioned HTTP API is the primary contract and the backend is built first | One deployable on a VPS, API ready for future clients, modules extractable later; UI can follow per area once its API is done | Separate backend service with Next.js as a pure proxy (extra deployable, network hop, auth propagation) |
+| D19 | A transaction keeps its local date, plus a UTC instant and the recorder's IANA zone; every transaction a person records has a time (a date alone takes the current time of day), and only recurring occurrences, imports and rows older than M3-D have none | Periods and reports keep the date they count in, lists show what happened when, nothing moves when someone travels or changes zone, and no one's own record sorts as untimed | One timestamp per transaction with the date derived on read (history moves with a zone change); midnight back-filled for old rows (fake times); a "no time" choice when recording (each day would mix untimed records with timed ones) |
+| D20 | One optional subcategory level; budgets, splits, filters and reports roll subcategories up into their category | Detail when a member wants it, while plans keep mapping a handful of categories | Unlimited depth; tags or split lines instead of a third level |
+| D21 | Each account has two switches, available and net worth, with defaults by type; a card payment is a transfer, never spending | Members choose what "Disponible" means without new account kinds, and nothing counts twice | Fixed rules per type; recording a card payment as an expense |
+| D22 | Category groups and categories carry an icon (a fixed symbol or one emoji) and a color that is one of sixteen palette keys, never a hex value; subcategories derive their parent's icon and color | Light and dark themes map each key to their own tokens, and a subcategory always looks like the category it rolls up into | Free hex colors or uploaded images; a copied style per subcategory that drifts from its parent |
+| D23 | Number, time and date formats and the first weekday are four profile preferences, null meaning "follow the installation rule", and never derive from the language | A person can read Spanish with `1,234.56` or a 12-hour clock if that is what they are used to; the rules and locks of a white-label installation (HU-E8-18) plug in behind one port without touching the profile | Formats taken from the locale (`es` → `1.234,56`); concrete values copied onto each profile at sign-up (a later change of the default would never reach anyone) |
 
 ## 7. Architecture
 
@@ -228,6 +252,9 @@ Use cases return `Result<T, DomainError>`; route handlers map results to HTTP re
 | Errors | RFC 9457 `application/problem+json` with a stable `code` and `requestId`. The code is the domain error name, or one of the edge codes `ValidationFailed` (422), `Unauthenticated` (401), `InvalidCredentials` (401), `EmailTaken` (409), `PasswordTooShort` (422), `PreconditionFailed` (412), `InternalError` (500); the UI translates codes, the API never returns translated text |
 | Idempotency | `Idempotency-Key` header accepted on every POST that creates a transaction (expense, income, transfer, fund contribution, settlement, direct split) or a recurrence; a replay returns the original response, the same key with a different payload returns 409 |
 | Pagination | Cursor-based (`?cursor=&limit=`), default 50, max 200 |
+| Dates, times and rates | Local dates as `YYYY-MM-DD`; instants as RFC 3339, accepted with any offset and returned in UTC (`Z`); time zones as IANA names; the user's zone is `timezone` (sign-up, `/me`) and a transaction's is `timeZone`; rates as percent decimal strings with at most four decimals (`"2.0"`, `"28.59"`), returned with exactly four (`"2.0000"`) |
+| Transaction lists | Newest day first, then newest time, untimed items last in their day, then newest recorded, then id; the cursor carries that position |
+| Profile | `GET /api/v1/me` returns the user with their `timezone`, `locale` and `preferences` (`stored`, `effective` and `defaults`, each with the four formats, and the names of the `locked` fields); `PATCH /api/v1/me` changes `timezone` (`InvalidTimeZone`, 422), `locale` and the four formats: an omitted field is unchanged and `null` returns a format to the rule; a locked field answers `PreferenceLocked` (409) |
 | Concurrency | `ETag` / `If-Match` on updates of transactions and plans; mismatch returns `412` |
 | Observability | `X-Request-Id` propagated to logs |
 
@@ -259,7 +286,7 @@ Exact versions are pinned at bootstrap (story E0) to the latest stable releases.
 
 - Domain errors are typed (`InvalidAllocation`, `SharesDoNotMatchAmount`, `NotASpaceMember`, `PeriodClosed`, `InsufficientRole`, `OutstandingBalance`, `AlreadyMember`, `MemberNameTaken`, `DirectSpaceIsFull`, `GuestAlreadyClaimed`, ...; the backlog is the full catalogue) and returned via `Result`, never thrown across layers.
 - Authorization is checked in application use cases (membership + role), not only in UI.
-- Domain errors map to HTTP statuses in one place (`shared/http`): unauthenticated 401, validation 422, not found 404, insufficient role 403, conflicts and invariant violations 409, closed period 409, precondition failed 412.
+- Domain errors map to HTTP statuses in one place (`shared/http`): unauthenticated 401, validation 422, not found 404, insufficient role 403, conflicts and invariant violations 409, closed period 409, precondition failed 412, an instant and a date that disagree 422 (`DateTimeMismatch`), a transaction time sent as null 422 (`TimeRequired`), a preference the installation locks 409 (`PreferenceLocked`).
 - A requester who is not a member of a space gets `404 SpaceNotFound` (existence is not leaked). Referencing a non-member as payer or participant returns `422 NotASpaceMember`.
 - Unexpected errors are logged with request id and surfaced as a generic `problem+json` (500).
 
@@ -283,6 +310,7 @@ Work is tracked in `docs/backlog/` (epics and user stories with Gherkin acceptan
 | M1 Personal ledger API | Accounts, categories, personal expenses and income, period queries |
 | M2 Shared spaces API | Invitations, guests, direct spaces, shared expenses with split methods, balances, settlements |
 | M3 Allocated budgets API | Plans, capacity, lines, allocations, default split by allocation, rollover, recurring transactions |
+| M3-D Ledger refinements for the UI | Each user's time zone and formatting preferences, the time of every transaction, optional subcategories, category icons and colors, more account types with their attributes, available money and net worth |
 | M4 Insight API | Member/category dashboards, shared fund tracking, unified personal view |
 | M5 Hardening | Backups, observability, import from Splitwise/CSV |
 | M6 Web UI | Screens for every area (epic E9); an area's UI may start as soon as its API milestone is done |

@@ -678,6 +678,7 @@ Feature: User time zone
 - The web sign-up form sends `Intl.DateTimeFormat().resolvedOptions().timeZone`, the browser's zone (HU-E9-01).
 - Consumers: the default date and time of new transactions and the current period of `ListTransactions` (HU-E4-14), and the local hour of reminders (HU-E8-16). Space-level clocks (the recurrence scheduler's "today", closing a plan) keep `APP_TIMEZONE`; this story adds no per-space time zone.
 - The last scenario becomes testable with HU-E4-14.
+- Errors (catalogue, spec 8): `InvalidTimeZone` (422) from `PATCH /api/v1/me`; sign-up never refuses a zone (M3-D Task 3).
 - **Spec impact:** section 3 (America/Bogota becomes the deployment default; each user has a zone), 5.2 **User** (`timezone`: an IANA zone, taken from the browser at sign-up, `APP_TIMEZONE` as the fallback), 7 HTTP conventions (`PATCH /api/v1/me`; time zones are IANA names).
 
 ---
@@ -748,4 +749,5 @@ Feature: Formatting preferences
 - `locale` (`es` or `en`) joins `timezone` (HU-E1-14) on `PATCH /api/v1/me`, because no earlier story lets a user change the interface language; HU-E1-01 still creates users with `es`. Neither is nullable. The lock list can also name `timezone` and `locale` (HU-E8-18), and both honour it.
 - A locked field answers `PreferenceLocked` (409), even to clear it or to set the value it already has. The check lives in the use case, never only in the handler, and the code is mapped in `src/shared/http/problem.ts`. The locked scenario runs against a fake `InstallationRulesReader` until HU-E8-18 supplies stored locks.
 - Formatting is a client concern: the API keeps returning amounts as minor-unit strings, dates as `YYYY-MM-DD` and instants in RFC 3339 (HU-E0-09), whatever the preferences; the preferences only travel with the profile. Consumers: HU-E9-02 (formatters), HU-E9-03 (the date and time sheet reads `timeFormat` and `weekStart`), HU-E9-13 (settings screen) and HU-E8-18 (rules and locks).
+- Errors (catalogue, spec 8): `PreferenceLocked` (409, explicit) from `PATCH /api/v1/me`; an unknown format or language is `ValidationFailed` (422) (M3-D Task 18b).
 - **Spec impact:** section 3 (the primary locale es-CO becomes the built-in default of the installation rules, no longer a rule of the language), 5.2 **User** (four nullable preferences), 7 HTTP conventions (`GET` and `PATCH /api/v1/me` with `preferences` and the enum values), section 6 (a new decision: formats never derive from the language).

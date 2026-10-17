@@ -7,10 +7,8 @@ import {
   exists,
   inArray,
   isNull,
-  lt,
   lte,
   notExists,
-  or,
   sql,
   type AnyColumn,
 } from "drizzle-orm";
@@ -32,6 +30,13 @@ import { loadTransactions } from "./transaction-rows";
 
 // SUM(bigint) is numeric in PostgreSQL: read it as text and parse it as bigint, so sums never overflow or round.
 const sumAsText = (column: AnyColumn) => sql<string>`sum(${column})::text`;
+// The same sum, negated: money leaving an account. `::` binds tighter than unary minus, so without the parentheses
+// PostgreSQL would apply `-` to text and fail.
+const negatedSumAsText = (column: AnyColumn) => sql<string>`(-sum(${column}))::text`;
+
+// HU-E4-14, ruling P43: untimed rows sort as the earliest time of their day, so they come last in DESC order.
+// The cursor round-trips only because writers store millisecond instants: never write occurred_at with now(), defaultNow() or SQL.
+const listTime = sql`coalesce(${transactions.occurredAt}, '-infinity'::timestamptz)`;
 
 /** Read side of the ledger, computed on read (D7): the monthly list, totals, account movements and references. */
 export class DrizzleLedgerQueries implements TransactionQuery {
@@ -51,13 +56,10 @@ export class DrizzleLedgerQueries implements TransactionQuery {
           this.matching(filter),
           after === null
             ? undefined
-            : or(
-                lt(transactions.date, after.date),
-                and(eq(transactions.date, after.date), lt(transactions.id, after.id)),
-              ),
+            : sql`(${transactions.date}, ${listTime}, ${transactions.createdAt}, ${transactions.id}) < (${after.date}::date, ${after.occurredAt?.toISOString() ?? "-infinity"}::timestamptz, ${after.createdAt.toISOString()}::timestamptz, ${after.id}::uuid)`,
         ),
       )
-      .orderBy(desc(transactions.date), desc(transactions.id))
+      .orderBy(desc(transactions.date), desc(listTime), desc(transactions.createdAt), desc(transactions.id))
       .limit(limit);
     return loadTransactions(db, rows);
   }
@@ -74,7 +76,11 @@ export class DrizzleLedgerQueries implements TransactionQuery {
     return { expenses: BigInt(row?.expenses ?? "0"), income: BigInt(row?.income ?? "0") };
   }
 
-  /** HU-E2-04: incomes and transfers in, minus transfers out and payments out, per account. */
+  /**
+   * HU-E2-04: incomes and transfers in, minus transfers out and payments out, per account. One statement, so every
+   * account's figure comes from the same snapshot: a transfer that commits while the read runs shows both of its
+   * legs or neither, and the totals built on these figures (HU-E2-07) never count one leg alone.
+   */
   async netMovements(
     accountIds: readonly string[],
     asOf: LocalDate | null,
@@ -87,28 +93,28 @@ export class DrizzleLedgerQueries implements TransactionQuery {
       isNull(transactions.deletedAt),
       asOf === null ? undefined : lte(transactions.date, asOf),
     );
-    const incoming = await db
-      .select({ accountId: transactions.destinationAccountId, total: sumAsText(transactions.amount) })
-      .from(transactions)
-      .where(and(live, inArray(transactions.destinationAccountId, ids)))
-      .groupBy(transactions.destinationAccountId);
-    const outgoing = await db
-      .select({ accountId: transactions.sourceAccountId, total: sumAsText(transactions.amount) })
-      .from(transactions)
-      .where(and(live, inArray(transactions.sourceAccountId, ids)))
-      .groupBy(transactions.sourceAccountId);
-    const paid = await db
-      .select({ accountId: payments.accountId, total: sumAsText(payments.amount) })
-      .from(payments)
-      .innerJoin(transactions, eq(transactions.id, payments.transactionId))
-      .where(and(live, inArray(payments.accountId, ids)))
-      .groupBy(payments.accountId);
-    const add = (accountId: string | null, delta: bigint) => {
-      if (accountId !== null) net.set(accountId, (net.get(accountId) ?? 0n) + delta);
-    };
-    for (const row of incoming) add(row.accountId, BigInt(row.total));
-    for (const row of outgoing) add(row.accountId, -BigInt(row.total));
-    for (const row of paid) add(row.accountId, -BigInt(row.total));
+    // Same selection shape in every branch of the UNION ALL: the account and its signed movement as text.
+    const rows = await unionAll(
+      db
+        .select({ accountId: transactions.destinationAccountId, total: sumAsText(transactions.amount) })
+        .from(transactions)
+        .where(and(live, inArray(transactions.destinationAccountId, ids)))
+        .groupBy(transactions.destinationAccountId),
+      db
+        .select({ accountId: transactions.sourceAccountId, total: negatedSumAsText(transactions.amount) })
+        .from(transactions)
+        .where(and(live, inArray(transactions.sourceAccountId, ids)))
+        .groupBy(transactions.sourceAccountId),
+      db
+        .select({ accountId: payments.accountId, total: negatedSumAsText(payments.amount) })
+        .from(payments)
+        .innerJoin(transactions, eq(transactions.id, payments.transactionId))
+        .where(and(live, inArray(payments.accountId, ids)))
+        .groupBy(payments.accountId),
+    );
+    for (const row of rows) {
+      if (row.accountId !== null) net.set(row.accountId, (net.get(row.accountId) ?? 0n) + BigInt(row.total));
+    }
     return net;
   }
 

@@ -15,6 +15,8 @@ export const SignUpBodySchema = z.object({
   name: z.string().trim().min(1).max(100),
   email: Email,
   password: z.string().max(128),
+  /** HU-E1-14: the browser's IANA zone; a missing, malformed or unknown one becomes APP_TIMEZONE, never a refusal. */
+  timezone: z.string().max(64).optional().catch(undefined),
 });
 export const SignInBodySchema = z.object({ email: Email, password: z.string().max(128) });
 export const SignUpResponseSchema = z.object({ user: MeResponseSchema });

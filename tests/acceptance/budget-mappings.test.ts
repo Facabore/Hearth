@@ -1,6 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as archiveCategory } from "@/app/api/v1/spaces/[spaceId]/categories/[categoryId]/archive/route";
-import { DELETE as deleteCategory } from "@/app/api/v1/spaces/[spaceId]/categories/[categoryId]/route";
+import {
+  DELETE as deleteCategory,
+  PATCH as updateCategory,
+} from "@/app/api/v1/spaces/[spaceId]/categories/[categoryId]/route";
 import {
   GET as listCategories,
   POST as createCategory,
@@ -22,7 +25,7 @@ import {
   addLine,
   type PlanDto,
 } from "../support/budgeting";
-import { categoryWithKey, cop, joinHousehold, post, type HouseholdMember } from "../support/ledger";
+import { categoryWithKey, cop, inSpace, joinHousehold, post, type HouseholdMember } from "../support/ledger";
 
 let app: Container;
 beforeAll(() => {
@@ -58,6 +61,17 @@ const newCategory = async (user: TestUser, name: string) => {
     user,
     params,
     body: { groupId: items[0]!.id, name },
+  });
+  expect(created.status).toBe(201);
+  return ((await created.json()) as { id: string }).id;
+};
+
+/** `user` adds a subcategory named `name` under `parentCategoryId` (HU-E3-04); returns its id. */
+const newSubcategory = async (user: TestUser, parentCategoryId: string, name: string) => {
+  const created = await call(createCategory, "POST", `/api/v1/spaces/${user.spaceId}/categories`, {
+    user,
+    params: { spaceId: user.spaceId },
+    body: { parentCategoryId, name },
   });
   expect(created.status).toBe(201);
   return ((await created.json()) as { id: string }).id;
@@ -117,6 +131,54 @@ describe("category to line mapping (HU-E6-04)", () => {
       spent: cop(60_000),
       available: cop(-60_000),
     });
+  });
+
+  it("counts a Vegetables expense, a subcategory of Groceries, as spent in Home, and refuses to map Vegetables (HU-E3-04)", async () => {
+    const { h, planId, lineId, categories } = await mapped();
+    const vegetables = await newSubcategory(h.ana, categories.groceries, "Vegetables");
+    await spends(h.ana, vegetables, 40_000, "2026-11-10");
+    const plan = await planOf(h.juan, h.spaceId, planId);
+    expect([lineNamed(plan, "Home").spent, plan.unbudgeted]).toEqual([
+      cop(40_000),
+      { spent: cop(0), available: cop(0) },
+    ]);
+    const refused = await putCategories(h.ana, h.spaceId, planId, lineId("Free"), [vegetables]);
+    expect(await problemOf(refused)).toEqual([409, "SubcategoryNotMappable"]);
+  });
+
+  it("lists a mapped category on no line once it moves under another, and on its old line again once it is promoted (HU-E3-04)", async () => {
+    const { h, planId, lineId, categories } = await mapped();
+    expect(
+      (await putCategories(h.ana, h.spaceId, planId, lineId("Free"), [categories.entertainment])).status,
+    ).toBe(200);
+    await spends(h.ana, categories.utilities, 30_000, "2026-11-10");
+    const moveUtilities = (parentCategoryId: string | null) =>
+      call(updateCategory, "PATCH", inSpace(h.ana, `categories/${categories.utilities}`), {
+        user: h.ana,
+        params: { spaceId: h.spaceId, categoryId: categories.utilities },
+        body: { parentCategoryId },
+      });
+    const linesOf = async () => {
+      const plan = await planOf(h.juan, h.spaceId, planId);
+      return ["Home", "Free"].map((name) => {
+        const line = lineNamed(plan, name);
+        return [name, line.categoryIds, line.spent];
+      });
+    };
+    expect(await linesOf()).toEqual([
+      ["Home", expect.arrayContaining([categories.groceries, categories.utilities]), cop(30_000)],
+      ["Free", [categories.entertainment], cop(0)],
+    ]);
+    expect((await moveUtilities(categories.entertainment)).status).toBe(200);
+    expect(await linesOf()).toEqual([
+      ["Home", [categories.groceries], cop(0)],
+      ["Free", [categories.entertainment], cop(30_000)],
+    ]);
+    expect((await moveUtilities(null)).status).toBe(200);
+    expect(await linesOf()).toEqual([
+      ["Home", expect.arrayContaining([categories.groceries, categories.utilities]), cop(30_000)],
+      ["Free", [categories.entertainment], cop(0)],
+    ]);
   });
 
   it("counts live expenses dated within the plan's period, and the transfers into the savings account", async () => {

@@ -3,6 +3,7 @@ import { FixedClock } from "@/shared/kernel";
 import {
   codeOf,
   fakeSpaceAccess,
+  fixedTimeZones,
   memoryTm,
   membership,
   money,
@@ -32,6 +33,7 @@ const setup = () => {
     movements: new FixedMovements(),
     ids: sequentialIds("acc"),
     clock: new FixedClock(new Date("2026-10-13T12:00:00Z")),
+    userTimeZones: fixedTimeZones(),
     tm: memoryTm,
   };
   return {

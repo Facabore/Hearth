@@ -220,3 +220,29 @@ describe("the audit keeps every split an edit replaces (D8, Task 0b)", () => {
     expect(earlier.map((s) => ({ ...s, amount: BigInt(s.amount) }))).toEqual(before.shares);
   });
 });
+
+describe("transaction time (HU-E4-14)", () => {
+  it("round-trips the instant and the zone, and gives a row without them its first time", async () => {
+    const at = new Date("2026-10-05T19:32:00.000Z");
+    const coffee: Expense = { ...expense(1_200_000n), occurredAt: at, timeZone: "America/Bogota" };
+    await repo.add(coffee);
+    expect(await repo.findById(space.spaceId, coffee.id)).toEqual(coffee);
+    const old = expense(1_100_000n); // as the migration leaves a row: no time
+    await repo.add(old);
+    expect(await repo.findById(space.spaceId, old.id)).toMatchObject({ occurredAt: null, timeZone: null });
+    expect(await repo.save({ ...old, occurredAt: at, timeZone: "America/Bogota" }, old.version)).toBe(true);
+    expect(await repo.findById(space.spaceId, old.id)).toMatchObject({
+      occurredAt: at,
+      timeZone: "America/Bogota",
+      version: 2,
+    });
+  });
+
+  it("refuses an instant without its zone (transactions_time_zone)", async () => {
+    const market = expense(1_000_000n);
+    await repo.add(market);
+    await expect(
+      pool.query(`UPDATE transactions SET occurred_at = now() WHERE id = $1`, [market.id]),
+    ).rejects.toMatchObject({ constraint: "transactions_time_zone" });
+  });
+});

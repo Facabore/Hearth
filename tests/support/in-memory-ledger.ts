@@ -22,7 +22,14 @@ import type {
 } from "@/modules/ledger/application";
 import { createSpaceAccess, type SpaceMember } from "@/modules/spaces/application";
 import { FixedClock, type LocalDate } from "@/shared/kernel";
-import { fakeSpaceAccess, memoryTm, membership, noStoredPeriods, sequentialIds } from "./fakes";
+import {
+  fakeSpaceAccess,
+  fixedTimeZones,
+  memoryTm,
+  membership,
+  noStoredPeriods,
+  sequentialIds,
+} from "./fakes";
 import { HOUSEHOLD_MEMBERS, householdSpace, InMemorySpaceStore, memberOf } from "./in-memory-spaces";
 
 const personalAccount = (id: string, spaceId: string, ownerUserId: string, archived = false) => ({
@@ -66,11 +73,19 @@ interface CategoryRow {
   readonly id: string;
   readonly spaceId: string;
   readonly archived: boolean;
+  readonly parentCategoryId?: string;
 }
 
 export const CATEGORIES = {
   groceries: { id: "cat-groceries", spaceId: "space-ana", archived: false },
   restaurants: { id: "cat-restaurants", spaceId: "space-ana", archived: false },
+  // HU-E3-04: a subcategory of Groceries.
+  vegetables: {
+    id: "cat-vegetables",
+    spaceId: "space-ana",
+    archived: false,
+    parentCategoryId: "cat-groceries",
+  },
   salary: { id: "cat-salary", spaceId: "space-ana", archived: false },
   archived: { id: "cat-archived", spaceId: "space-ana", archived: true },
   juanFood: { id: "cat-juan-food", spaceId: "space-juan", archived: false },
@@ -86,7 +101,28 @@ const categoryReader = (rows: readonly CategoryRow[]): CategoryReader => ({
     const row = rows.find((r) => r.spaceId === spaceId && r.id === id);
     return row ? { id: row.id, archived: row.archived } : null;
   },
+  subcategoriesOf: async (spaceId, ids) =>
+    rows
+      .filter(
+        (r) => r.spaceId === spaceId && r.parentCategoryId !== undefined && ids.includes(r.parentCategoryId),
+      )
+      .map((r) => r.id),
 });
+
+type Ordered = Pick<Transaction, "date" | "occurredAt" | "createdAt"> & { readonly id: string };
+
+/** Ruling P43, as PostgreSQL orders the list: negative when `a` comes first, positive when it comes after `b`. */
+export const listOrder = (a: Ordered, b: Ordered): number => {
+  const time = (t: Ordered) => t.occurredAt?.getTime() ?? Number.NEGATIVE_INFINITY;
+  const keys: [string | number, string | number][] = [
+    [b.date, a.date],
+    [time(b), time(a)],
+    [b.createdAt.getTime(), a.createdAt.getTime()],
+    [b.id, a.id],
+  ];
+  for (const [x, y] of keys) if (x !== y) return x < y ? -1 : 1;
+  return 0;
+};
 
 /** Repository and query side over one array; mirrors the SQL semantics pinned in Tasks 20–21. */
 export class InMemoryTransactions implements TransactionRepository, TransactionQuery {
@@ -113,7 +149,7 @@ export class InMemoryTransactions implements TransactionRepository, TransactionQ
 
   async list(filter: TransactionFilter, after: TransactionPosition | null, limit: number) {
     return this.matching(filter)
-      .filter((t) => after === null || t.date < after.date || (t.date === after.date && t.id < after.id))
+      .filter((t) => after === null || listOrder(t, after) > 0)
       .slice(0, limit);
   }
 
@@ -233,7 +269,7 @@ export class InMemoryTransactions implements TransactionRepository, TransactionQ
           f.participantMemberId === undefined ||
           (t.type === "EXPENSE" && t.shares.some((s) => s.memberId === f.participantMemberId)),
       )
-      .sort((a, b) => (a.date === b.date ? (a.id < b.id ? 1 : -1) : a.date < b.date ? 1 : -1));
+      .sort(listOrder);
   }
 }
 
@@ -274,6 +310,7 @@ export const ledgerFixture = (overrides: Partial<LedgerDeps> = {}) => {
     ids: sequentialIds("tx"),
     clock: new FixedClock(new Date("2026-10-28T15:00:00Z")),
     timeZone: "America/Bogota",
+    userTimeZones: fixedTimeZones(),
     tm: memoryTm,
     ...overrides,
   };
@@ -301,6 +338,8 @@ const baseOf = (date: string, amount: bigint) => ({
   spaceId: "space-ana",
   description: "",
   date: date as LocalDate,
+  occurredAt: null,
+  timeZone: null,
   amount,
   currency: "COP",
   createdBy: "u-ana",

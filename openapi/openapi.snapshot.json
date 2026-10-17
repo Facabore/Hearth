@@ -80,6 +80,186 @@
                     },
                     "timezone": {
                       "type": "string"
+                    },
+                    "preferences": {
+                      "type": "object",
+                      "properties": {
+                        "stored": {
+                          "type": "object",
+                          "properties": {
+                            "numberFormat": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "DOT_COMMA",
+                                    "COMMA_DOT",
+                                    "SPACE_COMMA"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "timeFormat": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "H24",
+                                    "H12"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "dateFormat": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "DMY",
+                                    "MDY",
+                                    "YMD"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "weekStart": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "MONDAY",
+                                    "SUNDAY"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "numberFormat",
+                            "timeFormat",
+                            "dateFormat",
+                            "weekStart"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "effective": {
+                          "type": "object",
+                          "properties": {
+                            "numberFormat": {
+                              "type": "string",
+                              "enum": [
+                                "DOT_COMMA",
+                                "COMMA_DOT",
+                                "SPACE_COMMA"
+                              ]
+                            },
+                            "timeFormat": {
+                              "type": "string",
+                              "enum": [
+                                "H24",
+                                "H12"
+                              ]
+                            },
+                            "dateFormat": {
+                              "type": "string",
+                              "enum": [
+                                "DMY",
+                                "MDY",
+                                "YMD"
+                              ]
+                            },
+                            "weekStart": {
+                              "type": "string",
+                              "enum": [
+                                "MONDAY",
+                                "SUNDAY"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "numberFormat",
+                            "timeFormat",
+                            "dateFormat",
+                            "weekStart"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "defaults": {
+                          "type": "object",
+                          "properties": {
+                            "numberFormat": {
+                              "type": "string",
+                              "enum": [
+                                "DOT_COMMA",
+                                "COMMA_DOT",
+                                "SPACE_COMMA"
+                              ]
+                            },
+                            "timeFormat": {
+                              "type": "string",
+                              "enum": [
+                                "H24",
+                                "H12"
+                              ]
+                            },
+                            "dateFormat": {
+                              "type": "string",
+                              "enum": [
+                                "DMY",
+                                "MDY",
+                                "YMD"
+                              ]
+                            },
+                            "weekStart": {
+                              "type": "string",
+                              "enum": [
+                                "MONDAY",
+                                "SUNDAY"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "numberFormat",
+                            "timeFormat",
+                            "dateFormat",
+                            "weekStart"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "locked": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "numberFormat",
+                              "timeFormat",
+                              "dateFormat",
+                              "weekStart",
+                              "timezone",
+                              "locale"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "stored",
+                        "effective",
+                        "defaults",
+                        "locked"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -87,7 +267,8 @@
                     "name",
                     "email",
                     "locale",
-                    "timezone"
+                    "timezone",
+                    "preferences"
                   ],
                   "additionalProperties": false
                 }
@@ -96,6 +277,349 @@
           },
           "401": {
             "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateMe",
+        "summary": "Change the signed-in user's time zone, language and formats (HU-E1-14, HU-E1-15)",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "timezone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "locale": {
+                    "type": "string",
+                    "enum": [
+                      "es",
+                      "en"
+                    ]
+                  },
+                  "numberFormat": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "DOT_COMMA",
+                          "COMMA_DOT",
+                          "SPACE_COMMA"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "timeFormat": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "H24",
+                          "H12"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "dateFormat": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "DMY",
+                          "MDY",
+                          "YMD"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "weekStart": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "MONDAY",
+                          "SUNDAY"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string",
+                      "format": "email",
+                      "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                    },
+                    "locale": {
+                      "type": "string"
+                    },
+                    "timezone": {
+                      "type": "string"
+                    },
+                    "preferences": {
+                      "type": "object",
+                      "properties": {
+                        "stored": {
+                          "type": "object",
+                          "properties": {
+                            "numberFormat": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "DOT_COMMA",
+                                    "COMMA_DOT",
+                                    "SPACE_COMMA"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "timeFormat": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "H24",
+                                    "H12"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "dateFormat": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "DMY",
+                                    "MDY",
+                                    "YMD"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "weekStart": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "MONDAY",
+                                    "SUNDAY"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "numberFormat",
+                            "timeFormat",
+                            "dateFormat",
+                            "weekStart"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "effective": {
+                          "type": "object",
+                          "properties": {
+                            "numberFormat": {
+                              "type": "string",
+                              "enum": [
+                                "DOT_COMMA",
+                                "COMMA_DOT",
+                                "SPACE_COMMA"
+                              ]
+                            },
+                            "timeFormat": {
+                              "type": "string",
+                              "enum": [
+                                "H24",
+                                "H12"
+                              ]
+                            },
+                            "dateFormat": {
+                              "type": "string",
+                              "enum": [
+                                "DMY",
+                                "MDY",
+                                "YMD"
+                              ]
+                            },
+                            "weekStart": {
+                              "type": "string",
+                              "enum": [
+                                "MONDAY",
+                                "SUNDAY"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "numberFormat",
+                            "timeFormat",
+                            "dateFormat",
+                            "weekStart"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "defaults": {
+                          "type": "object",
+                          "properties": {
+                            "numberFormat": {
+                              "type": "string",
+                              "enum": [
+                                "DOT_COMMA",
+                                "COMMA_DOT",
+                                "SPACE_COMMA"
+                              ]
+                            },
+                            "timeFormat": {
+                              "type": "string",
+                              "enum": [
+                                "H24",
+                                "H12"
+                              ]
+                            },
+                            "dateFormat": {
+                              "type": "string",
+                              "enum": [
+                                "DMY",
+                                "MDY",
+                                "YMD"
+                              ]
+                            },
+                            "weekStart": {
+                              "type": "string",
+                              "enum": [
+                                "MONDAY",
+                                "SUNDAY"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "numberFormat",
+                            "timeFormat",
+                            "dateFormat",
+                            "weekStart"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "locked": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "numberFormat",
+                              "timeFormat",
+                              "dateFormat",
+                              "weekStart",
+                              "timezone",
+                              "locale"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "stored",
+                        "effective",
+                        "defaults",
+                        "locked"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "email",
+                    "locale",
+                    "timezone",
+                    "preferences"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "PreferenceLocked",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed, InvalidTimeZone",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -130,6 +654,10 @@
                   "password": {
                     "type": "string",
                     "maxLength": 128
+                  },
+                  "timezone": {
+                    "type": "string",
+                    "maxLength": 64
                   }
                 },
                 "required": [
@@ -1823,7 +2351,7 @@
     "/api/v1/spaces/{spaceId}/categories": {
       "get": {
         "operationId": "listCategories",
-        "summary": "Category tree of a space; archived groups and categories only with archived=true",
+        "summary": "Category tree of a space, with nested subcategories; archived groups, categories and subcategories only with archived=true",
         "security": [
           {
             "cookieAuth": []
@@ -1855,7 +2383,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Groups with their categories, sorted by name",
+            "description": "Groups with their categories and each category's subcategories, sorted by name",
             "content": {
               "application/json": {
                 "schema": {
@@ -1910,7 +2438,7 @@
       },
       "post": {
         "operationId": "createCategory",
-        "summary": "Create a category in a group (two levels only)",
+        "summary": "Create a category in a group, or a subcategory under a category",
         "security": [
           {
             "cookieAuth": []
@@ -1940,13 +2468,77 @@
                     "minLength": 1,
                     "maxLength": 64
                   },
+                  "parentCategoryId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
                   "name": {
                     "type": "string",
                     "maxLength": 200
+                  },
+                  "icon": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "SYMBOL"
+                          },
+                          "name": {
+                            "type": "string",
+                            "maxLength": 64
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "name"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "EMOJI"
+                          },
+                          "value": {
+                            "type": "string",
+                            "maxLength": 64
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "value"
+                        ]
+                      }
+                    ],
+                    "type": "object"
+                  },
+                  "color": {
+                    "type": "string",
+                    "enum": [
+                      "PINE",
+                      "SAGE",
+                      "OLIVE",
+                      "SAND",
+                      "MUSTARD",
+                      "AMBER",
+                      "EMBER",
+                      "CORAL",
+                      "ROSE",
+                      "PLUM",
+                      "LAVENDER",
+                      "INDIGO",
+                      "SKY",
+                      "TEAL",
+                      "STEEL",
+                      "GRAPHITE"
+                    ]
                   }
                 },
                 "required": [
-                  "groupId",
                   "name"
                 ]
               }
@@ -1985,7 +2577,7 @@
             }
           },
           "404": {
-            "description": "SpaceNotFound, CategoryGroupNotFound",
+            "description": "SpaceNotFound, CategoryGroupNotFound, CategoryNotFound",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1995,7 +2587,7 @@
             }
           },
           "409": {
-            "description": "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived, SpaceArchived",
+            "description": "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived, SpaceArchived, ParentCategoryArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2005,7 +2597,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidCategoryName",
+            "description": "ValidationFailed, InvalidCategoryName, InvalidCategoryIcon",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2020,7 +2612,7 @@
     "/api/v1/spaces/{spaceId}/categories/{categoryId}": {
       "patch": {
         "operationId": "updateCategory",
-        "summary": "Rename a category and/or move it to another group",
+        "summary": "Rename a category, move it to another group, or move it under or out of a parent",
         "security": [
           {
             "cookieAuth": []
@@ -2061,6 +2653,78 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64
+                  },
+                  "parentCategoryId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "icon": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "SYMBOL"
+                          },
+                          "name": {
+                            "type": "string",
+                            "maxLength": 64
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "name"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "EMOJI"
+                          },
+                          "value": {
+                            "type": "string",
+                            "maxLength": 64
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "value"
+                        ]
+                      }
+                    ],
+                    "type": "object"
+                  },
+                  "color": {
+                    "type": "string",
+                    "enum": [
+                      "PINE",
+                      "SAGE",
+                      "OLIVE",
+                      "SAND",
+                      "MUSTARD",
+                      "AMBER",
+                      "EMBER",
+                      "CORAL",
+                      "ROSE",
+                      "PLUM",
+                      "LAVENDER",
+                      "INDIGO",
+                      "SKY",
+                      "TEAL",
+                      "STEEL",
+                      "GRAPHITE"
+                    ]
                   }
                 }
               }
@@ -2109,7 +2773,7 @@
             }
           },
           "409": {
-            "description": "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived, SpaceArchived",
+            "description": "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived, SpaceArchived, ParentCategoryArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2119,7 +2783,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidCategoryName",
+            "description": "ValidationFailed, InvalidCategoryName, InvalidCategoryIcon",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2132,7 +2796,7 @@
       },
       "delete": {
         "operationId": "deleteCategory",
-        "summary": "Delete a category that no transaction references (archive it otherwise)",
+        "summary": "Delete a category that no transaction references and that has no subcategories (archive it otherwise)",
         "security": [
           {
             "cookieAuth": []
@@ -2237,6 +2901,66 @@
                   "name": {
                     "type": "string",
                     "maxLength": 200
+                  },
+                  "icon": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "SYMBOL"
+                          },
+                          "name": {
+                            "type": "string",
+                            "maxLength": 64
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "name"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "EMOJI"
+                          },
+                          "value": {
+                            "type": "string",
+                            "maxLength": 64
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "value"
+                        ]
+                      }
+                    ],
+                    "type": "object"
+                  },
+                  "color": {
+                    "type": "string",
+                    "enum": [
+                      "PINE",
+                      "SAGE",
+                      "OLIVE",
+                      "SAND",
+                      "MUSTARD",
+                      "AMBER",
+                      "EMBER",
+                      "CORAL",
+                      "ROSE",
+                      "PLUM",
+                      "LAVENDER",
+                      "INDIGO",
+                      "SKY",
+                      "TEAL",
+                      "STEEL",
+                      "GRAPHITE"
+                    ]
                   }
                 },
                 "required": [
@@ -2298,7 +3022,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidCategoryName",
+            "description": "ValidationFailed, InvalidCategoryName, InvalidCategoryIcon",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2313,7 +3037,7 @@
     "/api/v1/spaces/{spaceId}/category-groups/{groupId}": {
       "patch": {
         "operationId": "renameCategoryGroup",
-        "summary": "Rename a category group",
+        "summary": "Rename a category group and/or change its icon and color",
         "security": [
           {
             "cookieAuth": []
@@ -2349,18 +3073,75 @@
                   "name": {
                     "type": "string",
                     "maxLength": 200
+                  },
+                  "icon": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "SYMBOL"
+                          },
+                          "name": {
+                            "type": "string",
+                            "maxLength": 64
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "name"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "EMOJI"
+                          },
+                          "value": {
+                            "type": "string",
+                            "maxLength": 64
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "value"
+                        ]
+                      }
+                    ],
+                    "type": "object"
+                  },
+                  "color": {
+                    "type": "string",
+                    "enum": [
+                      "PINE",
+                      "SAGE",
+                      "OLIVE",
+                      "SAND",
+                      "MUSTARD",
+                      "AMBER",
+                      "EMBER",
+                      "CORAL",
+                      "ROSE",
+                      "PLUM",
+                      "LAVENDER",
+                      "INDIGO",
+                      "SKY",
+                      "TEAL",
+                      "STEEL",
+                      "GRAPHITE"
+                    ]
                   }
-                },
-                "required": [
-                  "name"
-                ]
+                }
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "The renamed group",
+            "description": "The updated group",
             "content": {
               "application/json": {
                 "schema": {
@@ -2410,7 +3191,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidCategoryName",
+            "description": "ValidationFailed, InvalidCategoryName, InvalidCategoryIcon",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2425,7 +3206,7 @@
     "/api/v1/spaces/{spaceId}/categories/{categoryId}/archive": {
       "post": {
         "operationId": "archiveCategory",
-        "summary": "Archive a category: it stays in history but cannot be used for new transactions",
+        "summary": "Archive a category and its subcategories: they stay in history but cannot be used for new transactions",
         "security": [
           {
             "cookieAuth": []
@@ -2578,7 +3359,7 @@
             }
           },
           "409": {
-            "description": "CategoryGroupArchived, SpaceArchived",
+            "description": "CategoryGroupArchived, SpaceArchived, ParentCategoryArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2729,10 +3510,27 @@
                       "items": {
                         "$ref": "#/components/schemas/Account"
                       }
+                    },
+                    "totals": {
+                      "type": "object",
+                      "properties": {
+                        "available": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "netWorth": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        }
+                      },
+                      "required": [
+                        "available",
+                        "netWorth"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
-                    "items"
+                    "items",
+                    "totals"
                   ],
                   "additionalProperties": false
                 }
@@ -2773,7 +3571,7 @@
       },
       "post": {
         "operationId": "createAccount",
-        "summary": "Create an account with an opening balance",
+        "summary": "Create an account with an opening balance and, by type, its card, savings or loan terms",
         "security": [
           {
             "cookieAuth": []
@@ -2807,13 +3605,177 @@
                     "enum": [
                       "CASH",
                       "BANK",
+                      "WALLET",
                       "CREDIT_CARD",
                       "SAVINGS",
+                      "INVESTMENT",
+                      "LOAN",
+                      "OTHER",
                       "SHARED_FUND"
                     ]
                   },
                   "openingBalance": {
                     "$ref": "#/components/schemas/Money"
+                  },
+                  "institution": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "lastFour": {
+                    "type": "string",
+                    "pattern": "^\\d{4}$"
+                  },
+                  "color": {
+                    "type": "string",
+                    "enum": [
+                      "pine",
+                      "ember",
+                      "sand",
+                      "sky",
+                      "plum",
+                      "moss",
+                      "clay",
+                      "slate",
+                      "gold",
+                      "rose"
+                    ]
+                  },
+                  "icon": {
+                    "type": "string",
+                    "enum": [
+                      "banknote",
+                      "landmark",
+                      "wallet",
+                      "credit-card",
+                      "piggy-bank",
+                      "trending-up",
+                      "hand-coins",
+                      "circle-ellipsis",
+                      "users",
+                      "briefcase",
+                      "car",
+                      "gem",
+                      "gift",
+                      "house",
+                      "plane",
+                      "smartphone"
+                    ]
+                  },
+                  "includeInAvailable": {
+                    "type": "boolean"
+                  },
+                  "includeInNetWorth": {
+                    "type": "boolean"
+                  },
+                  "terms": {
+                    "type": "object",
+                    "properties": {
+                      "creditLimit": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/components/schemas/Money"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "cutOffDay": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -100000,
+                            "maximum": 100000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "paymentDay": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -100000,
+                            "maximum": 100000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "monthlyRate": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "annualRate": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "termDays": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -100000,
+                            "maximum": 100000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "maturityDate": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "principal": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/components/schemas/Money"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "termMonths": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -100000,
+                            "maximum": 100000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    }
                   }
                 },
                 "required": [
@@ -2867,7 +3829,7 @@
             }
           },
           "409": {
-            "description": "AccountNameTaken, SharedFundRequiresSharedSpace, PersonalAccountRequiresPersonalSpace, SpaceArchived",
+            "description": "AccountNameTaken, SharedFundRequiresSharedSpace, PersonalAccountRequiresPersonalSpace, SpaceArchived, AccountAttributeNotAllowed",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2877,7 +3839,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAccountName, UnknownCurrency, CurrencyMismatch",
+            "description": "ValidationFailed, InvalidAccountName, UnknownCurrency, CurrencyMismatch, InvalidCreditLimit, InvalidBillingDay, InvalidRate, InvalidTermDeposit, InvalidTerm, InvalidAmount, InvalidDate",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2973,7 +3935,7 @@
       },
       "patch": {
         "operationId": "updateAccount",
-        "summary": "Rename an account or correct its opening balance (the type never changes)",
+        "summary": "Rename an account, correct its opening balance, or change its institution, last four digits, color, icon or its card, savings or loan terms (the type never changes)",
         "security": [
           {
             "cookieAuth": []
@@ -3015,13 +3977,211 @@
                     "enum": [
                       "CASH",
                       "BANK",
+                      "WALLET",
                       "CREDIT_CARD",
                       "SAVINGS",
+                      "INVESTMENT",
+                      "LOAN",
+                      "OTHER",
                       "SHARED_FUND"
                     ]
                   },
                   "openingBalance": {
                     "$ref": "#/components/schemas/Money"
+                  },
+                  "institution": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 60
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "lastFour": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^\\d{4}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "pine",
+                          "ember",
+                          "sand",
+                          "sky",
+                          "plum",
+                          "moss",
+                          "clay",
+                          "slate",
+                          "gold",
+                          "rose"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "icon": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "banknote",
+                          "landmark",
+                          "wallet",
+                          "credit-card",
+                          "piggy-bank",
+                          "trending-up",
+                          "hand-coins",
+                          "circle-ellipsis",
+                          "users",
+                          "briefcase",
+                          "car",
+                          "gem",
+                          "gift",
+                          "house",
+                          "plane",
+                          "smartphone"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "includeInAvailable": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "includeInNetWorth": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "terms": {
+                    "type": "object",
+                    "properties": {
+                      "creditLimit": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/components/schemas/Money"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "cutOffDay": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -100000,
+                            "maximum": 100000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "paymentDay": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -100000,
+                            "maximum": 100000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "monthlyRate": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "annualRate": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "termDays": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -100000,
+                            "maximum": 100000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "maturityDate": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "principal": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/components/schemas/Money"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "termMonths": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -100000,
+                            "maximum": 100000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    }
                   }
                 }
               }
@@ -3070,7 +4230,7 @@
             }
           },
           "409": {
-            "description": "AccountNameTaken, AccountTypeImmutable, SpaceArchived",
+            "description": "AccountNameTaken, AccountTypeImmutable, SpaceArchived, AccountAttributeNotAllowed",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3080,7 +4240,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAccountName, UnknownCurrency, CurrencyMismatch",
+            "description": "ValidationFailed, InvalidAccountName, UnknownCurrency, CurrencyMismatch, InvalidCreditLimit, InvalidBillingDay, InvalidRate, InvalidTermDeposit, InvalidTerm, InvalidAmount, InvalidDate",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3220,6 +4380,23 @@
                     "type": "string",
                     "format": "date",
                     "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  "occurredAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "timeZone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
                   },
                   "categoryId": {
                     "type": "string",
@@ -3474,7 +4651,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, CategoryRequired, AccountNotOwned, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount",
+            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, CategoryRequired, AccountNotOwned, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount, DateTimeMismatch, TimeRequired, InvalidTimeZone",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3530,6 +4707,23 @@
                     "type": "string",
                     "format": "date",
                     "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  "occurredAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "timeZone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
                   },
                   "categoryId": {
                     "type": "string",
@@ -3605,7 +4799,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, CategoryRequired, AccountNotOwned, AccountNotInSpace",
+            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, CategoryRequired, AccountNotOwned, AccountNotInSpace, DateTimeMismatch, TimeRequired, InvalidTimeZone",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3661,6 +4855,23 @@
                     "type": "string",
                     "format": "date",
                     "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  "occurredAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "timeZone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
                   },
                   "amount": {
                     "$ref": "#/components/schemas/Money"
@@ -3737,7 +4948,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, AccountNotOwned, AccountNotInSpace",
+            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, AccountNotOwned, AccountNotInSpace, DateTimeMismatch, TimeRequired, InvalidTimeZone",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3793,6 +5004,23 @@
                     "type": "string",
                     "format": "date",
                     "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  "occurredAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "timeZone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
                   },
                   "amount": {
                     "$ref": "#/components/schemas/Money"
@@ -3880,7 +5108,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, AccountNotOwned, AccountRequired, InvalidFundAccount, NotASpaceMember",
+            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, AccountNotOwned, AccountRequired, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3936,6 +5164,23 @@
                     "type": "string",
                     "format": "date",
                     "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  "occurredAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "timeZone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
                   },
                   "amount": {
                     "$ref": "#/components/schemas/Money"
@@ -4036,7 +5281,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, AccountNotOwned, NotASpaceMember, InvalidSettlementParties",
+            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, AccountNotOwned, NotASpaceMember, InvalidSettlementParties, DateTimeMismatch, TimeRequired, InvalidTimeZone",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4285,7 +5530,7 @@
       },
       "patch": {
         "operationId": "editTransaction",
-        "summary": "Change description, date, category or amount; send If-Match with the current ETag",
+        "summary": "Change description, date, time, category or amount; send If-Match with the current ETag",
         "security": [
           {
             "cookieAuth": []
@@ -4333,6 +5578,23 @@
                     "type": "string",
                     "format": "date",
                     "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  "occurredAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "timeZone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
                   },
                   "categoryId": {
                     "type": "string",
@@ -4409,7 +5671,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, NotASpaceMember",
+            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4721,6 +5983,23 @@
                     "format": "date",
                     "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
                   },
+                  "occurredAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "timeZone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
                   "categoryKey": {
                     "type": "string",
                     "minLength": 1,
@@ -4804,7 +6083,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned",
+            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7328,7 +8607,7 @@
             }
           },
           "409": {
-            "description": "PeriodClosed, CategoryAlreadyMapped, CategoryArchived, SavingsLineNotMappable, SpaceArchived",
+            "description": "PeriodClosed, CategoryAlreadyMapped, CategoryArchived, SavingsLineNotMappable, SpaceArchived, SubcategoryNotMappable",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7979,6 +9258,12 @@
           "groupId": {
             "type": "string"
           },
+          "parentCategoryId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "name": {
             "type": "string"
           },
@@ -7999,14 +9284,77 @@
                 "type": "null"
               }
             ]
+          },
+          "icon": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "SYMBOL"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "name"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "EMOJI"
+                  },
+                  "value": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ]
+              }
+            ],
+            "type": "object"
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "PINE",
+              "SAGE",
+              "OLIVE",
+              "SAND",
+              "MUSTARD",
+              "AMBER",
+              "EMBER",
+              "CORAL",
+              "ROSE",
+              "PLUM",
+              "LAVENDER",
+              "INDIGO",
+              "SKY",
+              "TEAL",
+              "STEEL",
+              "GRAPHITE"
+            ]
           }
         },
         "required": [
           "id",
           "groupId",
+          "parentCategoryId",
           "name",
           "key",
-          "archivedAt"
+          "archivedAt",
+          "icon",
+          "color"
         ]
       },
       "RecurrenceDefinition": {
@@ -8412,6 +9760,9 @@
             "enum": [
               "creator"
             ]
+          },
+          "field": {
+            "type": "string"
           }
         },
         "required": [
@@ -8432,6 +9783,12 @@
           "name": {
             "type": "string"
           },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "archivedAt": {
             "anyOf": [
               {
@@ -8444,17 +9801,197 @@
               }
             ]
           },
+          "icon": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "SYMBOL"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "EMOJI"
+                  },
+                  "value": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            ],
+            "type": "object"
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "PINE",
+              "SAGE",
+              "OLIVE",
+              "SAND",
+              "MUSTARD",
+              "AMBER",
+              "EMBER",
+              "CORAL",
+              "ROSE",
+              "PLUM",
+              "LAVENDER",
+              "INDIGO",
+              "SKY",
+              "TEAL",
+              "STEEL",
+              "GRAPHITE"
+            ]
+          },
           "categories": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/CategoryOutput"
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "groupId": {
+                  "type": "string"
+                },
+                "parentCategoryId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "key": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "archivedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "icon": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "SYMBOL"
+                        },
+                        "name": {
+                          "type": "string",
+                          "maxLength": 64
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "EMOJI"
+                        },
+                        "value": {
+                          "type": "string",
+                          "maxLength": 64
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ],
+                  "type": "object"
+                },
+                "color": {
+                  "type": "string",
+                  "enum": [
+                    "PINE",
+                    "SAGE",
+                    "OLIVE",
+                    "SAND",
+                    "MUSTARD",
+                    "AMBER",
+                    "EMBER",
+                    "CORAL",
+                    "ROSE",
+                    "PLUM",
+                    "LAVENDER",
+                    "INDIGO",
+                    "SKY",
+                    "TEAL",
+                    "STEEL",
+                    "GRAPHITE"
+                  ]
+                },
+                "subcategories": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryOutput"
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "groupId",
+                "parentCategoryId",
+                "name",
+                "key",
+                "archivedAt",
+                "icon",
+                "color",
+                "subcategories"
+              ],
+              "additionalProperties": false
             }
           }
         },
         "required": [
           "id",
           "name",
+          "key",
           "archivedAt",
+          "icon",
+          "color",
           "categories"
         ],
         "additionalProperties": false
@@ -8468,6 +10005,12 @@
           "name": {
             "type": "string"
           },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "archivedAt": {
             "anyOf": [
               {
@@ -8479,12 +10022,77 @@
                 "type": "null"
               }
             ]
+          },
+          "icon": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "SYMBOL"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "EMOJI"
+                  },
+                  "value": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            ],
+            "type": "object"
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "PINE",
+              "SAGE",
+              "OLIVE",
+              "SAND",
+              "MUSTARD",
+              "AMBER",
+              "EMBER",
+              "CORAL",
+              "ROSE",
+              "PLUM",
+              "LAVENDER",
+              "INDIGO",
+              "SKY",
+              "TEAL",
+              "STEEL",
+              "GRAPHITE"
+            ]
           }
         },
         "required": [
           "id",
           "name",
-          "archivedAt"
+          "key",
+          "archivedAt",
+          "icon",
+          "color"
         ],
         "additionalProperties": false
       },
@@ -8502,8 +10110,12 @@
             "enum": [
               "CASH",
               "BANK",
+              "WALLET",
               "CREDIT_CARD",
               "SAVINGS",
+              "INVESTMENT",
+              "LOAN",
+              "OTHER",
               "SHARED_FUND"
             ]
           },
@@ -8530,6 +10142,248 @@
                 "type": "null"
               }
             ]
+          },
+          "institution": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastFour": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "color": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "pine",
+                  "ember",
+                  "sand",
+                  "sky",
+                  "plum",
+                  "moss",
+                  "clay",
+                  "slate",
+                  "gold",
+                  "rose"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "icon": {
+            "type": "string",
+            "enum": [
+              "banknote",
+              "landmark",
+              "wallet",
+              "credit-card",
+              "piggy-bank",
+              "trending-up",
+              "hand-coins",
+              "circle-ellipsis",
+              "users",
+              "briefcase",
+              "car",
+              "gem",
+              "gift",
+              "house",
+              "plane",
+              "smartphone"
+            ]
+          },
+          "includeInAvailable": {
+            "type": "boolean"
+          },
+          "includeInNetWorth": {
+            "type": "boolean"
+          },
+          "terms": {
+            "type": "object",
+            "properties": {
+              "creditLimit": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/MoneyOutput"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "cutOffDay": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "paymentDay": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "monthlyRate": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "annualRate": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "termDays": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "maturityDate": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "principal": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/MoneyOutput"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "termMonths": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "creditLimit",
+              "cutOffDay",
+              "paymentDay",
+              "monthlyRate",
+              "annualRate",
+              "termDays",
+              "maturityDate",
+              "principal",
+              "termMonths"
+            ],
+            "additionalProperties": false
+          },
+          "derived": {
+            "type": "object",
+            "properties": {
+              "availableCredit": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/MoneyOutput"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "nextCutOffDate": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "nextPaymentDate": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "effectiveAnnualRate": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "equivalentMonthlyRate": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "startDate": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "availableCredit",
+              "nextCutOffDate",
+              "nextPaymentDate",
+              "effectiveAnnualRate",
+              "equivalentMonthlyRate",
+              "startDate"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -8539,7 +10393,15 @@
           "ownerUserId",
           "openingBalance",
           "balance",
-          "archivedAt"
+          "archivedAt",
+          "institution",
+          "lastFour",
+          "color",
+          "icon",
+          "includeInAvailable",
+          "includeInNetWorth",
+          "terms",
+          "derived"
         ],
         "additionalProperties": false
       },
@@ -8810,6 +10672,24 @@
             "format": "date",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
           },
+          "occurredAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timeZone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "amount": {
             "$ref": "#/components/schemas/MoneyOutput"
           },
@@ -8926,6 +10806,8 @@
           "type",
           "description",
           "date",
+          "occurredAt",
+          "timeZone",
           "amount",
           "categoryId",
           "payments",
@@ -8963,6 +10845,24 @@
             "type": "string",
             "format": "date",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "occurredAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timeZone": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "amount": {
             "$ref": "#/components/schemas/MoneyOutput"
@@ -9106,6 +11006,8 @@
           "type",
           "description",
           "date",
+          "occurredAt",
+          "timeZone",
           "amount",
           "categoryId",
           "payments",
@@ -9924,6 +11826,12 @@
           "groupId": {
             "type": "string"
           },
+          "parentCategoryId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "name": {
             "type": "string"
           },
@@ -9944,14 +11852,79 @@
                 "type": "null"
               }
             ]
+          },
+          "icon": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "SYMBOL"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "EMOJI"
+                  },
+                  "value": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            ],
+            "type": "object"
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "PINE",
+              "SAGE",
+              "OLIVE",
+              "SAND",
+              "MUSTARD",
+              "AMBER",
+              "EMBER",
+              "CORAL",
+              "ROSE",
+              "PLUM",
+              "LAVENDER",
+              "INDIGO",
+              "SKY",
+              "TEAL",
+              "STEEL",
+              "GRAPHITE"
+            ]
           }
         },
         "required": [
           "id",
           "groupId",
+          "parentCategoryId",
           "name",
           "key",
-          "archivedAt"
+          "archivedAt",
+          "icon",
+          "color"
         ],
         "additionalProperties": false
       }

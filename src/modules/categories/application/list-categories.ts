@@ -1,10 +1,16 @@
 import { authorizeSpaceAction } from "@/modules/spaces/application";
 import { ok, type Result } from "@/shared/kernel";
-import type { Category, CategoryGroup } from "../domain/category";
+import type { CategoryGroup } from "../domain/category";
+import { viewOf, type CategoryView } from "./category-view";
 import type { CategoriesDeps } from "./deps";
 
+/** HU-E3-04, HU-E3-05: a category with its subcategories, each sorted by name; each shows its style. */
+export interface CategoryNode extends CategoryView {
+  readonly subcategories: readonly CategoryView[];
+}
+
 export interface CategoryGroupView extends CategoryGroup {
-  readonly categories: readonly Category[];
+  readonly categories: readonly CategoryNode[];
 }
 
 export type ListCategories = (input: {
@@ -30,7 +36,15 @@ export const createListCategories =
         .sort(byName)
         .map((group) => ({
           ...group,
-          categories: visible(categories.filter((c) => c.groupId === group.id)).sort(byName),
+          categories: visible(categories.filter((c) => c.groupId === group.id && c.parentCategoryId === null))
+            .sort(byName)
+            .map((category) => ({
+              ...viewOf(category, categories),
+              // HU-E3-05: derived on every read, so a subcategory follows its parent's style.
+              subcategories: visible(categories.filter((c) => c.parentCategoryId === category.id))
+                .sort(byName)
+                .map((subcategory) => viewOf(subcategory, categories)),
+            })),
         })),
     );
   };

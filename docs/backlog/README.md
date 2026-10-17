@@ -132,7 +132,7 @@ A UI story is `Done` when:
 | [HU-E5-01](E5-balances-and-settlements.md) | Compute who owes whom | E5 | M2 | Must | M | Done | HU-E4-07, HU-E4-10 |
 | [HU-E5-02](E5-balances-and-settlements.md) | Record a settlement | E5 | M2 | Must | M | Done | HU-E5-01, HU-E1-10 |
 | [HU-E5-03](E5-balances-and-settlements.md) | Suggest simplified settlements | E5 | M2 | Should | M | Done | HU-E5-01 |
-| [HU-E5-04](E5-balances-and-settlements.md) | Show balance history per member | E5 | M2 | Should | S | Backlog | HU-E5-02 |
+| [HU-E5-04](E5-balances-and-settlements.md) | Show balance history per member | E5 | M2 | Should | S | Done | HU-E5-02 |
 | [HU-E6-01](E6-budgeting.md) | Create a plan for a period | E6 | M3 | Must | S | Done | HU-E1-05, HU-E0-04 |
 | [HU-E6-02](E6-budgeting.md) | Set member capacities | E6 | M3 | Must | S | Done | HU-E6-01 |
 | [HU-E6-03](E6-budgeting.md) | Add budget lines and show unallocated capacity | E6 | M3 | Must | M | Done | HU-E6-02 |
@@ -142,9 +142,9 @@ A UI story is `Done` when:
 | [HU-E6-07](E6-budgeting.md) | Activate and close a plan | E6 | M3 | Must | M | Done | HU-E6-05 |
 | [HU-E6-08](E6-budgeting.md) | Default split by allocation | E6 | M3 | Must | M | Done | HU-E6-04, HU-E6-05, HU-E6-07, HU-E4-07, HU-E5-01 |
 | [HU-E6-09](E6-budgeting.md) | Apply rollover modes | E6 | M3 | Must | M | Done | HU-E6-04, HU-E6-07 |
-| [HU-E4-11](E4-ledger.md) | Define and manage recurring transactions | E4 | M3 | Must | M | Backlog | HU-E4-07, HU-E0-04, HU-E1-10 |
-| [HU-E4-12](E4-ledger.md) | Record due occurrences automatically | E4 | M3 | Must | M | Backlog | HU-E4-11, HU-E6-07, HU-E6-08 |
-| [HU-E4-13](E4-ledger.md) | Confirm variable-amount occurrences | E4 | M3 | Must | S | Backlog | HU-E4-12 |
+| [HU-E4-11](E4-ledger.md) | Define and manage recurring transactions | E4 | M3 | Must | M | Done | HU-E4-07, HU-E0-04, HU-E1-10 |
+| [HU-E4-12](E4-ledger.md) | Record due occurrences automatically | E4 | M3 | Must | M | Done | HU-E4-11, HU-E6-07, HU-E6-08 |
+| [HU-E4-13](E4-ledger.md) | Confirm variable-amount occurrences | E4 | M3 | Must | S | Done | HU-E4-12 |
 | [HU-E1-14](E1-identity-and-spaces.md) | Set my time zone | E1 | M3-D | Must | S | Backlog | HU-E1-01 |
 | [HU-E1-15](E1-identity-and-spaces.md) | Formatting preferences | E1 | M3-D | Must | S | Backlog | HU-E1-01, HU-E1-14 |
 | [HU-E4-14](E4-ledger.md) | Record the time of a transaction | E4 | M3-D | Must | M | Backlog | HU-E1-14, HU-E4-05, HU-E4-06, HU-E4-12, HU-E4-13 |

@@ -117,6 +117,26 @@ describe("OpenAPI document", () => {
     ]);
   });
 
+  it("gives every category node an icon and a palette color, and every group its key, with no new Output variant (HU-E3-05)", () => {
+    const schemas = doc.components.schemas as Record<
+      string,
+      { properties?: Record<string, { enum?: unknown[] }> }
+    >;
+    for (const name of ["Category", "CategoryOutput", "CategoryGroup", "CategoryGroupSummary"]) {
+      expect(Object.keys(schemas[name]?.properties ?? {})).toEqual(expect.arrayContaining(["icon", "color"]));
+    }
+    expect(schemas.CategoryGroupSummary?.properties?.color?.enum).toHaveLength(16);
+    // A group answers its catalog key, as a category does.
+    for (const name of ["CategoryGroup", "CategoryGroupSummary"]) {
+      expect(Object.keys(schemas[name]?.properties ?? {})).toContain("key");
+    }
+    expect(
+      Object.keys(schemas)
+        .filter((name) => name.endsWith("Output"))
+        .sort(),
+    ).toEqual(["CategoryOutput", "MoneyOutput"]);
+  });
+
   it("names the operations that were added, removed or changed", () => {
     const before = {
       paths: { "/api/v1/me": { get: { summary: "a" } }, "/x": { post: {} }, "/gone": { delete: {} } },

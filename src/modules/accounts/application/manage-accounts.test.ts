@@ -3,6 +3,7 @@ import { FixedClock, type LocalDate } from "@/shared/kernel";
 import {
   codeOf,
   fakeSpaceAccess,
+  fixedTimeZones,
   memoryTm,
   membership,
   money,
@@ -10,7 +11,7 @@ import {
   unwrap,
 } from "../../../../tests/support/fakes";
 import { FixedMovements, InMemoryAccounts } from "../../../../tests/support/in-memory-accounts";
-import type { Account, AccountId } from "../domain/account";
+import { NO_ATTRIBUTES, type Account, type AccountId } from "../domain/account";
 import { createArchiveAccount } from "./archive-account";
 import type { AccountsDeps } from "./deps";
 import { createGetAccount, createListAccounts } from "./list-accounts";
@@ -27,6 +28,7 @@ const account = (id: string, name: string, overrides: Partial<Account> = {}): Ac
   openingBalance: 200_000_000n,
   archivedAt: null,
   createdAt: now,
+  ...NO_ATTRIBUTES,
   ...overrides,
 });
 
@@ -44,6 +46,7 @@ const setup = (net: Record<string, bigint> = {}) => {
     movements,
     ids: sequentialIds("acc"),
     clock: new FixedClock(now),
+    userTimeZones: fixedTimeZones(),
     tm: memoryTm,
   };
   return {
@@ -75,6 +78,18 @@ describe("editing and archiving accounts (HU-E2-03)", () => {
     expect(codeOf(result)).toBe("AccountTypeImmutable");
   });
 
+  it("changes and clears the common attributes (HU-E2-05)", async () => {
+    const { update } = setup();
+    const accountId = "acc-bancolombia";
+    const changes = { attributes: { color: "pine", lastFour: "4821" } } as const;
+    expect(unwrap(await update({ ...asAna, accountId, changes }))).toMatchObject({
+      color: "pine",
+      lastFour: "4821",
+    });
+    const cleared = unwrap(await update({ ...asAna, accountId, changes: { attributes: { color: null } } }));
+    expect(cleared).toMatchObject({ color: null, lastFour: "4821" });
+  });
+
   it("rejects renaming onto another account's name and foreign currencies", async () => {
     const { update } = setup();
     expect(codeOf(await update({ ...asAna, accountId: "acc-bancolombia", changes: { name: "nequi" } }))).toBe(
@@ -91,9 +106,9 @@ describe("editing and archiving accounts (HU-E2-03)", () => {
   it("archives an account, which leaves the active list but stays available", async () => {
     const { archive, list } = setup();
     expect(unwrap(await archive({ ...asAna, accountId: "acc-nequi" })).archivedAt).toEqual(now);
-    const active = unwrap(await list({ ...asAna, includeArchived: false }));
+    const active = unwrap(await list({ ...asAna, includeArchived: false })).items;
     expect(active.map((a) => a.name)).toEqual(["Bancolombia"]);
-    const all = unwrap(await list({ ...asAna, includeArchived: true }));
+    const all = unwrap(await list({ ...asAna, includeArchived: true })).items;
     expect(all.map((a) => a.name)).toEqual(["Bancolombia", "Nequi"]);
   });
 });
@@ -102,7 +117,7 @@ describe("computed balances (HU-E2-04)", () => {
   it("adds net ledger movements to the opening balance", async () => {
     // income 3,000,000 - expense 85,000 - transfer 500,000 = +2,415,000 on Bancolombia; +500,000 on Nequi
     const { list } = setup({ "acc-bancolombia": 241_500_000n, "acc-nequi": 50_000_000n });
-    const views = unwrap(await list({ ...asAna, includeArchived: false }));
+    const views = unwrap(await list({ ...asAna, includeArchived: false })).items;
     expect(views.map((v) => [v.name, v.balance])).toEqual([
       ["Bancolombia", 441_500_000n],
       ["Nequi", 50_000_000n],

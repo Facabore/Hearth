@@ -1,7 +1,15 @@
 import { eq } from "drizzle-orm";
 import type { SessionResolver } from "@/shared/http";
 import type { Database } from "@/shared/infrastructure/db/client";
-import { domainError, err, ok, type AuthUser, type DomainError, type Result } from "@/shared/kernel";
+import {
+  canonicalTimeZone,
+  domainError,
+  err,
+  ok,
+  type AuthUser,
+  type DomainError,
+  type Result,
+} from "@/shared/kernel";
 import type { AuthProvider, AuthSession } from "../application/auth-provider";
 import { normalizeEmail } from "../application/sign-up";
 import { user } from "./auth.schema";
@@ -16,12 +24,13 @@ const ERROR_CODES: ReadonlyArray<readonly [RegExp, string]> = [
   [/^INVALID_EMAIL$/, "InvalidEmail"],
 ];
 
-const toAuthUser = (u: Record<string, unknown>): AuthUser => ({
+const toAuthUser = (u: Record<string, unknown>, defaultTimeZone: string): AuthUser => ({
   id: String(u.id),
   name: String(u.name),
   email: String(u.email),
   locale: String(u.locale ?? "es"),
-  timezone: String(u.timezone ?? "America/Bogota"),
+  // Ruling P45: the same normalisation as UserTimeZones, so no route receives a zone Intl would throw on.
+  timezone: canonicalTimeZone(String(u.timezone ?? "")) ?? defaultTimeZone,
 });
 
 const toDomainError = async (response: Response): Promise<DomainError> => {
@@ -35,6 +44,8 @@ export class BetterAuthProvider implements AuthProvider, SessionResolver {
   constructor(
     private readonly auth: Auth,
     private readonly db: Database,
+    /** APP_TIMEZONE (HU-E1-14). */
+    private readonly defaultTimeZone: string,
   ) {}
 
   async signUp(input: { name: string; email: string; password: string }): Promise<Result<AuthSession>> {
@@ -74,14 +85,14 @@ export class BetterAuthProvider implements AuthProvider, SessionResolver {
 
   async resolve(headers: Headers): Promise<AuthUser | null> {
     const result = await this.auth.api.getSession({ headers });
-    return result ? toAuthUser(result.user as Record<string, unknown>) : null;
+    return result ? toAuthUser(result.user as Record<string, unknown>, this.defaultTimeZone) : null;
   }
 
   private async toSession(response: Response): Promise<Result<AuthSession>> {
     if (!response.ok) return err(await toDomainError(response));
     const body = (await response.json()) as { user: Record<string, unknown>; token?: string | null };
     return ok({
-      user: toAuthUser(body.user),
+      user: toAuthUser(body.user, this.defaultTimeZone),
       token: response.headers.get("set-auth-token") ?? body.token ?? null,
       cookies: response.headers.getSetCookie(),
     });

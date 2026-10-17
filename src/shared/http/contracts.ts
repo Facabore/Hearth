@@ -35,6 +35,11 @@ export const ProblemSchema = z.object({
    * not the requester, may no longer record money or left the space.
    */
   member: z.enum(["creator"]).optional(),
+  /**
+   * AccountAttributeNotAllowed only (HU-E2-06): the term the account's type refuses, as the key inside the body's
+   * `terms` (for example `monthlyRate`).
+   */
+  field: z.string().optional(),
 });
 
 export const moneyToDto = (money: Money): MoneyDto => ({
