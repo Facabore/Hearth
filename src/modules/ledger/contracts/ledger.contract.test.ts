@@ -7,7 +7,9 @@ import {
   DirectSplitBodySchema,
   directSplitFromBody,
   positionFromCursor,
+  RecordExpenseBodySchema,
   transactionPageDto,
+  whenFromBody,
 } from "./ledger.contract";
 
 const body = (overrides: Record<string, unknown> = {}) =>
@@ -95,5 +97,36 @@ describe("transaction cursors (HU-E4-14)", () => {
     ],
   ])("answers InvalidCursor for %s (Review Focus 2)", (_, raw) => {
     expect(positionFromCursor(raw)).toEqual({ ok: false, error: { code: "InvalidCursor" } });
+  });
+});
+
+describe("time inputs (HU-E4-14)", () => {
+  it("accepts any RFC 3339 offset and refuses a local time without one", () => {
+    const body = { amount: { amount: "1200000", currency: "COP" } };
+    expect(
+      RecordExpenseBodySchema.safeParse({ ...body, occurredAt: "2026-10-16T14:32:00-05:00" }).success,
+    ).toBe(true);
+    expect(RecordExpenseBodySchema.safeParse({ ...body, occurredAt: "2026-10-16T19:32:00Z" }).success).toBe(
+      true,
+    );
+    expect(RecordExpenseBodySchema.safeParse({ ...body, occurredAt: "2026-10-16T14:32:00" }).success).toBe(
+      false,
+    );
+  });
+
+  it("turns the instant into a Date and keeps the zone as sent", () => {
+    expect(whenFromBody({ occurredAt: "2026-10-16T14:32:00-05:00", timeZone: "europe/madrid" })).toEqual({
+      ok: true,
+      value: { date: undefined, occurredAt: new Date("2026-10-16T19:32:00Z"), timeZone: "europe/madrid" },
+    });
+  });
+
+  it("lets an explicit null through, for the use case to answer TimeRequired (P66)", () => {
+    const body = { amount: { amount: "1200000", currency: "COP" } };
+    expect(RecordExpenseBodySchema.safeParse({ ...body, occurredAt: null }).success).toBe(true);
+    expect(whenFromBody({ occurredAt: null })).toEqual({
+      ok: true,
+      value: { date: undefined, occurredAt: null, timeZone: undefined },
+    });
   });
 });

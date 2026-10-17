@@ -85,6 +85,33 @@ describe("timeOf (HU-E4-14)", () => {
     ).toBe("ok");
   });
 
+  it.each([
+    ["before 1900", "1899-12-31T12:00:00Z", BOGOTA, "1899-12-31T12:00:00.000Z"],
+    ["in year 26", "0026-10-16T19:32:00Z", BOGOTA, "0026-10-16T19:32:00.000Z"],
+    [
+      "past 9999 in the zone",
+      "9999-12-31T23:59:59-05:00",
+      "Pacific/Kiritimati",
+      "+010000-01-01T04:59:59.000Z",
+    ],
+  ])(
+    "refuses an instant whose local date is %s, as a bad date is (InvalidDate)",
+    (_, instant, timeZone, value) => {
+      const at = new Date(instant);
+      expect(timeOf({ occurredAt: at, timeZone, now })).toEqual({
+        ok: false,
+        error: { code: "InvalidDate", details: { value } },
+      });
+      // It is the date's range that refuses, before any comparison with a sent date.
+      expect(codeOf(timeOf({ date: day("2026-10-16"), occurredAt: at, timeZone, now }))).toBe("InvalidDate");
+    },
+  );
+
+  it("accepts an instant whose local date is 1900-01-01", () => {
+    const at = new Date("1900-01-01T12:00:00Z");
+    expect(unwrap(timeOf({ occurredAt: at, timeZone: BOGOTA, now })).date).toBe("1900-01-01");
+  });
+
   it("counts 23:30 on 2026-10-31 in Bogotá in October, whatever its UTC date (Review Focus 1)", () => {
     const late = new Date("2026-10-31T23:30:00-05:00");
     expect(unwrap(timeOf({ occurredAt: late, timeZone: BOGOTA, now })).date).toBe("2026-10-31");
@@ -127,6 +154,17 @@ describe("retimed (HU-E4-06, HU-E4-14)", () => {
     expect(codeOf(retimed(coffee, { occurredAt: at, date: day("2026-10-17") }, MADRID))).toBe(
       "DateTimeMismatch",
     );
+  });
+
+  it("refuses a new time whose local date is before 1900, and accepts 1900-01-01 (InvalidDate)", () => {
+    expect(retimed(coffee, { occurredAt: new Date("1899-12-31T12:00:00Z") }, MADRID)).toEqual({
+      ok: false,
+      error: { code: "InvalidDate", details: { value: "1899-12-31T12:00:00.000Z" } },
+    });
+    const sent = { occurredAt: new Date("1899-12-31T12:00:00Z"), date: day("2026-10-16") };
+    expect(codeOf(retimed(coffee, sent, MADRID))).toBe("InvalidDate");
+    const first = new Date("1900-01-01T12:00:00Z");
+    expect(unwrap(retimed(coffee, { occurredAt: first }, MADRID)).date).toBe("1900-01-01");
   });
 
   it("changes only the date of a transaction without a time, and nothing without a change", () => {

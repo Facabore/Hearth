@@ -14,7 +14,16 @@ import {
 } from "@/shared/http/contracts";
 import { etagOf } from "@/shared/http/etag";
 import { decodeCursor, encodeCursor, PaginationQuerySchema } from "@/shared/http/pagination";
-import { domainError, err, isUuid, localDate, ok, type Money, type Result } from "@/shared/kernel";
+import {
+  domainError,
+  err,
+  isUuid,
+  localDate,
+  ok,
+  type LocalDate,
+  type Money,
+  type Result,
+} from "@/shared/kernel";
 import type {
   AuditEntry,
   LedgerWarning,
@@ -33,6 +42,27 @@ import type { DirectSplit, DirectSplitCounterpart } from "@/modules/spaces/appli
 const Id = z.string().min(1).max(64);
 // Length rules live in the domain (InvalidDescription, 200 characters); the cap only bounds payload size.
 const Description = z.string().max(1000).optional();
+/** HU-E4-14: an RFC 3339 instant with any offset ("2026-10-16T14:32:00-05:00"); answers return it in UTC. */
+const Instant = z.iso.datetime({ offset: true });
+/** HU-E4-14: an IANA zone; whether it exists is the use case's (InvalidTimeZone). */
+const TimeZoneName = z.string().min(1).max(64);
+
+/** HU-E4-14: a body's date, instant and zone as the use cases take them; fails only for impossible dates. */
+export const whenFromBody = (body: {
+  readonly date?: string;
+  readonly occurredAt?: string | null;
+  readonly timeZone?: string;
+}): Result<{ date?: LocalDate; occurredAt?: Date | null; timeZone?: string }> => {
+  const date = optionalLocalDate(body.date);
+  if (!date.ok) return date;
+  return ok({
+    date: date.value,
+    // Ruling P66: an explicit null reaches the use case, which answers TimeRequired.
+    occurredAt:
+      body.occurredAt === undefined || body.occurredAt === null ? body.occurredAt : new Date(body.occurredAt),
+    timeZone: body.timeZone,
+  });
+};
 
 export const PaymentSchema = z.object({
   memberId: z.string().nullable(),
@@ -49,6 +79,10 @@ export const TransactionSchema = z.object({
   type: z.enum(["EXPENSE", "INCOME", "TRANSFER", "SETTLEMENT"]),
   description: z.string(),
   date: z.iso.date(),
+  /** HU-E4-14: when it happened, in UTC; null only for occurrences and rows older than M3-D. */
+  occurredAt: z.iso.datetime().nullable(),
+  /** HU-E4-14: the IANA zone it was recorded in; null exactly when occurredAt is. */
+  timeZone: z.string().nullable(),
   amount: MoneySchema,
   categoryId: z.string().nullable(),
   payments: z.array(PaymentSchema),
@@ -107,6 +141,8 @@ export const RecordExpenseBodySchema = z
   .object({
     description: Description,
     date: z.iso.date().optional(),
+    occurredAt: Instant.nullable().optional(),
+    timeZone: TimeZoneName.optional(),
     categoryId: Id.optional(),
     amount: MoneySchema,
     accountId: Id.optional(),
@@ -159,8 +195,8 @@ export const expenseFromBody = (
 ): Result<Omit<RecordExpenseInput, "spaceId" | "userId">> => {
   const amount = moneyFromDto(body.amount);
   if (!amount.ok) return amount;
-  const date = optionalLocalDate(body.date);
-  if (!date.ok) return date;
+  const when = whenFromBody(body);
+  if (!when.ok) return when;
   let payments: PaymentInput[] | undefined;
   if (body.payments !== undefined) {
     payments = [];
@@ -174,7 +210,7 @@ export const expenseFromBody = (
   if (!split.ok) return split;
   return ok({
     description: body.description,
-    date: date.value,
+    ...when.value,
     categoryId: body.categoryId,
     amount: amount.value,
     accountId: body.accountId,
@@ -187,6 +223,8 @@ export const expenseFromBody = (
 export const RecordIncomeBodySchema = z.object({
   description: Description,
   date: z.iso.date().optional(),
+  occurredAt: Instant.nullable().optional(),
+  timeZone: TimeZoneName.optional(),
   categoryId: Id.optional(),
   amount: MoneySchema,
   accountId: Id,
@@ -194,6 +232,8 @@ export const RecordIncomeBodySchema = z.object({
 export const RecordTransferBodySchema = z.object({
   description: Description,
   date: z.iso.date().optional(),
+  occurredAt: Instant.nullable().optional(),
+  timeZone: TimeZoneName.optional(),
   amount: MoneySchema,
   sourceAccountId: Id,
   destinationAccountId: Id,
@@ -206,6 +246,8 @@ export const RecordTransferBodySchema = z.object({
 export const RecordFundContributionBodySchema = z.object({
   description: Description,
   date: z.iso.date().optional(),
+  occurredAt: Instant.nullable().optional(),
+  timeZone: TimeZoneName.optional(),
   amount: MoneySchema,
   fundAccountId: Id,
   memberId: Id.optional(),
@@ -218,11 +260,11 @@ export const fundContributionFromBody = (
 ): Result<Omit<RecordFundContributionInput, "spaceId" | "userId">> => {
   const amount = moneyFromDto(body.amount);
   if (!amount.ok) return amount;
-  const date = optionalLocalDate(body.date);
-  if (!date.ok) return date;
+  const when = whenFromBody(body);
+  if (!when.ok) return when;
   return ok({
     description: body.description,
-    date: date.value,
+    ...when.value,
     amount: amount.value,
     fundAccountId: body.fundAccountId,
     memberId: body.memberId,
@@ -234,6 +276,8 @@ export const fundContributionFromBody = (
 export const RecordSettlementBodySchema = z.object({
   description: Description,
   date: z.iso.date().optional(),
+  occurredAt: Instant.nullable().optional(),
+  timeZone: TimeZoneName.optional(),
   amount: MoneySchema,
   payerMemberId: Id,
   receivingMemberId: Id,
@@ -247,11 +291,11 @@ export const settlementFromBody = (
 ): Result<Omit<RecordSettlementInput, "spaceId" | "userId">> => {
   const amount = moneyFromDto(body.amount);
   if (!amount.ok) return amount;
-  const date = optionalLocalDate(body.date);
-  if (!date.ok) return date;
+  const when = whenFromBody(body);
+  if (!when.ok) return when;
   return ok({
     description: body.description,
-    date: date.value,
+    ...when.value,
     amount: amount.value,
     payerMemberId: body.payerMemberId,
     receivingMemberId: body.receivingMemberId,
@@ -267,6 +311,8 @@ export const transactionDto = (tx: Transaction): z.infer<typeof TransactionSchem
     type: tx.type,
     description: tx.description,
     date: tx.date,
+    occurredAt: tx.occurredAt?.toISOString() ?? null,
+    timeZone: tx.timeZone,
     amount: money(tx.amount),
     categoryId: tx.categoryId,
     payments:
@@ -439,6 +485,8 @@ export const DirectSplitBodySchema = z.object({
   counterpart: DirectCounterpartSchema,
   description: Description,
   date: z.iso.date().optional(),
+  occurredAt: Instant.nullable().optional(),
+  timeZone: TimeZoneName.optional(),
   categoryKey: z.string().min(1).max(64),
   amount: MoneySchema,
   accountId: Id,
@@ -446,7 +494,10 @@ export const DirectSplitBodySchema = z.object({
 type DirectSplitBody = z.infer<typeof DirectSplitBodySchema>;
 
 /** A direct split's expense as the composition root hands it to RecordExpenseByCategoryKey. */
-export type DirectSplitExpense = Pick<RecordExpenseInput, "description" | "date" | "amount" | "accountId"> & {
+export type DirectSplitExpense = Pick<
+  RecordExpenseInput,
+  "description" | "date" | "occurredAt" | "timeZone" | "amount" | "accountId"
+> & {
   readonly categoryKey: string;
 };
 
@@ -455,8 +506,8 @@ export const directSplitFromBody = (
 ): Result<{ counterpart: DirectSplitCounterpart; expense: DirectSplitExpense }> => {
   const amount = moneyFromDto(body.amount);
   if (!amount.ok) return amount;
-  const date = optionalLocalDate(body.date);
-  if (!date.ok) return date;
+  const when = whenFromBody(body);
+  if (!when.ok) return when;
   const { counterpart } = body;
   return ok({
     counterpart:
@@ -465,7 +516,7 @@ export const directSplitFromBody = (
         : { guest: { displayName: counterpart.displayName, contactEmail: counterpart.contactEmail } },
     expense: {
       description: body.description,
-      date: date.value,
+      ...when.value,
       amount: amount.value,
       accountId: body.accountId,
       categoryKey: body.categoryKey,
@@ -526,7 +577,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
       "404": "SpaceNotFound, CategoryNotFound, AccountNotFound",
       "409":
         "AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict, SharesDoNotMatchAmount, GuestHasNoAccounts, MixedFundPayment",
-      "422": `${invalidMoney}, CategoryRequired, AccountNotOwned, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount`,
+      "422": `${invalidMoney}, CategoryRequired, AccountNotOwned, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
     },
     RecordedExpenseSchema,
   ),
@@ -537,7 +588,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     {
       "404": "SpaceNotFound, CategoryNotFound, AccountNotFound",
       "409": "AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
-      "422": `${invalidMoney}, CategoryRequired, AccountNotOwned, AccountNotInSpace`,
+      "422": `${invalidMoney}, CategoryRequired, AccountNotOwned, AccountNotInSpace, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
     },
   ),
   "/api/v1/spaces/{spaceId}/transfers": recording(
@@ -547,7 +598,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     {
       "404": "SpaceNotFound, AccountNotFound",
       "409": "SameAccountTransfer, AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
-      "422": `${invalidMoney}, AccountNotOwned, AccountNotInSpace`,
+      "422": `${invalidMoney}, AccountNotOwned, AccountNotInSpace, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
     },
   ),
   "/api/v1/spaces/{spaceId}/fund-contributions": recording(
@@ -558,7 +609,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
       "404": "SpaceNotFound, AccountNotFound",
       "409":
         "AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict, SameAccountTransfer, GuestHasNoAccounts",
-      "422": `${invalidMoney}, AccountNotOwned, AccountRequired, InvalidFundAccount, NotASpaceMember`,
+      "422": `${invalidMoney}, AccountNotOwned, AccountRequired, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
     },
   ),
   "/api/v1/spaces/{spaceId}/settlements": recording(
@@ -568,7 +619,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     {
       "404": "SpaceNotFound, AccountNotFound",
       "409": "AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict, GuestHasNoAccounts",
-      "422": `${invalidMoney}, AccountNotOwned, NotASpaceMember, InvalidSettlementParties`,
+      "422": `${invalidMoney}, AccountNotOwned, NotASpaceMember, InvalidSettlementParties, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
     },
   ),
   "/api/v1/spaces/{spaceId}/transactions": {
@@ -670,7 +721,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
           "404": "MemberNotFound, CategoryNotFound, AccountNotFound",
           "409":
             "MemberNameTaken, AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
-          "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned`,
+          "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
         }),
       },
     },

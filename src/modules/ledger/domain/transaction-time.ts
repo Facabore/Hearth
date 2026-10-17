@@ -2,6 +2,7 @@ import {
   domainError,
   err,
   instantAt,
+  localDate,
   localDateIn,
   ok,
   wallTimeIn,
@@ -25,8 +26,17 @@ export interface TimeChange {
   readonly timeZone?: string;
 }
 
-const mismatch = (date: LocalDate, localDate: LocalDate) =>
-  err(domainError("DateTimeMismatch", { date, localDate }));
+const mismatch = (date: LocalDate, local: LocalDate) =>
+  err(domainError("DateTimeMismatch", { date, localDate: local }));
+
+/**
+ * HU-E4-14: the local date an instant counts in, which must be one a `date` can say (the kernel's `localDate`): an
+ * instant that falls in a year before 1900 or past 9999 in its zone answers InvalidDate, with the instant as the value.
+ */
+const dateOf = (instant: Date, timeZone: string): Result<LocalDate> => {
+  const date = localDate(localDateIn(instant, timeZone));
+  return date.ok ? date : err(domainError("InvalidDate", { value: instant.toISOString() }));
+};
 
 /** HU-E4-14, ruling P66: every transaction a person records or edits has a time. */
 const timeRequired = () => err(domainError("TimeRequired"));
@@ -51,9 +61,10 @@ export const timeOf = (input: {
     return ok({ date: input.date, occurredAt, timeZone: input.timeZone });
   }
   const occurredAt = input.occurredAt ?? input.now;
-  const date = localDateIn(occurredAt, input.timeZone);
-  if (input.date !== undefined && input.date !== date) return mismatch(input.date, date);
-  return ok({ date, occurredAt, timeZone: input.timeZone });
+  const date = dateOf(occurredAt, input.timeZone);
+  if (!date.ok) return date;
+  if (input.date !== undefined && input.date !== date.value) return mismatch(input.date, date.value);
+  return ok({ date: date.value, occurredAt, timeZone: input.timeZone });
 };
 
 /**
@@ -70,9 +81,10 @@ export const retimed = (
   if (change.occurredAt === null) return timeRequired();
   if (change.occurredAt !== undefined) {
     const timeZone = change.timeZone ?? current.timeZone ?? fallbackZone;
-    const date = localDateIn(change.occurredAt, timeZone);
-    if (change.date !== undefined && change.date !== date) return mismatch(change.date, date);
-    return ok({ date, occurredAt: change.occurredAt, timeZone });
+    const date = dateOf(change.occurredAt, timeZone);
+    if (!date.ok) return date;
+    if (change.date !== undefined && change.date !== date.value) return mismatch(change.date, date.value);
+    return ok({ date: date.value, occurredAt: change.occurredAt, timeZone });
   }
   if (change.date === undefined) {
     return ok({ date: current.date, occurredAt: current.occurredAt, timeZone: current.timeZone });

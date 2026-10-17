@@ -174,3 +174,13 @@ describe("public details (HU-E1-08)", () => {
     expect(publicDetailsOf("InvalidAllocation", { reason: "percentNotHundred" })).toEqual({});
   });
 });
+
+describe("statusForCode (HU-E1-14, HU-E4-14)", () => {
+  it.each([
+    ["DateTimeMismatch", 422],
+    ["TimeRequired", 422],
+    ["InvalidTimeZone", 422],
+  ])("maps %s to %i", (code, status) => {
+    expect(statusForCode(code)).toBe(status);
+  });
+});

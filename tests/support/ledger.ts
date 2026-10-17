@@ -18,6 +18,8 @@ export interface TransactionDto {
   type: string;
   description: string;
   date: string;
+  occurredAt: string | null;
+  timeZone: string | null;
   amount: MoneyDto;
   categoryId: string | null;
   payments: { memberId: string | null; accountId: string | null; amount: MoneyDto }[];
