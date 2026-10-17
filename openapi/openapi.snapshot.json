@@ -8999,6 +8999,187 @@
               "plane",
               "smartphone"
             ]
+          },
+          "terms": {
+            "type": "object",
+            "properties": {
+              "creditLimit": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/MoneyOutput"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "cutOffDay": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "paymentDay": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "monthlyRate": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "annualRate": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "termDays": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "maturityDate": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "principal": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/MoneyOutput"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "termMonths": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "creditLimit",
+              "cutOffDay",
+              "paymentDay",
+              "monthlyRate",
+              "annualRate",
+              "termDays",
+              "maturityDate",
+              "principal",
+              "termMonths"
+            ],
+            "additionalProperties": false
+          },
+          "derived": {
+            "type": "object",
+            "properties": {
+              "availableCredit": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/MoneyOutput"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "nextCutOffDate": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "nextPaymentDate": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "effectiveAnnualRate": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "equivalentMonthlyRate": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "startDate": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "availableCredit",
+              "nextCutOffDate",
+              "nextPaymentDate",
+              "effectiveAnnualRate",
+              "equivalentMonthlyRate",
+              "startDate"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -9012,7 +9193,9 @@
           "institution",
           "lastFour",
           "color",
-          "icon"
+          "icon",
+          "terms",
+          "derived"
         ],
         "additionalProperties": false
       },

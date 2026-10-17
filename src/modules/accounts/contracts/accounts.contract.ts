@@ -6,6 +6,7 @@ import {
   ACCOUNT_ICONS,
   ACCOUNT_TYPES,
   iconOf,
+  percentText,
   type AccountView,
   type AttributeChanges,
 } from "../application";
@@ -31,6 +32,27 @@ export const AccountSchema = z.object({
   color: Color.nullable(),
   /** The icon shown: the chosen one, else the type's default. */
   icon: Icon,
+  /** HU-E2-06: the type's stored terms; rates as percent strings with four decimals. */
+  terms: z.object({
+    creditLimit: MoneySchema.nullable(),
+    cutOffDay: z.number().int().nullable(),
+    paymentDay: z.number().int().nullable(),
+    monthlyRate: z.string().nullable(),
+    annualRate: z.string().nullable(),
+    termDays: z.number().int().nullable(),
+    maturityDate: z.iso.date().nullable(),
+    principal: MoneySchema.nullable(),
+    termMonths: z.number().int().nullable(),
+  }),
+  /** HU-E2-06: derived on read, today being the requester's local date. */
+  derived: z.object({
+    availableCredit: MoneySchema.nullable(),
+    nextCutOffDate: z.iso.date().nullable(),
+    nextPaymentDate: z.iso.date().nullable(),
+    effectiveAnnualRate: z.string().nullable(),
+    equivalentMonthlyRate: z.string().nullable(),
+    startDate: z.iso.date().nullable(),
+  }),
 });
 
 export const CreateAccountBodySchema = z.object({
@@ -69,6 +91,10 @@ export const ListAccountsQuerySchema = GetAccountQuerySchema.extend({
 });
 export const ListAccountsResponseSchema = z.object({ items: z.array(AccountSchema) });
 
+const amountOf = (minor: bigint | null, currency: string) =>
+  minor === null ? null : { amount: minor.toString(), currency };
+const rateOf = (ppm: number | null) => (ppm === null ? null : percentText(ppm));
+
 export const accountDto = (view: AccountView): z.infer<typeof AccountSchema> => ({
   id: view.id,
   name: view.name,
@@ -81,6 +107,25 @@ export const accountDto = (view: AccountView): z.infer<typeof AccountSchema> => 
   lastFour: view.lastFour,
   color: view.color,
   icon: iconOf(view),
+  terms: {
+    creditLimit: amountOf(view.terms.creditLimit, view.currency),
+    cutOffDay: view.terms.cutOffDay,
+    paymentDay: view.terms.paymentDay,
+    monthlyRate: rateOf(view.terms.monthlyRatePpm),
+    annualRate: rateOf(view.terms.annualRatePpm),
+    termDays: view.terms.termDays,
+    maturityDate: view.terms.maturityDate,
+    principal: amountOf(view.terms.principal, view.currency),
+    termMonths: view.terms.termMonths,
+  },
+  derived: {
+    availableCredit: amountOf(view.figures.availableCredit, view.currency),
+    nextCutOffDate: view.figures.nextCutOffDate,
+    nextPaymentDate: view.figures.nextPaymentDate,
+    effectiveAnnualRate: rateOf(view.figures.effectiveAnnualRatePpm),
+    equivalentMonthlyRate: rateOf(view.figures.equivalentMonthlyRatePpm),
+    startDate: view.figures.startDate,
+  },
 });
 
 const SpacePath = z.object({ spaceId: z.string() });

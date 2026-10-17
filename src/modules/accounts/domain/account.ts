@@ -75,7 +75,7 @@ export interface AccountAttributes {
   readonly icon: AccountIcon | null;
 }
 
-/** Every optional field of an account, unset. */
+/** Every optional field of an account, unset: the common attributes (HU-E2-05) and the terms (HU-E2-06). */
 export const NO_ATTRIBUTES: AccountAttributes & { readonly terms: AccountTerms } = {
   institution: null,
   lastFour: null,

@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { ACCOUNT_COLORS, ACCOUNT_ICONS } from "../application";
-import { attributesFromBody, CreateAccountBodySchema, UpdateAccountBodySchema } from "./accounts.contract";
+import { localDate } from "@/shared/kernel";
+import { unwrap } from "../../../../tests/support/fakes";
+import { ACCOUNT_COLORS, ACCOUNT_ICONS, type AccountType, type TermsChange } from "../application";
+import { toView } from "../application/account-view";
+import { openAccount, type AccountId } from "../domain/account";
+import {
+  accountDto,
+  attributesFromBody,
+  CreateAccountBodySchema,
+  UpdateAccountBodySchema,
+} from "./accounts.contract";
 
 const base = { name: "Nequi", type: "WALLET", openingBalance: { amount: "0", currency: "COP" } };
 const create = (attributes: Record<string, unknown>) =>
@@ -83,5 +92,122 @@ describe("account attributes in the HTTP contract (HU-E2-05)", () => {
       icon: undefined,
     });
     expect(attributesFromBody({ color: null, icon: null })).toMatchObject({ color: null, icon: null });
+  });
+});
+
+/** HU-E2-06: every account answer carries the stored terms and what they derive, today being the requester's date. */
+describe("account answers with terms and derived figures (HU-E2-06)", () => {
+  const today = unwrap(localDate("2026-10-17"));
+  const answer = (type: AccountType, terms: TermsChange, openingBalance = 0n) =>
+    accountDto(
+      toView(
+        unwrap(
+          openAccount({
+            id: "acc-1" as AccountId,
+            spaceId: "space-ana",
+            spaceKind: "PERSONAL",
+            ownerUserId: "u-ana",
+            name: "Account",
+            type,
+            openingBalance,
+            now: new Date("2026-10-12T12:00:00Z"),
+            siblings: [],
+            terms,
+          }),
+        ),
+        "COP",
+        today,
+      ),
+    );
+
+  it("answers a credit card's limit and available credit as money, its rates as percents with four decimals", () => {
+    const card = answer(
+      "CREDIT_CARD",
+      { creditLimit: 500_000_000n, cutOffDay: 20, paymentDay: 5, monthlyRatePpm: 20_000 },
+      -35_000_000n,
+    );
+
+    expect(card.terms).toEqual({
+      creditLimit: { amount: "500000000", currency: "COP" },
+      cutOffDay: 20,
+      paymentDay: 5,
+      monthlyRate: "2.0000",
+      annualRate: null,
+      termDays: null,
+      maturityDate: null,
+      principal: null,
+      termMonths: null,
+    });
+    expect(card.derived).toEqual({
+      availableCredit: { amount: "465000000", currency: "COP" },
+      nextCutOffDate: "2026-10-20",
+      nextPaymentDate: "2026-11-05",
+      effectiveAnnualRate: "26.8242",
+      equivalentMonthlyRate: null,
+      startDate: null,
+    });
+  });
+
+  it("never caps a derived rate: a monthly rate of 100 % is 409,500 % a year", () => {
+    const card = answer("CREDIT_CARD", { monthlyRatePpm: 1_000_000 });
+
+    expect(card.terms.monthlyRate).toBe("100.0000");
+    expect(card.derived.effectiveAnnualRate).toBe("409500.0000");
+  });
+
+  it("answers a term deposit's rate, term and dates, with the equivalent monthly rate and the start date", () => {
+    const deposit = answer("SAVINGS", {
+      annualRatePpm: 120_000,
+      termDays: 90,
+      maturityDate: unwrap(localDate("2026-12-31")),
+    });
+
+    expect(deposit.terms).toMatchObject({
+      annualRate: "12.0000",
+      termDays: 90,
+      maturityDate: "2026-12-31",
+      monthlyRate: null,
+    });
+    expect(deposit.derived).toMatchObject({
+      equivalentMonthlyRate: "0.9489",
+      startDate: "2026-10-02",
+      availableCredit: null,
+      effectiveAnnualRate: null,
+    });
+  });
+
+  it("answers a loan's principal as money, in the account's currency", () => {
+    const loan = answer("LOAN", { principal: 1_200_000_000n, annualRatePpm: 120_000, termMonths: 36 });
+
+    expect(loan.terms).toMatchObject({
+      principal: { amount: "1200000000", currency: "COP" },
+      annualRate: "12.0000",
+      termMonths: 36,
+    });
+    expect(loan.derived.equivalentMonthlyRate).toBe("0.9489");
+  });
+
+  it("answers null for every term and derived figure of an account without terms", () => {
+    const wallet = answer("WALLET", {});
+
+    expect(wallet.terms).toEqual({
+      creditLimit: null,
+      cutOffDay: null,
+      paymentDay: null,
+      monthlyRate: null,
+      annualRate: null,
+      termDays: null,
+      maturityDate: null,
+      principal: null,
+      termMonths: null,
+    });
+    expect(wallet.derived).toEqual({
+      availableCredit: null,
+      nextCutOffDate: null,
+      nextPaymentDate: null,
+      effectiveAnnualRate: null,
+      equivalentMonthlyRate: null,
+      startDate: null,
+    });
   });
 });
