@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { localDate } from "@/shared/kernel";
+import { domainError, err, localDate } from "@/shared/kernel";
 import { unwrap } from "../../../../tests/support/fakes";
 import { ACCOUNT_COLORS, ACCOUNT_ICONS, type AccountType, type TermsChange } from "../application";
 import { toView } from "../application/account-view";
 import { openAccount, type AccountId } from "../domain/account";
+import { NO_TERMS } from "../domain/account-terms";
 import {
   accountDto,
   attributesFromBody,
   CreateAccountBodySchema,
+  TermsBodySchema,
   UpdateAccountBodySchema,
+  withPublicField,
 } from "./accounts.contract";
 
 const base = { name: "Nequi", type: "WALLET", openingBalance: { amount: "0", currency: "COP" } };
@@ -209,5 +212,35 @@ describe("account answers with terms and derived figures (HU-E2-06)", () => {
       equivalentMonthlyRate: null,
       startDate: null,
     });
+  });
+});
+
+/** HU-E2-06: a refused term is named as the key inside the body's `terms`, so a form can highlight the field. */
+describe("the field an account type refuses (HU-E2-06)", () => {
+  const refusal = (attribute: unknown) => err(domainError("AccountAttributeNotAllowed", { attribute }));
+
+  it("names a rate without its stored unit: monthlyRatePpm is monthlyRate, annualRatePpm is annualRate", () => {
+    expect(withPublicField(refusal("monthlyRatePpm"))).toEqual(
+      err(domainError("AccountAttributeNotAllowed", { attribute: "monthlyRatePpm", field: "monthlyRate" })),
+    );
+    expect(withPublicField(refusal("annualRatePpm"))).toMatchObject({
+      error: { details: { field: "annualRate" } },
+    });
+  });
+
+  it("names every stored term as a property of the body's terms", () => {
+    const fields = Object.keys(NO_TERMS).map(
+      (attribute) => withPublicField(refusal(attribute)).error.details?.field,
+    );
+    expect([...fields].sort()).toEqual(Object.keys(TermsBodySchema.shape).sort());
+  });
+
+  it("leaves every other failure, and one without a named attribute, as it is", () => {
+    const other = err(domainError("InvalidRate", { attribute: "monthlyRatePpm" }));
+    expect(withPublicField(other)).toBe(other);
+    const bare = err(domainError("AccountAttributeNotAllowed"));
+    expect(withPublicField(bare)).toBe(bare);
+    const odd = refusal(7);
+    expect(withPublicField(odd)).toBe(odd);
   });
 });

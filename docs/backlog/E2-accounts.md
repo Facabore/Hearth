@@ -266,6 +266,7 @@ Feature: Type-specific account attributes
 - The warning against the certified usury cap belongs to card installments (HU-E8-11); this story stores rates without judging them.
 - "Today" for the next dates is the requesting user's local date (HU-E1-14).
 - Consumers: card installments (HU-E8-11), CDT projection (HU-E8-12), loan schedule (HU-E8-13) and reminders (HU-E8-16). This story only stores and validates the terms.
+- Errors (catalogue, spec 8): `AccountAttributeNotAllowed` (409; its `field` names the refused term as the key inside the body's `terms`, e.g. `monthlyRate`); `InvalidCreditLimit`, `InvalidBillingDay`, `InvalidRate`, `InvalidTermDeposit`, `InvalidTerm` (422); a loan principal that is not positive is `InvalidAmount` (422); a money term in another currency is `CurrencyMismatch` (422); a rate that is not a string and a money term beyond the PostgreSQL `bigint` range are `ValidationFailed` (422) (M3-D Task 15b).
 - **Spec impact:** 5.2 **Account** (attributes per type, derived fields, clamping of billing days); 7 HTTP conventions (rates as decimal strings, like money amounts).
 
 ---

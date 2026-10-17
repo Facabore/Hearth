@@ -5,6 +5,8 @@ import {
   attributesFromBody,
   CreateAccountBodySchema,
   ListAccountsQuerySchema,
+  termsFromBody,
+  withPublicField,
 } from "@/modules/accounts/contracts/accounts.contract";
 import { moneyFromDto, optionalLocalDate } from "@/shared/http/contracts";
 import { ok } from "@/shared/kernel";
@@ -33,6 +35,8 @@ export const POST = defineRoute({
   handler: async ({ user, params, body }) => {
     const openingBalance = moneyFromDto(body.openingBalance);
     if (!openingBalance.ok) return openingBalance;
+    const terms = termsFromBody(body.terms);
+    if (!terms.ok) return terms;
     const result = await getContainer().accounts.createAccount({
       spaceId: params.spaceId!,
       userId: user!.id,
@@ -40,7 +44,8 @@ export const POST = defineRoute({
       type: body.type,
       openingBalance: openingBalance.value,
       attributes: attributesFromBody(body),
+      terms: terms.value,
     });
-    return result.ok ? ok({ status: 201, body: accountDto(result.value) }) : result;
+    return result.ok ? ok({ status: 201, body: accountDto(result.value) }) : withPublicField(result);
   },
 });

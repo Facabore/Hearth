@@ -57,6 +57,8 @@ const PUBLIC_DETAILS: ReadonlyMap<string, readonly string[]> = new Map([
   // HU-E4-11: "creator" when a recurrence's creator, not the requester, is why a resume or an edit is refused.
   ["InsufficientRole", ["member"]],
   ["NotASpaceMember", ["member"]],
+  // HU-E2-06: the term an account type refuses, as the key inside the body's `terms`; the stored key stays private.
+  ["AccountAttributeNotAllowed", ["field"]],
 ]);
 
 /** The details of `code` that are part of the API contract, e.g. the outstanding amount (HU-E1-08). */

@@ -168,3 +168,204 @@ describe("account types and common attributes (HU-E2-05)", () => {
     });
   });
 });
+
+describe("type-specific account attributes (HU-E2-06)", () => {
+  it("creates a card with its terms, available credit and effective annual rate", async () => {
+    const ana = await registerUser("Ana");
+    const visa = await created(ana, {
+      name: "Visa",
+      type: "CREDIT_CARD",
+      openingBalance: cop(-350_000),
+      terms: { creditLimit: cop(5_000_000), cutOffDay: 20, paymentDay: 5, monthlyRate: "2.0" },
+    });
+    expect(visa.terms).toMatchObject({
+      creditLimit: cop(5_000_000),
+      cutOffDay: 20,
+      paymentDay: 5,
+      monthlyRate: "2.0000",
+    });
+    expect(visa.derived).toMatchObject({ availableCredit: cop(4_650_000), effectiveAnnualRate: "26.8242" });
+  });
+
+  it("creates a CDT with its start date and a loan with its equivalent monthly rate", async () => {
+    const ana = await registerUser("Ana");
+    const cdt = await created(ana, {
+      name: "CDT Davivienda",
+      type: "SAVINGS",
+      openingBalance: cop(10_000_000),
+      terms: { annualRate: "9.5", termDays: 180, maturityDate: "2027-04-14" },
+    });
+    expect(cdt.terms).toMatchObject({ annualRate: "9.5000", termDays: 180, maturityDate: "2027-04-14" });
+    expect(cdt.derived).toMatchObject({ startDate: "2026-10-16" });
+    const loan = await created(ana, {
+      name: "Crédito libre inversión",
+      type: "LOAN",
+      openingBalance: cop(-20_000_000),
+      terms: { principal: cop(20_000_000), annualRate: "18", termMonths: 36 },
+    });
+    expect(loan.derived).toMatchObject({ equivalentMonthlyRate: "1.3888" });
+  });
+
+  it.each([
+    ["CREDIT_CARD", { cutOffDay: 32 }, "InvalidBillingDay"],
+    ["CREDIT_CARD", { creditLimit: cop(0) }, "InvalidCreditLimit"],
+    ["CREDIT_CARD", { monthlyRate: "-1" }, "InvalidRate"],
+    ["SAVINGS", { termDays: 180 }, "InvalidTermDeposit"],
+    ["SAVINGS", { termDays: 180, maturityDate: "1899-12-31" }, "InvalidDate"],
+    ["LOAN", { termMonths: 0 }, "InvalidTerm"],
+  ])("refuses a %s with %o: %s", async (type, terms, code) => {
+    const ana = await registerUser("Ana");
+    expect(await problemOf(await create(ana, { name: "X", type, openingBalance: cop(0), terms }))).toEqual([
+      422,
+      code,
+    ]);
+  });
+
+  it("refuses a credit limit on a BANK account", async () => {
+    const ana = await registerUser("Ana");
+    const bank = await created(ana, { name: "Bancolombia", type: "BANK", openingBalance: cop(0) });
+    expect(await problemOf(await patch(ana, bank.id, { terms: { creditLimit: cop(1_000_000) } }))).toEqual([
+      409,
+      "AccountAttributeNotAllowed",
+    ]);
+  });
+
+  it("changes and clears terms on an update, keeping the ones it leaves out", async () => {
+    const ana = await registerUser("Ana");
+    const visa = await created(ana, {
+      name: "Visa",
+      type: "CREDIT_CARD",
+      openingBalance: cop(-350_000),
+      terms: { creditLimit: cop(5_000_000), cutOffDay: 20, paymentDay: 5, monthlyRate: "2.0" },
+    });
+
+    const raised = await patch(ana, visa.id, { terms: { creditLimit: cop(6_000_000), paymentDay: null } });
+    expect(raised.status).toBe(200);
+    const card = (await raised.json()) as AccountDto;
+    expect(card.terms).toMatchObject({
+      creditLimit: cop(6_000_000),
+      cutOffDay: 20,
+      paymentDay: null,
+      monthlyRate: "2.0000",
+    });
+    expect(card.derived).toMatchObject({ availableCredit: cop(5_650_000), nextPaymentDate: null });
+
+    const cleared = await patch(ana, visa.id, { terms: { monthlyRate: null } });
+    expect(((await cleared.json()) as AccountDto).derived).toMatchObject({ effectiveAnnualRate: null });
+    expect((await listOf(ana))[0]?.terms).toMatchObject({
+      creditLimit: cop(6_000_000),
+      cutOffDay: 20,
+      paymentDay: null,
+      monthlyRate: null,
+    });
+  });
+
+  it("clears a credit limit with null, and the available credit with it", async () => {
+    const ana = await registerUser("Ana");
+    const visa = await created(ana, {
+      name: "Visa",
+      type: "CREDIT_CARD",
+      openingBalance: cop(-350_000),
+      terms: { creditLimit: cop(5_000_000), cutOffDay: 20 },
+    });
+
+    const cleared = await patch(ana, visa.id, { terms: { creditLimit: null } });
+    expect(cleared.status).toBe(200);
+    const card = (await cleared.json()) as AccountDto;
+    expect(card.terms).toMatchObject({ creditLimit: null, cutOffDay: 20 });
+    expect(card.derived).toMatchObject({ availableCredit: null });
+    expect((await listOf(ana))[0]).toMatchObject({
+      terms: { creditLimit: null, cutOffDay: 20 },
+      derived: { availableCredit: null },
+    });
+  });
+
+  it.each([
+    ["CREDIT_CARD", "creditLimit"],
+    ["LOAN", "principal"],
+  ])(
+    "refuses a %s %s beyond what the database holds, answering 422 and storing nothing",
+    async (type, field) => {
+      const ana = await registerUser("Ana");
+      const oversized = { amount: "9223372036854775808", currency: "COP" };
+      const response = await create(ana, {
+        name: "X",
+        type,
+        openingBalance: cop(0),
+        terms: { [field]: oversized },
+      });
+      expect(await problemOf(response)).toEqual([422, "ValidationFailed"]);
+      expect(await listOf(ana)).toEqual([]);
+    },
+  );
+
+  it.each([
+    ["CREDIT_CARD", "monthlyRate", 2, "ValidationFailed"],
+    ["CREDIT_CARD", "monthlyRate", "2.12345", "InvalidRate"],
+    ["CREDIT_CARD", "monthlyRate", "-1", "InvalidRate"],
+    ["CREDIT_CARD", "monthlyRate", "100.0001", "InvalidRate"],
+    ["CREDIT_CARD", "monthlyRate", "2,5", "InvalidRate"],
+    ["SAVINGS", "annualRate", 9.5, "ValidationFailed"],
+    ["SAVINGS", "annualRate", "9.12345", "InvalidRate"],
+    ["LOAN", "annualRate", "-18", "InvalidRate"],
+    ["LOAN", "annualRate", "100.0001", "InvalidRate"],
+  ])("refuses a %s %s of %j with %s, storing nothing", async (type, field, value, code) => {
+    const ana = await registerUser("Ana");
+    const response = await create(ana, {
+      name: "X",
+      type,
+      openingBalance: cop(0),
+      terms: { [field]: value },
+    });
+    expect(await problemOf(response)).toEqual([422, code]);
+    expect(await listOf(ana)).toEqual([]);
+  });
+
+  it("accepts a rate of up to 100 % with up to four decimals", async () => {
+    const ana = await registerUser("Ana");
+    const visa = await created(ana, {
+      name: "Visa",
+      type: "CREDIT_CARD",
+      openingBalance: cop(0),
+      terms: { monthlyRate: "100" },
+    });
+    expect(visa.terms).toMatchObject({ monthlyRate: "100.0000" });
+    const loan = await created(ana, {
+      name: "Préstamo",
+      type: "LOAN",
+      openingBalance: cop(0),
+      terms: { annualRate: "7.1234" },
+    });
+    expect(loan.terms).toMatchObject({ annualRate: "7.1234" });
+  });
+
+  it.each([
+    ["monthlyRate", "BANK", "2.0"],
+    ["annualRate", "CREDIT_CARD", "9.5"],
+    ["creditLimit", "SAVINGS", cop(1_000_000)],
+  ])("names %s, as the key inside terms, when a %s account refuses it", async (field, type, value) => {
+    const ana = await registerUser("Ana");
+    const refused = {
+      type: "urn:hearth:problem:AccountAttributeNotAllowed",
+      title: "Conflict",
+      status: 409,
+      code: "AccountAttributeNotAllowed",
+      requestId: expect.any(String),
+      field,
+    };
+
+    const onCreate = await create(ana, {
+      name: "X",
+      type,
+      openingBalance: cop(0),
+      terms: { [field]: value },
+    });
+    expect(onCreate.status).toBe(409);
+    expect(await onCreate.json()).toEqual(refused);
+
+    const account = await created(ana, { name: "Y", type, openingBalance: cop(0) });
+    const onUpdate = await patch(ana, account.id, { terms: { [field]: value } });
+    expect(onUpdate.status).toBe(409);
+    expect(await onUpdate.json()).toEqual(refused);
+  });
+});

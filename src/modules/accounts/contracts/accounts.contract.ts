@@ -1,14 +1,26 @@
 import { z } from "zod";
 import type { ZodOpenApiPathsObject } from "zod-openapi";
-import { jsonContent, MoneySchema, problems, securedByUser } from "@/shared/http/contracts";
+import { jsonContent, MoneySchema, moneyFromDto, problems, securedByUser } from "@/shared/http/contracts";
+import {
+  domainError,
+  err,
+  localDate,
+  ok,
+  type DomainError,
+  type Err,
+  type LocalDate,
+  type Result,
+} from "@/shared/kernel";
 import {
   ACCOUNT_COLORS,
   ACCOUNT_ICONS,
   ACCOUNT_TYPES,
   iconOf,
   percentText,
+  ratePpmOf,
   type AccountView,
   type AttributeChanges,
+  type TermsInput,
 } from "../application";
 
 const AccountTypeSchema = z.enum(ACCOUNT_TYPES);
@@ -17,6 +29,77 @@ const Institution = z.string().trim().min(1).max(60);
 const LastFour = z.string().regex(/^\d{4}$/, { error: "Exactly the last four digits" });
 const Color = z.enum(ACCOUNT_COLORS);
 const Icon = z.enum(ACCOUNT_ICONS);
+// HU-E2-06: ranges and rates are the domain's (InvalidBillingDay, InvalidRate, …); the contract only bounds sizes.
+// Amounts are MoneySchema's, which already stops at the PostgreSQL bigint range (ValidationFailed, never a 500).
+const Rate = z.string().min(1).max(16);
+const Count = z.number().int().min(-100_000).max(100_000);
+export const TermsBodySchema = z.object({
+  creditLimit: MoneySchema.nullable().optional(),
+  cutOffDay: Count.nullable().optional(),
+  paymentDay: Count.nullable().optional(),
+  monthlyRate: Rate.nullable().optional(),
+  annualRate: Rate.nullable().optional(),
+  termDays: Count.nullable().optional(),
+  maturityDate: z.iso.date().nullable().optional(),
+  principal: MoneySchema.nullable().optional(),
+  termMonths: Count.nullable().optional(),
+});
+type TermsBody = z.infer<typeof TermsBodySchema>;
+
+/** HU-E2-06: the body's terms as the use cases take them: rates in ppm (InvalidRate), money as Money. */
+export const termsFromBody = (terms: TermsBody | undefined): Result<TermsInput | undefined> => {
+  if (terms === undefined) return ok(undefined);
+  const rate = (raw: string | null | undefined): Result<number | null | undefined> =>
+    raw === undefined || raw === null ? ok(raw) : ratePpmOf(raw);
+  const money = (dto: TermsBody["creditLimit"]) =>
+    dto === undefined || dto === null ? ok(dto) : moneyFromDto(dto);
+  const monthlyRatePpm = rate(terms.monthlyRate);
+  if (!monthlyRatePpm.ok) return monthlyRatePpm;
+  const annualRatePpm = rate(terms.annualRate);
+  if (!annualRatePpm.ok) return annualRatePpm;
+  const creditLimit = money(terms.creditLimit);
+  if (!creditLimit.ok) return creditLimit;
+  const principal = money(terms.principal);
+  if (!principal.ok) return principal;
+  const maturity =
+    terms.maturityDate === undefined || terms.maturityDate === null
+      ? ok(terms.maturityDate)
+      : localDate(terms.maturityDate);
+  if (!maturity.ok) return maturity;
+  return ok({
+    creditLimit: creditLimit.value,
+    cutOffDay: terms.cutOffDay,
+    paymentDay: terms.paymentDay,
+    monthlyRatePpm: monthlyRatePpm.value,
+    annualRatePpm: annualRatePpm.value,
+    termDays: terms.termDays,
+    maturityDate: maturity.value as LocalDate | null | undefined,
+    principal: principal.value,
+    termMonths: terms.termMonths,
+  });
+};
+
+// Rates are stored in parts per million; the body names them without the unit.
+const PUBLIC_TERM_NAMES: ReadonlyMap<string, string> = new Map([
+  ["monthlyRatePpm", "monthlyRate"],
+  ["annualRatePpm", "annualRate"],
+]);
+
+/**
+ * HU-E2-06: an AccountAttributeNotAllowed names the term it refuses as the key inside the body's `terms` (`field`, for
+ * example `monthlyRate`), so a form can highlight it; the stored key (`attribute`) never leaves the server. Any other
+ * failure passes through.
+ */
+export const withPublicField = (failure: Err<DomainError>): Err<DomainError> => {
+  const attribute = failure.error.details?.attribute;
+  if (failure.error.code !== "AccountAttributeNotAllowed" || typeof attribute !== "string") return failure;
+  return err(
+    domainError(failure.error.code, {
+      ...failure.error.details,
+      field: PUBLIC_TERM_NAMES.get(attribute) ?? attribute,
+    }),
+  );
+};
 
 export const AccountSchema = z.object({
   id: z.string(),
@@ -63,6 +146,7 @@ export const CreateAccountBodySchema = z.object({
   lastFour: LastFour.optional(),
   color: Color.optional(),
   icon: Icon.optional(),
+  terms: TermsBodySchema.optional(),
 });
 /** HU-E2-05: `null` clears an attribute (the icon goes back to the type's default). */
 export const UpdateAccountBodySchema = z.object({
@@ -73,6 +157,7 @@ export const UpdateAccountBodySchema = z.object({
   lastFour: LastFour.nullable().optional(),
   color: Color.nullable().optional(),
   icon: Icon.nullable().optional(),
+  terms: TermsBodySchema.optional(),
 });
 
 /** HU-E2-05: the common attributes of a create or update body. */
@@ -150,7 +235,7 @@ export const accountsPaths: ZodOpenApiPathsObject = {
     },
     post: {
       operationId: "createAccount",
-      summary: "Create an account with an opening balance",
+      summary: "Create an account with an opening balance and, by type, its card, savings or loan terms",
       ...securedByUser,
       requestParams: { path: SpacePath },
       requestBody: { content: jsonContent(CreateAccountBodySchema) },
@@ -161,8 +246,9 @@ export const accountsPaths: ZodOpenApiPathsObject = {
           "403": "InsufficientRole",
           "404": "SpaceNotFound",
           "409":
-            "AccountNameTaken, SharedFundRequiresSharedSpace, PersonalAccountRequiresPersonalSpace, SpaceArchived",
-          "422": "ValidationFailed, InvalidAccountName, UnknownCurrency, CurrencyMismatch",
+            "AccountNameTaken, SharedFundRequiresSharedSpace, PersonalAccountRequiresPersonalSpace, SpaceArchived, AccountAttributeNotAllowed",
+          "422":
+            "ValidationFailed, InvalidAccountName, UnknownCurrency, CurrencyMismatch, InvalidCreditLimit, InvalidBillingDay, InvalidRate, InvalidTermDeposit, InvalidTerm, InvalidAmount, InvalidDate",
         }),
       },
     },
@@ -185,7 +271,7 @@ export const accountsPaths: ZodOpenApiPathsObject = {
     patch: {
       operationId: "updateAccount",
       summary:
-        "Rename an account, correct its opening balance, or change its institution, last four digits, color or icon (the type never changes)",
+        "Rename an account, correct its opening balance, or change its institution, last four digits, color, icon or its card, savings or loan terms (the type never changes)",
       ...securedByUser,
       requestParams: { path: AccountPath },
       requestBody: { content: jsonContent(UpdateAccountBodySchema) },
@@ -195,8 +281,9 @@ export const accountsPaths: ZodOpenApiPathsObject = {
           "401": "Unauthenticated",
           "403": "InsufficientRole",
           "404": "SpaceNotFound, AccountNotFound",
-          "409": "AccountNameTaken, AccountTypeImmutable, SpaceArchived",
-          "422": "ValidationFailed, InvalidAccountName, UnknownCurrency, CurrencyMismatch",
+          "409": "AccountNameTaken, AccountTypeImmutable, SpaceArchived, AccountAttributeNotAllowed",
+          "422":
+            "ValidationFailed, InvalidAccountName, UnknownCurrency, CurrencyMismatch, InvalidCreditLimit, InvalidBillingDay, InvalidRate, InvalidTermDeposit, InvalidTerm, InvalidAmount, InvalidDate",
         }),
       },
     },

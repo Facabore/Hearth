@@ -173,6 +173,24 @@ describe("public details (HU-E1-08)", () => {
     });
     expect(publicDetailsOf("InvalidAllocation", { reason: "percentNotHundred" })).toEqual({});
   });
+
+  it("names the field an account type refuses, in its public form, and never the stored attribute (HU-E2-06)", async () => {
+    const details = publicDetailsOf("AccountAttributeNotAllowed", {
+      field: "monthlyRate",
+      attribute: "monthlyRatePpm",
+    });
+    expect(details).toEqual({ field: "monthlyRate" });
+    expect(publicDetailsOf("AccountAttributeNotAllowed", { attribute: "monthlyRatePpm" })).toEqual({});
+    expect(publicDetailsOf("InvalidSplit", { field: "monthlyRate" })).toEqual({});
+    expect(await problemResponse("AccountAttributeNotAllowed", "req-6", undefined, details).json()).toEqual({
+      type: "urn:hearth:problem:AccountAttributeNotAllowed",
+      title: "Conflict",
+      status: 409,
+      code: "AccountAttributeNotAllowed",
+      requestId: "req-6",
+      field: "monthlyRate",
+    });
+  });
 });
 
 describe("statusForCode (HU-E1-14, HU-E4-14)", () => {

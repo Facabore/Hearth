@@ -2880,7 +2880,7 @@
       },
       "post": {
         "operationId": "createAccount",
-        "summary": "Create an account with an opening balance",
+        "summary": "Create an account with an opening balance and, by type, its card, savings or loan terms",
         "security": [
           {
             "cookieAuth": []
@@ -2970,6 +2970,115 @@
                       "plane",
                       "smartphone"
                     ]
+                  },
+                  "terms": {
+                    "type": "object",
+                    "properties": {
+                      "creditLimit": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/components/schemas/Money"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "cutOffDay": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -100000,
+                            "maximum": 100000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "paymentDay": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -100000,
+                            "maximum": 100000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "monthlyRate": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "annualRate": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "termDays": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -100000,
+                            "maximum": 100000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "maturityDate": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "principal": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/components/schemas/Money"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "termMonths": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -100000,
+                            "maximum": 100000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    }
                   }
                 },
                 "required": [
@@ -3023,7 +3132,7 @@
             }
           },
           "409": {
-            "description": "AccountNameTaken, SharedFundRequiresSharedSpace, PersonalAccountRequiresPersonalSpace, SpaceArchived",
+            "description": "AccountNameTaken, SharedFundRequiresSharedSpace, PersonalAccountRequiresPersonalSpace, SpaceArchived, AccountAttributeNotAllowed",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3033,7 +3142,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAccountName, UnknownCurrency, CurrencyMismatch",
+            "description": "ValidationFailed, InvalidAccountName, UnknownCurrency, CurrencyMismatch, InvalidCreditLimit, InvalidBillingDay, InvalidRate, InvalidTermDeposit, InvalidTerm, InvalidAmount, InvalidDate",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3129,7 +3238,7 @@
       },
       "patch": {
         "operationId": "updateAccount",
-        "summary": "Rename an account, correct its opening balance, or change its institution, last four digits, color or icon (the type never changes)",
+        "summary": "Rename an account, correct its opening balance, or change its institution, last four digits, color, icon or its card, savings or loan terms (the type never changes)",
         "security": [
           {
             "cookieAuth": []
@@ -3255,6 +3364,115 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "terms": {
+                    "type": "object",
+                    "properties": {
+                      "creditLimit": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/components/schemas/Money"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "cutOffDay": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -100000,
+                            "maximum": 100000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "paymentDay": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -100000,
+                            "maximum": 100000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "monthlyRate": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "annualRate": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "termDays": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -100000,
+                            "maximum": 100000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "maturityDate": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "principal": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/components/schemas/Money"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "termMonths": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -100000,
+                            "maximum": 100000
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    }
                   }
                 }
               }
@@ -3303,7 +3521,7 @@
             }
           },
           "409": {
-            "description": "AccountNameTaken, AccountTypeImmutable, SpaceArchived",
+            "description": "AccountNameTaken, AccountTypeImmutable, SpaceArchived, AccountAttributeNotAllowed",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3313,7 +3531,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAccountName, UnknownCurrency, CurrencyMismatch",
+            "description": "ValidationFailed, InvalidAccountName, UnknownCurrency, CurrencyMismatch, InvalidCreditLimit, InvalidBillingDay, InvalidRate, InvalidTermDeposit, InvalidTerm, InvalidAmount, InvalidDate",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8771,6 +8989,9 @@
             "enum": [
               "creator"
             ]
+          },
+          "field": {
+            "type": "string"
           }
         },
         "required": [
