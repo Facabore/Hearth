@@ -1914,7 +1914,7 @@
     "/api/v1/spaces/{spaceId}/categories": {
       "get": {
         "operationId": "listCategories",
-        "summary": "Category tree of a space; archived groups and categories only with archived=true",
+        "summary": "Category tree of a space, with nested subcategories; archived groups, categories and subcategories only with archived=true",
         "security": [
           {
             "cookieAuth": []
@@ -1946,7 +1946,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Groups with their categories, sorted by name",
+            "description": "Groups with their categories and each category's subcategories, sorted by name",
             "content": {
               "application/json": {
                 "schema": {
@@ -2001,7 +2001,7 @@
       },
       "post": {
         "operationId": "createCategory",
-        "summary": "Create a category in a group (two levels only)",
+        "summary": "Create a category in a group, or a subcategory under a category",
         "security": [
           {
             "cookieAuth": []
@@ -2031,13 +2031,17 @@
                     "minLength": 1,
                     "maxLength": 64
                   },
+                  "parentCategoryId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
                   "name": {
                     "type": "string",
                     "maxLength": 200
                   }
                 },
                 "required": [
-                  "groupId",
                   "name"
                 ]
               }
@@ -2076,7 +2080,7 @@
             }
           },
           "404": {
-            "description": "SpaceNotFound, CategoryGroupNotFound",
+            "description": "SpaceNotFound, CategoryGroupNotFound, CategoryNotFound",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2086,7 +2090,7 @@
             }
           },
           "409": {
-            "description": "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived, SpaceArchived",
+            "description": "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived, SpaceArchived, ParentCategoryArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2111,7 +2115,7 @@
     "/api/v1/spaces/{spaceId}/categories/{categoryId}": {
       "patch": {
         "operationId": "updateCategory",
-        "summary": "Rename a category and/or move it to another group",
+        "summary": "Rename a category, move it to another group, or move it under or out of a parent",
         "security": [
           {
             "cookieAuth": []
@@ -2152,6 +2156,18 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64
+                  },
+                  "parentCategoryId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 }
               }
@@ -2200,7 +2216,7 @@
             }
           },
           "409": {
-            "description": "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived, SpaceArchived",
+            "description": "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived, SpaceArchived, ParentCategoryArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2223,7 +2239,7 @@
       },
       "delete": {
         "operationId": "deleteCategory",
-        "summary": "Delete a category that no transaction references (archive it otherwise)",
+        "summary": "Delete a category that no transaction references and that has no subcategories (archive it otherwise)",
         "security": [
           {
             "cookieAuth": []
@@ -2516,7 +2532,7 @@
     "/api/v1/spaces/{spaceId}/categories/{categoryId}/archive": {
       "post": {
         "operationId": "archiveCategory",
-        "summary": "Archive a category: it stays in history but cannot be used for new transactions",
+        "summary": "Archive a category and its subcategories: they stay in history but cannot be used for new transactions",
         "security": [
           {
             "cookieAuth": []
@@ -2669,7 +2685,7 @@
             }
           },
           "409": {
-            "description": "CategoryGroupArchived, SpaceArchived",
+            "description": "CategoryGroupArchived, SpaceArchived, ParentCategoryArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8189,6 +8205,12 @@
           "groupId": {
             "type": "string"
           },
+          "parentCategoryId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "name": {
             "type": "string"
           },
@@ -8214,6 +8236,7 @@
         "required": [
           "id",
           "groupId",
+          "parentCategoryId",
           "name",
           "key",
           "archivedAt"
@@ -8657,7 +8680,58 @@
           "categories": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/CategoryOutput"
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "groupId": {
+                  "type": "string"
+                },
+                "parentCategoryId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "key": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "archivedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "subcategories": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryOutput"
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "groupId",
+                "parentCategoryId",
+                "name",
+                "key",
+                "archivedAt",
+                "subcategories"
+              ],
+              "additionalProperties": false
             }
           }
         },
@@ -10174,6 +10248,12 @@
           "groupId": {
             "type": "string"
           },
+          "parentCategoryId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "name": {
             "type": "string"
           },
@@ -10199,6 +10279,7 @@
         "required": [
           "id",
           "groupId",
+          "parentCategoryId",
           "name",
           "key",
           "archivedAt"
