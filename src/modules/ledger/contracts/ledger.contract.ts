@@ -345,6 +345,12 @@ export const ListTransactionsResponseSchema = z.object({
   nextCursor: z.string().nullable(),
 });
 
+/** Ruling P43: the position as the cursor's sort key `date|occurredAt|createdAt` (ISO UTC; empty without a time). */
+const cursorOf = (p: TransactionPosition) => ({
+  sortKey: [p.date, p.occurredAt?.toISOString() ?? "", p.createdAt.toISOString()].join("|"),
+  id: p.id,
+});
+
 export const transactionPageDto = (
   page: TransactionPage,
 ): z.infer<typeof ListTransactionsResponseSchema> => ({
@@ -354,18 +360,33 @@ export const transactionPageDto = (
     income: { amount: page.totals.income.toString(), currency: page.currency },
   },
   items: page.items.map(transactionDto),
-  nextCursor: page.nextPosition
-    ? encodeCursor({ sortKey: page.nextPosition.date, id: page.nextPosition.id })
-    : null,
+  nextCursor: page.nextPosition ? encodeCursor(cursorOf(page.nextPosition)) : null,
 });
 
-/** A cursor must hold a real date and a UUID, or the keyset query would fail its casts. */
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+const instantOf = (iso: string): Date | null => {
+  const instant = ISO_INSTANT.test(iso) ? new Date(iso) : null;
+  return instant !== null && !Number.isNaN(instant.getTime()) && instant.toISOString() === iso
+    ? instant
+    : null;
+};
+
+/** A cursor must hold a real date, real instants and a UUID, or the keyset query would fail its casts. */
 export const positionFromCursor = (raw: string): Result<TransactionPosition> => {
   const cursor = decodeCursor(raw);
   if (!cursor.ok) return cursor;
-  const date = localDate(cursor.value.sortKey);
-  return date.ok && isUuid(cursor.value.id)
-    ? ok({ date: date.value, id: cursor.value.id })
+  const [date = "", occurred = "", created = "", ...rest] = cursor.value.sortKey.split("|");
+  const day = localDate(date);
+  const occurredAt = occurred === "" ? null : instantOf(occurred);
+  const createdAt = instantOf(created);
+  const valid =
+    day.ok &&
+    rest.length === 0 &&
+    createdAt !== null &&
+    (occurred === "" || occurredAt !== null) &&
+    isUuid(cursor.value.id);
+  return valid
+    ? ok({ date: day.value, occurredAt, createdAt, id: cursor.value.id })
     : err(domainError("InvalidCursor"));
 };
 

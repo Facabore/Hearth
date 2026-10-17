@@ -56,6 +56,7 @@ export {
 export { createGetTransaction, type GetTransaction } from "./get-transaction";
 export {
   createListTransactions,
+  positionOf,
   type ListTransactions,
   type ListTransactionsInput,
   type TransactionPage,

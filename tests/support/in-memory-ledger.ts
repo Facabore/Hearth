@@ -88,6 +88,21 @@ const categoryReader = (rows: readonly CategoryRow[]): CategoryReader => ({
   },
 });
 
+type Ordered = Pick<Transaction, "date" | "occurredAt" | "createdAt"> & { readonly id: string };
+
+/** Ruling P43, as PostgreSQL orders the list: negative when `a` comes first, positive when it comes after `b`. */
+export const listOrder = (a: Ordered, b: Ordered): number => {
+  const time = (t: Ordered) => t.occurredAt?.getTime() ?? Number.NEGATIVE_INFINITY;
+  const keys: [string | number, string | number][] = [
+    [b.date, a.date],
+    [time(b), time(a)],
+    [b.createdAt.getTime(), a.createdAt.getTime()],
+    [b.id, a.id],
+  ];
+  for (const [x, y] of keys) if (x !== y) return x < y ? -1 : 1;
+  return 0;
+};
+
 /** Repository and query side over one array; mirrors the SQL semantics pinned in Tasks 20–21. */
 export class InMemoryTransactions implements TransactionRepository, TransactionQuery {
   rows: Transaction[] = [];
@@ -113,7 +128,7 @@ export class InMemoryTransactions implements TransactionRepository, TransactionQ
 
   async list(filter: TransactionFilter, after: TransactionPosition | null, limit: number) {
     return this.matching(filter)
-      .filter((t) => after === null || t.date < after.date || (t.date === after.date && t.id < after.id))
+      .filter((t) => after === null || listOrder(t, after) > 0)
       .slice(0, limit);
   }
 
@@ -233,7 +248,7 @@ export class InMemoryTransactions implements TransactionRepository, TransactionQ
           f.participantMemberId === undefined ||
           (t.type === "EXPENSE" && t.shares.some((s) => s.memberId === f.participantMemberId)),
       )
-      .sort((a, b) => (a.date === b.date ? (a.id < b.id ? 1 : -1) : a.date < b.date ? 1 : -1));
+      .sort(listOrder);
   }
 }
 

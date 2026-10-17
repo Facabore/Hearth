@@ -11,7 +11,9 @@ import {
   personalSpaceFixture,
   sharedLedgerFixture,
 } from "../../../../tests/support/fixtures";
-import type { TransactionFilter, TransactionPosition } from "../application/ports";
+import type { TransactionFilter, TransactionPosition, TransactionQuery } from "../application/ports";
+import { InMemoryTransactions } from "../../../../tests/support/in-memory-ledger";
+import { positionOf } from "../application/list-transactions";
 import {
   recordExpense,
   recordFundContribution,
@@ -140,7 +142,9 @@ describe("list and totals (HU-E4-05)", () => {
 
   it("visits 120 transactions on the same date exactly once, newest first (Review Focus 2)", async () => {
     const w = await world();
-    await store(...Array.from({ length: 120 }, () => expense(w, "2026-10-15", 100n)));
+    // One creation instant for all 120: the id alone breaks their ties (ruling P43).
+    const at = new Date("2026-10-15T12:00:00.000Z");
+    await store(...Array.from({ length: 120 }, () => ({ ...expense(w, "2026-10-15", 100n), createdAt: at })));
     const seen: string[] = [];
     const sizes: number[] = [];
     let after: TransactionPosition | null = null;
@@ -150,7 +154,7 @@ describe("list and totals (HU-E4-05)", () => {
       sizes.push(items.length);
       seen.push(...items.map((t) => t.id));
       const last = items.at(-1);
-      after = rows.length > 50 && last ? { date: last.date, id: last.id } : null;
+      after = rows.length > 50 && last ? positionOf(last) : null;
     } while (after);
     expect(sizes).toEqual([50, 50, 20]);
     expect(new Set(seen).size).toBe(120);
@@ -369,5 +373,59 @@ describe("spending of a plan's period (HU-E6-03, HU-E6-04, spec 5.4)", () => {
     expect(await queries.transfersIntoAccounts([w.wallet], from, to)).toEqual([
       { accountId: w.wallet, amount: 12_000_000_000_000_000_002n },
     ]);
+  });
+});
+
+/**
+ * The ids of every page a client sees when it follows the cursor of each page's first row: pages of two,
+ * each starting right after the one before, so every keyset step is taken once.
+ */
+const oneRowPages = async (source: Pick<TransactionQuery, "list">, filter: TransactionFilter) => {
+  const pages: string[][] = [];
+  let after: TransactionPosition | null = null;
+  do {
+    const rows: Transaction[] = await source.list(filter, after, 2);
+    pages.push(rows.map((t) => t.id));
+    const first = rows[0];
+    after = rows.length > 1 && first ? positionOf(first) : null;
+  } while (after);
+  return pages;
+};
+
+describe("the order of a day (HU-E4-14)", () => {
+  it("lists Lunch, Market, Rent, Taxi one page at a time, as the in-memory twin does (Review Focus 2)", async () => {
+    const w = await world();
+    const timed = (date: string, iso: string) => ({
+      ...expense(w, date, 100n),
+      occurredAt: new Date(iso),
+      timeZone: "America/Bogota",
+    });
+    const taxi = timed("2026-10-15", "2026-10-16T03:40:00.000Z"); // 22:40 on the 15th in Bogotá
+    const market = timed("2026-10-16", "2026-10-16T13:10:00.000Z"); // 08:10
+    const rent = expense(w, "2026-10-16", 100n); // no time: last of its day
+    const lunch = timed("2026-10-16", "2026-10-16T18:05:00.000Z"); // 13:05
+    await store(taxi, market, rent, lunch);
+    const pages = await oneRowPages(queries, october(w));
+    expect(pages.map(([first]) => first)).toEqual([lunch.id, market.id, rent.id, taxi.id]);
+    const twin = new InMemoryTransactions();
+    twin.rows.push(taxi, rent, lunch, market);
+    expect(await oneRowPages(twin, october(w))).toEqual(pages);
+  });
+
+  it("puts the item recorded last first among items of one day without a time, whatever their ids", async () => {
+    const w = await world();
+    const untimed = (id: string, createdAt: string) => ({
+      ...expense(w, "2026-10-16", 100n),
+      id: id as TransactionId,
+      createdAt: new Date(createdAt),
+    });
+    const recordedFirst = untimed("ffffffff-ffff-4fff-8fff-ffffffffffff", "2026-10-16T10:00:00.000Z");
+    const recordedLast = untimed("00000000-0000-4000-8000-000000000001", "2026-10-16T11:00:00.000Z");
+    await store(recordedFirst, recordedLast);
+    const pages = await oneRowPages(queries, october(w));
+    expect(pages.map(([first]) => first)).toEqual([recordedLast.id, recordedFirst.id]);
+    const twin = new InMemoryTransactions();
+    twin.rows.push(recordedFirst, recordedLast);
+    expect(await oneRowPages(twin, october(w))).toEqual(pages);
   });
 });

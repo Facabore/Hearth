@@ -7,10 +7,8 @@ import {
   exists,
   inArray,
   isNull,
-  lt,
   lte,
   notExists,
-  or,
   sql,
   type AnyColumn,
 } from "drizzle-orm";
@@ -33,6 +31,10 @@ import { loadTransactions } from "./transaction-rows";
 // SUM(bigint) is numeric in PostgreSQL: read it as text and parse it as bigint, so sums never overflow or round.
 const sumAsText = (column: AnyColumn) => sql<string>`sum(${column})::text`;
 
+// HU-E4-14, ruling P43: untimed rows sort as the earliest time of their day, so they come last in DESC order.
+// The cursor round-trips only because writers store millisecond instants: never write occurred_at with now(), defaultNow() or SQL.
+const listTime = sql`coalesce(${transactions.occurredAt}, '-infinity'::timestamptz)`;
+
 /** Read side of the ledger, computed on read (D7): the monthly list, totals, account movements and references. */
 export class DrizzleLedgerQueries implements TransactionQuery {
   constructor(private readonly tm: DrizzleTransactionManager) {}
@@ -51,13 +53,10 @@ export class DrizzleLedgerQueries implements TransactionQuery {
           this.matching(filter),
           after === null
             ? undefined
-            : or(
-                lt(transactions.date, after.date),
-                and(eq(transactions.date, after.date), lt(transactions.id, after.id)),
-              ),
+            : sql`(${transactions.date}, ${listTime}, ${transactions.createdAt}, ${transactions.id}) < (${after.date}::date, ${after.occurredAt?.toISOString() ?? "-infinity"}::timestamptz, ${after.createdAt.toISOString()}::timestamptz, ${after.id}::uuid)`,
         ),
       )
-      .orderBy(desc(transactions.date), desc(transactions.id))
+      .orderBy(desc(transactions.date), desc(listTime), desc(transactions.createdAt), desc(transactions.id))
       .limit(limit);
     return loadTransactions(db, rows);
   }
