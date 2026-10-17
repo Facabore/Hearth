@@ -138,10 +138,13 @@ import {
 } from "@/modules/categories/application";
 import { DrizzleCategoryRepository } from "@/modules/categories/infrastructure/drizzle-category-repository";
 import {
+  createGetProfile,
   createSignIn,
   createSignOut,
   createSignUp,
   createUpdateProfile,
+  type GetProfile,
+  type InstallationRulesReader,
   type SignIn,
   type SignOut,
   type SignUp,
@@ -149,6 +152,7 @@ import {
 } from "@/modules/identity/application";
 import { createAuth } from "@/modules/identity/infrastructure/better-auth";
 import { BetterAuthProvider } from "@/modules/identity/infrastructure/better-auth-provider";
+import { BuiltInInstallationRules } from "@/modules/identity/infrastructure/built-in-installation-rules";
 import { DrizzleUserProfiles } from "@/modules/identity/infrastructure/drizzle-user-profiles";
 import {
   createAcceptInvitation,
@@ -220,6 +224,7 @@ export interface Container extends RouteDeps {
     readonly signIn: SignIn;
     readonly signOut: SignOut;
     readonly updateProfile: UpdateProfile;
+    readonly getProfile: GetProfile;
   };
   readonly spaces: {
     readonly createPersonalSpace: CreatePersonalSpace;
@@ -331,6 +336,8 @@ export interface ContainerOptions {
   readonly emailSender?: EmailSender;
   /** Test seam: replaces the system clock, so a test decides what "today" is (a plan closes only after its period). */
   readonly clock?: Clock;
+  /** Test seam: the installation's defaults and locks (HU-E1-15); the built-in es-CO rules until HU-E8-18. */
+  readonly installationRules?: InstallationRulesReader;
 }
 
 export const buildContainer = (env: Env, options: ContainerOptions = {}): Container => {
@@ -350,6 +357,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   );
   // HU-E1-14: every user's own zone; the ledger and accounts read it through the kernel's UserTimeZones.
   const profiles = new DrizzleUserProfiles(tm, env.APP_TIMEZONE);
+  // HU-E1-15: the installation's defaults and locks; HU-E8-18 binds its stored rules here.
+  const installationRules = options.installationRules ?? new BuiltInInstallationRules();
   const spaceRepository = new DrizzleSpaceRepository(tm);
   const access = createSpaceAccess(spaceRepository);
   const categoriesDeps: CategoriesDeps = {
@@ -578,7 +587,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     idempotency: { tm, store: new DrizzleIdempotencyStore(tm) },
     identity: {
       signUp: createSignUp({ auth: provider, provisionUser, profiles, defaultTimeZone: env.APP_TIMEZONE }),
-      updateProfile: createUpdateProfile({ profiles }),
+      updateProfile: createUpdateProfile({ profiles, rules: installationRules }),
+      getProfile: createGetProfile({ profiles, rules: installationRules }),
       signIn: createSignIn(provider),
       signOut: createSignOut(provider),
     },

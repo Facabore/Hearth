@@ -127,6 +127,13 @@
       "when": 1792244437748,
       "tag": "0017_category_styles",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792252095570,
+      "tag": "0018_user_preferences",
+      "breakpoints": true
     }
   ]
 }

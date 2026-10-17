@@ -9,7 +9,7 @@ export interface SignUpDeps {
   /** Creates everything a new user needs (the personal space, Task 11). */
   readonly provisionUser: (user: AuthUser) => Promise<Result<void>>;
   /** HU-E1-14: stores the browser's zone. */
-  readonly profiles: UserProfiles;
+  readonly profiles: Pick<UserProfiles, "setTimeZone">;
   /** APP_TIMEZONE: the zone of a user whose browser sent none, or one Intl does not know. */
   readonly defaultTimeZone: string;
 }
