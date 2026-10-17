@@ -15,6 +15,9 @@ export interface BudgetPlanView {
 
 type ViewDeps = Pick<BudgetingDeps, "members" | "plans" | "spending" | "savingsAccounts" | "categories">;
 
+/** What reading a plan's figures takes; reporting reads plans through the same ports (HU-E7-01, ruling P32). */
+export type PlanViewDeps = ViewDeps;
+
 /**
  * What one view reads once and shares along the chain of plans it walks: the space's current members and its
  * categories with their parents (HU-E3-04), so every plan of the chain is figured against the same tree.
