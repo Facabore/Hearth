@@ -7,7 +7,7 @@ import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-tr
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
 import { FixedClock, type LocalDate, type Result } from "@/shared/kernel";
 import { testDatabase } from "../../../../tests/support/database";
-import { codeOf, money, unwrap } from "../../../../tests/support/fakes";
+import { codeOf, fixedTimeZones, money, unwrap } from "../../../../tests/support/fakes";
 import {
   categoryFixture,
   sharedLedgerFixture,
@@ -79,6 +79,7 @@ const ledgerDeps = (): LedgerDeps => ({
   ids: new UuidV7IdGenerator(),
   clock: new FixedClock(new Date("2026-10-28T17:00:00Z")),
   timeZone: "America/Bogota",
+  userTimeZones: fixedTimeZones(),
   tm,
 });
 

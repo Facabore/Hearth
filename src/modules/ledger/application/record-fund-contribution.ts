@@ -1,13 +1,13 @@
-import { todayIn, type LocalDate, type Money, type Result } from "@/shared/kernel";
+import type { Money, Result } from "@/shared/kernel";
 import { positiveAmount, recordFundContribution, type Transfer } from "../domain/transaction";
 import { authorizeWriter, fundAccount, inSpaceCurrency, openPeriod, partyAccount } from "./checks";
 import type { LedgerDeps } from "./deps";
+import { whenOf, type WhenInput } from "./when";
 
-export interface RecordFundContributionInput {
+export interface RecordFundContributionInput extends Omit<WhenInput, "userId"> {
   readonly spaceId: string;
   readonly userId: string;
   readonly description?: string;
-  readonly date?: LocalDate;
   readonly amount: Money;
   /** The SHARED_FUND account of this space that receives the money. */
   readonly fundAccountId: string;
@@ -44,7 +44,10 @@ export const createRecordFundContribution =
         debitedBy: input.userId,
       });
       if (!source.ok) return source;
-      const date = input.date ?? todayIn(deps.clock, deps.timeZone);
+      // HU-E4-14: the recorder's zone unless the request names one (ruling P41).
+      const when = await whenOf(deps, input);
+      if (!when.ok) return when;
+      const { date, occurredAt, timeZone } = when.value;
       const open = await openPeriod(deps, space.spaceId, date);
       if (!open.ok) return open;
       const contribution = recordFundContribution({
@@ -55,6 +58,8 @@ export const createRecordFundContribution =
         amount: amount.value,
         currency: space.currency,
         createdBy: input.userId,
+        occurredAt,
+        timeZone,
         now: deps.clock.now(),
         payerMemberId: contributor,
         sourceAccountId: source.value,

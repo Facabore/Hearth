@@ -51,6 +51,8 @@ export const recordOccurrence = async (
     userId: occurrence.userId,
     description: recurrence.description,
     date: occurrence.date,
+    // HU-E4-14, ruling P66: an occurrence, AUTO or confirmed, carries its date and no time.
+    untimed: true as const,
     amount: occurrence.amount,
   };
   const alone = (transaction: Transaction): RecordedOccurrence => ({ transaction, warnings: [] });

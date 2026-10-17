@@ -1,4 +1,4 @@
-import { flatMap, todayIn, type LocalDate, type Money, type Result } from "@/shared/kernel";
+import { flatMap, type Money, type Result } from "@/shared/kernel";
 import { positiveAmount, recordIncome, type Income } from "../domain/transaction";
 import {
   accountInSpace,
@@ -9,12 +9,12 @@ import {
   usableCategory,
 } from "./checks";
 import type { LedgerDeps } from "./deps";
+import { whenOf, type WhenInput } from "./when";
 
-export interface RecordIncomeInput {
+export interface RecordIncomeInput extends Omit<WhenInput, "userId"> {
   readonly spaceId: string;
   readonly userId: string;
   readonly description?: string;
-  readonly date?: LocalDate;
   readonly categoryId?: string;
   readonly amount: Money;
   /** The requester's own account in this space that receives the money. */
@@ -40,7 +40,10 @@ export const createRecordIncome =
         accountInSpace(a, space.spaceId),
       );
       if (!account.ok) return account;
-      const date = input.date ?? todayIn(deps.clock, deps.timeZone);
+      // HU-E4-14: the recorder's zone unless the request names one (ruling P41).
+      const when = await whenOf(deps, input);
+      if (!when.ok) return when;
+      const { date, occurredAt, timeZone } = when.value;
       const open = await openPeriod(deps, space.spaceId, date);
       if (!open.ok) return open;
       const income = recordIncome({
@@ -51,6 +54,8 @@ export const createRecordIncome =
         amount: amount.value,
         currency: space.currency,
         createdBy: input.userId,
+        occurredAt,
+        timeZone,
         now: deps.clock.now(),
         categoryId: category.value,
         destinationAccountId: account.value.id,

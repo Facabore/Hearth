@@ -1,5 +1,5 @@
 import type { SpaceMember, SpaceMembership } from "@/modules/spaces/application";
-import { domainError, err, map, ok, todayIn, type LocalDate, type Money, type Result } from "@/shared/kernel";
+import { domainError, err, map, ok, type Money, type Result } from "@/shared/kernel";
 import { splitShares, type AllocationSplit, type SplitInput } from "../domain/split";
 import { positiveAmount, recordExpense, type Expense, type Payment } from "../domain/transaction";
 import {
@@ -12,6 +12,7 @@ import {
 } from "./checks";
 import type { LedgerDeps } from "./deps";
 import type { DefaultSplitQuery } from "./ports";
+import { whenOf, type WhenInput } from "./when";
 
 /** One requested payment (spec 5.2). */
 export interface PaymentInput {
@@ -22,11 +23,10 @@ export interface PaymentInput {
   readonly amount: Money;
 }
 
-export interface RecordExpenseInput {
+export interface RecordExpenseInput extends Omit<WhenInput, "userId"> {
   readonly spaceId: string;
   readonly userId: string;
   readonly description?: string;
-  readonly date?: LocalDate;
   readonly categoryId?: string;
   readonly amount: Money;
   /** HU-E4-01 shorthand: the requester pays the whole amount from this account of theirs. Ignored with `payments`. */
@@ -147,7 +147,10 @@ export const createRecordExpense =
         if (!resolved.ok) return resolved;
         payments.push(resolved.value);
       }
-      const date = input.date ?? todayIn(deps.clock, deps.timeZone);
+      // HU-E4-14: the recorder's zone unless the request names one (ruling P41).
+      const when = await whenOf(deps, input);
+      if (!when.ok) return when;
+      const { date, occurredAt, timeZone } = when.value;
       // HU-E4-06 first (P14): a closed period takes nothing, and the guard's FOR SHARE lock on the covering plan keeps
       // plan writes out while the default split reads it.
       const open = await openPeriod(deps, space.spaceId, date);
@@ -171,6 +174,8 @@ export const createRecordExpense =
         amount: amount.value,
         currency: space.currency,
         createdBy: input.userId,
+        occurredAt,
+        timeZone,
         now: deps.clock.now(),
         categoryId: category.value,
         payments,

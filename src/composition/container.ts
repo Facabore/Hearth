@@ -417,6 +417,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     storedPeriods,
     // HU-E4-10: the accounts module owns the balance formula (opening balance + movements, HU-E2-04).
     accountBalances: accountBalancesFrom(getAccount),
+    // HU-E1-14, HU-E4-14: each recorder's own zone; the ledger never imports identity.
+    userTimeZones: profiles,
     ids,
     clock,
     timeZone: env.APP_TIMEZONE,

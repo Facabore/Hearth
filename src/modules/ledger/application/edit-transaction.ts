@@ -8,10 +8,14 @@ import {
 } from "../domain/transaction";
 import { ensureCurrentParties, openPeriod, usableCategory } from "./checks";
 import type { LedgerDeps } from "./deps";
+import { editedTime } from "./when";
 
 export interface EditChanges {
   readonly description?: string;
   readonly date?: LocalDate;
+  /** HU-E4-14: a new instant; null answers TimeRequired, since a time is replaced, never removed (P66). */
+  readonly occurredAt?: Date | null;
+  readonly timeZone?: string;
   readonly categoryId?: string;
   readonly amount?: Money;
 }
@@ -58,7 +62,7 @@ export const createEditTransaction =
       if (input.expectedVersion !== null && input.expectedVersion !== current.version) {
         return err(domainError("PreconditionFailed"));
       }
-      const { amount, ...rest } = input.changes;
+      const { amount, date, occurredAt, timeZone, ...rest } = input.changes;
       if (amount && amount.currency.code !== current.currency) {
         return err(
           domainError("CurrencyMismatch", { expected: current.currency, actual: amount.currency.code }),
@@ -67,7 +71,16 @@ export const createEditTransaction =
       const open = await openPeriod(deps, current.spaceId, current.date);
       if (!open.ok) return open;
       const now = deps.clock.now();
-      const revised = reviseTransaction(current, { ...rest, amount: amount?.minor }, now);
+      // HU-E4-14: a new date keeps the wall-clock time; a new time recomputes the date (ruling P42).
+      const time = await editedTime(deps, current, input.userId, { date, occurredAt, timeZone });
+      if (!time.ok) return time;
+      // Only the three time fields, so no other field of the answer can override `rest`.
+      const { date: newDate, occurredAt: newOccurredAt, timeZone: newTimeZone } = time.value;
+      const revised = reviseTransaction(
+        current,
+        { ...rest, date: newDate, occurredAt: newOccurredAt, timeZone: newTimeZone, amount: amount?.minor },
+        now,
+      );
       if (!revised.ok) return revised;
       const changes = changesBetween(current, revised.value);
       if (Object.keys(changes).length === 0) return ok(current);

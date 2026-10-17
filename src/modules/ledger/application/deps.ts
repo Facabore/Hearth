@@ -1,5 +1,5 @@
 import type { SpaceAccess, SpaceMemberRepository, StoredPeriodSource } from "@/modules/spaces/application";
-import type { Clock, IdGenerator, TransactionManager } from "@/shared/kernel";
+import type { Clock, IdGenerator, TransactionManager, UserTimeZones } from "@/shared/kernel";
 import type {
   AccountBalances,
   AccountReader,
@@ -28,7 +28,9 @@ export interface LedgerDeps {
   readonly storedPeriods: StoredPeriodSource;
   readonly ids: IdGenerator;
   readonly clock: Clock;
-  /** The space timezone; v1 uses the deployment timezone (APP_TIMEZONE). */
+  /** The deployment time zone (APP_TIMEZONE), for space-level clocks only (HU-E1-14). */
   readonly timeZone: string;
+  /** HU-E1-14, HU-E4-14: each user's own zone, for "today" and the time of what they record. */
+  readonly userTimeZones: UserTimeZones;
   readonly tm: TransactionManager;
 }

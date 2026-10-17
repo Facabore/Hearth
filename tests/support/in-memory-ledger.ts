@@ -22,7 +22,14 @@ import type {
 } from "@/modules/ledger/application";
 import { createSpaceAccess, type SpaceMember } from "@/modules/spaces/application";
 import { FixedClock, type LocalDate } from "@/shared/kernel";
-import { fakeSpaceAccess, memoryTm, membership, noStoredPeriods, sequentialIds } from "./fakes";
+import {
+  fakeSpaceAccess,
+  fixedTimeZones,
+  memoryTm,
+  membership,
+  noStoredPeriods,
+  sequentialIds,
+} from "./fakes";
 import { HOUSEHOLD_MEMBERS, householdSpace, InMemorySpaceStore, memberOf } from "./in-memory-spaces";
 
 const personalAccount = (id: string, spaceId: string, ownerUserId: string, archived = false) => ({
@@ -289,6 +296,7 @@ export const ledgerFixture = (overrides: Partial<LedgerDeps> = {}) => {
     ids: sequentialIds("tx"),
     clock: new FixedClock(new Date("2026-10-28T15:00:00Z")),
     timeZone: "America/Bogota",
+    userTimeZones: fixedTimeZones(),
     tm: memoryTm,
     ...overrides,
   };

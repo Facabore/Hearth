@@ -37,7 +37,13 @@ export const createListTransactions =
     const stored = await deps.storedPeriods(space.spaceId);
     const period =
       input.period === undefined
-        ? ok(resolvePeriod(space.periodPolicy, stored, todayIn(deps.clock, deps.timeZone)))
+        ? ok(
+            resolvePeriod(
+              space.periodPolicy,
+              stored,
+              todayIn(deps.clock, await deps.userTimeZones.timeZoneOf(input.userId)),
+            ),
+          )
         : periodByLabel(space.periodPolicy, stored, input.period);
     if (!period.ok) return period;
     const filter: TransactionFilter = {

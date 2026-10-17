@@ -350,3 +350,13 @@ describe("recordOccurrence (HU-E4-12, P21)", () => {
     expect(store.rows).toStrictEqual([]);
   });
 });
+
+describe("occurrences have no time (HU-E4-14, ruling P66)", () => {
+  it("records an occurrence with its date and no time, as the scheduler and a confirmation do", async () => {
+    const { deps } = recurrenceWorld();
+    const recorded = unwrap(
+      await recordOccurrence(occurrenceRecorders(deps), recurrenceOf(fromTheFund), on("u-ana", 1_200_000n)),
+    );
+    expect(recorded.transaction).toMatchObject({ date: "2026-12-01", occurredAt: null, timeZone: null });
+  });
+});
