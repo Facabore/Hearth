@@ -18,6 +18,8 @@ import {
   iconOf,
   percentText,
   ratePpmOf,
+  switchesOf,
+  type AccountList,
   type AccountView,
   type AttributeChanges,
   type TermsInput,
@@ -115,6 +117,9 @@ export const AccountSchema = z.object({
   color: Color.nullable(),
   /** The icon shown: the chosen one, else the type's default. */
   icon: Icon,
+  /** HU-E2-07: whether it counts in the space's available money and net worth (the type's default unless set). */
+  includeInAvailable: z.boolean(),
+  includeInNetWorth: z.boolean(),
   /** HU-E2-06: the type's stored terms; rates as percent strings with four decimals. */
   terms: z.object({
     creditLimit: MoneySchema.nullable(),
@@ -146,6 +151,8 @@ export const CreateAccountBodySchema = z.object({
   lastFour: LastFour.optional(),
   color: Color.optional(),
   icon: Icon.optional(),
+  includeInAvailable: z.boolean().optional(),
+  includeInNetWorth: z.boolean().optional(),
   terms: TermsBodySchema.optional(),
 });
 /** HU-E2-05: `null` clears an attribute (the icon goes back to the type's default). */
@@ -157,24 +164,45 @@ export const UpdateAccountBodySchema = z.object({
   lastFour: LastFour.nullable().optional(),
   color: Color.nullable().optional(),
   icon: Icon.nullable().optional(),
+  /** null returns a switch to the type's default. */
+  includeInAvailable: z.boolean().nullable().optional(),
+  includeInNetWorth: z.boolean().nullable().optional(),
   terms: TermsBodySchema.optional(),
 });
 
 /** HU-E2-05: the common attributes of a create or update body. */
 export const attributesFromBody = (
-  body: Pick<z.infer<typeof UpdateAccountBodySchema>, "institution" | "lastFour" | "color" | "icon">,
+  body: Pick<
+    z.infer<typeof UpdateAccountBodySchema>,
+    "institution" | "lastFour" | "color" | "icon" | "includeInAvailable" | "includeInNetWorth"
+  >,
 ): AttributeChanges => ({
   institution: body.institution,
   lastFour: body.lastFour,
   color: body.color,
   icon: body.icon,
+  includeInAvailable: body.includeInAvailable,
+  includeInNetWorth: body.includeInNetWorth,
 });
 
 export const GetAccountQuerySchema = z.object({ asOf: z.iso.date().optional() });
 export const ListAccountsQuerySchema = GetAccountQuerySchema.extend({
   archived: z.enum(["true", "false"]).optional(),
 });
-export const ListAccountsResponseSchema = z.object({ items: z.array(AccountSchema) });
+export const ListAccountsResponseSchema = z.object({
+  items: z.array(AccountSchema),
+  /** HU-E2-07: over the space's active accounts at `asOf`, whatever `archived` lists. */
+  totals: z.object({ available: MoneySchema, netWorth: MoneySchema }),
+});
+
+/** HU-E2-07: a list answer. */
+export const accountListDto = (list: AccountList): z.infer<typeof ListAccountsResponseSchema> => ({
+  items: list.items.map(accountDto),
+  totals: {
+    available: { amount: list.totals.available.toString(), currency: list.currency },
+    netWorth: { amount: list.totals.netWorth.toString(), currency: list.currency },
+  },
+});
 
 const amountOf = (minor: bigint | null, currency: string) =>
   minor === null ? null : { amount: minor.toString(), currency };
@@ -192,6 +220,7 @@ export const accountDto = (view: AccountView): z.infer<typeof AccountSchema> => 
   lastFour: view.lastFour,
   color: view.color,
   icon: iconOf(view),
+  ...switchesOf(view),
   terms: {
     creditLimit: amountOf(view.terms.creditLimit, view.currency),
     cutOffDay: view.terms.cutOffDay,

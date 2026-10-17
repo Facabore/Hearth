@@ -113,6 +113,13 @@
       "when": 1792234516895,
       "tag": "0015_account_terms",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792238895728,
+      "tag": "0016_account_switches",
+      "breakpoints": true
     }
   ]
 }

@@ -2836,10 +2836,27 @@
                       "items": {
                         "$ref": "#/components/schemas/Account"
                       }
+                    },
+                    "totals": {
+                      "type": "object",
+                      "properties": {
+                        "available": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "netWorth": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        }
+                      },
+                      "required": [
+                        "available",
+                        "netWorth"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
-                    "items"
+                    "items",
+                    "totals"
                   ],
                   "additionalProperties": false
                 }
@@ -2970,6 +2987,12 @@
                       "plane",
                       "smartphone"
                     ]
+                  },
+                  "includeInAvailable": {
+                    "type": "boolean"
+                  },
+                  "includeInNetWorth": {
+                    "type": "boolean"
                   },
                   "terms": {
                     "type": "object",
@@ -3363,6 +3386,18 @@
                       {
                         "type": "null"
                       }
+                    ]
+                  },
+                  "includeInAvailable": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "includeInNetWorth": {
+                    "type": [
+                      "boolean",
+                      "null"
                     ]
                   },
                   "terms": {
@@ -9221,6 +9256,12 @@
               "smartphone"
             ]
           },
+          "includeInAvailable": {
+            "type": "boolean"
+          },
+          "includeInNetWorth": {
+            "type": "boolean"
+          },
           "terms": {
             "type": "object",
             "properties": {
@@ -9415,6 +9456,8 @@
           "lastFour",
           "color",
           "icon",
+          "includeInAvailable",
+          "includeInNetWorth",
           "terms",
           "derived"
         ],

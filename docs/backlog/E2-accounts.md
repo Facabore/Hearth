@@ -321,7 +321,7 @@ Feature: Available and net worth totals
 ```
 
 **Technical notes:**
-- `Account` gains `includeInAvailable` and `includeInNetWorth`, editable with `PATCH /api/v1/spaces/{spaceId}/accounts/{accountId}`. Defaults by type: CASH, BANK, WALLET and SHARED_FUND count in both; SAVINGS, INVESTMENT, CREDIT_CARD, LOAN and OTHER count in net worth only. Either switch may be turned on or off for any type, for example to count a card in available and see money net of the card. The migration sets existing accounts to their type defaults.
+- `Account` gains `includeInAvailable` and `includeInNetWorth`, editable with `PATCH /api/v1/spaces/{spaceId}/accounts/{accountId}`. Defaults by type: CASH, BANK, WALLET and SHARED_FUND count in both; SAVINGS, INVESTMENT, CREDIT_CARD, LOAN and OTHER count in net worth only. Either switch may be turned on or off for any type, for example to count a card in available and see money net of the card. The migration adds two nullable columns and back-fills nothing: a null switch means the type's default, so existing accounts show those defaults, and `PATCH` with `null` returns a switch to its default.
 - Formulas, over the space's active (not archived) accounts and their computed balances (HU-E2-04):
   - `available = Σ balance(a)` over the accounts with `includeInAvailable`;
   - `netWorth = Σ balance(a)` over the accounts with `includeInNetWorth`.
@@ -330,4 +330,5 @@ Feature: Available and net worth totals
 - Computed on read (D7) by `GetAccountBalances`. `GET /api/v1/spaces/{spaceId}/accounts?asOf=<date>` returns `totals: { available, netWorth }` next to `items`, at the same `asOf` as the balances.
 - Totals are per space and never mix spaces: a personal space totals its owner's accounts and a shared space totals its SHARED_FUND accounts (D5). A cross-space "all my money" figure is not part of this story.
 - A card payment is a `TRANSFER` from the paying account to the card (HU-E4-03): no category, never spending. The purchase is the expense, on its date and with its category. In a shared space the split applies to the purchase, never to the payment. Interest and fees become new expenses when they are charged (HU-E8-11 estimates them).
+- Delivered (M3-D Task 16): `GET …/accounts` answers `totals: { available, netWorth }` over the active accounts at `asOf`, whatever `archived` lists; `PATCH` with `null` returns a switch to its type's default. No new error code.
 - **Spec impact:** 5.2 **Account** (the two switches and their defaults), 5.2 **Transaction** (`TRANSFER`: a card payment is a transfer), 5.4 (new derived metrics `available` and `netWorth` per space), section 6 (a new decision recording the switches and the card-payment rule).

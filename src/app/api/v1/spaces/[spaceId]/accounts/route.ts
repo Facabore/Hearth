@@ -2,6 +2,7 @@ import { getContainer } from "@/composition/container";
 import { defineRoute } from "@/composition/route";
 import {
   accountDto,
+  accountListDto,
   attributesFromBody,
   CreateAccountBodySchema,
   ListAccountsQuerySchema,
@@ -25,7 +26,7 @@ export const GET = defineRoute({
       includeArchived: query.archived === "true",
       asOf: asOf.value,
     });
-    return result.ok ? ok({ status: 200, body: { items: result.value.map(accountDto) } }) : result;
+    return result.ok ? ok({ status: 200, body: accountListDto(result.value) }) : result;
   },
 });
 

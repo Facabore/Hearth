@@ -73,6 +73,9 @@ export interface AccountAttributes {
    * type's default (`iconOf`, ruling P50).
    */
   readonly icon: AccountIcon | null;
+  /** HU-E2-07, ruling P51: null means the type's default (`switchesOf`). */
+  readonly includeInAvailable: boolean | null;
+  readonly includeInNetWorth: boolean | null;
 }
 
 /** Every optional field of an account, unset: the common attributes (HU-E2-05) and the terms (HU-E2-06). */
@@ -81,6 +84,8 @@ export const NO_ATTRIBUTES: AccountAttributes & { readonly terms: AccountTerms }
   lastFour: null,
   color: null,
   icon: null,
+  includeInAvailable: null,
+  includeInNetWorth: null,
   terms: NO_TERMS,
 };
 
@@ -92,6 +97,10 @@ const withChanges = (current: AccountAttributes, change: AttributeChanges): Acco
   lastFour: change.lastFour === undefined ? current.lastFour : change.lastFour,
   color: change.color === undefined ? current.color : change.color,
   icon: change.icon === undefined ? current.icon : change.icon,
+  includeInAvailable:
+    change.includeInAvailable === undefined ? current.includeInAvailable : change.includeInAvailable,
+  includeInNetWorth:
+    change.includeInNetWorth === undefined ? current.includeInNetWorth : change.includeInNetWorth,
 });
 
 /** HU-E2-05: the icon an account shows. */
@@ -201,3 +210,12 @@ export const reviseAccount = (
 /** HU-E2-03: archived accounts keep their history but take no new movements. */
 export const archiveAccount = (account: Account, now: Date): Account =>
   account.archivedAt === null ? { ...account, archivedAt: now } : account;
+
+/** HU-E2-07: types that count in available money by default; every type counts in net worth by default. */
+const AVAILABLE_BY_DEFAULT: ReadonlySet<AccountType> = new Set(["CASH", "BANK", "WALLET", "SHARED_FUND"]);
+
+/** HU-E2-07, ruling P51: the switches an account shows: the chosen value, else the type's default. */
+export const switchesOf = (account: Pick<Account, "type" | "includeInAvailable" | "includeInNetWorth">) => ({
+  includeInAvailable: account.includeInAvailable ?? AVAILABLE_BY_DEFAULT.has(account.type),
+  includeInNetWorth: account.includeInNetWorth ?? true,
+});

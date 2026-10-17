@@ -106,9 +106,9 @@ describe("editing and archiving accounts (HU-E2-03)", () => {
   it("archives an account, which leaves the active list but stays available", async () => {
     const { archive, list } = setup();
     expect(unwrap(await archive({ ...asAna, accountId: "acc-nequi" })).archivedAt).toEqual(now);
-    const active = unwrap(await list({ ...asAna, includeArchived: false }));
+    const active = unwrap(await list({ ...asAna, includeArchived: false })).items;
     expect(active.map((a) => a.name)).toEqual(["Bancolombia"]);
-    const all = unwrap(await list({ ...asAna, includeArchived: true }));
+    const all = unwrap(await list({ ...asAna, includeArchived: true })).items;
     expect(all.map((a) => a.name)).toEqual(["Bancolombia", "Nequi"]);
   });
 });
@@ -117,7 +117,7 @@ describe("computed balances (HU-E2-04)", () => {
   it("adds net ledger movements to the opening balance", async () => {
     // income 3,000,000 - expense 85,000 - transfer 500,000 = +2,415,000 on Bancolombia; +500,000 on Nequi
     const { list } = setup({ "acc-bancolombia": 241_500_000n, "acc-nequi": 50_000_000n });
-    const views = unwrap(await list({ ...asAna, includeArchived: false }));
+    const views = unwrap(await list({ ...asAna, includeArchived: false })).items;
     expect(views.map((v) => [v.name, v.balance])).toEqual([
       ["Bancolombia", 441_500_000n],
       ["Nequi", 50_000_000n],

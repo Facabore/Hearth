@@ -138,7 +138,7 @@ describe("type-specific terms (HU-E2-06)", () => {
       nextPaymentDate: null,
     });
     const read = unwrap(await w.get({ ...asAna, accountId: card.id }));
-    const [listed] = unwrap(await w.list({ ...asAna, includeArchived: false }));
+    const [listed] = unwrap(await w.list({ ...asAna, includeArchived: false })).items;
     const archived = unwrap(await w.archive({ ...asAna, accountId: card.id }));
     expect([read.figures, listed?.figures, archived.figures]).toEqual([
       revised.figures,

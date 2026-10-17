@@ -85,15 +85,27 @@ describe("account attributes (HU-E2-05)", () => {
       lastFour: "4821",
       color: "pine",
       icon: "wallet",
+      includeInAvailable: false,
+      includeInNetWorth: true,
     });
     await repo.add(wallet);
     expect(await repo.findById(wallet.id)).toEqual(wallet);
-    await repo.save({ ...wallet, institution: null, lastFour: "1234", color: "ember", icon: null });
+    await repo.save({
+      ...wallet,
+      institution: null,
+      lastFour: "1234",
+      color: "ember",
+      icon: null,
+      includeInAvailable: null,
+      includeInNetWorth: false,
+    });
     expect(await repo.findById(wallet.id)).toMatchObject({
       institution: null,
       lastFour: "1234",
       color: "ember",
       icon: null,
+      includeInAvailable: null,
+      includeInNetWorth: false,
     });
     await expect(
       pool.query(`UPDATE accounts SET last_four = '4111111111111111' WHERE id = $1`, [wallet.id]),

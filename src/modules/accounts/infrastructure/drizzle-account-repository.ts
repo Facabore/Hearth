@@ -55,6 +55,8 @@ export class DrizzleAccountRepository implements AccountRepository {
         lastFour: account.lastFour,
         color: account.color,
         icon: account.icon,
+        includeInAvailable: account.includeInAvailable,
+        includeInNetWorth: account.includeInNetWorth,
         ...account.terms,
       });
   }
@@ -83,6 +85,8 @@ export class DrizzleAccountRepository implements AccountRepository {
         lastFour: account.lastFour,
         color: account.color,
         icon: account.icon,
+        includeInAvailable: account.includeInAvailable,
+        includeInNetWorth: account.includeInNetWorth,
         ...account.terms,
       })
       .where(eq(accounts.id, account.id));

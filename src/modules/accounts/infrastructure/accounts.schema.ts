@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   bigint,
+  boolean,
   check,
   date,
   integer,
@@ -68,6 +69,9 @@ export const accounts = pgTable(
         "smartphone",
       ],
     }),
+    // HU-E2-07, ruling P51: null means the type's default; nothing is back-filled.
+    includeInAvailable: boolean("include_in_available"),
+    includeInNetWorth: boolean("include_in_net_worth"),
     // HU-E2-06, ruling P52: type-specific terms as typed columns; money in minor units, rates in parts per million.
     creditLimit: bigint("credit_limit", { mode: "bigint" }),
     cutOffDay: smallint("cut_off_day"),

@@ -116,7 +116,7 @@ describe("archived spaces only read: accounts (HU-E1-09, Review Focus 4)", () =>
 
   it("still lists its accounts, archived ones on request, and reads each one", async () => {
     const w = world("ana", true);
-    expect(unwrap(await w.list({ ...ana, includeArchived: false })).map((a) => a.id)).toEqual([
+    expect(unwrap(await w.list({ ...ana, includeArchived: false })).items.map((a) => a.id)).toEqual([
       "acc-bancolombia",
     ]);
     expect(unwrap(await w.get({ ...ana, accountId: "acc-bancolombia" }))).toMatchObject({
