@@ -4,7 +4,14 @@ import {
   type SpaceMembership,
   type StoredPeriodSource,
 } from "@/modules/spaces/application";
-import { Money, type Id, type IdGenerator, type Result, type TransactionManager } from "@/shared/kernel";
+import {
+  Money,
+  type Id,
+  type IdGenerator,
+  type Result,
+  type TransactionManager,
+  type UserTimeZones,
+} from "@/shared/kernel";
 
 /** Runs work directly: in-memory adapters have nothing to roll back. */
 export const memoryTm: TransactionManager = { run: (work) => work() };
@@ -58,3 +65,18 @@ export const fakeSpaceAccess = (...memberships: SpaceMembership[]): SpaceAccess 
   });
 
 export const noStoredPeriods: StoredPeriodSource = async () => [];
+
+/** HU-E1-14: each user's zone, `fallback` unless named; records whom it was asked about. */
+export const fixedTimeZones = (
+  byUser: Readonly<Record<string, string>> = {},
+  fallback = "America/Bogota",
+): UserTimeZones & { readonly asked: string[] } => {
+  const asked: string[] = [];
+  return {
+    asked,
+    timeZoneOf: async (userId) => {
+      asked.push(userId);
+      return byUser[userId] ?? fallback;
+    },
+  };
+};

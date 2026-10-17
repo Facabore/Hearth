@@ -1,4 +1,5 @@
 import type { LocalDate } from "./local-date";
+import { localDateIn } from "./time-zone";
 
 export interface Clock {
   now(): Date;
@@ -12,8 +13,4 @@ export class FixedClock implements Clock {
   }
 }
 
-export const todayIn = (clock: Clock, timeZone: string): LocalDate =>
-  // en-CA formats as YYYY-MM-DD
-  new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(
-    clock.now(),
-  ) as LocalDate;
+export const todayIn = (clock: Clock, timeZone: string): LocalDate => localDateIn(clock.now(), timeZone);
