@@ -678,6 +678,7 @@ Feature: User time zone
 - The web sign-up form sends `Intl.DateTimeFormat().resolvedOptions().timeZone`, the browser's zone (HU-E9-01).
 - Consumers: the default date and time of new transactions and the current period of `ListTransactions` (HU-E4-14), and the local hour of reminders (HU-E8-16). Space-level clocks (the recurrence scheduler's "today", closing a plan) keep `APP_TIMEZONE`; this story adds no per-space time zone.
 - The last scenario becomes testable with HU-E4-14.
+- Errors (catalogue, spec 8): `InvalidTimeZone` (422) from `PATCH /api/v1/me`; sign-up never refuses a zone (M3-D Task 3).
 - **Spec impact:** section 3 (America/Bogota becomes the deployment default; each user has a zone), 5.2 **User** (`timezone`: an IANA zone, taken from the browser at sign-up, `APP_TIMEZONE` as the fallback), 7 HTTP conventions (`PATCH /api/v1/me`; time zones are IANA names).
 
 ---

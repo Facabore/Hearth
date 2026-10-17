@@ -7,8 +7,14 @@ import { BetterAuthProvider } from "./better-auth-provider";
 
 const { db, pool } = testDatabase();
 const provider = new BetterAuthProvider(
-  createAuth({ db, secret: "test-secret-0123456789abcdef0123456789", baseURL: "http://localhost:3000" }),
+  createAuth({
+    db,
+    secret: "test-secret-0123456789abcdef0123456789",
+    baseURL: "http://localhost:3000",
+    defaultTimeZone: "America/Bogota",
+  }),
   db,
+  "America/Bogota",
 );
 
 afterAll(() => pool.end());

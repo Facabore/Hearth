@@ -141,12 +141,15 @@ import {
   createSignIn,
   createSignOut,
   createSignUp,
+  createUpdateProfile,
   type SignIn,
   type SignOut,
   type SignUp,
+  type UpdateProfile,
 } from "@/modules/identity/application";
 import { createAuth } from "@/modules/identity/infrastructure/better-auth";
 import { BetterAuthProvider } from "@/modules/identity/infrastructure/better-auth-provider";
+import { DrizzleUserProfiles } from "@/modules/identity/infrastructure/drizzle-user-profiles";
 import {
   createAcceptInvitation,
   createAddGuestMember,
@@ -212,7 +215,12 @@ export interface Container extends RouteDeps {
   readonly pool: Pool;
   readonly tm: DrizzleTransactionManager;
   readonly idempotency: IdempotencyDeps;
-  readonly identity: { readonly signUp: SignUp; readonly signIn: SignIn; readonly signOut: SignOut };
+  readonly identity: {
+    readonly signUp: SignUp;
+    readonly signIn: SignIn;
+    readonly signOut: SignOut;
+    readonly updateProfile: UpdateProfile;
+  };
   readonly spaces: {
     readonly createPersonalSpace: CreatePersonalSpace;
     readonly listMySpaces: ListMySpaces;
@@ -331,9 +339,17 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   const ids = new UuidV7IdGenerator();
   const clock = options.clock ?? new SystemClock();
   const provider = new BetterAuthProvider(
-    createAuth({ db, secret: env.BETTER_AUTH_SECRET, baseURL: env.BETTER_AUTH_URL }),
+    createAuth({
+      db,
+      secret: env.BETTER_AUTH_SECRET,
+      baseURL: env.BETTER_AUTH_URL,
+      defaultTimeZone: env.APP_TIMEZONE,
+    }),
     db,
+    env.APP_TIMEZONE,
   );
+  // HU-E1-14: every user's own zone; the ledger and accounts read it through the kernel's UserTimeZones.
+  const profiles = new DrizzleUserProfiles(tm, env.APP_TIMEZONE);
   const spaceRepository = new DrizzleSpaceRepository(tm);
   const access = createSpaceAccess(spaceRepository);
   const categoriesDeps: CategoriesDeps = {
@@ -551,7 +567,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     sessionResolver: provider,
     idempotency: { tm, store: new DrizzleIdempotencyStore(tm) },
     identity: {
-      signUp: createSignUp({ auth: provider, provisionUser }),
+      signUp: createSignUp({ auth: provider, provisionUser, profiles, defaultTimeZone: env.APP_TIMEZONE }),
+      updateProfile: createUpdateProfile({ profiles }),
       signIn: createSignIn(provider),
       signOut: createSignOut(provider),
     },

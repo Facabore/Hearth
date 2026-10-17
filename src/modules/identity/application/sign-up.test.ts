@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { domainError, err, ok, type AuthUser } from "@/shared/kernel";
 import type { AuthProvider, AuthSession } from "./auth-provider";
-import { createSignUp, normalizeEmail } from "./sign-up";
+import { createSignUp as createSignUpWith, normalizeEmail, type SignUpDeps } from "./sign-up";
 
 const ana: AuthUser = {
   id: "u-ana",
@@ -20,6 +20,13 @@ const provider = (overrides: Partial<AuthProvider> = {}): AuthProvider => ({
 });
 
 const input = { name: "Ana", email: "a@b.co", password: "x" };
+/** HU-E1-14: the zone port and the deployment default; existing tests sign up without a zone. */
+const zones = () => ({
+  profiles: { setTimeZone: vi.fn(async () => undefined) },
+  defaultTimeZone: "America/Bogota",
+});
+const createSignUp = (deps: Pick<SignUpDeps, "auth" | "provisionUser">) =>
+  createSignUpWith({ ...zones(), ...deps });
 
 describe("normalizeEmail", () => {
   it("trims and lowercases", () => {
@@ -101,5 +108,64 @@ describe("SignUp", () => {
       compensation: "failed",
       userId: "u-ana",
     });
+  });
+});
+
+describe("SignUp time zone (HU-E1-14)", () => {
+  const signUpWith = (
+    setTimeZone: SignUpDeps["profiles"]["setTimeZone"],
+    defaultTimeZone = "America/New_York",
+  ) =>
+    createSignUpWith({
+      auth: provider(),
+      provisionUser: async () => ok(undefined),
+      profiles: { setTimeZone },
+      defaultTimeZone,
+    });
+
+  it("stores the browser's zone by its canonical name", async () => {
+    const setTimeZone = vi.fn(async () => undefined);
+    const result = await signUpWith(setTimeZone)({ ...input, timezone: "europe/madrid" });
+    expect(result.ok && result.value.user.timezone).toBe("Europe/Madrid");
+    expect(setTimeZone).toHaveBeenCalledWith("u-ana", "Europe/Madrid");
+  });
+
+  it.each([undefined, "", "Mars/Olympus"])("falls back to APP_TIMEZONE for %j", async (timezone) => {
+    const setTimeZone = vi.fn(async () => undefined);
+    const result = await signUpWith(setTimeZone)({ ...input, timezone });
+    expect(result.ok && result.value.user.timezone).toBe("America/New_York");
+    expect(setTimeZone).toHaveBeenCalledWith("u-ana", "America/New_York");
+  });
+
+  it("writes nothing when the provider already holds the zone", async () => {
+    const setTimeZone = vi.fn(async () => undefined);
+    await signUpWith(setTimeZone, "America/Bogota")(input);
+    expect(setTimeZone).not.toHaveBeenCalled();
+  });
+
+  it("provisions the user with the zone already applied", async () => {
+    const provisionUser = vi.fn(async () => ok(undefined));
+    await createSignUpWith({
+      auth: provider(),
+      provisionUser,
+      profiles: { setTimeZone: async () => undefined },
+      defaultTimeZone: "America/Bogota",
+    })({ ...input, timezone: "europe/madrid" });
+    expect(provisionUser).toHaveBeenCalledWith({ ...ana, timezone: "Europe/Madrid" });
+  });
+
+  it("removes the half-created user, and provisions nobody, when the zone cannot be stored", async () => {
+    const auth = provider();
+    const provisionUser = vi.fn(async () => ok(undefined));
+    const result = await createSignUpWith({
+      auth,
+      provisionUser,
+      profiles: { setTimeZone: async () => Promise.reject(new Error("db down")) },
+      defaultTimeZone: "America/Bogota",
+    })({ ...input, timezone: "Europe/Madrid" });
+    expect(!result.ok && result.error.code).toBe("InternalError");
+    expect(!result.ok && result.error.details).toEqual({ cause: "ProfileWriteThrew" });
+    expect(provisionUser).not.toHaveBeenCalled();
+    expect(auth.deleteUser).toHaveBeenCalledWith("u-ana");
   });
 });
