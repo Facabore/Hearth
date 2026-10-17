@@ -1,8 +1,8 @@
 import { ok, type Money, type Result } from "@/shared/kernel";
 import { reviseAccount, type AccountType, type AttributeChanges } from "../domain/account";
 import { accountForChange } from "./account-for-change";
-import { withBalances, type AccountView } from "./account-view";
-import { minorIn } from "./currency";
+import { todayFor, withBalances, type AccountView } from "./account-view";
+import { minorIn, termsIn, type TermsInput } from "./currency";
 import type { AccountsDeps } from "./deps";
 
 export interface AccountChanges {
@@ -10,6 +10,7 @@ export interface AccountChanges {
   readonly type?: AccountType;
   readonly openingBalance?: Money;
   readonly attributes?: AttributeChanges;
+  readonly terms?: TermsInput;
 }
 
 export type UpdateAccount = (input: {
@@ -32,6 +33,8 @@ export const createUpdateAccount =
           ? ok(undefined)
           : minorIn(space.currency, changes.openingBalance);
       if (!openingBalance.ok) return openingBalance;
+      const terms = termsIn(space.currency, changes.terms);
+      if (!terms.ok) return terms;
       const revised = reviseAccount(
         account,
         {
@@ -39,11 +42,13 @@ export const createUpdateAccount =
           type: changes.type,
           openingBalance: openingBalance.value,
           attributes: changes.attributes,
+          terms: terms.value,
         },
         siblings,
       );
       if (!revised.ok) return revised;
       await deps.accounts.save(revised.value);
-      const [view] = await withBalances(deps.movements, [revised.value], space.currency, null);
+      const today = await todayFor(deps, input.userId);
+      const [view] = await withBalances(deps.movements, [revised.value], space.currency, null, today);
       return ok(view!);
     });

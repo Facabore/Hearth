@@ -3,6 +3,7 @@ import { FixedClock, type LocalDate } from "@/shared/kernel";
 import {
   codeOf,
   fakeSpaceAccess,
+  fixedTimeZones,
   memoryTm,
   membership,
   money,
@@ -45,6 +46,7 @@ const setup = (net: Record<string, bigint> = {}) => {
     movements,
     ids: sequentialIds("acc"),
     clock: new FixedClock(now),
+    userTimeZones: fixedTimeZones(),
     tm: memoryTm,
   };
   return {

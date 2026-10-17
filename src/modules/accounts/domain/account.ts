@@ -1,5 +1,6 @@
 import { domainError, err, ok, type Id, type Result } from "@/shared/kernel";
 import type { AccountType } from "./account-type";
+import { NO_TERMS, revisedTerms, type AccountTerms, type TermsChange } from "./account-terms";
 
 export { ACCOUNT_TYPES, type AccountType } from "./account-type";
 
@@ -75,11 +76,12 @@ export interface AccountAttributes {
 }
 
 /** Every optional field of an account, unset. */
-export const NO_ATTRIBUTES: AccountAttributes = {
+export const NO_ATTRIBUTES: AccountAttributes & { readonly terms: AccountTerms } = {
   institution: null,
   lastFour: null,
   color: null,
   icon: null,
+  terms: NO_TERMS,
 };
 
 /** Undefined keeps an attribute, null clears it. */
@@ -107,6 +109,8 @@ export interface Account extends AccountAttributes {
   readonly ownerUserId: string | null;
   /** Minor units of the space currency; may be negative (credit cards). */
   readonly openingBalance: bigint;
+  /** HU-E2-06: the type's terms; all null for a type without any. */
+  readonly terms: AccountTerms;
   readonly archivedAt: Date | null;
   readonly createdAt: Date;
 }
@@ -135,6 +139,7 @@ export const openAccount = (input: {
   now: Date;
   siblings: readonly Account[];
   attributes?: AttributeChanges;
+  terms?: TermsChange;
 }): Result<Account> => {
   const name = nameOf(input.name);
   if (!name.ok) return name;
@@ -146,6 +151,8 @@ export const openAccount = (input: {
     return err(domainError("PersonalAccountRequiresPersonalSpace"));
   }
   if (nameTaken(input.siblings, name.value)) return err(domainError("AccountNameTaken"));
+  const terms = revisedTerms(input.type, NO_TERMS, input.terms ?? {});
+  if (!terms.ok) return terms;
   return ok({
     id: input.id,
     spaceId: input.spaceId,
@@ -156,6 +163,7 @@ export const openAccount = (input: {
     archivedAt: null,
     createdAt: input.now,
     ...withChanges(NO_ATTRIBUTES, input.attributes ?? {}),
+    terms: terms.value,
   });
 };
 
@@ -170,6 +178,7 @@ export const reviseAccount = (
     readonly type?: AccountType;
     readonly openingBalance?: bigint;
     readonly attributes?: AttributeChanges;
+    readonly terms?: TermsChange;
   },
   siblings: readonly Account[],
 ): Result<Account> => {
@@ -178,11 +187,14 @@ export const reviseAccount = (
   const name = change.name === undefined ? ok(account.name) : nameOf(change.name);
   if (!name.ok) return name;
   if (nameTaken(siblings, name.value, account.id)) return err(domainError("AccountNameTaken"));
+  const terms = revisedTerms(account.type, account.terms, change.terms ?? {});
+  if (!terms.ok) return terms;
   return ok({
     ...account,
     name: name.value,
     openingBalance: change.openingBalance ?? account.openingBalance,
     ...withChanges(account, change.attributes ?? {}),
+    terms: terms.value,
   });
 };
 

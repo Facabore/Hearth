@@ -1,6 +1,6 @@
 import { authorizeSpaceAction } from "@/modules/spaces/application";
 import { domainError, err, ok, type LocalDate, type Result } from "@/shared/kernel";
-import { withBalances, type AccountView } from "./account-view";
+import { todayFor, withBalances, type AccountView } from "./account-view";
 import type { AccountsDeps } from "./deps";
 
 export type ListAccounts = (input: {
@@ -26,7 +26,10 @@ export const createListAccounts =
     const accounts = (await deps.accounts.listBySpace(membership.value.spaceId))
       .filter((a) => input.includeArchived || a.archivedAt === null)
       .sort((a, b) => a.name.localeCompare(b.name, "es"));
-    return ok(await withBalances(deps.movements, accounts, membership.value.currency, input.asOf ?? null));
+    const today = await todayFor(deps, input.userId);
+    return ok(
+      await withBalances(deps.movements, accounts, membership.value.currency, input.asOf ?? null, today),
+    );
   };
 
 export const createGetAccount =
@@ -43,6 +46,7 @@ export const createGetAccount =
       [account],
       membership.value.currency,
       input.asOf ?? null,
+      await todayFor(deps, input.userId),
     );
     return ok(view!);
   };

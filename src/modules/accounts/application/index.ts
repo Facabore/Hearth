@@ -17,3 +17,7 @@ export type { AccountsDeps } from "./deps";
 export { createArchiveAccount, type ArchiveAccount } from "./archive-account";
 export { createGetAccount, createListAccounts, type GetAccount, type ListAccounts } from "./list-accounts";
 export { createUpdateAccount, type AccountChanges, type UpdateAccount } from "./update-account";
+export type { AccountTerms, TermFigures, TermsChange } from "../domain/account-terms";
+export { NO_TERMS } from "../domain/account-terms";
+export { percentText, ratePpmOf } from "../domain/rate";
+export type { TermsInput } from "./currency";

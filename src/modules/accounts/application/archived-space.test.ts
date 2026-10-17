@@ -3,6 +3,7 @@ import { FixedClock, type Result } from "@/shared/kernel";
 import {
   codeOf,
   fakeSpaceAccess,
+  fixedTimeZones,
   memoryTm,
   membership,
   money,
@@ -58,6 +59,7 @@ const world = (where: "ana" | "household", archived: boolean) => {
     movements: new FixedMovements(),
     ids: sequentialIds("acc"),
     clock: new FixedClock(now),
+    userTimeZones: fixedTimeZones(),
     tm: memoryTm,
   };
   return {

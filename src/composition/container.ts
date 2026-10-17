@@ -368,6 +368,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     movements: ledgerQueries,
     ids,
     clock,
+    // HU-E1-14, HU-E2-06: the requester's today for next billing dates; accounts never import identity.
+    userTimeZones: profiles,
     tm,
   };
   // HU-E6-01, D10: plans store their period boundaries; periods without a plan follow the space policy.
