@@ -206,6 +206,7 @@ Feature: Account types and common attributes
 - An INVESTMENT account's balance comes from the ledger only: contributions are transfers into it. Manual market values are HU-E8-17; market data and brokerage sync stay out of scope.
 - Migration: nullable columns; existing accounts get their type's default icon.
 - Currency stays the space currency (HU-E2-01); a currency per account is future work (HU-E8-06).
+- Errors (catalogue, spec 8): `ValidationFailed` (422) for an unknown type, color or icon, a `lastFour` that is not four digits, or an `institution` outside 1–60 characters; `PersonalAccountRequiresPersonalSpace` (409) for the new types in a shared space; `AccountTypeImmutable` (409) (M3-D Task 13).
 - **Spec impact:** 5.2 **Account** (new types, common attributes, sign of liabilities); section 2 Non-goals ("investments": an investment account's ledger balance is in scope; market data and sync are not).
 
 ---

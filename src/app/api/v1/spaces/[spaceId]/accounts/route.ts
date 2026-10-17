@@ -2,6 +2,7 @@ import { getContainer } from "@/composition/container";
 import { defineRoute } from "@/composition/route";
 import {
   accountDto,
+  attributesFromBody,
   CreateAccountBodySchema,
   ListAccountsQuerySchema,
 } from "@/modules/accounts/contracts/accounts.contract";
@@ -38,6 +39,7 @@ export const POST = defineRoute({
       name: body.name,
       type: body.type,
       openingBalance: openingBalance.value,
+      attributes: attributesFromBody(body),
     });
     return result.ok ? ok({ status: 201, body: accountDto(result.value) }) : result;
   },

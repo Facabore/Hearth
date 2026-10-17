@@ -2,6 +2,7 @@ import { getContainer } from "@/composition/container";
 import { defineRoute } from "@/composition/route";
 import {
   accountDto,
+  attributesFromBody,
   GetAccountQuerySchema,
   UpdateAccountBodySchema,
 } from "@/modules/accounts/contracts/accounts.contract";
@@ -37,7 +38,12 @@ export const PATCH = defineRoute({
       spaceId: params.spaceId!,
       userId: user!.id,
       accountId: params.accountId!,
-      changes: { name: body.name, type: body.type, openingBalance: openingBalance.value },
+      changes: {
+        name: body.name,
+        type: body.type,
+        openingBalance: openingBalance.value,
+        attributes: attributesFromBody(body),
+      },
     });
     return result.ok ? ok({ status: 200, body: accountDto(result.value) }) : result;
   },

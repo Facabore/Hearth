@@ -2925,6 +2925,51 @@
                   },
                   "openingBalance": {
                     "$ref": "#/components/schemas/Money"
+                  },
+                  "institution": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "lastFour": {
+                    "type": "string",
+                    "pattern": "^\\d{4}$"
+                  },
+                  "color": {
+                    "type": "string",
+                    "enum": [
+                      "pine",
+                      "ember",
+                      "sand",
+                      "sky",
+                      "plum",
+                      "moss",
+                      "clay",
+                      "slate",
+                      "gold",
+                      "rose"
+                    ]
+                  },
+                  "icon": {
+                    "type": "string",
+                    "enum": [
+                      "banknote",
+                      "landmark",
+                      "wallet",
+                      "credit-card",
+                      "piggy-bank",
+                      "trending-up",
+                      "hand-coins",
+                      "circle-ellipsis",
+                      "users",
+                      "briefcase",
+                      "car",
+                      "gem",
+                      "gift",
+                      "house",
+                      "plane",
+                      "smartphone"
+                    ]
                   }
                 },
                 "required": [
@@ -3084,7 +3129,7 @@
       },
       "patch": {
         "operationId": "updateAccount",
-        "summary": "Rename an account or correct its opening balance (the type never changes)",
+        "summary": "Rename an account, correct its opening balance, or change its institution, last four digits, color or icon (the type never changes)",
         "security": [
           {
             "cookieAuth": []
@@ -3137,6 +3182,79 @@
                   },
                   "openingBalance": {
                     "$ref": "#/components/schemas/Money"
+                  },
+                  "institution": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 60
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "lastFour": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^\\d{4}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "pine",
+                          "ember",
+                          "sand",
+                          "sky",
+                          "plum",
+                          "moss",
+                          "clay",
+                          "slate",
+                          "gold",
+                          "rose"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "icon": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "banknote",
+                          "landmark",
+                          "wallet",
+                          "credit-card",
+                          "piggy-bank",
+                          "trending-up",
+                          "hand-coins",
+                          "circle-ellipsis",
+                          "users",
+                          "briefcase",
+                          "car",
+                          "gem",
+                          "gift",
+                          "house",
+                          "plane",
+                          "smartphone"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 }
               }
@@ -8826,6 +8944,61 @@
                 "type": "null"
               }
             ]
+          },
+          "institution": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastFour": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "color": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "pine",
+                  "ember",
+                  "sand",
+                  "sky",
+                  "plum",
+                  "moss",
+                  "clay",
+                  "slate",
+                  "gold",
+                  "rose"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "icon": {
+            "type": "string",
+            "enum": [
+              "banknote",
+              "landmark",
+              "wallet",
+              "credit-card",
+              "piggy-bank",
+              "trending-up",
+              "hand-coins",
+              "circle-ellipsis",
+              "users",
+              "briefcase",
+              "car",
+              "gem",
+              "gift",
+              "house",
+              "plane",
+              "smartphone"
+            ]
           }
         },
         "required": [
@@ -8835,7 +9008,11 @@
           "ownerUserId",
           "openingBalance",
           "balance",
-          "archivedAt"
+          "archivedAt",
+          "institution",
+          "lastFour",
+          "color",
+          "icon"
         ],
         "additionalProperties": false
       },

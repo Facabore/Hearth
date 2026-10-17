@@ -159,7 +159,10 @@ export const openAccount = (input: {
   });
 };
 
-/** HU-E2-03: rename or correct the opening balance; the type never changes. */
+/**
+ * HU-E2-03 and HU-E2-05: rename, correct the opening balance, and change or clear the common attributes
+ * (undefined keeps one, null clears it); the type never changes.
+ */
 export const reviseAccount = (
   account: Account,
   change: {
