@@ -2039,6 +2039,66 @@
                   "name": {
                     "type": "string",
                     "maxLength": 200
+                  },
+                  "icon": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "SYMBOL"
+                          },
+                          "name": {
+                            "type": "string",
+                            "maxLength": 64
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "name"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "EMOJI"
+                          },
+                          "value": {
+                            "type": "string",
+                            "maxLength": 64
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "value"
+                        ]
+                      }
+                    ],
+                    "type": "object"
+                  },
+                  "color": {
+                    "type": "string",
+                    "enum": [
+                      "PINE",
+                      "SAGE",
+                      "OLIVE",
+                      "SAND",
+                      "MUSTARD",
+                      "AMBER",
+                      "EMBER",
+                      "CORAL",
+                      "ROSE",
+                      "PLUM",
+                      "LAVENDER",
+                      "INDIGO",
+                      "SKY",
+                      "TEAL",
+                      "STEEL",
+                      "GRAPHITE"
+                    ]
                   }
                 },
                 "required": [
@@ -2100,7 +2160,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidCategoryName",
+            "description": "ValidationFailed, InvalidCategoryName, InvalidCategoryIcon",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2168,6 +2228,66 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "icon": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "SYMBOL"
+                          },
+                          "name": {
+                            "type": "string",
+                            "maxLength": 64
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "name"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "EMOJI"
+                          },
+                          "value": {
+                            "type": "string",
+                            "maxLength": 64
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "value"
+                        ]
+                      }
+                    ],
+                    "type": "object"
+                  },
+                  "color": {
+                    "type": "string",
+                    "enum": [
+                      "PINE",
+                      "SAGE",
+                      "OLIVE",
+                      "SAND",
+                      "MUSTARD",
+                      "AMBER",
+                      "EMBER",
+                      "CORAL",
+                      "ROSE",
+                      "PLUM",
+                      "LAVENDER",
+                      "INDIGO",
+                      "SKY",
+                      "TEAL",
+                      "STEEL",
+                      "GRAPHITE"
+                    ]
                   }
                 }
               }
@@ -2226,7 +2346,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidCategoryName",
+            "description": "ValidationFailed, InvalidCategoryName, InvalidCategoryIcon",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2344,6 +2464,66 @@
                   "name": {
                     "type": "string",
                     "maxLength": 200
+                  },
+                  "icon": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "SYMBOL"
+                          },
+                          "name": {
+                            "type": "string",
+                            "maxLength": 64
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "name"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "EMOJI"
+                          },
+                          "value": {
+                            "type": "string",
+                            "maxLength": 64
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "value"
+                        ]
+                      }
+                    ],
+                    "type": "object"
+                  },
+                  "color": {
+                    "type": "string",
+                    "enum": [
+                      "PINE",
+                      "SAGE",
+                      "OLIVE",
+                      "SAND",
+                      "MUSTARD",
+                      "AMBER",
+                      "EMBER",
+                      "CORAL",
+                      "ROSE",
+                      "PLUM",
+                      "LAVENDER",
+                      "INDIGO",
+                      "SKY",
+                      "TEAL",
+                      "STEEL",
+                      "GRAPHITE"
+                    ]
                   }
                 },
                 "required": [
@@ -2405,7 +2585,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidCategoryName",
+            "description": "ValidationFailed, InvalidCategoryName, InvalidCategoryIcon",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2420,7 +2600,7 @@
     "/api/v1/spaces/{spaceId}/category-groups/{groupId}": {
       "patch": {
         "operationId": "renameCategoryGroup",
-        "summary": "Rename a category group",
+        "summary": "Rename a category group and/or change its icon and color",
         "security": [
           {
             "cookieAuth": []
@@ -2456,18 +2636,75 @@
                   "name": {
                     "type": "string",
                     "maxLength": 200
+                  },
+                  "icon": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "SYMBOL"
+                          },
+                          "name": {
+                            "type": "string",
+                            "maxLength": 64
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "name"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "EMOJI"
+                          },
+                          "value": {
+                            "type": "string",
+                            "maxLength": 64
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "value"
+                        ]
+                      }
+                    ],
+                    "type": "object"
+                  },
+                  "color": {
+                    "type": "string",
+                    "enum": [
+                      "PINE",
+                      "SAGE",
+                      "OLIVE",
+                      "SAND",
+                      "MUSTARD",
+                      "AMBER",
+                      "EMBER",
+                      "CORAL",
+                      "ROSE",
+                      "PLUM",
+                      "LAVENDER",
+                      "INDIGO",
+                      "SKY",
+                      "TEAL",
+                      "STEEL",
+                      "GRAPHITE"
+                    ]
                   }
-                },
-                "required": [
-                  "name"
-                ]
+                }
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "The renamed group",
+            "description": "The updated group",
             "content": {
               "application/json": {
                 "schema": {
@@ -2517,7 +2754,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidCategoryName",
+            "description": "ValidationFailed, InvalidCategoryName, InvalidCategoryIcon",
             "content": {
               "application/problem+json": {
                 "schema": {

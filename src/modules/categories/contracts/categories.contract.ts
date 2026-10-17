@@ -50,10 +50,14 @@ export const ListCategoriesResponseSchema = z.object({ items: z.array(CategoryGr
 // Length rules live in the domain (InvalidCategoryName); the cap only bounds payload size.
 const Name = z.string().max(200);
 const ParentId = z.string().min(1).max(64);
-export const CategoryGroupBodySchema = z.object({ name: Name });
+/** HU-E3-05: every create and update body takes an optional icon and color (the cap only bounds payload size). */
+const Style = { icon: IconSchema.optional(), color: ColorSchema.optional() };
+export const CategoryGroupBodySchema = z.object({ name: Name, ...Style });
+/** HU-E3-05, ruling P61: rename and/or restyle; a group can change its style alone. */
+export const UpdateCategoryGroupBodySchema = z.object({ name: Name.optional(), ...Style });
 /** HU-E3-04: a category of `groupId`, or a subcategory of `parentCategoryId`; exactly one. */
 export const CreateCategoryBodySchema = z
-  .object({ groupId: ParentId.optional(), parentCategoryId: ParentId.optional(), name: Name })
+  .object({ groupId: ParentId.optional(), parentCategoryId: ParentId.optional(), name: Name, ...Style })
   .refine((body) => (body.groupId === undefined) !== (body.parentCategoryId === undefined), {
     error: "Send exactly one of groupId and parentCategoryId",
     path: ["groupId"],
@@ -64,6 +68,7 @@ export const UpdateCategoryBodySchema = z
     name: Name.optional(),
     groupId: ParentId.optional(),
     parentCategoryId: ParentId.nullable().optional(),
+    ...Style,
   })
   .refine((body) => body.groupId === undefined || typeof body.parentCategoryId !== "string", {
     error: "A subcategory takes its parent's group",
@@ -135,7 +140,7 @@ export const categoriesPaths: ZodOpenApiPathsObject = {
           "404": "SpaceNotFound, CategoryGroupNotFound, CategoryNotFound",
           "409":
             "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived, SpaceArchived, ParentCategoryArchived",
-          "422": "ValidationFailed, InvalidCategoryName",
+          "422": "ValidationFailed, InvalidCategoryName, InvalidCategoryIcon",
         }),
       },
     },
@@ -154,7 +159,7 @@ export const categoriesPaths: ZodOpenApiPathsObject = {
           "404": "SpaceNotFound, CategoryNotFound, CategoryGroupNotFound",
           "409":
             "CategoryNameTaken, CategoryDepthExceeded, CategoryGroupArchived, SpaceArchived, ParentCategoryArchived",
-          "422": "ValidationFailed, InvalidCategoryName",
+          "422": "ValidationFailed, InvalidCategoryName, InvalidCategoryIcon",
         }),
       },
     },
@@ -187,7 +192,7 @@ export const categoriesPaths: ZodOpenApiPathsObject = {
           ...managed,
           "404": "SpaceNotFound",
           "409": "CategoryGroupNameTaken, SpaceArchived",
-          "422": "ValidationFailed, InvalidCategoryName",
+          "422": "ValidationFailed, InvalidCategoryName, InvalidCategoryIcon",
         }),
       },
     },
@@ -195,17 +200,17 @@ export const categoriesPaths: ZodOpenApiPathsObject = {
   "/api/v1/spaces/{spaceId}/category-groups/{groupId}": {
     patch: {
       operationId: "renameCategoryGroup",
-      summary: "Rename a category group",
+      summary: "Rename a category group and/or change its icon and color",
       ...securedByUser,
       requestParams: { path: GroupPath },
-      requestBody: { content: jsonContent(CategoryGroupBodySchema) },
+      requestBody: { content: jsonContent(UpdateCategoryGroupBodySchema) },
       responses: {
-        "200": { description: "The renamed group", content: jsonContent(CategoryGroupSummarySchema) },
+        "200": { description: "The updated group", content: jsonContent(CategoryGroupSummarySchema) },
         ...problems({
           ...managed,
           "404": "SpaceNotFound, CategoryGroupNotFound",
           "409": "CategoryGroupNameTaken, SpaceArchived",
-          "422": "ValidationFailed, InvalidCategoryName",
+          "422": "ValidationFailed, InvalidCategoryName, InvalidCategoryIcon",
         }),
       },
     },

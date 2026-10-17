@@ -16,6 +16,8 @@ export const PATCH = defineRoute({
       name: body.name,
       groupId: body.groupId,
       parentCategoryId: body.parentCategoryId,
+      icon: body.icon,
+      color: body.color,
     });
     return result.ok ? ok({ status: 200, body: categoryDto(result.value) }) : result;
   },

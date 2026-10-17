@@ -16,6 +16,8 @@ export const POST = defineRoute({
       spaceId: params.spaceId!,
       userId: user!.id,
       name: body.name,
+      icon: body.icon,
+      color: body.color,
     });
     return result.ok ? ok({ status: 201, body: categoryGroupDto(result.value) }) : result;
   },
