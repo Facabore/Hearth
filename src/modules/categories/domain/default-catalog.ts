@@ -86,6 +86,8 @@ export const seedTree = (input: {
         id: input.ids.next<"Category">(),
         spaceId: input.spaceId,
         groupId: group.id,
+        // HU-E3-04: the seed has no subcategories.
+        parentCategoryId: null,
         name: item.names[language],
         key: item.key,
         archivedAt: null,

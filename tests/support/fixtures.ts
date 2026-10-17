@@ -77,6 +77,7 @@ export const categoryFixture = async (
       id: id as Id<"Category">,
       spaceId: space.spaceId,
       groupId,
+      parentCategoryId: null,
       name,
       key: null,
       archivedAt: null,

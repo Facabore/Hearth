@@ -76,7 +76,13 @@ export class DrizzleCategoryRepository implements CategoryRepository {
       })
       .from(categories)
       .where(and(eq(categories.spaceId, spaceId), isNull(categories.deletedAt)));
-    return rows.map((row) => ({ ...row, id: row.id as CategoryId, groupId: row.groupId as CategoryGroupId }));
+    return rows.map((row) => ({
+      ...row,
+      id: row.id as CategoryId,
+      groupId: row.groupId as CategoryGroupId,
+      // HU-E3-04: stored from Task 9a's migration on.
+      parentCategoryId: null,
+    }));
   }
 
   async saveGroup(group: CategoryGroup): Promise<void> {
