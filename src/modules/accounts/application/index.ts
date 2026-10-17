@@ -1,5 +1,13 @@
-export type { Account, AccountId, AccountType } from "../domain/account";
-export { ACCOUNT_TYPES } from "../domain/account";
+export type {
+  Account,
+  AccountAttributes,
+  AccountColor,
+  AccountIcon,
+  AccountId,
+  AccountType,
+  AttributeChanges,
+} from "../domain/account";
+export { ACCOUNT_COLORS, ACCOUNT_ICONS, ACCOUNT_TYPES, iconOf, NO_ATTRIBUTES } from "../domain/account";
 export type { AccountMovements } from "./account-movements";
 export type { AccountRepository } from "./account-repository";
 export type { AccountView } from "./account-view";

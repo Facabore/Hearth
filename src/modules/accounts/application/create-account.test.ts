@@ -47,6 +47,28 @@ describe("CreateAccount (HU-E2-01)", () => {
     expect(accounts.rows).toHaveLength(1);
   });
 
+  it("keeps the common attributes it is given (HU-E2-05)", async () => {
+    const { accounts, create } = setup();
+    const view = unwrap(
+      await create({
+        ...asAna,
+        name: "Nequi",
+        type: "WALLET",
+        openingBalance: money(0n),
+        attributes: { institution: "Nequi", lastFour: "4821", color: "pine", icon: "wallet" },
+      }),
+    );
+    const expected = {
+      type: "WALLET",
+      institution: "Nequi",
+      lastFour: "4821",
+      color: "pine",
+      icon: "wallet",
+    };
+    expect(view).toMatchObject(expected);
+    expect(accounts.rows[0]).toMatchObject(expected);
+  });
+
   it("creates a credit card with a negative opening balance", async () => {
     const { create } = setup();
     const view = unwrap(

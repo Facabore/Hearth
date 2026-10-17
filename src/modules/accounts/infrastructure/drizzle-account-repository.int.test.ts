@@ -3,7 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { testDatabase } from "../../../../tests/support/database";
 import { personalSpaceFixture, type SpaceFixture } from "../../../../tests/support/fixtures";
-import type { Account, AccountId } from "../domain/account";
+import { NO_ATTRIBUTES, type Account, type AccountId } from "../domain/account";
 import { DrizzleAccountRepository } from "./drizzle-account-repository";
 
 const { db, pool } = testDatabase();
@@ -17,6 +17,7 @@ const account = (space: SpaceFixture, overrides: Partial<Account> = {}): Account
   openingBalance: 200_000_000n,
   archivedAt: null,
   createdAt: new Date("2026-10-12T12:00:00Z"),
+  ...NO_ATTRIBUTES,
   ...overrides,
 });
 
@@ -68,5 +69,31 @@ describe("DrizzleAccountRepository", () => {
   it("requires an owner for every account type except SHARED_FUND", async () => {
     const space = await personalSpaceFixture(db, pool);
     await expect(repo.add(account(space, { ownerUserId: null }))).rejects.toThrow();
+  });
+});
+
+describe("account attributes (HU-E2-05)", () => {
+  it("round-trips the new types and the common attributes, and refuses a full card number", async () => {
+    const space = await personalSpaceFixture(db, pool);
+    const wallet = account(space, {
+      name: "Nequi",
+      type: "WALLET",
+      institution: "Nequi",
+      lastFour: "4821",
+      color: "pine",
+      icon: "wallet",
+    });
+    await repo.add(wallet);
+    expect(await repo.findById(wallet.id)).toEqual(wallet);
+    await repo.save({ ...wallet, institution: null, lastFour: "1234", color: "ember", icon: null });
+    expect(await repo.findById(wallet.id)).toMatchObject({
+      institution: null,
+      lastFour: "1234",
+      color: "ember",
+      icon: null,
+    });
+    await expect(
+      pool.query(`UPDATE accounts SET last_four = '4111111111111111' WHERE id = $1`, [wallet.id]),
+    ).rejects.toMatchObject({ constraint: "accounts_last_four" });
   });
 });

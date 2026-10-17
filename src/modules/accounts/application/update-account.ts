@@ -1,5 +1,5 @@
 import { ok, type Money, type Result } from "@/shared/kernel";
-import { reviseAccount, type AccountType } from "../domain/account";
+import { reviseAccount, type AccountType, type AttributeChanges } from "../domain/account";
 import { accountForChange } from "./account-for-change";
 import { withBalances, type AccountView } from "./account-view";
 import { minorIn } from "./currency";
@@ -9,6 +9,7 @@ export interface AccountChanges {
   readonly name?: string;
   readonly type?: AccountType;
   readonly openingBalance?: Money;
+  readonly attributes?: AttributeChanges;
 }
 
 export type UpdateAccount = (input: {
@@ -33,7 +34,12 @@ export const createUpdateAccount =
       if (!openingBalance.ok) return openingBalance;
       const revised = reviseAccount(
         account,
-        { name: changes.name, type: changes.type, openingBalance: openingBalance.value },
+        {
+          name: changes.name,
+          type: changes.type,
+          openingBalance: openingBalance.value,
+          attributes: changes.attributes,
+        },
         siblings,
       );
       if (!revised.ok) return revised;

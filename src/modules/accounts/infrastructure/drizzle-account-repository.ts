@@ -20,6 +20,10 @@ export class DrizzleAccountRepository implements AccountRepository {
       openingBalance: account.openingBalance,
       archivedAt: account.archivedAt,
       createdAt: account.createdAt,
+      institution: account.institution,
+      lastFour: account.lastFour,
+      color: account.color,
+      icon: account.icon,
     });
   }
 
@@ -39,7 +43,15 @@ export class DrizzleAccountRepository implements AccountRepository {
     await this.tm
       .executor()
       .update(accounts)
-      .set({ name: account.name, openingBalance: account.openingBalance, archivedAt: account.archivedAt })
+      .set({
+        name: account.name,
+        openingBalance: account.openingBalance,
+        archivedAt: account.archivedAt,
+        institution: account.institution,
+        lastFour: account.lastFour,
+        color: account.color,
+        icon: account.icon,
+      })
       .where(eq(accounts.id, account.id));
   }
 }

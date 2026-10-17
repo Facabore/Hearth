@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
+import { NO_ATTRIBUTES } from "@/modules/accounts/domain/account";
 import { DrizzleAccountRepository } from "@/modules/accounts/infrastructure/drizzle-account-repository";
 import { DrizzleCategoryRepository } from "@/modules/categories/infrastructure/drizzle-category-repository";
 import { createPersonalSpace, createSharedSpace, type Space } from "@/modules/spaces/domain/space";
@@ -50,6 +51,7 @@ export const accountFixture = async (
     openingBalance,
     archivedAt: null,
     createdAt: new Date(),
+    ...NO_ATTRIBUTES,
   });
   return id;
 };
@@ -141,6 +143,7 @@ export const fundAccountFixture = async (
     openingBalance,
     archivedAt: null,
     createdAt: new Date(),
+    ...NO_ATTRIBUTES,
   });
   return id;
 };

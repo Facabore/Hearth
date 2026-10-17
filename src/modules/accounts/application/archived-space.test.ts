@@ -10,7 +10,7 @@ import {
   unwrap,
 } from "../../../../tests/support/fakes";
 import { FixedMovements, InMemoryAccounts } from "../../../../tests/support/in-memory-accounts";
-import type { Account, AccountId } from "../domain/account";
+import { NO_ATTRIBUTES, type Account, type AccountId } from "../domain/account";
 import { createArchiveAccount } from "./archive-account";
 import { createCreateAccount } from "./create-account";
 import type { AccountsDeps } from "./deps";
@@ -29,6 +29,7 @@ const account = (id: string, name: string, overrides: Partial<Account> = {}): Ac
   openingBalance: 200_000_000n,
   archivedAt: null,
   createdAt: now,
+  ...NO_ATTRIBUTES,
   ...overrides,
 });
 

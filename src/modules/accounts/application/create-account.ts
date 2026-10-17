@@ -1,6 +1,6 @@
 import { requirePermission, requireRole, WRITERS } from "@/modules/spaces/application";
 import { ok, type Money, type Result } from "@/shared/kernel";
-import { openAccount, type AccountType } from "../domain/account";
+import { openAccount, type AccountType, type AttributeChanges } from "../domain/account";
 import { toView, type AccountView } from "./account-view";
 import { minorIn } from "./currency";
 import type { AccountsDeps } from "./deps";
@@ -11,6 +11,7 @@ export interface CreateAccountInput {
   readonly name: string;
   readonly type: AccountType;
   readonly openingBalance: Money;
+  readonly attributes?: AttributeChanges;
 }
 
 export type CreateAccount = (input: CreateAccountInput) => Promise<Result<AccountView>>;
@@ -37,6 +38,7 @@ export const createCreateAccount =
         name: input.name,
         type: input.type,
         openingBalance: openingBalance.value,
+        attributes: input.attributes,
         now: deps.clock.now(),
         siblings: await deps.accounts.listBySpace(space.spaceId),
       });

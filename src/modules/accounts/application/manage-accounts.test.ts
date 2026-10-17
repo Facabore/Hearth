@@ -10,7 +10,7 @@ import {
   unwrap,
 } from "../../../../tests/support/fakes";
 import { FixedMovements, InMemoryAccounts } from "../../../../tests/support/in-memory-accounts";
-import type { Account, AccountId } from "../domain/account";
+import { NO_ATTRIBUTES, type Account, type AccountId } from "../domain/account";
 import { createArchiveAccount } from "./archive-account";
 import type { AccountsDeps } from "./deps";
 import { createGetAccount, createListAccounts } from "./list-accounts";
@@ -27,6 +27,7 @@ const account = (id: string, name: string, overrides: Partial<Account> = {}): Ac
   openingBalance: 200_000_000n,
   archivedAt: null,
   createdAt: now,
+  ...NO_ATTRIBUTES,
   ...overrides,
 });
 
@@ -73,6 +74,18 @@ describe("editing and archiving accounts (HU-E2-03)", () => {
     const { update } = setup();
     const result = await update({ ...asAna, accountId: "acc-bancolombia", changes: { type: "SAVINGS" } });
     expect(codeOf(result)).toBe("AccountTypeImmutable");
+  });
+
+  it("changes and clears the common attributes (HU-E2-05)", async () => {
+    const { update } = setup();
+    const accountId = "acc-bancolombia";
+    const changes = { attributes: { color: "pine", lastFour: "4821" } } as const;
+    expect(unwrap(await update({ ...asAna, accountId, changes }))).toMatchObject({
+      color: "pine",
+      lastFour: "4821",
+    });
+    const cleared = unwrap(await update({ ...asAna, accountId, changes: { attributes: { color: null } } }));
+    expect(cleared).toMatchObject({ color: null, lastFour: "4821" });
   });
 
   it("rejects renaming onto another account's name and foreign currencies", async () => {
