@@ -6,6 +6,7 @@ import {
   eq,
   exists,
   inArray,
+  isNotNull,
   isNull,
   lte,
   notExists,
@@ -337,6 +338,98 @@ export class DrizzleLedgerQueries implements TransactionQuery {
           balance: BigInt(row.balance),
         })),
     };
+  }
+
+  /**
+   * HU-E7-02, spec 5.4: per category and member, Σ the member's payments and Σ their shares over the live expenses of
+   * the space dated within [from, to]. A fund payment has no member, so it counts for nobody (D5). One statement, so
+   * both sums come from one snapshot; sorted by category, then member; `[]` for malformed ids.
+   */
+  async memberSumsByCategory(
+    spaceId: string,
+    from: LocalDate,
+    to: LocalDate,
+  ): Promise<{ categoryId: string; memberId: string; paid: bigint; consumed: bigint }[]> {
+    if (!isUuid(spaceId)) return [];
+    const db = this.tm.executor();
+    type Field = "paid" | "consumed";
+    // Same selection shape in both branches of the UNION ALL.
+    const idOf = (column: AnyColumn) => sql<string | null>`${column}`;
+    const expenses = and(
+      eq(transactions.spaceId, spaceId),
+      eq(transactions.type, "EXPENSE"),
+      isNull(transactions.deletedAt),
+      between(transactions.date, from, to),
+    );
+    const rows = await unionAll(
+      db
+        .select({
+          categoryId: idOf(transactions.categoryId),
+          memberId: idOf(payments.memberId),
+          field: sql<Field>`'paid'::text`,
+          total: sumAsText(payments.amount),
+        })
+        .from(payments)
+        .innerJoin(transactions, eq(transactions.id, payments.transactionId))
+        .where(expenses)
+        .groupBy(transactions.categoryId, payments.memberId),
+      db
+        .select({
+          categoryId: idOf(transactions.categoryId),
+          memberId: idOf(shares.memberId),
+          field: sql<Field>`'consumed'::text`,
+          total: sumAsText(shares.amount),
+        })
+        .from(shares)
+        .innerJoin(transactions, eq(transactions.id, shares.transactionId))
+        .where(expenses)
+        .groupBy(transactions.categoryId, shares.memberId),
+    );
+    const sums = new Map<string, { categoryId: string; memberId: string; paid: bigint; consumed: bigint }>();
+    for (const row of rows) {
+      if (row.categoryId === null || row.memberId === null) continue;
+      const key = `${row.categoryId}/${row.memberId}`;
+      const entry = sums.get(key) ?? {
+        categoryId: row.categoryId,
+        memberId: row.memberId,
+        paid: 0n,
+        consumed: 0n,
+      };
+      entry[row.field] += BigInt(row.total);
+      sums.set(key, entry);
+    }
+    return [...sums.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([, entry]) => entry);
+  }
+
+  /**
+   * HU-E7-03, spec 5.4: Σ the live fund contributions of the space (transfers with a contributing member, HU-E4-09)
+   * dated within [from, to], per member, those from outside the app included; sorted by member; `[]` for malformed ids.
+   */
+  async fundContributionsByMember(
+    spaceId: string,
+    from: LocalDate,
+    to: LocalDate,
+  ): Promise<{ memberId: string; amount: bigint }[]> {
+    if (!isUuid(spaceId)) return [];
+    const rows = await this.tm
+      .executor()
+      .select({ memberId: transactions.payerMemberId, total: sumAsText(transactions.amount) })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.spaceId, spaceId),
+          eq(transactions.type, "TRANSFER"),
+          // A contribution is a transfer with a contributing member (HU-E4-03 vs HU-E4-09); the flatMap below only narrows the type.
+          isNotNull(transactions.payerMemberId),
+          isNull(transactions.deletedAt),
+          between(transactions.date, from, to),
+        ),
+      )
+      .groupBy(transactions.payerMemberId)
+      .orderBy(asc(transactions.payerMemberId));
+    return rows.flatMap((row) =>
+      row.memberId === null ? [] : [{ memberId: row.memberId, amount: BigInt(row.total) }],
+    );
   }
 
   private matching(f: TransactionFilter) {
