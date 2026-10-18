@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { setContainerForTests, type Container } from "@/composition/container";
-import { problemOf, startTestApp, type TestUser } from "../support/app";
+import { problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
 import { planOf } from "../support/budgeting";
-import { cop } from "../support/ledger";
+import { cop, joinHousehold } from "../support/ledger";
 import { getLineDashboard, reportHousehold, spend, type LineDashboardDto } from "../support/reporting";
 
 let app: Container;
@@ -68,5 +68,48 @@ describe("line dashboard over HTTP (HU-E7-01)", () => {
     const r = await reportHousehold();
     const response = await getLineDashboard(r.h.ana, "not-a-uuid", { period: "2026-11" });
     expect(await problemOf(response)).toEqual([404, "SpaceNotFound"]);
+  });
+
+  it("flags Home as overspent after a 300,000 COP Groceries expense on 2026-11-20", async () => {
+    const r = await reportHousehold();
+    await novemberExpenses(r);
+    await spend(r.h.ana, r.category.groceries, 300_000, "2026-11-20");
+    const home = (await dashboardOf(r.h.juan, r.h.spaceId, "2026-11")).lines.find((l) => l.name === "Home");
+    expect(home).toMatchObject({ spent: cop(1_600_000), available: cop(-130_000), overspent: true });
+  });
+
+  it("answers plan null and reports every expense under Unbudgeted for 2027-01, which has no plan", async () => {
+    const r = await reportHousehold();
+    await spend(r.h.ana, r.category.groceries, 100_000, "2027-01-10");
+    const dashboard = await dashboardOf(r.h.ana, r.h.spaceId, "2027-01");
+    expect(dashboard).toMatchObject({ plan: null, lines: [], period: { label: "2027-01" } });
+    expect(dashboard.unbudgeted).toEqual({ spent: cop(100_000), available: cop(-100_000), overspent: true });
+  });
+
+  it("lets VIEWER Sofi read it and hides the space from non-members and malformed ids", async () => {
+    const r = await reportHousehold();
+    const sofi = await joinHousehold(r.h, "Sofi", "VIEWER");
+    expect((await dashboardOf(sofi, r.h.spaceId, "2026-11")).lines).toHaveLength(4);
+    const marta = await registerUser("Marta");
+    expect(await problemOf(await getLineDashboard(marta, r.h.spaceId, { period: "2026-11" }))).toEqual([
+      404,
+      "SpaceNotFound",
+    ]);
+    expect(await problemOf(await getLineDashboard(r.h.ana, "not-a-uuid", { period: "2026-11" }))).toEqual([
+      404,
+      "SpaceNotFound",
+    ]);
+  });
+
+  it("refuses a missing period and a label the space policy does not name", async () => {
+    const r = await reportHousehold();
+    expect(await problemOf(await getLineDashboard(r.h.ana, r.h.spaceId, {}))).toEqual([
+      422,
+      "ValidationFailed",
+    ]);
+    expect(await problemOf(await getLineDashboard(r.h.ana, r.h.spaceId, { period: "2026-11 H1" }))).toEqual([
+      422,
+      "InvalidPeriodLabel",
+    ]);
   });
 });
