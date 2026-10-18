@@ -1,0 +1,98 @@
+import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
+import { GET as linesRoute } from "@/app/api/v1/spaces/[spaceId]/reports/lines/route";
+import { call, type RouteHandler, type TestUser } from "./app";
+import { putCategories, referencePlan } from "./budgeting";
+import { categoryWithKey, cop, newAccount, post, type HouseholdMember, type MoneyDto } from "./ledger";
+
+export interface ReportPeriodDto {
+  label: string;
+  startDate: string;
+  endDate: string;
+}
+export interface ReportPlanDto {
+  id: string;
+  status: string;
+}
+export interface DashboardLineDto {
+  lineId: string;
+  name: string;
+  funding: string;
+  isCatchAll: boolean;
+  planned: MoneyDto;
+  spent: MoneyDto;
+  carryOver: MoneyDto;
+  available: MoneyDto;
+  overspent: boolean;
+}
+export interface LineDashboardDto {
+  spaceId: string;
+  period: ReportPeriodDto;
+  plan: ReportPlanDto | null;
+  lines: DashboardLineDto[];
+  unbudgeted: { spent: MoneyDto; available: MoneyDto; overspent: boolean } | null;
+}
+
+/** GETs `path` with `query` in its search string as `user`; `params` are the route's path parameters. */
+export const getWithQuery = (
+  handler: RouteHandler,
+  user: TestUser,
+  path: string,
+  query: Record<string, string | number>,
+  params: Record<string, string> = {},
+) => {
+  const search = new URLSearchParams(Object.entries(query).map(([key, value]) => [key, String(value)]));
+  return call(handler, "GET", `${path}?${search.toString()}`, { user, params });
+};
+
+/** HU-E7-01: `user` reads the line dashboard of `spaceId`. */
+export const getLineDashboard = (user: TestUser, spaceId: string, query: Record<string, string>) =>
+  getWithQuery(linesRoute, user, `/api/v1/spaces/${spaceId}/reports/lines`, query, { spaceId });
+
+/**
+ * HU-E7 Background: `referencePlan()` (2026-11, DRAFT, no catch-all line, ruling P34) with Rent → Rent, Groceries and
+ * Utilities → Home and Entertainment → Free (Restaurants unmapped), and the SHARED_FUND "Household Fund".
+ */
+export const reportHousehold = async () => {
+  const ref = await referencePlan();
+  const { h, planId, lineId } = ref;
+  const category = {
+    rent: await categoryWithKey(h.ana, "rent"),
+    groceries: h.groceries,
+    utilities: await categoryWithKey(h.ana, "utilities"),
+    entertainment: await categoryWithKey(h.ana, "entertainment"),
+    restaurants: await categoryWithKey(h.ana, "restaurants"),
+  };
+  const map = async (line: string, categoryIds: string[]) => {
+    const response = await putCategories(h.ana, h.spaceId, planId, lineId(line), categoryIds);
+    if (response.status !== 200) throw new Error(`mapping failed with status ${response.status}`);
+  };
+  await map("Rent", [category.rent]);
+  await map("Home", [category.groceries, category.utilities]);
+  await map("Free", [category.entertainment]);
+  return { ...ref, category, fund: await newAccount(h.ana, "Household Fund", 1_500_000, "SHARED_FUND") };
+};
+
+/**
+ * `payer` records an expense of `pesos` in the household on `date`, from their own account or from `fund`; without a
+ * split, so the default split applies (spec 5.3: BY_ALLOCATION under an ACTIVE plan, else EQUAL).
+ */
+export const spend = async (
+  payer: HouseholdMember,
+  categoryId: string,
+  pesos: number,
+  date: string,
+  fund?: string,
+): Promise<void> => {
+  const paidBy =
+    fund === undefined
+      ? { accountId: payer.account }
+      : { payments: [{ memberId: null, accountId: fund, amount: cop(pesos) }] };
+  const response = await post(recordExpense, payer, "expenses", {
+    description: "Expense",
+    date,
+    categoryId,
+    amount: cop(pesos),
+    ...paidBy,
+  });
+  if (response.status !== 201) throw new Error(`expense failed with status ${response.status}`);
+};

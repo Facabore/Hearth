@@ -42,6 +42,12 @@ export const ProblemSchema = z.object({
   field: z.string().optional(),
 });
 
+/** Bigint minor units of `currency` as the wire shape: the amount is a string, never a float. */
+export const moneyOf = (minor: bigint, currency: string): MoneyDto => ({
+  amount: minor.toString(),
+  currency,
+});
+
 export const moneyToDto = (money: Money): MoneyDto => ({
   amount: money.minor.toString(),
   currency: money.currency.code,

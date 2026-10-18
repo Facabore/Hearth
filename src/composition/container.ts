@@ -57,6 +57,7 @@ import {
   type AllocateBudgetLine,
 } from "@/modules/budgeting/application";
 import { DrizzleBudgetPlanRepository } from "@/modules/budgeting/infrastructure/drizzle-budget-plan-repository";
+import { createGetLineDashboard, type GetLineDashboard } from "@/modules/reporting/application";
 import {
   createDeleteTransaction,
   createEditTransaction,
@@ -308,6 +309,9 @@ export interface Container extends RouteDeps {
     readonly closePlan: CloseBudgetPlan;
     readonly resolveDefaultSplit: ResolveDefaultSplit;
   };
+  readonly reporting: {
+    readonly getLineDashboard: GetLineDashboard;
+  };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
     readonly signIn: (ip: string, email: string) => boolean;
@@ -540,6 +544,15 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     timeZone: env.APP_TIMEZONE,
     tm,
   };
+  // HU-E7-01 … HU-E7-05: reports read budgeting's figures and the ledger's sums through ports, on read (D7, P32).
+  const reportingDeps = {
+    access,
+    members: spaceRepository,
+    plans: budgetPlans,
+    spending: ledgerQueries,
+    savingsAccounts,
+    categories: budgetCategories,
+  };
   const invitationRepository = new DrizzleInvitationRepository(tm);
   const invitationsDeps: InvitationsDeps = {
     access,
@@ -725,6 +738,9 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       activatePlan: createActivateBudgetPlan(budgetingDeps),
       closePlan: createCloseBudgetPlan(budgetingDeps),
       resolveDefaultSplit: createResolveDefaultSplit(budgetingDeps),
+    },
+    reporting: {
+      getLineDashboard: createGetLineDashboard(reportingDeps),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.

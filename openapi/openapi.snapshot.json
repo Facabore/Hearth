@@ -9228,6 +9228,206 @@
           }
         }
       }
+    },
+    "/api/v1/spaces/{spaceId}/reports/lines": {
+      "get": {
+        "operationId": "getLineDashboard",
+        "summary": "Planned, spent and available per budget line for a period; computed on read",
+        "description": "Every member reads it, archived spaces included. The period's plan is reported whatever its status; without one, `plan` is null and every expense is under `unbudgeted`.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "period",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The lines of the period's plan in plan order, and what no line consumes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "spaceId": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "$ref": "#/components/schemas/Period"
+                    },
+                    "plan": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "DRAFT",
+                                "ACTIVE",
+                                "CLOSED"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "status"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "lineId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "funding": {
+                            "type": "string",
+                            "enum": [
+                              "DIRECT",
+                              "SHARED_FUND",
+                              "SAVINGS"
+                            ]
+                          },
+                          "isCatchAll": {
+                            "type": "boolean"
+                          },
+                          "planned": {
+                            "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "spent": {
+                            "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "carryOver": {
+                            "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "available": {
+                            "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "overspent": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "lineId",
+                          "name",
+                          "funding",
+                          "isCatchAll",
+                          "planned",
+                          "spent",
+                          "carryOver",
+                          "available",
+                          "overspent"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "unbudgeted": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "spent": {
+                              "$ref": "#/components/schemas/MoneyOutput"
+                            },
+                            "available": {
+                              "$ref": "#/components/schemas/MoneyOutput"
+                            },
+                            "overspent": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "spent",
+                            "available",
+                            "overspent"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "spaceId",
+                    "period",
+                    "plan",
+                    "lines",
+                    "unbudgeted"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed, InvalidPeriodLabel",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
