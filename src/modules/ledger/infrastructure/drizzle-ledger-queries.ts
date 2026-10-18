@@ -432,6 +432,110 @@ export class DrizzleLedgerQueries implements TransactionQuery {
     );
   }
 
+  /**
+   * HU-E7-04, spec 5.4 (D11): Σ the shares of `memberIds`, one user's member rows, over live expenses dated within
+   * [from, to], per space and category, whatever space recorded them; sorted by space, then category; `[]` without
+   * well-formed ids.
+   */
+  async consumptionByCategory(
+    memberIds: readonly string[],
+    from: LocalDate,
+    to: LocalDate,
+  ): Promise<{ spaceId: string; categoryId: string; amount: bigint }[]> {
+    const ids = memberIds.filter(isUuid);
+    if (ids.length === 0) return [];
+    const rows = await this.tm
+      .executor()
+      .select({
+        spaceId: transactions.spaceId,
+        categoryId: transactions.categoryId,
+        total: sumAsText(shares.amount),
+      })
+      .from(shares)
+      .innerJoin(transactions, eq(transactions.id, shares.transactionId))
+      .where(
+        and(
+          inArray(shares.memberId, ids),
+          eq(transactions.type, "EXPENSE"),
+          isNull(transactions.deletedAt),
+          between(transactions.date, from, to),
+        ),
+      )
+      .groupBy(transactions.spaceId, transactions.categoryId)
+      .orderBy(asc(transactions.spaceId), asc(transactions.categoryId));
+    return rows.flatMap((row) =>
+      row.categoryId === null
+        ? []
+        : [{ spaceId: row.spaceId, categoryId: row.categoryId, amount: BigInt(row.total) }],
+    );
+  }
+
+  /**
+   * HU-E7-04, spec 5.4: what `memberIds` paid out within [from, to]: their payments of live expenses and their live
+   * fund contributions, each with the part without an account ("outside the app": a guest's history before a claim).
+   */
+  async cashOut(
+    memberIds: readonly string[],
+    from: LocalDate,
+    to: LocalDate,
+  ): Promise<{
+    payments: bigint;
+    paymentsOutsideTheApp: bigint;
+    fundContributions: bigint;
+    contributionsOutsideTheApp: bigint;
+  }> {
+    const ids = memberIds.filter(isUuid);
+    if (ids.length === 0) {
+      return {
+        payments: 0n,
+        paymentsOutsideTheApp: 0n,
+        fundContributions: 0n,
+        contributionsOutsideTheApp: 0n,
+      };
+    }
+    const db = this.tm.executor();
+    const live = and(isNull(transactions.deletedAt), between(transactions.date, from, to));
+    // One statement, so both sums come from one snapshot: each derived table is a single aggregate row.
+    const paid = db
+      .select({
+        total: sql<string>`coalesce(sum(${payments.amount}), 0)::text`.as("paid_total"),
+        outside:
+          sql<string>`coalesce(sum(${payments.amount}) filter (where ${payments.accountId} is null), 0)::text`.as(
+            "paid_outside",
+          ),
+      })
+      .from(payments)
+      .innerJoin(transactions, eq(transactions.id, payments.transactionId))
+      .where(and(live, eq(transactions.type, "EXPENSE"), inArray(payments.memberId, ids)))
+      .as("paid");
+    const contributed = db
+      .select({
+        total: sql<string>`coalesce(sum(${transactions.amount}), 0)::text`.as("contributed_total"),
+        outside:
+          sql<string>`coalesce(sum(${transactions.amount}) filter (where ${transactions.sourceAccountId} is null), 0)::text`.as(
+            "contributed_outside",
+          ),
+      })
+      .from(transactions)
+      .where(and(live, eq(transactions.type, "TRANSFER"), inArray(transactions.payerMemberId, ids)))
+      .as("contributed");
+    const [row] = await db
+      .select({
+        payments: paid.total,
+        paymentsOutside: paid.outside,
+        contributions: contributed.total,
+        contributionsOutside: contributed.outside,
+      })
+      .from(paid)
+      .crossJoin(contributed);
+    return {
+      payments: BigInt(row?.payments ?? "0"),
+      paymentsOutsideTheApp: BigInt(row?.paymentsOutside ?? "0"),
+      fundContributions: BigInt(row?.contributions ?? "0"),
+      contributionsOutsideTheApp: BigInt(row?.contributionsOutside ?? "0"),
+    };
+  }
+
   private matching(f: TransactionFilter) {
     const db = this.tm.executor();
     return and(

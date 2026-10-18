@@ -165,3 +165,143 @@ describe("per-member sums for the space reports (HU-E7-02, HU-E7-03)", () => {
     expect(await queries.fundContributionsByMember("not-a-uuid", nov1, nov30)).toEqual([]);
   });
 });
+
+describe("one user's sums across their places (HU-E7-04)", () => {
+  it("sums the shares of the user's member rows per space and category within the dates, and no one else's", async () => {
+    const w = await sharedLedgerFixture(db, pool);
+    const ana = w.household.memberId;
+    const anaAtHome = w.personal.memberId;
+    const market = await categoryFixture(db, w.personal, "Market");
+    const byAnaAtHome = { memberId: anaAtHome, accountId: w.bank };
+    await store(
+      expense(w.personal, market, "2026-11-03", pesos(85_000n), byAnaAtHome, [anaAtHome]),
+      expense(
+        w.household,
+        w.groceries,
+        "2026-11-05",
+        pesos(300_000n),
+        { memberId: w.pedro, accountId: null },
+        [ana, w.pedro],
+      ),
+      expense(
+        w.household,
+        w.groceries,
+        "2026-11-26",
+        pesos(200_000n),
+        { memberId: null, accountId: w.fund },
+        [ana, w.pedro],
+      ),
+      // Pedro's own expense, the next period's and a deleted one count for nobody here.
+      expense(
+        w.household,
+        w.groceries,
+        "2026-11-07",
+        pesos(40_000n),
+        { memberId: w.pedro, accountId: null },
+        [w.pedro],
+      ),
+      expense(w.household, w.groceries, "2026-12-01", pesos(60_000n), { memberId: ana, accountId: w.bank }, [
+        ana,
+      ]),
+      softDelete(
+        expense(w.personal, market, "2026-11-04", pesos(10_000n), byAnaAtHome, [anaAtHome]),
+        new Date(),
+      ),
+      // The day before the period is not in it (the lower bound).
+      expense(w.personal, market, "2026-10-31", pesos(25_000n), byAnaAtHome, [anaAtHome]),
+    );
+    const expected = [
+      { spaceId: w.personal.spaceId, categoryId: market, amount: pesos(85_000n) },
+      { spaceId: w.household.spaceId, categoryId: w.groceries, amount: pesos(250_000n) },
+    ];
+    expect(await queries.consumptionByCategory([anaAtHome, ana], nov1, nov30)).toEqual(
+      sorted(expected, (row) => `${row.spaceId}/${row.categoryId}`),
+    );
+    expect(await queries.consumptionByCategory(["not-a-uuid"], nov1, nov30)).toEqual([]);
+  });
+
+  it("sums what the user's member rows paid out, each with the part outside the app", async () => {
+    const w = await sharedLedgerFixture(db, pool);
+    const ana = w.household.memberId;
+    const anaAtHome = w.personal.memberId;
+    const market = await categoryFixture(db, w.personal, "Market");
+    const both = [ana, w.pedro];
+    await store(
+      expense(w.personal, market, "2026-11-03", pesos(85_000n), { memberId: anaAtHome, accountId: w.bank }, [
+        anaAtHome,
+      ]),
+      expense(
+        w.household,
+        w.groceries,
+        "2026-11-05",
+        pesos(2_000_000n),
+        { memberId: ana, accountId: w.bank },
+        both,
+      ),
+      // Recorded while Ana was a guest of the space, before her claim: no account.
+      expense(
+        w.household,
+        w.groceries,
+        "2026-11-06",
+        pesos(30_000n),
+        { memberId: ana, accountId: null },
+        both,
+      ),
+      // Not Ana's payments: Pedro's and the fund's.
+      expense(
+        w.household,
+        w.groceries,
+        "2026-11-07",
+        pesos(300_000n),
+        { memberId: w.pedro, accountId: null },
+        both,
+      ),
+      expense(
+        w.household,
+        w.groceries,
+        "2026-11-08",
+        pesos(1_200_000n),
+        { memberId: null, accountId: w.fund },
+        both,
+      ),
+      contribution(w.household, w.fund, "2026-11-01", pesos(480_000n), ana, w.bank),
+      contribution(w.household, w.fund, "2026-11-02", pesos(20_000n), ana, null),
+      contribution(w.household, w.fund, "2026-12-01", pesos(99_000n), ana, w.bank),
+      // D8: deleted payments and contributions of Ana count for nothing.
+      softDelete(
+        expense(
+          w.household,
+          w.groceries,
+          "2026-11-10",
+          pesos(40_000n),
+          { memberId: ana, accountId: w.bank },
+          both,
+        ),
+        new Date(),
+      ),
+      softDelete(contribution(w.household, w.fund, "2026-11-11", pesos(60_000n), ana, w.bank), new Date()),
+      // A settlement names Ana as payer too, but it settles a debt between members: not cash out of hers here.
+      unwrap(
+        recordSettlement({
+          ...base(w.household, pesos(70_000n), "2026-11-09"),
+          payerMemberId: ana,
+          receivingMemberId: w.pedro,
+          sourceAccountId: null,
+          destinationAccountId: null,
+        }),
+      ),
+    );
+    expect(await queries.cashOut([anaAtHome, ana], nov1, nov30)).toEqual({
+      payments: pesos(2_115_000n),
+      paymentsOutsideTheApp: pesos(30_000n),
+      fundContributions: pesos(500_000n),
+      contributionsOutsideTheApp: pesos(20_000n),
+    });
+    expect(await queries.cashOut([], nov1, nov30)).toEqual({
+      payments: 0n,
+      paymentsOutsideTheApp: 0n,
+      fundContributions: 0n,
+      contributionsOutsideTheApp: 0n,
+    });
+  });
+});

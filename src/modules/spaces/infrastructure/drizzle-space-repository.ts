@@ -8,6 +8,7 @@ import type {
   SpaceMemberRepository,
 } from "../application/space-member-repository";
 import type { SpaceRepository, SpaceSummary } from "../application/space-repository";
+import type { MemberPlace, MemberPlaceRepository } from "../application/member-places";
 import type {
   SpaceMembership,
   SpaceSettings,
@@ -51,7 +52,7 @@ const spaceRow = (space: Space): typeof spaces.$inferInsert => ({
 });
 
 export class DrizzleSpaceRepository
-  implements SpaceRepository, SpaceSettingsRepository, SpaceMemberRepository
+  implements SpaceRepository, SpaceSettingsRepository, SpaceMemberRepository, MemberPlaceRepository
 {
   constructor(private readonly tm: DrizzleTransactionManager) {}
 
@@ -96,6 +97,29 @@ export class DrizzleSpaceRepository
         ),
       )
       .orderBy(asc(spaces.createdAt));
+  }
+
+  async placesOf(userId: string): Promise<MemberPlace[]> {
+    const rows = await this.tm
+      .executor()
+      .select({
+        memberId: spaceMembers.id,
+        spaceId: spaces.id,
+        spaceName: spaces.name,
+        spaceKind: spaces.kind,
+        currency: spaces.currency,
+        periodPolicy: spaces.periodPolicy,
+      })
+      .from(spaceMembers)
+      .innerJoin(spaces, eq(spaces.id, spaceMembers.spaceId))
+      // D15: left rows keep their history and a claim keeps the guest's row, so neither filters by leftAt or kind.
+      .where(eq(spaceMembers.userId, userId))
+      .orderBy(asc(spaces.createdAt), asc(spaceMembers.joinedAt), asc(spaceMembers.id));
+    return rows.map((row) => ({
+      ...row,
+      memberId: row.memberId as SpaceMemberId,
+      spaceId: row.spaceId as SpaceId,
+    }));
   }
 
   async findMembership(spaceId: string, userId: string): Promise<SpaceMembership | null> {
