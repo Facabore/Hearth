@@ -5,11 +5,28 @@ import type {
   PlanSpending,
   PlanStatus,
 } from "@/modules/budgeting/application";
-import type { ReportingDeps } from "@/modules/reporting/application";
+import type { ReportingDeps, SpaceMemberSums } from "@/modules/reporting/application";
 import type { SpaceMember } from "@/modules/spaces/application";
 import { periodByLabel, type LocalDate, type PeriodPolicy } from "@/shared/kernel";
 import { budgetingWorld, HOUSEHOLD, NOW, savingsAccounts } from "./budgeting-world";
 import { unwrap } from "./fakes";
+
+/** The ledger's per-member sums of each period, keyed by the first day it is asked for (D7). */
+export class MemberSumsByPeriod implements SpaceMemberSums {
+  readonly byCategory: Record<
+    string,
+    { categoryId: string; memberId: string; paid: bigint; consumed: bigint }[]
+  > = {};
+  readonly contributions: Record<string, { memberId: string; amount: bigint }[]> = {};
+
+  async memberSumsByCategory(_spaceId: string, from: LocalDate) {
+    return [...(this.byCategory[from] ?? [])];
+  }
+
+  async fundContributionsByMember(_spaceId: string, from: LocalDate) {
+    return [...(this.contributions[from] ?? [])];
+  }
+}
 
 /** PlanSpending of each period, keyed by the first day the ledger is asked for, as it sums them on read (D7). */
 export class SpendingByPeriod implements PlanSpending {
@@ -66,5 +83,6 @@ export const reportingWorld = (
     w.plans.seed(stored.id, parts);
     return stored;
   };
-  return { ...w, spending, deps, plan };
+  const sums = new MemberSumsByPeriod();
+  return { ...w, spending, sums, deps, memberDeps: { ...deps, sums }, plan };
 };

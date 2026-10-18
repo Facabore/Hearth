@@ -78,3 +78,6 @@ export {
   type ResolveDefaultSplit,
   type SplitMethodName,
 } from "./default-split";
+export { lineForCategory } from "../domain/plan-figures";
+export { rolledUpCategory } from "../domain/category-rollup";
+export { ownedByRegisteredMember } from "./line-checks";
