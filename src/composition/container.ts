@@ -58,8 +58,10 @@ import {
 } from "@/modules/budgeting/application";
 import { DrizzleBudgetPlanRepository } from "@/modules/budgeting/infrastructure/drizzle-budget-plan-repository";
 import {
+  createGetFundContributions,
   createGetLineDashboard,
   createGetMemberLineMatrix,
+  type GetFundContributions,
   type GetLineDashboard,
   type GetMemberLineMatrix,
 } from "@/modules/reporting/application";
@@ -317,6 +319,7 @@ export interface Container extends RouteDeps {
   readonly reporting: {
     readonly getLineDashboard: GetLineDashboard;
     readonly getMemberLineMatrix: GetMemberLineMatrix;
+    readonly getFundContributions: GetFundContributions;
   };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
@@ -750,6 +753,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     reporting: {
       getLineDashboard: createGetLineDashboard(reportingDeps),
       getMemberLineMatrix: createGetMemberLineMatrix(reportingDeps),
+      getFundContributions: createGetFundContributions(reportingDeps),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.

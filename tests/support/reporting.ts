@@ -1,6 +1,8 @@
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
 import { GET as linesRoute } from "@/app/api/v1/spaces/[spaceId]/reports/lines/route";
 import { GET as matrixRoute } from "@/app/api/v1/spaces/[spaceId]/reports/member-matrix/route";
+import { GET as fundRoute } from "@/app/api/v1/spaces/[spaceId]/reports/fund-contributions/route";
+import { POST as recordContribution } from "@/app/api/v1/spaces/[spaceId]/fund-contributions/route";
 import { call, type RouteHandler, type TestUser } from "./app";
 import { putCategories, referencePlan } from "./budgeting";
 import { categoryWithKey, cop, newAccount, post, type HouseholdMember, type MoneyDto } from "./ledger";
@@ -123,3 +125,25 @@ export interface MemberMatrixDto {
 /** HU-E7-02: `user` reads the member by line matrix of `spaceId`. */
 export const getMemberMatrix = (user: TestUser, spaceId: string, query: Record<string, string>) =>
   getWithQuery(matrixRoute, user, `/api/v1/spaces/${spaceId}/reports/member-matrix`, query, { spaceId });
+
+export interface FundContributionsDto {
+  spaceId: string;
+  period: ReportPeriodDto;
+  plan: ReportPlanDto | null;
+  members: { memberId: string; expected: MoneyDto; actual: MoneyDto; difference: MoneyDto }[];
+}
+
+/** HU-E7-03: `user` reads the fund contribution tracking of `spaceId`. */
+export const getFundContributions = (user: TestUser, spaceId: string, query: Record<string, string>) =>
+  getWithQuery(fundRoute, user, `/api/v1/spaces/${spaceId}/reports/fund-contributions`, query, { spaceId });
+
+/** HU-E4-09: `member` pays `pesos` into `fund` from their own account on `date`; throws unless 201. */
+export const contribute = async (member: HouseholdMember, fund: string, pesos: number, date: string) => {
+  const response = await post(recordContribution, member, "fund-contributions", {
+    date,
+    amount: cop(pesos),
+    fundAccountId: fund,
+    sourceAccountId: member.account,
+  });
+  if (response.status !== 201) throw new Error(`contribution failed with status ${response.status}`);
+};

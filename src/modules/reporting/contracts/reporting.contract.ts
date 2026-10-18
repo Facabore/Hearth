@@ -14,6 +14,7 @@ import {
 import {
   GAP_STATUSES,
   MATRIX_REASONS,
+  type FundContributionReport,
   type LineDashboard,
   type MemberLineMatrix,
   type ReportPlan,
@@ -136,6 +137,39 @@ export const memberMatrixDto = (matrix: MemberLineMatrix): z.infer<typeof Member
   })),
 });
 
+/** HU-E7-03: each current member's expected and actual contributions to the shared fund (spec 5.4, ruling P36). */
+export const FundContributionsSchema = z.object({
+  spaceId: z.string(),
+  period: PeriodSchema,
+  plan: ReportPlanSchema,
+  /** Every current member in join order, guests included. */
+  members: z.array(
+    z.object({
+      memberId: z.string(),
+      /** Σ the member's assigned amounts on the plan's SHARED_FUND lines; 0 without a plan. */
+      expected: MoneySchema,
+      /** Σ the member's fund contributions dated in the period. */
+      actual: MoneySchema,
+      /** actual − expected; negative while the member still has to pay in. */
+      difference: MoneySchema,
+    }),
+  ),
+});
+
+export const fundContributionsDto = (
+  report: FundContributionReport,
+): z.infer<typeof FundContributionsSchema> => ({
+  spaceId: report.spaceId,
+  period: periodDto(report.period),
+  plan: reportPlanDto(report.plan),
+  members: report.members.map((m) => ({
+    memberId: m.memberId,
+    expected: moneyOf(m.expected, report.currency),
+    actual: moneyOf(m.actual, report.currency),
+    difference: moneyOf(m.difference, report.currency),
+  })),
+});
+
 const SpacePath = z.object({ spaceId: z.string() });
 const reportProblems = problems({
   "401": "Unauthenticated",
@@ -174,6 +208,24 @@ export const reportingPaths: ZodOpenApiPathsObject = {
         "200": {
           description: "The lines of the period's plan, each with every current member in join order",
           content: jsonContent(MemberMatrixSchema),
+        },
+        ...reportProblems,
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/reports/fund-contributions": {
+    get: {
+      operationId: "getFundContributions",
+      summary:
+        "Expected versus actual contributions to the shared fund per member for a period; computed on read",
+      description:
+        "Every member reads it, archived spaces included. Expected comes from the plan's SHARED_FUND lines (0 without a plan); actual counts fund contributions dated in the period.",
+      ...securedByUser,
+      requestParams: { path: SpacePath, query: ReportQuerySchema },
+      responses: {
+        "200": {
+          description: "Every current member in join order",
+          content: jsonContent(FundContributionsSchema),
         },
         ...reportProblems,
       },
