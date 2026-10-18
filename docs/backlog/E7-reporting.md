@@ -113,6 +113,7 @@ Feature: Member by line matrix
 - Query: `GetMemberLineMatrix(spaceId, period)`. Endpoint: `GET /api/v1/spaces/{spaceId}/reports/member-matrix?period=<label>`; reasons and statuses are codes that the web UI translates (HU-E9-10).
 - Metrics per spec 5.4 (lines with rule `NONE` report consumption only): contributed = Σ payments by m on DIRECT lines; consumed = Σ shares of m; gap = contributed − assigned.
 - Golden test: the reference example fixture produces exactly these values.
+- `GET …/reports/member-matrix?period=<label>` is `space.read` and finds the period and its plan like HU-E7-01 (M4 ruling P33). Each line carries `funding`, `rule`, `reason` and every current member in join order, guests included (ruling P7), with `assigned`, `contributed`, `consumed`, `gap` and `status`. Expenses count on the line their category consumes (its mapping, else the catch-all line; unmapped ones without a catch-all are not in the matrix), a subcategory's on its parent category's line (HU-E3-04, M4 ruling P96). Reasons: `NOT_ALLOCATED` (rule NONE: only `consumed`), `TRACKED_AT_FUND_LEVEL` (SHARED_FUND: `contributed` and `gap` null, HU-E7-03 tracks them), `INVALID_ALLOCATION` (`assigned` and `gap` null). Statuses: `OVER_CONTRIBUTED` (gap > 0), `UNDER_CONTRIBUTED` (gap < 0), `ON_TARGET` (0). SAVINGS lines have no `consumed`; their `contributed` is what reached each account the line names, credited to the account's owner, only for accounts of current registered members (ruling P35, P8). Without a plan, `lines` is empty.
 
 ---
 

@@ -1,8 +1,9 @@
 import { z } from "zod";
 import type { ZodOpenApiPathsObject } from "zod-openapi";
-import { FUNDINGS, PLAN_STATUSES } from "@/modules/budgeting/application";
+import { ALLOCATION_RULES, FUNDINGS, PLAN_STATUSES } from "@/modules/budgeting/application";
 import {
   jsonContent,
+  type MoneyDto,
   moneyOf,
   MoneySchema,
   PeriodSchema,
@@ -10,7 +11,14 @@ import {
   problems,
   securedByUser,
 } from "@/shared/http/contracts";
-import type { LineDashboard, ReportPlan, UnbudgetedSpending } from "../application";
+import {
+  GAP_STATUSES,
+  MATRIX_REASONS,
+  type LineDashboard,
+  type MemberLineMatrix,
+  type ReportPlan,
+  type UnbudgetedSpending,
+} from "../application";
 
 /** HU-E7-01 … HU-E7-03: the period's label in the space policy, "2026-11" (MONTHLY) or "2026-11 H1" (SEMI_MONTHLY). */
 export const ReportQuerySchema = z.object({ period: z.string().min(1).max(32) });
@@ -74,6 +82,60 @@ export const lineDashboardDto = (dashboard: LineDashboard): z.infer<typeof LineD
   unbudgeted: unbudgetedDto(dashboard.unbudgeted, dashboard.currency),
 });
 
+/** HU-E7-02: every line of the period's plan with every current member's figures (spec 5.4, ruling P35). */
+export const MemberMatrixSchema = z.object({
+  spaceId: z.string(),
+  period: PeriodSchema,
+  plan: ReportPlanSchema,
+  lines: z.array(
+    z.object({
+      lineId: z.string(),
+      name: z.string(),
+      funding: z.enum(FUNDINGS),
+      rule: z.enum(ALLOCATION_RULES),
+      /** Why figures are null: NONE lines report consumption only, SHARED_FUND lines leave contribution to the fund. */
+      reason: z.enum(MATRIX_REASONS).nullable(),
+      /** Every current member in join order, guests included. */
+      members: z.array(
+        z.object({
+          memberId: z.string(),
+          assigned: MoneySchema.nullable(),
+          contributed: MoneySchema.nullable(),
+          /** Null on SAVINGS lines. */
+          consumed: MoneySchema.nullable(),
+          /** contributed − assigned; positive means the member over-contributed. */
+          gap: MoneySchema.nullable(),
+          status: z.enum(GAP_STATUSES).nullable(),
+        }),
+      ),
+    }),
+  ),
+});
+
+const moneyOrNull = (minor: bigint | null, currency: string): MoneyDto | null =>
+  minor === null ? null : moneyOf(minor, currency);
+
+export const memberMatrixDto = (matrix: MemberLineMatrix): z.infer<typeof MemberMatrixSchema> => ({
+  spaceId: matrix.spaceId,
+  period: periodDto(matrix.period),
+  plan: reportPlanDto(matrix.plan),
+  lines: matrix.lines.map((line) => ({
+    lineId: line.lineId,
+    name: line.name,
+    funding: line.funding,
+    rule: line.rule,
+    reason: line.reason,
+    members: line.members.map((cell) => ({
+      memberId: cell.memberId,
+      assigned: moneyOrNull(cell.assigned, matrix.currency),
+      contributed: moneyOrNull(cell.contributed, matrix.currency),
+      consumed: moneyOrNull(cell.consumed, matrix.currency),
+      gap: moneyOrNull(cell.gap, matrix.currency),
+      status: cell.status,
+    })),
+  })),
+});
+
 const SpacePath = z.object({ spaceId: z.string() });
 const reportProblems = problems({
   "401": "Unauthenticated",
@@ -94,6 +156,24 @@ export const reportingPaths: ZodOpenApiPathsObject = {
         "200": {
           description: "The lines of the period's plan in plan order, and what no line consumes",
           content: jsonContent(LineDashboardSchema),
+        },
+        ...reportProblems,
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/reports/member-matrix": {
+    get: {
+      operationId: "getMemberLineMatrix",
+      summary:
+        "Assigned, contributed, consumed and gap per member and budget line for a period; computed on read",
+      description:
+        "Every member reads it, viewers and archived spaces included. Reasons (NOT_ALLOCATED, TRACKED_AT_FUND_LEVEL, INVALID_ALLOCATION) and statuses (OVER_CONTRIBUTED, UNDER_CONTRIBUTED, ON_TARGET) are codes.",
+      ...securedByUser,
+      requestParams: { path: SpacePath, query: ReportQuerySchema },
+      responses: {
+        "200": {
+          description: "The lines of the period's plan, each with every current member in join order",
+          content: jsonContent(MemberMatrixSchema),
         },
         ...reportProblems,
       },

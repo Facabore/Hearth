@@ -1,5 +1,6 @@
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
 import { GET as linesRoute } from "@/app/api/v1/spaces/[spaceId]/reports/lines/route";
+import { GET as matrixRoute } from "@/app/api/v1/spaces/[spaceId]/reports/member-matrix/route";
 import { call, type RouteHandler, type TestUser } from "./app";
 import { putCategories, referencePlan } from "./budgeting";
 import { categoryWithKey, cop, newAccount, post, type HouseholdMember, type MoneyDto } from "./ledger";
@@ -96,3 +97,29 @@ export const spend = async (
   });
   if (response.status !== 201) throw new Error(`expense failed with status ${response.status}`);
 };
+
+export interface MatrixCellDto {
+  memberId: string;
+  assigned: MoneyDto | null;
+  contributed: MoneyDto | null;
+  consumed: MoneyDto | null;
+  gap: MoneyDto | null;
+  status: string | null;
+}
+export interface MemberMatrixDto {
+  spaceId: string;
+  period: ReportPeriodDto;
+  plan: ReportPlanDto | null;
+  lines: {
+    lineId: string;
+    name: string;
+    funding: string;
+    rule: string;
+    reason: string | null;
+    members: MatrixCellDto[];
+  }[];
+}
+
+/** HU-E7-02: `user` reads the member by line matrix of `spaceId`. */
+export const getMemberMatrix = (user: TestUser, spaceId: string, query: Record<string, string>) =>
+  getWithQuery(matrixRoute, user, `/api/v1/spaces/${spaceId}/reports/member-matrix`, query, { spaceId });

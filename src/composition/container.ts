@@ -57,7 +57,12 @@ import {
   type AllocateBudgetLine,
 } from "@/modules/budgeting/application";
 import { DrizzleBudgetPlanRepository } from "@/modules/budgeting/infrastructure/drizzle-budget-plan-repository";
-import { createGetLineDashboard, type GetLineDashboard } from "@/modules/reporting/application";
+import {
+  createGetLineDashboard,
+  createGetMemberLineMatrix,
+  type GetLineDashboard,
+  type GetMemberLineMatrix,
+} from "@/modules/reporting/application";
 import {
   createDeleteTransaction,
   createEditTransaction,
@@ -311,6 +316,7 @@ export interface Container extends RouteDeps {
   };
   readonly reporting: {
     readonly getLineDashboard: GetLineDashboard;
+    readonly getMemberLineMatrix: GetMemberLineMatrix;
   };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
@@ -546,6 +552,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   };
   // HU-E7-01 … HU-E7-05: reports read budgeting's figures and the ledger's sums through ports, on read (D7, P32).
   const reportingDeps = {
+    // HU-E7-02, HU-E7-03: the ledger sums payments, shares and fund contributions per member in SQL (D7).
+    sums: ledgerQueries,
     access,
     members: spaceRepository,
     plans: budgetPlans,
@@ -741,6 +749,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     },
     reporting: {
       getLineDashboard: createGetLineDashboard(reportingDeps),
+      getMemberLineMatrix: createGetMemberLineMatrix(reportingDeps),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.
