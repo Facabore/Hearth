@@ -9,11 +9,12 @@
 
 ## First deployment
 
-1. Copy `compose.yaml` and `Caddyfile` to a directory on the VPS, e.g. `/opt/hearth`.
+1. Copy `compose.yaml`, `Caddyfile` and the `scripts/` directory to a directory on the VPS, e.g. `/opt/hearth`. The backup containers mount their scripts from `scripts/`.
 2. Create `/opt/hearth/.env` from `.env.production.example`; set `HEARTH_DOMAIN`, generate `POSTGRES_PASSWORD` with `openssl rand -hex 32` (it is embedded in a connection URL, so it must not contain `/`, `+` or `=`) and `BETTER_AUTH_SECRET` with `openssl rand -base64 48`, and set both image tags to the commit SHA built by CI on `main`.
 3. `docker compose pull && docker compose up -d`
 4. Verify:
-   - `docker compose ps` — `migrate` exited 0; `db` and `app` healthy; `caddy` running.
+   - `docker compose ps` — `migrate` exited 0; `db` and `app` healthy; `caddy` and `backup` running.
+   - `docker compose exec backup sh /hearth/backup.sh` → a `backup_written` line (see [Backups and restore](backups.md)).
    - `curl -s https://$HEARTH_DOMAIN/api/v1/health` → `{"status":"ok"}` with a valid certificate.
    - `curl -s https://$HEARTH_DOMAIN/api/v1/openapi.json | head -c 40` → `{"openapi":"3.1.0"…`.
 
@@ -36,8 +37,9 @@ The sign-in and sign-up throttles key on the client address from `X-Forwarded-Fo
 
 ## Updating
 
-1. Set `HEARTH_APP_IMAGE` and `HEARTH_MIGRATOR_IMAGE` in `.env` to the new SHA.
-2. `docker compose pull && docker compose up -d` — `migrate` runs pending migrations before `app` starts.
+1. Take a backup: `docker compose exec backup sh /hearth/backup.sh`.
+2. Copy the release's `compose.yaml`, `Caddyfile` and `scripts/` over the old ones, and set `HEARTH_APP_IMAGE` and `HEARTH_MIGRATOR_IMAGE` in `.env` to the new SHA.
+3. `docker compose pull && docker compose up -d` — `migrate` runs pending migrations before `app` starts.
 
 ## Rolling back
 
@@ -45,9 +47,7 @@ Set both image tags back to the previous SHA and run `docker compose up -d`. Mig
 
 ## Backups
 
-Nightly `pg_dump` and a restore drill arrive with HU-E8-01. Until then, take a manual dump before every update:
-
-    docker compose exec db pg_dump -U hearth -Fc hearth > hearth-$(date +%F).dump
+The `backup` service dumps the database every night at 02:00 (`APP_TIMEZONE`) into the `backups` volume and keeps `BACKUP_RETENTION_DAYS` (default 14) daily files. Schedule, logs, the restore drill and how to restore: [Backups and restore](backups.md).
 
 ## Local production smoke test
 

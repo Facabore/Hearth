@@ -26,5 +26,5 @@ Pinned on 2026-10-11 (HU-E0-01). Each entry was the latest stable release that d
 | next-intl | 4.14.9 | Pinned for E9; installed when the web UI starts |
 | Playwright | 1.64.0 | Pinned for E9; installed when the web UI starts |
 | Tailwind CSS | 4.3.3 | Pinned for E9; installed when the web UI starts |
-| PostgreSQL | 18.6 (`postgres:18.6-alpine`) | Same image in dev, tests and production |
+| PostgreSQL | 18.6 (`postgres:18.6-alpine`) | Same image in dev, tests and production, and for the `backup` service, so `pg_dump` matches the server (its busybox `crond` runs the schedule) |
 | Caddy | 2.11.7 (`caddy:2.11.7-alpine`) | Automatic TLS |

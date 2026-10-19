@@ -65,6 +65,7 @@ nav:
       - "E9 Web UI": backlog/E9-web-ui.md
   - Operations:
       - Deploying to a VPS: operations/deploy.md
+      - Backups and restore: operations/backups.md
       - Stack versions: stack-versions.md
   - Spec:
       - Design spec: superpowers/specs/2026-10-11-hearth-design.md

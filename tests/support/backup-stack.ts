@@ -33,7 +33,7 @@ const dockerOk = (...args: string[]): string => {
 };
 
 /** The scripts compose.yaml mounts into the backup containers, mounted at the same paths: /hearth/<name>. */
-export const HEARTH_SCRIPTS: string[] = ["backup.sh"];
+export const HEARTH_SCRIPTS: string[] = ["backup.sh", "cron-entrypoint.sh"];
 
 export interface RunOptions {
   /** Defaults to POSTGRES_IMAGE, the image of the backup service. */
@@ -42,6 +42,8 @@ export interface RunOptions {
   readonly env?: Readonly<Record<string, string>>;
   /** More volumes by mount target, besides the backups volume at /backups. */
   readonly volumes?: Readonly<Record<string, string>>;
+  /** The scripts to mount at /hearth/<name>; defaults to HEARTH_SCRIPTS. Fewer of them reproduce a missing script. */
+  readonly scripts?: readonly string[];
 }
 
 export interface BackupStack {
@@ -109,7 +111,7 @@ export const startBackupStack = async (): Promise<BackupStack> => {
       "--mount",
       `type=volume,source=${source},target=${target}`,
     ]),
-    ...HEARTH_SCRIPTS.flatMap((name) => {
+    ...(options.scripts ?? HEARTH_SCRIPTS).flatMap((name) => {
       const source = resolve("scripts", name);
       // Docker Desktop creates a missing bind source as an empty directory, which `sh` then runs as a no-op.
       if (!statSync(source, { throwIfNoEntry: false })?.isFile()) throw new Error(`Missing script ${source}`);
