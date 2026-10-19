@@ -28,7 +28,13 @@ export type {
   PreviousIncome,
 } from "./ports";
 export type { BudgetingDeps } from "./deps";
-export { loadPlanView, type BudgetPlanView, type PlanViewDeps } from "./plan-view";
+export {
+  loadPlanView,
+  planViewCache,
+  type BudgetPlanView,
+  type PlanViewCache,
+  type PlanViewDeps,
+} from "./plan-view";
 export { createCreateBudgetPlan, type CreateBudgetPlan } from "./create-budget-plan";
 export { createGetBudgetPlan, type GetBudgetPlan } from "./get-budget-plan";
 export {

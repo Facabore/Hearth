@@ -1,6 +1,12 @@
-import { loadPlanView, type BudgetPlanView, type PlanStatus } from "@/modules/budgeting/application";
+import {
+  loadPlanView,
+  planViewCache,
+  type BudgetPlanView,
+  type PlanStatus,
+  type PlanViewCache,
+} from "@/modules/budgeting/application";
 import { authorizeSpaceAction, type SpaceMembership } from "@/modules/spaces/application";
-import { ok, periodByLabel, type Period, type Result } from "@/shared/kernel";
+import { ok, periodByLabel, type Period, type Result, type StoredPeriod } from "@/shared/kernel";
 import type { ReportingDeps } from "./deps";
 
 /** Who reads which space's report, for which period label of the space policy ("2026-11", "2026-11 H1"). */
@@ -17,21 +23,30 @@ export interface ReportPlan {
 }
 
 /** A period of a space and the plan whose stored period it is, with every figure derived on read (D7). */
-export interface SpaceReport {
-  readonly space: SpaceMembership;
-  readonly period: Period;
+export interface SpaceReport extends ScopedPeriod {
   /** Null when no plan has this period (ruling P33). */
   readonly view: BudgetPlanView | null;
 }
 
-/** The plan whose stored period holds `period`'s first day, whatever its status (ruling P33), with its figures. */
+/** The reader's space, the period a label names in its policy, and the stored periods that resolved it (D10). */
+export interface ScopedPeriod {
+  readonly space: SpaceMembership;
+  readonly period: Period;
+  readonly stored: readonly StoredPeriod[];
+}
+
+/**
+ * The plan whose stored period holds `period`'s first day, whatever its status (ruling P33), with its figures. A
+ * request passes the same `cache` to every view it loads, so each plan is figured once (ruling P105).
+ */
 export const planViewIn = async (
   deps: ReportingDeps,
   space: SpaceMembership,
   period: Period,
+  cache: PlanViewCache,
 ): Promise<BudgetPlanView | null> => {
   const plan = await deps.plans.covering(space.spaceId, period.start);
-  return plan === null ? null : loadPlanView(deps, space, plan);
+  return plan === null ? null : loadPlanView(deps, space, plan, cache);
 };
 
 /**
@@ -41,11 +56,12 @@ export const planViewIn = async (
 export const spaceReport = async (
   deps: ReportingDeps,
   input: SpaceReportInput,
+  cache: PlanViewCache = planViewCache(),
 ): Promise<Result<SpaceReport>> => {
   const scoped = await spacePeriod(deps, input);
   if (!scoped.ok) return scoped;
   const { space, period } = scoped.value;
-  return ok({ space, period, view: await planViewIn(deps, space, period) });
+  return ok({ ...scoped.value, view: await planViewIn(deps, space, period, cache) });
 };
 
 /**
@@ -55,17 +71,14 @@ export const spaceReport = async (
 export const spacePeriod = async (
   deps: Pick<ReportingDeps, "access" | "plans">,
   input: SpaceReportInput,
-): Promise<Result<{ readonly space: SpaceMembership; readonly period: Period }>> => {
+): Promise<Result<ScopedPeriod>> => {
   const reader = await authorizeSpaceAction(deps.access, input.spaceId, input.userId, "space.read");
   if (!reader.ok) return reader;
   const space = reader.value;
-  const period = periodByLabel(
-    space.periodPolicy,
-    await deps.plans.storedPeriods(space.spaceId),
-    input.period,
-  );
+  const stored = await deps.plans.storedPeriods(space.spaceId);
+  const period = periodByLabel(space.periodPolicy, stored, input.period);
   if (!period.ok) return period;
-  return ok({ space, period: period.value });
+  return ok({ space, period: period.value, stored });
 };
 
 export const reportPlanOf = (view: BudgetPlanView | null): ReportPlan | null =>

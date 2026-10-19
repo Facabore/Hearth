@@ -1,3 +1,4 @@
+import { planViewCache } from "@/modules/budgeting/application";
 import { ok, type Period, type Result } from "@/shared/kernel";
 import { changeFrom, periodsEndingWith, tracedLines, type Change } from "../domain/trend";
 import type { ReportingDeps } from "./deps";
@@ -42,21 +43,22 @@ export type GetLineTrend = (input: TrendInput) => Promise<Result<LineTrend>>;
 /**
  * HU-E7-05, spec 5.3: each line of the end period's plan followed back through the window by its origin link, else
  * its name (ruling P38), with what it spent in each period (`loadPlanView`, D7) and the change from the period before;
- * the window reads one period more than it shows, so the first period shown is compared too.
+ * the window reads one period more than it shows, so the first period shown is compared too. Every view of the
+ * window shares one cache, so each plan of the carry-over chain is figured once (ruling P105).
  */
 export const createGetLineTrend =
   (deps: ReportingDeps): GetLineTrend =>
   async (input) => {
-    const report = await spaceReport(deps, {
-      spaceId: input.spaceId,
-      userId: input.userId,
-      period: input.endPeriod,
-    });
+    const cache = planViewCache();
+    const report = await spaceReport(
+      deps,
+      { spaceId: input.spaceId, userId: input.userId, period: input.endPeriod },
+      cache,
+    );
     if (!report.ok) return report;
-    const { space, period, view } = report.value;
-    const stored = await deps.plans.storedPeriods(space.spaceId);
+    const { space, period, stored, view } = report.value;
     const window = periodsEndingWith(space.periodPolicy, stored, period, input.periods + 1);
-    const earlier = await Promise.all(window.slice(0, -1).map((p) => planViewIn(deps, space, p)));
+    const earlier = await Promise.all(window.slice(0, -1).map((p) => planViewIn(deps, space, p, cache)));
     const plans = [...earlier, view].map((v) =>
       v === null
         ? null

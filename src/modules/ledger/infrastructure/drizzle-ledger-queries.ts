@@ -456,6 +456,7 @@ export class DrizzleLedgerQueries implements TransactionQuery {
       .where(
         and(
           inArray(shares.memberId, ids),
+          // Defensive: only expenses carry shares today, so this never drops a row.
           eq(transactions.type, "EXPENSE"),
           isNull(transactions.deletedAt),
           between(transactions.date, from, to),

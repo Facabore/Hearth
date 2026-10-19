@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { node, spent } from "../../../../tests/support/category-trees";
+import { spendingTree } from "./spending-by-group";
 import { cashOutOf, consumptionGroups, type ConsumptionCategory } from "./unified-view";
 
 const pesos = (n: number) => BigInt(n) * 100n;
@@ -126,4 +128,54 @@ describe("unified personal view (HU-E7-04, D11)", () => {
       outsideTheApp: pesos(50_000),
     });
   });
+});
+
+describe("one naming tie-break for every personal report (ruling P106)", () => {
+  // Groceries spent equally in two spaces, neither of them the personal one, so the tie-break names the row.
+  it.each([
+    ["casa", "Departamento", "Mercado"],
+    ["Ezequiel", "Éxito", "Supermercado"],
+    // Equal once case is ignored: the space id decides.
+    ["casa", "Casa", "Mercado"],
+  ])(
+    "names the row as the space that collates first, %s or %s, in the unified view and the breakdown alike",
+    (xName, yName, expected) => {
+      const spaceNames = new Map([
+        ["space-ana", "Personal"],
+        ["space-x", xName],
+        ["space-y", yName],
+      ]);
+      const rows = [spent("space-x", "cat-x-groceries", 10_000), spent("space-y", "cat-y-groceries", 10_000)];
+      const unified = consumptionGroups(
+        rows,
+        [
+          category("space-x", "cat-x-groceries", "Mercado", "groceries"),
+          category("space-y", "cat-y-groceries", "Supermercado", "groceries"),
+        ],
+        { personalSpaceId: "space-ana", spaceNames },
+      );
+      const breakdown = spendingTree(
+        rows,
+        [
+          node(
+            { spaceId: "space-x", id: "grp-x-food", name: "Food", key: "food" },
+            "cat-x-groceries",
+            "Mercado",
+            {
+              key: "groceries",
+            },
+          ),
+          node(
+            { spaceId: "space-y", id: "grp-y-food", name: "Food", key: "food" },
+            "cat-y-groceries",
+            "Supermercado",
+            { key: "groceries" },
+          ),
+        ],
+        { kind: "PERSONAL", personalSpaceId: "space-ana", spaceNames },
+      );
+      expect(unified.map((g) => g.name)).toEqual([expected]);
+      expect(breakdown.groups[0]!.categories.map((c) => c.name)).toEqual([expected]);
+    },
+  );
 });

@@ -45,9 +45,32 @@ const accountsOfMembers = async (
 };
 
 /**
+ * Ruling P105: what one request has figured, shared by every view it loads. Within one request every view of a
+ * space is figured against the same members and categories, so a plan's figures are the same in every view whose
+ * chain reaches it: they are computed once, by plan id, and a request costs O(window + chain) plan computations.
+ * Create one per request with `planViewCache` and pass it to each `loadPlanView` of that request.
+ */
+export interface PlanViewCache {
+  /** The members and categories of each space, by space id. */
+  readonly reads: Map<string, Promise<ViewReads>>;
+  /** The figures of each plan, by plan id; the promise is shared while it is being computed. */
+  readonly figures: Map<string, Promise<PlanFigures>>;
+}
+
+export const planViewCache = (): PlanViewCache => ({ reads: new Map(), figures: new Map() });
+
+/** How a view walks its chain of plans: the plans already on it, and the request's cache if it has one. */
+interface Walk {
+  readonly seen: ReadonlySet<string>;
+  readonly cache?: PlanViewCache;
+}
+
+/**
  * HU-E6-09: what the lines of the plan `plan` was copied from have available, read only when one of its lines
  * carries over (an origin and a mode other than RESET). The chain follows createdFrom, which always names an
  * earlier plan, so it ends; `seen` stops it anyway. Earlier plans are read whatever their status (ruling P15).
+ * The cache is followed only to a plan of an earlier period, as every copy names one (HU-E6-06), so views that share
+ * it never wait on each other; a source that is not earlier (malformed rows) is figured without it, as before.
  */
 const previousAvailable = async (
   deps: ViewDeps,
@@ -56,16 +79,21 @@ const previousAvailable = async (
   context: {
     readonly parts: PlanContents;
     readonly reads: ViewReads;
-    readonly seen: ReadonlySet<string>;
+    readonly walk: Walk;
   },
 ): Promise<PreviousAvailable[]> => {
+  const { seen, cache } = context.walk;
   const rolls = context.parts.lines.some(
     (line) => line.originLineId !== null && line.rolloverMode !== "RESET",
   );
-  if (!rolls || plan.createdFrom === null || context.seen.has(plan.createdFrom)) return [];
+  if (!rolls || plan.createdFrom === null || seen.has(plan.createdFrom)) return [];
   const source = await deps.plans.find(space.spaceId, plan.createdFrom);
   if (source === null) return [];
-  const figures = await figuresOf(deps, space, source, context.reads, new Set([...context.seen, plan.id]));
+  const walk = { seen: new Set([...seen, plan.id]) };
+  const figures =
+    cache !== undefined && source.period.start < plan.period.start
+      ? await cachedFiguresOf(deps, space, source, context.reads, { ...walk, cache })
+      : await figuresOf(deps, space, source, context.reads, walk);
   return figures.lines.map((figure) => ({ lineId: figure.line.id, available: figure.available }));
 };
 
@@ -75,7 +103,7 @@ const figuresOf = async (
   space: SpaceMembership,
   plan: BudgetPlan,
   reads: ViewReads,
-  seen: ReadonlySet<string>,
+  walk: Walk,
 ): Promise<PlanFigures> => {
   const { members, categories } = reads;
   const stored = await deps.plans.contents(plan.id);
@@ -105,18 +133,49 @@ const figuresOf = async (
     memberIds: members.map((m) => m.id),
     parts,
     spending,
-    previousAvailable: await previousAvailable(deps, space, plan, { parts, reads, seen }),
+    previousAvailable: await previousAvailable(deps, space, plan, { parts, reads, walk }),
   });
 };
 
-/** The plan's parts, its space's current members, the spending within its stored dates and its carry-over. */
+/** Ruling P105: `plan`'s figures from the request's cache, computed by the first view that reaches it. */
+const cachedFiguresOf = (
+  deps: ViewDeps,
+  space: SpaceMembership,
+  plan: BudgetPlan,
+  reads: ViewReads,
+  walk: Walk & { readonly cache: PlanViewCache },
+): Promise<PlanFigures> => {
+  const cached = walk.cache.figures.get(plan.id);
+  if (cached !== undefined) return cached;
+  const figures = figuresOf(deps, space, plan, reads, walk);
+  walk.cache.figures.set(plan.id, figures);
+  return figures;
+};
+
+const viewReads = async (deps: ViewDeps, space: SpaceMembership): Promise<ViewReads> => ({
+  members: await deps.members.listCurrent(space.spaceId),
+  categories: await deps.categories.list(space.spaceId),
+});
+
+/**
+ * The plan's parts, its space's current members, the spending within its stored dates and its carry-over. A request
+ * that loads several views passes one `cache` to all of them (ruling P105); without it the view reads everything.
+ */
 export const loadPlanView = async (
   deps: ViewDeps,
   space: SpaceMembership,
   plan: BudgetPlan,
+  cache?: PlanViewCache,
 ): Promise<BudgetPlanView> => {
-  const members = await deps.members.listCurrent(space.spaceId);
-  const categories = await deps.categories.list(space.spaceId);
-  const figures = await figuresOf(deps, space, plan, { members, categories }, new Set());
+  if (cache === undefined) {
+    const figures = await figuresOf(deps, space, plan, await viewReads(deps, space), { seen: new Set() });
+    return { plan, currency: space.currency, figures };
+  }
+  let reads = cache.reads.get(space.spaceId);
+  if (reads === undefined) {
+    reads = viewReads(deps, space);
+    cache.reads.set(space.spaceId, reads);
+  }
+  const figures = await cachedFiguresOf(deps, space, plan, await reads, { seen: new Set(), cache });
   return { plan, currency: space.currency, figures };
 };

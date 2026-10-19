@@ -195,7 +195,7 @@ Plan: [`2026-10-17-m4-insight-api.md`](../superpowers/plans/2026-10-17-m4-insigh
 | P103 | The category's own-spending entry always answers `archived: false`; the category row carries the flag. | Assumptions, 24 |
 | P104 | The personal breakdown's own-spending entry always answers `space: null`; the category row carries the space. | Assumptions, 25 |
 | P105 | One request computes each plan's figures once: the line trend shares a request-scoped cache by plan id, so its cost is O(window + chain). | Assumptions, 26 |
-| P106 | The unified view and the personal spending by group break naming ties the same way: Spanish collation ignoring case, then space name, then id. | Assumptions, 27 |
+| P106 | The unified view and the personal spending by group break naming ties the same way: the space name in Spanish collation ignoring case, then the space id (P82, P95). | Assumptions, 27 |
 
 ### Preflight notes and findings
 

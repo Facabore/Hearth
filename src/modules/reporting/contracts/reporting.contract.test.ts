@@ -4,11 +4,15 @@ import { fromParts } from "@/shared/kernel/local-date";
 import type { SpendingByGroup } from "../application";
 import {
   changeDto,
+  FundContributionsSchema,
+  LineDashboardSchema,
   LineTrendSchema,
+  MemberMatrixSchema,
   signedPercent,
   SpendingByGroupSchema,
   spendingByGroupDto,
   TrendQuerySchema,
+  UnifiedViewSchema,
 } from "./reporting.contract";
 
 describe("signedPercent (HU-E7-05, ruling P38)", () => {
@@ -191,5 +195,38 @@ describe("spendingByGroupDto (HU-E7-06)", () => {
 
   it("produces a body the response schema accepts", () => {
     expect(SpendingByGroupSchema.safeParse(spendingByGroupDto(breakdown)).success).toBe(true);
+  });
+});
+
+describe("nullable fields of the reports (final review M1, M2)", () => {
+  const matrixLine = MemberMatrixSchema.shape.lines.element.shape;
+  const matrixCell = matrixLine.members.element.shape;
+  const unifiedRow = UnifiedViewSchema.shape.consumption.shape.categories.element.shape;
+  const trendPoint = LineTrendSchema.shape.lines.element.shape.points.element.shape;
+
+  it.each([
+    ["dashboard plan", LineDashboardSchema.shape.plan],
+    ["dashboard unbudgeted", LineDashboardSchema.shape.unbudgeted],
+    ["matrix plan", MemberMatrixSchema.shape.plan],
+    ["matrix reason", matrixLine.reason],
+    ["matrix assigned", matrixCell.assigned],
+    ["matrix contributed", matrixCell.contributed],
+    ["matrix consumed", matrixCell.consumed],
+    ["matrix gap", matrixCell.gap],
+    ["matrix status", matrixCell.status],
+    ["fund contributions plan", FundContributionsSchema.shape.plan],
+    ["unified view key", unifiedRow.key],
+    ["unified view space", unifiedRow.space],
+    ["unified view category", unifiedRow.category],
+    ["trend plan", LineTrendSchema.shape.plan],
+    ["trend spent", trendPoint.spent],
+  ])("tells the OpenAPI document when the %s is null", (_, schema) => {
+    expect(schema.safeParse(null).success).toBe(true);
+    expect(schema.description).toMatch(/null/i);
+  });
+
+  it("never answers a null name for a unified view's custom category: it is always the group's name", () => {
+    expect(unifiedRow.category.safeParse({ id: "c", name: "Mascotas" }).success).toBe(true);
+    expect(unifiedRow.category.safeParse({ id: "c", name: null }).success).toBe(false);
   });
 });

@@ -176,7 +176,7 @@ export interface UnifiedViewDto {
       key: string | null;
       name: string;
       space: { id: string; name: string } | null;
-      category: { id: string; name: string | null } | null;
+      category: { id: string; name: string } | null;
       amount: MoneyDto;
     }[];
   };

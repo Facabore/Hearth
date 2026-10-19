@@ -1,5 +1,5 @@
 import { placeIn, treeById, type TreeCategory } from "./category-tree";
-import type { CategoryConsumption } from "./unified-view";
+import { compareText, namingPart, type CategoryConsumption } from "./unified-view";
 
 /** A space a personal row keeps apart, so the web UI writes "space / group" (HU-E9-11). */
 export interface SpaceRef {
@@ -98,8 +98,6 @@ const add = (row: Row, spaceId: string, name: string | null, archived: boolean, 
   else part.amount += amount;
 };
 
-/** Case ignored, accents not, as `ListCategories` sorts names (ruling P82). */
-const compareText = (a: string, b: string): number => a.localeCompare(b, "es", { sensitivity: "accent" });
 const ordinal = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
 /** Total descending; then the entry without a subcategory last, name, space name and id (rulings P75, P82). */
@@ -179,15 +177,8 @@ export const spendingTree = (
       n.categoryKey === null || n.parentCategoryId !== null ? [] : [[n.categoryKey, n.categoryName] as const],
     ),
   );
-  /** The part with the most spending, ties by space name, then id: where a merged row is named otherwise. */
-  const largest = (row: Row): Part =>
-    [...row.parts.entries()].sort(([a, x], [b, y]) =>
-      x.amount !== y.amount
-        ? x.amount > y.amount
-          ? -1
-          : 1
-        : compareText(spaceName(a), spaceName(b)) || ordinal(a, b),
-    )[0]![1];
+  /** The part with the most spending, ties by space name, then id (ruling P106): where a merged row is named otherwise. */
+  const largest = (row: Row): Part => namingPart(row.parts, spaceName);
   const nameOf = (row: Row, names: ReadonlyMap<string, string>): string =>
     (row.id === null && row.key !== null ? names.get(row.key) : undefined) ?? largest(row).name ?? "";
   const node = (row: Row, parentTotal: bigint) => ({

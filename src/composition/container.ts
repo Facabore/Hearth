@@ -522,9 +522,12 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     clock,
     tm,
   };
+  // HU-E1-02: the user's personal space, created at sign-up; undefined only for a user without one.
+  const personalSpaceOf = async (userId: string) =>
+    (await spaceRepository.listForUser(userId)).find((s) => s.kind === "PERSONAL");
   // D17: only the caller's own personal-space income is ever read for a capacity suggestion.
   const previousIncome: PreviousIncome = async (userId, from, to) => {
-    const personal = (await spaceRepository.listForUser(userId)).find((s) => s.kind === "PERSONAL");
+    const personal = await personalSpaceOf(userId);
     if (!personal) return null;
     const { income } = await ledgerQueries.totals({ spaceId: personal.id, from, to });
     return { amount: income, currency: personal.currency };
@@ -571,9 +574,10 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   };
   // HU-E7-04 (ruling P37): the caller's own SAVINGS accounts live in their personal space (HU-E2-01), archived too.
   const savingsAccountsOf = async (userId: string): Promise<string[]> => {
-    const personal = (await spaceRepository.listForUser(userId)).find((s) => s.kind === "PERSONAL");
+    const personal = await personalSpaceOf(userId);
     if (!personal) return [];
     const accounts = await accountsDeps.accounts.listBySpace(personal.id);
+    // Defensive: a personal space only holds its owner's accounts, so the owner filter never drops one today.
     return accounts.filter((a) => a.type === "SAVINGS" && a.ownerUserId === userId).map((a) => a.id);
   };
   // HU-E7-01 … HU-E7-05: reports read budgeting's figures and the ledger's sums through ports, on read (D7, P32).

@@ -8,7 +8,7 @@ export interface UnifiedGroup {
   /** A merged group's name in the personal space, else in the space spending most in it (ruling P76). */
   readonly name: string;
   readonly space: { readonly id: string; readonly name: string } | null;
-  readonly category: { readonly id: string; readonly name: string | null } | null;
+  readonly category: { readonly id: string; readonly name: string } | null;
   readonly amount: bigint;
 }
 

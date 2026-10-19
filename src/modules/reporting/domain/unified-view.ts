@@ -44,6 +44,26 @@ interface Group {
 
 const ordinal = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
+/** Case ignored, accents not, as `ListCategories` sorts names (ruling P82). */
+export const compareText = (a: string, b: string): number =>
+  a.localeCompare(b, "es", { sensitivity: "accent" });
+
+/**
+ * Rulings P76, P106: the space part that names a merged row the personal space does not name: the most spending,
+ * ties by space name (`compareText`), then space id. Every personal report names its merged rows with it.
+ */
+export const namingPart = <P extends { readonly amount: bigint }>(
+  parts: ReadonlyMap<string, P>,
+  spaceName: (spaceId: string) => string,
+): P =>
+  [...parts.entries()].sort(([a, x], [b, y]) =>
+    x.amount !== y.amount
+      ? x.amount > y.amount
+        ? -1
+        : 1
+      : compareText(spaceName(a), spaceName(b)) || ordinal(a, b),
+  )[0]![1];
+
 /**
  * HU-E7-04, spec 5.4, D11: consumption by catalog key, or by space and category for custom categories; a
  * subcategory's consumption counts in its parent category (HU-E3-04: under the parent's key, or as the parent's custom
@@ -89,13 +109,7 @@ export const consumptionGroups = (
   const spaceName = (spaceId: string) => naming.spaceNames.get(spaceId) ?? "";
   const nameOf = (group: Group): string =>
     (group.key === null ? undefined : personalNames.get(group.key)) ??
-    [...group.parts.entries()].sort(([a, x], [b, y]) =>
-      x.amount !== y.amount
-        ? x.amount > y.amount
-          ? -1
-          : 1
-        : ordinal(spaceName(a), spaceName(b)) || ordinal(a, b),
-    )[0]![1].name;
+    namingPart(group.parts, spaceName).name;
   return [...groups.entries()]
     .sort(([a, x], [b, y]) => (x.amount !== y.amount ? (x.amount > y.amount ? -1 : 1) : ordinal(a, b)))
     .map(([, group]) => ({

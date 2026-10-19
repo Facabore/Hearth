@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as acceptClaim } from "@/app/api/v1/claims/[token]/accept/route";
 import { POST as archiveAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/archive/route";
 import { GET as personalSpendingByGroupRoute } from "@/app/api/v1/me/reports/spending-by-group/route";
+import { GET as unifiedViewRoute } from "@/app/api/v1/me/unified-view/route";
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
 import { POST as recordIncome } from "@/app/api/v1/spaces/[spaceId]/incomes/route";
 import { POST as recordSettlement } from "@/app/api/v1/spaces/[spaceId]/settlements/route";
@@ -157,7 +158,9 @@ describe("unified personal view over HTTP (HU-E7-04)", () => {
     expect(view.consumption.total).toEqual(cop(1_575_000));
   });
 
-  it("refuses a missing period and a label the caller's personal policy does not name", async () => {
+  it("answers 401 without a session, and refuses a missing period and a label the caller's policy does not name", async () => {
+    const anonymous = await call(unifiedViewRoute, "GET", "/api/v1/me/unified-view?period=2026-11");
+    expect(await problemOf(anonymous)).toEqual([401, "Unauthenticated"]);
     const ana = await registerUser("Ana");
     expect(await problemOf(await getUnifiedView(ana, {}))).toEqual([422, "ValidationFailed"]);
     expect(await problemOf(await getUnifiedView(ana, { period: "2026-11 H1" }))).toEqual([

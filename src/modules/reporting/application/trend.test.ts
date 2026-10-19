@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import type { BudgetLineId } from "@/modules/budgeting/application";
+import { describe, expect, it, vi } from "vitest";
+import type { BudgetLineId, RolloverMode } from "@/modules/budgeting/application";
 import { fromParts, type PeriodPolicy } from "@/shared/kernel";
 import { aLine } from "../../../../tests/support/budget-fixtures";
 import { HOUSEHOLD } from "../../../../tests/support/budgeting-world";
@@ -14,9 +14,13 @@ const capacities = [{ memberId: "member-ana", amount: pesos(4_000_000) }];
 
 /**
  * Household with a chain of copied plans: Home in each `label`, mapped to Groceries, copied from the previous one,
- * and the Groceries spending of each period by its first day.
+ * with `rolloverMode` (RESET unless given), and the Groceries spending of each period by its first day.
  */
-const chain = async (policy: PeriodPolicy, spentFrom: readonly (readonly [string, string, number])[]) => {
+const chain = async (
+  policy: PeriodPolicy,
+  spentFrom: readonly (readonly [string, string, number])[],
+  rolloverMode: RolloverMode = "RESET",
+) => {
   const w = reportingWorld({ periodPolicy: policy });
   let previous: { planId: string; lineId: string } | null = null;
   for (const [label, from, spent] of spentFrom) {
@@ -29,6 +33,7 @@ const chain = async (policy: PeriodPolicy, spentFrom: readonly (readonly [string
           aLine("Home", pesos(1_470_000), {
             id: lineId as BudgetLineId,
             originLineId: previous?.lineId ?? null,
+            rolloverMode,
           }),
         ],
         mappings: [{ lineId, categoryId: "cat-groceries" }],
@@ -220,6 +225,42 @@ describe("line trend (HU-E7-05)", () => {
       ["2026-10", pesos(1_350_000), null, null, "NEW"],
       ["2026-11", pesos(1_300_000), -pesos(50_000), -370, "DECREASED"],
     ]);
+  });
+
+  it.each([6, 24])(
+    "figures each plan of a 30-plan carry-over chain once for a %i-period trend, not once per view (ruling P105)",
+    async (periods) => {
+      // Two and a half years of monthly copies, 2024-06 to 2026-11, whose Home rolls its leftover over each month.
+      const months = Array.from({ length: 30 }, (_, i) => {
+        const year = 2024 + Math.floor((5 + i) / 12);
+        const month = String(((5 + i) % 12) + 1).padStart(2, "0");
+        return [`${year}-${month}`, `${year}-${month}-01`, 1_000_000 + i * 10_000] as const;
+      });
+      const w = await chain({ kind: "MONTHLY", day: 1 }, months, "ROLLOVER");
+      const contents = vi.spyOn(w.plans, "contents");
+      const find = vi.spyOn(w.plans, "find");
+      const members = vi.spyOn(w.spaces, "listCurrent");
+      w.spending.expensesAsked.length = 0;
+      const trend = unwrap(await trendOf(w, "2026-11", periods));
+      expect(points(trend, "Home").map((p) => p[1])).toEqual(
+        months.slice(-periods).map(([, , spent]) => pesos(spent)),
+      );
+      // Every plan of the chain is figured once, whatever the window: 30 plans, 29 of them copies of the one before.
+      expect(contents).toHaveBeenCalledTimes(30);
+      expect(find).toHaveBeenCalledTimes(29);
+      expect(w.spending.expensesAsked).toHaveLength(30);
+      expect(members).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("reads the space's stored periods once: the window reuses the ones that resolved the end period", async () => {
+    const w = await chain({ kind: "MONTHLY", day: 1 }, [
+      ["2026-10", "2026-10-01", 1_350_000],
+      ["2026-11", "2026-11-01", 1_300_000],
+    ]);
+    const stored = vi.spyOn(w.plans, "storedPeriods");
+    unwrap(await trendOf(w, "2026-11", 2));
+    expect(stored).toHaveBeenCalledTimes(1);
   });
 
   it("hides the space from non-members and refuses an end period the policy does not name", async () => {

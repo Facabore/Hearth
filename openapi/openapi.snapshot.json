@@ -9302,7 +9302,8 @@
                         {
                           "type": "null"
                         }
-                      ]
+                      ],
+                      "description": "The plan the report reads, whatever its status; null when no plan has the period."
                     },
                     "lines": {
                       "type": "array",
@@ -9381,7 +9382,8 @@
                         {
                           "type": "null"
                         }
-                      ]
+                      ],
+                      "description": "What no line consumes, every expense when the period has no plan; null when the plan has a catch-all line."
                     }
                   },
                   "required": [
@@ -9502,7 +9504,8 @@
                         {
                           "type": "null"
                         }
-                      ]
+                      ],
+                      "description": "The plan the report reads, whatever its status; null when no plan has the period."
                     },
                     "lines": {
                       "type": "array",
@@ -9545,7 +9548,8 @@
                               {
                                 "type": "null"
                               }
-                            ]
+                            ],
+                            "description": "Why some member figures are null: NOT_ALLOCATED (rule NONE) reports consumption only, TRACKED_AT_FUND_LEVEL (SHARED_FUND) leaves contribution and gap to the fund, INVALID_ALLOCATION assigns nobody; null when the line is allocated, valid and tracked per member."
                           },
                           "members": {
                             "type": "array",
@@ -9563,7 +9567,8 @@
                                     {
                                       "type": "null"
                                     }
-                                  ]
+                                  ],
+                                  "description": "Null when the line is not allocated (rule NONE), its allocation is invalid, or the allocation names no amount for the member."
                                 },
                                 "contributed": {
                                   "anyOf": [
@@ -9573,7 +9578,8 @@
                                     {
                                       "type": "null"
                                     }
-                                  ]
+                                  ],
+                                  "description": "Null when reason is NOT_ALLOCATED or TRACKED_AT_FUND_LEVEL."
                                 },
                                 "consumed": {
                                   "anyOf": [
@@ -9583,7 +9589,8 @@
                                     {
                                       "type": "null"
                                     }
-                                  ]
+                                  ],
+                                  "description": "Null on SAVINGS lines, whose spending is transfers, not shares."
                                 },
                                 "gap": {
                                   "anyOf": [
@@ -9593,7 +9600,8 @@
                                     {
                                       "type": "null"
                                     }
-                                  ]
+                                  ],
+                                  "description": "contributed − assigned; positive means the member over-contributed. Null when reason is not null or assigned is null."
                                 },
                                 "status": {
                                   "anyOf": [
@@ -9608,7 +9616,8 @@
                                     {
                                       "type": "null"
                                     }
-                                  ]
+                                  ],
+                                  "description": "The sign of gap; null when gap is null."
                                 }
                               },
                               "required": [
@@ -9752,7 +9761,8 @@
                         {
                           "type": "null"
                         }
-                      ]
+                      ],
+                      "description": "The plan the report reads, whatever its status; null when no plan has the period."
                     },
                     "members": {
                       "type": "array",
@@ -9877,6 +9887,7 @@
                             "type": "object",
                             "properties": {
                               "key": {
+                                "description": "The catalog key of a seeded category (HU-E3-05); null for a category users create.",
                                 "type": [
                                   "string",
                                   "null"
@@ -9906,7 +9917,8 @@
                                   {
                                     "type": "null"
                                   }
-                                ]
+                                ],
+                                "description": "The space of a custom category; null for a row merged by catalog key."
                               },
                               "category": {
                                 "anyOf": [
@@ -9917,10 +9929,7 @@
                                         "type": "string"
                                       },
                                       "name": {
-                                        "type": [
-                                          "string",
-                                          "null"
-                                        ]
+                                        "type": "string"
                                       }
                                     },
                                     "required": [
@@ -9932,7 +9941,8 @@
                                   {
                                     "type": "null"
                                   }
-                                ]
+                                ],
+                                "description": "The custom category, named as the row; null for a row merged by catalog key."
                               },
                               "amount": {
                                 "$ref": "#/components/schemas/MoneyOutput"
@@ -10128,7 +10138,8 @@
                         {
                           "type": "null"
                         }
-                      ]
+                      ],
+                      "description": "The end period's plan, whose lines the trend follows; null when it has none, and then lines is empty."
                     },
                     "lines": {
                       "type": "array",
@@ -10157,7 +10168,8 @@
                                     {
                                       "type": "null"
                                     }
-                                  ]
+                                  ],
+                                  "description": "Null where the line has no figure: the period has no plan, or no line of it continues this one."
                                 },
                                 "change": {
                                   "anyOf": [

@@ -34,8 +34,11 @@ import {
 /** HU-E7-01 … HU-E7-03: the period's label in the space policy, "2026-11" (MONTHLY) or "2026-11 H1" (SEMI_MONTHLY). */
 export const ReportQuerySchema = z.object({ period: z.string().min(1).max(32) });
 
-/** The plan the report reads, whatever its status; null when the period has no plan (ruling P33). */
-const ReportPlanSchema = z.object({ id: z.string(), status: z.enum(PLAN_STATUSES) }).nullable();
+/** The plan the report reads, whatever its status (ruling P33). */
+const ReportPlanSchema = z
+  .object({ id: z.string(), status: z.enum(PLAN_STATUSES) })
+  .nullable()
+  .describe("The plan the report reads, whatever its status; null when no plan has the period.");
 
 const reportPlanDto = (plan: ReportPlan | null): z.infer<typeof ReportPlanSchema> =>
   plan === null ? null : { id: plan.id, status: plan.status };
@@ -62,8 +65,12 @@ export const LineDashboardSchema = z.object({
       overspent: z.boolean(),
     }),
   ),
-  /** What no line consumes, every expense without a plan; null when the plan has a catch-all line (ruling P34). */
-  unbudgeted: z.object({ spent: MoneySchema, available: MoneySchema, overspent: z.boolean() }).nullable(),
+  unbudgeted: z
+    .object({ spent: MoneySchema, available: MoneySchema, overspent: z.boolean() })
+    .nullable()
+    .describe(
+      "What no line consumes, every expense when the period has no plan; null when the plan has a catch-all line.",
+    ),
 });
 
 const unbudgetedDto = (unbudgeted: UnbudgetedSpending | null, currency: string) =>
@@ -104,19 +111,29 @@ export const MemberMatrixSchema = z.object({
       name: z.string(),
       funding: z.enum(FUNDINGS),
       rule: z.enum(ALLOCATION_RULES),
-      /** Why figures are null: NONE lines report consumption only, SHARED_FUND lines leave contribution to the fund. */
-      reason: z.enum(MATRIX_REASONS).nullable(),
+      reason: z
+        .enum(MATRIX_REASONS)
+        .nullable()
+        .describe(
+          "Why some member figures are null: NOT_ALLOCATED (rule NONE) reports consumption only, TRACKED_AT_FUND_LEVEL (SHARED_FUND) leaves contribution and gap to the fund, INVALID_ALLOCATION assigns nobody; null when the line is allocated, valid and tracked per member.",
+        ),
       /** Every current member in join order, guests included. */
       members: z.array(
         z.object({
           memberId: z.string(),
-          assigned: MoneySchema.nullable(),
-          contributed: MoneySchema.nullable(),
-          /** Null on SAVINGS lines. */
-          consumed: MoneySchema.nullable(),
-          /** contributed − assigned; positive means the member over-contributed. */
-          gap: MoneySchema.nullable(),
-          status: z.enum(GAP_STATUSES).nullable(),
+          assigned: MoneySchema.nullable().describe(
+            "Null when the line is not allocated (rule NONE), its allocation is invalid, or the allocation names no amount for the member.",
+          ),
+          contributed: MoneySchema.nullable().describe(
+            "Null when reason is NOT_ALLOCATED or TRACKED_AT_FUND_LEVEL.",
+          ),
+          consumed: MoneySchema.nullable().describe(
+            "Null on SAVINGS lines, whose spending is transfers, not shares.",
+          ),
+          gap: MoneySchema.nullable().describe(
+            "contributed − assigned; positive means the member over-contributed. Null when reason is not null or assigned is null.",
+          ),
+          status: z.enum(GAP_STATUSES).nullable().describe("The sign of gap; null when gap is null."),
         }),
       ),
     }),
@@ -191,11 +208,20 @@ export const UnifiedViewSchema = z.object({
     /** The largest first: a catalog `key` groups seeded categories of every space; a custom one comes with its space. */
     categories: z.array(
       z.object({
-        key: z.string().nullable(),
+        key: z
+          .string()
+          .nullable()
+          .describe("The catalog key of a seeded category (HU-E3-05); null for a category users create."),
         /** A merged group's name in the caller's personal space, else in the space spending most in it. */
         name: z.string(),
-        space: z.object({ id: z.string(), name: z.string() }).nullable(),
-        category: z.object({ id: z.string(), name: z.string().nullable() }).nullable(),
+        space: z
+          .object({ id: z.string(), name: z.string() })
+          .nullable()
+          .describe("The space of a custom category; null for a row merged by catalog key."),
+        category: z
+          .object({ id: z.string(), name: z.string() })
+          .nullable()
+          .describe("The custom category, named as the row; null for a row merged by catalog key."),
         amount: MoneySchema,
       }),
     ),
@@ -274,7 +300,9 @@ export const LineTrendSchema = z.object({
   spaceId: z.string(),
   /** The window, oldest first, ending with `endPeriod`. */
   periods: z.array(PeriodSchema),
-  plan: ReportPlanSchema,
+  plan: ReportPlanSchema.describe(
+    "The end period's plan, whose lines the trend follows; null when it has none, and then lines is empty.",
+  ),
   lines: z.array(
     z.object({
       lineId: z.string(),
@@ -284,8 +312,9 @@ export const LineTrendSchema = z.object({
         z.object({
           /** The period's label. */
           period: z.string(),
-          /** Null where the line has no figure (no plan, or no line it continues). */
-          spent: MoneySchema.nullable(),
+          spent: MoneySchema.nullable().describe(
+            "Null where the line has no figure: the period has no plan, or no line of it continues this one.",
+          ),
           change: MoneySchema.nullable().describe(
             "Current minus previous; null when changeStatus is NEW or null.",
           ),
