@@ -6,6 +6,7 @@ import {
   type MoneyDto,
   moneyOf,
   MoneySchema,
+  percentOf,
   PeriodSchema,
   periodDto,
   problems,
@@ -15,6 +16,9 @@ import {
   GAP_STATUSES,
   MATRIX_REASONS,
   type FundContributionReport,
+  CHANGE_STATUSES,
+  type Change,
+  type LineTrend,
   type LineDashboard,
   type MemberLineMatrix,
   type ReportPlan,
@@ -230,6 +234,80 @@ export const unifiedViewDto = (view: UnifiedPersonalView): z.infer<typeof Unifie
   };
 };
 
+/** HU-E7-05: the end period's label and how many periods to show, 6 by default (ruling P38). */
+export const TrendQuerySchema = z.object({
+  endPeriod: z.string().min(1).max(32),
+  periods: z.coerce.number().int().min(1).max(24).default(6),
+});
+
+/**
+ * −370 basis points → "-3.70": signed, exactly two decimals. Null where there is no percentage: a NEW change, or one
+ * past Number.MAX_SAFE_INTEGER basis points (about 90 trillion percent, e.g. 1 minor unit to 9e11), which cannot be
+ * written exactly; the change amount and status are still answered (ruling P100).
+ */
+export const signedPercent = (basisPoints: number | null): string | null =>
+  basisPoints === null || !Number.isSafeInteger(basisPoints)
+    ? null
+    : `${basisPoints < 0 ? "-" : ""}${percentOf(Math.abs(basisPoints))}`;
+
+export const changeDto = (change: Change | null, currency: string) => ({
+  change: change === null || change.amount === null ? null : moneyOf(change.amount, currency),
+  changePercent: signedPercent(change?.basisPoints ?? null),
+});
+
+/** HU-E7-05: each line of the end period's plan over the window, versus the previous period of the policy. */
+export const LineTrendSchema = z.object({
+  spaceId: z.string(),
+  /** The window, oldest first, ending with `endPeriod`. */
+  periods: z.array(PeriodSchema),
+  plan: ReportPlanSchema,
+  lines: z.array(
+    z.object({
+      lineId: z.string(),
+      name: z.string(),
+      /** One per period, in the order of `periods`. */
+      points: z.array(
+        z.object({
+          /** The period's label. */
+          period: z.string(),
+          /** Null where the line has no figure (no plan, or no line it continues). */
+          spent: MoneySchema.nullable(),
+          change: MoneySchema.nullable().describe(
+            "Current minus previous; null when changeStatus is NEW or null.",
+          ),
+          changePercent: z
+            .string()
+            .regex(/^-?\d+\.\d{2}$/)
+            .nullable()
+            .describe(
+              "Signed percentage with two decimals, e.g. -3.70, rounded half away from zero; null when changeStatus is NEW or null, or when the change exceeds 2^53 basis points (change and status are still answered).",
+            ),
+          changeStatus: z
+            .enum(CHANGE_STATUSES)
+            .nullable()
+            .describe("NEW without a previous figure or when it was 0; null where spent is null."),
+        }),
+      ),
+    }),
+  ),
+});
+
+export const lineTrendDto = (trend: LineTrend): z.infer<typeof LineTrendSchema> => ({
+  spaceId: trend.spaceId,
+  periods: trend.periods.map(periodDto),
+  plan: reportPlanDto(trend.plan),
+  lines: trend.lines.map((line) => ({
+    lineId: line.lineId,
+    name: line.name,
+    points: line.points.map((p) => ({
+      period: p.period.label,
+      spent: p.spent === null ? null : moneyOf(p.spent, trend.currency),
+      ...changeDto(p.change, trend.currency),
+      changeStatus: p.change?.status ?? null,
+    })),
+  })),
+});
+
 const SpacePath = z.object({ spaceId: z.string() });
 const reportProblems = problems({
   "401": "Unauthenticated",
@@ -306,6 +384,24 @@ export const reportingPaths: ZodOpenApiPathsObject = {
           content: jsonContent(UnifiedViewSchema),
         },
         ...problems({ "401": "Unauthenticated", "422": "ValidationFailed, InvalidPeriodLabel" }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/reports/trend": {
+    get: {
+      operationId: "getLineTrend",
+      summary:
+        "Spent per budget line over a window of periods, each versus the previous period of the space policy",
+      description:
+        "Follows the lines of the end period's plan back by their origin link, else their name. Percentages are signed with two decimals; without a previous figure, or when it was 0, the status is NEW and the change and percentage are null.",
+      ...securedByUser,
+      requestParams: { path: SpacePath, query: TrendQuerySchema },
+      responses: {
+        "200": {
+          description: "The window, oldest first, and every line of the end period's plan",
+          content: jsonContent(LineTrendSchema),
+        },
+        ...reportProblems,
       },
     },
   },
