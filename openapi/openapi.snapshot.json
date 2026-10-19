@@ -9228,6 +9228,1695 @@
           }
         }
       }
+    },
+    "/api/v1/spaces/{spaceId}/reports/lines": {
+      "get": {
+        "operationId": "getLineDashboard",
+        "summary": "Planned, spent and available per budget line for a period; computed on read",
+        "description": "Every member reads it, archived spaces included. The period's plan is reported whatever its status; without one, `plan` is null and every expense is under `unbudgeted`.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "period",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The lines of the period's plan in plan order, and what no line consumes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "spaceId": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "$ref": "#/components/schemas/Period"
+                    },
+                    "plan": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "DRAFT",
+                                "ACTIVE",
+                                "CLOSED"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "status"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The plan the report reads, whatever its status; null when no plan has the period."
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "lineId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "funding": {
+                            "type": "string",
+                            "enum": [
+                              "DIRECT",
+                              "SHARED_FUND",
+                              "SAVINGS"
+                            ]
+                          },
+                          "isCatchAll": {
+                            "type": "boolean"
+                          },
+                          "planned": {
+                            "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "spent": {
+                            "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "carryOver": {
+                            "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "available": {
+                            "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "overspent": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "lineId",
+                          "name",
+                          "funding",
+                          "isCatchAll",
+                          "planned",
+                          "spent",
+                          "carryOver",
+                          "available",
+                          "overspent"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "unbudgeted": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "spent": {
+                              "$ref": "#/components/schemas/MoneyOutput"
+                            },
+                            "available": {
+                              "$ref": "#/components/schemas/MoneyOutput"
+                            },
+                            "overspent": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "spent",
+                            "available",
+                            "overspent"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "What no line consumes, every expense when the period has no plan; null when the plan has a catch-all line."
+                    }
+                  },
+                  "required": [
+                    "spaceId",
+                    "period",
+                    "plan",
+                    "lines",
+                    "unbudgeted"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed, InvalidPeriodLabel",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/reports/member-matrix": {
+      "get": {
+        "operationId": "getMemberLineMatrix",
+        "summary": "Assigned, contributed, consumed and gap per member and budget line for a period; computed on read",
+        "description": "Every member reads it, viewers and archived spaces included. Reasons (NOT_ALLOCATED, TRACKED_AT_FUND_LEVEL, INVALID_ALLOCATION) and statuses (OVER_CONTRIBUTED, UNDER_CONTRIBUTED, ON_TARGET) are codes.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "period",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The lines of the period's plan, each with every current member in join order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "spaceId": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "$ref": "#/components/schemas/Period"
+                    },
+                    "plan": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "DRAFT",
+                                "ACTIVE",
+                                "CLOSED"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "status"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The plan the report reads, whatever its status; null when no plan has the period."
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "lineId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "funding": {
+                            "type": "string",
+                            "enum": [
+                              "DIRECT",
+                              "SHARED_FUND",
+                              "SAVINGS"
+                            ]
+                          },
+                          "rule": {
+                            "type": "string",
+                            "enum": [
+                              "PROPORTIONAL",
+                              "PERCENT",
+                              "FIXED",
+                              "NONE"
+                            ]
+                          },
+                          "reason": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "NOT_ALLOCATED",
+                                  "TRACKED_AT_FUND_LEVEL",
+                                  "INVALID_ALLOCATION"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Why some member figures are null: NOT_ALLOCATED (rule NONE) reports consumption only, TRACKED_AT_FUND_LEVEL (SHARED_FUND) leaves contribution and gap to the fund, INVALID_ALLOCATION assigns nobody; null when the line is allocated, valid and tracked per member."
+                          },
+                          "members": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "memberId": {
+                                  "type": "string"
+                                },
+                                "assigned": {
+                                  "anyOf": [
+                                    {
+                                      "$ref": "#/components/schemas/MoneyOutput"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "Null when the line is not allocated (rule NONE), its allocation is invalid, or the allocation names no amount for the member."
+                                },
+                                "contributed": {
+                                  "anyOf": [
+                                    {
+                                      "$ref": "#/components/schemas/MoneyOutput"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "Null when reason is NOT_ALLOCATED or TRACKED_AT_FUND_LEVEL."
+                                },
+                                "consumed": {
+                                  "anyOf": [
+                                    {
+                                      "$ref": "#/components/schemas/MoneyOutput"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "Null on SAVINGS lines, whose spending is transfers, not shares."
+                                },
+                                "gap": {
+                                  "anyOf": [
+                                    {
+                                      "$ref": "#/components/schemas/MoneyOutput"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "contributed − assigned; positive means the member over-contributed. Null when reason is not null or assigned is null."
+                                },
+                                "status": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "OVER_CONTRIBUTED",
+                                        "UNDER_CONTRIBUTED",
+                                        "ON_TARGET"
+                                      ]
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "The sign of gap; null when gap is null."
+                                }
+                              },
+                              "required": [
+                                "memberId",
+                                "assigned",
+                                "contributed",
+                                "consumed",
+                                "gap",
+                                "status"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "lineId",
+                          "name",
+                          "funding",
+                          "rule",
+                          "reason",
+                          "members"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "spaceId",
+                    "period",
+                    "plan",
+                    "lines"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed, InvalidPeriodLabel",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/reports/fund-contributions": {
+      "get": {
+        "operationId": "getFundContributions",
+        "summary": "Expected versus actual contributions to the shared fund per member for a period; computed on read",
+        "description": "Every member reads it, archived spaces included. Expected comes from the plan's SHARED_FUND lines (0 without a plan); actual counts fund contributions dated in the period.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "period",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every current member in join order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "spaceId": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "$ref": "#/components/schemas/Period"
+                    },
+                    "plan": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "DRAFT",
+                                "ACTIVE",
+                                "CLOSED"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "status"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The plan the report reads, whatever its status; null when no plan has the period."
+                    },
+                    "members": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "memberId": {
+                            "type": "string"
+                          },
+                          "expected": {
+                            "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "actual": {
+                            "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "difference": {
+                            "$ref": "#/components/schemas/MoneyOutput"
+                          }
+                        },
+                        "required": [
+                          "memberId",
+                          "expected",
+                          "actual",
+                          "difference"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "spaceId",
+                    "period",
+                    "plan",
+                    "members"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed, InvalidPeriodLabel",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/unified-view": {
+      "get": {
+        "operationId": "getUnifiedPersonalView",
+        "summary": "The caller's consumption and cash out in a personal period, across every space they are or were in",
+        "description": "Only the caller's own member rows are read, a claimed guest place's history included; other members' personal spaces never appear. Shared transactions are placed by date into the caller's personal period; categories group by catalog key, a subcategory under its parent category, and a merged group takes the name the caller's personal space gives its key.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The caller's consumption by category and cash out, in the personal space's currency",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "currency": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "$ref": "#/components/schemas/Period"
+                    },
+                    "consumption": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "categories": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "description": "The catalog key of a seeded category (HU-E3-05); null for a category users create.",
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "space": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "name"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "The space of a custom category; null for a row merged by catalog key."
+                              },
+                              "category": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "name"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "The custom category, named as the row; null for a row merged by catalog key."
+                              },
+                              "amount": {
+                                "$ref": "#/components/schemas/MoneyOutput"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "name",
+                              "space",
+                              "category",
+                              "amount"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "total",
+                        "categories"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "cashOut": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "payments": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "fundContributions": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "savingsTransfers": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "outsideTheApp": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        }
+                      },
+                      "required": [
+                        "total",
+                        "payments",
+                        "fundContributions",
+                        "savingsTransfers",
+                        "outsideTheApp"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "otherCurrencySpaces": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "spaceId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "currency": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "spaceId",
+                          "name",
+                          "currency"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "currency",
+                    "period",
+                    "consumption",
+                    "cashOut",
+                    "otherCurrencySpaces"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed, InvalidPeriodLabel",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/reports/trend": {
+      "get": {
+        "operationId": "getLineTrend",
+        "summary": "Spent per budget line over a window of periods, each versus the previous period of the space policy",
+        "description": "Follows the lines of the end period's plan back by their origin link, else their name. Percentages are signed with two decimals; without a previous figure, or when it was 0, the status is NEW and the change and percentage are null.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "endPeriod",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "periods",
+            "schema": {
+              "default": 6,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 24
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The window, oldest first, and every line of the end period's plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "spaceId": {
+                      "type": "string"
+                    },
+                    "periods": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Period"
+                      }
+                    },
+                    "plan": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "DRAFT",
+                                "ACTIVE",
+                                "CLOSED"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "status"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The end period's plan, whose lines the trend follows; null when it has none, and then lines is empty."
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "lineId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "points": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "period": {
+                                  "type": "string"
+                                },
+                                "spent": {
+                                  "anyOf": [
+                                    {
+                                      "$ref": "#/components/schemas/MoneyOutput"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "Null where the line has no figure: the period has no plan, or no line of it continues this one."
+                                },
+                                "change": {
+                                  "anyOf": [
+                                    {
+                                      "$ref": "#/components/schemas/MoneyOutput"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "Current minus previous; null when changeStatus is NEW or null."
+                                },
+                                "changePercent": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "pattern": "^-?\\d+\\.\\d{2}$"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "Signed percentage with two decimals, e.g. -3.70, rounded half away from zero; null when changeStatus is NEW or null, or when the change exceeds 2^53 basis points (change and status are still answered)."
+                                },
+                                "changeStatus": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "NEW",
+                                        "INCREASED",
+                                        "DECREASED",
+                                        "UNCHANGED"
+                                      ]
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "NEW without a previous figure or when it was 0; null where spent is null."
+                                }
+                              },
+                              "required": [
+                                "period",
+                                "spent",
+                                "change",
+                                "changePercent",
+                                "changeStatus"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "lineId",
+                          "name",
+                          "points"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "spaceId",
+                    "periods",
+                    "plan",
+                    "lines"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed, InvalidPeriodLabel",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/trend": {
+      "get": {
+        "operationId": "getPersonalTrend",
+        "summary": "The caller's consumption per personal period over a window, each versus the period before",
+        "description": "Consumption as the unified view totals it, from the caller's own member rows only. Percentages are signed with two decimals; after a period without consumption the status is NEW.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "endPeriod",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "periods",
+            "schema": {
+              "default": 6,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 24
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The caller's personal periods, oldest first, with their consumption",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "currency": {
+                      "type": "string"
+                    },
+                    "periods": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Period"
+                      }
+                    },
+                    "points": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "period": {
+                            "type": "string"
+                          },
+                          "consumption": {
+                            "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "change": {
+                            "anyOf": [
+                              {
+                                "$ref": "#/components/schemas/MoneyOutput"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Current minus previous; null when changeStatus is NEW."
+                          },
+                          "changePercent": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^-?\\d+\\.\\d{2}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Signed percentage with two decimals, e.g. -3.70, rounded half away from zero; null when changeStatus is NEW or null, or when the change exceeds 2^53 basis points (change and status are still answered)."
+                          },
+                          "changeStatus": {
+                            "type": "string",
+                            "enum": [
+                              "NEW",
+                              "INCREASED",
+                              "DECREASED",
+                              "UNCHANGED"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "period",
+                          "consumption",
+                          "change",
+                          "changePercent",
+                          "changeStatus"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "currency",
+                    "periods",
+                    "points"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed, InvalidPeriodLabel",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/reports/spending-by-group": {
+      "get": {
+        "operationId": "getSpendingByGroup",
+        "summary": "A space's spending in a period by category group, then category, then subcategory; computed on read",
+        "description": "Every member reads it, archived spaces included. Live expenses count by amount, whoever paid, under the tree as it is now; nodes without spending are left out and each share is of its parent's total.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "period",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The groups with spending, largest first, each with its categories and subcategories",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "spaceId": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "$ref": "#/components/schemas/Period"
+                    },
+                    "total": {
+                      "$ref": "#/components/schemas/MoneyOutput"
+                    },
+                    "groups": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "description": "Null only for a personal row merged by catalog key; never null in a space's own breakdown",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "key": {
+                            "description": "The catalog key of a seeded group or category (HU-E3-05); null for those users create",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "archived": {
+                            "type": "boolean"
+                          },
+                          "total": {
+                            "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "share": {
+                            "type": "string"
+                          },
+                          "categories": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "description": "Null only for a personal row merged by catalog key; never null in a space's own breakdown",
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "key": {
+                                  "description": "The catalog key of a seeded group or category (HU-E3-05); null for those users create",
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "archived": {
+                                  "type": "boolean"
+                                },
+                                "total": {
+                                  "$ref": "#/components/schemas/MoneyOutput"
+                                },
+                                "share": {
+                                  "type": "string"
+                                },
+                                "subcategories": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "subcategoryId": {
+                                        "description": "Null only for the entry of what was spent in the category itself, not in a subcategory",
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "name": {
+                                        "description": "Null only for the entry of what was spent in the category itself, not in a subcategory",
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "archived": {
+                                        "type": "boolean"
+                                      },
+                                      "total": {
+                                        "$ref": "#/components/schemas/MoneyOutput"
+                                      },
+                                      "share": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "subcategoryId",
+                                      "name",
+                                      "archived",
+                                      "total",
+                                      "share"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "key",
+                                "name",
+                                "archived",
+                                "total",
+                                "share",
+                                "subcategories"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "key",
+                          "name",
+                          "archived",
+                          "total",
+                          "share",
+                          "categories"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "spaceId",
+                    "period",
+                    "total",
+                    "groups"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed, InvalidPeriodLabel",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/reports/spending-by-group": {
+      "get": {
+        "operationId": "getPersonalSpendingByGroup",
+        "summary": "The caller's consumption in a personal period by category group, category and subcategory",
+        "description": "The unified view's consumption, from the caller's own member rows only. Seeded groups, and seeded categories inside them, merge across spaces by catalog key, with id and space null; custom groups, every category inside one, and custom categories inside a seeded group keep their id and space.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The caller's groups with consumption, largest first, in the personal space's currency",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "currency": {
+                      "type": "string",
+                      "description": "The personal space's currency, the currency of every amount; spaces in another currency are left out"
+                    },
+                    "period": {
+                      "$ref": "#/components/schemas/Period"
+                    },
+                    "total": {
+                      "$ref": "#/components/schemas/MoneyOutput"
+                    },
+                    "groups": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "description": "Null for a seeded group merged across spaces by key.",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "key": {
+                            "description": "The catalog key of a seeded group or category (HU-E3-05); null for those users create",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "archived": {
+                            "type": "boolean"
+                          },
+                          "total": {
+                            "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "share": {
+                            "type": "string"
+                          },
+                          "space": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "name"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Null for a seeded group merged across spaces by key."
+                          },
+                          "categories": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "description": "Null for a seeded category merged inside a merged seeded group; a custom category keeps its id.",
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "key": {
+                                  "description": "The catalog key of a seeded group or category (HU-E3-05); null for those users create",
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "archived": {
+                                  "type": "boolean"
+                                },
+                                "total": {
+                                  "$ref": "#/components/schemas/MoneyOutput"
+                                },
+                                "share": {
+                                  "type": "string"
+                                },
+                                "space": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "name"
+                                      ],
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "Null for a seeded category merged inside a merged seeded group; a custom category keeps its space."
+                                },
+                                "subcategories": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "subcategoryId": {
+                                        "description": "Null only for the entry of what was spent in the category itself, not in a subcategory",
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "name": {
+                                        "description": "Null only for the entry of what was spent in the category itself, not in a subcategory",
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "archived": {
+                                        "type": "boolean"
+                                      },
+                                      "total": {
+                                        "$ref": "#/components/schemas/MoneyOutput"
+                                      },
+                                      "share": {
+                                        "type": "string"
+                                      },
+                                      "space": {
+                                        "anyOf": [
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "id": {
+                                                "type": "string"
+                                              },
+                                              "name": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "id",
+                                              "name"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ],
+                                        "description": "Null for the entry of what was spent in the category itself; otherwise the subcategory's space"
+                                      }
+                                    },
+                                    "required": [
+                                      "subcategoryId",
+                                      "name",
+                                      "archived",
+                                      "total",
+                                      "share",
+                                      "space"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "key",
+                                "name",
+                                "archived",
+                                "total",
+                                "share",
+                                "space",
+                                "subcategories"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "key",
+                          "name",
+                          "archived",
+                          "total",
+                          "share",
+                          "space",
+                          "categories"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "currency",
+                    "period",
+                    "total",
+                    "groups"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed, InvalidPeriodLabel",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

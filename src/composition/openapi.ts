@@ -21,6 +21,7 @@ import {
   RecurrenceSchema,
   recurrencesPaths,
 } from "@/modules/ledger/contracts/recurrences.contract";
+import { reportingPaths } from "@/modules/reporting/contracts/reporting.contract";
 import {
   InvitationSchema,
   SpaceMemberSchema,
@@ -47,6 +48,7 @@ export const buildOpenApiDocument = (): Record<string, unknown> =>
       ...recurrencesPaths,
       ...balancesPaths,
       ...budgetingPaths,
+      ...reportingPaths,
     },
     components: {
       schemas: {

@@ -95,3 +95,5 @@ export {
   type ArchiveSpaceDeps,
   type MemberNetBalances,
 } from "./archive-space";
+
+export type { MemberPlace, MemberPlaceRepository } from "./member-places";

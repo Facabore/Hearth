@@ -9914,3 +9914,32 @@ The preflight dry run at `ce923a0` (verdict READY WITH FIXES) applied B1–B11 a
 - Migrations: `0012_transaction_time` (5a), `0013_subcategories` (9a), `0014_account_attributes` (12), `0015_account_terms` (15a), `0016_account_switches` (16), `0017_category_styles` (17a-2), `0018_user_preferences` (18a); all generated, in execution order; only `0017` back-fills, through its hand-written block (P56, P77, P78). OpenAPI components added: none; `Category`, `CategoryOutput`, `CategoryGroupSummary` and `CategoryGroup` change in 17b-1; the inline answer of `GET /api/v1/me` changes in 18b-1 and that of `PATCH` in 18b-2.
 - Task references: Tasks 17a and 17b build on Tasks 8, 9a and 9b and name their anchors in the form those tasks leave (Task 9b's body schemas by a range, since Prettier rewraps them); Tasks 18a and 18b build on Task 3 and name its lines as it leaves them (`profile.ts`, `profile.test.ts`, `drizzle-user-profiles.ts` and `me.contract.ts` are replaced whole, with Task 3's behaviour kept); Task 6 edits M3-C's `record-occurrence.ts` and appends to its test. The plan runs as 30 commits in the order of the header's task list (1 … 4, 5a, 5b, 6, 7a, 7b, 8, 9a, 9b, 10 … 14, 15a, 15b-1, 15b-2, 16, 17a-1 … 17a-4, 17b-1, 17b-2, 18a, 18b-1, 18b-2; rulings P84, P86, P87); an unsuffixed label (Task 15b, 17a, 17b, 18b) names all of its commits.
 - Controller rulings: P40–P73, P78 and P79 ruled (P69–P73, the HU-E4-14 amendment and HU-E1-15, and P78, P79, the group key's back-fill tie-breaks and its read-only answer, accepted as proposed), M4's P74 and P77 (the group key) applied in Task 17a, and the preflight's P84–P88 applied (Task 17a in four commits, hand-written SQL counted toward review size, Tasks 15b, 17b and 18b in two each, the five mutation checks); no proposal is open, and each task states the behaviour it implements.
+
+## Execution rulings (recorded after the merge)
+
+These rulings were made while the plan was being preflighted, executed and finally reviewed. They were kept outside the repository until the merge; they are recorded here, with their source, so the decisions index can point at them. P84–P88 are already in "Preflight rulings (P84–P88)" above.
+
+### From the backlog of 2026-10-16
+
+The plan records P67 and P68 above only as concerning E9 and HU-E8-18. Their text:
+
+- **P67 (amended):** HU-E9-13 has no Save button: each choice is PATCHed as it is made. "Default" is a label for a field that follows the installation rule, and "Reset" returns a changed field to the rule. This matches the design.
+- **P68:** the COP symbol is `$` in both languages. The installation logo is a PNG, JPEG or WebP of at most 256 KB stored in the database; SVG is not accepted. The design text was updated.
+
+### From the preflight (opus dry run at `ce923a0`)
+
+- **B3:** the fix is the destructuring fix (the three time fields only), not a rewrite of `retimed`. B1–B11 were otherwise accepted as the preflight wrote them.
+- **P89 (Task 7a review):** the local date an instant gives in its zone must be a valid `LocalDate` (years 1900 to 9999); otherwise the answer is `422 InvalidDate` with `details.value` set to the `occurredAt` sent. It is enforced in the domain (`timeOf`, `retimed`), so create and edit agree.
+- **P90 (Task 9a review):** every write to a space's category tree (create, update, archive, restore and delete of categories; create, rename and archive of groups) first takes `pg_advisory_xact_lock(hashtextextended('categories:' || space_id, 0))` through `CategoryRepository.lockTree`, so concurrent writes see each other: a sibling-name race answers `CategoryNameTaken`, and no fourth level, orphan, cross-group or archived-parent subcategory can be stored by a race. Follow-up: make the in-memory categories fake enforce the sibling-name and self-parent rules.
+- **P91 (Tasks 14 and 15a):** a stored value that a read would throw on is refused by PostgreSQL itself. Migration `0015` adds CHECKs for `cut_off_day` and `payment_day` (1 to 31) and for `monthly_rate_ppm` and `annual_rate_ppm` (0 to `MAX_RATE_PPM`), beyond the brief's four checks. The Task 15a review extended it to the domain ranges of the other stored terms: `term_days` 1 to 3660, `term_months` 1 to 480, `credit_limit` > 0 and `principal` > 0.
+- **P92 (Task 15b-2):** `AccountAttributeNotAllowed` answers a public detail `field` that names the refused body field by its public name (`monthlyRate`, `annualRate`, `creditLimit`, and so on), mapped from the domain key. Domain details of 4xx answers stay unlogged by design.
+
+### From a task review
+
+- **P72, clarified (Task 18b-2 review):** "locks before validation" means the use case's own validation (for example, whether a zone is valid). A malformed value is refused by the request schema (`422 ValidationFailed`) before any lock check, by design.
+
+### From the final review (opus, "With fixes", 0/0/11 findings)
+
+- **P93 (M2):** plan figures, closed plans and the carry-over chain included, follow the current category tree and the current members (the existing precedent). Spec 5.4 says so. Demoting a mapped category is not refused.
+- **P94 (M5):** the API keeps `timezone` on the user (sign-up, `/me`) and `timeZone` on transactions; spec 7 documents both spellings.
+- **Fix wave:** M1 (hide subcategory mappings from a line's `categoryIds`), the spec sentences for P93, M3 (a moved seeded category keeps its key, and groupings by key roll up first) and P94, and the HU-E9-04 icon-slot clipping note. Follow-ups #119 to #126 were opened; #118 stays.

@@ -28,7 +28,13 @@ export type {
   PreviousIncome,
 } from "./ports";
 export type { BudgetingDeps } from "./deps";
-export type { BudgetPlanView } from "./plan-view";
+export {
+  loadPlanView,
+  planViewCache,
+  type BudgetPlanView,
+  type PlanViewCache,
+  type PlanViewDeps,
+} from "./plan-view";
 export { createCreateBudgetPlan, type CreateBudgetPlan } from "./create-budget-plan";
 export { createGetBudgetPlan, type GetBudgetPlan } from "./get-budget-plan";
 export {
@@ -78,3 +84,6 @@ export {
   type ResolveDefaultSplit,
   type SplitMethodName,
 } from "./default-split";
+export { lineForCategory } from "../domain/plan-figures";
+export { rolledUpCategory } from "../domain/category-rollup";
+export { ownedByRegisteredMember } from "./line-checks";

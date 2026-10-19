@@ -527,7 +527,7 @@ Feature: Claim a guest place
 - Use cases: `CreateGuestClaim` (OWNER or ADMIN, like HU-E1-06), `ClaimGuestPlace`; a claim is an `Invitation` bound to a `guestMemberId`, single use, valid 7 days, token hashed. Endpoints: `POST /api/v1/spaces/{spaceId}/guests/{memberId}/claim-links`, `POST /api/v1/claims/{token}/accept`.
 - Claiming sets `userId`, `kind = USER`, `role = MEMBER` and `claimedAt` on the existing `SpaceMember`; no money row is rewritten, because every reference already points to that member id (spec D15).
 - Sign-up through a claim link creates the personal space first (HU-E1-02), then applies the claim in the same flow. Claim links are bearer links, not bound to the guest's `contactEmail`.
-- The unified-view assertions become testable in M4 with HU-E7-04; until then the scenarios check the member's shares through the ledger.
+- The unified-view assertions are pinned over HTTP by `tests/acceptance/unified-view.test.ts` since M4 (HU-E7-04).
 
 ---
 

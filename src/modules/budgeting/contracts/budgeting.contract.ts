@@ -4,6 +4,7 @@ import {
   basisPointsOf,
   jsonContent,
   moneyFromDto,
+  moneyOf,
   MoneySchema,
   percentOf,
   PercentSchema,
@@ -11,7 +12,6 @@ import {
   periodDto,
   problems,
   securedByUser,
-  type MoneyDto,
 } from "@/shared/http/contracts";
 import type { HttpSuccess } from "@/shared/http/define-route";
 import { etagOf } from "@/shared/http/etag";
@@ -32,7 +32,6 @@ import {
   type LineInput,
 } from "../application";
 
-const moneyOf = (minor: bigint, currency: string): MoneyDto => ({ amount: minor.toString(), currency });
 const percentOrNull = (basisPoints: number | null): string | null =>
   basisPoints === null ? null : percentOf(basisPoints);
 

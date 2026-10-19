@@ -58,6 +58,24 @@ import {
 } from "@/modules/budgeting/application";
 import { DrizzleBudgetPlanRepository } from "@/modules/budgeting/infrastructure/drizzle-budget-plan-repository";
 import {
+  createGetFundContributions,
+  createGetLineDashboard,
+  createGetMemberLineMatrix,
+  type GetFundContributions,
+  createGetUnifiedPersonalView,
+  type GetUnifiedPersonalView,
+  createGetLineTrend,
+  type GetLineTrend,
+  createGetPersonalTrend,
+  type GetPersonalTrend,
+  createGetSpendingByGroup,
+  type GetSpendingByGroup,
+  createGetPersonalSpendingByGroup,
+  type GetPersonalSpendingByGroup,
+  type GetLineDashboard,
+  type GetMemberLineMatrix,
+} from "@/modules/reporting/application";
+import {
   createDeleteTransaction,
   createEditTransaction,
   createGetTransaction,
@@ -308,6 +326,16 @@ export interface Container extends RouteDeps {
     readonly closePlan: CloseBudgetPlan;
     readonly resolveDefaultSplit: ResolveDefaultSplit;
   };
+  readonly reporting: {
+    readonly getLineDashboard: GetLineDashboard;
+    readonly getMemberLineMatrix: GetMemberLineMatrix;
+    readonly getFundContributions: GetFundContributions;
+    readonly getUnifiedPersonalView: GetUnifiedPersonalView;
+    readonly getLineTrend: GetLineTrend;
+    readonly getPersonalTrend: GetPersonalTrend;
+    readonly getSpendingByGroup: GetSpendingByGroup;
+    readonly getPersonalSpendingByGroup: GetPersonalSpendingByGroup;
+  };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
     readonly signIn: (ip: string, email: string) => boolean;
@@ -361,8 +389,9 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   const installationRules = options.installationRules ?? new BuiltInInstallationRules();
   const spaceRepository = new DrizzleSpaceRepository(tm);
   const access = createSpaceAccess(spaceRepository);
+  const categoryRepository = new DrizzleCategoryRepository(tm);
   const categoriesDeps: CategoriesDeps = {
-    categories: new DrizzleCategoryRepository(tm),
+    categories: categoryRepository,
     access,
     ids,
     clock,
@@ -493,9 +522,12 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     clock,
     tm,
   };
+  // HU-E1-02: the user's personal space, created at sign-up; undefined only for a user without one.
+  const personalSpaceOf = async (userId: string) =>
+    (await spaceRepository.listForUser(userId)).find((s) => s.kind === "PERSONAL");
   // D17: only the caller's own personal-space income is ever read for a capacity suggestion.
   const previousIncome: PreviousIncome = async (userId, from, to) => {
-    const personal = (await spaceRepository.listForUser(userId)).find((s) => s.kind === "PERSONAL");
+    const personal = await personalSpaceOf(userId);
     if (!personal) return null;
     const { income } = await ledgerQueries.totals({ spaceId: personal.id, from, to });
     return { amount: income, currency: personal.currency };
@@ -539,6 +571,31 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     clock,
     timeZone: env.APP_TIMEZONE,
     tm,
+  };
+  // HU-E7-04 (ruling P37): the caller's own SAVINGS accounts live in their personal space (HU-E2-01), archived too.
+  const savingsAccountsOf = async (userId: string): Promise<string[]> => {
+    const personal = await personalSpaceOf(userId);
+    if (!personal) return [];
+    const accounts = await accountsDeps.accounts.listBySpace(personal.id);
+    // Defensive: a personal space only holds its owner's accounts, so the owner filter never drops one today.
+    return accounts.filter((a) => a.type === "SAVINGS" && a.ownerUserId === userId).map((a) => a.id);
+  };
+  // HU-E7-01 … HU-E7-05: reports read budgeting's figures and the ledger's sums through ports, on read (D7, P32).
+  const reportingDeps = {
+    // HU-E7-06: the category trees as they stand now, with group and category keys (categories, P74).
+    trees: categoryRepository,
+    // HU-E7-04: the caller's own member rows (spaces), category keys (catalog) and savings accounts (accounts).
+    places: spaceRepository,
+    catalog: categoriesDeps.categories,
+    savingsAccountsOf,
+    // HU-E7-02, HU-E7-03: the ledger sums payments, shares and fund contributions per member in SQL (D7).
+    sums: ledgerQueries,
+    access,
+    members: spaceRepository,
+    plans: budgetPlans,
+    spending: ledgerQueries,
+    savingsAccounts,
+    categories: budgetCategories,
   };
   const invitationRepository = new DrizzleInvitationRepository(tm);
   const invitationsDeps: InvitationsDeps = {
@@ -725,6 +782,16 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       activatePlan: createActivateBudgetPlan(budgetingDeps),
       closePlan: createCloseBudgetPlan(budgetingDeps),
       resolveDefaultSplit: createResolveDefaultSplit(budgetingDeps),
+    },
+    reporting: {
+      getLineDashboard: createGetLineDashboard(reportingDeps),
+      getMemberLineMatrix: createGetMemberLineMatrix(reportingDeps),
+      getFundContributions: createGetFundContributions(reportingDeps),
+      getUnifiedPersonalView: createGetUnifiedPersonalView(reportingDeps),
+      getLineTrend: createGetLineTrend(reportingDeps),
+      getPersonalTrend: createGetPersonalTrend(reportingDeps),
+      getSpendingByGroup: createGetSpendingByGroup(reportingDeps),
+      getPersonalSpendingByGroup: createGetPersonalSpendingByGroup(reportingDeps),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.

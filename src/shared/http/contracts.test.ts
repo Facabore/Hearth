@@ -6,6 +6,7 @@ import {
   PercentSchema,
   MoneySchema,
   moneyFromDto,
+  moneyOf,
   moneyToDto,
   optionalLocalDate,
   periodDto,
@@ -62,6 +63,13 @@ describe("problems", () => {
         content: { "application/problem+json": { schema: ProblemSchema } },
       },
     });
+  });
+});
+
+describe("moneyOf", () => {
+  it("wraps bigint minor units, negative ones included, as a DTO string amount", () => {
+    expect(moneyOf(157_500_000n, "COP")).toEqual({ amount: "157500000", currency: "COP" });
+    expect(moneyOf(-6_000_000n, "COP")).toEqual({ amount: "-6000000", currency: "COP" });
   });
 });
 

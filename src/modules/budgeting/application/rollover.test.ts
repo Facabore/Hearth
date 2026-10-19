@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { authorizeSpaceAction } from "@/modules/spaces/application";
 import type { LocalDate } from "@/shared/kernel";
 import { aLine } from "../../../../tests/support/budget-fixtures";
 import {
@@ -12,7 +13,7 @@ import type { RolloverMode } from "../domain/budget-line";
 import { createCopyBudgetPlan } from "./copy-budget-plan";
 import { createCreateBudgetPlan } from "./create-budget-plan";
 import { createGetBudgetPlan } from "./get-budget-plan";
-import type { BudgetPlanView } from "./plan-view";
+import { loadPlanView, planViewCache, type BudgetPlanView } from "./plan-view";
 import type { PlanSpending } from "./ports";
 import { createRemoveBudgetLine } from "./remove-budget-line";
 import { createUpdateBudgetLine } from "./update-budget-line";
@@ -214,5 +215,71 @@ describe("carry-over along the chain of copies (HU-E6-09)", () => {
     // November reads December's available only through the seen guard: it carries 0 back, so December keeps 200,000.
     expect(home(await read(december.plan.id))).toEqual(["Home", pesos(200_000), pesos(1_670_000)]);
     expect(reads).toBeLessThanOrEqual(3);
+  });
+});
+
+describe("one request's plan figures, shared by plan id (ruling P105)", () => {
+  const chainOfFour = async () => {
+    const w = await world("ROLLOVER", {
+      "2026-11-01": pesos(1_270_000),
+      "2026-12-01": pesos(1_800_000),
+      "2027-01-01": pesos(1_000_000),
+    });
+    const december = await w.copyInto("2026-12");
+    const january = await w.copyInto("2027-01");
+    const february = await w.copyInto("2027-02");
+    const space = unwrap(await authorizeSpaceAction(w.deps.access, HOUSEHOLD, "u-ana", "space.read"));
+    const plans = [w.november, december.plan, january.plan, february.plan];
+    return { ...w, space, plans };
+  };
+
+  it("figures each plan of the chain once for every view that shares the cache, as each view figures it alone", async () => {
+    const { deps, plans, space } = await chainOfFour();
+    const alone = await Promise.all(plans.map((plan) => loadPlanView(deps, space, plan)));
+    const contents = vi.spyOn(deps.plans, "contents");
+    const members = vi.spyOn(deps.members, "listCurrent");
+    const cache = planViewCache();
+    const shared = await Promise.all(plans.map((plan) => loadPlanView(deps, space, plan, cache)));
+    expect(shared).toEqual(alone);
+    expect(contents.mock.calls.map(([planId]) => planId)).toEqual(plans.map((p) => p.id));
+    expect(members).toHaveBeenCalledTimes(1);
+  });
+
+  it("ends on a malformed chain whose createdFrom loops back, even when both plans are viewed at once", async () => {
+    const { copyInto, deps, plans, read, november } = await world("ROLLOVER", {
+      "2026-11-01": pesos(1_270_000),
+    });
+    const december = await copyInto("2026-12");
+    const [copied] = december.figures.lines;
+    // As in the seen-guard case above: November made a copy of December, its line copied from December's.
+    plans.plans = plans.plans.map((p) =>
+      p.id === november.id ? { ...p, createdFrom: december.plan.id } : p,
+    );
+    plans.lines = plans.lines.map((r) =>
+      r.line.planId === november.id ? { ...r, line: { ...r.line, originLineId: copied!.line.id } } : r,
+    );
+    const space = unwrap(await authorizeSpaceAction(deps.access, HOUSEHOLD, "u-ana", "space.read"));
+    const looped = await Promise.all([november.id, december.plan.id].map((id) => plans.find(HOUSEHOLD, id)));
+    // Each read of a plan is slow, so both views have started figuring their plan before either reads its source.
+    const found = plans.find.bind(plans);
+    vi.spyOn(plans, "find").mockImplementation(async (spaceId, planId) => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return found(spaceId, planId);
+    });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const stalled = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("the views waited on each other")), 1_000);
+    });
+    const cache = planViewCache();
+    const both = Promise.all(looped.map((plan) => loadPlanView(deps, space, plan!, cache)));
+    try {
+      expect(await Promise.race([both, stalled])).toHaveLength(2);
+    } finally {
+      clearTimeout(timer);
+    }
+    // Viewed alone, the cache answers what the view without it answers.
+    expect(await loadPlanView(deps, space, december.plan, planViewCache())).toEqual(
+      await read(december.plan.id),
+    );
   });
 });

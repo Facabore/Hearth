@@ -1,0 +1,81 @@
+site_name: Hearth docs
+site_url: https://facabore.github.io/Hearth/
+repo_url: https://github.com/Facabore/Hearth
+docs_dir: docs
+strict: true
+
+exclude_docs: |
+  superpowers/sdd/
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - content.code.copy
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Home: README.md
+  - Product:
+      - Functional overview: product/functional-overview.md
+  - Architecture:
+      - Overview: architecture/README.md
+      - Data model: architecture/data-model.md
+  - Decisions: decisions/README.md
+  - ADRs:
+      - "0001 Boundary enforcement": adr/0001-boundary-enforcement-with-dependency-cruiser.md
+      - "0002 OpenAPI generator": adr/0002-openapi-generator-zod-openapi.md
+  - Backlog:
+      - Overview: backlog/README.md
+      - "E0 Foundations": backlog/E0-foundations.md
+      - "E1 Identity and spaces": backlog/E1-identity-and-spaces.md
+      - "E2 Accounts": backlog/E2-accounts.md
+      - "E3 Categories": backlog/E3-categories.md
+      - "E4 Ledger": backlog/E4-ledger.md
+      - "E5 Balances and settlements": backlog/E5-balances-and-settlements.md
+      - "E6 Budgeting": backlog/E6-budgeting.md
+      - "E7 Reporting": backlog/E7-reporting.md
+      - "E8 Hardening and later": backlog/E8-hardening-and-later.md
+      - "E9 Web UI": backlog/E9-web-ui.md
+  - Operations:
+      - Deploying to a VPS: operations/deploy.md
+      - Stack versions: stack-versions.md
+  - Spec:
+      - Design spec: superpowers/specs/2026-10-11-hearth-design.md
+  - Plans:
+      - "M0 Walking skeleton": superpowers/plans/2026-10-11-m0-walking-skeleton.md
+      - "M1 Personal ledger": superpowers/plans/2026-10-12-m1-personal-ledger.md
+      - "M2-A Shared spaces": superpowers/plans/2026-10-13-m2a-shared-spaces.md
+      - "M2-B Shared expenses": superpowers/plans/2026-10-13-m2b-shared-expenses.md
+      - "M2-C Member lifecycle": superpowers/plans/2026-10-14-m2c-member-lifecycle.md
+      - "M3-A Budget plans": superpowers/plans/2026-10-14-m3a-budget-plans.md
+      - "M3-B Plan lifecycle": superpowers/plans/2026-10-15-m3b-plan-lifecycle.md
+      - "M3-C Recurring and history": superpowers/plans/2026-10-16-m3c-recurring-and-history.md
+      - "M3-D Ledger refinements": superpowers/plans/2026-10-17-m3d-ledger-refinements.md
+      - "M4 Insight API": superpowers/plans/2026-10-17-m4-insight-api.md

@@ -145,14 +145,14 @@ A UI story is `Done` when:
 | [HU-E4-11](E4-ledger.md) | Define and manage recurring transactions | E4 | M3 | Must | M | Done | HU-E4-07, HU-E0-04, HU-E1-10 |
 | [HU-E4-12](E4-ledger.md) | Record due occurrences automatically | E4 | M3 | Must | M | Done | HU-E4-11, HU-E6-07, HU-E6-08 |
 | [HU-E4-13](E4-ledger.md) | Confirm variable-amount occurrences | E4 | M3 | Must | S | Done | HU-E4-12 |
-| [HU-E1-14](E1-identity-and-spaces.md) | Set my time zone | E1 | M3-D | Must | S | Backlog | HU-E1-01 |
-| [HU-E1-15](E1-identity-and-spaces.md) | Formatting preferences | E1 | M3-D | Must | S | Backlog | HU-E1-01, HU-E1-14 |
-| [HU-E4-14](E4-ledger.md) | Record the time of a transaction | E4 | M3-D | Must | M | Backlog | HU-E1-14, HU-E4-05, HU-E4-06, HU-E4-12, HU-E4-13 |
-| [HU-E3-04](E3-categories.md) | Optional subcategories | E3 | M3-D | Must | M | Backlog | HU-E3-02, HU-E3-03, HU-E4-05, HU-E6-04 |
-| [HU-E3-05](E3-categories.md) | Category icon and color | E3 | M3-D | Must | S | Backlog | HU-E3-01, HU-E3-02, HU-E3-04 |
-| [HU-E2-05](E2-accounts.md) | More account types with common attributes | E2 | M3-D | Must | S | Backlog | HU-E2-01, HU-E2-03 |
-| [HU-E2-06](E2-accounts.md) | Type-specific account attributes | E2 | M3-D | Must | M | Backlog | HU-E2-05 |
-| [HU-E2-07](E2-accounts.md) | Available money and net worth | E2 | M3-D | Must | M | Backlog | HU-E2-04, HU-E2-05 |
+| [HU-E1-14](E1-identity-and-spaces.md) | Set my time zone | E1 | M3-D | Must | S | Done | HU-E1-01 |
+| [HU-E1-15](E1-identity-and-spaces.md) | Formatting preferences | E1 | M3-D | Must | S | Done | HU-E1-01, HU-E1-14 |
+| [HU-E4-14](E4-ledger.md) | Record the time of a transaction | E4 | M3-D | Must | M | Done | HU-E1-14, HU-E4-05, HU-E4-06, HU-E4-12, HU-E4-13 |
+| [HU-E3-04](E3-categories.md) | Optional subcategories | E3 | M3-D | Must | M | Done | HU-E3-02, HU-E3-03, HU-E4-05, HU-E6-04 |
+| [HU-E3-05](E3-categories.md) | Category icon and color | E3 | M3-D | Must | S | Done | HU-E3-01, HU-E3-02, HU-E3-04 |
+| [HU-E2-05](E2-accounts.md) | More account types with common attributes | E2 | M3-D | Must | S | Done | HU-E2-01, HU-E2-03 |
+| [HU-E2-06](E2-accounts.md) | Type-specific account attributes | E2 | M3-D | Must | M | Done | HU-E2-05 |
+| [HU-E2-07](E2-accounts.md) | Available money and net worth | E2 | M3-D | Must | M | Done | HU-E2-04, HU-E2-05 |
 | [HU-E7-01](E7-reporting.md) | Budget line dashboard | E7 | M4 | Must | M | Backlog | HU-E6-09 |
 | [HU-E7-02](E7-reporting.md) | Member by line matrix | E7 | M4 | Must | M | Backlog | HU-E6-08, HU-E7-01 |
 | [HU-E7-03](E7-reporting.md) | Shared fund contribution tracking | E7 | M4 | Must | S | Backlog | HU-E4-09, HU-E6-05 |
@@ -212,7 +212,7 @@ Notes on placement:
 - HU-E0-09's cookie/Bearer scenario runs against a test `SessionResolver` until HU-E1-01 supplies the Better Auth adapter, both within M0.
 - HU-E2-02 (shared fund account) belongs to epic E2 but ships in M2, because shared spaces first exist in M2.
 - HU-E1-13 (direct spaces) lives in E1 because creating and reusing the space belongs to `spaces`; it reuses the shared-expense flow of HU-E4-07.
-- The unified-view assertions of HU-E1-11 (M2) become testable once HU-E7-04 (M4) lands.
+- The unified-view assertions of HU-E1-11 (M2) are pinned over HTTP by `tests/acceptance/unified-view.test.ts` since HU-E7-04 (M4).
 - The closed-period scenario of HU-E4-06 (M1) is active since HU-E6-07 (M3-B) provides the `ClosedPeriodGuard` adapter.
 - E9 parallel track: HU-E9-01 and HU-E9-02 can start after M0, with HU-E9-02 formatting from the built-in es-CO defaults until HU-E1-15 (M3-D) is `Done` and the preferences of `GET /api/v1/me` take over; HU-E9-03 and HU-E9-04 after M1, with their time, date and time sheet, subcategory, category icon and color, and account-type scenarios once M3-D is `Done`, and HU-E9-12 after both; HU-E9-05 … HU-E9-07 after M2; HU-E9-08 and HU-E9-09 after M3; HU-E9-10 and HU-E9-11 after M4; HU-E9-13 once HU-E1-14 and HU-E1-15 (M3-D) are `Done`; HU-E9-14 once HU-E8-18 (M5) is `Done`. The default-split scenarios of HU-E9-06 activate once HU-E6-08 (M3) is `Done`.
 - HU-E8-07 (PWA) is a web UI story kept in E8 as a Won't-v1 placeholder; it depends on HU-E9-01 and HU-E9-11 and follows the UI Definition of Done.
