@@ -2,6 +2,7 @@ import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/ro
 import { GET as linesRoute } from "@/app/api/v1/spaces/[spaceId]/reports/lines/route";
 import { GET as matrixRoute } from "@/app/api/v1/spaces/[spaceId]/reports/member-matrix/route";
 import { GET as fundRoute } from "@/app/api/v1/spaces/[spaceId]/reports/fund-contributions/route";
+import { GET as unifiedRoute } from "@/app/api/v1/me/unified-view/route";
 import { POST as recordContribution } from "@/app/api/v1/spaces/[spaceId]/fund-contributions/route";
 import { call, type RouteHandler, type TestUser } from "./app";
 import { putCategories, referencePlan } from "./budgeting";
@@ -147,3 +148,30 @@ export const contribute = async (member: HouseholdMember, fund: string, pesos: n
   });
   if (response.status !== 201) throw new Error(`contribution failed with status ${response.status}`);
 };
+
+export interface UnifiedViewDto {
+  currency: string;
+  period: ReportPeriodDto;
+  consumption: {
+    total: MoneyDto;
+    categories: {
+      key: string | null;
+      name: string;
+      space: { id: string; name: string } | null;
+      category: { id: string; name: string | null } | null;
+      amount: MoneyDto;
+    }[];
+  };
+  cashOut: {
+    total: MoneyDto;
+    payments: MoneyDto;
+    fundContributions: MoneyDto;
+    savingsTransfers: MoneyDto;
+    outsideTheApp: MoneyDto;
+  };
+  otherCurrencySpaces: { spaceId: string; name: string; currency: string }[];
+}
+
+/** HU-E7-04: `user` reads their own unified view. */
+export const getUnifiedView = (user: TestUser, query: Record<string, string>) =>
+  getWithQuery(unifiedRoute, user, "/api/v1/me/unified-view", query);

@@ -9825,6 +9825,222 @@
           }
         }
       }
+    },
+    "/api/v1/me/unified-view": {
+      "get": {
+        "operationId": "getUnifiedPersonalView",
+        "summary": "The caller's consumption and cash out in a personal period, across every space they are or were in",
+        "description": "Only the caller's own member rows are read, a claimed guest place's history included; other members' personal spaces never appear. Shared transactions are placed by date into the caller's personal period; categories group by catalog key, a subcategory under its parent category, and a merged group takes the name the caller's personal space gives its key.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The caller's consumption by category and cash out, in the personal space's currency",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "currency": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "$ref": "#/components/schemas/Period"
+                    },
+                    "consumption": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "categories": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "space": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "name"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "category": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "name"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "amount": {
+                                "$ref": "#/components/schemas/MoneyOutput"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "name",
+                              "space",
+                              "category",
+                              "amount"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "total",
+                        "categories"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "cashOut": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "payments": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "fundContributions": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "savingsTransfers": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "outsideTheApp": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        }
+                      },
+                      "required": [
+                        "total",
+                        "payments",
+                        "fundContributions",
+                        "savingsTransfers",
+                        "outsideTheApp"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "otherCurrencySpaces": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "spaceId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "currency": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "spaceId",
+                          "name",
+                          "currency"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "currency",
+                    "period",
+                    "consumption",
+                    "cashOut",
+                    "otherCurrencySpaces"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed, InvalidPeriodLabel",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

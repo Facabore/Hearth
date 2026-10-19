@@ -62,6 +62,8 @@ import {
   createGetLineDashboard,
   createGetMemberLineMatrix,
   type GetFundContributions,
+  createGetUnifiedPersonalView,
+  type GetUnifiedPersonalView,
   type GetLineDashboard,
   type GetMemberLineMatrix,
 } from "@/modules/reporting/application";
@@ -320,6 +322,7 @@ export interface Container extends RouteDeps {
     readonly getLineDashboard: GetLineDashboard;
     readonly getMemberLineMatrix: GetMemberLineMatrix;
     readonly getFundContributions: GetFundContributions;
+    readonly getUnifiedPersonalView: GetUnifiedPersonalView;
   };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
@@ -553,8 +556,19 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     timeZone: env.APP_TIMEZONE,
     tm,
   };
+  // HU-E7-04 (ruling P37): the caller's own SAVINGS accounts live in their personal space (HU-E2-01), archived too.
+  const savingsAccountsOf = async (userId: string): Promise<string[]> => {
+    const personal = (await spaceRepository.listForUser(userId)).find((s) => s.kind === "PERSONAL");
+    if (!personal) return [];
+    const accounts = await accountsDeps.accounts.listBySpace(personal.id);
+    return accounts.filter((a) => a.type === "SAVINGS" && a.ownerUserId === userId).map((a) => a.id);
+  };
   // HU-E7-01 … HU-E7-05: reports read budgeting's figures and the ledger's sums through ports, on read (D7, P32).
   const reportingDeps = {
+    // HU-E7-04: the caller's own member rows (spaces), category keys (catalog) and savings accounts (accounts).
+    places: spaceRepository,
+    catalog: categoriesDeps.categories,
+    savingsAccountsOf,
     // HU-E7-02, HU-E7-03: the ledger sums payments, shares and fund contributions per member in SQL (D7).
     sums: ledgerQueries,
     access,
@@ -754,6 +768,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       getLineDashboard: createGetLineDashboard(reportingDeps),
       getMemberLineMatrix: createGetMemberLineMatrix(reportingDeps),
       getFundContributions: createGetFundContributions(reportingDeps),
+      getUnifiedPersonalView: createGetUnifiedPersonalView(reportingDeps),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.

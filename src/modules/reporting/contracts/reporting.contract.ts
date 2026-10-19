@@ -19,6 +19,7 @@ import {
   type MemberLineMatrix,
   type ReportPlan,
   type UnbudgetedSpending,
+  type UnifiedPersonalView,
 } from "../application";
 
 /** HU-E7-01 … HU-E7-03: the period's label in the space policy, "2026-11" (MONTHLY) or "2026-11 H1" (SEMI_MONTHLY). */
@@ -170,6 +171,65 @@ export const fundContributionsDto = (
   })),
 });
 
+/** HU-E7-04: the caller's consumption and cash out in their personal period (spec 5.4, D11, ruling P37). */
+export const UnifiedViewSchema = z.object({
+  /** The personal space's currency, every amount's (D6). */
+  currency: z.string(),
+  /** The caller's personal-space period; shared transactions are placed in it by date. */
+  period: PeriodSchema,
+  consumption: z.object({
+    total: MoneySchema,
+    /** The largest first: a catalog `key` groups seeded categories of every space; a custom one comes with its space. */
+    categories: z.array(
+      z.object({
+        key: z.string().nullable(),
+        /** A merged group's name in the caller's personal space, else in the space spending most in it. */
+        name: z.string(),
+        space: z.object({ id: z.string(), name: z.string() }).nullable(),
+        category: z.object({ id: z.string(), name: z.string().nullable() }).nullable(),
+        amount: MoneySchema,
+      }),
+    ),
+  }),
+  /** payments + fund contributions + savings transfers (spec 5.4); settlements are not cash out. */
+  cashOut: z.object({
+    total: MoneySchema,
+    payments: MoneySchema,
+    fundContributions: MoneySchema,
+    savingsTransfers: MoneySchema,
+    /** The part paid without an account, while the caller was a guest. */
+    outsideTheApp: MoneySchema,
+  }),
+  /** Spaces in another currency, left out of every amount. */
+  otherCurrencySpaces: z.array(z.object({ spaceId: z.string(), name: z.string(), currency: z.string() })),
+});
+
+export const unifiedViewDto = (view: UnifiedPersonalView): z.infer<typeof UnifiedViewSchema> => {
+  const money = (minor: bigint) => moneyOf(minor, view.currency);
+  return {
+    currency: view.currency,
+    period: periodDto(view.period),
+    consumption: {
+      total: money(view.consumption.total),
+      categories: view.consumption.groups.map((g) => ({
+        key: g.key,
+        name: g.name,
+        space: g.space,
+        category: g.category,
+        amount: money(g.amount),
+      })),
+    },
+    cashOut: {
+      total: money(view.cashOut.total),
+      payments: money(view.cashOut.payments),
+      fundContributions: money(view.cashOut.fundContributions),
+      savingsTransfers: money(view.cashOut.savingsTransfers),
+      outsideTheApp: money(view.cashOut.outsideTheApp),
+    },
+    otherCurrencySpaces: view.otherCurrencySpaces.map((s) => ({ ...s })),
+  };
+};
+
 const SpacePath = z.object({ spaceId: z.string() });
 const reportProblems = problems({
   "401": "Unauthenticated",
@@ -228,6 +288,24 @@ export const reportingPaths: ZodOpenApiPathsObject = {
           content: jsonContent(FundContributionsSchema),
         },
         ...reportProblems,
+      },
+    },
+  },
+  "/api/v1/me/unified-view": {
+    get: {
+      operationId: "getUnifiedPersonalView",
+      summary:
+        "The caller's consumption and cash out in a personal period, across every space they are or were in",
+      description:
+        "Only the caller's own member rows are read, a claimed guest place's history included; other members' personal spaces never appear. Shared transactions are placed by date into the caller's personal period; categories group by catalog key, a subcategory under its parent category, and a merged group takes the name the caller's personal space gives its key.",
+      ...securedByUser,
+      requestParams: { query: ReportQuerySchema },
+      responses: {
+        "200": {
+          description: "The caller's consumption by category and cash out, in the personal space's currency",
+          content: jsonContent(UnifiedViewSchema),
+        },
+        ...problems({ "401": "Unauthenticated", "422": "ValidationFailed, InvalidPeriodLabel" }),
       },
     },
   },
