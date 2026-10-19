@@ -2,6 +2,7 @@
 
 Self-hosted household finance: personal finance, group expense splitting and allocated budgets in one app.
 
+- Documentation: [`docs/README.md`](docs/README.md) · Published site: https://facabore.github.io/Hearth/
 - Design spec: `docs/superpowers/specs/2026-10-11-hearth-design.md`
 - Backlog: `docs/backlog/README.md` · Board: https://github.com/users/Facabore/projects/4
 - Stack versions: `docs/stack-versions.md`
