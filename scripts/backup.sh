@@ -2,11 +2,13 @@
 # Nightly backup (HU-E8-01). Writes one gzip-compressed plain-SQL pg_dump of the database to
 # $BACKUP_DIR/hearth-YYYY-MM-DD.sql.gz (the date in the container's TZ). Its first line records how many rows
 # `transactions` holds in the dump's own snapshot, deleted ones included; the restore drill checks it.
+# Then keeps the newest $BACKUP_RETENTION_DAYS (1 to 9999, default 14) of them.
 # Connects with the libpq variables (PGHOST, PGUSER, PGPASSWORD, PGDATABASE). Exits 1 on any failure.
 set -eu
 
 JOB=nightly-backup
 dir=${BACKUP_DIR:-/backups}
+keep=${BACKUP_RETENTION_DAYS:-14}
 export PGOPTIONS='-c client_min_messages=warning'
 
 # One JSON object per line on stdout, like the app's logger; $3 holds extra members, already JSON.
@@ -18,6 +20,10 @@ fail() {
   log error backup_failed "\"reason\":\"$1\""
   exit 1
 }
+
+# 1 to 9999, digits only: a leading zero is refused because sh arithmetic would read it as octal, and five or more
+# digits are refused so the arithmetic below never sees a number that can wrap.
+case $keep in '' | *[!0-9]* | 0* | ?????*) fail InvalidRetention ;; esac
 
 name="hearth-$(date +%F).sql.gz"
 # A partial per run: two overlapping runs on one day never write into each other's file.
@@ -47,3 +53,16 @@ case $transactions in '' | *[!0-9]*) fail DumpFailed ;; esac
 sync
 mv -f "$partial" "$dir/$name" || fail DumpFailed
 log info backup_written "\"file\":\"$name\",\"transactions\":$transactions"
+
+# Keep the newest $keep backups by name, one per day; pruning counts files, not age, and runs only after a good
+# dump, so a run of failed nights never deletes the last good backups. Nothing else in $dir is touched.
+# `set -e` is off inside a `||` list and the loop's status is its last command's, so a failed rm exits the loop's
+# subshell with 1 itself. The file this run just wrote is never deleted, even when a clock that ran ahead left
+# newer names in the directory: it still counts toward the $keep, so such a run keeps one file more.
+ls "$dir" | grep -E '^hearth-[0-9]{4}-[0-9]{2}-[0-9]{2}\.sql\.gz$' | sort -r | tail -n "+$((keep + 1))" |
+  while read -r old; do
+    if [ "$old" != "$name" ]; then
+      rm -f "$dir/$old" || exit 1
+      log info backup_pruned "\"file\":\"$old\""
+    fi
+  done || fail PruneFailed
