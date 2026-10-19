@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as acceptClaim } from "@/app/api/v1/claims/[token]/accept/route";
 import { POST as archiveAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/archive/route";
+import { GET as personalSpendingByGroupRoute } from "@/app/api/v1/me/reports/spending-by-group/route";
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
 import { PATCH as updateSpace } from "@/app/api/v1/spaces/[spaceId]/route";
 import { POST as recordTransfer } from "@/app/api/v1/spaces/[spaceId]/transfers/route";
@@ -13,6 +14,7 @@ import {
   cop,
   household,
   inSpace,
+  joinHousehold,
   newAccount,
   post,
   type HouseholdMember,
@@ -20,10 +22,15 @@ import {
 import {
   contribute,
   getLineDashboard,
+  getPersonalSpendingByGroup,
   getUnifiedView,
+  groupWithKey,
+  newCategory,
+  newCategoryGroup,
   reportHousehold,
   spend,
   type LineDashboardDto,
+  type PersonalSpendingByGroupDto,
   type UnifiedViewDto,
 } from "../support/reporting";
 import { actingIn, claimLink, newSharedSpace } from "../support/spaces";
@@ -229,5 +236,149 @@ describe("the unified view of a claimed guest place (HU-E1-11)", () => {
     const view = await viewOf(pedroUser, "2026-10");
     expect(view.consumption.total).toEqual(cop(100_000));
     expect(view.cashOut).toMatchObject({ payments: cop(300_000), outsideTheApp: cop(300_000) });
+  });
+});
+
+describe("personal spending by group over HTTP (HU-E7-06)", () => {
+  const breakdownOf = async (user: TestUser, period = "2026-11"): Promise<PersonalSpendingByGroupDto> => {
+    const response = await getPersonalSpendingByGroup(user, { period });
+    expect(response.status).toBe(200);
+    return (await response.json()) as PersonalSpendingByGroupDto;
+  };
+
+  it("merges seeded groups across Ana's spaces by catalog key and keeps each space's Pets apart (@critical)", async () => {
+    const { h } = await background();
+    const vetAtHome = await newCategory(h.ana.personal, "Vet", {
+      groupId: await newCategoryGroup(h.ana.personal, "Pets"),
+    });
+    const atHome = await post(recordExpense, h.ana.personal, "expenses", {
+      description: "Vet",
+      date: "2026-11-08",
+      categoryId: vetAtHome,
+      amount: cop(40_000),
+      accountId: h.ana.account,
+    });
+    expect(atHome.status).toBe(201);
+    // A custom category inside the seeded food group is not merged: it keeps its id and its space (ruling P102).
+    const snacks = await newCategory(h.ana.personal, "Snacks", {
+      groupId: await groupWithKey(h.ana.personal, "food"),
+    });
+    const snack = await post(recordExpense, h.ana.personal, "expenses", {
+      description: "Snacks",
+      date: "2026-11-10",
+      categoryId: snacks,
+      amount: cop(30_000),
+      accountId: h.ana.account,
+    });
+    expect(snack.status).toBe(201);
+    const vet = await newCategory(h.ana, "Vet", { groupId: await newCategoryGroup(h.ana, "Pets") });
+    const shared = await post(recordExpense, h.ana, "expenses", {
+      description: "Vet",
+      date: "2026-11-09",
+      categoryId: vet,
+      amount: cop(50_000),
+      payments: [{ memberId: h.ana.memberId, accountId: h.ana.account, amount: cop(50_000) }],
+      split: { method: "EQUAL", participants: [{ memberId: h.ana.memberId }, { memberId: h.juan.memberId }] },
+    });
+    expect(shared.status).toBe(201);
+    const breakdown = await breakdownOf(h.ana);
+    expect(breakdown.currency).toBe("COP");
+    expect(breakdown.total).toEqual(cop(1_670_000));
+    expect(
+      breakdown.groups.map((g) => [g.key, g.id === null, g.space?.id ?? null, g.total, g.share]),
+    ).toEqual([
+      ["food", true, null, cop(1_125_000), "67.37"],
+      ["housing", true, null, cop(480_000), "28.74"],
+      [null, false, h.ana.personal.spaceId, cop(40_000), "2.40"],
+      [null, false, h.spaceId, cop(25_000), "1.50"],
+    ]);
+    // Merged rows are named as Ana's personal space names each key (ruling P76), seeded in Spanish.
+    expect(breakdown.groups.slice(0, 2).map((g) => g.name)).toEqual(["Alimentación", "Vivienda"]);
+    expect(breakdown.groups[0]!.categories.map((c) => [c.key, c.name])).toEqual([
+      ["groceries", "Mercado"],
+      ["restaurants", "Restaurantes"],
+      [null, "Snacks"],
+    ]);
+    // The custom Snacks keeps its id and names its space inside the merged food row.
+    expect(breakdown.groups[0]!.categories[2]).toMatchObject({
+      id: snacks,
+      space: { id: h.ana.personal.spaceId, name: "Personal" },
+      total: cop(30_000),
+    });
+    // Each Pets group is one space's own: its category keeps its id and names the space (ruling P102).
+    const [petsAtHome, petsShared] = breakdown.groups.slice(2);
+    expect(petsAtHome).toMatchObject({
+      name: "Pets",
+      space: { id: h.ana.personal.spaceId, name: "Personal" },
+      categories: [{ id: vetAtHome, name: "Vet", space: { id: h.ana.personal.spaceId, name: "Personal" } }],
+    });
+    expect(petsShared).toMatchObject({
+      name: "Pets",
+      space: { id: h.spaceId, name: "Household" },
+      categories: [{ id: vet, name: "Vet", space: { id: h.spaceId, name: "Household" } }],
+    });
+    // Groceries of both spaces is one row under its catalog key.
+    expect(breakdown.groups[0]!.categories.filter((c) => c.key === "groceries")).toMatchObject([
+      { id: null, space: null, total: cop(1_035_000) },
+    ]);
+  });
+
+  it("names a subcategory's space, and the entry of the category itself names none (ruling P104)", async () => {
+    const { h } = await background();
+    const vet = await newCategory(h.ana, "Vet", { groupId: await newCategoryGroup(h.ana, "Pets") });
+    const checkup = await newCategory(h.ana, "Checkup", { parentCategoryId: vet });
+    for (const [categoryId, pesos] of [
+      [vet, 50_000],
+      [checkup, 20_000],
+    ] as const) {
+      const response = await post(recordExpense, h.ana, "expenses", {
+        description: "Vet",
+        date: "2026-11-09",
+        categoryId,
+        amount: cop(pesos),
+        payments: [{ memberId: h.ana.memberId, accountId: h.ana.account, amount: cop(pesos) }],
+        split: {
+          method: "EQUAL",
+          participants: [{ memberId: h.ana.memberId }, { memberId: h.juan.memberId }],
+        },
+      });
+      expect(response.status).toBe(201);
+    }
+    const breakdown = await breakdownOf(h.ana);
+    const pets = breakdown.groups.find((g) => g.name === "Pets")!;
+    expect(pets.space).toEqual({ id: h.spaceId, name: "Household" });
+    expect(pets.categories).toHaveLength(1);
+    expect(pets.categories[0]).toMatchObject({ id: vet, space: { id: h.spaceId, name: "Household" } });
+    expect(pets.categories[0]!.subcategories).toEqual([
+      { subcategoryId: null, name: null, archived: false, total: cop(25_000), share: "71.43", space: null },
+      {
+        subcategoryId: checkup,
+        name: "Checkup",
+        archived: false,
+        total: cop(10_000),
+        share: "28.57",
+        space: { id: h.spaceId, name: "Household" },
+      },
+    ]);
+  });
+
+  it("answers the caller's own rows to a VIEWER, 401 without a session and 422 for a bad period", async () => {
+    const { h } = await background();
+    const sofi = await joinHousehold(h, "Sofi", "VIEWER");
+    const viewed = await breakdownOf(sofi);
+    expect(viewed.currency).toBe("COP");
+    expect(viewed.total).toEqual(cop(0));
+    expect(viewed.groups).toEqual([]);
+    const anonymous = await call(
+      personalSpendingByGroupRoute,
+      "GET",
+      "/api/v1/me/reports/spending-by-group?period=2026-11",
+    );
+    expect(await problemOf(anonymous)).toEqual([401, "Unauthenticated"]);
+    expect(await problemOf(await getPersonalSpendingByGroup(h.ana, {}))).toEqual([422, "ValidationFailed"]);
+    expect(await problemOf(await getPersonalSpendingByGroup(h.ana, { period: "2026-11 H1" }))).toEqual([
+      422,
+      "InvalidPeriodLabel",
+    ]);
   });
 });

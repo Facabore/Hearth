@@ -23,6 +23,7 @@ import {
   type CategorySpending,
   type SpendingByGroup,
   type SubcategorySpending,
+  type PersonalSpendingByGroup,
   type LineDashboard,
   type MemberLineMatrix,
   type ReportPlan,
@@ -424,6 +425,72 @@ export const spendingByGroupDto = (report: SpendingByGroup): z.infer<typeof Spen
   })),
 });
 
+/** HU-E7-06: the space of a personal row that does not merge, so the web UI writes "space / group" (HU-E9-11). */
+const SpaceRefSchema = z.object({ id: z.string(), name: z.string() }).nullable();
+
+const groupSpace = SpaceRefSchema.describe("Null for a seeded group merged across spaces by key.");
+const categorySpace = SpaceRefSchema.describe(
+  "Null for a seeded category merged inside a merged seeded group; a custom category keeps its space.",
+);
+const subcategorySpace = SpaceRefSchema.describe(
+  "Null for the entry of what was spent in the category itself; otherwise the subcategory's space",
+);
+
+/** HU-E7-06: the caller's consumption (HU-E7-04) by group, category and subcategory, every level largest first. */
+export const PersonalSpendingByGroupSchema = z.object({
+  /** The personal space's currency, every amount's; spaces in another currency are left out (D6). */
+  currency: z
+    .string()
+    .describe(
+      "The personal space's currency, the currency of every amount; spaces in another currency are left out",
+    ),
+  /** The caller's personal-space period. */
+  period: PeriodSchema,
+  total: MoneySchema,
+  /** Seeded groups and categories merge across spaces by catalog key (`id` and `space` null). */
+  groups: z.array(
+    z.object({
+      ...spendingNode,
+      id: z.string().nullable().describe("Null for a seeded group merged across spaces by key."),
+      space: groupSpace,
+      categories: z.array(
+        z.object({
+          ...spendingNode,
+          id: z
+            .string()
+            .nullable()
+            .describe(
+              "Null for a seeded category merged inside a merged seeded group; a custom category keeps its id.",
+            ),
+          space: categorySpace,
+          /** Listed per space: subcategories carry no catalog key (HU-E3-04). */
+          subcategories: z.array(SubcategorySpendingSchema.extend({ space: subcategorySpace })),
+        }),
+      ),
+    }),
+  ),
+});
+
+export const personalSpendingByGroupDto = (
+  report: PersonalSpendingByGroup,
+): z.infer<typeof PersonalSpendingByGroupSchema> => ({
+  currency: report.currency,
+  period: periodDto(report.period),
+  total: moneyOf(report.total, report.currency),
+  groups: report.groups.map((group) => ({
+    ...spendingNodeDto(group, report.currency),
+    space: group.space,
+    categories: group.categories.map((category) => ({
+      ...spendingNodeDto(category, report.currency),
+      space: category.space,
+      subcategories: category.subcategories.map((entry) => ({
+        ...subcategorySpendingDto(entry, report.currency),
+        space: entry.space,
+      })),
+    })),
+  })),
+});
+
 const SpacePath = z.object({ spaceId: z.string() });
 const reportProblems = problems({
   "401": "Unauthenticated",
@@ -553,6 +620,24 @@ export const reportingPaths: ZodOpenApiPathsObject = {
           content: jsonContent(SpendingByGroupSchema),
         },
         ...reportProblems,
+      },
+    },
+  },
+  "/api/v1/me/reports/spending-by-group": {
+    get: {
+      operationId: "getPersonalSpendingByGroup",
+      summary: "The caller's consumption in a personal period by category group, category and subcategory",
+      description:
+        "The unified view's consumption, from the caller's own member rows only. Seeded groups, and seeded categories inside them, merge across spaces by catalog key, with id and space null; custom groups, every category inside one, and custom categories inside a seeded group keep their id and space.",
+      ...securedByUser,
+      requestParams: { query: ReportQuerySchema },
+      responses: {
+        "200": {
+          description:
+            "The caller's groups with consumption, largest first, in the personal space's currency",
+          content: jsonContent(PersonalSpendingByGroupSchema),
+        },
+        ...problems({ "401": "Unauthenticated", "422": "ValidationFailed, InvalidPeriodLabel" }),
       },
     },
   },

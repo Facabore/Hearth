@@ -70,6 +70,8 @@ import {
   type GetPersonalTrend,
   createGetSpendingByGroup,
   type GetSpendingByGroup,
+  createGetPersonalSpendingByGroup,
+  type GetPersonalSpendingByGroup,
   type GetLineDashboard,
   type GetMemberLineMatrix,
 } from "@/modules/reporting/application";
@@ -332,6 +334,7 @@ export interface Container extends RouteDeps {
     readonly getLineTrend: GetLineTrend;
     readonly getPersonalTrend: GetPersonalTrend;
     readonly getSpendingByGroup: GetSpendingByGroup;
+    readonly getPersonalSpendingByGroup: GetPersonalSpendingByGroup;
   };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
@@ -784,6 +787,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       getLineTrend: createGetLineTrend(reportingDeps),
       getPersonalTrend: createGetPersonalTrend(reportingDeps),
       getSpendingByGroup: createGetSpendingByGroup(reportingDeps),
+      getPersonalSpendingByGroup: createGetPersonalSpendingByGroup(reportingDeps),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.

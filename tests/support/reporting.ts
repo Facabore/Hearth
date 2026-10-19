@@ -6,6 +6,7 @@ import { GET as unifiedRoute } from "@/app/api/v1/me/unified-view/route";
 import { GET as lineTrendRoute } from "@/app/api/v1/spaces/[spaceId]/reports/trend/route";
 import { GET as personalTrendRoute } from "@/app/api/v1/me/trend/route";
 import { GET as spendingByGroupRoute } from "@/app/api/v1/spaces/[spaceId]/reports/spending-by-group/route";
+import { GET as personalSpendingByGroupRoute } from "@/app/api/v1/me/reports/spending-by-group/route";
 import {
   GET as listCategories,
   POST as createCategory,
@@ -256,6 +257,27 @@ export const getSpendingByGroup = (user: TestUser, spaceId: string, query: Recor
   getWithQuery(spendingByGroupRoute, user, `/api/v1/spaces/${spaceId}/reports/spending-by-group`, query, {
     spaceId,
   });
+
+export interface SpaceRefDto {
+  id: string;
+  name: string;
+}
+export interface PersonalSpendingByGroupDto {
+  currency: string;
+  period: ReportPeriodDto;
+  total: MoneyDto;
+  groups: (SpendingNodeDto & {
+    space: SpaceRefDto | null;
+    categories: (SpendingNodeDto & {
+      space: SpaceRefDto | null;
+      subcategories: (SubcategorySpendingDto & { space: SpaceRefDto | null })[];
+    })[];
+  })[];
+}
+
+/** HU-E7-06: `user` reads their own spending by group. */
+export const getPersonalSpendingByGroup = (user: TestUser, query: Record<string, string>) =>
+  getWithQuery(personalSpendingByGroupRoute, user, "/api/v1/me/reports/spending-by-group", query);
 
 /** HU-E3-02: `user` creates the category group `name` in their space; returns its id. */
 export const newCategoryGroup = async (user: TestUser, name: string): Promise<string> => {
