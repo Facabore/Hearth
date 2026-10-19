@@ -6,10 +6,24 @@ import { GET as unifiedRoute } from "@/app/api/v1/me/unified-view/route";
 import { GET as lineTrendRoute } from "@/app/api/v1/spaces/[spaceId]/reports/trend/route";
 import { GET as personalTrendRoute } from "@/app/api/v1/me/trend/route";
 import { GET as spendingByGroupRoute } from "@/app/api/v1/spaces/[spaceId]/reports/spending-by-group/route";
+import {
+  GET as listCategories,
+  POST as createCategory,
+} from "@/app/api/v1/spaces/[spaceId]/categories/route";
+import { PATCH as updateCategory } from "@/app/api/v1/spaces/[spaceId]/categories/[categoryId]/route";
+import { POST as createCategoryGroup } from "@/app/api/v1/spaces/[spaceId]/category-groups/route";
 import { POST as recordContribution } from "@/app/api/v1/spaces/[spaceId]/fund-contributions/route";
 import { call, type RouteHandler, type TestUser } from "./app";
 import { putCategories, referencePlan } from "./budgeting";
-import { categoryWithKey, cop, newAccount, post, type HouseholdMember, type MoneyDto } from "./ledger";
+import {
+  categoryWithKey,
+  cop,
+  inSpace,
+  newAccount,
+  post,
+  type HouseholdMember,
+  type MoneyDto,
+} from "./ledger";
 
 export interface ReportPeriodDto {
   label: string;
@@ -242,3 +256,52 @@ export const getSpendingByGroup = (user: TestUser, spaceId: string, query: Recor
   getWithQuery(spendingByGroupRoute, user, `/api/v1/spaces/${spaceId}/reports/spending-by-group`, query, {
     spaceId,
   });
+
+/** HU-E3-02: `user` creates the category group `name` in their space; returns its id. */
+export const newCategoryGroup = async (user: TestUser, name: string): Promise<string> => {
+  const response = await call(createCategoryGroup, "POST", inSpace(user, "category-groups"), {
+    user,
+    params: { spaceId: user.spaceId },
+    body: { name },
+  });
+  if (response.status !== 201) throw new Error(`group creation failed with status ${response.status}`);
+  return ((await response.json()) as { id: string }).id;
+};
+
+/** HU-E3-02, HU-E3-04: `user` creates `name` in a group, or as a subcategory of a category; returns its id. */
+export const newCategory = async (
+  user: TestUser,
+  name: string,
+  parent: { readonly groupId: string } | { readonly parentCategoryId: string },
+): Promise<string> => {
+  const response = await call(createCategory, "POST", inSpace(user, "categories"), {
+    user,
+    params: { spaceId: user.spaceId },
+    body: { name, ...parent },
+  });
+  if (response.status !== 201) throw new Error(`category creation failed with status ${response.status}`);
+  return ((await response.json()) as { id: string }).id;
+};
+
+/** HU-E3-02: `user` moves the category `categoryId` to the group `groupId` of their space. */
+export const moveCategory = async (user: TestUser, categoryId: string, groupId: string): Promise<void> => {
+  const response = await call(updateCategory, "PATCH", inSpace(user, `categories/${categoryId}`), {
+    user,
+    params: { spaceId: user.spaceId, categoryId },
+    body: { groupId },
+  });
+  if (response.status !== 200) throw new Error(`category move failed with status ${response.status}`);
+};
+
+/** HU-E3-05: the id of the seeded group with the catalog `key` in `user`'s space. */
+export const groupWithKey = async (user: TestUser, key: string): Promise<string> => {
+  const response = await call(listCategories, "GET", inSpace(user, "categories"), {
+    user,
+    params: { spaceId: user.spaceId },
+  });
+  if (response.status !== 200) throw new Error(`listing categories failed with status ${response.status}`);
+  const { items } = (await response.json()) as { items: { id: string; key: string | null }[] };
+  const group = items.find((g) => g.key === key);
+  if (group === undefined) throw new Error(`no group with key "${key}" in space ${user.spaceId}`);
+  return group.id;
+};

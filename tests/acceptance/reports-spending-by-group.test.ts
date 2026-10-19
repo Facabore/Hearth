@@ -11,7 +11,14 @@ import {
   type Household,
 } from "../support/ledger";
 import { archiveHousehold } from "../support/recurrences";
-import { getSpendingByGroup, spend, type SpendingByGroupDto } from "../support/reporting";
+import {
+  getSpendingByGroup,
+  groupWithKey,
+  moveCategory,
+  newCategory,
+  spend,
+  type SpendingByGroupDto,
+} from "../support/reporting";
 
 let app: Container;
 beforeAll(() => {
@@ -131,5 +138,66 @@ describe("spending by group of a space over HTTP (HU-E7-06)", () => {
       "InvalidPeriodLabel",
     ]);
     expect(await breakdownOf(h.ana, h.spaceId, "2027-01")).toMatchObject({ total: cop(0), groups: [] });
+  });
+
+  it("drills down from Food to its categories and from Groceries to its subcategories", async () => {
+    const h = await household();
+    const c = await categoriesOf(h);
+    const vegetables = await newCategory(h.ana, "Vegetables", { parentCategoryId: c.groceries });
+    const meat = await newCategory(h.ana, "Meat", { parentCategoryId: c.groceries });
+    await novemberExpenses(h, c, [
+      [c.groceries, 450_000],
+      [vegetables, 270_000],
+      [meat, 180_000],
+    ]);
+    const food = (await breakdownOf(h.ana, h.spaceId, "2026-11")).groups.find((g) => g.key === "food")!;
+    expect([food.total, food.share]).toEqual([cop(960_000), "34.16"]);
+    expect(food.categories.map((x) => [x.key, x.total, x.share])).toEqual([
+      ["groceries", cop(900_000), "93.75"],
+      ["restaurants", cop(60_000), "6.25"],
+    ]);
+    expect(food.categories[0]!.subcategories.map((s) => [s.subcategoryId, s.total, s.share])).toEqual([
+      [null, cop(450_000), "50.00"],
+      [vegetables, cop(270_000), "30.00"],
+      [meat, cop(180_000), "20.00"],
+    ]);
+    expect(food.categories[1]!.subcategories).toEqual([]);
+  });
+
+  it("counts an October expense in Vegetables once, in Groceries and in Food", async () => {
+    const h = await household();
+    const c = await categoriesOf(h);
+    const vegetables = await newCategory(h.ana, "Vegetables", { parentCategoryId: c.groceries });
+    await spend(h.ana, c.groceries, 85_000, "2026-10-03");
+    await spend(h.ana, vegetables, 40_000, "2026-10-04");
+    await spend(h.juan, c.restaurants, 60_000, "2026-10-05");
+    const october = await breakdownOf(h.ana, h.spaceId, "2026-10");
+    expect(october.total).toEqual(cop(185_000));
+    expect(october.groups.map((g) => [g.key, g.total])).toEqual([["food", cop(185_000)]]);
+    const groceries = october.groups[0]!.categories.find((x) => x.key === "groceries")!;
+    expect(groceries.total).toEqual(cop(125_000));
+    expect(groceries.subcategories.map((s) => [s.subcategoryId, s.total])).toEqual([
+      [null, cop(85_000)],
+      [vegetables, cop(40_000)],
+    ]);
+  });
+
+  it("counts Restaurants under Leisure once it moved there, in November and in the October recorded under Food", async () => {
+    const h = await household();
+    const c = await categoriesOf(h);
+    await novemberExpenses(h, c);
+    await spend(h.ana, c.restaurants, 30_000, "2026-10-08");
+    await moveCategory(h.ana, c.restaurants, await groupWithKey(h.ana, "leisure"));
+    expect(
+      (await breakdownOf(h.ana, h.spaceId, "2026-11")).groups.map((g) => [g.key, g.total, g.share]),
+    ).toEqual([
+      ["housing", cop(1_600_000), "56.94"],
+      ["food", cop(900_000), "32.03"],
+      ["leisure", cop(310_000), "11.03"],
+    ]);
+    const october = await breakdownOf(h.ana, h.spaceId, "2026-10");
+    expect(october.groups.map((g) => [g.key, g.categories.map((x) => [x.key, x.total])])).toEqual([
+      ["leisure", [["restaurants", cop(30_000)]]],
+    ]);
   });
 });
