@@ -10403,6 +10403,228 @@
           }
         }
       }
+    },
+    "/api/v1/spaces/{spaceId}/reports/spending-by-group": {
+      "get": {
+        "operationId": "getSpendingByGroup",
+        "summary": "A space's spending in a period by category group, then category, then subcategory; computed on read",
+        "description": "Every member reads it, archived spaces included. Live expenses count by amount, whoever paid, under the tree as it is now; nodes without spending are left out and each share is of its parent's total.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "period",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The groups with spending, largest first, each with its categories and subcategories",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "spaceId": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "$ref": "#/components/schemas/Period"
+                    },
+                    "total": {
+                      "$ref": "#/components/schemas/MoneyOutput"
+                    },
+                    "groups": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "description": "Null only for a personal row merged by catalog key; never null in a space's own breakdown",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "key": {
+                            "description": "The catalog key of a seeded group or category (HU-E3-05); null for those users create",
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "archived": {
+                            "type": "boolean"
+                          },
+                          "total": {
+                            "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "share": {
+                            "type": "string"
+                          },
+                          "categories": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "description": "Null only for a personal row merged by catalog key; never null in a space's own breakdown",
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "key": {
+                                  "description": "The catalog key of a seeded group or category (HU-E3-05); null for those users create",
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "archived": {
+                                  "type": "boolean"
+                                },
+                                "total": {
+                                  "$ref": "#/components/schemas/MoneyOutput"
+                                },
+                                "share": {
+                                  "type": "string"
+                                },
+                                "subcategories": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "subcategoryId": {
+                                        "description": "Null only for the entry of what was spent in the category itself, not in a subcategory",
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "name": {
+                                        "description": "Null only for the entry of what was spent in the category itself, not in a subcategory",
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "archived": {
+                                        "type": "boolean"
+                                      },
+                                      "total": {
+                                        "$ref": "#/components/schemas/MoneyOutput"
+                                      },
+                                      "share": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "subcategoryId",
+                                      "name",
+                                      "archived",
+                                      "total",
+                                      "share"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "key",
+                                "name",
+                                "archived",
+                                "total",
+                                "share",
+                                "subcategories"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "key",
+                          "name",
+                          "archived",
+                          "total",
+                          "share",
+                          "categories"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "spaceId",
+                    "period",
+                    "total",
+                    "groups"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed, InvalidPeriodLabel",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

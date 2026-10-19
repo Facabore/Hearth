@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { changeFrom } from "../domain/trend";
-import { changeDto, LineTrendSchema, signedPercent, TrendQuerySchema } from "./reporting.contract";
+import { fromParts } from "@/shared/kernel/local-date";
+import type { SpendingByGroup } from "../application";
+import {
+  changeDto,
+  LineTrendSchema,
+  signedPercent,
+  SpendingByGroupSchema,
+  spendingByGroupDto,
+  TrendQuerySchema,
+} from "./reporting.contract";
 
 describe("signedPercent (HU-E7-05, ruling P38)", () => {
   it("signs a decrease and keeps exactly two decimals", () => {
@@ -121,5 +130,66 @@ describe("LineTrendSchema.changePercent", () => {
     for (const bad of ["3.7", "3", "+3.70", "-.70", "NaN", "Infinity", "3.700", "", " 3.70"]) {
       expect(LineTrendSchema.safeParse(point(bad)).success).toBe(false);
     }
+  });
+});
+
+describe("spendingByGroupDto (HU-E7-06)", () => {
+  const base = { archived: false, space: null };
+  const breakdown: SpendingByGroup = {
+    spaceId: "s",
+    currency: "COP",
+    period: { start: fromParts(2026, 11, 1), end: fromParts(2026, 11, 30), label: "2026-11" },
+    total: 157_500_000n,
+    groups: [
+      {
+        ...base,
+        id: null,
+        key: "food",
+        name: "Food",
+        total: 157_500_000n,
+        share: 10_000,
+        categories: [
+          {
+            ...base,
+            id: "c",
+            key: null,
+            name: "Groceries",
+            total: 157_500_000n,
+            share: 10_000,
+            subcategories: [
+              { ...base, subcategoryId: null, name: null, total: 50_000_000n, share: 3_175 },
+              {
+                ...base,
+                subcategoryId: "u",
+                name: "Fruit",
+                archived: true,
+                total: 107_500_000n,
+                share: 6_825,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  it("writes money as minor-unit strings and every share as an exact two-decimal percentage at each level", () => {
+    const dto = spendingByGroupDto(breakdown);
+    expect(dto.total).toEqual({ amount: "157500000", currency: "COP" });
+    expect(dto.period).toEqual({ label: "2026-11", startDate: "2026-11-01", endDate: "2026-11-30" });
+    const [group] = dto.groups;
+    expect([group?.id, group?.share, group?.total.amount]).toEqual([null, "100.00", "157500000"]);
+    const [category] = group?.categories ?? [];
+    // A space's own breakdown never names a space (ruling P82), at any level.
+    for (const node of [group, category, ...(category?.subcategories ?? [])])
+      expect(node).not.toHaveProperty("space");
+    expect(category?.subcategories.map((s) => [s.subcategoryId, s.name, s.archived, s.share])).toEqual([
+      [null, null, false, "31.75"],
+      ["u", "Fruit", true, "68.25"],
+    ]);
+  });
+
+  it("produces a body the response schema accepts", () => {
+    expect(SpendingByGroupSchema.safeParse(spendingByGroupDto(breakdown)).success).toBe(true);
   });
 });

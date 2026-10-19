@@ -68,6 +68,8 @@ import {
   type GetLineTrend,
   createGetPersonalTrend,
   type GetPersonalTrend,
+  createGetSpendingByGroup,
+  type GetSpendingByGroup,
   type GetLineDashboard,
   type GetMemberLineMatrix,
 } from "@/modules/reporting/application";
@@ -329,6 +331,7 @@ export interface Container extends RouteDeps {
     readonly getUnifiedPersonalView: GetUnifiedPersonalView;
     readonly getLineTrend: GetLineTrend;
     readonly getPersonalTrend: GetPersonalTrend;
+    readonly getSpendingByGroup: GetSpendingByGroup;
   };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
@@ -383,8 +386,9 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   const installationRules = options.installationRules ?? new BuiltInInstallationRules();
   const spaceRepository = new DrizzleSpaceRepository(tm);
   const access = createSpaceAccess(spaceRepository);
+  const categoryRepository = new DrizzleCategoryRepository(tm);
   const categoriesDeps: CategoriesDeps = {
-    categories: new DrizzleCategoryRepository(tm),
+    categories: categoryRepository,
     access,
     ids,
     clock,
@@ -571,6 +575,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   };
   // HU-E7-01 … HU-E7-05: reports read budgeting's figures and the ledger's sums through ports, on read (D7, P32).
   const reportingDeps = {
+    // HU-E7-06: the category trees as they stand now, with group and category keys (categories, P74).
+    trees: categoryRepository,
     // HU-E7-04: the caller's own member rows (spaces), category keys (catalog) and savings accounts (accounts).
     places: spaceRepository,
     catalog: categoriesDeps.categories,
@@ -777,6 +783,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       getUnifiedPersonalView: createGetUnifiedPersonalView(reportingDeps),
       getLineTrend: createGetLineTrend(reportingDeps),
       getPersonalTrend: createGetPersonalTrend(reportingDeps),
+      getSpendingByGroup: createGetSpendingByGroup(reportingDeps),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.

@@ -20,6 +20,9 @@ import {
   type Change,
   type LineTrend,
   type PersonalTrend,
+  type CategorySpending,
+  type SpendingByGroup,
+  type SubcategorySpending,
   type LineDashboard,
   type MemberLineMatrix,
   type ReportPlan,
@@ -341,6 +344,86 @@ export const personalTrendDto = (trend: PersonalTrend): z.infer<typeof PersonalT
   })),
 });
 
+/** HU-E7-06: what every group and category of a breakdown carries. */
+const spendingNode = {
+  /** Null only for a personal row merged by catalog key; a space's own breakdown always has it. */
+  id: z
+    .string()
+    .nullable()
+    .describe("Null only for a personal row merged by catalog key; never null in a space's own breakdown"),
+  /** The catalog key of a seeded group or category (HU-E3-05, D11); null for those users create. */
+  key: z
+    .string()
+    .nullable()
+    .describe("The catalog key of a seeded group or category (HU-E3-05); null for those users create"),
+  name: z.string(),
+  /** Archived nodes still appear while they have spending in the period (HU-E3-03). */
+  archived: z.boolean(),
+  total: MoneySchema,
+  /** Percent of the parent's total with two decimals, each level rounded half up on its own ("56.94"). */
+  share: z.string(),
+};
+
+/** HU-E7-06: one subcategory, or (`subcategoryId` and `name` null) what was spent in the category itself. */
+const SubcategorySpendingSchema = z.object({
+  subcategoryId: z
+    .string()
+    .nullable()
+    .describe("Null only for the entry of what was spent in the category itself, not in a subcategory"),
+  name: z
+    .string()
+    .nullable()
+    .describe("Null only for the entry of what was spent in the category itself, not in a subcategory"),
+  archived: z.boolean(),
+  total: MoneySchema,
+  share: z.string(),
+});
+
+/** HU-E7-06: a space's spending in a period by group, category and subcategory, every level largest first. */
+export const SpendingByGroupSchema = z.object({
+  spaceId: z.string(),
+  period: PeriodSchema,
+  total: MoneySchema,
+  groups: z.array(
+    z.object({
+      ...spendingNode,
+      categories: z.array(z.object({ ...spendingNode, subcategories: z.array(SubcategorySpendingSchema) })),
+    }),
+  ),
+});
+
+type SpendingNodeOf = Pick<CategorySpending, "id" | "key" | "name" | "archived" | "total" | "share">;
+
+const spendingNodeDto = (node: SpendingNodeOf, currency: string) => ({
+  id: node.id,
+  key: node.key,
+  name: node.name,
+  archived: node.archived,
+  total: moneyOf(node.total, currency),
+  share: percentOf(node.share),
+});
+
+const subcategorySpendingDto = (entry: SubcategorySpending, currency: string) => ({
+  subcategoryId: entry.subcategoryId,
+  name: entry.name,
+  archived: entry.archived,
+  total: moneyOf(entry.total, currency),
+  share: percentOf(entry.share),
+});
+
+export const spendingByGroupDto = (report: SpendingByGroup): z.infer<typeof SpendingByGroupSchema> => ({
+  spaceId: report.spaceId,
+  period: periodDto(report.period),
+  total: moneyOf(report.total, report.currency),
+  groups: report.groups.map((group) => ({
+    ...spendingNodeDto(group, report.currency),
+    categories: group.categories.map((category) => ({
+      ...spendingNodeDto(category, report.currency),
+      subcategories: category.subcategories.map((entry) => subcategorySpendingDto(entry, report.currency)),
+    })),
+  })),
+});
+
 const SpacePath = z.object({ spaceId: z.string() });
 const reportProblems = problems({
   "401": "Unauthenticated",
@@ -452,6 +535,24 @@ export const reportingPaths: ZodOpenApiPathsObject = {
           content: jsonContent(PersonalTrendSchema),
         },
         ...problems({ "401": "Unauthenticated", "422": "ValidationFailed, InvalidPeriodLabel" }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/reports/spending-by-group": {
+    get: {
+      operationId: "getSpendingByGroup",
+      summary:
+        "A space's spending in a period by category group, then category, then subcategory; computed on read",
+      description:
+        "Every member reads it, archived spaces included. Live expenses count by amount, whoever paid, under the tree as it is now; nodes without spending are left out and each share is of its parent's total.",
+      ...securedByUser,
+      requestParams: { path: SpacePath, query: ReportQuerySchema },
+      responses: {
+        "200": {
+          description: "The groups with spending, largest first, each with its categories and subcategories",
+          content: jsonContent(SpendingByGroupSchema),
+        },
+        ...reportProblems,
       },
     },
   },
