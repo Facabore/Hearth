@@ -27,3 +27,17 @@ export {
   type FundContributionReport,
   type GetFundContributions,
 } from "./get-fund-contributions";
+export type { CashOut, ConsumptionGroup } from "../domain/unified-view";
+export type {
+  PersonalDeps,
+  PersonalScope,
+  PersonalSums,
+  ReportCategories,
+  SavingsAccountsOf,
+} from "./personal-scope";
+export {
+  createGetUnifiedPersonalView,
+  type GetUnifiedPersonalView,
+  type UnifiedGroup,
+  type UnifiedPersonalView,
+} from "./get-unified-personal-view";
