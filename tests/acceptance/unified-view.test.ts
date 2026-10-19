@@ -3,7 +3,10 @@ import { POST as acceptClaim } from "@/app/api/v1/claims/[token]/accept/route";
 import { POST as archiveAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/archive/route";
 import { GET as personalSpendingByGroupRoute } from "@/app/api/v1/me/reports/spending-by-group/route";
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
+import { POST as recordIncome } from "@/app/api/v1/spaces/[spaceId]/incomes/route";
+import { POST as recordSettlement } from "@/app/api/v1/spaces/[spaceId]/settlements/route";
 import { PATCH as updateSpace } from "@/app/api/v1/spaces/[spaceId]/route";
+import { POST as createSpace } from "@/app/api/v1/spaces/route";
 import { POST as recordTransfer } from "@/app/api/v1/spaces/[spaceId]/transfers/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
@@ -15,6 +18,7 @@ import {
   household,
   inSpace,
   joinHousehold,
+  memberIdOf,
   newAccount,
   post,
   type HouseholdMember,
@@ -23,6 +27,7 @@ import {
   contribute,
   getLineDashboard,
   getPersonalSpendingByGroup,
+  getSpendingByGroup,
   getUnifiedView,
   groupWithKey,
   newCategory,
@@ -31,6 +36,7 @@ import {
   spend,
   type LineDashboardDto,
   type PersonalSpendingByGroupDto,
+  type SpendingByGroupDto,
   type UnifiedViewDto,
 } from "../support/reporting";
 import { actingIn, claimLink, newSharedSpace } from "../support/spaces";
@@ -379,6 +385,98 @@ describe("personal spending by group over HTTP (HU-E7-06)", () => {
     expect(await problemOf(await getPersonalSpendingByGroup(h.ana, { period: "2026-11 H1" }))).toEqual([
       422,
       "InvalidPeriodLabel",
+    ]);
+  });
+
+  it("counts no income, transfer, settlement or fund contribution as spending, in Ana's breakdown or Household's", async () => {
+    const { h } = await background();
+    const income = await post(recordIncome, h.ana.personal, "incomes", {
+      description: "Salary",
+      date: "2026-11-05",
+      categoryId: await categoryWithKey(h.ana.personal, "salary"),
+      amount: cop(3_000_000),
+      accountId: h.ana.account,
+    });
+    expect(income.status).toBe(201);
+    const transfer = await post(recordTransfer, h.ana.personal, "transfers", {
+      date: "2026-11-05",
+      amount: cop(200_000),
+      sourceAccountId: h.ana.account,
+      destinationAccountId: await newAccount(h.ana.personal, "Nequi", 0),
+    });
+    expect(transfer.status).toBe(201);
+    const settlement = await post(recordSettlement, h.juan, "settlements", {
+      date: "2026-11-30",
+      amount: cop(100_000),
+      payerMemberId: h.juan.memberId,
+      receivingMemberId: h.ana.memberId,
+    });
+    expect(settlement.status).toBe(201);
+    const mine = await breakdownOf(h.ana);
+    expect(mine.total).toEqual(cop(1_575_000));
+    expect(mine.total).toEqual((await viewOf(h.ana)).consumption.total);
+    // No Income group, and the 480,000 COP fund contribution of 2026-11-01 is in no group.
+    expect(mine.groups.map((g) => g.key)).toEqual(["food", "housing"]);
+    const response = await getSpendingByGroup(h.ana, h.spaceId, { period: "2026-11" });
+    expect(response.status).toBe(200);
+    const shared = (await response.json()) as SpendingByGroupDto;
+    // The 1,200,000 COP rent paid from Household Fund counts once.
+    expect(shared.total).toEqual(cop(3_500_000));
+    expect(shared.groups.map((g) => [g.key, g.total, g.share])).toEqual([
+      ["food", cop(2_300_000), "65.71"],
+      ["housing", cop(1_200_000), "34.29"],
+    ]);
+  });
+
+  it("never includes Juan's personal expense in Ana's breakdown, while his own has it", async () => {
+    const { h } = await background();
+    await spendAtHome(h.juan, "groceries", 90_000, "2026-11-06");
+    expect((await breakdownOf(h.ana)).total).toEqual(cop(1_575_000));
+    // Juan's 90,000 COP and his shares: 1,200,000 Home, 720,000 Rent and 150,000 market.
+    expect((await breakdownOf(h.juan)).total).toEqual(cop(2_160_000));
+  });
+
+  it("leaves out Ana's expense in a space with another currency, keeping her breakdown in COP", async () => {
+    const { h } = await background();
+    const created = await call(createSpace, "POST", "/api/v1/spaces", {
+      user: h.ana,
+      body: { kind: "SHARED", name: "Trip abroad", currency: "USD" },
+    });
+    expect(created.status).toBe(201);
+    const abroadId = ((await created.json()) as { id: string }).id;
+    const abroad = actingIn(h.ana.personal, abroadId);
+    // The guest pays and splits the dinner with Ana: a bank account lives in a personal space, in its currency.
+    const pedro = await addGuest({ ...h, spaceId: abroadId }, "Pedro");
+    const dinner = await post(recordExpense, abroad, "expenses", {
+      description: "Dinner",
+      date: "2026-11-07",
+      categoryId: await categoryWithKey(abroad, "restaurants"),
+      amount: { amount: "2500", currency: "USD" },
+      payments: [{ memberId: pedro, accountId: null, amount: { amount: "2500", currency: "USD" } }],
+      split: {
+        method: "EQUAL",
+        participants: [{ memberId: await memberIdOf(h.ana, abroadId, "Ana") }, { memberId: pedro }],
+      },
+    });
+    expect(dinner.status).toBe(201);
+    // The 25.00 USD is spending of its own space ...
+    const abroadResponse = await getSpendingByGroup(abroad, abroad.spaceId, { period: "2026-11" });
+    expect(abroadResponse.status).toBe(200);
+    const inAbroad = (await abroadResponse.json()) as SpendingByGroupDto;
+    expect(inAbroad.total).toEqual({ amount: "2500", currency: "USD" });
+    // ... and never reaches her COP breakdown, which the unified view mirrors.
+    const mine = await breakdownOf(h.ana);
+    expect(mine.currency).toBe("COP");
+    expect(mine.total).toEqual(cop(1_575_000));
+    expect(mine.groups.map((g) => [g.key, g.total.currency])).toEqual([
+      ["food", "COP"],
+      ["housing", "COP"],
+    ]);
+    const view = await viewOf(h.ana);
+    expect(view.consumption.total).toEqual(cop(1_575_000));
+    // Ana does hold a share in the USD space: the unified view lists it as left out.
+    expect(view.otherCurrencySpaces).toMatchObject([
+      { spaceId: abroadId, name: "Trip abroad", currency: "USD" },
     ]);
   });
 });
