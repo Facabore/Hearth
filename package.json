@@ -23,7 +23,8 @@
     "db:migrate": "node scripts/migrate.mjs",
     "db:check": "node scripts/db-check.mjs",
     "test:int": "vitest run --project integration",
-    "test:acceptance": "vitest run --project acceptance"
+    "test:acceptance": "vitest run --project acceptance",
+    "test:ops": "vitest run --project operations"
   },
   "dependencies": {
     "better-auth": "1.7.7",

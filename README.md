@@ -15,14 +15,18 @@ Everything runs in Docker (see "Containerized development" below). With a host N
     pnpm install --frozen-lockfile
     pnpm test
 
-`pnpm test` runs every project; the integration and acceptance projects start a disposable `postgres:18.6-alpine` container through the Docker CLI, or use `TEST_DATABASE_URL` when set. `pnpm db:check` fails when the Drizzle schema has changes without a migration (`pnpm db:generate --name <change>`).
+`pnpm test` runs every project; the integration and acceptance projects start a disposable `postgres:18.6-alpine` container through the Docker CLI, or use `TEST_DATABASE_URL` when set, and the operations project (`pnpm test:ops`) runs the backup scripts in disposable containers, so it always needs Docker. `pnpm db:check` fails when the Drizzle schema has changes without a migration (`pnpm db:generate --name <change>`).
+
+If a test worker crashes (on Windows Vitest sometimes reports `Worker exited unexpectedly with exit code 3221226505`), the operations project's `afterAll` never runs and its containers, volumes and network stay behind, all labelled `hearth.test.stack`. Remove them with:
+
+    docker rm -f $(docker ps -aq --filter label=hearth.test.stack); docker volume rm $(docker volume ls -q --filter label=hearth.test.stack); docker network rm $(docker network ls -q --filter label=hearth.test.stack)
 
 ## Containerized development
 
 Requires only Git and Docker.
 
     docker compose -f compose.dev.yaml up                                  # db -> deps -> migrate -> app on http://localhost:3000
-    docker compose -f compose.dev.yaml --profile test run --rm test        # full test suite against a throwaway test-db
+    docker compose -f compose.dev.yaml --profile test run --rm test        # unit, integration and acceptance tests against a throwaway test-db
 
 If host port 5432 is taken, set `HEARTH_DB_PORT` (for example `HEARTH_DB_PORT=55432`) and point `DATABASE_URL` in `.env` at it.
 
