@@ -1,5 +1,6 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
+import { isUuid } from "@/shared/kernel";
 import type { CategoryRepository } from "../application/category-repository";
 import type { Category, CategoryGroup, CategoryGroupId, CategoryId } from "../domain/category";
 import type { CategoryColor, CategoryIcon, CategoryStyle, CategorySymbol } from "../domain/category-style";
@@ -133,6 +134,52 @@ export class DrizzleCategoryRepository implements CategoryRepository {
       groupId: row.groupId as CategoryGroupId,
       parentCategoryId: row.parentCategoryId as CategoryId | null,
       style: styleOfRow({ iconKind, iconValue, color }),
+    }));
+  }
+
+  /**
+   * HU-E7-06: the categories and subcategories of `spaceIds` not deleted (D8; archived ones included, HU-E3-03), each
+   * with the group it sits in now and both catalog keys, in one statement; sorted by space, then category; `[]`
+   * without well-formed ids (these come from ledger rows, not from a resolved membership).
+   */
+  async treesOf(spaceIds: readonly string[]): Promise<
+    {
+      spaceId: string;
+      groupId: string;
+      groupKey: string | null;
+      groupName: string;
+      groupArchived: boolean;
+      categoryId: string;
+      categoryKey: string | null;
+      categoryName: string;
+      categoryArchived: boolean;
+      parentCategoryId: string | null;
+    }[]
+  > {
+    const ids = spaceIds.filter(isUuid);
+    if (ids.length === 0) return [];
+    const rows = await this.tm
+      .executor()
+      .select({
+        spaceId: categories.spaceId,
+        groupId: categoryGroups.id,
+        groupKey: categoryGroups.key,
+        groupName: categoryGroups.name,
+        groupArchivedAt: categoryGroups.archivedAt,
+        categoryId: categories.id,
+        categoryKey: categories.key,
+        categoryName: categories.name,
+        categoryArchivedAt: categories.archivedAt,
+        parentCategoryId: categories.parentCategoryId,
+      })
+      .from(categories)
+      .innerJoin(categoryGroups, eq(categoryGroups.id, categories.groupId))
+      .where(and(inArray(categories.spaceId, ids), isNull(categories.deletedAt)))
+      .orderBy(asc(categories.spaceId), asc(categories.id));
+    return rows.map(({ groupArchivedAt, categoryArchivedAt, ...row }) => ({
+      ...row,
+      groupArchived: groupArchivedAt !== null,
+      categoryArchived: categoryArchivedAt !== null,
     }));
   }
 

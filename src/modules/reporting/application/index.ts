@@ -57,3 +57,5 @@ export {
   type PersonalTrendInput,
   type PersonalTrendPoint,
 } from "./get-personal-trend";
+export type { TreeCategory, TreePlace } from "../domain/category-tree";
+export type { CategoryTrees } from "./category-trees";

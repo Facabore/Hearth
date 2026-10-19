@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
+import { DrizzleCategoryRepository } from "@/modules/categories/infrastructure/drizzle-category-repository";
 import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { Money, type LocalDate } from "@/shared/kernel";
 import { testDatabase } from "../../../../tests/support/database";
@@ -303,5 +304,57 @@ describe("one user's sums across their places (HU-E7-04)", () => {
       fundContributions: 0n,
       contributionsOutsideTheApp: 0n,
     });
+  });
+});
+
+/** A subcategory of `parentId` (HU-E3-04), copied from the parent as stored so it has every column its level needs. */
+const subcategoryOf = async (space: SpaceFixture, parentId: string, name: string): Promise<string> => {
+  const categories = new DrizzleCategoryRepository(tm);
+  const parent = (await categories.listCategories(space.spaceId)).find((c) => c.id === parentId)!;
+  const id = randomUUID() as typeof parent.id;
+  await categories.addCategories([
+    { ...parent, id, parentCategoryId: parent.id, name, key: null, style: null },
+  ]);
+  return id;
+};
+
+describe("spending in a subcategory, for the breakdown by group (HU-E7-06)", () => {
+  it("keeps a subcategory's expenses under its own id, as amounts for the space and as shares for its members", async () => {
+    const w = await sharedLedgerFixture(db, pool);
+    const ana = w.household.memberId;
+    const byAna = { memberId: ana, accountId: w.bank };
+    const vegetables = await subcategoryOf(w.household, w.groceries, "Vegetables");
+    await store(
+      expense(w.household, w.groceries, "2026-11-05", pesos(85_000n), byAna, [ana]),
+      expense(w.household, vegetables, "2026-11-06", pesos(40_000n), byAna, [ana, w.pedro]),
+      // A fund contribution and a transfer are no spending: neither sum counts them.
+      contribution(w.household, w.fund, "2026-11-01", pesos(480_000n), ana, w.bank),
+      unwrap(
+        recordTransfer({
+          ...base(w.household, pesos(200_000n), "2026-11-05"),
+          sourceAccountId: w.bank,
+          destinationAccountId: w.fund,
+        }),
+      ),
+    );
+    const household = w.household.spaceId;
+    expect(await queries.expensesByCategory(household, nov1, nov30)).toEqual(
+      sorted(
+        [
+          { categoryId: w.groceries, amount: pesos(85_000n) },
+          { categoryId: vegetables, amount: pesos(40_000n) },
+        ],
+        (row) => row.categoryId,
+      ),
+    );
+    expect(await queries.consumptionByCategory([ana], nov1, nov30)).toEqual(
+      sorted(
+        [
+          { spaceId: household, categoryId: w.groceries, amount: pesos(85_000n) },
+          { spaceId: household, categoryId: vegetables, amount: pesos(20_000n) },
+        ],
+        (row) => row.categoryId,
+      ),
+    );
   });
 });
