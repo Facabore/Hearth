@@ -41,3 +41,19 @@ export {
   type UnifiedGroup,
   type UnifiedPersonalView,
 } from "./get-unified-personal-view";
+export { CHANGE_STATUSES, type Change, type ChangeStatus } from "../domain/trend";
+export {
+  createGetLineTrend,
+  type GetLineTrend,
+  type LineTrend,
+  type LineTrendSeries,
+  type TrendInput,
+  type TrendPoint,
+} from "./get-line-trend";
+export {
+  createGetPersonalTrend,
+  type GetPersonalTrend,
+  type PersonalTrend,
+  type PersonalTrendInput,
+  type PersonalTrendPoint,
+} from "./get-personal-trend";
