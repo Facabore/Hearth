@@ -33,7 +33,15 @@ const dockerOk = (...args: string[]): string => {
 };
 
 /** The scripts compose.yaml mounts into the backup containers, mounted at the same paths: /hearth/<name>. */
-export const HEARTH_SCRIPTS: string[] = ["backup.sh", "cron-entrypoint.sh", "restore-drill.sh"];
+export const HEARTH_SCRIPTS: string[] = [
+  "backup.sh",
+  "cron-entrypoint.sh",
+  "restore-drill.sh",
+  "offsite-copy.sh",
+];
+
+/** The image of the optional backup-offsite service. */
+export const RCLONE_IMAGE = "rclone/rclone:1.75.1";
 
 export interface RunOptions {
   /** Defaults to POSTGRES_IMAGE, the image of the backup service. */

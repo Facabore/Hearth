@@ -1,9 +1,13 @@
 import { spawnSync } from "node:child_process";
+import { copyFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   bogotaToday,
   docker,
   logEvents,
+  RCLONE_IMAGE,
   startBackupStack,
   todayIn,
   waitFor,
@@ -25,14 +29,14 @@ interface ComposeService {
 }
 
 /** `docker compose` on the production file, with the variables an operator copies from .env.production.example. */
-const compose = (args: string[], env: Record<string, string> = {}): string => {
+const compose = (args: string[], env: Record<string, string> = {}, file = "compose.yaml"): string => {
   const environment: NodeJS.ProcessEnv = { ...process.env, POSTGRES_PASSWORD: "test", ...env };
   // A developer's shell variables beat --env-file: the defaults under test must not depend on them.
   for (const name of ["COMPOSE_PROFILES", "APP_TIMEZONE", "BACKUP_RETENTION_DAYS"])
     if (!(name in env)) delete environment[name];
   const result = spawnSync(
     "docker",
-    ["compose", "-f", "compose.yaml", "--env-file", ".env.production.example", ...args],
+    ["compose", "-f", file, "--env-file", ".env.production.example", ...args],
     { encoding: "utf8", env: environment },
   );
   if (result.status !== 0) throw new Error(result.stderr);
@@ -88,6 +92,65 @@ describe("compose.yaml backups (HU-E8-01)", () => {
       TZ: "America/Lima",
       BACKUP_RETENTION_DAYS: "30",
     });
+  });
+
+  it("leaves backup-offsite out unless COMPOSE_PROFILES names offsite", () => {
+    const names = (env: Record<string, string> = {}) =>
+      compose(["config", "--services"], env).trim().split("\n").sort();
+    expect(names()).toEqual(["app", "backup", "caddy", "db", "migrate"]);
+    expect(names({ COMPOSE_PROFILES: "offsite" })).toContain("backup-offsite");
+  });
+
+  it("runs backup-offsite at 03:00 from rclone, reading the backups read-only, on a network without the database", () => {
+    const offsite = services({ COMPOSE_PROFILES: "offsite" })["backup-offsite"]!;
+    expect(offsite).toMatchObject({
+      image: RCLONE_IMAGE,
+      profiles: ["offsite"],
+      restart: "unless-stopped",
+      entrypoint: ["sh", "/hearth/cron-entrypoint.sh"],
+      command: ["0 3 * * *", "sh /hearth/offsite-copy.sh"],
+    });
+    // Exactly these: no database credential may reach the one container that talks to the internet (P112).
+    expect(offsite.environment).toEqual({ TZ: "America/Bogota", BACKUP_DIR: "/backups" });
+    expect(Object.keys(offsite.networks ?? {})).toEqual(["offsite"]);
+    // And nothing else, the database included, is on its network.
+    const onOffsite = Object.entries(services({ COMPOSE_PROFILES: "offsite" }))
+      .filter(([, service]) => "offsite" in (service.networks ?? {}))
+      .map(([name]) => name);
+    expect(onOffsite).toEqual(["backup-offsite"]);
+    expect(offsite.depends_on).toBeUndefined();
+    expect(offsite.ports).toBeUndefined();
+    expect(mounts(offsite)).toEqual([
+      ["volume:backups", "/backups", true],
+      ["bind:scripts", "/hearth", true],
+    ]);
+  });
+
+  it("loads only .env.offsite into backup-offsite, never .env", () => {
+    // The project's own compose.yaml next to a throwaway .env.offsite and .env: a leak shows in the resolved environment.
+    const dir = mkdtempSync(join(tmpdir(), "hearth-compose-"));
+    try {
+      copyFileSync("compose.yaml", join(dir, "compose.yaml"));
+      writeFileSync(
+        join(dir, ".env.offsite"),
+        ["BACKUP_OFFSITE_REMOTE=offsite:bucket", "RCLONE_CONFIG_OFFSITE_TYPE=local", ""].join("\n"),
+      );
+      writeFileSync(
+        join(dir, ".env"),
+        ["POSTGRES_PASSWORD=from-dot-env", "BETTER_AUTH_SECRET=from-dot-env", ""].join("\n"),
+      );
+      const resolved = JSON.parse(
+        compose(["config", "--format", "json"], { COMPOSE_PROFILES: "offsite" }, join(dir, "compose.yaml")),
+      ).services["backup-offsite"] as ComposeService;
+      expect(resolved.environment).toEqual({
+        TZ: "America/Bogota",
+        BACKUP_DIR: "/backups",
+        BACKUP_OFFSITE_REMOTE: "offsite:bucket",
+        RCLONE_CONFIG_OFFSITE_TYPE: "local",
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   describe("the scheduled job", () => {
@@ -157,6 +220,42 @@ describe("compose.yaml backups (HU-E8-01)", () => {
         expect.arrayContaining([".notes.partial", "hearth-2020-01-01.sql.gz", "notes.txt"]),
       );
       expect(stack.backups()).not.toContain(".hearth-2020-01-01.sql.gz.123.partial");
+    });
+
+    it("schedules the off-site copy the same way in the rclone image", async () => {
+      const offsite = services({ COMPOSE_PROFILES: "offsite" })["backup-offsite"]!;
+      const id = stack.start(offsite.entrypoint!, offsite.command!, {
+        image: RCLONE_IMAGE,
+        env: { TZ: offsite.environment!.TZ! },
+      });
+      await waitFor(() => stack.logs(id).includes("crond (busybox"));
+      const exec = (...args: string[]) => docker("exec", id, ...args).stdout.trim();
+      expect(exec("cat", "/etc/crontabs/root")).toBe(
+        "0 3 * * * sh /hearth/offsite-copy.sh > /proc/1/fd/1 2> /proc/1/fd/2",
+      );
+      expect(exec("stat", "-c", "%u", "/etc/crontabs/root")).toBe("0");
+      expect(exec("date", "+%Z")).toBe("-05");
+    });
+
+    it("refuses to start the off-site copy when offsite-copy.sh is missing from the mounted scripts", () => {
+      const { entrypoint, command } = services({ COMPOSE_PROFILES: "offsite" })["backup-offsite"]!;
+      const line = [...entrypoint!, ...command!].map((word) => `'${word}'`).join(" ");
+      const result = stack.run(`timeout -s KILL 10 ${line}; exit $?`, {
+        image: RCLONE_IMAGE,
+        scripts: ["cron-entrypoint.sh"],
+      });
+      expect(result.status).toBe(66);
+      expect(result.stderr).toContain("/hearth/offsite-copy.sh is not a file");
+    });
+
+    it("does not remove the partial files of a running backup when backup-offsite starts", () => {
+      // The backup writes its partial file while backup-offsite may start (docker compose up -d): it owns none.
+      stack.run("touch /backups/.hearth-2020-01-02.sql.gz.456.partial", { scripts: [] });
+      const { entrypoint, command } = services({ COMPOSE_PROFILES: "offsite" })["backup-offsite"]!;
+      const line = [...entrypoint!, ...command!].map((word) => `'${word}'`).join(" ");
+      stack.run(`timeout -s KILL 10 ${line}; exit $?`, { image: RCLONE_IMAGE });
+      expect(stack.backups()).toContain(".hearth-2020-01-02.sql.gz.456.partial");
+      stack.run("rm /backups/.hearth-2020-01-02.sql.gz.456.partial", { scripts: [] });
     });
 
     it("refuses to start without exactly a schedule and a command", () => {

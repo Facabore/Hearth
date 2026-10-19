@@ -28,3 +28,4 @@ Pinned on 2026-10-11 (HU-E0-01). Each entry was the latest stable release that d
 | Tailwind CSS | 4.3.3 | Pinned for E9; installed when the web UI starts |
 | PostgreSQL | 18.6 (`postgres:18.6-alpine`) | Same image in dev, tests and production, and for the `backup` service, so `pg_dump` matches the server (its busybox `crond` runs the schedule) |
 | Caddy | 2.11.7 (`caddy:2.11.7-alpine`) | Automatic TLS |
+| rclone | 1.75.1 (`rclone/rclone:1.75.1`) | Pinned on 2026-10-19 (HU-E8-01), published 2026-09-04; 1.75.2 (2026-10-09, a security release) was under two weeks old, so the bump waits for 2026-10-23 (issue #135): the optional `backup-offsite` service (profile `offsite`) and its test |

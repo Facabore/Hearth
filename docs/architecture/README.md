@@ -21,9 +21,11 @@ flowchart TB
         db[("PostgreSQL: never published")]
         backup["backup: nightly pg_dump at 02:00, keeps 14"]
     end
+    offsite["backup-offsite (optional, own network): rclone copy at 03:00"]
 
     ci["GitHub Actions CI on main: builds the images"]
     ghcr["GHCR images, tagged by commit SHA"]
+    remote["Off-site storage: any rclone remote"]
 
     web -->|HTTPS| caddy
     clients -->|HTTPS| caddy
@@ -36,6 +38,8 @@ flowchart TB
     ghcr -->|"compose pull"| app
     ghcr -->|"compose pull"| migrate
     backup -->|"pg_dump, restore drill"| db
+    offsite -.->|"reads the backups volume"| backup
+    offsite -.->|HTTPS| remote
 ```
 
 What the files say:
@@ -45,6 +49,7 @@ What the files say:
 - **PostgreSQL** is on the internal network only. Its data lives in the `db-data` volume, and its nightly dumps in the `backups` volume.
 - **CI** (`.github/workflows/ci.yml`) runs lint, boundary check, typecheck and tests, builds the two images (`hearth` and `hearth-migrator`) and smoke-tests them against PostgreSQL. On a push to `main` it pushes them to GHCR tagged with the commit SHA and `main`. Releases are deployed by setting both image tags in `.env` to the SHA.
 - **`backup`** runs `pg_dump` every night at 02:00 in `APP_TIMEZONE` into the `backups` volume and keeps the newest `BACKUP_RETENTION_DAYS` (14) files; `scripts/restore-drill.sh` restores the newest into a scratch database, checks its transaction count and drops it (HU-E8-01, [Backups and restore](../operations/backups.md)). It publishes no port.
+- **`backup-offsite`** is optional (compose profile `offsite`, off by default): it copies the backups to any rclone remote at 03:00 and never deletes there; it is on its own network, without the database.
 
 ## Request lifecycle
 

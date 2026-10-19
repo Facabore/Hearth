@@ -23,8 +23,14 @@ for word in $2; do
   esac
 done
 set +f
-# A run killed by `docker compose stop` or a reboot leaves its hidden partial file, and none is running at start.
-rm -f "${BACKUP_DIR:-/backups}"/.hearth-*.partial || echo "cron-entrypoint.sh: could not remove stale partial backups" >&2
+# A backup killed by `docker compose stop` or a reboot leaves its hidden partial file, and none of this service's
+# runs is live at start. Only the service that writes the partials cleans them: another service sharing the volume
+# (backup-offsite) may start while the nightly dump is writing one.
+case $2 in
+  *"/hearth/backup.sh"*)
+    rm -f "${BACKUP_DIR:-/backups}"/.hearth-*.partial || echo "cron-entrypoint.sh: could not remove stale partial backups" >&2
+    ;;
+esac
 mkdir -p /etc/crontabs
 # The job's output goes to the container's own stdout and stderr, so `docker compose logs` shows it.
 printf '%s %s > /proc/1/fd/1 2> /proc/1/fd/2\n' "$1" "$2" > /etc/crontabs/root

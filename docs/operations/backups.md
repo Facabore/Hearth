@@ -18,6 +18,7 @@ Set these in `.env` on the VPS only to change the default; `compose.yaml` gives 
 |---|---|---|
 | `BACKUP_RETENTION_DAYS` | `14` | How many daily backup files the volume keeps: a whole number from 1 to 9999, written without a leading zero. |
 | `APP_TIMEZONE` | `America/Bogota` | The zone of the 02:00 schedule and of the date in each file name; the app uses it too. |
+| `COMPOSE_PROFILES` | unset | `offsite` turns on the optional off-site copy (see "Off-site copy" below); its remote is set in `.env.offsite`, not in `.env`. |
 
 The job connects as `hearth` with the `POSTGRES_PASSWORD` the `db` service already uses.
 
@@ -95,3 +96,41 @@ Only when the database is lost or damaged: this replaces the `hearth` database w
 ## Copy a backup off the VPS
 
     docker compose cp backup:/backups/hearth-2026-11-12.sql.gz .
+
+## Off-site copy (optional)
+
+The `backups` volume is on the VPS's own disk, next to the database: losing the disk loses both. The optional `backup-offsite` service copies the backups to any storage [rclone](https://rclone.org/) supports (an S3-compatible bucket, Backblaze B2, SFTP, …). It is off by default.
+
+- **When:** every day at 03:00 in `APP_TIMEZONE`, an hour after the backup. It runs `rclone copy` of every `hearth-YYYY-MM-DD.sql.gz` to `BACKUP_OFFSITE_REMOTE`; files already there are skipped.
+- **Never deletes:** `rclone copy` removes nothing on the remote, so a wiped or pruned volume never empties it. It does overwrite a remote file whose local namesake changed, for example after a second backup on the same day, or if the files on the VPS were tampered with. So enable versioning or object lock on the bucket, and set the remote's own retention, for example a lifecycle rule that deletes old versions and objects after 90 days.
+- **Isolated:** it reads the `backups` volume read-only and is on its own network, with no route to the database.
+
+To turn it on:
+
+1. Check that Docker Compose is 2.24.0 or later (`docker compose version`): `compose.yaml` loads `.env.offsite` with `required: false`, which older versions reject, with the profile off too. Then create `/opt/hearth/.env.offsite` from `.env.offsite.example` and `chmod 600` it. `BACKUP_OFFSITE_REMOTE` names the remote and path (`offsite:<bucket>/hearth`; the remote's name is letters, digits, `_` and `-`, and the script refuses anything else); the `RCLONE_CONFIG_OFFSITE_*` variables configure the remote `offsite` (rclone reads every backend option as `RCLONE_CONFIG_<REMOTE>_<OPTION>`). The file holds credentials and is never committed.
+2. Prefer an encrypted remote, since the dumps hold the household's financial history: configure the storage as a remote named, say, `raw`, and make `offsite` an rclone `crypt` remote over it:
+
+        RCLONE_CONFIG_RAW_TYPE=s3
+        RCLONE_CONFIG_RAW_PROVIDER=Other
+        RCLONE_CONFIG_RAW_ENDPOINT=https://s3.example.com
+        RCLONE_CONFIG_RAW_ACCESS_KEY_ID=…
+        RCLONE_CONFIG_RAW_SECRET_ACCESS_KEY=…
+        RCLONE_CONFIG_OFFSITE_TYPE=crypt
+        RCLONE_CONFIG_OFFSITE_REMOTE=raw:my-bucket/hearth
+        # The next value is the output of: docker run --rm -i rclone/rclone:1.75.1 obscure -   (type the passphrase, then Ctrl-D).
+        # Keep comments on their own lines: `docker run --env-file` would read a trailing comment as part of the value.
+        RCLONE_CONFIG_OFFSITE_PASSWORD=…
+        BACKUP_OFFSITE_REMOTE=offsite:
+
+   Keep the passphrase somewhere other than the VPS: without it the copies cannot be read.
+3. Add `COMPOSE_PROFILES=offsite` to `.env` and run `docker compose up -d`.
+4. Check it without waiting for 03:00: `docker compose exec backup-offsite sh /hearth/offsite-copy.sh` prints `offsite_copy_finished`; `docker compose exec backup-offsite sh -c 'rclone ls "$BACKUP_OFFSITE_REMOTE"'` lists the files. A wrong endpoint or credentials can take a few minutes to report: rclone makes two attempts (`--retries 2`, so one retry), each with a 30 s connect timeout and a 2 minute stall timeout, before the script prints `offsite_copy_failed`. The low-level retries are also cut to two, so a flaky link fails a large upload sooner; the next night's copy sends the file again.
+
+Its logs (`docker compose logs backup-offsite`) carry `"job":"offsite-copy"`: `offsite_copy_finished` (`remote`, the remote's name only), or `offsite_copy_failed` with exit status 1 and the `reason` `MissingRemote` (`BACKUP_OFFSITE_REMOTE` is not set) `InvalidRemote` (`BACKUP_OFFSITE_REMOTE` has no `remote:` part, or the remote's name has other characters than letters, digits, `_` and `-`, for example a connection string with parameters or a local path: nothing is run and the value is not logged), or `CopyFailed` (rclone's lines before it name the cause).
+
+To turn it off, remove `COMPOSE_PROFILES=offsite` from `.env` and stop the running service, which `docker compose up -d` does not do: `docker compose --profile offsite rm -sf backup-offsite`. The copies already on the remote stay there.
+
+To restore from the off-site copy, download the file next to `compose.yaml` (`backup-offsite` cannot write to the volume), put it in the volume with `docker compose cp`, and follow [Restoring for real](#restoring-for-real):
+
+    docker run --rm --env-file .env.offsite -v "$PWD:/data" --entrypoint sh rclone/rclone:1.75.1 -c 'rclone copy "$BACKUP_OFFSITE_REMOTE" /data --include hearth-2026-11-12.sql.gz'
+    docker compose cp hearth-2026-11-12.sql.gz backup:/backups/

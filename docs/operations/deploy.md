@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- A Linux VPS with Docker Engine and the Compose plugin.
+- A Linux VPS with Docker Engine and the Compose plugin, version 2.24.0 or later (`compose.yaml` loads the optional `.env.offsite` with `required: false`).
 - A DNS `A`/`AAAA` record for your domain pointing at the VPS.
 - Inbound TCP 80 and 443 (and UDP 443 for HTTP/3) open; nothing else needs to be public. PostgreSQL is never published.
 - Access to the images: either make the GHCR packages `hearth` and `hearth-migrator` public in GitHub, or run `docker login ghcr.io` on the VPS with a token that has `read:packages`.

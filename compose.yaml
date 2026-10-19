@@ -64,6 +64,27 @@ services:
       db: { condition: service_healthy }
     networks: [internal]
 
+  # Optional off-site copy of the backups (HU-E8-01): runs only with COMPOSE_PROFILES=offsite in .env.
+  backup-offsite:
+    image: rclone/rclone:1.75.1
+    profiles: [offsite]
+    restart: unless-stopped
+    entrypoint: ["sh", "/hearth/cron-entrypoint.sh"]
+    command: ["0 3 * * *", "sh /hearth/offsite-copy.sh"]
+    environment:
+      TZ: ${APP_TIMEZONE:-America/Bogota}
+      BACKUP_DIR: /backups
+    # BACKUP_OFFSITE_REMOTE and the RCLONE_CONFIG_OFFSITE_* variables of the remote (.env.offsite.example).
+    env_file:
+      - path: .env.offsite
+        required: false
+    volumes:
+      - backups:/backups:ro
+      # The whole directory, like the backup service (P116): a missing scripts/ fails loudly.
+      - ./scripts:/hearth:ro
+    # Its own network: it reaches the internet, never the database.
+    networks: [offsite]
+
   caddy:
     image: caddy:2.11.7-alpine
     restart: unless-stopped
@@ -80,6 +101,7 @@ services:
 
 networks:
   internal: {}
+  offsite: {}
 
 volumes:
   db-data: {}

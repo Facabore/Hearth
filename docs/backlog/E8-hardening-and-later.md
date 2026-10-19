@@ -43,6 +43,7 @@ Feature: Backups and restore
 **Technical notes:**
 - Backup container or cron sidecar in Docker Compose; retention configurable (`BACKUP_RETENTION_DAYS`, default 14).
 - Off-site copy target documented in `docs/operations/backups.md`; restore drill performed at least once before declaring M5 done.
+- Built in M5 (plan `2026-10-19-m5-nightly-backups.md`, rulings P107–P116): the `backup` service (`postgres:18.6-alpine`, busybox `crond`, 02:00 in `APP_TIMEZONE`) runs `scripts/backup.sh`, which writes `hearth-YYYY-MM-DD.sql.gz` with its snapshot's transaction count on the first line and then keeps the newest `BACKUP_RETENTION_DAYS` files; `scripts/restore-drill.sh` restores into `hearth_restore_drill`, compares the count and drops it; the optional `backup-offsite` service (`rclone/rclone:1.75.1`, profile `offsite`) copies the files to any rclone remote at 03:00. Logs are JSON lines with the `job` `nightly-backup`, `restore-drill` or `offsite-copy`. The drill on the VPS is recorded in `docs/operations/backups.md`.
 
 ---
 
