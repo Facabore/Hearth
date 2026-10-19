@@ -1,18 +1,32 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { POST as acceptClaim } from "@/app/api/v1/claims/[token]/accept/route";
 import { POST as archiveAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/archive/route";
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
+import { PATCH as updateSpace } from "@/app/api/v1/spaces/[spaceId]/route";
 import { POST as recordTransfer } from "@/app/api/v1/spaces/[spaceId]/transfers/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
 import { activatePlan } from "../support/budgeting";
-import { categoryWithKey, cop, inSpace, newAccount, post, type HouseholdMember } from "../support/ledger";
+import {
+  addGuest,
+  categoryWithKey,
+  cop,
+  household,
+  inSpace,
+  newAccount,
+  post,
+  type HouseholdMember,
+} from "../support/ledger";
 import {
   contribute,
+  getLineDashboard,
   getUnifiedView,
   reportHousehold,
   spend,
+  type LineDashboardDto,
   type UnifiedViewDto,
 } from "../support/reporting";
+import { actingIn, claimLink, newSharedSpace } from "../support/spaces";
 
 let app: Container;
 beforeAll(() => {
@@ -137,5 +151,83 @@ describe("unified personal view over HTTP (HU-E7-04)", () => {
       422,
       "InvalidPeriodLabel",
     ]);
+  });
+
+  it("never includes Juan's personal expense in Ana's view, while Juan's own view has it", async () => {
+    const { h } = await background();
+    await spendAtHome(h.juan, "groceries", 90_000, "2026-11-06");
+    const ana = await viewOf(h.ana);
+    expect(ana.consumption.total).toEqual(cop(1_575_000));
+    // Nor does his 90,000 COP payment reach her cash out: 85,000 + 60,000 + 2,000,000, as in the cash-out test.
+    expect(ana.cashOut.payments).toEqual(cop(2_145_000));
+    // Juan's 90,000 COP and his shares: 1,200,000 Home, 720,000 Rent and 150,000 market.
+    expect((await viewOf(h.juan)).consumption.total).toEqual(cop(2_160_000));
+  });
+
+  it("places a shared expense of 2026-11-26 in Ana's 2026-11, while MONTHLY(25) Casa counts it in 2026-12", async () => {
+    const ana = await registerUser("Ana");
+    const casa = await newSharedSpace(ana, "Casa");
+    const policy = await call(updateSpace, "PATCH", `/api/v1/spaces/${casa}`, {
+      user: ana,
+      params: { spaceId: casa },
+      body: { periodPolicy: { kind: "MONTHLY", day: 25 } },
+    });
+    expect(policy.status).toBe(200);
+    const inCasa = actingIn(ana, casa);
+    const recorded = await post(recordExpense, inCasa, "expenses", {
+      description: "Market",
+      date: "2026-11-26",
+      categoryId: await categoryWithKey(inCasa, "groceries"),
+      amount: cop(100_000),
+      accountId: await newAccount(ana, "Bancolombia", 1_000_000),
+    });
+    expect(recorded.status).toBe(201);
+    expect((await viewOf(ana)).consumption.total).toEqual(cop(100_000));
+    const dashboard = (await (
+      await getLineDashboard(ana, casa, { period: "2026-12" })
+    ).json()) as LineDashboardDto;
+    expect(dashboard.period).toEqual({ label: "2026-12", startDate: "2026-11-25", endDate: "2026-12-24" });
+    expect(dashboard.unbudgeted?.spent).toEqual(cop(100_000));
+  });
+});
+
+describe("the unified view of a claimed guest place (HU-E1-11)", () => {
+  it("includes Pedro's Hotel share recorded while he was a guest, and no share of Trip 2026's own Pedro (@critical)", async () => {
+    const h = await household();
+    const pedro = await addGuest(h, "Pedro");
+    const hotel = await post(recordExpense, h.ana, "expenses", {
+      description: "Hotel",
+      date: "2026-10-08",
+      categoryId: h.groceries,
+      amount: cop(300_000),
+      payments: [{ memberId: pedro, accountId: null, amount: cop(300_000) }],
+      split: {
+        method: "EQUAL",
+        participants: [h.ana.memberId, h.juan.memberId, pedro].map((memberId) => ({ memberId })),
+      },
+    });
+    expect(hotel.status).toBe(201);
+    const trip = await newSharedSpace(h.ana.personal, "Trip 2026");
+    const inTrip = actingIn(h.ana.personal, trip);
+    const tripPedro = await addGuest({ ...h, spaceId: trip }, "Pedro");
+    const cabin = await post(recordExpense, inTrip, "expenses", {
+      description: "Cabin",
+      date: "2026-10-09",
+      categoryId: await categoryWithKey(inTrip, "travel"),
+      amount: cop(200_000),
+      payments: [{ memberId: tripPedro, accountId: null, amount: cop(200_000) }],
+      split: { method: "EQUAL", participants: [{ memberId: tripPedro }] },
+    });
+    expect(cabin.status).toBe(201);
+    const link = await claimLink(h.ana, h.spaceId, pedro);
+    const pedroUser = await registerUser("Pedro");
+    const claimed = await call(acceptClaim, "POST", `/api/v1/claims/${link.token}/accept`, {
+      user: pedroUser,
+      params: { token: link.token },
+    });
+    expect(claimed.status).toBe(200);
+    const view = await viewOf(pedroUser, "2026-10");
+    expect(view.consumption.total).toEqual(cop(100_000));
+    expect(view.cashOut).toMatchObject({ payments: cop(300_000), outsideTheApp: cop(300_000) });
   });
 });

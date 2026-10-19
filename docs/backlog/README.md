@@ -212,7 +212,7 @@ Notes on placement:
 - HU-E0-09's cookie/Bearer scenario runs against a test `SessionResolver` until HU-E1-01 supplies the Better Auth adapter, both within M0.
 - HU-E2-02 (shared fund account) belongs to epic E2 but ships in M2, because shared spaces first exist in M2.
 - HU-E1-13 (direct spaces) lives in E1 because creating and reusing the space belongs to `spaces`; it reuses the shared-expense flow of HU-E4-07.
-- The unified-view assertions of HU-E1-11 (M2) become testable once HU-E7-04 (M4) lands.
+- The unified-view assertions of HU-E1-11 (M2) are pinned over HTTP by `tests/acceptance/unified-view.test.ts` since HU-E7-04 (M4).
 - The closed-period scenario of HU-E4-06 (M1) is active since HU-E6-07 (M3-B) provides the `ClosedPeriodGuard` adapter.
 - E9 parallel track: HU-E9-01 and HU-E9-02 can start after M0, with HU-E9-02 formatting from the built-in es-CO defaults until HU-E1-15 (M3-D) is `Done` and the preferences of `GET /api/v1/me` take over; HU-E9-03 and HU-E9-04 after M1, with their time, date and time sheet, subcategory, category icon and color, and account-type scenarios once M3-D is `Done`, and HU-E9-12 after both; HU-E9-05 … HU-E9-07 after M2; HU-E9-08 and HU-E9-09 after M3; HU-E9-10 and HU-E9-11 after M4; HU-E9-13 once HU-E1-14 and HU-E1-15 (M3-D) are `Done`; HU-E9-14 once HU-E8-18 (M5) is `Done`. The default-split scenarios of HU-E9-06 activate once HU-E6-08 (M3) is `Done`.
 - HU-E8-07 (PWA) is a web UI story kept in E8 as a Won't-v1 placeholder; it depends on HU-E9-01 and HU-E9-11 and follows the UI Definition of Done.
