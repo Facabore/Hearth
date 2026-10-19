@@ -19,6 +19,7 @@ import {
   CHANGE_STATUSES,
   type Change,
   type LineTrend,
+  type PersonalTrend,
   type LineDashboard,
   type MemberLineMatrix,
   type ReportPlan,
@@ -255,6 +256,15 @@ export const changeDto = (change: Change | null, currency: string) => ({
   changePercent: signedPercent(change?.basisPoints ?? null),
 });
 
+/** A change as a signed percentage: `-3.70`, exactly two decimals (see `signedPercent`). */
+const ChangePercentSchema = z
+  .string()
+  .regex(/^-?\d+\.\d{2}$/)
+  .nullable()
+  .describe(
+    "Signed percentage with two decimals, e.g. -3.70, rounded half away from zero; null when changeStatus is NEW or null, or when the change exceeds 2^53 basis points (change and status are still answered).",
+  );
+
 /** HU-E7-05: each line of the end period's plan over the window, versus the previous period of the policy. */
 export const LineTrendSchema = z.object({
   spaceId: z.string(),
@@ -275,13 +285,7 @@ export const LineTrendSchema = z.object({
           change: MoneySchema.nullable().describe(
             "Current minus previous; null when changeStatus is NEW or null.",
           ),
-          changePercent: z
-            .string()
-            .regex(/^-?\d+\.\d{2}$/)
-            .nullable()
-            .describe(
-              "Signed percentage with two decimals, e.g. -3.70, rounded half away from zero; null when changeStatus is NEW or null, or when the change exceeds 2^53 basis points (change and status are still answered).",
-            ),
+          changePercent: ChangePercentSchema,
           changeStatus: z
             .enum(CHANGE_STATUSES)
             .nullable()
@@ -305,6 +309,35 @@ export const lineTrendDto = (trend: LineTrend): z.infer<typeof LineTrendSchema> 
       ...changeDto(p.change, trend.currency),
       changeStatus: p.change?.status ?? null,
     })),
+  })),
+});
+
+/** HU-E7-05: the caller's consumption per personal period (HU-E7-04), each versus the period before. */
+export const PersonalTrendSchema = z.object({
+  /** The personal space's currency. */
+  currency: z.string(),
+  /** The caller's personal periods, oldest first, ending with `endPeriod`. */
+  periods: z.array(PeriodSchema),
+  /** One per period, in the order of `periods`. */
+  points: z.array(
+    z.object({
+      period: z.string(),
+      consumption: MoneySchema,
+      change: MoneySchema.nullable().describe("Current minus previous; null when changeStatus is NEW."),
+      changePercent: ChangePercentSchema,
+      changeStatus: z.enum(CHANGE_STATUSES),
+    }),
+  ),
+});
+
+export const personalTrendDto = (trend: PersonalTrend): z.infer<typeof PersonalTrendSchema> => ({
+  currency: trend.currency,
+  periods: trend.periods.map(periodDto),
+  points: trend.points.map((p) => ({
+    period: p.period.label,
+    consumption: moneyOf(p.consumption, trend.currency),
+    ...changeDto(p.change, trend.currency),
+    changeStatus: p.change.status,
   })),
 });
 
@@ -402,6 +435,23 @@ export const reportingPaths: ZodOpenApiPathsObject = {
           content: jsonContent(LineTrendSchema),
         },
         ...reportProblems,
+      },
+    },
+  },
+  "/api/v1/me/trend": {
+    get: {
+      operationId: "getPersonalTrend",
+      summary: "The caller's consumption per personal period over a window, each versus the period before",
+      description:
+        "Consumption as the unified view totals it, from the caller's own member rows only. Percentages are signed with two decimals; after a period without consumption the status is NEW.",
+      ...securedByUser,
+      requestParams: { query: TrendQuerySchema },
+      responses: {
+        "200": {
+          description: "The caller's personal periods, oldest first, with their consumption",
+          content: jsonContent(PersonalTrendSchema),
+        },
+        ...problems({ "401": "Unauthenticated", "422": "ValidationFailed, InvalidPeriodLabel" }),
       },
     },
   },

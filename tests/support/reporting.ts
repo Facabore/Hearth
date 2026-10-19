@@ -4,6 +4,7 @@ import { GET as matrixRoute } from "@/app/api/v1/spaces/[spaceId]/reports/member
 import { GET as fundRoute } from "@/app/api/v1/spaces/[spaceId]/reports/fund-contributions/route";
 import { GET as unifiedRoute } from "@/app/api/v1/me/unified-view/route";
 import { GET as lineTrendRoute } from "@/app/api/v1/spaces/[spaceId]/reports/trend/route";
+import { GET as personalTrendRoute } from "@/app/api/v1/me/trend/route";
 import { POST as recordContribution } from "@/app/api/v1/spaces/[spaceId]/fund-contributions/route";
 import { call, type RouteHandler, type TestUser } from "./app";
 import { putCategories, referencePlan } from "./budgeting";
@@ -194,3 +195,19 @@ export interface LineTrendDto {
 /** HU-E7-05: `user` reads the line trend of `spaceId`. */
 export const getLineTrend = (user: TestUser, spaceId: string, query: Record<string, string | number>) =>
   getWithQuery(lineTrendRoute, user, `/api/v1/spaces/${spaceId}/reports/trend`, query, { spaceId });
+
+export interface PersonalTrendDto {
+  currency: string;
+  periods: ReportPeriodDto[];
+  points: {
+    period: string;
+    consumption: MoneyDto;
+    change: MoneyDto | null;
+    changePercent: string | null;
+    changeStatus: string;
+  }[];
+}
+
+/** HU-E7-05: `user` reads their own consumption trend. */
+export const getPersonalTrend = (user: TestUser, query: Record<string, string | number>) =>
+  getWithQuery(personalTrendRoute, user, "/api/v1/me/trend", query);
