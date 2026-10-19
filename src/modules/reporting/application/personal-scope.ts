@@ -102,16 +102,24 @@ export const personalScope = async (
   });
 };
 
+/** The caller's shares of live expenses within `period` across `scope.places`, per space and category (spec 5.4). */
+export const consumptionRows = (
+  deps: PersonalDeps,
+  scope: PersonalScope,
+  period: Period,
+): ReturnType<PersonalSums["consumptionByCategory"]> =>
+  deps.sums.consumptionByCategory(
+    scope.places.map((p) => p.memberId),
+    period.start,
+    period.end,
+  );
+
 /** Σ the caller's consumption within `period` across `scope.places` (spec 5.4). */
 export const consumptionTotal = async (
   deps: PersonalDeps,
   scope: PersonalScope,
   period: Period,
 ): Promise<bigint> => {
-  const rows = await deps.sums.consumptionByCategory(
-    scope.places.map((p) => p.memberId),
-    period.start,
-    period.end,
-  );
+  const rows = await consumptionRows(deps, scope, period);
   return rows.reduce((sum, row) => sum + row.amount, 0n);
 };

@@ -33,7 +33,11 @@ export class SpendingByPeriod implements PlanSpending {
   readonly expenses: Record<string, { categoryId: string; amount: bigint }[]> = {};
   readonly transfers: Record<string, { accountId: string; amount: bigint }[]> = {};
 
-  async expensesByCategory(_spaceId: string, from: LocalDate) {
+  /** Every question asked of `expensesByCategory`, in order. */
+  readonly expensesAsked: [spaceId: string, from: LocalDate, to: LocalDate][] = [];
+
+  async expensesByCategory(spaceId: string, from: LocalDate, to: LocalDate) {
+    this.expensesAsked.push([spaceId, from, to]);
     return [...(this.expenses[from] ?? [])];
   }
 

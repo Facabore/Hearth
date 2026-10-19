@@ -1,6 +1,6 @@
 import { ok, type Period, type Result } from "@/shared/kernel";
 import { cashOutOf, consumptionGroups, type CashOut } from "../domain/unified-view";
-import { personalScope, type PersonalDeps } from "./personal-scope";
+import { consumptionRows, personalScope, type PersonalDeps } from "./personal-scope";
 
 /** One group of the caller's consumption: a catalog key, or a custom category with its space ("space / category"). */
 export interface UnifiedGroup {
@@ -43,7 +43,7 @@ export const createGetUnifiedPersonalView =
     if (!scope.ok) return scope;
     const { personal, period, places, otherCurrencies } = scope.value;
     const memberIds = places.map((p) => p.memberId);
-    const rows = await deps.sums.consumptionByCategory(memberIds, period.start, period.end);
+    const rows = await consumptionRows(deps, scope.value, period);
     // The personal space's categories name the merged groups, even without consumption there (ruling P76).
     const spaceIds = [...new Set<string>([personal.spaceId, ...rows.map((row) => row.spaceId)])];
     const listed = await Promise.all(

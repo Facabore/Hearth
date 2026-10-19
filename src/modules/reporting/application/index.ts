@@ -59,3 +59,22 @@ export {
 } from "./get-personal-trend";
 export type { TreeCategory, TreePlace } from "../domain/category-tree";
 export type { CategoryTrees } from "./category-trees";
+export type {
+  CategorySpending,
+  GroupSpending,
+  SpaceRef,
+  SpendingTree,
+  SubcategorySpending,
+} from "../domain/spending-by-group";
+export {
+  createGetSpendingByGroup,
+  type GetSpendingByGroup,
+  type SpendingByGroup,
+  type SpendingByGroupDeps,
+} from "./get-spending-by-group";
+export {
+  createGetPersonalSpendingByGroup,
+  type GetPersonalSpendingByGroup,
+  type PersonalSpendingByGroup,
+  type PersonalSpendingByGroupDeps,
+} from "./get-personal-spending-by-group";

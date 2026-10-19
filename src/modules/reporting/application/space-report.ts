@@ -42,6 +42,20 @@ export const spaceReport = async (
   deps: ReportingDeps,
   input: SpaceReportInput,
 ): Promise<Result<SpaceReport>> => {
+  const scoped = await spacePeriod(deps, input);
+  if (!scoped.ok) return scoped;
+  const { space, period } = scoped.value;
+  return ok({ space, period, view: await planViewIn(deps, space, period) });
+};
+
+/**
+ * HU-E7-01 … HU-E7-06: the reader's membership (space.read, every role, archived spaces included) and the period
+ * named `input.period`: the stored one with that label, else the policy's period around the stored ones (D10).
+ */
+export const spacePeriod = async (
+  deps: Pick<ReportingDeps, "access" | "plans">,
+  input: SpaceReportInput,
+): Promise<Result<{ readonly space: SpaceMembership; readonly period: Period }>> => {
   const reader = await authorizeSpaceAction(deps.access, input.spaceId, input.userId, "space.read");
   if (!reader.ok) return reader;
   const space = reader.value;
@@ -51,7 +65,7 @@ export const spaceReport = async (
     input.period,
   );
   if (!period.ok) return period;
-  return ok({ space, period: period.value, view: await planViewIn(deps, space, period.value) });
+  return ok({ space, period: period.value });
 };
 
 export const reportPlanOf = (view: BudgetPlanView | null): ReportPlan | null =>
