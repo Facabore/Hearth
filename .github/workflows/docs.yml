@@ -11,10 +11,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: pages
-  cancel-in-progress: false
-
 # Actions are pinned to commit SHAs (tag in the comment), like every other dependency.
 jobs:
   build:
@@ -37,6 +33,10 @@ jobs:
       pages: write
       id-token: write
     timeout-minutes: 10
+    # Only deploys share the group: a pull request's build never cancels or waits behind a pending deploy.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

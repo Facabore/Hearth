@@ -4,7 +4,7 @@ Every decision Hearth has made, in one place. There are three kinds, and each li
 
 - **Design decisions (D1–D23)** are in the [design spec](../superpowers/specs/2026-10-11-hearth-design.md#6-key-decisions), section 6.
 - **ADRs** record a technology choice: [`docs/adr/`](#adrs).
-- **Rulings (P1–P103)** are execution rulings the controller made while a milestone plan was written or run. Each lives in its plan's Self-Review; this page indexes them.
+- **Rulings (P1–P106)** are execution rulings the controller made while a milestone plan was written or run. Each lives in its plan's Self-Review; this page indexes them.
 
 ## Design decisions D1–D23
 
@@ -43,11 +43,11 @@ Rationale and rejected alternatives are in [section 6 of the spec](../superpower
 | [0001](../adr/0001-boundary-enforcement-with-dependency-cruiser.md) | Enforce architecture boundaries with dependency-cruiser. | Accepted (2026-10-11) |
 | [0002](../adr/0002-openapi-generator-zod-openapi.md) | Generate OpenAPI 3.1 with zod-openapi. | Accepted (2026-10-12) |
 
-## Rulings P1–P103
+## Rulings P1–P106
 
 Rulings are numbered across milestones, not per plan, and not always in the order of the plans: M4's plan holds rulings that were made while M3-D was being planned. The tables are grouped by the plan that records them. In each, "Where" is the plan's Self-Review section and the item number in it. "Amended" marks a ruling the plan itself says was amended.
 
-The ranges are: M3-A P1–P9, M3-B P10–P19, M3-C P20–P31, M3-D P40–P73, P78, P79 and P84–P94, and M4 P32–P39, P74–P77, P80–P83 and P95–P103. M3-D's P89–P94 were kept outside the repository until the merge and are recorded in the section "Execution rulings (recorded after the merge)" at the end of its plan.
+The ranges are: M3-A P1–P9, M3-B P10–P19, M3-C P20–P31, M3-D P40–P73, P78, P79 and P84–P94, and M4 P32–P39, P74–P77, P80–P83 and P95–P106. M3-D's P89–P94 were kept outside the repository until the merge and are recorded in the section "Execution rulings (recorded after the merge)" at the end of its plan.
 
 ### M3-A: budget plans (P1–P9)
 
@@ -162,7 +162,7 @@ Section "Preflight rulings (P84–P88)", and, for P89–P94, section "Execution 
 | P93 | Plan figures, closed plans and carry-over included, follow the current category tree and members. | Execution rulings, From the final review (M2) |
 | P94 | The API keeps `timezone` on the user and `timeZone` on transactions. | Execution rulings, From the final review (M5) |
 
-### M4: insight API (P32–P39, P74–P77, P80–P83, P95–P103)
+### M4: insight API (P32–P39, P74–P77, P80–P83, P95–P106)
 
 Plan: [`2026-10-17-m4-insight-api.md`](../superpowers/plans/2026-10-17-m4-insight-api.md). P74 is amended. P83 is resolved by P95. P74–P77 and P80–P82 were ruled for HU-E7-06.
 
@@ -193,6 +193,9 @@ Plan: [`2026-10-17-m4-insight-api.md`](../superpowers/plans/2026-10-17-m4-insigh
 | P101 | Only a top-level category lends its name to a row merged by catalog key; a keyed subcategory never names it. | Assumptions, 22 |
 | P102 | In the personal breakdown only a merged row loses its `id` and `space`; inside a custom group row every category keeps them. | Assumptions, 23 |
 | P103 | The category's own-spending entry always answers `archived: false`; the category row carries the flag. | Assumptions, 24 |
+| P104 | The personal breakdown's own-spending entry always answers `space: null`; the category row carries the space. | Assumptions, 25 |
+| P105 | One request computes each plan's figures once: the line trend shares a request-scoped cache by plan id, so its cost is O(window + chain). | Assumptions, 26 |
+| P106 | The unified view and the personal spending by group break naming ties the same way: Spanish collation ignoring case, then space name, then id. | Assumptions, 27 |
 
 ### Preflight notes and findings
 
