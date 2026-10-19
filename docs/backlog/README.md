@@ -153,12 +153,12 @@ A UI story is `Done` when:
 | [HU-E2-05](E2-accounts.md) | More account types with common attributes | E2 | M3-D | Must | S | Done | HU-E2-01, HU-E2-03 |
 | [HU-E2-06](E2-accounts.md) | Type-specific account attributes | E2 | M3-D | Must | M | Done | HU-E2-05 |
 | [HU-E2-07](E2-accounts.md) | Available money and net worth | E2 | M3-D | Must | M | Done | HU-E2-04, HU-E2-05 |
-| [HU-E7-01](E7-reporting.md) | Budget line dashboard | E7 | M4 | Must | M | Backlog | HU-E6-09 |
-| [HU-E7-02](E7-reporting.md) | Member by line matrix | E7 | M4 | Must | M | Backlog | HU-E6-08, HU-E7-01 |
-| [HU-E7-03](E7-reporting.md) | Shared fund contribution tracking | E7 | M4 | Must | S | Backlog | HU-E4-09, HU-E6-05 |
-| [HU-E7-04](E7-reporting.md) | Unified personal view | E7 | M4 | Must | M | Backlog | HU-E4-07, HU-E4-10 |
-| [HU-E7-05](E7-reporting.md) | Period-over-period trend | E7 | M4 | Should | S | Backlog | HU-E7-01, HU-E7-04 |
-| [HU-E7-06](E7-reporting.md) | Spending by category group with drill-down | E7 | M4 | Must | M | Backlog | HU-E3-02, HU-E3-04, HU-E3-05, HU-E7-04 |
+| [HU-E7-01](E7-reporting.md) | Budget line dashboard | E7 | M4 | Must | M | Done | HU-E6-09 |
+| [HU-E7-02](E7-reporting.md) | Member by line matrix | E7 | M4 | Must | M | Done | HU-E6-08, HU-E7-01 |
+| [HU-E7-03](E7-reporting.md) | Shared fund contribution tracking | E7 | M4 | Must | S | Done | HU-E4-09, HU-E6-05 |
+| [HU-E7-04](E7-reporting.md) | Unified personal view | E7 | M4 | Must | M | Done | HU-E4-07, HU-E4-10 |
+| [HU-E7-05](E7-reporting.md) | Period-over-period trend | E7 | M4 | Should | S | Done | HU-E7-01, HU-E7-04 |
+| [HU-E7-06](E7-reporting.md) | Spending by category group with drill-down | E7 | M4 | Must | M | Done | HU-E3-02, HU-E3-04, HU-E3-05, HU-E7-04 |
 | [HU-E8-01](E8-hardening-and-later.md) | Nightly backups and restore drill | E8 | M5 | Must | M | Backlog | HU-E0-07 |
 | [HU-E8-02](E8-hardening-and-later.md) | Structured logging and health check | E8 | M5 | Should | M | Backlog | HU-E0-07 |
 | [HU-E8-04](E8-hardening-and-later.md) | Import transactions from CSV | E8 | M5 | Could | M | Backlog | HU-E4-01, HU-E4-02 |
