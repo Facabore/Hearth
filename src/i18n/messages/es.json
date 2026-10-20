@@ -167,5 +167,36 @@
       "closedTitle": "El registro está cerrado",
       "closedBody": "Pídele una invitación a alguien de tu hogar."
     }
+  },
+  "shell": {
+    "nav": {
+      "main": "Principal",
+      "home": "Inicio",
+      "transactions": "Movimientos",
+      "record": "Registrar movimiento",
+      "recordShort": "Registrar"
+    },
+    "space": {
+      "current": "Espacio actual: {name}. Cambiar de espacio",
+      "title": "Espacios",
+      "onlyYou": "Solo tú"
+    },
+    "role": {
+      "OWNER": "Propietario",
+      "ADMIN": "Administrador",
+      "MEMBER": "Miembro",
+      "VIEWER": "Lector"
+    },
+    "profile": {
+      "open": "Perfil de {name}",
+      "settings": "Ajustes",
+      "settingsHint": "Formatos, hora, zona horaria, tema e idioma",
+      "accounts": "Cuentas",
+      "signOut": "Cerrar sesión"
+    },
+    "notFound": "Esta página no existe o ya no está disponible."
+  },
+  "home": {
+    "title": "Inicio"
   }
 }

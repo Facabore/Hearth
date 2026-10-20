@@ -1,0 +1,47 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { Icon, Logo } from "@/shared/ui";
+
+/**
+ * One landmark for both layouts: a bar fixed at the bottom under 1024 px, a 240 px rail from 1024 px (the Desktop
+ * artboard). Plan and Saldos are not rendered until HU-E9-08 and HU-E9-07 (ruling P126).
+ */
+export function NavLinks({ spaceId }: { readonly spaceId: string }) {
+  const t = useTranslations("shell.nav");
+  const pathname = usePathname();
+  const home = `/spaces/${spaceId}`;
+  const transactions = `${home}/transactions`;
+  const current = (href: string) => (pathname === href ? ("page" as const) : undefined);
+  const item =
+    "flex min-h-11 flex-1 flex-col items-center justify-center gap-1 text-xs text-muted aria-[current=page]:text-accent lg:flex-none lg:flex-row lg:justify-start lg:gap-3 lg:rounded-xl lg:px-3 lg:text-base";
+  return (
+    <nav
+      aria-label={t("main")}
+      className="fixed inset-x-0 bottom-0 z-10 flex h-[76px] items-center border-t border-line bg-surface px-4 pb-[env(safe-area-inset-bottom)] lg:inset-y-0 lg:right-auto lg:h-auto lg:w-[240px] lg:flex-col lg:items-stretch lg:gap-2 lg:border-t-0 lg:border-r lg:p-4"
+    >
+      <div className="hidden lg:mb-6 lg:block">
+        <Logo />
+      </div>
+      <Link href={home} aria-current={current(home)} className={item}>
+        <Icon name="home" />
+        {t("home")}
+      </Link>
+      <Link
+        href={`${home}/new`}
+        aria-label={t("record")}
+        aria-current={current(`${home}/new`)}
+        className="order-none mx-2 flex size-14 items-center justify-center rounded-full bg-accent text-on-accent lg:-order-1 lg:mx-0 lg:h-12 lg:w-auto lg:gap-2 lg:rounded-[14px] lg:font-semibold"
+      >
+        <Icon name="plus" />
+        <span className="hidden lg:inline">{t("recordShort")}</span>
+      </Link>
+      <Link href={transactions} aria-current={current(transactions)} className={item}>
+        <Icon name="list" />
+        {t("transactions")}
+      </Link>
+    </nav>
+  );
+}

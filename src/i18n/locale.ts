@@ -5,6 +5,10 @@ export const DEFAULT_LOCALE: Locale = "es";
 /** Ruling P120: a visitor's choice on the sign-in and sign-up screens. */
 export const LOCALE_COOKIE = "hearth.locale";
 
+/** The `document.cookie` assignment that keeps a language: the toggle (P120) and sign-out (P149) write the same one. */
+export const localeCookie = (locale: Locale): string =>
+  `${LOCALE_COOKIE}=${locale}; path=/; max-age=31536000; samesite=lax`;
+
 const supported = (value: string | null | undefined): Locale | null =>
   (LOCALES as readonly string[]).includes(value ?? "") ? (value as Locale) : null;
 

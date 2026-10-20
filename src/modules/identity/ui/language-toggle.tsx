@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { LOCALE_COOKIE, type Locale } from "@/i18n/locale";
+import { localeCookie, type Locale } from "@/i18n/locale";
 
 /**
  * Ruling P120: a visitor's language, kept in a cookie; the texts reload without a locale in the URL. Ruling P152: it
@@ -17,7 +17,7 @@ export function LanguageToggle({ locale }: { readonly locale: Locale }) {
       type="button"
       aria-label={t("label", { language: t(locale) })}
       onClick={() => {
-        document.cookie = `${LOCALE_COOKIE}=${other}; path=/; max-age=31536000; samesite=lax`;
+        document.cookie = localeCookie(other);
         router.refresh();
       }}
       className="min-h-11 rounded-full border border-line bg-surface px-4 text-sm font-semibold text-ink"

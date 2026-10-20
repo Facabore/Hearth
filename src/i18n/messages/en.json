@@ -167,5 +167,36 @@
       "closedTitle": "Sign-up is closed",
       "closedBody": "Ask someone in your household for an invitation."
     }
+  },
+  "shell": {
+    "nav": {
+      "main": "Main",
+      "home": "Home",
+      "transactions": "Transactions",
+      "record": "Record a transaction",
+      "recordShort": "Record"
+    },
+    "space": {
+      "current": "Current space: {name}. Switch space",
+      "title": "Spaces",
+      "onlyYou": "Only you"
+    },
+    "role": {
+      "OWNER": "Owner",
+      "ADMIN": "Admin",
+      "MEMBER": "Member",
+      "VIEWER": "Viewer"
+    },
+    "profile": {
+      "open": "{name}'s profile",
+      "settings": "Settings",
+      "settingsHint": "Formats, time, time zone, theme and language",
+      "accounts": "Accounts",
+      "signOut": "Sign out"
+    },
+    "notFound": "This page does not exist or is no longer available."
+  },
+  "home": {
+    "title": "Home"
   }
 }

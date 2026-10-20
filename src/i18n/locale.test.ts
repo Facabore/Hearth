@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveLocale } from "./locale";
+import { localeCookie, resolveLocale } from "./locale";
 
 describe("resolveLocale (HU-E9-02, ruling P120)", () => {
   it("lets the signed-in user's stored locale win over the cookie and the browser", () => {
@@ -19,5 +19,11 @@ describe("resolveLocale (HU-E9-02, ruling P120)", () => {
     expect(resolveLocale({ acceptLanguage: "fr-FR,fr;q=0.9" })).toBe("es");
     expect(resolveLocale({ acceptLanguage: null })).toBe("es");
     expect(resolveLocale({ userLocale: "pt", cookieLocale: "xx", acceptLanguage: "en" })).toBe("en");
+  });
+});
+
+describe("localeCookie (rulings P120, P149)", () => {
+  it("writes the language for a year on every path, same-site", () => {
+    expect(localeCookie("en")).toBe("hearth.locale=en; path=/; max-age=31536000; samesite=lax");
   });
 });
