@@ -664,6 +664,35 @@
       }
     },
     "/api/v1/auth/sign-up": {
+      "get": {
+        "operationId": "getSignUpMode",
+        "summary": "Tell whether sign-up is open or closed to invited visitors",
+        "responses": {
+          "200": {
+            "description": "The installation's sign-up mode",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "signUp": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "closed"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "signUp"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "operationId": "signUp",
         "summary": "Create an account and start a session",
@@ -690,6 +719,17 @@
                   "timezone": {
                     "type": "string",
                     "maxLength": 64
+                  },
+                  "locale": {
+                    "type": "string",
+                    "enum": [
+                      "es",
+                      "en"
+                    ]
+                  },
+                  "invitationToken": {
+                    "type": "string",
+                    "maxLength": 512
                   }
                 },
                 "required": [
@@ -746,6 +786,16 @@
                     "user"
                   ],
                   "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "SignUpClosed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }

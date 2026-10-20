@@ -192,6 +192,7 @@ import {
   createSplitWithPerson,
   createRemoveGuestMember,
   createClaimGuestPlace,
+  createInvitationAdmitsSignUp,
   createCreateGuestClaim,
   createLeaveSpace,
   type AcceptInvitation,
@@ -241,6 +242,8 @@ export interface Container extends RouteDeps {
   readonly idempotency: IdempotencyDeps;
   readonly identity: {
     readonly signUp: SignUp;
+    /** Ruling P143: HEARTH_SIGN_UP, as `GET /api/v1/auth/sign-up` answers it. */
+    readonly signUpMode: "open" | "closed";
     readonly signIn: SignIn;
     readonly signOut: SignOut;
     readonly updateProfile: UpdateProfile;
@@ -648,7 +651,15 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     sessionResolver: provider,
     idempotency: { tm, store: new DrizzleIdempotencyStore(tm) },
     identity: {
-      signUp: createSignUp({ auth: provider, provisionUser, profiles, defaultTimeZone: env.APP_TIMEZONE }),
+      signUp: createSignUp({
+        auth: provider,
+        provisionUser,
+        profiles,
+        defaultTimeZone: env.APP_TIMEZONE,
+        // Ruling P143: identity never imports spaces, so a closed installation asks the invitations through this port.
+        signUpGate: { mode: env.HEARTH_SIGN_UP, admits: createInvitationAdmitsSignUp(invitationsDeps) },
+      }),
+      signUpMode: env.HEARTH_SIGN_UP,
       updateProfile: createUpdateProfile({ profiles, rules: installationRules }),
       // HU-E9-13, ruling P124: the installation's zone and, until HU-E8-18 stores one, its built-in language.
       getProfile: createGetProfile({

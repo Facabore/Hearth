@@ -6,6 +6,12 @@ import { domainError, err, ok } from "@/shared/kernel";
 
 export const runtime = "nodejs";
 
+/** Ruling P143: public, so the sign-up screen can explain a closed installation and the sign-in screen can hide its link. */
+export const GET = defineRoute({
+  auth: "none",
+  handler: async () => ok({ status: 200, body: { signUp: getContainer().identity.signUpMode } }),
+});
+
 export const POST = defineRoute({
   auth: "none",
   body: SignUpBodySchema,

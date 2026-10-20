@@ -31,6 +31,8 @@ const EXPLICIT: ReadonlyMap<string, number> = new Map([
   // HU-E4-13: a confirm or a skip of an occurrence that is not PENDING any more lost the race to the other.
   ["OccurrenceNotPending", 409],
   ["InvitationEmailMismatch", 403],
+  // Ruling P143: HEARTH_SIGN_UP=closed refuses a visitor without a usable invitation; the default would be 409.
+  ["SignUpClosed", 403],
   ["PasswordTooShort", 422],
   ["EmailTaken", 409],
   // HU-E1-15: the installation rules lock the field; explicit, as the story asks.

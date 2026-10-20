@@ -51,6 +51,8 @@ Feature: Email and password authentication
 - Endpoints: `POST /api/v1/auth/sign-up`, `POST /api/v1/auth/sign-in`, `POST /api/v1/auth/sign-out`, `GET /api/v1/me`. Errors are stable codes; the web screens that translate them are HU-E9-01.
 - Emails normalized to lowercase before uniqueness checks.
 - Session cookie `HttpOnly`, `Secure`, `SameSite=Lax`.
+- Ruling P142: the sign-up body takes an optional `locale` (`es` or `en`, the values `PATCH /api/v1/me` accepts), stored before provisioning, so a visitor who switched the sign-up screen to English stays in English; a missing or unsupported value keeps `es` and never refuses the sign-up.
+- Ruling P143: `HEARTH_SIGN_UP` (`open`, the default, or `closed`) closes sign-up on a public installation. While `closed`, `POST /api/v1/auth/sign-up` answers `403` `SignUpClosed` unless the body carries an `invitationToken` that names a usable invitation: an EMAIL invitation for that address, a LINK invitation or a CLAIM link. Every other token (missing, unknown, revoked, used, expired or for another address) gets the same `SignUpClosed`, before the user is created, and the sign-up does not accept the invitation (HU-E1-07 still applies). The public `GET /api/v1/auth/sign-up` answers `{ "signUp": "open" | "closed" }` for the sign-up and sign-in screens.
 
 ---
 

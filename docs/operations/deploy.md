@@ -31,6 +31,18 @@ The `app` container records due recurring transactions itself (HU-E4-12): a time
 
 `next build` never starts the job. `next dev` does, every 300 s by default like the server: set `RECURRENCE_JOB_INTERVAL_SECONDS=0` in your local environment to keep it off while you develop.
 
+## Closing sign-up
+
+By default anyone who reaches your domain can create an account, and the email address is never verified. Once your own household has accounts, set `HEARTH_SIGN_UP=closed` in `.env` to make sign-up invite-only: a visitor without an invitation gets `403 SignUpClosed`, the sign-up screen says so, and the sign-in screen hides its "Create account" link. People you invite can still join. They open the invitation link, create their account (the link carries the token that lets them through) and accept it as usual; an invitation by email only admits the address it names, while a link invitation or a claim link admits any address. Revoked, used and expired invitations admit nobody. The values are `open` (the default) and `closed`; anything else makes the app refuse to start.
+
+Recommended order:
+
+1. Sign up your household while sign-up is open.
+2. Set `HEARTH_SIGN_UP=closed` in `.env`.
+3. Run `docker compose up -d`: Compose recreates the `app` container with the new value.
+
+To let someone join later, send them an invitation from a shared space. To reopen sign-up, set `HEARTH_SIGN_UP=open` and run `docker compose up -d` again.
+
 ## Reverse proxy and client addresses
 
 The sign-in and sign-up throttles key on the client address from `X-Forwarded-For`. Caddy replaces any client-sent value with the real peer address because no `trusted_proxies` are configured, and the `app` service publishes no port, so it is reachable only through Caddy. Keep both properties: never publish port 3000, and only add `trusted_proxies` if another proxy you control sits in front of Caddy.

@@ -16,6 +16,8 @@ const EnvSchema = z.object({
     .transform(Number)
     .pipe(z.number().max(86_400))
     .default(300),
+  /** Ruling P143: `closed` makes sign-up invite-only (an invitation or claim link token still lets a visitor in). */
+  HEARTH_SIGN_UP: z.enum(["open", "closed"]).default("open"),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

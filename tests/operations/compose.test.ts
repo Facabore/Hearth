@@ -32,7 +32,7 @@ interface ComposeService {
 const compose = (args: string[], env: Record<string, string> = {}, file = "compose.yaml"): string => {
   const environment: NodeJS.ProcessEnv = { ...process.env, POSTGRES_PASSWORD: "test", ...env };
   // A developer's shell variables beat --env-file: the defaults under test must not depend on them.
-  for (const name of ["COMPOSE_PROFILES", "APP_TIMEZONE", "BACKUP_RETENTION_DAYS"])
+  for (const name of ["COMPOSE_PROFILES", "APP_TIMEZONE", "BACKUP_RETENTION_DAYS", "HEARTH_SIGN_UP"])
     if (!(name in env)) delete environment[name];
   const result = spawnSync(
     "docker",
@@ -60,6 +60,13 @@ describe("compose.yaml backups (HU-E8-01)", () => {
   it("publishes ports from caddy only, never from PostgreSQL or the backups", () => {
     const published = Object.entries(services()).filter(([, s]) => s.ports !== undefined);
     expect(published.map(([name]) => name)).toEqual(["caddy"]);
+  });
+
+  it("opens sign-up by default and closes it to visitors without an invitation when HEARTH_SIGN_UP is closed (ruling P143)", () => {
+    expect(services().app!.environment).toMatchObject({ HEARTH_SIGN_UP: "open" });
+    expect(services({ HEARTH_SIGN_UP: "closed" }).app!.environment).toMatchObject({
+      HEARTH_SIGN_UP: "closed",
+    });
   });
 
   it("runs backup from the db image at 02:00 in APP_TIMEZONE, America/Bogota by default, keeping 14 backups", () => {
