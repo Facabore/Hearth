@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { meDto } from "../../../../../tests/support/ui/dto";
-import { choose, reset, rowState } from "./settings-state";
+import { choose, chooseRegion, regionState, reset, rowState } from "./settings-state";
 
 const preferences = meDto().preferences;
 
@@ -40,5 +40,16 @@ describe("settings state (HU-E9-13, ruling P137)", () => {
     const locked = { ...preferences, locked: ["dateFormat" as const] };
     const { next } = choose(locked, "dateFormat", "MDY");
     expect([next.stored.dateFormat, next.effective.dateFormat]).toEqual(["MDY", "DMY"]);
+  });
+});
+
+describe("region state (HU-E9-13, rulings P124 and P137)", () => {
+  it("is custom when the zone or language differs from the installation's, and Reset sends that value", () => {
+    const me = meDto({ timezone: "Europe/Madrid" });
+    expect(regionState(me, "timezone")).toBe("custom");
+    expect(chooseRegion(me, "timezone", me.preferences.defaults.timezone).patch).toEqual({
+      timezone: "America/Bogota",
+    });
+    expect(regionState(meDto(), "locale")).toBe("default");
   });
 });

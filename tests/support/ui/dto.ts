@@ -36,3 +36,21 @@ export const spaceDto = (overrides: Partial<SpaceDto> = {}): SpaceDto => ({
   role: "OWNER",
   ...overrides,
 });
+
+/** Text with every whitespace (the formatters' non-breaking spaces) as a plain space. */
+export const normalized = (text: string | null | undefined) => (text ?? "").replace(/\s/g, " ");
+
+/** Ana after `PATCH /api/v1/me` with `body`: stored values replaced, effective ones recomputed from the rules. */
+export const patchedMe = (body: Record<string, unknown>, base = meDto()) => {
+  const stored = { ...base.preferences.stored, ...body };
+  const effective = Object.fromEntries(
+    Object.entries(base.preferences.defaults).map(([k, v]) => [
+      k,
+      (stored as Record<string, unknown>)[k] ?? v,
+    ]),
+  );
+  return {
+    ...base,
+    preferences: { ...base.preferences, stored, effective: { ...base.preferences.effective, ...effective } },
+  };
+};

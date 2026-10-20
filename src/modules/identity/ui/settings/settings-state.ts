@@ -47,3 +47,20 @@ export const rowState = (preferences: Preferences, field: FormatField): "locked"
   if (preferences.locked.includes(field)) return "locked";
   return preferences.stored[field] === null ? "default" : "custom";
 };
+
+export type RegionField = "timezone" | "locale";
+
+/** Rulings P64 and P137: the zone and the language stay concrete; Reset sends the installation's value, never null. */
+export const chooseRegion = (
+  me: MeDto,
+  field: RegionField,
+  value: string,
+): { next: MeDto; patch: Record<string, string> } => ({
+  next: { ...me, [field]: value },
+  patch: { [field]: value },
+});
+
+export const regionState = (me: MeDto, field: RegionField): "locked" | "default" | "custom" => {
+  if (me.preferences.locked.includes(field)) return "locked";
+  return me[field] === me.preferences.defaults[field] ? "default" : "custom";
+};

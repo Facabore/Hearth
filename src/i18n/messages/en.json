@@ -209,7 +209,10 @@
       "numberFormat": "Numbers",
       "dateFormat": "Date",
       "timeFormat": "Time",
-      "weekStart": "The week starts on"
+      "weekStart": "The week starts on",
+      "timezone": "Time zone",
+      "theme": "Theme",
+      "language": "Language"
     },
     "timeFormat": {
       "H24": "24-hour",
@@ -221,6 +224,23 @@
     },
     "default": "Default",
     "reset": "Reset",
-    "locked": "Set by your installation"
+    "locked": "Set by your installation",
+    "region": "Region",
+    "appearance": "Appearance and language",
+    "timezone": {
+      "hint": "Sets the day and time of every transaction you record.",
+      "search": "Search time zone",
+      "none": "No time zone matches “{query}”."
+    },
+    "theme": {
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "language": {
+      "hint": "Only the texts change. The formats above do not depend on the language.",
+      "es": "Español",
+      "en": "English"
+    }
   }
 }

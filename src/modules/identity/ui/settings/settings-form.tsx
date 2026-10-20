@@ -1,51 +1,78 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
+import { LOCALES, localeCookie, type Locale } from "@/i18n/locale";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { MeDto } from "@/shared/ui/api/dto";
+import type { paths } from "@/shared/ui/api/schema";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { formatDate, formatNumber } from "@/shared/ui/format/formatters";
+import { AppearanceSection } from "./appearance-section";
 import { FormatPreview } from "./format-preview";
 import { PreferenceRow } from "./preference-row";
+import { RegionSection } from "./region-section";
 import {
   choose,
+  chooseRegion,
+  regionState,
   reset,
   rowState,
   type FormatField,
-  type FormatPatch,
   type Preferences,
+  type RegionField,
 } from "./settings-state";
 
 const NUMBER_FORMATS = ["DOT_COMMA", "COMMA_DOT", "SPACE_COMMA"] as const;
 const DATE_FORMATS = ["DMY", "MDY", "YMD"] as const;
 const TIME_FORMATS = ["H24", "H12"] as const;
 const WEEK_STARTS = ["MONDAY", "SUNDAY"] as const;
+type Field = FormatField | RegionField;
+type MePatch = NonNullable<paths["/api/v1/me"]["patch"]["requestBody"]>["content"]["application/json"];
+
+/** Rulings P149 and P152: the stored language changes only here; the visitor cookie follows it. */
+const rememberLocale = (locale: string) => {
+  if ((LOCALES as readonly string[]).includes(locale)) document.cookie = localeCookie(locale as Locale);
+};
 
 /** HU-E9-13, the Settings artboard: no Save button; each choice is stored as it is made (ruling P137). */
 export function SettingsForm({ me, api: injected }: { readonly me: MeDto; readonly api?: Api }) {
   const t = useTranslations("settings");
+  const router = useRouter();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
-  const [preferences, setPreferences] = useState<Preferences>(me.preferences);
-  const [problems, setProblems] = useState<Partial<Record<FormatField, Problem>>>({});
+  const [current, setCurrent] = useState<MeDto>(me);
+  const [problems, setProblems] = useState<Partial<Record<Field, Problem>>>({});
+  const preferences = current.preferences;
 
-  const send = async (field: FormatField, change: { next: Preferences; patch: FormatPatch }) => {
-    const previous = preferences;
-    setPreferences(change.next);
-    setProblems((current) => ({ ...current, [field]: undefined }));
+  /** Optimistic: the change applies at once and is rolled back, with its error on its row, when refused. */
+  const send = async (field: Field, next: MeDto, patch: MePatch) => {
+    const previous = current;
+    setCurrent(next);
+    setProblems((all) => ({ ...all, [field]: undefined }));
     let problem: Problem;
     try {
-      const { data, error, response } = await api.PATCH("/api/v1/me", { body: change.patch });
+      const { data, error, response } = await api.PATCH("/api/v1/me", { body: patch });
       if (data) {
-        setPreferences(data.preferences);
+        setCurrent(data);
+        if (field === "locale") {
+          rememberLocale(data.locale);
+          router.refresh();
+        }
         return;
       }
       problem = problemFrom(error, response);
     } catch (error) {
       problem = problemFrom(error, undefined);
     }
-    setPreferences(previous);
-    setProblems((current) => ({ ...current, [field]: problem }));
+    setCurrent(previous);
+    setProblems((all) => ({ ...all, [field]: problem }));
+  };
+  const sendFormat = (field: FormatField, change: { next: Preferences; patch: MePatch }) =>
+    void send(field, { ...current, preferences: change.next }, change.patch);
+  const sendRegion = (field: RegionField, value: string) => {
+    const { next, patch } = chooseRegion(current, field, value);
+    void send(field, next, patch as MePatch);
   };
 
   const row = <F extends FormatField>(
@@ -58,14 +85,15 @@ export function SettingsForm({ me, api: injected }: { readonly me: MeDto; readon
       value={preferences.effective[field] as NonNullable<Preferences["stored"][F]>}
       options={options}
       state={rowState(preferences, field)}
-      onChoose={(value) => void send(field, choose(preferences, field, value))}
-      onReset={() => void send(field, reset(preferences, field))}
+      onChoose={(value) => sendFormat(field, choose(preferences, field, value))}
+      onReset={() => sendFormat(field, reset(preferences, field))}
       problem={problems[field] ?? null}
     />
   );
 
   return (
     <div className="flex flex-col gap-6">
+      <h1 className="text-2xl font-semibold text-ink">{t("title")}</h1>
       <FormatPreview formats={preferences.effective} />
       <section aria-labelledby="settings-formats" className="flex flex-col gap-5">
         <h2 id="settings-formats" className="text-lg font-semibold text-ink">
@@ -88,6 +116,20 @@ export function SettingsForm({ me, api: injected }: { readonly me: MeDto; readon
           WEEK_STARTS.map((v) => ({ value: v, label: t(`weekStart.${v}`) })),
         )}
       </section>
+      <RegionSection
+        timezone={current.timezone}
+        state={regionState(current, "timezone")}
+        onChoose={(zone) => sendRegion("timezone", zone)}
+        onReset={() => sendRegion("timezone", preferences.defaults.timezone)}
+        problem={problems.timezone ?? null}
+      />
+      <AppearanceSection
+        locale={current.locale}
+        localeState={regionState(current, "locale")}
+        onLocale={(locale) => sendRegion("locale", locale)}
+        onLocaleReset={() => sendRegion("locale", preferences.defaults.locale)}
+        problem={problems.locale ?? null}
+      />
     </div>
   );
 }

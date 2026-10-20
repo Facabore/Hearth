@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
-import { meDto } from "../../../../../tests/support/ui/dto";
+import { meDto, normalized, patchedMe } from "../../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse } from "../../../../../tests/support/ui/fake-api";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import { SettingsForm } from "./settings-form";
@@ -10,22 +10,6 @@ import { SettingsForm } from "./settings-form";
 const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn(), push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 beforeEach(() => vi.clearAllMocks());
-
-const normalized = (text: string | null | undefined) => (text ?? "").replace(/\s/g, " ");
-
-const patchedMe = (body: Record<string, unknown>, base = meDto()) => {
-  const stored = { ...base.preferences.stored, ...body };
-  const effective = Object.fromEntries(
-    Object.entries(base.preferences.defaults).map(([k, v]) => [
-      k,
-      (stored as Record<string, unknown>)[k] ?? v,
-    ]),
-  );
-  return {
-    ...base,
-    preferences: { ...base.preferences, stored, effective: { ...base.preferences.effective, ...effective } },
-  };
-};
 
 describe("settings: formats (HU-E9-13)", () => {
   it("previews the installation's formats and stores each choice as it is made", async () => {
