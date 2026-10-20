@@ -29,6 +29,12 @@ export const serverApi = cache(async (): Promise<Api> =>
   createApi({ baseUrl: internalOrigin(), headers: forwardedHeaders(await headers()) }),
 );
 
+/** The sign-in screen, returning to the page asked for (the proxy's path header); never returns. */
+export const redirectToSignIn = async (): Promise<never> => {
+  const path = (await headers()).get(PATH_HEADER) ?? "/";
+  redirect(path === "/" ? "/sign-in" : `/sign-in?next=${encodeURIComponent(path)}`);
+};
+
 export type Outcome<T> =
   | { kind: "ok"; data: T }
   | { kind: "unauthenticated" }
@@ -60,7 +66,7 @@ export const loaded = async <T>(
     case "ok":
       return { ok: true, data: outcome.data };
     case "unauthenticated":
-      redirect("/sign-in?next=" + encodeURIComponent((await headers()).get(PATH_HEADER) ?? "/"));
+      return redirectToSignIn();
     // falls through: redirect never returns
     case "missing":
       notFound();

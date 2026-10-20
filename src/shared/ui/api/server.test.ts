@@ -1,8 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("next/headers", () => ({}));
-vi.mock("next/navigation", () => ({}));
-const { forwardedHeaders, internalOrigin, meFrom, outcomeOf, signUpModeFrom } = await import("./server");
+const mocks = vi.hoisted(() => ({
+  path: null as string | null,
+  redirect: vi.fn((to: string): never => {
+    throw new Error(`NEXT_REDIRECT ${to}`);
+  }),
+}));
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers(mocks.path === null ? {} : { "x-hearth-path": mocks.path }),
+}));
+vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
+const { forwardedHeaders, internalOrigin, meFrom, outcomeOf, redirectToSignIn, signUpModeFrom } =
+  await import("./server");
 
 describe("server reads (ruling P117)", () => {
   it("calls the API over loopback unless INTERNAL_API_ORIGIN says otherwise", () => {
@@ -68,5 +77,19 @@ describe("server reads (ruling P117)", () => {
     expect(
       signUpModeFrom({ error: { code: "InternalError" }, response: new Response(null, { status: 500 }) }),
     ).toBe("open");
+  });
+
+  it("sends an expired session to the sign-in screen with the page to return to, query included", async () => {
+    mocks.path = "/spaces/s1/transactions?period=2026-10";
+    await expect(redirectToSignIn()).rejects.toThrow(
+      "NEXT_REDIRECT /sign-in?next=%2Fspaces%2Fs1%2Ftransactions%3Fperiod%3D2026-10",
+    );
+  });
+
+  it("leaves next out for the home and for a request without a path", async () => {
+    mocks.path = "/";
+    await expect(redirectToSignIn()).rejects.toThrow(/^NEXT_REDIRECT \/sign-in$/);
+    mocks.path = null;
+    await expect(redirectToSignIn()).rejects.toThrow(/^NEXT_REDIRECT \/sign-in$/);
   });
 });
