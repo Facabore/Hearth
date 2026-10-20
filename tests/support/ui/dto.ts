@@ -1,4 +1,11 @@
-import type { AccountDto, CategoryGroupDto, MeDto, MoneyDto, SpaceDto } from "@/shared/ui/api/dto";
+import type {
+  AccountDto,
+  CategoryGroupDto,
+  MeDto,
+  MoneyDto,
+  SpaceDto,
+  TransactionDto,
+} from "@/shared/ui/api/dto";
 
 /** Pesos as the wire carries them: minor units in a string (string arithmetic is safe for test amounts). */
 export const cop = (pesos: number): MoneyDto => ({ amount: String(pesos * 100), currency: "COP" });
@@ -117,5 +124,28 @@ export const groupDto = (overrides: Partial<CategoryGroupDto> = {}): CategoryGro
   icon: { kind: "SYMBOL", name: "fork" },
   color: "SAGE",
   categories: [],
+  ...overrides,
+});
+
+/** An untimed EXPENSE of nothing on 2026-10-01, with no category, payments, shares or accounts. */
+export const transactionDto = (overrides: Partial<TransactionDto> = {}): TransactionDto => ({
+  id: "t-1",
+  type: "EXPENSE",
+  description: "Item",
+  date: "2026-10-01",
+  occurredAt: null,
+  timeZone: null,
+  amount: cop(0),
+  categoryId: null,
+  payments: [],
+  shares: [],
+  sourceAccountId: null,
+  destinationAccountId: null,
+  receivingMemberId: null,
+  payerMemberId: null,
+  createdBy: "u-ana",
+  createdAt: "2026-10-01T12:00:00.000Z",
+  updatedAt: "2026-10-01T12:00:00.000Z",
+  version: 1,
   ...overrides,
 });

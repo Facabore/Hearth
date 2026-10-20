@@ -328,5 +328,14 @@
       "use": "Use {path}",
       "noMatch": "There is no category “{query}”."
     }
+  },
+  "ledger": {
+    "type": {
+      "EXPENSE": "Expense",
+      "INCOME": "Income",
+      "TRANSFER": "Transfer",
+      "SETTLEMENT": "Settlement"
+    },
+    "transfer": "{from} → {to}"
   }
 }

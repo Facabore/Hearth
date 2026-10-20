@@ -328,5 +328,14 @@
       "use": "Usar {path}",
       "noMatch": "No hay ninguna categoría «{query}»."
     }
+  },
+  "ledger": {
+    "type": {
+      "EXPENSE": "Gasto",
+      "INCOME": "Ingreso",
+      "TRANSFER": "Transferencia",
+      "SETTLEMENT": "Pago entre miembros"
+    },
+    "transfer": "{from} → {to}"
   }
 }
