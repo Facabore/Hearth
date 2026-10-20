@@ -133,5 +133,26 @@
     "UnknownCurrency": "Esa moneda no está disponible.",
     "ValidationFailed": "Revisa los datos marcados.",
     "reference": "Referencia: {requestId}"
+  },
+  "auth": {
+    "signIn": {
+      "title": "Hola de nuevo",
+      "subtitle": "Entra para ver tus cuentas y lo que queda del mes.",
+      "submit": "Iniciar sesión",
+      "createAccount": "Crear una cuenta",
+      "forgot": "¿Olvidaste tu contraseña?",
+      "forgotHelp": "Pedile a quien administra Hearth que la restablezca."
+    },
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "showPassword": "Mostrar contraseña",
+    "hidePassword": "Ocultar contraseña",
+    "language": {
+      "label": "Cambiar idioma, actual {language}",
+      "es": "español",
+      "en": "inglés",
+      "short": "ES · EN"
+    },
+    "sessionExpired": "Tu sesión venció. Volvé a entrar."
   }
 }

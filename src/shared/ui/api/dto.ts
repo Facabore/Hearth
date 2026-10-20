@@ -3,6 +3,8 @@ import type { components, paths } from "./schema";
 type Json<T> = T extends { content: { "application/json": infer B } } ? B : never;
 
 export type MeDto = Json<paths["/api/v1/me"]["get"]["responses"][200]>;
+/** Ruling P143: whether sign-up is open to anyone or closed to invitees. */
+export type SignUpMode = Json<paths["/api/v1/auth/sign-up"]["get"]["responses"][200]>["signUp"];
 export type SpaceListDto = Json<paths["/api/v1/spaces"]["get"]["responses"][200]>;
 export type SpaceDto = components["schemas"]["Space"];
 export type AccountListDto = Json<paths["/api/v1/spaces/{spaceId}/accounts"]["get"]["responses"][200]>;

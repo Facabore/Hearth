@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("next/headers", () => ({}));
 vi.mock("next/navigation", () => ({}));
-const { forwardedHeaders, internalOrigin, meFrom, outcomeOf } = await import("./server");
+const { forwardedHeaders, internalOrigin, meFrom, outcomeOf, signUpModeFrom } = await import("./server");
 
 describe("server reads (ruling P117)", () => {
   it("calls the API over loopback unless INTERNAL_API_ORIGIN says otherwise", () => {
@@ -58,5 +58,15 @@ describe("server reads (ruling P117)", () => {
     expect(() =>
       meFrom({ error: { code: "InternalError" }, response: new Response(null, { status: 500 }) }),
     ).toThrow("Reading the profile failed: InternalError");
+  });
+
+  it("hides the sign-up link only when the API says sign-up is closed (ruling P143)", () => {
+    const ok = new Response(null, { status: 200 });
+    expect(signUpModeFrom({ data: { signUp: "closed" }, response: ok })).toBe("closed");
+    expect(signUpModeFrom({ data: { signUp: "open" }, response: ok })).toBe("open");
+    // A failed read must not take the sign-in screen down: the link stays, and sign-up answers SignUpClosed itself.
+    expect(
+      signUpModeFrom({ error: { code: "InternalError" }, response: new Response(null, { status: 500 }) }),
+    ).toBe("open");
   });
 });

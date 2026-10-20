@@ -133,5 +133,26 @@
     "UnknownCurrency": "That currency is not available.",
     "ValidationFailed": "Check the highlighted fields.",
     "reference": "Reference: {requestId}"
+  },
+  "auth": {
+    "signIn": {
+      "title": "Welcome back",
+      "subtitle": "Sign in to see your accounts and what is left of the month.",
+      "submit": "Sign in",
+      "createAccount": "Create an account",
+      "forgot": "Forgot your password?",
+      "forgotHelp": "Ask whoever runs Hearth to reset it."
+    },
+    "email": "Email",
+    "password": "Password",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "language": {
+      "label": "Change language, current {language}",
+      "es": "Spanish",
+      "en": "English",
+      "short": "ES · EN"
+    },
+    "sessionExpired": "Your session expired. Sign in again."
   }
 }

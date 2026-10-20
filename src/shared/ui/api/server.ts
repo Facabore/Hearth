@@ -3,8 +3,9 @@ import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { createApi, type Api } from "./client";
-import type { MeDto, SpaceDto } from "./dto";
+import type { MeDto, SignUpMode, SpaceDto } from "./dto";
 import { problemFrom, type Problem } from "./problem";
+import { PATH_HEADER } from "./server-headers";
 import { hasSession } from "./session";
 
 /** Ruling P117: Server Components read /api/v1 over loopback, unless the deployment names another origin. */
@@ -59,7 +60,7 @@ export const loaded = async <T>(
     case "ok":
       return { ok: true, data: outcome.data };
     case "unauthenticated":
-      redirect("/sign-in?next=" + encodeURIComponent((await headers()).get("x-hearth-path") ?? "/"));
+      redirect("/sign-in?next=" + encodeURIComponent((await headers()).get(PATH_HEADER) ?? "/"));
     // falls through: redirect never returns
     case "missing":
       notFound();
@@ -85,6 +86,25 @@ export const meFrom = <T>(result: { data?: T; error?: unknown; response: Respons
 export const getMe = cache(async (): Promise<MeDto | null> => {
   if (!hasSession(await cookies())) return null;
   return meFrom(await (await serverApi()).GET("/api/v1/me"));
+});
+
+/**
+ * Ruling P143: closed only when the API says so. A failed read must not take the sign-in screen down, so it answers
+ * open; the sign-up call answers `SignUpClosed` by itself when the installation is closed.
+ */
+export const signUpModeFrom = (result: {
+  data?: { signUp: SignUpMode };
+  error?: unknown;
+  response: Response;
+}): SignUpMode => (result.data?.signUp === "closed" ? "closed" : "open");
+
+/** Whether the installation takes sign-ups from anyone (`open`) or only from invitees (`closed`); public endpoint. */
+export const getSignUpMode = cache(async (): Promise<SignUpMode> => {
+  try {
+    return signUpModeFrom(await (await serverApi()).GET("/api/v1/auth/sign-up"));
+  } catch {
+    return "open";
+  }
 });
 
 /** The person's spaces; the shell cannot render without them, so a problem throws to the error page. */
