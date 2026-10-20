@@ -272,6 +272,13 @@
       "principal": "Crédito {amount}",
       "months": "{months} meses"
     },
-    "backHome": "Volver a Inicio"
+    "backHome": "Volver a Inicio",
+    "archive": {
+      "open": "Archivar {name}",
+      "title": "¿Archivar {name}?",
+      "explain": "Su historial se conserva y deja de recibir movimientos nuevos. Puedes restaurarla cuando quieras.",
+      "confirm": "Archivar"
+    },
+    "restore": "Restaurar {name}"
   }
 }

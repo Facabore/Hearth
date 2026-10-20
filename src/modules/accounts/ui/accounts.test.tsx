@@ -9,7 +9,8 @@ import { loadAccounts } from "./accounts-container";
 import { AccountsScreen } from "./accounts-screen";
 
 vi.mock("next/headers", () => ({}));
-vi.mock("next/navigation", () => ({}));
+// The rows' archive and restore buttons (Task 13) refresh through the router.
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 const list = {
   items: [
@@ -66,6 +67,10 @@ describe("accounts screen (HU-E9-03)", () => {
     ]);
     const archived = screen.getByRole("region", { name: "Archivadas" });
     expect(within(archived).getByText("Old wallet")).toBeInTheDocument();
+    expect(within(archived).getByRole("button", { name: "Restaurar Old wallet" })).toBeInTheDocument();
+    expect(within(archived).queryByRole("button", { name: /^Archivar/ })).toBeNull();
+    expect(within(bank).getByRole("button", { name: "Archivar Bancolombia" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Restaurar (?!Old)/ })).toBeNull();
     expect(screen.getByRole("link", { name: "Nueva cuenta" })).toHaveAttribute(
       "href",
       "/spaces/sp-personal/accounts/new",

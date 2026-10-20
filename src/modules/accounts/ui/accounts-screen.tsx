@@ -3,6 +3,7 @@ import { useTranslations } from "next-intl";
 import { Icon, VisuallyHidden } from "@/shared/ui";
 import type { AccountListDto } from "@/shared/ui/api/dto";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
+import { ArchiveAccountButton, RestoreAccountButton } from "./account-actions";
 import { AccountRow } from "./account-row";
 import { sectionsOf } from "./account-sections";
 
@@ -56,7 +57,12 @@ export function AccountsScreen({
           </h2>
           <ul className="divide-y divide-line rounded-2xl bg-surface px-4">
             {section.accounts.map((account) => (
-              <AccountRow key={account.id} account={account} formats={formats} />
+              <AccountRow
+                key={account.id}
+                account={account}
+                formats={formats}
+                actions={<ArchiveAccountButton spaceId={spaceId} account={account} />}
+              />
             ))}
           </ul>
         </section>
@@ -68,7 +74,12 @@ export function AccountsScreen({
           </h2>
           <ul className="divide-y divide-line rounded-2xl bg-surface px-4">
             {archived.map((account) => (
-              <AccountRow key={account.id} account={account} formats={formats} />
+              <AccountRow
+                key={account.id}
+                account={account}
+                formats={formats}
+                actions={<RestoreAccountButton spaceId={spaceId} account={account} />}
+              />
             ))}
           </ul>
         </section>

@@ -272,6 +272,13 @@
       "principal": "Loan {amount}",
       "months": "{months} months"
     },
-    "backHome": "Back to Home"
+    "backHome": "Back to Home",
+    "archive": {
+      "open": "Archive {name}",
+      "title": "Archive {name}?",
+      "explain": "Its history stays and it takes no new transactions. You can restore it at any time.",
+      "confirm": "Archive"
+    },
+    "restore": "Restore {name}"
   }
 }
