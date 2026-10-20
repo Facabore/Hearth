@@ -1,0 +1,13 @@
+{
+  "common": {
+    "appName": "Hearth",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "back": "Volver",
+    "close": "Cerrar",
+    "retry": "Reintentar",
+    "loading": "Cargando…",
+    "default": "Predeterminado",
+    "reset": "Restablecer"
+  }
+}
