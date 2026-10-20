@@ -6,6 +6,7 @@ import {
   NO_PREFERENCES,
   formatsIn,
   type InstallationRules,
+  type Locale,
   type LockableField,
   type ProfileChange,
   type StoredPreferences,
@@ -21,7 +22,10 @@ const ana: AuthUser = {
 };
 
 /** Profiles in memory as DrizzleUserProfiles keeps them; `writes` records every save. */
-const world = (rules: InstallationRules = BUILT_IN_RULES) => {
+const world = (
+  rules: InstallationRules = BUILT_IN_RULES,
+  regionDefaults: { timezone: string; locale: Locale } = { timezone: "America/Bogota", locale: "es" },
+) => {
   const stored = new Map<string, StoredPreferences>();
   const writes: [string, ProfileChange][] = [];
   const profiles: UserProfiles = {
@@ -34,7 +38,11 @@ const world = (rules: InstallationRules = BUILT_IN_RULES) => {
   };
   let current = rules;
   const reader = { rules: async () => current };
-  const getProfile = createGetProfile({ profiles, rules: reader });
+  const getProfile = createGetProfile({
+    profiles,
+    rules: reader,
+    regionDefaults,
+  });
   return {
     writes,
     /** Replaces the installation's locks, as HU-E8-18 will when an administrator locks or lifts a field. */
@@ -45,6 +53,19 @@ const world = (rules: InstallationRules = BUILT_IN_RULES) => {
     preferencesOf: async (user: AuthUser = ana) => unwrap(await getProfile({ user })).preferences,
   };
 };
+
+describe("the installation's zone and language (HU-E9-13, ruling P124)", () => {
+  it("are the installation's, never the person's own", async () => {
+    const { preferencesOf } = world(BUILT_IN_RULES, { timezone: "Europe/Madrid", locale: "en" });
+    expect(ana.timezone).toBe("America/Bogota");
+    expect(ana.locale).toBe("es");
+    expect((await preferencesOf()).defaults).toEqual({
+      ...BUILT_IN_RULES.defaults,
+      timezone: "Europe/Madrid",
+      locale: "en",
+    });
+  });
+});
 
 describe("UpdateProfile (HU-E1-14)", () => {
   it("changes my time zone, stored by its canonical name", async () => {
@@ -76,7 +97,7 @@ describe("formatting preferences (HU-E1-15)", () => {
     expect(await world().preferencesOf()).toEqual({
       stored: NO_PREFERENCES,
       effective: RULES,
-      defaults: RULES,
+      defaults: { ...RULES, timezone: "America/Bogota", locale: "es" },
       locked: [],
     });
   });

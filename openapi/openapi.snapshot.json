@@ -76,10 +76,12 @@
                       "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                     },
                     "locale": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "The person's own language."
                     },
                     "timezone": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "The person's own IANA time zone."
                     },
                     "preferences": {
                       "type": "object",
@@ -228,13 +230,27 @@
                                 "MONDAY",
                                 "SUNDAY"
                               ]
+                            },
+                            "timezone": {
+                              "type": "string",
+                              "description": "The installation's IANA time zone (APP_TIMEZONE), what Reset stores; not the person's own."
+                            },
+                            "locale": {
+                              "type": "string",
+                              "enum": [
+                                "es",
+                                "en"
+                              ],
+                              "description": "The installation's language, what Reset stores; es until HU-E8-18 stores one."
                             }
                           },
                           "required": [
                             "numberFormat",
                             "timeFormat",
                             "dateFormat",
-                            "weekStart"
+                            "weekStart",
+                            "timezone",
+                            "locale"
                           ],
                           "additionalProperties": false
                         },
@@ -399,10 +415,12 @@
                       "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                     },
                     "locale": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "The person's own language."
                     },
                     "timezone": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "The person's own IANA time zone."
                     },
                     "preferences": {
                       "type": "object",
@@ -551,13 +569,27 @@
                                 "MONDAY",
                                 "SUNDAY"
                               ]
+                            },
+                            "timezone": {
+                              "type": "string",
+                              "description": "The installation's IANA time zone (APP_TIMEZONE), what Reset stores; not the person's own."
+                            },
+                            "locale": {
+                              "type": "string",
+                              "enum": [
+                                "es",
+                                "en"
+                              ],
+                              "description": "The installation's language, what Reset stores; es until HU-E8-18 stores one."
                             }
                           },
                           "required": [
                             "numberFormat",
                             "timeFormat",
                             "dateFormat",
-                            "weekStart"
+                            "weekStart",
+                            "timezone",
+                            "locale"
                           ],
                           "additionalProperties": false
                         },
@@ -692,10 +724,12 @@
                           "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                         },
                         "locale": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "The person's own language."
                         },
                         "timezone": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "The person's own IANA time zone."
                         }
                       },
                       "required": [
@@ -800,10 +834,12 @@
                           "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                         },
                         "locale": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "The person's own language."
                         },
                         "timezone": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "The person's own IANA time zone."
                         }
                       },
                       "required": [

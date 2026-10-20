@@ -27,7 +27,7 @@ interface Me {
   preferences: {
     stored: Record<keyof Formats, string | null>;
     effective: Formats;
-    defaults: Formats;
+    defaults: Formats & { timezone: string; locale: string };
     locked: string[];
   };
 }
@@ -42,7 +42,12 @@ describe("formatting preferences (HU-E1-15)", () => {
     const ana = await registerUser("Ana");
     const { locale, preferences } = await me(ana);
     expect(locale).toBe("es");
-    expect(preferences).toEqual({ stored: NONE, effective: RULES, defaults: RULES, locked: [] });
+    expect(preferences).toEqual({
+      stored: NONE,
+      effective: RULES,
+      defaults: { ...RULES, timezone: "America/Bogota", locale: "es" },
+      locked: [],
+    });
   });
 
   it("let one person override the time format while the others keep the rule", async () => {
@@ -68,6 +73,14 @@ describe("formatting preferences (HU-E1-15)", () => {
       { ...RULES, numberFormat: "COMMA_DOT", timeFormat: "H12" },
     ]);
     expect((await me(ana)).locale).toBe("en");
+  });
+
+  it("keep the installation's zone and language as defaults when the person changes their own", async () => {
+    const ana = await registerUser("Ana");
+    const changed = (await (await patch(ana, { locale: "en", timezone: "Europe/Madrid" })).json()) as Me;
+    expect([changed.locale, changed.timezone]).toEqual(["en", "Europe/Madrid"]);
+    const { defaults } = (await me(ana)).preferences;
+    expect(defaults).toEqual({ ...RULES, timezone: "America/Bogota", locale: "es" });
   });
 
   it("return to the rule when set to null", async () => {

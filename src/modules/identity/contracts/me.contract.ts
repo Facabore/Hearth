@@ -15,9 +15,9 @@ export const MeResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
   email: z.email(),
-  locale: z.string(),
+  locale: z.string().describe("The person's own language."),
   /** HU-E1-14: the user's IANA time zone. */
-  timezone: z.string(),
+  timezone: z.string().describe("The person's own IANA time zone."),
 });
 
 const NumberFormat = z.enum(NUMBER_FORMATS);
@@ -41,7 +41,16 @@ export const ProfileResponseSchema = MeResponseSchema.extend({
       weekStart: WeekStart.nullable(),
     }),
     effective: Formats,
-    defaults: Formats,
+    defaults: Formats.extend({
+      timezone: z
+        .string()
+        .describe(
+          "The installation's IANA time zone (APP_TIMEZONE), what Reset stores; not the person's own.",
+        ),
+      locale: z
+        .enum(LOCALES)
+        .describe("The installation's language, what Reset stores; es until HU-E8-18 stores one."),
+    }),
     locked: z.array(z.enum(LOCKABLE_FIELDS)),
   }),
 });

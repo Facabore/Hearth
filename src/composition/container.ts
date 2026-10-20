@@ -353,6 +353,8 @@ export interface AuthLimits {
 }
 
 const DEFAULT_AUTH_LIMITS: AuthLimits = { signInPerEmail: 10, signInPerIp: 30, signUpPerIp: 10 };
+/** The installation's built-in language until HU-E8-18 stores one (HU-E9-13, ruling P124). */
+const INSTALLATION_DEFAULT_LOCALE = "es";
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 const ONE_HOUR = 60 * 60 * 1000;
 
@@ -645,7 +647,12 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     identity: {
       signUp: createSignUp({ auth: provider, provisionUser, profiles, defaultTimeZone: env.APP_TIMEZONE }),
       updateProfile: createUpdateProfile({ profiles, rules: installationRules }),
-      getProfile: createGetProfile({ profiles, rules: installationRules }),
+      // HU-E9-13, ruling P124: the installation's zone and, until HU-E8-18 stores one, its built-in language.
+      getProfile: createGetProfile({
+        profiles,
+        rules: installationRules,
+        regionDefaults: { timezone: env.APP_TIMEZONE, locale: INSTALLATION_DEFAULT_LOCALE },
+      }),
       signIn: createSignIn(provider),
       signOut: createSignOut(provider),
     },
