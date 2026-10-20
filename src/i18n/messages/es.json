@@ -242,5 +242,36 @@
       "es": "Español",
       "en": "English"
     }
+  },
+  "accounts": {
+    "title": "Cuentas",
+    "new": "Nueva cuenta",
+    "totals": "Totales",
+    "available": "Disponible",
+    "netWorth": "Patrimonio neto",
+    "section": {
+      "everyday": "Bancos, billeteras y efectivo",
+      "cards": "Tarjetas de crédito",
+      "savings": "Ahorros e inversiones",
+      "debts": "Deudas",
+      "other": "Otras",
+      "funds": "Fondos compartidos"
+    },
+    "archived": "Archivadas",
+    "outsideAvailable": "fuera del disponible",
+    "card": {
+      "limit": "Cupo {amount}",
+      "available": "Disponible {amount}",
+      "payBy": "Paga antes del {date}"
+    },
+    "savings": {
+      "rate": "{rate} % E.A.",
+      "maturity": "Vence {date}"
+    },
+    "loan": {
+      "principal": "Crédito {amount}",
+      "months": "{months} meses"
+    },
+    "backHome": "Volver a Inicio"
   }
 }

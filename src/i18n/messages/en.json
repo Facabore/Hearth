@@ -242,5 +242,36 @@
       "es": "Español",
       "en": "English"
     }
+  },
+  "accounts": {
+    "title": "Accounts",
+    "new": "New account",
+    "totals": "Totals",
+    "available": "Available",
+    "netWorth": "Net worth",
+    "section": {
+      "everyday": "Banks, wallets and cash",
+      "cards": "Credit cards",
+      "savings": "Savings and investments",
+      "debts": "Debts",
+      "other": "Other",
+      "funds": "Shared funds"
+    },
+    "archived": "Archived",
+    "outsideAvailable": "outside available",
+    "card": {
+      "limit": "Limit {amount}",
+      "available": "Available {amount}",
+      "payBy": "Pay by {date}"
+    },
+    "savings": {
+      "rate": "{rate}% APY",
+      "maturity": "Matures {date}"
+    },
+    "loan": {
+      "principal": "Loan {amount}",
+      "months": "{months} months"
+    },
+    "backHome": "Back to Home"
   }
 }

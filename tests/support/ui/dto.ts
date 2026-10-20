@@ -1,4 +1,4 @@
-import type { MeDto, MoneyDto, SpaceDto } from "@/shared/ui/api/dto";
+import type { AccountDto, MeDto, MoneyDto, SpaceDto } from "@/shared/ui/api/dto";
 
 /** Pesos as the wire carries them: minor units in a string (string arithmetic is safe for test amounts). */
 export const cop = (pesos: number): MoneyDto => ({ amount: String(pesos * 100), currency: "COP" });
@@ -54,3 +54,40 @@ export const patchedMe = (body: Record<string, unknown>, base = meDto()) => {
     preferences: { ...base.preferences, stored, effective: { ...base.preferences.effective, ...effective } },
   };
 };
+
+/** A BANK account of Ana's personal space with no attributes, no terms and zero balances. */
+export const accountDto = (overrides: Partial<AccountDto> = {}): AccountDto => ({
+  id: "a-1",
+  name: "Cuenta",
+  type: "BANK",
+  ownerUserId: "u-ana",
+  openingBalance: cop(0),
+  balance: cop(0),
+  archivedAt: null,
+  institution: null,
+  lastFour: null,
+  color: null,
+  icon: "bank",
+  includeInAvailable: true,
+  includeInNetWorth: true,
+  terms: {
+    creditLimit: null,
+    cutOffDay: null,
+    paymentDay: null,
+    monthlyRate: null,
+    annualRate: null,
+    termDays: null,
+    maturityDate: null,
+    principal: null,
+    termMonths: null,
+  },
+  derived: {
+    availableCredit: null,
+    nextCutOffDate: null,
+    nextPaymentDate: null,
+    effectiveAnnualRate: null,
+    equivalentMonthlyRate: null,
+    startDate: null,
+  },
+  ...overrides,
+});
