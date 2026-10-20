@@ -318,5 +318,15 @@
       "confirm": "Archivar"
     },
     "restore": "Restaurar {name}"
+  },
+  "categories": {
+    "picker": {
+      "title": "Categoría",
+      "search": "Buscar categoría",
+      "subcategoriesOf": "Subcategorías de {name}",
+      "none": "Sin subcategoría",
+      "use": "Usar {path}",
+      "noMatch": "No hay ninguna categoría «{query}»."
+    }
   }
 }

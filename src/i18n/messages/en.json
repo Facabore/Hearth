@@ -318,5 +318,15 @@
       "confirm": "Archive"
     },
     "restore": "Restore {name}"
+  },
+  "categories": {
+    "picker": {
+      "title": "Category",
+      "search": "Search category",
+      "subcategoriesOf": "Subcategories of {name}",
+      "none": "No subcategory",
+      "use": "Use {path}",
+      "noMatch": "There is no category “{query}”."
+    }
   }
 }

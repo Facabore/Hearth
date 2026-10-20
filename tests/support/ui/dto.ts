@@ -1,4 +1,4 @@
-import type { AccountDto, MeDto, MoneyDto, SpaceDto } from "@/shared/ui/api/dto";
+import type { AccountDto, CategoryGroupDto, MeDto, MoneyDto, SpaceDto } from "@/shared/ui/api/dto";
 
 /** Pesos as the wire carries them: minor units in a string (string arithmetic is safe for test amounts). */
 export const cop = (pesos: number): MoneyDto => ({ amount: String(pesos * 100), currency: "COP" });
@@ -89,5 +89,33 @@ export const accountDto = (overrides: Partial<AccountDto> = {}): AccountDto => (
     equivalentMonthlyRate: null,
     startDate: null,
   },
+  ...overrides,
+});
+
+type CategoryNode = CategoryGroupDto["categories"][number];
+
+/** A live category of the "Food" group with a symbol, no subcategories. */
+export const categoryDto = (overrides: Partial<CategoryNode> = {}): CategoryNode => ({
+  id: "c-1",
+  groupId: "g-food",
+  parentCategoryId: null,
+  name: "Categoría",
+  key: null,
+  archivedAt: null,
+  icon: { kind: "SYMBOL", name: "cart" },
+  color: "SAGE",
+  subcategories: [],
+  ...overrides,
+});
+
+/** A live group with no categories. */
+export const groupDto = (overrides: Partial<CategoryGroupDto> = {}): CategoryGroupDto => ({
+  id: "g-food",
+  name: "Food",
+  key: "food",
+  archivedAt: null,
+  icon: { kind: "SYMBOL", name: "fork" },
+  color: "SAGE",
+  categories: [],
   ...overrides,
 });
