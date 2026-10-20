@@ -229,7 +229,7 @@ import { createDatabase, type Database } from "@/shared/infrastructure/db/client
 import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { DrizzleIdempotencyStore } from "@/shared/infrastructure/drizzle-idempotency-store";
 import { loadEnv, type Env } from "@/shared/infrastructure/env";
-import { SystemClock } from "@/shared/infrastructure/system-clock";
+import { clockFrom } from "@/shared/infrastructure/system-clock";
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
 import { isUuid, map, type AuthUser, type Clock, type Result } from "@/shared/kernel";
 import { accountBalancesFrom } from "./account-balances";
@@ -380,7 +380,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   const { db, pool } = createDatabase(env.DATABASE_URL);
   const tm = new DrizzleTransactionManager(db);
   const ids = new UuidV7IdGenerator();
-  const clock = options.clock ?? new SystemClock();
+  const clock = options.clock ?? clockFrom(env.HEARTH_E2E_FIXED_NOW);
   const provider = new BetterAuthProvider(
     createAuth({
       db,

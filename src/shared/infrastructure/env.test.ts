@@ -8,6 +8,13 @@ const valid = {
 };
 
 describe("loadEnv", () => {
+  it("accepts an ISO instant for the e2e clock and refuses anything else", () => {
+    expect(loadEnv({ ...valid, HEARTH_E2E_FIXED_NOW: "2026-11-01T04:30:00Z" }).HEARTH_E2E_FIXED_NOW).toBe(
+      "2026-11-01T04:30:00Z",
+    );
+    expect(() => loadEnv({ ...valid, HEARTH_E2E_FIXED_NOW: "tomorrow" })).toThrow(/HEARTH_E2E_FIXED_NOW/);
+  });
+
   it("parses a valid environment with defaults", () => {
     expect(loadEnv(valid)).toEqual({
       ...valid,

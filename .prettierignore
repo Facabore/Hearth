@@ -5,3 +5,6 @@ openapi/openapi.snapshot.json
 docs/
 .superpowers
 src/shared/ui/api/schema.d.ts
+tests/e2e/.features-gen/
+test-results/
+playwright-report/

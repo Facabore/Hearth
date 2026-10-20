@@ -12,6 +12,9 @@ export default defineConfig([
     "drizzle/**",
     "tests/architecture/fixtures/**",
     "src/shared/ui/api/schema.d.ts",
+    "tests/e2e/.features-gen/",
+    "test-results/",
+    "playwright-report/",
   ]),
   {
     files: ["**/*.{js,mjs,cjs}"],

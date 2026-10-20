@@ -36,5 +36,5 @@
     "*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules", "tests/architecture/fixtures"]
+  "exclude": ["node_modules", "tests/architecture/fixtures", "tests/e2e/.features-gen"]
 }
