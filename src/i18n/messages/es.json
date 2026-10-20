@@ -273,6 +273,44 @@
       "months": "{months} meses"
     },
     "backHome": "Volver a Inicio",
+    "newTitle": "Nueva cuenta",
+    "create": "Crear cuenta",
+    "field": {
+      "type": "Tipo de cuenta",
+      "name": "Nombre",
+      "opening": "Saldo inicial",
+      "owed": "Debes hoy",
+      "institution": "Entidad",
+      "lastFour": "Últimos 4",
+      "creditLimit": "Cupo",
+      "cutOffDay": "Día de corte",
+      "paymentDay": "Día de pago",
+      "monthlyRate": "Interés M.V.",
+      "annualRate": "Tasa E.A.",
+      "termDays": "Plazo en días",
+      "maturityDate": "Vencimiento",
+      "principal": "Monto del crédito",
+      "termMonths": "Plazo en meses"
+    },
+    "type": {
+      "BANK": "Banco",
+      "WALLET": "Billetera",
+      "CASH": "Efectivo",
+      "CREDIT_CARD": "Tarjeta de crédito",
+      "SAVINGS": "Ahorro o CDT",
+      "INVESTMENT": "Inversión",
+      "LOAN": "Préstamo o deuda",
+      "OTHER": "Otra",
+      "SHARED_FUND": "Fondo compartido"
+    },
+    "switch": {
+      "available": "Contar en el disponible",
+      "availableHint": "Lo que tiene esta cuenta se suma a tu dinero disponible.",
+      "netWorth": "Contar en el patrimonio",
+      "netWorthHint": "Su saldo se suma a tu patrimonio neto."
+    },
+    "currency": "Moneda: {currency}",
+    "amountUnreadable": "Escribe un monto como {example}.",
     "archive": {
       "open": "Archivar {name}",
       "title": "¿Archivar {name}?",

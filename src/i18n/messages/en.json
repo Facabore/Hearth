@@ -273,6 +273,44 @@
       "months": "{months} months"
     },
     "backHome": "Back to Home",
+    "newTitle": "New account",
+    "create": "Create account",
+    "field": {
+      "type": "Account type",
+      "name": "Name",
+      "opening": "Opening balance",
+      "owed": "You owe today",
+      "institution": "Institution",
+      "lastFour": "Last 4",
+      "creditLimit": "Credit limit",
+      "cutOffDay": "Cut-off day",
+      "paymentDay": "Payment day",
+      "monthlyRate": "Monthly rate",
+      "annualRate": "Annual rate",
+      "termDays": "Term in days",
+      "maturityDate": "Maturity date",
+      "principal": "Loan amount",
+      "termMonths": "Term in months"
+    },
+    "type": {
+      "BANK": "Bank",
+      "WALLET": "Wallet",
+      "CASH": "Cash",
+      "CREDIT_CARD": "Credit card",
+      "SAVINGS": "Savings or term deposit",
+      "INVESTMENT": "Investment",
+      "LOAN": "Loan or debt",
+      "OTHER": "Other",
+      "SHARED_FUND": "Shared fund"
+    },
+    "switch": {
+      "available": "Count in available",
+      "availableHint": "What this account holds adds to your available money.",
+      "netWorth": "Count in net worth",
+      "netWorthHint": "Its balance adds to your net worth."
+    },
+    "currency": "Currency: {currency}",
+    "amountUnreadable": "Type an amount like {example}.",
     "archive": {
       "open": "Archive {name}",
       "title": "Archive {name}?",
