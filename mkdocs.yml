@@ -66,6 +66,7 @@ nav:
   - Operations:
       - Deploying to a VPS: operations/deploy.md
       - Backups and restore: operations/backups.md
+      - User accounts: operations/accounts.md
       - Stack versions: stack-versions.md
   - Spec:
       - Design spec: superpowers/specs/2026-10-11-hearth-design.md
