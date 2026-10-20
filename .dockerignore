@@ -5,6 +5,7 @@ coverage
 tests
 scripts/*.test.mjs
 **/*.test.ts
+**/*.test.tsx
 **/*.int.test.ts
 .env
 .env.*
