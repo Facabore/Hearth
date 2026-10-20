@@ -8,7 +8,30 @@
     "retry": "Reintentar",
     "loading": "Cargando…",
     "default": "Predeterminado",
-    "reset": "Restablecer"
+    "reset": "Restablecer",
+    "month": {
+      "1": "enero",
+      "2": "febrero",
+      "3": "marzo",
+      "4": "abril",
+      "5": "mayo",
+      "6": "junio",
+      "7": "julio",
+      "8": "agosto",
+      "9": "septiembre",
+      "10": "octubre",
+      "11": "noviembre",
+      "12": "diciembre"
+    },
+    "weekdayShort": {
+      "MONDAY": "L",
+      "TUESDAY": "M",
+      "WEDNESDAY": "M",
+      "THURSDAY": "J",
+      "FRIDAY": "V",
+      "SATURDAY": "S",
+      "SUNDAY": "D"
+    }
   },
   "errors": {
     "AccountArchived": "Esta cuenta está archivada. Restáurala para registrar movimientos en ella.",
@@ -355,6 +378,23 @@
       "TRANSFER": "Transferencia",
       "SETTLEMENT": "Pago entre miembros"
     },
-    "transfer": "{from} → {to}"
+    "transfer": "{from} → {to}",
+    "when": {
+      "title": "Fecha y hora",
+      "day": "Día",
+      "month": "{month} de {year}",
+      "previousMonth": "Mes anterior",
+      "nextMonth": "Mes siguiente",
+      "time": "Hora",
+      "hourDown": "Una hora menos",
+      "hourUp": "Una hora más",
+      "minuteDown": "Cinco minutos menos",
+      "minuteUp": "Cinco minutos más",
+      "half": "Mañana o tarde",
+      "am": "AM",
+      "pm": "PM",
+      "now": "Ahora",
+      "apply": "Usar {label}"
+    }
   }
 }

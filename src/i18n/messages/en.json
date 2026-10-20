@@ -8,7 +8,30 @@
     "retry": "Try again",
     "loading": "Loading…",
     "default": "Default",
-    "reset": "Reset"
+    "reset": "Reset",
+    "month": {
+      "1": "January",
+      "2": "February",
+      "3": "March",
+      "4": "April",
+      "5": "May",
+      "6": "June",
+      "7": "July",
+      "8": "August",
+      "9": "September",
+      "10": "October",
+      "11": "November",
+      "12": "December"
+    },
+    "weekdayShort": {
+      "MONDAY": "M",
+      "TUESDAY": "T",
+      "WEDNESDAY": "W",
+      "THURSDAY": "T",
+      "FRIDAY": "F",
+      "SATURDAY": "S",
+      "SUNDAY": "S"
+    }
   },
   "errors": {
     "AccountArchived": "This account is archived. Restore it to record transactions in it.",
@@ -355,6 +378,23 @@
       "TRANSFER": "Transfer",
       "SETTLEMENT": "Settlement"
     },
-    "transfer": "{from} → {to}"
+    "transfer": "{from} → {to}",
+    "when": {
+      "title": "Date and time",
+      "day": "Day",
+      "month": "{month} {year}",
+      "previousMonth": "Previous month",
+      "nextMonth": "Next month",
+      "time": "Time",
+      "hourDown": "One hour earlier",
+      "hourUp": "One hour later",
+      "minuteDown": "Five minutes earlier",
+      "minuteUp": "Five minutes later",
+      "half": "Morning or afternoon",
+      "am": "AM",
+      "pm": "PM",
+      "now": "Now",
+      "apply": "Use {label}"
+    }
   }
 }
