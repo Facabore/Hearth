@@ -11,6 +11,7 @@ export default defineConfig([
     "next-env.d.ts",
     "drizzle/**",
     "tests/architecture/fixtures/**",
+    "src/shared/ui/api/schema.d.ts",
   ]),
   {
     files: ["**/*.{js,mjs,cjs}"],

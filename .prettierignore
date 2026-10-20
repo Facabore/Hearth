@@ -4,3 +4,4 @@ openapi/openapi.snapshot.json
 .next/
 docs/
 .superpowers
+src/shared/ui/api/schema.d.ts
