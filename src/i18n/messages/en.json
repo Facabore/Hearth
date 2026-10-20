@@ -153,6 +153,19 @@
       "en": "English",
       "short": "ES · EN"
     },
-    "sessionExpired": "Your session expired. Sign in again."
+    "sessionExpired": "Your session expired. Sign in again.",
+    "signUp": {
+      "title": "Create your account",
+      "subtitle": "Your personal space is created for you, with categories ready.",
+      "name": "Name",
+      "passwordHint": "At least 8 characters",
+      "submit": "Create account",
+      "haveAccount": "Already have an account?",
+      "signIn": "Sign in",
+      "confirmPassword": "Confirm password",
+      "passwordMismatch": "The passwords do not match.",
+      "closedTitle": "Sign-up is closed",
+      "closedBody": "Ask someone in your household for an invitation."
+    }
   }
 }

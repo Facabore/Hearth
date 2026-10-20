@@ -12,11 +12,13 @@ export function SignInFormContainer({
   next,
   expired = false,
   signUp = "open",
+  invitation,
   api: injected,
 }: {
   readonly next: string;
   readonly expired?: boolean;
   readonly signUp?: SignUpMode;
+  readonly invitation?: string;
   readonly api?: Api;
 }) {
   const router = useRouter();
@@ -46,6 +48,7 @@ export function SignInFormContainer({
       next={next}
       expired={expired}
       signUp={signUp}
+      invitation={invitation}
       onSubmit={(body) => void submit(body)}
       pending={pending}
       problem={problem}

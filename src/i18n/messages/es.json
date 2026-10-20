@@ -141,7 +141,7 @@
       "submit": "Iniciar sesión",
       "createAccount": "Crear una cuenta",
       "forgot": "¿Olvidaste tu contraseña?",
-      "forgotHelp": "Pedile a quien administra Hearth que la restablezca."
+      "forgotHelp": "Pídele a quien administra Hearth que la restablezca."
     },
     "email": "Correo electrónico",
     "password": "Contraseña",
@@ -153,6 +153,19 @@
       "en": "inglés",
       "short": "ES · EN"
     },
-    "sessionExpired": "Tu sesión venció. Volvé a entrar."
+    "sessionExpired": "Tu sesión venció. Vuelve a entrar.",
+    "signUp": {
+      "title": "Crea tu cuenta",
+      "subtitle": "Tu espacio personal se crea solo, con categorías listas.",
+      "name": "Nombre",
+      "passwordHint": "Al menos 8 caracteres",
+      "submit": "Crear cuenta",
+      "haveAccount": "¿Ya tienes cuenta?",
+      "signIn": "Inicia sesión",
+      "confirmPassword": "Confirmar contraseña",
+      "passwordMismatch": "Las contraseñas no coinciden.",
+      "closedTitle": "El registro está cerrado",
+      "closedBody": "Pídele una invitación a alguien de tu hogar."
+    }
   }
 }

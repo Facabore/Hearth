@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { problemFrom } from "./problem";
+import { fieldOf, problemFrom, type Problem } from "./problem";
 
 const response = (status: number, requestId?: string) =>
   new Response(null, { status, headers: requestId ? { "x-request-id": requestId } : {} });
@@ -41,5 +41,37 @@ describe("problemFrom (HU-E9-02)", () => {
       errors: [],
       field: null,
     });
+  });
+});
+
+describe("fieldOf (ruling P118)", () => {
+  const problem = (code: string, extra: Partial<Problem> = {}): Problem => ({
+    code,
+    status: 422,
+    requestId: "r",
+    errors: [],
+    field: null,
+    ...extra,
+  });
+  const fields = ["name", "email", "password"] as const;
+  const byCode = { EmailTaken: "email", PasswordTooShort: "password" } as const;
+
+  it("puts a code next to its field, then a validation path, else on the form", () => {
+    expect(fieldOf(problem("EmailTaken"), byCode, fields)).toBe("email");
+    expect(
+      fieldOf(
+        problem("ValidationFailed", { errors: [{ path: "name", message: "Too small" }] }),
+        byCode,
+        fields,
+      ),
+    ).toBe("name");
+    expect(
+      fieldOf(
+        problem("ValidationFailed", { errors: [{ path: "", message: "Body must be valid JSON" }] }),
+        byCode,
+        fields,
+      ),
+    ).toBe("form");
+    expect(fieldOf(problem("TooManyRequests"), byCode, fields)).toBe("form");
   });
 });

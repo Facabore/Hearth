@@ -12,6 +12,8 @@ export interface SignInFormProps {
   readonly next: string;
   readonly expired: boolean;
   readonly signUp: SignUpMode;
+  /** The URL's invitation token, kept in the link to sign-up (ruling P147). */
+  readonly invitation?: string;
   readonly onSubmit: (body: { email: string; password: string }) => void;
   readonly pending: boolean;
   readonly problem: Problem | null;
@@ -26,7 +28,15 @@ const FORGOT_HELP = "si-forgot-help";
  * operator resets it); P146 keeps the email and refocuses an emptied password after a problem; P151 says why a
  * visitor came back.
  */
-export function SignInForm({ next, expired, signUp, onSubmit, pending, problem }: SignInFormProps) {
+export function SignInForm({
+  next,
+  expired,
+  signUp,
+  invitation,
+  onSubmit,
+  pending,
+  problem,
+}: SignInFormProps) {
   const t = useTranslations("auth");
   const form = useRef<HTMLFormElement>(null);
   const [forgotOpen, setForgotOpen] = useState(false);
@@ -45,7 +55,11 @@ export function SignInForm({ next, expired, signUp, onSubmit, pending, problem }
     const data = new FormData(event.currentTarget);
     onSubmit({ email: String(data.get("email") ?? ""), password: String(data.get("password") ?? "") });
   };
-  const createAccount = next === "/" ? "/sign-up" : `/sign-up?next=${encodeURIComponent(next)}`;
+  const query = [
+    next === "/" ? null : `next=${encodeURIComponent(next)}`,
+    invitation === undefined ? null : `invitation=${encodeURIComponent(invitation)}`,
+  ].filter((part) => part !== null);
+  const createAccount = query.length === 0 ? "/sign-up" : `/sign-up?${query.join("&")}`;
   return (
     <form ref={form} onSubmit={submit} className="flex flex-col gap-5" noValidate>
       <div className="flex flex-col gap-1">

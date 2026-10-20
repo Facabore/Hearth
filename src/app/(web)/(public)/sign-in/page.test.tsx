@@ -7,11 +7,12 @@ vi.mock("@/shared/ui/api/server", () => ({ getSignUpMode: mocks.mode }));
 
 const { default: SignInPage } = await import("./page");
 
-const props = async (search: { next?: string; expired?: string }) =>
+const props = async (search: { next?: string; expired?: string; invitation?: string | string[] }) =>
   (await SignInPage({ searchParams: Promise.resolve(search) })).props as {
     next: string;
     expired: boolean;
     signUp: string;
+    invitation?: string;
   };
 
 describe("sign-in page (HU-E9-01, rulings P143 and P151)", () => {
@@ -35,5 +36,13 @@ describe("sign-in page (HU-E9-01, rulings P143 and P151)", () => {
       expired: false,
     });
     expect((await props({})).expired).toBe(false);
+  });
+
+  it("hands the invitation of the URL to the form, so the link to sign-up keeps it (ruling P147)", async () => {
+    mocks.mode.mockResolvedValue("open");
+    expect((await props({ invitation: "tok-1" })).invitation).toBe("tok-1");
+    expect((await props({ invitation: "" })).invitation).toBeUndefined();
+    expect((await props({ invitation: ["a", "b"] })).invitation).toBeUndefined();
+    expect((await props({})).invitation).toBeUndefined();
   });
 });

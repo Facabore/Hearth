@@ -64,7 +64,7 @@ describe("sign-in screen (HU-E9-01)", () => {
   it("explains a forgotten password inline, with the button describing what it opens (ruling P146)", async () => {
     renderWithIntl(<SignInFormContainer next="/" />);
     const forgot = screen.getByRole("button", { name: "¿Olvidaste tu contraseña?" });
-    const help = "Pedile a quien administra Hearth que la restablezca.";
+    const help = "Pídele a quien administra Hearth que la restablezca.";
     expect(forgot).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByText(help)).not.toBeVisible();
     await userEvent.click(forgot);
@@ -84,6 +84,20 @@ describe("sign-in screen (HU-E9-01)", () => {
     expect(screen.queryByRole("link", { name: "Crear una cuenta" })).not.toBeInTheDocument();
   });
 
+  it("keeps the invitation of the URL in the link to sign-up, beside next (rulings P142, P147)", () => {
+    const { unmount } = renderWithIntl(<SignInFormContainer next="/" invitation="tok 1" />);
+    expect(screen.getByRole("link", { name: "Crear una cuenta" })).toHaveAttribute(
+      "href",
+      "/sign-up?invitation=tok%201",
+    );
+    unmount();
+    renderWithIntl(<SignInFormContainer next="/settings" invitation="tok-1" />);
+    expect(screen.getByRole("link", { name: "Crear una cuenta" })).toHaveAttribute(
+      "href",
+      "/sign-up?next=%2Fsettings&invitation=tok-1",
+    );
+  });
+
   it("after a problem keeps the email, clears the password and puts the focus back in it (ruling P146)", async () => {
     const { api } = fakeApi({
       "POST /api/v1/auth/sign-in": () => problemResponse(401, "InvalidCredentials"),
@@ -98,10 +112,10 @@ describe("sign-in screen (HU-E9-01)", () => {
 
   it("tells a visitor whose session expired, and only then (ruling P151)", () => {
     const { unmount } = renderWithIntl(<SignInFormContainer next="/settings" expired />);
-    expect(screen.getByRole("status")).toHaveTextContent("Tu sesión venció. Volvé a entrar.");
+    expect(screen.getByRole("status")).toHaveTextContent("Tu sesión venció. Vuelve a entrar.");
     unmount();
     renderWithIntl(<SignInFormContainer next="/settings" />);
-    expect(screen.queryByText("Tu sesión venció. Volvé a entrar.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Tu sesión venció. Vuelve a entrar.")).not.toBeInTheDocument();
   });
 
   it("speaks English with the same keys", () => {

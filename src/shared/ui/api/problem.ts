@@ -27,3 +27,20 @@ export const problemFrom = (error: unknown, response: Response | undefined): Pro
   }
   return { code: "Unknown", status: response?.status ?? 0, requestId: headerId, errors: [], field: null };
 };
+
+/**
+ * Ruling P118: where a problem is shown: the field its code names, else the first segment of the first validation
+ * path when it names a field, else the problem's public field when it names one, else the form.
+ */
+export const fieldOf = <F extends string>(
+  problem: Problem,
+  byCode: Readonly<Partial<Record<string, F>>>,
+  fields: readonly F[],
+): F | "form" => {
+  const isField = (name: string | null | undefined): name is F => fields.includes(name as F);
+  const byItsCode = byCode[problem.code];
+  if (byItsCode !== undefined) return byItsCode;
+  const fromPath = problem.errors[0]?.path.split(".")[0];
+  if (isField(fromPath)) return fromPath;
+  return isField(problem.field) ? problem.field : "form";
+};
