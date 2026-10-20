@@ -16,5 +16,6 @@ export const UI_ICONS = {
   alert: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm0 4.5v5.5m0 3.5h.01",
   calendar: "M4 6h16v14H4V6Zm0 4h16M8 3v4m8-4v4",
   archive: "M4 5h16v4H4V5Zm1 4v10h14V9M10 13h4",
+  backspace: "M9 5h11v14H9l-6-7 6-7Zm4 4 5 6m0-6-5 6",
 } as const;
 export type UiIconName = keyof typeof UI_ICONS;

@@ -39,7 +39,7 @@ module.exports = {
       from: { path: "^src/modules/([^/]+)/", pathNot: "\\.schema\\.ts$" },
       to: {
         path: "^src/modules/(?!$1/)[^/]+/",
-        pathNot: ["^src/modules/[^/]+/application/index\\.ts$", "^src/modules/[^/]+/ui/index\\.ts$"],
+        pathNot: ["^src/modules/[^/]+/application/index\\.ts$", "^src/modules/[^/]+/ui/(index|server)\\.ts$"],
       },
     },
     {
@@ -86,11 +86,11 @@ module.exports = {
       name: "ui-modules-only-through-public-ui-api",
       severity: "error",
       comment:
-        "A module's ui reaches another module's ui only through src/modules/<module>/ui/index.ts, and the web pages reach every module only through it.",
+        "A module's ui reaches another module's ui only through src/modules/<module>/ui/index.ts (client-safe) or ui/server.ts (server containers), and the web pages reach every module only through them.",
       from: { path: ["^src/modules/([^/]+)/ui/", "^src/app/\\(web\\)/"] },
       to: {
         path: "^src/modules/[^/]+/ui/",
-        pathNot: ["^src/modules/[^/]+/ui/index\\.ts$", "^src/modules/$1/ui/"],
+        pathNot: ["^src/modules/[^/]+/ui/(index|server)\\.ts$", "^src/modules/$1/ui/"],
       },
     },
     {

@@ -395,6 +395,28 @@
       "pm": "PM",
       "now": "Ahora",
       "apply": "Usar {label}"
+    },
+    "form": {
+      "title": "Registrar movimiento",
+      "kind": "Tipo de movimiento",
+      "amount": "Monto",
+      "backspace": "Borrar",
+      "description": "Descripción",
+      "category": "Categoría",
+      "chooseCategory": "Elegir categoría",
+      "account": "Cuenta",
+      "receivingAccount": "Cuenta que recibe",
+      "from": "Desde",
+      "to": "Hacia",
+      "chooseAccount": "Elegir cuenta",
+      "when": "Fecha y hora: {label}. Cambiar",
+      "save": {
+        "EXPENSE": "Guardar gasto",
+        "INCOME": "Guardar ingreso",
+        "TRANSFER": "Guardar transferencia"
+      },
+      "amountUnreadable": "Escribe un monto como {example}.",
+      "accountRequired": "Elige una cuenta."
     }
   }
 }

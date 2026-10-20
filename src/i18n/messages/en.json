@@ -395,6 +395,28 @@
       "pm": "PM",
       "now": "Now",
       "apply": "Use {label}"
+    },
+    "form": {
+      "title": "Record a transaction",
+      "kind": "Type of transaction",
+      "amount": "Amount",
+      "backspace": "Delete",
+      "description": "Description",
+      "category": "Category",
+      "chooseCategory": "Choose a category",
+      "account": "Account",
+      "receivingAccount": "Receiving account",
+      "from": "From",
+      "to": "To",
+      "chooseAccount": "Choose an account",
+      "when": "Date and time: {label}. Change",
+      "save": {
+        "EXPENSE": "Save expense",
+        "INCOME": "Save income",
+        "TRANSFER": "Save transfer"
+      },
+      "amountUnreadable": "Type an amount like {example}.",
+      "accountRequired": "Choose an account."
     }
   }
 }
