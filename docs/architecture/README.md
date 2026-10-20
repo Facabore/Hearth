@@ -6,7 +6,7 @@ The database has its own page: [data model](data-model.md).
 
 ## Deployment
 
-The production stack is Docker Compose on a VPS: Caddy, the `app` container, PostgreSQL and a one-shot `migrate` container. CI builds the images; the operator pulls them by commit SHA. The steps are in [Deploying Hearth to a VPS](../operations/deploy.md); the definitions are [`compose.yaml`](https://github.com/Facabore/Hearth/blob/development/compose.yaml) and [`Caddyfile`](https://github.com/Facabore/Hearth/blob/development/Caddyfile).
+The production stack is Docker Compose on a VPS: Caddy, the `app` container, PostgreSQL, a one-shot `migrate` container and the nightly `backup` container. CI builds the images; the operator pulls them by commit SHA. The steps are in [Deploying Hearth to a VPS](../operations/deploy.md); the definitions are [`compose.yaml`](https://github.com/Facabore/Hearth/blob/development/compose.yaml) and [`Caddyfile`](https://github.com/Facabore/Hearth/blob/development/Caddyfile).
 
 ```mermaid
 flowchart TB
@@ -19,11 +19,13 @@ flowchart TB
         app["app (Next.js): /api/v1 and the recurrence job, no published port"]
         migrate["migrate: runs migrations, then exits"]
         db[("PostgreSQL: never published")]
+        backup["backup: nightly pg_dump at 02:00, keeps 14"]
     end
+    offsite["backup-offsite (optional, own network): rclone copy at 03:00"]
 
     ci["GitHub Actions CI on main: builds the images"]
     ghcr["GHCR images, tagged by commit SHA"]
-    backups["Nightly backups (HU-E8-01, planned)"]
+    remote["Off-site storage: any rclone remote"]
 
     web -->|HTTPS| caddy
     clients -->|HTTPS| caddy
@@ -35,16 +37,19 @@ flowchart TB
     ci -->|push| ghcr
     ghcr -->|"compose pull"| app
     ghcr -->|"compose pull"| migrate
-    backups -.-> db
+    backup -->|"pg_dump, restore drill"| db
+    offsite -.->|"reads the backups volume"| backup
+    offsite -.->|HTTPS| remote
 ```
 
 What the files say:
 
 - **Caddy** is the only service that publishes ports (`80`, `443` and `443/udp`). It terminates TLS, compresses responses and proxies everything to `app:3000`. It sets `X-Forwarded-For` to the real peer address, which the sign-in throttles rely on.
 - **`app`** publishes no port. It starts only after `migrate` has completed successfully, and it records due recurring transactions itself with an in-process timer ([recurring transactions job](../operations/deploy.md#recurring-transactions-job)).
-- **PostgreSQL** is on the internal network only. Its data lives in the `db-data` volume.
+- **PostgreSQL** is on the internal network only. Its data lives in the `db-data` volume, and its nightly dumps in the `backups` volume.
 - **CI** (`.github/workflows/ci.yml`) runs lint, boundary check, typecheck and tests, builds the two images (`hearth` and `hearth-migrator`) and smoke-tests them against PostgreSQL. On a push to `main` it pushes them to GHCR tagged with the commit SHA and `main`. Releases are deployed by setting both image tags in `.env` to the SHA.
-- **Backups** are not built yet. Until HU-E8-01 arrives, the deploy guide asks for a manual `pg_dump` before every update.
+- **`backup`** runs `pg_dump` every night at 02:00 in `APP_TIMEZONE` into the `backups` volume and keeps the newest `BACKUP_RETENTION_DAYS` (14) files; `scripts/restore-drill.sh` restores the newest into a scratch database, checks its transaction count and drops it (HU-E8-01, [Backups and restore](../operations/backups.md)). It publishes no port.
+- **`backup-offsite`** is optional (compose profile `offsite`, off by default): it copies the backups to any rclone remote at 03:00 and never deletes there; it is on its own network, without the database.
 
 ## Request lifecycle
 

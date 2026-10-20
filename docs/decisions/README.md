@@ -4,7 +4,7 @@ Every decision Hearth has made, in one place. There are three kinds, and each li
 
 - **Design decisions (D1–D23)** are in the [design spec](../superpowers/specs/2026-10-11-hearth-design.md#6-key-decisions), section 6.
 - **ADRs** record a technology choice: [`docs/adr/`](#adrs).
-- **Rulings (P1–P106)** are execution rulings the controller made while a milestone plan was written or run. Each lives in its plan's Self-Review; this page indexes them.
+- **Rulings (P1–P116)** are execution rulings the controller made while a milestone plan was written or run. Each lives in its plan's Self-Review; this page indexes them.
 
 ## Design decisions D1–D23
 
@@ -43,11 +43,11 @@ Rationale and rejected alternatives are in [section 6 of the spec](../superpower
 | [0001](../adr/0001-boundary-enforcement-with-dependency-cruiser.md) | Enforce architecture boundaries with dependency-cruiser. | Accepted (2026-10-11) |
 | [0002](../adr/0002-openapi-generator-zod-openapi.md) | Generate OpenAPI 3.1 with zod-openapi. | Accepted (2026-10-12) |
 
-## Rulings P1–P106
+## Rulings P1–P116
 
 Rulings are numbered across milestones, not per plan, and not always in the order of the plans: M4's plan holds rulings that were made while M3-D was being planned. The tables are grouped by the plan that records them. In each, "Where" is the plan's Self-Review section and the item number in it. "Amended" marks a ruling the plan itself says was amended.
 
-The ranges are: M3-A P1–P9, M3-B P10–P19, M3-C P20–P31, M3-D P40–P73, P78, P79 and P84–P94, and M4 P32–P39, P74–P77, P80–P83 and P95–P106. M3-D's P89–P94 were kept outside the repository until the merge and are recorded in the section "Execution rulings (recorded after the merge)" at the end of its plan.
+The ranges are: M3-A P1–P9, M3-B P10–P19, M3-C P20–P31, M3-D P40–P73, P78, P79 and P84–P94, M4 P32–P39, P74–P77, P80–P83 and P95–P106, and M5 P107–P116. M3-D's P89–P94 were kept outside the repository until the merge and are recorded in the section "Execution rulings (recorded after the merge)" at the end of its plan.
 
 ### M3-A: budget plans (P1–P9)
 
@@ -196,6 +196,23 @@ Plan: [`2026-10-17-m4-insight-api.md`](../superpowers/plans/2026-10-17-m4-insigh
 | P104 | The personal breakdown's own-spending entry always answers `space: null`; the category row carries the space. | Assumptions, 25 |
 | P105 | One request computes each plan's figures once: the line trend shares a request-scoped cache by plan id, so its cost is O(window + chain). | Assumptions, 26 |
 | P106 | The unified view and the personal spending by group break naming ties the same way: the space name in Spanish collation ignoring case, then the space id (P82, P95). | Assumptions, 27 |
+
+### M5: nightly backups (P107–P116)
+
+Plan: [`2026-10-19-m5-nightly-backups.md`](../superpowers/plans/2026-10-19-m5-nightly-backups.md). P107 and P112 are amended. P115 and P116 were ruled during execution, from the reviews of Tasks 2 and 3.
+
+| ID | Ruling | Where |
+|---|---|---|
+| P107 | A `backup` sidecar from the `db` image runs busybox `crond` at 02:00 in `APP_TIMEZONE`; its crontab is written at start because `crond` ignores crontabs root does not own; scripts are mounted read-only (P116). | Rulings, 1 (amended by P116) |
+| P108 | One gzip plain-SQL `pg_dump --no-owner --no-privileges` per day, `hearth-YYYY-MM-DD.sql.gz`, written as a per-run `.hearth-YYYY-MM-DD.sql.gz.<pid>.partial`, verified, then renamed; its first line records the transaction count of the dump's own exported snapshot. | Rulings, 2 |
+| P109 | `BACKUP_RETENTION_DAYS` counts files: the newest N by name are kept, only after a good dump, and nothing but backup files is deleted. | Rulings, 3 |
+| P110 | Backup scripts log JSON lines like the app, with `job` and stable PascalCase `reason` codes; the tools' own stderr is kept. | Rulings, 4 |
+| P111 | The drill runs in the `backup` container, restores into `hearth_restore_drill` on the same server, compares every row of `transactions` with the header and drops the scratch database on every path. | Rulings, 5 |
+| P112 | The off-site copy is an optional `backup-offsite` service (profile `offsite`, `rclone/rclone:1.75.1`; 1.75.2 follows on or after 2026-10-23, once two weeks old, issue #135) configured only by `.env.offsite`; it runs `rclone copy`, never `sync`, at 03:00. | Rulings, 6 (amended) |
+| P113 | Script tests live in a new Vitest project `operations` that drives labelled disposable containers through the Docker CLI; `compose.dev.yaml`'s `test` service skips it. | Rulings, 7 |
+| P114 | Agents cannot read or edit `.env.production.example` (the owner's deny rule on `.env.*`, kept on purpose): every new variable gets a default in `compose.yaml` and is documented in `docs/operations/backups.md`, and the example file's lines go in the pull request for the owner to paste. | Rulings, 8 |
+| P115 | `BACKUP_RETENTION_DAYS` is a whole number from 1 to 9999 (one to four digits, no leading zero), so shell arithmetic cannot wrap; any other value refuses before the dump. | Rulings, 9 (narrows P109) |
+| P116 | The `backup` and `backup-offsite` services mount the whole `./scripts` directory read-only at `/hearth`, so a missing `scripts/` fails loudly; `cron-entrypoint.sh` checks each `/hearth/…` script its command names and exits 66 when it is not a file. | Rulings, 10 |
 
 ### Preflight notes and findings
 

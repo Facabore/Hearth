@@ -15,7 +15,7 @@ export const adminUrlOf = (url: string): string => {
   return admin.toString();
 };
 
-const waitForPostgres = async (url: string, timeoutMs = 60_000): Promise<void> => {
+export const waitForPostgres = async (url: string, timeoutMs = 60_000): Promise<void> => {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     const client = new pg.Client({ connectionString: url });

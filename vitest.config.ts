@@ -32,6 +32,17 @@ export default defineConfig({
           ...dbProject,
         },
       },
+      {
+        // Runs the backup scripts in disposable containers through the Docker CLI (tests/support/backup-stack.ts).
+        test: {
+          name: "operations",
+          include: ["tests/operations/**/*.test.ts"],
+          setupFiles: ["./tests/support/backup-stack-teardown.ts"],
+          fileParallelism: false,
+          testTimeout: 120_000,
+          hookTimeout: 180_000,
+        },
+      },
     ],
   },
 });
