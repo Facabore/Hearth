@@ -83,4 +83,69 @@ describe("nightly backup (HU-E8-01)", () => {
       "-- hearth-backup transactions=4\n",
     );
   });
+
+  it("gives pg_dump, and the session that counts before it, 300 s to get a table lock instead of waiting for ever", () => {
+    // A pg_dump in front of the real one records what it is called with and what the environment holds.
+    const wrapper = String.raw`#!/bin/sh
+echo "$PGOPTIONS" > /tmp/pg_dump.env
+echo "$*" > /tmp/pg_dump.args
+exec REAL "$@"`;
+    const result = stack.run(
+      [
+        "mkdir /tmp/bin",
+        `cat > /tmp/bin/pg_dump <<'WRAPPER'\n${wrapper}\nWRAPPER`,
+        'sed -i "s#REAL#$(command -v pg_dump)#" /tmp/bin/pg_dump',
+        "chmod +x /tmp/bin/pg_dump",
+        "PATH=/tmp/bin:$PATH sh /hearth/backup.sh > /dev/null",
+        "status=$?",
+        "cat /tmp/pg_dump.args /tmp/pg_dump.env",
+        "exit $status",
+      ].join("\n"),
+    );
+    expect(result.status).toBe(0);
+    const [args, env] = result.stdout.split("\n");
+    expect(args).toContain("--lock-wait-timeout=300s");
+    expect(env).toContain("-c lock_timeout=300s");
+  });
+
+  it("exits 1 with Interrupted when a signal reaches it while pg_dump waits for a lock, keeping no file", async () => {
+    const before = stack.backups();
+    // Another session holds a table pg_dump needs, so the dump stays blocked for as long as the test wants.
+    const locker = await stack.pool.connect();
+    try {
+      await locker.query("BEGIN");
+      await locker.query("LOCK TABLE idempotency_keys IN ACCESS EXCLUSIVE MODE");
+      const started = Date.now();
+      const result = stack.run(
+        [
+          "sh /hearth/backup.sh > /tmp/backup.out 2>&1 &",
+          "pid=$!",
+          `n=0; until [ "$(psql -X -Atc "SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND query LIKE 'LOCK TABLE%'")" = 1 ]; do n=$((n+1)); [ $n -lt 60 ] || exit 3; sleep 1; done`,
+          "kill -TERM $pid",
+          "wait $pid",
+          'echo "status=$?"',
+          // The dump's own processes go with the script: the signal reaches the whole group psql started.
+          "sleep 1",
+          'echo "left=$(pgrep -x pg_dump | wc -l)$(pgrep -x gzip | wc -l)$(pgrep -x psql | wc -l)"',
+          "cat /tmp/backup.out",
+        ].join("\n"),
+      );
+      // A signal handled only after the blocked dump ended would take the full lock wait.
+      expect(Date.now() - started).toBeLessThan(60_000);
+      expect(result.stdout).toContain("status=1");
+      expect(result.stdout).toContain("left=000\n");
+      expect(logEvents(result.stdout)).toEqual([
+        expect.objectContaining({
+          level: "error",
+          event: "backup_failed",
+          job: "nightly-backup",
+          reason: "Interrupted",
+        }),
+      ]);
+      expect(stack.backups()).toEqual(before);
+    } finally {
+      await locker.query("ROLLBACK").catch(() => undefined);
+      locker.release();
+    }
+  });
 });

@@ -99,6 +99,20 @@ export const leftovers = (label: string): string[] =>
       .filter(Boolean),
   );
 
+/** The stacks that are starting or running, by label, each with its idempotent stop. */
+const active = new Map<string, () => Promise<void>>();
+
+/** The labels of the stacks that have been started and not stopped yet, including one whose start has not returned. */
+export const activeBackupStacks = (): string[] => [...active.keys()];
+
+/**
+ * Stops every stack that is still active. A `beforeAll` that times out while `startBackupStack()` runs never gets
+ * the stack back, so the suite-wide teardown (tests/support/backup-stack-teardown.ts) uses this registry instead.
+ */
+export const stopAllBackupStacks = async (): Promise<void> => {
+  for (const stop of [...active.values()]) await stop();
+};
+
 /** Starts PostgreSQL on a fresh network with a fresh backups volume, migrates it and returns the stack. */
 export const startBackupStack = async (): Promise<BackupStack> => {
   const label = randomUUID();
@@ -127,6 +141,7 @@ export const startBackupStack = async (): Promise<BackupStack> => {
     }),
   ];
   const stop = async (pool?: Pool) => {
+    active.delete(label);
     await pool?.end().catch(() => undefined);
     for (const [list, remove] of [
       [
@@ -154,6 +169,10 @@ export const startBackupStack = async (): Promise<BackupStack> => {
       }
     }
   };
+  // The pool, once there is one: a registry stop ends it before the database goes away under its connections.
+  let created: Pool | undefined;
+  // Registered before anything is created, so a caller that never gets the stack back can still remove it.
+  active.set(label, () => stop(created));
   try {
     dockerOk("network", "create", ...tag, network);
     dockerOk("volume", "create", ...tag, backupsVolume);
@@ -183,6 +202,7 @@ export const startBackupStack = async (): Promise<BackupStack> => {
     await waitForPostgres(url);
     await runMigrations(url, "drizzle");
     const { db: database, pool } = createDatabase(url);
+    created = pool;
     return {
       label,
       db: database,

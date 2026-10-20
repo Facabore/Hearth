@@ -37,6 +37,7 @@ export default defineConfig({
         test: {
           name: "operations",
           include: ["tests/operations/**/*.test.ts"],
+          setupFiles: ["./tests/support/backup-stack-teardown.ts"],
           fileParallelism: false,
           testTimeout: 120_000,
           hookTimeout: 180_000,

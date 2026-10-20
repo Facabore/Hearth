@@ -10,6 +10,8 @@ Hearth keeps everything in one PostgreSQL database. The `backup` service of [`co
 
 The `backup` service publishes no port, and PostgreSQL stays unpublished.
 
+**Disk space:** the `backups` volume is on the VPS's own disk, the same one as the database's. A dump needs room for itself; if the disk is full the run fails as `DumpFailed` and deletes its partial file, but a disk that is nearly full can also make PostgreSQL fail its own writes. Keep an eye on the free space (`df -h`) and lower `BACKUP_RETENTION_DAYS` or move backups off the VPS before it gets close. The job does not check free space and nothing alerts on a failed night yet: read `docker compose logs backup`.
+
 ## Settings
 
 Set these in `.env` on the VPS only to change the default; `compose.yaml` gives each one, so none is required:
@@ -28,7 +30,11 @@ Each run writes one JSON line per event to the container's output (`docker compo
 
 - `backup_written` (`file`, `transactions`): the night's dump is complete.
 - `backup_pruned` (`file`): the retention deleted an old dump.
-- `backup_failed` (`reason`): the job exited with status 1 and kept every existing backup. The `reason` is `DumpFailed` (the database was unreachable or refused the connection, or `pg_dump` did not finish; the `psql` or `pg_dump` lines just before it name the cause), `InvalidRetention` (`BACKUP_RETENTION_DAYS` is not a whole number from 1 to 9999; nothing was dumped) or `PruneFailed`.
+- `backup_failed` (`reason`): the job exited with status 1. For `DumpFailed` and `InvalidRetention` it wrote nothing and pruned nothing, so every existing backup is kept, and so it does for `Interrupted` unless a `backup_written` line came before it (then the night's backup was kept and the pruning ran); for `PruneFailed` the night's backup was written and pruning stopped at the file it could not delete, possibly after deleting some older ones. The `reason` is:
+    - `DumpFailed`: the database was unreachable or refused the connection, `pg_dump` did not finish, or a table lock held by someone else (a migration, say) was not released in time: each table lock is waited for at most 5 minutes (300 s) instead of hanging, in the count that comes first and again in `pg_dump`, so a run can wait about 10 minutes in the worst case. The `psql` or `pg_dump` lines just before it name the cause.
+    - `InvalidRetention`: `BACKUP_RETENTION_DAYS` is not a whole number from 1 to 9999; nothing was dumped.
+    - `Interrupted`: a signal reached the job itself, such as Ctrl-C in `docker compose exec`; it removed its partial file and stopped `pg_dump` on its way out. The signal can arrive after the backup was written, while the job prunes; then the log shows `backup_written` before `backup_failed`. `docker compose stop` signals only `crond`, so it kills a job that is running without a log line.
+    - `PruneFailed`: an old backup could not be deleted.
 
 Every line carries `"job":"nightly-backup"`. The password is never logged.
 
@@ -40,6 +46,8 @@ After the first deployment and before every update:
 
     docker compose exec backup sh /hearth/backup.sh
     docker compose exec backup ls -l /backups
+
+It replaces today's file if the 02:00 run already wrote one, once the new dump has passed its checks; a dump that fails leaves today's file as it was. To keep both, make a copy first with the safety-copy command under [Restoring for real](#restoring-for-real).
 
 ## Restore drill
 

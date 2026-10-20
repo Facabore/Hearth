@@ -37,8 +37,10 @@ const compose = (args: string[], env: Record<string, string> = {}, file = "compo
   const result = spawnSync(
     "docker",
     ["compose", "-f", file, "--env-file", ".env.production.example", ...args],
-    { encoding: "utf8", env: environment },
+    // 110 s like every Docker CLI call of the harness: Vitest's test timeout cannot interrupt a synchronous call.
+    { encoding: "utf8", env: environment, timeout: 110_000 },
   );
+  if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(result.stderr);
   return result.stdout;
 };
