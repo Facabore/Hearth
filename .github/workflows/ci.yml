@@ -29,6 +29,7 @@ jobs:
       - run: pnpm format:check
       - run: pnpm db:check
       - run: pnpm api:check
+      - run: pnpm i18n:check
 
   boundaries:
     runs-on: ubuntu-latest
