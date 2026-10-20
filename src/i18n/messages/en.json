@@ -198,5 +198,29 @@
   },
   "home": {
     "title": "Home"
+  },
+  "settings": {
+    "title": "Settings",
+    "preview": {
+      "label": "This is how it will look"
+    },
+    "formats": "Formats",
+    "field": {
+      "numberFormat": "Numbers",
+      "dateFormat": "Date",
+      "timeFormat": "Time",
+      "weekStart": "The week starts on"
+    },
+    "timeFormat": {
+      "H24": "24-hour",
+      "H12": "12-hour"
+    },
+    "weekStart": {
+      "MONDAY": "Monday",
+      "SUNDAY": "Sunday"
+    },
+    "default": "Default",
+    "reset": "Reset",
+    "locked": "Set by your installation"
   }
 }
