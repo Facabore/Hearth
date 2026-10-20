@@ -6,6 +6,7 @@ import type {
   SpaceDto,
   TransactionDto,
 } from "@/shared/ui/api/dto";
+import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 
 /** Pesos as the wire carries them: minor units in a string (string arithmetic is safe for test amounts). */
 export const cop = (pesos: number): MoneyDto => ({ amount: String(pesos * 100), currency: "COP" });
@@ -149,3 +150,66 @@ export const transactionDto = (overrides: Partial<TransactionDto> = {}): Transac
   version: 1,
   ...overrides,
 });
+
+const octoberGroups = [
+  groupDto({
+    id: "g-food",
+    name: "Food",
+    categories: [
+      categoryDto({
+        id: "c-groceries",
+        name: "Groceries",
+        subcategories: [categoryDto({ id: "c-veg", name: "Vegetables", parentCategoryId: "c-groceries" })],
+      }),
+      categoryDto({ id: "c-dining", name: "Restaurants" }),
+    ],
+  }),
+  groupDto({ id: "g-income", name: "Income", categories: [categoryDto({ id: "c-salary", name: "Wages" })] }),
+];
+/** The story's October 2026 viewer: Bogotá, the built-in formats, two named accounts. */
+export const rowContext = {
+  formats: BUILT_IN_FORMATS,
+  viewerZone: "America/Bogota",
+  groups: octoberGroups,
+  accountNames: { "a-bank": "Bancolombia", "a-visa": "Visa" },
+};
+/** An expense paid from Bancolombia, timed in Bogotá when `at` is set. */
+export const octoberExpense = (
+  id: string,
+  description: string,
+  pesos: number,
+  date: string,
+  at: string | null,
+  categoryId: string,
+) =>
+  transactionDto({
+    id,
+    type: "EXPENSE",
+    description,
+    amount: cop(pesos),
+    date,
+    categoryId,
+    occurredAt: at,
+    timeZone: at ? "America/Bogota" : null,
+    payments: [{ memberId: "m-ana", accountId: "a-bank", amount: cop(pesos) }],
+  });
+/** HU-E9-03's October 2026 page: a salary, a dinner and two market runs. */
+export const octoberPage = {
+  period: { label: "2026-10", startDate: "2026-10-01", endDate: "2026-10-31" },
+  totals: { expenses: cop(245_000), income: cop(3_200_000) },
+  items: [
+    transactionDto({
+      id: "t-salary",
+      type: "INCOME",
+      description: "Salary",
+      amount: cop(3_200_000),
+      date: "2026-10-25",
+      categoryId: "c-salary",
+      destinationAccountId: "a-bank",
+    }),
+    octoberExpense("t-dinner", "Dinner", 60_000, "2026-10-12", "2026-10-13T01:45:00.000Z", "c-dining"),
+    octoberExpense("t-market2", "Market", 100_000, "2026-10-12", "2026-10-12T23:02:00.000Z", "c-veg"),
+    octoberExpense("t-market1", "Market", 85_000, "2026-10-05", "2026-10-05T13:10:00.000Z", "c-groceries"),
+  ],
+  nextCursor: null,
+};

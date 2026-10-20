@@ -3,7 +3,14 @@ import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
-import { categoryDto, cop, groupDto, meDto, transactionDto } from "../../../../tests/support/ui/dto";
+import {
+  cop,
+  meDto,
+  octoberExpense,
+  octoberPage,
+  rowContext,
+  transactionDto,
+} from "../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse } from "../../../../tests/support/ui/fake-api";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import es from "@/i18n/messages/es.json";
@@ -30,65 +37,10 @@ beforeEach(() => vi.clearAllMocks());
 
 const norm = (text: string | null) => (text ?? "").replace(/\s/g, " ");
 
-const groups = [
-  groupDto({
-    id: "g-food",
-    name: "Food",
-    categories: [
-      categoryDto({
-        id: "c-groceries",
-        name: "Groceries",
-        subcategories: [categoryDto({ id: "c-veg", name: "Vegetables", parentCategoryId: "c-groceries" })],
-      }),
-      categoryDto({ id: "c-dining", name: "Restaurants" }),
-    ],
-  }),
-  groupDto({ id: "g-income", name: "Income", categories: [categoryDto({ id: "c-salary", name: "Wages" })] }),
-];
-const context = {
-  formats: BUILT_IN_FORMATS,
-  viewerZone: "America/Bogota",
-  groups,
-  accountNames: { "a-bank": "Bancolombia", "a-visa": "Visa" },
-};
-const expense = (
-  id: string,
-  description: string,
-  pesos: number,
-  date: string,
-  at: string | null,
-  categoryId: string,
-) =>
-  transactionDto({
-    id,
-    type: "EXPENSE",
-    description,
-    amount: cop(pesos),
-    date,
-    categoryId,
-    occurredAt: at,
-    timeZone: at ? "America/Bogota" : null,
-    payments: [{ memberId: "m-ana", accountId: "a-bank", amount: cop(pesos) }],
-  });
-const page = {
-  period: { label: "2026-10", startDate: "2026-10-01", endDate: "2026-10-31" },
-  totals: { expenses: cop(245_000), income: cop(3_200_000) },
-  items: [
-    transactionDto({
-      id: "t-salary",
-      type: "INCOME",
-      description: "Salary",
-      amount: cop(3_200_000),
-      date: "2026-10-25",
-      categoryId: "c-salary",
-      destinationAccountId: "a-bank",
-    }),
-    expense("t-dinner", "Dinner", 60_000, "2026-10-12", "2026-10-13T01:45:00.000Z", "c-dining"),
-    expense("t-market2", "Market", 100_000, "2026-10-12", "2026-10-12T23:02:00.000Z", "c-veg"),
-    expense("t-market1", "Market", 85_000, "2026-10-05", "2026-10-05T13:10:00.000Z", "c-groceries"),
-  ],
-  nextCursor: null,
-};
+const page = octoberPage;
+const context = rowContext;
+const groups = rowContext.groups;
+const expense = octoberExpense;
 
 describe("transaction list (HU-E9-03)", () => {
   it("groups by day, newest first, with times, category paths and the period totals", async () => {

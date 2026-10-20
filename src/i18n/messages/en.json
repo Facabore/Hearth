@@ -220,7 +220,22 @@
     "notFound": "This page does not exist or is no longer available."
   },
   "home": {
-    "title": "Home"
+    "title": "Home",
+    "firstAccount": {
+      "title": "Add your first account",
+      "body": "Record where your money is to start tracking it.",
+      "action": "Go to Accounts"
+    },
+    "summary": "Period summary",
+    "spentIn": "Spent in {month}",
+    "spentBetween": "Spent from {start} to {end}",
+    "income": "Income +{amount}",
+    "accounts": "Accounts",
+    "allAccounts": "See all accounts",
+    "allAccountsShort": "See all",
+    "recent": "Recent",
+    "allTransactions": "See all transactions",
+    "allTransactionsShort": "See all"
   },
   "settings": {
     "title": "Settings",

@@ -220,7 +220,22 @@
     "notFound": "Esta página no existe o ya no está disponible."
   },
   "home": {
-    "title": "Inicio"
+    "title": "Inicio",
+    "firstAccount": {
+      "title": "Agrega tu primera cuenta",
+      "body": "Registra dónde tienes tu dinero para empezar a llevar tus cuentas.",
+      "action": "Ir a Cuentas"
+    },
+    "summary": "Resumen del período",
+    "spentIn": "Gastado en {month}",
+    "spentBetween": "Gastado del {start} al {end}",
+    "income": "Ingresos +{amount}",
+    "accounts": "Cuentas",
+    "allAccounts": "Ver todas las cuentas",
+    "allAccountsShort": "Ver todas",
+    "recent": "Recientes",
+    "allTransactions": "Ver todos los movimientos",
+    "allTransactionsShort": "Ver todo"
   },
   "settings": {
     "title": "Ajustes",

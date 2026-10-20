@@ -1,7 +1,6 @@
-import { getTranslations } from "next-intl/server";
+import { HomeContainer } from "@/modules/ledger/ui/server";
 
-/** The Home of a space; Task 17b fills it. */
-export default async function SpaceHomePage() {
-  const t = await getTranslations("home");
-  return <h1 className="text-2xl font-semibold text-ink">{t("title")}</h1>;
+/** HU-E9-01: the Home of a space. */
+export default async function SpaceHomePage({ params }: { readonly params: Promise<{ spaceId: string }> }) {
+  return <HomeContainer spaceId={(await params).spaceId} />;
 }
