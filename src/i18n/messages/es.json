@@ -330,6 +330,25 @@
     }
   },
   "ledger": {
+    "list": {
+      "title": "Movimientos",
+      "totals": "Totales del período",
+      "expenses": "Gastos {amount}",
+      "income": "Ingresos {amount}",
+      "previous": "Período anterior",
+      "next": "Período siguiente",
+      "period": "Período {label}",
+      "filterCategory": "Categoría",
+      "filterTitle": "Filtrar por categoría",
+      "removeFilter": "Quitar el filtro {name}",
+      "empty": "No hay movimientos en este período.",
+      "loadMore": "Cargar más"
+    },
+    "day": {
+      "today": "Hoy",
+      "yesterday": "Ayer",
+      "dayBeforeYesterday": "Anteayer"
+    },
     "type": {
       "EXPENSE": "Gasto",
       "INCOME": "Ingreso",

@@ -330,6 +330,25 @@
     }
   },
   "ledger": {
+    "list": {
+      "title": "Transactions",
+      "totals": "Period totals",
+      "expenses": "Expenses {amount}",
+      "income": "Income {amount}",
+      "previous": "Previous period",
+      "next": "Next period",
+      "period": "Period {label}",
+      "filterCategory": "Category",
+      "filterTitle": "Filter by category",
+      "removeFilter": "Remove the {name} filter",
+      "empty": "There are no transactions in this period.",
+      "loadMore": "Load more"
+    },
+    "day": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "dayBeforeYesterday": "The day before yesterday"
+    },
     "type": {
       "EXPENSE": "Expense",
       "INCOME": "Income",
