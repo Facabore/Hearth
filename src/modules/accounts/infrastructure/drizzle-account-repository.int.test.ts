@@ -61,6 +61,14 @@ describe("DrizzleAccountRepository", () => {
     });
   });
 
+  it("saves a null archive time over an archived row (restore)", async () => {
+    const space = await personalSpaceFixture(db, pool);
+    const bank = account(space);
+    await repo.add({ ...bank, archivedAt: new Date("2026-10-20T00:00:00Z") });
+    await repo.save({ ...bank, archivedAt: null });
+    expect(await repo.findById(bank.id)).toEqual({ ...bank, archivedAt: null });
+  });
+
   it("enforces unique names per space ignoring case, but not across spaces", async () => {
     const ana = await personalSpaceFixture(db, pool);
     const juan = await personalSpaceFixture(db, pool, "Juan");

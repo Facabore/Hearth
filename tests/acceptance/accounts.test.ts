@@ -5,6 +5,7 @@ import {
   PATCH as updateAccount,
 } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/route";
 import { POST as archiveAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/archive/route";
+import { POST as restoreAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/restore/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, registerUser, startTestApp, type TestUser } from "../support/app";
 import { actingIn, joinAs, newSharedSpace } from "../support/spaces";
@@ -122,6 +123,20 @@ describe("editing and archiving accounts (HU-E2-03)", () => {
       "Nequi",
     ]);
     expect((await accountCall(getAccount, "GET", ana, nequi)).status).toBe(200);
+    const restored = await accountCall(restoreAccount, "POST", ana, nequi, undefined, "/restore");
+    expect([restored.status, (await restored.json()).archivedAt]).toEqual([200, null]);
+    expect((await list(ana)).body.items.map((a: AccountDto) => a.name)).toEqual(["Bancolombia", "Nequi"]);
+    const juan = await registerUser("Juan");
+    const foreign = await call(
+      restoreAccount,
+      "POST",
+      `/api/v1/spaces/${ana.spaceId}/accounts/${nequi.id}/restore`,
+      {
+        user: juan,
+        params: { spaceId: ana.spaceId, accountId: nequi.id },
+      },
+    );
+    expect([foreign.status, (await foreign.json()).code]).toEqual([404, "SpaceNotFound"]);
   });
 
   it("validates asOf and hides other users' spaces", async () => {

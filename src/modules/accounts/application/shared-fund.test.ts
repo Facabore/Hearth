@@ -14,6 +14,7 @@ import { FixedMovements, InMemoryAccounts } from "../../../../tests/support/in-m
 import { createArchiveAccount } from "./archive-account";
 import { createCreateAccount } from "./create-account";
 import type { AccountsDeps } from "./deps";
+import { createRestoreAccount } from "./restore-account";
 import { createUpdateAccount } from "./update-account";
 
 // Background: "Ana" is OWNER and "Juan" is MEMBER of the shared space "Household"; "Lina" is its ADMIN.
@@ -41,6 +42,7 @@ const setup = () => {
     create: createCreateAccount(deps),
     update: createUpdateAccount(deps),
     archive: createArchiveAccount(deps),
+    restore: createRestoreAccount(deps),
   };
 };
 
@@ -90,5 +92,13 @@ describe("shared fund account (HU-E2-02)", () => {
     expect(unwrap(await update({ ...asAna, accountId: created.id, changes: { name: "Pot" } })).name).toBe(
       "Pot",
     );
+  });
+
+  it("lets whoever may archive the fund restore it, and keeps members out (ruling P123)", async () => {
+    const { create, archive, restore } = setup();
+    const created = unwrap(await create({ ...asAna, ...fund }));
+    await archive({ ...asLina, accountId: created.id });
+    expect(codeOf(await restore({ ...asJuan, accountId: created.id }))).toBe("InsufficientRole");
+    expect(unwrap(await restore({ ...asLina, accountId: created.id })).archivedAt).toBeNull();
   });
 });

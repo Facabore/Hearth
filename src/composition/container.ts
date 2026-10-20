@@ -4,12 +4,14 @@ import {
   createCreateAccount,
   createGetAccount,
   createListAccounts,
+  createRestoreAccount,
   createUpdateAccount,
   type AccountsDeps,
   type ArchiveAccount,
   type CreateAccount,
   type GetAccount,
   type ListAccounts,
+  type RestoreAccount,
   type UpdateAccount,
 } from "@/modules/accounts/application";
 import { DrizzleAccountRepository } from "@/modules/accounts/infrastructure/drizzle-account-repository";
@@ -279,6 +281,7 @@ export interface Container extends RouteDeps {
     readonly createAccount: CreateAccount;
     readonly updateAccount: UpdateAccount;
     readonly archiveAccount: ArchiveAccount;
+    readonly restoreAccount: RestoreAccount;
     readonly listAccounts: ListAccounts;
     readonly getAccount: GetAccount;
   };
@@ -732,6 +735,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       createAccount: createCreateAccount(accountsDeps),
       updateAccount: createUpdateAccount(accountsDeps),
       archiveAccount: createArchiveAccount(accountsDeps),
+      restoreAccount: createRestoreAccount(accountsDeps),
       listAccounts: createListAccounts(accountsDeps),
       getAccount,
     },

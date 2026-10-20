@@ -6,6 +6,7 @@ import {
   iconOf,
   NO_ATTRIBUTES,
   openAccount,
+  restoreAccount,
   reviseAccount,
   type Account,
   type AccountId,
@@ -95,6 +96,13 @@ describe("revising and archiving accounts (HU-E2-03)", () => {
   it("archives once and keeps the first archive time", () => {
     const archived = archiveAccount(bancolombia, now);
     expect(archiveAccount(archived, new Date("2027-01-01T00:00:00Z")).archivedAt).toEqual(now);
+  });
+
+  it("restores an archived account and leaves an active one as it is (ruling P123)", () => {
+    const account = unwrap(open({ name: "Nequi", type: "CASH" }));
+    const archived = archiveAccount(account, new Date("2026-10-20T12:00:00Z"));
+    expect(restoreAccount(archived)).toEqual({ ...archived, archivedAt: null });
+    expect(restoreAccount(account)).toBe(account);
   });
 });
 

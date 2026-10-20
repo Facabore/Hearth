@@ -15,6 +15,7 @@ import { NO_ATTRIBUTES, type Account, type AccountId } from "../domain/account";
 import { createArchiveAccount } from "./archive-account";
 import type { AccountsDeps } from "./deps";
 import { createGetAccount, createListAccounts } from "./list-accounts";
+import { createRestoreAccount } from "./restore-account";
 import { createUpdateAccount } from "./update-account";
 
 const now = new Date("2026-10-12T12:00:00Z");
@@ -32,6 +33,15 @@ const account = (id: string, name: string, overrides: Partial<Account> = {}): Ac
   ...overrides,
 });
 
+const asLuis = { spaceId: "space-ana", userId: "u-luis" };
+const asSofi = { spaceId: "space-ana", userId: "u-sofi" };
+// Ana's personal space also has Luis (MEMBER) and Sofi (VIEWER); Ana owns every account in it.
+const members = [
+  membership(),
+  membership({ memberId: "member-luis", userId: "u-luis", role: "MEMBER" }),
+  membership({ memberId: "member-sofi", userId: "u-sofi", role: "VIEWER" }),
+];
+
 const setup = (net: Record<string, bigint> = {}) => {
   const accounts = new InMemoryAccounts();
   accounts.rows.push(
@@ -42,7 +52,7 @@ const setup = (net: Record<string, bigint> = {}) => {
   const movements = new FixedMovements(net);
   const deps: AccountsDeps = {
     accounts,
-    access: fakeSpaceAccess(membership()),
+    access: fakeSpaceAccess(...members),
     movements,
     ids: sequentialIds("acc"),
     clock: new FixedClock(now),
@@ -54,6 +64,7 @@ const setup = (net: Record<string, bigint> = {}) => {
     movements,
     update: createUpdateAccount(deps),
     archive: createArchiveAccount(deps),
+    restore: createRestoreAccount(deps),
     list: createListAccounts(deps),
     get: createGetAccount(deps),
   };
@@ -110,6 +121,32 @@ describe("editing and archiving accounts (HU-E2-03)", () => {
     expect(active.map((a) => a.name)).toEqual(["Bancolombia"]);
     const all = unwrap(await list({ ...asAna, includeArchived: true })).items;
     expect(all.map((a) => a.name)).toEqual(["Bancolombia", "Nequi"]);
+  });
+
+  it("restores an archived account, which lists as active again (ruling P123)", async () => {
+    const { archive, restore, list } = setup();
+    await archive({ ...asAna, accountId: "acc-nequi" });
+    expect(unwrap(await restore({ ...asAna, accountId: "acc-nequi" })).archivedAt).toBeNull();
+    const active = unwrap(await list({ ...asAna, includeArchived: false })).items;
+    expect(active.map((a) => a.name)).toEqual(["Bancolombia", "Nequi"]);
+    expect(codeOf(await restore({ ...asAna, accountId: "acc-davivienda" }))).toBe("AccountNotFound");
+  });
+
+  it("answers an active account as it is, without touching it", async () => {
+    const { restore, accounts } = setup();
+    const before = [...accounts.rows];
+    expect(unwrap(await restore({ ...asAna, accountId: "acc-nequi" })).archivedAt).toBeNull();
+    expect(accounts.rows).toEqual(before);
+  });
+
+  it("restores neither another member's personal account nor as a viewer, nor an account of another space", async () => {
+    const { archive, restore, accounts } = setup();
+    await archive({ ...asAna, accountId: "acc-nequi" });
+    const archived = [...accounts.rows];
+    expect(codeOf(await restore({ ...asLuis, accountId: "acc-nequi" }))).toBe("InsufficientRole");
+    expect(codeOf(await restore({ ...asSofi, accountId: "acc-nequi" }))).toBe("InsufficientRole");
+    expect(codeOf(await restore({ ...asAna, accountId: "acc-davivienda" }))).toBe("AccountNotFound");
+    expect(accounts.rows).toEqual(archived);
   });
 });
 

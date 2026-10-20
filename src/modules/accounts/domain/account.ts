@@ -209,6 +209,10 @@ export const reviseAccount = (
 export const archiveAccount = (account: Account, now: Date): Account =>
   account.archivedAt === null ? { ...account, archivedAt: now } : account;
 
+/** Ruling P123: an archived account takes movements again; its history never changed. */
+export const restoreAccount = (account: Account): Account =>
+  account.archivedAt === null ? account : { ...account, archivedAt: null };
+
 /** HU-E2-07: types that count in available money by default; every type counts in net worth by default. */
 const AVAILABLE_BY_DEFAULT: ReadonlySet<AccountType> = new Set(["CASH", "BANK", "WALLET", "SHARED_FUND"]);
 
