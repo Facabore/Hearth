@@ -1,4 +1,13 @@
-import { domainError, err, ok, type Id, type Result } from "@/shared/kernel";
+import {
+  domainError,
+  err,
+  ok,
+  PALETTE,
+  type Id,
+  type PaletteKey,
+  type Result,
+  type SymbolName,
+} from "@/shared/kernel";
 import type { AccountType } from "./account-type";
 import { NO_TERMS, revisedTerms, type AccountTerms, type TermsChange } from "./account-terms";
 
@@ -6,51 +15,40 @@ export { ACCOUNT_TYPES, type AccountType } from "./account-type";
 
 export type AccountId = Id<"Account">;
 
-/** HU-E2-05: the palette keys an account may take. */
-export const ACCOUNT_COLORS = [
-  "pine",
-  "ember",
-  "sand",
-  "sky",
-  "plum",
-  "moss",
-  "clay",
-  "slate",
-  "gold",
-  "rose",
-] as const;
-export type AccountColor = (typeof ACCOUNT_COLORS)[number];
+/** HU-E2-05, ruling P122: an account takes any key of the app's one palette. */
+export const ACCOUNT_COLORS = PALETTE;
+export type AccountColor = PaletteKey;
 
-/** HU-E2-05, ruling P50: allow-listed Lucide names: each type's default plus a few household ones. */
+/** HU-E2-05, rulings P50 and P122: allow-listed Hearth symbols: each type's default plus a few household ones. */
 export const ACCOUNT_ICONS = [
-  "banknote",
-  "landmark",
+  "cash",
+  "bank",
   "wallet",
-  "credit-card",
-  "piggy-bank",
-  "trending-up",
-  "hand-coins",
-  "circle-ellipsis",
+  "card",
+  "piggy",
+  "trend",
+  "coins",
+  "dots",
   "users",
   "briefcase",
   "car",
-  "gem",
+  "star",
   "gift",
-  "house",
+  "home",
   "plane",
-  "smartphone",
-] as const;
+  "phone",
+] as const satisfies readonly SymbolName[];
 export type AccountIcon = (typeof ACCOUNT_ICONS)[number];
 
 const DEFAULT_ICONS: Readonly<Record<AccountType, AccountIcon>> = {
-  CASH: "banknote",
-  BANK: "landmark",
+  CASH: "cash",
+  BANK: "bank",
   WALLET: "wallet",
-  CREDIT_CARD: "credit-card",
-  SAVINGS: "piggy-bank",
-  INVESTMENT: "trending-up",
-  LOAN: "hand-coins",
-  OTHER: "circle-ellipsis",
+  CREDIT_CARD: "card",
+  SAVINGS: "piggy",
+  INVESTMENT: "trend",
+  LOAN: "coins",
+  OTHER: "dots",
   SHARED_FUND: "users",
 };
 

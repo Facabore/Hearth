@@ -11,3 +11,4 @@ export * from "./period-resolution";
 export * from "./transaction-manager";
 export * from "./acting-user";
 export * from "./time-zone";
+export * from "./style";

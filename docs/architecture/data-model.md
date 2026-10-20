@@ -1,12 +1,12 @@
 # Data model
 
-This page describes the Hearth database: every table, every column with its SQL type, every key and every foreign key. It shows the final state after migration `0018_user_preferences`: **22 tables, 234 columns and 46 foreign keys**. The database is PostgreSQL and is reached only through Drizzle ORM.
+This page describes the Hearth database: every table, every column with its SQL type, every key and every foreign key. It shows the final state after migration `0019_account_style_vocabulary`: **22 tables, 234 columns and 46 foreign keys**. The database is PostgreSQL and is reached only through Drizzle ORM.
 
 For how the code that uses it is organised, see the [architecture overview](README.md).
 
 ## Sources and conventions
 
-- **The migrations are authoritative.** This page is built from the SQL in [`drizzle/`](https://github.com/Facabore/Hearth/tree/development/drizzle) (`0000_init.sql` to `0018_user_preferences.sql`), applying every later `ALTER TABLE` to the table it changes. The `*.schema.ts` files in `src/modules/*/infrastructure/` and `src/shared/infrastructure/` declare the same tables for Drizzle; where this page and a migration disagree, the migration wins and this page is wrong.
+- **The migrations are authoritative.** This page is built from the SQL in [`drizzle/`](https://github.com/Facabore/Hearth/tree/development/drizzle) (`0000_init.sql` to `0019_account_style_vocabulary.sql`), applying every later `ALTER TABLE` to the table it changes. The `*.schema.ts` files in `src/modules/*/infrastructure/` and `src/shared/infrastructure/` declare the same tables for Drizzle; where this page and a migration disagree, the migration wins and this page is wrong.
 - **Types** are PostgreSQL's names. `timestamptz` is `timestamp with time zone`. Money is `bigint` in minor units (D6). Better Auth's tables use `text` ids; every other table uses `uuid`.
 - **Markers.** `PK` marks a column of the primary key (each column of a composite key is marked). `FK` marks a column that has a foreign key. `UK` marks a column that is unique on its own. Composite and partial unique indexes are not marked on a column; they are listed under each area's constraints.
 - **Relationships.** One line per foreign key column, labelled `column -> target_table.target_column`. The line is drawn from the referenced table (left) to the table that holds the column (right). `||` on the referenced side means the column is `NOT NULL`, `|o` that it is nullable; `o{` on the holding side means many rows may point at one parent, `o|` that the column is also unique, so at most one does.
@@ -816,5 +816,6 @@ One line per migration, from the file in [`drizzle/`](https://github.com/Facabor
 | [`0016_account_switches.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0016_account_switches.sql) | `accounts.include_in_available` and `include_in_net_worth`. | M3-D, Task 16 |
 | [`0017_category_styles.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0017_category_styles.sql) | Icon and color on `categories` and `category_groups`, and the catalog `key` of groups; a hand-written back-fill keys and styles the seeded rows. | M3-D, Task 17a-2 |
 | [`0018_user_preferences.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0018_user_preferences.sql) | `user.number_format`, `time_format`, `date_format` and `week_start`. | M3-D, Task 18a |
+| [`0019_account_style_vocabulary.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0019_account_style_vocabulary.sql) | Maps `accounts.color` to the shared palette keys and `accounts.icon` to Hearth symbol names (no DDL). | M6a, Task 1 |
 
 Migrations are forward-only (see [Rolling back](../operations/deploy.md#rolling-back)). A migration that changes tables updates this page in the same pull request.

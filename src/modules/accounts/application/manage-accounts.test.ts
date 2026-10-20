@@ -81,9 +81,9 @@ describe("editing and archiving accounts (HU-E2-03)", () => {
   it("changes and clears the common attributes (HU-E2-05)", async () => {
     const { update } = setup();
     const accountId = "acc-bancolombia";
-    const changes = { attributes: { color: "pine", lastFour: "4821" } } as const;
+    const changes = { attributes: { color: "PINE", lastFour: "4821" } } as const;
     expect(unwrap(await update({ ...asAna, accountId, changes }))).toMatchObject({
-      color: "pine",
+      color: "PINE",
       lastFour: "4821",
     });
     const cleared = unwrap(await update({ ...asAna, accountId, changes: { attributes: { color: null } } }));

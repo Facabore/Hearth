@@ -3629,37 +3629,43 @@
                   "color": {
                     "type": "string",
                     "enum": [
-                      "pine",
-                      "ember",
-                      "sand",
-                      "sky",
-                      "plum",
-                      "moss",
-                      "clay",
-                      "slate",
-                      "gold",
-                      "rose"
+                      "PINE",
+                      "SAGE",
+                      "OLIVE",
+                      "SAND",
+                      "MUSTARD",
+                      "AMBER",
+                      "EMBER",
+                      "CORAL",
+                      "ROSE",
+                      "PLUM",
+                      "LAVENDER",
+                      "INDIGO",
+                      "SKY",
+                      "TEAL",
+                      "STEEL",
+                      "GRAPHITE"
                     ]
                   },
                   "icon": {
                     "type": "string",
                     "enum": [
-                      "banknote",
-                      "landmark",
+                      "cash",
+                      "bank",
                       "wallet",
-                      "credit-card",
-                      "piggy-bank",
-                      "trending-up",
-                      "hand-coins",
-                      "circle-ellipsis",
+                      "card",
+                      "piggy",
+                      "trend",
+                      "coins",
+                      "dots",
                       "users",
                       "briefcase",
                       "car",
-                      "gem",
+                      "star",
                       "gift",
-                      "house",
+                      "home",
                       "plane",
-                      "smartphone"
+                      "phone"
                     ]
                   },
                   "includeInAvailable": {
@@ -4017,16 +4023,22 @@
                       {
                         "type": "string",
                         "enum": [
-                          "pine",
-                          "ember",
-                          "sand",
-                          "sky",
-                          "plum",
-                          "moss",
-                          "clay",
-                          "slate",
-                          "gold",
-                          "rose"
+                          "PINE",
+                          "SAGE",
+                          "OLIVE",
+                          "SAND",
+                          "MUSTARD",
+                          "AMBER",
+                          "EMBER",
+                          "CORAL",
+                          "ROSE",
+                          "PLUM",
+                          "LAVENDER",
+                          "INDIGO",
+                          "SKY",
+                          "TEAL",
+                          "STEEL",
+                          "GRAPHITE"
                         ]
                       },
                       {
@@ -4039,22 +4051,22 @@
                       {
                         "type": "string",
                         "enum": [
-                          "banknote",
-                          "landmark",
+                          "cash",
+                          "bank",
                           "wallet",
-                          "credit-card",
-                          "piggy-bank",
-                          "trending-up",
-                          "hand-coins",
-                          "circle-ellipsis",
+                          "card",
+                          "piggy",
+                          "trend",
+                          "coins",
+                          "dots",
                           "users",
                           "briefcase",
                           "car",
-                          "gem",
+                          "star",
                           "gift",
-                          "house",
+                          "home",
                           "plane",
-                          "smartphone"
+                          "phone"
                         ]
                       },
                       {
@@ -11849,16 +11861,22 @@
               {
                 "type": "string",
                 "enum": [
-                  "pine",
-                  "ember",
-                  "sand",
-                  "sky",
-                  "plum",
-                  "moss",
-                  "clay",
-                  "slate",
-                  "gold",
-                  "rose"
+                  "PINE",
+                  "SAGE",
+                  "OLIVE",
+                  "SAND",
+                  "MUSTARD",
+                  "AMBER",
+                  "EMBER",
+                  "CORAL",
+                  "ROSE",
+                  "PLUM",
+                  "LAVENDER",
+                  "INDIGO",
+                  "SKY",
+                  "TEAL",
+                  "STEEL",
+                  "GRAPHITE"
                 ]
               },
               {
@@ -11869,22 +11887,22 @@
           "icon": {
             "type": "string",
             "enum": [
-              "banknote",
-              "landmark",
+              "cash",
+              "bank",
               "wallet",
-              "credit-card",
-              "piggy-bank",
-              "trending-up",
-              "hand-coins",
-              "circle-ellipsis",
+              "card",
+              "piggy",
+              "trend",
+              "coins",
+              "dots",
               "users",
               "briefcase",
               "car",
-              "gem",
+              "star",
               "gift",
-              "house",
+              "home",
               "plane",
-              "smartphone"
+              "phone"
             ]
           },
           "includeInAvailable": {

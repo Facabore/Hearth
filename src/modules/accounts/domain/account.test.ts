@@ -104,14 +104,14 @@ describe("account types and common attributes (HU-E2-05)", () => {
       open({
         name: "Nequi",
         type: "WALLET",
-        attributes: { institution: "Nequi", lastFour: "4821", color: "pine", icon: "wallet" },
+        attributes: { institution: "Nequi", lastFour: "4821", color: "PINE", icon: "wallet" },
       }),
     );
     expect(wallet).toMatchObject({
       type: "WALLET",
       institution: "Nequi",
       lastFour: "4821",
-      color: "pine",
+      color: "PINE",
       icon: "wallet",
     });
   });
@@ -123,17 +123,17 @@ describe("account types and common attributes (HU-E2-05)", () => {
       null,
       null,
       null,
-      "banknote",
+      "cash",
     ]);
     expect(ACCOUNT_TYPES.map((type) => iconOf({ type, icon: null }))).toEqual([
-      "banknote",
-      "landmark",
+      "cash",
+      "bank",
       "wallet",
-      "credit-card",
-      "piggy-bank",
-      "trending-up",
-      "hand-coins",
-      "circle-ellipsis",
+      "card",
+      "piggy",
+      "trend",
+      "coins",
+      "dots",
       "users",
     ]);
   });
@@ -154,19 +154,19 @@ describe("account types and common attributes (HU-E2-05)", () => {
     const wallet = unwrap(
       open({
         type: "WALLET",
-        attributes: { color: "pine", institution: "Nequi", icon: "car", lastFour: "4821" },
+        attributes: { color: "PINE", institution: "Nequi", icon: "car", lastFour: "4821" },
       }),
     );
     const revised = unwrap(
       reviseAccount(
         wallet,
-        { attributes: { color: "ember", institution: null, icon: null, lastFour: null } },
+        { attributes: { color: "EMBER", institution: null, icon: null, lastFour: null } },
         [wallet],
       ),
     );
-    expect(revised).toMatchObject({ color: "ember", institution: null, icon: null, lastFour: null });
+    expect(revised).toMatchObject({ color: "EMBER", institution: null, icon: null, lastFour: null });
     expect(iconOf(revised)).toBe("wallet");
-    expect(codeOf(reviseAccount(wallet, { type: "BANK", attributes: { color: "sky" } }, [wallet]))).toBe(
+    expect(codeOf(reviseAccount(wallet, { type: "BANK", attributes: { color: "SKY" } }, [wallet]))).toBe(
       "AccountTypeImmutable",
     );
   });
