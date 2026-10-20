@@ -47,4 +47,40 @@ export class World {
     if (!personal) throw new Error(`${name} has no personal space`);
     this.user = { name, email, spaceId: personal.id };
   }
+
+  private space(path = ""): string {
+    if (!this.user) throw new Error("No one is signed up in this scenario");
+    return `/api/v1/spaces/${this.user.spaceId}${path}`;
+  }
+
+  /** Creates an account in the personal space and keeps its id under `name`. */
+  async seedAccount(name: string, body: Record<string, unknown>): Promise<string> {
+    const account = (await this.api.post(this.space("/accounts"), { name, ...body })) as { id: string };
+    this.accounts.set(name, account.id);
+    return account.id;
+  }
+
+  /** Creates a category in the seeded group whose key is `food` and keeps its id under `name`. */
+  async seedCategory(name: string): Promise<string> {
+    const { items } = (await this.api.get(this.space("/categories"))) as {
+      items: { id: string; key: string | null }[];
+    };
+    const food = items.find((group) => group.key === "food");
+    if (!food) throw new Error("The personal space has no food group");
+    const body = { groupId: food.id, name, icon: { kind: "SYMBOL", name: "cart" }, color: "SAND" };
+    const category = (await this.api.post(this.space("/categories"), body)) as { id: string };
+    this.categories.set(name, category.id);
+    return category.id;
+  }
+
+  /** Records a movement through the API, with its own Idempotency-Key as the form sends one. */
+  async record(kind: "expenses" | "incomes" | "transfers", body: Record<string, unknown>): Promise<unknown> {
+    const response = await this.page.request.post(this.space(`/${kind}`), {
+      headers: this.headers({ "idempotency-key": crypto.randomUUID() }),
+      data: body,
+    });
+    if (!response.ok())
+      throw new Error(`POST ${kind} answered ${response.status()}: ${await response.text()}`);
+    return response.json();
+  }
 }

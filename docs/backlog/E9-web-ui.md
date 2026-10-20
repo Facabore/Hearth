@@ -44,6 +44,7 @@ Feature: App shell and authentication screens
     Then the sign-in screen is shown
     And opening the home page again redirects to the sign-in screen
 
+  @e2e
   Scenario: A protected page returns the visitor after sign-in
     Given a visitor without a session opens the transactions page of her personal space
     When the visitor is redirected to the sign-in screen and signs in as "ana@example.com"
@@ -147,6 +148,7 @@ Feature: Personal ledger screens
     And the transaction list shows "Market" with 85,000 COP at 23:30 under the day heading of the key "ledger.day.today"
     And the accounts screen shows "Bancolombia" with a balance of 1,915,000 COP
 
+  @e2e
   Scenario: Accounts screen shows types, balances and totals
     Given an income of 3,000,000 COP into "Bancolombia", an expense of 85,000 COP from "Bancolombia" and a transfer of 500,000 COP from "Bancolombia" to the WALLET "Nequi" opened with 0 COP
     And the CREDIT_CARD "Visa" with balance -350,000 COP, credit limit 5,000,000 COP and payment day 15

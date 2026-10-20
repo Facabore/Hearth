@@ -13,3 +13,9 @@ Feature: App shell and authentication screens
     When "Ana" chooses "Sign out" in the user menu
     Then the sign-in screen is shown
     And opening the home page again redirects to the sign-in screen
+
+  @e2e
+  Scenario: A protected page returns the visitor after sign-in
+    Given a visitor without a session opens the transactions page of her personal space
+    When the visitor is redirected to the sign-in screen and signs in as "ana@example.com"
+    Then the transactions page of her personal space is shown

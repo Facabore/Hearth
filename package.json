@@ -28,7 +28,7 @@
     "test:int": "vitest run --project integration",
     "test:acceptance": "vitest run --project acceptance",
     "test:ops": "vitest run --project operations",
-    "test:e2e": "bddgen && playwright test"
+    "test:e2e": "bddgen && playwright test --project e2e --project a11y"
   },
   "dependencies": {
     "better-auth": "1.7.7",
@@ -48,6 +48,7 @@
     "zod-openapi": "6.0.2"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.63.0",
     "@tailwindcss/postcss": "4.3.3",

@@ -27,5 +27,8 @@ export default defineConfig({
     // POSIX: lets scripts/e2e-server.mjs remove its database (Windows always force-kills: see globalTeardown).
     gracefulShutdown: { signal: "SIGTERM", timeout: 10_000 },
   },
-  projects: [{ name: "e2e", testDir: bddDir, use: { ...devices["Pixel 7"] } }],
+  projects: [
+    { name: "e2e", testDir: bddDir, use: { ...devices["Pixel 7"] } },
+    { name: "a11y", testDir: "tests/e2e", testMatch: "a11y.spec.ts", use: { ...devices["Pixel 7"] } },
+  ],
 });

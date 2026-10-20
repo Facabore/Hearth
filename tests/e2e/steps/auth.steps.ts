@@ -66,3 +66,42 @@ Then("the page is rendered in Spanish", async ({ page, world }) => {
   await expect(page.locator("html")).toHaveAttribute("lang", "es");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(world.t("auth.signIn.title"));
 });
+
+Given(
+  "a visitor without a session opens the transactions page of her personal space",
+  async ({ page, playwright, world }) => {
+    // Ana signs up in a separate request context, so the page itself carries no session cookie.
+    const outside = await playwright.request.newContext({
+      baseURL: "http://127.0.0.1:3100",
+      extraHTTPHeaders: world.headers(),
+    });
+    const email = world.email("ana@example.com");
+    const signUp = await outside.post("/api/v1/auth/sign-up", {
+      data: { name: "Ana", email, password: "123456789012", timezone: "America/Bogota" },
+    });
+    expect(signUp.ok()).toBe(true);
+    const { items } = (await (await outside.get("/api/v1/spaces")).json()) as {
+      items: { id: string; kind: string }[];
+    };
+    world.user = { name: "Ana", email, spaceId: items.find((s) => s.kind === "PERSONAL")!.id };
+    await outside.dispose();
+    await page.goto(`/spaces/${world.user!.spaceId}/transactions`);
+  },
+);
+
+When(
+  "the visitor is redirected to the sign-in screen and signs in as {string}",
+  async ({ page, world }, email: string) => {
+    await expect(page).toHaveURL(
+      `/sign-in?next=${encodeURIComponent(`/spaces/${world.user!.spaceId}/transactions`)}`,
+    );
+    await page.getByLabel(world.t("auth.email")).fill(world.email(email));
+    await page.getByLabel(world.t("auth.password")).fill("123456789012");
+    await page.getByRole("button", { name: world.t("auth.signIn.submit") }).click();
+  },
+);
+
+Then("the transactions page of her personal space is shown", async ({ page, world }) => {
+  await expect(page).toHaveURL(`/spaces/${world.user!.spaceId}/transactions`);
+  await expect(page.getByRole("heading", { level: 1, name: world.t("ledger.list.title") })).toBeVisible();
+});
