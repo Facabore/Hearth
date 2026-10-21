@@ -9,7 +9,7 @@ import lighthouse from "lighthouse";
 // The mjs lint block declares only process, console, Buffer and URL as globals.
 const { fetch } = globalThis;
 const BASE = "http://127.0.0.1:3100";
-const RUNS = 3;
+const RUNS = 5;
 const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
 
 /** Ruling P134: every route and metric over its budget; a route without a budget fails rather than passes. */
