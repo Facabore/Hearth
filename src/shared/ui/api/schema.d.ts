@@ -209,6 +209,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/invitations/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What a visitor holding the token may read of an invitation: space, inviter, role, status, expiry */
+        get: operations["previewInvitation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/invitations/{token}/accept": {
         parameters: {
             query?: never;
@@ -288,6 +305,23 @@ export interface paths {
         put?: never;
         /** Create a single-use link with which someone takes over a guest's place by signing in */
         post: operations["createGuestClaimLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/claims/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What a visitor holding the token may read of a claim link: space, guest, status, expiry */
+        get: operations["previewClaim"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1499,6 +1533,27 @@ export interface components {
             /** Format: date-time */
             expiresAt: string;
         };
+        InvitationPreview: {
+            /** @enum {string} */
+            kind: "EMAIL" | "LINK";
+            spaceName: string;
+            /** @enum {string} */
+            role: "ADMIN" | "MEMBER" | "VIEWER";
+            /** @enum {string} */
+            status: "PENDING" | "ACCEPTED" | "REVOKED" | "EXPIRED";
+            /** Format: date-time */
+            expiresAt: string;
+            invitedBy: string | null;
+        };
+        ClaimPreview: {
+            spaceName: string;
+            guestName: string | null;
+            /** @enum {string} */
+            status: "PENDING" | "ACCEPTED" | "REVOKED" | "EXPIRED";
+            /** Format: date-time */
+            expiresAt: string;
+            invitedBy: string | null;
+        };
         Period: {
             label: string;
             /** Format: date */
@@ -2691,6 +2746,37 @@ export interface operations {
             };
         };
     };
+    previewInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The invitation's preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationPreview"];
+                };
+            };
+            /** @description InvitationNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     acceptInvitation: {
         parameters: {
             query?: never;
@@ -3000,6 +3086,37 @@ export interface operations {
             };
             /** @description NotAGuest, SpaceArchived */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    previewClaim: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The claim link's preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClaimPreview"];
+                };
+            };
+            /** @description InvitationNotFound */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

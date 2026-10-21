@@ -196,6 +196,8 @@ import {
   createInvitationAdmitsSignUp,
   createCreateGuestClaim,
   createLeaveSpace,
+  createPreviewClaim,
+  createPreviewInvitation,
   type AcceptInvitation,
   type AddGuestMember,
   type ChangeMemberRole,
@@ -213,6 +215,8 @@ import {
   type ListMySpaces,
   type ListSpacePeriods,
   type MembersDeps,
+  type PreviewClaim,
+  type PreviewInvitation,
   type RevokeInvitation,
   type SpaceCreatedListener,
   type StoredPeriodSource,
@@ -263,6 +267,8 @@ export interface Container extends RouteDeps {
     readonly revokeInvitation: RevokeInvitation;
     readonly listInvitations: ListInvitations;
     readonly acceptInvitation: AcceptInvitation;
+    readonly previewInvitation: PreviewInvitation;
+    readonly previewClaim: PreviewClaim;
     readonly addGuest: AddGuestMember;
     readonly changeMemberRole: ChangeMemberRole;
     readonly archiveSpace: ArchiveSpace;
@@ -703,6 +709,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       revokeInvitation: createRevokeInvitation(invitationsDeps),
       listInvitations: createListInvitations(invitationsDeps),
       acceptInvitation: createAcceptInvitation(invitationsDeps),
+      previewInvitation: createPreviewInvitation(invitationsDeps),
+      previewClaim: createPreviewClaim(invitationsDeps),
       addGuest: createAddGuestMember(membersDeps),
       changeMemberRole: createChangeMemberRole(membersDeps),
       // HU-E1-09: every current member's net from one aggregate (balances' GetMemberNetBalances).

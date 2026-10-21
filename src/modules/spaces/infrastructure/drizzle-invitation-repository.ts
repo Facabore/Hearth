@@ -56,6 +56,15 @@ export class DrizzleInvitationRepository implements InvitationRepository {
     return row ? toInvitation(row) : null;
   }
 
+  async findByTokenHash(tokenHash: string): Promise<Invitation | null> {
+    const [row] = await this.tm
+      .executor()
+      .select()
+      .from(spaceInvitations)
+      .where(eq(spaceInvitations.tokenHash, tokenHash));
+    return row ? toInvitation(row) : null;
+  }
+
   async listPending(spaceId: string, now: Date): Promise<Invitation[]> {
     if (!isUuid(spaceId)) return [];
     const rows = await this.tm

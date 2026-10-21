@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as acceptInvitation } from "@/app/api/v1/invitations/[token]/accept/route";
+import { GET as previewInvitation } from "@/app/api/v1/invitations/[token]/route";
 import { POST as revokeInvitation } from "@/app/api/v1/spaces/[spaceId]/invitations/[invitationId]/revoke/route";
 import {
   GET as listInvitations,
@@ -244,6 +245,77 @@ describe("invitations (HU-E1-06)", () => {
       params: { spaceId },
     });
     expect(await problemOf(refused)).toEqual([403, "InsufficientRole"]);
+  });
+});
+
+describe("preview an invitation (HU-E9-05, ruling P156)", () => {
+  const preview = (token: string) =>
+    call(previewInvitation, "GET", `/api/v1/invitations/${token}`, { params: { token } });
+
+  it("previews an invitation without a session and never shows its email (HU-E9-05, ruling P156)", async () => {
+    const ana = await registerUser("Ana");
+    const spaceId = await newSharedSpace(ana);
+    const { token } = await emailInvitation(ana, spaceId, "juan@example.com");
+    const response = await call(previewInvitation, "GET", `/api/v1/invitations/${token}`, {
+      params: { token },
+    });
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      kind: "EMAIL",
+      spaceName: "Household",
+      role: "MEMBER",
+      status: "PENDING",
+      invitedBy: "Ana",
+    });
+    expect(Object.keys(body).sort()).toEqual([
+      "expiresAt",
+      "invitedBy",
+      "kind",
+      "role",
+      "spaceName",
+      "status",
+    ]);
+    expect(JSON.stringify(body)).not.toContain("juan@example.com");
+    const unknown = await call(previewInvitation, "GET", "/api/v1/invitations/nope", {
+      params: { token: "nope" },
+    });
+    expect(await problemOf(unknown)).toEqual([404, "InvitationNotFound"]);
+  });
+
+  it("answers 404 InvitationNotFound for malformed tokens too, with or without a session", async () => {
+    const ana = await registerUser("Ana");
+    const malformed = ["x", "../../etc/passwd", "a b", "%00", "ñandú", "0".repeat(64), "A".repeat(4096)];
+    for (const token of malformed) {
+      expect(await problemOf(await preview(token))).toEqual([404, "InvitationNotFound"]);
+      const signedIn = await call(previewInvitation, "GET", "/api/v1/invitations/x", {
+        user: ana,
+        params: { token },
+      });
+      expect(await problemOf(signedIn)).toEqual([404, "InvitationNotFound"]);
+    }
+  });
+
+  it("reports a revoked invitation by its status and still hides the email", async () => {
+    const ana = await registerUser("Ana");
+    const spaceId = await newSharedSpace(ana);
+    const { id, token } = await emailInvitation(ana, spaceId, "juan@example.com");
+    expect((await revoke(ana, spaceId, id)).status).toBe(200);
+    const response = await preview(token);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({ status: "REVOKED" });
+    expect(JSON.stringify(body)).not.toMatch(/juan@example.com|token|spaceId|userId/i);
+  });
+
+  it("changes nothing and is not throttled: the invitation stays acceptable after many previews", async () => {
+    const ana = await registerUser("Ana");
+    const juan = await registerUser("Juan");
+    const spaceId = await newSharedSpace(ana);
+    const { id, token } = await emailInvitation(ana, spaceId, juan.email);
+    for (let i = 0; i < 40; i++) expect((await preview(token)).status).toBe(200);
+    expect(await statusOf(id)).toBe("PENDING");
+    expect((await accept(juan, token)).status).toBe(200);
   });
 });
 

@@ -132,6 +132,13 @@ export class InMemorySpaceStore implements SpaceRepository, SpaceSettingsReposit
     return space.kind;
   }
 
+  /** GuestClaimRepository, like DrizzleSpaceRepository.spaceNameOf. */
+  async spaceNameOf(spaceId: string): Promise<string> {
+    const space = this.spaces.find((s) => s.id === spaceId);
+    if (!space) throw new Error(`space ${spaceId} does not exist`);
+    return space.name;
+  }
+
   /** GuestClaimRepository, like DrizzleSpaceRepository.claimGuest (pinned against it by its integration test). */
   async claimGuest(spaceId: string, claimed: SpaceMember, claimedAt: Date): Promise<ClaimOutcome> {
     const current = this.members(spaceId);
@@ -246,6 +253,11 @@ export class InMemoryInvitations implements InvitationRepository {
 
   async findByTokenHashForUpdate(tokenHash: string) {
     return this.lock(this.rows.find((i) => i.tokenHash === tokenHash));
+  }
+
+  /** Like findByTokenHashForUpdate, without recording a lock. */
+  async findByTokenHash(tokenHash: string) {
+    return this.rows.find((i) => i.tokenHash === tokenHash) ?? null;
   }
 
   /** Like DrizzleInvitationRepository.listPending (pinned against it by its integration test). */

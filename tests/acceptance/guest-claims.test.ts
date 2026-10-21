@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { POST as acceptClaim } from "@/app/api/v1/claims/[token]/accept/route";
+import { GET as previewClaim } from "@/app/api/v1/claims/[token]/route";
 import { POST as acceptInvitation } from "@/app/api/v1/invitations/[token]/accept/route";
+import { GET as previewInvitation } from "@/app/api/v1/invitations/[token]/route";
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
 import { POST as addGuestMember } from "@/app/api/v1/spaces/[spaceId]/guests/route";
 import { POST as revokeInvitation } from "@/app/api/v1/spaces/[spaceId]/invitations/[invitationId]/revoke/route";
@@ -30,6 +32,49 @@ const createLink = (user: TestUser, spaceId: string, memberId: string) =>
   });
 
 describe("claim links (HU-E1-11)", () => {
+  it("previews a claim link without a session, and keeps claim and invitation tokens apart (ruling P156)", async () => {
+    const h = await household();
+    const pedro = await addGuest(h, "Pedro");
+    const { token } = await claimLink(h.ana, h.spaceId, pedro);
+    const response = await call(previewClaim, "GET", `/api/v1/claims/${token}`, { params: { token } });
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      spaceName: "Household",
+      guestName: "Pedro",
+      status: "PENDING",
+      invitedBy: "Ana",
+    });
+    expect(Object.keys(body).sort()).toEqual(["expiresAt", "guestName", "invitedBy", "spaceName", "status"]);
+    const asInvitation = await call(previewInvitation, "GET", `/api/v1/invitations/${token}`, {
+      params: { token },
+    });
+    expect(await problemOf(asInvitation)).toEqual([404, "InvitationNotFound"]);
+    const link = await inviteByLink(h.ana, h.spaceId, "MEMBER");
+    const asClaim = await call(previewClaim, "GET", `/api/v1/claims/${link}`, { params: { token: link } });
+    expect(await problemOf(asClaim)).toEqual([404, "InvitationNotFound"]);
+  });
+
+  it("answers 404 InvitationNotFound for an unknown or malformed claim token, and reports a revoked one", async () => {
+    const h = await household();
+    const pedro = await addGuest(h, "Pedro");
+    const { id, token } = await claimLink(h.ana, h.spaceId, pedro);
+    for (const bad of ["nope", "../x", "a b", "A".repeat(4096)])
+      expect(
+        await problemOf(await call(previewClaim, "GET", "/api/v1/claims/x", { params: { token: bad } })),
+      ).toEqual([404, "InvitationNotFound"]);
+    const revoke = await call(
+      revokeInvitation,
+      "POST",
+      `/api/v1/spaces/${h.spaceId}/invitations/${id}/revoke`,
+      { user: h.ana, params: { spaceId: h.spaceId, invitationId: id } },
+    );
+    expect(revoke.status).toBe(200);
+    const revoked = await call(previewClaim, "GET", `/api/v1/claims/${token}`, { params: { token } });
+    expect(revoked.status).toBe(200);
+    expect(await revoked.json()).toMatchObject({ status: "REVOKED", guestName: "Pedro" });
+  });
+
   it("creates a pending claim link for the guest Pedro whose URL carries only a token, stored hashed", async () => {
     const h = await household();
     const pedro = await addGuest(h, "Pedro");

@@ -35,6 +35,8 @@ export type ClaimOutcome = "claimed" | "notAGuest" | "alreadyMember";
 export interface GuestClaimRepository {
   /** The kind of a space that exists (claim links and invitations reference it). */
   spaceKindOf(spaceId: SpaceId): Promise<SpaceKind>;
+  /** Ruling P156: the name of a space that exists (an invitation's preview shows it). */
+  spaceNameOf(spaceId: SpaceId): Promise<string>;
   /**
    * Turns the current guest `claimed.id` into the registered member `claimed` and sets claimedAt;
    * "notAGuest" when it was removed or claimed meanwhile, "alreadyMember" when its user is a current

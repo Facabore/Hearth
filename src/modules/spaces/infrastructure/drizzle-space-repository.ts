@@ -231,6 +231,17 @@ export class DrizzleSpaceRepository
     return row.kind;
   }
 
+  async spaceNameOf(spaceId: SpaceId): Promise<string> {
+    const [row] = await this.tm
+      .executor()
+      .select({ name: spaces.name })
+      .from(spaces)
+      .where(eq(spaces.id, spaceId));
+    // Invitations reference their space (ON DELETE cascade), so a missing one is a broken invariant.
+    if (!row) throw new Error(`space ${spaceId} does not exist`);
+    return row.name;
+  }
+
   async claimGuest(spaceId: SpaceId, claimed: SpaceMember, claimedAt: Date): Promise<ClaimOutcome> {
     // A malformed id matches no row; it still gets the answers below, in the order every claim gets them.
     if (isUuid(claimed.id) && (await this.takeOverGuest(spaceId, claimed, claimedAt))) return "claimed";

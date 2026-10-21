@@ -157,6 +157,15 @@ describe("DrizzleInvitationRepository (HU-E1-06, HU-E1-07)", () => {
     expect(await repo.listPending("not-a-uuid", now)).toEqual([]);
   });
 
+  it("finds an invitation by token hash without locking it, and names its space (P156)", async () => {
+    const ana = await newUser("Ana");
+    const space = await household(ana.id);
+    const { token, invitation } = await invite(space, ana.id, { kind: "LINK" });
+    expect(await repo.findByTokenHash(cryptoInvitationTokens.hash(token))).toEqual(invitation);
+    expect(await repo.findByTokenHash("0".repeat(64))).toBeNull();
+    expect(await spaces.spaceNameOf(space.id)).toBe("Household");
+  });
+
   it("rejects email invitations without an address and invitations granting OWNER", async () => {
     const ana = await newUser("Ana");
     const space = await household(ana.id);
