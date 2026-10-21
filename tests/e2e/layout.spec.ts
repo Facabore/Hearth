@@ -1,6 +1,7 @@
 import { randomInt } from "node:crypto";
-import { expect, test as base, type Page } from "@playwright/test";
+import { expect, request, test as base, type Browser, type Page } from "@playwright/test";
 import es from "../../src/i18n/messages/es.json" with { type: "json" };
+import { Person } from "./support/people";
 import { get, patch, post, seedLedger, signUp } from "./support/seed";
 
 /**
@@ -37,9 +38,9 @@ const test = base.extend<{ errors: string[]; wideFont: boolean }>({
 });
 test.use({ viewport: PHONE });
 
-test.beforeEach(async ({ page, wideFont }) => {
-  if (!wideFont) return;
-  await page.addInitScript((css) => {
+/** Puts the wide face on every page of a page or a context (the init script runs before the page's own scripts). */
+const useWideFont = (target: Pick<Page, "addInitScript">) =>
+  target.addInitScript((css) => {
     const apply = () => {
       const style = document.createElement("style");
       style.textContent = css;
@@ -48,6 +49,9 @@ test.beforeEach(async ({ page, wideFont }) => {
     if (document.documentElement) apply();
     else document.addEventListener("DOMContentLoaded", apply, { once: true });
   }, WIDE_FONT_CSS);
+
+test.beforeEach(async ({ page, wideFont }) => {
+  if (wideFont) await useWideFont(page);
 });
 
 /** The longest realistic strings: a long account name and a long description with a big amount (UX checklist A2). */
@@ -213,6 +217,51 @@ const ensureSharedGuest = async (page: Page) => {
   await post(page, `/api/v1/spaces/${sharedId}/guests`, { displayName: GUEST_NAME });
 };
 
+/**
+ * A second person in the shared space "Casa" (HU-E9-05): Juan joins by a link, so the members screen lists a role the
+ * person can change. Once per page.
+ */
+const withSecondMember = new WeakSet<Page>();
+const ensureSecondMember = async (page: Page) => {
+  if (withSecondMember.has(page)) return;
+  withSecondMember.add(page);
+  const sharedId = /\/spaces\/([^/]+)/.exec(new URL(page.url()).pathname)![1];
+  const { url } = await post(page, `/api/v1/spaces/${sharedId}/invitations`, {
+    kind: "LINK",
+    role: "MEMBER",
+  });
+  const juan = await Person.signUp(request, "Juan", `layout-juan-${Date.now()}@example.com`, {
+    "x-forwarded-for": `10.253.${randomInt(256)}.${randomInt(1, 255)}`,
+  });
+  try {
+    await juan.api.post(`/api/v1/invitations/${new URL(url).pathname.split("/").at(-1)}/accept`, {});
+  } finally {
+    await juan.dispose();
+  }
+};
+
+/**
+ * The pages a visitor opens (HU-E9-05, P155-P156): a pending invitation, and a guest's claim link, in a space whose
+ * name and a guest whose name are as long as the API accepts.
+ */
+const openPages = async (page: Page) => {
+  const space = await post(page, "/api/v1/spaces", { kind: "SHARED", name: UNBROKEN_SPACE, currency: "COP" });
+  const guest = await post(page, `/api/v1/spaces/${space.id}/guests`, { displayName: GUEST_NAME });
+  const invitation = await post(page, `/api/v1/spaces/${space.id}/invitations`, {
+    kind: "LINK",
+    role: "MEMBER",
+  });
+  const claim = await post(page, `/api/v1/spaces/${space.id}/guests/${guest.id}/claim-links`, {});
+  return [invitation, claim].map(({ url }: { url: string }) => new URL(url).pathname);
+};
+
+/** A visitor: a fresh context with no cookies, on the same phone and, when asked, with the wide face. */
+const visitorPage = async (browser: Browser, viewport: { width: number; height: number }, wide: boolean) => {
+  const context = await browser.newContext({ baseURL: "http://127.0.0.1:3100", locale: "es-CO", viewport });
+  if (wide) await useWideFont(context);
+  return { page: await context.newPage(), close: () => context.close() };
+};
+
 const horizontalOverflow = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
@@ -354,6 +403,58 @@ const sheets: {
     open: async (page) => {
       await expect(page.locator("[data-ready='true']")).toBeAttached();
       await page.getByTestId("when-chip").click();
+    },
+  },
+  {
+    name: "invite sheet",
+    path: "members",
+    shared: true,
+    open: (page) => page.getByRole("button", { name: es.members.invite }).click(),
+  },
+  {
+    name: "invite sheet with its link",
+    path: "members",
+    shared: true,
+    open: async (page) => {
+      await page.getByRole("button", { name: es.members.invite }).click();
+      await page.getByRole("button", { name: es.members.inviteSheet.createLink }).click();
+      await expect(page.getByLabel(es.members.inviteSheet.linkLabel, { exact: true })).toBeVisible();
+    },
+  },
+  {
+    name: "add guest sheet",
+    path: "members",
+    shared: true,
+    open: (page) => page.getByRole("button", { name: es.members.addGuest }).click(),
+  },
+  {
+    name: "guest sheet with its claim link",
+    path: "members",
+    shared: true,
+    open: async (page) => {
+      await ensureSharedGuest(page);
+      await page.reload();
+      await page
+        .getByRole("button", {
+          name: es.members.guestOptions.replace("{name}", `${GUEST_NAME} ${es.members.guestSuffix}`),
+        })
+        .click();
+      await page.getByRole("button", { name: es.members.guest.createClaim }).click();
+      await expect(page.getByLabel(es.members.guest.claimLabel, { exact: true })).toBeVisible();
+    },
+  },
+  {
+    name: "role sheet",
+    path: "members",
+    shared: true,
+    open: async (page) => {
+      await ensureSecondMember(page);
+      await page.reload();
+      await page
+        .getByRole("button", {
+          name: es.members.role.replace("{name}", "Juan").replace("{role}", es.shell.role.MEMBER),
+        })
+        .click();
     },
   },
   {
@@ -507,6 +608,46 @@ for (const wideFont of [false, true]) {
           await settle(page);
           const { overflow, message } = await overflowReport(page, path);
           expect.soft(overflow, message).toBeLessThanOrEqual(0);
+        }
+      });
+    }
+
+    for (const viewport of [PHONE, SMALL_PHONE]) {
+      test(`the invitation and claim pages fit ${viewport.width} px with long names, signed in and as a visitor, and every action is a full target (HU-E9-05)`, async ({
+        page,
+        browser,
+        wideFont,
+      }) => {
+        await page.setViewportSize(viewport);
+        await session(page, `open-pages-${viewport.width}`);
+        const paths = await openPages(page);
+        const visitor = await visitorPage(browser, viewport, wideFont);
+        try {
+          for (const [who, on] of [
+            ["signed in", page],
+            ["as a visitor", visitor.page],
+          ] as const)
+            for (const path of paths) {
+              await on.goto(path);
+              await settle(on);
+              const what = `${path} ${who}`;
+              await expect(on.getByRole("heading", { level: 1 }), what).toBeVisible();
+              const { overflow, message } = await overflowReport(on, what);
+              expect.soft(overflow, message).toBeLessThanOrEqual(0);
+              const actions = on.locator("main").getByRole("link").or(on.locator("main").getByRole("button"));
+              expect.soft(await actions.count(), `${what}: has an action`).toBeGreaterThan(0);
+              for (const action of await actions.all()) {
+                const box = (await action.boundingBox())!;
+                const label = (await action.textContent())?.trim();
+                expect.soft(box.height, `${what}: height of "${label}"`).toBeGreaterThanOrEqual(TARGET);
+                expect.soft(box.width, `${what}: width of "${label}"`).toBeGreaterThanOrEqual(TARGET);
+                expect
+                  .soft(box.x + box.width, `${what}: "${label}" stays on screen`)
+                  .toBeLessThanOrEqual(viewport.width);
+              }
+            }
+        } finally {
+          await visitor.close();
         }
       });
     }

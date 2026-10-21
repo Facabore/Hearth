@@ -32,7 +32,7 @@
     "test:acceptance": "vitest run --project acceptance",
     "test:ops": "vitest run --project operations",
     "test:e2e": "bddgen && playwright test --project e2e --project a11y",
-    "perf": "node tests/performance/lighthouse.mjs && playwright test --project perf"
+    "perf": "node tests/performance/lighthouse.mjs && playwright test --project perf --workers=1"
   },
   "dependencies": {
     "better-auth": "1.7.7",

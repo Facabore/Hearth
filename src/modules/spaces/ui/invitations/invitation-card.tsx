@@ -14,6 +14,9 @@ import { pageStateOf } from "./invitation-state";
 
 type Kind = "invitation" | "claim";
 
+/** The accept button names the space: a long name wraps inside the button instead of widening the page. */
+const LONG_NAME = "h-auto min-h-14 py-3 text-center [overflow-wrap:anywhere]";
+
 /**
  * HU-E9-05, ruling P165, the InvitePage artboard: the page of an invitation or a claim link, for a visitor and for
  * someone already signed in. The preview carries no email (ruling P156), so the other-account state names only the
@@ -125,9 +128,12 @@ export function InvitationCard({
         >
           <div className="flex items-center gap-3">
             {tile}
-            <div className="flex flex-col gap-0.5">
-              <p className="text-sm text-muted">{kicker}</p>
-              <h1 id="invitation-title" className="text-[22px] leading-7 font-semibold text-ink">
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <p className="text-sm text-muted [overflow-wrap:anywhere]">{kicker}</p>
+              <h1
+                id="invitation-title"
+                className="min-w-0 text-[22px] leading-7 font-semibold text-ink [overflow-wrap:anywhere]"
+              >
                 {title}
               </h1>
             </div>
@@ -140,7 +146,7 @@ export function InvitationCard({
               </div>
             ))}
           </dl>
-          <p className="text-[15px] leading-[22px] text-ink">{body}</p>
+          <p className="text-[15px] leading-[22px] text-ink [overflow-wrap:anywhere]">{body}</p>
         </section>
         <div className="flex flex-col gap-2.5">
           {state === "visitor" ? (
@@ -157,7 +163,7 @@ export function InvitationCard({
             </>
           ) : (
             <>
-              <Button size="lg" disabled={pending} onClick={() => void accept()}>
+              <Button size="lg" className={LONG_NAME} disabled={pending} onClick={() => void accept()}>
                 {claim ? t("claim.accept", { space }) : t("accept", { space })}
               </Button>
               <Button asChild variant="secondary" size="lg">
@@ -180,14 +186,22 @@ export function InvitationCard({
         >
           <div className="flex items-center gap-3">
             {tile}
-            <h1 id="invitation-title" className="text-[22px] leading-7 font-semibold text-ink">
+            <h1
+              id="invitation-title"
+              className="min-w-0 text-[22px] leading-7 font-semibold text-ink [overflow-wrap:anywhere]"
+            >
               {space}
             </h1>
           </div>
-          <p role="alert" className="rounded-[14px] border border-danger p-3 text-sm text-danger">
+          <p
+            role="alert"
+            className="rounded-[14px] border border-danger p-3 text-sm text-danger [overflow-wrap:anywhere]"
+          >
             {t("otherAccount", { email: viewer?.email ?? "" })}
           </p>
-          <p className="text-[15px] leading-[22px] text-ink">{t("otherAccountBody")}</p>
+          <p className="text-[15px] leading-[22px] text-ink [overflow-wrap:anywhere]">
+            {t("otherAccountBody")}
+          </p>
         </section>
         <Button size="lg" disabled={pending} onClick={() => void switchAccount()}>
           {t("switchAccount")}
@@ -213,14 +227,22 @@ export function InvitationCard({
       >
         <div className="flex items-center gap-3">
           {tile}
-          <h1 id="invitation-title" className="text-[22px] leading-7 font-semibold text-ink">
+          <h1
+            id="invitation-title"
+            className="min-w-0 text-[22px] leading-7 font-semibold text-ink [overflow-wrap:anywhere]"
+          >
             {preview ? space : t("missingTitle")}
           </h1>
         </div>
-        <p role="alert" className="rounded-[14px] border border-danger p-3 text-sm text-danger">
+        <p
+          role="alert"
+          className="rounded-[14px] border border-danger p-3 text-sm text-danger [overflow-wrap:anywhere]"
+        >
           {closed.message}
         </p>
-        {closed.body ? <p className="text-[15px] leading-[22px] text-ink">{closed.body}</p> : null}
+        {closed.body ? (
+          <p className="text-[15px] leading-[22px] text-ink [overflow-wrap:anywhere]">{closed.body}</p>
+        ) : null}
       </section>
       <Button asChild size="lg">
         <Link href="/">{common("goHome")}</Link>

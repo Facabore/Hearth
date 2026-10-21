@@ -26,6 +26,16 @@ export const budgetFailures = (results, budgets) =>
     ].filter(Boolean);
   });
 
+/** Ruling P177: the path a budget's route measures, its `:name` segments filled from the seeded ids. */
+export const routeUrl = (route, ids) =>
+  route.replace(/:(\w+)/g, (_, name) => {
+    if (!(name in ids)) throw new Error(`No id for :${name} in ${route}`);
+    return ids[name];
+  });
+
+/** The pages a visitor opens: measured without the session cookie. */
+export const isVisitorRoute = (route) => /^\/(sign-in|sign-up|invitations|claims)(\/|$)/.test(route);
+
 /** The medians of one route over RUNS Lighthouse runs (mobile defaults: simulated slow 4G, 4× CPU). */
 const measure = async (port, url, cookie) => {
   const runs = [];
@@ -84,15 +94,16 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       .getSetCookie()
       .map((c) => c.split(";")[0])
       .join("; ");
-    const api = async (method, path, body) => {
+    const call = async (who, method, path, body) => {
       const response = await fetch(`${BASE}${path}`, {
         method,
-        headers: { ...headers, cookie, "idempotency-key": randomUUID() },
+        headers: { ...who.headers, cookie: who.cookie, "idempotency-key": randomUUID() },
         body: body && JSON.stringify(body),
       });
       if (!response.ok) throw new Error(`${method} ${path} answered ${response.status}`);
       return response.json();
     };
+    const api = (method, path, body) => call({ headers, cookie }, method, path, body);
     const {
       items: [space],
     } = await api("GET", "/api/v1/spaces");
@@ -113,13 +124,61 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         amount: { amount: "1500000", currency: "COP" },
         accountId: account.id,
       });
+    // Ruling P177: a household with a second member, a guest with a claim link, a pending invitation (the visitor's
+    // page) and one shared expense, so the household screens render what a household sees.
+    const tokenOf = ({ url }) => new URL(url, BASE).pathname.split("/").at(-1);
+    const household = await api("POST", "/api/v1/spaces", {
+      kind: "SHARED",
+      name: "Household",
+      currency: "COP",
+    });
+    const shared = household.id;
+    const second = { headers: { ...headers, "x-forwarded-for": "10.250.0.2" } };
+    const secondSignUp = await fetch(`${BASE}/api/v1/auth/sign-up`, {
+      method: "POST",
+      headers: second.headers,
+      body: JSON.stringify({
+        name: "Juan",
+        email: `perf-juan-${Date.now()}@example.com`,
+        password: "123456789012",
+        timezone: "America/Bogota",
+      }),
+    });
+    second.cookie = secondSignUp.headers
+      .getSetCookie()
+      .map((c) => c.split(";")[0])
+      .join("; ");
+    const joinLink = await api("POST", `/api/v1/spaces/${shared}/invitations`, {
+      kind: "LINK",
+      role: "MEMBER",
+    });
+    await call(second, "POST", `/api/v1/invitations/${tokenOf(joinLink)}/accept`, {});
+    const guest = await api("POST", `/api/v1/spaces/${shared}/guests`, { displayName: "Pedro" });
+    const claim = tokenOf(await api("POST", `/api/v1/spaces/${shared}/guests/${guest.id}/claim-links`));
+    const token = tokenOf(
+      await api("POST", `/api/v1/spaces/${shared}/invitations`, { kind: "LINK", role: "MEMBER" }),
+    );
+    const { items: members } = await api("GET", `/api/v1/spaces/${shared}/members`);
+    const [ana, juan] = ["Perf", "Juan"].map((name) => members.find((m) => m.displayName === name).id);
+    const { items: sharedGroups } = await api("GET", `/api/v1/spaces/${shared}/categories`);
+    await api("POST", `/api/v1/spaces/${shared}/expenses`, {
+      description: "Mercado",
+      date: "2026-10-31",
+      occurredAt: "2026-10-31T17:00:00.000Z",
+      timeZone: "America/Bogota",
+      categoryId: sharedGroups.flatMap((g) => g.categories)[0].id,
+      amount: { amount: "30000000", currency: "COP" },
+      payments: [{ memberId: ana, accountId: account.id, amount: { amount: "30000000", currency: "COP" } }],
+      split: { method: "EQUAL", participants: [{ memberId: ana }, { memberId: juan }] },
+    });
+    const ids = { id: space.id, shared, member: juan, token, claim };
     const browser = await chromium.launch({ args: ["--remote-debugging-port=9223"] });
     try {
       const routes = Object.keys(budgets.scriptKb);
       const results = [];
       for (const route of routes) {
-        const url = `${BASE}${route.replace(":id", space.id)}`;
-        const result = { route, ...(await measure(9223, url, route.startsWith("/sign") ? null : cookie)) };
+        const url = `${BASE}${routeUrl(route, ids)}`;
+        const result = { route, ...(await measure(9223, url, isVisitorRoute(route) ? null : cookie)) };
         console.log(JSON.stringify(result));
         results.push(result);
       }

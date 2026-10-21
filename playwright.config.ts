@@ -32,7 +32,7 @@ export default defineConfig({
     {
       name: "a11y",
       testDir: "tests/e2e",
-      testMatch: ["a11y.spec.ts", "layout.spec.ts"],
+      testMatch: ["a11y*.spec.ts", "layout.spec.ts"],
       use: { ...devices["Pixel 7"] },
     },
     { name: "perf", testDir: "tests/e2e/perf", use: { ...devices["Pixel 7"] } },
