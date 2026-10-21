@@ -1,4 +1,5 @@
 import type { SpaceDto } from "@/shared/ui/api/dto";
+import { safeReturnTo } from "@/shared/ui/navigation/auth-redirect";
 
 export type SpaceSummary = Pick<SpaceDto, "id" | "name" | "kind" | "role">;
 
@@ -19,3 +20,14 @@ export const activeSpaceOf = (spaces: readonly SpaceDto[], spaceId: string | nul
  */
 export const spaceHomeHref = (spaces: readonly SpaceDto[], from: string | undefined): string =>
   `/spaces/${(spaces.find((space) => space.id === from) ?? personalSpaceOf(spaces)).id}`;
+
+/**
+ * The parent route of New space, which a deep link or a new tab follows: the screen its create link started from
+ * (`returnTo`, a same-origin path), else the home of `?from=`'s space. Saving does not use it: the person lands in
+ * the space she created.
+ */
+export const newSpaceBackHref = (
+  spaces: readonly SpaceDto[],
+  from: string | undefined,
+  returnTo: string | undefined,
+): string => safeReturnTo(returnTo) ?? spaceHomeHref(spaces, from);

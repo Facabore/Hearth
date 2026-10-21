@@ -92,7 +92,7 @@ describe("invitation page (HU-E9-05, ruling P165)", () => {
     expect(requests).toHaveLength(1);
     expect(requests[0]!.method).toBe("POST");
     expect(new URL(requests[0]!.url).pathname).toBe("/api/v1/invitations/tok-1/accept");
-    expect(router.push).toHaveBeenCalledWith("/spaces/sp-household");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-household");
     expect(router.refresh).toHaveBeenCalled();
   });
 
@@ -108,7 +108,7 @@ describe("invitation page (HU-E9-05, ruling P165)", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Inicia sesión con la cuenta a la que llegó la invitación.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Aceptar y entrar a Household" })).not.toBeInTheDocument();
-    expect(router.push).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
     expect(await axeViolations(container)).toEqual([]);
     await userEvent.click(screen.getByRole("button", { name: "Cerrar sesión y cambiar de cuenta" }));
     expect(requests[1]!.method).toBe("POST");
@@ -141,9 +141,9 @@ describe("invitation page (HU-E9-05, ruling P165)", () => {
     card({ viewer: { email: "juan@example.com" }, api });
     await userEvent.click(screen.getByRole("button", { name: "Aceptar y entrar a Household" }));
     expect(await screen.findByText("Esa persona ya es miembro de este espacio.")).toBeInTheDocument();
-    expect(router.push).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Aceptar y entrar a Household" }));
-    expect(router.push).toHaveBeenCalledWith("/spaces/sp-household");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-household");
   });
 
   it("shows a network failure as a problem, not as a crash", async () => {
@@ -223,7 +223,7 @@ describe("invitation page (HU-E9-05, ruling P165)", () => {
     card({ kind: "claim", preview: CLAIM, viewer: { email: "pedro@example.com" }, api });
     await userEvent.click(screen.getByRole("button", { name: "Reclamar mi lugar en Household" }));
     expect(new URL(requests[0]!.url).pathname).toBe("/api/v1/claims/tok-1/accept");
-    expect(router.push).toHaveBeenCalledWith("/spaces/sp-household");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-household");
   });
 
   it('leaves out "como <name>" when the preview has no guest name', () => {

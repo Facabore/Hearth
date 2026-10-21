@@ -8,7 +8,7 @@
     "/spaces/:id/accounts": 185,
     "/spaces/:id/new": 205,
     "/settings": 200,
-    "/spaces/new": 190,
+    "/spaces/new": 192,
     "/spaces/:shared/members": 200,
     "/spaces/:shared/balances": 200,
     "/spaces/:shared/members/:member/history": 190,

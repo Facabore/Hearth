@@ -200,7 +200,7 @@ export function RecordForm({
         if (response.ok && data) {
           renew();
           const split = data as DirectSplitDto;
-          router.push(afterSaveUrl(split.spaceId, split.expense.warnings));
+          router.replace(afterSaveUrl(split.spaceId, split.expense.warnings));
           router.refresh();
           return;
         }
@@ -223,7 +223,7 @@ export function RecordForm({
         renew();
         const warnings =
           built.kind === "EXPENSE" ? (data as RecordedExpenseDto | undefined)?.warnings : undefined;
-        router.push(afterSaveUrl(space.id, warnings));
+        router.replace(afterSaveUrl(space.id, warnings));
         router.refresh();
         return;
       }

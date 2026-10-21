@@ -78,7 +78,7 @@ describe("record form (HU-E9-03)", () => {
       amount: { amount: "8500000", currency: "COP" },
       accountId: "a-bank",
     });
-    expect(router.push).toHaveBeenCalledWith("/spaces/sp-personal/transactions");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/transactions");
     expect(await axeViolations(container)).toEqual([]);
   });
 
@@ -103,7 +103,7 @@ describe("record form (HU-E9-03)", () => {
     await waitFor(() =>
       expect(screen.getByLabelText("Monto")).toHaveAccessibleDescription("El monto debe ser mayor que cero."),
     );
-    expect(router.push).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
   });
 
   it("sends a double click once, and retries a failed request with the same key", async () => {
@@ -124,7 +124,7 @@ describe("record form (HU-E9-03)", () => {
     await userEvent.dblClick(save);
     await screen.findByRole("alert");
     await userEvent.click(save);
-    await waitFor(() => expect(router.push).toHaveBeenCalled());
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
     expect(requests).toHaveLength(2);
     expect(requests[1]!.headers.get("idempotency-key")).toBe(requests[0]!.headers.get("idempotency-key"));
   });
@@ -139,7 +139,7 @@ describe("record form (HU-E9-03)", () => {
     await userEvent.clear(screen.getByLabelText("Monto"));
     await userEvent.type(screen.getByLabelText("Monto"), "85000");
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
-    await waitFor(() => expect(router.push).toHaveBeenCalled());
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
     expect(requests).toHaveLength(1);
     expect(screen.queryByText(/Escribe un monto/)).toBeNull();
   });
@@ -257,7 +257,7 @@ describe("record form (HU-E9-03)", () => {
     await userEvent.type(screen.getByLabelText("Monto"), "85000");
     const uuid = vi.spyOn(crypto, "randomUUID");
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
-    await waitFor(() => expect(router.push).toHaveBeenCalled());
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
     expect(uuid).toHaveBeenCalledTimes(1);
     uuid.mockRestore();
   });

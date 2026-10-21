@@ -8,6 +8,7 @@ import type { SymbolName } from "@/shared/kernel/style";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { SpaceDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
+import { safeReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import { formatNumber, type Formats } from "@/shared/ui/format/formatters";
 import {
@@ -40,10 +41,13 @@ type Where = "name" | "opening" | AccountField;
 export function NewAccountForm({
   space,
   formats,
+  returnTo,
   api: injected,
 }: {
   readonly space: SpaceDto;
   readonly formats: Formats;
+  /** The screen the flow started from; saving lands there. Anything but a same-origin path is ignored. */
+  readonly returnTo?: string | null;
   readonly api?: Api;
 }) {
   const t = useTranslations("accounts");
@@ -94,7 +98,7 @@ export function NewAccountForm({
         body: built.body as never,
       });
       if (response.ok) {
-        router.push(`/spaces/${space.id}/accounts`);
+        router.replace(safeReturnTo(returnTo) ?? `/spaces/${space.id}/accounts`);
         router.refresh();
         return;
       }

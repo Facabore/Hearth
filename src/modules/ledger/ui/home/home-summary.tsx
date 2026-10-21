@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { AccountDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
 import { formatDate, formatMoney } from "@/shared/ui/format/formatters";
+import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { TransactionRow, type RowContext } from "../transaction-row";
 import { periodName } from "./period-name";
 
@@ -41,7 +42,7 @@ export function HomeSummary({
             </h2>
             <p className="text-sm text-muted">{t("firstAccount.body")}</p>
             <Link
-              href={`/spaces/${spaceId}/accounts`}
+              href={withReturnTo(`/spaces/${spaceId}/accounts`, `/spaces/${spaceId}`)}
               className="flex min-h-11 items-center justify-center rounded-full bg-accent px-5 text-sm font-semibold text-on-accent"
             >
               {t("firstAccount.action")}

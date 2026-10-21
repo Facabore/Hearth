@@ -7,7 +7,7 @@ import { fakeApi, jsonResponse, problemResponse } from "../../../../tests/suppor
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { NewSpaceForm } from "./new-space-form";
 
-const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
+const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 beforeEach(() => vi.clearAllMocks());
 
@@ -19,7 +19,7 @@ describe("new shared space (HU-E9-05, ruling P161)", () => {
     await userEvent.type(screen.getByLabelText("Nombre"), " Household ");
     await userEvent.click(screen.getByRole("button", { name: "Crear espacio" }));
     expect(await requests[0]!.json()).toEqual({ kind: "SHARED", name: "Household", currency: "COP" });
-    expect(router.push).toHaveBeenCalledWith("/spaces/sp-household/members");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-household/members");
     expect(router.refresh).toHaveBeenCalled();
     expect(await axeViolations(container)).toEqual([]);
   });
@@ -40,7 +40,7 @@ describe("new shared space (HU-E9-05, ruling P161)", () => {
       "Una sola moneda por espacio. Deja de poder cambiarse cuando el espacio tiene movimientos.",
     );
     expect(await requests[0]!.json()).toMatchObject({ currency: "USD" });
-    expect(router.push).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
   });
 });
 

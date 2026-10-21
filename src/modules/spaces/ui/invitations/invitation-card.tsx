@@ -70,7 +70,7 @@ export function InvitationCard({
         : await api.POST("/api/v1/invitations/{token}/accept", params);
       if (response.ok && data) {
         // Stays pending: the page is on its way to the space.
-        router.push(`/spaces/${data.id}`);
+        router.replace(`/spaces/${data.id}`);
         router.refresh();
         return;
       }

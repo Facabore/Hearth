@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { spaceDto } from "../../../../tests/support/ui/dto";
-import { activeSpaceOf, personalSpaceOf, spaceHomeHref } from "./space-helpers";
+import { activeSpaceOf, newSpaceBackHref, personalSpaceOf, spaceHomeHref } from "./space-helpers";
 
 const personal = spaceDto();
 const household = spaceDto({ id: "sp-household", name: "Household", kind: "SHARED", role: "MEMBER" });
@@ -32,5 +32,23 @@ describe("spaceHomeHref (Volver from Settings and New space)", () => {
 
   it("ignores a space the person does not belong to", () => {
     expect(spaceHomeHref([personal, household], "sp-stranger")).toBe("/spaces/sp-personal");
+  });
+});
+
+describe("newSpaceBackHref (the fallback of Volver on the New space screen)", () => {
+  it("goes back to the screen the create link started from", () => {
+    expect(newSpaceBackHref([personal, household], "sp-household", "/spaces/sp-household/transactions")).toBe(
+      "/spaces/sp-household/transactions",
+    );
+  });
+
+  it("falls back to the home of the space when returnTo is missing or is not a same-origin path", () => {
+    expect(newSpaceBackHref([personal, household], "sp-household", undefined)).toBe("/spaces/sp-household");
+    for (const bad of ["//evil.example", "https://evil.example", "/\\evil.example", "/\t/x", "/sign-in", ""])
+      expect(newSpaceBackHref([personal, household], "sp-household", bad)).toBe("/spaces/sp-household");
+  });
+
+  it("keeps the validation of ?from= on its own: a space the person does not belong to is ignored", () => {
+    expect(newSpaceBackHref([personal, household], "sp-stranger", undefined)).toBe("/spaces/sp-personal");
   });
 });

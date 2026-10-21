@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale } from "next-intl/server";
 import type { ReactNode } from "react";
+import { NavigationTracker } from "@/shared/ui/navigation/navigation-tracker";
 import { THEME_BOOTSTRAP } from "@/shared/ui/theme/theme";
 import "./globals.css";
 
@@ -26,6 +27,7 @@ export default async function WebLayout({ children }: { readonly children: React
       </head>
       <body className="min-h-dvh antialiased">
         <NextIntlClientProvider>{children}</NextIntlClientProvider>
+        <NavigationTracker />
       </body>
     </html>
   );

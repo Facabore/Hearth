@@ -30,11 +30,28 @@ export const isOpenPath = (pathname: string): boolean =>
 /** The URL parser drops tabs and newlines and reads "\" as "/", so "/\t/evil.example" would leave the origin. */
 const bends = (c: string) => c === "\\" || c.charCodeAt(0) < 0x20 || c.charCodeAt(0) === 0x7f;
 
-/** Ruling P125: only a same-origin path is honoured as `next`; anything else, or a public screen, lands on "/". */
-export const safeNext = (next: string | null | undefined): string => {
-  if (!next || !next.startsWith("/") || next.startsWith("//") || [...next].some(bends)) return "/";
-  return isPublic(next.split("?")[0] ?? "") ? "/" : next;
+/**
+ * The `returnTo` of a flow (creating an account, a space): the screen it started from. The rules of ruling P125: a
+ * same-origin path only (one leading "/", never "//", no backslash, no control character) and not a public screen. An
+ * invalid value is `null`, so the flow keeps its own default.
+ */
+export const safeReturnTo = (value: string | null | undefined): string | null =>
+  value && value.startsWith("/") && !value.startsWith("//") && ![...value].some(bends)
+    ? isPublic(value.split("?")[0] ?? "")
+      ? null
+      : value
+    : null;
+
+/** The entry link of a flow: `href` with `origin` as its `returnTo`, or `href` itself when `origin` is not valid. */
+export const withReturnTo = (href: string, origin: string | null | undefined): string => {
+  const valid = safeReturnTo(origin);
+  return valid === null
+    ? href
+    : `${href}${href.includes("?") ? "&" : "?"}returnTo=${encodeURIComponent(valid)}`;
 };
+
+/** Ruling P125: only a same-origin path is honoured as `next`; anything else, or a public screen, lands on "/". */
+export const safeNext = (next: string | null | undefined): string => safeReturnTo(next) ?? "/";
 
 /**
  * The proxy's optimistic check (a cookie, not a session lookup): a protected path without a session cookie goes to the

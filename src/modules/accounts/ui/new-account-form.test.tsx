@@ -49,7 +49,7 @@ describe("new account form (HU-E9-03)", () => {
       openingBalance: { amount: "-35000000", currency: "COP" },
       terms: { creditLimit: { amount: "500000000", currency: "COP" }, paymentDay: 15 },
     });
-    expect(router.push).toHaveBeenCalledWith("/spaces/sp-personal/accounts");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/accounts");
     expect(await axeViolations(container)).toEqual([]);
   });
 
@@ -129,6 +129,36 @@ describe("new account form (HU-E9-03)", () => {
     renderWithIntl(<NewAccountForm space={spaceDto({ kind: "SHARED" })} formats={BUILT_IN_FORMATS} />);
     expect(screen.getByRole("radio", { name: "Fondo compartido" })).toBeInTheDocument();
   });
+});
+
+describe("new account form: where saving lands (returnTo)", () => {
+  const create = async (returnTo: string | undefined) => {
+    const { api } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/accounts": () => jsonResponse(accountDto({ name: "Nequi" }), 201),
+    });
+    renderWithIntl(
+      <NewAccountForm space={spaceDto()} formats={BUILT_IN_FORMATS} api={api} returnTo={returnTo} />,
+    );
+    await userEvent.click(screen.getByRole("radio", { name: "Efectivo" }));
+    await userEvent.type(screen.getByLabelText("Nombre"), "Nequi");
+    await userEvent.type(screen.getByLabelText("Saldo inicial"), "0");
+    await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
+  };
+
+  it("returns to the screen the flow started from", async () => {
+    await create("/spaces/sp-personal");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal");
+    expect(router.refresh).toHaveBeenCalled();
+  });
+
+  it.each(["//evil.example", "https://evil.example", "/\\evil.example", "/\t/evil.example", "/sign-in"])(
+    "keeps the accounts screen when returnTo is %j",
+    async (returnTo) => {
+      await create(returnTo);
+      expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/accounts");
+    },
+  );
 });
 
 describe("new account form: the way back (S1)", () => {

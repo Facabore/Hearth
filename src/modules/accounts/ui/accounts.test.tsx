@@ -80,7 +80,7 @@ describe("accounts screen (HU-E9-03)", () => {
     expect(screen.queryByRole("button", { name: /^Restaurar (?!Old)/ })).toBeNull();
     expect(screen.getByRole("link", { name: "Nueva cuenta" })).toHaveAttribute(
       "href",
-      "/spaces/sp-personal/accounts/new",
+      "/spaces/sp-personal/accounts/new?returnTo=%2Fspaces%2Fsp-personal%2Faccounts",
     );
     expect(await axeViolations(container)).toEqual([]);
   });
@@ -89,6 +89,44 @@ describe("accounts screen (HU-E9-03)", () => {
     renderWithIntl(<AccountsScreen spaceId="sp-personal" list={list} formats={BUILT_IN_FORMATS} />);
     expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute("href", "/spaces/sp-personal");
     expect(screen.queryByRole("link", { name: "Volver a Inicio" })).toBeNull();
+  });
+
+  it("starts the creation flow with the accounts screen as the screen to return to", () => {
+    renderWithIntl(<AccountsScreen spaceId="sp-personal" list={list} formats={BUILT_IN_FORMATS} />);
+    expect(screen.getByRole("link", { name: "Nueva cuenta" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/accounts/new?returnTo=%2Fspaces%2Fsp-personal%2Faccounts",
+    );
+  });
+
+  it("carries the returnTo it was opened with, such as the home's first-account card", () => {
+    renderWithIntl(
+      <AccountsScreen
+        spaceId="sp-personal"
+        list={list}
+        formats={BUILT_IN_FORMATS}
+        returnTo="/spaces/sp-personal"
+      />,
+    );
+    expect(screen.getByRole("link", { name: "Nueva cuenta" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/accounts/new?returnTo=%2Fspaces%2Fsp-personal",
+    );
+  });
+
+  it("ignores a returnTo that is not a same-origin path", () => {
+    renderWithIntl(
+      <AccountsScreen
+        spaceId="sp-personal"
+        list={list}
+        formats={BUILT_IN_FORMATS}
+        returnTo="//evil.example"
+      />,
+    );
+    expect(screen.getByRole("link", { name: "Nueva cuenta" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/accounts/new?returnTo=%2Fspaces%2Fsp-personal%2Faccounts",
+    );
   });
 
   it("loads every account, archived ones included, from the API", async () => {

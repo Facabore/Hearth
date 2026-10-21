@@ -1,29 +1,80 @@
 import { describe, expect, it } from "vitest";
-import { expiredSignInUrl, isOpenPath, redirectFor, safeNext } from "./auth-redirect";
+import {
+  expiredSignInUrl,
+  isOpenPath,
+  redirectFor,
+  safeNext,
+  safeReturnTo,
+  withReturnTo,
+} from "./auth-redirect";
+
+/** The inputs of ruling P125 and what `safeNext` makes of each; `safeReturnTo` follows the same rules. */
+const NEXT_CASES: readonly [string | null | undefined, string][] = [
+  ["/spaces/s1/transactions?period=2026-10", "/spaces/s1/transactions?period=2026-10"],
+  ["/settings", "/settings"],
+  ["/invitations/AbC_123-x", "/invitations/AbC_123-x"],
+  ["/claims/AbC_123-x", "/claims/AbC_123-x"],
+  ["//invitations/x", "/"],
+  ["/invitations/x\\evil.example", "/"],
+  ["/claims/\t/evil.example", "/"],
+  ["https://hearth.example/invitations/x", "/"],
+  ["//evil.example/x", "/"],
+  ["https://evil.example", "/"],
+  ["/\\evil.example", "/"],
+  ["/\t/evil.example", "/"],
+  ["/\n/evil.example", "/"],
+  ["spaces/s1", "/"],
+  ["/sign-in", "/"],
+  ["/sign-up?next=/x", "/"],
+  ["", "/"],
+  [null, "/"],
+  [undefined, "/"],
+];
 
 describe("safeNext (HU-E9-01, ruling P125): only same-origin paths are honoured", () => {
-  it.each([
-    ["/spaces/s1/transactions?period=2026-10", "/spaces/s1/transactions?period=2026-10"],
-    ["/settings", "/settings"],
-    ["/invitations/AbC_123-x", "/invitations/AbC_123-x"],
-    ["/claims/AbC_123-x", "/claims/AbC_123-x"],
-    ["//invitations/x", "/"],
-    ["/invitations/x\\evil.example", "/"],
-    ["/claims/\t/evil.example", "/"],
-    ["https://hearth.example/invitations/x", "/"],
-    ["//evil.example/x", "/"],
-    ["https://evil.example", "/"],
-    ["/\\evil.example", "/"],
-    ["/\t/evil.example", "/"],
-    ["/\n/evil.example", "/"],
-    ["spaces/s1", "/"],
-    ["/sign-in", "/"],
-    ["/sign-up?next=/x", "/"],
-    ["", "/"],
-    [null, "/"],
-    [undefined, "/"],
-  ])("%j → %j", (next, expected) => {
+  it.each(NEXT_CASES)("%j → %j", (next, expected) => {
     expect(safeNext(next)).toBe(expected);
+  });
+});
+
+describe('safeReturnTo (the `returnTo` of a flow): the same rules as safeNext, null instead of "/"', () => {
+  it.each(NEXT_CASES)("%j → honoured only when safeNext honours it", (value, expected) => {
+    expect(safeReturnTo(value)).toBe(value === expected ? expected : null);
+  });
+
+  it("honours a same-origin path with its query", () => {
+    expect(safeReturnTo("/spaces/s1")).toBe("/spaces/s1");
+    expect(safeReturnTo("/spaces/s1/transactions?period=2026-10")).toBe(
+      "/spaces/s1/transactions?period=2026-10",
+    );
+  });
+
+  it("honours the origin's own root", () => {
+    expect(safeReturnTo("/")).toBe("/");
+  });
+
+  it.each(["/\u0000/x", "/\u007f", "/a\r\nb", "/a\\b", "\\\\evil.example"])(
+    "rejects control characters and backslashes: %j",
+    (value) => {
+      expect(safeReturnTo(value)).toBeNull();
+    },
+  );
+});
+
+describe("withReturnTo: the entry link of a flow", () => {
+  it("appends the origin as an encoded returnTo", () => {
+    expect(withReturnTo("/spaces/s1/accounts/new", "/spaces/s1/accounts")).toBe(
+      "/spaces/s1/accounts/new?returnTo=%2Fspaces%2Fs1%2Faccounts",
+    );
+    expect(withReturnTo("/spaces/new?from=s1", "/spaces/s1/transactions?period=2026-10")).toBe(
+      "/spaces/new?from=s1&returnTo=%2Fspaces%2Fs1%2Ftransactions%3Fperiod%3D2026-10",
+    );
+  });
+
+  it("leaves the link as it is when the origin is not a valid returnTo", () => {
+    expect(withReturnTo("/spaces/new?from=s1", "//evil.example")).toBe("/spaces/new?from=s1");
+    expect(withReturnTo("/spaces/new?from=s1", null)).toBe("/spaces/new?from=s1");
+    expect(withReturnTo("/spaces/new", undefined)).toBe("/spaces/new");
   });
 });
 

@@ -42,7 +42,7 @@ export function NewSpaceForm({
         body: { kind: "SHARED", name: name.trim(), currency },
       });
       if (response.ok && data) {
-        router.push(`/spaces/${data.id}/members`);
+        router.replace(`/spaces/${data.id}/members`);
         router.refresh();
         return;
       }

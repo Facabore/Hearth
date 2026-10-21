@@ -1,12 +1,21 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { AppShell } from "./app-shell";
 
 const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn() }));
-vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => "/spaces/sp-personal" }));
+const navigation = vi.hoisted(() => ({ pathname: "/spaces/sp-personal", search: "" }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => router,
+  usePathname: () => navigation.pathname,
+  useSearchParams: () => new URLSearchParams(navigation.search),
+}));
+beforeEach(() => {
+  navigation.pathname = "/spaces/sp-personal";
+  navigation.search = "";
+});
 
 describe("app shell (HU-E9-01)", () => {
   const spaces = [
@@ -94,8 +103,72 @@ describe("app shell (HU-E9-01)", () => {
     expect(within(sheet).getAllByRole("link").at(-1)).toHaveAccessibleName("Crear espacio compartido");
     expect(within(sheet).getByRole("link", { name: "Crear espacio compartido" })).toHaveAttribute(
       "href",
-      "/spaces/new?from=sp-personal",
+      "/spaces/new?from=sp-personal&returnTo=%2Fspaces%2Fsp-personal",
     );
+  });
+
+  it("passes the screen the person is on as the returnTo of the create-space link", async () => {
+    navigation.pathname = "/spaces/sp-personal/transactions";
+    renderWithIntl(
+      <AppShell
+        me={{ name: "Ana", email: "ana@example.com", locale: "es" }}
+        spaces={spaces}
+        activeSpace={spaces[0]}
+      >
+        <h1>Movimientos</h1>
+      </AppShell>,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Espacio actual: Personal. Cambiar de espacio" }),
+    );
+    expect(
+      within(screen.getByRole("dialog", { name: "Espacios" })).getByRole("link", {
+        name: "Crear espacio compartido",
+      }),
+    ).toHaveAttribute("href", "/spaces/new?from=sp-personal&returnTo=%2Fspaces%2Fsp-personal%2Ftransactions");
+  });
+
+  it("keeps the query of the screen the person is on, such as a filter, in the returnTo", async () => {
+    navigation.pathname = "/spaces/sp-personal/transactions";
+    navigation.search = "period=2026-10&q=caf%C3%A9";
+    renderWithIntl(
+      <AppShell
+        me={{ name: "Ana", email: "ana@example.com", locale: "es" }}
+        spaces={spaces}
+        activeSpace={spaces[0]}
+      >
+        <h1>Movimientos</h1>
+      </AppShell>,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Espacio actual: Personal. Cambiar de espacio" }),
+    );
+    const link = within(screen.getByRole("dialog", { name: "Espacios" })).getByRole("link", {
+      name: "Crear espacio compartido",
+    });
+    const returnTo = new URL(link.getAttribute("href")!, "http://x").searchParams.get("returnTo");
+    expect(returnTo).toBe("/spaces/sp-personal/transactions?period=2026-10&q=caf%C3%A9");
+  });
+
+  it("does not return to the create-space screen from the create-space screen", async () => {
+    navigation.pathname = "/spaces/new";
+    renderWithIntl(
+      <AppShell
+        me={{ name: "Ana", email: "ana@example.com", locale: "es" }}
+        spaces={spaces}
+        activeSpace={spaces[0]}
+      >
+        <h1>Nuevo espacio</h1>
+      </AppShell>,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Espacio actual: Personal. Cambiar de espacio" }),
+    );
+    expect(
+      within(screen.getByRole("dialog", { name: "Espacios" })).getByRole("link", {
+        name: "Crear espacio compartido",
+      }),
+    ).toHaveAttribute("href", "/spaces/new?from=sp-personal");
   });
 
   it("lists every current space in the switcher and links to the chosen one", async () => {

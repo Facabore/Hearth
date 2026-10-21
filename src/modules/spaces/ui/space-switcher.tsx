@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { Avatar, Icon, Sheet } from "@/shared/ui";
+import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import type { SpaceSummary } from "./space-helpers";
 
 /** HU-E9-01, the SpaceSheet artboard: every current space as a link, then create a shared space (HU-E9-05, P160). */
@@ -16,6 +18,13 @@ export function SpaceSwitcher({
 }) {
   const t = useTranslations("shell");
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  const search = useSearchParams().toString();
+  // The create link starts a flow from the screen the person is on, unless that is the create screen itself.
+  const createHref = withReturnTo(
+    `/spaces/new?from=${activeSpace.id}`,
+    pathname === "/spaces/new" ? null : `${pathname}${search ? `?${search}` : ""}`,
+  );
   return (
     <>
       <button
@@ -54,7 +63,7 @@ export function SpaceSwitcher({
           ))}
         </ul>
         <Link
-          href={`/spaces/new?from=${activeSpace.id}`}
+          href={createHref}
           onClick={() => setOpen(false)}
           className="mt-2 flex min-h-14 items-center gap-3 rounded-xl px-2 font-medium text-accent"
         >

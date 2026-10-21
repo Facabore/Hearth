@@ -1,7 +1,8 @@
-import { screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
+import { writeTrail } from "../navigation/history";
 import { ScreenHeader } from "./screen-header";
 
 describe("screen header", () => {
@@ -36,5 +37,85 @@ describe("screen header", () => {
     });
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "Add" })).toBeInTheDocument();
+  });
+});
+
+describe("screen header: Volver returns to where the person was", () => {
+  const home = "/spaces/s1";
+  const movements = "/spaces/s1/transactions";
+  const accounts = "/spaces/s1/accounts";
+  let go: ReturnType<typeof vi.spyOn>;
+
+  /** The trail and the location of a person who is on its current entry. */
+  const walked = (urls: string[], pos = urls.length - 1) => {
+    writeTrail({ urls, pos });
+    window.history.replaceState({}, "", urls[pos]);
+  };
+  const clickBack = (init: MouseEventInit = {}) => {
+    renderWithIntl(<ScreenHeader backHref={home} title="Cuentas" />);
+    return fireEvent.click(screen.getByRole("link", { name: "Volver" }), init);
+  };
+
+  beforeEach(() => {
+    go = vi.spyOn(window.history, "go").mockImplementation(() => undefined);
+    window.sessionStorage.clear();
+    window.history.replaceState({}, "", "/");
+  });
+  afterEach(() => go.mockRestore());
+
+  it("goes back one step to the screen she came from instead of following the parent route", () => {
+    walked([movements, accounts]);
+    expect(clickBack()).toBe(false);
+    expect(go).toHaveBeenCalledExactlyOnceWith(-1);
+  });
+
+  it("goes back past the entries of its own screen: a form replaced by the screen, a query that changed", () => {
+    walked([movements, accounts, accounts]);
+    expect(clickBack()).toBe(false);
+    expect(go).toHaveBeenCalledExactlyOnceWith(-2);
+  });
+
+  it("goes back from Saldos' history through every period she stepped to, to Saldos", () => {
+    const history = "/spaces/s1/members/m1/history";
+    walked(["/spaces/s1/balances", history, `${history}?from=2026-09-01`, `${history}?from=2026-08-01`]);
+    expect(clickBack()).toBe(false);
+    expect(go).toHaveBeenCalledExactlyOnceWith(-3);
+  });
+
+  it("follows the parent route when nothing came before (a deep link, a new tab)", () => {
+    walked([accounts]);
+    expect(clickBack()).toBe(true);
+    expect(go).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a sign-in", "/sign-in?next=%2Fspaces%2Fs1%2Faccounts"],
+    ["an invitation", "/invitations/tok"],
+  ])("follows the parent route when the screen before is %s, which is not in the app", (_name, before) => {
+    walked([before, accounts]);
+    expect(clickBack()).toBe(true);
+    expect(go).not.toHaveBeenCalled();
+  });
+
+  it("follows the parent route when the trail does not end on this screen", () => {
+    writeTrail({ urls: [movements, "/settings"], pos: 1 });
+    window.history.replaceState({}, "", accounts);
+    expect(clickBack()).toBe(true);
+    expect(go).not.toHaveBeenCalled();
+  });
+
+  it.each([{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }])(
+    "leaves a modified click %j to the browser (a new tab)",
+    (init) => {
+      walked([movements, accounts]);
+      expect(clickBack(init)).toBe(true);
+      expect(go).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps the real link to the parent route for a keyboard or no-JS visitor", () => {
+    walked([movements, accounts]);
+    renderWithIntl(<ScreenHeader backHref={home} title="Cuentas" />);
+    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute("href", home);
   });
 });

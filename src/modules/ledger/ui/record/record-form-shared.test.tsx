@@ -122,7 +122,7 @@ describe("shared expense (HU-E9-06)", () => {
       split: { method: "EQUAL", participants: [{ memberId: "m-ana" }, { memberId: "m-juan" }] },
     });
     expect(body).not.toHaveProperty("accountId");
-    expect(router.push).toHaveBeenCalledWith("/spaces/sp-household/transactions");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-household/transactions");
     expect(await axeViolations(container)).toEqual([]);
   });
 
@@ -152,7 +152,7 @@ describe("shared expense (HU-E9-06)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Listo" }));
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     await waitFor(() =>
-      expect(router.push).toHaveBeenCalledWith(
+      expect(router.replace).toHaveBeenCalledWith(
         "/spaces/sp-household/transactions?notice=FundBalanceNegative&account=a-fund",
       ),
     );

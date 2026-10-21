@@ -101,7 +101,7 @@ describe("split with someone from Personal (HU-E9-06, ruling P172)", () => {
       description: "Cena",
     });
     expect(body).not.toHaveProperty("categoryId");
-    expect(router.push).toHaveBeenCalledWith("/spaces/sp-ana-juan/transactions");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-ana-juan/transactions");
     expect(router.refresh).toHaveBeenCalled();
   });
 
@@ -117,7 +117,7 @@ describe("split with someone from Personal (HU-E9-06, ruling P172)", () => {
     expect(screen.getByText("Con Marta · mitad y mitad")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Guardar y dividir" }));
     expect((await requests[0]!.json()).counterpart).toEqual({ kind: "GUEST", displayName: "Marta" });
-    expect(router.push).toHaveBeenCalledWith("/spaces/sp-new/transactions");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-new/transactions");
   });
 
   it("refuses a category of the person's own, and the split can be removed", async () => {

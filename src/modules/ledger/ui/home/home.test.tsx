@@ -131,9 +131,10 @@ describe("home, first use (P148)", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Inicio" })).toBeInTheDocument();
     const card = screen.getByRole("region", { name: "Agrega tu primera cuenta" });
     expect(card).toHaveTextContent("Registra dónde tienes tu dinero para empezar a llevar tus cuentas.");
+    // The card starts a flow: the accounts screen carries the home as the screen to return to after creating one.
     expect(within(card).getByRole("link", { name: "Ir a Cuentas" })).toHaveAttribute(
       "href",
-      "/spaces/sp-personal/accounts",
+      "/spaces/sp-personal/accounts?returnTo=%2Fspaces%2Fsp-personal",
     );
     expect(screen.queryByRole("region", { name: "Resumen del período" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Cuentas" })).not.toBeInTheDocument();

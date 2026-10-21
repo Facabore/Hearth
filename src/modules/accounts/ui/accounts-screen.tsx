@@ -3,6 +3,7 @@ import { useTranslations } from "next-intl";
 import { Icon, ScreenHeader, VisuallyHidden } from "@/shared/ui";
 import type { AccountListDto } from "@/shared/ui/api/dto";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
+import { safeReturnTo, withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { ArchiveAccountButton, RestoreAccountButton } from "./account-actions";
 import { AccountRow } from "./account-row";
 import { sectionsOf } from "./account-sections";
@@ -12,13 +13,20 @@ export function AccountsScreen({
   spaceId,
   list,
   formats,
+  returnTo,
 }: {
   readonly spaceId: string;
   readonly list: AccountListDto;
   readonly formats: Formats;
+  /** Where creating an account returns to: the screen this one was opened from (the home's card), else itself. */
+  readonly returnTo?: string | null;
 }) {
   const t = useTranslations("accounts");
   const { active, archived } = sectionsOf(list.items);
+  const newHref = withReturnTo(
+    `/spaces/${spaceId}/accounts/new`,
+    safeReturnTo(returnTo) ?? `/spaces/${spaceId}/accounts`,
+  );
   return (
     <div className="flex flex-col gap-6 py-4">
       <ScreenHeader
@@ -26,7 +34,7 @@ export function AccountsScreen({
         title={t("title")}
         action={
           <Link
-            href={`/spaces/${spaceId}/accounts/new`}
+            href={newHref}
             className="flex size-11 flex-none items-center justify-center rounded-full bg-accent text-on-accent"
           >
             <Icon name="plus" />
