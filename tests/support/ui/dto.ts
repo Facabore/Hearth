@@ -215,6 +215,7 @@ export const rowContext = {
   viewerZone: "America/Bogota",
   groups: octoberGroups,
   accountNames: { "a-bank": "Bancolombia", "a-visa": "Visa" },
+  memberNames: {},
 };
 /** An expense paid from Bancolombia, timed in Bogotá when `at` is set. */
 export const octoberExpense = (

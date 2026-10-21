@@ -32,6 +32,7 @@ const context: RowContext = {
     }),
   ],
   accountNames: { "a-bank": "Bancolombia", "a-visa": "Visa" },
+  memberNames: {},
 };
 
 /** The row in its list, as the page renders it. */
@@ -131,5 +132,115 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
     renderRow(dinner);
     expect(screen.queryAllByRole("button")).toEqual([]);
     expect(screen.queryAllByRole("link")).toEqual([]);
+  });
+  it("names who paid a shared expense and who paid whom in a settlement (ruling P171)", () => {
+    const shared = {
+      ...context,
+      memberNames: { "m-ana": "Ana", "m-juan": "Juan" },
+      accountNames: { "a-fund": "Fondo Hogar" },
+    };
+    const { unmount } = renderWithIntl(
+      <ol>
+        <TransactionRow
+          tx={transactionDto({
+            type: "EXPENSE",
+            description: "Mercado",
+            payments: [{ memberId: "m-juan", accountId: null, amount: cop(300_000) }],
+          })}
+          context={shared}
+        />
+      </ol>,
+    );
+    expect(screen.getByRole("listitem")).toHaveTextContent("pagó Juan");
+    unmount();
+    const fundPaid = renderWithIntl(
+      <ol>
+        <TransactionRow
+          tx={transactionDto({
+            type: "EXPENSE",
+            payments: [{ memberId: null, accountId: "a-fund", amount: cop(1) }],
+          })}
+          context={shared}
+        />
+      </ol>,
+    );
+    expect(screen.getByRole("listitem")).toHaveTextContent("pagó Fondo Hogar");
+    fundPaid.unmount();
+    renderWithIntl(
+      <ol>
+        <TransactionRow
+          tx={transactionDto({
+            type: "SETTLEMENT",
+            description: "",
+            payerMemberId: "m-juan",
+            receivingMemberId: "m-ana",
+            amount: cop(100_000),
+          })}
+          context={shared}
+        />
+      </ol>,
+    );
+    expect(screen.getByRole("listitem")).toHaveTextContent("Pago entre miembros");
+    expect(screen.getByRole("listitem")).toHaveTextContent("Juan → Ana");
+  });
+
+  it("names the paying account once, and no payer, in a personal space's row", () => {
+    renderWithIntl(
+      <ol>
+        <TransactionRow
+          tx={transactionDto({
+            type: "EXPENSE",
+            description: "Mercado",
+            payments: [{ memberId: "m-ana", accountId: "a-bank", amount: cop(300_000) }],
+          })}
+          context={{ ...context, memberNames: {}, accountNames: { "a-bank": "Bancolombia" } }}
+        />
+      </ol>,
+    );
+    expect(screen.getByRole("listitem")).toHaveTextContent("Bancolombia");
+    expect(screen.getByRole("listitem")).not.toHaveTextContent("pagó");
+  });
+
+  it("names the payer of a shared expense instead of repeating the account, and a guest's payment too", () => {
+    const shared = { ...context, memberNames: { "m-ana": "Ana", "m-pedro": "Pedro" } };
+    renderWithIntl(
+      <ol>
+        <TransactionRow
+          tx={transactionDto({
+            type: "EXPENSE",
+            payments: [{ memberId: "m-ana", accountId: "a-bank", amount: cop(300_000) }],
+          })}
+          context={{ ...shared, accountNames: { "a-bank": "Bancolombia" } }}
+        />
+        <TransactionRow
+          tx={transactionDto({
+            id: "t-2",
+            type: "EXPENSE",
+            payments: [{ memberId: "m-pedro", accountId: null, amount: cop(1) }],
+          })}
+          context={shared}
+        />
+      </ol>,
+    );
+    const [mine, guest] = screen.getAllByRole("listitem");
+    expect(mine).toHaveTextContent("pagó Ana");
+    expect(mine).not.toHaveTextContent("Bancolombia");
+    expect(guest).toHaveTextContent("pagó Pedro");
+  });
+
+  it("falls back to the paying account when the payer is no longer a member", () => {
+    renderWithIntl(
+      <ol>
+        <TransactionRow
+          tx={transactionDto({
+            type: "EXPENSE",
+            payments: [{ memberId: "m-gone", accountId: "a-bank", amount: cop(300_000) }],
+          })}
+          context={{ ...context, memberNames: { "m-ana": "Ana" }, accountNames: { "a-bank": "Bancolombia" } }}
+        />
+      </ol>,
+    );
+    expect(screen.getByRole("listitem")).toHaveTextContent("Bancolombia");
+    expect(screen.getByRole("listitem")).not.toHaveTextContent("pagó");
   });
 });

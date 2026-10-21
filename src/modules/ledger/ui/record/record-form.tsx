@@ -8,7 +8,7 @@ import { AccountPicker } from "@/modules/accounts/ui";
 import { activeTree, CategoryPicker, categoryPath, type CategoryChoice } from "@/modules/categories/ui";
 import { Button, Icon, ProblemNotice, TextField } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
-import type { AccountDto, CategoryGroupDto, SpaceDto } from "@/shared/ui/api/dto";
+import type { AccountDto, CategoryGroupDto, RecordedExpenseDto, SpaceDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import { minorOf, parseDecimal } from "@/shared/ui/format/amount-input";
@@ -20,7 +20,7 @@ import { initialSplitDraft, type SharedExpenseContext } from "../split/shared-co
 import { SharedFields } from "../split/shared-fields";
 import { AmountField } from "./amount-field";
 import { DateTimeSheet } from "./date-time-sheet";
-import { recordFieldOf, requestOf, type RecordField, type RecordKind } from "./record-request";
+import { afterSaveUrl, recordFieldOf, requestOf, type RecordField, type RecordKind } from "./record-request";
 import { useIdempotencyKey } from "./use-idempotency-key";
 import { whenLabel, type When } from "./when-label";
 
@@ -142,7 +142,7 @@ export function RecordForm({
         // Ruling P118: the form builds a plain object; the API is the validator of its shape.
         body: built.body as never,
       };
-      const { error, response } =
+      const { data, error, response } =
         built.kind === "EXPENSE"
           ? await api.POST("/api/v1/spaces/{spaceId}/expenses", options)
           : built.kind === "INCOME"
@@ -150,7 +150,9 @@ export function RecordForm({
             : await api.POST("/api/v1/spaces/{spaceId}/transfers", options);
       if (response.ok) {
         renew();
-        router.push(`/spaces/${space.id}/transactions`);
+        const warnings =
+          built.kind === "EXPENSE" ? (data as RecordedExpenseDto | undefined)?.warnings : undefined;
+        router.push(afterSaveUrl(space.id, warnings));
         router.refresh();
         return;
       }

@@ -11,8 +11,16 @@ export default async function TransactionsPage({
   searchParams,
 }: {
   readonly params: Promise<{ spaceId: string }>;
-  readonly searchParams: Promise<{ period?: string; category?: string }>;
+  readonly searchParams: Promise<{ period?: string; category?: string; notice?: string; account?: string }>;
 }) {
-  const [{ spaceId }, { period, category }] = await Promise.all([params, searchParams]);
-  return <TransactionListContainer spaceId={spaceId} period={period} categoryId={category} />;
+  const [{ spaceId }, { period, category, notice, account }] = await Promise.all([params, searchParams]);
+  return (
+    <TransactionListContainer
+      spaceId={spaceId}
+      period={period}
+      categoryId={category}
+      notice={notice}
+      noticeAccount={account}
+    />
+  );
 }

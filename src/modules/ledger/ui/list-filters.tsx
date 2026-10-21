@@ -7,19 +7,7 @@ import { useState } from "react";
 import { CategoryPicker, categoryPath } from "@/modules/categories/ui";
 import { Button, Icon, VisuallyHidden } from "@/shared/ui";
 import type { CategoryGroupDto, PeriodDto } from "@/shared/ui/api/dto";
-
-export interface ListFilter {
-  readonly period?: string;
-  readonly categoryId?: string;
-}
-
-const hrefOf = (spaceId: string, filter: ListFilter) => {
-  const query = new URLSearchParams();
-  if (filter.period) query.set("period", filter.period);
-  if (filter.categoryId) query.set("category", filter.categoryId);
-  const text = query.toString();
-  return `/spaces/${spaceId}/transactions${text ? `?${text}` : ""}`;
-};
+import { hrefOf, type ListFilter } from "./list-href";
 
 /** HU-E9-03: the period with its neighbours, and the category filter (the API rolls subcategories up, P130). */
 export function ListFilters({

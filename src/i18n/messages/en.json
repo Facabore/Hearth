@@ -406,6 +406,12 @@
       "SETTLEMENT": "Settlement"
     },
     "transfer": "{from} → {to}",
+    "settlement": "{from} → {to}",
+    "paidBy": "paid by {name}",
+    "saved": {
+      "title": "Expense saved",
+      "dismiss": "Dismiss notice"
+    },
     "when": {
       "title": "Date and time",
       "day": "Day",

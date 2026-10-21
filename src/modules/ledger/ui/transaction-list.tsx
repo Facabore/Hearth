@@ -1,9 +1,11 @@
 import { useTranslations } from "next-intl";
-import type { PeriodDto, TransactionPageDto } from "@/shared/ui/api/dto";
+import type { MoneyDto, PeriodDto, TransactionPageDto } from "@/shared/ui/api/dto";
 import { formatDate, formatMoney } from "@/shared/ui/format/formatters";
 import { groupByDay } from "./day-groups";
-import { ListFilters, type ListFilter } from "./list-filters";
+import { ListFilters } from "./list-filters";
+import { hrefOf, type ListFilter } from "./list-href";
 import { LoadMore } from "./load-more";
+import { SavedNotice } from "./saved-notice";
 import { TransactionRow, type RowContext } from "./transaction-row";
 
 /** HU-E9-03, the Activity artboard: the period's rows by day with the API's totals; no per-day totals (P130). */
@@ -15,6 +17,7 @@ export function TransactionList({
   filter,
   previous = null,
   next = null,
+  notice,
 }: {
   readonly spaceId: string;
   readonly page: TransactionPageDto;
@@ -23,12 +26,22 @@ export function TransactionList({
   readonly filter: ListFilter;
   readonly previous?: PeriodDto | null;
   readonly next?: PeriodDto | null;
+  /** A saved expense that left a shared fund negative (ruling P170). */
+  readonly notice?: { readonly accountName: string; readonly balance: MoneyDto };
 }) {
   const t = useTranslations("ledger");
   const days = groupByDay(page.items, today);
   return (
     <div className="flex flex-col gap-5 py-4">
       <h1 className="text-2xl font-semibold text-ink">{t("list.title")}</h1>
+      {notice ? (
+        <SavedNotice
+          accountName={notice.accountName}
+          balance={notice.balance}
+          formats={context.formats}
+          dismissHref={hrefOf(spaceId, filter)}
+        />
+      ) : null}
       <ListFilters
         spaceId={spaceId}
         period={page.period}

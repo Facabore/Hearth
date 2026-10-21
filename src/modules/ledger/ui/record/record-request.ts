@@ -1,3 +1,4 @@
+import type { RecordedExpenseDto } from "@/shared/ui/api/dto";
 import type { Problem } from "@/shared/ui/api/problem";
 import { minorOf, parseDecimal } from "@/shared/ui/format/amount-input";
 import { currencyOf } from "@/shared/ui/format/currencies";
@@ -118,4 +119,13 @@ export const recordFieldOf = (problem: Problem): RecordField | "form" => {
     if (first && BY_PATH[first]) return BY_PATH[first];
   }
   return "form";
+};
+
+/** Ruling P170: the list after a save; a fund left negative travels as a code and an account id, never an amount. */
+export const afterSaveUrl = (spaceId: string, warnings: RecordedExpenseDto["warnings"] = []): string => {
+  const negative = warnings.find((w) => w.code === "FundBalanceNegative");
+  const list = `/spaces/${spaceId}/transactions`;
+  return negative
+    ? `${list}?notice=FundBalanceNegative&account=${encodeURIComponent(negative.accountId)}`
+    : list;
 };

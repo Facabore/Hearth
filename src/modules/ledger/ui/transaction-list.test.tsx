@@ -4,11 +4,15 @@ import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
 import {
+  accountDto,
   cop,
+  householdSpace,
+  memberDto,
   meDto,
   octoberExpense,
   octoberPage,
   rowContext,
+  spaceDto,
   transactionDto,
 } from "../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse } from "../../../../tests/support/ui/fake-api";
@@ -24,6 +28,7 @@ import { loadTransactionList, TransactionListContainer } from "./transaction-lis
 const mocks = vi.hoisted(() => ({
   router: { push: vi.fn(), refresh: vi.fn() },
   getMe: vi.fn(),
+  getSpaces: vi.fn(),
   serverApi: vi.fn(),
 }));
 vi.mock("next/headers", () => ({}));
@@ -31,9 +36,13 @@ vi.mock("next/navigation", () => ({ useRouter: () => mocks.router }));
 vi.mock("@/shared/ui/api/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/shared/ui/api/server")>()),
   getMe: mocks.getMe,
+  getSpaces: mocks.getSpaces,
   serverApi: mocks.serverApi,
 }));
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.getSpaces.mockResolvedValue([spaceDto()]);
+});
 
 const norm = (text: string | null) => (text ?? "").replace(/\s/g, " ");
 
@@ -206,6 +215,34 @@ describe("the period and the category filter (HU-E9-03, ruling P130)", () => {
     renderWithIntl(listOf({ filter: { categoryId: "c-dining" } }));
     await userEvent.click(screen.getByRole("button", { name: "Quitar el filtro Restaurants" }));
     expect(mocks.router.push).toHaveBeenLastCalledWith("/spaces/sp-personal/transactions");
+  });
+});
+
+describe("saved with a warning in the list (HU-E9-06, ruling P170)", () => {
+  const notice = { accountName: "Fondo Hogar", balance: cop(-500_000) };
+
+  it("shows the fund's notice above the totals, and its dismiss link keeps the period and the category", () => {
+    renderWithIntl(listOf({ notice, filter: { period: "2026-10", categoryId: "c-groceries" } }));
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("Gasto guardado");
+    expect(norm(status.textContent)).toContain("El saldo de Fondo Hogar quedó en −$ 500.000.");
+    expect(screen.getByRole("link", { name: "Cerrar aviso" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/transactions?period=2026-10&category=c-groceries",
+    );
+    const totals = screen.getByRole("region", { name: "Totales del período" });
+    expect(status.compareDocumentPosition(totals) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("dismisses to the plain list when the address had no filter, and shows no notice without one", () => {
+    const first = renderWithIntl(listOf({ notice, filter: {} }));
+    expect(screen.getByRole("link", { name: "Cerrar aviso" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/transactions",
+    );
+    first.unmount();
+    renderWithIntl(listOf());
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });
 
@@ -403,7 +440,13 @@ describe("what the list loads (HU-E9-03, ruling P130)", () => {
         return jsonResponse({ items: [from === "2026-09-30" ? other : later] });
       }),
     );
-    const result = await loadTransactionList(api, { spaceId: "sp-personal", period: "2026-10" });
+    const result = await loadTransactionList(api, {
+      spaceId: "sp-personal",
+      period: "2026-10",
+      shared: false,
+    });
+    expect(requests.some((r) => new URL(r.url).pathname.endsWith("/members"))).toBe(false);
+    expect(result.ok && result.data.memberNames).toEqual({});
     const queryOf = (path: string) =>
       requests.filter((r) => new URL(r.url).pathname.endsWith(path)).map((r) => new URL(r.url).searchParams);
     expect(queryOf("/categories").map((q) => q.get("archived"))).toEqual(["true"]);
@@ -416,6 +459,27 @@ describe("what the list loads (HU-E9-03, ruling P130)", () => {
       "2026-09",
       "2026-11",
     ]);
+  });
+
+  it("names the members of a shared space for the rows, and fails with the members' problem", async () => {
+    const members = (response: () => Response) =>
+      fakeApi({
+        ...routes(() => jsonResponse({ items: [] })),
+        "GET /api/v1/spaces/{spaceId}/members": response,
+      });
+    const ok = members(() =>
+      jsonResponse({
+        items: [memberDto(), memberDto({ id: "m-juan", userId: "u-juan", displayName: "Juan" })],
+      }),
+    );
+    const result = await loadTransactionList(ok.api, { spaceId: "sp-household", shared: true });
+    expect(ok.requests.some((r) => new URL(r.url).pathname.endsWith("/members"))).toBe(true);
+    expect(result.ok && result.data.memberNames).toEqual({ "m-ana": "Ana", "m-juan": "Juan" });
+    const failing = members(() => problemResponse(409, "SpaceArchived"));
+    expect(await loadTransactionList(failing.api, { spaceId: "sp-household", shared: true })).toMatchObject({
+      ok: false,
+      problem: { code: "SpaceArchived" },
+    });
   });
 
   it("has no neighbour where the API knows no period, and fails with the page's problem", async () => {
@@ -473,6 +537,65 @@ describe("the list container (HU-E9-03, HU-E9-02)", () => {
         accountNames: { "a-old": "Old wallet" },
       },
     });
+  });
+
+  const fundRoutes = (balance: number) => ({
+    "GET /api/v1/spaces/{spaceId}/transactions": () => jsonResponse(page),
+    "GET /api/v1/spaces/{spaceId}/categories": () => jsonResponse({ items: groups }),
+    "GET /api/v1/spaces/{spaceId}/accounts": () =>
+      jsonResponse({
+        items: [
+          accountDto({ id: "a-fund", name: "Fondo Hogar", type: "SHARED_FUND", balance: cop(balance) }),
+          accountDto({ id: "a-bank", name: "Bancolombia", balance: cop(1_000_000) }),
+        ],
+        totals: { available: cop(0), netWorth: cop(0) },
+      }),
+    "GET /api/v1/spaces/{spaceId}/members": () =>
+      jsonResponse({
+        items: [memberDto(), memberDto({ id: "m-juan", userId: "u-juan", displayName: "Juan" })],
+      }),
+    "GET /api/v1/spaces/{spaceId}/periods": () => jsonResponse({ items: [] }),
+  });
+  const propsOf = (element: unknown) => (element as { props: Record<string, unknown> }).props;
+
+  it("in a shared space names the members for the rows and reads the fund's balance for the notice", async () => {
+    mocks.getMe.mockResolvedValue(meDto());
+    mocks.getSpaces.mockResolvedValue([householdSpace()]);
+    mocks.serverApi.mockResolvedValue(fakeApi(fundRoutes(-500_000)).api);
+    const element = await TransactionListContainer({
+      spaceId: "sp-household",
+      period: "2026-10",
+      notice: "FundBalanceNegative",
+      noticeAccount: "a-fund",
+    });
+    expect(propsOf(element)).toMatchObject({
+      context: { memberNames: { "m-ana": "Ana", "m-juan": "Juan" } },
+      notice: { accountName: "Fondo Hogar", balance: cop(-500_000) },
+    });
+  });
+
+  it("names the members of a direct space too", async () => {
+    mocks.getMe.mockResolvedValue(meDto());
+    mocks.getSpaces.mockResolvedValue([spaceDto({ id: "sp-direct", name: "Ana & Juan", kind: "DIRECT" })]);
+    mocks.serverApi.mockResolvedValue(fakeApi(fundRoutes(0)).api);
+    const element = await TransactionListContainer({ spaceId: "sp-direct" });
+    expect(propsOf(element)).toMatchObject({
+      context: { memberNames: { "m-ana": "Ana", "m-juan": "Juan" } },
+    });
+  });
+
+  it("shows no notice for a code it does not know, an account it did not load or a personal space", async () => {
+    mocks.getMe.mockResolvedValue(meDto());
+    mocks.getSpaces.mockResolvedValue([householdSpace(), spaceDto()]);
+    const noticeOf = async (spaceId: string, notice: string, noticeAccount: string) => {
+      mocks.serverApi.mockResolvedValue(fakeApi(fundRoutes(-500_000)).api);
+      return propsOf(await TransactionListContainer({ spaceId, notice, noticeAccount })).notice;
+    };
+    expect(await noticeOf("sp-household", "Other", "a-fund")).toBeUndefined();
+    expect(await noticeOf("sp-household", "FundBalanceNegative", "a-elsewhere")).toBeUndefined();
+    mocks.serverApi.mockResolvedValue(fakeApi(fundRoutes(-500_000)).api);
+    const personal = await TransactionListContainer({ spaceId: "sp-personal" });
+    expect(propsOf(personal)).toMatchObject({ context: { memberNames: {} } });
   });
 
   it("shows the problem's message when the list cannot be read", async () => {

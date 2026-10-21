@@ -123,6 +123,41 @@ describe("shared expense (HU-E9-06)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("goes to the list with the fund's warning when the fund went negative, once, with the expense saved", async () => {
+    const fund = accountDto({ id: "a-fund", name: "Fondo Hogar", type: "SHARED_FUND", ownerUserId: null });
+    const { api, requests } = fakeApi({
+      "GET /api/v1/spaces/{spaceId}/default-split": (r) => equal(amountOf(r)),
+      "POST /api/v1/spaces/{spaceId}/expenses": () =>
+        jsonResponse(
+          {
+            ...transactionDto({ id: "t-new" }),
+            warnings: [
+              {
+                code: "FundBalanceNegative",
+                accountId: "a-fund",
+                balance: { amount: "-50000000", currency: "COP" },
+              },
+            ],
+          },
+          201,
+        ),
+    });
+    form(api, context(MEMBERS, [fund]));
+    await enter("2000000");
+    await userEvent.click(screen.getByRole("button", { name: /Pagó/ }));
+    await userEvent.click(screen.getByRole("radio", { name: "Fondo Hogar" }));
+    await userEvent.click(screen.getByRole("button", { name: "Listo" }));
+    await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
+    await waitFor(() =>
+      expect(router.push).toHaveBeenCalledWith(
+        "/spaces/sp-household/transactions?notice=FundBalanceNegative&account=a-fund",
+      ),
+    );
+    // The warning is not an error: the expense was recorded (201) and the form shows no problem.
+    expect(requests.filter((r) => r.method === "POST")).toHaveLength(1);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("offers the guest Pedro as a payer and as a participant next to Ana and Luis, and no other member as payer", async () => {
     const members = [
       memberDto(),

@@ -95,6 +95,39 @@ const session = async (page: Page, tag: string) => {
   return { spaceId, sharedId: shared.id };
 };
 
+/**
+ * A shared fund with a long name that an expense has just taken below zero (HU-E9-06, P170): the address the form opens
+ * after that save, with its notice. The expense is recorded through the API, so the warning is the API's own.
+ */
+const FUND_NAME = "Fondo común de la familia Rodríguez Hernández del hogar";
+const warnedList = async (page: Page, sharedId: string) => {
+  const space = `/api/v1/spaces/${sharedId}`;
+  const fund = await post(page, `${space}/accounts`, {
+    name: FUND_NAME,
+    type: "SHARED_FUND",
+    openingBalance: { amount: "0", currency: "COP" },
+  });
+  const { items: groups } = await get(page, `${space}/categories`);
+  const categoryId: string = groups.flatMap((g: { categories: { id: string }[] }) => g.categories)[0].id;
+  const amount = { amount: "200000000", currency: "COP" };
+  const recorded = await post(
+    page,
+    `${space}/expenses`,
+    {
+      description: "Arriendo",
+      date: "2026-10-30",
+      occurredAt: "2026-10-30T17:00:00.000Z",
+      timeZone: "America/Bogota",
+      categoryId,
+      amount,
+      payments: [{ memberId: null, accountId: fund.id, amount }],
+    },
+    { "idempotency-key": crypto.randomUUID() },
+  );
+  expect(recorded.warnings.map((w: { code: string }) => w.code)).toEqual(["FundBalanceNegative"]);
+  return `/spaces/${sharedId}/transactions?notice=FundBalanceNegative&account=${fund.id}`;
+};
+
 const horizontalOverflow = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
@@ -279,6 +312,7 @@ for (const wideFont of [false, true]) {
         for (const path of ["/sign-in?expired=1", "/sign-up", "/sign-in"]) await check(path);
 
         const { spaceId, sharedId } = await session(page, `reflow-${viewport.width}`);
+        const warned = await warnedList(page, sharedId);
         for (const path of [
           `/spaces/${spaceId}`,
           `/spaces/${spaceId}/transactions`,
@@ -288,6 +322,7 @@ for (const wideFont of [false, true]) {
           `/spaces/${sharedId}`,
           `/spaces/${sharedId}/members`,
           `/spaces/${sharedId}/new`,
+          warned,
           "/spaces/new",
           "/settings",
         ])
@@ -322,6 +357,34 @@ for (const wideFont of [false, true]) {
     });
   });
 }
+
+test.describe("a shared expense saved with a warning (HU-E9-06, ruling P170)", () => {
+  test("names the fund and its balance, dismisses with a full target and names who paid", async ({
+    page,
+  }) => {
+    const { sharedId } = await session(page, "warned");
+    await page.goto(await warnedList(page, sharedId));
+    await settle(page);
+    const notice = page.getByRole("status");
+    await expect(notice).toContainText(es.ledger.saved.title);
+    await expect(notice).toContainText(FUND_NAME);
+    await expect(notice).toContainText("−$ 2.000.000");
+    await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
+    await expect(page.getByRole("listitem").filter({ hasText: "Arriendo" })).toContainText(
+      es.ledger.paidBy.replace("{name}", FUND_NAME),
+    );
+    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
+
+    const dismiss = page.getByRole("link", { name: es.ledger.saved.dismiss });
+    const box = (await dismiss.boundingBox())!;
+    expect(box.width).toBeGreaterThanOrEqual(TARGET);
+    expect(box.height).toBeGreaterThanOrEqual(TARGET);
+    expect(box.x + box.width, "the dismiss link stays on screen").toBeLessThanOrEqual(PHONE.width);
+    await dismiss.click();
+    await expect(page).toHaveURL(new RegExp(`/spaces/${sharedId}/transactions$`));
+    await expect(page.getByRole("status")).toHaveCount(0);
+  });
+});
 
 test.describe("bottom sheets sit above the bottom navigation", () => {
   test("the last control of every sheet is the topmost element at its center", async ({ page }) => {

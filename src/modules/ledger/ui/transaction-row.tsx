@@ -11,6 +11,8 @@ export interface RowContext {
   readonly viewerZone: string;
   readonly groups: CategoryGroupDto[];
   readonly accountNames: Record<string, string>;
+  /** Member id to display name; empty in a personal space, where nobody else pays (ruling P171). */
+  readonly memberNames: Record<string, string>;
 }
 
 /** HU-E9-03, the Activity artboard's row: no "use client" and no server import, so both sides render it. */
@@ -22,8 +24,9 @@ export function TransactionRow({
   readonly context: RowContext;
 }) {
   const t = useTranslations("ledger");
-  const { formats, viewerZone, groups, accountNames } = context;
+  const { formats, viewerZone, groups, accountNames, memberNames } = context;
   const name = (id: string | null) => (id ? (accountNames[id] ?? "") : "");
+  const member = (id: string | null) => (id ? (memberNames[id] ?? "") : "");
   const found = tx.categoryId ? findCategory(groups, tx.categoryId) : null;
   const meta: string[] = [];
   if (tx.occurredAt && tx.timeZone) {
@@ -32,11 +35,20 @@ export function TransactionRow({
   }
   if (tx.type === "TRANSFER")
     meta.push(t("transfer", { from: name(tx.sourceAccountId), to: name(tx.destinationAccountId) }));
+  else if (tx.type === "SETTLEMENT")
+    meta.push(t("settlement", { from: member(tx.payerMemberId), to: member(tx.receivingMemberId) }));
   else {
     const path = tx.categoryId ? categoryPath(groups, tx.categoryId) : null;
     if (path) meta.push(path);
-    const account = tx.type === "INCOME" ? tx.destinationAccountId : (tx.payments[0]?.accountId ?? null);
-    if (name(account)) meta.push(name(account));
+    const paid = tx.payments[0];
+    // Ruling P171: a shared expense names who paid (a member, or the fund that paid with no member).
+    const payer =
+      tx.type === "EXPENSE" && paid ? (paid.memberId ? member(paid.memberId) : name(paid.accountId)) : "";
+    if (payer) meta.push(t("paidBy", { name: payer }));
+    else {
+      const account = tx.type === "INCOME" ? tx.destinationAccountId : (paid?.accountId ?? null);
+      if (name(account)) meta.push(name(account));
+    }
   }
   const money = formatMoney(tx.amount, formats);
   const amount = tx.type === "EXPENSE" ? `${MINUS}${money}` : tx.type === "INCOME" ? `+${money}` : money;

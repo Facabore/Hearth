@@ -22,6 +22,7 @@ export async function HomeContainer({ spaceId }: { readonly spaceId: string }) {
     viewerZone: me!.timezone,
     groups: categories.data.items,
     accountNames: Object.fromEntries(accounts.data.items.map((a) => [a.id, a.name])),
+    memberNames: {},
   };
   return (
     <HomeSummary

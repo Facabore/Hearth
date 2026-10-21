@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { recordFieldOf, requestOf, type RecordDraft } from "./record-request";
+import { afterSaveUrl, recordFieldOf, requestOf, type RecordDraft } from "./record-request";
 
 const draft = (overrides: Partial<RecordDraft> = {}): RecordDraft => ({
   kind: "EXPENSE",
@@ -235,5 +235,33 @@ describe("requestOf for a shared expense (HU-E9-06, ruling P168)", () => {
     expect(recordFieldOf(p("ValidationFailed", [{ path: "payments.0.memberId", message: "x" }]))).toBe(
       "payer",
     );
+  });
+});
+
+describe("afterSaveUrl (HU-E9-06, ruling P170)", () => {
+  it("opens the list, with the fund's notice when the expense left it negative", () => {
+    expect(afterSaveUrl("sp-household", [])).toBe("/spaces/sp-household/transactions");
+    expect(afterSaveUrl("sp-household")).toBe("/spaces/sp-household/transactions");
+    expect(
+      afterSaveUrl("sp-household", [
+        {
+          code: "FundBalanceNegative",
+          accountId: "a-fund",
+          balance: { amount: "-50000000", currency: "COP" },
+        },
+      ]),
+    ).toBe("/spaces/sp-household/transactions?notice=FundBalanceNegative&account=a-fund");
+  });
+
+  it("never puts an amount in the address and encodes the account id", () => {
+    const url = afterSaveUrl("sp-household", [
+      {
+        code: "FundBalanceNegative",
+        accountId: "a/fund 1",
+        balance: { amount: "-50000000", currency: "COP" },
+      },
+    ]);
+    expect(url).toContain("account=a%2Ffund%201");
+    expect(url).not.toContain("50000000");
   });
 });

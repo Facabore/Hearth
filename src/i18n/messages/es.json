@@ -406,6 +406,12 @@
       "SETTLEMENT": "Pago entre miembros"
     },
     "transfer": "{from} → {to}",
+    "settlement": "{from} → {to}",
+    "paidBy": "pagó {name}",
+    "saved": {
+      "title": "Gasto guardado",
+      "dismiss": "Cerrar aviso"
+    },
     "when": {
       "title": "Fecha y hora",
       "day": "Día",
