@@ -487,6 +487,24 @@
       "ADMIN": "Invita, maneja el plan y edita lo de todos",
       "MEMBER": "Registra gastos y pagos, agrega invitados",
       "VIEWER": "Solo ve movimientos, saldos y tableros"
+    },
+    "invite": "Invitar",
+    "inviteSheet": {
+      "title": "Invitar a {space}",
+      "how": "Cómo invitar",
+      "link": "Enlace",
+      "email": "Correo de la persona",
+      "emailTab": "Correo",
+      "role": "Rol al unirse",
+      "ownerNote": "Nadie se une como Propietario: ese rol se cambia desde Miembros.",
+      "createLink": "Crear enlace",
+      "send": "Enviar invitación",
+      "emailHint": "Solo esa cuenta podrá aceptarla, una vez, durante 7 días.",
+      "linkReady": "Enlace listo para compartir",
+      "linkLabel": "Enlace de invitación",
+      "linkNote": "Rol {role} · vence el {date}. Sirve para varias personas hasta que venza o lo revoques.",
+      "sent": "Le enviamos la invitación a {email}.",
+      "notSent": "Hearth todavía no envía correos: copia el enlace y compártelo con {email}."
     }
   }
 }

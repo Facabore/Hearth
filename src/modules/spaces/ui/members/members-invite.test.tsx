@@ -1,0 +1,188 @@
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { axeViolations } from "../../../../../tests/support/ui/axe";
+import { guestDto, householdSpace, invitationDto, memberDto } from "../../../../../tests/support/ui/dto";
+import { fakeApi, jsonResponse, problemResponse } from "../../../../../tests/support/ui/fake-api";
+import { renderWithIntl } from "../../../../../tests/support/ui/render";
+import type { Api } from "@/shared/ui/api/client";
+import type { SpaceDto } from "@/shared/ui/api/dto";
+import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
+import { MembersScreen } from "./members-screen";
+
+const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
+beforeEach(() => vi.clearAllMocks());
+
+const MEMBERS = [
+  memberDto(),
+  memberDto({ id: "m-luis", userId: "u-luis", displayName: "Luis", role: "MEMBER" }),
+  guestDto(),
+];
+const created = (
+  body: Partial<{ kind: "LINK" | "EMAIL"; email: string | null; role: string }>,
+  emailSent = false,
+) =>
+  jsonResponse(
+    {
+      invitation: invitationDto({ id: "inv-9", ...body } as never),
+      url: "https://hearth.example/invitations/AbC",
+      emailSent,
+    },
+    201,
+  );
+const screenAs = (meUserId: string, role: SpaceDto["role"], api: Api) =>
+  renderWithIntl(
+    <MembersScreen
+      space={householdSpace({ role })}
+      members={MEMBERS}
+      meUserId={meUserId}
+      formats={BUILT_IN_FORMATS}
+      viewerZone="America/Bogota"
+      api={api}
+    />,
+  );
+const openInvite = async () => {
+  await userEvent.click(screen.getByRole("button", { name: "Invitar" }));
+  return screen.getByRole("dialog", { name: "Invitar a Household" });
+};
+
+describe("inviting people (HU-E9-05, ruling P162)", () => {
+  it("shows Invite to the OWNER and not to a MEMBER", () => {
+    const { unmount } = screenAs("u-ana", "OWNER", fakeApi({}).api);
+    expect(screen.getByRole("button", { name: "Invitar" })).toBeInTheDocument();
+    unmount();
+    screenAs("u-luis", "MEMBER", fakeApi({}).api);
+    expect(screen.queryByRole("button", { name: "Invitar" })).not.toBeInTheDocument();
+  });
+
+  it("creates a link as VIEWER only when asked, and shows its URL once with Copy", async () => {
+    const { api, requests } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/invitations": () => created({ kind: "LINK", role: "VIEWER" }),
+    });
+    screenAs("u-ana", "OWNER", api);
+    const sheet = await openInvite();
+    expect(requests).toHaveLength(0);
+    expect(within(sheet).getByRole("radio", { name: /Miembro/ })).toBeChecked();
+    expect(within(sheet).queryByRole("radio", { name: /Propietario/ })).not.toBeInTheDocument();
+    expect(
+      within(sheet).getByText("Nadie se une como Propietario: ese rol se cambia desde Miembros."),
+    ).toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole("radio", { name: /Lector/ }));
+    await userEvent.dblClick(within(sheet).getByRole("button", { name: "Crear enlace" }));
+    expect(await within(sheet).findByLabelText("Enlace de invitación")).toHaveValue(
+      "https://hearth.example/invitations/AbC",
+    );
+    expect(requests).toHaveLength(1);
+    expect(await requests[0]!.json()).toEqual({ kind: "LINK", role: "VIEWER" });
+    expect(
+      within(sheet).getByText(/Rol Lector · vence el 19\/10\/2026\. Sirve para varias personas/),
+    ).toBeInTheDocument();
+    expect(router.refresh).toHaveBeenCalled();
+    expect(await axeViolations(document.body)).toEqual([]);
+  });
+
+  it("sends one request while the first one is still in flight", async () => {
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const { api, requests } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/invitations": async () => {
+        await gate;
+        return created({ kind: "LINK", role: "MEMBER" });
+      },
+    });
+    screenAs("u-ana", "OWNER", api);
+    const sheet = await openInvite();
+    const button = within(sheet).getByRole("button", { name: "Crear enlace" });
+    await userEvent.dblClick(button);
+    expect(button).toBeDisabled();
+    release();
+    expect(await within(sheet).findByLabelText("Enlace de invitación")).toBeInTheDocument();
+    expect(requests).toHaveLength(1);
+  });
+
+  it("forgets the URL when the role changes, and never shows it again after the sheet closes (P155)", async () => {
+    const { api } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/invitations": () => created({ kind: "LINK", role: "MEMBER" }),
+    });
+    screenAs("u-ana", "OWNER", api);
+    let sheet = await openInvite();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Crear enlace" }));
+    expect(await within(sheet).findByLabelText("Enlace de invitación")).toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole("radio", { name: /Administrador/ }));
+    expect(within(sheet).queryByLabelText("Enlace de invitación")).not.toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Crear enlace" }));
+    expect(await within(sheet).findByLabelText("Enlace de invitación")).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    sheet = await openInvite();
+    expect(within(sheet).queryByLabelText("Enlace de invitación")).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("https://hearth.example/invitations/AbC")).not.toBeInTheDocument();
+  });
+
+  it("puts InvalidEmail under the email, then shows the URL when Hearth could not send the email", async () => {
+    let calls = 0;
+    const { api, requests } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/invitations": () =>
+        (calls += 1) === 1
+          ? problemResponse(422, "InvalidEmail")
+          : created({ kind: "EMAIL", email: "marta@example.com" }, false),
+    });
+    screenAs("u-ana", "OWNER", api);
+    const sheet = await openInvite();
+    await userEvent.click(within(sheet).getByRole("radio", { name: "Correo" }));
+    await userEvent.type(within(sheet).getByLabelText("Correo de la persona"), "marta@");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Enviar invitación" }));
+    await waitFor(() =>
+      expect(within(sheet).getByLabelText("Correo de la persona")).toHaveAccessibleDescription(
+        "Solo esa cuenta podrá aceptarla, una vez, durante 7 días. Escribe un correo válido.",
+      ),
+    );
+    await userEvent.type(within(sheet).getByLabelText("Correo de la persona"), "example.com");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Enviar invitación" }));
+    expect(
+      await within(sheet).findByText(
+        "Hearth todavía no envía correos: copia el enlace y compártelo con marta@example.com.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(sheet).getByLabelText("Enlace de invitación")).toHaveValue(
+      "https://hearth.example/invitations/AbC",
+    );
+    expect(await requests[1]!.json()).toEqual({
+      kind: "EMAIL",
+      email: "marta@example.com",
+      role: "MEMBER",
+    });
+  });
+
+  it("says the invitation was sent when the API sent the email", async () => {
+    const { api, requests } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/invitations": () =>
+        created({ kind: "EMAIL", email: "marta@example.com" }, true),
+    });
+    screenAs("u-ana", "OWNER", api);
+    const sheet = await openInvite();
+    await userEvent.click(within(sheet).getByRole("radio", { name: "Correo" }));
+    await userEvent.type(within(sheet).getByLabelText("Correo de la persona"), "marta@example.com");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Enviar invitación" }));
+    expect(
+      await within(sheet).findByText("Le enviamos la invitación a marta@example.com."),
+    ).toBeInTheDocument();
+    expect(await requests[0]!.json()).toEqual({
+      kind: "EMAIL",
+      email: "marta@example.com",
+      role: "MEMBER",
+    });
+  });
+
+  it("shows any other problem as a notice (AlreadyMember)", async () => {
+    const { api } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/invitations": () => problemResponse(409, "AlreadyMember"),
+    });
+    screenAs("u-ana", "OWNER", api);
+    const sheet = await openInvite();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Crear enlace" }));
+    expect(await within(sheet).findByRole("alert")).toBeInTheDocument();
+    expect(within(sheet).queryByLabelText("Enlace de invitación")).not.toBeInTheDocument();
+  });
+});

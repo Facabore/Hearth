@@ -6,6 +6,8 @@ import type { Api } from "@/shared/ui/api/client";
 import type { MemberDto, SpaceDto } from "@/shared/ui/api/dto";
 import { formatDate, type Formats } from "@/shared/ui/format/formatters";
 import { localDateIn } from "@/shared/kernel/time-zone";
+import { Button, Icon } from "@/shared/ui";
+import { InviteSheet } from "./invite-sheet";
 import { memberLabel } from "./member-label";
 import { MemberRow } from "./member-row";
 import { RoleSheet } from "./role-sheet";
@@ -29,6 +31,7 @@ export function MembersScreen({
 }) {
   const t = useTranslations("members");
   const roles = useTranslations("shell.role");
+  const [inviting, setInviting] = useState(false);
   const [editing, setEditing] = useState<(MemberDto & { role: SpaceRole }) | null>(null);
   const controls = controlsFor(space.role, space.kind);
   const policy =
@@ -43,6 +46,12 @@ export function MembersScreen({
         <p className="text-sm text-muted">
           {t("subtitle", { space: space.name, currency: space.currency, policy })}
         </p>
+        {controls.invite ? (
+          <Button className="mt-3 self-start" onClick={() => setInviting(true)}>
+            <Icon name="link" size={20} />
+            {t("invite")}
+          </Button>
+        ) : null}
       </header>
       {space.kind === "DIRECT" ? (
         <p className="rounded-2xl bg-track p-3 text-sm text-ink">{t("directNote", { space: space.name })}</p>
@@ -78,6 +87,16 @@ export function MembersScreen({
           })}
         </ul>
       </section>
+      {inviting ? (
+        <InviteSheet
+          open
+          onOpenChange={setInviting}
+          space={space}
+          formats={formats}
+          viewerZone={viewerZone}
+          api={api}
+        />
+      ) : null}
       {editing ? (
         <RoleSheet
           key={editing.id}
