@@ -446,7 +446,8 @@
       "save": {
         "EXPENSE": "Guardar gasto",
         "INCOME": "Guardar ingreso",
-        "TRANSFER": "Guardar transferencia"
+        "TRANSFER": "Guardar transferencia",
+        "DIRECT": "Guardar y dividir"
       },
       "amountUnreadable": "Escribe un monto como {example}.",
       "accountRequired": "Elige una cuenta."
@@ -490,6 +491,23 @@
       "paidBy": "Pagó {payer}",
       "paidFrom": "Pagó {payer} desde {account}",
       "split": "División"
+    },
+    "direct": {
+      "open": "Dividir con alguien",
+      "title": "Dividir con alguien",
+      "intro": "El gasto queda en un espacio solo para ustedes dos. Si ya existe, se usa el mismo; si no, se crea en {currency}, la moneda de tu espacio Personal.",
+      "people": "Personas con las que compartes un espacio",
+      "existing": "Ya tienen «{space}»: se usa ese",
+      "new": "Se crea un espacio para los dos",
+      "guestOf": "De «{space}»",
+      "guestsNote": "Los invitados de un espacio compartido no aparecen aquí: solo existen en su espacio.",
+      "newGuest": "O alguien que no usa Hearth",
+      "guestName": "Nombre del nuevo invitado",
+      "use": "Usar",
+      "continue": "Seguir con {name}",
+      "with": "Con {name} · mitad y mitad",
+      "remove": "Quitar la división con {name}",
+      "noKey": "Esta categoría es solo de tu espacio Personal. Elige una categoría predeterminada para dividir el gasto."
     }
   },
   "spaces": {

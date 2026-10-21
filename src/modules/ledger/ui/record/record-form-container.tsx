@@ -2,9 +2,10 @@ import { notFound } from "next/navigation";
 import { personalSpaceOf } from "@/modules/spaces/ui";
 import { ProblemNotice } from "@/shared/ui";
 import type { Api } from "@/shared/ui/api/client";
-import type { AccountDto } from "@/shared/ui/api/dto";
+import type { AccountDto, MemberDto, SpaceDto } from "@/shared/ui/api/dto";
 import { getMe, getSpaces, loaded, serverApi, type Loaded } from "@/shared/ui/api/server";
 import { serverNow } from "@/shared/ui/time/server-now";
+import { peopleOf, type Person } from "../direct/counterparts";
 import { sharedContextOf, type SharedExpenseContext } from "../split/shared-context";
 import { RecordForm } from "./record-form";
 import type { RecordKind } from "./record-request";
@@ -41,6 +42,28 @@ export const loadSharedContext = async (
   };
 };
 
+/**
+ * HU-E9-06 (P172): the people a personal expense can be split with, read from the members of every other space of the
+ * recorder. A space whose members cannot be read leaves its people out instead of failing the form.
+ */
+export const loadPeople = async (
+  api: Api,
+  input: { readonly meUserId: string; readonly spaces: readonly SpaceDto[] },
+): Promise<Person[]> => {
+  const others = input.spaces.filter((space) => space.kind !== "PERSONAL");
+  const reads = await Promise.all(
+    others.map(async (space) => ({
+      id: space.id,
+      read: await loaded(
+        api.GET("/api/v1/spaces/{spaceId}/members", { params: { path: { spaceId: space.id } } }),
+      ),
+    })),
+  );
+  const membersBySpace: Record<string, readonly MemberDto[]> = {};
+  for (const { id, read } of reads) if (read.ok) membersBySpace[id] = read.data.items;
+  return peopleOf({ meUserId: input.meUserId, spaces: others, membersBySpace });
+};
+
 /** Server: the space, its active accounts and categories, and the render's instant for the form's first clock. */
 export async function RecordFormContainer({
   spaceId,
@@ -71,6 +94,7 @@ export async function RecordFormContainer({
     if (!context.ok) return <ProblemNotice problem={context.problem} />;
     shared = context.data ?? notFound();
   }
+  const people = space.kind === "PERSONAL" ? await loadPeople(api, { meUserId: me!.id, spaces }) : undefined;
   return (
     <RecordForm
       space={space}
@@ -81,6 +105,7 @@ export async function RecordFormContainer({
       initialNow={serverNow().toISOString()}
       profileZone={me!.timezone}
       {...(shared ? { shared } : {})}
+      {...(people ? { people } : {})}
     />
   );
 }

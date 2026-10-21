@@ -128,6 +128,37 @@ const warnedList = async (page: Page, sharedId: string) => {
   return `/spaces/${sharedId}/transactions?notice=FundBalanceNegative&account=${fund.id}`;
 };
 
+/**
+ * A split with a guest whose name is as long as a real one (HU-E9-06, P172), recorded through the API: the person's
+ * "Dividir con alguien" sheet then lists a person with a direct space. Once per page.
+ */
+const GUEST_NAME = "Carlos Alberto Rodríguez Hernández de la Vega";
+const withDirectSpace = new WeakSet<Page>();
+const ensureDirectSpace = async (page: Page, spaceId: string) => {
+  if (withDirectSpace.has(page)) return;
+  withDirectSpace.add(page);
+  const space = `/api/v1/spaces/${spaceId}`;
+  const { items: groups } = await get(page, `${space}/categories`);
+  const categoryKey: string = groups.flatMap((g: { categories: { key: string | null }[] }) => g.categories)[0]
+    .key;
+  const { items: accounts } = await get(page, `${space}/accounts`);
+  await post(
+    page,
+    "/api/v1/direct-splits",
+    {
+      description: "Cena",
+      date: "2026-10-30",
+      occurredAt: "2026-10-30T17:00:00.000Z",
+      timeZone: "America/Bogota",
+      counterpart: { kind: "GUEST", displayName: GUEST_NAME },
+      categoryKey,
+      amount: { amount: "12000000", currency: "COP" },
+      accountId: accounts[0].id,
+    },
+    { "idempotency-key": crypto.randomUUID() },
+  );
+};
+
 const horizontalOverflow = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
@@ -279,6 +310,18 @@ const sheets: {
       await expect(page.locator("[data-ready='true']")).toBeAttached();
       await page.locator("#record-amount").fill("300000");
       await page.getByRole("button", { name: new RegExp(es.ledger.split.split) }).click();
+    },
+  },
+  {
+    name: "split with someone sheet",
+    path: "new",
+    open: async (page, spaceId) => {
+      await ensureDirectSpace(page, spaceId);
+      await page.reload();
+      await expect(page.locator("[data-ready='true']")).toBeAttached();
+      await page.getByRole("button", { name: es.ledger.direct.open }).click();
+      // Someone picked, so the footer's action is enabled and is the last control to reach.
+      await page.getByRole("radio", { name: new RegExp(GUEST_NAME) }).click();
     },
   },
   {

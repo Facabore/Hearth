@@ -446,7 +446,8 @@
       "save": {
         "EXPENSE": "Save expense",
         "INCOME": "Save income",
-        "TRANSFER": "Save transfer"
+        "TRANSFER": "Save transfer",
+        "DIRECT": "Save and split"
       },
       "amountUnreadable": "Type an amount like {example}.",
       "accountRequired": "Choose an account."
@@ -490,6 +491,23 @@
       "paidBy": "Paid by {payer}",
       "paidFrom": "Paid by {payer} from {account}",
       "split": "Split"
+    },
+    "direct": {
+      "open": "Split with someone",
+      "title": "Split with someone",
+      "intro": "The expense goes to a space for just the two of you. If it exists it is reused; if not, it is created in {currency}, your Personal space's currency.",
+      "people": "People you share a space with",
+      "existing": "You already have \"{space}\": it is reused",
+      "new": "A space for the two of you is created",
+      "guestOf": "From \"{space}\"",
+      "guestsNote": "A shared space's guests are not listed here: they exist only in their space.",
+      "newGuest": "Or someone who does not use Hearth",
+      "guestName": "New guest's name",
+      "use": "Use",
+      "continue": "Continue with {name}",
+      "with": "With {name} · half each",
+      "remove": "Remove the split with {name}",
+      "noKey": "This category belongs only to your Personal space. Choose a default category to split the expense."
     }
   },
   "spaces": {

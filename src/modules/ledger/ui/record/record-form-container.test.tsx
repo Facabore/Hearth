@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { accountDto, guestDto, memberDto } from "../../../../../tests/support/ui/dto";
+import {
+  accountDto,
+  guestDto,
+  householdSpace,
+  memberDto,
+  spaceDto,
+} from "../../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse } from "../../../../../tests/support/ui/fake-api";
 
 vi.mock("@/shared/ui/api/server", async () => ({
@@ -8,7 +14,7 @@ vi.mock("@/shared/ui/api/server", async () => ({
     return error ? { ok: false, problem: { code: "Failed" } } : { ok: true, data };
   },
 }));
-const { loadSharedContext } = await import("./record-form-container");
+const { loadPeople, loadSharedContext } = await import("./record-form-container");
 
 const input = {
   spaceId: "sp-household",
@@ -51,5 +57,40 @@ describe("loadSharedContext (HU-E9-06, ruling P168)", () => {
       "GET /api/v1/spaces/{spaceId}/accounts": () => jsonResponse({ items: [] }),
     });
     expect(await loadSharedContext(api, input)).toMatchObject({ ok: false });
+  });
+});
+
+describe("loadPeople (HU-E9-06, ruling P172)", () => {
+  const spaces = [
+    spaceDto(),
+    householdSpace(),
+    householdSpace({ id: "sp-ana-juan", name: "Ana & Juan", kind: "DIRECT" }),
+    householdSpace({ id: "sp-broken", name: "Broken" }),
+  ];
+  const juan = memberDto({ id: "m-juan", userId: "u-juan", displayName: "Juan", role: "MEMBER" });
+
+  it("reads the members of every space but the personal one and lists the other people", async () => {
+    const { api, requests } = fakeApi({
+      "GET /api/v1/spaces/{spaceId}/members": (_request, { spaceId }) =>
+        jsonResponse({ items: spaceId === "sp-household" ? [memberDto(), guestDto()] : [memberDto(), juan] }),
+    });
+    const people = await loadPeople(api, { meUserId: "u-ana", spaces });
+    expect(requests.map((r) => new URL(r.url).pathname).sort()).toEqual([
+      "/api/v1/spaces/sp-ana-juan/members",
+      "/api/v1/spaces/sp-broken/members",
+      "/api/v1/spaces/sp-household/members",
+    ]);
+    expect(people).toEqual([{ memberId: "m-juan", name: "Juan", isGuest: false, directSpace: "Ana & Juan" }]);
+  });
+
+  it("leaves out the people of a space that could not be read", async () => {
+    const { api } = fakeApi({
+      "GET /api/v1/spaces/{spaceId}/members": (_request, { spaceId }) =>
+        spaceId === "sp-ana-juan"
+          ? problemResponse(500, "InternalError")
+          : jsonResponse({ items: [memberDto(), juan] }),
+    });
+    const people = await loadPeople(api, { meUserId: "u-ana", spaces });
+    expect(people).toEqual([{ memberId: "m-juan", name: "Juan", isGuest: false, directSpace: null }]);
   });
 });
