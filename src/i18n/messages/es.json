@@ -444,6 +444,46 @@
       },
       "amountUnreadable": "Escribe un monto como {example}.",
       "accountRequired": "Elige una cuenta."
+    },
+    "split": {
+      "title": "Quién pagó y para quién",
+      "payer": "Pagó",
+      "from": "Desde",
+      "guestPays": "{name} es invitado: pagó fuera de la app, así que no hay cuenta que elegir.",
+      "fundPays": "Sale de la cuenta {fund}. Nadie queda debiendo por este gasto.",
+      "method": "Cómo se divide",
+      "methods": {
+        "BY_ALLOCATION": "Según el plan",
+        "EQUAL": "Iguales",
+        "PERCENT": "Porcentaje",
+        "EXACT": "Montos",
+        "SHARES": "Partes"
+      },
+      "note": {
+        "BY_ALLOCATION": "Preseleccionado: la categoría alimenta una línea asignada en el plan activo.",
+        "EQUAL": "Partes iguales entre las personas marcadas, en pesos enteros.",
+        "PERCENT": "Porcentajes que suman 100 %.",
+        "EXACT": "Montos exactos que suman el total del gasto.",
+        "SHARES": "Partes por persona, por ejemplo 2 y 1."
+      },
+      "forWhom": "Para quién",
+      "valueOf": "Valor de {name}",
+      "units": "partes",
+      "sum": "Suma {amount}: cuadra con el gasto",
+      "invalid": {
+        "percentShort": "Falta asignar {percent} %",
+        "percentOver": "Sobra {percent} %: deben sumar 100 %",
+        "exactShort": "Falta asignar {amount}",
+        "exactOver": "Sobran {amount}",
+        "unreadable": "Revisa el valor de {name}",
+        "noParticipants": "Elige al menos una persona",
+        "tooSmall": "El monto es muy pequeño para dividirlo así"
+      },
+      "done": "Listo",
+      "summary": "{method} · {shares}",
+      "paidBy": "Pagó {payer}",
+      "paidFrom": "Pagó {payer} desde {account}",
+      "split": "División"
     }
   },
   "spaces": {

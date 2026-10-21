@@ -444,6 +444,46 @@
       },
       "amountUnreadable": "Type an amount like {example}.",
       "accountRequired": "Choose an account."
+    },
+    "split": {
+      "title": "Who paid and for whom",
+      "payer": "Paid by",
+      "from": "From",
+      "guestPays": "{name} is a guest: they paid outside the app, so there is no account to choose.",
+      "fundPays": "It comes out of {fund}. Nobody owes anything for this expense.",
+      "method": "How it is split",
+      "methods": {
+        "BY_ALLOCATION": "As in the plan",
+        "EQUAL": "Equal",
+        "PERCENT": "Percent",
+        "EXACT": "Amounts",
+        "SHARES": "Shares"
+      },
+      "note": {
+        "BY_ALLOCATION": "Preselected: the category feeds an allocated line of the active plan.",
+        "EQUAL": "Equal parts among the people checked, in whole units.",
+        "PERCENT": "Percentages that add up to 100 %.",
+        "EXACT": "Exact amounts that add up to the expense's total.",
+        "SHARES": "Shares per person, for example 2 and 1."
+      },
+      "forWhom": "For whom",
+      "valueOf": "Value for {name}",
+      "units": "shares",
+      "sum": "Adds up to {amount}: matches the expense",
+      "invalid": {
+        "percentShort": "{percent} % is still unassigned",
+        "percentOver": "{percent} % too much: they must add up to 100 %",
+        "exactShort": "{amount} is still unassigned",
+        "exactOver": "{amount} too much",
+        "unreadable": "Check the value for {name}",
+        "noParticipants": "Choose at least one person",
+        "tooSmall": "The amount is too small to split this way"
+      },
+      "done": "Done",
+      "summary": "{method} · {shares}",
+      "paidBy": "Paid by {payer}",
+      "paidFrom": "Paid by {payer} from {account}",
+      "split": "Split"
     }
   },
   "spaces": {
