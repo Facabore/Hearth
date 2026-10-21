@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Icon, VisuallyHidden } from "@/shared/ui";
+import { Icon, ScreenHeader, VisuallyHidden } from "@/shared/ui";
 import type { AccountListDto } from "@/shared/ui/api/dto";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { ArchiveAccountButton, RestoreAccountButton } from "./account-actions";
@@ -21,23 +21,19 @@ export function AccountsScreen({
   const { active, archived } = sectionsOf(list.items);
   return (
     <div className="flex flex-col gap-6 py-4">
-      <header className="flex items-center gap-2">
-        <Link
-          href={`/spaces/${spaceId}`}
-          className="flex size-11 items-center justify-center rounded-xl text-ink"
-        >
-          <Icon name="back" />
-          <VisuallyHidden>{t("backHome")}</VisuallyHidden>
-        </Link>
-        <h1 className="flex-1 text-2xl font-semibold text-ink">{t("title")}</h1>
-        <Link
-          href={`/spaces/${spaceId}/accounts/new`}
-          className="flex size-11 items-center justify-center rounded-full bg-accent text-on-accent"
-        >
-          <Icon name="plus" />
-          <VisuallyHidden>{t("new")}</VisuallyHidden>
-        </Link>
-      </header>
+      <ScreenHeader
+        backHref={`/spaces/${spaceId}`}
+        title={t("title")}
+        action={
+          <Link
+            href={`/spaces/${spaceId}/accounts/new`}
+            className="flex size-11 flex-none items-center justify-center rounded-full bg-accent text-on-accent"
+          >
+            <Icon name="plus" />
+            <VisuallyHidden>{t("new")}</VisuallyHidden>
+          </Link>
+        }
+      />
       <section aria-label={t("totals")} className="flex flex-wrap gap-3">
         <dl className="contents">
           <div className="flex-auto rounded-2xl bg-surface p-4">

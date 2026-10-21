@@ -9,6 +9,7 @@ import type { MeDto } from "@/shared/ui/api/dto";
 import type { paths } from "@/shared/ui/api/schema";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { formatDate, formatNumber } from "@/shared/ui/format/formatters";
+import { ScreenHeader } from "@/shared/ui";
 import { AppearanceSection } from "./appearance-section";
 import { FormatPreview } from "./format-preview";
 import { PreferenceRow } from "./preference-row";
@@ -37,7 +38,16 @@ const rememberLocale = (locale: string) => {
 };
 
 /** HU-E9-13, the Settings artboard: no Save button; each choice is stored as it is made (ruling P137). */
-export function SettingsForm({ me, api: injected }: { readonly me: MeDto; readonly api?: Api }) {
+export function SettingsForm({
+  me,
+  backHref,
+  api: injected,
+}: {
+  readonly me: MeDto;
+  /** The home of the space the person came from. */
+  readonly backHref: string;
+  readonly api?: Api;
+}) {
   const t = useTranslations("settings");
   const router = useRouter();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
@@ -93,7 +103,7 @@ export function SettingsForm({ me, api: injected }: { readonly me: MeDto; readon
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold text-ink">{t("title")}</h1>
+      <ScreenHeader backHref={backHref} title={t("title")} />
       <FormatPreview formats={preferences.effective} />
       <section aria-labelledby="settings-formats" className="flex flex-col gap-5">
         <h2 id="settings-formats" className="text-lg font-semibold text-ink">

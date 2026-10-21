@@ -104,3 +104,14 @@ describe("new account form (HU-E9-03)", () => {
     expect(screen.getByRole("radio", { name: "Fondo compartido" })).toBeInTheDocument();
   });
 });
+
+describe("new account form: the way back (S1)", () => {
+  it("has a Volver link to the accounts of the space, before the title", () => {
+    renderWithIntl(<NewAccountForm space={spaceDto()} formats={BUILT_IN_FORMATS} api={fakeApi({}).api} />);
+    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/accounts",
+    );
+    expect(screen.getByRole("heading", { level: 1, name: "Nueva cuenta" })).toBeInTheDocument();
+  });
+});

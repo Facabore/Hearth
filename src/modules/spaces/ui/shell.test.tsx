@@ -94,7 +94,7 @@ describe("app shell (HU-E9-01)", () => {
     expect(within(sheet).getAllByRole("link").at(-1)).toHaveAccessibleName("Crear espacio compartido");
     expect(within(sheet).getByRole("link", { name: "Crear espacio compartido" })).toHaveAttribute(
       "href",
-      "/spaces/new",
+      "/spaces/new?from=sp-personal",
     );
   });
 

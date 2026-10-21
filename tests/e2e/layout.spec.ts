@@ -607,3 +607,81 @@ test.describe("a focused control is never hidden by the bottom navigation (WCAG 
     expect(parseFloat(padding)).toBeGreaterThanOrEqual(76);
   });
 });
+
+test.describe("every screen below the navigation has a way back (UX: no dead ends)", () => {
+  /** Where each screen's Volver link must land: the parent route, never the browser history. */
+  const screens = (ids: { spaceId: string; sharedId: string }) => [
+    { name: "accounts", at: `/spaces/${ids.spaceId}/accounts`, parent: `/spaces/${ids.spaceId}` },
+    {
+      name: "new account",
+      at: `/spaces/${ids.spaceId}/accounts/new`,
+      parent: `/spaces/${ids.spaceId}/accounts`,
+    },
+    { name: "record form", at: `/spaces/${ids.spaceId}/new`, parent: `/spaces/${ids.spaceId}` },
+    { name: "settings", at: "/settings", parent: `/spaces/${ids.spaceId}` },
+    {
+      name: "settings, from a shared space",
+      at: `/settings?from=${ids.sharedId}`,
+      parent: `/spaces/${ids.sharedId}`,
+    },
+    { name: "members", at: `/spaces/${ids.sharedId}/members`, parent: `/spaces/${ids.sharedId}` },
+    { name: "new shared space", at: "/spaces/new", parent: `/spaces/${ids.spaceId}` },
+    {
+      name: "new shared space, from a shared space",
+      at: `/spaces/new?from=${ids.sharedId}`,
+      parent: `/spaces/${ids.sharedId}`,
+    },
+  ];
+
+  const back = (page: Page) => page.getByRole("link", { name: es.common.back, exact: true });
+
+  test("a Volver link is visible, uncovered and at least 44 px, and it lands on the parent route", async ({
+    page,
+  }) => {
+    const ids = await session(page, "back");
+    for (const screen of screens(ids)) {
+      await page.goto(screen.at);
+      await settle(page);
+      const link = back(page);
+      await expect(link, `${screen.name}: Volver is visible`).toBeVisible();
+      const box = await link.boundingBox();
+      expect.soft(box!.width, `${screen.name}: width`).toBeGreaterThanOrEqual(TARGET);
+      expect.soft(box!.height, `${screen.name}: height`).toBeGreaterThanOrEqual(TARGET);
+      const covered = await link.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const top = window.paintedAt(r.left + r.width / 2, r.top + r.height / 2);
+        return top !== null && el.contains(top) ? "ok" : `covered by <${top?.tagName ?? "nothing"}>`;
+      });
+      expect.soft(covered, `${screen.name}: Volver is the topmost element at its center`).toBe("ok");
+      await link.click();
+      await page.waitForURL((url) => url.pathname === screen.parent, { timeout: 10_000 });
+      expect(new URL(page.url()).pathname, `${screen.name}: the parent route`).toBe(screen.parent);
+    }
+  });
+
+  test("Volver works on a deep link, with no history to go back to", async ({ page }) => {
+    const { sharedId } = await session(page, "deep");
+    await page.goto(`/spaces/${sharedId}/members`);
+    expect(await page.evaluate(() => window.history.length)).toBeLessThanOrEqual(2);
+    await back(page).click();
+    await page.waitForURL(`**/spaces/${sharedId}`);
+  });
+
+  test("the profile sheet's Ajustes and the space switcher's create link carry the space to return to", async ({
+    page,
+  }) => {
+    const { sharedId } = await session(page, "from");
+    await page.goto(`/spaces/${sharedId}`);
+    await settle(page);
+    await page.getByRole("button", { name: es.shell.profile.open.replace("{name}", "Ana") }).click();
+    await page.getByRole("link", { name: new RegExp(es.shell.profile.settings) }).click();
+    await page.waitForURL("**/settings?from=*");
+    await back(page).click();
+    await page.waitForURL(`**/spaces/${sharedId}`);
+    await page.getByRole("button", { name: es.shell.space.current.replace("{name}", "Casa") }).click();
+    await page.getByRole("link", { name: es.shell.space.create }).click();
+    await page.waitForURL("**/spaces/new?from=*");
+    await back(page).click();
+    await page.waitForURL(`**/spaces/${sharedId}`);
+  });
+});

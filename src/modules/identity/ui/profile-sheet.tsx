@@ -51,7 +51,7 @@ export function ProfileSheet({
       </button>
       <Sheet open={open} onOpenChange={setOpen} title={me.name}>
         <p className="mb-4 text-sm text-muted">{me.email}</p>
-        <Link href="/settings" className={row} onClick={() => setOpen(false)}>
+        <Link href={`/settings?from=${spaceId}`} className={row} onClick={() => setOpen(false)}>
           <Icon name="sliders" />
           <span className="flex flex-col">
             <span>{t("settings")}</span>

@@ -296,3 +296,11 @@ describe("record form (HU-E9-03)", () => {
     expect(requests).toHaveLength(0);
   });
 });
+
+describe("record form: the way back (S1)", () => {
+  it("has a Volver link to the space home, next to the title", () => {
+    form(fakeApi({}).api);
+    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute("href", "/spaces/sp-personal");
+    expect(screen.getByRole("heading", { level: 1, name: "Registrar movimiento" })).toBeInTheDocument();
+  });
+});

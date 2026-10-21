@@ -37,7 +37,10 @@ describe("profile sheet (HU-E9-01)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Perfil de Ana" }));
     const sheet = screen.getByRole("dialog", { name: "Ana" });
     expect(within(sheet).getByText("ana@example.com")).toBeInTheDocument();
-    expect(within(sheet).getByRole("link", { name: /Ajustes/ })).toHaveAttribute("href", "/settings");
+    expect(within(sheet).getByRole("link", { name: /Ajustes/ })).toHaveAttribute(
+      "href",
+      "/settings?from=sp-personal",
+    );
     expect(within(sheet).getByRole("link", { name: /Cuentas/ })).toHaveAttribute(
       "href",
       "/spaces/sp-personal/accounts",

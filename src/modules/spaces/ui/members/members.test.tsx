@@ -183,3 +183,10 @@ describe("members screen (HU-E9-05)", () => {
     expect(screen.getByRole("listitem", { name: "Pedro (guest)" })).toBeInTheDocument();
   });
 });
+
+describe("members screen: the way back (S1)", () => {
+  it("has a Volver link to the home of the space, whatever the role", () => {
+    screenAs("u-sofi", "VIEWER");
+    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute("href", "/spaces/sp-household");
+  });
+});

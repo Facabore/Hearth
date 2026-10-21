@@ -322,7 +322,6 @@
       "principal": "Loan {amount}",
       "months": "{months} months"
     },
-    "backHome": "Back to Home",
     "newTitle": "New account",
     "create": "Create account",
     "field": {

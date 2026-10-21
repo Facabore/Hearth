@@ -7,7 +7,7 @@ import { Tabs } from "radix-ui";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { AccountPicker } from "@/modules/accounts/ui";
 import { activeTree, CategoryPicker, categoryPath, type CategoryChoice } from "@/modules/categories/ui";
-import { Button, Icon, ProblemNotice, TextField } from "@/shared/ui";
+import { Button, Icon, ProblemNotice, ScreenHeader, TextField } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type {
   AccountDto,
@@ -248,185 +248,188 @@ export function RecordForm({
   };
 
   return (
-    <form
-      data-ready={client ? "true" : undefined}
-      onSubmit={(event) => void submit(event)}
-      noValidate
-      className="flex flex-col gap-5 py-4"
-    >
-      <Tabs.Root value={kind} onValueChange={(next) => setKind(next as RecordKind)}>
-        <Tabs.List aria-label={t("form.kind")} className="flex rounded-[14px] bg-track p-1">
-          {KINDS.map((k) => (
-            <Tabs.Trigger
-              key={k}
-              value={k}
-              className="min-h-11 flex-1 rounded-[10px] text-sm font-medium text-ink data-[state=active]:bg-surface data-[state=active]:shadow"
-            >
-              {t(`type.${k}`)}
-            </Tabs.Trigger>
-          ))}
-        </Tabs.List>
-        <Tabs.Content value={kind} className="mt-5 flex flex-col gap-5" tabIndex={-1}>
-          <AmountField
-            value={amount}
-            onChange={setAmount}
-            symbol={currencyOf(space.currency).symbol}
-            error={errorOf("amount")}
-          />
-          <TextField
-            id="record-description"
-            label={t("form.description")}
-            autoComplete="off"
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            error={errorOf("description")}
-          />
-          {kind === "TRANSFER"
-            ? null
-            : picker(
-                "category",
-                t("form.category"),
-                category ? categoryPath(live, category.subcategoryId ?? category.categoryId) : null,
-                "category",
-                t("form.chooseCategory"),
-              )}
-          {sharedExpense && shared && split ? (
-            <SharedFields
-              context={shared}
-              draft={split}
-              onChange={setSplit}
-              amount={positiveMinor}
-              currency={space.currency}
-              formats={formats}
-              title={sharedTitle}
-              spaceId={space.id}
-              categoryId={category ? (category.subcategoryId ?? category.categoryId) : null}
-              date={when.date}
-              api={api}
-              error={errorOf("split") ?? errorOf("payer")}
-            />
-          ) : (
-            picker(
-              "account",
-              t(
-                kind === "TRANSFER"
-                  ? "form.from"
-                  : kind === "INCOME"
-                    ? "form.receivingAccount"
-                    : "form.account",
-              ),
-              nameOf(accountId),
-              "account",
-              t("form.chooseAccount"),
-            )
-          )}
-          {canSplit ? (
-            direct ? (
-              <div className="flex items-center justify-between gap-2 rounded-xl bg-accent-soft px-4">
-                <span className="min-w-0 py-2 font-medium break-words text-accent">
-                  {t("direct.with", { name: direct.kind === "MEMBER" ? direct.name : direct.displayName })}
-                </span>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  aria-label={t("direct.remove", {
-                    name: direct.kind === "MEMBER" ? direct.name : direct.displayName,
-                  })}
-                  onClick={() => setDirect(null)}
-                >
-                  <Icon name="close" />
-                </Button>
-              </div>
-            ) : (
-              <Button
-                variant="secondary"
-                className="self-start"
-                onClick={() => {
-                  setDirectOpened(true);
-                  setDirectOpen(true);
-                }}
+    <div className="flex flex-col gap-5 py-4">
+      <ScreenHeader backHref={`/spaces/${space.id}`} title={t("form.title")} />
+      <form
+        data-ready={client ? "true" : undefined}
+        onSubmit={(event) => void submit(event)}
+        noValidate
+        className="flex flex-col gap-5"
+      >
+        <Tabs.Root value={kind} onValueChange={(next) => setKind(next as RecordKind)}>
+          <Tabs.List aria-label={t("form.kind")} className="flex rounded-[14px] bg-track p-1">
+            {KINDS.map((k) => (
+              <Tabs.Trigger
+                key={k}
+                value={k}
+                className="min-h-11 flex-1 rounded-[10px] text-sm font-medium text-ink data-[state=active]:bg-surface data-[state=active]:shadow"
               >
-                <Icon name="userPlus" size={20} />
-                {t("direct.open")}
-              </Button>
-            )
-          ) : null}
-          {kind === "TRANSFER"
-            ? picker("toAccount", t("form.to"), nameOf(toAccountId), "toAccount", t("form.chooseAccount"))
-            : null}
-          <div className="flex flex-col gap-1">
-            <button
-              type="button"
-              data-testid="when-chip"
-              aria-label={t("form.when", { label })}
-              aria-describedby={errorOf("when") ? "record-when-error" : undefined}
-              onClick={() => {
-                setSheetNow(nowIn(new Date(), zone));
-                setSheet("when");
-              }}
-              className="flex min-h-11 items-center gap-2 self-start rounded-full bg-accent-soft px-4 text-sm font-medium text-accent"
-            >
-              <Icon name="calendar" size={18} />
-              {label}
-            </button>
-            {errorOf("when") ? (
-              <p id="record-when-error" className="text-sm text-danger">
-                {errorOf("when")}
-              </p>
+                {t(`type.${k}`)}
+              </Tabs.Trigger>
+            ))}
+          </Tabs.List>
+          <Tabs.Content value={kind} className="mt-5 flex flex-col gap-5" tabIndex={-1}>
+            <AmountField
+              value={amount}
+              onChange={setAmount}
+              symbol={currencyOf(space.currency).symbol}
+              error={errorOf("amount")}
+            />
+            <TextField
+              id="record-description"
+              label={t("form.description")}
+              autoComplete="off"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              error={errorOf("description")}
+            />
+            {kind === "TRANSFER"
+              ? null
+              : picker(
+                  "category",
+                  t("form.category"),
+                  category ? categoryPath(live, category.subcategoryId ?? category.categoryId) : null,
+                  "category",
+                  t("form.chooseCategory"),
+                )}
+            {sharedExpense && shared && split ? (
+              <SharedFields
+                context={shared}
+                draft={split}
+                onChange={setSplit}
+                amount={positiveMinor}
+                currency={space.currency}
+                formats={formats}
+                title={sharedTitle}
+                spaceId={space.id}
+                categoryId={category ? (category.subcategoryId ?? category.categoryId) : null}
+                date={when.date}
+                api={api}
+                error={errorOf("split") ?? errorOf("payer")}
+              />
+            ) : (
+              picker(
+                "account",
+                t(
+                  kind === "TRANSFER"
+                    ? "form.from"
+                    : kind === "INCOME"
+                      ? "form.receivingAccount"
+                      : "form.account",
+                ),
+                nameOf(accountId),
+                "account",
+                t("form.chooseAccount"),
+              )
+            )}
+            {canSplit ? (
+              direct ? (
+                <div className="flex items-center justify-between gap-2 rounded-xl bg-accent-soft px-4">
+                  <span className="min-w-0 py-2 font-medium break-words text-accent">
+                    {t("direct.with", { name: direct.kind === "MEMBER" ? direct.name : direct.displayName })}
+                  </span>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label={t("direct.remove", {
+                      name: direct.kind === "MEMBER" ? direct.name : direct.displayName,
+                    })}
+                    onClick={() => setDirect(null)}
+                  >
+                    <Icon name="close" />
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="secondary"
+                  className="self-start"
+                  onClick={() => {
+                    setDirectOpened(true);
+                    setDirectOpen(true);
+                  }}
+                >
+                  <Icon name="userPlus" size={20} />
+                  {t("direct.open")}
+                </Button>
+              )
             ) : null}
-          </div>
-        </Tabs.Content>
-      </Tabs.Root>
-      {problem && where === "form" ? <ProblemNotice problem={problem} /> : null}
-      <Button type="submit" size="lg" disabled={pending || (!built.ok && built.field === "split")}>
-        {t(`form.save.${splitting ? "DIRECT" : kind}`)}
-      </Button>
-      {directOpened && people ? (
-        <SplitWithPersonSheet
-          open={directOpen}
-          onOpenChange={setDirectOpen}
-          people={people}
-          currency={space.currency}
-          onChoose={setDirect}
+            {kind === "TRANSFER"
+              ? picker("toAccount", t("form.to"), nameOf(toAccountId), "toAccount", t("form.chooseAccount"))
+              : null}
+            <div className="flex flex-col gap-1">
+              <button
+                type="button"
+                data-testid="when-chip"
+                aria-label={t("form.when", { label })}
+                aria-describedby={errorOf("when") ? "record-when-error" : undefined}
+                onClick={() => {
+                  setSheetNow(nowIn(new Date(), zone));
+                  setSheet("when");
+                }}
+                className="flex min-h-11 items-center gap-2 self-start rounded-full bg-accent-soft px-4 text-sm font-medium text-accent"
+              >
+                <Icon name="calendar" size={18} />
+                {label}
+              </button>
+              {errorOf("when") ? (
+                <p id="record-when-error" className="text-sm text-danger">
+                  {errorOf("when")}
+                </p>
+              ) : null}
+            </div>
+          </Tabs.Content>
+        </Tabs.Root>
+        {problem && where === "form" ? <ProblemNotice problem={problem} /> : null}
+        <Button type="submit" size="lg" disabled={pending || (!built.ok && built.field === "split")}>
+          {t(`form.save.${splitting ? "DIRECT" : kind}`)}
+        </Button>
+        {directOpened && people ? (
+          <SplitWithPersonSheet
+            open={directOpen}
+            onOpenChange={setDirectOpen}
+            people={people}
+            currency={space.currency}
+            onChoose={setDirect}
+          />
+        ) : null}
+        <CategoryPicker
+          open={sheet === "category"}
+          onOpenChange={(open) => setSheet(open ? "category" : null)}
+          groups={live}
+          value={category}
+          onChoose={setCategory}
         />
-      ) : null}
-      <CategoryPicker
-        open={sheet === "category"}
-        onOpenChange={(open) => setSheet(open ? "category" : null)}
-        groups={live}
-        value={category}
-        onChoose={setCategory}
-      />
-      <AccountPicker
-        open={sheet === "account"}
-        onOpenChange={(open) => setSheet(open ? "account" : null)}
-        accounts={accounts}
-        value={accountId}
-        onChoose={(id) => {
-          setAccountId(id);
-          if (id === toAccountId) setToAccountId(null);
-        }}
-        label={t(
-          kind === "TRANSFER" ? "form.from" : kind === "INCOME" ? "form.receivingAccount" : "form.account",
-        )}
-      />
-      <AccountPicker
-        open={sheet === "toAccount"}
-        onOpenChange={(open) => setSheet(open ? "toAccount" : null)}
-        accounts={accounts.filter((a) => a.id !== accountId)}
-        value={toAccountId}
-        onChoose={setToAccountId}
-        label={t("form.to")}
-      />
-      <DateTimeSheet
-        open={sheet === "when"}
-        onOpenChange={(open) => setSheet(open ? "when" : null)}
-        value={when}
-        now={sheetNow}
-        today={today}
-        formats={formats}
-        onApply={setChosenWhen}
-      />
-    </form>
+        <AccountPicker
+          open={sheet === "account"}
+          onOpenChange={(open) => setSheet(open ? "account" : null)}
+          accounts={accounts}
+          value={accountId}
+          onChoose={(id) => {
+            setAccountId(id);
+            if (id === toAccountId) setToAccountId(null);
+          }}
+          label={t(
+            kind === "TRANSFER" ? "form.from" : kind === "INCOME" ? "form.receivingAccount" : "form.account",
+          )}
+        />
+        <AccountPicker
+          open={sheet === "toAccount"}
+          onOpenChange={(open) => setSheet(open ? "toAccount" : null)}
+          accounts={accounts.filter((a) => a.id !== accountId)}
+          value={toAccountId}
+          onChoose={setToAccountId}
+          label={t("form.to")}
+        />
+        <DateTimeSheet
+          open={sheet === "when"}
+          onOpenChange={(open) => setSheet(open ? "when" : null)}
+          value={when}
+          now={sheetNow}
+          today={today}
+          formats={formats}
+          onApply={setChosenWhen}
+        />
+      </form>
+    </div>
   );
 }

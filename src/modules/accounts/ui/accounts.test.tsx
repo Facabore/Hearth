@@ -85,6 +85,12 @@ describe("accounts screen (HU-E9-03)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("has a Volver link to the home of the space, and the add link after the title (S1)", () => {
+    renderWithIntl(<AccountsScreen spaceId="sp-personal" list={list} formats={BUILT_IN_FORMATS} />);
+    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute("href", "/spaces/sp-personal");
+    expect(screen.queryByRole("link", { name: "Volver a Inicio" })).toBeNull();
+  });
+
   it("loads every account, archived ones included, from the API", async () => {
     const { api, requests } = fakeApi({ "GET /api/v1/spaces/{spaceId}/accounts": () => jsonResponse(list) });
     expect(await loadAccounts(api, "sp-personal")).toEqual({ ok: true, data: list });

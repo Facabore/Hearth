@@ -23,7 +23,9 @@ describe("settings: formats (HU-E9-13)", () => {
         return jsonResponse(me);
       },
     });
-    const { container } = renderWithIntl(<SettingsForm me={meDto()} api={api} />);
+    const { container } = renderWithIntl(
+      <SettingsForm backHref="/spaces/sp-personal" me={meDto()} api={api} />,
+    );
     const preview = screen.getByRole("status");
     expect(preview).toHaveTextContent("1.234.567,89");
     expect(preview).toHaveTextContent("16/10/2026");
@@ -43,7 +45,7 @@ describe("settings: formats (HU-E9-13)", () => {
   it("labels a field that follows the rule and offers Reset on a changed one", async () => {
     const twelve = patchedMe({ timeFormat: "H12" });
     const { api, requests } = fakeApi({ "PATCH /api/v1/me": () => jsonResponse(meDto()) });
-    renderWithIntl(<SettingsForm me={twelve} api={api} />);
+    renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={twelve} api={api} />);
     const date = screen.getByRole("group", { name: "Fecha" });
     expect(within(date).getByText("Predeterminado")).toBeInTheDocument();
     expect(within(date).getByRole("radio", { name: "16/10/2026" })).toBeChecked();
@@ -64,7 +66,7 @@ describe("settings: formats (HU-E9-13)", () => {
         locked: ["dateFormat" as const],
       },
     };
-    renderWithIntl(<SettingsForm me={locked} api={fakeApi({}).api} />);
+    renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={locked} api={fakeApi({}).api} />);
     const date = screen.getByRole("group", { name: "Fecha" });
     expect(within(date).getByText("Lo define tu instalación")).toBeInTheDocument();
     expect(within(date).getByRole("radio", { name: "16/10/2026" })).toBeChecked();
@@ -76,7 +78,7 @@ describe("settings: formats (HU-E9-13)", () => {
 
   it("rolls a refused choice back and shows its error next to the field", async () => {
     const { api } = fakeApi({ "PATCH /api/v1/me": () => problemResponse(409, "PreferenceLocked") });
-    renderWithIntl(<SettingsForm me={meDto()} api={api} />);
+    renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={meDto()} api={api} />);
     const numbers = screen.getByRole("group", { name: "Números" });
     await userEvent.click(within(numbers).getByRole("radio", { name: "1,234,567.89" }));
     await waitFor(() => expect(within(numbers).getByRole("radio", { name: "1.234.567,89" })).toBeChecked());
@@ -84,5 +86,13 @@ describe("settings: formats (HU-E9-13)", () => {
       within(numbers).getByText("La instalación fija este ajuste y no se puede cambiar."),
     ).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("1.234.567,89");
+  });
+});
+
+describe("settings: the way back (S1)", () => {
+  it("has a Volver link to the given space home, next to the title", () => {
+    renderWithIntl(<SettingsForm me={meDto()} backHref="/spaces/sp-household" api={fakeApi({}).api} />);
+    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute("href", "/spaces/sp-household");
+    expect(screen.getByRole("heading", { level: 1, name: "Ajustes" })).toBeInTheDocument();
   });
 });

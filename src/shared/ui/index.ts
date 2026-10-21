@@ -10,5 +10,6 @@ export { cn } from "./cn";
 export { ChoiceGroup, type ChoiceGroupProps } from "./molecules/choice-group";
 export { CopyField } from "./molecules/copy-field";
 export { ProblemNotice } from "./molecules/problem-notice";
+export { ScreenHeader } from "./molecules/screen-header";
 export { Sheet, type SheetProps } from "./molecules/sheet";
 export { paletteVars } from "./palette";

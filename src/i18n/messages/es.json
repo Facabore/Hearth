@@ -322,7 +322,6 @@
       "principal": "Crédito {amount}",
       "months": "{months} meses"
     },
-    "backHome": "Volver a Inicio",
     "newTitle": "Nueva cuenta",
     "create": "Crear cuenta",
     "field": {

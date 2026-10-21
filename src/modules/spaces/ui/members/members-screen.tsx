@@ -6,7 +6,7 @@ import type { Api } from "@/shared/ui/api/client";
 import type { InvitationDto, MemberDto, MoneyDto, SpaceDto } from "@/shared/ui/api/dto";
 import { formatDate, type Formats } from "@/shared/ui/format/formatters";
 import { localDateIn } from "@/shared/kernel/time-zone";
-import { Button, Icon } from "@/shared/ui";
+import { Button, Icon, ScreenHeader } from "@/shared/ui";
 import { AddGuestSheet } from "./add-guest-sheet";
 import { GuestSheet } from "./guest-sheet";
 import { InviteSheet } from "./invite-sheet";
@@ -52,11 +52,12 @@ export function MembersScreen({
 
   return (
     <div className="flex flex-col gap-4 pb-4">
-      <header className="flex flex-col">
-        <h1 className="text-2xl font-semibold text-ink">{t("title")}</h1>
-        <p className="text-sm text-muted">
-          {t("subtitle", { space: space.name, currency: space.currency, policy })}
-        </p>
+      <div className="flex flex-col">
+        <ScreenHeader
+          backHref={`/spaces/${space.id}`}
+          title={t("title")}
+          subtitle={t("subtitle", { space: space.name, currency: space.currency, policy })}
+        />
         {controls.invite || controls.addGuest ? (
           <div className="mt-3 flex flex-wrap gap-2">
             {controls.invite ? (
@@ -73,7 +74,7 @@ export function MembersScreen({
             ) : null}
           </div>
         ) : null}
-      </header>
+      </div>
       {space.kind === "DIRECT" ? (
         <p className="rounded-2xl bg-track p-3 text-sm text-ink">{t("directNote", { space: space.name })}</p>
       ) : !controls.invite && !controls.addGuest ? (

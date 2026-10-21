@@ -14,7 +14,7 @@ beforeEach(() => vi.clearAllMocks());
 describe("new shared space (HU-E9-05, ruling P161)", () => {
   it("creates Household in COP and opens its members screen", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/spaces": () => jsonResponse(householdSpace(), 201) });
-    const { container } = renderWithIntl(<NewSpaceForm api={api} />);
+    const { container } = renderWithIntl(<NewSpaceForm backHref="/spaces/sp-personal" api={api} />);
     expect(screen.getByRole("radio", { name: "COP · Peso colombiano" })).toBeChecked();
     await userEvent.type(screen.getByLabelText("Nombre"), " Household ");
     await userEvent.click(screen.getByRole("button", { name: "Crear espacio" }));
@@ -28,7 +28,7 @@ describe("new shared space (HU-E9-05, ruling P161)", () => {
     const { api, requests } = fakeApi({
       "POST /api/v1/spaces": () => problemResponse(422, "InvalidSpaceName"),
     });
-    renderWithIntl(<NewSpaceForm api={api} />);
+    renderWithIntl(<NewSpaceForm backHref="/spaces/sp-personal" api={api} />);
     await userEvent.click(screen.getByRole("radio", { name: "USD · Dólar estadounidense" }));
     await userEvent.click(screen.getByRole("button", { name: "Crear espacio" }));
     await waitFor(() =>
@@ -41,5 +41,15 @@ describe("new shared space (HU-E9-05, ruling P161)", () => {
     );
     expect(await requests[0]!.json()).toMatchObject({ currency: "USD" });
     expect(router.push).not.toHaveBeenCalled();
+  });
+});
+
+describe("new shared space: the way back (S1)", () => {
+  it("has a Volver link to the given space home, next to the title", () => {
+    renderWithIntl(<NewSpaceForm backHref="/spaces/sp-household" api={fakeApi({}).api} />);
+    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute("href", "/spaces/sp-household");
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Crear un espacio compartido" }),
+    ).toBeInTheDocument();
   });
 });

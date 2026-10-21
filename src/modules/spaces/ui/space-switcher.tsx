@@ -53,7 +53,7 @@ export function SpaceSwitcher({
           ))}
         </ul>
         <Link
-          href="/spaces/new"
+          href={`/spaces/new?from=${activeSpace.id}`}
           onClick={() => setOpen(false)}
           className="mt-2 flex min-h-14 items-center gap-3 rounded-xl px-2 font-medium text-accent"
         >

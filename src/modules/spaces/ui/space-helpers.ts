@@ -12,3 +12,10 @@ export const personalSpaceOf = (spaces: readonly SpaceDto[]): SpaceDto => {
 /** Ruling P125: the URL's space; the personal one without an id; null for a space the person does not belong to. */
 export const activeSpaceOf = (spaces: readonly SpaceDto[], spaceId: string | null): SpaceDto | null =>
   spaceId === null ? personalSpaceOf(spaces) : (spaces.find((space) => space.id === spaceId) ?? null);
+
+/**
+ * Where Volver goes from a screen the personal shell wraps (Settings, New space): the home of the space the person
+ * came from (`?from=`), or the personal one when there is none or it is not one of hers.
+ */
+export const spaceHomeHref = (spaces: readonly SpaceDto[], from: string | undefined): string =>
+  `/spaces/${(spaces.find((space) => space.id === from) ?? personalSpaceOf(spaces)).id}`;
