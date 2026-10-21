@@ -17,6 +17,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile --prod
 COPY drizzle ./drizzle
 COPY scripts/migrate.mjs ./scripts/migrate.mjs
+COPY scripts/reset-password.mjs ./scripts/reset-password.mjs
 USER node
 CMD ["node", "scripts/migrate.mjs"]
 

@@ -1,0 +1,109 @@
+import Link from "next/link";
+import { useTranslations } from "next-intl";
+import type { AccountDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
+import { formatDate, formatMoney } from "@/shared/ui/format/formatters";
+import { TransactionRow, type RowContext } from "../transaction-row";
+import { periodName } from "./period-name";
+
+/**
+ * HU-E9-01, the Home and Desktop artboards for M6a (the "no plan" variant, ruling P126): the period's spending and
+ * income, the accounts, and the latest transactions. From 1024 px the recent list sits on the right.
+ */
+export function HomeSummary({
+  spaceId,
+  policy,
+  page,
+  accounts,
+  context,
+}: {
+  readonly spaceId: string;
+  readonly policy: SpaceDto["periodPolicy"];
+  readonly page: TransactionPageDto;
+  readonly accounts: readonly AccountDto[];
+  readonly context: RowContext;
+}) {
+  const t = useTranslations("home");
+  const common = useTranslations("common");
+  const { formats } = context;
+  const name = periodName(page.period, policy);
+  const link = "flex min-h-11 items-center text-sm font-medium text-accent";
+  return (
+    <div className="grid gap-6 py-4 lg:grid-cols-2">
+      <h1 className="sr-only">{t("title")}</h1>
+      <div className="flex flex-col gap-6">
+        {accounts.length === 0 ? (
+          <section
+            aria-labelledby="home-first-account"
+            className="flex flex-col items-start gap-3 rounded-2xl bg-surface p-5"
+          >
+            <h2 id="home-first-account" className="text-lg font-semibold text-ink">
+              {t("firstAccount.title")}
+            </h2>
+            <p className="text-sm text-muted">{t("firstAccount.body")}</p>
+            <Link
+              href={`/spaces/${spaceId}/accounts`}
+              className="flex min-h-11 items-center justify-center rounded-full bg-accent px-5 text-sm font-semibold text-on-accent"
+            >
+              {t("firstAccount.action")}
+            </Link>
+          </section>
+        ) : (
+          <>
+            <section aria-label={t("summary")} className="rounded-2xl bg-surface p-5">
+              <p className="text-sm text-muted">
+                {name.kind === "month"
+                  ? t("spentIn", { month: common(`month.${name.month as 1}`) })
+                  : t("spentBetween", {
+                      start: formatDate(name.start, formats),
+                      end: formatDate(name.end, formats),
+                    })}
+              </p>
+              <p className="text-[40px] leading-tight font-semibold text-ink">
+                {formatMoney(page.totals.expenses, formats)}
+              </p>
+              <p className="text-sm text-muted">
+                {t("income", { amount: formatMoney(page.totals.income, formats) })}
+              </p>
+            </section>
+            <section aria-labelledby="home-accounts" className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <h2 id="home-accounts" className="text-lg font-semibold text-ink">
+                  {t("accounts")}
+                </h2>
+                <Link href={`/spaces/${spaceId}/accounts`} aria-label={t("allAccounts")} className={link}>
+                  {t("allAccountsShort")}
+                </Link>
+              </div>
+              <ul className="flex gap-3 overflow-x-auto pb-1">
+                {accounts.map((account) => (
+                  <li
+                    key={account.id}
+                    className="flex w-[156px] shrink-0 flex-col rounded-2xl bg-surface p-4"
+                  >
+                    <span className="truncate text-sm text-muted">{account.name}</span>
+                    <span className="font-semibold text-ink">{formatMoney(account.balance, formats)}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </>
+        )}
+      </div>
+      <section aria-labelledby="home-recent" className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <h2 id="home-recent" className="text-lg font-semibold text-ink">
+            {t("recent")}
+          </h2>
+          <Link href={`/spaces/${spaceId}/transactions`} aria-label={t("allTransactions")} className={link}>
+            {t("allTransactionsShort")}
+          </Link>
+        </div>
+        <ol className="divide-y divide-line rounded-2xl bg-surface px-4">
+          {page.items.map((tx) => (
+            <TransactionRow key={tx.id} tx={tx} context={context} />
+          ))}
+        </ol>
+      </section>
+    </div>
+  );
+}

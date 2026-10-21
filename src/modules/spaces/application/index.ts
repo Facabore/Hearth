@@ -76,6 +76,7 @@ export type { ClaimOutcome, GuestClaimRepository } from "./space-member-reposito
 export type { ClaimsDeps } from "./invitation-ports";
 export { createCreateGuestClaim, type CreateGuestClaim } from "./create-guest-claim";
 export { createClaimGuestPlace, type ClaimGuestPlace } from "./claim-guest-place";
+export { createInvitationAdmitsSignUp, type InvitationAdmitsSignUp } from "./invitation-admits-sign-up";
 export type { ClaimLinkRepository } from "./invitation-repository";
 export { createRemoveGuestMember, type RemoveGuestDeps, type RemoveGuestMember } from "./remove-guest-member";
 export type { DirectSpaceRepository, MemberInSpace } from "./direct-space-repository";

@@ -35,6 +35,8 @@ services:
       BETTER_AUTH_URL: https://${HEARTH_DOMAIN}
       APP_TIMEZONE: ${APP_TIMEZONE:-America/Bogota}
       RECURRENCE_JOB_INTERVAL_SECONDS: ${RECURRENCE_JOB_INTERVAL_SECONDS:-300}
+      # Ruling P143: "closed" makes sign-up invite-only (docs/operations/deploy.md, Closing sign-up).
+      HEARTH_SIGN_UP: ${HEARTH_SIGN_UP:-open}
     depends_on:
       migrate: { condition: service_completed_successfully }
     networks: [internal]

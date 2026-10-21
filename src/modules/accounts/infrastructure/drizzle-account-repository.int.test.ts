@@ -61,6 +61,14 @@ describe("DrizzleAccountRepository", () => {
     });
   });
 
+  it("saves a null archive time over an archived row (restore)", async () => {
+    const space = await personalSpaceFixture(db, pool);
+    const bank = account(space);
+    await repo.add({ ...bank, archivedAt: new Date("2026-10-20T00:00:00Z") });
+    await repo.save({ ...bank, archivedAt: null });
+    expect(await repo.findById(bank.id)).toEqual({ ...bank, archivedAt: null });
+  });
+
   it("enforces unique names per space ignoring case, but not across spaces", async () => {
     const ana = await personalSpaceFixture(db, pool);
     const juan = await personalSpaceFixture(db, pool, "Juan");
@@ -83,7 +91,7 @@ describe("account attributes (HU-E2-05)", () => {
       type: "WALLET",
       institution: "Nequi",
       lastFour: "4821",
-      color: "pine",
+      color: "PINE",
       icon: "wallet",
       includeInAvailable: false,
       includeInNetWorth: true,
@@ -94,7 +102,7 @@ describe("account attributes (HU-E2-05)", () => {
       ...wallet,
       institution: null,
       lastFour: "1234",
-      color: "ember",
+      color: "EMBER",
       icon: null,
       includeInAvailable: null,
       includeInNetWorth: false,
@@ -102,7 +110,7 @@ describe("account attributes (HU-E2-05)", () => {
     expect(await repo.findById(wallet.id)).toMatchObject({
       institution: null,
       lastFour: "1234",
-      color: "ember",
+      color: "EMBER",
       icon: null,
       includeInAvailable: null,
       includeInNetWorth: false,

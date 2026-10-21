@@ -3,6 +3,7 @@ import { POST as acceptClaim } from "@/app/api/v1/claims/[token]/accept/route";
 import { POST as directSplit } from "@/app/api/v1/direct-splits/route";
 import { POST as acceptInvitation } from "@/app/api/v1/invitations/[token]/accept/route";
 import { POST as archiveAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/archive/route";
+import { POST as restoreAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/restore/route";
 import {
   GET as getAccount,
   PATCH as updateAccount,
@@ -230,6 +231,7 @@ describe("an archived space only reads (HU-E1-09, Review Focus 4)", () => {
         () => ana(updateAccount, "PATCH", `/accounts/${fund}`, { ...onFund, body: { name: "Pot" } }),
       ],
       ["archive an account", () => ana(archiveAccount, "POST", `/accounts/${fund}/archive`, onFund)],
+      ["restore an account", () => ana(restoreAccount, "POST", `/accounts/${fund}/restore`, onFund)],
       [
         "record an expense",
         () =>

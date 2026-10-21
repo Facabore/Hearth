@@ -8,12 +8,20 @@ const valid = {
 };
 
 describe("loadEnv", () => {
+  it("accepts an ISO instant for the e2e clock and refuses anything else", () => {
+    expect(loadEnv({ ...valid, HEARTH_E2E_FIXED_NOW: "2026-11-01T04:30:00Z" }).HEARTH_E2E_FIXED_NOW).toBe(
+      "2026-11-01T04:30:00Z",
+    );
+    expect(() => loadEnv({ ...valid, HEARTH_E2E_FIXED_NOW: "tomorrow" })).toThrow(/HEARTH_E2E_FIXED_NOW/);
+  });
+
   it("parses a valid environment with defaults", () => {
     expect(loadEnv(valid)).toEqual({
       ...valid,
       APP_TIMEZONE: "America/Bogota",
       LOG_LEVEL: "info",
       RECURRENCE_JOB_INTERVAL_SECONDS: 300,
+      HEARTH_SIGN_UP: "open",
     });
   });
 
@@ -59,5 +67,12 @@ describe("loadEnv", () => {
       expect(() => loadEnv({ ...valid, RECURRENCE_JOB_INTERVAL_SECONDS: blank })).toThrow(
         /RECURRENCE_JOB_INTERVAL_SECONDS/,
       );
+  });
+
+  it("reads HEARTH_SIGN_UP as open or closed, open by default (ruling P143)", () => {
+    expect(loadEnv({ ...valid, HEARTH_SIGN_UP: "closed" }).HEARTH_SIGN_UP).toBe("closed");
+    expect(loadEnv({ ...valid, HEARTH_SIGN_UP: "open" }).HEARTH_SIGN_UP).toBe("open");
+    expect(() => loadEnv({ ...valid, HEARTH_SIGN_UP: "maybe" })).toThrow(/HEARTH_SIGN_UP/);
+    expect(() => loadEnv({ ...valid, HEARTH_SIGN_UP: "" })).toThrow(/HEARTH_SIGN_UP/);
   });
 });

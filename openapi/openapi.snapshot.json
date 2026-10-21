@@ -76,10 +76,12 @@
                       "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                     },
                     "locale": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "The person's own language."
                     },
                     "timezone": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "The person's own IANA time zone."
                     },
                     "preferences": {
                       "type": "object",
@@ -228,13 +230,27 @@
                                 "MONDAY",
                                 "SUNDAY"
                               ]
+                            },
+                            "timezone": {
+                              "type": "string",
+                              "description": "The installation's IANA time zone (APP_TIMEZONE), what Reset stores; not the person's own."
+                            },
+                            "locale": {
+                              "type": "string",
+                              "enum": [
+                                "es",
+                                "en"
+                              ],
+                              "description": "The installation's language, what Reset stores; es until HU-E8-18 stores one."
                             }
                           },
                           "required": [
                             "numberFormat",
                             "timeFormat",
                             "dateFormat",
-                            "weekStart"
+                            "weekStart",
+                            "timezone",
+                            "locale"
                           ],
                           "additionalProperties": false
                         },
@@ -399,10 +415,12 @@
                       "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                     },
                     "locale": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "The person's own language."
                     },
                     "timezone": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "The person's own IANA time zone."
                     },
                     "preferences": {
                       "type": "object",
@@ -551,13 +569,27 @@
                                 "MONDAY",
                                 "SUNDAY"
                               ]
+                            },
+                            "timezone": {
+                              "type": "string",
+                              "description": "The installation's IANA time zone (APP_TIMEZONE), what Reset stores; not the person's own."
+                            },
+                            "locale": {
+                              "type": "string",
+                              "enum": [
+                                "es",
+                                "en"
+                              ],
+                              "description": "The installation's language, what Reset stores; es until HU-E8-18 stores one."
                             }
                           },
                           "required": [
                             "numberFormat",
                             "timeFormat",
                             "dateFormat",
-                            "weekStart"
+                            "weekStart",
+                            "timezone",
+                            "locale"
                           ],
                           "additionalProperties": false
                         },
@@ -632,6 +664,35 @@
       }
     },
     "/api/v1/auth/sign-up": {
+      "get": {
+        "operationId": "getSignUpMode",
+        "summary": "Tell whether sign-up is open or closed to invited visitors",
+        "responses": {
+          "200": {
+            "description": "The installation's sign-up mode",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "signUp": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "closed"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "signUp"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "operationId": "signUp",
         "summary": "Create an account and start a session",
@@ -658,6 +719,17 @@
                   "timezone": {
                     "type": "string",
                     "maxLength": 64
+                  },
+                  "locale": {
+                    "type": "string",
+                    "enum": [
+                      "es",
+                      "en"
+                    ]
+                  },
+                  "invitationToken": {
+                    "type": "string",
+                    "maxLength": 512
                   }
                 },
                 "required": [
@@ -692,10 +764,12 @@
                           "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                         },
                         "locale": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "The person's own language."
                         },
                         "timezone": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "The person's own IANA time zone."
                         }
                       },
                       "required": [
@@ -712,6 +786,16 @@
                     "user"
                   ],
                   "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "SignUpClosed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -800,10 +884,12 @@
                           "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                         },
                         "locale": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "The person's own language."
                         },
                         "timezone": {
-                          "type": "string"
+                          "type": "string",
+                          "description": "The person's own IANA time zone."
                         }
                       },
                       "required": [
@@ -3629,37 +3715,43 @@
                   "color": {
                     "type": "string",
                     "enum": [
-                      "pine",
-                      "ember",
-                      "sand",
-                      "sky",
-                      "plum",
-                      "moss",
-                      "clay",
-                      "slate",
-                      "gold",
-                      "rose"
+                      "PINE",
+                      "SAGE",
+                      "OLIVE",
+                      "SAND",
+                      "MUSTARD",
+                      "AMBER",
+                      "EMBER",
+                      "CORAL",
+                      "ROSE",
+                      "PLUM",
+                      "LAVENDER",
+                      "INDIGO",
+                      "SKY",
+                      "TEAL",
+                      "STEEL",
+                      "GRAPHITE"
                     ]
                   },
                   "icon": {
                     "type": "string",
                     "enum": [
-                      "banknote",
-                      "landmark",
+                      "cash",
+                      "bank",
                       "wallet",
-                      "credit-card",
-                      "piggy-bank",
-                      "trending-up",
-                      "hand-coins",
-                      "circle-ellipsis",
+                      "card",
+                      "piggy",
+                      "trend",
+                      "coins",
+                      "dots",
                       "users",
                       "briefcase",
                       "car",
-                      "gem",
+                      "star",
                       "gift",
-                      "house",
+                      "home",
                       "plane",
-                      "smartphone"
+                      "phone"
                     ]
                   },
                   "includeInAvailable": {
@@ -4017,16 +4109,22 @@
                       {
                         "type": "string",
                         "enum": [
-                          "pine",
-                          "ember",
-                          "sand",
-                          "sky",
-                          "plum",
-                          "moss",
-                          "clay",
-                          "slate",
-                          "gold",
-                          "rose"
+                          "PINE",
+                          "SAGE",
+                          "OLIVE",
+                          "SAND",
+                          "MUSTARD",
+                          "AMBER",
+                          "EMBER",
+                          "CORAL",
+                          "ROSE",
+                          "PLUM",
+                          "LAVENDER",
+                          "INDIGO",
+                          "SKY",
+                          "TEAL",
+                          "STEEL",
+                          "GRAPHITE"
                         ]
                       },
                       {
@@ -4039,22 +4137,22 @@
                       {
                         "type": "string",
                         "enum": [
-                          "banknote",
-                          "landmark",
+                          "cash",
+                          "bank",
                           "wallet",
-                          "credit-card",
-                          "piggy-bank",
-                          "trending-up",
-                          "hand-coins",
-                          "circle-ellipsis",
+                          "card",
+                          "piggy",
+                          "trend",
+                          "coins",
+                          "dots",
                           "users",
                           "briefcase",
                           "car",
-                          "gem",
+                          "star",
                           "gift",
-                          "house",
+                          "home",
                           "plane",
-                          "smartphone"
+                          "phone"
                         ]
                       },
                       {
@@ -4285,6 +4383,90 @@
         "responses": {
           "200": {
             "description": "The archived account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "InsufficientRole",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound, AccountNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/accounts/{accountId}/restore": {
+      "post": {
+        "operationId": "restoreAccount",
+        "summary": "Restore an archived account; it takes new movements again",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "accountId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The restored account",
             "content": {
               "application/json": {
                 "schema": {
@@ -11849,16 +12031,22 @@
               {
                 "type": "string",
                 "enum": [
-                  "pine",
-                  "ember",
-                  "sand",
-                  "sky",
-                  "plum",
-                  "moss",
-                  "clay",
-                  "slate",
-                  "gold",
-                  "rose"
+                  "PINE",
+                  "SAGE",
+                  "OLIVE",
+                  "SAND",
+                  "MUSTARD",
+                  "AMBER",
+                  "EMBER",
+                  "CORAL",
+                  "ROSE",
+                  "PLUM",
+                  "LAVENDER",
+                  "INDIGO",
+                  "SKY",
+                  "TEAL",
+                  "STEEL",
+                  "GRAPHITE"
                 ]
               },
               {
@@ -11869,22 +12057,22 @@
           "icon": {
             "type": "string",
             "enum": [
-              "banknote",
-              "landmark",
+              "cash",
+              "bank",
               "wallet",
-              "credit-card",
-              "piggy-bank",
-              "trending-up",
-              "hand-coins",
-              "circle-ellipsis",
+              "card",
+              "piggy",
+              "trend",
+              "coins",
+              "dots",
               "users",
               "briefcase",
               "car",
-              "gem",
+              "star",
               "gift",
-              "house",
+              "home",
               "plane",
-              "smartphone"
+              "phone"
             ]
           },
           "includeInAvailable": {

@@ -8,12 +8,16 @@ import {
   type Container,
   type ContainerOptions,
 } from "@/composition/container";
+import type { Env } from "@/shared/infrastructure/env";
 
 // Generous by default: suites register many users from one address. Throttling tests pass their own limits.
 const RELAXED_LIMITS = { signInPerEmail: 1000, signInPerIp: 1000, signUpPerIp: 1000 };
 
-/** Builds the real container against the test database and installs it for the route handlers. */
-export const startTestApp = (options: ContainerOptions = {}): Container => {
+/**
+ * Builds the real container against the test database and installs it for the route handlers. `env` overrides
+ * the test environment, e.g. `{ HEARTH_SIGN_UP: "closed" }` (ruling P143).
+ */
+export const startTestApp = (options: ContainerOptions = {}, env: Partial<Env> = {}): Container => {
   const container = buildContainer(
     {
       DATABASE_URL: inject("databaseUrl"),
@@ -23,6 +27,8 @@ export const startTestApp = (options: ContainerOptions = {}): Container => {
       LOG_LEVEL: "error",
       // Only fills the required Env field: buildContainer never starts the job (register() does).
       RECURRENCE_JOB_INTERVAL_SECONDS: 0,
+      HEARTH_SIGN_UP: "open",
+      ...env,
     },
     { authLimits: RELAXED_LIMITS, ...options },
   );

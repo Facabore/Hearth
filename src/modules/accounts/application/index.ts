@@ -22,6 +22,7 @@ export { createCreateAccount, type CreateAccount, type CreateAccountInput } from
 export type { AccountsDeps } from "./deps";
 
 export { createArchiveAccount, type ArchiveAccount } from "./archive-account";
+export { createRestoreAccount, type RestoreAccount } from "./restore-account";
 export {
   createGetAccount,
   createListAccounts,

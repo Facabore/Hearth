@@ -163,12 +163,12 @@ Feature: Computed account balance
 Feature: Account types and common attributes
 
   Scenario: Create a wallet with its common attributes
-    When "Ana" creates the account "Nequi" of type "WALLET" with opening balance 300,000 COP, institution "Nequi", last four digits "4821", color "pine" and icon "wallet"
+    When "Ana" creates the account "Nequi" of type "WALLET" with opening balance 300,000 COP, institution "Nequi", last four digits "4821", color "PINE" and icon "wallet"
     Then the account is returned with those attributes in her personal space
 
   Scenario: Attributes left out get the type defaults
     When "Ana" creates the account "Efectivo" of type "CASH" without institution, last four digits, color or icon
-    Then its icon is "banknote"
+    Then its icon is "cash"
     And its institution, last four digits and color are empty
 
   Scenario Outline: The new types are personal account types
@@ -188,8 +188,8 @@ Feature: Account types and common attributes
     And no card number is stored
 
   Scenario: Common attributes can change, the type cannot
-    When "Ana" changes the color of "Nequi" to "ember"
-    Then "Nequi" is returned with the color "ember"
+    When "Ana" changes the color of "Nequi" to "EMBER"
+    Then "Nequi" is returned with the color "EMBER"
     When "Ana" changes the type of "Nequi" from "WALLET" to "BANK"
     Then the result is the error "AccountTypeImmutable"
 ```
@@ -200,8 +200,8 @@ Feature: Account types and common attributes
 - Common optional attributes on every type, SHARED_FUND included:
   - `institution`: 1–60 characters, stored as user data. The UI may suggest a Colombian catalog (Bancolombia, Davivienda, BBVA, Banco de Bogotá, Nu, Nequi, Daviplata, Lulo, other).
   - `lastFour`: exactly 4 digits. A full card or account number and the CVV are never accepted or stored.
-  - `color`: one palette key: `pine`, `ember`, `sand`, `sky`, `plum`, `moss`, `clay`, `slate`, `gold`, `rose`.
-  - `icon`: an allow-listed Lucide name. Defaults by type: CASH `banknote`, BANK `landmark`, WALLET `wallet`, CREDIT_CARD `credit-card`, SAVINGS `piggy-bank`, INVESTMENT `trending-up`, LOAN `hand-coins`, OTHER `circle-ellipsis`, SHARED_FUND `users`.
+  - `color`: one key of the app's palette (`PINE`, `SAGE`, `OLIVE`, `SAND`, `MUSTARD`, `AMBER`, `EMBER`, `CORAL`, `ROSE`, `PLUM`, `LAVENDER`, `INDIGO`, `SKY`, `TEAL`, `STEEL`, `GRAPHITE`), the same sixteen as categories (D22; #125, ruling P122 of the M6a plan).
+  - `icon`: an allow-listed Hearth symbol name: `cash`, `bank`, `wallet`, `card`, `piggy`, `trend`, `coins`, `dots`, `users`, `briefcase`, `car`, `star`, `gift`, `home`, `plane`, `phone`. Defaults by type: CASH `cash`, BANK `bank`, WALLET `wallet`, CREDIT_CARD `card`, SAVINGS `piggy`, INVESTMENT `trend`, LOAN `coins`, OTHER `dots`, SHARED_FUND `users`. Migration `0019_account_style_vocabulary` mapped the earlier lower-case keys and Lucide names.
 - The Zod contract rejects pattern and enum failures (`ValidationFailed`); `PATCH` accepts `null` to clear an attribute. Endpoints are unchanged (`POST /api/v1/spaces/{spaceId}/accounts`, `PATCH .../accounts/{accountId}`); the account DTO gains the fields.
 - An INVESTMENT account's balance comes from the ledger only: contributions are transfers into it. Manual market values are HU-E8-17; market data and brokerage sync stay out of scope.
 - Migration: nullable columns; existing accounts get their type's default icon.

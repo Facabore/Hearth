@@ -37,7 +37,10 @@ module.exports = {
       comment:
         "Modules may only import another module's public application API (src/modules/<module>/application/index.ts).",
       from: { path: "^src/modules/([^/]+)/", pathNot: "\\.schema\\.ts$" },
-      to: { path: "^src/modules/(?!$1/)[^/]+/", pathNot: "^src/modules/[^/]+/application/index\\.ts$" },
+      to: {
+        path: "^src/modules/(?!$1/)[^/]+/",
+        pathNot: ["^src/modules/[^/]+/application/index\\.ts$", "^src/modules/[^/]+/ui/(index|server)\\.ts$"],
+      },
     },
     {
       name: "schemas-only-reference-schemas",
@@ -53,6 +56,58 @@ module.exports = {
       comment: "Shared code never imports modules, the app or the composition root.",
       from: { path: "^src/shared/" },
       to: { path: "^src/(modules|app|composition)/" },
+    },
+    {
+      name: "ui-talks-only-to-the-api",
+      severity: "error",
+      comment:
+        "Ruling P119: the web pages, the proxy, i18n and every ui folder reach the backend only over /api/v1 through the generated client: never a module's domain, application, infrastructure or contracts, the composition root, the API routes, the HTTP or infrastructure layers or server-only packages; of the kernel only time-zone.ts, local-date.ts and style.ts.",
+      from: {
+        path: [
+          "^src/app/\\(web\\)/",
+          "^src/i18n/",
+          "^src/proxy\\.ts$",
+          "^src/shared/ui/",
+          "^src/modules/[^/]+/ui/",
+        ],
+      },
+      to: {
+        path: [
+          "^src/modules/[^/]+/(domain|application|infrastructure|contracts)/",
+          "^src/composition/",
+          "^src/app/api/",
+          "^src/shared/(http|infrastructure)/",
+          "^src/shared/kernel/(?!(time-zone|local-date|style)\\.ts$)",
+          "node_modules/(drizzle-orm|pg|better-auth|@better-auth|zod-openapi|zod)/",
+        ],
+      },
+    },
+    {
+      name: "ui-modules-only-through-public-ui-api",
+      severity: "error",
+      comment:
+        "A module's ui reaches another module's ui only through src/modules/<module>/ui/index.ts (client-safe) or ui/server.ts (server containers), and the web pages reach every module only through them.",
+      from: { path: ["^src/modules/([^/]+)/ui/", "^src/app/\\(web\\)/"] },
+      to: {
+        path: "^src/modules/[^/]+/ui/",
+        pathNot: ["^src/modules/[^/]+/ui/(index|server)\\.ts$", "^src/modules/$1/ui/"],
+      },
+    },
+    {
+      name: "ui-index-is-client-safe",
+      severity: "error",
+      comment:
+        "Ruling P153: a module's ui/index.ts is imported by client code, so it must never reach the server-only API reader (next/headers); server containers are exported from ui/server.ts.",
+      from: { path: "^src/modules/[^/]+/ui/index\\.ts$" },
+      to: { path: "^src/shared/ui/api/server\\.ts$", reachable: true },
+    },
+    {
+      name: "only-ui-reaches-ui",
+      severity: "error",
+      comment:
+        "Server layers never import a ui folder: the UI depends on the API, never the other way round.",
+      from: { path: "^src/modules/[^/]+/(domain|application|infrastructure|contracts)/" },
+      to: { path: "^src/modules/[^/]+/ui/" },
     },
     { name: "no-circular", severity: "error", from: {}, to: { circular: true } },
   ],

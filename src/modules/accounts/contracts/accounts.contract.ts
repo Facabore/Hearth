@@ -334,4 +334,21 @@ export const accountsPaths: ZodOpenApiPathsObject = {
       },
     },
   },
+  "/api/v1/spaces/{spaceId}/accounts/{accountId}/restore": {
+    post: {
+      operationId: "restoreAccount",
+      summary: "Restore an archived account; it takes new movements again",
+      ...securedByUser,
+      requestParams: { path: AccountPath },
+      responses: {
+        "200": one("The restored account"),
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound, AccountNotFound",
+          "409": "SpaceArchived",
+        }),
+      },
+    },
+  },
 };

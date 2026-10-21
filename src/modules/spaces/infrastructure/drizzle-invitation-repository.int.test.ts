@@ -8,6 +8,7 @@ import { testDatabase } from "../../../../tests/support/database";
 import { guestMemberFixture, sharedSpaceFixture, userFixture } from "../../../../tests/support/fixtures";
 import { createAcceptInvitation } from "../application/accept-invitation";
 import { createClaimGuestPlace } from "../application/claim-guest-place";
+import { createInvitationAdmitsSignUp } from "../application/invitation-admits-sign-up";
 import type { ClaimsDeps } from "../application/invitation-ports";
 import type { ClaimLinkRepository } from "../application/invitation-repository";
 import { createSpaceAccess } from "../application/space-access";
@@ -332,5 +333,83 @@ describe("claim links in PostgreSQL (HU-E1-11, HU-E1-12)", () => {
       memberRows: 2,
       link: { status: "ACCEPTED", accepted_by_user_id: pedroUser.id },
     });
+  });
+});
+
+describe("InvitationAdmitsSignUp against PostgreSQL (ruling P143)", () => {
+  const issuedAt = new Date("2026-10-14T12:00:00Z");
+  const admits = createInvitationAdmitsSignUp({
+    invitations: repo,
+    tokens: cryptoInvitationTokens,
+    // An hour after the invitations were issued, so they are valid whatever day the suite runs.
+    clock: new FixedClock(new Date("2026-10-14T13:00:00Z")),
+    tm,
+  });
+  const claimFor = async (space: Space, ownerId: string) => {
+    const guest = await guestMemberFixture(
+      pool,
+      { userId: ownerId, spaceId: space.id, memberId: space.members[0]!.id },
+      "Pedro",
+    );
+    const { token, hash } = cryptoInvitationTokens.issue();
+    const issued = issueClaim({
+      id: randomUUID() as InvitationId,
+      spaceId: space.id,
+      guestMemberId: guest,
+      current: await spaces.listCurrent(space.id),
+      tokenHash: hash,
+      createdBy: ownerId,
+      now: issuedAt,
+    });
+    if (!issued.ok) throw new Error(issued.error.code);
+    await repo.add(issued.value);
+    return { token, claim: issued.value };
+  };
+
+  it("admits an email invitation for its own address, a link for anyone and a claim link for anyone", async () => {
+    const ana = await newUser("Ana");
+    const space = await household(ana.id);
+    const email = await invite(space, ana.id, { kind: "EMAIL", email: "Juan@Example.com" }, issuedAt);
+    const link = await invite(space, ana.id, { kind: "LINK" }, issuedAt);
+    const claim = await claimFor(space, ana.id);
+    expect(await admits({ token: email.token, email: "juan@example.com" })).toBe(true);
+    expect(await admits({ token: email.token, email: "marta@example.com" })).toBe(false);
+    expect(await admits({ token: link.token, email: "marta@example.com" })).toBe(true);
+    expect(await admits({ token: claim.token, email: "marta@example.com" })).toBe(true);
+  });
+
+  it("refuses an unknown token and the hash of a token in place of the token", async () => {
+    const ana = await newUser("Ana");
+    const link = await invite(await household(ana.id), ana.id, { kind: "LINK" }, issuedAt);
+    expect(await admits({ token: "unknown", email: "marta@example.com" })).toBe(false);
+    expect(await admits({ token: cryptoInvitationTokens.hash(link.token), email: "marta@example.com" })).toBe(
+      false,
+    );
+  });
+
+  it("refuses expired, revoked and used invitations and claim links", async () => {
+    const ana = await newUser("Ana");
+    const space = await household(ana.id);
+    const expired = await invite(space, ana.id, { kind: "LINK" }, new Date("2026-10-01T12:00:00Z"));
+    const revoked = await invite(space, ana.id, { kind: "LINK" }, issuedAt);
+    const used = await invite(space, ana.id, { kind: "EMAIL", email: "juan@example.com" }, issuedAt);
+    const usedClaim = await claimFor(space, ana.id);
+    await repo.save({ ...revoked.invitation, status: "REVOKED", revokedAt: issuedAt });
+    await repo.save(markAccepted(used.invitation, ana.id, issuedAt));
+    await repo.save(markAccepted(usedClaim.claim, ana.id, issuedAt));
+    for (const { token } of [expired, revoked, used, usedClaim])
+      expect(await admits({ token, email: "juan@example.com" })).toBe(false);
+  });
+
+  it("changes nothing: the invitation stays pending and acceptable", async () => {
+    const ana = await newUser("Ana");
+    const { token, invitation } = await invite(
+      await household(ana.id),
+      ana.id,
+      { kind: "EMAIL", email: "juan@example.com" },
+      issuedAt,
+    );
+    await admits({ token, email: "juan@example.com" });
+    expect(await repo.findByTokenHashForUpdate(cryptoInvitationTokens.hash(token))).toEqual(invitation);
   });
 });

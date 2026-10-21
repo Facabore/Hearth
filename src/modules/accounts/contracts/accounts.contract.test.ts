@@ -37,9 +37,11 @@ const refused: readonly [string, unknown][] = [
   ["lastFour", 4821],
   ["color", "purple"],
   ["color", "Pine"],
+  ["color", "pine"],
   ["color", ""],
   ["icon", "rocket"],
   ["icon", "Wallet"],
+  ["icon", "credit-card"],
   ["icon", ""],
 ];
 
@@ -56,8 +58,8 @@ describe("account attributes in the HTTP contract (HU-E2-05)", () => {
     const parsed = create({
       institution: "x".repeat(60),
       lastFour: "0000",
-      color: "rose",
-      icon: "smartphone",
+      color: "ROSE",
+      icon: "phone",
     });
     expect(parsed.success).toBe(true);
     expect(create({ institution: "N" }).success).toBe(true);
@@ -81,11 +83,11 @@ describe("account attributes in the HTTP contract (HU-E2-05)", () => {
 
   it("hands the four attributes to the use cases, keeping left out ones undefined and cleared ones null", () => {
     expect(
-      attributesFromBody({ institution: "Nequi", lastFour: "4821", color: "pine", icon: "wallet" }),
+      attributesFromBody({ institution: "Nequi", lastFour: "4821", color: "PINE", icon: "wallet" }),
     ).toEqual({
       institution: "Nequi",
       lastFour: "4821",
-      color: "pine",
+      color: "PINE",
       icon: "wallet",
     });
     expect(attributesFromBody({})).toEqual({

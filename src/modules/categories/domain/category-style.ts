@@ -1,28 +1,19 @@
-import { domainError, err, ok, type Result } from "@/shared/kernel";
+import {
+  domainError,
+  err,
+  ok,
+  PALETTE,
+  type PaletteKey,
+  type Result,
+  type SymbolName,
+} from "@/shared/kernel";
 
 /**
  * HU-E3-05, D22: the palette, in the order the color row shows it. The UI maps each key to its light and dark theme
  * tokens; no hex value is stored.
  */
-export const CATEGORY_COLORS = [
-  "PINE",
-  "SAGE",
-  "OLIVE",
-  "SAND",
-  "MUSTARD",
-  "AMBER",
-  "EMBER",
-  "CORAL",
-  "ROSE",
-  "PLUM",
-  "LAVENDER",
-  "INDIGO",
-  "SKY",
-  "TEAL",
-  "STEEL",
-  "GRAPHITE",
-] as const;
-export type CategoryColor = (typeof CATEGORY_COLORS)[number];
+export const CATEGORY_COLORS = PALETTE;
+export type CategoryColor = PaletteKey;
 
 /**
  * HU-E3-05: the fixed symbol set, 58 names in alphabetical order. The UI draws each name with its own icon set and
@@ -87,7 +78,7 @@ export const CATEGORY_SYMBOLS = [
   "wifi",
   "wine",
   "wrench",
-] as const;
+] as const satisfies readonly SymbolName[];
 export type CategorySymbol = (typeof CATEGORY_SYMBOLS)[number];
 
 export type CategoryIcon =

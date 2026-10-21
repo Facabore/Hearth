@@ -159,7 +159,7 @@ A UI story is `Done` when:
 | [HU-E7-04](E7-reporting.md) | Unified personal view | E7 | M4 | Must | M | Done | HU-E4-07, HU-E4-10 |
 | [HU-E7-05](E7-reporting.md) | Period-over-period trend | E7 | M4 | Should | S | Done | HU-E7-01, HU-E7-04 |
 | [HU-E7-06](E7-reporting.md) | Spending by category group with drill-down | E7 | M4 | Must | M | Done | HU-E3-02, HU-E3-04, HU-E3-05, HU-E7-04 |
-| [HU-E8-01](E8-hardening-and-later.md) | Nightly backups and restore drill | E8 | M5 | Must | M | Backlog | HU-E0-07 |
+| [HU-E8-01](E8-hardening-and-later.md) | Nightly backups and restore drill | E8 | M5 | Must | M | In Review | HU-E0-07 |
 | [HU-E8-02](E8-hardening-and-later.md) | Structured logging and health check | E8 | M5 | Should | M | Backlog | HU-E0-07 |
 | [HU-E8-04](E8-hardening-and-later.md) | Import transactions from CSV | E8 | M5 | Could | M | Backlog | HU-E4-01, HU-E4-02 |
 | [HU-E8-05](E8-hardening-and-later.md) | Import from Splitwise | E8 | M5 | Could | M | Backlog | HU-E4-08, HU-E5-01, HU-E1-10 |
@@ -176,9 +176,9 @@ A UI story is `Done` when:
 | [HU-E8-16](E8-hardening-and-later.md) | Reminders for card dates, CDT maturity and recurrences | E8 | M5 | Could | M | Backlog | HU-E1-14, HU-E2-06, HU-E4-12, HU-E4-13, HU-E8-08 |
 | [HU-E8-17](E8-hardening-and-later.md) | Net worth over time | E8 | M5 | Could | M | Backlog | HU-E2-04, HU-E2-07 |
 | [HU-E8-18](E8-hardening-and-later.md) | Installation rules for a white-label deployment | E8 | M5 | Should | M | Backlog | HU-E1-14, HU-E1-15 |
-| [HU-E9-01](E9-web-ui.md) | App shell, sign-in and sign-up screens | E9 | M6 | Must | M | Backlog | HU-E1-01, HU-E1-02, HU-E9-02 |
-| [HU-E9-02](E9-web-ui.md) | Internationalization setup (es, en) | E9 | M6 | Must | S | Backlog | HU-E0-01, HU-E1-01, HU-E1-15 |
-| [HU-E9-03](E9-web-ui.md) | Personal ledger screens | E9 | M6 | Must | M | Backlog | HU-E1-14, HU-E1-15, HU-E2-01, HU-E2-03, HU-E2-04, HU-E2-05, HU-E2-06, HU-E2-07, HU-E3-04, HU-E3-05, HU-E4-01, HU-E4-02, HU-E4-03, HU-E4-05, HU-E4-14, HU-E9-01 |
+| [HU-E9-01](E9-web-ui.md) | App shell, sign-in and sign-up screens | E9 | M6 | Must | M | Ready | HU-E1-01, HU-E1-02, HU-E9-02 |
+| [HU-E9-02](E9-web-ui.md) | Internationalization setup (es, en) | E9 | M6 | Must | S | Ready | HU-E0-01, HU-E1-01, HU-E1-15 |
+| [HU-E9-03](E9-web-ui.md) | Personal ledger screens | E9 | M6 | Must | M | Ready | HU-E1-14, HU-E1-15, HU-E2-01, HU-E2-03, HU-E2-04, HU-E2-05, HU-E2-06, HU-E2-07, HU-E3-04, HU-E3-05, HU-E4-01, HU-E4-02, HU-E4-03, HU-E4-05, HU-E4-14, HU-E9-01 |
 | [HU-E9-04](E9-web-ui.md) | Categories management screen | E9 | M6 | Should | S | Backlog | HU-E3-01, HU-E3-02, HU-E3-03, HU-E3-04, HU-E3-05, HU-E9-01 |
 | [HU-E9-05](E9-web-ui.md) | Shared spaces, members, guests and invitations screens | E9 | M6 | Must | M | Backlog | HU-E1-04, HU-E1-05, HU-E1-06, HU-E1-07, HU-E1-10, HU-E1-11, HU-E1-12, HU-E9-01 |
 | [HU-E9-06](E9-web-ui.md) | Record a shared expense with split options | E9 | M6 | Must | M | Backlog | HU-E1-13, HU-E4-07, HU-E4-08, HU-E4-10, HU-E9-03, HU-E9-05 |
@@ -188,7 +188,7 @@ A UI story is `Done` when:
 | [HU-E9-10](E9-web-ui.md) | Space dashboards: lines, member matrix and fund tracking | E9 | M6 | Must | M | Backlog | HU-E7-01, HU-E7-02, HU-E7-03, HU-E7-06, HU-E9-08 |
 | [HU-E9-11](E9-web-ui.md) | Personal dashboards: unified view and trends | E9 | M6 | Must | M | Backlog | HU-E7-04, HU-E7-05, HU-E7-06, HU-E9-01 |
 | [HU-E9-12](E9-web-ui.md) | Manage categories without leaving the expense form | E9 | M6 | Should | S | Backlog | HU-E3-02, HU-E3-04, HU-E3-05, HU-E9-03, HU-E9-04 |
-| [HU-E9-13](E9-web-ui.md) | Settings screen | E9 | M6 | Must | S | Backlog | HU-E1-14, HU-E1-15, HU-E9-01 |
+| [HU-E9-13](E9-web-ui.md) | Settings screen | E9 | M6 | Must | S | Ready | HU-E1-14, HU-E1-15, HU-E9-01 |
 | [HU-E9-14](E9-web-ui.md) | Installation rules screen | E9 | M6 | Should | S | Backlog | HU-E8-18, HU-E9-01 |
 
 **Totals:** 100 active stories — E0: 9 · E1: 15 · E2: 7 · E3: 5 · E4: 14 · E5: 4 · E6: 9 · E7: 6 · E8: 17 · E9: 14. Retired IDs: HU-E0-08 (moved to HU-E9-02) and HU-E8-03 (moved to HU-E4-11 … HU-E4-13).

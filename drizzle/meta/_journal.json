@@ -134,6 +134,13 @@
       "when": 1792252095570,
       "tag": "0018_user_preferences",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792466986138,
+      "tag": "0019_account_style_vocabulary",
+      "breakpoints": true
     }
   ]
 }

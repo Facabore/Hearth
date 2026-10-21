@@ -4,12 +4,14 @@ import {
   createCreateAccount,
   createGetAccount,
   createListAccounts,
+  createRestoreAccount,
   createUpdateAccount,
   type AccountsDeps,
   type ArchiveAccount,
   type CreateAccount,
   type GetAccount,
   type ListAccounts,
+  type RestoreAccount,
   type UpdateAccount,
 } from "@/modules/accounts/application";
 import { DrizzleAccountRepository } from "@/modules/accounts/infrastructure/drizzle-account-repository";
@@ -190,6 +192,7 @@ import {
   createSplitWithPerson,
   createRemoveGuestMember,
   createClaimGuestPlace,
+  createInvitationAdmitsSignUp,
   createCreateGuestClaim,
   createLeaveSpace,
   type AcceptInvitation,
@@ -226,7 +229,7 @@ import { createDatabase, type Database } from "@/shared/infrastructure/db/client
 import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { DrizzleIdempotencyStore } from "@/shared/infrastructure/drizzle-idempotency-store";
 import { loadEnv, type Env } from "@/shared/infrastructure/env";
-import { SystemClock } from "@/shared/infrastructure/system-clock";
+import { clockFrom } from "@/shared/infrastructure/system-clock";
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
 import { isUuid, map, type AuthUser, type Clock, type Result } from "@/shared/kernel";
 import { accountBalancesFrom } from "./account-balances";
@@ -239,6 +242,8 @@ export interface Container extends RouteDeps {
   readonly idempotency: IdempotencyDeps;
   readonly identity: {
     readonly signUp: SignUp;
+    /** Ruling P143: HEARTH_SIGN_UP, as `GET /api/v1/auth/sign-up` answers it. */
+    readonly signUpMode: "open" | "closed";
     readonly signIn: SignIn;
     readonly signOut: SignOut;
     readonly updateProfile: UpdateProfile;
@@ -279,6 +284,7 @@ export interface Container extends RouteDeps {
     readonly createAccount: CreateAccount;
     readonly updateAccount: UpdateAccount;
     readonly archiveAccount: ArchiveAccount;
+    readonly restoreAccount: RestoreAccount;
     readonly listAccounts: ListAccounts;
     readonly getAccount: GetAccount;
   };
@@ -353,6 +359,8 @@ export interface AuthLimits {
 }
 
 const DEFAULT_AUTH_LIMITS: AuthLimits = { signInPerEmail: 10, signInPerIp: 30, signUpPerIp: 10 };
+/** The installation's built-in language until HU-E8-18 stores one (HU-E9-13, ruling P124). */
+const INSTALLATION_DEFAULT_LOCALE = "es";
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 const ONE_HOUR = 60 * 60 * 1000;
 
@@ -372,7 +380,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   const { db, pool } = createDatabase(env.DATABASE_URL);
   const tm = new DrizzleTransactionManager(db);
   const ids = new UuidV7IdGenerator();
-  const clock = options.clock ?? new SystemClock();
+  const clock = options.clock ?? clockFrom(env.HEARTH_E2E_FIXED_NOW);
   const provider = new BetterAuthProvider(
     createAuth({
       db,
@@ -643,9 +651,22 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     sessionResolver: provider,
     idempotency: { tm, store: new DrizzleIdempotencyStore(tm) },
     identity: {
-      signUp: createSignUp({ auth: provider, provisionUser, profiles, defaultTimeZone: env.APP_TIMEZONE }),
+      signUp: createSignUp({
+        auth: provider,
+        provisionUser,
+        profiles,
+        defaultTimeZone: env.APP_TIMEZONE,
+        // Ruling P143: identity never imports spaces, so a closed installation asks the invitations through this port.
+        signUpGate: { mode: env.HEARTH_SIGN_UP, admits: createInvitationAdmitsSignUp(invitationsDeps) },
+      }),
+      signUpMode: env.HEARTH_SIGN_UP,
       updateProfile: createUpdateProfile({ profiles, rules: installationRules }),
-      getProfile: createGetProfile({ profiles, rules: installationRules }),
+      // HU-E9-13, ruling P124: the installation's zone and, until HU-E8-18 stores one, its built-in language.
+      getProfile: createGetProfile({
+        profiles,
+        rules: installationRules,
+        regionDefaults: { timezone: env.APP_TIMEZONE, locale: INSTALLATION_DEFAULT_LOCALE },
+      }),
       signIn: createSignIn(provider),
       signOut: createSignOut(provider),
     },
@@ -725,6 +746,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       createAccount: createCreateAccount(accountsDeps),
       updateAccount: createUpdateAccount(accountsDeps),
       archiveAccount: createArchiveAccount(accountsDeps),
+      restoreAccount: createRestoreAccount(accountsDeps),
       listAccounts: createListAccounts(accountsDeps),
       getAccount,
     },

@@ -57,14 +57,14 @@ describe("CreateAccount (HU-E2-01)", () => {
         name: "Nequi",
         type: "WALLET",
         openingBalance: money(0n),
-        attributes: { institution: "Nequi", lastFour: "4821", color: "pine", icon: "wallet" },
+        attributes: { institution: "Nequi", lastFour: "4821", color: "PINE", icon: "wallet" },
       }),
     );
     const expected = {
       type: "WALLET",
       institution: "Nequi",
       lastFour: "4821",
-      color: "pine",
+      color: "PINE",
       icon: "wallet",
     };
     expect(view).toMatchObject(expected);

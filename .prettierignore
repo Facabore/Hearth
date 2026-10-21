@@ -4,3 +4,7 @@ openapi/openapi.snapshot.json
 .next/
 docs/
 .superpowers
+src/shared/ui/api/schema.d.ts
+tests/e2e/.features-gen/
+test-results/
+playwright-report/

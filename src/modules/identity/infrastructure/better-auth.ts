@@ -4,6 +4,13 @@ import { bearer } from "better-auth/plugins";
 import type { Database } from "@/shared/infrastructure/db/client";
 import { account, session, user, verification } from "./auth.schema";
 
+/**
+ * Ruling P150: a session lasts 15 days from its last use. Better Auth renews it once a day while it is used
+ * (`updateAge`), so a regular visitor stays signed in and an idle one signs in again after 15 days.
+ */
+export const SESSION_TTL_SECONDS = 15 * 24 * 60 * 60;
+const SESSION_RENEWAL_SECONDS = 24 * 60 * 60;
+
 export const createAuth = (opts: {
   db: Database;
   secret: string;
@@ -15,6 +22,7 @@ export const createAuth = (opts: {
     baseURL: opts.baseURL,
     basePath: "/api/auth",
     database: drizzleAdapter(opts.db, { provider: "pg", schema: { user, session, account, verification } }),
+    session: { expiresIn: SESSION_TTL_SECONDS, updateAge: SESSION_RENEWAL_SECONDS },
     emailAndPassword: { enabled: true, minPasswordLength: 8, maxPasswordLength: 128, autoSignIn: true },
     user: {
       additionalFields: {

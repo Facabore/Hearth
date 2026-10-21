@@ -57,14 +57,14 @@ describe("account types and common attributes (HU-E2-05)", () => {
       openingBalance: cop(300_000),
       institution: "Nequi",
       lastFour: "4821",
-      color: "pine",
+      color: "PINE",
       icon: "wallet",
     });
     expect(nequi).toMatchObject({
       type: "WALLET",
       institution: "Nequi",
       lastFour: "4821",
-      color: "pine",
+      color: "PINE",
       icon: "wallet",
     });
     expect((await listOf(ana)).map((a) => a.id)).toEqual([nequi.id]);
@@ -73,7 +73,7 @@ describe("account types and common attributes (HU-E2-05)", () => {
   it("gives attributes left out the type defaults", async () => {
     const ana = await registerUser("Ana");
     const cash = await created(ana, { name: "Efectivo", type: "CASH", openingBalance: cop(0) });
-    expect([cash.icon, cash.institution, cash.lastFour, cash.color]).toEqual(["banknote", null, null, null]);
+    expect([cash.icon, cash.institution, cash.lastFour, cash.color]).toEqual(["cash", null, null, null]);
   });
 
   it.each(["WALLET", "INVESTMENT", "LOAN", "OTHER"])(
@@ -119,11 +119,11 @@ describe("account types and common attributes (HU-E2-05)", () => {
       name: "Nequi",
       type: "WALLET",
       openingBalance: cop(0),
-      color: "pine",
-      icon: "gem",
+      color: "PINE",
+      icon: "star",
     });
-    expect(await (await patch(ana, nequi.id, { color: "ember", icon: null })).json()).toMatchObject({
-      color: "ember",
+    expect(await (await patch(ana, nequi.id, { color: "EMBER", icon: null })).json()).toMatchObject({
+      color: "EMBER",
       icon: "wallet",
     });
     expect(await problemOf(await patch(ana, nequi.id, { type: "BANK" }))).toEqual([
@@ -144,10 +144,10 @@ describe("account types and common attributes (HU-E2-05)", () => {
       openingBalance: cop(-350_000),
       institution: "Bancolombia",
       lastFour: "4821",
-      color: "sky",
-      icon: "gem",
+      color: "SKY",
+      icon: "star",
     });
-    const set = { institution: "Bancolombia", lastFour: "4821", color: "sky", icon: "gem" };
+    const set = { institution: "Bancolombia", lastFour: "4821", color: "SKY", icon: "star" };
 
     const renamed = await patch(ana, visa.id, { name: "Visa Gold" });
     expect(await renamed.json()).toMatchObject({ name: "Visa Gold", ...set });
@@ -157,14 +157,14 @@ describe("account types and common attributes (HU-E2-05)", () => {
     expect(await cleared.json()).toMatchObject({
       institution: null,
       lastFour: null,
-      color: "sky",
-      icon: "gem",
+      color: "SKY",
+      icon: "star",
     });
     expect((await listOf(ana))[0]).toMatchObject({
       institution: null,
       lastFour: null,
-      color: "sky",
-      icon: "gem",
+      color: "SKY",
+      icon: "star",
     });
   });
 });

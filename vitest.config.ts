@@ -19,8 +19,18 @@ export default defineConfig({
             "scripts/**/*.test.mjs",
             "tests/architecture/**/*.test.ts",
             "tests/support/**/*.test.ts",
+            "tests/performance/**/*.test.mjs",
           ],
           exclude: ["src/**/*.int.test.ts"],
+        },
+      },
+      {
+        // Components and containers (HU-E9-*): jsdom, Testing Library and axe-core (ruling P132).
+        test: {
+          name: "ui",
+          environment: "jsdom",
+          include: ["src/**/*.test.tsx"],
+          setupFiles: ["./tests/support/ui-setup.ts", "./src/shared/ui/molecules/sheet.setup.ts"],
         },
       },
       { test: { name: "integration", include: ["src/**/*.int.test.ts"], ...dbProject } },

@@ -14,6 +14,8 @@ import {
 } from "drizzle-orm/pg-core";
 import { user } from "@/modules/identity/infrastructure/auth.schema";
 import { spaces } from "@/modules/spaces/infrastructure/spaces.schema";
+import { PALETTE } from "@/shared/kernel";
+import { ACCOUNT_ICONS } from "../domain/account";
 
 const tz = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
@@ -46,29 +48,9 @@ export const accounts = pgTable(
     // HU-E2-05: optional common attributes; a null icon means the type's default (ruling P50).
     institution: text("institution"),
     lastFour: text("last_four"),
-    color: text("color", {
-      enum: ["pine", "ember", "sand", "sky", "plum", "moss", "clay", "slate", "gold", "rose"],
-    }),
-    icon: text("icon", {
-      enum: [
-        "banknote",
-        "landmark",
-        "wallet",
-        "credit-card",
-        "piggy-bank",
-        "trending-up",
-        "hand-coins",
-        "circle-ellipsis",
-        "users",
-        "briefcase",
-        "car",
-        "gem",
-        "gift",
-        "house",
-        "plane",
-        "smartphone",
-      ],
-    }),
+    // Ruling P122: the app's palette keys and Hearth symbol names, from the same lists the domain and the contract use.
+    color: text("color", { enum: PALETTE }),
+    icon: text("icon", { enum: ACCOUNT_ICONS }),
     // HU-E2-07, ruling P51: null means the type's default; nothing is back-filled.
     includeInAvailable: boolean("include_in_available"),
     includeInNetWorth: boolean("include_in_net_worth"),

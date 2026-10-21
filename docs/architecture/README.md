@@ -10,7 +10,7 @@ The production stack is Docker Compose on a VPS: Caddy, the `app` container, Pos
 
 ```mermaid
 flowchart TB
-    web["Web UI (planned, M6)"]
+    web["Web UI (Next.js pages in app, M6)"]
     clients["API clients"]
     mobile["Mobile app (post-MVP)"]
 
@@ -62,9 +62,22 @@ What happens to a request such as `POST /api/v1/spaces/{spaceId}/expenses` ([spe
 5. **Ports lead to Drizzle adapters.** The use case talks to ports; the container binds them to the `infrastructure/` adapters, and the adapters query PostgreSQL.
 6. **A `Result` maps to the response.** A success becomes the JSON response; an error becomes an RFC 9457 `application/problem+json` response with a stable `code` and the request id.
 
+## Web UI
+
+The pages live in `src/app/(web)`, with no locale in the URL ([ADR 0003](../adr/0003-web-ui-talks-to-the-api-through-a-generated-client.md), ruling P117):
+
+- **Reads:** a Server Component container calls `/api/v1` over loopback (`INTERNAL_API_ORIGIN`, default `http://127.0.0.1:$PORT`) with the request's cookie, client address and language.
+- **Writes:** client containers call the same-origin `/api/v1` from the browser, then refresh the Server Components. There are no server actions.
+- **Session redirect:** `src/proxy.ts` sends a request without a session cookie to `/sign-in?next=<path>`; only same-origin paths are honoured.
+- **Language:** next-intl picks `es` or `en` from the stored locale, a visitor cookie or `Accept-Language` (P120).
+- **Formats:** only `src/shared/ui/format/` formats numbers, dates and times, from the person's effective preferences (P121).
+- **Boundaries:** dependency-cruiser keeps UI code to the generated client and three pure kernel files (P119).
+- **Server and client entries:** a module's `ui/index.ts` is imported by client code and a module's server containers are exported from `ui/server.ts` (P153); a boundary rule fails an `index.ts` that reaches the server-only API reader.
+- **Speed:** `package.json` declares `sideEffects: ["**/*.css"]` so the bundler can drop what a route does not use from barrel files, and the sheets' Radix Dialog loads when the first sheet opens. [ADR 0004](../adr/0004-web-ui-testing-and-performance-gates.md) has the gates that hold the line.
+
 ## Modules
 
-The eight modules live in `src/modules/<module>/` ([spec 5.1](../superpowers/specs/2026-10-11-hearth-design.md#51-bounded-contexts-modules)). A tick means the folder exists today; `balances` and `reporting` are read models and have no tables, so they have no `infrastructure/`. The `ui/` layer is not there yet (the web UI is epic E9, milestone M6).
+The eight modules live in `src/modules/<module>/` ([spec 5.1](../superpowers/specs/2026-10-11-hearth-design.md#51-bounded-contexts-modules)). A tick means the folder exists today; `balances` and `reporting` are read models and have no tables, so they have no `infrastructure/`. Since M6a the `ui/` layer exists in `identity`, `spaces`, `accounts`, `categories` and `ledger` (containers over presentational components).
 
 | Module | Responsibility | `domain` | `application` | `contracts` | `infrastructure` |
 |---|---|---|---|---|---|

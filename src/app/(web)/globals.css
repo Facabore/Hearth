@@ -1,0 +1,145 @@
+@import "tailwindcss";
+/* Tailwind scans every file git does not ignore: keep the plans' Markdown out of the CSS (ruling P134's budgets). */
+@source not "../../../docs";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  color-scheme: light;
+  --bg: #f6f4ef;
+  --surface: #ffffff;
+  --line: #e3e0d8;
+  --field: #d6d2c8;
+  --ink: #1c211f;
+  --muted: #5b635f;
+  --accent: #2e5e4e;
+  --accent-strong: #234839;
+  --accent-soft: #e5eeea;
+  --on-accent: #ffffff;
+  --owe: #b5562f;
+  --owe-soft: #f6e9e1;
+  --track: #e3e0d8;
+  --danger: #b42318;
+  --scrim: rgb(28 33 31 / 0.45);
+
+  --pal-pine-tint: #e5eeea;
+  --pal-pine-ink: #2e5e4e;
+  --pal-sage-tint: #e9efe4;
+  --pal-sage-ink: #4e6b3a;
+  --pal-olive-tint: #eeeedd;
+  --pal-olive-ink: #5e5a1f;
+  --pal-sand-tint: #f3eedc;
+  --pal-sand-ink: #7a6420;
+  --pal-mustard-tint: #f7ecd3;
+  --pal-mustard-ink: #8a5a00;
+  --pal-amber-tint: #fbe9d8;
+  --pal-amber-ink: #8f4a0e;
+  --pal-ember-tint: #f6e9e1;
+  --pal-ember-ink: #96441f;
+  --pal-coral-tint: #fbe7e3;
+  --pal-coral-ink: #9c3b2a;
+  --pal-rose-tint: #f4e6e8;
+  --pal-rose-ink: #8a3b47;
+  --pal-plum-tint: #efe6f0;
+  --pal-plum-ink: #6b3f72;
+  --pal-lavender-tint: #ece8f5;
+  --pal-lavender-ink: #5a4a8c;
+  --pal-indigo-tint: #e8eaf2;
+  --pal-indigo-ink: #434c78;
+  --pal-sky-tint: #e3eef6;
+  --pal-sky-ink: #245c80;
+  --pal-teal-tint: #e1f0ef;
+  --pal-teal-ink: #1f625e;
+  --pal-steel-tint: #e6ecef;
+  --pal-steel-ink: #3c5663;
+  --pal-graphite-tint: #ecebe8;
+  --pal-graphite-ink: #3e4542;
+}
+
+/* dark palette */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121614;
+  --surface: #1a1f1c;
+  --line: #2c332f;
+  --field: #3a423e;
+  --ink: #e8e6e1;
+  --muted: #a3aaa6;
+  --accent: #7fb89e;
+  --accent-strong: #a6d1bd;
+  --accent-soft: #22302a;
+  --on-accent: #121614;
+  --owe: #e09a78;
+  --owe-soft: #2e231e;
+  --track: #2c332f;
+  --danger: #f97066;
+  --scrim: rgb(0 0 0 / 0.6);
+}
+:root[data-theme="dark"] {
+  --pal-pine-tint: color-mix(in oklab, #2e5e4e 32%, #1a1f1c);
+  --pal-pine-ink: color-mix(in oklab, #2e5e4e 35%, #e8e6e1);
+  --pal-sage-tint: color-mix(in oklab, #4e6b3a 32%, #1a1f1c);
+  --pal-sage-ink: color-mix(in oklab, #4e6b3a 35%, #e8e6e1);
+  --pal-olive-tint: color-mix(in oklab, #5e5a1f 32%, #1a1f1c);
+  --pal-olive-ink: color-mix(in oklab, #5e5a1f 35%, #e8e6e1);
+  --pal-sand-tint: color-mix(in oklab, #7a6420 32%, #1a1f1c);
+  --pal-sand-ink: color-mix(in oklab, #7a6420 35%, #e8e6e1);
+  --pal-mustard-tint: color-mix(in oklab, #8a5a00 32%, #1a1f1c);
+  --pal-mustard-ink: color-mix(in oklab, #8a5a00 35%, #e8e6e1);
+  --pal-amber-tint: color-mix(in oklab, #8f4a0e 32%, #1a1f1c);
+  --pal-amber-ink: color-mix(in oklab, #8f4a0e 35%, #e8e6e1);
+  --pal-ember-tint: color-mix(in oklab, #96441f 32%, #1a1f1c);
+  --pal-ember-ink: color-mix(in oklab, #96441f 35%, #e8e6e1);
+  --pal-coral-tint: color-mix(in oklab, #9c3b2a 32%, #1a1f1c);
+  --pal-coral-ink: color-mix(in oklab, #9c3b2a 35%, #e8e6e1);
+  --pal-rose-tint: color-mix(in oklab, #8a3b47 32%, #1a1f1c);
+  --pal-rose-ink: color-mix(in oklab, #8a3b47 35%, #e8e6e1);
+  --pal-plum-tint: color-mix(in oklab, #6b3f72 32%, #1a1f1c);
+  --pal-plum-ink: color-mix(in oklab, #6b3f72 35%, #e8e6e1);
+  --pal-lavender-tint: color-mix(in oklab, #5a4a8c 32%, #1a1f1c);
+  --pal-lavender-ink: color-mix(in oklab, #5a4a8c 35%, #e8e6e1);
+  --pal-indigo-tint: color-mix(in oklab, #434c78 32%, #1a1f1c);
+  --pal-indigo-ink: color-mix(in oklab, #434c78 35%, #e8e6e1);
+  --pal-sky-tint: color-mix(in oklab, #245c80 32%, #1a1f1c);
+  --pal-sky-ink: color-mix(in oklab, #245c80 35%, #e8e6e1);
+  --pal-teal-tint: color-mix(in oklab, #1f625e 32%, #1a1f1c);
+  --pal-teal-ink: color-mix(in oklab, #1f625e 35%, #e8e6e1);
+  --pal-steel-tint: color-mix(in oklab, #3c5663 32%, #1a1f1c);
+  --pal-steel-ink: color-mix(in oklab, #3c5663 35%, #e8e6e1);
+  --pal-graphite-tint: color-mix(in oklab, #3e4542 32%, #1a1f1c);
+  --pal-graphite-ink: color-mix(in oklab, #3e4542 35%, #e8e6e1);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-line: var(--line);
+  --color-field: var(--field);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+  --color-owe: var(--owe);
+  --color-owe-soft: var(--owe-soft);
+  --color-track: var(--track);
+  --color-danger: var(--danger);
+  --color-scrim: var(--scrim);
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+@layer base {
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+}

@@ -4,6 +4,7 @@ import {
   formatsIn,
   lockedFieldsIn,
   type FormatPreferences,
+  type Locale,
   type LockableField,
   type ProfileChange,
   type StoredPreferences,
@@ -25,7 +26,7 @@ export interface ProfileView {
   readonly preferences: {
     readonly stored: StoredPreferences;
     readonly effective: FormatPreferences;
-    readonly defaults: FormatPreferences;
+    readonly defaults: FormatPreferences & { readonly timezone: string; readonly locale: Locale };
     readonly locked: readonly LockableField[];
   };
 }
@@ -37,6 +38,7 @@ export const createGetProfile =
   (deps: {
     readonly profiles: Pick<UserProfiles, "preferencesOf">;
     readonly rules: InstallationRulesReader;
+    readonly regionDefaults: { readonly timezone: string; readonly locale: Locale };
   }): GetProfile =>
   async ({ user }) => {
     const [stored, rules] = await Promise.all([deps.profiles.preferencesOf(user.id), deps.rules.rules()]);
@@ -45,7 +47,7 @@ export const createGetProfile =
       preferences: {
         stored,
         effective: effectivePreferences(stored, rules),
-        defaults: rules.defaults,
+        defaults: { ...rules.defaults, ...deps.regionDefaults },
         locked: rules.locked,
       },
     });
