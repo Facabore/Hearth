@@ -30,5 +30,6 @@ export default defineConfig({
   projects: [
     { name: "e2e", testDir: bddDir, use: { ...devices["Pixel 7"] } },
     { name: "a11y", testDir: "tests/e2e", testMatch: "a11y.spec.ts", use: { ...devices["Pixel 7"] } },
+    { name: "perf", testDir: "tests/e2e/perf", use: { ...devices["Pixel 7"] } },
   ],
 });

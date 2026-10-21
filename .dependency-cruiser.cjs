@@ -94,6 +94,14 @@ module.exports = {
       },
     },
     {
+      name: "ui-index-is-client-safe",
+      severity: "error",
+      comment:
+        "Ruling P153: a module's ui/index.ts is imported by client code, so it must never reach the server-only API reader (next/headers); server containers are exported from ui/server.ts.",
+      from: { path: "^src/modules/[^/]+/ui/index\\.ts$" },
+      to: { path: "^src/shared/ui/api/server\\.ts$", reachable: true },
+    },
+    {
       name: "only-ui-reaches-ui",
       severity: "error",
       comment:

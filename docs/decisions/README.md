@@ -4,7 +4,7 @@ Every decision Hearth has made, in one place. There are three kinds, and each li
 
 - **Design decisions (D1–D23)** are in the [design spec](../superpowers/specs/2026-10-11-hearth-design.md#6-key-decisions), section 6.
 - **ADRs** record a technology choice: [`docs/adr/`](#adrs).
-- **Rulings (P1–P116)** are execution rulings the controller made while a milestone plan was written or run. Each lives in its plan's Self-Review; this page indexes them.
+- **Rulings (P1–P154)** are execution rulings the controller made while a milestone plan was written or run. Each lives in its plan's Self-Review; this page indexes them.
 
 ## Design decisions D1–D23
 
@@ -42,12 +42,14 @@ Rationale and rejected alternatives are in [section 6 of the spec](../superpower
 |---|---|---|
 | [0001](../adr/0001-boundary-enforcement-with-dependency-cruiser.md) | Enforce architecture boundaries with dependency-cruiser. | Accepted (2026-10-11) |
 | [0002](../adr/0002-openapi-generator-zod-openapi.md) | Generate OpenAPI 3.1 with zod-openapi. | Accepted (2026-10-12) |
+| [0003](../adr/0003-web-ui-talks-to-the-api-through-a-generated-client.md) | The web UI talks to `/api/v1` only, through a client generated from the snapshot. | Accepted (2026-10-20) |
+| [0004](../adr/0004-web-ui-testing-and-performance-gates.md) | Test the web UI with Vitest, Playwright and axe, and gate it on Core Web Vitals. | Accepted (2026-10-20) |
 
-## Rulings P1–P116
+## Rulings P1–P154
 
 Rulings are numbered across milestones, not per plan, and not always in the order of the plans: M4's plan holds rulings that were made while M3-D was being planned. The tables are grouped by the plan that records them. In each, "Where" is the plan's Self-Review section and the item number in it. "Amended" marks a ruling the plan itself says was amended.
 
-The ranges are: M3-A P1–P9, M3-B P10–P19, M3-C P20–P31, M3-D P40–P73, P78, P79 and P84–P94, M4 P32–P39, P74–P77, P80–P83 and P95–P106, and M5 P107–P116. M3-D's P89–P94 were kept outside the repository until the merge and are recorded in the section "Execution rulings (recorded after the merge)" at the end of its plan.
+The ranges are: M3-A P1–P9, M3-B P10–P19, M3-C P20–P31, M3-D P40–P73, P78, P79 and P84–P94, M4 P32–P39, P74–P77, P80–P83 and P95–P106, M5 P107–P116, and M6a P117–P154. M3-D's P89–P94 were kept outside the repository until the merge and are recorded in the section "Execution rulings (recorded after the merge)" at the end of its plan.
 
 ### M3-A: budget plans (P1–P9)
 
@@ -213,6 +215,51 @@ Plan: [`2026-10-19-m5-nightly-backups.md`](../superpowers/plans/2026-10-19-m5-ni
 | P114 | Agents cannot read or edit `.env.production.example` (the owner's deny rule on `.env.*`, kept on purpose): every new variable gets a default in `compose.yaml` and is documented in `docs/operations/backups.md`, and the example file's lines go in the pull request for the owner to paste. | Rulings, 8 |
 | P115 | `BACKUP_RETENTION_DAYS` is a whole number from 1 to 9999 (one to four digits, no leading zero), so shell arithmetic cannot wrap; any other value refuses before the dump. | Rulings, 9 (narrows P109) |
 | P116 | The `backup` and `backup-offsite` services mount the whole `./scripts` directory read-only at `/hearth`, so a missing `scripts/` fails loudly; `cron-entrypoint.sh` checks each `/hearth/…` script its command names and exits 66 when it is not a file. | Rulings, 10 |
+
+### M6a: web shell and ledger (P117–P153)
+
+Plan: [`2026-10-20-m6a-web-shell-and-ledger.md`](../superpowers/plans/2026-10-20-m6a-web-shell-and-ledger.md). P140 and P141 are the owner's answers to the planner's two questions. P142–P152 come from the owner's flow review of sign-up and sign-in (the plan's section "Owner flow review"); P142–P144 and P150 are backend changes already shipped. P153 was ruled during execution.
+
+| ID | Ruling | Where |
+|---|---|---|
+| P117 | The UI's only way to the backend is `/api/v1`, through one client generated from `openapi/openapi.snapshot.json` (`openapi-typescript` types, `openapi-fetch` at run time): Server Components read over loopback with the request's cookie, every write runs in the browser, and there are no server actions. | Rulings, 1 |
+| P118 | Forms do not import `src/modules/*/contracts`: they check only what they need to build a request, and the API is the validator, shown next to each field. | Rulings, 2 |
+| P119 | Dependency-cruiser's `ui-talks-only-to-the-api` keeps every UI folder, the proxy and `src/i18n` away from a module's `domain`, `application`, `infrastructure` and `contracts`, the composition root, server-only packages and all of the kernel except `time-zone.ts`, `local-date.ts` and `style.ts`. | Rulings, 3 |
+| P120 | No locale in the URL: the signed-in user's stored locale wins, then the visitor's `hearth.locale` cookie, then `Accept-Language`, then Spanish; messages are typed and a missing key fails `tsc`. | Rulings, 4 |
+| P121 | Only `src/shared/ui/format/` formats numbers, dates and times, from the person's effective preferences as arguments; an architecture test fails on any other `Intl` or `toLocale*` use. | Rulings, 5 |
+| P122 | One style vocabulary: the kernel's sixteen-key `PALETTE` and 61-name `SYMBOLS` serve categories and accounts, and migration `0019_account_style_vocabulary` maps the stored account values. | Rulings, 6 |
+| P123 | `POST /api/v1/spaces/{spaceId}/accounts/{accountId}/restore` (`RestoreAccount`) restores an archived account with the archive's authorization; restoring an active account answers it unchanged. | Rulings, 7 |
+| P124 | `preferences.defaults` of `GET` and `PATCH /api/v1/me` gains the installation's `timezone` and `locale`, so Settings shows "Default" and sends the installation's value on Reset. | Rulings, 8 |
+| P125 | The routes are `/sign-in`, `/sign-up`, `/`, `/spaces/{spaceId}` with `…/transactions`, `…/accounts`, `…/accounts/new` and `…/new?type=`, and `/settings`; `src/proxy.ts` sends a request without a session to `/sign-in?next=` and `next` is honoured only as a same-origin path. | Rulings, 9 |
+| P126 | M6a leaves out of the approved design the Plan and Saldos tabs, plan and balance figures, the hide-balances eye, recent-category chips, the Categories, Members and Installation rules entries, create-or-join in the space sheet, category create and edit, split and space chips, transaction search and filters, the currency settings row, and transaction and account editing. | Rulings, 10 |
+| P127 | Container-presentational in the App Router: a server container is a pure `load*` function over the `Api` plus an async component, presentational components take DTOs and serializable `formats`, a 401 redirects to sign-in and a 404 renders `notFound()`. | Rulings, 11 |
+| P128 | One idempotency key per draft: a fresh UUID when the body changes and after a save, reused by a double click or a retry of an unchanged draft. | Rulings, 12 |
+| P129 | The record form's time zone is the browser's, falling back to the profile's during the server render; minute steppers move to the next multiple of five within the chosen day, days after today are disabled, and there is no "no time" control. | Rulings, 13 |
+| P130 | The transaction list groups by day under `ledger.day.today`, `ledger.day.yesterday` or the date in the person's format, has no per-day totals, navigates periods with `GET …/periods` and filters by `categoryIds`. | Rulings, 14 |
+| P131 | The accounts screen has the sections Banks, wallets and cash, Credit cards, Savings and investments, Debts, Other, Shared funds and Archived, without per-section totals; the create form asks only the type's attributes and sends a switch only when touched. | Rulings, 15 |
+| P132 | The testing stack: a Vitest `ui` project on jsdom with Testing Library and axe-core, and Playwright with playwright-bdd and `@axe-core/playwright` against the standalone build; jsdom over happy-dom. | Rulings, 16 |
+| P133 | `HEARTH_E2E_FIXED_NOW` fixes the container's `Clock` and the UI's `serverNow()` for the e2e server, each scenario sets the browser's clock, and each test sends its own `x-forwarded-for`; never set in production. | Rulings, 17 |
+| P134 | The performance gates: Lighthouse 13.5.0 mobile medians of three runs per route (LCP ≤ 2500 ms, CLS ≤ 0.1, TBT ≤ 200 ms, script transfer within `tests/performance/budgets.json`) and INP ≤ 200 ms with `web-vitals` over the record flow; a route without a budget fails and a missed budget is the owner's decision, never a silent raise. | Rulings, 18 |
+| P135 | The theme (system, light, dark) is a device setting in `localStorage` (`hearth.theme`) applied before paint by an inline script; dark tints and inks are mixed from the light ones and checked by the dark axe scans. | Rulings, 19 |
+| P136 | No `eslint-config-next` (its plugin tree targets ESLint 9 and older): `eslint-plugin-react-hooks` 7.1.1 on `src/**/*.{ts,tsx}`, and accessibility checked by axe at run time. | Rulings, 20 |
+| P137 | Settings: each choice is PATCHed at once, applied optimistically and rolled back with its error next to the field; the installation's own value is stored as `null`, and a locked field is read-only. | Rulings, 21 |
+| P138 | Amounts are typed or tapped in the person's number format, turned into minor units with `BigInt`-safe strings, and refused before the request when they carry more decimals than the currency's exponent. | Rulings, 22 |
+| P139 | `src/shared/ui/api/schema.d.ts` is committed, generated only from the reviewed snapshot, excluded from Prettier, ESLint and the review-size count, and checked by `pnpm api:check` in the lint job. | Rulings, 23 |
+| P140 | Transactions are read-only in M6a: the Activity rows open nothing, and editing and deleting (with the `If-Match` flow) is an M6b follow-up. Agreed by the owner on 2026-10-20. | Rulings, 24 |
+| P141 | The Plan and Saldos tabs are hidden, not shown disabled, until HU-E9-08 and HU-E9-07 build their screens, so the bottom bar has three slots. Agreed by the owner on 2026-10-20. | Rulings, 25 |
+| P142 | `POST /api/v1/auth/sign-up` takes an optional `locale` (`es`, `en`), and the sign-up container sends the screen's current locale. Backend shipped; the container is Task 8b. | Owner flow review, P142 |
+| P143 | `HEARTH_SIGN_UP=open|closed`: while `closed`, sign-up needs an `invitationToken` that names a usable invitation or answers 403 `SignUpClosed`, and the public `GET /api/v1/auth/sign-up` answers the mode. Backend shipped. | Owner flow review, P143 |
+| P144 | A forgotten password is reset by the operator with `scripts/reset-password.mjs` in the migrator image; there is no email reset until Hearth can send mail. Backend shipped. | Owner flow review, P144 |
+| P145 | A signed-in person who opens `/sign-in` or `/sign-up` goes to `/`; the page calls `getMe()` and redirects, and the proxy lets public paths through whatever the cookie says, so a stale cookie never loops. | Owner flow review, P145 |
+| P146 | The sign-in screen has a "Forgot your password?" note that points to whoever runs Hearth, hides "Create an account" while sign-up is closed, and after a problem keeps the email, clears the password and focuses it. | Owner flow review, P146 |
+| P147 | The sign-up screen has a confirm-password field checked in the browser and never sent, sends `locale` and the `invitation` token from the URL, shows a notice instead of the form while sign-up is closed, and links to sign in. | Owner flow review, P147 |
+| P148 | The home of a space with no account shows an "Add your first account" card in place of the period summary. | Owner flow review, P148 |
+| P149 | Sign-out writes the signed-in user's stored locale to the `hearth.locale` cookie before it calls `POST /api/v1/auth/sign-out`, so the sign-in screen keeps their language. | Owner flow review, P149 |
+| P150 | A session lasts 15 days from its last use (Better Auth's `session.expiresIn`, renewed once a day while in use). Backend shipped. | Owner flow review, P150 |
+| P151 | An expired session: a page load goes to `/sign-in?next=`, a 401 in the browser (outside `/api/v1/auth/*`) assigns the sign-in URL with `expired=1`, and the sign-in screen says the session expired. | Owner flow review, P151 |
+| P152 | The public screens' language toggle changes only the visitor cookie, never the stored locale; after sign-in the stored locale wins and changes only in Settings. | Owner flow review, P152 |
+| P153 | A module's server containers are exported from `ui/server.ts` and client code imports `ui/index.ts`; dependency-cruiser allows `ui/(index|server).ts`, and a rule fails an `index.ts` that reaches the server-only API reader. Ruled during execution. | Execution, Task 19 |
+| P154 | The first measured script budgets per route (Task 19): Next.js 16.4 and React 19.3 alone ship 129 KiB gzip and next-intl's client formatter 12 KiB, so 150 KiB for the sign-in screens could not hold any application code. The controller, with the owner's standing delegation, set each route's budget a little above its measurement (sign-in and sign-up 180, home and accounts 185, settings 200, transactions and record 205 KiB) and kept LCP, CLS, TBT and INP unchanged; measured medians were LCP 1.8–2.0 s, CLS 0, TBT 25–51 ms and INP 80 ms. Lowering the budgets is a follow-up. | Execution (Task 19) |
 
 ### Preflight notes and findings
 

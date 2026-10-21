@@ -20,12 +20,25 @@ Pinned on 2026-10-11 (HU-E0-01). Each entry was the latest stable release that d
 | dependency-cruiser | 18.6.0 | Boundary gate (ADR 0001) |
 | ESLint / @eslint/js | 10.12.0 / 10.0.1 | 9.39.5 is deprecated (no longer supported); eslint-config-next was dropped for the backend-first phase, so ESLint 10 is usable |
 | typescript-eslint | 8.71.1 | Supports ESLint ^10 and TypeScript <6.1.0 |
-| eslint-config-next | — | Deferred to the web UI (HU-E9-01); its React/import/jsx-a11y plugin tree is UI-only |
+| eslint-config-next | — | Not adopted: its plugins do not support ESLint 10 (ruling P136); eslint-plugin-react-hooks 7.1.1 instead |
 | Prettier | 3.9.10 | |
 | uuid | 14.0.3 | UUIDv7 ids |
-| next-intl | 4.14.9 | Pinned for E9; installed when the web UI starts |
-| Playwright | 1.64.0 | Pinned for E9; installed when the web UI starts |
-| Tailwind CSS | 4.3.3 | Pinned for E9; installed when the web UI starts |
+| next-intl | 4.14.9 | M6a (2026-10-02): the `es` and `en` texts (ruling P120) |
+| Tailwind CSS / @tailwindcss/postcss | 4.3.3 / 4.3.3 | M6a (2026-07-16) |
+| radix-ui | 1.7.0 | M6a (2026-10-05), exactly two weeks before the pin date: the primitives under the shadcn/ui-style components |
+| class-variance-authority | 0.7.1 | M6a (2024-11-26): component variants |
+| clsx | 2.1.1 | M6a (2024-04-23): joins class names |
+| tailwind-merge | 3.7.0 | M6a (2026-09-12): resolves conflicting Tailwind classes in `cn` |
+| openapi-fetch | 0.17.0 | M6a (2026-02-11): the generated client at run time (ADR 0003) |
+| openapi-typescript | 7.13.0 | M6a (2026-02-11): the client's types, generated from the snapshot (ADR 0003); its TypeScript peer is ^5 while Hearth uses 6.0.3 |
+| eslint-plugin-react-hooks | 7.1.1 | M6a (2026-04-17): the hooks rules (ruling P136) |
+| jsdom | 30.1.2 | M6a (2026-10-04): the `ui` test project (ruling P132); it needs Node ≥ 24.15 |
+| @testing-library/react / dom / user-event / jest-dom | 16.3.3 / 10.4.2 / 14.6.7 / 7.0.1 | M6a (2026-08-27 / 2026-09-13 / 2026-09-02 / 2026-08-09) |
+| axe-core / @axe-core/playwright | 4.13.0 / 4.13.0 | M6a (2026-08-05 / 2026-08-11): accessibility scans in jsdom and in Chromium |
+| Playwright (@playwright/test) | 1.63.0 | M6a (2026-09-04); 1.64.0 (2026-10-07) was under two weeks old when M6a was planned (follow-up 4 of the plan) |
+| playwright-bdd | 9.2.1 | M6a (2026-09-06): the `@e2e` scenarios |
+| lighthouse | 13.5.0 | M6a (2026-09-18): the performance gates (ADR 0004) |
+| web-vitals | 6.2.3 | M6a (2026-10-05): INP over the record flow (ADR 0004) |
 | PostgreSQL | 18.6 (`postgres:18.6-alpine`) | Same image in dev, tests and production, and for the `backup` service, so `pg_dump` matches the server (its busybox `crond` runs the schedule) |
 | Caddy | 2.11.7 (`caddy:2.11.7-alpine`) | Automatic TLS |
 | rclone | 1.75.1 (`rclone/rclone:1.75.1`) | Pinned on 2026-10-19 (HU-E8-01), published 2026-09-04; 1.75.2 (2026-10-09, a security release) was under two weeks old, so the bump waits for 2026-10-23 (issue #135): the optional `backup-offsite` service (profile `offsite`) and its test |

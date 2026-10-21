@@ -1,5 +1,5 @@
 import { getTranslations } from "next-intl/server";
-import { SettingsContainer } from "@/modules/identity/ui";
+import { SettingsContainer } from "@/modules/identity/ui/server";
 
 export async function generateMetadata() {
   return { title: (await getTranslations("settings"))("title") };

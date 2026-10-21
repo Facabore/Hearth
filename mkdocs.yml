@@ -51,6 +51,8 @@ nav:
   - ADRs:
       - "0001 Boundary enforcement": adr/0001-boundary-enforcement-with-dependency-cruiser.md
       - "0002 OpenAPI generator": adr/0002-openapi-generator-zod-openapi.md
+      - "0003 Web UI API client": adr/0003-web-ui-talks-to-the-api-through-a-generated-client.md
+      - "0004 Web UI tests and performance gates": adr/0004-web-ui-testing-and-performance-gates.md
   - Backlog:
       - Overview: backlog/README.md
       - "E0 Foundations": backlog/E0-foundations.md
@@ -82,3 +84,4 @@ nav:
       - "M3-D Ledger refinements": superpowers/plans/2026-10-17-m3d-ledger-refinements.md
       - "M4 Insight API": superpowers/plans/2026-10-17-m4-insight-api.md
       - "M5 Nightly backups": superpowers/plans/2026-10-19-m5-nightly-backups.md
+      - "M6a Web shell and ledger": superpowers/plans/2026-10-20-m6a-web-shell-and-ledger.md

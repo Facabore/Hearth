@@ -1,5 +1,5 @@
 import { getTranslations } from "next-intl/server";
-import { RecordFormContainer } from "@/modules/ledger/ui";
+import { RecordFormContainer } from "@/modules/ledger/ui/server";
 
 export async function generateMetadata() {
   return { title: (await getTranslations("ledger.form"))("title") };

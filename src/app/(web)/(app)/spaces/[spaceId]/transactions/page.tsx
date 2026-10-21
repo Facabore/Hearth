@@ -1,5 +1,5 @@
 import { getTranslations } from "next-intl/server";
-import { TransactionListContainer } from "@/modules/ledger/ui";
+import { TransactionListContainer } from "@/modules/ledger/ui/server";
 
 export async function generateMetadata() {
   return { title: (await getTranslations("ledger.list"))("title") };

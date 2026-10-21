@@ -47,6 +47,10 @@ To let someone join later, send them an invitation from a shared space. To reope
 
 The sign-in and sign-up throttles key on the client address from `X-Forwarded-For`. Caddy replaces any client-sent value with the real peer address because no `trusted_proxies` are configured, and the `app` service publishes no port, so it is reachable only through Caddy. Keep both properties: never publish port 3000, and only add `trusted_proxies` if another proxy you control sits in front of Caddy.
 
+## Web UI
+
+The UI's Server Components call `/api/v1` on `INTERNAL_API_ORIGIN` (default `http://127.0.0.1:$PORT`, which the image's `HOSTNAME=0.0.0.0` serves): nothing to set in `.env`. `HEARTH_E2E_FIXED_NOW` fixes the clock for the end-to-end tests only and must never be set in production.
+
 ## Updating
 
 1. Take a backup: `docker compose exec backup sh /hearth/backup.sh`.

@@ -2,12 +2,12 @@
 
 **Goal:** a web interface over the Next.js BFF (spec D18) for every area delivered by the API epics E0–E8, in Spanish by default and in English, so the household can do in the browser everything the API already guarantees.
 
-**Modules involved:** `app/(web)` (pages and server actions), each module's `ui/` folder (presentational components and containers), shared atomic components.
+**Modules involved:** `app/(web)` (pages), each module's `ui/` folder (presentational components and containers), shared atomic components; pages and containers call `/api/v1` through the generated client, with no server actions (P117).
 
 **How this epic works:**
 
 - **Parallel track (milestone M6):** an area's UI story may start as soon as the API stories it depends on are `Done`; it never waits for the whole M0–M5 sequence.
-- **Container-presentational:** containers load data and call server actions; presentational components receive DTOs and props only. Pages and server actions are thin wrappers over the same use cases as `/api/v1` (or call the API); no component touches the database.
+- **Container-presentational:** containers load data and call `/api/v1` through the generated client (P117); presentational components receive DTOs and props only; no component touches the database.
 - **Design first:** every screen is designed with `/design` and reviewed by the owner before its UI story moves to `Ready`.
 - **Stack:** shadcn/ui + Tailwind CSS, atomic design for shared components, Recharts for charts, next-intl for `es` (default) and `en` (UI texts only: formats come from the user's preferences, HU-E1-15).
 - **Errors and copy:** the API returns stable codes, never translated text; the UI translates every error code (`errors.<Code>`), warning code and reason code through i18n keys.
@@ -59,7 +59,7 @@ Feature: App shell and authentication screens
 
 **Technical notes:**
 - Containers `SignUpFormContainer`, `SignInFormContainer`, `AppShellContainer` over presentational `SignUpForm`, `SignInForm`, `AppShell`; built with shadcn/ui form components.
-- Server actions call `SignUp`, `SignIn`, `SignOut` and the spaces list query (HU-E1-01, HU-E1-02); problem+json codes map to `errors.<Code>` keys.
+- The containers call `POST /api/v1/auth/sign-up`, `sign-in` and `sign-out` and `GET /api/v1/spaces` through the generated client; problem+json codes map to `errors.<Code>` keys.
 - Middleware redirects unauthenticated requests to `/sign-in?next=<path>`; only same-origin `next` values are honoured.
 
 ---
@@ -202,7 +202,7 @@ Feature: Personal ledger screens
 
 **Technical notes:**
 - Containers per screen (`AccountsContainer`, `TransactionListContainer`, `ExpenseFormContainer`, `IncomeFormContainer`, `TransferFormContainer`); presentational components receive DTOs only.
-- Forms validate with the same Zod contracts as `/api/v1` (`contracts/`), then call server actions wrapping `RecordExpense`, `RecordIncome`, `RecordTransfer`; each submit sends a fresh `Idempotency-Key` so double clicks never duplicate (HU-E0-10).
+- Forms check only what they need to build a request (an amount they can read, an account) and call `POST …/expenses`, `/incomes` and `/transfers`; the API's codes are shown next to their fields (P118).
 - The list uses cursor pagination with a "Load more" control (50 per page) and the period selector follows the space period policy (HU-E4-04).
 - Time (HU-E4-14, HU-E1-14): every transaction a person records has a time. The forms default to now in the user's time zone and always send `occurredAt` with the browser's zone; the form never sends a date alone and offers no way to clear the time. A row that has no time (a scheduler occurrence or a migrated row) gets its first time by editing. The list groups by day under headings with i18n keys (`ledger.day.today`, `ledger.day.yesterday`, then the date in the user's date format) and orders each day by time, untimed rows last. A row shows the wall-clock time in the record's zone, in the user's time format (HU-E1-15), plus the zone's name when it differs from the viewer's; recurring and imported rows show no time.
 - Date and time sheet: the chip in the form opens it. The chip reads the day, a middle dot and the time in the user's time format, such as "Today · 23:30", "Yesterday · 19:00" or "Yesterday · 7:00 PM"; an older day shows its date in the user's date format. The day names are the keys `ledger.day.today`, `ledger.day.yesterday` and `ledger.day.dayBeforeYesterday`. The sheet holds, from top to bottom:
@@ -816,3 +816,21 @@ Feature: Installation rules screen
 - The preview shows the app header with the brand and a sample of the formats; nothing is stored before "Save".
 - The entry appears in the user menu only when `GET /api/v1/me` returns `installationAdmin`; the use cases still enforce it. The role is granted outside the app (HU-E8-18).
 - From this story on the app shell and the sign-in and sign-up screens (HU-E9-01) take the brand from the public `GET /api/v1/installation`; until HU-E8-18 is `Done` they show the built-in Hearth brand and the default accent.
+
+---
+
+## Follow-ups after M6a
+
+Left open on purpose by [the M6a plan](../superpowers/plans/2026-10-20-m6a-web-shell-and-ledger.md) (its Self-Review has the reasons):
+
+1. The account edit form, with #120 (answer stored and effective icon and switches).
+2. Editing, deleting and restoring transactions from the Activity screen (M6b, ruling P140), with the `If-Match` flow and a restore endpoint for transactions; an untimed row gets its first time by editing.
+3. A text search, and account and type filters, in the transaction list (an API story first).
+4. Dependency bumps once each release is two weeks old: `@playwright/test` 1.64.x, `jsdom` 30.1.3, `@axe-core/playwright` and `axe-core` 4.14.0, `@testing-library/user-event` 14.6.8 and `radix-ui` 1.8.1.
+5. The controls ruling P126 leaves out, with their stories (HU-E9-04, HU-E9-05, HU-E9-06, HU-E9-07, HU-E9-08, HU-E9-12, HU-E9-14), the recent-category chips and the hide-balances toggle.
+6. A designer's review of the derived dark palette.
+7. Refuse cookie-authenticated writes whose `content-type` is not `application/json`, or whose `Origin` is foreign, in `defineRoute`.
+8. A Content-Security-Policy with a hash for the theme script.
+9. Raise `engines.node` to `>=24.15.0 <25` for jsdom 30.
+10. Move HU-E9-01, HU-E9-02, HU-E9-03 and HU-E9-13 to `Done` in the [backlog overview](README.md) and update their issue bodies when the M6a pull request merges.
+11. Issue #128 (report latency before the dashboards) is carried to the dashboards of M6.

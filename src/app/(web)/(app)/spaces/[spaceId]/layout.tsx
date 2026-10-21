@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { AppShellContainer } from "@/modules/spaces/ui";
+import { AppShellContainer } from "@/modules/spaces/ui/server";
 
 export default async function SpaceLayout({
   children,

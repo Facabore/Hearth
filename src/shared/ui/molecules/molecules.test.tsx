@@ -9,6 +9,44 @@ import { ProblemNotice } from "./problem-notice";
 import { Sheet } from "./sheet";
 
 describe("molecules", () => {
+  it("loads a sheet's panel when it first opens and renders nothing while it is closed (ruling P134)", async () => {
+    vi.resetModules();
+    const { Sheet: FreshSheet } = await import("./sheet"); // a fresh module: its panel is not loaded yet
+    const view = renderWithIntl(
+      <FreshSheet open={false} onOpenChange={vi.fn()} title="Espacios">
+        <p>Personal</p>
+      </FreshSheet>,
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    view.rerender(
+      <FreshSheet open onOpenChange={vi.fn()} title="Espacios">
+        <p>Personal</p>
+      </FreshSheet>,
+    );
+    expect(await screen.findByRole("dialog", { name: "Espacios" })).toBeInTheDocument();
+    expect(screen.getByText("Personal")).toBeInTheDocument();
+  });
+
+  it("opens a sheet that was mounted before another sheet loaded the panel (ruling P134)", async () => {
+    vi.resetModules();
+    const { Sheet: FreshSheet } = await import("./sheet");
+    const both = (first: boolean, second: boolean) => (
+      <>
+        <FreshSheet open={first} onOpenChange={vi.fn()} title="Categoría">
+          <p>Comida</p>
+        </FreshSheet>
+        <FreshSheet open={second} onOpenChange={vi.fn()} title="Cuenta">
+          <p>Bancolombia</p>
+        </FreshSheet>
+      </>
+    );
+    const view = renderWithIntl(both(false, false));
+    view.rerender(both(true, false));
+    expect(await screen.findByRole("dialog", { name: "Categoría" })).toBeInTheDocument();
+    view.rerender(both(false, true));
+    expect(await screen.findByRole("dialog", { name: "Cuenta" })).toBeInTheDocument();
+  });
+
   it("opens a sheet named by its title, closes it with Escape and with its labelled close button", async () => {
     const onOpenChange = vi.fn();
     renderWithIntl(
