@@ -42,6 +42,62 @@ describe("app shell (HU-E9-01)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("shows Saldos in a shared space, after Movimientos and Registrar, and not in the personal one (ruling P160)", () => {
+    const { unmount } = renderWithIntl(
+      <AppShell
+        me={{ name: "Ana", email: "ana@example.com", locale: "es" }}
+        spaces={spaces}
+        activeSpace={spaces[1]}
+      >
+        <h1>Inicio</h1>
+      </AppShell>,
+    );
+    const nav = screen.getByRole("navigation", { name: "Principal" });
+    expect(
+      within(nav)
+        .getAllByRole("link")
+        .map((l) => l.getAttribute("href")),
+    ).toEqual([
+      "/spaces/sp-household",
+      "/spaces/sp-household/transactions",
+      "/spaces/sp-household/new",
+      "/spaces/sp-household/balances",
+    ]);
+    expect(within(nav).getByRole("link", { name: "Saldos" })).toBeInTheDocument();
+    unmount();
+    renderWithIntl(
+      <AppShell
+        me={{ name: "Ana", email: "ana@example.com", locale: "es" }}
+        spaces={spaces}
+        activeSpace={spaces[0]}
+      >
+        <h1>Inicio</h1>
+      </AppShell>,
+    );
+    expect(screen.queryByRole("link", { name: "Saldos" })).not.toBeInTheDocument();
+  });
+
+  it("offers to create a shared space at the end of the space sheet (HU-E9-05)", async () => {
+    renderWithIntl(
+      <AppShell
+        me={{ name: "Ana", email: "ana@example.com", locale: "es" }}
+        spaces={spaces}
+        activeSpace={spaces[0]}
+      >
+        <h1>Inicio</h1>
+      </AppShell>,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Espacio actual: Personal. Cambiar de espacio" }),
+    );
+    const sheet = screen.getByRole("dialog", { name: "Espacios" });
+    expect(within(sheet).getAllByRole("link").at(-1)).toHaveAccessibleName("Crear espacio compartido");
+    expect(within(sheet).getByRole("link", { name: "Crear espacio compartido" })).toHaveAttribute(
+      "href",
+      "/spaces/new",
+    );
+  });
+
   it("lists every current space in the switcher and links to the chosen one", async () => {
     renderWithIntl(
       <AppShell

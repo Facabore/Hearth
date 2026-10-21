@@ -205,12 +205,14 @@
       "home": "Home",
       "transactions": "Transactions",
       "record": "Record a transaction",
-      "recordShort": "Record"
+      "recordShort": "Record",
+      "balances": "Balances"
     },
     "space": {
       "current": "Current space: {name}. Switch space",
       "title": "Spaces",
-      "onlyYou": "Only you"
+      "onlyYou": "Only you",
+      "create": "Create a shared space"
     },
     "role": {
       "OWNER": "Owner",
@@ -223,7 +225,9 @@
       "settings": "Settings",
       "settingsHint": "Formats, time, time zone, theme and language",
       "accounts": "Accounts",
-      "signOut": "Sign out"
+      "signOut": "Sign out",
+      "members": "Members and invitations",
+      "membersHint": "Invite people, add guests and change roles"
     },
     "notFound": "This page does not exist or is no longer available."
   },
@@ -440,6 +444,21 @@
       },
       "amountUnreadable": "Type an amount like {example}.",
       "accountRequired": "Choose an account."
+    }
+  },
+  "spaces": {
+    "new": {
+      "title": "Create a shared space",
+      "name": "Name",
+      "currency": "Currency",
+      "currencyHint": "One currency per space. It can no longer change once the space has transactions.",
+      "note": "You will be its Owner and it becomes your active space. Then invite the others from Members.",
+      "create": "Create space"
+    },
+    "currency": {
+      "COP": "COP · Colombian peso",
+      "USD": "USD · US dollar",
+      "EUR": "EUR · Euro"
     }
   }
 }

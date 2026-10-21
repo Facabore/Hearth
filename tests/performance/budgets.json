@@ -7,6 +7,7 @@
     "/spaces/:id/transactions": 205,
     "/spaces/:id/accounts": 185,
     "/spaces/:id/new": 205,
-    "/settings": 200
+    "/settings": 200,
+    "/spaces/new": 190
   }
 }

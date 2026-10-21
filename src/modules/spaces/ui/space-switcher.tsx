@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Avatar, Icon, Sheet } from "@/shared/ui";
 import type { SpaceSummary } from "./space-helpers";
 
-/** HU-E9-01, the SpaceSheet artboard: every current space as a link; no create or join (HU-E9-05). */
+/** HU-E9-01, the SpaceSheet artboard: every current space as a link, then create a shared space (HU-E9-05, P160). */
 export function SpaceSwitcher({
   spaces,
   activeSpace,
@@ -52,6 +52,14 @@ export function SpaceSwitcher({
             </li>
           ))}
         </ul>
+        <Link
+          href="/spaces/new"
+          onClick={() => setOpen(false)}
+          className="mt-2 flex min-h-14 items-center gap-3 rounded-xl px-2 font-medium text-accent"
+        >
+          <Icon name="plus" />
+          {t("space.create")}
+        </Link>
       </Sheet>
     </>
   );

@@ -19,11 +19,11 @@ export function AppShell({ me, spaces, activeSpace, children }: AppShellProps) {
       <div className="mx-auto max-w-[1200px] px-4">
         <header className="flex h-[60px] items-center justify-between">
           <SpaceSwitcher spaces={spaces} activeSpace={activeSpace} />
-          <ProfileSheet me={me} spaceId={activeSpace.id} />
+          <ProfileSheet me={me} spaceId={activeSpace.id} spaceKind={activeSpace.kind} />
         </header>
         <main id="main">{children}</main>
       </div>
-      <NavLinks spaceId={activeSpace.id} />
+      <NavLinks spaceId={activeSpace.id} spaceKind={activeSpace.kind} />
     </div>
   );
 }

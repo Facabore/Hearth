@@ -4,16 +4,25 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Icon, Logo } from "@/shared/ui";
+import type { SpaceDto } from "@/shared/ui/api/dto";
 
 /**
  * One landmark for both layouts: a bar fixed at the bottom under 1024 px, a 240 px rail from 1024 px (the Desktop
- * artboard). Plan and Saldos are not rendered until HU-E9-08 and HU-E9-07 (ruling P126).
+ * artboard). Ruling P160: the Batch 2 order, Inicio, Movimientos, Registrar, Saldos; Saldos only where balances
+ * exist (shared and direct spaces); Plan joins with HU-E9-08 (M6c).
  */
-export function NavLinks({ spaceId }: { readonly spaceId: string }) {
+export function NavLinks({
+  spaceId,
+  spaceKind,
+}: {
+  readonly spaceId: string;
+  readonly spaceKind: SpaceDto["kind"];
+}) {
   const t = useTranslations("shell.nav");
   const pathname = usePathname();
   const home = `/spaces/${spaceId}`;
   const transactions = `${home}/transactions`;
+  const balances = `${home}/balances`;
   const current = (href: string) => (pathname === href ? ("page" as const) : undefined);
   const item =
     "flex min-h-11 flex-1 flex-col items-center justify-center gap-1 text-xs text-muted aria-[current=page]:text-accent lg:flex-none lg:flex-row lg:justify-start lg:gap-3 lg:rounded-xl lg:px-3 lg:text-base";
@@ -29,6 +38,10 @@ export function NavLinks({ spaceId }: { readonly spaceId: string }) {
         <Icon name="home" />
         {t("home")}
       </Link>
+      <Link href={transactions} aria-current={current(transactions)} className={item}>
+        <Icon name="list" />
+        {t("transactions")}
+      </Link>
       <Link
         href={`${home}/new`}
         aria-label={t("record")}
@@ -38,10 +51,12 @@ export function NavLinks({ spaceId }: { readonly spaceId: string }) {
         <Icon name="plus" />
         <span className="hidden lg:inline">{t("recordShort")}</span>
       </Link>
-      <Link href={transactions} aria-current={current(transactions)} className={item}>
-        <Icon name="list" />
-        {t("transactions")}
-      </Link>
+      {spaceKind !== "PERSONAL" ? (
+        <Link href={balances} aria-current={current(balances)} className={item}>
+          <Icon name="swap" />
+          {t("balances")}
+        </Link>
+      ) : null}
     </nav>
   );
 }

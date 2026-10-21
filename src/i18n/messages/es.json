@@ -205,12 +205,14 @@
       "home": "Inicio",
       "transactions": "Movimientos",
       "record": "Registrar movimiento",
-      "recordShort": "Registrar"
+      "recordShort": "Registrar",
+      "balances": "Saldos"
     },
     "space": {
       "current": "Espacio actual: {name}. Cambiar de espacio",
       "title": "Espacios",
-      "onlyYou": "Solo tú"
+      "onlyYou": "Solo tú",
+      "create": "Crear espacio compartido"
     },
     "role": {
       "OWNER": "Propietario",
@@ -223,7 +225,9 @@
       "settings": "Ajustes",
       "settingsHint": "Formatos, hora, zona horaria, tema e idioma",
       "accounts": "Cuentas",
-      "signOut": "Cerrar sesión"
+      "signOut": "Cerrar sesión",
+      "members": "Miembros e invitaciones",
+      "membersHint": "Invita personas, agrega invitados y cambia roles"
     },
     "notFound": "Esta página no existe o ya no está disponible."
   },
@@ -440,6 +444,21 @@
       },
       "amountUnreadable": "Escribe un monto como {example}.",
       "accountRequired": "Elige una cuenta."
+    }
+  },
+  "spaces": {
+    "new": {
+      "title": "Crear un espacio compartido",
+      "name": "Nombre",
+      "currency": "Moneda",
+      "currencyHint": "Una sola moneda por espacio. Deja de poder cambiarse cuando el espacio tiene movimientos.",
+      "note": "Quedarás como Propietario y el espacio pasará a ser tu espacio activo. Después invitas a los demás desde Miembros.",
+      "create": "Crear espacio"
+    },
+    "currency": {
+      "COP": "COP · Peso colombiano",
+      "USD": "USD · Dólar estadounidense",
+      "EUR": "EUR · Euro"
     }
   }
 }
