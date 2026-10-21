@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { SignUpClosedNotice, SignUpFormContainer } from "@/modules/identity/ui";
 import { getSignUpMode } from "@/shared/ui/api/server";
 import { invitationOf } from "@/shared/ui/navigation/invitation";
+import { safeNext } from "@/shared/ui/navigation/auth-redirect";
 
 export async function generateMetadata() {
   return { title: (await getTranslations("auth.signUp"))("title") };
@@ -14,10 +15,10 @@ export async function generateMetadata() {
 export default async function SignUpPage({
   searchParams,
 }: {
-  searchParams: Promise<{ invitation?: string | string[] }>;
+  searchParams: Promise<{ invitation?: string | string[]; next?: string }>;
 }) {
-  const [{ invitation }, mode] = await Promise.all([searchParams, getSignUpMode()]);
+  const [{ invitation, next }, mode] = await Promise.all([searchParams, getSignUpMode()]);
   const token = invitationOf(invitation);
   if (mode === "closed" && token === undefined) return <SignUpClosedNotice />;
-  return <SignUpFormContainer invitation={token} />;
+  return <SignUpFormContainer next={safeNext(next)} invitation={token} />;
 }

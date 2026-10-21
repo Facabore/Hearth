@@ -20,15 +20,27 @@ const BY_CODE = {
   InvalidPassword: "password",
 } as const;
 
+/** Ruling P157: the way back to sign in keeps where the visitor was going and the invitation they hold. */
+const signInHrefOf = (next: string, invitation: string | undefined): string => {
+  const query = [
+    next === "/" ? null : `next=${encodeURIComponent(next)}`,
+    invitation === undefined ? null : `invitation=${encodeURIComponent(invitation)}`,
+  ].filter((part): part is string => part !== null);
+  return query.length === 0 ? "/sign-in" : `/sign-in?${query.join("&")}`;
+};
+
 /**
  * HU-E9-01, HU-E1-14: signs up from the browser with its time zone and lands on the personal space. Rulings P142 and
  * P147: the body carries the screen's locale and the URL's invitation token; a `SignUpClosed` answer swaps the form
- * for the closed notice.
+ * for the closed notice. Ruling P157: after the sign-up the route goes to `next`, which the page already made safe.
  */
 export function SignUpFormContainer({
+  next = "/",
   invitation,
   api: injected,
 }: {
+  /** Already made safe by the page (`safeNext`, ruling P157). */
+  readonly next?: string;
   readonly invitation?: string;
   readonly api?: Api;
 }) {
@@ -53,7 +65,7 @@ export function SignUpFormContainer({
         },
       });
       if (response.ok) {
-        router.replace("/");
+        router.replace(next);
         router.refresh();
         return;
       }
@@ -86,6 +98,7 @@ export function SignUpFormContainer({
       pending={pending}
       fieldErrors={fieldErrors}
       problem={problem && where === "form" ? problem : null}
+      signInHref={signInHrefOf(next, invitation)}
     />
   );
 }

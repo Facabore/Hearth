@@ -4,6 +4,23 @@ export const PUBLIC_PATHS = ["/sign-in", "/sign-up"] as const;
 const isPublic = (pathname: string) =>
   PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}?`));
 
+/**
+ * Ruling P157: pages a visitor opens with or without a session (an invitation, a claim link). The proxy lets them
+ * through; unlike the public screens they are valid `next` targets, and a signed-in person stays on them.
+ */
+export const OPEN_PREFIXES = ["/invitations/", "/claims/"] as const;
+
+/**
+ * An open path is a prefix and exactly one token segment: nothing deeper, no dot segment and no backslash, so the
+ * prefix can never open a protected page whatever the URL parser later does with the rest.
+ */
+export const isOpenPath = (pathname: string): boolean =>
+  OPEN_PREFIXES.some((prefix) => {
+    if (!pathname.startsWith(prefix)) return false;
+    const token = pathname.slice(prefix.length);
+    return token !== "" && token !== "." && token !== ".." && !token.includes("/") && !token.includes("\\");
+  });
+
 /** The URL parser drops tabs and newlines and reads "\" as "/", so "/\t/evil.example" would leave the origin. */
 const bends = (c: string) => c === "\\" || c.charCodeAt(0) < 0x20 || c.charCodeAt(0) === 0x7f;
 
@@ -22,7 +39,7 @@ export const redirectFor = (input: {
   search: string;
   hasSession: boolean;
 }): string | null => {
-  if (input.hasSession || isPublic(input.pathname)) return null;
+  if (input.hasSession || isPublic(input.pathname) || isOpenPath(input.pathname)) return null;
   const target = `${input.pathname}${input.search}`;
   return target === "/" ? "/sign-in" : `/sign-in?next=${encodeURIComponent(target)}`;
 };

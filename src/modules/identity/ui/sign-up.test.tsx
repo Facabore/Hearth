@@ -43,6 +43,38 @@ describe("sign-up screen (HU-E9-01)", () => {
     expect(router.replace).toHaveBeenCalledWith("/");
   });
 
+  it("returns to the invitation after signing up, and keeps it in the link to sign in (ruling P157)", async () => {
+    const { api, requests } = fakeApi({
+      "POST /api/v1/auth/sign-up": () => jsonResponse({ user: meDto() }, 201),
+    });
+    renderWithIntl(<SignUpFormContainer next="/invitations/tok-1" invitation="tok-1" api={api} />);
+    expect(screen.getByRole("link", { name: "Inicia sesión" })).toHaveAttribute(
+      "href",
+      "/sign-in?next=%2Finvitations%2Ftok-1&invitation=tok-1",
+    );
+    await fill();
+    await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
+    expect(await requests[0]!.json()).toMatchObject({ invitationToken: "tok-1" });
+    expect(router.replace).toHaveBeenCalledWith("/invitations/tok-1");
+  });
+
+  it("links to a plain sign-in when there is neither a next nor an invitation, and keeps only what is there", () => {
+    const { unmount } = renderWithIntl(<SignUpFormContainer />);
+    expect(screen.getByRole("link", { name: "Inicia sesión" })).toHaveAttribute("href", "/sign-in");
+    unmount();
+    const withInvitation = renderWithIntl(<SignUpFormContainer invitation="tok 1" />);
+    expect(screen.getByRole("link", { name: "Inicia sesión" })).toHaveAttribute(
+      "href",
+      "/sign-in?invitation=tok%201",
+    );
+    withInvitation.unmount();
+    renderWithIntl(<SignUpFormContainer next="/settings?tab=region" />);
+    expect(screen.getByRole("link", { name: "Inicia sesión" })).toHaveAttribute(
+      "href",
+      "/sign-in?next=%2Fsettings%3Ftab%3Dregion",
+    );
+  });
+
   it("shows errors.EmailTaken next to the email field and stays on the screen", async () => {
     const { api } = fakeApi({ "POST /api/v1/auth/sign-up": () => problemResponse(409, "EmailTaken") });
     renderWithIntl(<SignUpFormContainer api={api} />);

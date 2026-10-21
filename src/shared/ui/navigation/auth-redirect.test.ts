@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { expiredSignInUrl, redirectFor, safeNext } from "./auth-redirect";
+import { expiredSignInUrl, isOpenPath, redirectFor, safeNext } from "./auth-redirect";
 
 describe("safeNext (HU-E9-01, ruling P125): only same-origin paths are honoured", () => {
   it.each([
     ["/spaces/s1/transactions?period=2026-10", "/spaces/s1/transactions?period=2026-10"],
     ["/settings", "/settings"],
+    ["/invitations/AbC_123-x", "/invitations/AbC_123-x"],
+    ["/claims/AbC_123-x", "/claims/AbC_123-x"],
+    ["//invitations/x", "/"],
+    ["/invitations/x\\evil.example", "/"],
+    ["/claims/\t/evil.example", "/"],
+    ["https://hearth.example/invitations/x", "/"],
     ["//evil.example/x", "/"],
     ["https://evil.example", "/"],
     ["/\\evil.example", "/"],
@@ -36,6 +42,54 @@ describe("redirectFor", () => {
     // loop); the public layout's real session check does.
     expect(redirectFor({ pathname: "/sign-in", search: "", hasSession: true })).toBeNull();
     expect(redirectFor({ pathname: "/settings", search: "", hasSession: true })).toBeNull();
+  });
+});
+
+describe("open paths (HU-E9-05, ruling P157)", () => {
+  it("lets the invitation and claim pages through with or without a session", () => {
+    for (const hasSession of [false, true]) {
+      expect(redirectFor({ pathname: "/invitations/tok", search: "", hasSession })).toBeNull();
+      expect(redirectFor({ pathname: "/claims/tok", search: "", hasSession })).toBeNull();
+    }
+    expect(redirectFor({ pathname: "/invitations", search: "", hasSession: false })).toBe(
+      "/sign-in?next=%2Finvitations",
+    );
+    expect(redirectFor({ pathname: "/invitationsx/tok", search: "", hasSession: false })).toBe(
+      "/sign-in?next=%2Finvitationsx%2Ftok",
+    );
+  });
+
+  it.each([
+    ["/invitations/tok", true],
+    ["/claims/AbC_123-x", true],
+    ["/invitations/", false],
+    ["/claims/", false],
+    ["/invitations", false],
+    ["/claims", false],
+    ["/invitationsx/tok", false],
+    ["/Invitations/tok", false],
+    ["/settings", false],
+    ["/", false],
+    ["/invitations/tok/extra", false],
+    ["/invitations//settings", false],
+    ["/claims/a/../../settings", false],
+    ["/claims/..", false],
+    ["/claims/.", false],
+    ["/invitations/a\\b", false],
+    ["//invitations/tok", false],
+    ["/sign-in/invitations/tok", false],
+    ["/x/invitations/tok", false],
+  ])("isOpenPath(%j) is %j: one token under an open prefix, nothing that can climb out", (path, open) => {
+    expect(isOpenPath(path)).toBe(open);
+    if (!open) {
+      expect(redirectFor({ pathname: path, search: "", hasSession: false })).not.toBeNull();
+    }
+  });
+
+  it("keeps a protected path protected when an open path appears in its query", () => {
+    expect(redirectFor({ pathname: "/settings", search: "?next=/invitations/tok", hasSession: false })).toBe(
+      "/sign-in?next=%2Fsettings%3Fnext%3D%2Finvitations%2Ftok",
+    );
   });
 });
 
