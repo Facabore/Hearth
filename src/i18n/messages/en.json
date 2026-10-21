@@ -600,10 +600,23 @@
     }
   },
   "balances": {
+    "title": "Balances",
+    "yours": "Your balance in {space}",
+    "you": {
+      "owes": "You owe {amount}",
+      "owed": "You are owed {amount}",
+      "settled": "You are settled up"
+    },
+    "suggestions": "To settle up",
+    "owes": "{payer} owes {receiver} {amount}",
+    "suggestionsNote": "The fewest payments that settle everyone. Settle only fills in the form.",
+    "allSettled": "Nobody owes anybody in {space}.",
+    "members": "Each member",
     "member": {
       "owes": "owes {amount}",
       "owed": "is owed {amount}",
-      "settled": "settled up"
+      "settled": "settled up",
+      "link": "{name}: {sentence}. See history."
     }
   },
   "invitation": {

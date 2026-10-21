@@ -600,10 +600,23 @@
     }
   },
   "balances": {
+    "title": "Saldos",
+    "yours": "Tu saldo en {space}",
+    "you": {
+      "owes": "Debes {amount}",
+      "owed": "Te deben {amount}",
+      "settled": "Estás a paz y salvo"
+    },
+    "suggestions": "Para quedar a paz y salvo",
+    "owes": "{payer} le debe {amount} a {receiver}",
+    "suggestionsNote": "Sugerencia con el menor número de pagos. Liquidar solo prellena el formulario.",
+    "allSettled": "Nadie le debe a nadie en {space}.",
+    "members": "Cada miembro",
     "member": {
       "owes": "debe {amount}",
       "owed": "le deben {amount}",
-      "settled": "a paz y salvo"
+      "settled": "a paz y salvo",
+      "link": "{name}: {sentence}. Ver historial"
     }
   },
   "invitation": {

@@ -11,8 +11,6 @@ const PHONE = { width: 390, height: 844 };
 const SMALL_PHONE = { width: 320, height: 640 };
 const TARGET = 44;
 
-const UNBUILT_ROUTES = [/\/spaces\/[^/]+\/balances\?_rsc=/];
-
 const WIDE_FONT_CSS = '* { font-family: Verdana, "DejaVu Sans", sans-serif !important; }';
 
 /** Every test fails on a `console.error` or an uncaught page error: nothing may log one on a normal visit. */
@@ -28,10 +26,7 @@ const test = base.extend<{ errors: string[]; wideFont: boolean }>({
       const errors: string[] = [];
       page.on("console", (message) => {
         if (message.type() !== "error") return;
-        const where = message.location().url;
-        // Task 17 builds the Saldos screen: until then the shared spaces' tab prefetches a route that answers 404.
-        if (UNBUILT_ROUTES.some((route) => route.test(where))) return;
-        errors.push(`${message.text()} @ ${where}`);
+        errors.push(`${message.text()} @ ${message.location().url}`);
       });
       page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
       await use(errors);
@@ -364,6 +359,7 @@ for (const wideFont of [false, true]) {
           `/spaces/${spaceId}/new`,
           `/spaces/${sharedId}`,
           `/spaces/${sharedId}/members`,
+          `/spaces/${sharedId}/balances`,
           `/spaces/${sharedId}/new`,
           warned,
           "/spaces/new",
