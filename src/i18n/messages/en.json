@@ -505,6 +505,13 @@
       "linkNote": "Role {role} · expires on {date}. Several people can use it until it expires or you revoke it.",
       "sent": "We sent the invitation to {email}.",
       "notSent": "Hearth does not send email yet: copy the link and share it with {email}."
-    }
+    },
+    "pending": "Pending invitations",
+    "pendingEmail": "Email · {role} · expires on {date}",
+    "pendingLinkTitle": "Invitation link",
+    "pendingLink": "{role} · several people · expires on {date}",
+    "revoke": "Revoke",
+    "revokeEmail": "Revoke the invitation for {email}",
+    "revokeLink": "Revoke the invitation link as {role}"
   }
 }

@@ -3,13 +3,14 @@
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import type { Api } from "@/shared/ui/api/client";
-import type { MemberDto, SpaceDto } from "@/shared/ui/api/dto";
+import type { InvitationDto, MemberDto, SpaceDto } from "@/shared/ui/api/dto";
 import { formatDate, type Formats } from "@/shared/ui/format/formatters";
 import { localDateIn } from "@/shared/kernel/time-zone";
 import { Button, Icon } from "@/shared/ui";
 import { InviteSheet } from "./invite-sheet";
 import { memberLabel } from "./member-label";
 import { MemberRow } from "./member-row";
+import { PendingInvitations } from "./pending-invitations";
 import { RoleSheet } from "./role-sheet";
 import { controlsFor, type SpaceRole } from "./space-controls";
 
@@ -18,6 +19,7 @@ export function MembersScreen({
   space,
   members,
   meUserId,
+  invitations = null,
   formats,
   viewerZone,
   api,
@@ -25,6 +27,8 @@ export function MembersScreen({
   readonly space: SpaceDto;
   readonly members: readonly MemberDto[];
   readonly meUserId: string;
+  /** The pending invitations; `null` when the viewer may not invite (ruling P155). */
+  readonly invitations?: readonly InvitationDto[] | null;
   readonly formats: Formats;
   readonly viewerZone: string;
   readonly api?: Api;
@@ -87,6 +91,15 @@ export function MembersScreen({
           })}
         </ul>
       </section>
+      {invitations ? (
+        <PendingInvitations
+          spaceId={space.id}
+          invitations={invitations}
+          formats={formats}
+          viewerZone={viewerZone}
+          api={api}
+        />
+      ) : null}
       {inviting ? (
         <InviteSheet
           open
