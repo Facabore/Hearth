@@ -460,5 +460,33 @@
       "USD": "USD · Dólar estadounidense",
       "EUR": "EUR · Euro"
     }
+  },
+  "members": {
+    "title": "Miembros",
+    "subtitle": "{space} · {currency} · {policy}",
+    "policy": {
+      "MONTHLY": "mensual, corte el {day}",
+      "SEMI_MONTHLY": "quincenal, días {day1} y {day2}"
+    },
+    "count": "{count, plural, one {# miembro} other {# miembros}}",
+    "you": "{name} (tú)",
+    "guestSuffix": "(invitado)",
+    "joined": "Se unió el {date}",
+    "guestDetail": "Sin cuenta · no inicia sesión",
+    "noRole": "Sin rol",
+    "role": "Rol de {name}: {role}. Cambiar",
+    "readOnlyNote": "Tu rol en {space} es {role}: puedes ver miembros y saldos, pero no invitar ni agregar invitados.",
+    "directNote": "{space} es un espacio solo para dos: no admite más miembros.",
+    "roleSheet": {
+      "title": "Rol de {name}",
+      "label": "Rol",
+      "save": "Guardar rol"
+    },
+    "roleDetail": {
+      "OWNER": "Todo, incluido cambiar roles y archivar el espacio",
+      "ADMIN": "Invita, maneja el plan y edita lo de todos",
+      "MEMBER": "Registra gastos y pagos, agrega invitados",
+      "VIEWER": "Solo ve movimientos, saldos y tableros"
+    }
   }
 }

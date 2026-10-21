@@ -460,5 +460,33 @@
       "USD": "USD · US dollar",
       "EUR": "EUR · Euro"
     }
+  },
+  "members": {
+    "title": "Members",
+    "subtitle": "{space} · {currency} · {policy}",
+    "policy": {
+      "MONTHLY": "monthly, cut-off on day {day}",
+      "SEMI_MONTHLY": "twice a month, days {day1} and {day2}"
+    },
+    "count": "{count, plural, one {# member} other {# members}}",
+    "you": "{name} (you)",
+    "guestSuffix": "(guest)",
+    "joined": "Joined on {date}",
+    "guestDetail": "No account · cannot sign in",
+    "noRole": "No role",
+    "role": "{name}'s role: {role}. Change",
+    "readOnlyNote": "Your role in {space} is {role}: you can see members and balances, but not invite or add guests.",
+    "directNote": "{space} is a space for two: it takes no other members.",
+    "roleSheet": {
+      "title": "{name}'s role",
+      "label": "Role",
+      "save": "Save role"
+    },
+    "roleDetail": {
+      "OWNER": "Everything, including changing roles and archiving the space",
+      "ADMIN": "Invites, runs the plan and edits everyone's entries",
+      "MEMBER": "Records expenses and payments, adds guests",
+      "VIEWER": "Only sees transactions, balances and dashboards"
+    }
   }
 }
