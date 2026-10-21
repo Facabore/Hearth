@@ -117,6 +117,46 @@ describe("DrizzleInvitationRepository (HU-E1-06, HU-E1-07)", () => {
     expect(await repo.findForUpdate(space.id, invitation.id)).toEqual(accepted);
   });
 
+  it("lists a space's pending email and link invitations, newest first, and nothing for a malformed id (P155)", async () => {
+    const ana = await newUser("Ana");
+    const space = await household(ana.id);
+    const other = await household(ana.id);
+    const first = await invite(
+      space,
+      ana.id,
+      { kind: "EMAIL", email: "marta@example.com" },
+      new Date("2026-10-12T12:00:00Z"),
+    );
+    const second = await invite(space, ana.id, { kind: "LINK" }, new Date("2026-10-12T13:00:00Z"));
+    const used = await invite(space, ana.id, { kind: "LINK" }, new Date("2026-10-12T14:00:00Z"));
+    await repo.save({ ...used.invitation, status: "REVOKED", revokedAt: new Date("2026-10-12T15:00:00Z") });
+    await invite(other, ana.id, { kind: "LINK" }, new Date("2026-10-12T16:00:00Z"));
+    // A pending claim link of the space's guest is not an invitation to list.
+    const guest = await guestMemberFixture(
+      pool,
+      { userId: ana.id, spaceId: space.id, memberId: space.members[0]!.id },
+      "Pedro",
+    );
+    const claim = issueClaim({
+      id: randomUUID() as InvitationId,
+      spaceId: space.id,
+      guestMemberId: guest,
+      current: await spaces.listCurrent(space.id),
+      tokenHash: cryptoInvitationTokens.issue().hash,
+      createdBy: ana.id,
+      now: new Date("2026-10-12T17:00:00Z"),
+    });
+    if (!claim.ok) throw new Error(claim.error.code);
+    await repo.add(claim.value);
+    const now = new Date("2026-10-13T00:00:00Z");
+    expect((await repo.listPending(space.id, now)).map((i) => i.id)).toEqual([
+      second.invitation.id,
+      first.invitation.id,
+    ]);
+    expect(await repo.listPending(space.id, new Date("2026-10-19T12:00:00Z"))).toEqual([second.invitation]);
+    expect(await repo.listPending("not-a-uuid", now)).toEqual([]);
+  });
+
   it("rejects email invitations without an address and invitations granting OWNER", async () => {
     const ana = await newUser("Ana");
     const space = await household(ana.id);

@@ -2,7 +2,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as acceptInvitation } from "@/app/api/v1/invitations/[token]/accept/route";
 import { POST as revokeInvitation } from "@/app/api/v1/spaces/[spaceId]/invitations/[invitationId]/revoke/route";
-import { POST as createInvitation } from "@/app/api/v1/spaces/[spaceId]/invitations/route";
+import {
+  GET as listInvitations,
+  POST as createInvitation,
+} from "@/app/api/v1/spaces/[spaceId]/invitations/route";
 import { GET as listMembers } from "@/app/api/v1/spaces/[spaceId]/members/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import type { EmailSender, InvitationEmail } from "@/modules/spaces/application";
@@ -214,6 +217,33 @@ describe("invitations (HU-E1-06)", () => {
     expect(
       await problemOf(await invite(ana, spaceId, { kind: "EMAIL", email: "not-an-email", role: "MEMBER" })),
     ).toEqual([422, "ValidationFailed"]);
+  });
+
+  it("lists the pending invitations to an OWNER and refuses a MEMBER (HU-E9-05, ruling P155)", async () => {
+    const ana = await registerUser("Ana");
+    const spaceId = await newSharedSpace(ana);
+    await invite(ana, spaceId, { kind: "EMAIL", email: "marta@example.com", role: "MEMBER" });
+    await invite(ana, spaceId, { kind: "LINK", role: "VIEWER" });
+    const listed = await call(listInvitations, "GET", `/api/v1/spaces/${spaceId}/invitations`, {
+      user: ana,
+      params: { spaceId },
+    });
+    expect(listed.status).toBe(200);
+    const { items } = (await listed.json()) as {
+      items: { kind: string; role: string; email: string | null }[];
+    };
+    expect(items.map((i) => [i.kind, i.role, i.email])).toEqual([
+      ["LINK", "VIEWER", null],
+      ["EMAIL", "MEMBER", "marta@example.com"],
+    ]);
+    expect(JSON.stringify(items)).not.toMatch(/token|url/i);
+    const luis = await registerUser("Luis");
+    await joinAs(ana, spaceId, luis, "MEMBER");
+    const refused = await call(listInvitations, "GET", `/api/v1/spaces/${spaceId}/invitations`, {
+      user: luis,
+      params: { spaceId },
+    });
+    expect(await problemOf(refused)).toEqual([403, "InsufficientRole"]);
   });
 });
 

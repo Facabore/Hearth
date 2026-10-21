@@ -63,6 +63,7 @@ export {
   type CreateInvitation,
   type CreateInvitationInput,
 } from "./create-invitation";
+export { createListInvitations, type ListInvitations } from "./list-invitations";
 export { createRevokeInvitation, type RevokeInvitation } from "./revoke-invitation";
 export {
   createAcceptInvitation,

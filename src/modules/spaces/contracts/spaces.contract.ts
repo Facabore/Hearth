@@ -114,6 +114,7 @@ export const CreatedInvitationSchema = z.object({
   url: z.string(),
   emailSent: z.boolean(),
 });
+export const ListInvitationsResponseSchema = z.object({ items: z.array(InvitationSchema) });
 
 export const invitationDto = (view: InvitationView): z.infer<typeof InvitationSchema> => ({
   id: view.id,
@@ -229,6 +230,25 @@ export const spacesPaths: ZodOpenApiPathsObject = {
     },
   },
   "/api/v1/spaces/{spaceId}/invitations": {
+    get: {
+      operationId: "listInvitations",
+      summary:
+        "The space's pending email and link invitations, newest first (OWNER and ADMIN); never their URLs",
+      ...securedByUser,
+      requestParams: { path: SpacePath },
+      responses: {
+        "200": {
+          description: "The pending invitations",
+          content: jsonContent(ListInvitationsResponseSchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound",
+          "409": "SpaceArchived",
+        }),
+      },
+    },
     post: {
       operationId: "createInvitation",
       summary: "Invite by email (bound to that address) or by shareable link; the response carries the URL",

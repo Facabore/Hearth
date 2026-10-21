@@ -248,6 +248,19 @@ export class InMemoryInvitations implements InvitationRepository {
     return this.lock(this.rows.find((i) => i.tokenHash === tokenHash));
   }
 
+  /** Like DrizzleInvitationRepository.listPending (pinned against it by its integration test). */
+  async listPending(spaceId: string, now: Date) {
+    return this.rows
+      .filter(
+        (i) =>
+          i.spaceId === spaceId &&
+          i.status === "PENDING" &&
+          i.kind !== "CLAIM" &&
+          i.expiresAt.getTime() > now.getTime(),
+      )
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : -1));
+  }
+
   async save(invitation: Invitation) {
     this.rows = this.rows.map((i) => (i.id === invitation.id ? invitation : i));
   }

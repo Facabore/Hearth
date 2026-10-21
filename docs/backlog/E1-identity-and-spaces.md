@@ -282,7 +282,7 @@ Feature: Invitations
 ```
 
 **Technical notes:**
-- Use cases: `CreateInvitation`, `RevokeInvitation`; requires OWNER or ADMIN. Endpoints: `POST /api/v1/spaces/{spaceId}/invitations` (email or link; the response carries the invitation URL), `POST /api/v1/spaces/{spaceId}/invitations/{invitationId}/revoke`.
+- Use cases: `CreateInvitation`, `RevokeInvitation`, `ListInvitations`; requires OWNER or ADMIN. Endpoints: `POST /api/v1/spaces/{spaceId}/invitations` (email or link; the response carries the invitation URL), `POST /api/v1/spaces/{spaceId}/invitations/{invitationId}/revoke`, and (HU-E9-05, ruling P155) `GET /api/v1/spaces/{spaceId}/invitations`, which lists the pending email and link invitations that have not expired, newest first, without their URLs (only the token's hash is stored); claim links are not listed.
 - Ports: `InvitationRepository`, `EmailSender` (SMTP adapter; when SMTP is not configured, the email path is disabled and only links are offered).
 - Token: at least 128 bits of randomness, stored hashed.
 

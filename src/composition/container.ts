@@ -182,6 +182,7 @@ import {
   createCreatePersonalSpace,
   createCreateSpace,
   createGetSpace,
+  createListInvitations,
   createListMembers,
   createListMySpaces,
   createListSpacePeriods,
@@ -207,6 +208,7 @@ import {
   type EmailSender,
   type GetSpace,
   type InvitationsDeps,
+  type ListInvitations,
   type ListMembers,
   type ListMySpaces,
   type ListSpacePeriods,
@@ -259,6 +261,7 @@ export interface Container extends RouteDeps {
     readonly listMembers: ListMembers;
     readonly createInvitation: CreateInvitation;
     readonly revokeInvitation: RevokeInvitation;
+    readonly listInvitations: ListInvitations;
     readonly acceptInvitation: AcceptInvitation;
     readonly addGuest: AddGuestMember;
     readonly changeMemberRole: ChangeMemberRole;
@@ -698,6 +701,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       listMembers: createListMembers(membersDeps),
       createInvitation: createCreateInvitation(invitationsDeps),
       revokeInvitation: createRevokeInvitation(invitationsDeps),
+      listInvitations: createListInvitations(invitationsDeps),
       acceptInvitation: createAcceptInvitation(invitationsDeps),
       addGuest: createAddGuestMember(membersDeps),
       changeMemberRole: createChangeMemberRole(membersDeps),
