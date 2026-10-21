@@ -542,5 +542,39 @@
       "owed": "is owed {amount}",
       "settled": "settled up"
     }
+  },
+  "invitation": {
+    "pageTitle": "Invitation",
+    "kicker": "{name} invites you to",
+    "kickerAnonymous": "You are invited to",
+    "role": "You join as",
+    "expires": "Expires",
+    "body": "{space} is a shared space to record expenses, split them and see who owes whom.",
+    "signUp": "Create an account and join",
+    "signIn": "I have an account: sign in",
+    "note": "After creating the account you come back here to accept.",
+    "signedInBody": "You are signed in as {email}. Once you accept, {space} shows in your space switcher.",
+    "accept": "Accept and enter {space}",
+    "otherAccount": "This invitation is for another account and you are signed in as {email}.",
+    "otherAccountBody": "Sign in with the account the invitation was sent to.",
+    "switchAccount": "Sign out and switch accounts",
+    "expired": "This invitation has expired. Ask {name} for a new link.",
+    "expiredBody": "Invitations last 7 days.",
+    "revoked": "This invitation is no longer valid: it was revoked.",
+    "revokedBody": "If you still want to join, ask {name} for a new invitation.",
+    "someone": "whoever invited you",
+    "missingTitle": "Invitation",
+    "claim": {
+      "pageTitle": "Claim your place",
+      "kicker": "{name} sent you your place in",
+      "kickerAnonymous": "You were sent your place in",
+      "title": "{space}, as {guest}",
+      "body": "In {space} you already appear as {guest} (guest). Claiming the place moves what you paid, your shares and the payments you received to your account, unchanged.",
+      "bodyNoGuest": "In {space} you already have a guest place. Claiming it moves what you paid, your shares and the payments you received to your account, unchanged.",
+      "signedInBody": "Claiming moves your guest place in {space}, with all its history, to this account.",
+      "signUp": "Create an account and claim",
+      "note": "Single use. After creating the account you come back here.",
+      "accept": "Claim my place in {space}"
+    }
   }
 }
