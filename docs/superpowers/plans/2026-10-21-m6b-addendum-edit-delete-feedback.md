@@ -3508,7 +3508,7 @@ Risk: none.
   - HU-E4-06's technical notes gain two bullets:
     - "Ruling P185: `POST …/transactions/{transactionId}/restore` undoes a deletion with the delete's guards and audits `RESTORED`."
     - "Ruling P186: `PATCH` also takes `accountId`, `payments`, `split`, `sourceAccountId` and `destinationAccountId`; settlements and fund contributions answer `FieldNotEditable`."
-  - E9 follow-up 2 reads: "Done in the M6b addendum ([plan](../superpowers/plans/2026-10-21-m6b-addendum-edit-delete-feedback.md))."
+  - E9 follow-up 2 reads: `Done in the M6b addendum ([plan](../superpowers/plans/2026-10-21-m6b-addendum-edit-delete-feedback.md)).`
 
 - [ ] **Step 2: Verify**
 
