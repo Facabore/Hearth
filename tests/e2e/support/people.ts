@@ -1,7 +1,6 @@
 import type { APIRequest, APIRequestContext } from "@playwright/test";
 import { SeedApi } from "./api";
-
-const BASE_URL = "http://127.0.0.1:3100";
+import { BASE_URL } from "./base-url";
 
 /** Ruling P178: someone else in a scenario, with their own session in their own request context. */
 export class Person {

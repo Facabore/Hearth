@@ -2,11 +2,11 @@ import { randomInt } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type APIRequest, type Page } from "@playwright/test";
 import es from "../../src/i18n/messages/es.json" with { type: "json" };
+import { BASE_URL as BASE } from "./support/base-url";
 import { Person } from "./support/people";
 import { get, post, signUp } from "./support/seed";
 
 const WCAG = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
-const BASE = "http://127.0.0.1:3100";
 /** The phone of the audit (UI Definition of Done): every screen is scanned at 390 x 844. */
 const PHONE = { width: 390, height: 844 };
 const fill = (message: string, values: Record<string, string>) =>

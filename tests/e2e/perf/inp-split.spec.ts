@@ -1,6 +1,7 @@
 import { createRequire } from "node:module";
 import { expect, test } from "@playwright/test";
 import budgets from "../../performance/budgets.json" with { type: "json" };
+import { BASE_URL } from "../support/base-url";
 
 const WEB_VITALS = createRequire(import.meta.url).resolve("web-vitals"); // dist/web-vitals.umd.cjs: window.webVitals
 
@@ -34,7 +35,7 @@ test("INP stays within budget while editing a split on a 4× slower CPU (rulings
     })
   ).json();
   const other = await playwright.request.newContext({
-    baseURL: "http://127.0.0.1:3100",
+    baseURL: BASE_URL,
     extraHTTPHeaders: { "x-forwarded-for": "10.251.0.3" },
   });
   await other.post("/api/v1/auth/sign-up", {

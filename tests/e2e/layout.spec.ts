@@ -1,6 +1,7 @@
 import { randomInt } from "node:crypto";
 import { expect, request, test as base, type Browser, type Page } from "@playwright/test";
 import es from "../../src/i18n/messages/es.json" with { type: "json" };
+import { BASE_URL } from "./support/base-url";
 import { Person } from "./support/people";
 import { get, patch, post, seedLedger, signUp } from "./support/seed";
 
@@ -257,7 +258,7 @@ const openPages = async (page: Page) => {
 
 /** A visitor: a fresh context with no cookies, on the same phone and, when asked, with the wide face. */
 const visitorPage = async (browser: Browser, viewport: { width: number; height: number }, wide: boolean) => {
-  const context = await browser.newContext({ baseURL: "http://127.0.0.1:3100", locale: "es-CO", viewport });
+  const context = await browser.newContext({ baseURL: BASE_URL, locale: "es-CO", viewport });
   if (wide) await useWideFont(context);
   return { page: await context.newPage(), close: () => context.close() };
 };

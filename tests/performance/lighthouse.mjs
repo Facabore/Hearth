@@ -8,7 +8,7 @@ import lighthouse from "lighthouse";
 
 // The mjs lint block declares only process, console, Buffer and URL as globals.
 const { fetch } = globalThis;
-const BASE = "http://127.0.0.1:3100";
+const BASE = `http://127.0.0.1:${process.env.E2E_PORT ?? "3100"}`;
 const RUNS = 5;
 const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
 

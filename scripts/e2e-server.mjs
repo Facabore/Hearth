@@ -41,6 +41,9 @@ if (!url) {
     "--rm",
     "--label",
     "hearth.test=e2e",
+    "--label",
+    // The teardown removes only its own run's containers (tests/e2e/support/base-url.ts).
+    `hearth.test.e2e.port=${PORT}`,
     "-e",
     "POSTGRES_DB=hearth",
     "-e",
