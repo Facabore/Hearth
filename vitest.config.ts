@@ -30,6 +30,8 @@ export default defineConfig({
           name: "ui",
           environment: "jsdom",
           include: ["src/**/*.test.tsx"],
+          // Radix sheets and user-event typing under jsdom slow down a lot on a loaded machine; 5 s timed out at random.
+          testTimeout: 20_000,
           setupFiles: ["./tests/support/ui-setup.ts", "./src/shared/ui/molecules/sheet.setup.ts"],
         },
       },
