@@ -11,10 +11,13 @@ import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { AccountDto, CategoryGroupDto, SpaceDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
+import { minorOf, parseDecimal } from "@/shared/ui/format/amount-input";
 import { currencyOf } from "@/shared/ui/format/currencies";
-import { formatNumber, type Formats } from "@/shared/ui/format/formatters";
+import { formatMoney, formatNumber, type Formats } from "@/shared/ui/format/formatters";
 import { browserTimeZone } from "@/shared/ui/format/zones";
 import { nowIn } from "@/shared/ui/time/when";
+import { initialSplitDraft, type SharedExpenseContext } from "../split/shared-context";
+import { SharedFields } from "../split/shared-fields";
 import { AmountField } from "./amount-field";
 import { DateTimeSheet } from "./date-time-sheet";
 import { recordFieldOf, requestOf, type RecordField, type RecordKind } from "./record-request";
@@ -22,6 +25,7 @@ import { useIdempotencyKey } from "./use-idempotency-key";
 import { whenLabel, type When } from "./when-label";
 
 const KINDS = ["EXPENSE", "INCOME", "TRANSFER"] as const;
+
 type Sheet = "category" | "account" | "toAccount" | "when" | null;
 
 export interface RecordFormProps {
@@ -35,6 +39,8 @@ export interface RecordFormProps {
   /** The recorder's zone; by default the browser's, read after mount (the profile's during the server render). */
   readonly timeZone?: string;
   readonly profileZone?: string;
+  /** A shared or direct space: its expense names who paid and how it is split instead of one account (P168). */
+  readonly shared?: SharedExpenseContext;
   readonly api?: Api;
 }
 
@@ -48,6 +54,7 @@ export function RecordForm({
   initialNow,
   timeZone,
   profileZone = "UTC",
+  shared,
   api: injected,
 }: RecordFormProps) {
   const t = useTranslations("ledger");
@@ -77,12 +84,17 @@ export function RecordForm({
   const [sheet, setSheet] = useState<Sheet>(null);
   const [sheetNow, setSheetNow] = useState<When>(start);
   const [pending, setPending] = useState(false);
-  const [unbuilt, setUnbuilt] = useState<"amount" | "account" | "toAccount" | null>(null);
+  const [split, setSplit] = useState(() => (shared ? initialSplitDraft(shared) : null));
+  const [unbuilt, setUnbuilt] = useState<"amount" | "account" | "toAccount" | "payer" | "split" | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
 
   const when = chosenWhen ?? start;
   const draft = { kind, amount, description, category, accountId, toAccountId, when, timeZone: zone };
-  const built = requestOf(draft, space.currency, formats.numberFormat);
+  const sharedExpense =
+    shared && split && kind === "EXPENSE"
+      ? { split, memberIds: shared.members.map((member) => member.id) }
+      : undefined;
+  const built = requestOf(draft, space.currency, formats.numberFormat, sharedExpense);
   const { key, renew } = useIdempotencyKey(built.ok ? JSON.stringify(built.body) : "");
   const days = {
     today: t("day.today"),
@@ -91,7 +103,21 @@ export function RecordForm({
   };
   const label = whenLabel(when, today, formats, days);
   const nameOf = (id: string | null) => accounts.find((a) => a.id === id)?.name ?? null;
-  const where = problem ? recordFieldOf(problem) : null;
+  // The typed amount in minor units while it is above zero (the default split refuses 0), whatever else is unbuilt.
+  const typed = parseDecimal(amount, formats.numberFormat);
+  const minor = typed === null ? null : minorOf(typed, currencyOf(space.currency).exponent);
+  const positiveMinor = minor !== null && BigInt(minor) > 0n ? minor : null;
+  const sharedTitle = [
+    description.trim() ||
+      (category ? categoryPath(live, category.subcategoryId ?? category.categoryId) : null),
+    positiveMinor ? formatMoney({ amount: positiveMinor, currency: space.currency }, formats) : null,
+    space.name,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const found = problem ? recordFieldOf(problem) : null;
+  // In a shared expense the account an API problem names is the payer's.
+  const where = sharedExpense && found === "account" ? "payer" : found;
   const errorOf = (field: RecordField): string | undefined => {
     if (unbuilt === field)
       return field === "amount"
@@ -209,18 +235,35 @@ export function RecordForm({
                 "category",
                 t("form.chooseCategory"),
               )}
-          {picker(
-            "account",
-            t(
-              kind === "TRANSFER"
-                ? "form.from"
-                : kind === "INCOME"
-                  ? "form.receivingAccount"
-                  : "form.account",
-            ),
-            nameOf(accountId),
-            "account",
-            t("form.chooseAccount"),
+          {sharedExpense && shared && split ? (
+            <SharedFields
+              context={shared}
+              draft={split}
+              onChange={setSplit}
+              amount={positiveMinor}
+              currency={space.currency}
+              formats={formats}
+              title={sharedTitle}
+              spaceId={space.id}
+              categoryId={category ? (category.subcategoryId ?? category.categoryId) : null}
+              date={when.date}
+              api={api}
+              error={errorOf("split") ?? errorOf("payer")}
+            />
+          ) : (
+            picker(
+              "account",
+              t(
+                kind === "TRANSFER"
+                  ? "form.from"
+                  : kind === "INCOME"
+                    ? "form.receivingAccount"
+                    : "form.account",
+              ),
+              nameOf(accountId),
+              "account",
+              t("form.chooseAccount"),
+            )
           )}
           {kind === "TRANSFER"
             ? picker("toAccount", t("form.to"), nameOf(toAccountId), "toAccount", t("form.chooseAccount"))
@@ -249,7 +292,7 @@ export function RecordForm({
         </Tabs.Content>
       </Tabs.Root>
       {problem && where === "form" ? <ProblemNotice problem={problem} /> : null}
-      <Button type="submit" size="lg" disabled={pending}>
+      <Button type="submit" size="lg" disabled={pending || (!built.ok && built.field === "split")}>
         {t(`form.save.${kind}`)}
       </Button>
       <CategoryPicker

@@ -4,8 +4,9 @@ import { useTranslations } from "next-intl";
 import { memberLabel } from "@/modules/spaces/ui";
 import { Button, ChoiceGroup, Icon, Sheet, cn } from "@/shared/ui";
 import type { AccountDto, MemberDto } from "@/shared/ui/api/dto";
-import { formatMoney, formatNumber, type Formats } from "@/shared/ui/format/formatters";
-import { SPLIT_METHODS, type SplitCheck, type SplitMethod } from "./split-math";
+import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
+import { SPLIT_METHODS, type SplitMethod } from "./split-math";
+import { splitFailureMessage, type SplitFailure } from "./split-failure";
 import { splitCheckOf, type SplitDraft } from "./split-request";
 import type { DefaultSplitState } from "./use-default-split";
 
@@ -28,8 +29,6 @@ export interface SplitSheetProps {
   readonly formats: Formats;
   readonly defaultSplit: DefaultSplitState;
 }
-
-type Failure = Extract<SplitCheck, { ok: false }>;
 
 const payerValue = (payer: SplitDraft["payer"]) =>
   payer.kind === "ME"
@@ -113,26 +112,15 @@ export function SplitSheet(props: SplitSheetProps) {
   const setValue = (id: string, value: string) =>
     onChange({ ...draft, chosen: true, values: { ...draft.values, [id]: value } });
 
-  const reason = (failure: Failure): string => {
-    switch (failure.reason) {
-      case "percentShort":
-      case "percentOver":
-        return t(`invalid.${failure.reason}`, { percent: formatNumber(failure.percent, formats) });
-      case "exactShort":
-      case "exactOver":
-        return t(`invalid.${failure.reason}`, {
-          amount: formatMoney({ amount: failure.amount, currency }, formats),
-        });
-      case "unreadable": {
-        const member = members.find((m) => m.id === failure.memberId);
-        return t("invalid.unreadable", { name: member ? label(member) : "" });
-      }
-      case "noParticipants":
-        return t("invalid.noParticipants");
-      case "tooSmall":
-        return t("invalid.tooSmall");
-    }
-  };
+  const reason = (failure: SplitFailure) =>
+    splitFailureMessage(failure, t, {
+      currency,
+      formats,
+      nameOf: (memberId) => {
+        const member = members.find((m) => m.id === memberId);
+        return member ? label(member) : "";
+      },
+    });
   const sharesByMember = check?.ok ? check.shares : [];
 
   const status =

@@ -197,7 +197,13 @@ const lastControlIsOnTop = (page: Page) =>
       : `covered: "${label}" by <${top?.tagName ?? "nothing"}> ${top?.className ?? ""}`;
   });
 
-const sheets: { name: string; open: (page: Page, spaceId: string) => Promise<void>; path?: string }[] = [
+/** `shared` opens the sheet in the shared space "Casa" instead of the personal one. */
+const sheets: {
+  name: string;
+  open: (page: Page, spaceId: string) => Promise<void>;
+  path?: string;
+  shared?: true;
+}[] = [
   {
     name: "profile sheet",
     open: (page) =>
@@ -230,6 +236,16 @@ const sheets: { name: string; open: (page: Page, spaceId: string) => Promise<voi
     open: async (page) => {
       await expect(page.locator("[data-ready='true']")).toBeAttached();
       await page.getByTestId("when-chip").click();
+    },
+  },
+  {
+    name: "split sheet",
+    path: "new",
+    shared: true,
+    open: async (page) => {
+      await expect(page.locator("[data-ready='true']")).toBeAttached();
+      await page.locator("#record-amount").fill("300000");
+      await page.getByRole("button", { name: new RegExp(es.ledger.split.split) }).click();
     },
   },
   {
@@ -271,6 +287,7 @@ for (const wideFont of [false, true]) {
           `/spaces/${spaceId}/new`,
           `/spaces/${sharedId}`,
           `/spaces/${sharedId}/members`,
+          `/spaces/${sharedId}/new`,
           "/spaces/new",
           "/settings",
         ])
@@ -289,10 +306,12 @@ for (const wideFont of [false, true]) {
     });
 
     test("each open sheet leaves the page as wide as the phone", async ({ page }) => {
-      const { spaceId } = await session(page, "sheet-width");
+      const { spaceId, sharedId } = await session(page, "sheet-width");
       for (const sheet of sheets) {
         await page.goto(
-          sheet.path === "settings" ? "/settings" : `/spaces/${spaceId}${sheet.path ? `/${sheet.path}` : ""}`,
+          sheet.path === "settings"
+            ? "/settings"
+            : `/spaces/${sheet.shared ? sharedId : spaceId}${sheet.path ? `/${sheet.path}` : ""}`,
         );
         await sheet.open(page, spaceId);
         await expect(page.getByRole("dialog")).toBeVisible();
@@ -306,10 +325,12 @@ for (const wideFont of [false, true]) {
 
 test.describe("bottom sheets sit above the bottom navigation", () => {
   test("the last control of every sheet is the topmost element at its center", async ({ page }) => {
-    const { spaceId } = await session(page, "sheets");
+    const { spaceId, sharedId } = await session(page, "sheets");
     for (const sheet of sheets) {
       await page.goto(
-        sheet.path === "settings" ? "/settings" : `/spaces/${spaceId}${sheet.path ? `/${sheet.path}` : ""}`,
+        sheet.path === "settings"
+          ? "/settings"
+          : `/spaces/${sheet.shared ? sharedId : spaceId}${sheet.path ? `/${sheet.path}` : ""}`,
       );
       await sheet.open(page, spaceId);
       await expect(page.getByRole("dialog")).toBeVisible();
