@@ -64,7 +64,8 @@ const chooseGroceries = async () => {
 };
 const openSheet = async () => {
   await userEvent.click(screen.getByRole("button", { name: "Dividir con alguien" }));
-  return screen.getByRole("dialog", { name: "Dividir con alguien" });
+  // The sheet is imported lazily on first open: wait for it rather than racing the chunk.
+  return screen.findByRole("dialog", { name: "Dividir con alguien" });
 };
 const splitWith = async (name: string) => {
   await openSheet();

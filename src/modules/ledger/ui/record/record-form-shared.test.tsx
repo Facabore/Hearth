@@ -91,7 +91,8 @@ const enter = async (pesos: string) => {
   await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
 };
 const divisionRow = () => screen.getByRole("button", { name: /División/ });
-const splitSheet = () => screen.getByRole("dialog", { name: "Quién pagó y para quién" });
+// The sheet is a lazily imported chunk: it exists only after the import resolves, so it is awaited, never assumed.
+const splitSheet = () => screen.findByRole("dialog", { name: "Quién pagó y para quién" });
 
 describe("shared expense (HU-E9-06)", () => {
   it("splits 300,000 COP equally between Ana and Juan, paid from Bancolombia, and records it once", async () => {
@@ -145,7 +146,7 @@ describe("shared expense (HU-E9-06)", () => {
     form(api, context(MEMBERS, [fund]));
     await enter("2000000");
     await userEvent.click(screen.getByRole("button", { name: /Pagó/ }));
-    await userEvent.click(screen.getByRole("radio", { name: "Fondo Hogar" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Fondo Hogar" }));
     await userEvent.click(screen.getByRole("button", { name: "Listo" }));
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     await waitFor(() =>
@@ -170,7 +171,7 @@ describe("shared expense (HU-E9-06)", () => {
     form(api, context(members));
     await enter("90000");
     await userEvent.click(screen.getByRole("button", { name: /Pagó/ }));
-    const sheet = splitSheet();
+    const sheet = await splitSheet();
     expect(
       within(within(sheet).getByRole("radiogroup", { name: "Pagó" }))
         .getAllByRole("radio")
@@ -190,7 +191,7 @@ describe("shared expense (HU-E9-06)", () => {
     form(api);
     await enter("300000");
     await userEvent.click(divisionRow());
-    const sheet = splitSheet();
+    const sheet = await splitSheet();
     await userEvent.click(within(sheet).getByRole("radio", { name: "Porcentaje" }));
     await userEvent.type(within(sheet).getByLabelText("Valor de Ana (tú)"), "40");
     await userEvent.type(within(sheet).getByLabelText("Valor de Juan"), "50");
@@ -217,7 +218,7 @@ describe("shared expense (HU-E9-06)", () => {
     expect(body.payments).toHaveLength(1);
 
     await userEvent.click(divisionRow());
-    await userEvent.click(within(splitSheet()).getByRole("radio", { name: "Iguales" }));
+    await userEvent.click(within(await splitSheet()).getByRole("radio", { name: "Iguales" }));
     await userEvent.keyboard("{Escape}");
     expect(normalized(divisionRow().textContent)).toContain(
       "Iguales · Ana (tú) $ 1.000.000 · Juan $ 1.000.000",
@@ -230,7 +231,7 @@ describe("shared expense (HU-E9-06)", () => {
     await enter("2000000");
     await waitFor(() => expect(normalized(divisionRow().textContent)).toContain("Según el plan"));
     await userEvent.click(divisionRow());
-    await userEvent.click(within(splitSheet()).getByRole("radio", { name: "Iguales" }));
+    await userEvent.click(within(await splitSheet()).getByRole("radio", { name: "Iguales" }));
     await userEvent.keyboard("{Escape}");
     // The amount changes, so a new default is asked for and answered: the chosen method stays.
     await userEvent.type(screen.getByLabelText("Monto"), "0");
@@ -294,7 +295,7 @@ describe("shared expense (HU-E9-06)", () => {
     form(api, context(MEMBERS, [fund]));
     await enter("300000");
     await userEvent.click(screen.getByRole("button", { name: /Pagó/ }));
-    await userEvent.click(screen.getByRole("radio", { name: "Fondo Hogar" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Fondo Hogar" }));
     await userEvent.click(screen.getByRole("button", { name: "Listo" }));
     expect(screen.getByRole("button", { name: /Pagó/ })).toHaveTextContent("Pagó Fondo Hogar");
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
