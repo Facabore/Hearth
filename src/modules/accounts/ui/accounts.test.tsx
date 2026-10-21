@@ -43,6 +43,13 @@ const list = {
 const norm = (text: string | null) => (text ?? "").replace(/\s/g, " ");
 
 describe("accounts screen (HU-E9-03)", () => {
+  it("wraps the totals instead of overflowing a narrow screen, and keeps each amount whole (S2)", () => {
+    renderWithIntl(<AccountsScreen spaceId="sp-personal" list={list} formats={BUILT_IN_FORMATS} />);
+    const totals = screen.getByRole("region", { name: "Totales" });
+    expect(totals).toHaveClass("flex-wrap");
+    expect(screen.getByText("$ 4.915.000")).toHaveClass("whitespace-nowrap");
+  });
+
   it("shows types, balances, card figures and the space's totals", async () => {
     const { container } = renderWithIntl(
       <AccountsScreen spaceId="sp-personal" list={list} formats={BUILT_IN_FORMATS} />,

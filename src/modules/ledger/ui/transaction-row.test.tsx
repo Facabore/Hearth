@@ -55,6 +55,14 @@ const dinner = transactionDto({
 });
 
 describe("transaction row (HU-E9-03, ruling P140)", () => {
+  it("keeps the amount whole and lets the text block shrink and truncate (S2)", () => {
+    renderRow(dinner);
+    const amount = screen.getByText(/60\.000/);
+    expect(amount).toHaveClass("shrink-0", "whitespace-nowrap");
+    expect(screen.getByText("Dinner")).toHaveClass("truncate");
+    expect(screen.getByText("Dinner").parentElement).toHaveClass("min-w-0");
+  });
+
   it("reads an expense: the record's wall-clock time, the category, the account and a minus sign", async () => {
     const { container } = renderRow(dinner);
     expect(rowText()).toBe("Dinner20:45 · Restaurants · Bancolombia−$ 60.000");

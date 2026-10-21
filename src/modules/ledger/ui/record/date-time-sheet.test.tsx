@@ -181,4 +181,14 @@ describe("date and time sheet (HU-E9-03, ruling P129)", () => {
     view.rerender(<DateTimeSheet open {...props} />);
     expect(clockText()).toBe("22 : 30");
   });
+
+  it("keeps every clock control a 44 px target and puts AM/PM on its own row (S3)", () => {
+    open({ formats: { ...BUILT_IN_FORMATS, timeFormat: "H12" } });
+    const clock = screen.getByRole("group", { name: "Hora" });
+    for (const name of ["Una hora menos", "Una hora más", "Cinco minutos menos", "Cinco minutos más"])
+      expect(within(clock).getByRole("button", { name })).toHaveClass("size-11", "shrink-0");
+    const half = within(clock).getByRole("radiogroup", { name: "Mañana o tarde" });
+    expect(half.parentElement).toHaveClass("w-full", "max-w-48");
+    expect(clock).toHaveClass("flex-wrap");
+  });
 });

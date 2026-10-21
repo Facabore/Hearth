@@ -176,6 +176,11 @@ describe("sign-up screen (HU-E9-01)", () => {
     expect(router.replace).not.toHaveBeenCalled();
   });
 
+  it("gives the sign-in link a 44 px target (S3)", () => {
+    renderWithIntl(<SignUpFormContainer />);
+    expect(screen.getByRole("link", { name: "Inicia sesión" })).toHaveClass("min-h-11", "min-w-11");
+  });
+
   it("links to sign in under the form (ruling P147)", () => {
     renderWithIntl(<SignUpFormContainer />);
     expect(screen.getByText(/¿Ya tienes cuenta\?/)).toBeInTheDocument();

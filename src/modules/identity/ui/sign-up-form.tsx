@@ -98,9 +98,12 @@ export function SignUpForm({
       <Button type="submit" size="lg" disabled={pending}>
         {t("signUp.submit")}
       </Button>
-      <p className="text-center text-sm text-muted">
-        {t("signUp.haveAccount")}{" "}
-        <Link href={signInHref} className="font-semibold text-accent">
+      <p className="flex flex-wrap items-center justify-center gap-x-1 text-center text-sm text-muted">
+        {t("signUp.haveAccount")}
+        <Link
+          href={signInHref}
+          className="inline-flex min-h-11 min-w-11 items-center justify-center font-semibold text-accent"
+        >
           {t("signUp.signIn")}
         </Link>
       </p>

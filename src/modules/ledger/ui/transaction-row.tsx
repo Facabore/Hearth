@@ -60,8 +60,8 @@ export function TransactionRow({
       <span
         className={
           tx.type === "EXPENSE" || tx.type === "INCOME"
-            ? "font-semibold text-ink"
-            : "font-semibold text-muted"
+            ? "shrink-0 font-semibold whitespace-nowrap text-ink"
+            : "shrink-0 font-semibold whitespace-nowrap text-muted"
         }
       >
         {amount}

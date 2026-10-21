@@ -62,6 +62,20 @@ describe("molecules", () => {
     expect(await axeViolations(document.body)).toEqual([]);
   });
 
+  it("paints the sheet and its scrim above the bottom navigation, pads for the safe area and scrolls only its body (S1, S7)", () => {
+    renderWithIntl(
+      <Sheet open onOpenChange={vi.fn()} title="Espacios">
+        <p>Personal</p>
+      </Sheet>,
+    );
+    const dialog = screen.getByRole("dialog", { name: "Espacios" });
+    // The bottom navigation is z-10: both layers sit above it.
+    expect(dialog).toHaveClass("z-50", "max-h-[90dvh]", "pb-[max(1rem,env(safe-area-inset-bottom))]");
+    expect(document.querySelector("[data-state='open'].bg-scrim")).toHaveClass("z-50");
+    const body = screen.getByText("Personal").parentElement!;
+    expect(body).toHaveClass("min-h-0", "overflow-y-auto", "overscroll-contain");
+  });
+
   it("moves through a choice group with the arrow keys and skips disabled choices", async () => {
     function Harness() {
       const [value, setValue] = useState<"DMY" | "MDY" | "YMD">("DMY");

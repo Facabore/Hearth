@@ -38,15 +38,19 @@ export function AccountsScreen({
           <VisuallyHidden>{t("new")}</VisuallyHidden>
         </Link>
       </header>
-      <section aria-label={t("totals")} className="grid grid-cols-2 gap-3">
+      <section aria-label={t("totals")} className="flex flex-wrap gap-3">
         <dl className="contents">
-          <div className="rounded-2xl bg-surface p-4">
+          <div className="flex-auto rounded-2xl bg-surface p-4">
             <dt className="text-sm text-muted">{t("available")}</dt>
-            <dd className="text-xl font-semibold text-ink">{formatMoney(list.totals.available, formats)}</dd>
+            <dd className="text-xl font-semibold whitespace-nowrap text-ink">
+              {formatMoney(list.totals.available, formats)}
+            </dd>
           </div>
-          <div className="rounded-2xl bg-surface p-4">
+          <div className="flex-auto rounded-2xl bg-surface p-4">
             <dt className="text-sm text-muted">{t("netWorth")}</dt>
-            <dd className="text-xl font-semibold text-ink">{formatMoney(list.totals.netWorth, formats)}</dd>
+            <dd className="text-xl font-semibold whitespace-nowrap text-ink">
+              {formatMoney(list.totals.netWorth, formats)}
+            </dd>
           </div>
         </dl>
       </section>

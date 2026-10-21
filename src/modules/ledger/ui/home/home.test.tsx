@@ -44,6 +44,23 @@ describe("home (HU-E9-01)", () => {
   });
 });
 
+describe("home, narrow screens (S2)", () => {
+  it("lets its single column shrink below its content, so a long name or amount never widens the page", () => {
+    const { container } = renderWithIntl(
+      <HomeSummary
+        spaceId="sp-personal"
+        policy={{ kind: "MONTHLY", day: 1 }}
+        page={{ ...octoberPage, items: octoberPage.items.slice(0, 1) }}
+        accounts={[accountDto({ name: "Cuenta de ahorros de la familia", balance: cop(4_455_000) })]}
+        context={rowContext}
+      />,
+    );
+    expect(container.firstElementChild).toHaveClass("grid-cols-1");
+    expect(screen.getByRole("region", { name: "Cuentas" }).parentElement).toHaveClass("min-w-0");
+    expect(screen.getByRole("region", { name: "Recientes" })).toHaveClass("min-w-0");
+  });
+});
+
 describe("home, first use (P148)", () => {
   const homeWith = (accounts: Parameters<typeof HomeSummary>[0]["accounts"]) => (
     <HomeSummary

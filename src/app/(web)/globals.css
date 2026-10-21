@@ -130,6 +130,15 @@
 }
 
 @layer base {
+  /* WCAG 2.4.11: a focused field or button scrolls into view above the fixed bottom navigation (h-[76px]). */
+  html {
+    scroll-padding-bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+  @media (min-width: 1024px) {
+    html {
+      scroll-padding-bottom: 0;
+    }
+  }
   body {
     background: var(--bg);
     color: var(--ink);

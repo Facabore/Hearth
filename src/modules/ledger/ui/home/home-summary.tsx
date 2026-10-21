@@ -28,9 +28,9 @@ export function HomeSummary({
   const name = periodName(page.period, policy);
   const link = "flex min-h-11 items-center text-sm font-medium text-accent";
   return (
-    <div className="grid gap-6 py-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-6 py-4 lg:grid-cols-2">
       <h1 className="sr-only">{t("title")}</h1>
-      <div className="flex flex-col gap-6">
+      <div className="flex min-w-0 flex-col gap-6">
         {accounts.length === 0 ? (
           <section
             aria-labelledby="home-first-account"
@@ -65,7 +65,7 @@ export function HomeSummary({
                 {t("income", { amount: formatMoney(page.totals.income, formats) })}
               </p>
             </section>
-            <section aria-labelledby="home-accounts" className="flex flex-col gap-2">
+            <section aria-labelledby="home-accounts" className="flex min-w-0 flex-col gap-2">
               <div className="flex items-center justify-between">
                 <h2 id="home-accounts" className="text-lg font-semibold text-ink">
                   {t("accounts")}
@@ -89,7 +89,7 @@ export function HomeSummary({
           </>
         )}
       </div>
-      <section aria-labelledby="home-recent" className="flex flex-col gap-2">
+      <section aria-labelledby="home-recent" className="flex min-w-0 flex-col gap-2">
         <div className="flex items-center justify-between">
           <h2 id="home-recent" className="text-lg font-semibold text-ink">
             {t("recent")}
