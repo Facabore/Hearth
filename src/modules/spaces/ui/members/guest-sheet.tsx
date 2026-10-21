@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
@@ -123,9 +124,17 @@ export function GuestSheet({
           <ProblemNotice
             problem={problem}
             detail={
-              problem.outstanding
-                ? t("guest.outstanding", { amount: formatMoney(problem.outstanding, formats) })
-                : undefined
+              problem.outstanding ? (
+                <>
+                  {t("guest.outstanding", { amount: formatMoney(problem.outstanding, formats) })}{" "}
+                  <Link
+                    href={`/spaces/${space.id}/balances?settle=${guest.id}`}
+                    className="inline-flex min-h-11 items-center font-semibold underline"
+                  >
+                    {t("guest.settle")}
+                  </Link>
+                </>
+              ) : undefined
             }
           />
         ) : null}

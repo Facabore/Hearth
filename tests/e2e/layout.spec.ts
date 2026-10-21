@@ -133,12 +133,21 @@ const warnedList = async (page: Page, sharedId: string) => {
 const BIG_EXPENSE = "123456789000";
 const HUGE_EXPENSE = "123456789012400";
 const HISTORY_GUEST = "Carlos Alberto Rodríguez Hernández de la Vega";
-const historyPath = async (page: Page, spaceId: string, sharedId: string, minor = BIG_EXPENSE) => {
+/** The longest names the API accepts (space 80, member 100 characters), with no break opportunity. */
+const UNBROKEN_SPACE = "W".repeat(80);
+const UNBROKEN_NAME = "M".repeat(100);
+const historyPath = async (
+  page: Page,
+  spaceId: string,
+  sharedId: string,
+  minor = BIG_EXPENSE,
+  guestName = HISTORY_GUEST,
+) => {
   const space = `/api/v1/spaces/${sharedId}`;
   // The person pays from an account of their own: a shared space holds only funds, so it is one of their personal space.
   const { items: accounts } = await get(page, `/api/v1/spaces/${spaceId}/accounts`);
   const account = accounts[0];
-  const guest = await post(page, `${space}/guests`, { displayName: HISTORY_GUEST });
+  const guest = await post(page, `${space}/guests`, { displayName: guestName });
   const { items: members } = await get(page, `${space}/members`);
   const payer = members.find((m: { kind: string }) => m.kind === "USER");
   const { items: groups } = await get(page, `${space}/categories`);
@@ -190,6 +199,18 @@ const ensureDirectSpace = async (page: Page, spaceId: string) => {
     },
     { "idempotency-key": crypto.randomUUID() },
   );
+};
+
+/**
+ * The settle-up sheet of the shared space "Casa" (HU-E9-07, P174), opened with a guest as the payer: a guest with a real,
+ * long name is added through the API once per page, so the sheet lists a long chip and shows the guest's note.
+ */
+const withSharedGuest = new WeakSet<Page>();
+const ensureSharedGuest = async (page: Page) => {
+  if (withSharedGuest.has(page)) return;
+  withSharedGuest.add(page);
+  const sharedId = /\/spaces\/([^/]+)/.exec(new URL(page.url()).pathname)![1];
+  await post(page, `/api/v1/spaces/${sharedId}/guests`, { displayName: GUEST_NAME });
 };
 
 const horizontalOverflow = (page: Page) =>
@@ -358,6 +379,21 @@ const sheets: {
     },
   },
   {
+    name: "settle-up sheet",
+    path: "balances",
+    shared: true,
+    open: async (page) => {
+      await ensureSharedGuest(page);
+      await page.reload();
+      await page.getByRole("button", { name: es.balances.record }).click();
+      // The guest pays: the sheet shows the guest's note and the viewer's accounts to receive in.
+      await page
+        .getByRole("radiogroup", { name: es.balances.settle.payer })
+        .getByRole("radio", { name: new RegExp(GUEST_NAME) })
+        .click();
+    },
+  },
+  {
     name: "transaction filters",
     path: "transactions",
     open: (page) => page.getByRole("button", { name: es.ledger.list.filterCategory }).click(),
@@ -434,6 +470,46 @@ for (const wideFont of [false, true]) {
         await page.keyboard.press("Escape");
       }
     });
+
+    for (const viewport of [PHONE, SMALL_PHONE]) {
+      test(`one very long unbroken name does not widen a sub-screen's header at ${viewport.width} px (ScreenHeader)`, async ({
+        page,
+      }) => {
+        await page.setViewportSize(viewport);
+        const { spaceId, sharedId } = await session(page, `unbroken-${viewport.width}`);
+        // The history's title is "Historial de <name>": its h1 holds the whole unbroken name.
+        await page.goto(await historyPath(page, spaceId, sharedId, BIG_EXPENSE, UNBROKEN_NAME));
+        await settle(page);
+        await expect(page.getByRole("heading", { level: 1 })).toContainText(UNBROKEN_NAME);
+        const { overflow, message } = await overflowReport(page, "the history");
+        expect(overflow, message).toBeLessThanOrEqual(0);
+        // The title wraps inside the header: it never pushes the way back off the screen or shrinks it.
+        const box = (await page.getByRole("link", { name: es.common.back, exact: true }).boundingBox())!;
+        expect(box.width).toBeGreaterThanOrEqual(TARGET);
+        expect(box.height).toBeGreaterThanOrEqual(TARGET);
+        expect(box.x).toBeGreaterThanOrEqual(0);
+      });
+
+      // The shell's space switcher truncates the name, so an unbroken space name never widens the header.
+      test(`a space with one very long unbroken name still reflows on its sub-screens at ${viewport.width} px`, async ({
+        page,
+      }) => {
+        await page.setViewportSize(viewport);
+        const { spaceId } = await session(page, `unbroken-space-${viewport.width}`);
+        const space = (await post(page, "/api/v1/spaces", {
+          kind: "SHARED",
+          name: UNBROKEN_SPACE,
+          currency: "COP",
+        })) as { id: string };
+        const history = await historyPath(page, spaceId, space.id);
+        for (const path of [`/spaces/${space.id}/members`, `/spaces/${space.id}/balances`, history]) {
+          await page.goto(path);
+          await settle(page);
+          const { overflow, message } = await overflowReport(page, path);
+          expect.soft(overflow, message).toBeLessThanOrEqual(0);
+        }
+      });
+    }
 
     for (const viewport of [PHONE, SMALL_PHONE]) {
       test(`a member's balance history fits ${viewport.width} px with a 15-digit amount, and has a way back to Saldos (HU-E9-07, P176)`, async ({

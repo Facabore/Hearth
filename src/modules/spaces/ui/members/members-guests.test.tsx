@@ -210,6 +210,10 @@ describe("guests (HU-E9-05, ruling P163)", () => {
     const alert = await within(sheet).findByRole("alert");
     expect(alert).toHaveTextContent("Quedan saldos pendientes. Sáldalos antes de continuar.");
     expect(normalized(alert.textContent)).toContain("Saldo pendiente: $ 100.000");
+    expect(within(alert).getByRole("link", { name: "Registrar pago" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household/balances?settle=m-pedro",
+    );
     expect(router.refresh).not.toHaveBeenCalled();
     // The open sheet hides the page from the accessibility tree, so the list is queried with `hidden`.
     expect(screen.getByRole("listitem", { name: "Pedro (invitado)", hidden: true })).toBeInTheDocument();

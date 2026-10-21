@@ -27,6 +27,19 @@ describe("molecules", () => {
     expect(screen.getByText("Personal")).toBeInTheDocument();
   });
 
+  it("lets a very long unbroken title and description wrap inside the sheet", async () => {
+    renderWithIntl(
+      <Sheet open onOpenChange={vi.fn()} title={"M".repeat(100)} description={"W".repeat(80)}>
+        <p>Contenido</p>
+      </Sheet>,
+    );
+    expect(await screen.findByRole("heading", { name: "M".repeat(100) })).toHaveClass(
+      "min-w-0",
+      "[overflow-wrap:anywhere]",
+    );
+    expect(screen.getByText("W".repeat(80))).toHaveClass("[overflow-wrap:anywhere]");
+  });
+
   it("opens a sheet that was mounted before another sheet loaded the panel (ruling P134)", async () => {
     vi.resetModules();
     const { Sheet: FreshSheet } = await import("./sheet");

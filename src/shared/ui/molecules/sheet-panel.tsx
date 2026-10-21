@@ -32,7 +32,9 @@ export function SheetPanel({ open, onOpenChange, title, description, children, f
         >
           <div aria-hidden="true" className="mx-auto mb-3 h-[5px] w-10 rounded-full bg-track lg:hidden" />
           <div className="flex items-center justify-between gap-2">
-            <Dialog.Title className="text-lg font-semibold text-ink">{title}</Dialog.Title>
+            <Dialog.Title className="min-w-0 text-lg font-semibold [overflow-wrap:anywhere] text-ink">
+              {title}
+            </Dialog.Title>
             <Dialog.Close asChild>
               <Button size="icon" variant="ghost">
                 <Icon name="close" />
@@ -41,7 +43,9 @@ export function SheetPanel({ open, onOpenChange, title, description, children, f
             </Dialog.Close>
           </div>
           {description ? (
-            <Dialog.Description className="text-sm text-muted">{description}</Dialog.Description>
+            <Dialog.Description className="text-sm [overflow-wrap:anywhere] text-muted">
+              {description}
+            </Dialog.Description>
           ) : null}
           <div className="mt-2 min-h-0 overflow-y-auto overscroll-contain">{children}</div>
           {footer ? <div className="mt-4">{footer}</div> : null}

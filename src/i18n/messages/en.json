@@ -596,7 +596,8 @@
       "remove": "Remove from {space}",
       "confirmRemove": "Remove {name} from {space}? Their history is kept.",
       "confirmRemoveAction": "Yes, remove",
-      "outstanding": "Outstanding balance: {amount}"
+      "outstanding": "Outstanding balance: {amount}",
+      "settle": "Record a payment"
     }
   },
   "balances": {
@@ -630,6 +631,23 @@
       "entries": "Movements that changed their balance",
       "empty": "Nothing changed their balance in this period.",
       "note": "On the right, the balance after each movement and, under it, how much it changed."
+    },
+    "record": "Record a payment",
+    "settle": {
+      "action": "Settle",
+      "suggestion": "Settle: {payer} pays {receiver} {amount}",
+      "title": "Record a payment",
+      "payer": "Who pays",
+      "receiver": "Who receives",
+      "amount": "Amount",
+      "debt": "{payer} owes {receiver} {amount}. You can record a partial payment; paying more turns the debt around.",
+      "noDebt": "{payer} owes {receiver} nothing.",
+      "guestNote": "{name} is a guest: they paid outside the app, so there is no source account.",
+      "from": "Paid from (optional)",
+      "to": "Received in (optional)",
+      "none": "None",
+      "payerRequired": "Choose who pays.",
+      "save": "Save payment"
     }
   },
   "invitation": {

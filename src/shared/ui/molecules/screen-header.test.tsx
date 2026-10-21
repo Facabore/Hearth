@@ -22,6 +22,14 @@ describe("screen header", () => {
     expect(screen.getByRole("link", { name: "Volver" })).toHaveClass("size-12");
   });
 
+  it("lets one very long unbroken title wrap inside the screen instead of widening it", () => {
+    renderWithIntl(<ScreenHeader backHref="/" title={"M".repeat(60)} />);
+    const title = screen.getByRole("heading", { level: 1 });
+    expect(title).toHaveClass("min-w-0", "[overflow-wrap:anywhere]");
+    // The title shrinks, never the way back: its target stays a full 48 px.
+    expect(screen.getByRole("link", { name: "Volver" })).toHaveClass("shrink-0", "size-12");
+  });
+
   it("names the link in the person's language and shows an action after the title", () => {
     renderWithIntl(<ScreenHeader backHref="/" title="Accounts" action={<a href="/new">Add</a>} />, {
       locale: "en",

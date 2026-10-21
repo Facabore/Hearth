@@ -100,6 +100,12 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
     expect(within(suggestions).queryByText(/prellena el formulario/)).toBeNull();
   });
 
+  it("lets a very long unbroken space name wrap instead of widening the screen", () => {
+    const name = "W".repeat(80);
+    view({ space: householdSpace({ name, role: "MEMBER" }) });
+    expect(screen.getByText(`Tu saldo en ${name}`)).toHaveClass("[overflow-wrap:anywhere]");
+  });
+
   it("is a bottom-navigation destination, so it has no back link", () => {
     view();
     expect(screen.queryByRole("link", { name: "Volver" })).toBeNull();

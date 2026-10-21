@@ -596,7 +596,8 @@
       "remove": "Quitar de {space}",
       "confirmRemove": "¿Quitar a {name} de {space}? Su historial se conserva.",
       "confirmRemoveAction": "Sí, quitar",
-      "outstanding": "Saldo pendiente: {amount}"
+      "outstanding": "Saldo pendiente: {amount}",
+      "settle": "Registrar pago"
     }
   },
   "balances": {
@@ -630,6 +631,23 @@
       "entries": "Movimientos que cambian su saldo",
       "empty": "Nada cambió su saldo en este período.",
       "note": "A la derecha, el saldo después de cada movimiento y debajo cuánto cambió."
+    },
+    "record": "Registrar pago",
+    "settle": {
+      "action": "Liquidar",
+      "suggestion": "Liquidar: {payer} le paga {amount} a {receiver}",
+      "title": "Registrar pago",
+      "payer": "Quién paga",
+      "receiver": "Quién recibe",
+      "amount": "Monto",
+      "debt": "{payer} le debe {amount} a {receiver}. Puedes registrar un pago parcial; si pagas de más, la deuda cambia de lado.",
+      "noDebt": "{payer} no le debe nada a {receiver}.",
+      "guestNote": "{name} es invitado: pagó fuera de la app, así que no hay cuenta de origen.",
+      "from": "Sale de (opcional)",
+      "to": "Llega a (opcional)",
+      "none": "Ninguna",
+      "payerRequired": "Elige quién paga.",
+      "save": "Guardar pago"
     }
   },
   "invitation": {

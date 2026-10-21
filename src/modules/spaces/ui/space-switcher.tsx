@@ -22,10 +22,11 @@ export function SpaceSwitcher({
         type="button"
         aria-label={t("space.current", { name: activeSpace.name })}
         onClick={() => setOpen(true)}
-        className="flex min-h-11 items-center gap-2 rounded-xl px-2 text-lg font-semibold text-ink"
+        className="flex min-h-11 min-w-0 items-center gap-2 rounded-xl px-2 text-lg font-semibold text-ink"
       >
-        {activeSpace.name}
-        <Icon name="chevronDown" size={20} />
+        {/* A long name truncates instead of widening the header (WCAG 1.4.10); the full name is in the aria-label. */}
+        <span className="truncate">{activeSpace.name}</span>
+        <Icon name="chevronDown" size={20} className="shrink-0" />
       </button>
       <Sheet open={open} onOpenChange={setOpen} title={t("space.title")}>
         <ul className="flex flex-col gap-1">
@@ -38,8 +39,8 @@ export function SpaceSwitcher({
                 className="flex min-h-14 items-center gap-3 rounded-xl px-2 aria-[current=true]:bg-accent-soft"
               >
                 <Avatar name={space.name} />
-                <span className="flex flex-col">
-                  <span className="font-medium text-ink">{space.name}</span>
+                <span className="flex min-w-0 flex-col">
+                  <span className="font-medium text-ink [overflow-wrap:anywhere]">{space.name}</span>
                   <span className="text-sm text-muted">
                     {space.kind === "PERSONAL"
                       ? t("space.onlyYou")

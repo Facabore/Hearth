@@ -25,12 +25,12 @@ export function ScreenHeader({
       <Link
         href={backHref}
         aria-label={t("back")}
-        className="-ml-2 flex size-12 flex-none items-center justify-center rounded-full text-ink"
+        className="-ml-2 flex size-12 shrink-0 items-center justify-center rounded-full text-ink"
       >
         <Icon name="back" />
       </Link>
       <div className="flex min-w-0 flex-1 flex-col">
-        <h1 className="text-2xl font-semibold text-ink">{title}</h1>
+        <h1 className="min-w-0 text-2xl font-semibold [overflow-wrap:anywhere] text-ink">{title}</h1>
         {subtitle ? <p className="text-sm break-words text-muted">{subtitle}</p> : null}
       </div>
       {action}
