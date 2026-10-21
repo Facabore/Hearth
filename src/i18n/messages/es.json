@@ -617,6 +617,19 @@
       "owed": "le deben {amount}",
       "settled": "a paz y salvo",
       "link": "{name}: {sentence}. Ver historial"
+    },
+    "history": {
+      "pageTitle": "Historial de saldo",
+      "title": "Historial de {name}",
+      "previous": "Período anterior",
+      "next": "Período siguiente",
+      "range": "{start} – {end}",
+      "summary": "Saldo al inicio y al final",
+      "opening": "Al empezar",
+      "closing": "Al terminar",
+      "entries": "Movimientos que cambian su saldo",
+      "empty": "Nada cambió su saldo en este período.",
+      "note": "A la derecha, el saldo después de cada movimiento y debajo cuánto cambió."
     }
   },
   "invitation": {

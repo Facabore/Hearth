@@ -617,6 +617,19 @@
       "owed": "is owed {amount}",
       "settled": "settled up",
       "link": "{name}: {sentence}. See history."
+    },
+    "history": {
+      "pageTitle": "Balance history",
+      "title": "{name}'s history",
+      "previous": "Previous period",
+      "next": "Next period",
+      "range": "{start} – {end}",
+      "summary": "Balance at the start and at the end",
+      "opening": "At the start",
+      "closing": "At the end",
+      "entries": "Movements that changed their balance",
+      "empty": "Nothing changed their balance in this period.",
+      "note": "On the right, the balance after each movement and, under it, how much it changed."
     }
   },
   "invitation": {

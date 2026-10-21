@@ -1,2 +1,3 @@
 // Server Components only (the containers read /api/v1 through server.ts); client code imports ./index.
 export { BalancesContainer } from "./balances-container";
+export { HistoryContainer } from "./history-container";

@@ -124,6 +124,44 @@ const warnedList = async (page: Page, sharedId: string) => {
 };
 
 /**
+ * A member's balance history (HU-E9-07, P176): a guest with a real, long name owes half of an expense that the person
+ * paid, so the history has one movement with a long title and big amounts. `minor` is that expense: the huge one is
+ * for the screens that show only the history, because it also empties the account it was paid from, and the personal
+ * home would then show a balance of trillions. The expense is recorded through the API; the address opens the period
+ * that holds it.
+ */
+const BIG_EXPENSE = "123456789000";
+const HUGE_EXPENSE = "123456789012400";
+const HISTORY_GUEST = "Carlos Alberto Rodríguez Hernández de la Vega";
+const historyPath = async (page: Page, spaceId: string, sharedId: string, minor = BIG_EXPENSE) => {
+  const space = `/api/v1/spaces/${sharedId}`;
+  // The person pays from an account of their own: a shared space holds only funds, so it is one of their personal space.
+  const { items: accounts } = await get(page, `/api/v1/spaces/${spaceId}/accounts`);
+  const account = accounts[0];
+  const guest = await post(page, `${space}/guests`, { displayName: HISTORY_GUEST });
+  const { items: members } = await get(page, `${space}/members`);
+  const payer = members.find((m: { kind: string }) => m.kind === "USER");
+  const { items: groups } = await get(page, `${space}/categories`);
+  const categoryId: string = groups.flatMap((g: { categories: { id: string }[] }) => g.categories)[0].id;
+  const amount = { amount: minor, currency: "COP" };
+  await post(
+    page,
+    `${space}/expenses`,
+    {
+      description: "Mercado semanal en la plaza de Paloquemao con frutas verduras y otras cosas",
+      date: "2026-10-30",
+      occurredAt: "2026-10-30T17:00:00.000Z",
+      timeZone: "America/Bogota",
+      categoryId,
+      amount,
+      payments: [{ memberId: payer.id, accountId: account.id, amount }],
+    },
+    { "idempotency-key": crypto.randomUUID() },
+  );
+  return `/spaces/${sharedId}/members/${guest.id}/history?from=2026-10-30`;
+};
+
+/**
  * A split with a guest whose name is as long as a real one (HU-E9-06, P172), recorded through the API: the person's
  * "Dividir con alguien" sheet then lists a person with a direct space. Once per page.
  */
@@ -351,6 +389,7 @@ for (const wideFont of [false, true]) {
 
         const { spaceId, sharedId } = await session(page, `reflow-${viewport.width}`);
         const warned = await warnedList(page, sharedId);
+        const history = await historyPath(page, spaceId, sharedId);
         for (const path of [
           `/spaces/${spaceId}`,
           `/spaces/${spaceId}/transactions`,
@@ -360,6 +399,7 @@ for (const wideFont of [false, true]) {
           `/spaces/${sharedId}`,
           `/spaces/${sharedId}/members`,
           `/spaces/${sharedId}/balances`,
+          history,
           `/spaces/${sharedId}/new`,
           warned,
           "/spaces/new",
@@ -394,6 +434,36 @@ for (const wideFont of [false, true]) {
         await page.keyboard.press("Escape");
       }
     });
+
+    for (const viewport of [PHONE, SMALL_PHONE]) {
+      test(`a member's balance history fits ${viewport.width} px with a 15-digit amount, and has a way back to Saldos (HU-E9-07, P176)`, async ({
+        page,
+      }) => {
+        await page.setViewportSize(viewport);
+        const { spaceId, sharedId } = await session(page, `history-${viewport.width}`);
+        await page.goto(await historyPath(page, spaceId, sharedId, HUGE_EXPENSE));
+        await settle(page);
+
+        await expect(page.getByRole("heading", { level: 1 })).toContainText(HISTORY_GUEST);
+        await expect(
+          page.getByRole("region", { name: es.balances.history.entries }).getByRole("listitem"),
+        ).toHaveCount(1);
+        const { overflow, message } = await overflowReport(page, "the history");
+        expect(overflow, message).toBeLessThanOrEqual(0);
+
+        const back = page.getByRole("link", { name: es.common.back, exact: true });
+        await expect(back).toBeVisible();
+        await expect(back).toHaveAttribute("href", `/spaces/${sharedId}/balances`);
+        const box = (await back.boundingBox())!;
+        expect(box.width).toBeGreaterThanOrEqual(TARGET);
+        expect(box.height).toBeGreaterThanOrEqual(TARGET);
+        expect(box.x).toBeGreaterThanOrEqual(0);
+
+        await back.click();
+        await expect(page).toHaveURL(new RegExp(`/spaces/${sharedId}/balances$`));
+        await expect(page.getByRole("link", { name: new RegExp(HISTORY_GUEST) })).toBeVisible();
+      });
+    }
   });
 }
 
@@ -606,7 +676,7 @@ test.describe("a focused control is never hidden by the bottom navigation (WCAG 
 
 test.describe("every screen below the navigation has a way back (UX: no dead ends)", () => {
   /** Where each screen's Volver link must land: the parent route, never the browser history. */
-  const screens = (ids: { spaceId: string; sharedId: string }) => [
+  const screens = (ids: { spaceId: string; sharedId: string; history: string }) => [
     { name: "accounts", at: `/spaces/${ids.spaceId}/accounts`, parent: `/spaces/${ids.spaceId}` },
     {
       name: "new account",
@@ -621,6 +691,7 @@ test.describe("every screen below the navigation has a way back (UX: no dead end
       parent: `/spaces/${ids.sharedId}`,
     },
     { name: "members", at: `/spaces/${ids.sharedId}/members`, parent: `/spaces/${ids.sharedId}` },
+    { name: "balance history", at: ids.history, parent: `/spaces/${ids.sharedId}/balances` },
     { name: "new shared space", at: "/spaces/new", parent: `/spaces/${ids.spaceId}` },
     {
       name: "new shared space, from a shared space",
@@ -634,8 +705,9 @@ test.describe("every screen below the navigation has a way back (UX: no dead end
   test("a Volver link is visible, uncovered and at least 44 px, and it lands on the parent route", async ({
     page,
   }) => {
-    const ids = await session(page, "back");
-    for (const screen of screens(ids)) {
+    const { spaceId, sharedId } = await session(page, "back");
+    const history = await historyPath(page, spaceId, sharedId);
+    for (const screen of screens({ spaceId, sharedId, history })) {
       await page.goto(screen.at);
       await settle(page);
       const link = back(page);
