@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkCatalogs, errorCodesOf } from "./i18n-check.mjs";
+import { checkCatalogs, errorCodesOf, warningCodesOf } from "./i18n-check.mjs";
 
 const openapi = {
   paths: {
@@ -16,6 +16,25 @@ const openapi = {
   },
 };
 const errors = (codes) => Object.fromEntries(codes.map((code) => [code, code]));
+const withWarnings = {
+  ...openapi,
+  components: {
+    schemas: {
+      RecordedExpense: {
+        type: "object",
+        properties: {
+          warnings: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: { code: { type: "string", enum: ["FundBalanceNegative"] } },
+            },
+          },
+        },
+      },
+    },
+  },
+};
 
 describe("i18n:check (HU-E9-02)", () => {
   it("reads every error code named in the 4xx and 5xx descriptions, plus the codes the UI always shows", () => {
@@ -45,6 +64,17 @@ describe("i18n:check (HU-E9-02)", () => {
       "Not a message in es: common.save",
       "Missing in es: errors.SpaceArchived",
     ]);
+  });
+
+  it("reads every warning code and fails naming one without a message (ruling P170)", () => {
+    expect(warningCodesOf(withWarnings)).toEqual(["FundBalanceNegative"]);
+    const both = { errors: errors(errorCodesOf(withWarnings)) };
+    expect(checkCatalogs({ es: both, en: both, openapi: withWarnings })).toEqual([
+      "Missing in es: warnings.FundBalanceNegative",
+      "Missing in en: warnings.FundBalanceNegative",
+    ]);
+    const done = { ...both, warnings: { FundBalanceNegative: "x" } };
+    expect(checkCatalogs({ es: done, en: done, openapi: withWarnings })).toEqual([]);
   });
 
   it("passes when both catalogs hold the same messages and every code", () => {

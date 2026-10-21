@@ -9,6 +9,11 @@
     "loading": "Loading…",
     "default": "Default",
     "reset": "Reset",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyFailed": "Could not copy: select the link and copy it.",
+    "notNow": "Not now",
+    "goHome": "Go to Hearth",
     "month": {
       "1": "January",
       "2": "February",
@@ -156,6 +161,9 @@
     "UnknownCurrency": "That currency is not available.",
     "ValidationFailed": "Check the highlighted fields.",
     "reference": "Reference: {requestId}"
+  },
+  "warnings": {
+    "FundBalanceNegative": "The balance of {account} is now {balance}. A contribution to the fund can cover it."
   },
   "auth": {
     "signIn": {

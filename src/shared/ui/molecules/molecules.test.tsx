@@ -98,4 +98,16 @@ describe("molecules", () => {
     expect(alert).toHaveTextContent("Algo salió mal. Intenta de nuevo.");
     expect(alert).toHaveTextContent("Referencia: req-7");
   });
+
+  it("adds a detail line under a known problem's message (ruling P163)", () => {
+    renderWithIntl(
+      <ProblemNotice
+        problem={{ code: "OutstandingBalance", status: 409, requestId: "r", errors: [], field: null }}
+        detail="Saldo pendiente: $ 100.000"
+      />,
+    );
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Quedan saldos pendientes. Sáldalos antes de continuar.");
+    expect(alert).toHaveTextContent("Saldo pendiente: $ 100.000");
+  });
 });

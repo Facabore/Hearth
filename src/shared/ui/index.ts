@@ -8,6 +8,7 @@ export { TextField, type TextFieldProps } from "./atoms/text-field";
 export { VisuallyHidden } from "./atoms/visually-hidden";
 export { cn } from "./cn";
 export { ChoiceGroup, type ChoiceGroupProps } from "./molecules/choice-group";
+export { CopyField } from "./molecules/copy-field";
 export { ProblemNotice } from "./molecules/problem-notice";
 export { Sheet, type SheetProps } from "./molecules/sheet";
 export { paletteVars } from "./palette";

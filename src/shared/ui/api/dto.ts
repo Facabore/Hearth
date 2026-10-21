@@ -20,3 +20,20 @@ export type PeriodDto = Json<
 >["items"][number];
 export type MoneyDto = components["schemas"]["Money"];
 export type ProblemDto = components["schemas"]["Problem"];
+export type MemberDto = components["schemas"]["SpaceMember"];
+export type InvitationDto = components["schemas"]["Invitation"];
+export type CreatedInvitationDto = Json<
+  paths["/api/v1/spaces/{spaceId}/invitations"]["post"]["responses"][201]
+>;
+export type InvitationPreviewDto = components["schemas"]["InvitationPreview"];
+export type ClaimPreviewDto = components["schemas"]["ClaimPreview"];
+export type BalancesDto = Json<paths["/api/v1/spaces/{spaceId}/balances"]["get"]["responses"][200]>;
+export type SuggestionDto = Json<
+  paths["/api/v1/spaces/{spaceId}/balances/suggestions"]["get"]["responses"][200]
+>["suggestions"][number];
+export type BalanceHistoryDto = Json<
+  paths["/api/v1/spaces/{spaceId}/members/{memberId}/balance-history"]["get"]["responses"][200]
+>;
+export type DefaultSplitDto = Json<paths["/api/v1/spaces/{spaceId}/default-split"]["get"]["responses"][200]>;
+export type RecordedExpenseDto = components["schemas"]["RecordedExpense"];
+export type DirectSplitDto = Json<paths["/api/v1/direct-splits"]["post"]["responses"][201]>;

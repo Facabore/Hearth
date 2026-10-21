@@ -9,6 +9,11 @@
     "loading": "Cargando…",
     "default": "Predeterminado",
     "reset": "Restablecer",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "copyFailed": "No se pudo copiar: selecciona el enlace y cópialo.",
+    "notNow": "Ahora no",
+    "goHome": "Ir a Hearth",
     "month": {
       "1": "enero",
       "2": "febrero",
@@ -156,6 +161,9 @@
     "UnknownCurrency": "Esa moneda no está disponible.",
     "ValidationFailed": "Revisa los datos marcados.",
     "reference": "Referencia: {requestId}"
+  },
+  "warnings": {
+    "FundBalanceNegative": "El saldo de {account} quedó en {balance}. Pueden hacer un aporte al fondo para cubrirlo."
   },
   "auth": {
     "signIn": {

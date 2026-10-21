@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, ReactNode } from "react";
+import type { InputHTMLAttributes, ReactNode, Ref } from "react";
 import { cn } from "../cn";
 import { Icon } from "./icon";
 
@@ -8,10 +8,11 @@ export type TextFieldProps = InputHTMLAttributes<HTMLInputElement> & {
   readonly hint?: string;
   readonly error?: ReactNode;
   readonly trailing?: ReactNode;
+  readonly ref?: Ref<HTMLInputElement>;
 };
 
 /** A labelled input (52 px); its hint and error describe it, and an error marks it invalid. */
-export function TextField({ id, label, hint, error, trailing, className, ...props }: TextFieldProps) {
+export function TextField({ id, label, hint, error, trailing, className, ref, ...props }: TextFieldProps) {
   const described = [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(" ");
   return (
     <div className="flex flex-col gap-1.5">
@@ -20,6 +21,7 @@ export function TextField({ id, label, hint, error, trailing, className, ...prop
       </label>
       <div className="relative">
         <input
+          ref={ref}
           id={id}
           aria-invalid={error ? true : undefined}
           aria-describedby={described || undefined}

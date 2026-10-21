@@ -17,5 +17,11 @@ export const UI_ICONS = {
   calendar: "M4 6h16v14H4V6Zm0 4h16M8 3v4m8-4v4",
   archive: "M4 5h16v4H4V5Zm1 4v10h14V9M10 13h4",
   backspace: "M9 5h11v14H9l-6-7 6-7Zm4 4 5 6m0-6-5 6",
+  link: "M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1",
+  userPlus: "M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm-6 9a6 6 0 0 1 12 0M18 8v6M15 11h6",
+  userMinus: "M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm-6 9a6 6 0 0 1 12 0M16 11h6",
+  copy: "M10.5 8h7A2.5 2.5 0 0 1 20 10.5v7a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 8 17.5v-7A2.5 2.5 0 0 1 10.5 8ZM16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8",
+  swap: "M7 7h11l-3-3M17 17H6l3 3",
+  warning: "M12 4 2.5 20h19L12 4Zm0 6v4.5m0 2.7h.01",
 } as const;
 export type UiIconName = keyof typeof UI_ICONS;
