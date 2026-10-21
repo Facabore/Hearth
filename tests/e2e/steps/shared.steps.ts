@@ -77,7 +77,9 @@ When(
   ) => {
     await openForm(page, world);
     await pick(page, world, pesos, category);
-    await page.getByRole("button", { name: new RegExp(world.t("ledger.split.payer")) }).click();
+    // The payer row reads "Pagas tú desde <cuenta> (tu cuenta personal)": it is found by what comes before the account.
+    const youPay = world.t("ledger.split.paidFromMine", { account: "@@" }).split("@@")[0]!.trim();
+    await page.getByRole("button", { name: new RegExp(`^${youPay}`) }).click();
     const sheet = splitSheet(page, world);
     await sheet
       .getByRole("radiogroup", { name: world.t("ledger.split.from") })

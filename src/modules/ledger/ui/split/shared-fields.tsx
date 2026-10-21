@@ -8,7 +8,7 @@ import { Icon } from "@/shared/ui";
 import type { Api } from "@/shared/ui/api/client";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import type { SharedExpenseContext } from "./shared-context";
-import { splitFailureMessage } from "./split-failure";
+import { isUntouched, splitFailureMessage } from "./split-failure";
 import { splitCheckOf, type SplitDraft } from "./split-request";
 import { useDefaultSplit } from "./use-default-split";
 
@@ -104,7 +104,9 @@ export function SharedFields({
               .map((s) => `${label(s.memberId)} ${formatMoney({ amount: s.amount, currency }, formats)}`)
               .join(" · "),
           })
-        : splitFailureMessage(check, t, { currency, formats, nameOf: label });
+        : isUntouched(check, draft)
+          ? t(`methods.${draft.method}`)
+          : splitFailureMessage(check, t, { currency, formats, nameOf: label });
 
   const { payer } = draft;
   const account =
@@ -115,7 +117,8 @@ export function SharedFields({
       : payer.kind === "GUEST"
         ? t("paidBy", { payer: label(payer.memberId) })
         : account
-          ? t("paidFrom", { payer: label(payer.memberId), account })
+          ? // A shared space holds only funds: a member pays from a personal account of their own (S7).
+            t("paidFromMine", { account })
           : t("paidBy", { payer: label(payer.memberId) });
 
   const show = () => {

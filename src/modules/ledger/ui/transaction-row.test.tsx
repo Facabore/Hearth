@@ -243,4 +243,29 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
     expect(screen.getByRole("listitem")).toHaveTextContent("Bancolombia");
     expect(screen.getByRole("listitem")).not.toHaveTextContent("pagó");
   });
+  it("gives the payer its own line, never cut before the time or the category (390 px review, S1)", () => {
+    const shared = { ...context, memberNames: { "m-pedro": "Pedro (invitado)" } };
+    renderWithIntl(
+      <ol>
+        <TransactionRow
+          tx={transactionDto({
+            type: "EXPENSE",
+            description: "Mercado",
+            categoryId: "c-dining",
+            occurredAt: "2026-10-13T01:45:00.000Z",
+            timeZone: "America/Bogota",
+            payments: [{ memberId: "m-pedro", accountId: null, amount: cop(1) }],
+          })}
+          context={shared}
+        />
+      </ol>,
+    );
+    const payer = screen.getByText("pagó Pedro (invitado)");
+    // Its own element: neither inside the truncated detail line nor truncated itself, so a long name wraps.
+    expect(payer.closest(".truncate")).toBeNull();
+    expect(payer).toHaveClass("break-words");
+    const detail = screen.getByText(/20:45 · Restaurants/);
+    expect(detail).toHaveClass("truncate");
+    expect(detail).not.toHaveTextContent("pagó");
+  });
 });

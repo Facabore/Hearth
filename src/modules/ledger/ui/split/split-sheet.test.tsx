@@ -133,6 +133,37 @@ describe("split sheet (HU-E9-06)", () => {
     expect(done()).toBeDisabled();
   });
 
+  it.each([
+    ["Porcentaje", "Revisa el valor"],
+    ["Montos", "Revisa el valor"],
+    ["Partes", "Revisa el valor"],
+  ] as const)(
+    "shows no error for %s before anyone types: a neutral hint, with Listo disabled (390 px review, S2)",
+    async (method, error) => {
+      renderWithIntl(<Harness amount="30000000" />);
+      await userEvent.click(within(sheet()).getByRole("radio", { name: method }));
+      expect(status()).not.toHaveTextContent(error);
+      expect(status()).toHaveTextContent("Escribe el valor de cada persona.");
+      expect(status()).not.toHaveClass("text-danger");
+      expect(status().querySelector("svg")).toBeNull();
+      expect(done()).toBeDisabled();
+    },
+  );
+
+  it("reports a row only after that row was edited, and keeps the others quiet (S2)", async () => {
+    renderWithIntl(<Harness amount="30000000" />);
+    await userEvent.click(within(sheet()).getByRole("radio", { name: "Porcentaje" }));
+    await userEvent.type(valueOf("Juan"), "5");
+    await userEvent.clear(valueOf("Juan"));
+    // Ana is the first unreadable row and was never edited: her row stays quiet, the hint stays neutral.
+    expect(status()).not.toHaveTextContent("Revisa el valor de Ana (tú)");
+    expect(status()).toHaveTextContent("Escribe el valor de cada persona.");
+    await userEvent.type(valueOf("Ana (tú)"), "x");
+    await userEvent.clear(valueOf("Ana (tú)"));
+    expect(status()).toHaveTextContent("Revisa el valor de Ana (tú)");
+    expect(status()).toHaveClass("text-danger");
+  });
+
   it("says an amount too small to split between three people in whole pesos", async () => {
     renderWithIntl(<Harness amount="200" />);
     await userEvent.click(within(sheet()).getByRole("checkbox", { name: "Pedro (invitado)" }));

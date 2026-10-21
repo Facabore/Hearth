@@ -138,6 +138,25 @@ describe("guests (HU-E9-05, ruling P163)", () => {
     });
   });
 
+  it("previews the name as it will show, live, as the artboard does (390 px review, S7)", async () => {
+    screenAs("u-ana", "OWNER", fakeApi({}).api);
+    await userEvent.click(screen.getByRole("button", { name: "Agregar invitado" }));
+    const sheet = screen.getByRole("dialog", { name: "Agregar invitado a Household" });
+    const name = within(sheet).getByLabelText("Nombre");
+    expect(name).toHaveAccessibleDescription(
+      "Se verá con «(invitado)» al lado. No puede repetir el nombre de otro miembro.",
+    );
+    await userEvent.type(name, "Pedro");
+    expect(name).toHaveAccessibleDescription(
+      "Se verá como «Pedro (invitado)». No puede repetir el nombre de otro miembro.",
+    );
+    await userEvent.clear(name);
+    await userEvent.type(name, "  Ana María ");
+    expect(name).toHaveAccessibleDescription(
+      "Se verá como «Ana María (invitado)». No puede repetir el nombre de otro miembro.",
+    );
+  });
+
   it("puts MemberNameTaken under the name", async () => {
     const { api } = fakeApi({
       "POST /api/v1/spaces/{spaceId}/guests": () => problemResponse(409, "MemberNameTaken"),
@@ -150,7 +169,7 @@ describe("guests (HU-E9-05, ruling P163)", () => {
     await userEvent.click(within(sheet).getByRole("button", { name: "Agregar invitado" }));
     await waitFor(() =>
       expect(within(sheet).getByLabelText("Nombre")).toHaveAccessibleDescription(
-        "Se verá con «(invitado)» al lado. No puede repetir el nombre de otro miembro. Ya hay un miembro con ese nombre en este espacio.",
+        "Se verá como «Juan (invitado)». No puede repetir el nombre de otro miembro. Ya hay un miembro con ese nombre en este espacio.",
       ),
     );
     expect(router.refresh).not.toHaveBeenCalled();

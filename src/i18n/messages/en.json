@@ -246,6 +246,7 @@
     "allAccounts": "See all accounts",
     "allAccountsShort": "See all",
     "recent": "Recent",
+    "recentEmpty": "No transactions yet. Record the first one with +.",
     "allTransactions": "See all transactions",
     "allTransactionsShort": "See all"
   },
@@ -485,10 +486,11 @@
         "noParticipants": "Choose at least one person",
         "tooSmall": "The amount is too small to split this way"
       },
+      "incomplete": "Enter a value for each person.",
       "done": "Done",
       "summary": "{method} · {shares}",
       "paidBy": "Paid by {payer}",
-      "paidFrom": "Paid by {payer} from {account}",
+      "paidFromMine": "You pay from {account} (your personal account)",
       "split": "Split"
     },
     "direct": {
@@ -583,6 +585,7 @@
       "intro": "For someone who does not use Hearth. They can pay, owe, have capacity in the plan and receive payments, only in {space}. They cannot sign in.",
       "name": "Name",
       "nameHint": "It shows with \"(guest)\" next to it. It cannot repeat another member's name.",
+      "nameHintNamed": "It shows as \"{name}\". It cannot repeat another member's name.",
       "email": "Email (optional)",
       "emailHint": "If they sign up later, you send them a link to claim this place and they keep all its history."
     },

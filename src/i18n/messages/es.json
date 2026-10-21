@@ -246,6 +246,7 @@
     "allAccounts": "Ver todas las cuentas",
     "allAccountsShort": "Ver todas",
     "recent": "Recientes",
+    "recentEmpty": "Aún no hay movimientos. Registra el primero con +.",
     "allTransactions": "Ver todos los movimientos",
     "allTransactionsShort": "Ver todo"
   },
@@ -485,10 +486,11 @@
         "noParticipants": "Elige al menos una persona",
         "tooSmall": "El monto es muy pequeño para dividirlo así"
       },
+      "incomplete": "Escribe el valor de cada persona.",
       "done": "Listo",
       "summary": "{method} · {shares}",
       "paidBy": "Pagó {payer}",
-      "paidFrom": "Pagó {payer} desde {account}",
+      "paidFromMine": "Pagas tú desde {account} (tu cuenta personal)",
       "split": "División"
     },
     "direct": {
@@ -583,6 +585,7 @@
       "intro": "Para alguien que no usa Hearth. Puede pagar, deber, tener capacidad en el plan y recibir pagos, solo en {space}. No inicia sesión.",
       "name": "Nombre",
       "nameHint": "Se verá con «(invitado)» al lado. No puede repetir el nombre de otro miembro.",
+      "nameHintNamed": "Se verá como «{name}». No puede repetir el nombre de otro miembro.",
       "email": "Correo (opcional)",
       "emailHint": "Si se registra después, le envías un enlace para reclamar este lugar y se lleva todo su historial."
     },

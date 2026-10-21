@@ -750,6 +750,177 @@ test.describe("a focused control is never hidden by the bottom navigation (WCAG 
   });
 });
 
+test.describe("the last control of a scrolling screen ends above the bottom bar (UX: nothing under the bar)", () => {
+  const screens = [
+    {
+      name: "record form",
+      at: (spaceId: string) => `/spaces/${spaceId}/new`,
+      prepare: async (page: Page) => {
+        await expect(page.locator("[data-ready='true']")).toBeAttached();
+      },
+      submit: es.ledger.form.save.EXPENSE,
+    },
+    {
+      name: "new account",
+      at: (spaceId: string) => `/spaces/${spaceId}/accounts/new`,
+      // A credit card asks for the most attributes, so the form is the longest it gets.
+      prepare: async (page: Page) => {
+        await page.getByRole("radio", { name: es.accounts.type.CREDIT_CARD }).click();
+      },
+      submit: es.accounts.create,
+    },
+  ];
+
+  for (const viewport of [PHONE, SMALL_PHONE]) {
+    for (const screen of screens) {
+      test(`${screen.name}: the primary button is fully visible and uncovered at ${viewport.width} px`, async ({
+        page,
+      }) => {
+        await page.setViewportSize(viewport);
+        // A phone with a home indicator: the bar grows by the safe area, and so must the room under the page.
+        const cdp = await page.context().newCDPSession(page);
+        await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { bottom: 34 } });
+        const { spaceId } = await session(page, "bottom-bar");
+        await page.goto(screen.at(spaceId));
+        await screen.prepare(page);
+        const submit = page.getByRole("button", { name: screen.submit, exact: true });
+        await expect(submit).toBeVisible();
+        await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+        await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => done(null))));
+        const seen = await submit.evaluate((el) => {
+          const r = el.getBoundingClientRect();
+          const bar = document.querySelector("nav")?.getBoundingClientRect();
+          const hit = (x: number, y: number) => {
+            const top = document.elementFromPoint(x, y);
+            return top !== null && el.contains(top);
+          };
+          return {
+            bottom: r.bottom,
+            top: r.top,
+            barTop: bar ? bar.top : window.innerHeight,
+            barHeight: bar ? bar.height : 0,
+            barInset: parseFloat(getComputedStyle(document.querySelector("nav")!).paddingBottom),
+            // How far the document extends below the button: the room the page keeps for the bar.
+            below: document.documentElement.scrollHeight - (r.bottom + window.scrollY),
+            viewport: window.innerHeight,
+            // Rounded corners are not painted by the button, so the probes sit inside its straight edges.
+            probes: [
+              hit(r.left + r.width / 4, r.top + 3),
+              hit(r.right - r.width / 4, r.top + 3),
+              hit(r.left + r.width / 4, r.bottom - 3),
+              hit(r.right - r.width / 4, r.bottom - 3),
+              hit(r.left + r.width / 2, r.top + r.height / 2),
+            ],
+          };
+        });
+        expect(seen.barInset, "the emulated safe area reaches the bar").toBe(34);
+        expect(seen.barHeight, "the bar keeps its 76 px of room above the safe area").toBeGreaterThanOrEqual(
+          76 + 34,
+        );
+        expect(seen.below, "the page keeps room for the bar and the safe area").toBeGreaterThanOrEqual(
+          seen.barHeight,
+        );
+        expect(seen.top, "the button starts on screen").toBeGreaterThanOrEqual(0);
+        expect(seen.bottom, "the button ends above the bottom bar").toBeLessThanOrEqual(seen.barTop);
+        expect(
+          seen.probes,
+          "the top and bottom edges and the center of the button are painted by it",
+        ).toEqual([true, true, true, true, true]);
+      });
+    }
+  }
+});
+
+test.describe("a shared row names who paid in full (UX review, S1)", () => {
+  for (const viewport of [PHONE, SMALL_PHONE]) {
+    test(`a long payer name wraps on its own line instead of being cut at ${viewport.width} px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      const { sharedId } = await session(page, "payer-row");
+      const space = `/api/v1/spaces/${sharedId}`;
+      const guest = await post(page, `${space}/guests`, { displayName: HISTORY_GUEST });
+      const { items: members } = await get(page, `${space}/members`);
+      const owner = members.find((m: { kind: string }) => m.kind === "USER");
+      const { items: groups } = await get(page, `${space}/categories`);
+      const categoryId: string = groups.flatMap((g: { categories: { id: string }[] }) => g.categories)[0].id;
+      const amount = { amount: "30000000", currency: "COP" };
+      await post(
+        page,
+        `${space}/expenses`,
+        {
+          description: "Mercado",
+          date: "2026-10-30",
+          occurredAt: "2026-10-30T17:00:00.000Z",
+          timeZone: "America/Bogota",
+          categoryId,
+          amount,
+          payments: [{ memberId: guest.id, accountId: null, amount }],
+          split: { method: "EQUAL", participants: [{ memberId: owner.id }, { memberId: guest.id }] },
+        },
+        { "idempotency-key": crypto.randomUUID() },
+      );
+      await page.goto(`/spaces/${sharedId}/transactions`);
+      const payer = page.getByText(/^pagó Carlos Alberto/);
+      await expect(payer).toBeVisible();
+      const read = await payer.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return {
+          text: el.textContent,
+          clipped: el.scrollWidth > el.clientWidth + 1,
+          truncates: style.textOverflow === "ellipsis" || style.overflow === "hidden",
+          right: r.right,
+          page: document.documentElement.scrollWidth,
+        };
+      });
+      expect(read.text).toContain(HISTORY_GUEST);
+      expect(read.truncates, "the payer line never truncates").toBe(false);
+      expect(read.clipped, "the payer name is fully visible").toBe(false);
+      expect(read.right).toBeLessThanOrEqual(viewport.width);
+      expect(read.page, "no horizontal scroll").toBeLessThanOrEqual(viewport.width);
+    });
+  }
+});
+
+test.describe("the app has an icon, so no page asks for a missing one (UX review, S6)", () => {
+  test("the sign-in screen links an SVG icon and an apple-touch icon that load without a session", async ({
+    page,
+  }) => {
+    const failed: string[] = [];
+    page.on("response", (response) => {
+      if (response.status() >= 400) failed.push(`${response.status()} ${response.url()}`);
+    });
+    await page.goto("/sign-in");
+    const icon = page.locator("link[rel='icon'][type='image/svg+xml']");
+    const apple = page.locator("link[rel='apple-touch-icon']");
+    await expect(icon).toHaveAttribute("href", /^\/icon\.svg/);
+    await expect(apple).toHaveAttribute("href", /^\/apple-icon\.png/);
+    const svg = await page.request.get((await icon.getAttribute("href"))!);
+    expect(svg.status()).toBe(200);
+    expect(svg.headers()["content-type"]).toContain("image/svg+xml");
+    expect(await svg.text()).toContain("<svg");
+    const png = await page.request.get((await apple.getAttribute("href"))!);
+    expect(png.status()).toBe(200);
+    expect(png.headers()["content-type"]).toContain("image/png");
+    expect((await png.body()).subarray(1, 4).toString("latin1")).toBe("PNG");
+    await page.waitForLoadState("networkidle");
+    expect(failed, "no request to a missing file").toEqual([]);
+  });
+
+  test("a signed-in page links the same icons and loads cleanly", async ({ page }) => {
+    const failed: string[] = [];
+    page.on("response", (response) => {
+      if (response.status() >= 400) failed.push(`${response.status()} ${response.url()}`);
+    });
+    const { spaceId } = await session(page, "icons");
+    await page.goto(`/spaces/${spaceId}`);
+    await expect(page.locator("link[rel='icon'][type='image/svg+xml']")).toBeAttached();
+    await page.waitForLoadState("networkidle");
+    expect(failed, "no request to a missing file").toEqual([]);
+  });
+});
+
 test.describe("every screen below the navigation has a way back (UX: no dead ends)", () => {
   /** Where each screen's Volver link must land: the parent route, never the browser history. */
   const screens = (ids: { spaceId: string; sharedId: string; history: string }) => [

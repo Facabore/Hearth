@@ -44,6 +44,42 @@ describe("home (HU-E9-01)", () => {
   });
 });
 
+describe("home without transactions (390 px review, S5)", () => {
+  const empty = () =>
+    renderWithIntl(
+      <HomeSummary
+        spaceId="sp-shared"
+        policy={{ kind: "MONTHLY", day: 1 }}
+        page={{ ...octoberPage, items: [] }}
+        accounts={[accountDto({ name: "Fondo Hogar", balance: cop(0) })]}
+        context={rowContext}
+      />,
+    );
+
+  it("says there is nothing yet and how to record the first, instead of a bare heading", async () => {
+    const { container } = empty();
+    const recent = screen.getByRole("region", { name: "Recientes" });
+    expect(
+      within(recent).getByText("Aún no hay movimientos. Registra el primero con +."),
+    ).toBeInTheDocument();
+    expect(within(recent).queryAllByRole("listitem")).toEqual([]);
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("shows no empty message once there is a transaction", () => {
+    renderWithIntl(
+      <HomeSummary
+        spaceId="sp-personal"
+        policy={{ kind: "MONTHLY", day: 1 }}
+        page={{ ...octoberPage, items: octoberPage.items.slice(0, 1) }}
+        accounts={[accountDto({ name: "Bancolombia", balance: cop(1) })]}
+        context={rowContext}
+      />,
+    );
+    expect(screen.queryByText(/Aún no hay movimientos/)).toBeNull();
+  });
+});
+
 describe("home, narrow screens (S2)", () => {
   it("lets its single column shrink below its content, so a long name or amount never widens the page", () => {
     const { container } = renderWithIntl(

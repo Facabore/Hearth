@@ -150,6 +150,32 @@ describe("split with someone from Personal (HU-E9-06, ruling P172)", () => {
     expect(requests).toHaveLength(0);
   });
 
+  it("clears the category message of a split as soon as a default category is chosen (S3)", async () => {
+    const { api } = fakeApi({});
+    form(api);
+    await userEvent.type(screen.getByLabelText("Monto"), "50000");
+    await splitWith("Luis");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar y dividir" }));
+    expect(screen.getByRole("button", { name: /Categoría/ })).toHaveAccessibleDescription(
+      "Elige una categoría.",
+    );
+    await chooseGroceries();
+    expect(screen.queryByText("Elige una categoría.")).toBeNull();
+  });
+
+  it("does not blame a category of the person's own before the next save (S3)", async () => {
+    const { api } = fakeApi({});
+    form(api);
+    await userEvent.type(screen.getByLabelText("Monto"), "50000");
+    await splitWith("Luis");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar y dividir" }));
+    await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
+    await userEvent.click(screen.getByRole("radio", { name: "Mine" }));
+    expect(screen.queryByText(/solo de tu espacio Personal/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Guardar y dividir" }));
+    expect(screen.getByText(/solo de tu espacio Personal/)).toBeInTheDocument();
+  });
+
   it("shows an API problem in the form and keeps the same key for a retry of the same draft", async () => {
     let calls = 0;
     const { api, requests } = fakeApi({

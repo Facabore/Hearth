@@ -103,7 +103,9 @@ describe("shared expense (HU-E9-06)", () => {
     const { container } = form(api);
     expect(screen.queryByRole("button", { name: /^Cuenta/ })).not.toBeInTheDocument();
     await enter("300000");
-    expect(screen.getByRole("button", { name: /Pagó/ })).toHaveTextContent("Pagó Ana (tú) desde Bancolombia");
+    expect(screen.getByRole("button", { name: /Pagas tú|Pagó/ })).toHaveTextContent(
+      "Pagas tú desde Bancolombia (tu cuenta personal)",
+    );
     await waitFor(() =>
       expect(normalized(divisionRow().textContent)).toContain(
         "Iguales · Ana (tú) $ 150.000 · Juan $ 150.000",
@@ -145,7 +147,7 @@ describe("shared expense (HU-E9-06)", () => {
     });
     form(api, context(MEMBERS, [fund]));
     await enter("2000000");
-    await userEvent.click(screen.getByRole("button", { name: /Pagó/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Pagas tú|Pagó/ }));
     await userEvent.click(await screen.findByRole("radio", { name: "Fondo Hogar" }));
     await userEvent.click(screen.getByRole("button", { name: "Listo" }));
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
@@ -170,7 +172,7 @@ describe("shared expense (HU-E9-06)", () => {
     });
     form(api, context(members));
     await enter("90000");
-    await userEvent.click(screen.getByRole("button", { name: /Pagó/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Pagas tú|Pagó/ }));
     const sheet = await splitSheet();
     expect(
       within(within(sheet).getByRole("radiogroup", { name: "Pagó" }))
@@ -268,6 +270,39 @@ describe("shared expense (HU-E9-06)", () => {
     expect(divisionRow()).toHaveAccessibleDescription("Revisa cómo se divide el gasto.");
   });
 
+  it("clears the split problem as soon as the split changes (390 px review, S3)", async () => {
+    const { api } = fakeApi({
+      "GET /api/v1/spaces/{spaceId}/default-split": (r) => equal(amountOf(r)),
+      "POST /api/v1/spaces/{spaceId}/expenses": () => problemResponse(422, "InvalidSplit"),
+    });
+    form(api);
+    await enter("300000");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
+    expect(await screen.findByText("Revisa cómo se divide el gasto.")).toBeInTheDocument();
+    await userEvent.click(divisionRow());
+    const sheet = await splitSheet();
+    await userEvent.click(within(sheet).getByRole("checkbox", { name: "Juan" }));
+    expect(screen.queryByText("Revisa cómo se divide el gasto.")).toBeNull();
+  });
+
+  it("shows no error on the division row for a method nobody has typed a value for yet (S2)", async () => {
+    const { api } = fakeApi({
+      "GET /api/v1/spaces/{spaceId}/default-split": (r) => equal(amountOf(r)),
+    });
+    form(api);
+    await enter("300000");
+    await userEvent.click(divisionRow());
+    const sheet = await splitSheet();
+    await userEvent.click(within(sheet).getByRole("radio", { name: "Porcentaje" }));
+    // The sheet is open over the form, so the row is reached past the dialog's hidden background.
+    const row = () => screen.getByRole("button", { name: /División/, hidden: true });
+    expect(normalized(row().textContent)).toContain("Porcentaje");
+    expect(row()).not.toHaveTextContent("Revisa el valor");
+    await userEvent.type(within(sheet).getByLabelText("Valor de Ana (tú)"), "x");
+    await userEvent.clear(within(sheet).getByLabelText("Valor de Ana (tú)"));
+    expect(row()).toHaveTextContent("Revisa el valor de Ana (tú)");
+  });
+
   it("shows a payment problem under the same rows, not the account picker that is not there", async () => {
     const { api } = fakeApi({
       "GET /api/v1/spaces/{spaceId}/default-split": (r) => equal(amountOf(r)),
@@ -294,10 +329,10 @@ describe("shared expense (HU-E9-06)", () => {
     });
     form(api, context(MEMBERS, [fund]));
     await enter("300000");
-    await userEvent.click(screen.getByRole("button", { name: /Pagó/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Pagas tú|Pagó/ }));
     await userEvent.click(await screen.findByRole("radio", { name: "Fondo Hogar" }));
     await userEvent.click(screen.getByRole("button", { name: "Listo" }));
-    expect(screen.getByRole("button", { name: /Pagó/ })).toHaveTextContent("Pagó Fondo Hogar");
+    expect(screen.getByRole("button", { name: /Pagas tú|Pagó/ })).toHaveTextContent("Pagó Fondo Hogar");
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     expect((await requests.find((r) => r.method === "POST")!.json()).payments).toEqual([
       { memberId: null, accountId: "a-fund", amount: { amount: "30000000", currency: "COP" } },
@@ -320,7 +355,7 @@ describe("shared expense (HU-E9-06)", () => {
       />,
     );
     expect(screen.getByRole("button", { name: /Cuenta que recibe/ })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Pagó/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Pagas tú|Pagó/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /División/ })).not.toBeInTheDocument();
   });
 });

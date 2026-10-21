@@ -297,6 +297,114 @@ describe("record form (HU-E9-03)", () => {
   });
 });
 
+describe("record form: an error clears as soon as its field changes (390 px review, S3)", () => {
+  const failing = (code: string) =>
+    fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": () => problemResponse(422, code) });
+  const save = () => userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
+
+  it("clears the category error when a category is chosen, and keeps the other errors", async () => {
+    const { api } = failing("CategoryRequired");
+    form(api);
+    await userEvent.type(screen.getByLabelText("Monto"), "85000");
+    await save();
+    const category = await screen.findByRole("button", { name: /Categoría/ });
+    await waitFor(() => expect(category).toHaveAccessibleDescription("Elige una categoría."));
+    await userEvent.click(category);
+    await userEvent.click(screen.getByRole("radio", { name: "Groceries" }));
+    await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
+    expect(screen.queryByText("Elige una categoría.")).toBeNull();
+    expect(screen.getByRole("button", { name: /Categoría/ })).not.toHaveAccessibleDescription();
+  });
+
+  it("clears the amount error while typing, and leaves another field's error alone", async () => {
+    const { api } = failing("InvalidAmount");
+    form(api);
+    await userEvent.type(screen.getByLabelText("Monto"), "0");
+    await save();
+    await waitFor(() =>
+      expect(screen.getByLabelText("Monto")).toHaveAccessibleDescription("El monto debe ser mayor que cero."),
+    );
+    await userEvent.type(screen.getByLabelText("Descripción"), "Market");
+    expect(screen.getByLabelText("Monto")).toHaveAccessibleDescription("El monto debe ser mayor que cero.");
+    await userEvent.type(screen.getByLabelText("Monto"), "5");
+    expect(screen.queryByText("El monto debe ser mayor que cero.")).toBeNull();
+  });
+
+  it("clears the unreadable-amount message when the amount is edited", async () => {
+    const { api } = failing("InvalidAmount");
+    form(api);
+    await userEvent.type(screen.getByLabelText("Monto"), "ochenta");
+    await save();
+    expect(screen.getByLabelText("Monto")).toHaveAccessibleDescription("Escribe un monto como 85.000.");
+    await userEvent.type(screen.getByLabelText("Monto"), "1");
+    expect(screen.queryByText(/Escribe un monto/)).toBeNull();
+  });
+
+  it("clears the description error when the description changes", async () => {
+    const { api } = failing("InvalidDescription");
+    form(api);
+    await userEvent.type(screen.getByLabelText("Monto"), "85000");
+    await userEvent.type(screen.getByLabelText("Descripción"), "x");
+    await save();
+    await waitFor(() =>
+      expect(screen.getByLabelText("Descripción")).toHaveAccessibleDescription(
+        "La descripción puede tener hasta 200 caracteres.",
+      ),
+    );
+    await userEvent.type(screen.getByLabelText("Descripción"), "y");
+    expect(screen.queryByText("La descripción puede tener hasta 200 caracteres.")).toBeNull();
+  });
+
+  it("clears the account error when another account is chosen", async () => {
+    const { api } = failing("AccountArchived");
+    form(api);
+    await userEvent.type(screen.getByLabelText("Monto"), "85000");
+    await save();
+    const message = "Esta cuenta está archivada. Restáurala para registrar movimientos en ella.";
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Cuenta/ })).toHaveAccessibleDescription(message),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Cuenta/ }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: "Cuenta" })).getByRole("radio", { name: /Visa/ }),
+    );
+    expect(screen.queryByText(message)).toBeNull();
+  });
+
+  it("clears the date error when the date and time are applied", async () => {
+    const { api } = failing("DateTimeMismatch");
+    form(api);
+    await userEvent.type(screen.getByLabelText("Monto"), "85000");
+    await save();
+    const message = "La fecha no coincide con la hora elegida. Revisa la fecha y la hora.";
+    await waitFor(() => expect(screen.getByTestId("when-chip")).toHaveAccessibleDescription(message));
+    await userEvent.click(screen.getByTestId("when-chip"));
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^Usar/ }));
+    expect(screen.queryByText(message)).toBeNull();
+  });
+
+  it("clears the destination error when another destination is chosen", async () => {
+    const { api } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/transfers": () => problemResponse(422, "SameAccountTransfer"),
+    });
+    form(api, "TRANSFER");
+    await userEvent.type(screen.getByLabelText("Monto"), "200000");
+    await userEvent.click(screen.getByRole("button", { name: /Hacia/ }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: "Hacia" })).getByRole("radio", { name: /Visa/ }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Guardar transferencia" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Hacia/ })).toHaveAccessibleDescription(/\S/),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Hacia/ }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: "Hacia" })).getByRole("radio", { name: /Bancolombia|Visa/ }),
+    );
+    expect(screen.getByRole("button", { name: /Hacia/ })).not.toHaveAccessibleDescription();
+  });
+});
+
 describe("record form: the way back (S1)", () => {
   it("has a Volver link to the space home, next to the title", () => {
     form(fakeApi({}).api);

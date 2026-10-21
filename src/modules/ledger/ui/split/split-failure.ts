@@ -1,8 +1,16 @@
 import type { useTranslations } from "next-intl";
 import { formatMoney, formatNumber, type Formats } from "@/shared/ui/format/formatters";
 import type { SplitCheck } from "./split-math";
+import type { SplitDraft } from "./split-request";
 
 export type SplitFailure = Extract<SplitCheck, { ok: false }>;
+
+/**
+ * An unreadable value of a row nobody has edited yet is not an error to show: the person has not got to it (a value is
+ * recorded the first time its row is edited, even if it is then emptied). Listo stays disabled and the hint is neutral.
+ */
+export const isUntouched = (failure: SplitFailure, draft: SplitDraft): boolean =>
+  failure.reason === "unreadable" && !(failure.memberId in draft.values);
 
 /**
  * What is wrong with a split, in the person's words ("Falta asignar 10 %"). The sheet's status line and the record

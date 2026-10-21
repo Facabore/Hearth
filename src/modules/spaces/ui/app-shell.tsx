@@ -15,7 +15,7 @@ export interface AppShellProps {
 /** HU-E9-01, the Home and Desktop artboards: the header, the navigation of the active space and the page. */
 export function AppShell({ me, spaces, activeSpace, children }: AppShellProps) {
   return (
-    <div className="min-h-dvh pb-[76px] lg:pb-0 lg:pl-[240px]">
+    <div className="min-h-dvh pb-[calc(76px+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-[240px]">
       <div className="mx-auto max-w-[1200px] px-4">
         <header className="flex h-[60px] items-center justify-between">
           <SpaceSwitcher spaces={spaces} activeSpace={activeSpace} />

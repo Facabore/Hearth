@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { Tabs } from "radix-ui";
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { AccountPicker } from "@/modules/accounts/ui";
 import { activeTree, CategoryPicker, categoryPath, type CategoryChoice } from "@/modules/categories/ui";
 import { Button, Icon, ProblemNotice, ScreenHeader, TextField } from "@/shared/ui";
@@ -158,6 +158,24 @@ export function RecordForm({
     return problem && where === field ? messageOf(problem).message : undefined;
   };
 
+  // A field's error is about its last value: it goes as soon as that field changes, never waiting for the next save.
+  const clear = useCallback((...fields: RecordField[]) => {
+    setUnbuilt((current) => (current !== null && fields.includes(current) ? null : current));
+    setProblem((current) => {
+      const field = current ? recordFieldOf(current) : null;
+      return field !== null && field !== "form" && fields.includes(field) ? null : current;
+    });
+    if (fields.includes("category")) setKeylessTried(false);
+  }, []);
+  // The split and who paid share their rows: either one changing clears both, and the account an API problem names.
+  const changeSplit = useCallback(
+    (next: NonNullable<typeof split>) => {
+      setSplit(next);
+      clear("split", "payer", "account");
+    },
+    [clear],
+  );
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (pending) return;
@@ -271,7 +289,10 @@ export function RecordForm({
           <Tabs.Content value={kind} className="mt-5 flex flex-col gap-5" tabIndex={-1}>
             <AmountField
               value={amount}
-              onChange={setAmount}
+              onChange={(next) => {
+                setAmount(next);
+                clear("amount");
+              }}
               symbol={currencyOf(space.currency).symbol}
               error={errorOf("amount")}
             />
@@ -280,7 +301,10 @@ export function RecordForm({
               label={t("form.description")}
               autoComplete="off"
               value={description}
-              onChange={(event) => setDescription(event.target.value)}
+              onChange={(event) => {
+                setDescription(event.target.value);
+                clear("description");
+              }}
               error={errorOf("description")}
             />
             {kind === "TRANSFER"
@@ -296,7 +320,7 @@ export function RecordForm({
               <SharedFields
                 context={shared}
                 draft={split}
-                onChange={setSplit}
+                onChange={changeSplit}
                 amount={positiveMinor}
                 currency={space.currency}
                 formats={formats}
@@ -397,7 +421,10 @@ export function RecordForm({
           onOpenChange={(open) => setSheet(open ? "category" : null)}
           groups={live}
           value={category}
-          onChoose={setCategory}
+          onChoose={(choice) => {
+            setCategory(choice);
+            clear("category");
+          }}
         />
         <AccountPicker
           open={sheet === "account"}
@@ -407,6 +434,7 @@ export function RecordForm({
           onChoose={(id) => {
             setAccountId(id);
             if (id === toAccountId) setToAccountId(null);
+            clear("account", "toAccount");
           }}
           label={t(
             kind === "TRANSFER" ? "form.from" : kind === "INCOME" ? "form.receivingAccount" : "form.account",
@@ -417,7 +445,10 @@ export function RecordForm({
           onOpenChange={(open) => setSheet(open ? "toAccount" : null)}
           accounts={accounts.filter((a) => a.id !== accountId)}
           value={toAccountId}
-          onChoose={setToAccountId}
+          onChoose={(id) => {
+            setToAccountId(id);
+            clear("toAccount");
+          }}
           label={t("form.to")}
         />
         <DateTimeSheet
@@ -427,7 +458,10 @@ export function RecordForm({
           now={sheetNow}
           today={today}
           formats={formats}
-          onApply={setChosenWhen}
+          onApply={(next) => {
+            setChosenWhen(next);
+            clear("when");
+          }}
         />
       </form>
     </div>

@@ -54,6 +54,12 @@ export function AddGuestSheet({
     setPending(false);
   };
 
+  // The hint shows the name as the list will show it, live, once something is typed (the AddGuest artboard).
+  const typedName = name.trim();
+  const nameHint = typedName
+    ? t("guestSheet.nameHintNamed", { name: `${typedName} ${t("guestSuffix")}` })
+    : t("guestSheet.nameHint");
+
   const where = problem
     ? fieldOf(
         problem,
@@ -81,7 +87,7 @@ export function AddGuestSheet({
           id="guest-name"
           autoComplete="off"
           label={t("guestSheet.name")}
-          hint={t("guestSheet.nameHint")}
+          hint={nameHint}
           value={name}
           error={errorFor("displayName")}
           onChange={(event) => setName(event.target.value)}

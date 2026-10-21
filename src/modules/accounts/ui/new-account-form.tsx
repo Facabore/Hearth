@@ -70,6 +70,12 @@ export function NewAccountForm({
         ? messageOf(problem).message
         : undefined;
 
+  // A field's error is about its last value: it goes as soon as that field changes, never waiting for the next save.
+  const clear = (field: Where) => {
+    if (unreadable === field) setUnreadable(null);
+    if (problem && where === field) setProblem(null);
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!type) return;
@@ -124,7 +130,10 @@ export function NewAccountForm({
               id="na-name"
               label={t("field.name")}
               value={name}
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => {
+                setName(event.target.value);
+                clear("name");
+              }}
               error={errorOf("name")}
               required
             />
@@ -133,7 +142,10 @@ export function NewAccountForm({
               label={t(OWED_TYPES.includes(type) ? "field.owed" : "field.opening")}
               inputMode="decimal"
               value={opening}
-              onChange={(event) => setOpening(event.target.value)}
+              onChange={(event) => {
+                setOpening(event.target.value);
+                clear("opening");
+              }}
               error={errorOf("opening")}
             />
             {FIELDS_BY_TYPE[type].map((field) => (
@@ -150,7 +162,10 @@ export function NewAccountForm({
                       : "decimal"
                 }
                 value={fields[field] ?? ""}
-                onChange={(event) => setFields((all) => ({ ...all, [field]: event.target.value }))}
+                onChange={(event) => {
+                  setFields((all) => ({ ...all, [field]: event.target.value }));
+                  clear(field);
+                }}
                 error={errorOf(field)}
               />
             ))}

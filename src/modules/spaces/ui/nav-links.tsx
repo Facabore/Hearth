@@ -29,7 +29,7 @@ export function NavLinks({
   return (
     <nav
       aria-label={t("main")}
-      className="fixed inset-x-0 bottom-0 z-10 flex h-[76px] items-center border-t border-line bg-surface px-4 pb-[env(safe-area-inset-bottom)] lg:inset-y-0 lg:right-auto lg:h-auto lg:w-[240px] lg:flex-col lg:items-stretch lg:gap-2 lg:border-t-0 lg:border-r lg:p-4"
+      className="fixed inset-x-0 bottom-0 z-10 flex h-[calc(76px+env(safe-area-inset-bottom))] items-center border-t border-line bg-surface px-4 pb-[env(safe-area-inset-bottom)] lg:inset-y-0 lg:right-auto lg:h-auto lg:w-[240px] lg:flex-col lg:items-stretch lg:gap-2 lg:border-t-0 lg:border-r lg:p-4"
     >
       <div className="hidden lg:mb-6 lg:block">
         <Logo />

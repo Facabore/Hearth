@@ -45,6 +45,22 @@ describe("redirectFor", () => {
   });
 });
 
+describe("the app icons (390 px review, S6)", () => {
+  it("are served without a session, so the sign-in screen has its icon too", () => {
+    expect(redirectFor({ pathname: "/icon.svg", search: "?abc123", hasSession: false })).toBeNull();
+    expect(redirectFor({ pathname: "/apple-icon.png", search: "", hasSession: false })).toBeNull();
+  });
+
+  it("open nothing else: a lookalike path or an icon in a query stays protected", () => {
+    expect(redirectFor({ pathname: "/icon.svg/x", search: "", hasSession: false })).toBe(
+      "/sign-in?next=%2Ficon.svg%2Fx",
+    );
+    expect(redirectFor({ pathname: "/spaces", search: "?next=/icon.svg", hasSession: false })).toBe(
+      "/sign-in?next=%2Fspaces%3Fnext%3D%2Ficon.svg",
+    );
+  });
+});
+
 describe("open paths (HU-E9-05, ruling P157)", () => {
   it("lets the invitation and claim pages through with or without a session", () => {
     for (const hasSession of [false, true]) {

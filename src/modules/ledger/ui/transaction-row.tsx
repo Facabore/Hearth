@@ -29,6 +29,8 @@ export function TransactionRow({
   const member = (id: string | null) => (id ? (memberNames[id] ?? "") : "");
   const found = tx.categoryId ? findCategory(groups, tx.categoryId) : null;
   const meta: string[] = [];
+  // The payer of a shared expense reads on its own line: a long name wraps there instead of being cut (S1).
+  let payerLine = "";
   if (tx.occurredAt && tx.timeZone) {
     const time = formatTimeAt(tx.occurredAt, tx.timeZone, formats);
     meta.push(tx.timeZone === viewerZone ? time : `${time} · ${zoneCity(tx.timeZone)}`);
@@ -44,7 +46,7 @@ export function TransactionRow({
     // Ruling P171: a shared expense names who paid (a member, or the fund that paid with no member).
     const payer =
       tx.type === "EXPENSE" && paid ? (paid.memberId ? member(paid.memberId) : name(paid.accountId)) : "";
-    if (payer) meta.push(t("paidBy", { name: payer }));
+    if (payer) payerLine = t("paidBy", { name: payer });
     else {
       const account = tx.type === "INCOME" ? tx.destinationAccountId : (paid?.accountId ?? null);
       if (name(account)) meta.push(name(account));
@@ -68,6 +70,7 @@ export function TransactionRow({
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate font-medium text-ink">{tx.description || t(`type.${tx.type}`)}</span>
         {meta.length > 0 ? <span className="truncate text-sm text-muted">{meta.join(" · ")}</span> : null}
+        {payerLine ? <span className="text-sm break-words text-muted">{payerLine}</span> : null}
       </span>
       <span
         className={

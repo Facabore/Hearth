@@ -5,6 +5,12 @@ const isPublic = (pathname: string) =>
   PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}?`));
 
 /**
+ * The app's icons (Next's file-based metadata: `src/app/icon.svg`, `apple-icon.png`). Browsers fetch them with no
+ * regard for the session, on the sign-in screen first, so they are exact matches that never redirect.
+ */
+export const ICON_PATHS = ["/icon.svg", "/apple-icon.png"] as const;
+
+/**
  * Ruling P157: pages a visitor opens with or without a session (an invitation, a claim link). The proxy lets them
  * through; unlike the public screens they are valid `next` targets, and a signed-in person stays on them.
  */
@@ -39,7 +45,13 @@ export const redirectFor = (input: {
   search: string;
   hasSession: boolean;
 }): string | null => {
-  if (input.hasSession || isPublic(input.pathname) || isOpenPath(input.pathname)) return null;
+  if (
+    input.hasSession ||
+    isPublic(input.pathname) ||
+    isOpenPath(input.pathname) ||
+    (ICON_PATHS as readonly string[]).includes(input.pathname)
+  )
+    return null;
   const target = `${input.pathname}${input.search}`;
   return target === "/" ? "/sign-in" : `/sign-in?next=${encodeURIComponent(target)}`;
 };

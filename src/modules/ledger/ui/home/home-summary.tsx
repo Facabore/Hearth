@@ -100,11 +100,15 @@ export function HomeSummary({
             {t("allTransactionsShort")}
           </Link>
         </div>
-        <ol className="divide-y divide-line rounded-2xl bg-surface px-4">
-          {page.items.map((tx) => (
-            <TransactionRow key={tx.id} tx={tx} context={context} />
-          ))}
-        </ol>
+        {page.items.length === 0 ? (
+          <p className="rounded-2xl bg-surface p-4 text-sm text-muted">{t("recentEmpty")}</p>
+        ) : (
+          <ol className="divide-y divide-line rounded-2xl bg-surface px-4">
+            {page.items.map((tx) => (
+              <TransactionRow key={tx.id} tx={tx} context={context} />
+            ))}
+          </ol>
+        )}
       </section>
     </div>
   );

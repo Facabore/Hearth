@@ -6,7 +6,7 @@ import { Button, ChoiceGroup, Icon, Sheet, cn } from "@/shared/ui";
 import type { AccountDto, MemberDto } from "@/shared/ui/api/dto";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { SPLIT_METHODS, type SplitMethod } from "./split-math";
-import { splitFailureMessage, type SplitFailure } from "./split-failure";
+import { isUntouched, splitFailureMessage, type SplitFailure } from "./split-failure";
 import { splitCheckOf, type SplitDraft } from "./split-request";
 import type { DefaultSplitState } from "./use-default-split";
 
@@ -123,12 +123,18 @@ export function SplitSheet(props: SplitSheetProps) {
     });
   const sharesByMember = check?.ok ? check.shares : [];
 
+  // Nothing is reported on a row the person has not edited yet: a neutral hint, with Listo still disabled (S2).
+  const quiet = check !== null && !check.ok && isUntouched(check, draft);
+  const failing = check !== null && !check.ok && !quiet;
+
   const status =
     check === null ? null : check.ok ? (
       <>
         <Icon name="check" size={18} />
         {t("sum", { amount: formatMoney({ amount: amount ?? "0", currency }, formats) })}
       </>
+    ) : quiet ? (
+      t("incomplete")
     ) : (
       <>
         <Icon name="alert" size={18} />
@@ -148,7 +154,7 @@ export function SplitSheet(props: SplitSheetProps) {
             role="status"
             className={cn(
               "flex min-h-5 items-start gap-2 text-sm",
-              check !== null && !check.ok ? "text-danger" : "text-accent-strong",
+              failing ? "text-danger" : quiet ? "text-muted" : "text-accent-strong",
             )}
           >
             {status}
