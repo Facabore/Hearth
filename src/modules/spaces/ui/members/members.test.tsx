@@ -79,7 +79,9 @@ describe("members screen (HU-E9-05)", () => {
     });
     screenAs("u-ana", "OWNER", api);
     expect(within(rowOf("Ana (tú)")).queryByRole("button")).not.toBeInTheDocument();
-    expect(within(rowOf("Pedro (invitado)")).queryByRole("button")).not.toBeInTheDocument();
+    expect(
+      within(rowOf("Pedro (invitado)")).queryByRole("button", { name: /^Rol de/ }),
+    ).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Rol de Juan: Administrador. Cambiar" }));
     const sheet = screen.getByRole("dialog", { name: "Rol de Juan" });
     expect(within(sheet).getByRole("radio", { name: /Administrador/ })).toBeChecked();

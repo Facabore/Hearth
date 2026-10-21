@@ -512,6 +512,35 @@
     "pendingLink": "{role} · varias personas · vence el {date}",
     "revoke": "Revocar",
     "revokeEmail": "Revocar la invitación de {email}",
-    "revokeLink": "Revocar el enlace de invitación como {role}"
+    "revokeLink": "Revocar el enlace de invitación como {role}",
+    "addGuest": "Agregar invitado",
+    "guestOptions": "Opciones de {name}",
+    "guestSheet": {
+      "addTitle": "Agregar invitado a {space}",
+      "intro": "Para alguien que no usa Hearth. Puede pagar, deber, tener capacidad en el plan y recibir pagos, solo en {space}. No inicia sesión.",
+      "name": "Nombre",
+      "nameHint": "Se verá con «(invitado)» al lado. No puede repetir el nombre de otro miembro.",
+      "email": "Correo (opcional)",
+      "emailHint": "Si se registra después, le envías un enlace para reclamar este lugar y se lleva todo su historial."
+    },
+    "guest": {
+      "balance": "En {space} · {sentence}",
+      "claimTitle": "Enlace para que {name} reclame su lugar",
+      "claimBody": "Al registrarse o iniciar sesión con este enlace, su lugar de invitado pasa a su cuenta con todo su historial en {space}, como Miembro.",
+      "createClaim": "Crear enlace para reclamar",
+      "claimLabel": "Enlace para reclamar",
+      "claimNote": "Un solo uso · vence el {date}",
+      "remove": "Quitar de {space}",
+      "confirmRemove": "¿Quitar a {name} de {space}? Su historial se conserva.",
+      "confirmRemoveAction": "Sí, quitar",
+      "outstanding": "Saldo pendiente: {amount}"
+    }
+  },
+  "balances": {
+    "member": {
+      "owes": "debe {amount}",
+      "owed": "le deben {amount}",
+      "settled": "a paz y salvo"
+    }
   }
 }

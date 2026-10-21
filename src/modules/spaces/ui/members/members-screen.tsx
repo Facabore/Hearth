@@ -3,10 +3,12 @@
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import type { Api } from "@/shared/ui/api/client";
-import type { InvitationDto, MemberDto, SpaceDto } from "@/shared/ui/api/dto";
+import type { InvitationDto, MemberDto, MoneyDto, SpaceDto } from "@/shared/ui/api/dto";
 import { formatDate, type Formats } from "@/shared/ui/format/formatters";
 import { localDateIn } from "@/shared/kernel/time-zone";
 import { Button, Icon } from "@/shared/ui";
+import { AddGuestSheet } from "./add-guest-sheet";
+import { GuestSheet } from "./guest-sheet";
 import { InviteSheet } from "./invite-sheet";
 import { memberLabel } from "./member-label";
 import { MemberRow } from "./member-row";
@@ -20,6 +22,7 @@ export function MembersScreen({
   members,
   meUserId,
   invitations = null,
+  balances = {},
   formats,
   viewerZone,
   api,
@@ -29,6 +32,8 @@ export function MembersScreen({
   readonly meUserId: string;
   /** The pending invitations; `null` when the viewer may not invite (ruling P155). */
   readonly invitations?: readonly InvitationDto[] | null;
+  /** Every member's net balance by member id (a missing one is settled up). */
+  readonly balances?: Readonly<Record<string, MoneyDto>>;
   readonly formats: Formats;
   readonly viewerZone: string;
   readonly api?: Api;
@@ -36,6 +41,8 @@ export function MembersScreen({
   const t = useTranslations("members");
   const roles = useTranslations("shell.role");
   const [inviting, setInviting] = useState(false);
+  const [addingGuest, setAddingGuest] = useState(false);
+  const [guest, setGuest] = useState<MemberDto | null>(null);
   const [editing, setEditing] = useState<(MemberDto & { role: SpaceRole }) | null>(null);
   const controls = controlsFor(space.role, space.kind);
   const policy =
@@ -50,11 +57,21 @@ export function MembersScreen({
         <p className="text-sm text-muted">
           {t("subtitle", { space: space.name, currency: space.currency, policy })}
         </p>
-        {controls.invite ? (
-          <Button className="mt-3 self-start" onClick={() => setInviting(true)}>
-            <Icon name="link" size={20} />
-            {t("invite")}
-          </Button>
+        {controls.invite || controls.addGuest ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {controls.invite ? (
+              <Button onClick={() => setInviting(true)}>
+                <Icon name="link" size={20} />
+                {t("invite")}
+              </Button>
+            ) : null}
+            {controls.addGuest ? (
+              <Button variant="secondary" onClick={() => setAddingGuest(true)}>
+                <Icon name="userPlus" size={20} />
+                {t("addGuest")}
+              </Button>
+            ) : null}
+          </div>
         ) : null}
       </header>
       {space.kind === "DIRECT" ? (
@@ -86,6 +103,11 @@ export function MembersScreen({
                 }
                 roleText={role === null ? t("noRole") : roles(role)}
                 onRole={editable ? () => setEditing({ ...member, role }) : undefined}
+                onOptions={
+                  member.kind === "GUEST" && (controls.claimLinks || controls.removeGuests)
+                    ? () => setGuest(member)
+                    : undefined
+                }
               />
             );
           })}
@@ -105,6 +127,23 @@ export function MembersScreen({
           open
           onOpenChange={setInviting}
           space={space}
+          formats={formats}
+          viewerZone={viewerZone}
+          api={api}
+        />
+      ) : null}
+      {addingGuest ? <AddGuestSheet open onOpenChange={setAddingGuest} space={space} api={api} /> : null}
+      {guest ? (
+        <GuestSheet
+          open
+          onOpenChange={(open) => {
+            if (!open) setGuest(null);
+          }}
+          space={space}
+          guest={guest}
+          label={memberLabel(guest, meUserId, t)}
+          net={balances[guest.id] ?? { amount: "0", currency: space.currency }}
+          controls={controls}
           formats={formats}
           viewerZone={viewerZone}
           api={api}

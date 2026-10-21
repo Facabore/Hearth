@@ -512,6 +512,35 @@
     "pendingLink": "{role} · several people · expires on {date}",
     "revoke": "Revoke",
     "revokeEmail": "Revoke the invitation for {email}",
-    "revokeLink": "Revoke the invitation link as {role}"
+    "revokeLink": "Revoke the invitation link as {role}",
+    "addGuest": "Add guest",
+    "guestOptions": "Options for {name}",
+    "guestSheet": {
+      "addTitle": "Add a guest to {space}",
+      "intro": "For someone who does not use Hearth. They can pay, owe, have capacity in the plan and receive payments, only in {space}. They cannot sign in.",
+      "name": "Name",
+      "nameHint": "It shows with \"(guest)\" next to it. It cannot repeat another member's name.",
+      "email": "Email (optional)",
+      "emailHint": "If they sign up later, you send them a link to claim this place and they keep all its history."
+    },
+    "guest": {
+      "balance": "In {space} · {sentence}",
+      "claimTitle": "A link for {name} to claim their place",
+      "claimBody": "Signing up or signing in with this link moves their guest place, with all its history in {space}, to their account, as a Member.",
+      "createClaim": "Create a claim link",
+      "claimLabel": "Claim link",
+      "claimNote": "Single use · expires on {date}",
+      "remove": "Remove from {space}",
+      "confirmRemove": "Remove {name} from {space}? Their history is kept.",
+      "confirmRemoveAction": "Yes, remove",
+      "outstanding": "Outstanding balance: {amount}"
+    }
+  },
+  "balances": {
+    "member": {
+      "owes": "owes {amount}",
+      "owed": "is owed {amount}",
+      "settled": "settled up"
+    }
   }
 }

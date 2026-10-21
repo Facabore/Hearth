@@ -1,5 +1,5 @@
 import { useTranslations } from "next-intl";
-import { Avatar, Badge, Icon } from "@/shared/ui";
+import { Avatar, Badge, Button, Icon } from "@/shared/ui";
 import type { MemberDto } from "@/shared/ui/api/dto";
 
 /** HU-E9-05, the Main artboard's row: initial, name, detail, and the role (a button when the viewer may change it). */
@@ -9,12 +9,15 @@ export function MemberRow({
   detail,
   roleText,
   onRole,
+  onOptions,
 }: {
   readonly member: Pick<MemberDto, "id" | "displayName">;
   readonly label: string;
   readonly detail: string;
   readonly roleText: string;
   readonly onRole?: () => void;
+  /** A guest's options (HU-E9-05, ruling P163): the claim link and the removal. */
+  readonly onOptions?: () => void;
 }) {
   const t = useTranslations("members");
   return (
@@ -39,6 +42,17 @@ export function MemberRow({
       ) : (
         <Badge>{roleText}</Badge>
       )}
+      {onOptions ? (
+        <Button
+          size="icon"
+          variant="ghost"
+          className="size-11"
+          aria-label={t("guestOptions", { name: label })}
+          onClick={onOptions}
+        >
+          <Icon name="chevronRight" size={20} />
+        </Button>
+      ) : null}
     </li>
   );
 }
