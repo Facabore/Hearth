@@ -13,8 +13,16 @@ const TARGET = 44;
 
 const UNBUILT_ROUTES = [/\/spaces\/[^/]+\/balances\?_rsc=/];
 
+const WIDE_FONT_CSS = '* { font-family: Verdana, "DejaVu Sans", sans-serif !important; }';
+
 /** Every test fails on a `console.error` or an uncaught page error: nothing may log one on a normal visit. */
-const test = base.extend<{ errors: string[] }>({
+const test = base.extend<{ errors: string[]; wideFont: boolean }>({
+  /**
+   * Linux Chromium falls back to DejaVu Sans / Liberation for the `system-ui` stack, which is wider than Segoe UI on
+   * Windows. A wide face on every machine catches that class of overflow locally; `LAYOUT_WIDE_FONT=1` forces it for
+   * the whole file.
+   */
+  wideFont: [process.env.LAYOUT_WIDE_FONT === "1", { option: true }],
   errors: [
     async ({ page }, use) => {
       const errors: string[] = [];
@@ -33,6 +41,19 @@ const test = base.extend<{ errors: string[] }>({
   ],
 });
 test.use({ viewport: PHONE });
+
+test.beforeEach(async ({ page, wideFont }) => {
+  if (!wideFont) return;
+  await page.addInitScript((css) => {
+    const apply = () => {
+      const style = document.createElement("style");
+      style.textContent = css;
+      document.documentElement.append(style);
+    };
+    if (document.documentElement) apply();
+    else document.addEventListener("DOMContentLoaded", apply, { once: true });
+  }, WIDE_FONT_CSS);
+});
 
 /** The longest realistic strings: a long account name and a long description with a big amount (UX checklist A2). */
 const seedLong = async (page: Page, spaceId: string) => {
@@ -76,6 +97,50 @@ const session = async (page: Page, tag: string) => {
 
 const horizontalOverflow = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+
+/**
+ * The elements that reach past the right edge of the phone (at most 10, the innermost first), so a failure names its
+ * culprit. Elements that cannot widen the page are left out: fixed ones and those inside a scroller or a clipped box.
+ */
+const overflowCulprits = (page: Page) =>
+  page.evaluate(() => {
+    const edge = document.documentElement.clientWidth;
+    const widens = (el: Element) => {
+      for (let node: Element | null = el; node && node !== document.body; node = node.parentElement) {
+        const style = getComputedStyle(node);
+        if (style.position === "fixed") return false;
+        if (node !== el && style.overflowX !== "visible") return false;
+      }
+      return true;
+    };
+    /** Where the element's content ends: text that cannot wrap spills out of a box that itself fits. */
+    const reach = (el: HTMLElement) => {
+      const r = el.getBoundingClientRect();
+      return (
+        r.left + (getComputedStyle(el).overflowX === "visible" ? Math.max(r.width, el.scrollWidth) : r.width)
+      );
+    };
+    const past = [...document.body.querySelectorAll<HTMLElement>("*")].filter(
+      (el) => el.getBoundingClientRect().width > 0 && reach(el) > edge + 0.5 && widens(el),
+    );
+    return past
+      .filter((el) => !past.some((other) => other !== el && el.contains(other)))
+      .sort((a, b) => reach(b) - reach(a))
+      .slice(0, 10)
+      .map((el) => {
+        const classes = (el.getAttribute("class") ?? "").split(/\s+/).filter(Boolean).slice(0, 4).join(".");
+        const text = (el.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 40);
+        return `<${el.tagName.toLowerCase()}${classes ? `.${classes}` : ""}> "${text}" right=${Math.round(reach(el))}`;
+      });
+  });
+
+/** Overflow in px, and on failure the list of culprits in the message. Keeps the assertion strict. */
+const overflowReport = async (page: Page, what: string) => {
+  const overflow = await horizontalOverflow(page);
+  const culprits = overflow > 0 ? await overflowCulprits(page) : [];
+  const list = culprits.join("\n");
+  return { overflow, message: `${what} overflows by this many px; past the edge:\n${list}` };
+};
 
 declare global {
   interface Window {
@@ -179,57 +244,65 @@ const sheets: { name: string; open: (page: Page, spaceId: string) => Promise<voi
   },
 ];
 
-test.describe("no screen scrolls sideways (WCAG 1.4.10 Reflow)", () => {
-  for (const viewport of [PHONE, SMALL_PHONE]) {
-    test(`every screen at ${viewport.width} px`, async ({ page }) => {
-      await page.setViewportSize(viewport);
-      const check = async (path: string) => {
-        await page.goto(path);
-        await settle(page);
-        expect
-          .soft(await horizontalOverflow(page), `${path} overflows by this many px`)
-          .toBeLessThanOrEqual(0);
-      };
-      for (const path of ["/sign-in?expired=1", "/sign-up", "/sign-in"]) await check(path);
+for (const wideFont of [false, true]) {
+  test.describe(`no screen scrolls sideways (WCAG 1.4.10 Reflow)${wideFont ? " with a wide font" : ""}`, () => {
+    test.skip(
+      !wideFont && process.env.LAYOUT_WIDE_FONT === "1",
+      "the wide font is forced for the whole file",
+    );
+    test.use({ wideFont: wideFont || process.env.LAYOUT_WIDE_FONT === "1" });
+    for (const viewport of [PHONE, SMALL_PHONE]) {
+      test(`every screen at ${viewport.width} px`, async ({ page }) => {
+        await page.setViewportSize(viewport);
+        const check = async (path: string) => {
+          await page.goto(path);
+          await settle(page);
+          const { overflow, message } = await overflowReport(page, path);
+          expect.soft(overflow, message).toBeLessThanOrEqual(0);
+        };
+        for (const path of ["/sign-in?expired=1", "/sign-up", "/sign-in"]) await check(path);
 
-      const { spaceId, sharedId } = await session(page, `reflow-${viewport.width}`);
-      for (const path of [
-        `/spaces/${spaceId}`,
-        `/spaces/${spaceId}/transactions`,
-        `/spaces/${spaceId}/accounts`,
-        `/spaces/${spaceId}/accounts/new`,
-        `/spaces/${spaceId}/new`,
-        `/spaces/${sharedId}`,
-        `/spaces/${sharedId}/members`,
-        "/spaces/new",
-        "/settings",
-      ])
-        await check(path);
-    });
-  }
-
-  test("the home of a space still reflows at 320 px with an empty and a full ledger", async ({ page }) => {
-    await page.setViewportSize(SMALL_PHONE);
-    const { spaceId } = await session(page, "home-320");
-    await page.goto(`/spaces/${spaceId}`);
-    await settle(page);
-    await expect(page.getByRole("heading", { name: es.home.recent })).toBeVisible();
-    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
-  });
-
-  test("each open sheet leaves the page as wide as the phone", async ({ page }) => {
-    const { spaceId } = await session(page, "sheet-width");
-    for (const sheet of sheets) {
-      await page.goto(
-        sheet.path === "settings" ? "/settings" : `/spaces/${spaceId}${sheet.path ? `/${sheet.path}` : ""}`,
-      );
-      await sheet.open(page, spaceId);
-      await expect(page.getByRole("dialog")).toBeVisible();
-      expect.soft(await horizontalOverflow(page), `${sheet.name} overflows`).toBeLessThanOrEqual(0);
-      await page.keyboard.press("Escape");
+        const { spaceId, sharedId } = await session(page, `reflow-${viewport.width}`);
+        for (const path of [
+          `/spaces/${spaceId}`,
+          `/spaces/${spaceId}/transactions`,
+          `/spaces/${spaceId}/accounts`,
+          `/spaces/${spaceId}/accounts/new`,
+          `/spaces/${spaceId}/new`,
+          `/spaces/${sharedId}`,
+          `/spaces/${sharedId}/members`,
+          "/spaces/new",
+          "/settings",
+        ])
+          await check(path);
+      });
     }
+
+    test("the home of a space still reflows at 320 px with an empty and a full ledger", async ({ page }) => {
+      await page.setViewportSize(SMALL_PHONE);
+      const { spaceId } = await session(page, "home-320");
+      await page.goto(`/spaces/${spaceId}`);
+      await settle(page);
+      await expect(page.getByRole("heading", { name: es.home.recent })).toBeVisible();
+      const { overflow, message } = await overflowReport(page, "the home");
+      expect(overflow, message).toBeLessThanOrEqual(0);
+    });
+
+    test("each open sheet leaves the page as wide as the phone", async ({ page }) => {
+      const { spaceId } = await session(page, "sheet-width");
+      for (const sheet of sheets) {
+        await page.goto(
+          sheet.path === "settings" ? "/settings" : `/spaces/${spaceId}${sheet.path ? `/${sheet.path}` : ""}`,
+        );
+        await sheet.open(page, spaceId);
+        await expect(page.getByRole("dialog")).toBeVisible();
+        const { overflow, message } = await overflowReport(page, sheet.name);
+        expect.soft(overflow, message).toBeLessThanOrEqual(0);
+        await page.keyboard.press("Escape");
+      }
+    });
   });
-});
+}
 
 test.describe("bottom sheets sit above the bottom navigation", () => {
   test("the last control of every sheet is the topmost element at its center", async ({ page }) => {

@@ -59,6 +59,24 @@ describe("home, narrow screens (S2)", () => {
     expect(screen.getByRole("region", { name: "Cuentas" }).parentElement).toHaveClass("min-w-0");
     expect(screen.getByRole("region", { name: "Recientes" })).toHaveClass("min-w-0");
   });
+
+  it("scales the period total down on a phone and lets any amount wrap, so a wide font never widens the page", () => {
+    renderWithIntl(
+      <HomeSummary
+        spaceId="sp-personal"
+        policy={{ kind: "MONTHLY", day: 1 }}
+        page={{ ...octoberPage, items: [] }}
+        accounts={[accountDto({ name: "Bancolombia", balance: cop(4_455_000) })]}
+        context={rowContext}
+      />,
+    );
+    const amounts = [
+      screen.getByRole("region", { name: "Resumen del período" }).querySelector("p.font-semibold"),
+      screen.getByRole("region", { name: "Cuentas" }).querySelector("li span.font-semibold"),
+    ];
+    for (const amount of amounts) expect(amount).toHaveClass("[overflow-wrap:anywhere]");
+    expect(amounts[0]?.className).toContain("clamp(");
+  });
 });
 
 describe("home, first use (P148)", () => {

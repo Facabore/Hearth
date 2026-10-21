@@ -58,7 +58,7 @@ export function HomeSummary({
                       end: formatDate(name.end, formats),
                     })}
               </p>
-              <p className="text-[40px] leading-tight font-semibold text-ink">
+              <p className="text-[clamp(1.75rem,8.5vw,2.5rem)] leading-tight font-semibold [overflow-wrap:anywhere] text-ink">
                 {formatMoney(page.totals.expenses, formats)}
               </p>
               <p className="text-sm text-muted">
@@ -81,7 +81,9 @@ export function HomeSummary({
                     className="flex w-[156px] shrink-0 flex-col rounded-2xl bg-surface p-4"
                   >
                     <span className="truncate text-sm text-muted">{account.name}</span>
-                    <span className="font-semibold text-ink">{formatMoney(account.balance, formats)}</span>
+                    <span className="font-semibold [overflow-wrap:anywhere] text-ink">
+                      {formatMoney(account.balance, formats)}
+                    </span>
                   </li>
                 ))}
               </ul>
