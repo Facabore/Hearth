@@ -332,8 +332,8 @@ Feature: Spaces and members screens
 ```
 
 **Technical notes:**
-- Containers `SpaceSwitcherContainer`, `MembersContainer`, `InvitationPageContainer`, `ClaimPageContainer`; actions call `CreateSharedSpace`, `CreateInvitation`, `RevokeInvitation`, `AcceptInvitation`, `AddGuestMember`, `CreateGuestClaim`, `ClaimGuestPlace`, `RemoveGuestMember`, `ChangeMemberRole`.
-- The invitation and claim pages are reachable without a session; signing up from them returns to the same token page (the API part is HU-E1-07 and HU-E1-11).
+- Containers `MembersContainer`, `InvitationContainer` (invitations and claims) and the switcher's `/spaces/new` form call `/api/v1` through the generated client (P117): `POST /api/v1/spaces`, `GET …/members`, `GET` and `POST …/invitations`, `POST …/invitations/{id}/revoke`, `GET` and `POST /api/v1/invitations/{token}[/accept]`, `POST …/guests`, `POST …/guests/{id}/claim-links`, `DELETE …/guests/{id}`, `GET` and `POST /api/v1/claims/{token}[/accept]` and `PATCH …/members/{id}`; controls follow a UI copy of the permission matrix pinned to the domain (P158).
+- The invitation and claim pages are reachable without a session; signing up from them returns to the same token page (the API part is HU-E1-07 and HU-E1-11). The previews `GET /api/v1/invitations/{token}` and `GET /api/v1/claims/{token}` answer without a session and never carry an email (P156); the pages live in the route group `(open)` (P157). Accepting opens the space's home with a one-time "Te uniste a «Nombre»" notice (`?joined=1`).
 - Guests are labelled with the i18n key `members.guestSuffix` ("(guest)" in English).
 
 ---
@@ -392,9 +392,9 @@ Feature: Shared expense form
 ```
 
 **Technical notes:**
-- `ExpenseFormContainer` loads members, accounts and the resolved default split (`ResolveDefaultSplit`, HU-E6-08); the presentational `SplitEditor` computes the preview with the same `SplitCalculator` rules and the server result is authoritative. The default-split scenarios become active once HU-E6-08 is `Done` (M3); until then the form defaults to `EQUAL`.
-- v1 offers one payer per expense (spec 5.2); guests are payers without an account picker, and a fund payment hides the payer member.
-- Warning codes in the response (`FundBalanceNegative`, HU-E4-10) are rendered through `warnings.<Code>` keys.
+- `RecordFormContainer` loads the members, the space's accounts and the recorder's personal accounts; `useDefaultSplit` reads `GET …/default-split` as the form changes (P167); the presentational `SplitSheet` previews the shares with `previewSplit`, pinned to the domain's `splitShares` (P166), and the server result is authoritative. BY_ALLOCATION is requested by sending no `split`. The form's split row summarizes who is included ("Con Ana y Luis · mitad y mitad").
+- v1 offers one payer per expense (spec 5.2); guests are payers without an account picker, and a fund payment hides the payer member; another registered member is never the payer, since only an account's owner records its debit (D9, P168).
+- Warning codes in the response (`FundBalanceNegative`, HU-E4-10) are rendered through `warnings.<Code>` keys; the list shows it from `?notice=FundBalanceNegative&account=<id>` (P170).
 - "Split with someone" reuses the same form to call `SplitWithPerson` (HU-E1-13), offering existing co-members or a new guest.
 
 ---
@@ -439,9 +439,9 @@ Feature: Balances and settle-up screen
 ```
 
 **Technical notes:**
-- Containers `BalancesContainer`, `SettleUpFormContainer`, `BalanceHistoryContainer`; actions call `GetSpaceBalances`, `GetSettlementSuggestions`, `RecordSettlement`, `GetMemberBalanceHistory`.
-- Accepting a suggestion only prefills the form; the settlement is recorded through the regular `RecordSettlement` path with an `Idempotency-Key` (HU-E0-10).
-- Signed amounts are rendered as sentences through i18n keys (`balances.owes`), never by concatenating strings.
+- Containers `BalancesContainer` (with the settle-up sheet) and `HistoryContainer`; actions call `GetSpaceBalances`, `GetSettlementSuggestions`, `RecordSettlement`, `GetMemberBalanceHistory`.
+- Accepting a suggestion only prefills the form (the sheet records now in the browser's zone, with one `Idempotency-Key` per draft, P174); the settlement is recorded through the regular `RecordSettlement` path with an `Idempotency-Key` (HU-E0-10).
+- Signed amounts are rendered as sentences through i18n keys (`balances.owes`), never by concatenating strings. The history covers a period of the space, `?from=<date>` for another (P176).
 
 ---
 
@@ -834,3 +834,21 @@ Left open on purpose by [the M6a plan](../superpowers/plans/2026-10-20-m6a-web-s
 9. Raise `engines.node` to `>=24.15.0 <25` for jsdom 30.
 10. Move HU-E9-01, HU-E9-02, HU-E9-03 and HU-E9-13 to `Done` in the [backlog overview](README.md) and update their issue bodies when the M6a pull request merges.
 11. Issue #128 (report latency before the dashboards) is carried to the dashboards of M6.
+
+## Follow-ups after M6b
+
+Left open on purpose by [the M6b plan](../superpowers/plans/2026-10-21-m6b-shared-spaces-split-balances.md) (its Self-Review has the reasons), and by the navigation and UX work built beside it:
+
+1. Space settings screen: rename, currency (until money is recorded) and period policy (the NewSpace artboard's period controls).
+2. Leave and archive a space from the members screen (`POST …/leave`, `POST …/archive`).
+3. Editing, deleting and restoring transactions from Activity (P140, P179): the [M6b addendum plan](../superpowers/plans/2026-10-21-m6b-addendum-edit-delete-feedback.md) takes it up.
+4. A date control in the settle-up sheet.
+5. The default split's line name in `GET …/default-split` (for "Según el plan (Casa)"), and the payer and amount in history entries (for "Ana pagó $ 300.000").
+6. The Balances artboard's cross-space hint ("En Hogar: debes …").
+7. Sending invitation emails once Hearth can send mail (P144), then hide the URL for email invitations.
+8. Lower the new budgets after measuring them (P154's follow-up carried); if the median of five Lighthouse runs still fails on CI's LCP margins (the record route ranged 2260–2646 ms), cut the record route's JavaScript instead of raising its budget.
+9. Move HU-E9-05, HU-E9-06 and HU-E9-07 to `Done` in the [backlog overview](README.md) and update their issue bodies when the pull request merges.
+10. The `?joined=1` notice shows again on a reload before it is dismissed; a server-side one-time flag would need an API.
+11. The `expired=1` redirect after a 401 writes no `hearth.locale` cookie, so a browser asking for English sees English there.
+12. The error screens (`ErrorScreen`) cannot be reached in e2e, so they have component tests and jsdom axe scans but no real-browser contrast or reflow check.
+13. A pasted amount that carries a group separator before one or two digits ("12.50" where "." is the group) is left as typed and answered by the unreadable-amount message.

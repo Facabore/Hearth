@@ -71,13 +71,16 @@ The pages live in `src/app/(web)`, with no locale in the URL ([ADR 0003](../adr/
 - **Session redirect:** `src/proxy.ts` sends a request without a session cookie to `/sign-in?next=<path>`; only same-origin paths are honoured.
 - **Language:** next-intl picks `es` or `en` from the stored locale, a visitor cookie or `Accept-Language` (P120).
 - **Formats:** only `src/shared/ui/format/` formats numbers, dates and times, from the person's effective preferences (P121).
+- **Open pages:** the invitation and claim pages live in the route group `(open)`, whose layout never redirects, and the proxy lets `OPEN_PREFIXES` (`/invitations/`, `/claims/`) through with or without a session (P157); they read the public previews `GET /api/v1/invitations/{token}` and `GET /api/v1/claims/{token}`, which answer without a session and never carry an email (P156).
+- **Split preview:** the shared expense form previews a split in the browser with `previewSplit`, which mirrors the domain's `splitShares` (largest remainder, the currency's rounding unit, join order) and is pinned to it by a parity test; the request carries the person's choices, never the preview, and the server's answer is authoritative (P166).
+- **Navigation trail:** `NavigationTracker`, mounted in the root layout, mirrors this tab's history in `sessionStorage` so `ScreenHeader`'s Volver can return to the nearest earlier screen, and a flow that saves uses `router.replace` so its form leaves the trail; `returnTo` and `?from=` are validated like `safeNext`. The root layout also holds the app-level not-found page and `ThemeSync`. The rules are in [the decisions index](../decisions/README.md#m6b-shared-spaces-split-expenses-and-balances-p155p183).
 - **Boundaries:** dependency-cruiser keeps UI code to the generated client and three pure kernel files (P119).
 - **Server and client entries:** a module's `ui/index.ts` is imported by client code and a module's server containers are exported from `ui/server.ts` (P153); a boundary rule fails an `index.ts` that reaches the server-only API reader.
 - **Speed:** `package.json` declares `sideEffects: ["**/*.css"]` so the bundler can drop what a route does not use from barrel files, and the sheets' Radix Dialog loads when the first sheet opens. [ADR 0004](../adr/0004-web-ui-testing-and-performance-gates.md) has the gates that hold the line.
 
 ## Modules
 
-The eight modules live in `src/modules/<module>/` ([spec 5.1](../superpowers/specs/2026-10-11-hearth-design.md#51-bounded-contexts-modules)). A tick means the folder exists today; `balances` and `reporting` are read models and have no tables, so they have no `infrastructure/`. Since M6a the `ui/` layer exists in `identity`, `spaces`, `accounts`, `categories` and `ledger` (containers over presentational components).
+The eight modules live in `src/modules/<module>/` ([spec 5.1](../superpowers/specs/2026-10-11-hearth-design.md#51-bounded-contexts-modules)). A tick means the folder exists today; `balances` and `reporting` are read models and have no tables, so they have no `infrastructure/`. Since M6a the `ui/` layer exists in `identity`, `spaces`, `accounts`, `categories` and `ledger`, and since M6b in `balances` too (containers over presentational components).
 
 | Module | Responsibility | `domain` | `application` | `contracts` | `infrastructure` |
 |---|---|---|---|---|---|
