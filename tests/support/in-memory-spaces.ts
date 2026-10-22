@@ -59,6 +59,8 @@ export class InMemorySpaceStore
   readonly claimed: { spaceId: string; memberId: string; claimedAt: Date }[] = [];
   /** Members who left or were removed, in order (PostgreSQL keeps their rows, with left_at). */
   readonly left: { spaceId: string; memberId: string; leftAt: Date }[] = [];
+  /** The rows of members who left, in the order they left (PostgreSQL keeps them with left_at); a rejoin takes one back. */
+  private readonly formerRows: { spaceId: string; member: SpaceMember }[] = [];
   /** Space ids whose members were read with `lock: true`, in order. */
   readonly locked: string[] = [];
 
@@ -128,6 +130,16 @@ export class InMemorySpaceStore
     if (member.userId !== null && current.some((m) => m.userId === member.userId)) return "alreadyMember";
     if (current.some((m) => m.displayName.toLowerCase() === member.displayName.toLowerCase()))
       return "nameTaken";
+    // Issue #90, like DrizzleSpaceRepository.addMember: a user who left takes their latest former row back.
+    const former = this.formerRows.findLast(
+      (row) => row.spaceId === spaceId && row.member.kind === "USER" && row.member.userId === member.userId,
+    );
+    if (member.userId !== null && former !== undefined) {
+      this.formerRows.splice(this.formerRows.indexOf(former), 1);
+      const back: SpaceMember = { ...member, id: former.member.id };
+      this.update(spaceId, (s) => ({ ...s, members: [...s.members, back] }));
+      return "rejoined";
+    }
     this.update(spaceId, (s) => ({ ...s, members: [...s.members, member] }));
     return "added";
   }
@@ -146,7 +158,9 @@ export class InMemorySpaceStore
     kind: SpaceMember["kind"],
     leftAt: Date,
   ): Promise<boolean> {
-    if (!this.members(spaceId).some((m) => m.id === memberId && m.kind === kind)) return false;
+    const leaving = this.members(spaceId).find((m) => m.id === memberId && m.kind === kind);
+    if (leaving === undefined) return false;
+    this.formerRows.push({ spaceId, member: leaving });
     this.update(spaceId, (s) => ({ ...s, members: s.members.filter((m) => m.id !== memberId) }));
     this.left.push({ spaceId, memberId, leftAt });
     return true;

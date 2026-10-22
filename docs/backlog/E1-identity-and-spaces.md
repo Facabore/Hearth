@@ -326,12 +326,19 @@ Feature: Accept invitation
     Given the invitation was revoked
     When "Juan" accepts the invitation
     Then the result is the error "InvitationRevoked"
+
+  Scenario: A former member joins again as the same member
+    Given "Luis" left "Household" with a balance of 0 COP, and an expense still names him as payer
+    When "Luis" accepts a new invitation to "Household" with role "VIEWER"
+    Then "Luis" is a member of "Household" with role "VIEWER" and a new joinedAt
+    And he has the same member id as before, so the expense names a current member again
+    And "Household" has one `SpaceMember` row for "Luis"
 ```
 
 **Technical notes:**
 - Use case: `AcceptInvitation`; uses `Clock` for expiry. Endpoint: `POST /api/v1/invitations/{token}/accept` (authenticated); the redirect back to the invitation after sign-up is web UI behaviour (HU-E9-05).
 - Email invitations are single-use; link invitations remain valid until expiry or revocation.
-- A former member (leftAt set) who accepts again gets a new `SpaceMember` row.
+- A former member (leftAt set) who accepts again takes back their own `SpaceMember` row (issue #90): `leftAt` is cleared and role, display name and `joinedAt` take the new values, so a person has one member id per space and the history that names it counts as current again (an amount edit or a deletion of it is allowed again, HU-E1-08). A user who left more than once before this rule has several former rows; the latest one to leave comes back and the older ones stay former. A guest never rejoins: a removed guest's name is free for a new guest.
 
 ---
 
@@ -378,6 +385,7 @@ Feature: Leave a space
 - A direct space (D16) keeps its two members: leaving it, removing its guest or changing a role in it answers `DirectSpaceMembersFixed` (409); a direct space is retired by archiving it (HU-E1-09).
 - The net balance includes debts with guests, who count like any other member; guests never leave themselves but are removed by a member (HU-E1-12).
 - Issue #89: leaving, removing a guest (HU-E1-12) and archiving (HU-E1-09) lock the space row `FOR NO KEY UPDATE` before they read a balance, and every money write (expense, income, transfer, settlement, fund contribution, edit, delete, recurrence occurrence) locks it `FOR SHARE` before it reads the membership, so a member who left is refused (`NotASpaceMember`) and one with money recorded meanwhile cannot leave (`OutstandingBalance`): the outcome is always one of the two serial orders.
+- Issue #90: an amount edit or a deletion that would move a former member's balance answers `NotASpaceMember` until that member joins again (HU-E1-07); a rejoined member is current under the same id.
 
 ---
 

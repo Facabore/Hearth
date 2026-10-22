@@ -1,7 +1,11 @@
 import type { SpaceId, SpaceKind, SpaceMember, SpaceMemberId, SpaceRole } from "../domain/space";
 
-/** Outcome of adding a member; the database decides races between concurrent additions. */
-export type AddMemberOutcome = "added" | "alreadyMember" | "nameTaken";
+/**
+ * Outcome of adding a member; the database decides races between concurrent additions. "rejoined" (issue #90): the
+ * user had left this space, so their former row is current again with the new role, name and join time, and no second
+ * row exists for them: everything that names that member id names a current member again.
+ */
+export type AddMemberOutcome = "added" | "rejoined" | "alreadyMember" | "nameTaken";
 
 export interface SpaceMemberRepository {
   /**
@@ -9,7 +13,11 @@ export interface SpaceMemberRepository {
    * their rows stay locked until the surrounding transaction ends, so role changes run one at a time.
    */
   listCurrent(spaceId: SpaceId, options?: { readonly lock?: boolean }): Promise<SpaceMember[]>;
-  /** Adds the member unless its user is already a current member or a current member has its name (any case). */
+  /**
+   * Adds the member unless its user is already a current member or a current member has its name (any case). A
+   * registered user who left this space before takes back their latest former row instead of getting a new one
+   * (issue #90); `member.id` is then not stored.
+   */
   addMember(spaceId: SpaceId, member: SpaceMember): Promise<AddMemberOutcome>;
   updateRole(spaceId: SpaceId, memberId: SpaceMemberId, role: SpaceRole): Promise<void>;
 }

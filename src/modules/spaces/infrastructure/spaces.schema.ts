@@ -48,7 +48,7 @@ export const spaceMembers = pgTable(
     claimedAt: tz("claimed_at"),
   },
   (t) => [
-    // HU-E1-07: one row per user among current members; a former member who joins again gets a new row.
+    // HU-E1-07: one row per user among current members; a former member who joins again takes their own row back (issue #90).
     uniqueIndex("space_members_current_user_uq")
       .on(t.spaceId, t.userId)
       .where(sql`${t.leftAt} IS NULL`),

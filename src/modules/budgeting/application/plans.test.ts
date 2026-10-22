@@ -183,7 +183,7 @@ describe("GetBudgetPlan (HU-E6-01)", () => {
     expect(transfers).toHaveBeenLastCalledWith(["acc-savings"], "2026-11-01", "2026-11-30");
 
     // The filter runs on every read, over the whole period: Luis rejoins and his transfers count again.
-    expect(await spaces.addMember(HOUSEHOLD, memberOf("Luis", "MEMBER", 5))).toBe("added");
+    expect(await spaces.addMember(HOUSEHOLD, memberOf("Luis", "MEMBER", 5))).toBe("rejoined");
     expect(await spentAs("u-sofi")).toBe(15_000_000n);
   });
 

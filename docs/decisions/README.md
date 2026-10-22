@@ -279,11 +279,12 @@ These plans predate the P numbering. Their decisions are numbered lists in the S
 
 ### Amendments to M2-C rulings
 
-A follow-up issue changed what M2-C accepted. It carries no P number: it amends a ruling that has none.
+Two follow-up issues changed what M2-C accepted or ruled. They carry no P number: they amend rulings that have none.
 
 | Amends | Change | Where |
 |---|---|---|
 | O2 (no lock against concurrent money writes, assumption 4) | Issue #89 adds the lock. Leaving, removing a guest and archiving lock the space row `FOR NO KEY UPDATE` right after authorization, and every money write locks it `FOR SHARE` before it reads the membership (the order is always space row first, then member rows), so each race ends as one of its two serial orders. The space row, not the member rows, because `FOR UPDATE` on member rows conflicts with the `FOR KEY SHARE` locks the foreign keys of every insert take. | [HU-E1-08](../backlog/E1-identity-and-spaces.md), `src/modules/spaces/application/space-locks.ts` |
+| O1 (a former member stays settled, Task 4b) | Issue #90 keeps the rule and lifts its dead end: a user who joins again takes back their own member row (`leftAt` cleared, new role, name and `joinedAt`), so what names that member id names a current member and can be corrected. A former member who has not joined again stays settled. | [HU-E1-07](../backlog/E1-identity-and-spaces.md) |
 
 ## How to add a decision
 

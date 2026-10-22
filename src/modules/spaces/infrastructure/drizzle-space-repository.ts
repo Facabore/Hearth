@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { isUuid } from "@/shared/kernel";
 import type { MemberInSpace } from "../application/direct-space-repository";
@@ -204,6 +204,10 @@ export class DrizzleSpaceRepository
   }
 
   async addMember(spaceId: SpaceId, member: SpaceMember): Promise<AddMemberOutcome> {
+    // Issue #90: one person, one row. A user who left takes their own row back instead of getting a new one, so a
+    // transaction that names them (an edit or a deletion of it is refused for a former member) names a current member.
+    const rejoined = member.userId === null ? null : await this.rejoin(spaceId, member);
+    if (rejoined !== null) return rejoined;
     // No conflict target: both partial unique indexes (current user, current name) count, concurrent inserts included.
     const inserted = await this.tm
       .executor()
@@ -215,6 +219,57 @@ export class DrizzleSpaceRepository
     if (member.userId === null) return "nameTaken";
     const current = await this.listCurrent(spaceId);
     return current.some((m) => m.userId === member.userId) ? "alreadyMember" : "nameTaken";
+  }
+
+  /**
+   * Makes the latest former row of the user current again: null when the user never left this space. The UPDATE runs in
+   * a savepoint, because the unique indexes of current users and current names can refuse it when a concurrent join
+   * committed meanwhile, and a refused statement would otherwise abort the whole transaction (an INSERT answers that with
+   * ON CONFLICT DO NOTHING, an UPDATE cannot).
+   */
+  private async rejoin(spaceId: SpaceId, member: SpaceMember): Promise<AddMemberOutcome | null> {
+    const db = this.tm.executor();
+    const [former] = await db
+      .select({ id: spaceMembers.id })
+      .from(spaceMembers)
+      .where(
+        and(
+          eq(spaceMembers.spaceId, spaceId),
+          eq(spaceMembers.userId, member.userId!),
+          eq(spaceMembers.kind, "USER"),
+          isNotNull(spaceMembers.leftAt),
+        ),
+      )
+      .orderBy(desc(spaceMembers.leftAt), desc(spaceMembers.id))
+      .limit(1);
+    if (!former) return null;
+    const current = await this.listCurrent(spaceId);
+    if (current.some((m) => m.userId === member.userId)) return "alreadyMember";
+    if (current.some((m) => m.displayName.toLowerCase() === member.displayName.toLowerCase())) {
+      return "nameTaken";
+    }
+    try {
+      const taken = await db.transaction((savepoint) =>
+        savepoint
+          .update(spaceMembers)
+          .set({
+            leftAt: null,
+            role: member.role,
+            displayName: member.displayName,
+            joinedAt: member.joinedAt,
+          })
+          .where(and(eq(spaceMembers.id, former.id), isNotNull(spaceMembers.leftAt)))
+          .returning({ id: spaceMembers.id }),
+      );
+      // Nothing matched: a concurrent join of the same user made the row current first.
+      return taken.length > 0 ? "rejoined" : "alreadyMember";
+    } catch (error) {
+      const { code } = ((error as Error).cause ?? error) as { code?: unknown };
+      if (code !== "23505") throw error;
+      // A concurrent join took the user or the name between the check and the update.
+      const now = await this.listCurrent(spaceId);
+      return now.some((m) => m.userId === member.userId) ? "alreadyMember" : "nameTaken";
+    }
   }
 
   async updateRole(spaceId: SpaceId, memberId: SpaceMemberId, role: SpaceRole): Promise<void> {
