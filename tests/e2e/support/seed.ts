@@ -22,6 +22,12 @@ export const patch = async (page: Page, path: string, data: unknown) => {
   return response.json();
 };
 
+export const put = async (page: Page, path: string, data: unknown, extra: Record<string, string> = {}) => {
+  const response = await page.request.put(path, { data, headers: headersOf(page, extra) });
+  if (!response.ok()) throw new Error(`PUT ${path} answered ${response.status()}: ${await response.text()}`);
+  return response.json();
+};
+
 export const post = async (page: Page, path: string, data: unknown, extra: Record<string, string> = {}) => {
   const response = await page.request.post(path, { data, headers: headersOf(page, extra) });
   if (!response.ok()) throw new Error(`POST ${path} answered ${response.status()}: ${await response.text()}`);

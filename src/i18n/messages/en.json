@@ -759,6 +759,19 @@
     "frame": {
       "editPlan": "Edit plan",
       "viewPlan": "View plan"
+    },
+    "lines": {
+      "summary": "Plan summary",
+      "totalAvailable": "Available",
+      "totalSpent": "Spent {spent} of {planned}",
+      "caption": "Planned, spent and available per line",
+      "line": "Line",
+      "planned": "Planned",
+      "spent": "Spent",
+      "available": "Available",
+      "overspent": "Overspent",
+      "unbudgeted": "Unbudgeted",
+      "unbudgetedNote": "Unbudgeted is what was spent in categories that are in no line."
     }
   }
 }

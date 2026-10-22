@@ -4,7 +4,7 @@ import { expect, test, type APIRequest, type Page } from "@playwright/test";
 import es from "../../src/i18n/messages/es.json" with { type: "json" };
 import { BASE_URL as BASE } from "./support/base-url";
 import { Person } from "./support/people";
-import { get, post, signUp } from "./support/seed";
+import { get, post, put, signUp } from "./support/seed";
 
 const WCAG = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
 /** The phone of the audit (UI Definition of Done): every screen is scanned at 390 x 844. */
@@ -17,7 +17,8 @@ const tokenOf = ({ url }: { url: string }) => new URL(url, BASE).pathname;
 
 /**
  * Ana (the page) in a Household with Juan, the guest Pedro and Marta's pending email invitation; a pending link; a
- * fund that an expense took below zero; and a settlement-ready balance (Ana paid a market that Juan owes half of).
+ * fund that an expense took below zero; a settlement-ready balance (Ana paid a market that Juan owes half of); and
+ * October's DRAFT plan (HU-E9-10), whose "Mercado" line the two expenses take over its budget.
  */
 const seedHousehold = async (page: Page, requests: APIRequest, tag: string) => {
   const personal = await signUp(page, `a11y-shared-${tag}`, ip());
@@ -84,6 +85,35 @@ const seedHousehold = async (page: Page, requests: APIRequest, tag: string) => {
     },
     idempotent(),
   );
+  // October is the period that holds the e2e clock's today. The plan answers its version after every write.
+  const money = (pesos: number) => ({ amount: String(pesos * 100), currency: "COP" });
+  const guard = (version: number) => ({ "if-match": `"${version}"` });
+  let plan = await post(page, `${space}/plans`, { period: "2026-10" });
+  plan = await put(
+    page,
+    `${space}/plans/${plan.id}/capacities`,
+    { capacities: [{ memberId: ana, amount: money(500_000) }] },
+    guard(plan.version),
+  );
+  plan = await post(
+    page,
+    `${space}/plans/${plan.id}/lines`,
+    { name: "Mercado", plannedAmount: money(100_000) },
+    guard(plan.version),
+  );
+  plan = await post(
+    page,
+    `${space}/plans/${plan.id}/lines`,
+    { name: "Ocio", plannedAmount: money(200_000) },
+    guard(plan.version),
+  );
+  const market = plan.lines.find((line: { name: string }) => line.name === "Mercado");
+  await put(
+    page,
+    `${space}/plans/${plan.id}/lines/${market.id}/categories`,
+    { categoryIds: [categoryId] },
+    guard(plan.version),
+  );
   return {
     household: household.id as string,
     personal,
@@ -116,12 +146,18 @@ for (const colorScheme of ["light", "dark"] as const) {
         h,
         `${h}/members`,
         `${h}/balances`,
+        // HU-E9-10: the Plan tab of the household, with an overspent line, a line within its plan and Unbudgeted.
+        `${h}/plan`,
         `${h}/members/${ids.ana}/history`,
         `${h}/transactions?notice=FundBalanceNegative&account=${ids.fund}`,
       ]) {
         await page.goto(path);
         await scan(path);
       }
+      // HU-E9-10: the household's October plan reads as DRAFT, with the market line over its budget.
+      await page.goto(`${h}/plan`);
+      await expect(page.getByText(es.budgeting.status.DRAFT)).toBeVisible();
+      await expect(page.getByText(es.reports.lines.overspent)).toBeVisible();
       // U1: a shared space with no funds explains them instead of asking for a first account.
       const bare = await post(page, "/api/v1/spaces", { kind: "SHARED", name: "Vacía", currency: "COP" });
       for (const path of [`/spaces/${bare.id}`, `/spaces/${bare.id}/accounts`]) {

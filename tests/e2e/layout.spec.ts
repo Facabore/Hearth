@@ -3,7 +3,7 @@ import { expect, request, test as base, type Browser, type Page } from "@playwri
 import es from "../../src/i18n/messages/es.json" with { type: "json" };
 import { BASE_URL } from "./support/base-url";
 import { Person } from "./support/people";
-import { get, patch, post, seedLedger, signUp } from "./support/seed";
+import { get, patch, post, put, seedLedger, signUp } from "./support/seed";
 
 /**
  * Phone-width layout guards (UI Definition of Done, WCAG 1.4.10 Reflow, 2.4.11 Focus Not Obscured, 2.5.5 Target Size):
@@ -17,6 +17,12 @@ const WIDE_FONT_CSS = '* { font-family: Verdana, "DejaVu Sans", sans-serif !impo
 
 /** The addresses the tests open on purpose to see the not-found page: the browser logs their 404 (N1). */
 const MISSING = ["/nope", "/spaces/does-not-exist/accounts"];
+
+/**
+ * The dashboard frame links a plan to its planner, which Task 4 of M6c adds: until it lands, the prefetch of that link
+ * is a 404. Task 4 removes this tolerance with the page.
+ */
+const PLANNER_NOT_BUILT_YET = /\/spaces\/[^/]+\/plans\/[^/?]+\?_rsc=/;
 
 /** Every test fails on a `console.error` or an uncaught page error: nothing may log one on a normal visit. */
 const test = base.extend<{ errors: string[]; wideFont: boolean }>({
@@ -33,6 +39,7 @@ const test = base.extend<{ errors: string[]; wideFont: boolean }>({
         if (message.type() !== "error") return;
         const { url } = message.location();
         if (/ 404 /.test(message.text()) && MISSING.some((path) => url.endsWith(path))) return;
+        if (/ 404 /.test(message.text()) && PLANNER_NOT_BUILT_YET.test(url)) return;
         errors.push(`${message.text()} @ ${message.location().url}`);
       });
       page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
@@ -542,6 +549,9 @@ for (const wideFont of [false, true]) {
           `/spaces/${sharedId}`,
           `/spaces/${sharedId}/members`,
           `/spaces/${sharedId}/balances`,
+          // HU-E9-10: the Plan tab, with big figures (personal) and without a plan (shared).
+          `/spaces/${spaceId}/plan`,
+          `/spaces/${sharedId}/plan`,
           history,
           `/spaces/${sharedId}/new`,
           warned,
@@ -722,6 +732,84 @@ test.describe("a shared expense saved with a warning (HU-E9-06, ruling P170)", (
     await expect(page).toHaveURL(new RegExp(`/spaces/${sharedId}/transactions$`));
     await expect(page.getByRole("status")).toHaveCount(0);
   });
+});
+
+test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
+  // 57 of the 60 characters the longest name a line takes (budget-line.ts MAX_NAME).
+  const LONG_LINE = "Mercado, aseo y gastos del hogar de toda la familia Pérez";
+
+  for (const viewport of [PHONE, SMALL_PHONE]) {
+    test(`the bottom bar fits its tabs and the dashboard keeps long names and big figures on screen at ${viewport.width} px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      const { spaceId, sharedId } = await session(page, `plan-tab-${viewport.width}`);
+      // The shared space gets a plan whose only line has a very long name and a plan of over a billion pesos.
+      const space = `/api/v1/spaces/${sharedId}`;
+      let plan = await post(page, `${space}/plans`, { period: "2026-10" });
+      const { items: members } = await get(page, `${space}/members`);
+      plan = await put(
+        page,
+        `${space}/plans/${plan.id}/capacities`,
+        { capacities: [{ memberId: members[0].id, amount: { amount: "200000000000", currency: "COP" } }] },
+        { "if-match": `"${plan.version}"` },
+      );
+      await post(
+        page,
+        `${space}/plans/${plan.id}/lines`,
+        { name: LONG_LINE, plannedAmount: { amount: "123456789000", currency: "COP" } },
+        { "if-match": `"${plan.version}"` },
+      );
+      for (const [path, tabs] of [
+        [`/spaces/${sharedId}/plan`, 5],
+        [`/spaces/${spaceId}/plan`, 4],
+      ] as const) {
+        await page.goto(path);
+        await settle(page);
+        await expect(page.getByRole("heading", { level: 1 })).toHaveText(/octubre 2026/i);
+        const { overflow, message } = await overflowReport(page, path);
+        expect.soft(overflow, message).toBeLessThanOrEqual(0);
+
+        const nav = page.getByRole("navigation", { name: es.shell.nav.main });
+        const links = nav.getByRole("link");
+        await expect(links, `${path}: the tabs`).toHaveCount(tabs);
+        await expect(nav.getByRole("link", { name: es.shell.nav.plan, exact: true })).toHaveAttribute(
+          "aria-current",
+          "page",
+        );
+        const boxes = (await links.evaluateAll((els) =>
+          els.map((el) => {
+            const r = el.getBoundingClientRect();
+            return { x: r.x, right: r.right, width: r.width, height: r.height };
+          }),
+        )) as { x: number; right: number; width: number; height: number }[];
+        boxes.sort((a, b) => a.x - b.x);
+        boxes.forEach((box, index) => {
+          expect.soft(box.width, `${path}: tab ${index} width`).toBeGreaterThanOrEqual(TARGET);
+          expect.soft(box.height, `${path}: tab ${index} height`).toBeGreaterThanOrEqual(TARGET);
+          expect.soft(box.x, `${path}: tab ${index} starts on screen`).toBeGreaterThanOrEqual(0);
+          expect.soft(box.right, `${path}: tab ${index} ends on screen`).toBeLessThanOrEqual(viewport.width);
+          if (index > 0) {
+            expect
+              .soft(box.x, `${path}: tab ${index} does not overlap the one before`)
+              .toBeGreaterThanOrEqual(boxes[index - 1]!.right - 0.5);
+          }
+        });
+
+        // The dashboard's own controls: the period links and the view tabs are full targets.
+        for (const link of await page.locator("main").getByRole("link").all()) {
+          const box = (await link.boundingBox())!;
+          expect
+            .soft(box.height, "a link of the dashboard is at least 44 px tall")
+            .toBeGreaterThanOrEqual(TARGET);
+          expect.soft(box.x + box.width, "and ends on screen").toBeLessThanOrEqual(viewport.width);
+        }
+      }
+      // The long line wraps inside its row instead of widening the page.
+      await page.goto(`/spaces/${sharedId}/plan`);
+      await expect(page.getByText(LONG_LINE)).toBeVisible();
+    });
+  }
 });
 
 test.describe("bottom sheets sit above the bottom navigation", () => {

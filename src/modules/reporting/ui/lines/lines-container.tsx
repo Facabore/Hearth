@@ -6,6 +6,7 @@ import { serverNow } from "@/shared/ui/time/server-now";
 import { nowIn } from "@/shared/ui/time/when";
 import { DashboardFrame } from "../dashboard-frame";
 import { neighboursOf, periodLabel, spaceOf } from "../report-period";
+import { LineDashboard } from "./line-dashboard";
 
 /** HU-E9-10: the period's line dashboard and its neighbouring periods (ruling P205). */
 export const loadLines = async (
@@ -26,7 +27,7 @@ export const loadLines = async (
   };
 };
 
-/** Server: the Lines view of the Plan tab for `?period=`, in the person's formats (the table follows). */
+/** Server: the Lines view of the Plan tab for `?period=`, in the person's formats. */
 export async function LineDashboardContainer({
   spaceId,
   period,
@@ -54,8 +55,7 @@ export async function LineDashboardContainer({
       formats={formats}
       plan={dashboard.plan}
     >
-      {/* The line dashboard itself arrives with the next commit of this task. */}
-      <div />
+      <LineDashboard dashboard={dashboard} formats={formats} />
     </DashboardFrame>
   );
 }

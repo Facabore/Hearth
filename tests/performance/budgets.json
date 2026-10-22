@@ -11,6 +11,8 @@
     "/spaces/new": 172,
     "/spaces/:shared/members": 177,
     "/spaces/:shared/balances": 177,
+    "/spaces/:id/plan": 190,
+    "/spaces/:shared/plan": 195,
     "/spaces/:shared/members/:member/history": 159,
     "/spaces/:shared/new": 187,
     "/invitations/:token": 164,

@@ -6,7 +6,7 @@ import { Icon } from "./icon";
 const TONES = {
   neutral: "bg-track text-muted",
   accent: "bg-accent-soft text-accent",
-  owe: "bg-owe-soft text-owe",
+  owe: "bg-owe-soft text-owe-ink",
 } as const;
 
 export function Badge({
