@@ -92,7 +92,7 @@ describe("invitation page (HU-E9-05, ruling P165)", () => {
     expect(requests).toHaveLength(1);
     expect(requests[0]!.method).toBe("POST");
     expect(new URL(requests[0]!.url).pathname).toBe("/api/v1/invitations/tok-1/accept");
-    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-household");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-household?joined=1");
     expect(router.refresh).toHaveBeenCalled();
   });
 
@@ -117,6 +117,24 @@ describe("invitation page (HU-E9-05, ruling P165)", () => {
     expect(new URL(requests[1]!.url).pathname).toBe("/api/v1/auth/sign-out");
     expect(router.replace).toHaveBeenCalledWith("/sign-in?next=%2Finvitations%2Ftok-1&invitation=tok-1");
     expect(router.refresh).toHaveBeenCalled();
+  });
+
+  it("keeps the language the person reads in for the sign-in screen that follows signing out (U8)", async () => {
+    for (const [locale, button] of [
+      ["es", "Cerrar sesión y cambiar de cuenta"],
+      ["en", "Sign out and switch accounts"],
+    ] as const) {
+      document.cookie = "hearth.locale=; path=/; max-age=0";
+      const { api } = fakeApi({
+        "POST /api/v1/invitations/{token}/accept": () => problemResponse(403, "InvitationEmailMismatch"),
+        "POST /api/v1/auth/sign-out": () => new Response(null, { status: 204 }),
+      });
+      const view = card({ viewer: { email: "luis@example.com" }, api }, locale);
+      await userEvent.click(screen.getByRole("button", { name: /^(Aceptar|Accept)/ }));
+      await userEvent.click(await screen.findByRole("button", { name: button }));
+      expect(document.cookie).toContain(`hearth.locale=${locale}`);
+      view.unmount();
+    }
   });
 
   it("still goes to the sign-in screen when the sign-out call fails", async () => {
@@ -145,7 +163,7 @@ describe("invitation page (HU-E9-05, ruling P165)", () => {
     expect(await screen.findByText("Esa persona ya es miembro de este espacio.")).toBeInTheDocument();
     expect(router.replace).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Aceptar y entrar a Household" }));
-    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-household");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-household?joined=1");
   });
 
   it("shows a network failure as a problem, not as a crash", async () => {
@@ -225,7 +243,7 @@ describe("invitation page (HU-E9-05, ruling P165)", () => {
     card({ kind: "claim", preview: CLAIM, viewer: { email: "pedro@example.com" }, api });
     await userEvent.click(screen.getByRole("button", { name: "Reclamar mi lugar en Household" }));
     expect(new URL(requests[0]!.url).pathname).toBe("/api/v1/claims/tok-1/accept");
-    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-household");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-household?joined=1");
   });
 
   it('leaves out "como <name>" when the preview has no guest name', () => {

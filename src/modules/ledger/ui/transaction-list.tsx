@@ -18,6 +18,7 @@ export function TransactionList({
   previous = null,
   next = null,
   notice,
+  spaceName,
 }: {
   readonly spaceId: string;
   readonly page: TransactionPageDto;
@@ -28,12 +29,17 @@ export function TransactionList({
   readonly next?: PeriodDto | null;
   /** A saved expense that left a shared fund negative (ruling P170). */
   readonly notice?: { readonly accountName: string; readonly balance: MoneyDto };
+  /** U7: the name of a shared or direct space, under the title; a personal space shows none. */
+  readonly spaceName?: string | undefined;
 }) {
   const t = useTranslations("ledger");
   const days = groupByDay(page.items, today);
   return (
     <div className="flex flex-col gap-5 py-4">
-      <h1 className="text-2xl font-semibold text-ink">{t("list.title")}</h1>
+      <header className="flex flex-col gap-0.5">
+        <h1 className="text-2xl font-semibold text-ink">{t("list.title")}</h1>
+        {spaceName ? <p className="text-sm text-muted [overflow-wrap:anywhere]">{spaceName}</p> : null}
+      </header>
       {notice ? (
         <SavedNotice
           accountName={notice.accountName}

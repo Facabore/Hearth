@@ -82,7 +82,8 @@ export async function TransactionListContainer({
   readonly noticeAccount?: string;
 }) {
   const [me, spaces] = await Promise.all([getMe(), getSpaces()]);
-  const shared = (spaces.find((s) => s.id === spaceId)?.kind ?? "PERSONAL") !== "PERSONAL";
+  const space = spaces.find((s) => s.id === spaceId);
+  const shared = (space?.kind ?? "PERSONAL") !== "PERSONAL";
   const list = await loadTransactionList(await serverApi(), { spaceId, period, categoryId, shared });
   if (!list.ok) return <ProblemNotice problem={list.problem} />;
   const { page, groups, accounts, memberNames, previous, next } = list.data;
@@ -103,6 +104,7 @@ export async function TransactionListContainer({
       today={nowIn(serverNow(), me!.timezone).date}
       filter={{ period, categoryId }}
       {...(fund ? { notice: { accountName: fund.name, balance: fund.balance } } : {})}
+      {...(shared && space ? { spaceName: space.name } : {})}
       previous={previous}
       next={next}
     />

@@ -1254,3 +1254,166 @@ test.describe("query-only changes replace the entry (N8)", () => {
     await expect(page.getByRole("status")).toHaveCount(0);
   });
 });
+
+test.describe("Movimientos names a shared or direct space (U7)", () => {
+  for (const viewport of [PHONE, SMALL_PHONE]) {
+    test(`the direct space that a split created is named under the title at ${viewport.width} px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      const { spaceId } = await session(page, `direct-title-${viewport.width}`);
+      const space = `/api/v1/spaces/${spaceId}`;
+      const { items: groups } = await get(page, `${space}/categories`);
+      const categoryKey: string = groups.flatMap(
+        (g: { categories: { key: string | null }[] }) => g.categories,
+      )[0].key;
+      const { items: accounts } = await get(page, `${space}/accounts`);
+      const split = await post(
+        page,
+        "/api/v1/direct-splits",
+        {
+          description: "Cena",
+          date: "2026-10-30",
+          occurredAt: "2026-10-30T17:00:00.000Z",
+          timeZone: "America/Bogota",
+          counterpart: { kind: "GUEST", displayName: GUEST_NAME },
+          categoryKey,
+          amount: { amount: "12000000", currency: "COP" },
+          accountId: accounts[0].id,
+        },
+        { "idempotency-key": crypto.randomUUID() },
+      );
+      await page.goto(`/spaces/${split.spaceId}/transactions`);
+      await settle(page);
+      const title = page.getByRole("heading", { level: 1, name: es.ledger.list.title });
+      // The name of the space the move landed in sits right under the title.
+      await expect(title.locator("xpath=following-sibling::p")).toContainText(`& ${GUEST_NAME}`);
+      const { overflow, message } = await overflowReport(page, "Movimientos of a direct space");
+      expect(overflow, message).toBeLessThanOrEqual(0);
+      // A personal space shows no such line.
+      await page.goto(`/spaces/${spaceId}/transactions`);
+      await expect(title.locator("xpath=following-sibling::p")).toHaveCount(0);
+    });
+  }
+});
+
+test.describe("the theme Sistema follows the system without a reload (U9)", () => {
+  test("changing the colour scheme changes the page; a chosen Claro or Oscuro ignores it", async ({
+    page,
+  }) => {
+    await session(page, "theme-live");
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.goto("/settings");
+    await settle(page);
+    const html = page.locator("html");
+    await expect(html).toHaveAttribute("data-theme", "light");
+    await page.emulateMedia({ colorScheme: "dark" });
+    await expect(html).toHaveAttribute("data-theme", "dark");
+    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(
+      "rgb(18, 22, 20)",
+    );
+    await page.emulateMedia({ colorScheme: "light" });
+    await expect(html).toHaveAttribute("data-theme", "light");
+    // A device that chose Claro keeps it whatever the system does.
+    await page.getByRole("radio", { name: es.settings.theme.light }).click();
+    await page.emulateMedia({ colorScheme: "dark" });
+    await page.waitForTimeout(300);
+    await expect(html).toHaveAttribute("data-theme", "light");
+    // And back to Sistema: the system's colour applies again, with no reload.
+    await page.getByRole("radio", { name: es.settings.theme.system }).click();
+    await expect(html).toHaveAttribute("data-theme", "dark");
+  });
+});
+
+test.describe("Settings says Guardado and keeps Restablecer where it was (U5)", () => {
+  for (const viewport of [PHONE, SMALL_PHONE]) {
+    test(`saving a number format moves nothing and says so for about two seconds at ${viewport.width} px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      await session(page, `settings-saved-${viewport.width}`);
+      await page.goto("/settings");
+      await settle(page);
+      const group = page.getByRole("group", { name: es.settings.field.numberFormat });
+      const slot = group.getByTestId("preference-state");
+      await expect(slot.getByText(es.settings.default)).toBeVisible();
+      const before = {
+        slot: (await slot.boundingBox())!,
+        choices: (await group.getByRole("radiogroup").boundingBox())!,
+        page: await page.evaluate(() => document.documentElement.scrollHeight),
+      };
+      await group.getByRole("radio", { name: "1,234,567.89" }).click();
+      const reset = slot.getByRole("button", { name: es.settings.reset });
+      await expect(reset).toBeVisible();
+      const status = group.getByRole("status");
+      await expect(status).toHaveText(es.settings.saved);
+      const after = {
+        slot: (await slot.boundingBox())!,
+        choices: (await group.getByRole("radiogroup").boundingBox())!,
+        page: await page.evaluate(() => document.documentElement.scrollHeight),
+      };
+      // Nothing moves: not the slot, not the choices under it, not the page.
+      expect(after.slot).toEqual(before.slot);
+      expect(after.choices).toEqual(before.choices);
+      expect(after.page).toBe(before.page);
+      // Restablecer is a full target, inside the slot, and the status does not cover it.
+      const box = (await reset.boundingBox())!;
+      expect(box.height).toBeGreaterThanOrEqual(TARGET);
+      const statusBox = (await status.boundingBox())!;
+      expect(statusBox.x + statusBox.width, "Guardado stays on the screen").toBeLessThanOrEqual(
+        viewport.width,
+      );
+      expect(statusBox.y + statusBox.height <= box.y || statusBox.x + statusBox.width <= box.x).toBe(true);
+      await expect(status).toHaveCount(0, { timeout: 5000 });
+      const { overflow, message } = await overflowReport(page, "Settings after saving");
+      expect(overflow, message).toBeLessThanOrEqual(0);
+    });
+  }
+});
+
+test.describe("the empty states of Cuentas and of a shared space explain themselves (U1, U4)", () => {
+  for (const viewport of [PHONE, SMALL_PHONE]) {
+    test(`no accounts, no funds: an action to start with, full targets and no sideways scroll at ${viewport.width} px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      const spaceId = await signUp(
+        page,
+        `empty-states-${viewport.width}`,
+        `10.252.${randomInt(256)}.${randomInt(1, 255)}`,
+      );
+      const shared = (await post(page, "/api/v1/spaces", {
+        kind: "SHARED",
+        name: "Casa",
+        currency: "COP",
+      })) as {
+        id: string;
+      };
+      const full = async (name: string, path: string) => {
+        await page.goto(path);
+        await settle(page);
+        const link = page.getByRole("link", { name, exact: true });
+        await expect(link, `${path}: ${name}`).toHaveCount(1);
+        const box = (await link.boundingBox())!;
+        expect.soft(box.height, `${path}: height of ${name}`).toBeGreaterThanOrEqual(TARGET);
+        expect
+          .soft(box.x + box.width, `${path}: ${name} stays on screen`)
+          .toBeLessThanOrEqual(viewport.width);
+        const { overflow, message } = await overflowReport(page, path);
+        expect.soft(overflow, message).toBeLessThanOrEqual(0);
+        return link;
+      };
+      // A personal space with no accounts: one Nueva cuenta, in the empty state.
+      const add = await full(es.accounts.new, `/spaces/${spaceId}/accounts`);
+      await expect(page.getByRole("heading", { name: es.accounts.empty.title })).toBeVisible();
+      await add.click();
+      await page.waitForURL(`**/spaces/${spaceId}/accounts/new?returnTo=*`);
+      // A shared space with no funds: never "Agrega tu primera cuenta", the explanation and a fund to create.
+      await full(es.accounts.createFund, `/spaces/${shared.id}/accounts`);
+      await expect(page.getByText(es.accounts.fundsNote)).toBeVisible();
+      await full(es.accounts.createFund, `/spaces/${shared.id}`);
+      await expect(page.getByText(es.accounts.fundsNote)).toBeVisible();
+      await expect(page.getByText(es.home.firstAccount.title)).toHaveCount(0);
+    });
+  }
+});

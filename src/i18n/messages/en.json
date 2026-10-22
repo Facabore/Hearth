@@ -250,7 +250,8 @@
     "allTransactions": "See all transactions",
     "allTransactionsShort": "See all",
     "members": "Members",
-    "invite": "Invite"
+    "invite": "Invite",
+    "funds": "Funds"
   },
   "settings": {
     "title": "Settings",
@@ -294,7 +295,8 @@
       "hint": "Only the texts change. The formats above do not depend on the language.",
       "es": "Español",
       "en": "English"
-    }
+    },
+    "saved": "Saved"
   },
   "accounts": {
     "title": "Accounts",
@@ -372,6 +374,16 @@
     "restore": "Restore {name}",
     "picker": {
       "empty": "There are no accounts to choose from. Create a new one."
+    },
+    "newFund": "New fund",
+    "createFund": "Create a fund",
+    "fundsNote": "Everyone pays from their personal accounts; only the space's funds live here.",
+    "directNote": "This space is between two people: each pays from their personal accounts.",
+    "empty": {
+      "title": "You have no accounts yet",
+      "body": "Add where you keep your money to start tracking it.",
+      "fundsTitle": "This space has no funds yet",
+      "directTitle": "This space has no accounts"
     }
   },
   "categories": {
@@ -493,10 +505,23 @@
       },
       "incomplete": "Enter a value for each person.",
       "done": "Done",
-      "summary": "{method} · {shares}",
       "paidBy": "Paid by {payer}",
       "paidFromMine": "You pay from {account} (your personal account)",
-      "split": "Split"
+      "split": "Split",
+      "line": "{who} · {how}",
+      "with": {
+        "one": "With {a}",
+        "two": "With {a} and {b}",
+        "many": "With {count} people"
+      },
+      "how": {
+        "HALF": "half and half",
+        "EQUAL": "equal shares",
+        "PERCENT": "by percentage",
+        "EXACT": "by amounts",
+        "SHARES": "by shares",
+        "BY_ALLOCATION": "per the plan"
+      }
     },
     "direct": {
       "open": "Split with someone",
@@ -529,6 +554,9 @@
       "COP": "COP · Colombian peso",
       "USD": "USD · US dollar",
       "EUR": "EUR · Euro"
+    },
+    "joined": {
+      "title": "You joined “{space}”"
     }
   },
   "members": {

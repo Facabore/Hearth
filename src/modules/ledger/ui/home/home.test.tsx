@@ -207,3 +207,91 @@ describe("the home of a shared or direct space leads to its members (N10)", () =
     expect(screen.queryByRole("link", { name: "Invitar" })).toBeNull();
   });
 });
+
+describe("home after accepting an invitation (U6)", () => {
+  const home = (joined?: { space: string; dismissHref: string }) =>
+    renderWithIntl(
+      <HomeSummary
+        spaceId="sp-shared"
+        kind="SHARED"
+        role="MEMBER"
+        joined={joined}
+        policy={{ kind: "MONTHLY", day: 1 }}
+        page={{ ...octoberPage, items: [] }}
+        accounts={[]}
+        context={rowContext}
+      />,
+    );
+
+  it("welcomes the person once, naming the space", async () => {
+    const { container } = home({ space: "Household", dismissHref: "/spaces/sp-shared" });
+    expect(screen.getByRole("status")).toHaveTextContent("Te uniste a «Household»");
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("shows nothing on a visit that did not come from accepting", () => {
+    home();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+});
+
+describe("the home of a shared or direct space explains its funds (U1)", () => {
+  const NOTE = "Cada persona paga desde sus cuentas personales; aquí solo viven los fondos del espacio.";
+  const home = (
+    kind: "PERSONAL" | "SHARED" | "DIRECT",
+    role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER",
+    accounts = [] as ReturnType<typeof accountDto>[],
+  ) =>
+    renderWithIntl(
+      <HomeSummary
+        spaceId="sp-shared"
+        kind={kind}
+        role={role}
+        policy={{ kind: "MONTHLY", day: 1 }}
+        page={octoberPage}
+        accounts={accounts}
+        context={rowContext}
+      />,
+    );
+
+  it("never asks a shared space for its first account: it explains, shows the period and offers a fund", async () => {
+    const { container } = home("SHARED", "OWNER");
+    expect(screen.queryByText("Agrega tu primera cuenta")).toBeNull();
+    expect(screen.getByText(NOTE)).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Resumen del período" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Crear un fondo" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-shared/accounts/new?returnTo=%2Fspaces%2Fsp-shared",
+    );
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("offers no fund to someone who may not create one", () => {
+    for (const role of ["MEMBER", "VIEWER"] as const) {
+      const { unmount } = home("SHARED", role);
+      expect(screen.getByText(NOTE)).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Crear un fondo" })).toBeNull();
+      unmount();
+    }
+  });
+
+  it("lists the funds it has, under a title for funds, and keeps the note", () => {
+    home("SHARED", "OWNER", [accountDto({ name: "Fondo Hogar", type: "SHARED_FUND", balance: cop(0) })]);
+    expect(screen.getByText(NOTE)).toBeInTheDocument();
+    expect(norm(screen.getByRole("region", { name: "Fondos" }).textContent)).toContain("Fondo Hogar");
+    expect(screen.queryByRole("link", { name: "Crear un fondo" })).toBeNull();
+  });
+
+  it("says a direct space holds no accounts, and offers none", () => {
+    home("DIRECT", "OWNER");
+    expect(screen.queryByText("Agrega tu primera cuenta")).toBeNull();
+    expect(screen.getByText(/cada una paga desde sus cuentas personales/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Crear un fondo" })).toBeNull();
+  });
+
+  it("still asks a personal space for its first account", () => {
+    home("PERSONAL", "OWNER");
+    expect(screen.getByText("Agrega tu primera cuenta")).toBeInTheDocument();
+    expect(screen.queryByText(NOTE)).toBeNull();
+  });
+});

@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
+import { localeCookie, type Locale } from "@/i18n/locale";
 import { localDateIn } from "@/shared/kernel/time-zone";
 import { Avatar, Button, ProblemNotice } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
@@ -45,6 +46,7 @@ export function InvitationCard({
   const common = useTranslations("common");
   const roles = useTranslations("shell.role");
   const router = useRouter();
+  const locale = useLocale() as Locale;
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   const [mismatch, setMismatch] = useState(false);
   const [problem, setProblem] = useState<Problem | null>(null);
@@ -69,8 +71,8 @@ export function InvitationCard({
         ? await api.POST("/api/v1/claims/{token}/accept", params)
         : await api.POST("/api/v1/invitations/{token}/accept", params);
       if (response.ok && data) {
-        // Stays pending: the page is on its way to the space.
-        router.replace(`/spaces/${data.id}`);
+        // Stays pending: the page is on its way to the space, which confirms the join once (U6).
+        router.replace(`/spaces/${data.id}?joined=1`);
         router.refresh();
         return;
       }
@@ -85,6 +87,8 @@ export function InvitationCard({
 
   const switchAccount = async () => {
     setPending(true);
+    // U8 (ruling P149): the sign-in screen reads the visitor cookie, so it keeps the language the person had.
+    document.cookie = localeCookie(locale);
     try {
       await api.POST("/api/v1/auth/sign-out");
     } catch {

@@ -96,3 +96,15 @@ Feature: Moving between screens: every address and every flow leads somewhere
     And "Ana" opens the Saldos tab
     And "Ana" chooses "Miembros" on the Saldos screen
     Then the members screen of "Household" is shown
+
+  @e2e
+  Scenario: Signing out keeps the language the person reads in, even in a browser that asks for English
+    Given the browser asks for English
+    When "Ana" chooses "Sign out" in the user menu
+    Then the sign-in screen is shown
+
+  @e2e
+  Scenario: The amount groups its digits while it is typed
+    When "Ana" opens the new expense form
+    And "Ana" types the amount 6000
+    Then the amount field reads "6.000"

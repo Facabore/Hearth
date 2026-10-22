@@ -107,9 +107,7 @@ describe("shared expense (HU-E9-06)", () => {
       "Pagas tú desde Bancolombia (tu cuenta personal)",
     );
     await waitFor(() =>
-      expect(normalized(divisionRow().textContent)).toContain(
-        "Iguales · Ana (tú) $ 150.000 · Juan $ 150.000",
-      ),
+      expect(normalized(divisionRow().textContent)).toContain("Con Ana y Juan · mitad y mitad"),
     );
     await userEvent.dblClick(screen.getByRole("button", { name: "Guardar gasto" }));
     const posted = requests.filter((r) => r.method === "POST");
@@ -210,9 +208,7 @@ describe("shared expense (HU-E9-06)", () => {
     form(api);
     await enter("2000000");
     await waitFor(() =>
-      expect(normalized(divisionRow().textContent)).toContain(
-        "Según el plan · Ana (tú) $ 800.000 · Juan $ 1.200.000",
-      ),
+      expect(normalized(divisionRow().textContent)).toContain("Con Ana y Juan · según el plan"),
     );
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     const body = await requests.find((r) => r.method === "POST")!.json();
@@ -222,23 +218,21 @@ describe("shared expense (HU-E9-06)", () => {
     await userEvent.click(divisionRow());
     await userEvent.click(within(await splitSheet()).getByRole("radio", { name: "Iguales" }));
     await userEvent.keyboard("{Escape}");
-    expect(normalized(divisionRow().textContent)).toContain(
-      "Iguales · Ana (tú) $ 1.000.000 · Juan $ 1.000.000",
-    );
+    expect(normalized(divisionRow().textContent)).toContain("Con Ana y Juan · mitad y mitad");
   });
 
   it("never lets a later default undo the method the person chose", async () => {
     const { api } = fakeApi({ "GET /api/v1/spaces/{spaceId}/default-split": planned });
     form(api);
     await enter("2000000");
-    await waitFor(() => expect(normalized(divisionRow().textContent)).toContain("Según el plan"));
+    await waitFor(() => expect(normalized(divisionRow().textContent)).toContain("según el plan"));
     await userEvent.click(divisionRow());
     await userEvent.click(within(await splitSheet()).getByRole("radio", { name: "Iguales" }));
     await userEvent.keyboard("{Escape}");
     // The amount changes, so a new default is asked for and answered: the chosen method stays.
     await userEvent.type(screen.getByLabelText("Monto"), "0");
     await new Promise((done) => setTimeout(done, 450));
-    expect(normalized(divisionRow().textContent)).toContain("Iguales");
+    expect(normalized(divisionRow().textContent)).toContain("mitad y mitad");
   });
 
   it("goes back to equal parts when the plan's split can no longer be asked", async () => {
@@ -249,12 +243,10 @@ describe("shared expense (HU-E9-06)", () => {
     });
     form(api);
     await enter("2000000");
-    await waitFor(() => expect(normalized(divisionRow().textContent)).toContain("Según el plan"));
+    await waitFor(() => expect(normalized(divisionRow().textContent)).toContain("según el plan"));
     await userEvent.type(screen.getByLabelText("Monto"), "0");
     await waitFor(() =>
-      expect(normalized(divisionRow().textContent)).toContain(
-        "Iguales · Ana (tú) $ 10.000.000 · Juan $ 10.000.000",
-      ),
+      expect(normalized(divisionRow().textContent)).toContain("Con Ana y Juan · mitad y mitad"),
     );
   });
 
@@ -296,11 +288,29 @@ describe("shared expense (HU-E9-06)", () => {
     await userEvent.click(within(sheet).getByRole("radio", { name: "Porcentaje" }));
     // The sheet is open over the form, so the row is reached past the dialog's hidden background.
     const row = () => screen.getByRole("button", { name: /División/, hidden: true });
-    expect(normalized(row().textContent)).toContain("Porcentaje");
+    expect(normalized(row().textContent)).toContain("Con Ana y Juan · por porcentaje");
     expect(row()).not.toHaveTextContent("Revisa el valor");
     await userEvent.type(within(sheet).getByLabelText("Valor de Ana (tú)"), "x");
     await userEvent.clear(within(sheet).getByLabelText("Valor de Ana (tú)"));
     expect(row()).toHaveTextContent("Revisa el valor de Ana (tú)");
+  });
+
+  it("summarises a split of three as a count, and one of two as the names (U2)", async () => {
+    const LUIS = memberDto({ id: "m-luis", userId: "u-luis", displayName: "Luis", role: "MEMBER" });
+    const three = [...MEMBERS, LUIS];
+    const { api } = fakeApi({
+      "GET /api/v1/spaces/{spaceId}/default-split": (r) => equal(amountOf(r), three),
+    });
+    form(api, context(three));
+    await enter("300000");
+    await waitFor(() =>
+      expect(normalized(divisionRow().textContent)).toContain("Con 3 personas · partes iguales"),
+    );
+    await userEvent.click(divisionRow());
+    const sheet = within(await splitSheet());
+    await userEvent.click(sheet.getByRole("checkbox", { name: "Luis" }));
+    await userEvent.keyboard("{Escape}");
+    expect(normalized(divisionRow().textContent)).toContain("Con Ana y Juan · mitad y mitad");
   });
 
   it("shows a payment problem under the same rows, not the account picker that is not there", async () => {

@@ -3,7 +3,14 @@ import { getMe, getSpaces, loaded, serverApi } from "@/shared/ui/api/server";
 import { HomeSummary } from "./home-summary";
 
 /** Server: the current period's three latest rows and totals, the active accounts, and the names rows need. */
-export async function HomeContainer({ spaceId }: { readonly spaceId: string }) {
+export async function HomeContainer({
+  spaceId,
+  joined = false,
+}: {
+  readonly spaceId: string;
+  /** `?joined=1`: the person has just accepted an invitation to this space (U6). */
+  readonly joined?: boolean;
+}) {
   const api = await serverApi();
   const path = { spaceId };
   const [me, spaces, page, accounts, categories] = await Promise.all([
@@ -29,6 +36,7 @@ export async function HomeContainer({ spaceId }: { readonly spaceId: string }) {
       spaceId={spaceId}
       kind={space.kind}
       role={space.role}
+      joined={joined ? { space: space.name, dismissHref: `/spaces/${spaceId}` } : undefined}
       policy={space.periodPolicy}
       page={page.data}
       accounts={accounts.data.items}

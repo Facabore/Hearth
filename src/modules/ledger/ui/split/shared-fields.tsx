@@ -6,10 +6,11 @@ import { useEffect, useState } from "react";
 import { memberLabel } from "@/modules/spaces/ui";
 import { Icon } from "@/shared/ui";
 import type { Api } from "@/shared/ui/api/client";
-import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
+import type { Formats } from "@/shared/ui/format/formatters";
 import type { SharedExpenseContext } from "./shared-context";
 import { isUntouched, splitFailureMessage } from "./split-failure";
 import { splitCheckOf, type SplitDraft } from "./split-request";
+import { includedIds } from "./split-summary";
 import { useDefaultSplit } from "./use-default-split";
 
 // The editor's code (the sheet, the preview, the Radix dialog) loads only when a shared expense's rows are opened.
@@ -94,19 +95,21 @@ export function SharedFields({
     memberIds,
     allocation,
   });
+  // U2: one line saying who is included and how it is divided; a split that does not add up says what is missing.
+  const included = includedIds(draft, memberIds, allocation);
+  const nameOf = (id: string) => context.members.find((m) => m.id === id)?.displayName ?? "";
+  const who =
+    included.length === 1
+      ? t("with.one", { a: nameOf(included[0]!) })
+      : included.length === 2
+        ? t("with.two", { a: nameOf(included[0]!), b: nameOf(included[1]!) })
+        : t("with.many", { count: included.length });
+  const how = draft.method === "EQUAL" && included.length === 2 ? t("how.HALF") : t(`how.${draft.method}`);
+  const overview = included.length === 0 ? t(`methods.${draft.method}`) : t("line", { who, how });
   const summary =
-    check === null
-      ? t(`methods.${draft.method}`)
-      : check.ok
-        ? t("summary", {
-            method: t(`methods.${draft.method}`),
-            shares: check.shares
-              .map((s) => `${label(s.memberId)} ${formatMoney({ amount: s.amount, currency }, formats)}`)
-              .join(" · "),
-          })
-        : isUntouched(check, draft)
-          ? t(`methods.${draft.method}`)
-          : splitFailureMessage(check, t, { currency, formats, nameOf: label });
+    check === null || check.ok || isUntouched(check, draft)
+      ? overview
+      : splitFailureMessage(check, t, { currency, formats, nameOf: label });
 
   const { payer } = draft;
   const account =

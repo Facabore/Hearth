@@ -250,7 +250,8 @@
     "allTransactions": "Ver todos los movimientos",
     "allTransactionsShort": "Ver todo",
     "members": "Miembros",
-    "invite": "Invitar"
+    "invite": "Invitar",
+    "funds": "Fondos"
   },
   "settings": {
     "title": "Ajustes",
@@ -294,7 +295,8 @@
       "hint": "Solo cambia los textos. Los formatos de arriba no dependen del idioma.",
       "es": "Español",
       "en": "English"
-    }
+    },
+    "saved": "Guardado"
   },
   "accounts": {
     "title": "Cuentas",
@@ -372,6 +374,16 @@
     "restore": "Restaurar {name}",
     "picker": {
       "empty": "No hay cuentas para elegir. Crea una nueva."
+    },
+    "newFund": "Nuevo fondo",
+    "createFund": "Crear un fondo",
+    "fundsNote": "Cada persona paga desde sus cuentas personales; aquí solo viven los fondos del espacio.",
+    "directNote": "Este espacio es entre dos personas: cada una paga desde sus cuentas personales.",
+    "empty": {
+      "title": "Aún no tienes cuentas",
+      "body": "Agrega dónde tienes tu dinero para empezar a llevar tus cuentas.",
+      "fundsTitle": "Este espacio aún no tiene fondos",
+      "directTitle": "Este espacio no tiene cuentas"
     }
   },
   "categories": {
@@ -493,10 +505,23 @@
       },
       "incomplete": "Escribe el valor de cada persona.",
       "done": "Listo",
-      "summary": "{method} · {shares}",
       "paidBy": "Pagó {payer}",
       "paidFromMine": "Pagas tú desde {account} (tu cuenta personal)",
-      "split": "División"
+      "split": "División",
+      "line": "{who} · {how}",
+      "with": {
+        "one": "Con {a}",
+        "two": "Con {a} y {b}",
+        "many": "Con {count} personas"
+      },
+      "how": {
+        "HALF": "mitad y mitad",
+        "EQUAL": "partes iguales",
+        "PERCENT": "por porcentaje",
+        "EXACT": "por montos",
+        "SHARES": "por partes",
+        "BY_ALLOCATION": "según el plan"
+      }
     },
     "direct": {
       "open": "Dividir con alguien",
@@ -529,6 +554,9 @@
       "COP": "COP · Peso colombiano",
       "USD": "USD · Dólar estadounidense",
       "EUR": "EUR · Euro"
+    },
+    "joined": {
+      "title": "Te uniste a «{space}»"
     }
   },
   "members": {

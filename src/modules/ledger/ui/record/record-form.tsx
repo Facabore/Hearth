@@ -303,6 +303,8 @@ export function RecordForm({
                 clear("amount");
               }}
               symbol={currencyOf(space.currency).symbol}
+              numberFormat={formats.numberFormat}
+              exponent={currencyOf(space.currency).exponent}
               error={errorOf("amount")}
             />
             <TextField

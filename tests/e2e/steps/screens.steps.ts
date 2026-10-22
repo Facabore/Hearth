@@ -212,3 +212,24 @@ When(
     await page.getByRole("link", { name: action, exact: true }).click();
   },
 );
+
+Given("the browser asks for English", async ({ page, world }) => {
+  await page.context().setExtraHTTPHeaders(world.headers({ "accept-language": "en-US,en;q=0.9" }));
+});
+
+When("{string} types the amount {int}", async ({ page, world }, name: string, amount: number) => {
+  expect(name).toBe(world.user!.name);
+  await page.getByLabel(world.t("ledger.form.amount")).pressSequentially(String(amount));
+});
+
+Then("the amount field reads {string}", async ({ page, world }, text: string) => {
+  await expect(page.getByLabel(world.t("ledger.form.amount"))).toHaveValue(text);
+});
+
+Then("the home of {string} welcomes the visitor once", async ({ page, world }, space: string) => {
+  const notice = page.getByRole("status");
+  await expect(notice).toContainText(world.t("spaces.joined.title", { space }));
+  await notice.getByRole("link", { name: world.t("ledger.saved.dismiss") }).click();
+  await expect(page).toHaveURL(new RegExp(`/spaces/${world.spaces.get(space)}$`));
+  await expect(page.getByRole("status")).toHaveCount(0);
+});

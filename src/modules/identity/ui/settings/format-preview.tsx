@@ -5,7 +5,12 @@ import { formatDate, formatNumber, formatTime, type Formats } from "@/shared/ui/
 export function FormatPreview({ formats }: { readonly formats: Formats }) {
   const t = useTranslations("settings");
   return (
-    <div role="status" aria-live="polite" className="rounded-2xl bg-accent-soft p-4 text-ink">
+    <div
+      role="status"
+      aria-live="polite"
+      aria-label={t("preview.label")}
+      className="rounded-2xl bg-accent-soft p-4 text-ink"
+    >
       <p className="text-sm text-muted">{t("preview.label")}</p>
       <p className="mt-1 text-lg font-semibold">
         {formatNumber("1234567.89", formats)} · {formatDate("2026-10-16", formats)} ·{" "}

@@ -57,8 +57,9 @@ describe("settings: region, theme and language (HU-E9-13)", () => {
     view.unmount();
     renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={english} api={api} />, { locale: "en" });
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Settings");
-    expect(normalized(screen.getByRole("status").textContent)).toContain("1,234,567.89");
-    expect(normalized(screen.getByRole("status").textContent)).toContain("2:30 PM");
+    const preview = screen.getByRole("status", { name: "This is how it will look" });
+    expect(normalized(preview.textContent)).toContain("1,234,567.89");
+    expect(normalized(preview.textContent)).toContain("2:30 PM");
   });
 
   it("keeps the visitor cookie when the language change is refused", async () => {

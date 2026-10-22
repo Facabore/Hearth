@@ -14,6 +14,7 @@ import { AppearanceSection } from "./appearance-section";
 import { FormatPreview } from "./format-preview";
 import { PreferenceRow } from "./preference-row";
 import { RegionSection } from "./region-section";
+import { useSavedFlash } from "./saved-flash";
 import {
   choose,
   chooseRegion,
@@ -53,6 +54,7 @@ export function SettingsForm({
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   const [current, setCurrent] = useState<MeDto>(me);
   const [problems, setProblems] = useState<Partial<Record<Field, Problem>>>({});
+  const { saved, flash } = useSavedFlash<Field>();
   const preferences = current.preferences;
 
   /** Optimistic: the change applies at once and is rolled back, with its error on its row, when refused. */
@@ -65,6 +67,7 @@ export function SettingsForm({
       const { data, error, response } = await api.PATCH("/api/v1/me", { body: patch });
       if (data) {
         setCurrent(data);
+        flash(field);
         if (field === "locale") {
           rememberLocale(data.locale);
           router.refresh();
@@ -98,6 +101,7 @@ export function SettingsForm({
       onChoose={(value) => sendFormat(field, choose(preferences, field, value))}
       onReset={() => sendFormat(field, reset(preferences, field))}
       problem={problems[field] ?? null}
+      saved={saved === field}
     />
   );
 
@@ -132,6 +136,7 @@ export function SettingsForm({
         onChoose={(zone) => sendRegion("timezone", zone)}
         onReset={() => sendRegion("timezone", preferences.defaults.timezone)}
         problem={problems.timezone ?? null}
+        saved={saved === "timezone"}
       />
       <AppearanceSection
         locale={current.locale}
@@ -139,6 +144,7 @@ export function SettingsForm({
         onLocale={(locale) => sendRegion("locale", locale)}
         onLocaleReset={() => sendRegion("locale", preferences.defaults.locale)}
         problem={problems.locale ?? null}
+        localeSaved={saved === "locale"}
       />
     </div>
   );

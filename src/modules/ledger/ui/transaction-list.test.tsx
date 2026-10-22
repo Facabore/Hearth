@@ -52,6 +52,28 @@ const groups = rowContext.groups;
 const expense = octoberExpense;
 
 describe("transaction list (HU-E9-03)", () => {
+  it("names the space under the title when it is a shared or direct one, so a move into it is no surprise (U7)", () => {
+    renderWithIntl(
+      <TransactionList
+        spaceId="sp-direct"
+        spaceName="Ana & Juan"
+        page={page}
+        context={context}
+        today="2026-10-31"
+        filter={{}}
+      />,
+    );
+    const title = screen.getByRole("heading", { level: 1, name: "Movimientos" });
+    expect(title.nextElementSibling).toHaveTextContent("Ana & Juan");
+  });
+
+  it("shows no space name in a personal space", () => {
+    renderWithIntl(
+      <TransactionList spaceId="sp-personal" page={page} context={context} today="2026-10-31" filter={{}} />,
+    );
+    expect(screen.getByRole("heading", { level: 1, name: "Movimientos" }).nextElementSibling).toBeNull();
+  });
+
   it("groups by day, newest first, with times, category paths and the period totals", async () => {
     const { container } = renderWithIntl(
       <TransactionList
@@ -573,6 +595,23 @@ describe("the list container (HU-E9-03, HU-E9-02)", () => {
       context: { memberNames: { "m-ana": "Ana", "m-juan": "Juan" } },
       notice: { accountName: "Fondo Hogar", balance: cop(-500_000) },
     });
+  });
+
+  it("names a shared or direct space under Movimientos, and a personal one not at all (U7)", async () => {
+    mocks.getMe.mockResolvedValue(meDto());
+    mocks.getSpaces.mockResolvedValue([
+      spaceDto({ id: "sp-direct", name: "Ana & Juan", kind: "DIRECT" }),
+      householdSpace(),
+      spaceDto(),
+    ]);
+    mocks.serverApi.mockResolvedValue(fakeApi(fundRoutes(0)).api);
+    expect(propsOf(await TransactionListContainer({ spaceId: "sp-direct" }))).toMatchObject({
+      spaceName: "Ana & Juan",
+    });
+    expect(propsOf(await TransactionListContainer({ spaceId: "sp-household" }))).toMatchObject({
+      spaceName: "Household",
+    });
+    expect(propsOf(await TransactionListContainer({ spaceId: "sp-personal" })).spaceName).toBeUndefined();
   });
 
   it("names the members of a direct space too", async () => {

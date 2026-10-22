@@ -10,6 +10,8 @@ export interface MemberControls {
   readonly claimLinks: boolean;
   readonly removeGuests: boolean;
   readonly recordMoney: boolean;
+  /** Create a shared fund (U1). */
+  readonly manageFunds: boolean;
 }
 
 /**
@@ -23,6 +25,7 @@ export const SPACE_CONTROLS = {
   claimLinks: ["OWNER", "ADMIN"],
   removeGuests: ["OWNER", "ADMIN", "MEMBER"],
   recordMoney: ["OWNER", "ADMIN", "MEMBER"],
+  manageFunds: ["OWNER", "ADMIN"],
 } as const satisfies Record<keyof MemberControls, readonly SpaceRole[]>;
 
 /**
@@ -40,5 +43,6 @@ export const controlsFor = (role: SpaceRole | null, kind: SpaceDto["kind"]): Mem
     claimLinks: kind !== "PERSONAL" && has("claimLinks"),
     removeGuests: shared && has("removeGuests"),
     recordMoney: has("recordMoney"),
+    manageFunds: shared && has("manageFunds"),
   };
 };

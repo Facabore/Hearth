@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { controlsFor } from "@/modules/spaces/ui";
+import { controlsFor, JoinedNotice } from "@/modules/spaces/ui";
 import { Icon, SymbolIcon } from "@/shared/ui";
 import type { AccountDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
 import { formatDate, formatMoney } from "@/shared/ui/format/formatters";
@@ -16,6 +16,7 @@ export function HomeSummary({
   spaceId,
   kind = "PERSONAL",
   role = null,
+  joined,
   policy,
   page,
   accounts,
@@ -25,6 +26,8 @@ export function HomeSummary({
   /** N10: a shared or direct space leads to its members; whoever may invite also gets Invitar. */
   readonly kind?: SpaceDto["kind"];
   readonly role?: SpaceDto["role"];
+  /** U6: set right after accepting an invitation (`?joined=1`): the one-time welcome and where dismissing it goes. */
+  readonly joined?: { readonly space: string; readonly dismissHref: string } | undefined;
   readonly policy: SpaceDto["periodPolicy"];
   readonly page: TransactionPageDto;
   readonly accounts: readonly AccountDto[];
@@ -37,10 +40,18 @@ export function HomeSummary({
   const link = "flex min-h-11 items-center text-sm font-medium text-accent";
   const pill =
     "flex min-h-11 items-center gap-2 rounded-full border border-line bg-surface px-4 text-sm font-semibold text-ink";
-  const canInvite = controlsFor(role, kind).invite;
+  const controls = controlsFor(role, kind);
+  const canInvite = controls.invite;
+  const accountsNote = useTranslations("accounts");
+  const personal = kind === "PERSONAL";
   return (
     <div className="grid grid-cols-1 gap-6 py-4 lg:grid-cols-2">
       <h1 className="sr-only">{t("title")}</h1>
+      {joined ? (
+        <div className="lg:col-span-2">
+          <JoinedNotice space={joined.space} dismissHref={joined.dismissHref} />
+        </div>
+      ) : null}
       <div className="flex min-w-0 flex-col gap-6">
         {kind !== "PERSONAL" ? (
           <div className="flex flex-wrap gap-2">
@@ -56,7 +67,7 @@ export function HomeSummary({
             ) : null}
           </div>
         ) : null}
-        {accounts.length === 0 ? (
+        {personal && accounts.length === 0 ? (
           <section
             aria-labelledby="home-first-account"
             className="flex flex-col items-start gap-3 rounded-2xl bg-surface p-5"
@@ -90,29 +101,46 @@ export function HomeSummary({
                 {t("income", { amount: formatMoney(page.totals.income, formats) })}
               </p>
             </section>
-            <section aria-labelledby="home-accounts" className="flex min-w-0 flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <h2 id="home-accounts" className="text-lg font-semibold text-ink">
-                  {t("accounts")}
-                </h2>
-                <Link href={`/spaces/${spaceId}/accounts`} aria-label={t("allAccounts")} className={link}>
-                  {t("allAccountsShort")}
+            {personal ? null : (
+              <p className="text-sm text-muted">
+                {kind === "DIRECT" ? accountsNote("directNote") : accountsNote("fundsNote")}
+              </p>
+            )}
+            {accounts.length === 0 ? (
+              kind === "SHARED" && controls.manageFunds ? (
+                <Link
+                  href={withReturnTo(`/spaces/${spaceId}/accounts/new`, `/spaces/${spaceId}`)}
+                  className="flex min-h-11 items-center justify-center gap-2 self-start rounded-full bg-accent px-5 text-sm font-semibold text-on-accent"
+                >
+                  <Icon name="plus" size={18} />
+                  {accountsNote("createFund")}
                 </Link>
-              </div>
-              <ul className="flex gap-3 overflow-x-auto pb-1">
-                {accounts.map((account) => (
-                  <li
-                    key={account.id}
-                    className="flex w-[156px] shrink-0 flex-col rounded-2xl bg-surface p-4"
-                  >
-                    <span className="truncate text-sm text-muted">{account.name}</span>
-                    <span className="font-semibold [overflow-wrap:anywhere] text-ink">
-                      {formatMoney(account.balance, formats)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
+              ) : null
+            ) : (
+              <section aria-labelledby="home-accounts" className="flex min-w-0 flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <h2 id="home-accounts" className="text-lg font-semibold text-ink">
+                    {personal ? t("accounts") : t("funds")}
+                  </h2>
+                  <Link href={`/spaces/${spaceId}/accounts`} aria-label={t("allAccounts")} className={link}>
+                    {t("allAccountsShort")}
+                  </Link>
+                </div>
+                <ul className="flex gap-3 overflow-x-auto pb-1">
+                  {accounts.map((account) => (
+                    <li
+                      key={account.id}
+                      className="flex w-[156px] shrink-0 flex-col rounded-2xl bg-surface p-4"
+                    >
+                      <span className="truncate text-sm text-muted">{account.name}</span>
+                      <span className="font-semibold [overflow-wrap:anywhere] text-ink">
+                        {formatMoney(account.balance, formats)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
           </>
         )}
       </div>

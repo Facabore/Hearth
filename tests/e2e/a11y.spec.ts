@@ -34,6 +34,11 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page.goto(`/spaces/${spaceId}`);
       await expect(page.getByText(es.home.firstAccount.title)).toBeVisible();
       await scan("home of a space without accounts");
+      // U4: the accounts screen of a person with no accounts is an empty state with its action.
+      await page.goto(`/spaces/${spaceId}/accounts`);
+      await expect(page.getByRole("heading", { name: es.accounts.empty.title })).toBeVisible();
+      await scan("accounts screen without accounts");
+      await page.goto(`/spaces/${spaceId}`);
       await page.getByRole("button", { name: es.shell.space.current.replace("{name}", "Personal") }).click();
       await scan("space sheet");
       await page.keyboard.press("Escape");

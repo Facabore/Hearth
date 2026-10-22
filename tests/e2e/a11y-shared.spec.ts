@@ -122,6 +122,17 @@ for (const colorScheme of ["light", "dark"] as const) {
         await page.goto(path);
         await scan(path);
       }
+      // U1: a shared space with no funds explains them instead of asking for a first account.
+      const bare = await post(page, "/api/v1/spaces", { kind: "SHARED", name: "Vacía", currency: "COP" });
+      for (const path of [`/spaces/${bare.id}`, `/spaces/${bare.id}/accounts`]) {
+        await page.goto(path);
+        await expect(page.getByText(es.accounts.fundsNote)).toBeVisible();
+        await scan(`${path} without funds`);
+      }
+      // U6: the one-time welcome after accepting an invitation.
+      await page.goto(`${h}?joined=1`);
+      await expect(page.getByRole("status")).toContainText("Household");
+      await scan("home with the joined notice");
       await page.goto(`${h}/members`);
       await page.getByRole("button", { name: es.members.invite }).click();
       await page.getByRole("button", { name: es.members.inviteSheet.createLink }).click();

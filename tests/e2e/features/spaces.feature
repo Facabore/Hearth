@@ -7,4 +7,5 @@ Feature: Spaces and members screens
     Then the invitation page shows the space "Household" and the role "MEMBER"
     When the visitor signs up as "juan@example.com"
     Then the visitor is returned to the invitation and accepts it
+    And the home of "Household" welcomes the visitor once
     And the members screen of "Household" lists "Juan" as "Member"

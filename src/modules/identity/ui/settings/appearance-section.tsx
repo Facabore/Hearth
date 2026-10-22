@@ -6,6 +6,7 @@ import { ChoiceGroup } from "@/shared/ui";
 import type { Problem } from "@/shared/ui/api/problem";
 import { readTheme, saveTheme, type Theme } from "@/shared/ui/theme/theme";
 import { PreferenceRow } from "./preference-row";
+import { SavedFlash, useSavedFlash } from "./saved-flash";
 
 const THEMES = ["system", "light", "dark"] as const;
 const LOCALES = ["es", "en"] as const;
@@ -23,12 +24,15 @@ export function AppearanceSection({
   onLocale,
   onLocaleReset,
   problem,
+  localeSaved = false,
 }: {
   readonly locale: string;
   readonly localeState: "locked" | "default" | "custom";
   readonly onLocale: (locale: AppLocale) => void;
   readonly onLocaleReset: () => void;
   readonly problem: Problem | null;
+  /** U5: the language was just stored. */
+  readonly localeSaved?: boolean;
 }) {
   const t = useTranslations("settings");
   // The device's stored theme, read after hydration (the server always renders "system").
@@ -38,13 +42,16 @@ export function AppearanceSection({
     () => "system" as Theme,
   );
   const [chosen, setChosen] = useState<Theme | null>(null);
+  // The theme is stored on the device at once, so it says so itself (U5).
+  const themeSaved = useSavedFlash<"theme">();
   return (
     <section aria-labelledby="settings-appearance" className="flex flex-col gap-5">
       <h2 id="settings-appearance" className="text-lg font-semibold text-ink">
         {t("appearance")}
       </h2>
-      <fieldset className="flex flex-col gap-2">
+      <fieldset className="relative flex flex-col gap-2">
         <legend className="mb-2 text-sm font-medium text-ink">{t("field.theme")}</legend>
+        <SavedFlash show={themeSaved.saved === "theme"} className="top-0" />
         <ChoiceGroup
           label={t("field.theme")}
           value={chosen ?? stored}
@@ -52,6 +59,7 @@ export function AppearanceSection({
           onValueChange={(theme) => {
             saveTheme(theme);
             setChosen(theme);
+            themeSaved.flash("theme");
           }}
         />
       </fieldset>
@@ -65,6 +73,7 @@ export function AppearanceSection({
           onChoose={onLocale}
           onReset={onLocaleReset}
           problem={problem}
+          saved={localeSaved}
         />
         <p className="text-sm text-muted">{t("language.hint")}</p>
       </div>

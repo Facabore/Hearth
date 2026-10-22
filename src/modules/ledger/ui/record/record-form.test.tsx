@@ -100,6 +100,16 @@ describe("the account picker can create an account and come back (N7)", () => {
   });
 });
 
+describe("the amount of a record groups its digits in the currency's own way (U3)", () => {
+  it("groups the whole part and keeps the decimals the currency has", async () => {
+    form(fakeApi({}).api);
+    // Pasted whole, so it is grouped in one step: the currency's decimals decide whether the comma is a point.
+    await userEvent.click(screen.getByLabelText("Monto"));
+    await userEvent.paste("1234567,5");
+    expect(screen.getByLabelText("Monto")).toHaveValue("1.234.567,5");
+  });
+});
+
 describe("record form (HU-E9-03)", () => {
   it("records a personal expense now, in the browser's zone, with one idempotency key", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
@@ -236,7 +246,7 @@ describe("record form (HU-E9-03)", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: field })).toHaveAccessibleDescription(message),
     );
-    expect(screen.getByLabelText("Monto")).toHaveValue("85000");
+    expect(screen.getByLabelText("Monto")).toHaveValue("85.000");
     expect(screen.getByRole("button", { name: "Guardar gasto" })).toBeEnabled();
   });
 

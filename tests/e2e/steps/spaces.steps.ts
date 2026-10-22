@@ -51,7 +51,8 @@ Then("the visitor is returned to the invitation and accepts it", async ({ page, 
   await expect(page).toHaveURL(invitation);
   const space = [...world.spaces.keys()][0]!;
   await page.getByRole("button", { name: world.t("invitation.accept", { space }) }).click();
-  await expect(page).toHaveURL(`/spaces/${world.spaces.get(space)}`);
+  // U6: accepting lands on the space with a one-time welcome, not a silent jump.
+  await expect(page).toHaveURL(`/spaces/${world.spaces.get(space)}?joined=1`);
 });
 
 Then(
