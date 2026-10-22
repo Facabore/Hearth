@@ -429,3 +429,52 @@ describe("lists and edits of timed transactions (HU-E4-14)", () => {
     expect(after).toMatchObject({ date: "2026-10-31", timeZone: "America/Bogota" });
   });
 });
+
+describe("a clock change never moves a transaction off its date (issue 119, D19)", () => {
+  const auditOf = async (a: Ana, tx: TransactionDto) => {
+    const response = await call(
+      listAudit,
+      "GET",
+      `/api/v1/spaces/${a.user.spaceId}/transactions/${tx.id}/audit`,
+      { user: a.user, params: { spaceId: a.user.spaceId, transactionId: tx.id } },
+    );
+    return ((await response.json()) as { items: { changes: Record<string, unknown> }[] }).items;
+  };
+
+  it("keeps a move onto a day whose time of day is skipped at its end on that day, and accepts it again", async () => {
+    const a = await ana();
+    // 23:00 → 24:00 on 2026-03-28 in Nuuk: 23:30 does not exist that day.
+    const late = await recorded(
+      await expense(a, { occurredAt: "2026-03-27T23:30:00-02:00", timeZone: "America/Nuuk" }),
+    );
+    expect(late).toMatchObject({ date: "2026-03-27", occurredAt: "2026-03-28T01:30:00.000Z" });
+    const moved = await edit(a, late, { date: "2026-03-28" });
+    expect(moved.status).toBe(200);
+    const resent = await recorded(moved);
+    expect(resent).toMatchObject({ date: "2026-03-28", occurredAt: "2026-03-29T00:59:59.999Z" });
+    // The instant it answers and the date it answers belong together: sending both back is no mismatch.
+    const again = await edit(a, resent, { date: resent.date, occurredAt: resent.occurredAt });
+    expect(again.status).toBe(200);
+    expect(await recorded(again)).toMatchObject({
+      date: "2026-03-28",
+      occurredAt: "2026-03-29T00:59:59.999Z",
+    });
+  });
+
+  it("keeps the second 02:30 of a repeated hour when a date alone resends the stored date, and audits nothing", async () => {
+    const a = await ana();
+    // 03:00 → 02:00 on 2026-10-25 in Madrid: 02:30 CET is the second 02:30 of that night.
+    const second = await recorded(
+      await expense(a, { occurredAt: "2026-10-25T02:30:00+01:00", timeZone: "Europe/Madrid" }),
+    );
+    expect(second).toMatchObject({ date: "2026-10-25", occurredAt: "2026-10-25T01:30:00.000Z" });
+    const same = await edit(a, second, { date: "2026-10-25" });
+    expect(same.status).toBe(200);
+    expect(await recorded(same)).toMatchObject({
+      date: "2026-10-25",
+      occurredAt: "2026-10-25T01:30:00.000Z",
+    });
+    expect(await recorded(await read(a, second))).toMatchObject({ occurredAt: "2026-10-25T01:30:00.000Z" });
+    expect(await auditOf(a, second)).toEqual([]);
+  });
+});

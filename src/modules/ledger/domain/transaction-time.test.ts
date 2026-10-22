@@ -5,6 +5,7 @@ import { retimed, timeOf, type TransactionTime } from "./transaction-time";
 
 const BOGOTA = "America/Bogota";
 const MADRID = "Europe/Madrid";
+const NUUK = "America/Nuuk";
 const day = (iso: string) => iso as LocalDate;
 const now = new Date("2026-10-17T03:30:00Z");
 const coffee: TransactionTime = {
@@ -197,6 +198,57 @@ describe("retimed (HU-E4-06, HU-E4-14)", () => {
       timeZone: BOGOTA,
     });
     expect(unwrap(retimed(coffee, { timeZone: MADRID }, BOGOTA))).toEqual(coffee);
+  });
+
+  it("keeps the date when the wall-clock time falls in a gap that ends the day (issue 119, D19)", () => {
+    // 23:00 → 24:00 on 2026-03-28 in Nuuk: 23:30 does not exist there, and the old rule landed on 2026-03-29.
+    const nuuk: TransactionTime = {
+      date: day("2026-03-27"),
+      occurredAt: new Date("2026-03-28T01:30:00Z"),
+      timeZone: NUUK,
+    };
+    const moved = unwrap(retimed(nuuk, { date: day("2026-03-28") }, BOGOTA));
+    expect(moved).toEqual({
+      date: "2026-03-28",
+      occurredAt: new Date("2026-03-29T00:59:59.999Z"),
+      timeZone: NUUK,
+    });
+    // A later PATCH resending that instant with the stored date agrees with it.
+    expect(unwrap(retimed(moved, { date: day("2026-03-28"), occurredAt: moved.occurredAt }, BOGOTA))).toEqual(
+      moved,
+    );
+  });
+
+  it("keeps the stored instant when a date alone resends the stored date (issue 119)", () => {
+    // 03:00 → 02:00 on 2026-10-25 in Madrid: 02:30 CET (01:30Z) is the second 02:30 of the night.
+    const second: TransactionTime = {
+      date: day("2026-10-25"),
+      occurredAt: new Date("2026-10-25T01:30:00Z"),
+      timeZone: MADRID,
+    };
+    expect(unwrap(retimed(second, { date: day("2026-10-25") }, BOGOTA))).toEqual(second);
+    // A move away keeps the wall-clock time as before, and so does a move back onto a repeated hour (the first one).
+    const away = unwrap(retimed(second, { date: day("2026-10-24") }, BOGOTA));
+    expect(away.occurredAt).toEqual(new Date("2026-10-24T00:30:00Z"));
+    expect(unwrap(retimed(away, { date: day("2026-10-25") }, BOGOTA)).occurredAt).toEqual(
+      new Date("2026-10-25T00:30:00Z"),
+    );
+    // The same date on a transaction without a time changes nothing either.
+    expect(unwrap(retimed(untimed, { date: untimed.date }, BOGOTA))).toEqual(untimed);
+  });
+
+  it("gives a date alone the wall-clock time of now, kept on the date when it is skipped at the end of the day", () => {
+    // `now` is 23:30 on 2026-03-26 in Nuuk (UTC-2); on 2026-03-28 that time does not exist.
+    const evening = new Date("2026-03-27T01:30:00Z");
+    const made = unwrap(timeOf({ date: day("2026-03-28"), timeZone: NUUK, now: evening }));
+    expect(made).toEqual({
+      date: "2026-03-28",
+      occurredAt: new Date("2026-03-29T00:59:59.999Z"),
+      timeZone: NUUK,
+    });
+    expect(
+      unwrap(timeOf({ date: made.date, occurredAt: made.occurredAt, timeZone: NUUK, now: evening })),
+    ).toEqual(made);
   });
 
   it("moves a skipped 02:30 forward when a Madrid expense moves onto 2026-03-29 (Review Focus 1)", () => {
