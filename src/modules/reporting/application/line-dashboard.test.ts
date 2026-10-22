@@ -80,6 +80,48 @@ describe("line dashboard (HU-E7-01)", () => {
     });
   });
 
+  it("names the line each category consumes: a subcategory its parent's, an unmapped one none (ruling P234 of M6c)", async () => {
+    const w = reportingWorld();
+    await w.plan("2026-11", referenceParts());
+    expect(unwrap(await read(w)).categoryLines).toEqual([
+      { categoryId: "cat-groceries", lineId: "line-home" },
+      { categoryId: "cat-utilities", lineId: "line-home" },
+      { categoryId: "cat-outings", lineId: null },
+      { categoryId: "cat-restaurants", lineId: null },
+      { categoryId: "cat-old", lineId: null },
+      { categoryId: "cat-vegetables", lineId: "line-home" },
+      { categoryId: "cat-meat", lineId: "line-home" },
+    ]);
+  });
+
+  it("sends every unmapped category to the catch-all line, and names no line for a period without a plan", async () => {
+    const w = reportingWorld();
+    await w.plan("2026-11", { ...referenceParts(), lines: referenceLines() });
+    expect(unwrap(await read(w)).categoryLines).toContainEqual({
+      categoryId: "cat-restaurants",
+      lineId: "line-free",
+    });
+    expect(unwrap(await read(w, "u-ana", "2027-01")).categoryLines).toEqual([]);
+  });
+
+  it("answers each line's state against planned plus carry-over, and an overspent line's overage (ruling P244 of M6c)", async () => {
+    const w = reportingWorld();
+    await w.plan("2026-11", referenceParts());
+    w.spending.expenses[NOVEMBER] = novemberSpending();
+    // Rent 100 % used, Home 88.4 %, Savings is never measured, Free 34.2 %.
+    expect(unwrap(await read(w)).lines.map((l) => [l.name, l.state, l.overBy])).toEqual([
+      ["Rent", "HIGH", null],
+      ["Home", "NEAR", null],
+      ["Savings", "OK", null],
+      ["Free", "OK", null],
+    ]);
+    w.spending.expenses[NOVEMBER] = novemberSpending().map((s) =>
+      s.categoryId === "cat-groceries" ? { ...s, amount: pesos(1_200_000) } : s,
+    );
+    const home = unwrap(await read(w)).lines.find((l) => l.name === "Home")!;
+    expect([home.available, home.state, home.overBy]).toEqual([-pesos(130_000), "OVER", pesos(130_000)]);
+  });
+
   it("counts an expense on a subcategory of Groceries on Home's line, as the plan does (D20)", async () => {
     const w = reportingWorld();
     await w.plan("2026-11", referenceParts());
@@ -144,7 +186,30 @@ describe("line dashboard (HU-E7-01)", () => {
     expect(unwrap(await read(w)).lines.find((l) => l.name === "Home")).toMatchObject({
       carryOver: pesos(200_000),
       available: pesos(370_000),
+      state: "OK",
+      overBy: null,
     });
+    // 1,340,000 of planned + carry-over (1,670,000) is 80.2 %: measured against planned alone it would read OK.
+    w.spending.expenses[NOVEMBER] = novemberSpending().map((s) =>
+      s.categoryId === "cat-groceries" ? { ...s, amount: pesos(940_000) } : s,
+    );
+    expect(unwrap(await read(w)).lines.find((l) => l.name === "Home")).toMatchObject({
+      available: pesos(330_000),
+      state: "NEAR",
+    });
+  });
+
+  it("never measures a SAVINGS line, even one that took in transfers past its plan (ruling P244 of M6c)", async () => {
+    const w = reportingWorld();
+    await w.plan("2026-11", referenceParts());
+    w.spending.transfers[NOVEMBER] = [{ accountId: "acc-savings", amount: pesos(700_000) }];
+    const savings = unwrap(await read(w)).lines.find((l) => l.name === "Savings")!;
+    expect([savings.available, savings.overspent, savings.state, savings.overBy]).toEqual([
+      -pesos(100_000),
+      true,
+      "OK",
+      null,
+    ]);
   });
 
   it("reports every expense of a period without a plan under Unbudgeted, and that no plan exists", async () => {

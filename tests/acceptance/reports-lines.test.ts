@@ -53,6 +53,17 @@ describe("line dashboard over HTTP (HU-E7-01)", () => {
       spent: cop(2_810_000),
       available: cop(1_190_000),
     });
+    expect(dashboard.categoryLines).toContainEqual({
+      categoryId: r.category.groceries,
+      lineId: r.lineId("Home"),
+    });
+    expect(dashboard.categoryLines).toContainEqual({ categoryId: r.category.restaurants, lineId: null });
+    expect(dashboard.lines.map((l) => [l.name, l.state, l.overBy])).toEqual([
+      ["Rent", "HIGH", null],
+      ["Home", "NEAR", null],
+      ["Savings", "OK", null],
+      ["Free", "OK", null],
+    ]);
   });
 
   it("shows each line's figures exactly as the plan view does, carry-over included (P32)", async () => {
@@ -91,6 +102,7 @@ describe("line dashboard over HTTP (HU-E7-01)", () => {
     expect(dashboard).toMatchObject({ plan: null, lines: [], period: { label: "2027-01" } });
     expect(dashboard.unbudgeted).toEqual({ spent: cop(100_000), available: cop(-100_000), overspent: true });
     expect(dashboard.totals).toEqual({ planned: cop(0), spent: cop(100_000), available: cop(-100_000) });
+    expect(dashboard.categoryLines).toEqual([]);
   });
 
   it("answers 401 without a session, before it looks at the space or the period (issue 131)", async () => {

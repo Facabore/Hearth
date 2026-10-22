@@ -45,6 +45,8 @@ export interface DashboardLineDto {
   carryOver: MoneyDto;
   available: MoneyDto;
   overspent: boolean;
+  state: string;
+  overBy: MoneyDto | null;
 }
 export interface LineDashboardDto {
   spaceId: string;
@@ -53,6 +55,7 @@ export interface LineDashboardDto {
   lines: DashboardLineDto[];
   unbudgeted: { spent: MoneyDto; available: MoneyDto; overspent: boolean } | null;
   totals: { planned: MoneyDto; spent: MoneyDto; available: MoneyDto };
+  categoryLines: { categoryId: string; lineId: string | null }[];
 }
 
 /** GETs `path` with `query` in its search string as `user`; `params` are the route's path parameters. */

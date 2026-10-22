@@ -1,5 +1,6 @@
-import type { Funding } from "@/modules/budgeting/application";
+import { categoryLinesOf, type CategoryLine, type Funding } from "@/modules/budgeting/application";
 import { ok, type Period, type Result } from "@/shared/kernel";
+import { lineStateOf, type LineState } from "@/shared/kernel/line-state";
 import type { ReportingDeps } from "./deps";
 import { reportPlanOf, spaceReport, type ReportPlan, type SpaceReportInput } from "./space-report";
 
@@ -14,6 +15,10 @@ export interface DashboardLine {
   readonly carryOver: bigint;
   readonly available: bigint;
   readonly overspent: boolean;
+  /** Ruling P244 (M6c): of planned + carry-over; a SAVINGS line is always OK. */
+  readonly state: LineState;
+  /** How much an OVER line went past its budget, positive; null otherwise. */
+  readonly overBy: bigint | null;
 }
 
 /** Spending no line consumes, available = −spent (HU-E6-04); `overspent` once anything was spent there. */
@@ -44,6 +49,8 @@ export interface LineDashboard {
   /** Null when the plan has a catch-all line, which consumes every unmapped category (HU-E6-04, ruling P34). */
   readonly unbudgeted: UnbudgetedSpending | null;
   readonly totals: LineTotals;
+  /** Ruling P234 (M6c): the line each live category consumes; [] without a plan. */
+  readonly categoryLines: readonly CategoryLine[];
 }
 
 export type GetLineDashboard = (input: SpaceReportInput) => Promise<Result<LineDashboard>>;
@@ -74,7 +81,7 @@ export const createGetLineDashboard =
     if (view === null) {
       const spending = await deps.spending.expensesByCategory(space.spaceId, period.start, period.end);
       const rest = unbudgeted(spending.reduce((sum, c) => sum + c.amount, 0n));
-      return ok({ ...base, lines: [], unbudgeted: rest, totals: totalsOf([], rest) });
+      return ok({ ...base, lines: [], unbudgeted: rest, totals: totalsOf([], rest), categoryLines: [] });
     }
     const { figures } = view;
     const lines = figures.lines.map((f) => ({
@@ -87,7 +94,12 @@ export const createGetLineDashboard =
       carryOver: f.carryOver,
       available: f.available,
       overspent: f.available < 0n,
+      // Ruling P244 (M6c): a savings line reaching its plan is the goal, so it is never measured.
+      state:
+        f.line.funding === "SAVINGS" ? "OK" : lineStateOf(f.line.plannedAmount + f.carryOver, f.available),
+      overBy: f.line.funding !== "SAVINGS" && f.available < 0n ? -f.available : null,
     }));
     const rest = figures.unbudgeted === null ? null : unbudgeted(figures.unbudgeted.spent);
-    return ok({ ...base, lines, unbudgeted: rest, totals: totalsOf(lines, rest) });
+    const categoryLines = categoryLinesOf(view, await deps.categories.list(space.spaceId));
+    return ok({ ...base, lines, unbudgeted: rest, totals: totalsOf(lines, rest), categoryLines });
   };

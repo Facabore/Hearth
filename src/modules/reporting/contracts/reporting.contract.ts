@@ -63,6 +63,14 @@ export const LineDashboardSchema = z.object({
       available: MoneySchema,
       /** The available amount is negative. */
       overspent: z.boolean(),
+      state: z
+        .enum(["OK", "NEAR", "HIGH", "OVER"])
+        .describe(
+          "Of planned + carry-over: NEAR from 80 % used, HIGH above 90 %, OVER below 0 left; a SAVINGS line is always OK.",
+        ),
+      overBy: MoneySchema.nullable().describe(
+        "How much an OVER line went past its budget, positive; null otherwise.",
+      ),
     }),
   ),
   unbudgeted: z
@@ -75,6 +83,11 @@ export const LineDashboardSchema = z.object({
     .object({ planned: MoneySchema, spent: MoneySchema, available: MoneySchema })
     .describe(
       "Σ of the lines' figures plus Unbudgeted's spent and available; planned counts the lines only.",
+    ),
+  categoryLines: z
+    .array(z.object({ categoryId: z.string(), lineId: z.string().nullable() }))
+    .describe(
+      "Every live category of the space with the line its expenses consume in the plan: its mapped line, its parent's line for a subcategory, else the catch-all line; null for Unbudgeted. Empty without a plan.",
     ),
 });
 
@@ -101,6 +114,8 @@ export const lineDashboardDto = (dashboard: LineDashboard): z.infer<typeof LineD
     carryOver: moneyOf(line.carryOver, dashboard.currency),
     available: moneyOf(line.available, dashboard.currency),
     overspent: line.overspent,
+    state: line.state,
+    overBy: line.overBy === null ? null : moneyOf(line.overBy, dashboard.currency),
   })),
   unbudgeted: unbudgetedDto(dashboard.unbudgeted, dashboard.currency),
   totals: {
@@ -108,6 +123,7 @@ export const lineDashboardDto = (dashboard: LineDashboard): z.infer<typeof LineD
     spent: moneyOf(dashboard.totals.spent, dashboard.currency),
     available: moneyOf(dashboard.totals.available, dashboard.currency),
   },
+  categoryLines: dashboard.categoryLines.map((c) => ({ categoryId: c.categoryId, lineId: c.lineId })),
 });
 
 /** HU-E7-02: every line of the period's plan with every current member's figures (spec 5.4, ruling P35). */

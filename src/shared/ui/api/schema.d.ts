@@ -7004,6 +7004,13 @@ export interface operations {
                             carryOver: components["schemas"]["MoneyOutput"];
                             available: components["schemas"]["MoneyOutput"];
                             overspent: boolean;
+                            /**
+                             * @description Of planned + carry-over: NEAR from 80 % used, HIGH above 90 %, OVER below 0 left; a SAVINGS line is always OK.
+                             * @enum {string}
+                             */
+                            state: "OK" | "NEAR" | "HIGH" | "OVER";
+                            /** @description How much an OVER line went past its budget, positive; null otherwise. */
+                            overBy: components["schemas"]["MoneyOutput"] | null;
                         }[];
                         /** @description What no line consumes, every expense when the period has no plan; null when the plan has a catch-all line. */
                         unbudgeted: {
@@ -7017,6 +7024,11 @@ export interface operations {
                             spent: components["schemas"]["MoneyOutput"];
                             available: components["schemas"]["MoneyOutput"];
                         };
+                        /** @description Every live category of the space with the line its expenses consume in the plan: its mapped line, its parent's line for a subcategory, else the catch-all line; null for Unbudgeted. Empty without a plan. */
+                        categoryLines: {
+                            categoryId: string;
+                            lineId: string | null;
+                        }[];
                     };
                 };
             };

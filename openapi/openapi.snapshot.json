@@ -9685,6 +9685,27 @@
                           },
                           "overspent": {
                             "type": "boolean"
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "OK",
+                              "NEAR",
+                              "HIGH",
+                              "OVER"
+                            ],
+                            "description": "Of planned + carry-over: NEAR from 80 % used, HIGH above 90 %, OVER below 0 left; a SAVINGS line is always OK."
+                          },
+                          "overBy": {
+                            "anyOf": [
+                              {
+                                "$ref": "#/components/schemas/MoneyOutput"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "How much an OVER line went past its budget, positive; null otherwise."
                           }
                         },
                         "required": [
@@ -9696,7 +9717,9 @@
                           "spent",
                           "carryOver",
                           "available",
-                          "overspent"
+                          "overspent",
+                          "state",
+                          "overBy"
                         ],
                         "additionalProperties": false
                       }
@@ -9749,6 +9772,29 @@
                       ],
                       "additionalProperties": false,
                       "description": "Σ of the lines' figures plus Unbudgeted's spent and available; planned counts the lines only."
+                    },
+                    "categoryLines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "categoryId": {
+                            "type": "string"
+                          },
+                          "lineId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "categoryId",
+                          "lineId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "Every live category of the space with the line its expenses consume in the plan: its mapped line, its parent's line for a subcategory, else the catch-all line; null for Unbudgeted. Empty without a plan."
                     }
                   },
                   "required": [
@@ -9757,7 +9803,8 @@
                     "plan",
                     "lines",
                     "unbudgeted",
-                    "totals"
+                    "totals",
+                    "categoryLines"
                   ],
                   "additionalProperties": false
                 }
