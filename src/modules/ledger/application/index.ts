@@ -70,6 +70,11 @@ export {
 } from "./edit-transaction";
 export { createListAudit, type ListAudit } from "./list-audit";
 export {
+  createListScheduledMovements,
+  type ListScheduledMovements,
+  type ScheduledMovement,
+} from "./scheduled-movements";
+export {
   createRecordExpenseByCategoryKey,
   type CategoryKeyReader,
   type RecordExpenseByCategoryKey,

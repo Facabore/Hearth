@@ -140,6 +140,35 @@ export const defineRecurrence = (input: NewRecurrence): Result<Recurrence> => {
 export const upcomingDates = (recurrence: Recurrence, count: number): LocalDate[] =>
   recurrence.pausedAt !== null || recurrence.endedAt !== null ? [] : datesLeft(recurrence, count);
 
+/**
+ * Ruling P238 (M6c): the cap of `datesThrough`. A 60-day window holds at most five dates of the densest schedule
+ * (SEMI_MONTHLY); the cap only bounds a scheduler backlog or a far `through`, never a real window.
+ */
+export const MAX_SCHEDULED = 64;
+
+/** The dates it will still record on or before `through`, from the first not considered yet; none while paused or ended. */
+export const datesThrough = (recurrence: Recurrence, through: LocalDate): LocalDate[] => {
+  if (recurrence.pausedAt !== null || recurrence.endedAt !== null) return [];
+  const end = recurrence.endDate !== null && recurrence.endDate < through ? recurrence.endDate : through;
+  return scheduleDates(recurrence.schedule, { from: recurrence.dueFrom, through: end }, MAX_SCHEDULED);
+};
+
+/** Ruling P239 (M6c): the account each occurrence takes money from and the one it puts money into; null where none. */
+export const accountsMovedBy = (
+  template: RecurrenceTemplate,
+): { readonly debitAccountId: string | null; readonly creditAccountId: string | null } => {
+  switch (template.type) {
+    case "EXPENSE":
+      return { debitAccountId: template.payer.accountId, creditAccountId: null };
+    case "INCOME":
+      return { debitAccountId: null, creditAccountId: template.accountId };
+    case "TRANSFER":
+      return { debitAccountId: template.sourceAccountId, creditAccountId: template.destinationAccountId };
+    case "FUND_CONTRIBUTION":
+      return { debitAccountId: template.sourceAccountId, creditAccountId: template.fundAccountId };
+  }
+};
+
 /** ENDED once ended or once no schedule date is left up to its end date, PAUSED while paused, ACTIVE otherwise. */
 export const statusOf = (recurrence: Recurrence): RecurrenceStatus => {
   if (recurrence.endedAt !== null) return "ENDED";
