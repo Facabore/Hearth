@@ -35,10 +35,16 @@ export const createGetPersonalSpendingByGroup =
     const tree = await deps.trees.treesOf([
       ...new Set<string>([personal.spaceId, ...rows.map((row) => row.spaceId)]),
     ]);
+    const personalGroups = await deps.trees.groupsOf([personal.spaceId]);
     const spaceNames = new Map(places.map((p) => [p.spaceId as string, p.spaceName]));
     return ok({
       currency: personal.currency,
       period,
-      ...spendingTree(rows, tree, { kind: "PERSONAL", personalSpaceId: personal.spaceId, spaceNames }),
+      ...spendingTree(rows, tree, {
+        kind: "PERSONAL",
+        personalSpaceId: personal.spaceId,
+        spaceNames,
+        personalGroups,
+      }),
     });
   };

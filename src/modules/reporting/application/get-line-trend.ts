@@ -1,6 +1,6 @@
 import { planViewCache } from "@/modules/budgeting/application";
 import { ok, type Period, type Result } from "@/shared/kernel";
-import { changeFrom, periodsEndingWith, tracedLines, type Change } from "../domain/trend";
+import { changeFrom, distinctLabels, periodsEndingWith, tracedLines, type Change } from "../domain/trend";
 import type { ReportingDeps } from "./deps";
 import { planViewIn, reportPlanOf, spaceReport, type ReportPlan } from "./space-report";
 
@@ -69,12 +69,14 @@ export const createGetLineTrend =
             spent: f.spent,
           })),
     );
+    // Ruling of #132: a window never lists two periods under one label.
+    const shown = distinctLabels(window.slice(1), stored);
     const lines = (plans.at(-1) ?? []).map((line) => {
       const spent = tracedLines(plans, line).map((traced) => traced?.spent ?? null);
       return {
         lineId: line.id,
         name: line.name,
-        points: window.slice(1).map((p, i) => {
+        points: shown.map((p, i) => {
           const current = spent[i + 1] ?? null;
           return {
             period: p,
@@ -87,7 +89,7 @@ export const createGetLineTrend =
     return ok({
       spaceId: space.spaceId,
       currency: space.currency,
-      periods: window.slice(1),
+      periods: shown,
       plan: reportPlanOf(view),
       lines,
     });

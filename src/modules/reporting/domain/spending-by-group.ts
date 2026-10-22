@@ -1,4 +1,4 @@
-import { placeIn, treeById, type TreeCategory } from "./category-tree";
+import { placeIn, treeById, type TreeCategory, type TreeGroup } from "./category-tree";
 import { compareText, namingPart, type CategoryConsumption } from "./unified-view";
 
 /** A space a personal row keeps apart, so the web UI writes "space / group" (HU-E9-11). */
@@ -59,6 +59,8 @@ export type Grouping =
       readonly kind: "PERSONAL";
       readonly personalSpaceId: string;
       readonly spaceNames: ReadonlyMap<string, string>;
+      /** The groups of the personal space, those without a live category too: they name merged rows (#130). */
+      readonly personalGroups: readonly TreeGroup[];
     };
 
 /** Basis points of `part` in `whole`, rounded half up (amounts are never negative); 0 of nothing. */
@@ -165,10 +167,16 @@ export const spendingTree = (
     add(entry, spaceId, subcategory?.categoryName ?? null, subcategory?.categoryArchived ?? false, amount);
   }
 
-  // Ruling P76: a merged row takes the name it has in the caller's personal space, even without spending there.
+  // Ruling P76: a merged row takes the name it has in the caller's personal space, even without spending there, and
+  // a group takes it even when it holds no live category (#130).
   const own = grouping.kind === "PERSONAL" ? nodes.filter((n) => n.spaceId === grouping.personalSpaceId) : [];
+  const personal = grouping.kind === "PERSONAL" ? grouping : null;
   const groupNames = new Map(
-    own.flatMap((n) => (n.groupKey === null ? [] : [[n.groupKey, n.groupName] as const])),
+    (personal?.personalGroups ?? []).flatMap((g) =>
+      g.spaceId !== personal?.personalSpaceId || g.groupKey === null
+        ? []
+        : [[g.groupKey, g.groupName] as const],
+    ),
   );
   // Ruling P101: only a top-level category lends its name; a seeded one moved under another keeps its key (spec 5.2)
   // yet counts in its parent, so it never names the row of its key.

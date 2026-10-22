@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { HOUSEHOLD } from "../../../../tests/support/budgeting-world";
-import { ANA_TREE, HOUSEHOLD_TREE, spent } from "../../../../tests/support/category-trees";
+import { ANA_TREE, HOUSEHOLD_TREE, groupsIn, spent } from "../../../../tests/support/category-trees";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
 import { ANA_PLACES, personalWorld, place } from "../../../../tests/support/personal-world";
 import { reportingWorld } from "../../../../tests/support/reporting-world";
@@ -15,13 +15,19 @@ const NOVEMBER = "2026-11-01";
 /** The trees of the spaces asked for, from Ana's and Household's (Task 13); records every question. */
 const treesOf = () => {
   const asked: (readonly string[])[] = [];
+  const groupsAsked: (readonly string[])[] = [];
+  const all = [...ANA_TREE, ...HOUSEHOLD_TREE];
   const trees: CategoryTrees = {
     treesOf: async (spaceIds) => {
       asked.push(spaceIds);
-      return [...ANA_TREE, ...HOUSEHOLD_TREE].filter((n) => spaceIds.includes(n.spaceId));
+      return all.filter((n) => spaceIds.includes(n.spaceId));
+    },
+    groupsOf: async (spaceIds) => {
+      groupsAsked.push(spaceIds);
+      return groupsIn(all.filter((n) => spaceIds.includes(n.spaceId)));
     },
   };
-  return { trees, asked };
+  return { trees, asked, groupsAsked };
 };
 
 describe("spending by group of a space (HU-E7-06)", () => {
@@ -133,17 +139,53 @@ describe("personal spending by group (HU-E7-06)", () => {
     const w = personalWorld();
     w.sums.consumption[NOVEMBER] = [spent("space-household", "cat-groceries", 950_000)];
     const t = treesOf();
+    const renamed = (n: { spaceId: string; groupKey: string | null }) =>
+      n.spaceId === "space-ana" && n.groupKey === "food";
     const trees: CategoryTrees = {
       treesOf: async (spaceIds) =>
-        (await t.trees.treesOf(spaceIds)).map((n) =>
-          n.spaceId === "space-ana" && n.groupKey === "food" ? { ...n, groupName: "Comida" } : n,
-        ),
+        (await t.trees.treesOf(spaceIds)).map((n) => (renamed(n) ? { ...n, groupName: "Comida" } : n)),
+      groupsOf: async (spaceIds) =>
+        (await t.trees.groupsOf(spaceIds)).map((g) => (renamed(g) ? { ...g, groupName: "Comida" } : g)),
     };
     const breakdown = unwrap(await read(w, trees));
     expect(breakdown.groups.map((g) => [g.key, g.name, g.total])).toEqual([
       ["food", "Comida", pesos(950_000)],
     ]);
     expect(t.asked).toEqual([["space-ana", "space-household"]]);
+  });
+
+  it("names a merged row from a personal group that holds no live category, which treesOf cannot list (#130)", async () => {
+    const w = personalWorld();
+    w.sums.consumption[NOVEMBER] = [
+      spent("space-household", "cat-groceries", 950_000),
+      spent("space-household", "cat-rent", 480_000),
+    ];
+    const t = treesOf();
+    const trees: CategoryTrees = {
+      // Ana's seeded Food group lost every live category (all deleted) and is renamed "Comida"; Housing is intact.
+      treesOf: async (spaceIds) =>
+        (await t.trees.treesOf(spaceIds)).filter(
+          (n) => !(n.spaceId === "space-ana" && n.groupKey === "food"),
+        ),
+      groupsOf: async (spaceIds) =>
+        (await t.trees.groupsOf(spaceIds)).map((g) =>
+          g.spaceId === "space-ana" && g.groupKey === "food" ? { ...g, groupName: "Comida" } : g,
+        ),
+    };
+    const breakdown = unwrap(await read(w, trees));
+    expect(breakdown.groups.map((g) => [g.key, g.name, g.total])).toEqual([
+      ["food", "Comida", pesos(950_000)],
+      ["housing", "Housing", pesos(480_000)],
+    ]);
+  });
+
+  it("keeps naming a merged row from a group with live categories in her personal space, asking only for her own groups (#130)", async () => {
+    const w = personalWorld();
+    w.sums.consumption[NOVEMBER] = [spent("space-household", "cat-groceries", 950_000)];
+    const t = treesOf();
+    const breakdown = unwrap(await read(w, t.trees));
+    expect(breakdown.groups.map((g) => [g.key, g.name])).toEqual([["food", "Food"]]);
+    expect(t.groupsAsked).toEqual([["space-ana"]]);
   });
 
   it("totals exactly the consumption of Ana's unified view", async () => {

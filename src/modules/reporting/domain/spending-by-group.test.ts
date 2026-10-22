@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   ANA_FOOD,
   ANA_TREE,
+  groupsIn,
   HOUSEHOLD_TREE,
   LEISURE,
   node,
   PETS,
   spent,
 } from "../../../../tests/support/category-trees";
+import type { TreeGroup } from "./category-tree";
 import { shareOf, spendingTree, type Grouping } from "./spending-by-group";
 
 const pesos = (n: number) => BigInt(n) * 100n;
@@ -22,6 +24,7 @@ const PERSONAL: Grouping = {
     ["space-household", "Household"],
     ["space-trip", "Trip"],
   ]),
+  personalGroups: groupsIn(ANA_TREE),
 };
 
 /** HU-E7-01 Background: Household's November 2026 by category, as the ledger sums it. */
@@ -317,6 +320,7 @@ describe("spending by category group (HU-E7-06)", () => {
       spendingTree(spending, nodes, {
         kind: "PERSONAL",
         personalSpaceId: "space-ana",
+        personalGroups: [],
         spaceNames: new Map([
           ["space-household", household],
           ["space-trip", trip],
@@ -325,6 +329,24 @@ describe("spending by category group (HU-E7-06)", () => {
     // The space names win over the ids; with the same name the lower id wins.
     expect(named("Zeta", "Alpha")).toEqual(["Ocio T"]);
     expect(named("Same", "Same")).toEqual(["Ocio H"]);
+  });
+
+  it("names a merged row from the personal space's group of its key, empty or not, and from no other space's group (#130)", () => {
+    const nodes = [
+      node({ spaceId: "space-household", id: "grp-h", name: "Ocio H", key: "leisure" }, "cat-h", "Fun H"),
+    ];
+    const rows = [inHousehold("cat-h", 10_000)];
+    const group = (spaceId: string, name: string) => ({
+      spaceId,
+      groupId: `grp-${spaceId}`,
+      groupKey: "leisure",
+      groupName: name,
+      groupArchived: false,
+    });
+    const named = (personalGroups: readonly TreeGroup[]) =>
+      spendingTree(rows, nodes, { ...PERSONAL, personalGroups }).groups.map((g) => g.name);
+    expect(named([group("space-ana", "Ocio mío")])).toEqual(["Ocio mío"]);
+    expect(named([group("space-trip", "Ocio T")])).toEqual(["Ocio H"]);
   });
 
   it("flags a merged row archived only where every space spending in it archived it, subcategories included (ruling P81)", () => {

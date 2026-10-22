@@ -10546,7 +10546,8 @@
                               "type": "object",
                               "properties": {
                                 "period": {
-                                  "type": "string"
+                                  "type": "string",
+                                  "description": "The period's label, unique within the window and equal to the label of periods[i]: a derived period that shares its label with a stored one is written '<label> (<start>..<end>)'."
                                 },
                                 "spent": {
                                   "anyOf": [
@@ -10722,7 +10723,8 @@
                         "type": "object",
                         "properties": {
                           "period": {
-                            "type": "string"
+                            "type": "string",
+                            "description": "The period's label, unique within the window and equal to the label of periods[i]: a derived period that shares its label with a stored one is written '<label> (<start>..<end>)'."
                           },
                           "consumption": {
                             "$ref": "#/components/schemas/MoneyOutput"

@@ -328,8 +328,12 @@ export const LineTrendSchema = z.object({
       /** One per period, in the order of `periods`. */
       points: z.array(
         z.object({
-          /** The period's label. */
-          period: z.string(),
+          /** The period's label, unique within the window (#132). */
+          period: z
+            .string()
+            .describe(
+              "The period's label, unique within the window and equal to the label of periods[i]: a derived period that shares its label with a stored one is written '<label> (<start>..<end>)'.",
+            ),
           spent: MoneySchema.nullable().describe(
             "Null where the line has no figure: the period has no plan, or no line of it continues this one.",
           ),
@@ -372,7 +376,11 @@ export const PersonalTrendSchema = z.object({
   /** One per period, in the order of `periods`. */
   points: z.array(
     z.object({
-      period: z.string(),
+      period: z
+        .string()
+        .describe(
+          "The period's label, unique within the window and equal to the label of periods[i]: a derived period that shares its label with a stored one is written '<label> (<start>..<end>)'.",
+        ),
       consumption: MoneySchema,
       change: MoneySchema.nullable().describe("Current minus previous; null when changeStatus is NEW."),
       changePercent: ChangePercentSchema,

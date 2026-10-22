@@ -7311,6 +7311,7 @@ export interface operations {
                             lineId: string;
                             name: string;
                             points: {
+                                /** @description The period's label, unique within the window and equal to the label of periods[i]: a derived period that shares its label with a stored one is written '<label> (<start>..<end>)'. */
                                 period: string;
                                 /** @description Null where the line has no figure: the period has no plan, or no line of it continues this one. */
                                 spent: components["schemas"]["MoneyOutput"] | null;
@@ -7376,6 +7377,7 @@ export interface operations {
                         currency: string;
                         periods: components["schemas"]["Period"][];
                         points: {
+                            /** @description The period's label, unique within the window and equal to the label of periods[i]: a derived period that shares its label with a stored one is written '<label> (<start>..<end>)'. */
                             period: string;
                             consumption: components["schemas"]["MoneyOutput"];
                             /** @description Current minus previous; null when changeStatus is NEW. */
