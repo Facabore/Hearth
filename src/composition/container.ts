@@ -106,9 +106,11 @@ import {
   type UpdateRecurrence,
   createEndRecurrence,
   createListScheduledMovements,
+  createExtendRecurrence,
   createPauseRecurrence,
   createResumeRecurrence,
   type EndRecurrence,
+  type ExtendRecurrence,
   type PauseRecurrence,
   type ResumeRecurrence,
   createMaterializeDueOccurrences,
@@ -323,6 +325,7 @@ export interface Container extends RouteDeps {
     readonly pauseRecurrence: PauseRecurrence;
     readonly resumeRecurrence: ResumeRecurrence;
     readonly endRecurrence: EndRecurrence;
+    readonly extendRecurrence: ExtendRecurrence;
     readonly materializeDueOccurrences: MaterializeDueOccurrences;
     readonly listPendingOccurrences: ListPendingOccurrences;
     readonly skipOccurrence: SkipOccurrence;
@@ -795,6 +798,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       pauseRecurrence: createPauseRecurrence(recurrenceDeps),
       resumeRecurrence: createResumeRecurrence(recurrenceDeps),
       endRecurrence: createEndRecurrence(recurrenceDeps),
+      extendRecurrence: createExtendRecurrence(recurrenceDeps),
       materializeDueOccurrences: createMaterializeDueOccurrences(materializeDeps),
       listPendingOccurrences: createListPendingOccurrences(recurrenceDeps),
       skipOccurrence: createSkipOccurrence(recurrenceDeps),

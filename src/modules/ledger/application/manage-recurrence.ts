@@ -11,6 +11,7 @@ import {
 } from "@/shared/kernel";
 import {
   endedRecurrence,
+  extendedRecurrence,
   pausedRecurrence,
   resumedRecurrence,
   revisedRecurrence,
@@ -52,6 +53,10 @@ export type UpdateRecurrence = (
 export type PauseRecurrence = (input: RecurrenceWriteInput) => Promise<Result<RecurrenceView>>;
 export type ResumeRecurrence = (input: RecurrenceWriteInput) => Promise<Result<RecurrenceView>>;
 export type EndRecurrence = (input: RecurrenceWriteInput) => Promise<Result<RecurrenceView>>;
+/** #115: the new end date of the ended recurrence; null for none. */
+export type ExtendRecurrence = (
+  input: RecurrenceWriteInput & { readonly endDate: LocalDate | null },
+) => Promise<Result<RecurrenceView>>;
 
 /** What a write does to the money movements of a recurrence that uses a member's own account (D9, ruling P22). */
 type MovementEffect =
@@ -134,7 +139,7 @@ const saved = async (deps: RecurrenceDeps, recurrence: Recurrence): Promise<Resu
  * An ENDED recurrence takes no edit, whatever the edit says (`RecurrenceEnded`, checked before anything else of it is
  * looked at). An edit can also end one: a schedule or end date that leaves no date to record from the first one not
  * considered yet makes it ENDED for good, with no later edit or resume. That is accepted (P24, the Task 2a ruling),
- * as a recurrence is continued by defining a new one.
+ * as extending an ended recurrence is its own move (`createExtendRecurrence`, #115), not an edit.
  *
  * A recurrence whose creator left can be renamed, rescheduled or ended, but not checked again: every occurrence is
  * recorded on its creator's behalf (P21) and P26 pauses one whose creator left, so its category, split and amount
@@ -225,4 +230,29 @@ export const createEndRecurrence =
       if (!found.ok) return found;
       const ended = endedRecurrence(found.value.recurrence, deps.clock.now());
       return ended.ok ? saved(deps, ended.value) : ended;
+    });
+
+/**
+ * #115 ExtendRecurrence: an ENDED recurrence, ended by a member or out of dates, goes on as the same recurrence with a
+ * new end date or none, due from today in APP_TIMEZONE at the earliest, so the dates it missed while ended are never
+ * back-filled (P24). It writes no money itself, so no space lock is taken, but it turns the recording back on: like a
+ * resume it is a "changes" write (D9: only the creator of a recurrence that moves money through their own account),
+ * and its template and creator are checked again as recording would (P21, P26), the creator also holding money.record.
+ * Only an ENDED recurrence is extended: an ACTIVE or PAUSED one answers `InvalidRecurrenceTransition`, after the role.
+ */
+export const createExtendRecurrence =
+  (deps: RecurrenceDeps): ExtendRecurrence =>
+  (input) =>
+    deps.tm.run(async () => {
+      const found = await recurrenceForWrite(deps, input, "changes");
+      if (!found.ok) return found;
+      const extended = extendedRecurrence(
+        found.value.recurrence,
+        input.endDate,
+        deps.clock.now(),
+        todayIn(deps.clock, deps.timeZone),
+      );
+      if (!extended.ok) return extended;
+      const checked = await rechecked(deps, found.value.space, extended.value, { creatorRecords: true });
+      return checked.ok ? saved(deps, checked.value) : checked;
     });

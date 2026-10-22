@@ -13,6 +13,7 @@ import {
 } from "@/app/api/v1/spaces/[spaceId]/recurrences/[recurrenceId]/route";
 import { GET as upcomingRoute } from "@/app/api/v1/spaces/[spaceId]/recurrences/[recurrenceId]/occurrences/route";
 import { POST as endRoute } from "@/app/api/v1/spaces/[spaceId]/recurrences/[recurrenceId]/end/route";
+import { POST as extendRoute } from "@/app/api/v1/spaces/[spaceId]/recurrences/[recurrenceId]/extend/route";
 import { POST as pauseRoute } from "@/app/api/v1/spaces/[spaceId]/recurrences/[recurrenceId]/pause/route";
 import { POST as resumeRoute } from "@/app/api/v1/spaces/[spaceId]/recurrences/[recurrenceId]/resume/route";
 import { FixedClock } from "@/shared/kernel";
@@ -187,6 +188,14 @@ const move =
 export const pauseRecurrence = move(pauseRoute, "pause");
 export const resumeRecurrence = move(resumeRoute, "resume");
 export const endRecurrence = move(endRoute, "end");
+
+/** #115: `user` extends the ended recurrence; `body` names the new `endDate`, or null for none. */
+export const extendRecurrence = (user: TestUser, spaceId: string, recurrenceId: string, body: unknown) =>
+  call(extendRoute, "POST", recurrencesPath(spaceId, `/${recurrenceId}/extend`), {
+    user,
+    params: { spaceId, recurrenceId },
+    body,
+  });
 
 /**
  * The recurrences a test defines and ends. The scheduler's job handles every active recurrence of the database, so a

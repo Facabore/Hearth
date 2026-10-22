@@ -108,10 +108,12 @@ export { checkTemplate, type TemplateInput, type TemplateOwner } from "./recurre
 export { recurrenceView, viewsOf, type RecurrenceView } from "./recurrence-view";
 export {
   createEndRecurrence,
+  createExtendRecurrence,
   createPauseRecurrence,
   createResumeRecurrence,
   createUpdateRecurrence,
   type EndRecurrence,
+  type ExtendRecurrence,
   type PauseRecurrence,
   type RecurrenceEdit,
   type RecurrenceWriteInput,

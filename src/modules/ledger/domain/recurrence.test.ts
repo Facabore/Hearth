@@ -10,6 +10,7 @@ import {
   debitsPersonalAccount,
   defineRecurrence,
   endedRecurrence,
+  extendedRecurrence,
   payerOf,
   pausedRecurrence,
   resumedRecurrence,
@@ -770,6 +771,101 @@ describe("pausing, resuming and ending (HU-E4-11)", () => {
       { from: "ACTIVE", to: "ACTIVE" },
       { from: "ENDED", to: "ENDED" },
       { from: "ENDED", to: "PAUSED" },
+    ]);
+  });
+});
+
+describe("extending an ended recurrence (#115)", () => {
+  /** Rent recorded on 2026-12-01 and 2027-01-01 by runs, which left it due from 2027-01-02; ended on 2027-01-10. */
+  const endedRent = (): Recurrence => ({
+    ...unwrap(endedRecurrence({ ...rent(), dueFrom: day("2027-01-02") }, at("2027-01-10"))),
+  });
+
+  it("moves dueFrom to today and keeps the same recurrence: the dates it missed while ended are not due", () => {
+    const extended = unwrap(extendedRecurrence(endedRent(), null, at("2027-04-15"), day("2027-04-15")));
+    expect([
+      extended.id,
+      statusOf(extended),
+      extended.dueFrom,
+      extended.endedAt,
+      extended.endDate,
+      upcomingDates(extended, 2),
+      extended.updatedAt,
+    ]).toEqual([
+      "rec-rent",
+      "ACTIVE",
+      "2027-04-15",
+      null,
+      null,
+      ["2027-05-01", "2027-06-01"],
+      at("2027-04-15"),
+    ]);
+  });
+
+  it("sets the new end date, and null removes the one it had", () => {
+    const withEnd = unwrap(
+      extendedRecurrence(endedRent(), day("2027-06-30"), at("2027-04-15"), day("2027-04-15")),
+    );
+    expect([withEnd.endDate, upcomingDates(withEnd, 5)]).toEqual([
+      "2027-06-30",
+      ["2027-05-01", "2027-06-01"],
+    ]);
+    const closed = { ...endedRent(), endDate: day("2027-02-28") };
+    expect(unwrap(extendedRecurrence(closed, null, at("2027-04-15"), day("2027-04-15"))).endDate).toBeNull();
+  });
+
+  it("extends a recurrence that ran out of dates, with endedAt never set", () => {
+    const exhausted = { ...rent({ endDate: day("2027-01-01") }), dueFrom: day("2027-01-02") };
+    expect(statusOf(exhausted)).toBe("ENDED");
+    const extended = unwrap(
+      extendedRecurrence(exhausted, day("2027-09-30"), at("2027-04-15"), day("2027-04-15")),
+    );
+    expect([statusOf(extended), extended.dueFrom, upcomingDates(extended, 1)]).toEqual([
+      "ACTIVE",
+      "2027-04-15",
+      ["2027-05-01"],
+    ]);
+  });
+
+  it("never moves dueFrom backwards: one ended before it started stays due from its start date", () => {
+    const notStarted = unwrap(endedRecurrence(rent(), at("2026-10-30")));
+    const extended = unwrap(extendedRecurrence(notStarted, null, at("2026-11-02"), day("2026-11-02")));
+    expect([extended.dueFrom, upcomingDates(extended, 1)]).toEqual(["2026-12-01", ["2026-12-01"]]);
+  });
+
+  it("returns a recurrence ended while paused to ACTIVE, with no pause reason left", () => {
+    const stopped = { ...endedRent(), pausedAt: at("2027-01-05"), pauseReason: "PayerLeft" };
+    const extended = unwrap(extendedRecurrence(stopped, null, at("2027-04-15"), day("2027-04-15")));
+    expect([statusOf(extended), extended.pausedAt, extended.pauseReason]).toEqual(["ACTIVE", null, null]);
+  });
+
+  it("refuses an ACTIVE or a PAUSED recurrence with InvalidRecurrenceTransition, saying from and to", () => {
+    const now = at("2027-04-15");
+    const active = rent();
+    const paused = unwrap(pausedRecurrence(active, at("2026-11-01")));
+    const details = (result: Result<Recurrence>) => (result.ok ? null : result.error.details);
+    expect([
+      codeOf(extendedRecurrence(active, null, now, day("2027-04-15"))),
+      codeOf(extendedRecurrence(paused, null, now, day("2027-04-15"))),
+      details(extendedRecurrence(active, null, now, day("2027-04-15"))),
+      details(extendedRecurrence(paused, null, now, day("2027-04-15"))),
+    ]).toEqual([
+      "InvalidRecurrenceTransition",
+      "InvalidRecurrenceTransition",
+      { from: "ACTIVE", to: "ACTIVE" },
+      { from: "PAUSED", to: "ACTIVE" },
+    ]);
+  });
+
+  it("refuses an end date before the start, and one that leaves no schedule date from today (InvalidRecurrence)", () => {
+    const now = at("2027-04-15");
+    const reasons = [day("2026-11-30"), day("2027-04-20")].map((endDate) => {
+      const result = extendedRecurrence(endedRent(), endDate, now, day("2027-04-15"));
+      return [codeOf(result), result.ok ? null : result.error.details];
+    });
+    expect(reasons).toEqual([
+      ["InvalidRecurrence", { reason: "endsBeforeStart" }],
+      ["InvalidRecurrence", { reason: "noOccurrence" }],
     ]);
   });
 });

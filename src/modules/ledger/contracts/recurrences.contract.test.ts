@@ -13,6 +13,8 @@ import {
   ConfirmOccurrenceBodySchema,
   confirmationFromBody,
   DefineRecurrenceBodySchema,
+  ExtendRecurrenceBodySchema,
+  extensionEndDateFromBody,
   OccurrenceSchema,
   occurrenceDto,
   RecurrenceSchema,
@@ -773,5 +775,27 @@ describe("recurrences and occurrences in answers (HU-E4-11, HU-E4-13)", () => {
       ScheduleSchema.safeParse({ kind: "SEMI_MONTHLY", day1: 1, day2: 32 }).success,
       ScheduleSchema.safeParse({ kind: "MONTHLY", day: 31 }).success,
     ]).toEqual([false, false, false, true]);
+  });
+});
+
+describe("the body that extends an ended recurrence (#115)", () => {
+  it("requires endDate, a date or null, and strips every other key", () => {
+    const parse = (body: unknown) => ExtendRecurrenceBodySchema.safeParse(body);
+    expect([
+      parse({}).success,
+      parse({ endDate: undefined }).success,
+      parse({ endDate: "soon" }).success,
+      parse({ endDate: "2027-02-30" }).success,
+      parse({ endDate: 20270630 }).success,
+      parse({ endDate: null }).data,
+      parse({ endDate: "2027-06-30", amount: 1 }).data,
+    ]).toEqual([false, false, false, false, false, { endDate: null }, { endDate: "2027-06-30" }]);
+  });
+
+  it("reads the date, null as no end, and refuses a date before 1900 as InvalidDate", () => {
+    expect(unwrap(extensionEndDateFromBody({ endDate: "2027-06-30" }))).toBe("2027-06-30");
+    expect(unwrap(extensionEndDateFromBody({ endDate: null }))).toBeNull();
+    const refused = extensionEndDateFromBody({ endDate: "1850-01-01" });
+    expect(refused.ok ? "ok" : refused.error.code).toBe("InvalidDate");
   });
 });
