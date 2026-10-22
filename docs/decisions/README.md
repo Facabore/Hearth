@@ -4,7 +4,7 @@ Every decision Hearth has made, in one place. There are three kinds, and each li
 
 - **Design decisions (D1–D23)** are in the [design spec](../superpowers/specs/2026-10-11-hearth-design.md#6-key-decisions), section 6.
 - **ADRs** record a technology choice: [`docs/adr/`](#adrs).
-- **Rulings (P1–P183)** are execution rulings the controller made while a milestone plan was written or run. Each lives in its plan's Self-Review; this page indexes them.
+- **Rulings (P1–P199)** are execution rulings the controller made while a milestone plan was written or run. Each lives in its plan's Self-Review; this page indexes them.
 
 ## Design decisions D1–D23
 
@@ -45,11 +45,11 @@ Rationale and rejected alternatives are in [section 6 of the spec](../superpower
 | [0003](../adr/0003-web-ui-talks-to-the-api-through-a-generated-client.md) | The web UI talks to `/api/v1` only, through a client generated from the snapshot. | Accepted (2026-10-20) |
 | [0004](../adr/0004-web-ui-testing-and-performance-gates.md) | Test the web UI with Vitest, Playwright and axe, and gate it on Core Web Vitals. | Accepted (2026-10-20) |
 
-## Rulings P1–P183
+## Rulings P1–P199
 
 Rulings are numbered across milestones, not per plan, and not always in the order of the plans: M4's plan holds rulings that were made while M3-D was being planned. The tables are grouped by the plan that records them. In each, "Where" is the plan's Self-Review section and the item number in it. "Amended" marks a ruling the plan itself says was amended.
 
-The ranges are: M3-A P1–P9, M3-B P10–P19, M3-C P20–P31, M3-D P40–P73, P78, P79 and P84–P94, M4 P32–P39, P74–P77, P80–P83 and P95–P106, M5 P107–P116, M6a P117–P154, and M6b P155–P183; M6c starts at P200. M3-D's P89–P94 were kept outside the repository until the merge and are recorded in the section "Execution rulings (recorded after the merge)" at the end of its plan.
+The ranges are: M3-A P1–P9, M3-B P10–P19, M3-C P20–P31, M3-D P40–P73, P78, P79 and P84–P94, M4 P32–P39, P74–P77, P80–P83 and P95–P106, M5 P107–P116, M6a P117–P154, M6b P155–P183, and the M6b addendum P184–P199; M6c starts at P200. M3-D's P89–P94 were kept outside the repository until the merge and are recorded in the section "Execution rulings (recorded after the merge)" at the end of its plan.
 
 ### M3-A: budget plans (P1–P9)
 
@@ -313,6 +313,29 @@ Plan: [`2026-10-21-m6b-shared-spaces-split-balances.md`](../superpowers/plans/20
 | P135 | `ThemeSync` (client, in the root layout) applies the stored theme on mount, which fixes not-found pages that stayed light in dark mode (a `notFound()` thrown by a layout renders on the client, where the inline head script never runs), and follows `prefers-color-scheme` live while Tema is "Sistema". | Task nav2 |
 | P126, P130, P137 | **UX batch 2.** A shared space's home and Accounts say "Cada persona paga desde sus cuentas personales; aquí solo viven los fondos del espacio." instead of asking for a first account, with the funds section or "Crear un fondo" for who may manage funds (the `manageFunds` control, pinned to `fund.manage`); the split row reads "Con Ana y Luis · mitad y mitad" or "Con 3 personas · por porcentaje"; the amount groups digits while typing (6000 shows `6.000` for COP, the caret stays put and the parsed value is unchanged); Cuentas with no accounts has an empty state and a labelled "Nueva cuenta" pill; every saved preference in Settings shows "Guardado" (`role=status`, 2 s) in a fixed-size slot, so Restablecer does not move; accepting an invitation or claim opens `/spaces/<id>?joined=1` with a one-time "Te uniste a «Nombre»" notice; Movimientos of a shared or direct space names the space under its title. | Task nav2 (part 2) |
 | P168, P169, P171 | **Fixes from the screenshot review.** The payer's name wraps instead of being cut off; a split row nobody has typed in yet is not an error (a neutral hint, with Listo disabled) and a field's error clears as the person edits it; the bottom bar and the page padding add `env(safe-area-inset-bottom)` so the last button is never under the bar; an empty "Recientes" says so; `icon.svg` and `apple-icon.png` are served without a session. | Task ux1 |
+
+### M6b addendum: edit, delete and save feedback (P184–P199)
+
+Plan: [`2026-10-21-m6b-addendum-edit-delete-feedback.md`](../superpowers/plans/2026-10-21-m6b-addendum-edit-delete-feedback.md). Ruled by the planner under the owner's standing delegation of 2026-10-20.
+
+| ID | Ruling | Where |
+|---|---|---|
+| P184 | Editing, deleting and restoring transactions join M6b inside the same pull request (amends P179); settlements and fund contributions are deleted and recorded again, never edited in place. | Rulings, 1 |
+| P185 | `POST /api/v1/spaces/{spaceId}/transactions/{transactionId}/restore` runs `DELETE`'s guards, clears `deletedAt` with a compare-and-set on the version, audits `RESTORED` and answers 200 with the ETag; a transaction that is not deleted is answered unchanged, so a repeated Deshacer is harmless. | Rulings, 2 |
+| P186 | `PATCH` also takes `accountId`, `payments`, `split`, `sourceAccountId` and `destinationAccountId`, under D9's ownership rules; a changed amount with several shares and no `split` still answers `SharesDoNotMatchAmount`. | Rulings, 3 |
+| P187 | The audit's `action` gains `RESTORED` (a `text` column, so no migration), and incomes, transfers and settlements now audit their accounts. | Rulings, 4 |
+| P188 | `FieldNotEditable` (409, detail `field`) answers a part a type does not have, any account of a settlement or a fund contribution, `accountId` on a transfer, and `payments` or `split` on anything but an expense. | Rulings, 5 |
+| P189 | A row links to its page with `?tx=<id>`; the detail sheet loads with `next/dynamic` only then, closing replaces the address with the origin, Back closes it, and a missing transaction shows `TransactionNotFound` inside the sheet. | Rulings, 6 |
+| P190 | The sheet lists the transaction's definitions and its split, names an account the viewer cannot read "Cuenta de {name}", and hides every action the viewer may not use (as in P158). | Rulings, 7 |
+| P191 | The edit route is `/spaces/{spaceId}/transactions/{transactionId}/edit?from=<origin>`, where the origin is a same-space path checked by `safeNext`; Volver opens the sheet again, saving returns to the origin, and the edit modules load only on that route. | Rulings, 8 |
+| P192 | The form prefills in the person's format; only changed keys travel, the time travels whole, and an untimed row gets a time only when the person changes its date or time. | Rulings, 9 |
+| P193 | `If-Match` is the DTO's version; a 412 shows `PreconditionFailed` with "Cargar la última versión", and the form, keyed by the version, remounts with the newest values. | Rulings, 10 |
+| P194 | Deleting runs at once with no confirmation dialog, closes the sheet to the origin, and shows a status toast with Deshacer for 8 s; Deshacer restores once and says so. | Rulings, 11 |
+| P195 | One `ToastProvider` and `useToast` in `src/shared/ui`, with two live regions that exist before any message, one toast at a time, 5 s plain or 8 s with an action, paused on hover and focus, and F8 to reach it; Radix Toast and toast libraries were rejected. | Rulings, 12 |
+| P196 | Every save says so in a status toast ("Gasto guardado", "Ingreso guardado", "Transferencia guardada", "Cambios guardados", "Pago registrado", and the deleted and restored messages), except when the saved-with-warning notice speaks or an edit changed nothing. | Rulings, 13 |
+| P197 | Recurrence-generated transactions get no special rule: an edit changes that transaction only, a deletion leaves its occurrence `RECORDED`, and a restore brings the same row back. | Rulings, 14 |
+| P198 | The open sheet and the edit route get their own script budgets, set from measurements under the plan's caps; the record route's budget does not move, and the toast card loads lazily to keep it. | Rulings, 15 |
+| P199 | Five `@e2e` scenarios cover edit, delete with undo, a version conflict, save feedback and a shared expense's corrected amount; the sheet, the edit route and the toast join the layout spec, and `a11y-edit.spec.ts` scans them in both themes. | Rulings, 16 |
 
 ### Preflight notes and findings
 

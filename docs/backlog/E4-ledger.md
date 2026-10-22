@@ -259,6 +259,8 @@ Feature: Edit and soft delete with audit
 - Use cases: `EditTransaction`, `DeleteTransaction`; port `AuditLog`. Endpoints: `PATCH /api/v1/spaces/{spaceId}/transactions/{transactionId}` (honours `If-Match`, 412 on a stale ETag, HU-E0-10), `DELETE /api/v1/spaces/{spaceId}/transactions/{transactionId}`, `GET .../transactions/{transactionId}/audit`.
 - The closed-period scenario is active since HU-E6-07 (M3-B): the composition root binds `ClosedPeriodGuard` to budgeting's guard, which reads the plan covering the date `FOR SHARE`, so a write and a close of that period run one after the other.
 - Moving a transaction into a closed period is also rejected.
+- Ruling P185: `POST …/transactions/{transactionId}/restore` undoes a deletion with the delete's guards and audits `RESTORED`.
+- Ruling P186: `PATCH` also takes `accountId`, `payments`, `split`, `sourceAccountId` and `destinationAccountId`; settlements and fund contributions answer `FieldNotEditable`.
 
 ---
 
