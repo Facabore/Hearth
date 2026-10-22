@@ -216,7 +216,7 @@ export function SettleUpSheet({
             value={draft.amount}
             error={errorOf("amount")}
             onChange={(event) => setDraft({ ...draft, amount: event.target.value })}
-            className="text-2xl font-semibold"
+            large
           />
           {payer && receiver && payer.id !== receiver.id ? (
             <p className="text-[13px] text-muted tabular-nums">

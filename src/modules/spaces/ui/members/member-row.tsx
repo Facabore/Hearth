@@ -44,9 +44,8 @@ export function MemberRow({
       )}
       {onOptions ? (
         <Button
-          size="icon"
+          size="iconCompact"
           variant="ghost"
-          className="size-11"
           aria-label={t("guestOptions", { name: label })}
           onClick={onOptions}
         >

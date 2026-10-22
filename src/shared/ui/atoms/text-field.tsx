@@ -8,11 +8,23 @@ export type TextFieldProps = InputHTMLAttributes<HTMLInputElement> & {
   readonly hint?: string;
   readonly error?: ReactNode;
   readonly trailing?: ReactNode;
+  /** A figure the screen is about (an amount): 24 px and semibold instead of 16 px. */
+  readonly large?: boolean;
   readonly ref?: Ref<HTMLInputElement>;
 };
 
 /** A labelled input (52 px); its hint and error describe it, and an error marks it invalid. */
-export function TextField({ id, label, hint, error, trailing, className, ref, ...props }: TextFieldProps) {
+export function TextField({
+  id,
+  label,
+  hint,
+  error,
+  trailing,
+  large,
+  className,
+  ref,
+  ...props
+}: TextFieldProps) {
   const described = [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(" ");
   return (
     <div className="flex flex-col gap-1.5">
@@ -26,8 +38,9 @@ export function TextField({ id, label, hint, error, trailing, className, ref, ..
           aria-invalid={error ? true : undefined}
           aria-describedby={described || undefined}
           className={cn(
-            "h-[52px] w-full rounded-xl border border-field bg-surface px-4 text-base text-ink",
-            error && "border-danger",
+            "h-[52px] w-full rounded-xl border bg-surface px-4 text-ink",
+            error ? "border-danger" : "border-field",
+            large ? "text-2xl font-semibold" : "text-base",
             trailing && "pr-14",
             className,
           )}

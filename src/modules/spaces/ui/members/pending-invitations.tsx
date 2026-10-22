@@ -75,8 +75,7 @@ export function PendingInvitations({
                 </span>
               </span>
               <Button
-                variant="ghost"
-                className="text-danger"
+                variant="dangerGhost"
                 disabled={revoking === invitation.id}
                 aria-label={email ? t("revokeEmail", { email }) : t("revokeLink", { role })}
                 onClick={() => void revoke(invitation.id)}

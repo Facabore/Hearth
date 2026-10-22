@@ -16,7 +16,7 @@ import { pageStateOf } from "./invitation-state";
 type Kind = "invitation" | "claim";
 
 /** The accept button names the space: a long name wraps inside the button instead of widening the page. */
-const LONG_NAME = "h-auto min-h-14 py-3 text-center [overflow-wrap:anywhere]";
+const LONG_NAME = "min-h-14 py-3 text-center [overflow-wrap:anywhere]";
 
 /**
  * HU-E9-05, ruling P165, the InvitePage artboard: the page of an invitation or a claim link, for a visitor and for
@@ -167,7 +167,7 @@ export function InvitationCard({
             </>
           ) : (
             <>
-              <Button size="lg" className={LONG_NAME} disabled={pending} onClick={() => void accept()}>
+              <Button size="lgFlow" className={LONG_NAME} disabled={pending} onClick={() => void accept()}>
                 {claim ? t("claim.accept", { space }) : t("accept", { space })}
               </Button>
               <Button asChild variant="secondary" size="lg">

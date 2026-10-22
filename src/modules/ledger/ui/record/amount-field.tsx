@@ -65,7 +65,7 @@ export function AmountField({
             value={value}
             onChange={typed}
             error={error}
-            className="text-2xl font-semibold"
+            large
           />
         </div>
       </div>

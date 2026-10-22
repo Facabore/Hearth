@@ -189,14 +189,14 @@ function SheetBody({ value, today, now, formats, onApply, onOpenChange }: DateTi
           <Button
             key={minute}
             variant="secondary"
-            className="h-11 rounded-full px-4 text-sm"
+            size="chip"
             aria-pressed={draft.wall.minute === minute}
             onClick={() => setWall({ hour: draft.wall.hour, minute })}
           >
             :{pad(minute)}
           </Button>
         ))}
-        <Button variant="secondary" className="h-11 rounded-full px-4 text-sm" onClick={() => setDraft(now)}>
+        <Button variant="secondary" size="chip" onClick={() => setDraft(now)}>
           {t("when.now")}
         </Button>
       </div>

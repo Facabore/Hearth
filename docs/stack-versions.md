@@ -28,7 +28,6 @@ Pinned on 2026-10-11 (HU-E0-01). Each entry was the latest stable release that d
 | radix-ui | 1.7.0 | M6a (2026-10-05), exactly two weeks before the pin date: the primitives under the shadcn/ui-style components |
 | class-variance-authority | 0.7.1 | M6a (2024-11-26): component variants |
 | clsx | 2.1.1 | M6a (2024-04-23): joins class names |
-| tailwind-merge | 3.7.0 | M6a (2026-09-12): resolves conflicting Tailwind classes in `cn` |
 | openapi-fetch | 0.17.0 | M6a (2026-02-11): the generated client at run time (ADR 0003) |
 | openapi-typescript | 7.13.0 | M6a (2026-02-11): the client's types, generated from the snapshot (ADR 0003); its TypeScript peer is ^5 while Hearth uses 6.0.3 |
 | eslint-plugin-react-hooks | 7.1.1 | M6a (2026-04-17): the hooks rules (ruling P136) |

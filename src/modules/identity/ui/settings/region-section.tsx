@@ -57,7 +57,7 @@ export function RegionSection({
         ) : state === "default" ? (
           <Badge>{t("default")}</Badge>
         ) : (
-          <Button variant="ghost" className="h-11 px-2 text-sm" onClick={onReset}>
+          <Button variant="ghost" size="compact" onClick={onReset}>
             {t("reset")}
           </Button>
         )}

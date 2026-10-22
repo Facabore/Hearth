@@ -60,17 +60,13 @@ export function ListFilters({
             variant="secondary"
             aria-pressed="true"
             aria-label={t("removeFilter", { name: chosen })}
-            className="h-11 rounded-full px-4 text-sm"
+            size="chip"
             onClick={() => router.replace(hrefOf(spaceId, { period: filter.period }))}
           >
             {chosen} ✕
           </Button>
         ) : (
-          <Button
-            variant="secondary"
-            className="h-11 rounded-full px-4 text-sm"
-            onClick={() => setOpen(true)}
-          >
+          <Button variant="secondary" size="chip" onClick={() => setOpen(true)}>
             <Icon name="search" size={18} />
             {t("filterCategory")}
           </Button>

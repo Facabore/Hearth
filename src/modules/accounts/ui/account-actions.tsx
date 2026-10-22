@@ -87,7 +87,7 @@ export function RestoreAccountButton(props: ActionProps) {
     <div className="flex flex-col items-end">
       <Button
         variant="ghost"
-        className="h-11 px-2 text-sm"
+        size="compact"
         disabled={pending}
         aria-label={t("restore", { name: props.account.name })}
         onClick={() => void run()}

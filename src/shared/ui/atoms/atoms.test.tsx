@@ -8,7 +8,64 @@ import { Button } from "./button";
 import { Switch } from "./switch";
 import { TextField } from "./text-field";
 
+const SIZES = ["lg", "lgFlow", "md", "compact", "chip", "icon", "iconCompact"] as const;
+const VARIANTS = ["primary", "secondary", "ghost", "danger", "dangerGhost"] as const;
+
 describe("atoms", () => {
+  it.each(SIZES.flatMap((size) => VARIANTS.map((variant) => [size, variant] as const)))(
+    "gives a %s %s button one radius, one height, one text size and no overridden class (no tailwind-merge)",
+    (size, variant) => {
+      renderWithIntl(
+        <Button size={size} variant={variant}>
+          Guardar
+        </Button>,
+      );
+      const classes = screen.getByRole("button", { name: "Guardar" }).className.split(" ");
+      expect(classes.filter((c) => c.startsWith("rounded-"))).toHaveLength(1);
+      expect(classes.filter((c) => /^(h|size)-/.test(c))).toHaveLength(1);
+      expect(classes.filter((c) => /^text-(xs|sm|base|lg|xl|2xl)$/.test(c))).toHaveLength(
+        size.startsWith("icon") ? 0 : 1,
+      );
+      expect(classes.filter((c) => c.startsWith("bg-"))).toHaveLength(1);
+      expect(classes.filter((c) => /^text-(accent|on-accent|ink|danger)$/.test(c))).toHaveLength(1);
+    },
+  );
+
+  it("sizes the compact, chip and flowing buttons as the screens that override them did", () => {
+    renderWithIntl(
+      <>
+        <Button size="compact">compact</Button>
+        <Button size="chip">chip</Button>
+        <Button size="lgFlow">flow</Button>
+        <Button size="iconCompact">icon</Button>
+      </>,
+    );
+    expect(screen.getByRole("button", { name: "compact" })).toHaveClass("h-11", "px-2", "text-sm");
+    expect(screen.getByRole("button", { name: "chip" })).toHaveClass(
+      "h-11",
+      "rounded-full",
+      "px-4",
+      "text-sm",
+    );
+    expect(screen.getByRole("button", { name: "flow" })).toHaveClass("h-auto", "w-full", "px-6");
+    expect(screen.getByRole("button", { name: "icon" })).toHaveClass("size-11");
+  });
+
+  it("marks an invalid field with one border colour and sizes a large field's text once", () => {
+    renderWithIntl(
+      <>
+        <TextField id="a" label="Monto" large error="Falta el monto." />
+        <TextField id="b" label="Nota" />
+      </>,
+    );
+    const large = screen.getByLabelText("Monto");
+    expect(large).toHaveClass("border-danger", "text-2xl", "font-semibold");
+    expect(large).not.toHaveClass("border-field", "text-base");
+    const plain = screen.getByLabelText("Nota");
+    expect(plain).toHaveClass("border-field", "text-base");
+    expect(plain).not.toHaveClass("border-danger", "text-2xl");
+  });
+
   it("renders a link as a button when asked", async () => {
     renderWithIntl(
       <Button asChild variant="secondary">
