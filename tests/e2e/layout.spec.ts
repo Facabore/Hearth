@@ -754,11 +754,41 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         { capacities: [{ memberId: members[0].id, amount: { amount: "200000000000", currency: "COP" } }] },
         { "if-match": `"${plan.version}"` },
       );
-      await post(
+      plan = await post(
         page,
         `${space}/plans/${plan.id}/lines`,
         { name: LONG_LINE, plannedAmount: { amount: "123456789000", currency: "COP" } },
         { "if-match": `"${plan.version}"` },
+      );
+      // An expense takes that line past its plan, so its row also carries "Excedida" and the overage in words
+      // (#142, ruling P244): the row with the most text must still fit.
+      const { items: groups } = await get(page, `${space}/categories`);
+      const categoryId: string = groups.flatMap((g: { categories: { id: string }[] }) => g.categories)[0].id;
+      await put(
+        page,
+        `${space}/plans/${plan.id}/lines/${plan.lines[0].id}/categories`,
+        { categoryIds: [categoryId] },
+        { "if-match": `"${plan.version}"` },
+      );
+      const fund = await post(page, `${space}/accounts`, {
+        name: "Fondo",
+        type: "SHARED_FUND",
+        openingBalance: { amount: "0", currency: "COP" },
+      });
+      const spent = { amount: "150000000000", currency: "COP" };
+      await post(
+        page,
+        `${space}/expenses`,
+        {
+          description: "Mercado grande",
+          date: "2026-10-30",
+          occurredAt: "2026-10-30T17:00:00.000Z",
+          timeZone: "America/Bogota",
+          categoryId,
+          amount: spent,
+          payments: [{ memberId: null, accountId: fund.id, amount: spent }],
+        },
+        { "idempotency-key": crypto.randomUUID() },
       );
       for (const [path, tabs] of [
         [`/spaces/${sharedId}/plan`, 5],
@@ -808,6 +838,8 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       // The long line wraps inside its row instead of widening the page.
       await page.goto(`/spaces/${sharedId}/plan`);
       await expect(page.getByText(LONG_LINE)).toBeVisible();
+      await expect(page.getByText(es.reports.lines.overspent)).toBeVisible();
+      await expect(page.getByText(es.reports.lines.overBy.replace("{amount}", ""))).toBeVisible();
     });
   }
 });

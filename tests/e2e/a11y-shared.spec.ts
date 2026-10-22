@@ -158,6 +158,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page.goto(`${h}/plan`);
       await expect(page.getByText(es.budgeting.status.DRAFT)).toBeVisible();
       await expect(page.getByText(es.reports.lines.overspent)).toBeVisible();
+      await expect(page.getByText(es.reports.lines.overBy.replace("{amount}", ""))).toBeVisible();
       // U1: a shared space with no funds explains them instead of asking for a first account.
       const bare = await post(page, "/api/v1/spaces", { kind: "SHARED", name: "Vacía", currency: "COP" });
       for (const path of [`/spaces/${bare.id}`, `/spaces/${bare.id}/accounts`]) {

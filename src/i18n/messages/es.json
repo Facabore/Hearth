@@ -770,6 +770,11 @@
       "spent": "Gastado",
       "available": "Disponible",
       "overspent": "Excedida",
+      "state": {
+        "NEAR": "Cerca del límite",
+        "HIGH": "Al límite"
+      },
+      "overBy": "Te pasaste por {amount}",
       "unbudgeted": "Sin presupuesto",
       "unbudgetedNote": "Sin presupuesto es lo gastado en categorías que no están en ninguna línea."
     }

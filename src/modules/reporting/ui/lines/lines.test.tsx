@@ -24,8 +24,8 @@ describe("line dashboard (HU-E9-10)", () => {
       <LineDashboard dashboard={e7Dashboard()} formats={BUILT_IN_FORMATS} />,
     );
     expect(tableRows()).toEqual([
-      ["Rent", "$ 1.200.000", "$ 1.200.000", "$ 0"],
-      ["Home", "$ 1.470.000", "$ 1.300.000", "$ 170.000"],
+      ["RentAl límite", "$ 1.200.000", "$ 1.200.000", "$ 0"],
+      ["HomeCerca del límite", "$ 1.470.000", "$ 1.300.000", "$ 170.000"],
       ["Savings", "$ 600.000", "$ 0", "$ 600.000"],
       ["Free", "$ 730.000", "$ 250.000", "$ 480.000"],
       ["Sin presupuesto", "$ 0", "$ 60.000", "−$ 60.000"],
@@ -68,5 +68,45 @@ describe("line dashboard (HU-E9-10)", () => {
     expect(screen.queryByText("Sin presupuesto")).toBeNull();
     expect(screen.queryByText(/no están en ninguna línea/)).toBeNull();
     expect(screen.getByText("−$ 50")).toHaveClass("text-owe");
+  });
+
+  it("says when a line nears or passes its plan, the overage in words (#142, ruling P244 of M6c)", async () => {
+    const dashboard = e7Dashboard();
+    dashboard.lines[0] = { ...dashboard.lines[0]!, state: "HIGH" };
+    dashboard.lines[1] = {
+      ...dashboard.lines[1]!,
+      spent: cop(1_600_000),
+      available: cop(-130_000),
+      overspent: true,
+      state: "OVER",
+      overBy: cop(130_000),
+    };
+    dashboard.lines[3] = { ...dashboard.lines[3]!, state: "NEAR" };
+    const { container } = renderWithIntl(<LineDashboard dashboard={dashboard} formats={BUILT_IN_FORMATS} />);
+    const row = (name: RegExp) => screen.getByRole("row", { name });
+    expect(within(row(/^Free/)).getByText("Cerca del límite")).toHaveAttribute("data-tone", "neutral");
+    expect(within(row(/^Rent/)).getByText("Al límite")).toHaveAttribute("data-tone", "owe");
+    const home = normalized(row(/^Home/).textContent);
+    expect(home).toContain("Excedida");
+    expect(home).toContain("Te pasaste por $ 130.000");
+    expect(home).not.toMatch(/%/);
+    expect(within(row(/^Savings/)).queryByText(/límite|Te pasaste/)).toBeNull();
+    expect(within(row(/^Sin presupuesto/)).queryByText(/límite|Te pasaste/)).toBeNull();
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("writes the overage the API answers, never one of its own (ruling P201)", () => {
+    const dashboard = e7Dashboard();
+    dashboard.lines[1] = {
+      ...dashboard.lines[1]!,
+      available: cop(-130_000),
+      overspent: true,
+      state: "OVER",
+      overBy: cop(5),
+    };
+    renderWithIntl(<LineDashboard dashboard={dashboard} formats={BUILT_IN_FORMATS} />);
+    expect(normalized(screen.getByRole("row", { name: /^Home/ }).textContent)).toContain(
+      "Te pasaste por $ 5",
+    );
   });
 });

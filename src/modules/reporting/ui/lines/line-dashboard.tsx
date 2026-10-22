@@ -81,7 +81,14 @@ export function LineDashboard({
                         {t("overspent")}
                       </Badge>
                     ) : null}
+                    {line.state === "NEAR" ? <Badge tone="neutral">{t("state.NEAR")}</Badge> : null}
+                    {line.state === "HIGH" ? <Badge tone="owe">{t("state.HIGH")}</Badge> : null}
                   </span>
+                  {line.state === "OVER" && line.overBy ? (
+                    <span className="mt-0.5 block text-sm font-normal text-owe-ink">
+                      {t("overBy", { amount: money(line.overBy) })}
+                    </span>
+                  ) : null}
                   <span aria-hidden="true" className={TRACK}>
                     <span
                       data-bar

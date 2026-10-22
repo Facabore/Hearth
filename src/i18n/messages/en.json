@@ -770,6 +770,11 @@
       "spent": "Spent",
       "available": "Available",
       "overspent": "Overspent",
+      "state": {
+        "NEAR": "Near the limit",
+        "HIGH": "At the limit"
+      },
+      "overBy": "{amount} over plan",
       "unbudgeted": "Unbudgeted",
       "unbudgetedNote": "Unbudgeted is what was spent in categories that are in no line."
     }
