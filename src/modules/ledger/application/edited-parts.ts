@@ -1,5 +1,6 @@
 import type { SpaceMembership } from "@/modules/spaces/application";
 import { domainError, err, flatMap, map, Money, ok, type LocalDate, type Result } from "@/shared/kernel";
+import { splitShares, type SplitInput } from "../domain/split";
 import type { Payment, Share, Transaction } from "../domain/transaction";
 import { accountInSpace, ownAccount } from "./checks";
 import type { LedgerDeps } from "./deps";
@@ -24,6 +25,8 @@ export interface EditChanges {
   /** Ruling P186: an own transfer's accounts. */
   readonly sourceAccountId?: string;
   readonly destinationAccountId?: string;
+  /** Ruling P186: how an expense is split, recomputed on the edited amount among the current members. */
+  readonly split?: SplitInput;
 }
 
 export interface PartChanges {
@@ -33,7 +36,7 @@ export interface PartChanges {
   readonly destinationAccountId?: string;
 }
 
-type PartField = "accountId" | "payments" | "sourceAccountId" | "destinationAccountId";
+type PartField = "accountId" | "payments" | "sourceAccountId" | "destinationAccountId" | "split";
 const notEditable = (field: PartField): Result<never> => err(domainError("FieldNotEditable", { field }));
 /** The first part of `fields` the request sends, if any. */
 const sent = (changes: EditChanges, fields: readonly PartField[]): PartField | undefined =>
@@ -55,21 +58,38 @@ export const editedParts = async (
     case "EXPENSE": {
       const wrong = sent(changes, ["sourceAccountId", "destinationAccountId"]);
       if (wrong) return notEditable(wrong);
-      if (changes.accountId === undefined && changes.payments === undefined) return ok({});
+      if (changes.accountId === undefined && changes.payments === undefined && changes.split === undefined) {
+        return ok({});
+      }
       // The edited amount, else the current one: the shorthand payment pays all of it (HU-E4-01).
       const whole =
         changes.amount === undefined ? Money.ofMinor(current.amount, current.currency) : ok(changes.amount);
       if (!whole.ok) return whole;
-      const requested = changes.payments ?? [
-        { memberId: space.memberId, accountId: changes.accountId!, amount: whole.value },
-      ];
       const members = await deps.members.listCurrent(space.spaceId);
-      return map(await resolvePayments(deps, space, members, requested, userId), (payments) => ({
-        payments,
-      }));
+      let shares: Share[] | undefined;
+      if (changes.split !== undefined) {
+        // P186: among the current members only, so a member who left is never given a share (NotASpaceMember).
+        const split = splitShares(
+          whole.value,
+          changes.split,
+          members.map((m) => m.id),
+        );
+        if (!split.ok) return split;
+        shares = split.value;
+      }
+      let payments: Payment[] | undefined;
+      if (changes.accountId !== undefined || changes.payments !== undefined) {
+        const requested = changes.payments ?? [
+          { memberId: space.memberId, accountId: changes.accountId!, amount: whole.value },
+        ];
+        const resolved = await resolvePayments(deps, space, members, requested, userId);
+        if (!resolved.ok) return resolved;
+        payments = resolved.value;
+      }
+      return ok({ ...(shares ? { shares } : {}), ...(payments ? { payments } : {}) });
     }
     case "INCOME": {
-      const wrong = sent(changes, ["payments", "sourceAccountId", "destinationAccountId"]);
+      const wrong = sent(changes, ["payments", "split", "sourceAccountId", "destinationAccountId"]);
       if (wrong) return notEditable(wrong);
       if (changes.accountId === undefined) return ok({});
       if (current.receivingMemberId !== space.memberId) return err(domainError("AccountNotOwned"));
@@ -80,7 +100,7 @@ export const editedParts = async (
     }
     case "TRANSFER":
     case "SETTLEMENT": {
-      const wrong = sent(changes, ["accountId", "payments"]);
+      const wrong = sent(changes, ["accountId", "payments", "split"]);
       if (wrong) return notEditable(wrong);
       const moving = sent(changes, ["sourceAccountId", "destinationAccountId"]);
       if (!moving) return ok({});

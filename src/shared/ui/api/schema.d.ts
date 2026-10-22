@@ -687,7 +687,7 @@ export interface paths {
         delete: operations["deleteTransaction"];
         options?: never;
         head?: never;
-        /** Change description, date, time, category, amount, accounts or who paid; send If-Match with the current ETag */
+        /** Change description, date, time, category, amount, accounts, who paid or how it is split; send If-Match with the current ETag */
         patch: operations["editTransaction"];
         trace?: never;
     };
@@ -5019,6 +5019,34 @@ export interface operations {
                     }[];
                     sourceAccountId?: string;
                     destinationAccountId?: string;
+                    split?: {
+                        /** @constant */
+                        method: "EQUAL";
+                        participants: {
+                            memberId: string;
+                        }[];
+                    } | {
+                        /** @constant */
+                        method: "PERCENT";
+                        participants: {
+                            memberId: string;
+                            percent: string;
+                        }[];
+                    } | {
+                        /** @constant */
+                        method: "EXACT";
+                        participants: {
+                            memberId: string;
+                            amount: components["schemas"]["Money"];
+                        }[];
+                    } | {
+                        /** @constant */
+                        method: "SHARES";
+                        participants: {
+                            memberId: string;
+                            units: number;
+                        }[];
+                    };
                 };
             };
         };
@@ -5077,7 +5105,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, InvalidSplit, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone */
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, InvalidSplit, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone */
             422: {
                 headers: {
                     [name: string]: unknown;

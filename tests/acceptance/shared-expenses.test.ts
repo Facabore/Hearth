@@ -1,6 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
+import { POST as recordIncome } from "@/app/api/v1/spaces/[spaceId]/incomes/route";
+import { POST as leaveSpace } from "@/app/api/v1/spaces/[spaceId]/leave/route";
 import { GET as listTransactions } from "@/app/api/v1/spaces/[spaceId]/transactions/route";
+import { GET as transactionAudit } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/audit/route";
 import {
   GET as getTransaction,
   PATCH as editTransaction,
@@ -11,11 +14,15 @@ import { actingIn } from "../support/spaces";
 import {
   addGuest,
   balanceOf,
+  balancesOf,
+  categoryWithKey,
   cop,
   household,
   joinHousehold,
   memberIdOf,
+  paysEqually,
   post,
+  settles,
   type Household,
   type HouseholdMember,
   type TransactionDto,
@@ -292,6 +299,239 @@ describe("change who paid an expense (ruling P186)", () => {
     ).toEqual([422, "AccountNotOwned"]);
     expect(await balanceOf(h.juan.personal, h.juan.account)).toEqual(cop(1_900_000));
     expect(await balanceOf(h.ana.personal, h.ana.account)).toEqual(cop(2_000_000));
+  });
+
+  it("changes the amount and the split together: 400,000 EQUAL gives 200,000 each", async () => {
+    const h = await household();
+    const tx = await recordedBy(
+      h.ana,
+      paidBy(h, h.ana, 300_000, { split: equal(h.ana.memberId, h.juan.memberId) }),
+    );
+    const response = await call(
+      editTransaction,
+      "PATCH",
+      `/api/v1/spaces/${h.spaceId}/transactions/${tx.id}`,
+      {
+        user: h.ana,
+        params: { spaceId: h.spaceId, transactionId: tx.id },
+        headers: { "if-match": '"1"' },
+        body: { amount: cop(400_000), split: equal(h.ana.memberId, h.juan.memberId) },
+      },
+    );
+    expect(response.status).toBe(200);
+    expect(sharesOf((await response.json()) as TransactionDto)).toEqual([
+      [h.ana.memberId, cop(200_000), "EQUAL"],
+      [h.juan.memberId, cop(200_000), "EQUAL"],
+    ]);
+    expect(await balanceOf(h.ana.personal, h.ana.account)).toEqual(cop(1_600_000));
+  });
+});
+
+describe("change how an expense is split (ruling P186)", () => {
+  const editAs = (_h: Household, user: TestUser, id: string, body: unknown, ifMatch?: string) =>
+    call(editTransaction, "PATCH", `/api/v1/spaces/${user.spaceId}/transactions/${id}`, {
+      user,
+      params: { spaceId: user.spaceId, transactionId: id },
+      headers: ifMatch === undefined ? {} : { "if-match": ifMatch },
+      body,
+    });
+  interface AuditItem {
+    action: string;
+    changes: Record<string, { from: string | null; to: string | null }>;
+  }
+  const auditOf = async (h: Household, user: TestUser, id: string): Promise<AuditItem[]> => {
+    const response = await call(
+      transactionAudit,
+      "GET",
+      `/api/v1/spaces/${h.spaceId}/transactions/${id}/audit`,
+      { user, params: { spaceId: h.spaceId, transactionId: id } },
+    );
+    return ((await response.json()) as { items: AuditItem[] }).items;
+  };
+  const netsSum = (nets: [string, { amount: string }][]) =>
+    nets.reduce((sum, [, net]) => sum + BigInt(net.amount), 0n);
+
+  it("keeps the balances consistent through an amount change and a percentage split, and audits the shares", async () => {
+    const h = await household();
+    const [ana, juan] = [h.ana.memberId, h.juan.memberId];
+    const tx = await recordedBy(h.ana, paidBy(h, h.ana, 300_000, { split: equal(ana, juan) }));
+    expect(await balancesOf(h.ana, h.spaceId)).toEqual([
+      [ana, cop(150_000)],
+      [juan, cop(-150_000)],
+    ]);
+    const percent = {
+      method: "PERCENT",
+      participants: [
+        { memberId: ana, percent: "40" },
+        { memberId: juan, percent: "60" },
+      ],
+    };
+    const response = await editAs(h, h.ana, tx.id, { amount: cop(400_000), split: percent }, '"1"');
+    expect([response.status, response.headers.get("etag")]).toEqual([200, '"2"']);
+    const edited = (await response.json()) as TransactionDto;
+    expect(sharesOf(edited)).toEqual([
+      [ana, cop(160_000), "PERCENT"],
+      [juan, cop(240_000), "PERCENT"],
+    ]);
+    // What the list shows are the API's shares.
+    const listing = await call(listTransactions, "GET", `/api/v1/spaces/${h.spaceId}/transactions`, {
+      user: h.ana,
+      params: { spaceId: h.spaceId },
+    });
+    const listed = ((await listing.json()) as { items: TransactionDto[] }).items;
+    expect(sharesOf(listed.find((t) => t.id === tx.id)!)).toEqual(sharesOf(edited));
+    const nets = await balancesOf(h.ana, h.spaceId);
+    expect(nets).toEqual([
+      [ana, cop(240_000)],
+      [juan, cop(-240_000)],
+    ]);
+    expect(netsSum(nets)).toBe(0n);
+    expect(await balanceOf(h.ana.personal, h.ana.account)).toEqual(cop(1_600_000));
+    const [entry] = await auditOf(h, h.ana, tx.id);
+    expect(entry!.action).toBe("UPDATED");
+    expect(Object.keys(entry!.changes).sort()).toEqual(["amount", "payments", "shares"]);
+    expect(JSON.parse(entry!.changes.shares!.from!)).toEqual([
+      { memberId: ana, amount: "15000000", splitMethod: "EQUAL" },
+      { memberId: juan, amount: "15000000", splitMethod: "EQUAL" },
+    ]);
+    expect(JSON.parse(entry!.changes.shares!.to!)).toEqual([
+      { memberId: ana, amount: "16000000", splitMethod: "PERCENT" },
+      { memberId: juan, amount: "24000000", splitMethod: "PERCENT" },
+    ]);
+  });
+
+  it("changes only the split: nothing is paid again, the balances follow, the audit lists only the shares", async () => {
+    const h = await household();
+    const [ana, juan] = [h.ana.memberId, h.juan.memberId];
+    const tx = await recordedBy(h.ana, paidBy(h, h.ana, 300_000, { split: equal(ana, juan) }));
+    const response = await editAs(h, h.ana, tx.id, { split: equal(ana) }, '"1"');
+    expect(response.status).toBe(200);
+    expect(sharesOf((await response.json()) as TransactionDto)).toEqual([[ana, cop(300_000), "EQUAL"]]);
+    const nets = await balancesOf(h.ana, h.spaceId);
+    expect(nets).toEqual([
+      [ana, cop(0)],
+      [juan, cop(0)],
+    ]);
+    expect(netsSum(nets)).toBe(0n);
+    expect(await balanceOf(h.ana.personal, h.ana.account)).toEqual(cop(1_700_000));
+    const [entry] = await auditOf(h, h.ana, tx.id);
+    expect(Object.keys(entry!.changes)).toEqual(["shares"]);
+  });
+
+  it("changes nothing without a split: the amount of a shared expense still needs one (HU-E4-06)", async () => {
+    const h = await household();
+    const [ana, juan] = [h.ana.memberId, h.juan.memberId];
+    const tx = await recordedBy(h.ana, paidBy(h, h.ana, 300_000, { split: equal(ana, juan) }));
+    expect(await problemOf(await editAs(h, h.ana, tx.id, { amount: cop(400_000) }))).toEqual([
+      409,
+      "SharesDoNotMatchAmount",
+    ]);
+    const renamed = await editAs(h, h.ana, tx.id, { description: "Market" }, '"1"');
+    expect(renamed.status).toBe(200);
+    // The recorded split survives an edit that does not send one; the plan's default is never reapplied.
+    expect(sharesOf((await renamed.json()) as TransactionDto)).toEqual([
+      [ana, cop(150_000), "EQUAL"],
+      [juan, cop(150_000), "EQUAL"],
+    ]);
+    expect(Object.keys((await auditOf(h, h.ana, tx.id))[0]!.changes)).toEqual(["description"]);
+  });
+
+  it("applies the recording rules to the new split", async () => {
+    const h = await household();
+    const [ana, juan] = [h.ana.memberId, h.juan.memberId];
+    const tx = await recordedBy(h.ana, paidBy(h, h.ana, 300_000, { split: equal(ana, juan) }));
+    const refused = async (split: unknown) => problemOf(await editAs(h, h.ana, tx.id, { split }));
+    expect(
+      await refused({
+        method: "EXACT",
+        participants: [
+          { memberId: ana, amount: cop(100_000) },
+          { memberId: juan, amount: cop(100_000) },
+        ],
+      }),
+    ).toEqual([409, "SharesDoNotMatchAmount"]);
+    expect(
+      await refused({
+        method: "PERCENT",
+        participants: [
+          { memberId: ana, percent: "40" },
+          { memberId: juan, percent: "50" },
+        ],
+      }),
+    ).toEqual([422, "InvalidSplit"]);
+    expect(await refused({ method: "EQUAL", participants: [] })).toEqual([422, "ParticipantsRequired"]);
+    expect(await refused(equal(ana, "member-nobody"))).toEqual([422, "NotASpaceMember"]);
+    expect(await refused({ method: "BY_ALLOCATION", participants: [{ memberId: ana, weight: 1 }] })).toEqual([
+      422,
+      "ValidationFailed",
+    ]);
+    const exact = await editAs(h, h.ana, tx.id, {
+      split: {
+        method: "EXACT",
+        participants: [
+          { memberId: ana, amount: cop(100_000) },
+          { memberId: juan, amount: cop(200_000) },
+        ],
+      },
+    });
+    expect(sharesOf((await exact.json()) as TransactionDto)).toEqual([
+      [ana, cop(100_000), "EXACT"],
+      [juan, cop(200_000), "EXACT"],
+    ]);
+  });
+
+  it("refuses a split on an income", async () => {
+    const h = await household();
+    const income = await post(recordIncome, h.ana.personal, "incomes", {
+      amount: cop(500_000),
+      date: "2026-10-05",
+      categoryId: await categoryWithKey(h.ana.personal, "salary"),
+      accountId: h.ana.account,
+    });
+    expect(income.status).toBe(201);
+    const salary = (await income.json()) as TransactionDto;
+    const response = await editAs(h, h.ana.personal, salary.id, { split: equal(h.ana.memberId) });
+    expect([response.status, (await response.json()).code]).toEqual([409, "FieldNotEditable"]);
+  });
+
+  it("lets only the right people split: a MEMBER their own expense only, a VIEWER none", async () => {
+    const h = await household();
+    const luis = await joinHousehold(h, "Luis", "MEMBER");
+    const sofi = await joinHousehold(h, "Sofi", "VIEWER");
+    const [ana, juan] = [h.ana.memberId, h.juan.memberId];
+    const anas = await recordedBy(h.ana, paidBy(h, h.ana, 300_000, { split: equal(ana, juan) }));
+    expect(await problemOf(await editAs(h, luis, anas.id, { split: equal(ana) }))).toEqual([
+      403,
+      "InsufficientRole",
+    ]);
+    expect(await problemOf(await editAs(h, sofi, anas.id, { split: equal(ana) }))).toEqual([
+      403,
+      "InsufficientRole",
+    ]);
+    const luiss = await recordedBy(luis, paidBy(h, luis, 100_000, { split: equal(luis.memberId, ana) }));
+    const own = await editAs(h, luis, luiss.id, { split: equal(luis.memberId) });
+    expect(own.status).toBe(200);
+    expect(sharesOf((await own.json()) as TransactionDto)).toEqual([[luis.memberId, cop(100_000), "EQUAL"]]);
+  });
+
+  it("refuses a split that would move the balance of a member who left", async () => {
+    const h = await household();
+    const luis = await joinHousehold(h, "Luis", "MEMBER");
+    const groceries = await paysEqually(luis, 100_000, [h.ana.memberId, luis.memberId], h.groceries);
+    await settles(h.ana, h.ana.memberId, luis.memberId, 50_000);
+    const left = await call(leaveSpace, "POST", `/api/v1/spaces/${h.spaceId}/leave`, {
+      user: luis,
+      params: { spaceId: h.spaceId },
+    });
+    expect(left.status).toBe(204);
+    const before = await balancesOf(h.ana, h.spaceId);
+    // Naming the departed member is refused, and so is dropping them: their zero balance does not move.
+    const naming = await editAs(h, h.ana, groceries.id, { split: equal(h.ana.memberId, luis.memberId) });
+    expect(await problemOf(naming)).toEqual([422, "NotASpaceMember"]);
+    const dropping = await editAs(h, h.ana, groceries.id, { split: equal(h.ana.memberId) });
+    expect(await problemOf(dropping)).toEqual([422, "NotASpaceMember"]);
+    expect(await balancesOf(h.ana, h.spaceId)).toEqual(before);
+    expect(netsSum(before)).toBe(0n);
   });
 });
 

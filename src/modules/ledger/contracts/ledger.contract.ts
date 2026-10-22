@@ -147,7 +147,7 @@ export const RecordExpenseBodySchema = z
 type RecordExpenseBody = z.infer<typeof RecordExpenseBodySchema>;
 
 /** The split as the use case takes it; EXACT amounts become Money (UnknownCurrency otherwise). */
-const splitFromBody = (split: RecordExpenseBody["split"]): Result<SplitInput | undefined> => {
+export const splitFromBody = (split: RecordExpenseBody["split"]): Result<SplitInput | undefined> => {
   if (split === undefined) return ok(undefined);
   if (split.method !== "EXACT") return ok(splitOf(split));
   const participants: { memberId: string; amount: Money }[] = [];
@@ -408,7 +408,8 @@ export const positionFromCursor = (raw: string): Result<TransactionPosition> => 
 
 /**
  * HU-E4-06, ruling P186: every field optional; an expense takes `accountId` (the requester pays it all from that
- * account) or `payments`, an income `accountId`, an own transfer `sourceAccountId` and `destinationAccountId`.
+ * account) or `payments` and may send `split`, an income `accountId`, an own transfer `sourceAccountId` and
+ * `destinationAccountId`.
  */
 export const EditTransactionBodySchema = z
   .object({
@@ -423,6 +424,8 @@ export const EditTransactionBodySchema = z
     payments: z.array(PaymentBodySchema).max(MAX_PARTS).optional(),
     sourceAccountId: IdSchema.optional(),
     destinationAccountId: IdSchema.optional(),
+    /** Ruling P186: how an expense is split, as when recording; recomputed on the edited amount. */
+    split: SplitBodySchema.optional(),
   })
   .refine((body) => body.accountId === undefined || body.payments === undefined, {
     error: "Send accountId or payments, not both",
@@ -445,6 +448,8 @@ export const editChangesFromBody = (body: z.infer<typeof EditTransactionBodySche
       payments.push({ memberId: payment.memberId, accountId: payment.accountId ?? null, amount: paid.value });
     }
   }
+  const split = splitFromBody(body.split);
+  if (!split.ok) return split;
   return ok({
     description: body.description,
     ...when.value,
@@ -454,6 +459,7 @@ export const editChangesFromBody = (body: z.infer<typeof EditTransactionBodySche
     payments,
     sourceAccountId: body.sourceAccountId,
     destinationAccountId: body.destinationAccountId,
+    split: split.value,
   });
 };
 
@@ -669,7 +675,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     patch: {
       operationId: "editTransaction",
       summary:
-        "Change description, date, time, category, amount, accounts or who paid; send If-Match with the current ETag",
+        "Change description, date, time, category, amount, accounts, who paid or how it is split; send If-Match with the current ETag",
       ...securedByUser,
       requestParams: { path: TransactionPath, header: IfMatchHeader },
       requestBody: { content: jsonContent(EditTransactionBodySchema) },
@@ -686,7 +692,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
             "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory, AccountArchived, SameAccountTransfer, GuestHasNoAccounts, MixedFundPayment, FieldNotEditable",
           "412": "PreconditionFailed",
           "422":
-            "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, InvalidSplit, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone",
+            "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, InvalidSplit, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone",
         }),
       },
     },

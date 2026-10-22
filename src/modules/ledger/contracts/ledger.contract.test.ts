@@ -151,7 +151,8 @@ describe("edit bodies (HU-E4-06, ruling P186)", () => {
       changes.payments,
       changes.sourceAccountId,
       changes.destinationAccountId,
-    ]).toEqual([undefined, undefined, undefined, undefined]);
+      changes.split,
+    ]).toEqual([undefined, undefined, undefined, undefined, undefined]);
     expect(EditTransactionBodySchema.safeParse({}).success).toBe(true);
   });
 
@@ -182,5 +183,66 @@ describe("edit bodies (HU-E4-06, ruling P186)", () => {
       payments: [{ memberId: null, accountId: "acc-fund", amount: { amount: "100", currency: "ZZZ" } }],
     });
     expect(codeOf(editChangesFromBody(unknown))).toBe("UnknownCurrency");
+  });
+
+  it("takes a split as when recording: percentages in basis points, EXACT amounts as Money (P186)", () => {
+    const percent = unwrap(
+      editChangesFromBody(
+        EditTransactionBodySchema.parse({
+          split: {
+            method: "PERCENT",
+            participants: [
+              { memberId: "member-ana", percent: "33.33" },
+              { memberId: "member-juan", percent: "66.67" },
+            ],
+          },
+        }),
+      ),
+    );
+    expect(percent.split).toEqual({
+      method: "PERCENT",
+      participants: [
+        { memberId: "member-ana", basisPoints: 3_333 },
+        { memberId: "member-juan", basisPoints: 6_667 },
+      ],
+    });
+    const exact = unwrap(
+      editChangesFromBody(
+        EditTransactionBodySchema.parse({
+          split: {
+            method: "EXACT",
+            participants: [{ memberId: "member-ana", amount: { amount: "100", currency: "COP" } }],
+          },
+        }),
+      ),
+    );
+    expect(exact.split).toEqual({
+      method: "EXACT",
+      participants: [{ memberId: "member-ana", amount: money(100n) }],
+    });
+    expect(
+      unwrap(
+        editChangesFromBody(
+          EditTransactionBodySchema.parse({
+            split: { method: "SHARES", participants: [{ memberId: "member-ana", units: 2 }] },
+          }),
+        ),
+      ).split,
+    ).toEqual({ method: "SHARES", participants: [{ memberId: "member-ana", units: 2 }] });
+  });
+
+  it("refuses an unknown currency in an EXACT split and a split method the record body does not have", () => {
+    const unknown = EditTransactionBodySchema.parse({
+      split: {
+        method: "EXACT",
+        participants: [{ memberId: "member-ana", amount: { amount: "100", currency: "ZZZ" } }],
+      },
+    });
+    expect(codeOf(editChangesFromBody(unknown))).toBe("UnknownCurrency");
+    expect(
+      EditTransactionBodySchema.safeParse({
+        split: { method: "BY_ALLOCATION", participants: [{ memberId: "member-ana", weight: 1 }] },
+      }).success,
+    ).toBe(false);
   });
 });

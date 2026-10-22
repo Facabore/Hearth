@@ -34,8 +34,8 @@ const personal = (overrides: Partial<LedgerDeps> = {}) => {
   };
 };
 
-const household = () => {
-  const fixture = householdLedger();
+const household = (overrides: Partial<LedgerDeps> = {}) => {
+  const fixture = householdLedger(undefined, overrides);
   const shared = anExpense("2026-10-20", 3_000_000n, {
     spaceId: "space-household",
     shares: [
@@ -273,5 +273,243 @@ describe("EditTransaction changes accounts and who paid (ruling P186)", () => {
     const same = unwrap(await change(market.id, { accountId: ACCOUNTS.bancolombia.id }));
     expect(same.version).toBe(1);
     expect(audit.entries).toEqual([]);
+  });
+});
+
+describe("EditTransaction changes how an expense is split (ruling P186)", () => {
+  const equal = (...memberIds: string[]) => ({
+    method: "EQUAL" as const,
+    participants: memberIds.map((memberId) => ({ memberId })),
+  });
+
+  it("recomputes EQUAL shares on a new amount", async () => {
+    const { change, shared } = household();
+    const edited = unwrap(
+      await change("u-ana", shared.id, {
+        amount: money(4_000_000n),
+        split: equal("member-ana", "member-juan"),
+      }),
+    ) as Expense;
+    expect(edited.payments.map((p) => p.amount)).toEqual([4_000_000n]);
+    expect(edited.shares.map((s) => [s.memberId, s.amount, s.splitMethod])).toEqual([
+      ["member-ana", 2_000_000n, "EQUAL"],
+      ["member-juan", 2_000_000n, "EQUAL"],
+    ]);
+  });
+
+  it("splits by percentage on the current amount when only the split changes", async () => {
+    const { change, shared } = household();
+    const edited = unwrap(
+      await change("u-ana", shared.id, {
+        split: {
+          method: "PERCENT",
+          participants: [
+            { memberId: "member-ana", basisPoints: 4_000 },
+            { memberId: "member-juan", basisPoints: 6_000 },
+          ],
+        },
+      }),
+    ) as Expense;
+    expect(edited.shares.map((s) => s.amount)).toEqual([1_200_000n, 1_800_000n]);
+  });
+
+  it("still refuses a new amount without a split when there are several shares (HU-E4-06)", async () => {
+    const { change, shared } = household();
+    expect(codeOf(await change("u-ana", shared.id, { amount: money(4_000_000n) }))).toBe(
+      "SharesDoNotMatchAmount",
+    );
+  });
+
+  it("gives no share to someone who is not a current member, and refuses a split on an income", async () => {
+    const { change, shared } = household();
+    expect(codeOf(await change("u-ana", shared.id, { split: equal("member-ana", "member-gone") }))).toBe(
+      "NotASpaceMember",
+    );
+    const { change: personalChange, salary } = personal();
+    const result = await personalChange(salary.id, { split: equal("member-ana") });
+    expect(result.ok ? null : [result.error.code, result.error.details?.field]).toEqual([
+      "FieldNotEditable",
+      "split",
+    ]);
+  });
+
+  it("refuses a split on a transfer, a settlement and a fund contribution as FieldNotEditable", async () => {
+    const { change, move, store } = personal();
+    const settlement = aSettlement("2026-10-28", 1_000_000n, { spaceId: "space-ana" });
+    const contribution = aTransfer("2026-10-28", 1_000_000n, { payerMemberId: "member-ana" });
+    store.rows.push(settlement, contribution);
+    for (const id of [move.id, settlement.id, contribution.id]) {
+      const result = await change(id, { split: equal("member-ana") });
+      expect(result.ok ? null : [result.error.code, result.error.details?.field]).toEqual([
+        "FieldNotEditable",
+        "split",
+      ]);
+    }
+  });
+
+  it("applies the recording rules: the shares must sum to the amount and the participants be valid", async () => {
+    const { change, shared, store } = household();
+    const attempt = async (split: EditChanges["split"]) => {
+      const result = await change("u-ana", shared.id, { split });
+      return result.ok ? null : [result.error.code, result.error.details?.reason ?? null];
+    };
+    expect(
+      await attempt({
+        method: "EXACT",
+        participants: [
+          { memberId: "member-ana", amount: money(1_000_000n) },
+          { memberId: "member-juan", amount: money(1_000_000n) },
+        ],
+      }),
+    ).toEqual(["SharesDoNotMatchAmount", null]);
+    expect(
+      await attempt({
+        method: "PERCENT",
+        participants: [
+          { memberId: "member-ana", basisPoints: 4_000 },
+          { memberId: "member-juan", basisPoints: 5_000 },
+        ],
+      }),
+    ).toEqual(["InvalidSplit", "percentNotHundred"]);
+    expect(await attempt(equal("member-ana", "member-ana"))).toEqual([
+      "InvalidSplit",
+      "duplicateParticipant",
+    ]);
+    expect(await attempt({ method: "EQUAL", participants: [] })).toEqual(["ParticipantsRequired", null]);
+    expect(
+      await attempt({
+        method: "SHARES",
+        participants: [
+          { memberId: "member-ana", units: 2 },
+          { memberId: "member-juan", units: 0 },
+        ],
+      }),
+    ).toEqual(["InvalidSplit", "unitsNotPositive"]);
+    // Nothing was saved by the refusals.
+    expect((store.rows.find((row) => row.id === shared.id) as Expense).version).toBe(1);
+  });
+
+  it("accepts an EXACT split that adds up to the new amount", async () => {
+    const { change, shared } = household();
+    const edited = unwrap(
+      await change("u-ana", shared.id, {
+        amount: money(4_000_000n),
+        split: {
+          method: "EXACT",
+          participants: [
+            { memberId: "member-ana", amount: money(1_000_000n) },
+            { memberId: "member-juan", amount: money(3_000_000n) },
+          ],
+        },
+      }),
+    ) as Expense;
+    expect(edited.shares.map((s) => [s.memberId, s.amount, s.splitMethod])).toEqual([
+      ["member-ana", 1_000_000n, "EXACT"],
+      ["member-juan", 3_000_000n, "EXACT"],
+    ]);
+  });
+
+  it("audits the old and the new shares as JSON, and nothing else when only the split changes", async () => {
+    const { change, shared, store, audit } = household();
+    unwrap(
+      await change("u-ana", shared.id, {
+        split: {
+          method: "PERCENT",
+          participants: [
+            { memberId: "member-ana", basisPoints: 4_000 },
+            { memberId: "member-juan", basisPoints: 6_000 },
+          ],
+        },
+      }),
+    );
+    expect(audit.entries).toHaveLength(1);
+    expect(audit.entries[0]!.action).toBe("UPDATED");
+    expect(audit.entries[0]!.changes).toEqual({
+      shares: {
+        from: '[{"memberId":"member-ana","amount":"1500000","splitMethod":"EQUAL"},{"memberId":"member-juan","amount":"1500000","splitMethod":"EQUAL"}]',
+        to: '[{"memberId":"member-ana","amount":"1200000","splitMethod":"PERCENT"},{"memberId":"member-juan","amount":"1800000","splitMethod":"PERCENT"}]',
+      },
+    });
+    const saved = store.rows.find((row) => row.id === shared.id) as Expense;
+    expect(saved.version).toBe(2);
+    expect(saved.shares.map((s) => s.amount)).toEqual([1_200_000n, 1_800_000n]);
+  });
+
+  it("changes nothing and writes no audit when the split is the one already stored", async () => {
+    const { change, shared, audit } = household();
+    const same = unwrap(await change("u-ana", shared.id, { split: equal("member-ana", "member-juan") }));
+    expect(same.version).toBe(1);
+    expect(audit.entries).toEqual([]);
+  });
+
+  it("never reapplies the plan's default split when no split is sent (P186, spec 5.3)", async () => {
+    let asked = 0;
+    const defaultSplits = {
+      allocationWeights: async () => {
+        asked += 1;
+        return [
+          { memberId: "member-ana", weight: 1n },
+          { memberId: "member-juan", weight: 3n },
+        ];
+      },
+    };
+    const { change, store } = household({ defaultSplits });
+    const planned = anExpense("2026-10-18", 4_000_000n, {
+      spaceId: "space-household",
+      shares: [
+        { memberId: "member-ana", amount: 2_000_000n, splitMethod: "BY_ALLOCATION" },
+        { memberId: "member-juan", amount: 2_000_000n, splitMethod: "BY_ALLOCATION" },
+      ],
+    });
+    store.rows.push(planned);
+    const renamed = unwrap(await change("u-ana", planned.id, { description: "Market" })) as Expense;
+    expect(renamed.shares).toEqual(planned.shares);
+    // Changing the amount alone is refused, not silently re-split by the plan.
+    expect(codeOf(await change("u-ana", planned.id, { amount: money(5_000_000n) }))).toBe(
+      "SharesDoNotMatchAmount",
+    );
+    expect(asked).toBe(0);
+  });
+
+  it("keeps a member who left at zero: no split edit and no amount edit may move their share", async () => {
+    const { change, store } = household();
+    const gone = anExpense("2026-10-19", 2_000_000n, {
+      spaceId: "space-household",
+      shares: [
+        { memberId: "member-ana", amount: 1_000_000n, splitMethod: "EQUAL" },
+        { memberId: "member-gone", amount: 1_000_000n, splitMethod: "EQUAL" },
+      ],
+      payments: [{ memberId: "member-ana", accountId: ACCOUNTS.bancolombia.id, amount: 2_000_000n }],
+    });
+    store.rows.push(gone);
+    // Dropping the departed member from the split would move their balance.
+    expect(codeOf(await change("u-ana", gone.id, { split: equal("member-ana") }))).toBe("NotASpaceMember");
+    expect(
+      codeOf(await change("u-ana", gone.id, { amount: money(3_000_000n), split: equal("member-ana") })),
+    ).toBe("NotASpaceMember");
+    // The same split on the unchanged amount: still refused, since the departed member's share would be dropped.
+    expect(codeOf(await change("u-ana", gone.id, { split: equal("member-ana", "member-juan") }))).toBe(
+      "NotASpaceMember",
+    );
+    expect((store.rows.find((row) => row.id === gone.id) as Expense).version).toBe(1);
+  });
+
+  it("lets a MEMBER split only their own expense, an ADMIN any, and a VIEWER none", async () => {
+    const { change, shared, store } = household();
+    const split = equal("member-ana", "member-juan");
+    expect(codeOf(await change("u-luis", shared.id, { split }))).toBe("InsufficientRole");
+    expect(codeOf(await change("u-sofi", shared.id, { split }))).toBe("InsufficientRole");
+    const lucia = anExpense("2026-10-17", 1_000_000n, {
+      spaceId: "space-household",
+      createdBy: "u-luis",
+      payments: [{ memberId: "member-luis", accountId: null, amount: 1_000_000n }],
+      shares: [{ memberId: "member-luis", amount: 1_000_000n, splitMethod: "EQUAL" }],
+    });
+    store.rows.push(lucia);
+    const own = unwrap(
+      await change("u-luis", lucia.id, { split: equal("member-luis", "member-ana") }),
+    ) as Expense;
+    expect(own.shares.map((s) => s.amount)).toEqual([500_000n, 500_000n]);
+    expect(unwrap(await change("u-juan", shared.id, { split })).version).toBe(1);
   });
 });
