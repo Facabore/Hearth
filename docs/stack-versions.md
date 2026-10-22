@@ -6,7 +6,7 @@ Pinned on 2026-10-11 (HU-E0-01). Each entry was the latest stable release that d
 |---|---|---|
 | Node.js | 24.21.0 | Current LTS ("Krypton") in `.nvmrc`, Docker and CI; `engines` accepts `>=24.12.0 <25` for local hosts. Vitest 5 requires Node ≥ 22.12 |
 | pnpm | 12.11.2 | `packageManager` field; settings in `pnpm-workspace.yaml` |
-| Next.js | 16.4.0 | App Router, standalone output |
+| Next.js | 16.4.2 | App Router, standalone output; 16.4.2 (2026-10-22, #160) fixes GHSA-2464-fhr4-w9xw (critical, Image Optimization API with SVG) and GHSA-p3m5-59mp-jv5r (high, Server Actions DoS), both affecting 16.0.0 to 16.4.0 |
 | React / React DOM | 19.3.0 | |
 | TypeScript | 6.0.3 | 7.0.2 exists (native Go build) but typescript-eslint 8.71.1 supports `<6.1.0` |
 | Zod | 4.6.5 | 4.6.6 was published on the bootstrap day; 4.6.5 kept for soak time |
