@@ -5460,7 +5460,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed (including the template, type, payer, accounts or start date, which an edit cannot change), InvalidAmount, InvalidDate, InvalidDescription, InvalidPeriodPolicy, InvalidRecurrence (an end date before the start; a category or split its type does not have), CurrencyMismatch, UnknownCurrency, AccountNotOwned (it moves money into or out of its creator's own account: only its creator changes it), AccountNotInSpace, AccountRequired, InvalidFundAccount, NotASpaceMember (a payer or a split participant left; with member "creator", the recurrence's creator left), InvalidSplit, ParticipantsRequired */
+            /** @description ValidationFailed (including the template, type, payer, accounts or start date, which an edit cannot change), InvalidAmount, InvalidDate, InvalidDescription, InvalidPeriodPolicy, InvalidRecurrence (an end date before the start; a category or split its type does not have), CurrencyMismatch, UnknownCurrency, AccountNotOwned (it moves money into or out of its creator's own account: only its creator changes it), AccountNotInSpace, AccountRequired, InvalidFundAccount, NotASpaceMember (a payer or a split participant is not a member, whether they left or never were; with member "creator", the recurrence's creator left), InvalidSplit, ParticipantsRequired */
             422: {
                 headers: {
                     [name: string]: unknown;

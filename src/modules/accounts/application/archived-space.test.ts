@@ -44,6 +44,7 @@ const world = (where: "ana" | "household", archived: boolean, archivedAccounts: 
   const accounts = new InMemoryAccounts();
   accounts.rows.push(
     account("acc-bancolombia", "Bancolombia"),
+    account("acc-card", "Visa", { type: "CREDIT_CARD", openingBalance: 0n }),
     account("acc-fund", "Household Fund", {
       spaceId: "space-household",
       type: "SHARED_FUND",
@@ -98,6 +99,38 @@ const WRITES: readonly (readonly [
     (w) => w.update({ ...ana, accountId: "acc-bancolombia", changes: { name: "Bancolombia Ahorros" } }),
   ],
   [
+    "UpdateAccount attributes",
+    "ana",
+    (w) =>
+      w.update({
+        ...ana,
+        accountId: "acc-bancolombia",
+        changes: {
+          attributes: { institution: "Bancolombia", lastFour: "1234", color: "TEAL", icon: "bank" },
+        },
+      }),
+  ],
+  [
+    "UpdateAccount terms",
+    "ana",
+    (w) =>
+      w.update({
+        ...ana,
+        accountId: "acc-card",
+        changes: { terms: { creditLimit: money(500_000_000n), cutOffDay: 5, paymentDay: 20 } },
+      }),
+  ],
+  [
+    "UpdateAccount switches",
+    "ana",
+    (w) =>
+      w.update({
+        ...ana,
+        accountId: "acc-bancolombia",
+        changes: { attributes: { includeInAvailable: false, includeInNetWorth: false } },
+      }),
+  ],
+  [
     "UpdateAccount of a shared fund",
     "household",
     (w) => w.update({ ...household, accountId: "acc-fund", changes: { name: "Casa Fund" } }),
@@ -132,9 +165,10 @@ describe("archived spaces only read: accounts (HU-E1-09, Review Focus 4)", () =>
 
   it("still lists its accounts, archived ones on request, and reads each one", async () => {
     const w = world("ana", true);
-    expect(unwrap(await w.list({ ...ana, includeArchived: false })).items.map((a) => a.id)).toEqual([
-      "acc-bancolombia",
-    ]);
+    const listed = unwrap(await w.list({ ...ana, includeArchived: false }));
+    expect(listed.items.map((a) => a.id)).toEqual(["acc-bancolombia", "acc-card"]);
+    // The list answers the space's totals too (HU-E2-07), computed on read.
+    expect(listed.totals).toEqual({ available: 200_000_000n, netWorth: 200_000_000n });
     expect(unwrap(await w.get({ ...ana, accountId: "acc-bancolombia" }))).toMatchObject({
       name: "Bancolombia",
       balance: 200_000_000n,

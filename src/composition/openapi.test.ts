@@ -117,6 +117,23 @@ describe("OpenAPI document", () => {
     ]);
   });
 
+  it("says a recurrence edit refuses a payer or split participant who left or never was a member, and a resume one who left", () => {
+    type Operation = { responses: Record<string, { description: string }> };
+    const path = (suffix: string) =>
+      doc.paths[`/api/v1/spaces/{spaceId}/recurrences/{recurrenceId}${suffix}`] as unknown as Record<
+        string,
+        Operation
+      >;
+    const refusal = (operation: Operation | undefined) =>
+      operation?.responses["422"]?.description.match(/NotASpaceMember \(([^)]*)\)/)?.[1];
+    expect(refusal(path("").patch)).toBe(
+      `a payer or a split participant is not a member, whether they left or never were; with member "creator", the recurrence's creator left`,
+    );
+    expect(refusal(path("/resume").post)).toBe(
+      `a payer or a split participant left; with member "creator", the recurrence's creator left`,
+    );
+  });
+
   it("gives every category node an icon and a palette color, and every group its key, with no new Output variant (HU-E3-05)", () => {
     const schemas = doc.components.schemas as Record<
       string,

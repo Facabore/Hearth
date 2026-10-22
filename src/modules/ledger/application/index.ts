@@ -129,7 +129,6 @@ export {
 export { CATCH_UP_LIMIT, type MaterializeDeps, type RecurrenceRun } from "./materialize-recurrence";
 export {
   createMaterializeDueOccurrences,
-  failureOf,
   type MaterializationReport,
   type MaterializeDueOccurrences,
 } from "./materialize-occurrences";

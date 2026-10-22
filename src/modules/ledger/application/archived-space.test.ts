@@ -168,6 +168,17 @@ const WRITES: readonly (readonly [
         changes: { description: "Groceries" },
       }),
   ],
+  [
+    "EditTransaction time",
+    "ana",
+    (w) =>
+      w.edit({
+        ...ana,
+        transactionId: w.market.id,
+        expectedVersion: null,
+        changes: { occurredAt: new Date("2026-10-05T10:00:00-05:00"), timeZone: "America/Bogota" },
+      }),
+  ],
   ["DeleteTransaction", "ana", (w) => w.remove({ ...ana, transactionId: w.market.id })],
 ];
 
