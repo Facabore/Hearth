@@ -10853,6 +10853,265 @@
         }
       }
     },
+    "/api/v1/me/cash-flow": {
+      "get": {
+        "operationId": "getCashFlow",
+        "summary": "What comes into and goes out of the caller's own accounts over the next 30 or 60 days",
+        "description": "Every scheduled date of the active recurrences and every pending occurrence of the spaces the caller is a current member of, when it debits or credits an account the caller owns, with the projected balance of the personal space's available money after each date. Earlier due dates are listed on today.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "schema": {
+              "default": "30",
+              "type": "string",
+              "enum": [
+                "30",
+                "60"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The caller's dated movements and projected balances",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "currency": {
+                      "type": "string"
+                    },
+                    "from": {
+                      "type": "string"
+                    },
+                    "through": {
+                      "type": "string"
+                    },
+                    "days": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "const": 30
+                        },
+                        {
+                          "type": "number",
+                          "const": 60
+                        }
+                      ]
+                    },
+                    "opening": {
+                      "description": "Today's available money of the caller's personal space.",
+                      "$ref": "#/components/schemas/MoneyOutput"
+                    },
+                    "dates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "date": {
+                            "type": "string"
+                          },
+                          "movements": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "recurrenceId": {
+                                  "type": "string"
+                                },
+                                "occurrenceId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "EXPENSE",
+                                    "INCOME",
+                                    "TRANSFER",
+                                    "FUND_CONTRIBUTION"
+                                  ]
+                                },
+                                "description": {
+                                  "type": "string"
+                                },
+                                "space": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "name"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "dueDate": {
+                                  "type": "string",
+                                  "description": "When it was due; a PENDING occurrence or an unreached earlier date is listed on today."
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "SCHEDULED",
+                                    "PENDING"
+                                  ]
+                                },
+                                "estimated": {
+                                  "type": "boolean",
+                                  "description": "A CONFIRM recurrence's estimate, which a member confirms or changes."
+                                },
+                                "amount": {
+                                  "$ref": "#/components/schemas/MoneyOutput"
+                                },
+                                "effect": {
+                                  "description": "The signed change of the caller's available money: + into a counted account, − out of one, 0 between two or none.",
+                                  "$ref": "#/components/schemas/MoneyOutput"
+                                }
+                              },
+                              "required": [
+                                "recurrenceId",
+                                "occurrenceId",
+                                "type",
+                                "description",
+                                "space",
+                                "dueDate",
+                                "status",
+                                "estimated",
+                                "amount",
+                                "effect"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "balanceAfter": {
+                            "$ref": "#/components/schemas/MoneyOutput"
+                          }
+                        },
+                        "required": [
+                          "date",
+                          "movements",
+                          "balanceAfter"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "totals": {
+                      "type": "object",
+                      "properties": {
+                        "incoming": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "outgoing": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "closing": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        }
+                      },
+                      "required": [
+                        "incoming",
+                        "outgoing",
+                        "closing"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "lowest": {
+                      "type": "object",
+                      "properties": {
+                        "date": {
+                          "type": "string"
+                        },
+                        "balance": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        }
+                      },
+                      "required": [
+                        "date",
+                        "balance"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "otherCurrencySpaces": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "spaceId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "currency": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "spaceId",
+                          "name",
+                          "currency"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "currency",
+                    "from",
+                    "through",
+                    "days",
+                    "opening",
+                    "dates",
+                    "totals",
+                    "lowest",
+                    "otherCurrencySpaces"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/spaces/{spaceId}/reports/spending-by-group": {
       "get": {
         "operationId": "getSpendingByGroup",

@@ -6,6 +6,7 @@ import {
   createListAccounts,
   createRestoreAccount,
   createUpdateAccount,
+  switchesOf,
   type AccountsDeps,
   type ArchiveAccount,
   type CreateAccount,
@@ -63,6 +64,8 @@ import {
   createGetFundContributions,
   createGetLineDashboard,
   createGetMemberLineMatrix,
+  createGetCashFlow,
+  type GetCashFlow,
   type GetFundContributions,
   createGetUnifiedPersonalView,
   type GetUnifiedPersonalView,
@@ -101,6 +104,7 @@ import {
   createUpdateRecurrence,
   type UpdateRecurrence,
   createEndRecurrence,
+  createListScheduledMovements,
   createPauseRecurrence,
   createResumeRecurrence,
   type EndRecurrence,
@@ -350,6 +354,7 @@ export interface Container extends RouteDeps {
     readonly getPersonalTrend: GetPersonalTrend;
     readonly getSpendingByGroup: GetSpendingByGroup;
     readonly getPersonalSpendingByGroup: GetPersonalSpendingByGroup;
+    readonly getCashFlow: GetCashFlow;
   };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
@@ -431,6 +436,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   const budgetPlans = new DrizzleBudgetPlanRepository(tm);
   const storedPeriods: StoredPeriodSource = (spaceId) => budgetPlans.storedPeriods(spaceId);
   const getAccount = createGetAccount(accountsDeps);
+  const listAccounts = createListAccounts(accountsDeps);
   // HU-E6-04: plans map the space's live categories; deleted ones never appear (D8).
   const budgetCategories: BudgetCategories = {
     list: async (spaceId) =>
@@ -763,7 +769,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       updateAccount: createUpdateAccount(accountsDeps),
       archiveAccount: createArchiveAccount(accountsDeps),
       restoreAccount: createRestoreAccount(accountsDeps),
-      listAccounts: createListAccounts(accountsDeps),
+      listAccounts,
       getAccount,
     },
     ledger: {
@@ -830,6 +836,35 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       getPersonalTrend: createGetPersonalTrend(reportingDeps),
       getSpendingByGroup: createGetSpendingByGroup(reportingDeps),
       getPersonalSpendingByGroup: createGetPersonalSpendingByGroup(reportingDeps),
+      // #150, rulings P238–P240: the caller's own money across every space they belong to, on read (D7).
+      getCashFlow: createGetCashFlow({
+        clock,
+        userTimeZones: profiles,
+        spacesOf: async (userId) =>
+          (await spaceRepository.listForUser(userId, { includeArchived: false })).map((space) => ({
+            spaceId: space.id,
+            name: space.name,
+          })),
+        scheduled: createListScheduledMovements({
+          recurrences: recurrenceRepository,
+          occurrences: recurrenceRepository,
+        }),
+        ownAccountsOf: async (userId) => {
+          const personal = await personalSpaceOf(userId);
+          // Sign-up provisions a personal space or compensates (HU-E1-02), so a signed-in user always has one.
+          if (!personal) throw new Error(`user ${userId} has no personal space`);
+          const listed = await listAccounts({ spaceId: personal.id, userId, includeArchived: false });
+          if (!listed.ok) throw new Error(`own accounts unreadable: ${listed.error.code}`);
+          return {
+            currency: listed.value.currency,
+            available: listed.value.totals.available,
+            // Defensive: a personal space only holds its owner's accounts (no SHARED_FUND, HU-E2-02).
+            accounts: listed.value.items
+              .filter((account) => account.ownerUserId === userId)
+              .map((account) => ({ id: account.id, counted: switchesOf(account).includeInAvailable })),
+          };
+        },
+      }),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.

@@ -78,3 +78,11 @@ export {
   type PersonalSpendingByGroup,
   type PersonalSpendingByGroupDeps,
 } from "./get-personal-spending-by-group";
+export {
+  CASH_FLOW_DAYS,
+  createGetCashFlow,
+  type CashFlowDays,
+  type CashFlowDeps,
+  type CashFlowView,
+  type GetCashFlow,
+} from "./get-cash-flow";

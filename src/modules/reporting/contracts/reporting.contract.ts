@@ -20,6 +20,8 @@ import {
   type Change,
   type LineTrend,
   type PersonalTrend,
+  type CashFlowDays,
+  type CashFlowView,
   type CategorySpending,
   type SpendingByGroup,
   type SubcategorySpending,
@@ -304,6 +306,79 @@ export const TrendQuerySchema = z.object({
   endPeriod: z.string().min(1).max(32),
   periods: z.coerce.number().int().min(1).max(24).default(6),
 });
+
+/** #150, ruling P241 (M6c): the calendar's window, 30 days unless 60 is asked for. */
+export const CashFlowQuerySchema = z.object({
+  days: z
+    .enum(["30", "60"])
+    .default("30")
+    .transform((days) => Number(days) as CashFlowDays),
+});
+
+const CashFlowMovementSchema = z.object({
+  recurrenceId: z.string(),
+  occurrenceId: z.string().nullable(),
+  type: z.enum(["EXPENSE", "INCOME", "TRANSFER", "FUND_CONTRIBUTION"]),
+  description: z.string(),
+  space: z.object({ id: z.string(), name: z.string() }),
+  dueDate: z
+    .string()
+    .describe("When it was due; a PENDING occurrence or an unreached earlier date is listed on today."),
+  status: z.enum(["SCHEDULED", "PENDING"]),
+  estimated: z.boolean().describe("A CONFIRM recurrence's estimate, which a member confirms or changes."),
+  amount: MoneySchema,
+  effect: MoneySchema.describe(
+    "The signed change of the caller's available money: + into a counted account, − out of one, 0 between two or none.",
+  ),
+});
+
+export const CashFlowSchema = z.object({
+  currency: z.string(),
+  from: z.string(),
+  through: z.string(),
+  days: z.union([z.literal(30), z.literal(60)]),
+  opening: MoneySchema.describe("Today's available money of the caller's personal space."),
+  dates: z.array(
+    z.object({ date: z.string(), movements: z.array(CashFlowMovementSchema), balanceAfter: MoneySchema }),
+  ),
+  totals: z.object({ incoming: MoneySchema, outgoing: MoneySchema, closing: MoneySchema }),
+  lowest: z.object({ date: z.string(), balance: MoneySchema }),
+  otherCurrencySpaces: z.array(z.object({ spaceId: z.string(), name: z.string(), currency: z.string() })),
+});
+
+export const cashFlowDto = (view: CashFlowView): z.infer<typeof CashFlowSchema> => {
+  const money = (minor: bigint) => moneyOf(minor, view.currency);
+  return {
+    currency: view.currency,
+    from: view.from,
+    through: view.through,
+    days: view.days,
+    opening: money(view.opening),
+    dates: view.dates.map((d) => ({
+      date: d.date,
+      movements: d.movements.map((m) => ({
+        recurrenceId: m.recurrenceId,
+        occurrenceId: m.occurrenceId,
+        type: m.type,
+        description: m.description,
+        space: m.space,
+        dueDate: m.date,
+        status: m.status,
+        estimated: m.estimated,
+        amount: money(m.amount),
+        effect: money(m.effect),
+      })),
+      balanceAfter: money(d.balanceAfter),
+    })),
+    totals: {
+      incoming: money(view.totals.incoming),
+      outgoing: money(view.totals.outgoing),
+      closing: money(view.totals.closing),
+    },
+    lowest: { date: view.lowest.date, balance: money(view.lowest.balance) },
+    otherCurrencySpaces: [...view.otherCurrencySpaces],
+  };
+};
 
 /**
  * −370 basis points → "-3.70": signed, exactly two decimals. Null where there is no percentage: a NEW change, or one
@@ -673,6 +748,23 @@ export const reportingPaths: ZodOpenApiPathsObject = {
           content: jsonContent(PersonalTrendSchema),
         },
         ...problems({ "401": "Unauthenticated", "422": "ValidationFailed, InvalidPeriodLabel" }),
+      },
+    },
+  },
+  "/api/v1/me/cash-flow": {
+    get: {
+      operationId: "getCashFlow",
+      summary: "What comes into and goes out of the caller's own accounts over the next 30 or 60 days",
+      description:
+        "Every scheduled date of the active recurrences and every pending occurrence of the spaces the caller is a current member of, when it debits or credits an account the caller owns, with the projected balance of the personal space's available money after each date. Earlier due dates are listed on today.",
+      ...securedByUser,
+      requestParams: { query: CashFlowQuerySchema },
+      responses: {
+        "200": {
+          description: "The caller's dated movements and projected balances",
+          content: jsonContent(CashFlowSchema),
+        },
+        ...problems({ "401": "Unauthenticated", "422": "ValidationFailed" }),
       },
     },
   },

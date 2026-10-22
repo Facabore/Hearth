@@ -1251,6 +1251,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/cash-flow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What comes into and goes out of the caller's own accounts over the next 30 or 60 days
+         * @description Every scheduled date of the active recurrences and every pending occurrence of the spaces the caller is a current member of, when it debits or credits an account the caller owns, with the projected balance of the personal space's available money after each date. Earlier due dates are listed on today.
+         */
+        get: operations["getCashFlow"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/spaces/{spaceId}/reports/spending-by-group": {
         parameters: {
             query?: never;
@@ -7412,6 +7432,91 @@ export interface operations {
                 };
             };
             /** @description ValidationFailed, InvalidPeriodLabel */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getCashFlow: {
+        parameters: {
+            query?: {
+                days?: "30" | "60";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's dated movements and projected balances */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        currency: string;
+                        from: string;
+                        through: string;
+                        days: 30 | 60;
+                        /** @description Today's available money of the caller's personal space. */
+                        opening: components["schemas"]["MoneyOutput"];
+                        dates: {
+                            date: string;
+                            movements: {
+                                recurrenceId: string;
+                                occurrenceId: string | null;
+                                /** @enum {string} */
+                                type: "EXPENSE" | "INCOME" | "TRANSFER" | "FUND_CONTRIBUTION";
+                                description: string;
+                                space: {
+                                    id: string;
+                                    name: string;
+                                };
+                                /** @description When it was due; a PENDING occurrence or an unreached earlier date is listed on today. */
+                                dueDate: string;
+                                /** @enum {string} */
+                                status: "SCHEDULED" | "PENDING";
+                                /** @description A CONFIRM recurrence's estimate, which a member confirms or changes. */
+                                estimated: boolean;
+                                amount: components["schemas"]["MoneyOutput"];
+                                /** @description The signed change of the caller's available money: + into a counted account, − out of one, 0 between two or none. */
+                                effect: components["schemas"]["MoneyOutput"];
+                            }[];
+                            balanceAfter: components["schemas"]["MoneyOutput"];
+                        }[];
+                        totals: {
+                            incoming: components["schemas"]["MoneyOutput"];
+                            outgoing: components["schemas"]["MoneyOutput"];
+                            closing: components["schemas"]["MoneyOutput"];
+                        };
+                        lowest: {
+                            date: string;
+                            balance: components["schemas"]["MoneyOutput"];
+                        };
+                        otherCurrencySpaces: {
+                            spaceId: string;
+                            name: string;
+                            currency: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed */
             422: {
                 headers: {
                     [name: string]: unknown;
