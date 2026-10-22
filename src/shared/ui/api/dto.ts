@@ -41,3 +41,6 @@ export type LineDashboardDto = Json<paths["/api/v1/spaces/{spaceId}/reports/line
 /** The plan a report reads, whatever its status (M4 ruling P33). */
 export type ReportPlanDto = NonNullable<LineDashboardDto["plan"]>;
 export type PlanStatus = ReportPlanDto["status"];
+export type BudgetPlanDto = components["schemas"]["BudgetPlan"];
+export type PlanLineDto = BudgetPlanDto["lines"][number];
+export type SpaceMemberDto = components["schemas"]["SpaceMember"];

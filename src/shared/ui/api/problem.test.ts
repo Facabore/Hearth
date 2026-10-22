@@ -46,6 +46,14 @@ describe("problemFrom (HU-E9-02)", () => {
     expect(problemFrom({ code: "SpaceArchived" }, response(409))).not.toHaveProperty("outstanding");
   });
 
+  it("keeps the public sourcePeriod of SourcePlanOpen and nothing malformed (ruling P248)", () => {
+    const body = { code: "SourcePlanOpen", status: 409, requestId: "r", sourcePeriod: "2026-11" };
+    expect(problemFrom(body, response(409)).sourcePeriod).toBe("2026-11");
+    expect(problemFrom({ ...body, sourcePeriod: 202611 }, response(409))).not.toHaveProperty("sourcePeriod");
+    expect(problemFrom({ ...body, sourcePeriod: "" }, response(409))).not.toHaveProperty("sourcePeriod");
+    expect(problemFrom({ code: "SpaceArchived" }, response(409))).not.toHaveProperty("sourcePeriod");
+  });
+
   it("reads anything else as Unknown, with the request id when the response has one", () => {
     expect(problemFrom("<html>502 Bad Gateway</html>", response(502, "req-2"))).toEqual({
       code: "Unknown",

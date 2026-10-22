@@ -9,6 +9,8 @@ export interface Problem {
   readonly field: string | null;
   /** Ruling P163: the public `outstanding` member of OutstandingBalance; absent for every other problem. */
   readonly outstanding?: MoneyDto;
+  /** Ruling P248: the public `sourcePeriod` of SourcePlanOpen, the period label of the plan to close first. */
+  readonly sourcePeriod?: string;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -35,6 +37,9 @@ export const problemFrom = (error: unknown, response: Response | undefined): Pro
       errors: Array.isArray(error.errors) ? (error.errors as Problem["errors"]) : [],
       field: typeof error.field === "string" ? error.field : null,
       ...money,
+      ...(typeof error.sourcePeriod === "string" && error.sourcePeriod !== ""
+        ? { sourcePeriod: error.sourcePeriod }
+        : {}),
     };
   }
   return { code: "Unknown", status: response?.status ?? 0, requestId: headerId, errors: [], field: null };

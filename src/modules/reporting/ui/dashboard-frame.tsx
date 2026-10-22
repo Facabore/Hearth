@@ -1,15 +1,12 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { PlanStatusBadge } from "@/modules/budgeting/ui";
+import { canManage, PlanStatusBadge } from "@/modules/budgeting/ui";
 import { Button, Icon, PeriodSwitcher, usePeriodText } from "@/shared/ui";
 import type { PeriodDto, ReportPlanDto, SpaceDto } from "@/shared/ui/api/dto";
 import type { Formats } from "@/shared/ui/format/formatters";
 import { PlanTabs } from "./plan-tabs";
 import { viewHref, type PlanView } from "./views";
-
-// Task 4 moves this to budgeting/ui/plan-access.ts and imports it from there.
-const canManage = (role: SpaceDto["role"]) => role === "OWNER" || role === "ADMIN";
 
 /**
  * The frame every dashboard of the Plan tab shares (ruling P200): the space's name, the period as the heading between
