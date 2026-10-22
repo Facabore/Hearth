@@ -1,6 +1,6 @@
 # Hearth — Product backlog
 
-This folder is the source of truth for the **content** of Hearth's epics and user stories. **Status** lives in the [Hearth GitHub Project](https://github.com/users/Facabore/projects/4): one issue per story (titled with its story ID), labelled by epic, priority, size and type, assigned to its milestone, with `Blocked by` links. When a story's content changes here, its issue body is updated in the same change. It derives from the design spec: [`docs/superpowers/specs/2026-10-11-hearth-design.md`](../superpowers/specs/2026-10-11-hearth-design.md).
+This folder is the source of truth for the **content** of Hearth's epics and user stories. **Status** lives in the [Hearth GitHub Project](https://github.com/users/Facabore/projects/4): one issue per story (titled with its story ID), labelled by epic, priority, size and type, assigned to its milestone, with `Blocked by` links. When a story's content changes here, its issue body is updated in the same change. It derives from the design spec: [`docs/specs/2026-10-11-hearth-design.md`](../specs/2026-10-11-hearth-design.md).
 
 ## Delivery: backend first (spec D18)
 

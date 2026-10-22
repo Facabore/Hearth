@@ -8,7 +8,7 @@
 
 **Tech Stack:** POSIX `sh` (busybox ash 1.37.0 on Alpine 3.24.2 inside `postgres:18.6-alpine`; Alpine in `rclone/rclone:1.75.1`), PostgreSQL 18.6 client tools (`psql`, `pg_dump`), busybox `crond`, Docker Compose (v2.24.0 or later for `env_file.required`), rclone 1.75.1 (optional), Node.js 24.21.0, Vitest 5.0.3, pg 8.23.1. No new npm dependency.
 
-**Spec:** `docs/superpowers/specs/2026-10-11-hearth-design.md` (section 7 "Architecture", the Deploy row: "Docker Compose on VPS: app + PostgreSQL + Caddy (automatic TLS); nightly `pg_dump` backups"; section 10 "Delivery", milestone M5 Hardening: "Backups, observability, import from Splitwise/CSV"; decision D8, every delete is logical). Story: `docs/backlog/E8-hardening-and-later.md`, HU-E8-01 (four scenarios and two technical notes), dependency HU-E0-07 (`Done`). Format template and precedent: `docs/superpowers/plans/2026-10-15-m3b-plan-lifecycle.md` and `docs/superpowers/plans/2026-10-17-m4-insight-api.md`. Rulings in force: every ruling through P106 (the M4 fix wave takes P105 and P106); this plan rules P107–P114, and execution added P115 and P116. GitHub Project: https://github.com/users/Facabore/projects/4.
+**Spec:** `docs/specs/2026-10-11-hearth-design.md` (section 7 "Architecture", the Deploy row: "Docker Compose on VPS: app + PostgreSQL + Caddy (automatic TLS); nightly `pg_dump` backups"; section 10 "Delivery", milestone M5 Hardening: "Backups, observability, import from Splitwise/CSV"; decision D8, every delete is logical). Story: `docs/backlog/E8-hardening-and-later.md`, HU-E8-01 (four scenarios and two technical notes), dependency HU-E0-07 (`Done`). Format template and precedent: `docs/plans/2026-10-15-m3b-plan-lifecycle.md` and `docs/plans/2026-10-17-m4-insight-api.md`. Rulings in force: every ruling through P106 (the M4 fix wave takes P105 and P106); this plan rules P107–P114, and execution added P115 and P116. GitHub Project: https://github.com/users/Facabore/projects/4.
 
 **Baseline: `development` at `1b76fc3` or later (the M4 fix wave may land first; it touches none of the files below except `docs/decisions/README.md`, whose lines this plan anchors on as they read with P1–P106).** The planning dry run verified on 2026-10-19, against Docker 29.4.2 and Compose v5.1.3: `postgres:18.6-alpine` declares `VOLUME /var/lib/postgresql`, has `ENTRYPOINT ["docker-entrypoint.sh"]` and runs as root; it ships busybox `crond`, `tzdata` (`TZ=America/Bogota date -d @0` prints `1969-12-31 19:00 -05`), `gzip`, `psql` and `pg_dump` 18.6; busybox `crond -f -d 8` runs a root-owned `/etc/crontabs/root`, its jobs inherit the container environment (`TZ` included), and a job's `> /proc/1/fd/1` reaches `docker logs`; a crontab owned by uid 1000 is silently never run (ruling P107). The draft `backup.sh` and `restore-drill.sh` of Tasks 1, 2 and 4 ran against a database migrated with every `drizzle/` migration: the dump restores (PostgreSQL 18.6 dumps open with `\restrict` and end with `-- PostgreSQL database dump complete` followed by `\unrestrict`), the count header matched, pruning kept 14 of 21 files, an unreachable host and a role that may read only `transactions` both ended in `DumpFailed` with no file written, and every drill path dropped the scratch database. `rclone/rclone` tags carry no `v`: `1.75.2` (pushed 2026-10-09) and `1.75.1` (2026-09-04) exist; its image is Alpine with `tzdata` and `ENTRYPOINT ["rclone"]`. The table is `public.transactions` (`drizzle/0005_ledger.sql`). No migration and no `src/` change.
 
@@ -1540,7 +1540,7 @@ Expected: PASS. (The first run pulls `rclone/rclone:1.75.1`, about 33 MB.)
 
 - [ ] **Step 6: Document the off-site copy, the versions and the rulings**
 
-First check that this plan is tracked (the controller committed it before Task 1), since the `mkdocs.yml` and `docs/decisions/README.md` edits below link it: `git ls-files --error-unmatch docs/superpowers/plans/2026-10-19-m5-nightly-backups.md` exits 0. If it does not, stop and ask the controller to commit it.
+First check that this plan is tracked (the controller committed it before Task 1), since the `mkdocs.yml` and `docs/decisions/README.md` edits below link it: `git ls-files --error-unmatch docs/plans/2026-10-19-m5-nightly-backups.md` exits 0. If it does not, stop and ask the controller to commit it.
 
 In `docs/operations/backups.md`, after the line starting with ``| `APP_TIMEZONE` |`` insert:
 
@@ -1627,7 +1627,7 @@ In `docs/decisions/README.md`:
 ```markdown
 ### M5: nightly backups (P107–P114)
 
-Plan: [`2026-10-19-m5-nightly-backups.md`](../superpowers/plans/2026-10-19-m5-nightly-backups.md).
+Plan: [`2026-10-19-m5-nightly-backups.md`](../plans/2026-10-19-m5-nightly-backups.md).
 
 | ID | Ruling | Where |
 |---|---|---|
@@ -1648,10 +1648,10 @@ In `docs/backlog/E8-hardening-and-later.md`, after the line ``- Off-site copy ta
 - Built in M5 (plan `2026-10-19-m5-nightly-backups.md`, rulings P107–P114): the `backup` service (`postgres:18.6-alpine`, busybox `crond`, 02:00 in `APP_TIMEZONE`) runs `scripts/backup.sh`, which writes `hearth-YYYY-MM-DD.sql.gz` with its snapshot's transaction count on the first line and then keeps the newest `BACKUP_RETENTION_DAYS` files; `scripts/restore-drill.sh` restores into `hearth_restore_drill`, compares the count and drops it; the optional `backup-offsite` service (`rclone/rclone:1.75.1`, profile `offsite`) copies the files to any rclone remote at 03:00. Logs are JSON lines with the `job` `nightly-backup`, `restore-drill` or `offsite-copy`. The drill on the VPS is recorded in `docs/operations/backups.md`.
 ```
 
-In `mkdocs.yml`, after the line `      - "M4 Insight API": superpowers/plans/2026-10-17-m4-insight-api.md` insert:
+In `mkdocs.yml`, after the line `      - "M4 Insight API": plans/2026-10-17-m4-insight-api.md` insert:
 
 ```yaml
-      - "M5 Nightly backups": superpowers/plans/2026-10-19-m5-nightly-backups.md
+      - "M5 Nightly backups": plans/2026-10-19-m5-nightly-backups.md
 ```
 
 In `docs/README.md`:

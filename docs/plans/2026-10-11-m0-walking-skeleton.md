@@ -8,7 +8,7 @@
 
 **Tech Stack:** Node.js 24.21.0 LTS, pnpm 12.11.2, Next.js 16.4.0, React 19.3.0, TypeScript 6.0.3, Zod 4.6.5, zod-openapi 6.0.2, Drizzle ORM 0.45.4 + drizzle-kit 0.31.11, pg 8.23.1, Better Auth 1.7.7, Vitest 5.0.3, Testcontainers 12.2.0, dependency-cruiser 18.6.0, ESLint 9.39.5, Prettier 3.9.10, PostgreSQL 18.6, Caddy 2.11.7, Docker Compose.
 
-**Spec:** `docs/superpowers/specs/2026-10-11-hearth-design.md` (approved 2026-10-11). Stories: `docs/backlog/E0-foundations.md` (HU-E0-01 … 07, 09, 10) and `docs/backlog/E1-identity-and-spaces.md` (HU-E1-01, HU-E1-02). GitHub Project: https://github.com/users/Facabore/projects/4.
+**Spec:** `docs/specs/2026-10-11-hearth-design.md` (approved 2026-10-11). Stories: `docs/backlog/E0-foundations.md` (HU-E0-01 … 07, 09, 10) and `docs/backlog/E1-identity-and-spaces.md` (HU-E1-01, HU-E1-02). GitHub Project: https://github.com/users/Facabore/projects/4.
 
 ## Global Constraints
 
@@ -447,7 +447,7 @@ Pinned on 2026-10-11 (HU-E0-01). Each entry was the latest stable release that d
 
 Self-hosted household finance: personal finance, group expense splitting and allocated budgets in one app.
 
-- Design spec: `docs/superpowers/specs/2026-10-11-hearth-design.md`
+- Design spec: `docs/specs/2026-10-11-hearth-design.md`
 - Backlog: `docs/backlog/README.md` · Board: https://github.com/users/Facabore/projects/4
 - Stack versions: `docs/stack-versions.md`
 

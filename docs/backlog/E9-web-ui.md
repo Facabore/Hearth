@@ -821,7 +821,7 @@ Feature: Installation rules screen
 
 ## Follow-ups after M6a
 
-Left open on purpose by [the M6a plan](../superpowers/plans/2026-10-20-m6a-web-shell-and-ledger.md) (its Self-Review has the reasons):
+Left open on purpose by [the M6a plan](../plans/2026-10-20-m6a-web-shell-and-ledger.md) (its Self-Review has the reasons):
 
 1. The account edit form, with #120 (answer stored and effective icon and switches).
 2. Editing, deleting and restoring transactions from the Activity screen (M6b, ruling P140), with the `If-Match` flow and a restore endpoint for transactions; an untimed row gets its first time by editing.

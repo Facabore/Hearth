@@ -1,6 +1,6 @@
 # Architecture overview
 
-Hearth is a modular monolith. One Next.js application hosts the versioned HTTP API under `/api/v1`, and a single PostgreSQL database holds the data. This page shows how it is deployed, how a request travels through the code, which modules exist and which rules keep them apart. The source of truth for every decision is the [design spec](../superpowers/specs/2026-10-11-hearth-design.md); this page summarises it and points back to it.
+Hearth is a modular monolith. One Next.js application hosts the versioned HTTP API under `/api/v1`, and a single PostgreSQL database holds the data. This page shows how it is deployed, how a request travels through the code, which modules exist and which rules keep them apart. The source of truth for every decision is the [design spec](../specs/2026-10-11-hearth-design.md); this page summarises it and points back to it.
 
 The database has its own page: [data model](data-model.md).
 
@@ -53,7 +53,7 @@ What the files say:
 
 ## Request lifecycle
 
-What happens to a request such as `POST /api/v1/spaces/{spaceId}/expenses` ([spec section 7](../superpowers/specs/2026-10-11-hearth-design.md#7-architecture)):
+What happens to a request such as `POST /api/v1/spaces/{spaceId}/expenses` ([spec section 7](../specs/2026-10-11-hearth-design.md#7-architecture)):
 
 1. **Caddy** receives the request over HTTPS and proxies it to the `app` container.
 2. **The route handler** in `src/app/api/v1/...`, built with `defineRoute` (`src/composition/route.ts`), handles the edges: it authenticates the caller (session cookie or Bearer token, both resolve the same user), validates the query and body against the Zod contract, and carries the request id (`X-Request-Id`).
@@ -77,7 +77,7 @@ The pages live in `src/app/(web)`, with no locale in the URL ([ADR 0003](../adr/
 
 ## Modules
 
-The eight modules live in `src/modules/<module>/` ([spec 5.1](../superpowers/specs/2026-10-11-hearth-design.md#51-bounded-contexts-modules)). A tick means the folder exists today; `balances` and `reporting` are read models and have no tables, so they have no `infrastructure/`. Since M6a the `ui/` layer exists in `identity`, `spaces`, `accounts`, `categories` and `ledger` (containers over presentational components).
+The eight modules live in `src/modules/<module>/` ([spec 5.1](../specs/2026-10-11-hearth-design.md#51-bounded-contexts-modules)). A tick means the folder exists today; `balances` and `reporting` are read models and have no tables, so they have no `infrastructure/`. Since M6a the `ui/` layer exists in `identity`, `spaces`, `accounts`, `categories` and `ledger` (containers over presentational components).
 
 | Module | Responsibility | `domain` | `application` | `contracts` | `infrastructure` |
 |---|---|---|---|---|---|
@@ -101,13 +101,13 @@ Besides the modules, `src/shared/` holds the kernel (`Money`, `PeriodPolicy`, `R
 
 ## Cross-cutting conventions
 
-Each is decided in the [design spec](../superpowers/specs/2026-10-11-hearth-design.md); this is where to look.
+Each is decided in the [design spec](../specs/2026-10-11-hearth-design.md); this is where to look.
 
-- **Money** is a `bigint` in minor units and is sent over the wire as a string, with its currency (D6, [key decisions](../superpowers/specs/2026-10-11-hearth-design.md#6-key-decisions)).
-- **Computed on read.** Balances, budget figures and reports are derived with queries and never stored (D7, [derived metrics](../superpowers/specs/2026-10-11-hearth-design.md#54-derived-metrics-computed-on-read-never-stored)).
+- **Money** is a `bigint` in minor units and is sent over the wire as a string, with its currency (D6, [key decisions](../specs/2026-10-11-hearth-design.md#6-key-decisions)).
+- **Computed on read.** Balances, budget figures and reports are derived with queries and never stored (D7, [derived metrics](../specs/2026-10-11-hearth-design.md#54-derived-metrics-computed-on-read-never-stored)).
 - **Logical deletes and the audit.** Every delete is logical; edits are kept in `transaction_audit` (D8).
 - **Stored periods.** A plan's boundaries are stored when it is created, so a policy change never moves history (D10).
-- **Idempotency keys.** The `Idempotency-Key` header is accepted on the POSTs that create a transaction or a recurrence; a replay returns the original response ([HTTP API conventions](../superpowers/specs/2026-10-11-hearth-design.md#http-api-conventions)).
+- **Idempotency keys.** The `Idempotency-Key` header is accepted on the POSTs that create a transaction or a recurrence; a replay returns the original response ([HTTP API conventions](../specs/2026-10-11-hearth-design.md#http-api-conventions)).
 - **ETag and If-Match.** Updates of transactions and plans carry the row `version` as an `ETag`, and a mismatch returns `412` (same conventions).
 - **Cursor pagination.** `?cursor=&limit=`, default 50, maximum 200 (same conventions).
 - **OpenAPI from Zod.** Each module's `contracts/` holds the Zod schemas; the OpenAPI 3.1 document is generated from them with zod-openapi ([ADR 0002](../adr/0002-openapi-generator-zod-openapi.md)), served at `/api/v1/openapi.json`, and its reviewed snapshot is [`openapi/openapi.snapshot.json`](https://github.com/Facabore/Hearth/blob/development/openapi/openapi.snapshot.json).
