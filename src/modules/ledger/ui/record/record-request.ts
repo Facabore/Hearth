@@ -121,6 +121,10 @@ export const recordFieldOf = (problem: Problem): RecordField | "form" => {
   return "form";
 };
 
+/** Ruling P196: the answer says a shared fund is now negative, so the saved-with-warning notice speaks, not a toast. */
+export const fundWentNegative = (warnings: RecordedExpenseDto["warnings"] = []): boolean =>
+  warnings.some((warning) => warning.code === "FundBalanceNegative");
+
 /** Ruling P170: the list after a save; a fund left negative travels as a code and an account id, never an amount. */
 export const afterSaveUrl = (spaceId: string, warnings: RecordedExpenseDto["warnings"] = []): string => {
   const negative = warnings.find((w) => w.code === "FundBalanceNegative");

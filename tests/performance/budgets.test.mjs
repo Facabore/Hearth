@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import budgets from "./budgets.json" with { type: "json" };
-import { budgetFailures, isVisitorRoute, routeUrl } from "./lighthouse.mjs";
+import { budgetFailures, debugPortFor, isVisitorRoute, routeUrl } from "./lighthouse.mjs";
 
 describe("performance budgets (ruling P134)", () => {
   it("names every route and metric over its budget, and passes the ones within", () => {
@@ -35,5 +35,12 @@ describe("performance budgets (ruling P134)", () => {
         isVisitorRoute,
       ),
     ).toEqual([true, true, true, true, false, false]);
+  });
+
+  it("gives each parallel run its own Chromium debug port, derived from its server port", () => {
+    expect(debugPortFor(undefined)).toBe(9223);
+    expect(debugPortFor("3100")).toBe(9223);
+    expect(debugPortFor("3800")).toBe(9923);
+    expect(debugPortFor("3800")).not.toBe(debugPortFor("3900"));
   });
 });

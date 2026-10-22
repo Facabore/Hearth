@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import es from "../../src/i18n/messages/es.json" with { type: "json" };
-import { seedLedger, signUp } from "./support/seed";
+import { saveIncomeFromForm, seedLedger, signUp } from "./support/seed";
 
 const WCAG = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
 
@@ -86,6 +86,30 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page.keyboard.press("Escape");
       await page.getByRole("button", { name: /Categoría/ }).click();
       await scan("category picker");
+    });
+  });
+}
+
+for (const colorScheme of ["light", "dark"] as const) {
+  test.describe(`the save toast in ${colorScheme} (P195)`, () => {
+    test.use({ colorScheme });
+
+    test("has no WCAG 2.1 AA violation while it shows a saved income", async ({ page }) => {
+      const spaceId = await signUp(
+        page,
+        "toast-" + colorScheme,
+        colorScheme === "light" ? "10.252.0.3" : "10.252.0.4",
+      );
+      await seedLedger(page, spaceId);
+      await saveIncomeFromForm(page, spaceId);
+      await expect(page.getByRole("region", { name: es.toast.region }).getByRole("status")).toContainText(
+        es.ledger.toast.saved.INCOME,
+      );
+      await page.getByTestId("toast").hover();
+      const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
+      expect(
+        violations.map((v) => `toast: ${v.id} ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`),
+      ).toEqual([]);
     });
   });
 }

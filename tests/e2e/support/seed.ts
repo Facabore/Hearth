@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import es from "../../../src/i18n/messages/es.json" with { type: "json" };
 
 /** Shared by the a11y and layout specs: a fresh person with a personal space, and the same seeded ledger. */
 const addresses = new WeakMap<Page, string>();
@@ -78,4 +79,20 @@ export const seedLedger = async (page: Page, spaceId: string): Promise<void> => 
     },
     { "idempotency-key": crypto.randomUUID() },
   );
+};
+
+/**
+ * Records an income of 1,200,000 COP from the form, into the account it opens on, under the first category the
+ * picker offers, and waits for the list it lands on: the save every toast test starts from (P195).
+ */
+export const saveIncomeFromForm = async (page: Page, spaceId: string): Promise<void> => {
+  await page.goto(`/spaces/${spaceId}/new?type=income`);
+  await page.locator("[data-ready='true']").waitFor({ state: "attached" });
+  await page.getByLabel(es.ledger.form.amount).fill("1200000");
+  await page.getByRole("button", { name: new RegExp(es.ledger.form.category) }).click();
+  await page.getByRole("dialog").getByRole("radio").first().click();
+  const use = page.getByRole("dialog").getByRole("button", { name: /^Usar / });
+  if (await use.isVisible()) await use.click();
+  await page.getByRole("button", { name: es.ledger.form.save.INCOME }).click();
+  await page.waitForURL(new RegExp(`/spaces/${spaceId}/transactions$`));
 };

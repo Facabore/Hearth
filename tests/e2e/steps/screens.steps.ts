@@ -227,9 +227,9 @@ Then("the amount field reads {string}", async ({ page, world }, text: string) =>
 });
 
 Then("the home of {string} welcomes the visitor once", async ({ page, world }, space: string) => {
-  const notice = page.getByRole("status");
+  const notice = page.locator("main").getByRole("status");
   await expect(notice).toContainText(world.t("spaces.joined.title", { space }));
   await notice.getByRole("link", { name: world.t("ledger.saved.dismiss") }).click();
   await expect(page).toHaveURL(new RegExp(`/spaces/${world.spaces.get(space)}$`));
-  await expect(page.getByRole("status")).toHaveCount(0);
+  await expect(page.locator("main").getByRole("status")).toHaveCount(0);
 });

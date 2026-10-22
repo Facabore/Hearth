@@ -6,6 +6,7 @@ import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useIdempotencyKey } from "@/modules/ledger/ui";
 import { memberLabel } from "@/modules/spaces/ui";
 import { Button, ChoiceGroup, Icon, ProblemNotice, Sheet, TextField } from "@/shared/ui";
+import { useToast } from "@/shared/ui/molecules/toast";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { AccountDto, MemberDto, SpaceDto, SuggestionDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
@@ -68,6 +69,8 @@ export function SettleUpSheet({
   const form = useTranslations("ledger.form");
   const errors = useTranslations("errors");
   const names = useTranslations("members");
+  const toasts = useTranslations("balances.toast");
+  const toast = useToast();
   const router = useRouter();
   const messageOf = useProblemMessage();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
@@ -134,6 +137,7 @@ export function SettleUpSheet({
       if (response.ok) {
         renew();
         setPending(false);
+        toast.show({ message: toasts("settled") });
         onOpenChange(false);
         router.refresh();
         return;

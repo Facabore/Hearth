@@ -451,6 +451,13 @@
       },
       "open": "Open the details of {name}"
     },
+    "toast": {
+      "saved": {
+        "EXPENSE": "Expense saved",
+        "INCOME": "Income saved",
+        "TRANSFER": "Transfer saved"
+      }
+    },
     "when": {
       "title": "Date and time",
       "day": "Day",
@@ -706,6 +713,9 @@
       "none": "None",
       "payerRequired": "Choose who pays.",
       "save": "Save payment"
+    },
+    "toast": {
+      "settled": "Payment recorded"
     }
   },
   "invitation": {
@@ -793,5 +803,9 @@
       "unbudgeted": "Unbudgeted",
       "unbudgetedNote": "Unbudgeted is what was spent in categories that are in no line."
     }
+  },
+  "toast": {
+    "region": "Notifications (F8)",
+    "dismiss": "Dismiss"
   }
 }

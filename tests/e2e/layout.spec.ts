@@ -3,7 +3,7 @@ import { expect, request, test as base, type Browser, type Page } from "@playwri
 import es from "../../src/i18n/messages/es.json" with { type: "json" };
 import { BASE_URL } from "./support/base-url";
 import { Person } from "./support/people";
-import { get, patch, post, put, seedLedger, signUp } from "./support/seed";
+import { get, patch, post, put, saveIncomeFromForm, seedLedger, signUp } from "./support/seed";
 
 /**
  * Phone-width layout guards (UI Definition of Done, WCAG 1.4.10 Reflow, 2.4.11 Focus Not Obscured, 2.5.5 Target Size):
@@ -722,7 +722,7 @@ test.describe("a shared expense saved with a warning (HU-E9-06, ruling P170)", (
     const { sharedId } = await session(page, "warned");
     await page.goto(await warnedList(page, sharedId));
     await settle(page);
-    const notice = page.getByRole("status");
+    const notice = page.locator("main").getByRole("status");
     await expect(notice).toContainText(es.ledger.saved.title);
     await expect(notice).toContainText(FUND_NAME);
     await expect(notice).toContainText("−$ 2.000.000");
@@ -739,7 +739,7 @@ test.describe("a shared expense saved with a warning (HU-E9-06, ruling P170)", (
     expect(box.x + box.width, "the dismiss link stays on screen").toBeLessThanOrEqual(PHONE.width);
     await dismiss.click();
     await expect(page).toHaveURL(new RegExp(`/spaces/${sharedId}/transactions$`));
-    await expect(page.getByRole("status")).toHaveCount(0);
+    await expect(page.locator("main").getByRole("status")).toHaveCount(0);
   });
 });
 
@@ -1481,7 +1481,7 @@ test.describe("query-only changes replace the entry (N8)", () => {
     await page.getByRole("link", { name: es.ledger.saved.dismiss }).click();
     await page.waitForURL(`**/spaces/${sharedId}/transactions`);
     expect(await page.evaluate(() => window.history.length)).toBe(before);
-    await expect(page.getByRole("status")).toHaveCount(0);
+    await expect(page.locator("main").getByRole("status")).toHaveCount(0);
   });
 });
 
@@ -1644,6 +1644,38 @@ test.describe("the empty states of Cuentas and of a shared space explain themsel
       await full(es.accounts.createFund, `/spaces/${shared.id}`);
       await expect(page.getByText(es.accounts.fundsNote)).toBeVisible();
       await expect(page.getByText(es.home.firstAccount.title)).toHaveCount(0);
+    });
+  }
+});
+
+test.describe("the save toast sits above the bottom navigation and never covers it (P195)", () => {
+  for (const viewport of [PHONE, SMALL_PHONE]) {
+    test(`after saving an income at ${viewport.width} px`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      const { spaceId } = await session(page, `toast-${viewport.width}`);
+      await saveIncomeFromForm(page, spaceId);
+      const toast = page.getByTestId("toast");
+      await expect(page.getByRole("region", { name: es.toast.region }).getByRole("status")).toContainText(
+        es.ledger.toast.saved.INCOME,
+      );
+      // Hovering holds the toast on screen (WCAG 2.2.1) while it is measured; it ends above the navigation.
+      await toast.hover();
+      const nav = (await page.locator("nav[aria-label]").boundingBox())!;
+      const box = (await toast.boundingBox())!;
+      expect(box.y + box.height, "the toast ends above the navigation").toBeLessThanOrEqual(nav.y);
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width, "the toast stays inside the width").toBeLessThanOrEqual(viewport.width);
+      const record = (await page.getByRole("link", { name: es.shell.nav.record }).boundingBox())!;
+      expect(record.y, "Registrar is under the toast's bottom edge, not covered").toBeGreaterThanOrEqual(
+        box.y + box.height,
+      );
+      const close = (await page.getByRole("button", { name: es.toast.dismiss }).boundingBox())!;
+      expect(close.width).toBeGreaterThanOrEqual(TARGET);
+      expect(close.height).toBeGreaterThanOrEqual(TARGET);
+      expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
+      // A tap on the toast's close button reaches it and removes the toast.
+      await page.getByRole("button", { name: es.toast.dismiss }).click();
+      await expect(toast).toHaveCount(0);
     });
   }
 });

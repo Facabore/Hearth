@@ -13,6 +13,7 @@ import {
 } from "../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse } from "../../../../tests/support/ui/fake-api";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
+import { ToastProvider } from "@/shared/ui/molecules/toast-provider";
 import type { Api } from "@/shared/ui/api/client";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { BalancesScreen } from "./balances-screen";
@@ -68,6 +69,23 @@ const screenAs = (
       {...props}
     />,
     { locale },
+  );
+/** The screen as the signed-in layout mounts it: inside the toast provider. */
+const juanInToasts = (api: Api) =>
+  renderWithIntl(
+    <ToastProvider>
+      <BalancesScreen
+        space={TRIP}
+        members={MEMBERS}
+        meUserId="u-juan"
+        balances={TRIP_BALANCES}
+        suggestions={SUGGESTIONS}
+        myAccounts={[DAVI]}
+        formats={BUILT_IN_FORMATS}
+        timeZone="America/Bogota"
+        api={api}
+      />
+    </ToastProvider>,
   );
 const dialog = () => screen.getByRole("dialog", { name: "Registrar pago" });
 const payerGroup = () => within(dialog()).getByRole("radiogroup", { name: "Quién paga" });
@@ -184,6 +202,26 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
       amount: { amount: "5000000" },
       sourceAccountId: "a-davi",
     });
+  });
+
+  it("announces Pago registrado in the status toast once the payment is saved (P196)", async () => {
+    const { api } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
+    juanInToasts(api);
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    await userEvent.click(screen.getByRole("button", { name: JUAN_PAYS }));
+    await userEvent.click(save());
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Pago registrado"));
+  });
+
+  it("says nothing when the payment is refused", async () => {
+    const { api } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/settlements": () => problemResponse(500, "InternalError"),
+    });
+    juanInToasts(api);
+    await userEvent.click(screen.getByRole("button", { name: JUAN_PAYS }));
+    await userEvent.click(save());
+    await within(dialog()).findByRole("alert");
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 
   it("hides the source account when the guest Pedro pays, and records the payment without one", async () => {

@@ -451,6 +451,13 @@
       },
       "open": "Ver detalle de {name}"
     },
+    "toast": {
+      "saved": {
+        "EXPENSE": "Gasto guardado",
+        "INCOME": "Ingreso guardado",
+        "TRANSFER": "Transferencia guardada"
+      }
+    },
     "when": {
       "title": "Fecha y hora",
       "day": "Día",
@@ -706,6 +713,9 @@
       "none": "Ninguna",
       "payerRequired": "Elige quién paga.",
       "save": "Guardar pago"
+    },
+    "toast": {
+      "settled": "Pago registrado"
     }
   },
   "invitation": {
@@ -793,5 +803,9 @@
       "unbudgeted": "Sin presupuesto",
       "unbudgetedNote": "Sin presupuesto es lo gastado en categorías que no están en ninguna línea."
     }
+  },
+  "toast": {
+    "region": "Notificaciones (F8)",
+    "dismiss": "Cerrar aviso"
   }
 }

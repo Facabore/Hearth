@@ -168,7 +168,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       }
       // U6: the one-time welcome after accepting an invitation.
       await page.goto(`${h}?joined=1`);
-      await expect(page.getByRole("status")).toContainText("Household");
+      await expect(page.locator("main").getByRole("status")).toContainText("Household");
       await scan("home with the joined notice");
       await page.goto(`${h}/members`);
       await page.getByRole("button", { name: es.members.invite }).click();

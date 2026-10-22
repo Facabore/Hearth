@@ -36,6 +36,9 @@ export const routeUrl = (route, ids) =>
 /** The pages a visitor opens: measured without the session cookie. */
 export const isVisitorRoute = (route) => /^\/(sign-in|sign-up|invitations|claims)(\/|$)/.test(route);
 
+/** The Chromium debug port of a run: 9223 for the default server port, shifted with it so parallel runs never meet. */
+export const debugPortFor = (e2ePort) => 9223 + (Number(e2ePort ?? 3100) - 3100);
+
 /** The medians of one route over RUNS Lighthouse runs (mobile defaults: simulated slow 4G, 4× CPU). */
 const measure = async (port, url, cookie) => {
   const runs = [];
@@ -172,13 +175,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       split: { method: "EQUAL", participants: [{ memberId: ana }, { memberId: juan }] },
     });
     const ids = { id: space.id, shared, member: juan, token, claim };
-    const browser = await chromium.launch({ args: ["--remote-debugging-port=9223"] });
+    const debugPort = debugPortFor(process.env.E2E_PORT);
+    const browser = await chromium.launch({ args: [`--remote-debugging-port=${debugPort}`] });
     try {
       const routes = Object.keys(budgets.scriptKb);
       const results = [];
       for (const route of routes) {
         const url = `${BASE}${routeUrl(route, ids)}`;
-        const result = { route, ...(await measure(9223, url, isVisitorRoute(route) ? null : cookie)) };
+        const result = { route, ...(await measure(debugPort, url, isVisitorRoute(route) ? null : cookie)) };
         console.log(JSON.stringify(result));
         results.push(result);
       }

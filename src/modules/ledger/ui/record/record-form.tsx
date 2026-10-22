@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNo
 import { AccountPicker } from "@/modules/accounts/ui";
 import { activeTree, CategoryPicker, categoryPath, type CategoryChoice } from "@/modules/categories/ui";
 import { Button, Icon, ProblemNotice, ScreenHeader, TextField } from "@/shared/ui";
+import { useToast } from "@/shared/ui/molecules/toast";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type {
   AccountDto,
@@ -30,7 +31,14 @@ import { initialSplitDraft, type SharedExpenseContext } from "../split/shared-co
 import { SharedFields } from "../split/shared-fields";
 import { AmountField } from "./amount-field";
 import { DateTimeSheet } from "./date-time-sheet";
-import { afterSaveUrl, recordFieldOf, requestOf, type RecordField, type RecordKind } from "./record-request";
+import {
+  afterSaveUrl,
+  fundWentNegative,
+  recordFieldOf,
+  requestOf,
+  type RecordField,
+  type RecordKind,
+} from "./record-request";
 import { useIdempotencyKey } from "./use-idempotency-key";
 import { whenLabel, type When } from "./when-label";
 
@@ -79,6 +87,7 @@ export function RecordForm({
   const t = useTranslations("ledger");
   const errors = useTranslations("errors");
   const router = useRouter();
+  const toast = useToast();
   const messageOf = useProblemMessage();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   const live = useMemo(() => activeTree(groups), [groups]);
@@ -209,6 +218,7 @@ export function RecordForm({
         if (response.ok && data) {
           renew();
           const split = data as DirectSplitDto;
+          if (!fundWentNegative(split.expense.warnings)) toast.show({ message: t("toast.saved.EXPENSE") });
           router.replace(afterSaveUrl(split.spaceId, split.expense.warnings));
           router.refresh();
           return;
@@ -232,6 +242,7 @@ export function RecordForm({
         renew();
         const warnings =
           built.kind === "EXPENSE" ? (data as RecordedExpenseDto | undefined)?.warnings : undefined;
+        if (!fundWentNegative(warnings)) toast.show({ message: t(`toast.saved.${built.kind}`) });
         router.replace(afterSaveUrl(space.id, warnings));
         router.refresh();
         return;
