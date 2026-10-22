@@ -14,6 +14,10 @@
     "copyFailed": "No se pudo copiar: selecciona el enlace y cópialo.",
     "notNow": "Ahora no",
     "goHome": "Ir a Hearth",
+    "periodMonth": "{month} {year}",
+    "periodRange": "{start} – {end}",
+    "previousPeriod": "Período anterior",
+    "nextPeriod": "Período siguiente",
     "month": {
       "1": "enero",
       "2": "febrero",

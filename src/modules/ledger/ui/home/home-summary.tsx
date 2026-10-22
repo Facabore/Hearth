@@ -5,8 +5,8 @@ import { Icon, SymbolIcon } from "@/shared/ui";
 import type { AccountDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
 import { formatDate, formatMoney } from "@/shared/ui/format/formatters";
 import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
+import { periodName } from "@/shared/ui/time/period-name";
 import { TransactionRow, type RowContext } from "../transaction-row";
-import { periodName } from "./period-name";
 
 /**
  * HU-E9-01, the Home and Desktop artboards for M6a (the "no plan" variant, ruling P126): the period's spending and
