@@ -62,6 +62,7 @@ export {
   type TransactionPage,
 } from "./list-transactions";
 export { createDeleteTransaction, type DeleteTransaction } from "./delete-transaction";
+export { createRestoreTransaction, type RestoreTransaction } from "./restore-transaction";
 export {
   createEditTransaction,
   type EditChanges,
@@ -69,6 +70,11 @@ export {
   type EditTransactionInput,
 } from "./edit-transaction";
 export { createListAudit, type ListAudit } from "./list-audit";
+export {
+  createListScheduledMovements,
+  type ListScheduledMovements,
+  type ScheduledMovement,
+} from "./scheduled-movements";
 export {
   createRecordExpenseByCategoryKey,
   type CategoryKeyReader,
@@ -129,7 +135,6 @@ export {
 export { CATCH_UP_LIMIT, type MaterializeDeps, type RecurrenceRun } from "./materialize-recurrence";
 export {
   createMaterializeDueOccurrences,
-  failureOf,
   type MaterializationReport,
   type MaterializeDueOccurrences,
 } from "./materialize-occurrences";

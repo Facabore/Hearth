@@ -59,7 +59,8 @@ function SheetBody({ value, today, now, formats, onApply, onOpenChange }: DateTi
   const monthName = t("when.month", { month: common(`month.${shown.month as 1}`), year: String(shown.year) });
   const h12 = formats.timeFormat === "H12";
   // The glyphs are generated content, so the clock group's text stays "<hour> : <minute>".
-  const stepper = "flex size-11 items-center justify-center rounded-xl border border-line text-xl text-ink";
+  const stepper =
+    "flex size-11 shrink-0 items-center justify-center rounded-xl border border-line text-xl text-ink";
   const stepDown = `${stepper} before:content-['−']`;
   const stepUp = `${stepper} before:content-['+']`;
   return (
@@ -126,48 +127,61 @@ function SheetBody({ value, today, now, formats, onApply, onOpenChange }: DateTi
           </tbody>
         </table>
       </div>
-      <div role="group" aria-label={t("when.time")} className="flex items-center justify-center gap-3">
-        <button
-          type="button"
-          aria-label={t("when.hourDown")}
-          className={stepDown}
-          onClick={() => setWall(stepHour(draft.wall, -1))}
-        ></button>
-        <output className="w-10 text-center text-3xl font-semibold text-ink">
-          {h12 ? draft.wall.hour % 12 || 12 : pad(draft.wall.hour)}
-        </output>
-        <button
-          type="button"
-          aria-label={t("when.hourUp")}
-          className={stepUp}
-          onClick={() => setWall(stepHour(draft.wall, 1))}
-        ></button>
+      <div
+        role="group"
+        aria-label={t("when.time")}
+        className="flex flex-wrap items-center justify-center gap-x-2 gap-y-3"
+      >
+        <div className="flex items-center">
+          <button
+            type="button"
+            aria-label={t("when.hourDown")}
+            className={stepDown}
+            onClick={() => setWall(stepHour(draft.wall, -1))}
+          ></button>
+          <output className="w-10 text-center text-3xl font-semibold text-ink">
+            {h12 ? draft.wall.hour % 12 || 12 : pad(draft.wall.hour)}
+          </output>
+          <button
+            type="button"
+            aria-label={t("when.hourUp")}
+            className={stepUp}
+            onClick={() => setWall(stepHour(draft.wall, 1))}
+          ></button>
+        </div>
         <span aria-hidden="true" className="text-3xl text-muted">
           {" : "}
         </span>
-        <button
-          type="button"
-          aria-label={t("when.minuteDown")}
-          className={stepDown}
-          onClick={() => setWall(stepMinutes(draft.wall, -5))}
-        ></button>
-        <output className="w-10 text-center text-3xl font-semibold text-ink">{pad(draft.wall.minute)}</output>
-        <button
-          type="button"
-          aria-label={t("when.minuteUp")}
-          className={stepUp}
-          onClick={() => setWall(stepMinutes(draft.wall, 5))}
-        ></button>
+        <div className="flex items-center">
+          <button
+            type="button"
+            aria-label={t("when.minuteDown")}
+            className={stepDown}
+            onClick={() => setWall(stepMinutes(draft.wall, -5))}
+          ></button>
+          <output className="w-10 text-center text-3xl font-semibold text-ink">
+            {pad(draft.wall.minute)}
+          </output>
+          <button
+            type="button"
+            aria-label={t("when.minuteUp")}
+            className={stepUp}
+            onClick={() => setWall(stepMinutes(draft.wall, 5))}
+          ></button>
+        </div>
         {h12 ? (
-          <ChoiceGroup
-            label={t("when.half")}
-            value={draft.wall.hour < 12 ? "AM" : "PM"}
-            onValueChange={(half) => setWall(withHalf(draft.wall, half))}
-            options={[
-              { value: "AM" as const, label: t("when.am") },
-              { value: "PM" as const, label: t("when.pm") },
-            ]}
-          />
+          // Its own row, so the segments are wide enough to tap and never meet the steppers.
+          <div className="w-full max-w-48">
+            <ChoiceGroup
+              label={t("when.half")}
+              value={draft.wall.hour < 12 ? "AM" : "PM"}
+              onValueChange={(half) => setWall(withHalf(draft.wall, half))}
+              options={[
+                { value: "AM" as const, label: t("when.am") },
+                { value: "PM" as const, label: t("when.pm") },
+              ]}
+            />
+          </div>
         ) : null}
       </div>
       <div className="flex flex-wrap justify-center gap-2">
@@ -175,14 +189,14 @@ function SheetBody({ value, today, now, formats, onApply, onOpenChange }: DateTi
           <Button
             key={minute}
             variant="secondary"
-            className="h-11 rounded-full px-4 text-sm"
+            size="chip"
             aria-pressed={draft.wall.minute === minute}
             onClick={() => setWall({ hour: draft.wall.hour, minute })}
           >
             :{pad(minute)}
           </Button>
         ))}
-        <Button variant="secondary" className="h-11 rounded-full px-4 text-sm" onClick={() => setDraft(now)}>
+        <Button variant="secondary" size="chip" onClick={() => setDraft(now)}>
           {t("when.now")}
         </Button>
       </div>

@@ -11,6 +11,7 @@ export interface ChoiceGroupProps<T extends string> {
   readonly onValueChange: (value: T) => void;
   readonly disabled?: boolean;
   readonly layout?: "segmented" | "chips" | "grid";
+  readonly describedBy?: string;
 }
 
 const ROOT = {
@@ -34,10 +35,12 @@ export function ChoiceGroup<T extends string>({
   onValueChange,
   disabled,
   layout = "segmented",
+  describedBy,
 }: ChoiceGroupProps<T>) {
   return (
     <RadioGroup.Root
       aria-label={label}
+      aria-describedby={describedBy}
       value={value}
       onValueChange={(next) => onValueChange(next as T)}
       disabled={disabled}

@@ -7,15 +7,21 @@ import { useMemo, useState } from "react";
 import { localeCookie, type Locale } from "@/i18n/locale";
 import { Avatar, Button, Icon, Sheet } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
+import type { SpaceDto } from "@/shared/ui/api/dto";
 
-/** HU-E9-01, the ProfileSheet artboard; Categories, Members and rules come with HU-E9-04, -05 and -14 (ruling P126). */
+/**
+ * HU-E9-01, the ProfileSheet artboard; Categories and rules come with HU-E9-04 and -14 (ruling P126); the Members
+ * entry, outside the personal space, is HU-E9-05 (ruling P160).
+ */
 export function ProfileSheet({
   me,
   spaceId,
+  spaceKind,
   api: injected,
 }: {
   readonly me: { readonly name: string; readonly email: string; readonly locale: Locale };
   readonly spaceId: string;
+  readonly spaceKind: SpaceDto["kind"];
   readonly api?: Api;
 }) {
   const t = useTranslations("shell.profile");
@@ -45,13 +51,22 @@ export function ProfileSheet({
       </button>
       <Sheet open={open} onOpenChange={setOpen} title={me.name}>
         <p className="mb-4 text-sm text-muted">{me.email}</p>
-        <Link href="/settings" className={row} onClick={() => setOpen(false)}>
+        <Link href={`/settings?from=${spaceId}`} className={row} onClick={() => setOpen(false)}>
           <Icon name="sliders" />
           <span className="flex flex-col">
             <span>{t("settings")}</span>
             <span className="text-sm text-muted">{t("settingsHint")}</span>
           </span>
         </Link>
+        {spaceKind !== "PERSONAL" ? (
+          <Link href={`/spaces/${spaceId}/members`} className={row} onClick={() => setOpen(false)}>
+            <Icon name="userPlus" />
+            <span className="flex flex-col">
+              <span>{t("members")}</span>
+              <span className="text-sm text-muted">{t("membersHint")}</span>
+            </span>
+          </Link>
+        ) : null}
         <Link href={`/spaces/${spaceId}/accounts`} className={row} onClick={() => setOpen(false)}>
           <Icon name="list" />
           {t("accounts")}

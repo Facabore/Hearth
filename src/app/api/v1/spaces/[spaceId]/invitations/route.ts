@@ -1,9 +1,24 @@
 import { getContainer } from "@/composition/container";
 import { defineRoute } from "@/composition/route";
-import { CreateInvitationBodySchema, createdInvitationDto } from "@/modules/spaces/contracts/spaces.contract";
+import {
+  CreateInvitationBodySchema,
+  createdInvitationDto,
+  invitationDto,
+} from "@/modules/spaces/contracts/spaces.contract";
 import { ok } from "@/shared/kernel";
 
 export const runtime = "nodejs";
+
+export const GET = defineRoute({
+  auth: "required",
+  handler: async ({ user, params }) => {
+    const result = await getContainer().spaces.listInvitations({
+      spaceId: params.spaceId!,
+      userId: user!.id,
+    });
+    return result.ok ? ok({ status: 200, body: { items: result.value.map(invitationDto) } }) : result;
+  },
+});
 
 export const POST = defineRoute({
   auth: "required",

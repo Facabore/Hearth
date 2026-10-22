@@ -57,7 +57,7 @@ export {
   type PersonalTrendInput,
   type PersonalTrendPoint,
 } from "./get-personal-trend";
-export type { TreeCategory, TreePlace } from "../domain/category-tree";
+export type { TreeCategory, TreeGroup, TreePlace } from "../domain/category-tree";
 export type { CategoryTrees } from "./category-trees";
 export type {
   CategorySpending,
@@ -78,3 +78,11 @@ export {
   type PersonalSpendingByGroup,
   type PersonalSpendingByGroupDeps,
 } from "./get-personal-spending-by-group";
+export {
+  CASH_FLOW_DAYS,
+  createGetCashFlow,
+  type CashFlowDays,
+  type CashFlowDeps,
+  type CashFlowView,
+  type GetCashFlow,
+} from "./get-cash-flow";

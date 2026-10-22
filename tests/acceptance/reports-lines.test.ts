@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { GET as linesRoute } from "@/app/api/v1/spaces/[spaceId]/reports/lines/route";
 import { setContainerForTests, type Container } from "@/composition/container";
-import { problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
+import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
 import { planOf } from "../support/budgeting";
 import { cop, joinHousehold } from "../support/ledger";
 import { getLineDashboard, reportHousehold, spend, type LineDashboardDto } from "../support/reporting";
@@ -47,6 +48,22 @@ describe("line dashboard over HTTP (HU-E7-01)", () => {
       ["Free", cop(730_000), cop(250_000), cop(480_000), false],
     ]);
     expect(dashboard.unbudgeted).toEqual({ spent: cop(60_000), available: cop(-60_000), overspent: true });
+    expect(dashboard.totals).toEqual({
+      planned: cop(4_000_000),
+      spent: cop(2_810_000),
+      available: cop(1_190_000),
+    });
+    expect(dashboard.categoryLines).toContainEqual({
+      categoryId: r.category.groceries,
+      lineId: r.lineId("Home"),
+    });
+    expect(dashboard.categoryLines).toContainEqual({ categoryId: r.category.restaurants, lineId: null });
+    expect(dashboard.lines.map((l) => [l.name, l.state, l.overBy])).toEqual([
+      ["Rent", "HIGH", null],
+      ["Home", "NEAR", null],
+      ["Savings", "OK", null],
+      ["Free", "OK", null],
+    ]);
   });
 
   it("shows each line's figures exactly as the plan view does, carry-over included (P32)", async () => {
@@ -84,6 +101,22 @@ describe("line dashboard over HTTP (HU-E7-01)", () => {
     const dashboard = await dashboardOf(r.h.ana, r.h.spaceId, "2027-01");
     expect(dashboard).toMatchObject({ plan: null, lines: [], period: { label: "2027-01" } });
     expect(dashboard.unbudgeted).toEqual({ spent: cop(100_000), available: cop(-100_000), overspent: true });
+    expect(dashboard.totals).toEqual({ planned: cop(0), spent: cop(100_000), available: cop(-100_000) });
+    expect(dashboard.categoryLines).toEqual([]);
+  });
+
+  it("answers 401 without a session, before it looks at the space or the period (issue 131)", async () => {
+    const r = await reportHousehold();
+    for (const query of ["period=2026-11", "period=not-a-period", ""]) {
+      const anonymous = await call(
+        linesRoute,
+        "GET",
+        `/api/v1/spaces/${r.h.spaceId}/reports/lines?${query}`,
+        { params: { spaceId: r.h.spaceId } },
+      );
+      expect(await problemOf(anonymous)).toEqual([401, "Unauthenticated"]);
+    }
+    expect((await dashboardOf(r.h.ana, r.h.spaceId, "2026-11")).period.label).toBe("2026-11");
   });
 
   it("lets VIEWER Sofi read it and hides the space from non-members and malformed ids", async () => {

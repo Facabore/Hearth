@@ -19,6 +19,7 @@ const setup = (seeded: Space = householdSpace(), byMember: Record<string, bigint
   const archive = createArchiveSpace({
     access: createSpaceAccess(store),
     members: store,
+    spaceLocks: store,
     spaces: store,
     // Nets of Household by member id; any other space answers 1 for everyone, never settled.
     netBalances: async (spaceId, memberIds) => {
@@ -32,6 +33,18 @@ const setup = (seeded: Space = householdSpace(), byMember: Record<string, bigint
 };
 
 describe("ArchiveSpace (HU-E1-09)", () => {
+  it("locks the space for a lifecycle change before it reads the nets (issue #89)", async () => {
+    const { store, archive } = setup();
+    unwrap(await archive(as("ana")));
+    expect(store.locks.lifecycle).toEqual([space]);
+  });
+
+  it("takes no lock when the requester may not archive (issue #89)", async () => {
+    const { store, archive } = setup();
+    expect(codeOf(await archive(as("luis")))).toBe("InsufficientRole");
+    expect(store.locks.lifecycle).toEqual([]);
+  });
+
   it("archives a space whose members, the guest Pedro included, are settled, and lists it only on request", async () => {
     const { store, asked, archive, listMine } = setup();
     expect(unwrap(await archive(as("ana")))).toBeUndefined();

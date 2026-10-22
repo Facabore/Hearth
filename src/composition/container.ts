@@ -6,6 +6,7 @@ import {
   createListAccounts,
   createRestoreAccount,
   createUpdateAccount,
+  switchesOf,
   type AccountsDeps,
   type ArchiveAccount,
   type CreateAccount,
@@ -63,6 +64,8 @@ import {
   createGetFundContributions,
   createGetLineDashboard,
   createGetMemberLineMatrix,
+  createGetCashFlow,
+  type GetCashFlow,
   type GetFundContributions,
   createGetUnifiedPersonalView,
   type GetUnifiedPersonalView,
@@ -79,6 +82,7 @@ import {
 } from "@/modules/reporting/application";
 import {
   createDeleteTransaction,
+  createRestoreTransaction,
   createEditTransaction,
   createGetTransaction,
   createListAudit,
@@ -101,6 +105,7 @@ import {
   createUpdateRecurrence,
   type UpdateRecurrence,
   createEndRecurrence,
+  createListScheduledMovements,
   createPauseRecurrence,
   createResumeRecurrence,
   type EndRecurrence,
@@ -117,6 +122,7 @@ import {
   createConfirmOccurrence,
   type ConfirmOccurrence,
   type DeleteTransaction,
+  type RestoreTransaction,
   type EditTransaction,
   type GetTransaction,
   type LedgerDeps,
@@ -182,6 +188,7 @@ import {
   createCreatePersonalSpace,
   createCreateSpace,
   createGetSpace,
+  createListInvitations,
   createListMembers,
   createListMySpaces,
   createListSpacePeriods,
@@ -195,6 +202,8 @@ import {
   createInvitationAdmitsSignUp,
   createCreateGuestClaim,
   createLeaveSpace,
+  createPreviewClaim,
+  createPreviewInvitation,
   type AcceptInvitation,
   type AddGuestMember,
   type ChangeMemberRole,
@@ -207,10 +216,13 @@ import {
   type EmailSender,
   type GetSpace,
   type InvitationsDeps,
+  type ListInvitations,
   type ListMembers,
   type ListMySpaces,
   type ListSpacePeriods,
   type MembersDeps,
+  type PreviewClaim,
+  type PreviewInvitation,
   type RevokeInvitation,
   type SpaceCreatedListener,
   type StoredPeriodSource,
@@ -259,7 +271,10 @@ export interface Container extends RouteDeps {
     readonly listMembers: ListMembers;
     readonly createInvitation: CreateInvitation;
     readonly revokeInvitation: RevokeInvitation;
+    readonly listInvitations: ListInvitations;
     readonly acceptInvitation: AcceptInvitation;
+    readonly previewInvitation: PreviewInvitation;
+    readonly previewClaim: PreviewClaim;
     readonly addGuest: AddGuestMember;
     readonly changeMemberRole: ChangeMemberRole;
     readonly archiveSpace: ArchiveSpace;
@@ -298,6 +313,7 @@ export interface Container extends RouteDeps {
     readonly getTransaction: GetTransaction;
     readonly editTransaction: EditTransaction;
     readonly deleteTransaction: DeleteTransaction;
+    readonly restoreTransaction: RestoreTransaction;
     readonly listAudit: ListAudit;
     readonly defineRecurrence: DefineRecurrence;
     readonly listRecurrences: ListRecurrences;
@@ -341,6 +357,7 @@ export interface Container extends RouteDeps {
     readonly getPersonalTrend: GetPersonalTrend;
     readonly getSpendingByGroup: GetSpendingByGroup;
     readonly getPersonalSpendingByGroup: GetPersonalSpendingByGroup;
+    readonly getCashFlow: GetCashFlow;
   };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
@@ -422,6 +439,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   const budgetPlans = new DrizzleBudgetPlanRepository(tm);
   const storedPeriods: StoredPeriodSource = (spaceId) => budgetPlans.storedPeriods(spaceId);
   const getAccount = createGetAccount(accountsDeps);
+  const listAccounts = createListAccounts(accountsDeps);
   // HU-E6-04: plans map the space's live categories; deleted ones never appear (D8).
   const budgetCategories: BudgetCategories = {
     list: async (spaceId) =>
@@ -433,6 +451,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   };
   const ledgerDeps: LedgerDeps = {
     access,
+    // Issue #89: money writes hold the space row FOR SHARE; leaving, removing and archiving hold it FOR NO KEY UPDATE.
+    spaceLocks: spaceRepository,
     transactions: new DrizzleTransactionRepository(tm),
     // HU-E4-07: payers and participants are current members of the space, in join order.
     members: spaceRepository,
@@ -500,6 +520,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   const recordExpenseByCategoryKey = createRecordExpenseByCategoryKey(
     {
       access,
+      spaceLocks: spaceRepository,
       categoryKeys: {
         findByKey: async (spaceId, key) => {
           const category = (await categoriesDeps.categories.listCategories(spaceId)).find(
@@ -525,6 +546,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   // HU-E5-01 GetMemberNetBalance: spaces reads balances through a port, since balances imports spaces.
   const lifecycleDeps: LifecycleDeps = {
     access,
+    spaceLocks: spaceRepository,
     members: spaceRepository,
     netBalance: createGetMemberNetBalance(ledgerQueries),
     clock,
@@ -698,7 +720,10 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       listMembers: createListMembers(membersDeps),
       createInvitation: createCreateInvitation(invitationsDeps),
       revokeInvitation: createRevokeInvitation(invitationsDeps),
+      listInvitations: createListInvitations(invitationsDeps),
       acceptInvitation: createAcceptInvitation(invitationsDeps),
+      previewInvitation: createPreviewInvitation(invitationsDeps),
+      previewClaim: createPreviewClaim(invitationsDeps),
       addGuest: createAddGuestMember(membersDeps),
       changeMemberRole: createChangeMemberRole(membersDeps),
       // HU-E1-09: every current member's net from one aggregate (balances' GetMemberNetBalances).
@@ -747,7 +772,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       updateAccount: createUpdateAccount(accountsDeps),
       archiveAccount: createArchiveAccount(accountsDeps),
       restoreAccount: createRestoreAccount(accountsDeps),
-      listAccounts: createListAccounts(accountsDeps),
+      listAccounts,
       getAccount,
     },
     ledger: {
@@ -760,6 +785,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       getTransaction: createGetTransaction(ledgerDeps),
       editTransaction: createEditTransaction(ledgerDeps),
       deleteTransaction: createDeleteTransaction(ledgerDeps),
+      restoreTransaction: createRestoreTransaction(ledgerDeps),
       listAudit: createListAudit(ledgerDeps),
       defineRecurrence: createDefineRecurrence(recurrenceDeps),
       listRecurrences: createListRecurrences(recurrenceDeps),
@@ -814,6 +840,35 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       getPersonalTrend: createGetPersonalTrend(reportingDeps),
       getSpendingByGroup: createGetSpendingByGroup(reportingDeps),
       getPersonalSpendingByGroup: createGetPersonalSpendingByGroup(reportingDeps),
+      // #150, rulings P238–P240: the caller's own money across every space they belong to, on read (D7).
+      getCashFlow: createGetCashFlow({
+        clock,
+        userTimeZones: profiles,
+        spacesOf: async (userId) =>
+          (await spaceRepository.listForUser(userId, { includeArchived: false })).map((space) => ({
+            spaceId: space.id,
+            name: space.name,
+          })),
+        scheduled: createListScheduledMovements({
+          recurrences: recurrenceRepository,
+          occurrences: recurrenceRepository,
+        }),
+        ownAccountsOf: async (userId) => {
+          const personal = await personalSpaceOf(userId);
+          // Sign-up provisions a personal space or compensates (HU-E1-02), so a signed-in user always has one.
+          if (!personal) throw new Error(`user ${userId} has no personal space`);
+          const listed = await listAccounts({ spaceId: personal.id, userId, includeArchived: false });
+          if (!listed.ok) throw new Error(`own accounts unreadable: ${listed.error.code}`);
+          return {
+            currency: listed.value.currency,
+            available: listed.value.totals.available,
+            // Defensive: a personal space only holds its owner's accounts (no SHARED_FUND, HU-E2-02).
+            accounts: listed.value.items
+              .filter((account) => account.ownerUserId === userId)
+              .map((account) => ({ id: account.id, counted: switchesOf(account).includeInAvailable })),
+          };
+        },
+      }),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.

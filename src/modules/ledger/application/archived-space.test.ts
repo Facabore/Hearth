@@ -15,6 +15,7 @@ import { createRecordFundContribution } from "./record-fund-contribution";
 import { createRecordIncome } from "./record-income";
 import { createRecordSettlement } from "./record-settlement";
 import { createRecordTransfer } from "./record-transfer";
+import { createRestoreTransaction } from "./restore-transaction";
 
 const date = (iso: string) => iso as LocalDate;
 const ana = { spaceId: "space-ana", userId: "u-ana" };
@@ -44,6 +45,7 @@ const world = (where: "ana" | "household", archived: boolean) => {
     recordByKey: createRecordExpenseByCategoryKey(
       {
         access: deps.access,
+        spaceLocks: deps.spaceLocks,
         categoryKeys: { findByKey: async () => ({ id: CATEGORIES.groceries.id, archived: false }) },
       },
       createRecordExpense(deps),
@@ -54,6 +56,7 @@ const world = (where: "ana" | "household", archived: boolean) => {
     settle: createRecordSettlement(deps),
     edit: createEditTransaction(deps),
     remove: createDeleteTransaction(deps),
+    restore: createRestoreTransaction(deps),
     list: createListTransactions(deps),
     get: createGetTransaction(deps),
     history: createListAudit(deps),
@@ -168,7 +171,19 @@ const WRITES: readonly (readonly [
         changes: { description: "Groceries" },
       }),
   ],
+  [
+    "EditTransaction time",
+    "ana",
+    (w) =>
+      w.edit({
+        ...ana,
+        transactionId: w.market.id,
+        expectedVersion: null,
+        changes: { occurredAt: new Date("2026-10-05T10:00:00-05:00"), timeZone: "America/Bogota" },
+      }),
+  ],
   ["DeleteTransaction", "ana", (w) => w.remove({ ...ana, transactionId: w.market.id })],
+  ["RestoreTransaction", "ana", (w) => w.restore({ ...ana, transactionId: w.market.id })],
 ];
 
 describe("archived spaces only read: the ledger (HU-E1-09, Review Focus 4)", () => {

@@ -1,7 +1,13 @@
 import { z } from "zod";
 import type { ZodOpenApiPathsObject } from "zod-openapi";
 import { jsonContent, PeriodSchema, problems, securedByUser } from "@/shared/http/contracts";
-import type { CreatedInvitation, InvitationView, SpaceMember } from "../application";
+import type {
+  ClaimPreview,
+  CreatedInvitation,
+  InvitationPreview,
+  InvitationView,
+  SpaceMember,
+} from "../application";
 
 export const PeriodPolicySchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("MONTHLY"), day: z.number().int().min(1).max(31) }),
@@ -114,6 +120,7 @@ export const CreatedInvitationSchema = z.object({
   url: z.string(),
   emailSent: z.boolean(),
 });
+export const ListInvitationsResponseSchema = z.object({ items: z.array(InvitationSchema) });
 
 export const invitationDto = (view: InvitationView): z.infer<typeof InvitationSchema> => ({
   id: view.id,
@@ -133,6 +140,42 @@ export const createdInvitationDto = (
   url: created.url,
   emailSent: created.emailSent,
 });
+
+const InvitationStatusSchema = z.enum(["PENDING", "ACCEPTED", "REVOKED", "EXPIRED"]);
+
+/** Ruling P156: a public preview; never the email, the space id or any member list. */
+export const InvitationPreviewSchema = z.object({
+  kind: z.enum(["EMAIL", "LINK"]),
+  spaceName: z.string(),
+  role: z.enum(["ADMIN", "MEMBER", "VIEWER"]),
+  status: InvitationStatusSchema,
+  expiresAt: z.iso.datetime(),
+  invitedBy: z.string().nullable(),
+});
+export const ClaimPreviewSchema = z.object({
+  spaceName: z.string(),
+  guestName: z.string().nullable(),
+  status: InvitationStatusSchema,
+  expiresAt: z.iso.datetime(),
+  invitedBy: z.string().nullable(),
+});
+
+export const invitationPreviewDto = (p: InvitationPreview): z.infer<typeof InvitationPreviewSchema> => ({
+  kind: p.kind,
+  spaceName: p.spaceName,
+  role: p.role,
+  status: p.status,
+  expiresAt: p.expiresAt.toISOString(),
+  invitedBy: p.invitedBy,
+});
+export const claimPreviewDto = (p: ClaimPreview): z.infer<typeof ClaimPreviewSchema> => ({
+  spaceName: p.spaceName,
+  guestName: p.guestName,
+  status: p.status,
+  expiresAt: p.expiresAt.toISOString(),
+  invitedBy: p.invitedBy,
+});
+const TokenPath = z.object({ token: z.string() });
 
 const SpacePath = z.object({ spaceId: z.string() });
 const InvitationPath = SpacePath.extend({ invitationId: z.string() });
@@ -229,6 +272,25 @@ export const spacesPaths: ZodOpenApiPathsObject = {
     },
   },
   "/api/v1/spaces/{spaceId}/invitations": {
+    get: {
+      operationId: "listInvitations",
+      summary:
+        "The space's pending email and link invitations, newest first (OWNER and ADMIN); never their URLs",
+      ...securedByUser,
+      requestParams: { path: SpacePath },
+      responses: {
+        "200": {
+          description: "The pending invitations",
+          content: jsonContent(ListInvitationsResponseSchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound",
+          "409": "SpaceArchived",
+        }),
+      },
+    },
     post: {
       operationId: "createInvitation",
       summary: "Invite by email (bound to that address) or by shareable link; the response carries the URL",
@@ -264,6 +326,18 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           "404": "SpaceNotFound, InvitationNotFound",
           "409": "InvitationAlreadyUsed, SpaceArchived",
         }),
+      },
+    },
+  },
+  "/api/v1/invitations/{token}": {
+    get: {
+      operationId: "previewInvitation",
+      summary:
+        "What a visitor holding the token may read of an invitation: space, inviter, role, status, expiry",
+      requestParams: { path: TokenPath },
+      responses: {
+        "200": { description: "The invitation's preview", content: jsonContent(InvitationPreviewSchema) },
+        ...problems({ "404": "InvitationNotFound" }),
       },
     },
   },
@@ -358,6 +432,17 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           "404": "SpaceNotFound, MemberNotFound",
           "409": "NotAGuest, SpaceArchived",
         }),
+      },
+    },
+  },
+  "/api/v1/claims/{token}": {
+    get: {
+      operationId: "previewClaim",
+      summary: "What a visitor holding the token may read of a claim link: space, guest, status, expiry",
+      requestParams: { path: TokenPath },
+      responses: {
+        "200": { description: "The claim link's preview", content: jsonContent(ClaimPreviewSchema) },
+        ...problems({ "404": "InvitationNotFound" }),
       },
     },
   },

@@ -1,7 +1,14 @@
 import type { ZodType } from "zod";
 import type { AuthUser, Result } from "@/shared/kernel";
 import { jsonLogger, type Logger } from "./logger";
-import { problemResponse, publicDetailsOf, statusForCode, type ProblemFieldError } from "./problem";
+import { nulFieldErrors } from "./nul-guard";
+import {
+  problemResponse,
+  publicDetailsOf,
+  publicFieldErrorsOf,
+  statusForCode,
+  type ProblemFieldError,
+} from "./problem";
 import { requestIdFrom } from "./request-id";
 import type { SessionResolver } from "./session-resolver";
 
@@ -85,7 +92,10 @@ export const createRouteFactory =
 
       let query = undefined as Q;
       if (spec.query) {
-        const parsed = spec.query.safeParse(Object.fromEntries(new URL(request.url).searchParams));
+        const rawQuery = Object.fromEntries(new URL(request.url).searchParams);
+        const nul = nulFieldErrors(rawQuery);
+        if (nul.length > 0) return problemResponse("ValidationFailed", requestId, nul);
+        const parsed = spec.query.safeParse(rawQuery);
         if (!parsed.success)
           return problemResponse("ValidationFailed", requestId, toFieldErrors(parsed.error.issues));
         query = parsed.data;
@@ -101,6 +111,9 @@ export const createRouteFactory =
             { path: "", message: "Body must be valid JSON" },
           ]);
         }
+        // Issue 118: PostgreSQL text refuses NUL, so it is refused here for every field of every route.
+        const nul = nulFieldErrors(raw);
+        if (nul.length > 0) return problemResponse("ValidationFailed", requestId, nul);
         const parsed = spec.body.safeParse(raw);
         if (!parsed.success)
           return problemResponse("ValidationFailed", requestId, toFieldErrors(parsed.error.issues));
@@ -120,7 +133,12 @@ export const createRouteFactory =
           });
         }
         const { code, details } = result.error;
-        return problemResponse(code, requestId, undefined, publicDetailsOf(code, details));
+        return problemResponse(
+          code,
+          requestId,
+          publicFieldErrorsOf(code, details),
+          publicDetailsOf(code, details),
+        );
       }
 
       const headers = new Headers({ "x-request-id": requestId });

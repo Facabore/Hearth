@@ -4,12 +4,20 @@ import { balanceParties, type Transaction } from "../domain/transaction";
 import type { LedgerDeps } from "./deps";
 import type { LedgerAccount } from "./ports";
 
-/** HU-E1-05: recording money movements is the matrix action money.record (MEMBER or above). */
-export const authorizeWriter = (
-  deps: Pick<LedgerDeps, "access">,
+/**
+ * HU-E1-05: recording money movements is the matrix action money.record (MEMBER or above).
+ *
+ * Issue #89: the space row is locked FOR SHARE first, then membership and the archived flag are read, so a leave, a
+ * removal or an archive in progress is waited for and its committed result is what the write sees.
+ */
+export const authorizeWriter = async (
+  deps: Pick<LedgerDeps, "access" | "spaceLocks">,
   spaceId: string,
   userId: string,
-): Promise<Result<SpaceMembership>> => authorizeSpaceAction(deps.access, spaceId, userId, "money.record");
+): Promise<Result<SpaceMembership>> => {
+  await deps.spaceLocks.lockForMoneyWrite(spaceId);
+  return authorizeSpaceAction(deps.access, spaceId, userId, "money.record");
+};
 
 /** D6: amounts are in the space currency. */
 export const inSpaceCurrency = (space: SpaceMembership, money: Money): Result<Money> =>

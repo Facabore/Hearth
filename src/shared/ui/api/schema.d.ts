@@ -181,7 +181,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** The space's pending email and link invitations, newest first (OWNER and ADMIN); never their URLs */
+        get: operations["listInvitations"];
         put?: never;
         /** Invite by email (bound to that address) or by shareable link; the response carries the URL */
         post: operations["createInvitation"];
@@ -202,6 +203,23 @@ export interface paths {
         put?: never;
         /** Revoke a pending invitation; revoking twice changes nothing */
         post: operations["revokeInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invitations/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What a visitor holding the token may read of an invitation: space, inviter, role, status, expiry */
+        get: operations["previewInvitation"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -287,6 +305,23 @@ export interface paths {
         put?: never;
         /** Create a single-use link with which someone takes over a guest's place by signing in */
         post: operations["createGuestClaimLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/claims/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What a visitor holding the token may read of a claim link: space, guest, status, expiry */
+        get: operations["previewClaim"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -667,6 +702,23 @@ export interface paths {
         get: operations["listTransactionAudit"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{spaceId}/transactions/{transactionId}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Undo a deletion: the transaction returns to lists, balances and totals; restoring a live one changes nothing */
+        post: operations["restoreTransaction"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1216,6 +1268,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/cash-flow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What comes into and goes out of the caller's own accounts over the next 30 or 60 days
+         * @description Every scheduled date of the active recurrences and every pending occurrence of the spaces the caller is a current member of, when it debits or credits an account the caller owns, with the projected balance of the personal space's available money after each date. Earlier due dates are listed on today.
+         */
+        get: operations["getCashFlow"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/spaces/{spaceId}/reports/spending-by-group": {
         parameters: {
             query?: never;
@@ -1497,6 +1569,27 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             expiresAt: string;
+        };
+        InvitationPreview: {
+            /** @enum {string} */
+            kind: "EMAIL" | "LINK";
+            spaceName: string;
+            /** @enum {string} */
+            role: "ADMIN" | "MEMBER" | "VIEWER";
+            /** @enum {string} */
+            status: "PENDING" | "ACCEPTED" | "REVOKED" | "EXPIRED";
+            /** Format: date-time */
+            expiresAt: string;
+            invitedBy: string | null;
+        };
+        ClaimPreview: {
+            spaceName: string;
+            guestName: string | null;
+            /** @enum {string} */
+            status: "PENDING" | "ACCEPTED" | "REVOKED" | "EXPIRED";
+            /** Format: date-time */
+            expiresAt: string;
+            invitedBy: string | null;
         };
         Period: {
             label: string;
@@ -2484,6 +2577,66 @@ export interface operations {
             };
         };
     };
+    listInvitations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The pending invitations */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["Invitation"][];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description InsufficientRole */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceArchived */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     createInvitation: {
         parameters: {
             query?: never;
@@ -2621,6 +2774,37 @@ export interface operations {
             };
             /** @description InvitationAlreadyUsed, SpaceArchived */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    previewInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The invitation's preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationPreview"];
+                };
+            };
+            /** @description InvitationNotFound */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2939,6 +3123,37 @@ export interface operations {
             };
             /** @description NotAGuest, SpaceArchived */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    previewClaim: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The claim link's preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClaimPreview"];
+                };
+            };
+            /** @description InvitationNotFound */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4887,7 +5102,7 @@ export interface operations {
                         items: {
                             id: string;
                             /** @enum {string} */
-                            action: "UPDATED" | "DELETED";
+                            action: "UPDATED" | "DELETED" | "RESTORED";
                             actorUserId: string;
                             /** Format: date-time */
                             at: string;
@@ -4912,6 +5127,83 @@ export interface operations {
             };
             /** @description SpaceNotFound, TransactionNotFound */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    restoreTransaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+                transactionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The restored transaction with its new ETag */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transaction"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description InsufficientRole */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound, TransactionNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description PeriodClosed, SpaceArchived */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description PreconditionFailed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description NotASpaceMember */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5282,7 +5574,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed (including the template, type, payer, accounts or start date, which an edit cannot change), InvalidAmount, InvalidDate, InvalidDescription, InvalidPeriodPolicy, InvalidRecurrence (an end date before the start; a category or split its type does not have), CurrencyMismatch, UnknownCurrency, AccountNotOwned (it moves money into or out of its creator's own account: only its creator changes it), AccountNotInSpace, AccountRequired, InvalidFundAccount, NotASpaceMember (a payer or a split participant left; with member "creator", the recurrence's creator left), InvalidSplit, ParticipantsRequired */
+            /** @description ValidationFailed (including the template, type, payer, accounts or start date, which an edit cannot change), InvalidAmount, InvalidDate, InvalidDescription, InvalidPeriodPolicy, InvalidRecurrence (an end date before the start; a category or split its type does not have), CurrencyMismatch, UnknownCurrency, AccountNotOwned (it moves money into or out of its creator's own account: only its creator changes it), AccountNotInSpace, AccountRequired, InvalidFundAccount, NotASpaceMember (a payer or a split participant is not a member, whether they left or never were; with member "creator", the recurrence's creator left), InvalidSplit, ParticipantsRequired */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6826,6 +7118,13 @@ export interface operations {
                             carryOver: components["schemas"]["MoneyOutput"];
                             available: components["schemas"]["MoneyOutput"];
                             overspent: boolean;
+                            /**
+                             * @description Of planned + carry-over: NEAR from 80 % used, HIGH above 90 %, OVER below 0 left; a SAVINGS line is always OK.
+                             * @enum {string}
+                             */
+                            state: "OK" | "NEAR" | "HIGH" | "OVER";
+                            /** @description How much an OVER line went past its budget, positive; null otherwise. */
+                            overBy: components["schemas"]["MoneyOutput"] | null;
                         }[];
                         /** @description What no line consumes, every expense when the period has no plan; null when the plan has a catch-all line. */
                         unbudgeted: {
@@ -6833,6 +7132,17 @@ export interface operations {
                             available: components["schemas"]["MoneyOutput"];
                             overspent: boolean;
                         } | null;
+                        /** @description Σ of the lines' figures plus Unbudgeted's spent and available; planned counts the lines only. */
+                        totals: {
+                            planned: components["schemas"]["MoneyOutput"];
+                            spent: components["schemas"]["MoneyOutput"];
+                            available: components["schemas"]["MoneyOutput"];
+                        };
+                        /** @description Every live category of the space with the line its expenses consume in the plan: its mapped line, its parent's line for a subcategory, else the catch-all line; null for Unbudgeted. Empty without a plan. */
+                        categoryLines: {
+                            categoryId: string;
+                            lineId: string | null;
+                        }[];
                     };
                 };
             };
@@ -6982,6 +7292,12 @@ export interface operations {
                             actual: components["schemas"]["MoneyOutput"];
                             difference: components["schemas"]["MoneyOutput"];
                         }[];
+                        /** @description Σ over the listed members of expected, actual and difference. */
+                        totals: {
+                            expected: components["schemas"]["MoneyOutput"];
+                            actual: components["schemas"]["MoneyOutput"];
+                            difference: components["schemas"]["MoneyOutput"];
+                        };
                     };
                 };
             };
@@ -7121,6 +7437,7 @@ export interface operations {
                             lineId: string;
                             name: string;
                             points: {
+                                /** @description The period's label, unique within the window and equal to the label of periods[i]: a derived period that shares its label with a stored one is written '<label> (<start>..<end>)'. */
                                 period: string;
                                 /** @description Null where the line has no figure: the period has no plan, or no line of it continues this one. */
                                 spent: components["schemas"]["MoneyOutput"] | null;
@@ -7186,6 +7503,7 @@ export interface operations {
                         currency: string;
                         periods: components["schemas"]["Period"][];
                         points: {
+                            /** @description The period's label, unique within the window and equal to the label of periods[i]: a derived period that shares its label with a stored one is written '<label> (<start>..<end>)'. */
                             period: string;
                             consumption: components["schemas"]["MoneyOutput"];
                             /** @description Current minus previous; null when changeStatus is NEW. */
@@ -7208,6 +7526,91 @@ export interface operations {
                 };
             };
             /** @description ValidationFailed, InvalidPeriodLabel */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getCashFlow: {
+        parameters: {
+            query?: {
+                days?: "30" | "60";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's dated movements and projected balances */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        currency: string;
+                        from: string;
+                        through: string;
+                        days: 30 | 60;
+                        /** @description Today's available money of the caller's personal space. */
+                        opening: components["schemas"]["MoneyOutput"];
+                        dates: {
+                            date: string;
+                            movements: {
+                                recurrenceId: string;
+                                occurrenceId: string | null;
+                                /** @enum {string} */
+                                type: "EXPENSE" | "INCOME" | "TRANSFER" | "FUND_CONTRIBUTION";
+                                description: string;
+                                space: {
+                                    id: string;
+                                    name: string;
+                                };
+                                /** @description When it was due; a PENDING occurrence or an unreached earlier date is listed on today. */
+                                dueDate: string;
+                                /** @enum {string} */
+                                status: "SCHEDULED" | "PENDING";
+                                /** @description A CONFIRM recurrence's estimate, which a member confirms or changes. */
+                                estimated: boolean;
+                                amount: components["schemas"]["MoneyOutput"];
+                                /** @description The signed change of the caller's available money: + into a counted account, − out of one, 0 between two or none. */
+                                effect: components["schemas"]["MoneyOutput"];
+                            }[];
+                            balanceAfter: components["schemas"]["MoneyOutput"];
+                        }[];
+                        totals: {
+                            incoming: components["schemas"]["MoneyOutput"];
+                            outgoing: components["schemas"]["MoneyOutput"];
+                            closing: components["schemas"]["MoneyOutput"];
+                        };
+                        lowest: {
+                            date: string;
+                            balance: components["schemas"]["MoneyOutput"];
+                        };
+                        otherCurrencySpaces: {
+                            spaceId: string;
+                            name: string;
+                            currency: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed */
             422: {
                 headers: {
                     [name: string]: unknown;

@@ -355,6 +355,13 @@ export const softDelete = (tx: Transaction, now: Date): Transaction => ({
   updatedAt: now,
 });
 
+/** Ruling P185: undoing a deletion; the row comes back as it was deleted (D8). */
+export const restore = (tx: Transaction, now: Date): Transaction => ({
+  ...tx,
+  deletedAt: null,
+  updatedAt: now,
+});
+
 const AUDITED = ["description", "date", "categoryId", "amount"] as const;
 
 /**
@@ -400,6 +407,13 @@ export const changesBetween = (before: Transaction, after: Transaction): ChangeS
 export const deletionChanges = (tx: Transaction): ChangeSet => {
   const changes: Record<string, { from: string; to: null }> = {};
   for (const [key, from] of auditedValues(tx)) if (from !== null) changes[key] = { from, to: null };
+  return changes;
+};
+
+/** Ruling P185: a restore brings every audited value back, each `from: null`, mirroring `deletionChanges`. */
+export const restorationChanges = (tx: Transaction): ChangeSet => {
+  const changes: Record<string, { from: null; to: string }> = {};
+  for (const [key, to] of auditedValues(tx)) if (to !== null) changes[key] = { from: null, to };
   return changes;
 };
 

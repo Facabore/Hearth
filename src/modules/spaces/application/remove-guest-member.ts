@@ -26,6 +26,8 @@ export const createRemoveGuestMember =
       const { spaceId, spaceKind, currency } = actor.value;
       const changeable = ensureMembersCanChange({ kind: spaceKind });
       if (!changeable.ok) return changeable;
+      // Issue #89: first lock of the transaction, before the guest's balance is read.
+      await deps.spaceLocks.lockForLifecycle(spaceId);
       const guest = currentGuest(await deps.members.listCurrent(spaceId), input.memberId);
       if (!guest.ok) return guest;
       const settled = ensureSettled(

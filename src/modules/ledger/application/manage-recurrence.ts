@@ -153,15 +153,19 @@ export const createUpdateRecurrence =
       const { amount, schedule, ...rest } = input.changes;
       const nextSchedule = schedule === undefined ? ok(undefined) : scheduleOf(schedule);
       if (!nextSchedule.ok) return nextSchedule;
-      // A new schedule starts from the edit day and the last occurrence, whatever its status (final review I1).
-      const latest = await deps.occurrences.latestOccurrences(space.spaceId, [recurrence.id]);
+      // A new schedule starts from the edit day and the last occurrence, whatever its status (final review I1); no
+      // other edit looks at the occurrences.
+      const latest =
+        nextSchedule.value === undefined
+          ? undefined
+          : await deps.occurrences.latestOccurrences(space.spaceId, [recurrence.id]);
       const revised = revisedRecurrence(
         recurrence,
         { ...rest, amount: amount?.minor, schedule: nextSchedule.value },
         {
           now: deps.clock.now(),
           today: todayIn(deps.clock, deps.timeZone),
-          lastOccurrence: latest.get(recurrence.id)?.date ?? null,
+          lastOccurrence: latest?.get(recurrence.id)?.date ?? null,
         },
       );
       if (!revised.ok) return revised;

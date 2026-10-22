@@ -183,6 +183,36 @@ export class DrizzleCategoryRepository implements CategoryRepository {
     }));
   }
 
+  /**
+   * HU-E7-06 (#130): the groups of `spaceIds`, archived ones included, whether or not they hold a live category,
+   * sorted by space, then id; `[]` without well-formed ids.
+   */
+  async groupsOf(spaceIds: readonly string[]): Promise<
+    {
+      spaceId: string;
+      groupId: string;
+      groupKey: string | null;
+      groupName: string;
+      groupArchived: boolean;
+    }[]
+  > {
+    const ids = spaceIds.filter(isUuid);
+    if (ids.length === 0) return [];
+    const rows = await this.tm
+      .executor()
+      .select({
+        spaceId: categoryGroups.spaceId,
+        groupId: categoryGroups.id,
+        groupKey: categoryGroups.key,
+        groupName: categoryGroups.name,
+        groupArchivedAt: categoryGroups.archivedAt,
+      })
+      .from(categoryGroups)
+      .where(inArray(categoryGroups.spaceId, ids))
+      .orderBy(asc(categoryGroups.spaceId), asc(categoryGroups.id));
+    return rows.map(({ groupArchivedAt, ...row }) => ({ ...row, groupArchived: groupArchivedAt !== null }));
+  }
+
   async saveGroup(group: CategoryGroup): Promise<void> {
     await this.tm
       .executor()

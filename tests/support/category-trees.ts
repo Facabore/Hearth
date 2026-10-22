@@ -1,4 +1,4 @@
-import type { TreeCategory } from "@/modules/reporting/application";
+import type { TreeCategory, TreeGroup } from "@/modules/reporting/application";
 
 /** A group of a space as a tree holds it; seeded groups carry their catalog key (HU-E3-05). */
 export interface GroupSpec {
@@ -27,6 +27,29 @@ export const node = (
   categoryArchived: options.archived ?? false,
   parentCategoryId: options.parent ?? null,
 });
+
+/** A group of a space as `groupsOf` lists it, also when it holds no live category (#130). */
+export const groupOf = (group: GroupSpec): TreeGroup => ({
+  spaceId: group.spaceId,
+  groupId: group.id,
+  groupKey: group.key ?? null,
+  groupName: group.name,
+  groupArchived: group.archived ?? false,
+});
+
+/** The groups of `nodes`, once each, in the order they first appear; the tree's own view of `groupsOf` (#130). */
+export const groupsIn = (nodes: readonly TreeCategory[]): TreeGroup[] => {
+  const groups = new Map<string, TreeGroup>();
+  for (const n of nodes)
+    groups.set(n.groupId, {
+      spaceId: n.spaceId,
+      groupId: n.groupId,
+      groupKey: n.groupKey,
+      groupName: n.groupName,
+      groupArchived: n.groupArchived,
+    });
+  return [...groups.values()];
+};
 
 /** What was spent in one category of one space, as the ledger sums it per space and category. */
 export const spent = (spaceId: string, categoryId: string, pesos: number) => ({

@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { LocalDate } from "./local-date";
-import { canonicalTimeZone, instantAt, localDateIn, parseTimeZone, wallTimeIn } from "./time-zone";
+import {
+  canonicalTimeZone,
+  instantAt,
+  isIanaName,
+  localDateIn,
+  parseTimeZone,
+  wallTimeIn,
+} from "./time-zone";
 
 const at = (iso: string) => new Date(iso);
 const wall = (hour: number, minute: number) => ({ hour, minute, second: 0, millisecond: 0 });
@@ -11,6 +18,37 @@ describe("time zones (HU-E1-14)", () => {
     expect(canonicalTimeZone("america/bogota")).toBe("America/Bogota");
     expect(canonicalTimeZone("Europe/Madrid")).toBe("Europe/Madrid");
     expect(canonicalTimeZone("UTC")).toBe("UTC");
+  });
+
+  it("keeps IANA aliases and legacy names, canonicalised by Intl", () => {
+    expect(canonicalTimeZone("US/Pacific")).toBe("America/Los_Angeles");
+    expect(canonicalTimeZone("etc/gmt+5")).toBe("Etc/GMT+5");
+    expect(canonicalTimeZone("GMT")).toBe("UTC");
+    expect(parseTimeZone("america/bogota")).toEqual({ ok: true, value: "America/Bogota" });
+  });
+
+  it.each(["+05:00", "-03:30", "+0500", "-03", "+05", "+14:00"])(
+    "refuses the offset-form name %j on the write paths, though Intl accepts it (issue 126)",
+    (raw) => {
+      expect(isIanaName(raw)).toBe(false);
+      expect(parseTimeZone(raw)).toEqual({
+        ok: false,
+        error: { code: "InvalidTimeZone", details: { value: raw } },
+      });
+    },
+  );
+
+  it.each(["America/Bogota", "america/bogota", "US/Pacific", "Etc/GMT+5", "UTC", "GMT"])(
+    "takes %j as an IANA name",
+    (raw) => expect(isIanaName(raw)).toBe(true),
+  );
+
+  it.each([
+    ["+05:00", "+05:00"],
+    ["-03:30", "-03:30"],
+    ["+0500", "+05:00"],
+  ])("still reads a stored offset-form name %j as itself (%j): readers never change", (raw, canonical) => {
+    expect(canonicalTimeZone(raw)).toBe(canonical);
   });
 
   it.each(["Bogota", "Mars/Olympus", ""])("refuses %j", (raw) => {

@@ -27,6 +27,19 @@ describe("molecules", () => {
     expect(screen.getByText("Personal")).toBeInTheDocument();
   });
 
+  it("lets a very long unbroken title and description wrap inside the sheet", async () => {
+    renderWithIntl(
+      <Sheet open onOpenChange={vi.fn()} title={"M".repeat(100)} description={"W".repeat(80)}>
+        <p>Contenido</p>
+      </Sheet>,
+    );
+    expect(await screen.findByRole("heading", { name: "M".repeat(100) })).toHaveClass(
+      "min-w-0",
+      "[overflow-wrap:anywhere]",
+    );
+    expect(screen.getByText("W".repeat(80))).toHaveClass("[overflow-wrap:anywhere]");
+  });
+
   it("opens a sheet that was mounted before another sheet loaded the panel (ruling P134)", async () => {
     vi.resetModules();
     const { Sheet: FreshSheet } = await import("./sheet");
@@ -60,6 +73,20 @@ describe("molecules", () => {
     await userEvent.click(screen.getByRole("button", { name: "Cerrar" }));
     expect(onOpenChange).toHaveBeenCalledTimes(2);
     expect(await axeViolations(document.body)).toEqual([]);
+  });
+
+  it("paints the sheet and its scrim above the bottom navigation, pads for the safe area and scrolls only its body (S1, S7)", () => {
+    renderWithIntl(
+      <Sheet open onOpenChange={vi.fn()} title="Espacios">
+        <p>Personal</p>
+      </Sheet>,
+    );
+    const dialog = screen.getByRole("dialog", { name: "Espacios" });
+    // The bottom navigation is z-10: both layers sit above it.
+    expect(dialog).toHaveClass("z-50", "max-h-[90dvh]", "pb-[max(1rem,env(safe-area-inset-bottom))]");
+    expect(document.querySelector("[data-state='open'].bg-scrim")).toHaveClass("z-50");
+    const body = screen.getByText("Personal").parentElement!;
+    expect(body).toHaveClass("min-h-0", "overflow-y-auto", "overscroll-contain");
   });
 
   it("moves through a choice group with the arrow keys and skips disabled choices", async () => {
@@ -97,5 +124,17 @@ describe("molecules", () => {
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent("Algo salió mal. Intenta de nuevo.");
     expect(alert).toHaveTextContent("Referencia: req-7");
+  });
+
+  it("adds a detail line under a known problem's message (ruling P163)", () => {
+    renderWithIntl(
+      <ProblemNotice
+        problem={{ code: "OutstandingBalance", status: 409, requestId: "r", errors: [], field: null }}
+        detail="Saldo pendiente: $ 100.000"
+      />,
+    );
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Quedan saldos pendientes. Sáldalos antes de continuar.");
+    expect(alert).toHaveTextContent("Saldo pendiente: $ 100.000");
   });
 });

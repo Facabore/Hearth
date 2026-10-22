@@ -22,6 +22,22 @@ export const errorCodesOf = (openapi) => {
   return [...codes].sort();
 };
 
+/**
+ * Ruling P170: the warning codes a response can carry: every `warnings` array property whose items have a `code` enum,
+ * anywhere in the document (RecordedExpense's FundBalanceNegative today).
+ */
+export const warningCodesOf = (openapi) => {
+  const codes = new Set();
+  const visit = (node) => {
+    if (node === null || typeof node !== "object") return;
+    const warnings = node.properties?.warnings?.items?.properties?.code?.enum;
+    if (Array.isArray(warnings)) for (const code of warnings) codes.add(code);
+    for (const value of Object.values(node)) visit(value);
+  };
+  visit(openapi);
+  return [...codes].sort();
+};
+
 const leaves = (node, prefix = "") =>
   Object.entries(node ?? {}).flatMap(([key, value]) =>
     value !== null && typeof value === "object"
@@ -29,13 +45,14 @@ const leaves = (node, prefix = "") =>
       : [[`${prefix}${key}`, value]],
   );
 
-/** Every problem with the two catalogs: a key missing in one, a leaf that is not a string, an error code without a message. */
+/** Every problem with the two catalogs: a key missing in one, a leaf that is not a string, an error or warning code without a message. */
 export const checkCatalogs = ({ es, en, openapi }) => {
   const catalogs = { es: new Map(leaves(es)), en: new Map(leaves(en)) };
   const keys = new Set([
     ...catalogs.es.keys(),
     ...catalogs.en.keys(),
     ...errorCodesOf(openapi).map((c) => `errors.${c}`),
+    ...warningCodesOf(openapi).map((c) => `warnings.${c}`),
   ]);
   const problems = [];
   for (const key of [...keys].sort())
@@ -56,5 +73,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   });
   for (const problem of problems) console.error(problem);
   if (problems.length > 0) process.exit(1);
-  console.log("Both catalogs hold the same keys and every error code has a message.");
+  console.log("Both catalogs hold the same keys and every error and warning code has a message.");
 }

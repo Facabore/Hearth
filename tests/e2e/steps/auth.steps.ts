@@ -1,4 +1,5 @@
 import { expect } from "@playwright/test";
+import { BASE_URL } from "../support/base-url";
 import { Given, Then, When } from "../support/fixtures";
 
 const MENU_ITEMS: Record<string, string> = { "Sign out": "shell.profile.signOut" };
@@ -72,7 +73,7 @@ Given(
   async ({ page, playwright, world }) => {
     // Ana signs up in a separate request context, so the page itself carries no session cookie.
     const outside = await playwright.request.newContext({
-      baseURL: "http://127.0.0.1:3100",
+      baseURL: BASE_URL,
       extraHTTPHeaders: world.headers(),
     });
     const email = world.email("ana@example.com");

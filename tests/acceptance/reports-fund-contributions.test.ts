@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { GET as fundRoute } from "@/app/api/v1/spaces/[spaceId]/reports/fund-contributions/route";
 import { setContainerForTests, type Container } from "@/composition/container";
-import { problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
+import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
 import { newPlan } from "../support/budgeting";
 import { cop } from "../support/ledger";
 import {
@@ -44,6 +45,11 @@ describe("fund contribution tracking over HTTP (HU-E7-03)", () => {
       [h.ana.memberId, cop(480_000), cop(480_000), cop(0)],
       [h.juan.memberId, cop(720_000), cop(500_000), cop(-220_000)],
     ]);
+    expect((await fundTrackingOf(h.ana, h.spaceId, "2026-11")).totals).toEqual({
+      expected: cop(1_200_000),
+      actual: cop(980_000),
+      difference: cop(-220_000),
+    });
   });
 
   it("expects what the matrix assigns on the plan's SHARED_FUND lines", async () => {
@@ -75,6 +81,20 @@ describe("fund contribution tracking over HTTP (HU-E7-03)", () => {
       [h.ana.memberId, cop(0), cop(100_000), cop(100_000)],
       [h.juan.memberId, cop(0), cop(0), cop(0)],
     ]);
+  });
+
+  it("answers 401 without a session, before it looks at the space or the period (issue 131)", async () => {
+    const { h } = await reportHousehold();
+    for (const query of ["period=2026-11", "period=not-a-period", ""]) {
+      const anonymous = await call(
+        fundRoute,
+        "GET",
+        `/api/v1/spaces/${h.spaceId}/reports/fund-contributions?${query}`,
+        { params: { spaceId: h.spaceId } },
+      );
+      expect(await problemOf(anonymous)).toEqual([401, "Unauthenticated"]);
+    }
+    expect((await getFundContributions(h.ana, h.spaceId, { period: "2026-11" })).status).toBe(200);
   });
 
   it("hides the space from non-members and rejects malformed ids and period labels", async () => {

@@ -3,6 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { FixedClock, ok } from "@/shared/kernel";
 import { testDatabase } from "../../../../tests/support/database";
+import { heldBy, holder } from "../../../../tests/support/locks";
 import { personalSpaceFixture, sharedSpaceFixture, userFixture } from "../../../../tests/support/fixtures";
 import { InMemorySpaceStore } from "../../../../tests/support/in-memory-spaces";
 import { createChangeMemberRole } from "../application/change-member-role";
@@ -95,7 +96,7 @@ describe("DrizzleSpaceRepository members (HU-E1-04, HU-E1-10)", () => {
     expect(await repo.listCurrent(space.id)).toHaveLength(3);
   });
 
-  it("frees the name and lets a former member join again with a new row (HU-E1-07)", async () => {
+  it("frees the name: a removed guest's name is taken by a new guest, and a former member takes back their own row (HU-E1-07, issue #90)", async () => {
     const ana = await newUser("Ana");
     const juan = await newUser("Juan");
     const space = await household(ana);
@@ -106,9 +107,9 @@ describe("DrizzleSpaceRepository members (HU-E1-04, HU-E1-10)", () => {
     await leave(pedro.id);
     await leave(juanBefore.id);
     expect(await repo.addMember(space.id, guest("Pedro"))).toBe("added");
-    expect(await repo.addMember(space.id, registered(juan, "Juan"))).toBe("added");
+    expect(await repo.addMember(space.id, registered(juan, "Juan"))).toBe("rejoined");
     const rows = "SELECT count(*)::int AS n FROM space_members WHERE space_id = $1 AND user_id = $2";
-    expect(await count(rows, [space.id, juan])).toBe(2);
+    expect(await count(rows, [space.id, juan])).toBe(1);
   });
 
   it("changes a member's role", async () => {
@@ -194,21 +195,107 @@ describe("leaving and removal (HU-E1-08, HU-E1-12)", () => {
     expect(await repo.listForUser(juan)).toEqual([]);
   });
 
-  it("lets a user who left through markLeft join again with a new row, keeping the old one (HU-E1-07)", async () => {
+  it("gives a user who left through markLeft their own row back when they join again, never a second one (HU-E1-07, issue #90)", async () => {
     const juan = await newUser("Juan");
     const space = await household(await newUser("Ana"));
     const before = registered(juan, "Juan");
     await repo.addMember(space.id, before);
     expect(await lifecycle.markLeft(space.id, before.id, "USER", at)).toBe(true);
-    const after = registered(juan, "Juan");
+    const after = { ...registered(juan, "Juan", "ADMIN"), joinedAt: new Date("2026-10-20T09:00:00Z") };
     // Same user and same name: both partial unique indexes must have freed their slot.
-    expect(await repo.addMember(space.id, after)).toBe("added");
-    expect((await repo.listCurrent(space.id)).filter((m) => m.userId === juan)).toEqual([after]);
-    const current =
-      "SELECT count(*)::int AS n FROM space_members WHERE space_id = $1 AND user_id = $2 AND left_at IS NULL";
-    expect(await count(current, [space.id, juan])).toBe(1);
-    const old = await pool.query("SELECT left_at FROM space_members WHERE id = $1", [before.id]);
-    expect(old.rows).toEqual([{ left_at: at }]);
+    expect(await repo.addMember(space.id, after)).toBe("rejoined");
+    // The row is the old one, so every transaction that named it names a current member again; role and join time are new.
+    expect((await repo.listCurrent(space.id)).filter((m) => m.userId === juan)).toEqual([
+      { ...after, id: before.id },
+    ]);
+    const rows = await pool.query(
+      "SELECT id, left_at, role, joined_at FROM space_members WHERE space_id = $1 AND user_id = $2",
+      [space.id, juan],
+    );
+    expect(rows.rows).toEqual([{ id: before.id, left_at: null, role: "ADMIN", joined_at: after.joinedAt }]);
+  });
+
+  it("takes back the row that left last when a user already has two former rows, from before issue #90", async () => {
+    const juan = await newUser("Juan");
+    const space = await household(await newUser("Ana"));
+    const former = (leftAt: string) => {
+      const row = registered(juan, "Juan");
+      return pool
+        .query(
+          "INSERT INTO space_members (id, space_id, kind, user_id, display_name, role, joined_at, left_at) VALUES ($1, $2, 'USER', $3, 'Juan', 'MEMBER', $4, $5)",
+          [row.id, space.id, juan, row.joinedAt, leftAt],
+        )
+        .then(() => row.id);
+    };
+    const older = await former("2026-10-14T10:00:00Z");
+    const newer = await former("2026-10-15T10:00:00Z");
+    expect(await repo.addMember(space.id, registered(juan, "Juan"))).toBe("rejoined");
+    const rows = await pool.query(
+      "SELECT id FROM space_members WHERE space_id = $1 AND left_at IS NULL AND user_id = $2",
+      [space.id, juan],
+    );
+    expect(rows.rows).toEqual([{ id: newer }]);
+    expect(
+      await count("SELECT count(*)::int AS n FROM space_members WHERE id = $1 AND left_at IS NOT NULL", [
+        older,
+      ]),
+    ).toBe(1);
+  });
+
+  it("answers nameTaken, and leaves the former row former, when a current member took the name meanwhile (issue #90)", async () => {
+    const juan = await newUser("Juan");
+    const space = await household(await newUser("Ana"));
+    const before = registered(juan, "Juan");
+    await repo.addMember(space.id, before);
+    await lifecycle.markLeft(space.id, before.id, "USER", at);
+    await repo.addMember(space.id, guest("Juan"));
+    expect(await repo.addMember(space.id, registered(juan, "Juan"))).toBe("nameTaken");
+    expect((await repo.listCurrent(space.id)).filter((m) => m.userId === juan)).toEqual([]);
+    expect(await repo.addMember(space.id, registered(juan, "Juan 2"))).toBe("rejoined");
+    expect((await repo.listCurrent(space.id)).map((m) => m.displayName)).toContain("Juan 2");
+  });
+
+  it("answers nameTaken, and keeps the transaction usable, when a concurrent join takes the name between the check and the update (issue #90)", async () => {
+    const juan = await newUser("Juan");
+    const space = await household(await newUser("Ana"));
+    const before = registered(juan, "Juan");
+    await repo.addMember(space.id, before);
+    await lifecycle.markLeft(space.id, before.id, "USER", at);
+    const h = holder(tm, pool);
+    // The guest named Juan is inserted and not committed yet: the update below queues behind its unique-index entry.
+    const joining = tm.run(async () => {
+      await repo.addMember(space.id, guest("Juan"));
+      await h.hold();
+      return ok(undefined);
+    });
+    await heldBy(h, joining);
+    const rejoining = tm
+      .run(async () => {
+        const outcome = await repo.addMember(space.id, registered(juan, "Juan"));
+        // A refused UPDATE would have aborted this transaction: reading is the proof that it did not.
+        return ok({ outcome, current: (await repo.listCurrent(space.id)).map((m) => m.displayName) });
+      })
+      .finally(h.release);
+    await joining;
+    expect(await rejoining).toEqual({ ok: true, value: { outcome: "nameTaken", current: ["Ana", "Juan"] } });
+    expect(
+      await count("SELECT count(*)::int AS n FROM space_members WHERE id = $1 AND left_at IS NULL", [
+        before.id,
+      ]),
+    ).toBe(0);
+  });
+
+  it("answers alreadyMember to a user who is current, and never takes back a guest's row for a registered user (issue #90)", async () => {
+    const juan = await newUser("Juan");
+    const space = await household(await newUser("Ana"));
+    const pedro = guest("Pedro");
+    await repo.addMember(space.id, pedro);
+    await lifecycle.markLeft(space.id, pedro.id, "GUEST", at);
+    const member = registered(juan, "Juan");
+    expect(await repo.addMember(space.id, member)).toBe("added");
+    expect(await repo.addMember(space.id, registered(juan, "Juan Again"))).toBe("alreadyMember");
+    const guests = await pool.query("SELECT left_at FROM space_members WHERE id = $1", [pedro.id]);
+    expect(guests.rows).toEqual([{ left_at: at }]);
   });
 
   it("answers false for malformed ids and for members of another space", async () => {
@@ -256,6 +343,68 @@ const rendezvous = (parties: number, ms: number) => {
   };
 };
 
+describe("the space locks (issue #89)", () => {
+  it("ignores an id that is not a UUID, like every reader of an id from a URL", async () => {
+    const outcome = await tm.run(async () => {
+      await repo.lockForMoneyWrite("not-a-uuid");
+      await repo.lockForLifecycle("not-a-uuid");
+      return ok("no cast error");
+    });
+    expect(outcome).toEqual({ ok: true, value: "no cast error" });
+  });
+
+  it("lets money writes of one space hold the lock together, and keeps a lifecycle change waiting for them", async () => {
+    const space = await household(await newUser("Ana"));
+    const first = holder(tm, pool);
+    const writing = tm.run(async () => {
+      await repo.lockForMoneyWrite(space.id);
+      await first.hold();
+      return ok("first write");
+    });
+    await heldBy(first, writing);
+    // A second write is not kept out by the first one: it gets the lock and finishes while the first still holds it.
+    const second = await tm.run(async () => {
+      await repo.lockForMoneyWrite(space.id);
+      return ok("second write");
+    });
+    expect(second).toEqual({ ok: true, value: "second write" });
+    // A lifecycle change queues behind it, which is what releases the first one.
+    const changing = tm
+      .run(async () => {
+        await repo.lockForLifecycle(space.id);
+        return ok("lifecycle");
+      })
+      .finally(first.release);
+    expect(await Promise.all([writing, changing])).toEqual([
+      { ok: true, value: "first write" },
+      { ok: true, value: "lifecycle" },
+    ]);
+  });
+
+  it("lets an insert that names the space proceed while a lifecycle change holds it (FOR KEY SHARE does not conflict)", async () => {
+    const space = await household(await newUser("Ana"));
+    const changing = holder(tm, pool);
+    let committed = false;
+    const holding = tm
+      .run(async () => {
+        await repo.lockForLifecycle(space.id);
+        await changing.hold();
+        return ok("lifecycle");
+      })
+      .finally(() => {
+        committed = true;
+      });
+    await heldBy(changing, holding);
+    // Adding a member inserts a row that references the space: its foreign-key check must not wait for the lock.
+    const added = await repo.addMember(space.id, guest("Pedro"));
+    // The change was still holding the lock when the insert finished: a blocked insert would have let it go first.
+    expect(committed).toBe(false);
+    changing.release();
+    expect(added).toBe("added");
+    expect(await holding).toEqual({ ok: true, value: "lifecycle" });
+  });
+});
+
 describe("concurrent leaving (Review Focus 5)", () => {
   it("keeps exactly one OWNER when two owners leave at the same time", async () => {
     const ana = await newUser("Ana");
@@ -265,6 +414,8 @@ describe("concurrent leaving (Review Focus 5)", () => {
     const leave = createLeaveSpace({
       access: createSpaceAccess(repo),
       members: repo,
+      // Not the space lock: this test pins the member-row lock that role changes (which take no space lock) also use.
+      spaceLocks: { lockForLifecycle: async () => undefined },
       netBalance: rendezvous(2, 2_000),
       clock: new FixedClock(new Date("2026-10-14T12:00:00Z")),
       tm,

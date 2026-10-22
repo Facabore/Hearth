@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, gt, inArray } from "drizzle-orm";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { isUuid } from "@/shared/kernel";
 import type { InvitationRepository } from "../application/invitation-repository";
@@ -54,6 +54,33 @@ export class DrizzleInvitationRepository implements InvitationRepository {
       .where(eq(spaceInvitations.tokenHash, tokenHash))
       .for("update");
     return row ? toInvitation(row) : null;
+  }
+
+  async findByTokenHash(tokenHash: string): Promise<Invitation | null> {
+    const [row] = await this.tm
+      .executor()
+      .select()
+      .from(spaceInvitations)
+      .where(eq(spaceInvitations.tokenHash, tokenHash));
+    return row ? toInvitation(row) : null;
+  }
+
+  async listPending(spaceId: string, now: Date): Promise<Invitation[]> {
+    if (!isUuid(spaceId)) return [];
+    const rows = await this.tm
+      .executor()
+      .select()
+      .from(spaceInvitations)
+      .where(
+        and(
+          eq(spaceInvitations.spaceId, spaceId),
+          eq(spaceInvitations.status, "PENDING"),
+          inArray(spaceInvitations.kind, ["EMAIL", "LINK"]),
+          gt(spaceInvitations.expiresAt, now),
+        ),
+      )
+      .orderBy(desc(spaceInvitations.createdAt), desc(spaceInvitations.id));
+    return rows.map(toInvitation);
   }
 
   async save(invitation: Invitation): Promise<void> {

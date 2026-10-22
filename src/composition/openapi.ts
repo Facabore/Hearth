@@ -23,6 +23,8 @@ import {
 } from "@/modules/ledger/contracts/recurrences.contract";
 import { reportingPaths } from "@/modules/reporting/contracts/reporting.contract";
 import {
+  ClaimPreviewSchema,
+  InvitationPreviewSchema,
   InvitationSchema,
   SpaceMemberSchema,
   SpaceSummarySchema,
@@ -61,6 +63,8 @@ export const buildOpenApiDocument = (): Record<string, unknown> =>
         Space: SpaceSummarySchema,
         SpaceMember: SpaceMemberSchema,
         Invitation: InvitationSchema,
+        InvitationPreview: InvitationPreviewSchema,
+        ClaimPreview: ClaimPreviewSchema,
         Period: PeriodSchema,
         Transaction: TransactionSchema,
         RecordedExpense: RecordedExpenseSchema,

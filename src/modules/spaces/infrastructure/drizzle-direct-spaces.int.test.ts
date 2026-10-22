@@ -576,6 +576,7 @@ describe("a claim that fails after keying its direct space leaves it unkeyed (Ta
       members: repo,
       claims: {
         spaceKindOf: (spaceId) => repo.spaceKindOf(spaceId),
+        spaceNameOf: (spaceId) => repo.spaceNameOf(spaceId),
         claimGuest: (spaceId, claimed, at) => repo.claimGuest(spaceId, claimed, at),
         adoptPairKey: async (spaceId, pairKey) => {
           const took = await repo.adoptPairKey(spaceId, pairKey);

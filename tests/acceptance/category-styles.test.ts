@@ -229,6 +229,34 @@ describe("category icon and color (HU-E3-05)", () => {
     expect(await storedCategories(ana)).toEqual(stored);
   });
 
+  it("names the style part a subcategory refuses in errors[].path (issue 121)", async () => {
+    const ana = await household();
+    const groceries = await named(ana, "Groceries");
+    const vegetables = await created(ana, { parentCategoryId: groceries.id, name: "Vegetables" });
+    const restaurants = await named(ana, "Restaurants");
+    const pathsOf = async (response: Response) => {
+      expect(await problemOf(response.clone())).toEqual([422, "ValidationFailed"]);
+      return ((await response.json()) as { errors?: { path: string; message: string }[] }).errors?.map(
+        (e) => e.path,
+      );
+    };
+    expect(await pathsOf(await patch(ana, vegetables.id, { color: "ROSE" }))).toEqual(["color"]);
+    expect(await pathsOf(await patch(ana, vegetables.id, { icon: symbol("bread") }))).toEqual(["icon"]);
+    expect(await pathsOf(await patch(ana, vegetables.id, { icon: symbol("bread"), color: "ROSE" }))).toEqual([
+      "icon",
+      "color",
+    ]);
+    const fruit = await createIn(ana, {
+      parentCategoryId: groceries.id,
+      name: "Fruit",
+      icon: symbol("apple"),
+    });
+    expect(await pathsOf(fruit)).toEqual(["icon"]);
+    // A style sent with a move that makes a subcategory is named the same way.
+    const moved = await patch(ana, restaurants.id, { parentCategoryId: groceries.id, color: "ROSE" });
+    expect(await pathsOf(moved)).toEqual(["color"]);
+  });
+
   it("keeps a copy of the parent's style when a subcategory becomes a category", async () => {
     const ana = await household();
     const food = await groupNamed(ana, "Food");

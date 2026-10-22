@@ -1,4 +1,9 @@
-import type { SpaceAccess, SpaceMemberRepository, StoredPeriodSource } from "@/modules/spaces/application";
+import type {
+  SpaceAccess,
+  SpaceLocks,
+  SpaceMemberRepository,
+  StoredPeriodSource,
+} from "@/modules/spaces/application";
 import type { Clock, IdGenerator, TransactionManager, UserTimeZones } from "@/shared/kernel";
 import type {
   AccountBalances,
@@ -13,6 +18,8 @@ import type {
 
 export interface LedgerDeps {
   readonly access: SpaceAccess;
+  /** Issue #89: every money write holds the space row FOR SHARE, so leaving, removing and archiving see it. */
+  readonly spaceLocks: Pick<SpaceLocks, "lockForMoneyWrite">;
   /** HU-E4-07: the current members in join order; payers and participants must be among them. */
   readonly members: Pick<SpaceMemberRepository, "listCurrent">;
   readonly transactions: TransactionRepository;

@@ -3,11 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, useState, type FormEvent } from "react";
-import { Button, ChoiceGroup, ProblemNotice, Switch, SymbolIcon, TextField } from "@/shared/ui";
+import { Button, ChoiceGroup, ProblemNotice, ScreenHeader, Switch, SymbolIcon, TextField } from "@/shared/ui";
 import type { SymbolName } from "@/shared/kernel/style";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { SpaceDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
+import { safeReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import { formatNumber, type Formats } from "@/shared/ui/format/formatters";
 import {
@@ -40,10 +41,13 @@ type Where = "name" | "opening" | AccountField;
 export function NewAccountForm({
   space,
   formats,
+  returnTo,
   api: injected,
 }: {
   readonly space: SpaceDto;
   readonly formats: Formats;
+  /** The screen the flow started from; saving lands there. Anything but a same-origin path is ignored. */
+  readonly returnTo?: string | null;
   readonly api?: Api;
 }) {
   const t = useTranslations("accounts");
@@ -70,6 +74,12 @@ export function NewAccountForm({
         ? messageOf(problem).message
         : undefined;
 
+  // A field's error is about its last value: it goes as soon as that field changes, never waiting for the next save.
+  const clear = (field: Where) => {
+    if (unreadable === field) setUnreadable(null);
+    if (problem && where === field) setProblem(null);
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!type) return;
@@ -88,7 +98,7 @@ export function NewAccountForm({
         body: built.body as never,
       });
       if (response.ok) {
-        router.push(`/spaces/${space.id}/accounts`);
+        router.replace(safeReturnTo(returnTo) ?? `/spaces/${space.id}/accounts`);
         router.refresh();
         return;
       }
@@ -100,80 +110,91 @@ export function NewAccountForm({
   };
 
   return (
-    <form onSubmit={(event) => void submit(event)} noValidate className="flex flex-col gap-5 py-4">
-      <h1 className="text-2xl font-semibold text-ink">{t("newTitle")}</h1>
-      <ChoiceGroup
-        label={t("field.type")}
-        layout="grid"
-        value={type}
-        onValueChange={(next) => setType(next)}
-        options={types.map((v) => ({
-          value: v,
-          label: (
-            <span className="flex flex-col items-center gap-1 py-2">
-              <SymbolIcon name={TYPE_ICONS[v]} size={22} />
-              <span className="text-xs">{t(`type.${v}`)}</span>
-            </span>
-          ),
-        }))}
-      />
-      {type ? (
-        <>
-          <TextField
-            id="na-name"
-            label={t("field.name")}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            error={errorOf("name")}
-            required
-          />
-          <TextField
-            id="na-opening"
-            label={t(OWED_TYPES.includes(type) ? "field.owed" : "field.opening")}
-            inputMode="decimal"
-            value={opening}
-            onChange={(event) => setOpening(event.target.value)}
-            error={errorOf("opening")}
-          />
-          {FIELDS_BY_TYPE[type].map((field) => (
+    <div className="flex flex-col gap-5 py-4">
+      <ScreenHeader backHref={`/spaces/${space.id}/accounts`} title={t("newTitle")} />
+      <form onSubmit={(event) => void submit(event)} noValidate className="flex flex-col gap-5">
+        <ChoiceGroup
+          label={t("field.type")}
+          layout="grid"
+          value={type}
+          onValueChange={(next) => setType(next)}
+          options={types.map((v) => ({
+            value: v,
+            label: (
+              <span className="flex flex-col items-center gap-1 py-2">
+                <SymbolIcon name={TYPE_ICONS[v]} size={22} />
+                <span className="text-xs">{t(`type.${v}`)}</span>
+              </span>
+            ),
+          }))}
+        />
+        {type ? (
+          <>
             <TextField
-              key={field}
-              id={`na-${field}`}
-              label={t(`field.${field}`)}
-              type={field === "maturityDate" ? "date" : "text"}
-              inputMode={
-                DAY_FIELDS.includes(field) || field === "lastFour"
-                  ? "numeric"
-                  : field === "institution" || field === "maturityDate"
-                    ? undefined
-                    : "decimal"
-              }
-              value={fields[field] ?? ""}
-              onChange={(event) => setFields((all) => ({ ...all, [field]: event.target.value }))}
-              error={errorOf(field)}
+              id="na-name"
+              label={t("field.name")}
+              value={name}
+              onChange={(event) => {
+                setName(event.target.value);
+                clear("name");
+              }}
+              error={errorOf("name")}
+              required
             />
-          ))}
-          <Switch
-            id="na-available"
-            label={t("switch.available")}
-            description={t("switch.availableHint")}
-            checked={available ?? SWITCH_DEFAULTS[type].includeInAvailable}
-            onCheckedChange={setAvailable}
-          />
-          <Switch
-            id="na-net-worth"
-            label={t("switch.netWorth")}
-            description={t("switch.netWorthHint")}
-            checked={netWorth ?? SWITCH_DEFAULTS[type].includeInNetWorth}
-            onCheckedChange={setNetWorth}
-          />
-          <p className="text-sm text-muted">{t("currency", { currency: space.currency })}</p>
-        </>
-      ) : null}
-      {problem && where === "form" ? <ProblemNotice problem={problem} /> : null}
-      <Button type="submit" size="lg" disabled={!type || pending}>
-        {t("create")}
-      </Button>
-    </form>
+            <TextField
+              id="na-opening"
+              label={t(OWED_TYPES.includes(type) ? "field.owed" : "field.opening")}
+              inputMode="decimal"
+              value={opening}
+              onChange={(event) => {
+                setOpening(event.target.value);
+                clear("opening");
+              }}
+              error={errorOf("opening")}
+            />
+            {FIELDS_BY_TYPE[type].map((field) => (
+              <TextField
+                key={field}
+                id={`na-${field}`}
+                label={t(`field.${field}`)}
+                type={field === "maturityDate" ? "date" : "text"}
+                inputMode={
+                  DAY_FIELDS.includes(field) || field === "lastFour"
+                    ? "numeric"
+                    : field === "institution" || field === "maturityDate"
+                      ? undefined
+                      : "decimal"
+                }
+                value={fields[field] ?? ""}
+                onChange={(event) => {
+                  setFields((all) => ({ ...all, [field]: event.target.value }));
+                  clear(field);
+                }}
+                error={errorOf(field)}
+              />
+            ))}
+            <Switch
+              id="na-available"
+              label={t("switch.available")}
+              description={t("switch.availableHint")}
+              checked={available ?? SWITCH_DEFAULTS[type].includeInAvailable}
+              onCheckedChange={setAvailable}
+            />
+            <Switch
+              id="na-net-worth"
+              label={t("switch.netWorth")}
+              description={t("switch.netWorthHint")}
+              checked={netWorth ?? SWITCH_DEFAULTS[type].includeInNetWorth}
+              onCheckedChange={setNetWorth}
+            />
+            <p className="text-sm text-muted">{t("currency", { currency: space.currency })}</p>
+          </>
+        ) : null}
+        {problem && where === "form" ? <ProblemNotice problem={problem} /> : null}
+        <Button type="submit" size="lg" disabled={!type || pending}>
+          {t("create")}
+        </Button>
+      </form>
+    </div>
   );
 }

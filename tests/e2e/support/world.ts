@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import type { Page } from "@playwright/test";
+import type { APIRequest, Page } from "@playwright/test";
 import es from "../../../src/i18n/messages/es.json" with { type: "json" };
 import { SeedApi } from "./api";
+import { Person } from "./people";
 
 /** One scenario's state: its page, its visitor address, the person it signed up and the catalog it reads. */
 export class World {
@@ -9,12 +10,15 @@ export class World {
   user: { name: string; email: string; spaceId: string } | undefined;
   readonly accounts = new Map<string, string>();
   readonly categories = new Map<string, string>();
+  readonly people = new Map<string, Person>();
+  readonly spaces = new Map<string, string>();
   private readonly suffix: string;
 
   constructor(
     readonly page: Page,
     testId: string,
     private readonly ip: string,
+    private readonly requests: APIRequest,
   ) {
     this.suffix = createHash("sha256").update(testId).digest("hex").slice(0, 8);
     this.api = new SeedApi(page.request, () => this.headers());
@@ -82,5 +86,56 @@ export class World {
     if (!response.ok())
       throw new Error(`POST ${kind} answered ${response.status()}: ${await response.text()}`);
     return response.json();
+  }
+
+  /** Someone else, signed up once per test with their own session (ruling P178). */
+  async person(name: string): Promise<Person> {
+    const known = this.people.get(name);
+    if (known) return known;
+    const person = await Person.signUp(
+      this.requests,
+      name,
+      this.email(`${name.toLowerCase()}@example.com`),
+      this.headers(),
+    );
+    this.people.set(name, person);
+    return person;
+  }
+
+  /** `owner` creates the shared space `name`; its id is kept under its name. */
+  async sharedSpace(owner: Person, name: string, currency = "COP"): Promise<string> {
+    const { id } = (await owner.api.post("/api/v1/spaces", { kind: "SHARED", name, currency })) as {
+      id: string;
+    };
+    this.spaces.set(name, id);
+    return id;
+  }
+
+  /** `who` joins `spaceName` through a link invitation `owner` creates with `role`; "me" is the page's person. */
+  async join(
+    owner: Person,
+    spaceName: string,
+    who: Person | "me",
+    role: "ADMIN" | "MEMBER" | "VIEWER",
+  ): Promise<void> {
+    const spaceId = this.spaces.get(spaceName)!;
+    const { url } = (await owner.api.post(`/api/v1/spaces/${spaceId}/invitations`, {
+      kind: "LINK",
+      role,
+    })) as { url: string };
+    const token = new URL(url).pathname.split("/").at(-1)!;
+    await (who === "me" ? this.api : who.api).post(`/api/v1/invitations/${token}/accept`, {});
+  }
+
+  /** The member id of `name` in `spaceName`, as the space lists its current members. */
+  async memberId(spaceName: string, name: string): Promise<string> {
+    const { items } = (await this.api.get(`/api/v1/spaces/${this.spaces.get(spaceName)!}/members`)) as {
+      items: { id: string; displayName: string }[];
+    };
+    return items.find((m) => m.displayName === name)!.id;
+  }
+
+  async dispose(): Promise<void> {
+    await Promise.all([...this.people.values()].map((p) => p.dispose()));
   }
 }

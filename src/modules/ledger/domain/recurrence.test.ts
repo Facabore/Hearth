@@ -1,9 +1,12 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
-import type { LocalDate, Result } from "@/shared/kernel";
+import { localDateIn, type LocalDate, type Result } from "@/shared/kernel";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
 import {
+  MAX_SCHEDULED,
   MAX_UPCOMING,
+  accountsMovedBy,
   blockerOf,
+  datesThrough,
   debitsPersonalAccount,
   defineRecurrence,
   endedRecurrence,
@@ -885,5 +888,87 @@ describe("who a recurrence depends on (D9, P22, P26)", () => {
         blockerOf(r, []),
       ]),
     ).toEqual(Array.from({ length: 3 }, () => [null, "CreatorLeft", "CreatorLeft"]));
+  });
+});
+
+describe("the dates a recurrence records through a day (ruling P238 of M6c)", () => {
+  it("lists every date from the first not considered yet through the day, and stops at its end date", () => {
+    expect(datesThrough(rent(), day("2027-02-15"))).toEqual(["2026-12-01", "2027-01-01", "2027-02-01"]);
+    expect(datesThrough(rent({ endDate: day("2027-01-10") }), day("2027-02-15"))).toEqual([
+      "2026-12-01",
+      "2027-01-01",
+    ]);
+    expect(datesThrough(rent(), day("2026-11-30"))).toEqual([]);
+  });
+
+  it("includes a date that falls on the last day of the window and none the day after", () => {
+    expect(datesThrough(rent(), day("2027-01-01"))).toEqual(["2026-12-01", "2027-01-01"]);
+    expect(datesThrough(rent(), day("2026-12-31"))).toEqual(["2026-12-01"]);
+  });
+
+  it("lists nothing while paused or once ended, and never more than MAX_SCHEDULED dates", () => {
+    const r = rent();
+    expect(datesThrough({ ...r, pausedAt: at("2026-11-01") }, day("2027-02-15"))).toEqual([]);
+    expect(datesThrough({ ...r, endedAt: at("2026-11-01") }, day("2027-02-15"))).toEqual([]);
+    expect(MAX_SCHEDULED).toBe(64);
+    expect(datesThrough(r, day("2040-01-01"))).toHaveLength(MAX_SCHEDULED);
+  });
+
+  it("starts at the definition day in the space's calendar: 04:59:59Z is still 2026-10-28 in Bogota, 05:00:00Z is 2026-10-29 (ruling P246 of M6c)", () => {
+    const defined = (iso: string) =>
+      rent({
+        schedule: { kind: "MONTHLY", day: 28 },
+        startDate: day("2026-10-01"),
+        now: new Date(iso),
+        today: localDateIn(new Date(iso), "America/Bogota"),
+      });
+    expect(datesThrough(defined("2026-10-29T04:59:59Z"), day("2026-12-31"))).toEqual([
+      "2026-10-28",
+      "2026-11-28",
+      "2026-12-28",
+    ]);
+    expect(datesThrough(defined("2026-10-29T05:00:00Z"), day("2026-12-31"))).toEqual([
+      "2026-11-28",
+      "2026-12-28",
+    ]);
+  });
+});
+
+describe("the accounts a recurrence moves (ruling P239 of M6c)", () => {
+  it("debits the paying or source account and credits the receiving one", () => {
+    expect([
+      accountsMovedBy({
+        type: "EXPENSE",
+        categoryId: "cat-rent",
+        payer: { memberId: "member-ana", accountId: "acc-bancolombia" },
+        split: null,
+      }),
+      accountsMovedBy(RENT),
+      accountsMovedBy({ type: "INCOME", categoryId: "cat-salary", accountId: "acc-bancolombia" }),
+      accountsMovedBy({
+        type: "TRANSFER",
+        sourceAccountId: "acc-bancolombia",
+        destinationAccountId: "acc-visa",
+      }),
+      accountsMovedBy({
+        type: "FUND_CONTRIBUTION",
+        fundAccountId: "acc-household-fund",
+        memberId: "member-ana",
+        sourceAccountId: "acc-bancolombia",
+      }),
+      accountsMovedBy({
+        type: "FUND_CONTRIBUTION",
+        fundAccountId: "acc-household-fund",
+        memberId: "member-pedro",
+        sourceAccountId: null,
+      }),
+    ]).toEqual([
+      { debitAccountId: "acc-bancolombia", creditAccountId: null },
+      { debitAccountId: "acc-household-fund", creditAccountId: null },
+      { debitAccountId: null, creditAccountId: "acc-bancolombia" },
+      { debitAccountId: "acc-bancolombia", creditAccountId: "acc-visa" },
+      { debitAccountId: "acc-bancolombia", creditAccountId: "acc-household-fund" },
+      { debitAccountId: null, creditAccountId: "acc-household-fund" },
+    ]);
   });
 });

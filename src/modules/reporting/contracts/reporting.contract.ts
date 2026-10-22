@@ -20,6 +20,8 @@ import {
   type Change,
   type LineTrend,
   type PersonalTrend,
+  type CashFlowDays,
+  type CashFlowView,
   type CategorySpending,
   type SpendingByGroup,
   type SubcategorySpending,
@@ -63,6 +65,14 @@ export const LineDashboardSchema = z.object({
       available: MoneySchema,
       /** The available amount is negative. */
       overspent: z.boolean(),
+      state: z
+        .enum(["OK", "NEAR", "HIGH", "OVER"])
+        .describe(
+          "Of planned + carry-over: NEAR from 80 % used, HIGH above 90 %, OVER below 0 left; a SAVINGS line is always OK.",
+        ),
+      overBy: MoneySchema.nullable().describe(
+        "How much an OVER line went past its budget, positive; null otherwise.",
+      ),
     }),
   ),
   unbudgeted: z
@@ -70,6 +80,16 @@ export const LineDashboardSchema = z.object({
     .nullable()
     .describe(
       "What no line consumes, every expense when the period has no plan; null when the plan has a catch-all line.",
+    ),
+  totals: z
+    .object({ planned: MoneySchema, spent: MoneySchema, available: MoneySchema })
+    .describe(
+      "Σ of the lines' figures plus Unbudgeted's spent and available; planned counts the lines only.",
+    ),
+  categoryLines: z
+    .array(z.object({ categoryId: z.string(), lineId: z.string().nullable() }))
+    .describe(
+      "Every live category of the space with the line its expenses consume in the plan: its mapped line, its parent's line for a subcategory, else the catch-all line; null for Unbudgeted. Empty without a plan.",
     ),
 });
 
@@ -96,8 +116,16 @@ export const lineDashboardDto = (dashboard: LineDashboard): z.infer<typeof LineD
     carryOver: moneyOf(line.carryOver, dashboard.currency),
     available: moneyOf(line.available, dashboard.currency),
     overspent: line.overspent,
+    state: line.state,
+    overBy: line.overBy === null ? null : moneyOf(line.overBy, dashboard.currency),
   })),
   unbudgeted: unbudgetedDto(dashboard.unbudgeted, dashboard.currency),
+  totals: {
+    planned: moneyOf(dashboard.totals.planned, dashboard.currency),
+    spent: moneyOf(dashboard.totals.spent, dashboard.currency),
+    available: moneyOf(dashboard.totals.available, dashboard.currency),
+  },
+  categoryLines: dashboard.categoryLines.map((c) => ({ categoryId: c.categoryId, lineId: c.lineId })),
 });
 
 /** HU-E7-02: every line of the period's plan with every current member's figures (spec 5.4, ruling P35). */
@@ -181,6 +209,9 @@ export const FundContributionsSchema = z.object({
       difference: MoneySchema,
     }),
   ),
+  totals: z
+    .object({ expected: MoneySchema, actual: MoneySchema, difference: MoneySchema })
+    .describe("Σ over the listed members of expected, actual and difference."),
 });
 
 export const fundContributionsDto = (
@@ -195,6 +226,11 @@ export const fundContributionsDto = (
     actual: moneyOf(m.actual, report.currency),
     difference: moneyOf(m.difference, report.currency),
   })),
+  totals: {
+    expected: moneyOf(report.totals.expected, report.currency),
+    actual: moneyOf(report.totals.actual, report.currency),
+    difference: moneyOf(report.totals.difference, report.currency),
+  },
 });
 
 /** HU-E7-04: the caller's consumption and cash out in their personal period (spec 5.4, D11, ruling P37). */
@@ -271,6 +307,79 @@ export const TrendQuerySchema = z.object({
   periods: z.coerce.number().int().min(1).max(24).default(6),
 });
 
+/** #150, ruling P241 (M6c): the calendar's window, 30 days unless 60 is asked for. */
+export const CashFlowQuerySchema = z.object({
+  days: z
+    .enum(["30", "60"])
+    .default("30")
+    .transform((days) => Number(days) as CashFlowDays),
+});
+
+const CashFlowMovementSchema = z.object({
+  recurrenceId: z.string(),
+  occurrenceId: z.string().nullable(),
+  type: z.enum(["EXPENSE", "INCOME", "TRANSFER", "FUND_CONTRIBUTION"]),
+  description: z.string(),
+  space: z.object({ id: z.string(), name: z.string() }),
+  dueDate: z
+    .string()
+    .describe("When it was due; a PENDING occurrence or an unreached earlier date is listed on today."),
+  status: z.enum(["SCHEDULED", "PENDING"]),
+  estimated: z.boolean().describe("A CONFIRM recurrence's estimate, which a member confirms or changes."),
+  amount: MoneySchema,
+  effect: MoneySchema.describe(
+    "The signed change of the caller's available money: + into a counted account, − out of one, 0 between two or none.",
+  ),
+});
+
+export const CashFlowSchema = z.object({
+  currency: z.string(),
+  from: z.string(),
+  through: z.string(),
+  days: z.union([z.literal(30), z.literal(60)]),
+  opening: MoneySchema.describe("Today's available money of the caller's personal space."),
+  dates: z.array(
+    z.object({ date: z.string(), movements: z.array(CashFlowMovementSchema), balanceAfter: MoneySchema }),
+  ),
+  totals: z.object({ incoming: MoneySchema, outgoing: MoneySchema, closing: MoneySchema }),
+  lowest: z.object({ date: z.string(), balance: MoneySchema }),
+  otherCurrencySpaces: z.array(z.object({ spaceId: z.string(), name: z.string(), currency: z.string() })),
+});
+
+export const cashFlowDto = (view: CashFlowView): z.infer<typeof CashFlowSchema> => {
+  const money = (minor: bigint) => moneyOf(minor, view.currency);
+  return {
+    currency: view.currency,
+    from: view.from,
+    through: view.through,
+    days: view.days,
+    opening: money(view.opening),
+    dates: view.dates.map((d) => ({
+      date: d.date,
+      movements: d.movements.map((m) => ({
+        recurrenceId: m.recurrenceId,
+        occurrenceId: m.occurrenceId,
+        type: m.type,
+        description: m.description,
+        space: m.space,
+        dueDate: m.date,
+        status: m.status,
+        estimated: m.estimated,
+        amount: money(m.amount),
+        effect: money(m.effect),
+      })),
+      balanceAfter: money(d.balanceAfter),
+    })),
+    totals: {
+      incoming: money(view.totals.incoming),
+      outgoing: money(view.totals.outgoing),
+      closing: money(view.totals.closing),
+    },
+    lowest: { date: view.lowest.date, balance: money(view.lowest.balance) },
+    otherCurrencySpaces: [...view.otherCurrencySpaces],
+  };
+};
+
 /**
  * −370 basis points → "-3.70": signed, exactly two decimals. Null where there is no percentage: a NEW change, or one
  * past Number.MAX_SAFE_INTEGER basis points (about 90 trillion percent, e.g. 1 minor unit to 9e11), which cannot be
@@ -310,8 +419,12 @@ export const LineTrendSchema = z.object({
       /** One per period, in the order of `periods`. */
       points: z.array(
         z.object({
-          /** The period's label. */
-          period: z.string(),
+          /** The period's label, unique within the window (#132). */
+          period: z
+            .string()
+            .describe(
+              "The period's label, unique within the window and equal to the label of periods[i]: a derived period that shares its label with a stored one is written '<label> (<start>..<end>)'.",
+            ),
           spent: MoneySchema.nullable().describe(
             "Null where the line has no figure: the period has no plan, or no line of it continues this one.",
           ),
@@ -354,7 +467,11 @@ export const PersonalTrendSchema = z.object({
   /** One per period, in the order of `periods`. */
   points: z.array(
     z.object({
-      period: z.string(),
+      period: z
+        .string()
+        .describe(
+          "The period's label, unique within the window and equal to the label of periods[i]: a derived period that shares its label with a stored one is written '<label> (<start>..<end>)'.",
+        ),
       consumption: MoneySchema,
       change: MoneySchema.nullable().describe("Current minus previous; null when changeStatus is NEW."),
       changePercent: ChangePercentSchema,
@@ -631,6 +748,23 @@ export const reportingPaths: ZodOpenApiPathsObject = {
           content: jsonContent(PersonalTrendSchema),
         },
         ...problems({ "401": "Unauthenticated", "422": "ValidationFailed, InvalidPeriodLabel" }),
+      },
+    },
+  },
+  "/api/v1/me/cash-flow": {
+    get: {
+      operationId: "getCashFlow",
+      summary: "What comes into and goes out of the caller's own accounts over the next 30 or 60 days",
+      description:
+        "Every scheduled date of the active recurrences and every pending occurrence of the spaces the caller is a current member of, when it debits or credits an account the caller owns, with the projected balance of the personal space's available money after each date. Earlier due dates are listed on today.",
+      ...securedByUser,
+      requestParams: { query: CashFlowQuerySchema },
+      responses: {
+        "200": {
+          description: "The caller's dated movements and projected balances",
+          content: jsonContent(CashFlowSchema),
+        },
+        ...problems({ "401": "Unauthenticated", "422": "ValidationFailed" }),
       },
     },
   },

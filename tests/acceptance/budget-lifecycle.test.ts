@@ -11,6 +11,7 @@ import {
   DELETE as deleteTransaction,
   PATCH as editTransaction,
 } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/route";
+import { POST as restoreTransaction } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/restore/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { FixedClock } from "@/shared/kernel";
 import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
@@ -318,6 +319,23 @@ describe("closing a plan (HU-E6-07)", () => {
       ["delete an expense of the period", () => remove(november)],
     ]);
     await recordedOutside(records);
+  });
+
+  it("refuses to restore an expense deleted before its period closed, with 409 PeriodClosed (ruling P185)", async () => {
+    const { h, planId } = await referencePlan();
+    const november = await idOf(await spend(h.ana, h.groceries, 85_000, "2026-11-03"));
+    const transaction = `/api/v1/spaces/${h.spaceId}/transactions/${november}`;
+    const params = { spaceId: h.spaceId, transactionId: november };
+    expect((await call(deleteTransaction, "DELETE", transaction, { user: h.ana, params })).status).toBe(204);
+    await activated(h.ana, h.spaceId, planId);
+    expect((await closePlan(h.ana, h.spaceId, planId)).status).toBe(200);
+    const before = await ledgerOf(h.ana);
+    expect(
+      await problemOf(
+        await call(restoreTransaction, "POST", `${transaction}/restore`, { user: h.ana, params }),
+      ),
+    ).toEqual([409, "PeriodClosed"]);
+    expect(await ledgerOf(h.ana)).toEqual(before);
   });
 
   it("freezes income and transfers too, which only a personal space records, when its own plan is CLOSED (HU-E4-06)", async () => {

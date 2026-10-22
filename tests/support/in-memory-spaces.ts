@@ -14,6 +14,7 @@ import {
   type Space,
   type SpaceId,
   type SpaceKind,
+  type SpaceLocks,
   type SpaceMember,
   type SpaceMemberId,
   type SpaceMemberRepository,
@@ -29,8 +30,26 @@ import { directPairKey } from "@/modules/spaces/domain/direct-space";
 import type { Clock } from "@/shared/kernel";
 import { memoryTm, sequentialIds } from "./fakes";
 
+/** Issue #89: records which spaces were locked, in order, for money writes and for lifecycle changes. */
+export class RecordingSpaceLocks implements SpaceLocks {
+  readonly money: string[] = [];
+  readonly lifecycle: string[] = [];
+
+  async lockForMoneyWrite(spaceId: string) {
+    this.money.push(spaceId);
+  }
+
+  async lockForLifecycle(spaceId: string) {
+    this.lifecycle.push(spaceId);
+  }
+}
+
 /** Spaces with their current members; implements every spaces port the use cases need. */
-export class InMemorySpaceStore implements SpaceRepository, SpaceSettingsRepository, SpaceMemberRepository {
+export class InMemorySpaceStore
+  implements SpaceRepository, SpaceSettingsRepository, SpaceMemberRepository, SpaceLocks
+{
+  /** Issue #89: the space locks the use cases took, in order. */
+  readonly locks = new RecordingSpaceLocks();
   spaces: Space[] = [];
   /** Ids of archived spaces (HU-E1-09); PostgreSQL stores archived_at on the space. */
   readonly archived = new Set<string>();
@@ -40,11 +59,21 @@ export class InMemorySpaceStore implements SpaceRepository, SpaceSettingsReposit
   readonly claimed: { spaceId: string; memberId: string; claimedAt: Date }[] = [];
   /** Members who left or were removed, in order (PostgreSQL keeps their rows, with left_at). */
   readonly left: { spaceId: string; memberId: string; leftAt: Date }[] = [];
+  /** The rows of members who left, in the order they left (PostgreSQL keeps them with left_at); a rejoin takes one back. */
+  private readonly formerRows: { spaceId: string; member: SpaceMember }[] = [];
   /** Space ids whose members were read with `lock: true`, in order. */
   readonly locked: string[] = [];
 
   async add(space: Space) {
     this.spaces.push(space);
+  }
+
+  async lockForMoneyWrite(spaceId: string) {
+    await this.locks.lockForMoneyWrite(spaceId);
+  }
+
+  async lockForLifecycle(spaceId: string) {
+    await this.locks.lockForLifecycle(spaceId);
   }
 
   async hasPersonalSpace(userId: string) {
@@ -101,6 +130,16 @@ export class InMemorySpaceStore implements SpaceRepository, SpaceSettingsReposit
     if (member.userId !== null && current.some((m) => m.userId === member.userId)) return "alreadyMember";
     if (current.some((m) => m.displayName.toLowerCase() === member.displayName.toLowerCase()))
       return "nameTaken";
+    // Issue #90, like DrizzleSpaceRepository.addMember: a user who left takes their latest former row back.
+    const former = this.formerRows.findLast(
+      (row) => row.spaceId === spaceId && row.member.kind === "USER" && row.member.userId === member.userId,
+    );
+    if (member.userId !== null && former !== undefined) {
+      this.formerRows.splice(this.formerRows.indexOf(former), 1);
+      const back: SpaceMember = { ...member, id: former.member.id };
+      this.update(spaceId, (s) => ({ ...s, members: [...s.members, back] }));
+      return "rejoined";
+    }
     this.update(spaceId, (s) => ({ ...s, members: [...s.members, member] }));
     return "added";
   }
@@ -119,7 +158,9 @@ export class InMemorySpaceStore implements SpaceRepository, SpaceSettingsReposit
     kind: SpaceMember["kind"],
     leftAt: Date,
   ): Promise<boolean> {
-    if (!this.members(spaceId).some((m) => m.id === memberId && m.kind === kind)) return false;
+    const leaving = this.members(spaceId).find((m) => m.id === memberId && m.kind === kind);
+    if (leaving === undefined) return false;
+    this.formerRows.push({ spaceId, member: leaving });
     this.update(spaceId, (s) => ({ ...s, members: s.members.filter((m) => m.id !== memberId) }));
     this.left.push({ spaceId, memberId, leftAt });
     return true;
@@ -130,6 +171,13 @@ export class InMemorySpaceStore implements SpaceRepository, SpaceSettingsReposit
     const space = this.spaces.find((s) => s.id === spaceId);
     if (!space) throw new Error(`space ${spaceId} does not exist`);
     return space.kind;
+  }
+
+  /** GuestClaimRepository, like DrizzleSpaceRepository.spaceNameOf. */
+  async spaceNameOf(spaceId: string): Promise<string> {
+    const space = this.spaces.find((s) => s.id === spaceId);
+    if (!space) throw new Error(`space ${spaceId} does not exist`);
+    return space.name;
   }
 
   /** GuestClaimRepository, like DrizzleSpaceRepository.claimGuest (pinned against it by its integration test). */
@@ -246,6 +294,24 @@ export class InMemoryInvitations implements InvitationRepository {
 
   async findByTokenHashForUpdate(tokenHash: string) {
     return this.lock(this.rows.find((i) => i.tokenHash === tokenHash));
+  }
+
+  /** Like findByTokenHashForUpdate, without recording a lock. */
+  async findByTokenHash(tokenHash: string) {
+    return this.rows.find((i) => i.tokenHash === tokenHash) ?? null;
+  }
+
+  /** Like DrizzleInvitationRepository.listPending (pinned against it by its integration test). */
+  async listPending(spaceId: string, now: Date) {
+    return this.rows
+      .filter(
+        (i) =>
+          i.spaceId === spaceId &&
+          i.status === "PENDING" &&
+          i.kind !== "CLAIM" &&
+          i.expiresAt.getTime() > now.getTime(),
+      )
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || (a.id < b.id ? 1 : -1));
   }
 
   async save(invitation: Invitation) {

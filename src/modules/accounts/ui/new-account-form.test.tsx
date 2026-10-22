@@ -49,7 +49,7 @@ describe("new account form (HU-E9-03)", () => {
       openingBalance: { amount: "-35000000", currency: "COP" },
       terms: { creditLimit: { amount: "500000000", currency: "COP" }, paymentDay: 15 },
     });
-    expect(router.push).toHaveBeenCalledWith("/spaces/sp-personal/accounts");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/accounts");
     expect(await axeViolations(container)).toEqual([]);
   });
 
@@ -96,11 +96,78 @@ describe("new account form (HU-E9-03)", () => {
     expect(requests).toHaveLength(0);
   });
 
+  it("clears the name error as soon as the name changes, and the amount error as soon as the amount does (S3)", async () => {
+    const { api } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/accounts": () => problemResponse(409, "AccountNameTaken"),
+    });
+    renderWithIntl(<NewAccountForm space={spaceDto()} formats={BUILT_IN_FORMATS} api={api} />);
+    await userEvent.click(screen.getByRole("radio", { name: "Banco" }));
+    await userEvent.type(screen.getByLabelText("Nombre"), "Bancolombia");
+    await userEvent.type(screen.getByLabelText("Saldo inicial"), "dos mil");
+    await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
+    // The unreadable amount stops the save: the name has no error yet, the amount does.
+    expect(screen.getByLabelText("Saldo inicial")).toHaveAccessibleDescription(
+      "Escribe un monto como 1.500.000.",
+    );
+    await userEvent.type(screen.getByLabelText("Nombre"), "2");
+    expect(screen.getByLabelText("Saldo inicial")).toHaveAccessibleDescription(
+      "Escribe un monto como 1.500.000.",
+    );
+    await userEvent.clear(screen.getByLabelText("Saldo inicial"));
+    expect(screen.queryByText(/Escribe un monto/)).toBeNull();
+    await userEvent.type(screen.getByLabelText("Saldo inicial"), "0");
+    await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
+    await waitFor(() => expect(screen.getByLabelText("Nombre")).toHaveAttribute("aria-invalid", "true"));
+    await userEvent.type(screen.getByLabelText("Nombre"), "3");
+    expect(screen.getByLabelText("Nombre")).not.toHaveAttribute("aria-invalid", "true");
+  });
+
   it("offers a shared fund only in a shared space", () => {
     const { unmount } = renderWithIntl(<NewAccountForm space={spaceDto()} formats={BUILT_IN_FORMATS} />);
     expect(screen.queryByRole("radio", { name: "Fondo compartido" })).toBeNull();
     unmount();
     renderWithIntl(<NewAccountForm space={spaceDto({ kind: "SHARED" })} formats={BUILT_IN_FORMATS} />);
     expect(screen.getByRole("radio", { name: "Fondo compartido" })).toBeInTheDocument();
+  });
+});
+
+describe("new account form: where saving lands (returnTo)", () => {
+  const create = async (returnTo: string | undefined) => {
+    const { api } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/accounts": () => jsonResponse(accountDto({ name: "Nequi" }), 201),
+    });
+    renderWithIntl(
+      <NewAccountForm space={spaceDto()} formats={BUILT_IN_FORMATS} api={api} returnTo={returnTo} />,
+    );
+    await userEvent.click(screen.getByRole("radio", { name: "Efectivo" }));
+    await userEvent.type(screen.getByLabelText("Nombre"), "Nequi");
+    await userEvent.type(screen.getByLabelText("Saldo inicial"), "0");
+    await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
+  };
+
+  it("returns to the screen the flow started from", async () => {
+    await create("/spaces/sp-personal");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal");
+    expect(router.refresh).toHaveBeenCalled();
+  });
+
+  it.each(["//evil.example", "https://evil.example", "/\\evil.example", "/\t/evil.example", "/sign-in"])(
+    "keeps the accounts screen when returnTo is %j",
+    async (returnTo) => {
+      await create(returnTo);
+      expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/accounts");
+    },
+  );
+});
+
+describe("new account form: the way back (S1)", () => {
+  it("has a Volver link to the accounts of the space, before the title", () => {
+    renderWithIntl(<NewAccountForm space={spaceDto()} formats={BUILT_IN_FORMATS} api={fakeApi({}).api} />);
+    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/accounts",
+    );
+    expect(screen.getByRole("heading", { level: 1, name: "Nueva cuenta" })).toBeInTheDocument();
   });
 });

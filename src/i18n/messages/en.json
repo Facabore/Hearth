@@ -9,6 +9,11 @@
     "loading": "Loading…",
     "default": "Default",
     "reset": "Reset",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyFailed": "Could not copy: select the link and copy it.",
+    "notNow": "Not now",
+    "goHome": "Go to Hearth",
     "month": {
       "1": "January",
       "2": "February",
@@ -31,7 +36,8 @@
       "FRIDAY": "F",
       "SATURDAY": "S",
       "SUNDAY": "S"
-    }
+    },
+    "toStart": "Go to the start page"
   },
   "errors": {
     "AccountArchived": "This account is archived. Restore it to record transactions in it.",
@@ -157,6 +163,9 @@
     "ValidationFailed": "Check the highlighted fields.",
     "reference": "Reference: {requestId}"
   },
+  "warnings": {
+    "FundBalanceNegative": "The balance of {account} is now {balance}. A contribution to the fund can cover it."
+  },
   "auth": {
     "signIn": {
       "title": "Welcome back",
@@ -197,12 +206,14 @@
       "home": "Home",
       "transactions": "Transactions",
       "record": "Record a transaction",
-      "recordShort": "Record"
+      "recordShort": "Record",
+      "balances": "Balances"
     },
     "space": {
       "current": "Current space: {name}. Switch space",
       "title": "Spaces",
-      "onlyYou": "Only you"
+      "onlyYou": "Only you",
+      "create": "Create a shared space"
     },
     "role": {
       "OWNER": "Owner",
@@ -215,9 +226,10 @@
       "settings": "Settings",
       "settingsHint": "Formats, time, time zone, theme and language",
       "accounts": "Accounts",
-      "signOut": "Sign out"
-    },
-    "notFound": "This page does not exist or is no longer available."
+      "signOut": "Sign out",
+      "members": "Members and invitations",
+      "membersHint": "Invite people, add guests and change roles"
+    }
   },
   "home": {
     "title": "Home",
@@ -234,8 +246,12 @@
     "allAccounts": "See all accounts",
     "allAccountsShort": "See all",
     "recent": "Recent",
+    "recentEmpty": "No transactions yet. Record the first one with +.",
     "allTransactions": "See all transactions",
-    "allTransactionsShort": "See all"
+    "allTransactionsShort": "See all",
+    "members": "Members",
+    "invite": "Invite",
+    "funds": "Funds"
   },
   "settings": {
     "title": "Settings",
@@ -279,7 +295,8 @@
       "hint": "Only the texts change. The formats above do not depend on the language.",
       "es": "Español",
       "en": "English"
-    }
+    },
+    "saved": "Saved"
   },
   "accounts": {
     "title": "Accounts",
@@ -310,7 +327,6 @@
       "principal": "Loan {amount}",
       "months": "{months} months"
     },
-    "backHome": "Back to Home",
     "newTitle": "New account",
     "create": "Create account",
     "field": {
@@ -355,7 +371,20 @@
       "explain": "Its history stays and it takes no new transactions. You can restore it at any time.",
       "confirm": "Archive"
     },
-    "restore": "Restore {name}"
+    "restore": "Restore {name}",
+    "picker": {
+      "empty": "There are no accounts to choose from. Create a new one."
+    },
+    "newFund": "New fund",
+    "createFund": "Create a fund",
+    "fundsNote": "Everyone pays from their personal accounts; only the space's funds live here.",
+    "directNote": "This space is between two people: each pays from their personal accounts.",
+    "empty": {
+      "title": "You have no accounts yet",
+      "body": "Add where you keep your money to start tracking it.",
+      "fundsTitle": "This space has no funds yet",
+      "directTitle": "This space has no accounts"
+    }
   },
   "categories": {
     "picker": {
@@ -394,6 +423,12 @@
       "SETTLEMENT": "Settlement"
     },
     "transfer": "{from} → {to}",
+    "settlement": "{from} → {to}",
+    "paidBy": "paid by {name}",
+    "saved": {
+      "title": "Expense saved",
+      "dismiss": "Dismiss notice"
+    },
     "when": {
       "title": "Date and time",
       "day": "Day",
@@ -428,10 +463,270 @@
       "save": {
         "EXPENSE": "Save expense",
         "INCOME": "Save income",
-        "TRANSFER": "Save transfer"
+        "TRANSFER": "Save transfer",
+        "DIRECT": "Save and split"
       },
       "amountUnreadable": "Type an amount like {example}.",
       "accountRequired": "Choose an account."
+    },
+    "split": {
+      "title": "Who paid and for whom",
+      "payer": "Paid by",
+      "from": "From",
+      "guestPays": "{name} is a guest: they paid outside the app, so there is no account to choose.",
+      "fundPays": "It comes out of {fund}. Nobody owes anything for this expense.",
+      "method": "How it is split",
+      "methods": {
+        "BY_ALLOCATION": "As in the plan",
+        "EQUAL": "Equal",
+        "PERCENT": "Percent",
+        "EXACT": "Amounts",
+        "SHARES": "Shares"
+      },
+      "note": {
+        "BY_ALLOCATION": "Preselected: the category feeds an allocated line of the active plan.",
+        "EQUAL": "Equal parts among the people checked, in whole units.",
+        "PERCENT": "Percentages that add up to 100 %.",
+        "EXACT": "Exact amounts that add up to the expense's total.",
+        "SHARES": "Shares per person, for example 2 and 1."
+      },
+      "forWhom": "For whom",
+      "valueOf": "Value for {name}",
+      "units": "shares",
+      "sum": "Adds up to {amount}: matches the expense",
+      "invalid": {
+        "percentShort": "{percent} % is still unassigned",
+        "percentOver": "{percent} % too much: they must add up to 100 %",
+        "exactShort": "{amount} is still unassigned",
+        "exactOver": "{amount} too much",
+        "unreadable": "Check the value for {name}",
+        "noParticipants": "Choose at least one person",
+        "tooSmall": "The amount is too small to split this way"
+      },
+      "incomplete": "Enter a value for each person.",
+      "done": "Done",
+      "paidBy": "Paid by {payer}",
+      "paidFromMine": "You pay from {account} (your personal account)",
+      "split": "Split",
+      "line": "{who} · {how}",
+      "with": {
+        "one": "With {a}",
+        "two": "With {a} and {b}",
+        "many": "With {count} people"
+      },
+      "how": {
+        "HALF": "half and half",
+        "EQUAL": "equal shares",
+        "PERCENT": "by percentage",
+        "EXACT": "by amounts",
+        "SHARES": "by shares",
+        "BY_ALLOCATION": "per the plan"
+      }
+    },
+    "direct": {
+      "open": "Split with someone",
+      "title": "Split with someone",
+      "intro": "The expense goes to a space for just the two of you. If it exists it is reused; if not, it is created in {currency}, your Personal space's currency.",
+      "people": "People you share a space with",
+      "existing": "You already have \"{space}\": it is reused",
+      "new": "A space for the two of you is created",
+      "guestOf": "From \"{space}\"",
+      "guestsNote": "A shared space's guests are not listed here: they exist only in their space.",
+      "newGuest": "Or someone who does not use Hearth",
+      "guestName": "New guest's name",
+      "use": "Use",
+      "continue": "Continue with {name}",
+      "with": "With {name} · half each",
+      "remove": "Remove the split with {name}",
+      "noKey": "This category belongs only to your Personal space. Choose a default category to split the expense."
     }
+  },
+  "spaces": {
+    "new": {
+      "title": "Create a shared space",
+      "name": "Name",
+      "currency": "Currency",
+      "currencyHint": "One currency per space. It can no longer change once the space has transactions.",
+      "note": "You will be its Owner and it becomes your active space. Then invite the others from Members.",
+      "create": "Create space"
+    },
+    "currency": {
+      "COP": "COP · Colombian peso",
+      "USD": "USD · US dollar",
+      "EUR": "EUR · Euro"
+    },
+    "joined": {
+      "title": "You joined “{space}”"
+    }
+  },
+  "members": {
+    "title": "Members",
+    "subtitle": "{space} · {currency} · {policy}",
+    "policy": {
+      "MONTHLY": "monthly, cut-off on day {day}",
+      "SEMI_MONTHLY": "twice a month, days {day1} and {day2}"
+    },
+    "count": "{count, plural, one {# member} other {# members}}",
+    "you": "{name} (you)",
+    "guestSuffix": "(guest)",
+    "joined": "Joined on {date}",
+    "guestDetail": "No account · cannot sign in",
+    "noRole": "No role",
+    "role": "{name}'s role: {role}. Change",
+    "readOnlyNote": "Your role in {space} is {role}: you can see members and balances, but not invite or add guests.",
+    "directNote": "{space} is a space for two: it takes no other members.",
+    "roleSheet": {
+      "title": "{name}'s role",
+      "label": "Role",
+      "save": "Save role"
+    },
+    "roleDetail": {
+      "OWNER": "Everything, including changing roles and archiving the space",
+      "ADMIN": "Invites, runs the plan and edits everyone's entries",
+      "MEMBER": "Records expenses and payments, adds guests",
+      "VIEWER": "Only sees transactions, balances and dashboards"
+    },
+    "invite": "Invite",
+    "inviteSheet": {
+      "title": "Invite to {space}",
+      "how": "How to invite",
+      "link": "Link",
+      "email": "Their email",
+      "emailTab": "Email",
+      "role": "Role when they join",
+      "ownerNote": "Nobody joins as Owner: that role is changed from Members.",
+      "createLink": "Create link",
+      "send": "Send invitation",
+      "emailHint": "Only that account can accept it, once, within 7 days.",
+      "linkReady": "Link ready to share",
+      "linkLabel": "Invitation link",
+      "linkNote": "Role {role} · expires on {date}. Several people can use it until it expires or you revoke it.",
+      "sent": "We sent the invitation to {email}.",
+      "notSent": "Hearth does not send email yet: copy the link and share it with {email}."
+    },
+    "pending": "Pending invitations",
+    "pendingEmail": "Email · {role} · expires on {date}",
+    "pendingLinkTitle": "Invitation link",
+    "pendingLink": "{role} · several people · expires on {date}",
+    "revoke": "Revoke",
+    "revokeEmail": "Revoke the invitation for {email}",
+    "revokeLink": "Revoke the invitation link as {role}",
+    "addGuest": "Add guest",
+    "guestOptions": "Options for {name}",
+    "guestSheet": {
+      "addTitle": "Add a guest to {space}",
+      "intro": "For someone who does not use Hearth. They can pay, owe, have capacity in the plan and receive payments, only in {space}. They cannot sign in.",
+      "name": "Name",
+      "nameHint": "It shows with \"(guest)\" next to it. It cannot repeat another member's name.",
+      "nameHintNamed": "It shows as \"{name}\". It cannot repeat another member's name.",
+      "email": "Email (optional)",
+      "emailHint": "If they sign up later, you send them a link to claim this place and they keep all its history."
+    },
+    "guest": {
+      "balance": "In {space} · {sentence}",
+      "claimTitle": "A link for {name} to claim their place",
+      "claimBody": "Signing up or signing in with this link moves their guest place, with all its history in {space}, to their account, as a Member.",
+      "createClaim": "Create a claim link",
+      "claimLabel": "Claim link",
+      "claimNote": "Single use · expires on {date}",
+      "remove": "Remove from {space}",
+      "confirmRemove": "Remove {name} from {space}? Their history is kept.",
+      "confirmRemoveAction": "Yes, remove",
+      "outstanding": "Outstanding balance: {amount}",
+      "settle": "Record a payment"
+    }
+  },
+  "balances": {
+    "title": "Balances",
+    "yours": "Your balance in {space}",
+    "you": {
+      "owes": "You owe {amount}",
+      "owed": "You are owed {amount}",
+      "settled": "You are settled up"
+    },
+    "suggestions": "To settle up",
+    "owes": "{payer} owes {receiver} {amount}",
+    "suggestionsNote": "The fewest payments that settle everyone. Settle only fills in the form.",
+    "allSettled": "Nobody owes anybody in {space}.",
+    "members": "Each member",
+    "member": {
+      "owes": "owes {amount}",
+      "owed": "is owed {amount}",
+      "settled": "settled up",
+      "link": "{name}: {sentence}. See history."
+    },
+    "history": {
+      "pageTitle": "Balance history",
+      "title": "{name}'s history",
+      "previous": "Previous period",
+      "next": "Next period",
+      "range": "{start} – {end}",
+      "summary": "Balance at the start and at the end",
+      "opening": "At the start",
+      "closing": "At the end",
+      "entries": "Movements that changed their balance",
+      "empty": "Nothing changed their balance in this period.",
+      "note": "On the right, the balance after each movement and, under it, how much it changed."
+    },
+    "record": "Record a payment",
+    "settle": {
+      "action": "Settle",
+      "suggestion": "Settle: {payer} pays {receiver} {amount}",
+      "title": "Record a payment",
+      "payer": "Who pays",
+      "receiver": "Who receives",
+      "amount": "Amount",
+      "debt": "{payer} owes {receiver} {amount}. You can record a partial payment; paying more turns the debt around.",
+      "noDebt": "{payer} owes {receiver} nothing.",
+      "guestNote": "{name} is a guest: they paid outside the app, so there is no source account.",
+      "from": "Paid from (optional)",
+      "to": "Received in (optional)",
+      "none": "None",
+      "payerRequired": "Choose who pays.",
+      "save": "Save payment"
+    }
+  },
+  "invitation": {
+    "pageTitle": "Invitation",
+    "kicker": "{name} invites you to",
+    "kickerAnonymous": "You are invited to",
+    "role": "You join as",
+    "expires": "Expires",
+    "body": "{space} is a shared space to record expenses, split them and see who owes whom.",
+    "signUp": "Create an account and join",
+    "signIn": "I have an account: sign in",
+    "note": "After creating the account you come back here to accept.",
+    "signedInBody": "You are signed in as {email}. Once you accept, {space} shows in your space switcher.",
+    "accept": "Accept and enter {space}",
+    "otherAccount": "This invitation is for another account and you are signed in as {email}.",
+    "otherAccountBody": "Sign in with the account the invitation was sent to.",
+    "switchAccount": "Sign out and switch accounts",
+    "expired": "This invitation has expired. Ask {name} for a new link.",
+    "expiredBody": "Invitations last 7 days.",
+    "revoked": "This invitation is no longer valid: it was revoked.",
+    "revokedBody": "If you still want to join, ask {name} for a new invitation.",
+    "someone": "whoever invited you",
+    "missingTitle": "Invitation",
+    "claim": {
+      "pageTitle": "Claim your place",
+      "kicker": "{name} sent you your place in",
+      "kickerAnonymous": "You were sent your place in",
+      "title": "{space}, as {guest}",
+      "body": "In {space} you already appear as {guest} (guest). Claiming the place moves what you paid, your shares and the payments you received to your account, unchanged.",
+      "bodyNoGuest": "In {space} you already have a guest place. Claiming it moves what you paid, your shares and the payments you received to your account, unchanged.",
+      "signedInBody": "Claiming moves your guest place in {space}, with all its history, to this account.",
+      "signUp": "Create an account and claim",
+      "note": "Single use. After creating the account you come back here.",
+      "accept": "Claim my place in {space}"
+    }
+  },
+  "notFound": {
+    "title": "This page does not exist",
+    "body": "The link may be mistyped, or the page may no longer be available."
+  },
+  "errorScreen": {
+    "title": "Something went wrong",
+    "connectionTitle": "We couldn't connect to Hearth",
+    "connectionBody": "Hearth did not answer. Check your connection and try again."
   }
 }

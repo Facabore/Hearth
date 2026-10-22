@@ -150,4 +150,41 @@ describe("the category trees a report reads (HU-E7-06)", () => {
     expect(order.indexOf(lateId)).toBeLessThan(order.indexOf(earlyId));
     expect(rows.slice(0, 13 + 1).every((r) => r.spaceId === first!.spaceId)).toBe(true);
   });
+
+  it("lists every group of the spaces asked for, one without a live category and an archived one too (#130)", async () => {
+    const s = await seeded("en");
+    const other = await seeded("es");
+    const empty: CategoryGroup = {
+      ...s.group("food"),
+      id: ids.next<"CategoryGroup">(),
+      name: "Empty",
+      key: null,
+    };
+    await repo.addGroups([empty]);
+    await repo.saveGroup({ ...s.group("leisure"), archivedAt: new Date() });
+    const query = vi.spyOn(pool, "query");
+    const rows = await trees.groupsOf([other.spaceId, s.spaceId, "not-a-uuid"]);
+    // One statement for both spaces; the malformed id never reaches the database.
+    expect(query).toHaveBeenCalledTimes(1);
+    query.mockRestore();
+    expect(rows.filter((r) => r.spaceId === s.spaceId)).toHaveLength(7);
+    expect(rows.filter((r) => r.spaceId === other.spaceId)).toHaveLength(6);
+    expect(rows.find((r) => r.groupId === empty.id)).toEqual({
+      spaceId: s.spaceId,
+      groupId: empty.id,
+      groupKey: null,
+      groupName: "Empty",
+      groupArchived: false,
+    });
+    expect(rows.find((r) => r.groupId === s.group("leisure").id)).toMatchObject({
+      groupKey: "leisure",
+      groupArchived: true,
+    });
+    // The group has no live category in treesOf, yet groupsOf still lists it.
+    expect((await trees.treesOf([s.spaceId])).some((r) => r.groupId === empty.id)).toBe(false);
+    const order = rows.map((r) => `${r.spaceId}/${r.groupId}`);
+    expect(order).toEqual([...order].sort());
+    expect(await trees.groupsOf(["not-a-uuid"])).toEqual([]);
+    expect(await trees.groupsOf([])).toEqual([]);
+  });
 });

@@ -56,6 +56,22 @@ describe("user time zone (HU-E1-14)", () => {
     expect(await zoneOf(ana)).toBe("America/New_York");
   });
 
+  it("refuses an offset-form zone and keeps the stored one (issue 126)", async () => {
+    const ana = await signedUp("Ana", "Europe/Madrid");
+    for (const offset of ["+05:00", "-03:30", "+0500"]) {
+      expect(await problemOf(await setZone(ana, offset))).toEqual([422, "InvalidTimeZone"]);
+    }
+    expect(await zoneOf(ana)).toBe("Europe/Madrid");
+  });
+
+  it("stores an IANA alias by its canonical name, and an offset sent at sign-up falls back to APP_TIMEZONE (issue 126)", async () => {
+    const ana = await signedUp("Ana");
+    const changed = await setZone(ana, "US/Pacific");
+    expect(changed.status).toBe(200);
+    expect(await zoneOf(ana)).toBe("America/Los_Angeles");
+    expect(await zoneOf(await signedUp("Luis", "+05:00"))).toBe("America/Bogota");
+  });
+
   it.each([
     ["an empty body", {}],
     ["only unknown keys", { nickname: "x" }],
@@ -75,6 +91,12 @@ describe("user time zone (HU-E1-14)", () => {
       (await meOf(luis)).id,
     ]);
     expect(await zoneOf(luis)).toBe("America/Bogota");
+  });
+
+  it("reads a stored offset-form zone as itself: only writes refuse it (issue 126)", async () => {
+    const luis = await signedUp("Luis", "Europe/Madrid");
+    await app.pool.query('UPDATE "user" SET timezone = $1 WHERE id = $2', ["+05:00", (await meOf(luis)).id]);
+    expect(await zoneOf(luis)).toBe("+05:00");
   });
 
   it("needs a session", async () => {

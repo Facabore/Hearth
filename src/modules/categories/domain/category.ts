@@ -123,7 +123,12 @@ const ownStyle = (
   change: StyleChange,
 ): Result<CategoryStyle | null> => {
   if (parentCategoryId === null) return ok(restyled(base, change));
-  return changesStyle(change) ? err(domainError("ValidationFailed", { field: "style" })) : ok(null);
+  if (!changesStyle(change)) return ok(null);
+  // Issue 121: the refused parts are public (`errors[].path`), so a client can point at the field.
+  const errors = (["icon", "color"] as const)
+    .filter((part) => change[part] !== undefined)
+    .map((path) => ({ path, message: "A subcategory shows its parent's style and has none of its own" }));
+  return err(domainError("ValidationFailed", { errors }));
 };
 
 /**

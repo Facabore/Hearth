@@ -1,7 +1,12 @@
 import type { SpaceMember, SpaceMembership } from "@/modules/spaces/application";
 import { rolledUpCategory, rolledUpSpending, type CategoryParent } from "../domain/category-rollup";
 import type { BudgetPlan } from "../domain/plan";
-import { planFigures, type PlanFigures, type PreviousAvailable } from "../domain/plan-figures";
+import {
+  lineForCategory,
+  planFigures,
+  type PlanFigures,
+  type PreviousAvailable,
+} from "../domain/plan-figures";
 import type { BudgetingDeps } from "./deps";
 import { ownedByRegisteredMember } from "./line-checks";
 import type { PlanContents, SavingsAccountReader } from "./ports";
@@ -178,4 +183,30 @@ export const loadPlanView = async (
   }
   const figures = await cachedFiguresOf(deps, space, plan, await reads, { seen: new Set(), cache });
   return { plan, currency: space.currency, figures };
+};
+
+/** Ruling P234 (M6c): the line a category's expenses consume in the plan; null when they go to Unbudgeted. */
+export interface CategoryLine {
+  readonly categoryId: string;
+  readonly lineId: string | null;
+}
+
+/**
+ * HU-E6-04, HU-E3-04: for each category, the line its expenses consume in `view`'s plan, by the rule the figures
+ * use: its mapped line, its parent's line for a subcategory, else the catch-all line, else none (Unbudgeted).
+ */
+export const categoryLinesOf = (
+  view: BudgetPlanView,
+  categories: readonly CategoryParent[],
+): CategoryLine[] => {
+  const parts = {
+    lines: view.figures.lines.map((figure) => figure.line),
+    mappings: view.figures.lines.flatMap((figure) =>
+      figure.categoryIds.map((categoryId) => ({ lineId: figure.line.id, categoryId })),
+    ),
+  };
+  return categories.map((category) => ({
+    categoryId: category.id,
+    lineId: lineForCategory(rolledUpCategory(category.id, categories), parts),
+  }));
 };

@@ -19,6 +19,9 @@ export const MoneySchema = z.object({
 });
 export type MoneyDto = z.infer<typeof MoneySchema>;
 
+/** An id on the wire: an opaque string of 1–64 characters; whether it names anything is the use case's to say. */
+export const IdSchema = z.string().min(1).max(64);
+
 export const ProblemSchema = z.object({
   type: z.string(),
   title: z.string(),

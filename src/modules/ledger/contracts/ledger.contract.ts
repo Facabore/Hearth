@@ -1,12 +1,11 @@
 import { z } from "zod";
 import type { ZodOpenApiPathsObject } from "zod-openapi";
 import {
-  basisPointsOf,
+  IdSchema,
   jsonContent,
   moneyFromDto,
   MoneySchema,
   optionalLocalDate,
-  PercentSchema,
   PeriodSchema,
   periodDto,
   problems,
@@ -37,9 +36,9 @@ import type {
   TransactionPage,
   TransactionPosition,
 } from "../application";
+import { EqualSplitSchema, MAX_PARTS, PercentSplitSchema, SharesSplitSchema, splitOf } from "./split-body";
 import type { DirectSplit, DirectSplitCounterpart } from "@/modules/spaces/application";
 
-const Id = z.string().min(1).max(64);
 // Length rules live in the domain (InvalidDescription, 200 characters); the cap only bounds payload size.
 const Description = z.string().max(1000).optional();
 /** HU-E4-14: an RFC 3339 instant with any offset ("2026-10-16T14:32:00-05:00"); answers return it in UTC. */
@@ -100,35 +99,26 @@ export const TransactionSchema = z.object({
   version: z.number().int(),
 });
 
-/** Payers and participants per expense: bounds the payload; membership is checked by the domain. */
-const MAX_PARTS = 100;
-
 /**
  * HU-E4-07/10: one payment. `memberId` is a member of the space (registered or guest) and `accountId`
  * that member's own account, or null (or absent) for a guest, who pays outside the app; a null
  * `memberId` names the space's shared fund as payer, and `accountId` is then the fund (spec 5.2).
  */
 export const PaymentBodySchema = z.object({
-  memberId: Id.nullable(),
-  accountId: Id.nullable().optional(),
+  memberId: IdSchema.nullable(),
+  accountId: IdSchema.nullable().optional(),
   amount: MoneySchema,
 });
 
 /** HU-E4-07/08: EQUAL among the chosen members, or by percentage, exact amount or share units per member. */
 export const SplitBodySchema = z.discriminatedUnion("method", [
-  z.object({ method: z.literal("EQUAL"), participants: z.array(z.object({ memberId: Id })).max(MAX_PARTS) }),
-  z.object({
-    method: z.literal("PERCENT"),
-    participants: z.array(z.object({ memberId: Id, percent: PercentSchema })).max(MAX_PARTS),
-  }),
+  EqualSplitSchema,
+  PercentSplitSchema,
   z.object({
     method: z.literal("EXACT"),
-    participants: z.array(z.object({ memberId: Id, amount: MoneySchema })).max(MAX_PARTS),
+    participants: z.array(z.object({ memberId: IdSchema, amount: MoneySchema })).max(MAX_PARTS),
   }),
-  z.object({
-    method: z.literal("SHARES"),
-    participants: z.array(z.object({ memberId: Id, units: z.number().int() })).max(MAX_PARTS),
-  }),
+  SharesSplitSchema,
 ]);
 
 /**
@@ -143,9 +133,9 @@ export const RecordExpenseBodySchema = z
     date: z.iso.date().optional(),
     occurredAt: Instant.nullable().optional(),
     timeZone: TimeZoneName.optional(),
-    categoryId: Id.optional(),
+    categoryId: IdSchema.optional(),
     amount: MoneySchema,
-    accountId: Id.optional(),
+    accountId: IdSchema.optional(),
     payments: z.array(PaymentBodySchema).max(MAX_PARTS).optional(),
     split: SplitBodySchema.optional(),
   })
@@ -158,35 +148,14 @@ type RecordExpenseBody = z.infer<typeof RecordExpenseBodySchema>;
 /** The split as the use case takes it; EXACT amounts become Money (UnknownCurrency otherwise). */
 const splitFromBody = (split: RecordExpenseBody["split"]): Result<SplitInput | undefined> => {
   if (split === undefined) return ok(undefined);
-  switch (split.method) {
-    case "EQUAL":
-      return ok({
-        method: "EQUAL" as const,
-        participants: split.participants.map((p) => ({ memberId: p.memberId })),
-      });
-    case "PERCENT":
-      return ok({
-        method: "PERCENT" as const,
-        participants: split.participants.map((p) => ({
-          memberId: p.memberId,
-          basisPoints: basisPointsOf(p.percent),
-        })),
-      });
-    case "SHARES":
-      return ok({
-        method: "SHARES" as const,
-        participants: split.participants.map((p) => ({ memberId: p.memberId, units: p.units })),
-      });
-    case "EXACT": {
-      const participants: { memberId: string; amount: Money }[] = [];
-      for (const p of split.participants) {
-        const amount = moneyFromDto(p.amount);
-        if (!amount.ok) return amount;
-        participants.push({ memberId: p.memberId, amount: amount.value });
-      }
-      return ok({ method: "EXACT" as const, participants });
-    }
+  if (split.method !== "EXACT") return ok(splitOf(split));
+  const participants: { memberId: string; amount: Money }[] = [];
+  for (const p of split.participants) {
+    const amount = moneyFromDto(p.amount);
+    if (!amount.ok) return amount;
+    participants.push({ memberId: p.memberId, amount: amount.value });
   }
+  return ok({ method: "EXACT" as const, participants });
 };
 
 /** A validated body as RecordExpense input; fails only for impossible dates and currencies the kernel does not know. */
@@ -225,9 +194,9 @@ export const RecordIncomeBodySchema = z.object({
   date: z.iso.date().optional(),
   occurredAt: Instant.nullable().optional(),
   timeZone: TimeZoneName.optional(),
-  categoryId: Id.optional(),
+  categoryId: IdSchema.optional(),
   amount: MoneySchema,
-  accountId: Id,
+  accountId: IdSchema,
 });
 export const RecordTransferBodySchema = z.object({
   description: Description,
@@ -235,8 +204,8 @@ export const RecordTransferBodySchema = z.object({
   occurredAt: Instant.nullable().optional(),
   timeZone: TimeZoneName.optional(),
   amount: MoneySchema,
-  sourceAccountId: Id,
-  destinationAccountId: Id,
+  sourceAccountId: IdSchema,
+  destinationAccountId: IdSchema,
 });
 
 /**
@@ -249,9 +218,9 @@ export const RecordFundContributionBodySchema = z.object({
   occurredAt: Instant.nullable().optional(),
   timeZone: TimeZoneName.optional(),
   amount: MoneySchema,
-  fundAccountId: Id,
-  memberId: Id.optional(),
-  sourceAccountId: Id.nullable().optional(),
+  fundAccountId: IdSchema,
+  memberId: IdSchema.optional(),
+  sourceAccountId: IdSchema.nullable().optional(),
 });
 
 /** A validated body as RecordFundContribution input; fails only for impossible dates and unknown currencies. */
@@ -279,10 +248,10 @@ export const RecordSettlementBodySchema = z.object({
   occurredAt: Instant.nullable().optional(),
   timeZone: TimeZoneName.optional(),
   amount: MoneySchema,
-  payerMemberId: Id,
-  receivingMemberId: Id,
-  sourceAccountId: Id.nullable().optional(),
-  destinationAccountId: Id.nullable().optional(),
+  payerMemberId: IdSchema,
+  receivingMemberId: IdSchema,
+  sourceAccountId: IdSchema.nullable().optional(),
+  destinationAccountId: IdSchema.nullable().optional(),
 });
 
 /** A validated body as RecordSettlement input; fails only for impossible dates and unknown currencies. */
@@ -442,13 +411,13 @@ export const EditTransactionBodySchema = z.object({
   /** HU-E4-14: a new instant (any offset); null answers TimeRequired, since a time is never removed. */
   occurredAt: Instant.nullable().optional(),
   timeZone: TimeZoneName.optional(),
-  categoryId: Id.optional(),
+  categoryId: IdSchema.optional(),
   amount: MoneySchema.optional(),
 });
 
 export const AuditEntrySchema = z.object({
   id: z.string(),
-  action: z.enum(["UPDATED", "DELETED"]),
+  action: z.enum(["UPDATED", "DELETED", "RESTORED"]),
   actorUserId: z.string(),
   at: z.iso.datetime(),
   /**
@@ -469,7 +438,7 @@ export const auditEntryDto = (entry: AuditEntry): z.infer<typeof AuditEntrySchem
 
 /** HU-E1-13: whom the requester splits with: a member of a space they share, or a new guest. */
 const DirectCounterpartSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("MEMBER"), memberId: Id }),
+  z.object({ kind: z.literal("MEMBER"), memberId: IdSchema }),
   z.object({
     kind: z.literal("GUEST"),
     displayName: z.string().max(200),
@@ -492,7 +461,7 @@ export const DirectSplitBodySchema = z.object({
   timeZone: TimeZoneName.optional(),
   categoryKey: z.string().min(1).max(64),
   amount: MoneySchema,
-  accountId: Id,
+  accountId: IdSchema,
 });
 type DirectSplitBody = z.infer<typeof DirectSplitBodySchema>;
 
@@ -704,6 +673,29 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
       responses: {
         "200": { description: "Audit entries", content: jsonContent(ListAuditResponseSchema) },
         ...problems({ "401": "Unauthenticated", "404": "SpaceNotFound, TransactionNotFound" }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/transactions/{transactionId}/restore": {
+    post: {
+      operationId: "restoreTransaction",
+      summary:
+        "Undo a deletion: the transaction returns to lists, balances and totals; restoring a live one changes nothing",
+      ...securedByUser,
+      requestParams: { path: TransactionPath },
+      responses: {
+        "200": {
+          description: "The restored transaction with its new ETag",
+          content: jsonContent(TransactionSchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound, TransactionNotFound",
+          "409": "PeriodClosed, SpaceArchived",
+          "412": "PreconditionFailed",
+          "422": "NotASpaceMember",
+        }),
       },
     },
   },

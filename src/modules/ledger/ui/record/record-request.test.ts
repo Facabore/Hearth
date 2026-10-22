@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { recordFieldOf, requestOf, type RecordDraft } from "./record-request";
+import { afterSaveUrl, recordFieldOf, requestOf, type RecordDraft } from "./record-request";
 
 const draft = (overrides: Partial<RecordDraft> = {}): RecordDraft => ({
   kind: "EXPENSE",
@@ -160,5 +160,108 @@ describe("recordFieldOf maps every code the record endpoints answer (HU-E9-03, r
 
   it("shows a ValidationFailed without a path above the button", () => {
     expect(recordFieldOf(problem("ValidationFailed"))).toBe("form");
+  });
+});
+
+describe("requestOf for a shared expense (HU-E9-06, ruling P168)", () => {
+  const split = {
+    payer: { kind: "ME" as const, memberId: "m-ana", accountId: "a-bank" },
+    method: "EQUAL" as const,
+    selected: ["m-ana", "m-juan"],
+    values: {},
+    chosen: false,
+  };
+  const ids = ["m-ana", "m-juan"];
+
+  it("pays a shared expense with payments and a split instead of an account", () => {
+    const shared = requestOf(draft({ accountId: null, amount: "300000" }), "COP", "DOT_COMMA", {
+      split,
+      memberIds: ids,
+    });
+    expect(shared.ok && shared.body).toMatchObject({
+      payments: [{ memberId: "m-ana", accountId: "a-bank", amount: { amount: "30000000", currency: "COP" } }],
+      split: { method: "EQUAL", participants: [{ memberId: "m-ana" }, { memberId: "m-juan" }] },
+    });
+    expect(shared.ok && shared.body).not.toHaveProperty("accountId");
+  });
+
+  it("sends no split for the plan's, and reports an invalid split or an unpayable payer", () => {
+    const planned = requestOf(draft(), "COP", "DOT_COMMA", {
+      split: { ...split, method: "BY_ALLOCATION" },
+      memberIds: ids,
+    });
+    expect(planned.ok && planned.body).not.toHaveProperty("split");
+    expect(
+      requestOf(draft(), "COP", "DOT_COMMA", { split: { ...split, selected: [] }, memberIds: ids }),
+    ).toEqual({
+      ok: false,
+      field: "split",
+    });
+    expect(
+      requestOf(draft(), "COP", "DOT_COMMA", {
+        split: { ...split, payer: { kind: "ME", memberId: "m-ana", accountId: null } },
+        memberIds: ids,
+      }),
+    ).toEqual({ ok: false, field: "payer" });
+  });
+
+  it("keeps an income and a transfer on their own accounts even in a shared space", () => {
+    const income = requestOf(draft({ kind: "INCOME" }), "COP", "DOT_COMMA", { split, memberIds: ids });
+    expect(income.ok && income.body).toMatchObject({ accountId: "a-bank" });
+    expect(income.ok && income.body).not.toHaveProperty("payments");
+    expect(
+      requestOf(draft({ kind: "TRANSFER", accountId: null }), "COP", "DOT_COMMA", { split, memberIds: ids }),
+    ).toEqual({
+      ok: false,
+      field: "account",
+    });
+  });
+
+  it("puts the payment and split codes next to the split rows", () => {
+    const p = (code: string, errors: { path: string; message: string }[] = []) => ({
+      code,
+      status: 422,
+      requestId: "r",
+      errors,
+      field: null,
+    });
+    for (const code of ["GuestHasNoAccounts", "InvalidFundAccount", "MixedFundPayment", "PaymentsRequired"])
+      expect(recordFieldOf(p(code))).toBe("payer");
+    for (const code of ["InvalidSplit", "SharesDoNotMatchAmount", "ParticipantsRequired", "NotASpaceMember"])
+      expect(recordFieldOf(p(code))).toBe("split");
+    expect(
+      recordFieldOf(p("ValidationFailed", [{ path: "split.participants.0.percent", message: "x" }])),
+    ).toBe("split");
+    expect(recordFieldOf(p("ValidationFailed", [{ path: "payments.0.memberId", message: "x" }]))).toBe(
+      "payer",
+    );
+  });
+});
+
+describe("afterSaveUrl (HU-E9-06, ruling P170)", () => {
+  it("opens the list, with the fund's notice when the expense left it negative", () => {
+    expect(afterSaveUrl("sp-household", [])).toBe("/spaces/sp-household/transactions");
+    expect(afterSaveUrl("sp-household")).toBe("/spaces/sp-household/transactions");
+    expect(
+      afterSaveUrl("sp-household", [
+        {
+          code: "FundBalanceNegative",
+          accountId: "a-fund",
+          balance: { amount: "-50000000", currency: "COP" },
+        },
+      ]),
+    ).toBe("/spaces/sp-household/transactions?notice=FundBalanceNegative&account=a-fund");
+  });
+
+  it("never puts an amount in the address and encodes the account id", () => {
+    const url = afterSaveUrl("sp-household", [
+      {
+        code: "FundBalanceNegative",
+        accountId: "a/fund 1",
+        balance: { amount: "-50000000", currency: "COP" },
+      },
+    ]);
+    expect(url).toContain("account=a%2Ffund%201");
+    expect(url).not.toContain("50000000");
   });
 });

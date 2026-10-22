@@ -15,9 +15,14 @@ import {
 import { user } from "@/modules/identity/infrastructure/auth.schema";
 import { spaces } from "@/modules/spaces/infrastructure/spaces.schema";
 import { PALETTE } from "@/shared/kernel";
-import { ACCOUNT_ICONS } from "../domain/account";
+import { ACCOUNT_ICONS, ACCOUNT_TYPES } from "../domain/account";
+import { MAX_BILLING_DAY, MAX_TERM_DAYS, MAX_TERM_MONTHS, MIN_BILLING_DAY } from "../domain/account-terms";
+import { MAX_RATE_PPM } from "../domain/rate";
 
 const tz = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
+
+// A domain bound written into a CHECK: a literal, so `db:check` sees the same SQL whenever the constant moves.
+const bound = (value: number) => sql.raw(String(value));
 
 // Money accounts of a space (spec 5.2). Better Auth's credential table is the singular "account".
 export const accounts = pgTable(
@@ -28,20 +33,7 @@ export const accounts = pgTable(
       .notNull()
       .references(() => spaces.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
-    // Same values as ACCOUNT_TYPES in the domain; listed here so drizzle-kit loads no domain code.
-    type: text("type", {
-      enum: [
-        "CASH",
-        "BANK",
-        "WALLET",
-        "CREDIT_CARD",
-        "SAVINGS",
-        "INVESTMENT",
-        "LOAN",
-        "OTHER",
-        "SHARED_FUND",
-      ],
-    }).notNull(),
+    type: text("type", { enum: ACCOUNT_TYPES }).notNull(),
     ownerUserId: text("owner_user_id").references(() => user.id, { onDelete: "cascade" }),
     openingBalance: bigint("opening_balance", { mode: "bigint" }).notNull(),
     archivedAt: tz("archived_at"),
@@ -86,22 +78,34 @@ export const accounts = pgTable(
       sql`(${t.termDays} IS NULL) = (${t.maturityDate} IS NULL) AND (${t.termDays} IS NULL OR ${t.type} = 'SAVINGS')`,
     ),
     // Every read dates the next billing days, and a day outside 1 to 31 makes that throw: keep them out of the table.
-    check("accounts_cut_off_day", sql`${t.cutOffDay} IS NULL OR ${t.cutOffDay} BETWEEN 1 AND 31`),
-    check("accounts_payment_day", sql`${t.paymentDay} IS NULL OR ${t.paymentDay} BETWEEN 1 AND 31`),
-    // MAX_RATE_PPM in the domain (100 %), repeated here because drizzle-kit loads no domain code. The rate maths
-    // throws on a negative rate, so PostgreSQL refuses what a read could not handle.
+    check(
+      "accounts_cut_off_day",
+      sql`${t.cutOffDay} IS NULL OR ${t.cutOffDay} BETWEEN ${bound(MIN_BILLING_DAY)} AND ${bound(MAX_BILLING_DAY)}`,
+    ),
+    check(
+      "accounts_payment_day",
+      sql`${t.paymentDay} IS NULL OR ${t.paymentDay} BETWEEN ${bound(MIN_BILLING_DAY)} AND ${bound(MAX_BILLING_DAY)}`,
+    ),
+    // MAX_RATE_PPM is the domain's (100 %). The rate maths throws on a negative rate, so PostgreSQL refuses what a read
+    // could not handle.
     check(
       "accounts_monthly_rate_range",
-      sql`${t.monthlyRatePpm} IS NULL OR ${t.monthlyRatePpm} BETWEEN 0 AND 1000000`,
+      sql`${t.monthlyRatePpm} IS NULL OR ${t.monthlyRatePpm} BETWEEN 0 AND ${bound(MAX_RATE_PPM)}`,
     ),
     check(
       "accounts_annual_rate_range",
-      sql`${t.annualRatePpm} IS NULL OR ${t.annualRatePpm} BETWEEN 0 AND 1000000`,
+      sql`${t.annualRatePpm} IS NULL OR ${t.annualRatePpm} BETWEEN 0 AND ${bound(MAX_RATE_PPM)}`,
     ),
     // The domain's own ranges (revisedTerms), which reviseAccount re-checks on every update, even a rename: a stored
     // term outside them would refuse every later change to the account.
-    check("accounts_term_days_range", sql`${t.termDays} IS NULL OR ${t.termDays} BETWEEN 1 AND 3660`),
-    check("accounts_term_months_range", sql`${t.termMonths} IS NULL OR ${t.termMonths} BETWEEN 1 AND 480`),
+    check(
+      "accounts_term_days_range",
+      sql`${t.termDays} IS NULL OR ${t.termDays} BETWEEN 1 AND ${bound(MAX_TERM_DAYS)}`,
+    ),
+    check(
+      "accounts_term_months_range",
+      sql`${t.termMonths} IS NULL OR ${t.termMonths} BETWEEN 1 AND ${bound(MAX_TERM_MONTHS)}`,
+    ),
     check("accounts_credit_limit_positive", sql`${t.creditLimit} IS NULL OR ${t.creditLimit} > 0`),
     check("accounts_principal_positive", sql`${t.principal} IS NULL OR ${t.principal} > 0`),
   ],

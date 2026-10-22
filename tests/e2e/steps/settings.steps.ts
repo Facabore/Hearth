@@ -47,9 +47,11 @@ Then(
 
 Then(
   /^the preview reads "([^"]+)", "([^"]+)" and "([^"]+)"$/,
-  async ({ page }, first: string, second: string, third: string) => {
+  async ({ page, world }, first: string, second: string, third: string) => {
     const samples = [first, second, third];
-    for (const sample of samples) await expect(page.getByRole("status")).toContainText(sample);
+    // Each saved choice also says Guardado in a status of its own (U5): the preview is the one that is named.
+    const preview = page.getByRole("status", { name: world.t("settings.preview.label") });
+    for (const sample of samples) await expect(preview).toContainText(sample);
   },
 );
 
@@ -79,7 +81,8 @@ Then(
       dateFormat: "MDY",
       timeFormat: "H12",
     });
-    for (const sample of samples) await expect(page.getByRole("status")).toContainText(sample);
+    const preview = page.getByRole("status", { name: world.t("settings.preview.label") });
+    for (const sample of samples) await expect(preview).toContainText(sample);
   },
 );
 

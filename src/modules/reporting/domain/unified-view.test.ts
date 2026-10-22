@@ -172,7 +172,7 @@ describe("one naming tie-break for every personal report (ruling P106)", () => {
             { key: "groceries" },
           ),
         ],
-        { kind: "PERSONAL", personalSpaceId: "space-ana", spaceNames },
+        { kind: "PERSONAL", personalSpaceId: "space-ana", spaceNames, personalGroups: [] },
       );
       expect(unified.map((g) => g.name)).toEqual([expected]);
       expect(breakdown.groups[0]!.categories.map((c) => c.name)).toEqual([expected]);

@@ -30,7 +30,13 @@ import {
   noStoredPeriods,
   sequentialIds,
 } from "./fakes";
-import { HOUSEHOLD_MEMBERS, householdSpace, InMemorySpaceStore, memberOf } from "./in-memory-spaces";
+import {
+  HOUSEHOLD_MEMBERS,
+  householdSpace,
+  InMemorySpaceStore,
+  memberOf,
+  RecordingSpaceLocks,
+} from "./in-memory-spaces";
 
 const personalAccount = (id: string, spaceId: string, ownerUserId: string, archived = false) => ({
   id,
@@ -287,8 +293,10 @@ export class InMemoryAudit implements AuditLog {
 export const ledgerFixture = (overrides: Partial<LedgerDeps> = {}) => {
   const store = new InMemoryTransactions();
   const audit = new InMemoryAudit();
+  const locks = new RecordingSpaceLocks();
   const deps: LedgerDeps = {
     access: fakeSpaceAccess(membership()),
+    spaceLocks: locks,
     transactions: store,
     query: store,
     audit,
@@ -314,7 +322,7 @@ export const ledgerFixture = (overrides: Partial<LedgerDeps> = {}) => {
     tm: memoryTm,
     ...overrides,
   };
-  return { deps, store, audit };
+  return { deps, store, audit, locks };
 };
 
 /**

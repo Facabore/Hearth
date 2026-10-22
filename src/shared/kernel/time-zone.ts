@@ -36,9 +36,9 @@ const formatterOf = (timeZone: string): Intl.DateTimeFormat => {
 };
 
 /**
- * HU-E1-14: the canonical name of a zone Intl accepts ("america/bogota" → "America/Bogota"); null otherwise.
- * Ruling P45 keeps "valid when Intl accepts it", which also admits offset names such as "+05:00"; restricting the
- * zone to IANA names is plan follow-up 2.
+ * HU-E1-14: the canonical name of a zone Intl accepts ("america/bogota" → "America/Bogota"); null otherwise. This is
+ * the READ rule and stays "valid when Intl accepts it" (ruling P45), so a stored offset name such as "+05:00" keeps
+ * reading as itself. Writers go through `parseTimeZone` or `writableTimeZone`, which also demand an IANA name.
  */
 export const canonicalTimeZone = (raw: string): string | null => {
   try {
@@ -48,9 +48,19 @@ export const canonicalTimeZone = (raw: string): string | null => {
   }
 };
 
-/** HU-E1-14: a zone sent explicitly; an unknown one is InvalidTimeZone. */
+/** Issue 126: offset-form names ("+05:00", "-03", "+0500") start with a sign; every IANA name starts with a letter. */
+export const isIanaName = (raw: string): boolean => !/^[+-]/.test(raw);
+
+/**
+ * Issue 126: the canonical name of an IANA zone a writer may store ("US/Pacific" → "America/Los_Angeles"); null for
+ * an offset-form name or anything Intl refuses. The one rule of every write path; readers use `canonicalTimeZone`.
+ */
+export const writableTimeZone = (raw: string): string | null =>
+  isIanaName(raw) ? canonicalTimeZone(raw) : null;
+
+/** HU-E1-14: a zone sent explicitly; an unknown or offset-form one is InvalidTimeZone (issue 126). */
 export const parseTimeZone = (raw: string): Result<string> => {
-  const zone = canonicalTimeZone(raw);
+  const zone = writableTimeZone(raw);
   return zone === null ? err(domainError("InvalidTimeZone", { value: raw })) : ok(zone);
 };
 
