@@ -27,5 +27,6 @@ export const UI_ICONS = {
   copy: "M10.5 8h7A2.5 2.5 0 0 1 20 10.5v7a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 8 17.5v-7A2.5 2.5 0 0 1 10.5 8ZM16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8",
   swap: "M7 7h11l-3-3M17 17H6l3 3",
   warning: "M12 4 2.5 20h19L12 4Zm0 6v4.5m0 2.7h.01",
+  trash: "M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6",
 } as const;
 export type UiIconName = keyof typeof UI_ICONS;

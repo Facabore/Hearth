@@ -2,6 +2,9 @@ import { useTranslations } from "next-intl";
 import type { MoneyDto, PeriodDto, TransactionPageDto } from "@/shared/ui/api/dto";
 import { formatDate, formatMoney } from "@/shared/ui/format/formatters";
 import { groupByDay } from "./day-groups";
+import type { TransactionDetail } from "./detail/detail-loader";
+import { TransactionSheetHost } from "./detail/transaction-sheet-host";
+import { withTx } from "./detail/tx-href";
 import { ListFilters } from "./list-filters";
 import { hrefOf, type ListFilter } from "./list-href";
 import { LoadMore } from "./load-more";
@@ -19,6 +22,7 @@ export function TransactionList({
   next = null,
   notice,
   spaceName,
+  detail,
 }: {
   readonly spaceId: string;
   readonly page: TransactionPageDto;
@@ -31,9 +35,12 @@ export function TransactionList({
   readonly notice?: { readonly accountName: string; readonly balance: MoneyDto };
   /** U7: the name of a shared or direct space, under the title; a personal space shows none. */
   readonly spaceName?: string | undefined;
+  /** Ruling P189: the transaction behind `?tx=`, shown in a sheet over the list. */
+  readonly detail?: TransactionDetail | undefined;
 }) {
   const t = useTranslations("ledger");
   const days = groupByDay(page.items, today);
+  const listHref = hrefOf(spaceId, filter);
   return (
     <div className="flex flex-col gap-5 py-4">
       <header className="flex flex-col gap-0.5">
@@ -45,7 +52,7 @@ export function TransactionList({
           accountName={notice.accountName}
           balance={notice.balance}
           formats={context.formats}
-          dismissHref={hrefOf(spaceId, filter)}
+          dismissHref={listHref}
         />
       ) : null}
       <ListFilters
@@ -68,7 +75,7 @@ export function TransactionList({
           </h2>
           <ol className="divide-y divide-line rounded-2xl bg-surface px-4">
             {day.items.map((tx) => (
-              <TransactionRow key={tx.id} tx={tx} context={context} />
+              <TransactionRow key={tx.id} tx={tx} context={context} href={withTx(listHref, tx.id)} />
             ))}
           </ol>
         </section>
@@ -81,7 +88,12 @@ export function TransactionList({
           lastDate={days.at(-1)?.date ?? ""}
           today={today}
           context={context}
+          listHref={listHref}
         />
+      ) : null}
+      {/* The origin is the list without `tx`: closing never re-shows a dismissed notice. */}
+      {detail ? (
+        <TransactionSheetHost spaceId={spaceId} detail={detail} context={context} origin={listHref} />
       ) : null}
     </div>
   );

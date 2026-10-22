@@ -1,6 +1,6 @@
 import { render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { readTrail, stepsBack, writeTrail, type Trail } from "./history";
+import { cameFrom, readTrail, stepsBack, writeTrail, type Trail } from "./history";
 import { NavigationTracker } from "./navigation-tracker";
 
 const trailOf = (urls: string[], pos = urls.length - 1): Trail => ({ urls, pos });
@@ -71,6 +71,16 @@ describe("navigation tracker: the entries the app makes", () => {
     window.history.pushState({}, "", "/spaces/s1/accounts");
     window.history.pushState({}, "", "/spaces/s1");
     expect(readTrail()).toEqual(trailOf(["/spaces/s1"]));
+  });
+
+  it("keeps the list before the entry that opens a sheet on it, so closing can go back (ruling P189)", () => {
+    openAt("/spaces/s1/transactions?period=2026-10");
+    render(<NavigationTracker />);
+    window.history.pushState({}, "", "/spaces/s1/transactions?period=2026-10&tx=t-1");
+    expect(readTrail()).toEqual(
+      trailOf(["/spaces/s1/transactions?period=2026-10", "/spaces/s1/transactions?period=2026-10&tx=t-1"]),
+    );
+    expect(cameFrom(readTrail(), here())).toBe("/spaces/s1/transactions?period=2026-10");
   });
 
   it("replaces the current entry instead of adding one: the form that saved leaves no step", () => {

@@ -1,11 +1,21 @@
 import { screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import type { ReactNode } from "react";
+import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
 import { categoryDto, cop, groupDto, transactionDto } from "../../../../tests/support/ui/dto";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import type { TransactionDto } from "@/shared/ui/api/dto";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { TransactionRow, type RowContext } from "./transaction-row";
+
+// Exposes what the row passes to the link: opening a sheet must not scroll the list to its top.
+vi.mock("next/link", () => ({
+  default: ({ scroll, children, ...props }: { scroll?: boolean; children: ReactNode }) => (
+    <a data-scroll={String(scroll)} {...props}>
+      {children}
+    </a>
+  ),
+}));
 
 const norm = (text: string | null) => (text ?? "").replace(/\s/g, " ");
 
@@ -56,6 +66,26 @@ const dinner = transactionDto({
 });
 
 describe("transaction row (HU-E9-03, ruling P140)", () => {
+  it("is a link to its detail when given an href, named by its whole row (ruling P189)", async () => {
+    const { container } = renderWithIntl(
+      <ol>
+        <TransactionRow tx={dinner} context={context} href="/spaces/s-1/transactions?tx=t-dinner" />
+      </ol>,
+    );
+    const link = screen.getByRole("link", { name: /Dinner/ });
+    expect(link).toHaveAttribute("href", "/spaces/s-1/transactions?tx=t-dinner");
+    expect(norm(link.textContent)).toBe("Dinner20:45 · Restaurants · Bancolombia−$ 60.000");
+    expect(link.closest("li")).toBe(screen.getByRole("listitem"));
+    expect(link).toHaveAttribute("data-scroll", "false");
+    expect(link).toHaveClass("min-h-16");
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("has no link without an href, as before", () => {
+    renderRow(dinner);
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
   it("keeps the amount whole and lets the text block shrink and truncate (S2)", () => {
     renderRow(dinner);
     const amount = screen.getByText(/60\.000/);

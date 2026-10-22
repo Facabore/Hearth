@@ -436,6 +436,21 @@
       "title": "Gasto guardado",
       "dismiss": "Cerrar aviso"
     },
+    "detail": {
+      "type": "Tipo",
+      "when": "Fecha y hora",
+      "noTime": "Sin hora",
+      "noDescription": "Sin descripción",
+      "payerAccount": "Cuenta de {name}",
+      "edit": "Editar",
+      "delete": "Eliminar",
+      "note": {
+        "onlyOwner": "Solo {name} puede editarlo, porque el dinero se mueve en su cuenta. Puedes eliminarlo.",
+        "SETTLEMENT": "Un pago entre miembros no se edita: elimínalo y regístralo de nuevo desde Saldos.",
+        "CONTRIBUTION": "Un aporte al fondo no se edita: elimínalo y regístralo de nuevo."
+      },
+      "open": "Ver detalle de {name}"
+    },
     "when": {
       "title": "Fecha y hora",
       "day": "Día",

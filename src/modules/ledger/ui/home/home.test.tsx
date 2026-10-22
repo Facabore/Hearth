@@ -1,9 +1,16 @@
 import { screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import type { ComponentProps } from "react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
 import { accountDto, cop, octoberPage, rowContext } from "../../../../../tests/support/ui/dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
+import type { TransactionDetail } from "../detail/detail-loader";
 import { HomeSummary } from "./home-summary";
+
+// A row opens the detail sheet, which closes with the router.
+const mocks = vi.hoisted(() => ({ router: { push: vi.fn(), replace: vi.fn(), refresh: vi.fn() } }));
+vi.mock("next/navigation", () => ({ useRouter: () => mocks.router }));
 
 const norm = (text: string | null) => (text ?? "").replace(/\s/g, " ");
 
@@ -41,6 +48,48 @@ describe("home (HU-E9-01)", () => {
       "/spaces/sp-personal/transactions",
     );
     expect(await axeViolations(container)).toEqual([]);
+  });
+});
+
+describe("the home's recent rows open their detail (ruling P189)", () => {
+  const recent = { ...octoberPage, items: octoberPage.items.slice(0, 3) };
+  const summary = (props: Partial<ComponentProps<typeof HomeSummary>> = {}) => (
+    <HomeSummary
+      spaceId="sp-personal"
+      policy={{ kind: "MONTHLY", day: 1 }}
+      page={recent}
+      accounts={[accountDto({ name: "Bancolombia", balance: cop(1) })]}
+      context={rowContext}
+      {...props}
+    />
+  );
+
+  it("links every recent row to the home's address with its transaction", () => {
+    renderWithIntl(summary());
+    const rows = within(screen.getByRole("region", { name: "Recientes" })).getAllByRole("listitem");
+    expect(rows.map((row) => within(row).getByRole("link").getAttribute("href"))).toEqual([
+      "/spaces/sp-personal?tx=t-salary",
+      "/spaces/sp-personal?tx=t-dinner",
+      "/spaces/sp-personal?tx=t-market2",
+    ]);
+  });
+
+  it("opens the sheet for the transaction in the address and closes it to the plain home", async () => {
+    const detail: TransactionDetail = {
+      tx: octoberPage.items[1]!,
+      problem: null,
+      members: [],
+      viewer: { userId: "u-ana", role: "OWNER", memberId: null },
+    };
+    renderWithIntl(summary({ detail }));
+    expect(await screen.findByRole("dialog", { name: "Dinner" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Cerrar" }));
+    expect(mocks.router.replace).toHaveBeenCalledWith("/spaces/sp-personal", { scroll: false });
+  });
+
+  it("opens no sheet without a transaction in the address", () => {
+    renderWithIntl(summary());
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
 

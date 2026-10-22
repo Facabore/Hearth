@@ -6,6 +6,9 @@ import type { AccountDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/d
 import { formatDate, formatMoney } from "@/shared/ui/format/formatters";
 import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { periodName } from "@/shared/ui/time/period-name";
+import type { TransactionDetail } from "../detail/detail-loader";
+import { TransactionSheetHost } from "../detail/transaction-sheet-host";
+import { withTx } from "../detail/tx-href";
 import { TransactionRow, type RowContext } from "../transaction-row";
 
 /**
@@ -21,6 +24,7 @@ export function HomeSummary({
   page,
   accounts,
   context,
+  detail,
 }: {
   readonly spaceId: string;
   /** N10: a shared or direct space leads to its members; whoever may invite also gets Invitar. */
@@ -32,6 +36,8 @@ export function HomeSummary({
   readonly page: TransactionPageDto;
   readonly accounts: readonly AccountDto[];
   readonly context: RowContext;
+  /** Ruling P189: the transaction behind `?tx=`, shown in a sheet over the home. */
+  readonly detail?: TransactionDetail | undefined;
 }) {
   const t = useTranslations("home");
   const common = useTranslations("common");
@@ -158,11 +164,24 @@ export function HomeSummary({
         ) : (
           <ol className="divide-y divide-line rounded-2xl bg-surface px-4">
             {page.items.map((tx) => (
-              <TransactionRow key={tx.id} tx={tx} context={context} />
+              <TransactionRow
+                key={tx.id}
+                tx={tx}
+                context={context}
+                href={withTx(`/spaces/${spaceId}`, tx.id)}
+              />
             ))}
           </ol>
         )}
       </section>
+      {detail ? (
+        <TransactionSheetHost
+          spaceId={spaceId}
+          detail={detail}
+          context={context}
+          origin={`/spaces/${spaceId}`}
+        />
+      ) : null}
     </div>
   );
 }

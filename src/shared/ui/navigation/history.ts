@@ -31,9 +31,15 @@ export const isRootScreen = (url: string): boolean => ROOT.test(screenOf(url));
 const AUTH = /^\/(?:sign-(?:in|up)|(?:invitations|claims)\/.)/;
 export const isAuthScreen = (url: string): boolean => AUTH.test(screenOf(url));
 
-/** A new entry of the browser's history: the ones ahead are gone, and a root restarts the trail. */
+/**
+ * A new entry of the browser's history: the ones ahead are gone, and arriving at a root from another screen restarts
+ * the trail. A push that only changes the query of the root the person is on (a sheet opened by `?tx=`) restarts
+ * nothing: the entry before it is the screen itself, which closing the sheet goes back to (`cameFrom`).
+ */
 export const pushed = (trail: Trail, url: string): Trail => {
-  const urls = isRootScreen(url) ? [url] : [...trail.urls.slice(0, trail.pos + 1), url].slice(-MAX_ENTRIES);
+  const sameRoot = isRootScreen(url) && screenOf(trail.urls[trail.pos] ?? "") === screenOf(url);
+  const urls =
+    isRootScreen(url) && !sameRoot ? [url] : [...trail.urls.slice(0, trail.pos + 1), url].slice(-MAX_ENTRIES);
   return { urls, pos: urls.length - 1 };
 };
 
@@ -67,6 +73,13 @@ export const stepsBack = (trail: Trail, current: string): number | null => {
   }
   return null;
 };
+
+/**
+ * The entry before the current one, or null when there is none or the trail does not stand on `current` (a stale
+ * trail). It tells a sheet opened by a push in this tab (go back to close it) from one opened by a typed URL.
+ */
+export const cameFrom = (trail: Trail, current: string): string | null =>
+  trail.urls[trail.pos] === current ? (trail.urls[trail.pos - 1] ?? null) : null;
 
 const valid = (value: unknown): value is Trail => {
   const { urls, pos } = (value ?? {}) as Partial<Trail>;

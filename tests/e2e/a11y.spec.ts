@@ -63,6 +63,13 @@ for (const colorScheme of ["light", "dark"] as const) {
         await page.goto(path);
         await scan(path);
       }
+      // Ruling P189: a transaction's detail opens over the list from a row.
+      await page.goto(`/spaces/${spaceId}/transactions`);
+      await page.getByRole("link", { name: /Market/ }).click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await expect(page.getByRole("button", { name: es.ledger.detail.delete })).toBeVisible();
+      await scan("transaction detail sheet");
+      await page.keyboard.press("Escape");
       await page.goto(`/spaces/${spaceId}/accounts`);
       await expect(
         page.getByRole("button", { name: es.accounts.restore.replace("{name}", "Old wallet") }),

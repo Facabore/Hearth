@@ -513,6 +513,15 @@ const sheets: {
     open: (page) => page.getByRole("button", { name: es.ledger.list.filterCategory }).click(),
   },
   {
+    // Ruling P189: a row opens its detail over the list; its last control is Eliminar, above the bottom bar.
+    name: "transaction detail sheet",
+    path: "transactions",
+    open: async (page) => {
+      await page.getByRole("link", { name: /Mercado semanal/ }).click();
+      await expect(page.getByRole("dialog", { name: /Mercado semanal/ })).toBeVisible();
+    },
+  },
+  {
     name: "time zone sheet",
     path: "settings",
     open: (page) => page.getByRole("button", { name: new RegExp(es.settings.field.timezone) }).click(),
@@ -936,6 +945,107 @@ test.describe("sheets fit the screen and only their body scrolls", () => {
     await page.mouse.wheel(0, 600);
     await page.waitForTimeout(200);
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  });
+});
+
+test.describe("the transaction detail sheet is addressed by the URL (ruling P189)", () => {
+  const MARKET = /Mercado semanal/;
+  const sheet = (page: Page) => page.getByRole("dialog", { name: MARKET });
+
+  /** Movimientos reached from Cuentas through the bottom navigation, so there is somewhere to go back to. */
+  const listFromAccounts = async (page: Page, tag: string) => {
+    const { spaceId } = await session(page, tag);
+    const list = `/spaces/${spaceId}/transactions`;
+    await page.goto(`/spaces/${spaceId}/accounts`);
+    await settle(page);
+    await page
+      .getByRole("navigation", { name: es.shell.nav.main })
+      .getByRole("link", { name: es.shell.nav.transactions })
+      .click();
+    await expect(page).toHaveURL(new RegExp(`${list}$`));
+    await settle(page);
+    return { spaceId, list, accounts: `/spaces/${spaceId}/accounts` };
+  };
+
+  test("a row opens it with a new entry, Back closes it and Forward opens it again", async ({ page }) => {
+    const { list } = await listFromAccounts(page, "detail-sheet");
+    const entries = () => page.evaluate(() => window.history.length);
+    const before = await entries();
+
+    await page.getByRole("link", { name: MARKET }).click();
+    await expect(sheet(page)).toBeVisible();
+    await expect(page).toHaveURL(/\?tx=[^&]+$/);
+    expect(await entries(), "opening is a push").toBe(before + 1);
+
+    await page.goBack();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page).toHaveURL(new RegExp(`${list}$`));
+    await page.goForward();
+    await expect(sheet(page)).toBeVisible();
+  });
+
+  for (const how of ["the close button", "Escape"] as const) {
+    test(`closing with ${how} goes back, so Back then leaves the list for where the person was`, async ({
+      page,
+    }) => {
+      const { list, accounts } = await listFromAccounts(
+        page,
+        `detail-close-${how === "Escape" ? "esc" : "x"}`,
+      );
+      await page.getByRole("link", { name: MARKET }).click();
+      await expect(sheet(page)).toBeVisible();
+      if (how === "Escape") await page.keyboard.press("Escape");
+      else await page.getByRole("button", { name: es.common.close }).click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(page).toHaveURL(new RegExp(`${list}$`));
+
+      await page.goBack();
+      await expect(page).toHaveURL(new RegExp(`${accounts}$`));
+    });
+  }
+
+  test("a reload keeps the sheet and closing it still goes back to the list", async ({ page }) => {
+    const { list, accounts } = await listFromAccounts(page, "detail-reload");
+    await page.getByRole("link", { name: MARKET }).click();
+    await expect(sheet(page)).toBeVisible();
+    await page.reload();
+    await expect(sheet(page)).toBeVisible();
+    await page.getByRole("button", { name: es.common.close }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page).toHaveURL(new RegExp(`${list}$`));
+    await page.goBack();
+    await expect(page).toHaveURL(new RegExp(`${accounts}$`));
+  });
+
+  test("a deep link has no entry before it, so closing replaces it and adds none", async ({ page }) => {
+    const { list, accounts } = await listFromAccounts(page, "detail-deep");
+    await page.getByRole("link", { name: MARKET }).click();
+    await expect(sheet(page)).toBeVisible();
+    const deep = page.url();
+    await page.goto(accounts);
+    await settle(page);
+    await page.goto(deep);
+    await expect(sheet(page)).toBeVisible();
+    const entries = await page.evaluate(() => window.history.length);
+
+    await page.getByRole("button", { name: es.common.close }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page).toHaveURL(new RegExp(`${list}$`));
+    expect(await page.evaluate(() => window.history.length), "closing replaces the entry").toBe(entries);
+
+    await page.goBack();
+    await expect(page).toHaveURL(new RegExp(`${accounts}$`));
+  });
+
+  test("a deleted or unknown transaction in the address says so inside the sheet", async ({ page }) => {
+    const { spaceId } = await session(page, "detail-missing");
+    await page.goto(`/spaces/${spaceId}/transactions?tx=00000000-0000-4000-8000-000000000000`);
+    const dialog = page.getByRole("dialog", { name: es.errors.TransactionNotFound });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("alert")).toHaveText(es.errors.TransactionNotFound);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page).toHaveURL(new RegExp(`/spaces/${spaceId}/transactions$`));
   });
 });
 

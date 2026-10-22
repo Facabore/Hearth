@@ -20,6 +20,7 @@ import { renderWithIntl } from "../../../../tests/support/ui/render";
 import es from "@/i18n/messages/es.json";
 import type { Api } from "@/shared/ui/api/client";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
+import type { TransactionDetail } from "./detail/detail-loader";
 import { LoadMore } from "./load-more";
 import { TransactionList } from "./transaction-list";
 import { loadTransactionList, TransactionListContainer } from "./transaction-list-container";
@@ -198,7 +199,8 @@ describe("the period and the category filter (HU-E9-03, ruling P130)", () => {
 
   it("offers no link towards a period that does not exist", () => {
     renderWithIntl(listOf());
-    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Período anterior" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Período siguiente" })).toBeNull();
   });
 
   it("filters by the category chosen in the picker, keeping the period", async () => {
@@ -284,12 +286,50 @@ describe("the list's states (HU-E9-03, ruling P140)", () => {
     expect(screen.getByRole("button", { name: "Cargar más" })).toBeInTheDocument();
   });
 
-  it("is read-only in M6a: no row has an edit, delete or any other control", () => {
+  it("gives a row one link to its detail and no other control: editing happens in the sheet (ruling P189)", () => {
     renderWithIntl(listOf());
     for (const row of screen.getAllByRole("listitem")) {
       expect(within(row).queryAllByRole("button")).toEqual([]);
-      expect(within(row).queryAllByRole("link")).toEqual([]);
+      expect(within(row).getAllByRole("link")).toHaveLength(1);
     }
+  });
+
+  it("every row links to its detail with the list's filter kept (ruling P189)", () => {
+    renderWithIntl(listOf({ filter: { period: "2026-10", categoryId: "c-groceries" } }));
+    const hrefs = screen
+      .getAllByRole("listitem")
+      .map((row) => within(row).getByRole("link").getAttribute("href"));
+    expect(hrefs).toEqual(
+      ["t-salary", "t-dinner", "t-market2", "t-market1"].map(
+        (id) => `/spaces/sp-personal/transactions?period=2026-10&category=c-groceries&tx=${id}`,
+      ),
+    );
+  });
+
+  it("links a row of the plain list to ?tx= alone", () => {
+    renderWithIntl(listOf({ filter: {} }));
+    expect(within(screen.getAllByRole("listitem")[0]!).getByRole("link")).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/transactions?tx=t-salary",
+    );
+  });
+
+  it("opens the detail sheet only when the page was given one, and closes it to the list's address", async () => {
+    const detail: TransactionDetail = {
+      tx: octoberPage.items[1]!,
+      problem: null,
+      members: [],
+      viewer: { userId: "u-ana", role: "OWNER", memberId: null },
+    };
+    const { rerender } = renderWithIntl(listOf());
+    expect(screen.queryByRole("dialog")).toBeNull();
+    rerender(listOf({ detail }));
+    expect(await screen.findByRole("dialog", { name: "Dinner" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Cerrar" }));
+    // The origin is the list's own address (period kept, tx gone): closing never re-shows a dismissed notice.
+    expect(mocks.router.replace).toHaveBeenCalledWith("/spaces/sp-personal/transactions?period=2026-10", {
+      scroll: false,
+    });
   });
 
   it("reads the totals in the person's formats, whatever the language", () => {
@@ -323,10 +363,26 @@ describe("Load more (HU-E9-03, ruling P130)", () => {
       lastDate={lastDate}
       today="2026-10-31"
       context={context}
+      listHref="/spaces/sp-personal/transactions?period=2026-10&category=c-groceries"
       api={api}
     />
   );
   const cursorsOf = (requests: Request[]) => requests.map((r) => new URL(r.url).searchParams.get("cursor"));
+
+  it("links the rows it loads to their detail on the list's own address (ruling P189)", async () => {
+    const { api } = fakeApi({ "GET /api/v1/spaces/{spaceId}/transactions": answer(null, more) });
+    renderWithIntl(loadMore(api));
+    await userEvent.click(screen.getByRole("button", { name: "Cargar más" }));
+    await screen.findByText("Bread");
+    expect(screen.getByRole("link", { name: /Bread/ })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/transactions?period=2026-10&category=c-groceries&tx=t-bread",
+    );
+    expect(screen.getByRole("link", { name: /Milk/ })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/transactions?period=2026-10&category=c-groceries&tx=t-milk",
+    );
+  });
 
   it("asks for the next 50 with the same period and category, and the cursor it was given", async () => {
     const { api, requests } = fakeApi({ "GET /api/v1/spaces/{spaceId}/transactions": answer(null, more) });
@@ -636,6 +692,52 @@ describe("the list container (HU-E9-03, HU-E9-02)", () => {
     mocks.serverApi.mockResolvedValue(fakeApi(fundRoutes(-500_000)).api);
     const personal = await TransactionListContainer({ spaceId: "sp-personal" });
     expect(propsOf(personal)).toMatchObject({ context: { memberNames: {} } });
+  });
+
+  it("reads the transaction behind ?tx= with the list, and only then (ruling P189)", async () => {
+    mocks.getMe.mockResolvedValue(meDto());
+    mocks.getSpaces.mockResolvedValue([householdSpace()]);
+    const { api, requests } = fakeApi({
+      ...fundRoutes(0),
+      "GET /api/v1/spaces/{spaceId}/transactions/{transactionId}": () => jsonResponse(octoberPage.items[1]),
+    });
+    mocks.serverApi.mockResolvedValue(api);
+    const element = await TransactionListContainer({
+      spaceId: "sp-household",
+      period: "2026-10",
+      transactionId: "t-dinner",
+    });
+    expect(propsOf(element)).toMatchObject({
+      detail: {
+        tx: { id: "t-dinner" },
+        problem: null,
+        viewer: { userId: "u-ana", role: "OWNER", memberId: "m-ana" },
+      },
+    });
+    expect(requests.map((r) => new URL(r.url).pathname)).toContain(
+      "/api/v1/spaces/sp-household/transactions/t-dinner",
+    );
+    const without = fakeApi(fundRoutes(0));
+    mocks.serverApi.mockResolvedValue(without.api);
+    expect(propsOf(await TransactionListContainer({ spaceId: "sp-household" })).detail).toBeUndefined();
+    expect(without.requests.map((r) => new URL(r.url).pathname)).not.toContain(
+      "/api/v1/spaces/sp-household/transactions/t-dinner",
+    );
+  });
+
+  it("shows the sheet's problem for a ?tx= that is gone, with the list under it", async () => {
+    mocks.getMe.mockResolvedValue(meDto());
+    mocks.getSpaces.mockResolvedValue([spaceDto()]);
+    const { api } = fakeApi({
+      ...fundRoutes(0),
+      "GET /api/v1/spaces/{spaceId}/transactions/{transactionId}": () =>
+        problemResponse(404, "TransactionNotFound"),
+    });
+    mocks.serverApi.mockResolvedValue(api);
+    const element = await TransactionListContainer({ spaceId: "sp-personal", transactionId: "t-gone" });
+    expect(propsOf(element)).toMatchObject({
+      detail: { tx: null, problem: { code: "TransactionNotFound" } },
+    });
   });
 
   it("shows the problem's message when the list cannot be read", async () => {

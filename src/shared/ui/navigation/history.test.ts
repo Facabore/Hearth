@@ -7,6 +7,7 @@ import {
   readTrail,
   replaced,
   stepsBack,
+  cameFrom,
   traversed,
   writeTrail,
   type Trail,
@@ -60,6 +61,23 @@ describe("auth and invitation screens", () => {
   });
 });
 
+describe("cameFrom: the entry before the current one", () => {
+  const open = `${movements}?tx=t-1`;
+  it("is the previous entry when the trail stands on the current URL", () => {
+    expect(cameFrom(trailOf([movements, open]), open)).toBe(movements);
+  });
+
+  it("is null at the first entry, on a stale trail and on an empty one", () => {
+    expect(cameFrom(trailOf([open]), open)).toBeNull();
+    expect(cameFrom(trailOf([movements, open]), `${movements}?tx=other`)).toBeNull();
+    expect(cameFrom(EMPTY, open)).toBeNull();
+  });
+
+  it("follows the position, not the end of the trail", () => {
+    expect(cameFrom(trailOf([home, movements, open], 1), movements)).toBe(home);
+  });
+});
+
 describe("pushed: a new entry in the browser's history", () => {
   it("starts the trail at the first entry", () => {
     expect(pushed(EMPTY, accounts)).toEqual(trailOf([accounts]));
@@ -72,6 +90,19 @@ describe("pushed: a new entry in the browser's history", () => {
   it("restarts the trail at a root: switching tabs is not a history to unwind", () => {
     expect(pushed(trailOf([movements, accounts]), home)).toEqual(trailOf([home]));
     expect(pushed(trailOf([home]), movements)).toEqual(trailOf([movements]));
+  });
+
+  it("keeps the entry before a query-only push on a root: the screen has not changed, so nothing restarts", () => {
+    expect(pushed(trailOf([movements]), `${movements}?tx=t-1`)).toEqual(
+      trailOf([movements, `${movements}?tx=t-1`]),
+    );
+    expect(pushed(trailOf([home, `${home}?tx=t-1`]), `${home}?tx=t-2`)).toEqual(
+      trailOf([home, `${home}?tx=t-1`, `${home}?tx=t-2`]),
+    );
+  });
+
+  it("still restarts when a root is entered from another screen with the same query", () => {
+    expect(pushed(trailOf([home, accounts]), `${home}?tx=t-1`)).toEqual(trailOf([`${home}?tx=t-1`]));
   });
 
   it("drops the entries ahead of the current one, as the browser does", () => {
