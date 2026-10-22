@@ -1717,7 +1717,20 @@ export interface components {
                     error: "InvalidAllocation" | null;
                 };
                 spent: components["schemas"]["MoneyOutput"];
+                /** @description Since M6c a line carries only from the CLOSED plan it was copied from, and only from its origin line there: carryOver is 0 while that plan is DRAFT or ACTIVE (before, it carried whatever the source's status was), and carryOverFrom names the plan it comes from or waits for. Nothing is stored; both are derived on read. */
                 carryOver: components["schemas"]["MoneyOutput"];
+                /** @description The plan the carry-over comes from, with its period and whether it is CLOSED. closed false means the line carries 0 until that plan closes. Null for a RESET line, a line without an origin in that plan (a line added by hand, or one the source no longer has) and a plan that was not copied. */
+                carryOverFrom: {
+                    planId: string;
+                    period: {
+                        label: string;
+                        /** Format: date */
+                        startDate: string;
+                        /** Format: date */
+                        endDate: string;
+                    };
+                    closed: boolean;
+                } | null;
                 available: components["schemas"]["MoneyOutput"];
             }[];
             unbudgeted: {
@@ -7033,7 +7046,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description InvalidPlanTransition, PeriodNotOver (today is not after the period's last day), SpaceArchived */
+            /** @description InvalidPlanTransition, PeriodNotOver (today is not after the period's last day), SourcePlanOpen (the plan it was copied from is still ACTIVE and a line carries over from it; the problem carries the source's `sourcePeriod`), SpaceArchived */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7151,7 +7164,14 @@ export interface operations {
                             isCatchAll: boolean;
                             planned: components["schemas"]["MoneyOutput"];
                             spent: components["schemas"]["MoneyOutput"];
+                            /** @description Since M6c a line carries only from the CLOSED plan it was copied from, and only from its origin line there: carryOver is 0 while that plan is DRAFT or ACTIVE (before, it carried whatever the source's status was), and carryOverFrom names the plan it comes from or waits for. Nothing is stored; both are derived on read. */
                             carryOver: components["schemas"]["MoneyOutput"];
+                            /** @description The plan the carry-over comes from, with its period and whether it is CLOSED. closed false means the line carries 0 until that plan closes. Null for a RESET line, a line without an origin in that plan (a line added by hand, or one the source no longer has) and a plan that was not copied. */
+                            carryOverFrom: {
+                                planId: string;
+                                period: components["schemas"]["Period"];
+                                closed: boolean;
+                            } | null;
                             available: components["schemas"]["MoneyOutput"];
                             overspent: boolean;
                             /**

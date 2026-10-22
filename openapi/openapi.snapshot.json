@@ -9696,7 +9696,7 @@
             }
           },
           "409": {
-            "description": "InvalidPlanTransition, PeriodNotOver (today is not after the period's last day), SpaceArchived",
+            "description": "InvalidPlanTransition, PeriodNotOver (today is not after the period's last day), SourcePlanOpen (the plan it was copied from is still ACTIVE and a line carries over from it; the problem carries the source's `sourcePeriod`), SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9978,7 +9978,36 @@
                             "$ref": "#/components/schemas/MoneyOutput"
                           },
                           "carryOver": {
+                            "description": "Since M6c a line carries only from the CLOSED plan it was copied from, and only from its origin line there: carryOver is 0 while that plan is DRAFT or ACTIVE (before, it carried whatever the source's status was), and carryOverFrom names the plan it comes from or waits for. Nothing is stored; both are derived on read.",
                             "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "carryOverFrom": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "planId": {
+                                    "type": "string"
+                                  },
+                                  "period": {
+                                    "$ref": "#/components/schemas/Period"
+                                  },
+                                  "closed": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "planId",
+                                  "period",
+                                  "closed"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The plan the carry-over comes from, with its period and whether it is CLOSED. closed false means the line carries 0 until that plan closes. Null for a RESET line, a line without an origin in that plan (a line added by hand, or one the source no longer has) and a plan that was not copied."
                           },
                           "available": {
                             "$ref": "#/components/schemas/MoneyOutput"
@@ -10016,6 +10045,7 @@
                           "planned",
                           "spent",
                           "carryOver",
+                          "carryOverFrom",
                           "available",
                           "overspent",
                           "state",
@@ -14034,7 +14064,57 @@
                   "$ref": "#/components/schemas/MoneyOutput"
                 },
                 "carryOver": {
+                  "description": "Since M6c a line carries only from the CLOSED plan it was copied from, and only from its origin line there: carryOver is 0 while that plan is DRAFT or ACTIVE (before, it carried whatever the source's status was), and carryOverFrom names the plan it comes from or waits for. Nothing is stored; both are derived on read.",
                   "$ref": "#/components/schemas/MoneyOutput"
+                },
+                "carryOverFrom": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "planId": {
+                          "type": "string"
+                        },
+                        "period": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "startDate": {
+                              "type": "string",
+                              "format": "date",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                            },
+                            "endDate": {
+                              "type": "string",
+                              "format": "date",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                            }
+                          },
+                          "required": [
+                            "label",
+                            "startDate",
+                            "endDate"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "closed": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "planId",
+                        "period",
+                        "closed"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The plan the carry-over comes from, with its period and whether it is CLOSED. closed false means the line carries 0 until that plan closes. Null for a RESET line, a line without an origin in that plan (a line added by hand, or one the source no longer has) and a plan that was not copied."
                 },
                 "available": {
                   "$ref": "#/components/schemas/MoneyOutput"
@@ -14054,6 +14134,7 @@
                 "allocation",
                 "spent",
                 "carryOver",
+                "carryOverFrom",
                 "available"
               ],
               "additionalProperties": false

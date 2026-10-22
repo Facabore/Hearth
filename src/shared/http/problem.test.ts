@@ -72,6 +72,7 @@ describe("statusForCode", () => {
     ["OccurrenceNotPending", 409],
     ["InvalidOccurrenceDate", 422],
     ["PeriodNotOver", 409],
+    ["SourcePlanOpen", 409],
     ["CategoryNotInSpace", 422],
     ["CategoryAlreadyMapped", 409],
     ["SameAccountTransfer", 409],
@@ -130,6 +131,19 @@ describe("public details (HU-E1-08)", () => {
       code: "OutstandingBalance",
       requestId: "req-3",
       outstanding: { amount: "15000000", currency: "COP" },
+    });
+  });
+
+  it("adds the source period of SourcePlanOpen as an extension member, and no other detail (ruling P248 of M6c)", async () => {
+    const details = publicDetailsOf("SourcePlanOpen", { sourcePeriod: "2026-11", planId: "plan-1" });
+    expect(details).toEqual({ sourcePeriod: "2026-11" });
+    expect(await problemResponse("SourcePlanOpen", "req-5", undefined, details).json()).toEqual({
+      type: "urn:hearth:problem:SourcePlanOpen",
+      title: "Conflict",
+      status: 409,
+      code: "SourcePlanOpen",
+      requestId: "req-5",
+      sourcePeriod: "2026-11",
     });
   });
 

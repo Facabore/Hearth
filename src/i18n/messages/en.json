@@ -154,6 +154,7 @@
     "SharedFundRequiresSharedSpace": "A shared fund exists only in a shared space.",
     "SharesDoNotMatchAmount": "The payments and the shares must add up to the total amount.",
     "SignUpClosed": "Sign-up is closed. Ask someone in your household for an invitation.",
+    "SourcePlanOpen": "Close the plan for {period} first: this plan carries a balance from that month.",
     "SpaceArchived": "This space is archived and does not take changes.",
     "SpaceCurrencyLocked": "The space's currency can no longer change: it has transactions or a plan.",
     "SpaceNotFound": "That space was not found, or you are no longer a member.",

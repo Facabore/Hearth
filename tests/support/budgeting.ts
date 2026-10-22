@@ -35,6 +35,12 @@ export interface LineDto {
   allocation: { rule: string; members: AllocationMemberDto[]; error: string | null };
   spent: MoneyDto;
   carryOver: MoneyDto;
+  /** Ruling P243 (M6c): the plan the carry-over comes from; null for RESET or a line without an origin there. */
+  carryOverFrom: {
+    planId: string;
+    period: { label: string; startDate: string; endDate: string };
+    closed: boolean;
+  } | null;
   available: MoneyDto;
 }
 export interface PlanDto {
