@@ -1,6 +1,7 @@
 import type { ZodType } from "zod";
 import type { AuthUser, Result } from "@/shared/kernel";
 import { jsonLogger, type Logger } from "./logger";
+import { nulFieldErrors } from "./nul-guard";
 import {
   problemResponse,
   publicDetailsOf,
@@ -91,7 +92,10 @@ export const createRouteFactory =
 
       let query = undefined as Q;
       if (spec.query) {
-        const parsed = spec.query.safeParse(Object.fromEntries(new URL(request.url).searchParams));
+        const rawQuery = Object.fromEntries(new URL(request.url).searchParams);
+        const nul = nulFieldErrors(rawQuery);
+        if (nul.length > 0) return problemResponse("ValidationFailed", requestId, nul);
+        const parsed = spec.query.safeParse(rawQuery);
         if (!parsed.success)
           return problemResponse("ValidationFailed", requestId, toFieldErrors(parsed.error.issues));
         query = parsed.data;
@@ -107,6 +111,9 @@ export const createRouteFactory =
             { path: "", message: "Body must be valid JSON" },
           ]);
         }
+        // Issue 118: PostgreSQL text refuses NUL, so it is refused here for every field of every route.
+        const nul = nulFieldErrors(raw);
+        if (nul.length > 0) return problemResponse("ValidationFailed", requestId, nul);
         const parsed = spec.body.safeParse(raw);
         if (!parsed.success)
           return problemResponse("ValidationFailed", requestId, toFieldErrors(parsed.error.issues));

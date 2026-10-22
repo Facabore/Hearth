@@ -49,6 +49,21 @@ const listOf = async (user: TestUser) =>
   ).items;
 
 describe("account types and common attributes (HU-E2-05)", () => {
+  it("refuses a NUL character in a text field with 422, not a 500, and creates nothing (issue 118)", async () => {
+    const ana = await registerUser("Ana");
+    const response = await create(ana, {
+      name: "Nequi",
+      type: "WALLET",
+      openingBalance: cop(0),
+      institution: "Nequi\u0000",
+    });
+    expect(response.status).toBe(422);
+    const problem = (await response.json()) as { code: string; errors: { path: string }[] };
+    expect(problem.code).toBe("ValidationFailed");
+    expect(problem.errors.map((e) => e.path)).toEqual(["institution"]);
+    expect(await listOf(ana)).toEqual([]);
+  });
+
   it("creates a wallet with its common attributes", async () => {
     const ana = await registerUser("Ana");
     const nequi = await created(ana, {

@@ -99,6 +99,18 @@ describe("recording the time of a transaction (HU-E4-14)", () => {
     expect(await problemOf(await expense(a, { timeZone: "Bogota" }))).toEqual([422, "InvalidTimeZone"]);
   });
 
+  it("refuses an offset-form zone, and canonicalises an IANA alias (issue 126)", async () => {
+    const a = await ana();
+    for (const timeZone of ["+05:00", "-03:30"]) {
+      expect(
+        await problemOf(await expense(a, { occurredAt: "2026-10-16T14:32:00-05:00", timeZone })),
+      ).toEqual([422, "InvalidTimeZone"]);
+    }
+    const aliased = await expense(a, { occurredAt: "2026-10-16T14:32:00-05:00", timeZone: "US/Pacific" });
+    expect(aliased.status).toBe(201);
+    expect((await timeOf(aliased))[2]).toBe("America/Los_Angeles");
+  });
+
   it("takes a time on incomes, transfers, fund contributions and settlements", async () => {
     const a = await ana();
     const occurredAt = "2026-10-16T14:32:00-05:00";
