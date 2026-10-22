@@ -62,6 +62,7 @@ export {
   type TransactionPage,
 } from "./list-transactions";
 export { createDeleteTransaction, type DeleteTransaction } from "./delete-transaction";
+export { createRestoreTransaction, type RestoreTransaction } from "./restore-transaction";
 export {
   createEditTransaction,
   type EditChanges,

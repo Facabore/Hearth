@@ -417,7 +417,7 @@ export const EditTransactionBodySchema = z.object({
 
 export const AuditEntrySchema = z.object({
   id: z.string(),
-  action: z.enum(["UPDATED", "DELETED"]),
+  action: z.enum(["UPDATED", "DELETED", "RESTORED"]),
   actorUserId: z.string(),
   at: z.iso.datetime(),
   /**
@@ -673,6 +673,29 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
       responses: {
         "200": { description: "Audit entries", content: jsonContent(ListAuditResponseSchema) },
         ...problems({ "401": "Unauthenticated", "404": "SpaceNotFound, TransactionNotFound" }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/transactions/{transactionId}/restore": {
+    post: {
+      operationId: "restoreTransaction",
+      summary:
+        "Undo a deletion: the transaction returns to lists, balances and totals; restoring a live one changes nothing",
+      ...securedByUser,
+      requestParams: { path: TransactionPath },
+      responses: {
+        "200": {
+          description: "The restored transaction with its new ETag",
+          content: jsonContent(TransactionSchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound, TransactionNotFound",
+          "409": "PeriodClosed, SpaceArchived",
+          "412": "PreconditionFailed",
+          "422": "NotASpaceMember",
+        }),
       },
     },
   },

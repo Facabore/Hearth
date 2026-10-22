@@ -82,6 +82,7 @@ import {
 } from "@/modules/reporting/application";
 import {
   createDeleteTransaction,
+  createRestoreTransaction,
   createEditTransaction,
   createGetTransaction,
   createListAudit,
@@ -121,6 +122,7 @@ import {
   createConfirmOccurrence,
   type ConfirmOccurrence,
   type DeleteTransaction,
+  type RestoreTransaction,
   type EditTransaction,
   type GetTransaction,
   type LedgerDeps,
@@ -311,6 +313,7 @@ export interface Container extends RouteDeps {
     readonly getTransaction: GetTransaction;
     readonly editTransaction: EditTransaction;
     readonly deleteTransaction: DeleteTransaction;
+    readonly restoreTransaction: RestoreTransaction;
     readonly listAudit: ListAudit;
     readonly defineRecurrence: DefineRecurrence;
     readonly listRecurrences: ListRecurrences;
@@ -782,6 +785,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       getTransaction: createGetTransaction(ledgerDeps),
       editTransaction: createEditTransaction(ledgerDeps),
       deleteTransaction: createDeleteTransaction(ledgerDeps),
+      restoreTransaction: createRestoreTransaction(ledgerDeps),
       listAudit: createListAudit(ledgerDeps),
       defineRecurrence: createDefineRecurrence(recurrenceDeps),
       listRecurrences: createListRecurrences(recurrenceDeps),

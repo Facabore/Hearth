@@ -15,6 +15,7 @@ import { createRecordFundContribution } from "./record-fund-contribution";
 import { createRecordIncome } from "./record-income";
 import { createRecordSettlement } from "./record-settlement";
 import { createRecordTransfer } from "./record-transfer";
+import { createRestoreTransaction } from "./restore-transaction";
 
 const date = (iso: string) => iso as LocalDate;
 const ana = { spaceId: "space-ana", userId: "u-ana" };
@@ -55,6 +56,7 @@ const world = (where: "ana" | "household", archived: boolean) => {
     settle: createRecordSettlement(deps),
     edit: createEditTransaction(deps),
     remove: createDeleteTransaction(deps),
+    restore: createRestoreTransaction(deps),
     list: createListTransactions(deps),
     get: createGetTransaction(deps),
     history: createListAudit(deps),
@@ -181,6 +183,7 @@ const WRITES: readonly (readonly [
       }),
   ],
   ["DeleteTransaction", "ana", (w) => w.remove({ ...ana, transactionId: w.market.id })],
+  ["RestoreTransaction", "ana", (w) => w.restore({ ...ana, transactionId: w.market.id })],
 ];
 
 describe("archived spaces only read: the ledger (HU-E1-09, Review Focus 4)", () => {
