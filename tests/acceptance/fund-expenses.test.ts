@@ -1,12 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
+import { POST as leaveSpace } from "@/app/api/v1/spaces/[spaceId]/leave/route";
+import { PATCH as editTransaction } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/route";
 import { setContainerForTests, type Container } from "@/composition/container";
-import { problemOf, startTestApp } from "../support/app";
+import { call, problemOf, startTestApp } from "../support/app";
 import {
   balanceOf,
+  balancesOf,
   categoryWithKey,
   cop,
   household,
+  joinHousehold,
   newAccount,
   post,
   type Household,
@@ -153,5 +157,44 @@ describe("expenses paid from the shared fund (HU-E4-10)", () => {
       expect(await problemOf(await post(recordExpense, h.ana, "expenses", body))).toEqual([status, code]);
     }
     expect(await balanceOf(h.ana, h.fund)).toEqual(cop(1_500_000));
+  });
+});
+
+describe("editing a fund-paid expense keeps a departed member at zero (HU-E1-08, ruling P186)", () => {
+  it("refuses making it member-paid while its shares still name Luis, who left", async () => {
+    const h = await withFund();
+    const luis = await joinHousehold(h, "Luis", "MEMBER");
+    const rent = await recorded(
+      await post(
+        recordExpense,
+        h.ana,
+        "expenses",
+        rentFrom(h, h.fund, 300_000, {
+          split: {
+            method: "EQUAL",
+            participants: [{ memberId: h.ana.memberId }, { memberId: luis.memberId }],
+          },
+        }),
+      ),
+    );
+    const left = await call(leaveSpace, "POST", `/api/v1/spaces/${h.spaceId}/leave`, {
+      user: luis,
+      params: { spaceId: h.spaceId },
+    });
+    expect(left.status).toBe(204);
+    const edited = await call(
+      editTransaction,
+      "PATCH",
+      `/api/v1/spaces/${h.spaceId}/transactions/${rent.id}`,
+      {
+        user: h.ana,
+        params: { spaceId: h.spaceId, transactionId: rent.id },
+        body: { payments: [{ memberId: h.ana.memberId, accountId: h.ana.account, amount: cop(300_000) }] },
+      },
+    );
+    expect(await problemOf(edited)).toEqual([422, "NotASpaceMember"]);
+    expect(await balanceOf(h.ana.personal, h.ana.account)).toEqual(cop(2_000_000));
+    const balances = await balancesOf(h.ana, h.spaceId);
+    expect(balances.map(([, net]) => net)).toEqual([cop(0), cop(0)]);
   });
 });

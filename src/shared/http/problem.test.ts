@@ -167,6 +167,16 @@ describe("public details (HU-E1-08)", () => {
     });
   });
 
+  it("names the part of the body a transaction's type keeps, and answers 409 (ruling P188)", async () => {
+    expect(publicDetailsOf("FieldNotEditable", { field: "payments", transactionId: "tx-1" })).toEqual({
+      field: "payments",
+    });
+    expect(statusForCode("FieldNotEditable")).toBe(409);
+    expect(
+      await problemResponse("FieldNotEditable", "req-6", undefined, { field: "accountId" }).json(),
+    ).toMatchObject({ code: "FieldNotEditable", status: 409, field: "accountId" });
+  });
+
   it("names the flagged lines of an InvalidAllocation, and none of AllocateBudgetLine's reasons (HU-E6-07)", () => {
     expect(publicDetailsOf("InvalidAllocation", { lineIds: ["line-free"] })).toEqual({
       lineIds: ["line-free"],

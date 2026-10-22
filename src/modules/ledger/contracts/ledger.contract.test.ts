@@ -6,6 +6,8 @@ import type { TransactionPosition } from "../application";
 import {
   DirectSplitBodySchema,
   directSplitFromBody,
+  EditTransactionBodySchema,
+  editChangesFromBody,
   positionFromCursor,
   RecordExpenseBodySchema,
   transactionPageDto,
@@ -128,5 +130,57 @@ describe("time inputs (HU-E4-14)", () => {
       ok: true,
       value: { date: undefined, occurredAt: null, timeZone: undefined },
     });
+  });
+});
+
+describe("edit bodies (HU-E4-06, ruling P186)", () => {
+  it("keeps today's bodies as they were: the new parts stay undefined", () => {
+    const changes = unwrap(
+      editChangesFromBody(
+        EditTransactionBodySchema.parse({
+          description: "Market",
+          date: "2026-10-05",
+          categoryId: "cat-1",
+          amount: { amount: "9500000", currency: "COP" },
+        }),
+      ),
+    );
+    expect(changes).toMatchObject({ description: "Market", categoryId: "cat-1", amount: money(9_500_000n) });
+    expect([
+      changes.accountId,
+      changes.payments,
+      changes.sourceAccountId,
+      changes.destinationAccountId,
+    ]).toEqual([undefined, undefined, undefined, undefined]);
+    expect(EditTransactionBodySchema.safeParse({}).success).toBe(true);
+  });
+
+  it("takes the accounts and the payments as the use case does", () => {
+    const changes = unwrap(
+      editChangesFromBody(
+        EditTransactionBodySchema.parse({
+          sourceAccountId: "acc-a",
+          destinationAccountId: "acc-b",
+          payments: [
+            { memberId: "member-ana", accountId: "acc-a", amount: { amount: "100", currency: "COP" } },
+            { memberId: "member-pedro", amount: { amount: "50", currency: "COP" } },
+          ],
+        }),
+      ),
+    );
+    expect([changes.sourceAccountId, changes.destinationAccountId]).toEqual(["acc-a", "acc-b"]);
+    expect(changes.payments).toEqual([
+      { memberId: "member-ana", accountId: "acc-a", amount: money(100n) },
+      { memberId: "member-pedro", accountId: null, amount: money(50n) },
+    ]);
+  });
+
+  it("refuses accountId together with payments, and an unknown currency in a payment", () => {
+    const both = EditTransactionBodySchema.safeParse({ accountId: "acc-a", payments: [] });
+    expect(both.success ? null : both.error.issues[0]?.path).toEqual(["payments"]);
+    const unknown = EditTransactionBodySchema.parse({
+      payments: [{ memberId: null, accountId: "acc-fund", amount: { amount: "100", currency: "ZZZ" } }],
+    });
+    expect(codeOf(editChangesFromBody(unknown))).toBe("UnknownCurrency");
   });
 });

@@ -1,27 +1,14 @@
-import type { SpaceMember, SpaceMembership } from "@/modules/spaces/application";
-import { domainError, err, map, ok, type Money, type Result } from "@/shared/kernel";
+import type { SpaceMembership } from "@/modules/spaces/application";
+import { ok, type Money, type Result } from "@/shared/kernel";
 import { splitShares, type AllocationSplit, type SplitInput } from "../domain/split";
 import { positiveAmount, recordExpense, type Expense, type Payment } from "../domain/transaction";
-import {
-  authorizeWriter,
-  fundAccount,
-  inSpaceCurrency,
-  openPeriod,
-  partyAccount,
-  usableCategory,
-} from "./checks";
+import { authorizeWriter, inSpaceCurrency, openPeriod, usableCategory } from "./checks";
 import type { LedgerDeps } from "./deps";
+import { resolvePayments, type PaymentInput } from "./payments";
 import type { DefaultSplitQuery } from "./ports";
 import { whenOf, type WhenInput } from "./when";
 
-/** One requested payment (spec 5.2). */
-export interface PaymentInput {
-  /** The paying member, registered or guest; null for a payment from the shared fund (HU-E4-10). */
-  readonly memberId: string | null;
-  /** The payer's own account, the shared fund when `memberId` is null, or null for a guest. */
-  readonly accountId: string | null;
-  readonly amount: Money;
-}
+export type { PaymentInput } from "./payments";
 
 export interface RecordExpenseInput extends Omit<WhenInput, "userId"> {
   readonly spaceId: string;
@@ -51,37 +38,6 @@ export interface RecordedExpense {
 }
 
 export type RecordExpense = (input: RecordExpenseInput) => Promise<Result<RecordedExpense>>;
-
-/**
- * Spec 5.2: memberId is null only for the shared fund; accountId is null only for a guest. A
- * personal account is debited only by its owner (D9); any member who records money may spend the fund.
- */
-const paymentOf = async (
-  deps: Pick<LedgerDeps, "accounts">,
-  space: SpaceMembership,
-  members: readonly SpaceMember[],
-  requested: PaymentInput,
-  userId: string,
-): Promise<Result<Payment>> => {
-  const currency = inSpaceCurrency(space, requested.amount);
-  if (!currency.ok) return currency;
-  const { memberId, accountId } = requested;
-  const amount = requested.amount.minor;
-  if (memberId === null) {
-    if (accountId === null) return err(domainError("AccountRequired"));
-    return map(await fundAccount(deps, accountId, space.spaceId), (fund) => ({
-      memberId: null,
-      accountId: fund.id,
-      amount,
-    }));
-  }
-  const debit = { required: true, debitedBy: userId };
-  return map(await partyAccount(deps, members, memberId, accountId, debit), (account) => ({
-    memberId,
-    accountId: account,
-    amount,
-  }));
-};
 
 /**
  * Spec 5.3, HU-E6-08: without a chosen split, BY_ALLOCATION by the line the category consumes in the ACTIVE plan
@@ -136,17 +92,8 @@ export const createRecordExpense =
       const requested: readonly PaymentInput[] = input.payments ?? [
         { memberId: space.memberId, accountId: input.accountId ?? null, amount: input.amount },
       ];
-      // Each member pays at most once per expense; fund payments (no member) are MixedFundPayment's job.
-      const payers = requested.flatMap((payment) => (payment.memberId === null ? [] : [payment.memberId]));
-      if (new Set(payers).size !== payers.length) {
-        return err(domainError("InvalidSplit", { reason: "duplicatePayer" }));
-      }
-      const payments: Payment[] = [];
-      for (const payment of requested) {
-        const resolved = await paymentOf(deps, space, members, payment, input.userId);
-        if (!resolved.ok) return resolved;
-        payments.push(resolved.value);
-      }
+      const payments = await resolvePayments(deps, space, members, requested, input.userId);
+      if (!payments.ok) return payments;
       // HU-E4-14: the recorder's zone unless the request names one (ruling P41).
       const when = await whenOf(deps, input);
       if (!when.ok) return when;
@@ -178,7 +125,7 @@ export const createRecordExpense =
         timeZone,
         now: deps.clock.now(),
         categoryId: category.value,
-        payments,
+        payments: payments.value,
         shares: shares.value,
       });
       if (!expense.ok) return expense;

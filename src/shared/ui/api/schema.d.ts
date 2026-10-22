@@ -687,7 +687,7 @@ export interface paths {
         delete: operations["deleteTransaction"];
         options?: never;
         head?: never;
-        /** Change description, date, time, category or amount; send If-Match with the current ETag */
+        /** Change description, date, time, category, amount, accounts or who paid; send If-Match with the current ETag */
         patch: operations["editTransaction"];
         trace?: never;
     };
@@ -5011,6 +5011,14 @@ export interface operations {
                     timeZone?: string;
                     categoryId?: string;
                     amount?: components["schemas"]["Money"];
+                    accountId?: string;
+                    payments?: {
+                        memberId: string | null;
+                        accountId?: string | null;
+                        amount: components["schemas"]["Money"];
+                    }[];
+                    sourceAccountId?: string;
+                    destinationAccountId?: string;
                 };
             };
         };
@@ -5042,7 +5050,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description SpaceNotFound, TransactionNotFound, CategoryNotFound */
+            /** @description SpaceNotFound, TransactionNotFound, CategoryNotFound, AccountNotFound */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -5051,7 +5059,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory */
+            /** @description SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory, AccountArchived, SameAccountTransfer, GuestHasNoAccounts, MixedFundPayment, FieldNotEditable */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5069,7 +5077,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone */
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, InvalidSplit, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone */
             422: {
                 headers: {
                     [name: string]: unknown;

@@ -41,6 +41,7 @@ export class DrizzleTransactionRepository implements TransactionRepository {
   /** Compare-and-set on version: a concurrent writer that read the same version updates nothing. */
   async save(transaction: Transaction, expectedVersion: number): Promise<boolean> {
     const db = this.tm.executor();
+    const row = transactionRow(transaction);
     const updated = await db
       .update(transactions)
       .set({
@@ -50,6 +51,9 @@ export class DrizzleTransactionRepository implements TransactionRepository {
         timeZone: transaction.timeZone,
         categoryId: transaction.categoryId,
         amount: transaction.amount,
+        // P186: an edit may move an income's or a transfer's accounts; an expense keeps both null (transactions_shape).
+        sourceAccountId: row.sourceAccountId,
+        destinationAccountId: row.destinationAccountId,
         updatedAt: transaction.updatedAt,
         deletedAt: transaction.deletedAt,
         version: expectedVersion + 1,

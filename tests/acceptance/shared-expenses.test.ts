@@ -254,6 +254,47 @@ describe("editing a shared expense (HU-E4-06, D9)", () => {
   });
 });
 
+describe("change who paid an expense (ruling P186)", () => {
+  it("hands the payment to the guest Pedro: Ana's account gets the money back", async () => {
+    const h = await household();
+    const pedro = await addGuest(h, "Pedro");
+    const tx = await recordedBy(
+      h.ana,
+      paidBy(h, h.ana, 300_000, { split: equal(h.ana.memberId, h.juan.memberId) }),
+    );
+    const path = `/api/v1/spaces/${h.spaceId}/transactions/${tx.id}`;
+    const params = { spaceId: h.spaceId, transactionId: tx.id };
+    const response = await call(editTransaction, "PATCH", path, {
+      user: h.ana,
+      params,
+      body: { payments: [{ memberId: pedro, accountId: null, amount: cop(300_000) }] },
+    });
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as TransactionDto).payments).toEqual([
+      { memberId: pedro, accountId: null, amount: cop(300_000) },
+    ]);
+    expect(await balanceOf(h.ana.personal, h.ana.account)).toEqual(cop(2_000_000));
+  });
+
+  it("keeps Ana from paying with Juan's account and an OWNER from moving Juan's expense to their own (D9)", async () => {
+    const h = await household();
+    const juans = await recordedBy(h.juan, paidBy(h, h.juan, 100_000, { split: equal(h.juan.memberId) }));
+    const path = `/api/v1/spaces/${h.spaceId}/transactions/${juans.id}`;
+    const params = { spaceId: h.spaceId, transactionId: juans.id };
+    const asAna = (body: unknown) => call(editTransaction, "PATCH", path, { user: h.ana, params, body });
+    expect(await problemOf(await asAna({ accountId: h.ana.account }))).toEqual([422, "AccountNotOwned"]);
+    expect(
+      await problemOf(
+        await asAna({
+          payments: [{ memberId: h.ana.memberId, accountId: h.juan.account, amount: cop(100_000) }],
+        }),
+      ),
+    ).toEqual([422, "AccountNotOwned"]);
+    expect(await balanceOf(h.juan.personal, h.juan.account)).toEqual(cop(1_900_000));
+    expect(await balanceOf(h.ana.personal, h.ana.account)).toEqual(cop(2_000_000));
+  });
+});
+
 describe("non-equal splits (HU-E4-08)", () => {
   const byAna = (h: Household, pesos: number, split: unknown) => paidBy(h, h.ana, pesos, { split });
 

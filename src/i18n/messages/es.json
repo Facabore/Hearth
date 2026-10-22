@@ -69,6 +69,7 @@
     "DirectSpaceIsFull": "Un espacio entre dos personas no admite a nadie más.",
     "DirectSpaceMembersFixed": "Los miembros de un espacio entre dos personas no cambian. Archívalo si ya no lo usan.",
     "EmailTaken": "Ya existe una cuenta con este correo.",
+    "FieldNotEditable": "Este dato no se puede cambiar en este tipo de movimiento.",
     "GuestAlreadyClaimed": "Este lugar de invitado ya fue reclamado.",
     "GuestHasNoAccounts": "Un invitado no tiene cuentas: quita la cuenta de su pago.",
     "GuestHasNoRole": "Los invitados no tienen rol en el espacio.",

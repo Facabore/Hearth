@@ -1,12 +1,11 @@
 import { getContainer } from "@/composition/container";
 import { defineRoute } from "@/composition/route";
 import {
+  editChangesFromBody,
   EditTransactionBodySchema,
   transactionDto,
-  whenFromBody,
 } from "@/modules/ledger/contracts/ledger.contract";
 import { etagOf, ifMatchVersion } from "@/shared/http";
-import { moneyFromDto } from "@/shared/http/contracts";
 import { ok } from "@/shared/kernel";
 
 export const runtime = "nodejs";
@@ -36,22 +35,14 @@ export const PATCH = defineRoute({
     // Spec section 7: If-Match is checked when present; a stale version is 412.
     const expectedVersion = ifMatchVersion(request);
     if (!expectedVersion.ok) return expectedVersion;
-    const amount = body.amount === undefined ? ok(undefined) : moneyFromDto(body.amount);
-    if (!amount.ok) return amount;
-    // Ruling P66: an explicit null `occurredAt` reaches the use case, which answers TimeRequired.
-    const when = whenFromBody(body);
-    if (!when.ok) return when;
+    const changes = editChangesFromBody(body);
+    if (!changes.ok) return changes;
     const result = await getContainer().ledger.editTransaction({
       spaceId: params.spaceId!,
       userId: user!.id,
       transactionId: params.transactionId!,
       expectedVersion: expectedVersion.value,
-      changes: {
-        description: body.description,
-        ...when.value,
-        categoryId: body.categoryId,
-        amount: amount.value,
-      },
+      changes: changes.value,
     });
     return result.ok
       ? ok({

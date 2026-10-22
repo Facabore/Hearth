@@ -63,6 +63,8 @@ const PUBLIC_DETAILS: ReadonlyMap<string, readonly string[]> = new Map([
   ["NotASpaceMember", ["member"]],
   // HU-E2-06: the term an account type refuses, as the key inside the body's `terms`; the stored key stays private.
   ["AccountAttributeNotAllowed", ["field"]],
+  // Ruling P188: which part of the body the transaction's type keeps.
+  ["FieldNotEditable", ["field"]],
 ]);
 
 /** The details of `code` that are part of the API contract, e.g. the outstanding amount (HU-E1-08). */

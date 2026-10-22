@@ -25,6 +25,7 @@ import {
 } from "@/shared/kernel";
 import type {
   AuditEntry,
+  EditChanges,
   LedgerWarning,
   PaymentInput,
   RecordedExpense,
@@ -405,15 +406,56 @@ export const positionFromCursor = (raw: string): Result<TransactionPosition> => 
     : err(domainError("InvalidCursor"));
 };
 
-export const EditTransactionBodySchema = z.object({
-  description: Description,
-  date: z.iso.date().optional(),
-  /** HU-E4-14: a new instant (any offset); null answers TimeRequired, since a time is never removed. */
-  occurredAt: Instant.nullable().optional(),
-  timeZone: TimeZoneName.optional(),
-  categoryId: IdSchema.optional(),
-  amount: MoneySchema.optional(),
-});
+/**
+ * HU-E4-06, ruling P186: every field optional; an expense takes `accountId` (the requester pays it all from that
+ * account) or `payments`, an income `accountId`, an own transfer `sourceAccountId` and `destinationAccountId`.
+ */
+export const EditTransactionBodySchema = z
+  .object({
+    description: Description,
+    date: z.iso.date().optional(),
+    /** HU-E4-14: a new instant (any offset); null answers TimeRequired, since a time is never removed. */
+    occurredAt: Instant.nullable().optional(),
+    timeZone: TimeZoneName.optional(),
+    categoryId: IdSchema.optional(),
+    amount: MoneySchema.optional(),
+    accountId: IdSchema.optional(),
+    payments: z.array(PaymentBodySchema).max(MAX_PARTS).optional(),
+    sourceAccountId: IdSchema.optional(),
+    destinationAccountId: IdSchema.optional(),
+  })
+  .refine((body) => body.accountId === undefined || body.payments === undefined, {
+    error: "Send accountId or payments, not both",
+    path: ["payments"],
+  });
+
+/** A validated edit body as EditTransaction's changes; fails only for currencies the kernel does not know. */
+export const editChangesFromBody = (body: z.infer<typeof EditTransactionBodySchema>): Result<EditChanges> => {
+  const amount = body.amount === undefined ? ok(undefined) : moneyFromDto(body.amount);
+  if (!amount.ok) return amount;
+  // Ruling P66: an explicit null `occurredAt` reaches the use case, which answers TimeRequired.
+  const when = whenFromBody(body);
+  if (!when.ok) return when;
+  let payments: PaymentInput[] | undefined;
+  if (body.payments !== undefined) {
+    payments = [];
+    for (const payment of body.payments) {
+      const paid = moneyFromDto(payment.amount);
+      if (!paid.ok) return paid;
+      payments.push({ memberId: payment.memberId, accountId: payment.accountId ?? null, amount: paid.value });
+    }
+  }
+  return ok({
+    description: body.description,
+    ...when.value,
+    categoryId: body.categoryId,
+    amount: amount.value,
+    accountId: body.accountId,
+    payments,
+    sourceAccountId: body.sourceAccountId,
+    destinationAccountId: body.destinationAccountId,
+  });
+};
 
 export const AuditEntrySchema = z.object({
   id: z.string(),
@@ -626,7 +668,8 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     },
     patch: {
       operationId: "editTransaction",
-      summary: "Change description, date, time, category or amount; send If-Match with the current ETag",
+      summary:
+        "Change description, date, time, category, amount, accounts or who paid; send If-Match with the current ETag",
       ...securedByUser,
       requestParams: { path: TransactionPath, header: IfMatchHeader },
       requestBody: { content: jsonContent(EditTransactionBodySchema) },
@@ -638,12 +681,12 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
         ...problems({
           "401": "Unauthenticated",
           "403": "InsufficientRole",
-          "404": "SpaceNotFound, TransactionNotFound, CategoryNotFound",
+          "404": "SpaceNotFound, TransactionNotFound, CategoryNotFound, AccountNotFound",
           "409":
-            "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory",
+            "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory, AccountArchived, SameAccountTransfer, GuestHasNoAccounts, MixedFundPayment, FieldNotEditable",
           "412": "PreconditionFailed",
           "422":
-            "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone",
+            "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, InvalidSplit, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone",
         }),
       },
     },

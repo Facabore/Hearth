@@ -69,6 +69,7 @@
     "DirectSpaceIsFull": "A space between two people cannot take anyone else.",
     "DirectSpaceMembersFixed": "The members of a space between two people do not change. Archive it if you no longer use it.",
     "EmailTaken": "An account with this email already exists.",
+    "FieldNotEditable": "This detail cannot be changed for this kind of transaction.",
     "GuestAlreadyClaimed": "This guest place has already been claimed.",
     "GuestHasNoAccounts": "A guest has no accounts: remove the account from their payment.",
     "GuestHasNoRole": "Guests have no role in the space.",

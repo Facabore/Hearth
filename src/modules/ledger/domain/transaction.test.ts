@@ -471,6 +471,71 @@ describe("the audit keeps every payment and share (D8, Task 0b)", () => {
   });
 });
 
+describe("revising accounts and parts (ruling P186, P187)", () => {
+  const salary = () =>
+    unwrap(
+      recordIncome({
+        ...common,
+        amount: 100n,
+        categoryId: "cat-salary",
+        destinationAccountId: "acc-bancolombia",
+        receivingMemberId: "member-ana",
+      }),
+    );
+  const move = () =>
+    unwrap(
+      recordTransfer({ ...common, amount: 100n, sourceAccountId: "acc-a", destinationAccountId: "acc-b" }),
+    );
+
+  it("replaces an expense's payments and shares, which then must add up to the amount", () => {
+    const payments = [{ memberId: null, accountId: "acc-fund", amount: 30_000_000n }];
+    const edited = unwrap(reviseTransaction(shared(), { payments }, later)) as Expense;
+    expect(edited.payments).toEqual(payments);
+    const shares = [{ memberId: "member-ana", amount: 30_000_000n, splitMethod: "EXACT" as const }];
+    expect((unwrap(reviseTransaction(shared(), { shares }, later)) as Expense).shares).toEqual(shares);
+    expect(codeOf(reviseTransaction(shared(), { payments: [{ ...payments[0]!, amount: 1n }] }, later))).toBe(
+      "SharesDoNotMatchAmount",
+    );
+  });
+
+  it("moves an income's account and audits the old and the new one", () => {
+    const before = salary();
+    const after = unwrap(reviseTransaction(before, { destinationAccountId: "acc-nequi" }, later));
+    expect(changesBetween(before, after)).toEqual({
+      destinationAccountId: { from: "acc-bancolombia", to: "acc-nequi" },
+    });
+  });
+
+  it("moves a transfer's accounts, audits both and refuses the same account on both sides", () => {
+    const before = move();
+    const after = unwrap(
+      reviseTransaction(before, { sourceAccountId: "acc-b", destinationAccountId: "acc-a" }, later),
+    );
+    expect(changesBetween(before, after)).toEqual({
+      sourceAccountId: { from: "acc-a", to: "acc-b" },
+      destinationAccountId: { from: "acc-b", to: "acc-a" },
+    });
+    expect(codeOf(reviseTransaction(before, { destinationAccountId: "acc-a" }, later))).toBe(
+      "SameAccountTransfer",
+    );
+    expect(codeOf(reviseTransaction(before, { sourceAccountId: "acc-b" }, later))).toBe(
+      "SameAccountTransfer",
+    );
+  });
+
+  it("lists an income's and a transfer's accounts in a deletion's audit, and none for an expense", () => {
+    expect(deletionChanges(salary())).toMatchObject({
+      destinationAccountId: { from: "acc-bancolombia", to: null },
+    });
+    expect(Object.keys(deletionChanges(salary()))).not.toContain("sourceAccountId");
+    expect(deletionChanges(move())).toMatchObject({
+      sourceAccountId: { from: "acc-a", to: null },
+      destinationAccountId: { from: "acc-b", to: null },
+    });
+    expect(Object.keys(deletionChanges(shared()))).not.toContain("destinationAccountId");
+  });
+});
+
 describe("balance parties (E5 balance rule, Task 4b)", () => {
   it("names the payers and participants of a member-paid expense once each, and both sides of a settlement", () => {
     expect(balanceParties(shared())).toEqual(["member-ana", "member-juan"]);
