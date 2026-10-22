@@ -37,3 +37,7 @@ export type BalanceHistoryDto = Json<
 export type DefaultSplitDto = Json<paths["/api/v1/spaces/{spaceId}/default-split"]["get"]["responses"][200]>;
 export type RecordedExpenseDto = components["schemas"]["RecordedExpense"];
 export type DirectSplitDto = Json<paths["/api/v1/direct-splits"]["post"]["responses"][201]>;
+export type LineDashboardDto = Json<paths["/api/v1/spaces/{spaceId}/reports/lines"]["get"]["responses"][200]>;
+/** The plan a report reads, whatever its status (M4 ruling P33). */
+export type ReportPlanDto = NonNullable<LineDashboardDto["plan"]>;
+export type PlanStatus = ReportPlanDto["status"];

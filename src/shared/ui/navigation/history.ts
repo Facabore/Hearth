@@ -23,8 +23,8 @@ const NONE: Trail = { urls: [], pos: -1 };
 /** The screen a URL is on: its pathname. A query changing on one screen is not a new screen. */
 const screenOf = (url: string): string => url.split("?")[0]!;
 
-/** Inicio, Movimientos and Saldos of a space, or "/". Registrar (`/spaces/:id/new`) is a form with its own Volver. */
-const ROOT = /^\/(?:spaces\/(?!new$)[^/]+(?:\/(?:transactions|balances))?)?$/;
+/** Inicio, Movimientos, Plan and Saldos of a space, or "/". Registrar (`/spaces/:id/new`) is a form with its own Volver. */
+const ROOT = /^\/(?:spaces\/(?!new$)[^/]+(?:\/(?:transactions|plan|balances))?)?$/;
 export const isRootScreen = (url: string): boolean => ROOT.test(screenOf(url));
 
 /** Screens a person passes through to get somewhere (or to join a space), never a screen to go back to. */

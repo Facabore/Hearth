@@ -213,6 +213,7 @@
       "transactions": "Movimientos",
       "record": "Registrar movimiento",
       "recordShort": "Registrar",
+      "plan": "Plan",
       "balances": "Saldos"
     },
     "space": {
@@ -734,5 +735,30 @@
     "title": "Algo salió mal",
     "connectionTitle": "No pudimos conectar con Hearth",
     "connectionBody": "Hearth no respondió. Revisa tu conexión e inténtalo de nuevo."
+  },
+  "budgeting": {
+    "status": {
+      "DRAFT": "Borrador",
+      "ACTIVE": "Activo",
+      "CLOSED": "Cerrado"
+    }
+  },
+  "reports": {
+    "title": "Plan",
+    "tabs": {
+      "label": "Vistas del plan"
+    },
+    "view": {
+      "lines": "Líneas",
+      "members": "Miembros",
+      "fund": "Fondo",
+      "groups": "Por grupo",
+      "trend": "Tendencia",
+      "mine": "Mi consumo"
+    },
+    "frame": {
+      "editPlan": "Editar plan",
+      "viewPlan": "Ver plan"
+    }
   }
 }

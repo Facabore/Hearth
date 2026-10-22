@@ -213,6 +213,7 @@
       "transactions": "Transactions",
       "record": "Record a transaction",
       "recordShort": "Record",
+      "plan": "Plan",
       "balances": "Balances"
     },
     "space": {
@@ -734,5 +735,30 @@
     "title": "Something went wrong",
     "connectionTitle": "We couldn't connect to Hearth",
     "connectionBody": "Hearth did not answer. Check your connection and try again."
+  },
+  "budgeting": {
+    "status": {
+      "DRAFT": "Draft",
+      "ACTIVE": "Active",
+      "CLOSED": "Closed"
+    }
+  },
+  "reports": {
+    "title": "Plan",
+    "tabs": {
+      "label": "Plan views"
+    },
+    "view": {
+      "lines": "Lines",
+      "members": "Members",
+      "fund": "Fund",
+      "groups": "By group",
+      "trend": "Trend",
+      "mine": "My spending"
+    },
+    "frame": {
+      "editPlan": "Edit plan",
+      "viewPlan": "View plan"
+    }
   }
 }
