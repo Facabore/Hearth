@@ -19,10 +19,13 @@ const WIDE_FONT_CSS = '* { font-family: Verdana, "DejaVu Sans", sans-serif !impo
 const MISSING = ["/nope", "/spaces/does-not-exist/accounts"];
 
 /**
- * The dashboard frame links a plan to its planner, which Task 4 of M6c adds: until it lands, the prefetch of that link
- * is a 404. Task 4 removes this tolerance with the page.
+ * The planner links to the capacities screen and the line editor, which Tasks 6 and 7 of M6c add: until they land, the
+ * prefetch of those links is a 404. Those tasks remove this tolerance with their pages.
  */
-const PLANNER_NOT_BUILT_YET = /\/spaces\/[^/]+\/plans\/[^/?]+\?_rsc=/;
+const PLAN_SCREENS_NOT_BUILT_YET = /\/spaces\/[^/]+\/plans\/[^/]+\/(capacities|lines\/[^/?]+)\?_rsc=/;
+
+/** The refusal a test stages on purpose (a plan's close answering 409): the browser logs every failed response. */
+const STAGED_REFUSAL = /\/api\/v1\/spaces\/[^/]+\/plans\/[^/]+\/close$/;
 
 /** Every test fails on a `console.error` or an uncaught page error: nothing may log one on a normal visit. */
 const test = base.extend<{ errors: string[]; wideFont: boolean }>({
@@ -39,7 +42,8 @@ const test = base.extend<{ errors: string[]; wideFont: boolean }>({
         if (message.type() !== "error") return;
         const { url } = message.location();
         if (/ 404 /.test(message.text()) && MISSING.some((path) => url.endsWith(path))) return;
-        if (/ 404 /.test(message.text()) && PLANNER_NOT_BUILT_YET.test(url)) return;
+        if (/ 404 /.test(message.text()) && PLAN_SCREENS_NOT_BUILT_YET.test(url)) return;
+        if (/ 409 /.test(message.text()) && STAGED_REFUSAL.test(url)) return;
         errors.push(`${message.text()} @ ${message.location().url}`);
       });
       page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
@@ -747,35 +751,45 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
   // 57 of the 60 characters the longest name a line takes (budget-line.ts MAX_NAME).
   const LONG_LINE = "Mercado, aseo y gastos del hogar de toda la familia Pérez";
 
-  for (const viewport of [PHONE, SMALL_PHONE]) {
-    test(`the bottom bar fits its tabs and the dashboard keeps long names and big figures on screen at ${viewport.width} px`, async ({
+  /**
+   * A DRAFT plan of the shared space for `period`, whose only line has a very long name and a plan of over a billion
+   * pesos. `copyFrom` makes it a copy of the previous period's plan, as the planner's close action needs to follow.
+   */
+  const seedBigPlan = async (page: Page, sharedId: string, period: string, copyFrom?: "previous") => {
+    const space = `/api/v1/spaces/${sharedId}`;
+    let plan = await post(page, `${space}/plans`, copyFrom ? { period, copyFrom } : { period });
+    const { items: members } = await get(page, `${space}/members`);
+    plan = await put(
       page,
-    }) => {
-      await page.setViewportSize(viewport);
-      const { spaceId, sharedId } = await session(page, `plan-tab-${viewport.width}`);
-      // The shared space gets a plan whose only line has a very long name and a plan of over a billion pesos.
-      const space = `/api/v1/spaces/${sharedId}`;
-      let plan = await post(page, `${space}/plans`, { period: "2026-10" });
-      const { items: members } = await get(page, `${space}/members`);
-      plan = await put(
-        page,
-        `${space}/plans/${plan.id}/capacities`,
-        { capacities: [{ memberId: members[0].id, amount: { amount: "200000000000", currency: "COP" } }] },
-        { "if-match": `"${plan.version}"` },
-      );
+      `${space}/plans/${plan.id}/capacities`,
+      { capacities: [{ memberId: members[0].id, amount: { amount: "200000000000", currency: "COP" } }] },
+      { "if-match": `"${plan.version}"` },
+    );
+    if (!copyFrom)
       plan = await post(
         page,
         `${space}/plans/${plan.id}/lines`,
         { name: LONG_LINE, plannedAmount: { amount: "123456789000", currency: "COP" } },
         { "if-match": `"${plan.version}"` },
       );
+    return plan as { id: string; version: number; lines: { id: string }[] };
+  };
+
+  for (const viewport of [PHONE, SMALL_PHONE]) {
+    test(`the bottom bar fits its tabs and the dashboard keeps long names and big figures on screen at ${viewport.width} px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      const { spaceId, sharedId } = await session(page, `plan-tab-${viewport.width}`);
+      const space = `/api/v1/spaces/${sharedId}`;
+      const plan = await seedBigPlan(page, sharedId, "2026-10");
       // An expense takes that line past its plan, so its row also carries "Excedida" and the overage in words
       // (#142, ruling P244): the row with the most text must still fit.
       const { items: groups } = await get(page, `${space}/categories`);
       const categoryId: string = groups.flatMap((g: { categories: { id: string }[] }) => g.categories)[0].id;
       await put(
         page,
-        `${space}/plans/${plan.id}/lines/${plan.lines[0].id}/categories`,
+        `${space}/plans/${plan.id}/lines/${plan.lines[0]!.id}/categories`,
         { categoryIds: [categoryId] },
         { "if-match": `"${plan.version}"` },
       );
@@ -849,6 +863,103 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       await expect(page.getByText(LONG_LINE)).toBeVisible();
       await expect(page.getByText(es.reports.lines.overspent)).toBeVisible();
       await expect(page.getByText(es.reports.lines.overBy.replace("{amount}", ""))).toBeVisible();
+    });
+  }
+
+  /** Every link and button of the screen's main area is a full target that ends on screen. */
+  const expectFullTargets = async (page: Page, what: string, width: number) => {
+    const controls = page.locator("main").getByRole("link").or(page.locator("main").getByRole("button"));
+    expect.soft(await controls.count(), `${what}: has controls`).toBeGreaterThan(0);
+    for (const control of await controls.all()) {
+      const box = (await control.boundingBox())!;
+      const label = (await control.getAttribute("aria-label")) ?? (await control.textContent())?.trim();
+      expect.soft(box.height, `${what}: height of "${label}"`).toBeGreaterThanOrEqual(TARGET);
+      expect.soft(box.width, `${what}: width of "${label}"`).toBeGreaterThanOrEqual(TARGET);
+      expect.soft(box.x + box.width, `${what}: "${label}" stays on screen`).toBeLessThanOrEqual(width);
+    }
+  };
+
+  for (const viewport of [PHONE, SMALL_PHONE]) {
+    test(`the planner keeps a long line and big figures on screen, its last action above the bottom bar, and has a way back at ${viewport.width} px (HU-E9-08)`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      const { sharedId } = await session(page, `planner-${viewport.width}`);
+      const plan = await seedBigPlan(page, sharedId, "2026-10");
+      await page.goto(`/spaces/${sharedId}/plans/${plan.id}`);
+      await settle(page);
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Plan de octubre 2026/i);
+      await expect(page.getByText(LONG_LINE)).toBeVisible();
+      const { overflow, message } = await overflowReport(page, "the planner");
+      expect.soft(overflow, message).toBeLessThanOrEqual(0);
+      await expectFullTargets(page, "the planner", viewport.width);
+
+      // Activate is the last control: scrolled to the end of the page it sits above the bottom navigation.
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      const activate = (await page
+        .getByRole("button", { name: es.budgeting.planner.activate })
+        .boundingBox())!;
+      const nav = (await page.getByRole("navigation", { name: es.shell.nav.main }).boundingBox())!;
+      expect(activate.y + activate.height, "Activar plan ends above the bottom bar").toBeLessThanOrEqual(
+        nav.y,
+      );
+
+      // The way back is the shared header's link to the dashboard of the plan's period.
+      const back = page.getByRole("link", { name: es.common.back, exact: true });
+      await expect(back).toHaveAttribute("href", `/spaces/${sharedId}/plan?period=2026-10`);
+      const box = (await back.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(TARGET);
+      expect(box.height).toBeGreaterThanOrEqual(TARGET);
+      await back.click();
+      await expect(page).toHaveURL(new RegExp(`/spaces/${sharedId}/plan\\?period=2026-10$`));
+      await expect(page.getByText(LONG_LINE)).toBeVisible();
+    });
+
+    test(`closing a plan whose source plan is still open names the period and links to it at ${viewport.width} px (ruling P248)`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      const { sharedId } = await session(page, `planner-source-${viewport.width}`);
+      const space = `/api/v1/spaces/${sharedId}`;
+      const august = await seedBigPlan(page, sharedId, "2026-08");
+      const september = await seedBigPlan(page, sharedId, "2026-09", "previous");
+      await post(
+        page,
+        `${space}/plans/${september.id}/activate`,
+        {},
+        { "if-match": `"${september.version}"` },
+      );
+      // The server side of the refusal lands with Task 1e: this answers what it will answer.
+      await page.route("**/api/v1/spaces/*/plans/*/close", (route) =>
+        route.fulfill({
+          status: 409,
+          contentType: "application/problem+json",
+          body: JSON.stringify({
+            type: "urn:hearth:problem:SourcePlanOpen",
+            title: "",
+            status: 409,
+            code: "SourcePlanOpen",
+            requestId: "req-e2e",
+            sourcePeriod: "2026-08",
+          }),
+        }),
+      );
+      await page.goto(`/spaces/${sharedId}/plans/${september.id}`);
+      await settle(page);
+      await page.getByRole("button", { name: es.budgeting.planner.close }).click();
+      const alert = page.locator("main").getByRole("alert");
+      await expect(alert).toContainText(es.errors.SourcePlanOpen.replace("{period}", "2026-08"));
+      const { overflow, message } = await overflowReport(page, "the refusal");
+      expect.soft(overflow, message).toBeLessThanOrEqual(0);
+      await expectFullTargets(page, "the refusal", viewport.width);
+
+      const source = alert.getByRole("link", {
+        name: es.budgeting.planner.goToSource.replace("{period}", "2026-08"),
+      });
+      await expect(source).toHaveAttribute("href", `/spaces/${sharedId}/plans/${august.id}`);
+      await source.click();
+      await expect(page).toHaveURL(new RegExp(`/spaces/${sharedId}/plans/${august.id}$`));
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Plan de agosto 2026/i);
     });
   }
 });

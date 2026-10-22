@@ -766,6 +766,49 @@
       "DRAFT": "Borrador",
       "ACTIVE": "Activo",
       "CLOSED": "Cerrado"
+    },
+    "planner": {
+      "metaTitle": "Planeador",
+      "title": "Plan de {period}",
+      "dates": "{space} · {start} – {end}",
+      "closedNotice": "Plan cerrado: queda en solo lectura.",
+      "capacity": "Capacidad total",
+      "unallocated": "Sin asignar {amount}",
+      "memberShare": "{name} {amount} · {share}",
+      "memberAmount": "{name} {amount}",
+      "editCapacities": "Editar capacidades",
+      "lines": "Líneas",
+      "addLine": "Agregar línea",
+      "empty": "Este plan aún no tiene líneas.",
+      "meta": "{funding} · {rule} · {rollover}",
+      "ofCapacity": "{share} de la capacidad",
+      "invalidAllocation": "Asignación inválida",
+      "editLine": "Editar {name}",
+      "activate": "Activar plan",
+      "activateHint": "En borrador el plan no cambia la división de los gastos. Al activarlo, «Según el plan» pasa a ser la división por defecto.",
+      "close": "Cerrar plan",
+      "closeHint": "Se puede cerrar cuando termine el período, desde el {date}.",
+      "invalidLines": "No se puede activar: revisa la asignación de {lines}.",
+      "goToSource": "Ir al plan de {period}"
+    },
+    "funding": {
+      "DIRECT": "Directo",
+      "SHARED_FUND": "Fondo compartido",
+      "SAVINGS": "Ahorro"
+    },
+    "rule": {
+      "PROPORTIONAL": "Según capacidad",
+      "PERCENT": "Porcentaje",
+      "FIXED": "Monto fijo",
+      "NONE": "Sin asignar"
+    },
+    "rollover": {
+      "RESET": "Reinicia",
+      "ROLLOVER": "Acumula",
+      "ADJUSTED": "Ajusta"
+    },
+    "line": {
+      "catchAll": "Todo lo demás"
     }
   },
   "reports": {

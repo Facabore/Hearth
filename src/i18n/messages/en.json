@@ -766,6 +766,49 @@
       "DRAFT": "Draft",
       "ACTIVE": "Active",
       "CLOSED": "Closed"
+    },
+    "planner": {
+      "metaTitle": "Planner",
+      "title": "Plan for {period}",
+      "dates": "{space} · {start} – {end}",
+      "closedNotice": "Closed plan: it is read-only now.",
+      "capacity": "Total capacity",
+      "unallocated": "Unallocated {amount}",
+      "memberShare": "{name} {amount} · {share}",
+      "memberAmount": "{name} {amount}",
+      "editCapacities": "Edit capacities",
+      "lines": "Lines",
+      "addLine": "Add line",
+      "empty": "This plan has no lines yet.",
+      "meta": "{funding} · {rule} · {rollover}",
+      "ofCapacity": "{share} of capacity",
+      "invalidAllocation": "Invalid allocation",
+      "editLine": "Edit {name}",
+      "activate": "Activate plan",
+      "activateHint": "While in draft, the plan does not change how expenses are split. Once active, “By the plan” becomes the default split.",
+      "close": "Close plan",
+      "closeHint": "It can be closed once the period is over, from {date}.",
+      "invalidLines": "It cannot be activated: check the allocation of {lines}.",
+      "goToSource": "Go to the plan for {period}"
+    },
+    "funding": {
+      "DIRECT": "Direct",
+      "SHARED_FUND": "Shared fund",
+      "SAVINGS": "Savings"
+    },
+    "rule": {
+      "PROPORTIONAL": "By capacity",
+      "PERCENT": "Percentage",
+      "FIXED": "Fixed amount",
+      "NONE": "Not allocated"
+    },
+    "rollover": {
+      "RESET": "Resets",
+      "ROLLOVER": "Rolls over",
+      "ADJUSTED": "Adjusts"
+    },
+    "line": {
+      "catchAll": "Everything else"
     }
   },
   "reports": {

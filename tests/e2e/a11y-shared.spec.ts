@@ -118,6 +118,7 @@ const seedHousehold = async (page: Page, requests: APIRequest, tag: string) => {
     household: household.id as string,
     personal,
     ana,
+    plan: plan.id as string,
     token: tokenOf(pending),
     claim: tokenOf(claim),
     fund: overspent.warnings[0].accountId as string,
@@ -148,6 +149,8 @@ for (const colorScheme of ["light", "dark"] as const) {
         `${h}/balances`,
         // HU-E9-10: the Plan tab of the household, with an overspent line, a line within its plan and Unbudgeted.
         `${h}/plan`,
+        // HU-E9-08: the planner of that DRAFT plan, with its lines and the Activate action.
+        `${h}/plans/${ids.plan}`,
         `${h}/members/${ids.ana}/history`,
         `${h}/transactions?notice=FundBalanceNegative&account=${ids.fund}`,
       ]) {
@@ -159,6 +162,9 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect(page.getByText(es.budgeting.status.DRAFT)).toBeVisible();
       await expect(page.getByText(es.reports.lines.overspent)).toBeVisible();
       await expect(page.getByText(es.reports.lines.overBy.replace("{amount}", ""))).toBeVisible();
+      await page.goto(`${h}/plans/${ids.plan}`);
+      await expect(page.getByRole("button", { name: es.budgeting.planner.activate })).toBeVisible();
+      await expect(page.getByRole("listitem", { name: "Mercado" })).toBeVisible();
       // U1: a shared space with no funds explains them instead of asking for a first account.
       const bare = await post(page, "/api/v1/spaces", { kind: "SHARED", name: "Vacía", currency: "COP" });
       for (const path of [`/spaces/${bare.id}`, `/spaces/${bare.id}/accounts`]) {
