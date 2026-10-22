@@ -3,6 +3,13 @@ import { fundContributions, type FundContribution } from "../domain/fund-contrib
 import type { MemberSumsDeps } from "./member-sums";
 import { reportPlanOf, spaceReport, type ReportPlan, type SpaceReportInput } from "./space-report";
 
+/** Ruling P201 (M6c): Σ over the listed members, so the Fund screen's summary is the API's. */
+export interface FundTotals {
+  readonly expected: bigint;
+  readonly actual: bigint;
+  readonly difference: bigint;
+}
+
 export interface FundContributionReport {
   readonly spaceId: string;
   readonly currency: string;
@@ -10,6 +17,7 @@ export interface FundContributionReport {
   readonly plan: ReportPlan | null;
   /** Every current member in join order (ruling P7). */
   readonly members: readonly FundContribution[];
+  readonly totals: FundTotals;
 }
 
 export type GetFundContributions = (input: SpaceReportInput) => Promise<Result<FundContributionReport>>;
@@ -29,15 +37,23 @@ export const createGetFundContributions =
       .filter((f) => f.line.funding === "SHARED_FUND")
       .map((f) => ({ members: f.allocation.members }));
     const actual = await deps.sums.fundContributionsByMember(space.spaceId, period.start, period.end);
+    const rows = fundContributions(
+      members.map((m) => m.id),
+      fundLines,
+      actual,
+    );
+    const sum = (pick: (row: FundContribution) => bigint) =>
+      rows.reduce((total, row) => total + pick(row), 0n);
     return ok({
       spaceId: space.spaceId,
       currency: space.currency,
       period,
       plan: reportPlanOf(view),
-      members: fundContributions(
-        members.map((m) => m.id),
-        fundLines,
-        actual,
-      ),
+      members: rows,
+      totals: {
+        expected: sum((r) => r.expected),
+        actual: sum((r) => r.actual),
+        difference: sum((r) => r.difference),
+      },
     });
   };

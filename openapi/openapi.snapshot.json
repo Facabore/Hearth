@@ -9728,6 +9728,27 @@
                         }
                       ],
                       "description": "What no line consumes, every expense when the period has no plan; null when the plan has a catch-all line."
+                    },
+                    "totals": {
+                      "type": "object",
+                      "properties": {
+                        "planned": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "spent": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "available": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        }
+                      },
+                      "required": [
+                        "planned",
+                        "spent",
+                        "available"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Σ of the lines' figures plus Unbudgeted's spent and available; planned counts the lines only."
                     }
                   },
                   "required": [
@@ -9735,7 +9756,8 @@
                     "period",
                     "plan",
                     "lines",
-                    "unbudgeted"
+                    "unbudgeted",
+                    "totals"
                   ],
                   "additionalProperties": false
                 }
@@ -10134,13 +10156,35 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "totals": {
+                      "type": "object",
+                      "properties": {
+                        "expected": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "actual": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "difference": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        }
+                      },
+                      "required": [
+                        "expected",
+                        "actual",
+                        "difference"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Σ over the listed members of expected, actual and difference."
                     }
                   },
                   "required": [
                     "spaceId",
                     "period",
                     "plan",
-                    "members"
+                    "members",
+                    "totals"
                   ],
                   "additionalProperties": false
                 }

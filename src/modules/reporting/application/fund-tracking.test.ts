@@ -30,6 +30,20 @@ describe("fund contribution tracking (HU-E7-03)", () => {
     ]);
   });
 
+  it("answers the totals of expected, actual and difference over the listed members (ruling P201 of M6c)", async () => {
+    const w = reportingWorld({ members: BUDGET_MEMBERS.slice(0, 2) });
+    await w.plan("2026-11", { capacities, lines: referenceLines() });
+    w.sums.contributions["2026-11-01"] = [
+      { memberId: "member-ana", amount: pesos(480_000) },
+      { memberId: "member-juan", amount: pesos(500_000) },
+    ];
+    expect(unwrap(await read(w, "2026-11")).totals).toEqual({
+      expected: pesos(1_200_000),
+      actual: pesos(980_000),
+      difference: -pesos(220_000),
+    });
+  });
+
   it("expects nothing from anyone when the plan has no SHARED_FUND line, and counts what they paid in", async () => {
     const w = reportingWorld({ members: BUDGET_MEMBERS.slice(0, 2) });
     await w.plan("2026-12", { capacities, lines: [aLine("Home", pesos(1_470_000))] });

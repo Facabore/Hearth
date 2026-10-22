@@ -61,7 +61,7 @@ Feature: Line dashboard
 - Query: `GetLineDashboard(spaceId, period)`; SQL aggregates grouped by line via the category mapping.
 - Endpoint: `GET /api/v1/spaces/{spaceId}/reports/lines?period=<label>`; each line carries `planned`, `spent`, `available` and `overspent`, and the response carries `plan: null` when the period has no plan.
 - Reads each plan's figures, carry-over included, through budgeting's `loadPlanView` (M4 ruling P32), so the dashboard shows exactly what `GET …/plans/{planId}` derives. Charts and the "create or copy a plan" prompt are web UI (HU-E9-10).
-- `GET …/reports/lines?period=<label>` is `space.read` (every role; archived spaces read, HU-E1-09). The period is the stored period with that label, else the policy's period (D10); the plan is the one whose stored period it is, whatever its status (M4 ruling P33). Each line carries `planned`, `spent`, `carryOver`, `available` and `overspent` (available < 0), exactly as `GET …/plans/{planId}` derives them; `unbudgeted` (`spent`, `available` = −spent, `overspent`) holds what no line consumes and is null when the plan has a catch-all line (ruling P34). Without a plan, `plan` is null, `lines` is empty and every expense is under `unbudgeted`. Pending occurrences are not reported as "expected" (ruling P34). Errors: `SpaceNotFound` (404), `ValidationFailed` and `InvalidPeriodLabel` (422).
+- `GET …/reports/lines?period=<label>` is `space.read` (every role; archived spaces read, HU-E1-09). The period is the stored period with that label, else the policy's period (D10); the plan is the one whose stored period it is, whatever its status (M4 ruling P33). Each line carries `planned`, `spent`, `carryOver`, `available` and `overspent` (available < 0), exactly as `GET …/plans/{planId}` derives them; `unbudgeted` (`spent`, `available` = −spent, `overspent`) holds what no line consumes and is null when the plan has a catch-all line (ruling P34). `totals` answers Σ `planned` of the lines, and Σ `spent` and Σ `available` of the lines plus Unbudgeted (M6c ruling P201). Without a plan, `plan` is null, `lines` is empty and every expense is under `unbudgeted`. Pending occurrences are not reported as "expected" (ruling P34). Errors: `SpaceNotFound` (404), `ValidationFailed` and `InvalidPeriodLabel` (422).
 
 ---
 
@@ -152,6 +152,7 @@ Feature: Fund contribution tracking
 - Query: `GetFundContributions(spaceId, period)`. Endpoint: `GET /api/v1/spaces/{spaceId}/reports/fund-contributions?period=<label>`.
 - expectedFundContribution(m) = Σ assigned(m) over SHARED_FUND lines; actualFundContribution(m) = Σ fund-contribution transfers by m in the period.
 - `GET …/reports/fund-contributions?period=<label>` is `space.read` and finds the period and its plan like HU-E7-01 (M4 ruling P33). It lists every current member in join order (ruling P7) with `expected` (Σ assigned over the plan's SHARED_FUND lines; a NONE line or an invalid allocation assigns nothing; 0 without a plan), `actual` (Σ the member's live fund contributions recorded in the space and dated in the period, from outside the app included) and `difference` = actual − expected (ruling P36). Errors: `SpaceNotFound` (404), `ValidationFailed` and `InvalidPeriodLabel` (422).
+- `totals` answers Σ `expected`, `actual` and `difference` over the listed members (M6c ruling P201).
 
 ---
 

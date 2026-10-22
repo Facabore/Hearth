@@ -7011,6 +7011,12 @@ export interface operations {
                             available: components["schemas"]["MoneyOutput"];
                             overspent: boolean;
                         } | null;
+                        /** @description Σ of the lines' figures plus Unbudgeted's spent and available; planned counts the lines only. */
+                        totals: {
+                            planned: components["schemas"]["MoneyOutput"];
+                            spent: components["schemas"]["MoneyOutput"];
+                            available: components["schemas"]["MoneyOutput"];
+                        };
                     };
                 };
             };
@@ -7160,6 +7166,12 @@ export interface operations {
                             actual: components["schemas"]["MoneyOutput"];
                             difference: components["schemas"]["MoneyOutput"];
                         }[];
+                        /** @description Σ over the listed members of expected, actual and difference. */
+                        totals: {
+                            expected: components["schemas"]["MoneyOutput"];
+                            actual: components["schemas"]["MoneyOutput"];
+                            difference: components["schemas"]["MoneyOutput"];
+                        };
                     };
                 };
             };

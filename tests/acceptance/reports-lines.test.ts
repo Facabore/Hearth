@@ -47,6 +47,11 @@ describe("line dashboard over HTTP (HU-E7-01)", () => {
       ["Free", cop(730_000), cop(250_000), cop(480_000), false],
     ]);
     expect(dashboard.unbudgeted).toEqual({ spent: cop(60_000), available: cop(-60_000), overspent: true });
+    expect(dashboard.totals).toEqual({
+      planned: cop(4_000_000),
+      spent: cop(2_810_000),
+      available: cop(1_190_000),
+    });
   });
 
   it("shows each line's figures exactly as the plan view does, carry-over included (P32)", async () => {
@@ -84,6 +89,7 @@ describe("line dashboard over HTTP (HU-E7-01)", () => {
     const dashboard = await dashboardOf(r.h.ana, r.h.spaceId, "2027-01");
     expect(dashboard).toMatchObject({ plan: null, lines: [], period: { label: "2027-01" } });
     expect(dashboard.unbudgeted).toEqual({ spent: cop(100_000), available: cop(-100_000), overspent: true });
+    expect(dashboard.totals).toEqual({ planned: cop(0), spent: cop(100_000), available: cop(-100_000) });
   });
 
   it("lets VIEWER Sofi read it and hides the space from non-members and malformed ids", async () => {

@@ -44,6 +44,11 @@ describe("fund contribution tracking over HTTP (HU-E7-03)", () => {
       [h.ana.memberId, cop(480_000), cop(480_000), cop(0)],
       [h.juan.memberId, cop(720_000), cop(500_000), cop(-220_000)],
     ]);
+    expect((await fundTrackingOf(h.ana, h.spaceId, "2026-11")).totals).toEqual({
+      expected: cop(1_200_000),
+      actual: cop(980_000),
+      difference: cop(-220_000),
+    });
   });
 
   it("expects what the matrix assigns on the plan's SHARED_FUND lines", async () => {

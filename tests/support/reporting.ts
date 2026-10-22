@@ -52,6 +52,7 @@ export interface LineDashboardDto {
   plan: ReportPlanDto | null;
   lines: DashboardLineDto[];
   unbudgeted: { spent: MoneyDto; available: MoneyDto; overspent: boolean } | null;
+  totals: { planned: MoneyDto; spent: MoneyDto; available: MoneyDto };
 }
 
 /** GETs `path` with `query` in its search string as `user`; `params` are the route's path parameters. */
@@ -150,6 +151,7 @@ export interface FundContributionsDto {
   period: ReportPeriodDto;
   plan: ReportPlanDto | null;
   members: { memberId: string; expected: MoneyDto; actual: MoneyDto; difference: MoneyDto }[];
+  totals: { expected: MoneyDto; actual: MoneyDto; difference: MoneyDto };
 }
 
 /** HU-E7-03: `user` reads the fund contribution tracking of `spaceId`. */

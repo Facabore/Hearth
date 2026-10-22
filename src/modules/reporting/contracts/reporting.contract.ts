@@ -71,6 +71,11 @@ export const LineDashboardSchema = z.object({
     .describe(
       "What no line consumes, every expense when the period has no plan; null when the plan has a catch-all line.",
     ),
+  totals: z
+    .object({ planned: MoneySchema, spent: MoneySchema, available: MoneySchema })
+    .describe(
+      "Σ of the lines' figures plus Unbudgeted's spent and available; planned counts the lines only.",
+    ),
 });
 
 const unbudgetedDto = (unbudgeted: UnbudgetedSpending | null, currency: string) =>
@@ -98,6 +103,11 @@ export const lineDashboardDto = (dashboard: LineDashboard): z.infer<typeof LineD
     overspent: line.overspent,
   })),
   unbudgeted: unbudgetedDto(dashboard.unbudgeted, dashboard.currency),
+  totals: {
+    planned: moneyOf(dashboard.totals.planned, dashboard.currency),
+    spent: moneyOf(dashboard.totals.spent, dashboard.currency),
+    available: moneyOf(dashboard.totals.available, dashboard.currency),
+  },
 });
 
 /** HU-E7-02: every line of the period's plan with every current member's figures (spec 5.4, ruling P35). */
@@ -181,6 +191,9 @@ export const FundContributionsSchema = z.object({
       difference: MoneySchema,
     }),
   ),
+  totals: z
+    .object({ expected: MoneySchema, actual: MoneySchema, difference: MoneySchema })
+    .describe("Σ over the listed members of expected, actual and difference."),
 });
 
 export const fundContributionsDto = (
@@ -195,6 +208,11 @@ export const fundContributionsDto = (
     actual: moneyOf(m.actual, report.currency),
     difference: moneyOf(m.difference, report.currency),
   })),
+  totals: {
+    expected: moneyOf(report.totals.expected, report.currency),
+    actual: moneyOf(report.totals.actual, report.currency),
+    difference: moneyOf(report.totals.difference, report.currency),
+  },
 });
 
 /** HU-E7-04: the caller's consumption and cash out in their personal period (spec 5.4, D11, ruling P37). */

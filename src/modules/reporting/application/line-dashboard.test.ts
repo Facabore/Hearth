@@ -59,6 +59,27 @@ describe("line dashboard (HU-E7-01)", () => {
     });
   });
 
+  it("answers the totals the summary card shows: lines plus Unbudgeted (ruling P201 of M6c)", async () => {
+    const w = reportingWorld();
+    await w.plan("2026-11", referenceParts());
+    w.spending.expenses[NOVEMBER] = novemberSpending();
+    expect(unwrap(await read(w)).totals).toEqual({
+      planned: pesos(4_000_000),
+      spent: pesos(2_810_000),
+      available: pesos(1_190_000),
+    });
+  });
+
+  it("totals a period without a plan from its Unbudgeted spending alone", async () => {
+    const w = reportingWorld();
+    w.spending.expenses["2027-01-01"] = [{ categoryId: "cat-groceries", amount: pesos(100_000) }];
+    expect(unwrap(await read(w, "u-ana", "2027-01")).totals).toEqual({
+      planned: 0n,
+      spent: pesos(100_000),
+      available: -pesos(100_000),
+    });
+  });
+
   it("counts an expense on a subcategory of Groceries on Home's line, as the plan does (D20)", async () => {
     const w = reportingWorld();
     await w.plan("2026-11", referenceParts());
@@ -152,6 +173,12 @@ describe("line dashboard (HU-E7-01)", () => {
     w.spending.expenses[NOVEMBER] = novemberSpending();
     const dashboard = unwrap(await read(w));
     expect(dashboard.unbudgeted).toBeNull();
+    // The catch-all line consumes Restaurants, so the totals are the lines' alone.
+    expect(dashboard.totals).toEqual({
+      planned: pesos(4_000_000),
+      spent: pesos(2_810_000),
+      available: pesos(1_190_000),
+    });
     expect(dashboard.lines.find((l) => l.name === "Free")).toMatchObject({
       isCatchAll: true,
       spent: pesos(310_000),
