@@ -1,5 +1,6 @@
 import type { Clock, TransactionManager } from "@/shared/kernel";
 import type { SpaceAccess } from "./space-access";
+import type { SpaceLocks } from "./space-locks";
 import type { MemberLifecycleRepository, SpaceMemberRepository } from "./space-member-repository";
 
 /**
@@ -11,6 +12,8 @@ export type MemberNetBalance = (spaceId: string, memberId: string) => Promise<bi
 /** Leaving, removing guests and archiving (HU-E1-08, HU-E1-09, HU-E1-12) need members, balances and time. */
 export interface LifecycleDeps {
   readonly access: SpaceAccess;
+  /** Issue #89: the space row is locked before the balance check, so no money write interleaves with it. */
+  readonly spaceLocks: Pick<SpaceLocks, "lockForLifecycle">;
   readonly members: Pick<SpaceMemberRepository, "listCurrent"> & MemberLifecycleRepository;
   readonly netBalance: MemberNetBalance;
   readonly clock: Clock;

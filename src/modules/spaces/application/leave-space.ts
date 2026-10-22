@@ -19,6 +19,9 @@ export const createLeaveSpace =
       const { spaceId, memberId, spaceKind, currency } = member.value;
       const changeable = ensureMembersCanChange({ kind: spaceKind });
       if (!changeable.ok) return changeable;
+      // Issue #89: first lock of the transaction, so a money write naming the leaver either finished (and the balance
+      // read below includes it) or waits for this leave and then finds the member gone.
+      await deps.spaceLocks.lockForLifecycle(spaceId);
       // Locked like role changes, so two owners leaving at once never leave the space without an OWNER.
       const leaver = leavingMember(await deps.members.listCurrent(spaceId, { lock: true }), memberId);
       if (!leaver.ok) return leaver;

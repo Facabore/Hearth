@@ -277,6 +277,14 @@ These plans predate the P numbering. Their decisions are numbered lists in the S
 | [M2-B shared expenses](../superpowers/plans/2026-10-13-m2b-shared-expenses.md) | "Spec contradictions found" (10) and "Assumptions" (13). |
 | [M2-C member lifecycle](../superpowers/plans/2026-10-14-m2c-member-lifecycle.md) | "Spec contradictions found" (14) and "Assumptions" (14); assumption 4 is the controller ruling O2, and assumption 13 amends D8 (owner directive of 2026-10-14). |
 
+### Amendments to M2-C rulings
+
+A follow-up issue changed what M2-C accepted. It carries no P number: it amends a ruling that has none.
+
+| Amends | Change | Where |
+|---|---|---|
+| O2 (no lock against concurrent money writes, assumption 4) | Issue #89 adds the lock. Leaving, removing a guest and archiving lock the space row `FOR NO KEY UPDATE` right after authorization, and every money write locks it `FOR SHARE` before it reads the membership (the order is always space row first, then member rows), so each race ends as one of its two serial orders. The space row, not the member rows, because `FOR UPDATE` on member rows conflicts with the `FOR KEY SHARE` locks the foreign keys of every insert take. | [HU-E1-08](../backlog/E1-identity-and-spaces.md), `src/modules/spaces/application/space-locks.ts` |
+
 ## How to add a decision
 
 - **A design-level decision** (it changes how the product behaves or how the model works) goes into the spec's decisions table in section 6 as the next `D` number, with its rationale and the alternatives rejected. Add its row to the table above.

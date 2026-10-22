@@ -28,6 +28,7 @@ export {
   type UpdateSpaceSettings,
 } from "./update-space-settings";
 export type { AddMemberOutcome, SpaceMemberRepository } from "./space-member-repository";
+export type { SpaceLocks } from "./space-locks";
 export {
   createCreateSpace,
   type CreateSpace,

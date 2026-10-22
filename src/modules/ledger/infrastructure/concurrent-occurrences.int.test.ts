@@ -49,6 +49,7 @@ type Scope = Parameters<typeof deps>[0];
 const ledgerDeps = (): LedgerDeps => ({
   access: createSpaceAccess(spaces),
   members: spaces,
+  spaceLocks: spaces,
   transactions: new DrizzleTransactionRepository(tm),
   query: new DrizzleLedgerQueries(tm),
   audit: new DrizzleAuditLog(tm),

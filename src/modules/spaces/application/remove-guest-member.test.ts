@@ -48,6 +48,7 @@ const setup = (
   const deps: RemoveGuestDeps = {
     access: createSpaceAccess(store),
     members: store,
+    spaceLocks: store,
     invitations,
     netBalance: nets(byMember),
     clock: new FixedClock(now),
@@ -67,6 +68,12 @@ describe("RemoveGuestMember (HU-E1-12)", () => {
       "member-sofi",
     ]);
     expect(store.left).toEqual([{ spaceId: space, memberId: "member-pedro", leftAt: now }]);
+  });
+
+  it("locks the space for a lifecycle change before it reads the guest's balance (issue #89)", async () => {
+    const { store, remove } = setup();
+    unwrap(await remove({ ...as("luis"), memberId: "member-pedro" }));
+    expect(store.locks.lifecycle).toEqual([space]);
   });
 
   it("refuses removing Pedro while he owes Ana 100,000 COP, stating the amount (Review Focus 1)", async () => {

@@ -377,6 +377,7 @@ Feature: Leave a space
 - Former members cannot be selected as payer or participant on new transactions.
 - A direct space (D16) keeps its two members: leaving it, removing its guest or changing a role in it answers `DirectSpaceMembersFixed` (409); a direct space is retired by archiving it (HU-E1-09).
 - The net balance includes debts with guests, who count like any other member; guests never leave themselves but are removed by a member (HU-E1-12).
+- Issue #89: leaving, removing a guest (HU-E1-12) and archiving (HU-E1-09) lock the space row `FOR NO KEY UPDATE` before they read a balance, and every money write (expense, income, transfer, settlement, fund contribution, edit, delete, recurrence occurrence) locks it `FOR SHARE` before it reads the membership, so a member who left is refused (`NotASpaceMember`) and one with money recorded meanwhile cannot leave (`OutstandingBalance`): the outcome is always one of the two serial orders.
 
 ---
 

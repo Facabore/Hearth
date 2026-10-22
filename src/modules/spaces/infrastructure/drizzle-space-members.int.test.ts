@@ -4,6 +4,7 @@ import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-tr
 import { FixedClock, ok } from "@/shared/kernel";
 import { testDatabase } from "../../../../tests/support/database";
 import { personalSpaceFixture, sharedSpaceFixture, userFixture } from "../../../../tests/support/fixtures";
+import { heldBy, holder } from "../../../../tests/support/locks";
 import { InMemorySpaceStore } from "../../../../tests/support/in-memory-spaces";
 import { createChangeMemberRole } from "../application/change-member-role";
 import { createLeaveSpace } from "../application/leave-space";
@@ -256,6 +257,68 @@ const rendezvous = (parties: number, ms: number) => {
   };
 };
 
+describe("the space locks (issue #89)", () => {
+  it("ignores an id that is not a UUID, like every reader of an id from a URL", async () => {
+    const outcome = await tm.run(async () => {
+      await repo.lockForMoneyWrite("not-a-uuid");
+      await repo.lockForLifecycle("not-a-uuid");
+      return ok("no cast error");
+    });
+    expect(outcome).toEqual({ ok: true, value: "no cast error" });
+  });
+
+  it("lets money writes of one space hold the lock together, and keeps a lifecycle change waiting for them", async () => {
+    const space = await household(await newUser("Ana"));
+    const first = holder(tm, pool);
+    const writing = tm.run(async () => {
+      await repo.lockForMoneyWrite(space.id);
+      await first.hold();
+      return ok("first write");
+    });
+    await heldBy(first, writing);
+    // A second write is not kept out by the first one: it gets the lock and finishes while the first still holds it.
+    const second = await tm.run(async () => {
+      await repo.lockForMoneyWrite(space.id);
+      return ok("second write");
+    });
+    expect(second).toEqual({ ok: true, value: "second write" });
+    // A lifecycle change queues behind it, which is what releases the first one.
+    const changing = tm
+      .run(async () => {
+        await repo.lockForLifecycle(space.id);
+        return ok("lifecycle");
+      })
+      .finally(first.release);
+    expect(await Promise.all([writing, changing])).toEqual([
+      { ok: true, value: "first write" },
+      { ok: true, value: "lifecycle" },
+    ]);
+  });
+
+  it("lets an insert that names the space proceed while a lifecycle change holds it (FOR KEY SHARE does not conflict)", async () => {
+    const space = await household(await newUser("Ana"));
+    const changing = holder(tm, pool);
+    let committed = false;
+    const holding = tm
+      .run(async () => {
+        await repo.lockForLifecycle(space.id);
+        await changing.hold();
+        return ok("lifecycle");
+      })
+      .finally(() => {
+        committed = true;
+      });
+    await heldBy(changing, holding);
+    // Adding a member inserts a row that references the space: its foreign-key check must not wait for the lock.
+    const added = await repo.addMember(space.id, guest("Pedro"));
+    // The change was still holding the lock when the insert finished: a blocked insert would have let it go first.
+    expect(committed).toBe(false);
+    changing.release();
+    expect(added).toBe("added");
+    expect(await holding).toEqual({ ok: true, value: "lifecycle" });
+  });
+});
+
 describe("concurrent leaving (Review Focus 5)", () => {
   it("keeps exactly one OWNER when two owners leave at the same time", async () => {
     const ana = await newUser("Ana");
@@ -265,6 +328,8 @@ describe("concurrent leaving (Review Focus 5)", () => {
     const leave = createLeaveSpace({
       access: createSpaceAccess(repo),
       members: repo,
+      // Not the space lock: this test pins the member-row lock that role changes (which take no space lock) also use.
+      spaceLocks: { lockForLifecycle: async () => undefined },
       netBalance: rendezvous(2, 2_000),
       clock: new FixedClock(new Date("2026-10-14T12:00:00Z")),
       tm,

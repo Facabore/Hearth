@@ -31,6 +31,9 @@ export const createArchiveSpace =
       const { spaceId, spaceKind, currency } = owner.value;
       const archivable = ensureArchivable({ kind: spaceKind });
       if (!archivable.ok) return archivable;
+      // Issue #89: first lock of the transaction: money writes already inside finish before the nets are read, and
+      // later ones find the space archived.
+      await deps.spaceLocks.lockForLifecycle(spaceId);
       const current = await deps.members.listCurrent(spaceId);
       const nets = await deps.netBalances(
         spaceId,

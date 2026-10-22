@@ -7,6 +7,7 @@ import type {
   ClaimOutcome,
   SpaceMemberRepository,
 } from "../application/space-member-repository";
+import type { SpaceLocks } from "../application/space-locks";
 import type { SpaceRepository, SpaceSummary } from "../application/space-repository";
 import type { MemberPlace, MemberPlaceRepository } from "../application/member-places";
 import type {
@@ -52,7 +53,12 @@ const spaceRow = (space: Space): typeof spaces.$inferInsert => ({
 });
 
 export class DrizzleSpaceRepository
-  implements SpaceRepository, SpaceSettingsRepository, SpaceMemberRepository, MemberPlaceRepository
+  implements
+    SpaceRepository,
+    SpaceSettingsRepository,
+    SpaceMemberRepository,
+    MemberPlaceRepository,
+    SpaceLocks
 {
   constructor(private readonly tm: DrizzleTransactionManager) {}
 
@@ -151,6 +157,29 @@ export class DrizzleSpaceRepository
       userId,
       archived: archivedAt !== null,
     };
+  }
+
+  /** Issue #89: FOR SHARE conflicts with FOR NO KEY UPDATE and with nothing the foreign-key checks of inserts take. */
+  async lockForMoneyWrite(spaceId: string): Promise<void> {
+    // Ids come from URLs; anything that is not a UUID would fail the uuid cast.
+    if (!isUuid(spaceId)) return;
+    await this.tm
+      .executor()
+      .select({ id: spaces.id })
+      .from(spaces)
+      .where(eq(spaces.id, spaceId))
+      .for("share");
+  }
+
+  /** Issue #89: not FOR UPDATE, which would also wait for the FOR KEY SHARE locks of every insert that names the space. */
+  async lockForLifecycle(spaceId: string): Promise<void> {
+    if (!isUuid(spaceId)) return;
+    await this.tm
+      .executor()
+      .select({ id: spaces.id })
+      .from(spaces)
+      .where(eq(spaces.id, spaceId))
+      .for("no key update");
   }
 
   async updateSettings(spaceId: SpaceId, settings: SpaceSettings): Promise<void> {

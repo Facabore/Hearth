@@ -52,6 +52,8 @@ export const createEditTransaction =
   (deps: LedgerDeps): EditTransaction =>
   (input) =>
     deps.tm.run(async () => {
+      // Issue #89: the space row first (see authorizeWriter), before anything the write decides on is read.
+      await deps.spaceLocks.lockForMoneyWrite(input.spaceId);
       const membership = await deps.access(input.spaceId, input.userId);
       if (!membership.ok) return membership;
       const current = await deps.transactions.findById(membership.value.spaceId, input.transactionId);

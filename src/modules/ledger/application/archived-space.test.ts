@@ -44,6 +44,7 @@ const world = (where: "ana" | "household", archived: boolean) => {
     recordByKey: createRecordExpenseByCategoryKey(
       {
         access: deps.access,
+        spaceLocks: deps.spaceLocks,
         categoryKeys: { findByKey: async () => ({ id: CATEGORIES.groceries.id, archived: false }) },
       },
       createRecordExpense(deps),

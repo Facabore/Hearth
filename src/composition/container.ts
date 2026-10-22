@@ -442,6 +442,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   };
   const ledgerDeps: LedgerDeps = {
     access,
+    // Issue #89: money writes hold the space row FOR SHARE; leaving, removing and archiving hold it FOR NO KEY UPDATE.
+    spaceLocks: spaceRepository,
     transactions: new DrizzleTransactionRepository(tm),
     // HU-E4-07: payers and participants are current members of the space, in join order.
     members: spaceRepository,
@@ -509,6 +511,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   const recordExpenseByCategoryKey = createRecordExpenseByCategoryKey(
     {
       access,
+      spaceLocks: spaceRepository,
       categoryKeys: {
         findByKey: async (spaceId, key) => {
           const category = (await categoriesDeps.categories.listCategories(spaceId)).find(
@@ -534,6 +537,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   // HU-E5-01 GetMemberNetBalance: spaces reads balances through a port, since balances imports spaces.
   const lifecycleDeps: LifecycleDeps = {
     access,
+    spaceLocks: spaceRepository,
     members: spaceRepository,
     netBalance: createGetMemberNetBalance(ledgerQueries),
     clock,

@@ -14,6 +14,7 @@ import {
   type Space,
   type SpaceId,
   type SpaceKind,
+  type SpaceLocks,
   type SpaceMember,
   type SpaceMemberId,
   type SpaceMemberRepository,
@@ -29,8 +30,26 @@ import { directPairKey } from "@/modules/spaces/domain/direct-space";
 import type { Clock } from "@/shared/kernel";
 import { memoryTm, sequentialIds } from "./fakes";
 
+/** Issue #89: records which spaces were locked, in order, for money writes and for lifecycle changes. */
+export class RecordingSpaceLocks implements SpaceLocks {
+  readonly money: string[] = [];
+  readonly lifecycle: string[] = [];
+
+  async lockForMoneyWrite(spaceId: string) {
+    this.money.push(spaceId);
+  }
+
+  async lockForLifecycle(spaceId: string) {
+    this.lifecycle.push(spaceId);
+  }
+}
+
 /** Spaces with their current members; implements every spaces port the use cases need. */
-export class InMemorySpaceStore implements SpaceRepository, SpaceSettingsRepository, SpaceMemberRepository {
+export class InMemorySpaceStore
+  implements SpaceRepository, SpaceSettingsRepository, SpaceMemberRepository, SpaceLocks
+{
+  /** Issue #89: the space locks the use cases took, in order. */
+  readonly locks = new RecordingSpaceLocks();
   spaces: Space[] = [];
   /** Ids of archived spaces (HU-E1-09); PostgreSQL stores archived_at on the space. */
   readonly archived = new Set<string>();
@@ -45,6 +64,14 @@ export class InMemorySpaceStore implements SpaceRepository, SpaceSettingsReposit
 
   async add(space: Space) {
     this.spaces.push(space);
+  }
+
+  async lockForMoneyWrite(spaceId: string) {
+    await this.locks.lockForMoneyWrite(spaceId);
+  }
+
+  async lockForLifecycle(spaceId: string) {
+    await this.locks.lockForLifecycle(spaceId);
   }
 
   async hasPersonalSpace(userId: string) {

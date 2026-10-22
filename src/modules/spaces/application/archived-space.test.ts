@@ -38,6 +38,7 @@ const world = async (archived: boolean) => {
   const lifecycle: LifecycleDeps = {
     access: deps.access,
     members: store,
+    spaceLocks: store,
     netBalance: async () => 0n,
     clock,
     tm: memoryTm,
