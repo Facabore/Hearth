@@ -59,6 +59,47 @@ const enterMarket = async () => {
   await userEvent.click(screen.getByRole("radio", { name: "Groceries" }));
 };
 
+describe("the account picker can create an account and come back (N7)", () => {
+  it("links to New account with a returnTo back to this form, with the type being recorded", async () => {
+    const { api } = fakeApi({});
+    form(api);
+    await userEvent.click(screen.getByRole("button", { name: /Cuenta/ }));
+    expect(screen.getByRole("link", { name: "Nueva cuenta" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/accounts/new?returnTo=%2Fspaces%2Fsp-personal%2Fnew",
+    );
+  });
+
+  it("keeps the type in the way back: a transfer returns to the transfer form", async () => {
+    const { api } = fakeApi({});
+    form(api, "TRANSFER");
+    await userEvent.click(screen.getByRole("button", { name: /Desde/ }));
+    expect(screen.getByRole("link", { name: "Nueva cuenta" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/accounts/new?returnTo=%2Fspaces%2Fsp-personal%2Fnew%3Ftype%3Dtransfer",
+    );
+  });
+
+  it("explains it when the person has no accounts yet", async () => {
+    const { api } = fakeApi({});
+    renderWithIntl(
+      <RecordForm
+        space={spaceDto()}
+        accounts={[]}
+        groups={groups}
+        formats={BUILT_IN_FORMATS}
+        initialKind="EXPENSE"
+        initialNow="2026-11-01T04:30:00.000Z"
+        timeZone="America/Bogota"
+        api={api}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Cuenta/ }));
+    expect(screen.getByText("No hay cuentas para elegir. Crea una nueva.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Nueva cuenta" })).toBeInTheDocument();
+  });
+});
+
 describe("record form (HU-E9-03)", () => {
   it("records a personal expense now, in the browser's zone, with one idempotency key", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });

@@ -31,13 +31,26 @@ export const isOpenPath = (pathname: string): boolean =>
 const bends = (c: string) => c === "\\" || c.charCodeAt(0) < 0x20 || c.charCodeAt(0) === 0x7f;
 
 /**
+ * Whether the path lands on the API (`/api`, `/api/…`): raw JSON, not a screen. The path is normalised the way a
+ * browser follows it (dot segments, percent escapes), so `/x/../api/v1/me` and `/%61pi/v1/me` are caught too.
+ */
+const reachesApi = (value: string): boolean => {
+  try {
+    const path = decodeURIComponent(new URL(value, "http://hearth.invalid").pathname);
+    return path === "/api" || path.startsWith("/api/");
+  } catch {
+    return true;
+  }
+};
+
+/**
  * The `returnTo` of a flow (creating an account, a space): the screen it started from. The rules of ruling P125: a
  * same-origin path only (one leading "/", never "//", no backslash, no control character) and not a public screen. An
  * invalid value is `null`, so the flow keeps its own default.
  */
 export const safeReturnTo = (value: string | null | undefined): string | null =>
   value && value.startsWith("/") && !value.startsWith("//") && ![...value].some(bends)
-    ? isPublic(value.split("?")[0] ?? "")
+    ? isPublic(value.split("?")[0] ?? "") || reachesApi(value)
       ? null
       : value
     : null;
@@ -50,8 +63,19 @@ export const withReturnTo = (href: string, origin: string | null | undefined): s
     : `${href}${href.includes("?") ? "&" : "?"}returnTo=${encodeURIComponent(valid)}`;
 };
 
-/** Ruling P125: only a same-origin path is honoured as `next`; anything else, or a public screen, lands on "/". */
+/**
+ * Ruling P125: only a same-origin path is honoured as `next`; anything else, a public screen or the API lands on "/".
+ */
 export const safeNext = (next: string | null | undefined): string => safeReturnTo(next) ?? "/";
+
+/**
+ * Where a signed-in person goes from `/sign-in?next=…` (or sign-up): the `next` of the path and query the proxy
+ * recorded, made safe, or the home. The layout that redirects them reads no search params, only that record.
+ */
+export const nextFromPath = (pathAndQuery: string | null | undefined): string => {
+  const query = (pathAndQuery ?? "").split("?")[1] ?? "";
+  return safeNext(new URLSearchParams(query).get("next"));
+};
 
 /**
  * The proxy's optimistic check (a cookie, not a session lookup): a protected path without a session cookie goes to the

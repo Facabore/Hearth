@@ -92,6 +92,20 @@ describe("sign-up screen (HU-E9-01)", () => {
     expect(router.replace).not.toHaveBeenCalled();
   });
 
+  it("keeps next and the invitation in the sign-in link of the email-taken error (N5)", async () => {
+    const { api } = fakeApi({ "POST /api/v1/auth/sign-up": () => problemResponse(409, "EmailTaken") });
+    renderWithIntl(<SignUpFormContainer next="/invitations/tok-1" invitation="tok-1" api={api} />);
+    await fill();
+    await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
+    const email = screen.getByLabelText("Correo electrónico");
+    await waitFor(() => expect(email).toHaveAttribute("aria-invalid", "true"));
+    const emailError = document.getElementById(email.getAttribute("aria-describedby")!)!;
+    expect(within(emailError).getByRole("link", { name: "Inicia sesión" })).toHaveAttribute(
+      "href",
+      "/sign-in?next=%2Finvitations%2Ftok-1&invitation=tok-1",
+    );
+  });
+
   it("shows a too-short password next to the password field", async () => {
     const { api } = fakeApi({ "POST /api/v1/auth/sign-up": () => problemResponse(422, "PasswordTooShort") });
     renderWithIntl(<SignUpFormContainer api={api} />);
@@ -172,8 +186,23 @@ describe("sign-up screen (HU-E9-01)", () => {
     expect(await screen.findByRole("heading", { name: "El registro está cerrado" })).toBeInTheDocument();
     expect(screen.getByText("Pídele una invitación a alguien de tu hogar.")).toBeInTheDocument();
     expect(screen.queryByLabelText("Nombre")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Inicia sesión" })).toHaveAttribute("href", "/sign-in");
+    expect(screen.getByRole("link", { name: "Inicia sesión" })).toHaveAttribute(
+      "href",
+      "/sign-in?invitation=stale",
+    );
     expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it("keeps where the visitor was going and the invitation in the closed notice's sign-in link (N5)", async () => {
+    const { api } = fakeApi({ "POST /api/v1/auth/sign-up": () => problemResponse(403, "SignUpClosed") });
+    renderWithIntl(<SignUpFormContainer next="/invitations/stale" invitation="stale" api={api} />);
+    await fill();
+    await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
+    expect(await screen.findByRole("heading", { name: "El registro está cerrado" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Inicia sesión" })).toHaveAttribute(
+      "href",
+      "/sign-in?next=%2Finvitations%2Fstale&invitation=stale",
+    );
   });
 
   it("gives the sign-in link a 44 px target (S3)", () => {
@@ -199,5 +228,13 @@ describe("sign-up closed notice (ruling P147)", () => {
     expect(screen.getByRole("heading", { name: "Sign-up is closed" })).toBeInTheDocument();
     expect(screen.getByText("Ask someone in your household for an invitation.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Sign in" })).toBeInTheDocument();
+  });
+
+  it("links to the sign-in href it is given (N5)", () => {
+    renderWithIntl(<SignUpClosedNotice signInHref="/sign-in?next=%2Fsettings" />);
+    expect(screen.getByRole("link", { name: "Inicia sesión" })).toHaveAttribute(
+      "href",
+      "/sign-in?next=%2Fsettings",
+    );
   });
 });

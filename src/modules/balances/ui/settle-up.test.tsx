@@ -17,7 +17,7 @@ import type { Api } from "@/shared/ui/api/client";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { BalancesScreen } from "./balances-screen";
 
-const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn() }));
+const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 beforeEach(() => {
   vi.clearAllMocks();
@@ -288,6 +288,29 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
     screenAs("u-ana", fakeApi({}).api, "m-pedro");
     expect(within(payerGroup()).getByRole("radio", { name: "Pedro (invitado)" })).toBeChecked();
     expect(within(dialog()).getByLabelText("Monto")).toHaveValue("");
+  });
+
+  it("takes ?settle= out of the address, replacing the entry, once the payment is saved (N8)", async () => {
+    const { api } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
+    screenAs("u-ana", api, "m-luis");
+    await userEvent.click(save());
+    await waitFor(() => expect(router.refresh).toHaveBeenCalled());
+    expect(router.replace).toHaveBeenCalledWith(`/spaces/${TRIP.id}/balances`);
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it("takes ?settle= out of the address when the sheet is closed without saving, so a reload does not reopen it (N8)", async () => {
+    screenAs("u-ana", fakeApi({}).api, "m-luis");
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(router.replace).toHaveBeenCalledWith(`/spaces/${TRIP.id}/balances`);
+  });
+
+  it("leaves the address alone when the sheet was opened by a button, not by ?settle= (N8)", async () => {
+    screenAs("u-ana", fakeApi({}).api);
+    await userEvent.click(screen.getByRole("button", { name: LUIS_PAYS }));
+    await userEvent.keyboard("{Escape}");
+    expect(router.replace).not.toHaveBeenCalled();
   });
 
   it("ignores a ?settle= that is not a current member", () => {

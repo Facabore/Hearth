@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { controlsFor, memberLabel } from "@/modules/spaces/ui";
-import { Avatar, Button } from "@/shared/ui";
+import { Avatar, Button, SymbolIcon } from "@/shared/ui";
 import type { Api } from "@/shared/ui/api/client";
 import type { AccountDto, BalancesDto, MemberDto, SpaceDto, SuggestionDto } from "@/shared/ui/api/dto";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
@@ -48,7 +49,9 @@ export function BalancesScreen({
   readonly api?: Api;
 }) {
   const t = useTranslations("balances");
+  const router = useRouter();
   const tMembers = useTranslations("members");
+  const tHome = useTranslations("home");
   const names = new Map(members.map((member) => [member.id, member.displayName]));
   const netOf = (memberId: string) =>
     balances.find((balance) => balance.memberId === memberId)?.net ?? {
@@ -79,9 +82,19 @@ export function BalancesScreen({
     <div className="flex flex-col gap-5 pb-4">
       <h1 className="sr-only">{t("title")}</h1>
       <section aria-label={t("yours", { space: space.name })} className="flex flex-col gap-1.5 pt-1">
-        <span className="text-[15px] text-muted [overflow-wrap:anywhere]">
-          {t("yours", { space: space.name })}
-        </span>
+        <div className="flex items-start justify-between gap-3">
+          <span className="min-w-0 pt-3 text-[15px] text-muted [overflow-wrap:anywhere]">
+            {t("yours", { space: space.name })}
+          </span>
+          {/* N10: the members are one tap from the balances, not only in the profile sheet. */}
+          <Link
+            href={`/spaces/${space.id}/members`}
+            className="flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-line bg-surface px-4 text-sm font-semibold text-ink"
+          >
+            <SymbolIcon name="users" size={18} />
+            {tHome("members")}
+          </Link>
+        </div>
         <span
           className={`text-4xl font-semibold tabular-nums ${state === "owes" ? "text-owe" : state === "owed" ? "text-accent" : "text-ink"}`}
         >
@@ -178,7 +191,13 @@ export function BalancesScreen({
       {canSettle && settling ? (
         <SettleUpSheet
           open
-          onOpenChange={(open) => (open ? undefined : setSettling(null))}
+          onOpenChange={(open) => {
+            if (open) return;
+            setSettling(null);
+            // N8: `?settle=` only opened the sheet. Once it closes (saved or not) the address drops it by replacing the
+            // entry, so a reload does not reopen the sheet and Back does not return to it.
+            if (settle) router.replace(`/spaces/${space.id}/balances`);
+          }}
           space={space}
           members={members}
           meUserId={meUserId}

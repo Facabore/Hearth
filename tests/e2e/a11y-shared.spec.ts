@@ -110,6 +110,10 @@ for (const colorScheme of ["light", "dark"] as const) {
 
       for (const path of [
         "/spaces/new",
+        // N3 and N10: the shell of the shared space around Settings and New space, and the home with its members links.
+        `/spaces/new?from=${ids.household}`,
+        `/settings?from=${ids.household}`,
+        h,
         `${h}/members`,
         `${h}/balances`,
         `${h}/members/${ids.ana}/history`,

@@ -6,7 +6,7 @@ import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { BalancesScreen } from "./balances-screen";
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }) }));
 
 const ANA = memberDto();
 const JUAN = memberDto({ id: "m-juan", userId: "u-juan", displayName: "Juan", role: "MEMBER" });
@@ -104,6 +104,14 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
     const name = "W".repeat(80);
     view({ space: householdSpace({ name, role: "MEMBER" }) });
     expect(screen.getByText(`Tu saldo en ${name}`)).toHaveClass("[overflow-wrap:anywhere]");
+  });
+
+  it("links to the members from its header area, with a full target (N10)", () => {
+    view();
+    const link = screen.getByRole("link", { name: "Miembros" });
+    expect(link).toHaveAttribute("href", "/spaces/sp-household/members");
+    expect(link).toHaveClass("min-h-11");
+    expect(screen.getByRole("heading", { name: "Cada miembro" })).toBeInTheDocument();
   });
 
   it("is a bottom-navigation destination, so it has no back link", () => {

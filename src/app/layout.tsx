@@ -4,7 +4,8 @@ import { getLocale } from "next-intl/server";
 import type { ReactNode } from "react";
 import { NavigationTracker } from "@/shared/ui/navigation/navigation-tracker";
 import { THEME_BOOTSTRAP } from "@/shared/ui/theme/theme";
-import "./globals.css";
+import { ThemeSync } from "@/shared/ui/theme/theme-sync";
+import "./(web)/globals.css";
 
 export const metadata: Metadata = { title: { default: "Hearth", template: "%s · Hearth" } };
 export const viewport: Viewport = {
@@ -16,7 +17,10 @@ export const viewport: Viewport = {
   ],
 };
 
-/** The web UI's root (route group `(web)`; the API routes have no layout). */
+/**
+ * The web UI's root. It sits at the top of `app` so that a root `not-found` (N1) renders inside it, in the person's
+ * language and theme; the API routes are route handlers and never render a layout.
+ */
 export default async function WebLayout({ children }: { readonly children: ReactNode }) {
   const locale = await getLocale();
   return (
@@ -28,6 +32,7 @@ export default async function WebLayout({ children }: { readonly children: React
       <body className="min-h-dvh antialiased">
         <NextIntlClientProvider>{children}</NextIntlClientProvider>
         <NavigationTracker />
+        <ThemeSync />
       </body>
     </html>
   );

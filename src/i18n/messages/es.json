@@ -36,7 +36,8 @@
       "FRIDAY": "V",
       "SATURDAY": "S",
       "SUNDAY": "D"
-    }
+    },
+    "toStart": "Ir al inicio"
   },
   "errors": {
     "AccountArchived": "Esta cuenta está archivada. Restáurala para registrar movimientos en ella.",
@@ -228,8 +229,7 @@
       "signOut": "Cerrar sesión",
       "members": "Miembros e invitaciones",
       "membersHint": "Invita personas, agrega invitados y cambia roles"
-    },
-    "notFound": "Esta página no existe o ya no está disponible."
+    }
   },
   "home": {
     "title": "Inicio",
@@ -248,7 +248,9 @@
     "recent": "Recientes",
     "recentEmpty": "Aún no hay movimientos. Registra el primero con +.",
     "allTransactions": "Ver todos los movimientos",
-    "allTransactionsShort": "Ver todo"
+    "allTransactionsShort": "Ver todo",
+    "members": "Miembros",
+    "invite": "Invitar"
   },
   "settings": {
     "title": "Ajustes",
@@ -367,7 +369,10 @@
       "explain": "Su historial se conserva y deja de recibir movimientos nuevos. Puedes restaurarla cuando quieras.",
       "confirm": "Archivar"
     },
-    "restore": "Restaurar {name}"
+    "restore": "Restaurar {name}",
+    "picker": {
+      "empty": "No hay cuentas para elegir. Crea una nueva."
+    }
   },
   "categories": {
     "picker": {
@@ -686,5 +691,14 @@
       "note": "Un solo uso. Después de crear la cuenta vuelves aquí.",
       "accept": "Reclamar mi lugar en {space}"
     }
+  },
+  "notFound": {
+    "title": "Esta página no existe",
+    "body": "Puede que el enlace esté mal escrito o que la página ya no esté disponible."
+  },
+  "errorScreen": {
+    "title": "Algo salió mal",
+    "connectionTitle": "No pudimos conectar con Hearth",
+    "connectionBody": "Hearth no respondió. Revisa tu conexión e inténtalo de nuevo."
   }
 }

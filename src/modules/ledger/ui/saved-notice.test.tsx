@@ -1,12 +1,34 @@
 import { screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import type { ReactNode } from "react";
+import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
 import { cop, normalized } from "../../../../tests/support/ui/dto";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { SavedNotice } from "./saved-notice";
 
+// Next's Link does not render its `replace` prop: a stand-in makes it visible to the test.
+vi.mock("next/link", () => ({
+  default: ({ replace, children, ...props }: { replace?: boolean; children: ReactNode }) => (
+    <a data-replace={replace ? "true" : "false"} {...props}>
+      {children}
+    </a>
+  ),
+}));
+
 describe("saved with a warning (HU-E9-06, ruling P170)", () => {
+  it("dismisses by replacing the entry, so Back does not return to the notice (N8)", () => {
+    renderWithIntl(
+      <SavedNotice
+        accountName="Fondo Hogar"
+        balance={cop(-500_000)}
+        formats={BUILT_IN_FORMATS}
+        dismissHref="/spaces/sp-household/transactions"
+      />,
+    );
+    expect(screen.getByRole("link", { name: "Cerrar aviso" })).toHaveAttribute("data-replace", "true");
+  });
+
   it("says the expense was saved and the fund's balance is now -500,000 COP", async () => {
     const { container } = renderWithIntl(
       <SavedNotice

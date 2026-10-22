@@ -8,7 +8,9 @@ import { LOCALE_COOKIE, resolveLocale } from "./locale";
 /** HU-E9-02, ruling P120: no locale in the URL; the signed-in user's stored locale wins. */
 export default getRequestConfig(async () => {
   const [cookieStore, headerStore] = await Promise.all([cookies(), headers()]);
-  const me = hasSession(cookieStore) ? await getMe() : null;
+  // N2: a failing profile read must not take the whole page down, the error screens included: the visitor's
+  // language (cookie, Accept-Language) applies until the API answers again.
+  const me = hasSession(cookieStore) ? await getMe().catch(() => null) : null;
   const locale = resolveLocale({
     userLocale: me?.locale,
     cookieLocale: cookieStore.get(LOCALE_COOKIE)?.value,

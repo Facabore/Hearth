@@ -1,4 +1,5 @@
 import { expect, type Page } from "@playwright/test";
+import { BASE_URL } from "../support/base-url";
 import { Given, Then, When } from "../support/fixtures";
 import type { World } from "../support/world";
 
@@ -162,7 +163,7 @@ Then("the members screen of {string} is shown", async ({ page, world }, space: s
 
 Then("the home page of {string} is shown", async ({ page, world }, space: string) => {
   await expect(page).toHaveURL(new RegExp(`/spaces/${world.spaces.get(space)}$`));
-  expect(new URL(page.url()).origin).toBe("http://127.0.0.1:3100");
+  expect(new URL(page.url()).origin).toBe(BASE_URL);
 });
 
 When(

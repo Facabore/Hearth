@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from "vitest";
-import { readTheme, resolveTheme, saveTheme, THEME_BOOTSTRAP, THEME_KEY } from "./theme";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { applyStoredTheme, readTheme, resolveTheme, saveTheme, THEME_BOOTSTRAP, THEME_KEY } from "./theme";
 
 describe("theme (HU-E9-13, ruling P135)", () => {
   beforeEach(() => {
@@ -34,5 +34,36 @@ describe("theme (HU-E9-13, ruling P135)", () => {
     delete document.documentElement.dataset.theme;
     new Function(THEME_BOOTSTRAP)();
     expect(document.documentElement.dataset.theme).toBe("dark");
+  });
+
+  describe("applyStoredTheme (a page whose head script never ran)", () => {
+    const prefers = (dark: boolean) =>
+      vi.stubGlobal("matchMedia", () => ({
+        matches: dark,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }));
+    afterEach(() => vi.unstubAllGlobals());
+
+    it("applies the stored choice, whatever the system prefers", () => {
+      prefers(false);
+      localStorage.setItem(THEME_KEY, "dark");
+      applyStoredTheme();
+      expect(document.documentElement.dataset.theme).toBe("dark");
+      prefers(true);
+      localStorage.setItem(THEME_KEY, "light");
+      applyStoredTheme();
+      expect(document.documentElement.dataset.theme).toBe("light");
+    });
+
+    it("follows the system when nothing is stored or the choice is Sistema", () => {
+      prefers(true);
+      applyStoredTheme();
+      expect(document.documentElement.dataset.theme).toBe("dark");
+      prefers(false);
+      localStorage.setItem(THEME_KEY, "system");
+      applyStoredTheme();
+      expect(document.documentElement.dataset.theme).toBe("light");
+    });
   });
 });

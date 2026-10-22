@@ -15,6 +15,9 @@ const TARGET = 44;
 
 const WIDE_FONT_CSS = '* { font-family: Verdana, "DejaVu Sans", sans-serif !important; }';
 
+/** The addresses the tests open on purpose to see the not-found page: the browser logs their 404 (N1). */
+const MISSING = ["/nope", "/spaces/does-not-exist/accounts"];
+
 /** Every test fails on a `console.error` or an uncaught page error: nothing may log one on a normal visit. */
 const test = base.extend<{ errors: string[]; wideFont: boolean }>({
   /**
@@ -28,6 +31,8 @@ const test = base.extend<{ errors: string[]; wideFont: boolean }>({
       const errors: string[] = [];
       page.on("console", (message) => {
         if (message.type() !== "error") return;
+        const { url } = message.location();
+        if (/ 404 /.test(message.text()) && MISSING.some((path) => url.endsWith(path))) return;
         errors.push(`${message.text()} @ ${message.location().url}`);
       });
       page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
@@ -542,6 +547,12 @@ for (const wideFont of [false, true]) {
           warned,
           "/spaces/new",
           "/settings",
+          // N3: Settings and New space opened from a shared space wear its shell.
+          `/settings?from=${sharedId}`,
+          `/spaces/new?from=${sharedId}`,
+          // N1: the app's own not-found page, for an address and for a space.
+          "/nope",
+          "/spaces/does-not-exist/accounts",
         ])
           await check(path);
       });
@@ -1140,5 +1151,106 @@ test.describe("every screen below the navigation has a way back (UX: no dead end
     await page.waitForURL("**/spaces/new?from=*");
     await back(page).click();
     await page.waitForURL(`**/spaces/${sharedId}`);
+  });
+});
+
+test.describe("the app's own not-found page (N1)", () => {
+  for (const scheme of ["light", "dark"] as const) {
+    test.describe(`in ${scheme} mode`, () => {
+      test.use({ colorScheme: scheme });
+
+      for (const [what, path] of [
+        ["an address that matches no page", "/nope"],
+        ["a space that does not exist", "/spaces/does-not-exist/accounts"],
+      ] as const) {
+        test(`${what}: the way out is a full target, the page wears the theme and the way out leads home`, async ({
+          page,
+        }) => {
+          const { spaceId } = await session(page, `notfound-${scheme}-${what.length}`);
+          const response = await page.goto(path);
+          expect(response?.status()).toBe(404);
+          await settle(page);
+          await expect(page.getByRole("heading", { level: 1, name: es.notFound.title })).toBeVisible();
+          // The theme reached the page, including the one Next renders on the client after a layout's notFound().
+          await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
+          const background = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+          expect(background).toBe(scheme === "dark" ? "rgb(18, 22, 20)" : "rgb(246, 244, 239)");
+          const out = page.getByRole("link", { name: es.common.toStart });
+          const box = (await out.boundingBox())!;
+          expect(box.width).toBeGreaterThanOrEqual(TARGET);
+          expect(box.height).toBeGreaterThanOrEqual(TARGET);
+          await out.click();
+          await page.waitForURL(new RegExp(`/spaces/${spaceId}$`));
+        });
+      }
+    });
+  }
+});
+
+test.describe("Settings and New space keep the space they were opened from (N3)", () => {
+  test("the header names it, the navigation points to it and Inicio stays in it", async ({ page }) => {
+    const { spaceId, sharedId } = await session(page, "shell-from");
+    const nav = page.getByRole("navigation", { name: es.shell.nav.main });
+    for (const path of [`/settings?from=${sharedId}`, `/spaces/new?from=${sharedId}`]) {
+      await page.goto(path);
+      await settle(page);
+      await expect(
+        page.getByRole("button", { name: es.shell.space.current.replace("{name}", "Casa") }),
+        path,
+      ).toBeVisible();
+      await expect(nav.getByRole("link", { name: es.shell.nav.home, exact: true }), path).toHaveAttribute(
+        "href",
+        `/spaces/${sharedId}`,
+      );
+      await expect(nav.getByRole("link", { name: es.shell.nav.balances }), `${path}: Saldos`).toBeVisible();
+    }
+    // A space that is not hers, or none, keeps the personal shell.
+    for (const path of ["/settings", "/settings?from=00000000-0000-0000-0000-000000000000"]) {
+      await page.goto(path);
+      await expect(
+        page.getByRole("button", { name: es.shell.space.current.replace("{name}", "Personal") }),
+        path,
+      ).toBeVisible();
+      await expect(nav.getByRole("link", { name: es.shell.nav.home, exact: true }), path).toHaveAttribute(
+        "href",
+        `/spaces/${spaceId}`,
+      );
+    }
+  });
+});
+
+test.describe("the members entry of a shared space is findable (N10)", () => {
+  test("the home and Saldos lead to the members with full targets", async ({ page }) => {
+    const { sharedId } = await session(page, "members-entry");
+    for (const [path, names] of [
+      [`/spaces/${sharedId}`, [es.home.members, es.home.invite]],
+      [`/spaces/${sharedId}/balances`, [es.home.members]],
+    ] as const) {
+      await page.goto(path);
+      await settle(page);
+      for (const name of names) {
+        const link = page.getByRole("link", { name, exact: true });
+        await expect(link, `${path}: ${name}`).toBeVisible();
+        const box = (await link.boundingBox())!;
+        expect.soft(box.height, `${path}: height of ${name}`).toBeGreaterThanOrEqual(TARGET);
+        expect.soft(box.x + box.width, `${path}: ${name} stays on screen`).toBeLessThanOrEqual(PHONE.width);
+      }
+      await page.getByRole("link", { name: es.home.members, exact: true }).click();
+      await page.waitForURL(`**/spaces/${sharedId}/members`);
+    }
+  });
+});
+
+test.describe("query-only changes replace the entry (N8)", () => {
+  test("dismissing the saved notice leaves the history as long as it was", async ({ page }) => {
+    const { sharedId } = await session(page, "notice-replace");
+    const warned = await warnedList(page, sharedId);
+    await page.goto(warned);
+    await settle(page);
+    const before = await page.evaluate(() => window.history.length);
+    await page.getByRole("link", { name: es.ledger.saved.dismiss }).click();
+    await page.waitForURL(`**/spaces/${sharedId}/transactions`);
+    expect(await page.evaluate(() => window.history.length)).toBe(before);
+    await expect(page.getByRole("status")).toHaveCount(0);
   });
 });

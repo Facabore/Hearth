@@ -49,6 +49,9 @@ for (const colorScheme of ["light", "dark"] as const) {
         `/spaces/${spaceId}/accounts/new`,
         `/spaces/${spaceId}/new`,
         "/settings",
+        // N1: the app's own not-found page, for an address and for a space.
+        "/nope",
+        "/spaces/does-not-exist/accounts",
       ]) {
         await page.goto(path);
         await scan(path);

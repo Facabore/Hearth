@@ -26,7 +26,7 @@ import { loadTransactionList, TransactionListContainer } from "./transaction-lis
 
 // The container reads the person and the client from server.ts; the filters navigate with the router.
 const mocks = vi.hoisted(() => ({
-  router: { push: vi.fn(), refresh: vi.fn() },
+  router: { push: vi.fn(), replace: vi.fn(), refresh: vi.fn() },
   getMe: vi.fn(),
   getSpaces: vi.fn(),
   serverApi: vi.fn(),
@@ -184,7 +184,7 @@ describe("the period and the category filter (HU-E9-03, ruling P130)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Categoría" }));
     const sheet = screen.getByRole("dialog", { name: "Filtrar por categoría" });
     await userEvent.click(within(sheet).getByRole("radio", { name: "Restaurants" }));
-    expect(mocks.router.push).toHaveBeenLastCalledWith(
+    expect(mocks.router.replace).toHaveBeenLastCalledWith(
       "/spaces/sp-personal/transactions?period=2026-10&category=c-dining",
     );
   });
@@ -196,7 +196,7 @@ describe("the period and the category filter (HU-E9-03, ruling P130)", () => {
     await userEvent.click(within(sheet).getByRole("radio", { name: "Groceries" }));
     await userEvent.click(within(sheet).getByRole("radio", { name: "Vegetables" }));
     await userEvent.click(within(sheet).getByRole("button", { name: "Usar Groceries › Vegetables" }));
-    expect(mocks.router.push).toHaveBeenLastCalledWith(
+    expect(mocks.router.replace).toHaveBeenLastCalledWith(
       "/spaces/sp-personal/transactions?period=2026-10&category=c-veg",
     );
   });
@@ -208,13 +208,14 @@ describe("the period and the category filter (HU-E9-03, ruling P130)", () => {
     expect(chip).toHaveAttribute("aria-pressed", "true");
     expect(chip).toHaveTextContent("Groceries › Vegetables ✕");
     await userEvent.click(chip);
-    expect(mocks.router.push).toHaveBeenLastCalledWith("/spaces/sp-personal/transactions?period=2026-10");
+    expect(mocks.router.replace).toHaveBeenLastCalledWith("/spaces/sp-personal/transactions?period=2026-10");
+    expect(mocks.router.push).not.toHaveBeenCalled();
   });
 
   it("removes the filter from a list that had no period in the address", async () => {
     renderWithIntl(listOf({ filter: { categoryId: "c-dining" } }));
     await userEvent.click(screen.getByRole("button", { name: "Quitar el filtro Restaurants" }));
-    expect(mocks.router.push).toHaveBeenLastCalledWith("/spaces/sp-personal/transactions");
+    expect(mocks.router.replace).toHaveBeenLastCalledWith("/spaces/sp-personal/transactions");
   });
 });
 

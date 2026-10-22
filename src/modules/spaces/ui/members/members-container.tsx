@@ -41,7 +41,14 @@ export const loadMembers = async (
 };
 
 /** Server: the members screen of a shared or direct space; a personal space has none (ruling P159). */
-export async function MembersContainer({ spaceId }: { readonly spaceId: string }) {
+export async function MembersContainer({
+  spaceId,
+  openInvite = false,
+}: {
+  readonly spaceId: string;
+  /** `?invite=1`: the invite sheet opens at once (N10). */
+  readonly openInvite?: boolean;
+}) {
   const [me, spaces] = await Promise.all([getMe(), getSpaces()]);
   const space = spaces.find((s) => s.id === spaceId);
   if (!space || space.kind === "PERSONAL") notFound();
@@ -57,6 +64,7 @@ export async function MembersContainer({ spaceId }: { readonly spaceId: string }
       meUserId={me!.id}
       invitations={result.data.invitations}
       balances={result.data.balances}
+      openInvite={openInvite}
       formats={me!.preferences.effective}
       viewerZone={me!.timezone}
     />

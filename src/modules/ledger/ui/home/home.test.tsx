@@ -155,3 +155,55 @@ describe("home, first use (P148)", () => {
     expect(within(card).getByRole("link", { name: "Go to Accounts" })).toBeInTheDocument();
   });
 });
+
+describe("the home of a shared or direct space leads to its members (N10)", () => {
+  const home = (
+    kind: "PERSONAL" | "SHARED" | "DIRECT",
+    role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER" | null,
+  ) =>
+    renderWithIntl(
+      <HomeSummary
+        spaceId="sp-shared"
+        kind={kind}
+        role={role}
+        policy={{ kind: "MONTHLY", day: 1 }}
+        page={{ ...octoberPage, items: [] }}
+        accounts={[]}
+        context={rowContext}
+      />,
+    );
+
+  it("shows Miembros and Invitar to someone who may invite, and Invitar opens the invite sheet", async () => {
+    const { container } = home("SHARED", "OWNER");
+    expect(screen.getByRole("link", { name: "Miembros" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-shared/members",
+    );
+    expect(screen.getByRole("link", { name: "Invitar" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-shared/members?invite=1",
+    );
+    for (const name of ["Miembros", "Invitar"])
+      expect(screen.getByRole("link", { name })).toHaveClass("min-h-11");
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("shows only Miembros to someone who may not invite, and in a direct space", () => {
+    for (const [kind, role] of [
+      ["SHARED", "MEMBER"],
+      ["SHARED", "VIEWER"],
+      ["DIRECT", "OWNER"],
+    ] as const) {
+      const { unmount } = home(kind, role);
+      expect(screen.getByRole("link", { name: "Miembros" })).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Invitar" })).toBeNull();
+      unmount();
+    }
+  });
+
+  it("shows neither in a personal space", () => {
+    home("PERSONAL", "OWNER");
+    expect(screen.queryByRole("link", { name: "Miembros" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Invitar" })).toBeNull();
+  });
+});

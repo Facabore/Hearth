@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { controlsFor } from "@/modules/spaces/ui";
+import { Icon, SymbolIcon } from "@/shared/ui";
 import type { AccountDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
 import { formatDate, formatMoney } from "@/shared/ui/format/formatters";
 import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
@@ -12,12 +14,17 @@ import { periodName } from "./period-name";
  */
 export function HomeSummary({
   spaceId,
+  kind = "PERSONAL",
+  role = null,
   policy,
   page,
   accounts,
   context,
 }: {
   readonly spaceId: string;
+  /** N10: a shared or direct space leads to its members; whoever may invite also gets Invitar. */
+  readonly kind?: SpaceDto["kind"];
+  readonly role?: SpaceDto["role"];
   readonly policy: SpaceDto["periodPolicy"];
   readonly page: TransactionPageDto;
   readonly accounts: readonly AccountDto[];
@@ -28,10 +35,27 @@ export function HomeSummary({
   const { formats } = context;
   const name = periodName(page.period, policy);
   const link = "flex min-h-11 items-center text-sm font-medium text-accent";
+  const pill =
+    "flex min-h-11 items-center gap-2 rounded-full border border-line bg-surface px-4 text-sm font-semibold text-ink";
+  const canInvite = controlsFor(role, kind).invite;
   return (
     <div className="grid grid-cols-1 gap-6 py-4 lg:grid-cols-2">
       <h1 className="sr-only">{t("title")}</h1>
       <div className="flex min-w-0 flex-col gap-6">
+        {kind !== "PERSONAL" ? (
+          <div className="flex flex-wrap gap-2">
+            <Link href={`/spaces/${spaceId}/members`} className={pill}>
+              <SymbolIcon name="users" size={18} />
+              {t("members")}
+            </Link>
+            {canInvite ? (
+              <Link href={`/spaces/${spaceId}/members?invite=1`} className={pill}>
+                <Icon name="userPlus" size={18} />
+                {t("invite")}
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
         {accounts.length === 0 ? (
           <section
             aria-labelledby="home-first-account"

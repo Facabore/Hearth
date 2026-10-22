@@ -9,7 +9,10 @@ import { Button, Icon, VisuallyHidden } from "@/shared/ui";
 import type { CategoryGroupDto, PeriodDto } from "@/shared/ui/api/dto";
 import { hrefOf, type ListFilter } from "./list-href";
 
-/** HU-E9-03: the period with its neighbours, and the category filter (the API rolls subcategories up, P130). */
+/**
+ * HU-E9-03: the period with its neighbours, and the category filter (the API rolls subcategories up, P130). N8: a
+ * period is a place, so its arrows push; the category filter only narrows the place, so it replaces the entry.
+ */
 export function ListFilters({
   spaceId,
   period,
@@ -58,7 +61,7 @@ export function ListFilters({
             aria-pressed="true"
             aria-label={t("removeFilter", { name: chosen })}
             className="h-11 rounded-full px-4 text-sm"
-            onClick={() => router.push(hrefOf(spaceId, { period: filter.period }))}
+            onClick={() => router.replace(hrefOf(spaceId, { period: filter.period }))}
           >
             {chosen} ✕
           </Button>
@@ -81,7 +84,7 @@ export function ListFilters({
         title={t("filterTitle")}
         onChoose={(choice) => {
           if (choice)
-            router.push(
+            router.replace(
               hrefOf(spaceId, { ...filter, categoryId: choice.subcategoryId ?? choice.categoryId }),
             );
         }}

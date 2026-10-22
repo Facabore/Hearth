@@ -36,7 +36,8 @@
       "FRIDAY": "F",
       "SATURDAY": "S",
       "SUNDAY": "S"
-    }
+    },
+    "toStart": "Go to the start page"
   },
   "errors": {
     "AccountArchived": "This account is archived. Restore it to record transactions in it.",
@@ -228,8 +229,7 @@
       "signOut": "Sign out",
       "members": "Members and invitations",
       "membersHint": "Invite people, add guests and change roles"
-    },
-    "notFound": "This page does not exist or is no longer available."
+    }
   },
   "home": {
     "title": "Home",
@@ -248,7 +248,9 @@
     "recent": "Recent",
     "recentEmpty": "No transactions yet. Record the first one with +.",
     "allTransactions": "See all transactions",
-    "allTransactionsShort": "See all"
+    "allTransactionsShort": "See all",
+    "members": "Members",
+    "invite": "Invite"
   },
   "settings": {
     "title": "Settings",
@@ -367,7 +369,10 @@
       "explain": "Its history stays and it takes no new transactions. You can restore it at any time.",
       "confirm": "Archive"
     },
-    "restore": "Restore {name}"
+    "restore": "Restore {name}",
+    "picker": {
+      "empty": "There are no accounts to choose from. Create a new one."
+    }
   },
   "categories": {
     "picker": {
@@ -686,5 +691,14 @@
       "note": "Single use. After creating the account you come back here.",
       "accept": "Claim my place in {space}"
     }
+  },
+  "notFound": {
+    "title": "This page does not exist",
+    "body": "The link may be mistyped, or the page may no longer be available."
+  },
+  "errorScreen": {
+    "title": "Something went wrong",
+    "connectionTitle": "We couldn't connect to Hearth",
+    "connectionBody": "Hearth did not answer. Check your connection and try again."
   }
 }

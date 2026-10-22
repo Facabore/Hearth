@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   expiredSignInUrl,
   isOpenPath,
+  nextFromPath,
   redirectFor,
   safeNext,
   safeReturnTo,
@@ -29,6 +30,16 @@ const NEXT_CASES: readonly [string | null | undefined, string][] = [
   ["", "/"],
   [null, "/"],
   [undefined, "/"],
+  // N9: after signing in a person never lands on raw JSON (not an open redirect, but not a screen either).
+  ["/api/v1/me", "/"],
+  ["/api/v1/spaces?x=1", "/"],
+  ["/api", "/"],
+  ["/api?x=1", "/"],
+  ["/%61pi/v1/me", "/"],
+  ["/x/../api/v1/me", "/"],
+  ["/spaces/s1/../../api/v1/me", "/"],
+  ["/apiary", "/apiary"],
+  ["/spaces/s1/api/v1", "/spaces/s1/api/v1"],
 ];
 
 describe("safeNext (HU-E9-01, ruling P125): only same-origin paths are honoured", () => {
@@ -176,5 +187,29 @@ describe("expiredSignInUrl (ruling P151)", () => {
     ).searchParams;
     expect(safeNext(params.get("next"))).toBe("/settings?expired=1");
     expect(safeNext(params.get("expired"))).toBe("/");
+  });
+});
+
+describe("nextFromPath (a signed-in person on /sign-in?next=…)", () => {
+  it("takes the destination the proxy recorded, already validated", () => {
+    expect(nextFromPath("/sign-in?next=%2Fspaces%2Fs1%2Ftransactions%3Fperiod%3D2026-10")).toBe(
+      "/spaces/s1/transactions?period=2026-10",
+    );
+    expect(nextFromPath("/sign-up?invitation=T&next=%2Finvitations%2FT")).toBe("/invitations/T");
+  });
+
+  it("falls back to the home without a destination, or with one that is not safe", () => {
+    for (const path of [
+      "/sign-in",
+      "/sign-in?expired=1",
+      "/sign-in?next=",
+      "/sign-in?next=%2F%2Fevil.example",
+      "/sign-in?next=https%3A%2F%2Fevil.example",
+      "/sign-in?next=%2Fapi%2Fv1%2Fme",
+      "/sign-in?next=%2Fsign-in",
+      null,
+      undefined,
+    ])
+      expect(nextFromPath(path)).toBe("/");
   });
 });

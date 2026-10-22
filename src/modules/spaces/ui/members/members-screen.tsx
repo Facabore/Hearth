@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import type { Api } from "@/shared/ui/api/client";
@@ -23,6 +24,7 @@ export function MembersScreen({
   meUserId,
   invitations = null,
   balances = {},
+  openInvite = false,
   formats,
   viewerZone,
   api,
@@ -34,13 +36,16 @@ export function MembersScreen({
   readonly invitations?: readonly InvitationDto[] | null;
   /** Every member's net balance by member id (a missing one is settled up). */
   readonly balances?: Readonly<Record<string, MoneyDto>>;
+  /** N10: `?invite=1` (Invitar on the home) opens the invite sheet at once, for someone who may invite. */
+  readonly openInvite?: boolean;
   readonly formats: Formats;
   readonly viewerZone: string;
   readonly api?: Api;
 }) {
   const t = useTranslations("members");
   const roles = useTranslations("shell.role");
-  const [inviting, setInviting] = useState(false);
+  const router = useRouter();
+  const [inviting, setInviting] = useState(() => openInvite && controlsFor(space.role, space.kind).invite);
   const [addingGuest, setAddingGuest] = useState(false);
   const [guest, setGuest] = useState<MemberDto | null>(null);
   const [editing, setEditing] = useState<(MemberDto & { role: SpaceRole }) | null>(null);
@@ -126,7 +131,11 @@ export function MembersScreen({
       {inviting ? (
         <InviteSheet
           open
-          onOpenChange={setInviting}
+          onOpenChange={(open) => {
+            setInviting(open);
+            // The address dropped its `?invite=` as the sheet closed: a reload does not reopen it.
+            if (!open && openInvite) router.replace(`/spaces/${space.id}/members`);
+          }}
           space={space}
           formats={formats}
           viewerZone={viewerZone}

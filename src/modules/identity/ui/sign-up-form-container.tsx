@@ -9,6 +9,7 @@ import { browserApi, type Api } from "@/shared/ui/api/client";
 import { fieldOf, problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import { browserTimeZone } from "@/shared/ui/format/zones";
+import { signInHrefOf } from "./sign-in-href";
 import { SignUpClosedNotice } from "./sign-up-closed-notice";
 import { SignUpForm, type SignUpField } from "./sign-up-form";
 
@@ -19,15 +20,6 @@ const BY_CODE = {
   PasswordTooShort: "password",
   InvalidPassword: "password",
 } as const;
-
-/** Ruling P157: the way back to sign in keeps where the visitor was going and the invitation they hold. */
-const signInHrefOf = (next: string, invitation: string | undefined): string => {
-  const query = [
-    next === "/" ? null : `next=${encodeURIComponent(next)}`,
-    invitation === undefined ? null : `invitation=${encodeURIComponent(invitation)}`,
-  ].filter((part): part is string => part !== null);
-  return query.length === 0 ? "/sign-in" : `/sign-in?${query.join("&")}`;
-};
 
 /**
  * HU-E9-01, HU-E1-14: signs up from the browser with its time zone and lands on the personal space. Rulings P142 and
@@ -76,7 +68,8 @@ export function SignUpFormContainer({
     setPending(false);
   };
 
-  if (problem?.code === "SignUpClosed") return <SignUpClosedNotice />;
+  const signInHref = signInHrefOf(next, invitation);
+  if (problem?.code === "SignUpClosed") return <SignUpClosedNotice signInHref={signInHref} />;
 
   const where = problem ? fieldOf<SignUpField>(problem, BY_CODE, FIELDS) : "form";
   const fieldErrors: Partial<Record<SignUpField, ReactNode>> = {};
@@ -85,7 +78,7 @@ export function SignUpFormContainer({
     fieldErrors[where] =
       problem.code === "EmailTaken" ? (
         <>
-          {message} <Link href="/sign-in">{t("signIn")}</Link>
+          {message} <Link href={signInHref}>{t("signIn")}</Link>
         </>
       ) : (
         message
@@ -98,7 +91,7 @@ export function SignUpFormContainer({
       pending={pending}
       fieldErrors={fieldErrors}
       problem={problem && where === "form" ? problem : null}
-      signInHref={signInHrefOf(next, invitation)}
+      signInHref={signInHref}
     />
   );
 }

@@ -18,6 +18,7 @@ import type {
 } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
+import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { minorOf, parseDecimal } from "@/shared/ui/format/amount-input";
 import { currencyOf } from "@/shared/ui/format/currencies";
 import { formatMoney, formatNumber, type Formats } from "@/shared/ui/format/formatters";
@@ -144,6 +145,14 @@ export function RecordForm({
   ]
     .filter(Boolean)
     .join(" · ");
+  // N7: a personal form can create an account and come back to itself, on the type being recorded. A shared
+  // space's payer comes from the members' personal accounts, so it offers none.
+  const newAccountHref = shared
+    ? undefined
+    : withReturnTo(
+        `/spaces/${space.id}/accounts/new`,
+        `/spaces/${space.id}/new${kind === "EXPENSE" ? "" : `?type=${kind.toLowerCase()}`}`,
+      );
   const found = problem ? recordFieldOf(problem) : null;
   // In a shared expense the account an API problem names is the payer's.
   const where = sharedExpense && found === "account" ? "payer" : found;
@@ -430,6 +439,7 @@ export function RecordForm({
           open={sheet === "account"}
           onOpenChange={(open) => setSheet(open ? "account" : null)}
           accounts={accounts}
+          newAccountHref={newAccountHref}
           value={accountId}
           onChoose={(id) => {
             setAccountId(id);
@@ -444,6 +454,7 @@ export function RecordForm({
           open={sheet === "toAccount"}
           onOpenChange={(open) => setSheet(open ? "toAccount" : null)}
           accounts={accounts.filter((a) => a.id !== accountId)}
+          newAccountHref={newAccountHref}
           value={toAccountId}
           onChoose={(id) => {
             setToAccountId(id);

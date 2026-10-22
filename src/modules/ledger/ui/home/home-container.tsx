@@ -27,6 +27,8 @@ export async function HomeContainer({ spaceId }: { readonly spaceId: string }) {
   return (
     <HomeSummary
       spaceId={spaceId}
+      kind={space.kind}
+      role={space.role}
       policy={space.periodPolicy}
       page={page.data}
       accounts={accounts.data.items}

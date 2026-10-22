@@ -203,9 +203,14 @@ export function InvitationCard({
             {t("otherAccountBody")}
           </p>
         </section>
-        <Button size="lg" disabled={pending} onClick={() => void switchAccount()}>
-          {t("switchAccount")}
-        </Button>
+        <div className="flex flex-col gap-2.5">
+          <Button size="lg" disabled={pending} onClick={() => void switchAccount()}>
+            {t("switchAccount")}
+          </Button>
+          <Button asChild variant="secondary" size="lg">
+            <Link href="/">{common("notNow")}</Link>
+          </Button>
+        </div>
       </div>
     );
   }

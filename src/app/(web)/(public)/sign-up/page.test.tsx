@@ -48,6 +48,15 @@ describe("sign-up page (HU-E9-01, ruling P147)", () => {
     }
   });
 
+  it("keeps where the visitor was going in the closed notice's sign-in link (N5)", async () => {
+    mocks.mode.mockResolvedValue("closed");
+    await open({ next: "/spaces/s1/transactions?period=2026-10" });
+    expect(screen.getByRole("link", { name: "Inicia sesión" })).toHaveAttribute(
+      "href",
+      "/sign-in?next=%2Fspaces%2Fs1%2Ftransactions%3Fperiod%3D2026-10",
+    );
+  });
+
   it("shows the form when sign-up is closed but the URL carries an invitation", async () => {
     mocks.mode.mockResolvedValue("closed");
     await open({ invitation: "tok-123" });

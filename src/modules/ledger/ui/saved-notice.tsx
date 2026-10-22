@@ -35,8 +35,10 @@ export function SavedNotice({
           {w("FundBalanceNegative", { account: accountName, balance: formatMoney(balance, formats) })}
         </span>
       </p>
+      {/* N8: dismissing only changes the query, so it replaces the entry and Back never returns to the notice. */}
       <Link
         href={dismissHref}
+        replace
         aria-label={t("saved.dismiss")}
         className="-mt-2 -mr-2 flex size-11 shrink-0 items-center justify-center rounded-full text-muted"
       >

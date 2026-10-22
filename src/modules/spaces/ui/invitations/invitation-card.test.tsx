@@ -110,6 +110,8 @@ describe("invitation page (HU-E9-05, ruling P165)", () => {
     expect(screen.queryByRole("button", { name: "Aceptar y entrar a Household" })).not.toBeInTheDocument();
     expect(router.replace).not.toHaveBeenCalled();
     expect(await axeViolations(container)).toEqual([]);
+    // N6: a way out that does not mean signing out.
+    expect(screen.getByRole("link", { name: "Ahora no" })).toHaveAttribute("href", "/");
     await userEvent.click(screen.getByRole("button", { name: "Cerrar sesión y cambiar de cuenta" }));
     expect(requests[1]!.method).toBe("POST");
     expect(new URL(requests[1]!.url).pathname).toBe("/api/v1/auth/sign-out");

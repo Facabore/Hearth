@@ -16,7 +16,7 @@ import type { InvitationDto, SpaceDto } from "@/shared/ui/api/dto";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { MembersScreen } from "./members-screen";
 
-const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn() }));
+const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 beforeEach(() => vi.clearAllMocks());
 
@@ -52,9 +52,11 @@ const screenAs = (
   role: SpaceDto["role"],
   api: Api,
   invitations: InvitationDto[] | null = [],
+  openInvite = false,
 ) =>
   renderWithIntl(
     <MembersScreen
+      openInvite={openInvite}
       space={householdSpace({ role })}
       members={MEMBERS}
       meUserId={meUserId}
@@ -68,6 +70,28 @@ const openInvite = async () => {
   await userEvent.click(screen.getByRole("button", { name: "Invitar" }));
   return screen.getByRole("dialog", { name: "Invitar a Household" });
 };
+
+describe("Invitar from the home opens the sheet (N10)", () => {
+  it("opens the invite sheet at once for someone who may invite, and drops ?invite= when it closes", async () => {
+    screenAs("u-ana", "OWNER", fakeApi({}).api, [], true);
+    expect(screen.getByRole("dialog", { name: "Invitar a Household" })).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-household/members");
+  });
+
+  it("opens nothing for someone who may not invite", () => {
+    screenAs("u-luis", "MEMBER", fakeApi({}).api, null, true);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("leaves the address alone when the sheet was opened by its button", async () => {
+    screenAs("u-ana", "OWNER", fakeApi({}).api);
+    await openInvite();
+    await userEvent.keyboard("{Escape}");
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+});
 
 describe("inviting people (HU-E9-05, ruling P162)", () => {
   it("shows Invite to the OWNER and not to a MEMBER", () => {
