@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { problemResponse, publicDetailsOf, statusForCode } from "./problem";
+import { problemResponse, publicDetailsOf, publicFieldErrorsOf, statusForCode } from "./problem";
 
 describe("statusForCode", () => {
   it.each([
@@ -190,6 +190,26 @@ describe("public details (HU-E1-08)", () => {
       requestId: "req-6",
       field: "monthlyRate",
     });
+  });
+});
+
+describe("public field errors (issue 121)", () => {
+  it("passes the well-formed entries of a ValidationFailed's errors detail, and nothing else", () => {
+    expect(
+      publicFieldErrorsOf("ValidationFailed", {
+        errors: [{ path: "color", message: "Refused", extra: 1 }, { path: 1, message: "x" }, null, "icon"],
+      }),
+    ).toEqual([{ path: "color", message: "Refused" }]);
+  });
+
+  it("names no field for another code, a missing or malformed detail, or an empty list", () => {
+    const errors = [{ path: "icon", message: "Refused" }];
+    expect(publicFieldErrorsOf("InvalidSplit", { errors })).toBeUndefined();
+    expect(publicFieldErrorsOf("ValidationFailed")).toBeUndefined();
+    expect(publicFieldErrorsOf("ValidationFailed", { field: "style" })).toBeUndefined();
+    expect(publicFieldErrorsOf("ValidationFailed", { errors: "icon" })).toBeUndefined();
+    expect(publicFieldErrorsOf("ValidationFailed", { errors: [] })).toBeUndefined();
+    expect(publicFieldErrorsOf("ValidationFailed", Object.create({ errors }))).toBeUndefined();
   });
 });
 

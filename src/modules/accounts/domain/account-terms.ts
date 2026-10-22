@@ -49,6 +49,13 @@ const ALLOWED: Readonly<Partial<Record<AccountType, readonly (keyof AccountTerms
   LOAN: ["principal", "annualRatePpm", "termMonths"],
 };
 
+/** HU-E2-06: a cut-off or payment day runs from 1 to 31 (a shorter month clamps it, ruling P55). */
+export const MIN_BILLING_DAY = 1;
+export const MAX_BILLING_DAY = 31;
+/** HU-E2-06: a term deposit lasts at most 3,660 days (10 years), a loan at most 480 months (40 years). */
+export const MAX_TERM_DAYS = 3_660;
+export const MAX_TERM_MONTHS = 480;
+
 const within = (value: number | null, min: number, max: number): boolean =>
   value === null || (Number.isInteger(value) && value >= min && value <= max);
 
@@ -77,19 +84,22 @@ export const revisedTerms = (
   );
   if (foreign !== undefined) return err(domainError("AccountAttributeNotAllowed", { attribute: foreign }));
   if (next.creditLimit !== null && next.creditLimit <= 0n) return err(domainError("InvalidCreditLimit"));
-  if (!within(next.cutOffDay, 1, 31) || !within(next.paymentDay, 1, 31)) {
+  if (
+    !within(next.cutOffDay, MIN_BILLING_DAY, MAX_BILLING_DAY) ||
+    !within(next.paymentDay, MIN_BILLING_DAY, MAX_BILLING_DAY)
+  ) {
     return err(domainError("InvalidBillingDay"));
   }
   if (!within(next.monthlyRatePpm, 0, MAX_RATE_PPM) || !within(next.annualRatePpm, 0, MAX_RATE_PPM)) {
     return err(domainError("InvalidRate"));
   }
-  if ((next.termDays === null) !== (next.maturityDate === null) || !within(next.termDays, 1, 3_660)) {
+  if ((next.termDays === null) !== (next.maturityDate === null) || !within(next.termDays, 1, MAX_TERM_DAYS)) {
     return err(domainError("InvalidTermDeposit"));
   }
   if (next.principal !== null && next.principal <= 0n) {
     return err(domainError("InvalidAmount", { amount: next.principal.toString() }));
   }
-  if (!within(next.termMonths, 1, 480)) return err(domainError("InvalidTerm"));
+  if (!within(next.termMonths, 1, MAX_TERM_MONTHS)) return err(domainError("InvalidTerm"));
   return ok(next);
 };
 
@@ -99,8 +109,8 @@ export const revisedTerms = (
  * programming error and throws a RangeError.
  */
 export const nextBillingDate = (day: number, today: LocalDate): LocalDate => {
-  if (!Number.isInteger(day) || day < 1 || day > 31) {
-    throw new RangeError(`A billing day runs from 1 to 31: ${day}`);
+  if (!Number.isInteger(day) || day < MIN_BILLING_DAY || day > MAX_BILLING_DAY) {
+    throw new RangeError(`A billing day runs from ${MIN_BILLING_DAY} to ${MAX_BILLING_DAY}: ${day}`);
   }
   const { year, month } = partsOf(today);
   const inMonth = (y: number, m: number) => fromParts(y, m, Math.min(day, daysInMonth(y, m)));

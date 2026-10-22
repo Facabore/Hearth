@@ -110,6 +110,24 @@ describe("defineRoute", () => {
     expect(body.errors.map((e: { path: string }) => e.path)).toEqual(["amount", "split.ratio"]);
   });
 
+  it("names the fields of a domain ValidationFailed in errors[], and only of that code (issue 121)", async () => {
+    const fail = (code: string, details: Record<string, unknown>) =>
+      call(defineRoute({ auth: "none", handler: async () => err(domainError(code, details)) }));
+    const named = await (
+      await fail("ValidationFailed", {
+        errors: [
+          { path: "icon", message: "No style of its own", secret: "x" },
+          { path: 7, message: "dropped" },
+        ],
+      })
+    ).json();
+    expect(named.errors).toEqual([{ path: "icon", message: "No style of its own" }]);
+    expect((await (await fail("ValidationFailed", { field: "style" })).json()).errors).toBeUndefined();
+    expect(
+      (await (await fail("InvalidAmount", { errors: [{ path: "a", message: "b" }] })).json()).errors,
+    ).toBe(undefined);
+  });
+
   it("returns 422 ValidationFailed for malformed JSON instead of a 500", async () => {
     const route = defineRoute({ auth: "none", body: z.object({}), handler: async () => ok({ status: 201 }) });
     const response = await call(route, { method: "POST", body: '{"amount": ' });

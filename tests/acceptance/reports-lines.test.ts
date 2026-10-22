@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { GET as linesRoute } from "@/app/api/v1/spaces/[spaceId]/reports/lines/route";
 import { setContainerForTests, type Container } from "@/composition/container";
-import { problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
+import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
 import { planOf } from "../support/budgeting";
 import { cop, joinHousehold } from "../support/ledger";
 import { getLineDashboard, reportHousehold, spend, type LineDashboardDto } from "../support/reporting";
@@ -90,6 +91,20 @@ describe("line dashboard over HTTP (HU-E7-01)", () => {
     expect(dashboard).toMatchObject({ plan: null, lines: [], period: { label: "2027-01" } });
     expect(dashboard.unbudgeted).toEqual({ spent: cop(100_000), available: cop(-100_000), overspent: true });
     expect(dashboard.totals).toEqual({ planned: cop(0), spent: cop(100_000), available: cop(-100_000) });
+  });
+
+  it("answers 401 without a session, before it looks at the space or the period (issue 131)", async () => {
+    const r = await reportHousehold();
+    for (const query of ["period=2026-11", "period=not-a-period", ""]) {
+      const anonymous = await call(
+        linesRoute,
+        "GET",
+        `/api/v1/spaces/${r.h.spaceId}/reports/lines?${query}`,
+        { params: { spaceId: r.h.spaceId } },
+      );
+      expect(await problemOf(anonymous)).toEqual([401, "Unauthenticated"]);
+    }
+    expect((await dashboardOf(r.h.ana, r.h.spaceId, "2026-11")).period.label).toBe("2026-11");
   });
 
   it("lets VIEWER Sofi read it and hides the space from non-members and malformed ids", async () => {

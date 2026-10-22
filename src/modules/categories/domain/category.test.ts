@@ -14,6 +14,7 @@ import {
   type Category,
   type CategoryGroup,
 } from "./category";
+import type { Result } from "@/shared/kernel";
 import { CUSTOM_GROUP_STYLE, type CategoryStyle, type StyleChange } from "./category-style";
 
 const now = new Date("2026-10-12T12:00:00Z");
@@ -305,6 +306,21 @@ describe("category styles (HU-E3-05)", () => {
     expect(shownStyle(vegetables, tree)).toEqual(cart);
     expect(shownStyle(vegetables, [{ ...styledGroceries, style: plum }, vegetables])).toEqual(plum);
     expect(shownStyle(styledGroceries, tree)).toEqual(cart);
+  });
+
+  it("names the style part a subcategory refuses: icon, color or both (issue 121)", () => {
+    const fieldsOf = (result: Result<unknown>) =>
+      result.ok ? null : (result.error.details?.errors as { path: string }[]).map((e) => e.path);
+    const icon = plum.icon;
+    expect(fieldsOf(create({ color: "ROSE" }, styledGroceries))).toEqual(["color"]);
+    expect(fieldsOf(reviseCategory(vegetables, { style: { icon } }, tree))).toEqual(["icon"]);
+    expect(fieldsOf(reviseCategory(vegetables, { style: { icon, color: "ROSE" } }, tree))).toEqual([
+      "icon",
+      "color",
+    ]);
+    // What is allowed names nothing: a category's style, and a subcategory changed without one.
+    expect(fieldsOf(create({ color: "ROSE" }))).toBeNull();
+    expect(fieldsOf(reviseCategory(vegetables, { name: "Greens" }, tree))).toBeNull();
   });
 
   it("restyles a category; a promoted subcategory keeps a copy of its parent's, a demoted category drops its own", () => {

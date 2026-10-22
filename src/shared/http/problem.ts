@@ -76,6 +76,24 @@ export const publicDetailsOf = (
       .map((key) => [key, details[key]]),
   );
 
+/**
+ * Issue 121: a domain `ValidationFailed` may name the request fields it refuses as `details.errors`, the same
+ * `errors[]` a contract-level one carries. Only well-formed `{ path, message }` entries leave the server.
+ */
+export const publicFieldErrorsOf = (
+  code: string,
+  details: Readonly<Record<string, unknown>> = {},
+): ProblemFieldError[] | undefined => {
+  const listed = code === "ValidationFailed" && Object.hasOwn(details, "errors") ? details.errors : undefined;
+  if (!Array.isArray(listed)) return undefined;
+  const errors = (listed as unknown[]).flatMap((entry): ProblemFieldError[] => {
+    if (typeof entry !== "object" || entry === null) return [];
+    const { path, message } = entry as Record<string, unknown>;
+    return typeof path === "string" && typeof message === "string" ? [{ path, message }] : [];
+  });
+  return errors.length > 0 ? errors : undefined;
+};
+
 /** Spec section 8: explicit codes first, then naming conventions, then 409 for invariant violations. */
 export const statusForCode = (code: string): number =>
   EXPLICIT.get(code) ?? (code.endsWith("NotFound") ? 404 : code.startsWith("Invalid") ? 422 : 409);
