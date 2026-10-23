@@ -454,14 +454,17 @@
     "edit": {
       "title": "Editar movimiento",
       "save": "Guardar cambios",
-      "kind": "Tipo: {type}"
+      "kind": "Tipo: {type}",
+      "reload": "Cargar la última versión",
+      "reloadNote": "Se descartarán los cambios que escribiste."
     },
     "toast": {
       "saved": {
         "EXPENSE": "Gasto guardado",
         "INCOME": "Ingreso guardado",
         "TRANSFER": "Transferencia guardada"
-      }
+      },
+      "edited": "Cambios guardados"
     },
     "when": {
       "title": "Fecha y hora",

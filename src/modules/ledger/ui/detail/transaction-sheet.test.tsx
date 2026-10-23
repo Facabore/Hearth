@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   router: { push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn() },
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => mocks.router }));
-// Exposes what the sheet passes to the link: the edit route is opened on demand, never prefetched with the sheet.
+// Exposes what the sheet passes to the link, so a test can tell that the edit route is prefetched like any other.
 vi.mock("next/link", () => ({
   default: ({ prefetch, children, ...props }: { prefetch?: boolean; children: ReactNode }) => (
     <a data-prefetch={String(prefetch)} {...props}>
@@ -85,7 +85,7 @@ describe("transaction detail sheet (rulings P189, P190)", () => {
       "href",
       "/spaces/s-1/transactions/t-1/edit?returnTo=%2Fspaces%2Fs-1%2Ftransactions",
     );
-    expect(screen.getByRole("link", { name: "Editar" })).toHaveAttribute("data-prefetch", "false");
+    expect(screen.getByRole("link", { name: "Editar" })).toHaveAttribute("data-prefetch", "undefined");
     expect(screen.getByRole("button", { name: "Eliminar" })).toBeEnabled();
     expect(await axeViolations(document.body)).toEqual([]);
   });

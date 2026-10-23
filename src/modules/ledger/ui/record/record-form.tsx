@@ -170,7 +170,7 @@ export function RecordForm({
   const positiveMinor = minor !== null && BigInt(minor) > 0n ? minor : null;
   const sharedTitle = [
     description.trim() ||
-      (category ? categoryPath(live, category.subcategoryId ?? category.categoryId) : null),
+      (category ? categoryPath(groups, category.subcategoryId ?? category.categoryId) : null),
     positiveMinor ? formatMoney({ amount: positiveMinor, currency: space.currency }, formats) : null,
     space.name,
   ]
@@ -371,7 +371,8 @@ export function RecordForm({
               : picker(
                   "category",
                   t("form.category"),
-                  category ? categoryPath(live, category.subcategoryId ?? category.categoryId) : null,
+                  // The whole tree names it: an edited record may use a category archived since (the picker hides those).
+                  category ? categoryPath(groups, category.subcategoryId ?? category.categoryId) : null,
                   "category",
                   t("form.chooseCategory"),
                 )}

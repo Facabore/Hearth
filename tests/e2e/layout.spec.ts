@@ -147,6 +147,18 @@ const warnedList = async (page: Page, sharedId: string) => {
 const BIG_EXPENSE = "123456789000";
 const HUGE_EXPENSE = "123456789012400";
 const HISTORY_GUEST = "Carlos Alberto Rodríguez Hernández de la Vega";
+/**
+ * The address of the edit route of the long expense `seedLong` records: the sheet's own Editar link, with the list it
+ * was opened from as its `returnTo` (ruling P191).
+ */
+const editPathOf = async (page: Page, spaceId: string) => {
+  await page.goto(`/spaces/${spaceId}/transactions`);
+  await settle(page);
+  await page.getByRole("link", { name: /Mercado semanal/ }).click();
+  const href = await page.getByRole("link", { name: es.ledger.detail.edit }).getAttribute("href");
+  expect(href, "the sheet offers Editar").toContain(`/spaces/${spaceId}/transactions/`);
+  return href!;
+};
 /** The longest names the API accepts (space 80, member 100 characters), with no break opportunity. */
 const UNBROKEN_SPACE = "W".repeat(80);
 const UNBROKEN_NAME = "M".repeat(100);
@@ -546,6 +558,7 @@ for (const wideFont of [false, true]) {
         const { spaceId, sharedId } = await session(page, `reflow-${viewport.width}`);
         const warned = await warnedList(page, sharedId);
         const history = await historyPath(page, spaceId, sharedId);
+        const edit = await editPathOf(page, spaceId);
         for (const path of [
           `/spaces/${spaceId}`,
           `/spaces/${spaceId}/transactions`,
@@ -563,6 +576,8 @@ for (const wideFont of [false, true]) {
           `/spaces/${sharedId}/plan/fund`,
           `/spaces/${sharedId}/plan/groups`,
           history,
+          // Ruling P191: the record form on a transaction, which has its own header, line and notice.
+          edit,
           `/spaces/${sharedId}/new`,
           warned,
           "/spaces/new",
@@ -2011,7 +2026,7 @@ test.describe("the app has an icon, so no page asks for a missing one (UX review
 
 test.describe("every screen below the navigation has a way back (UX: no dead ends)", () => {
   /** Where each screen's Volver link must land: the parent route, never the browser history. */
-  const screens = (ids: { spaceId: string; sharedId: string; history: string }) => [
+  const screens = (ids: { spaceId: string; sharedId: string; history: string; edit: string }) => [
     { name: "accounts", at: `/spaces/${ids.spaceId}/accounts`, parent: `/spaces/${ids.spaceId}` },
     {
       name: "new account",
@@ -2028,6 +2043,8 @@ test.describe("every screen below the navigation has a way back (UX: no dead end
     { name: "members", at: `/spaces/${ids.sharedId}/members`, parent: `/spaces/${ids.sharedId}` },
     { name: "balance history", at: ids.history, parent: `/spaces/${ids.sharedId}/balances` },
     { name: "new shared space", at: "/spaces/new", parent: `/spaces/${ids.spaceId}` },
+    // Ruling P191: Volver opens the sheet it came from, on the list (the query brings the sheet back).
+    { name: "edit a transaction", at: ids.edit, parent: `/spaces/${ids.spaceId}/transactions` },
     {
       name: "new shared space, from a shared space",
       at: `/spaces/new?from=${ids.sharedId}`,
@@ -2042,7 +2059,8 @@ test.describe("every screen below the navigation has a way back (UX: no dead end
   }) => {
     const { spaceId, sharedId } = await session(page, "back");
     const history = await historyPath(page, spaceId, sharedId);
-    for (const screen of screens({ spaceId, sharedId, history })) {
+    const edit = await editPathOf(page, spaceId);
+    for (const screen of screens({ spaceId, sharedId, history, edit })) {
       await page.goto(screen.at);
       await settle(page);
       const link = back(page);

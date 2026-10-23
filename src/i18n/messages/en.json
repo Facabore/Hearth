@@ -454,14 +454,17 @@
     "edit": {
       "title": "Edit transaction",
       "save": "Save changes",
-      "kind": "Type: {type}"
+      "kind": "Type: {type}",
+      "reload": "Load the latest version",
+      "reloadNote": "The changes you typed will be discarded."
     },
     "toast": {
       "saved": {
         "EXPENSE": "Expense saved",
         "INCOME": "Income saved",
         "TRANSFER": "Transfer saved"
-      }
+      },
+      "edited": "Changes saved"
     },
     "when": {
       "title": "Date and time",

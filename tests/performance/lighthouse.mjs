@@ -117,8 +117,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     });
     const { items: groups } = await api("GET", `/api/v1/spaces/${space.id}/categories`);
     const categoryId = groups.flatMap((g) => g.categories)[0].id;
-    for (let i = 0; i < 20; i += 1)
-      await api("POST", `/api/v1/spaces/${space.id}/expenses`, {
+    // The first expense's id is the `:tx` of the edit route (ruling P198).
+    let tx;
+    for (let i = 0; i < 20; i += 1) {
+      const recorded = await api("POST", `/api/v1/spaces/${space.id}/expenses`, {
         description: `Item ${i}`,
         date: "2026-10-31",
         occurredAt: new Date(Date.UTC(2026, 9, 31, 13, i)).toISOString(),
@@ -127,6 +129,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         amount: { amount: "1500000", currency: "COP" },
         accountId: account.id,
       });
+      tx ??= recorded.id;
+    }
     // Ruling P177: a household with a second member, a guest with a claim link, a pending invitation (the visitor's
     // page) and one shared expense, so the household screens render what a household sees.
     const tokenOf = ({ url }) => new URL(url, BASE).pathname.split("/").at(-1);
@@ -174,7 +178,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       payments: [{ memberId: ana, accountId: account.id, amount: { amount: "30000000", currency: "COP" } }],
       split: { method: "EQUAL", participants: [{ memberId: ana }, { memberId: juan }] },
     });
-    const ids = { id: space.id, shared, member: juan, token, claim };
+    const ids = { id: space.id, shared, member: juan, token, claim, tx };
     const debugPort = debugPortFor(process.env.E2E_PORT);
     const browser = await chromium.launch({ args: [`--remote-debugging-port=${debugPort}`] });
     try {

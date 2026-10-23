@@ -23,9 +23,10 @@ describe("performance budgets (ruling P134)", () => {
   });
 
   it("fills every route of the budgets from the seeded ids, and refuses an id it does not have (ruling P177)", () => {
-    const ids = { id: "sp-p", shared: "sp-h", member: "m-j", token: "tok", claim: "clm" };
+    const ids = { id: "sp-p", shared: "sp-h", member: "m-j", token: "tok", claim: "clm", tx: "t-1" };
     for (const route of Object.keys(budgets.scriptKb)) expect(routeUrl(route, ids)).not.toContain(":");
     expect(routeUrl("/spaces/:shared/members/:member/history", ids)).toBe("/spaces/sp-h/members/m-j/history");
+    expect(routeUrl("/spaces/:id/transactions/:tx/edit", ids)).toBe("/spaces/sp-p/transactions/t-1/edit");
     expect(() => routeUrl("/spaces/:nope", ids)).toThrow("No id for :nope in /spaces/:nope");
   });
 

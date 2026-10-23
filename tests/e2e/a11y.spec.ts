@@ -73,7 +73,11 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect(page.getByRole("dialog")).toBeVisible();
       await expect(page.getByRole("button", { name: es.ledger.detail.delete })).toBeVisible();
       await scan("transaction detail sheet");
-      await page.keyboard.press("Escape");
+      // Ruling P191: Editar opens the record form on that transaction.
+      await page.getByRole("link", { name: es.ledger.detail.edit }).click();
+      await expect(page.locator("[data-ready='true']")).toBeAttached();
+      await expect(page.getByRole("heading", { name: es.ledger.edit.title })).toBeVisible();
+      await scan("edit a transaction");
       await page.goto(`/spaces/${spaceId}/accounts`);
       await expect(
         page.getByRole("button", { name: es.accounts.restore.replace("{name}", "Old wallet") }),

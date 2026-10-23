@@ -141,6 +141,33 @@ describe("record form in edit mode (ruling P191)", () => {
     expect(screen.getByRole("tablist")).toBeInTheDocument();
   });
 
+  it("names a category that was archived since the record was made, and keeps it in the request", async () => {
+    const old = categoryDto({ id: "c-old", name: "Gym", archivedAt: "2026-09-01T00:00:00.000Z" });
+    const value = edit({
+      initial: { ...initial, category: { categoryId: "c-old", subcategoryId: null } },
+    });
+    const { api } = fakeApi({});
+    renderWithIntl(
+      <RecordForm
+        space={spaceDto()}
+        accounts={accounts}
+        groups={[...groups, groupDto({ id: "g-old", name: "Old", categories: [old] })]}
+        formats={BUILT_IN_FORMATS}
+        initialKind="EXPENSE"
+        initialNow="2026-11-01T04:30:00.000Z"
+        timeZone="America/Bogota"
+        api={api}
+        edit={value}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /Categoría/ })).toHaveTextContent("Gym");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    expect(value.onSave).toHaveBeenCalledWith(
+      { kind: "EXPENSE", body: expect.objectContaining({ categoryId: "c-old" }) },
+      expect.anything(),
+    );
+  });
+
   it("shows an income's and a transfer's own labels", () => {
     personal(
       edit({

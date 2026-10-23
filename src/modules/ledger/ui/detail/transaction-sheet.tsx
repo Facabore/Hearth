@@ -131,10 +131,7 @@ export function TransactionSheet({
             >
               {actions.edit ? (
                 <Button asChild variant="secondary" size="lg">
-                  <Link
-                    prefetch={false}
-                    href={withReturnTo(`/spaces/${spaceId}/transactions/${tx.id}/edit`, origin)}
-                  >
+                  <Link href={withReturnTo(`/spaces/${spaceId}/transactions/${tx.id}/edit`, origin)}>
                     <Icon name="pencil" />
                     {t("detail.edit")}
                   </Link>
