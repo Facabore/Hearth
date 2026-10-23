@@ -5,6 +5,8 @@ import { getMe, getSpaces, loaded, serverApi, type Loaded } from "@/shared/ui/ap
 import { serverNow } from "@/shared/ui/time/server-now";
 import { nowIn } from "@/shared/ui/time/when";
 import { DashboardFrame } from "../dashboard-frame";
+import { DashOverview } from "../overview/dash-overview";
+import { loadOverview } from "../overview/overview-container";
 import { neighboursOf, periodLabel, spaceOf } from "../report-period";
 import { LineDashboard } from "./line-dashboard";
 import { NoPlan } from "./no-plan";
@@ -38,7 +40,8 @@ export async function LineDashboardContainer({
 }) {
   const [me, spaces] = await Promise.all([getMe(), getSpaces()]);
   const space = spaceOf(spaces, spaceId);
-  const result = await loadLines(await serverApi(), {
+  const api = await serverApi();
+  const result = await loadLines(api, {
     spaceId,
     period,
     today: nowIn(serverNow(), me!.timezone).date,
@@ -46,10 +49,16 @@ export async function LineDashboardContainer({
   if (!result.ok) return <ProblemNotice problem={result.problem} />;
   const { dashboard, previous, next } = result.data;
   const formats = me!.preferences.effective;
+  // Ruling P216: a shared space's desktop overview, read once the line dashboard has named the period.
+  const overview =
+    space.kind !== "PERSONAL" && dashboard.plan !== null
+      ? await loadOverview(api, { spaceId, period: dashboard.period.label })
+      : null;
   return (
     <DashboardFrame
       space={space}
       view="lines"
+      wide={overview !== null}
       period={dashboard.period}
       previous={previous}
       next={next}
@@ -61,6 +70,7 @@ export async function LineDashboardContainer({
       ) : (
         <LineDashboard dashboard={dashboard} policy={space.periodPolicy} formats={formats} />
       )}
+      {overview ? <DashOverview space={space} overview={overview} formats={formats} /> : null}
     </DashboardFrame>
   );
 }

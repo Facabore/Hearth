@@ -1063,6 +1063,14 @@
       "savingsNote": "It counts what reached the line's savings accounts; it has no consumption.",
       "toFund": "See the fund"
     },
+    "overview": {
+      "toGroups": "See by group",
+      "fundSummary": "{actual} of {expected}",
+      "againstPrevious": "Against the previous period",
+      "toTrend": "See the 6-period trend",
+      "matrixTitle": "Members by line",
+      "matrixNote": "Lines paid from the fund track contributions under Fund contributions; savings lines count what reached their accounts."
+    },
     "reason": {
       "NOT_ALLOCATED": "Not allocated per person: only what was consumed is shown.",
       "TRACKED_AT_FUND_LEVEL": "Contributions and gaps are tracked at the fund, not per line.",

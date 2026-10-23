@@ -1063,6 +1063,14 @@
       "savingsNote": "Cuenta lo que llegó a las cuentas de ahorro de la línea; no tiene consumo.",
       "toFund": "Ver fondo"
     },
+    "overview": {
+      "toGroups": "Ver por grupo",
+      "fundSummary": "{actual} de {expected}",
+      "againstPrevious": "Contra el período anterior",
+      "toTrend": "Ver tendencia de 6 períodos",
+      "matrixTitle": "Miembros por línea",
+      "matrixNote": "Las líneas pagadas con el fondo siguen su aporte en Aportes al fondo; las de ahorro cuentan lo que llegó a sus cuentas."
+    },
     "reason": {
       "NOT_ALLOCATED": "Sin asignación por persona: solo se muestra lo consumido.",
       "TRACKED_AT_FUND_LEVEL": "Aportó y diferencia se siguen en el fondo, no por línea.",

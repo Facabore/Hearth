@@ -10,12 +10,12 @@ import { viewHref } from "../views";
 
 type MatrixLine = MemberMatrixDto["lines"][number];
 type Status = NonNullable<MatrixLine["members"][number]["status"]>;
-type Column = "assigned" | "contributed" | "consumed" | "gap";
+export type MatrixColumn = "assigned" | "contributed" | "consumed" | "gap";
 
-const COLUMNS: readonly Column[] = ["assigned", "contributed", "consumed", "gap"];
+const COLUMNS: readonly MatrixColumn[] = ["assigned", "contributed", "consumed", "gap"];
 
 // The status badge says it in words and in an arrow, so the gap never relies on color alone.
-const STATUS: Record<Status, { tone: "accent" | "owe" | "neutral"; icon?: UiIconName }> = {
+export const MATRIX_STATUS: Record<Status, { tone: "accent" | "owe" | "neutral"; icon?: UiIconName }> = {
   OVER_CONTRIBUTED: { tone: "accent", icon: "arrowUp" },
   UNDER_CONTRIBUTED: { tone: "owe", icon: "arrowDown" },
   ON_TARGET: { tone: "neutral" },
@@ -25,6 +25,21 @@ const STATUS: Record<Status, { tone: "accent" | "owe" | "neutral"; icon?: UiIcon
 // badge side by side do not fit a phone; from 640 px it is a table row inside a region that scrolls on its own.
 const CELL =
   "flex justify-between gap-3 py-0.5 text-right tabular-nums before:text-left before:text-muted before:content-[attr(data-label)] sm:table-cell sm:py-2.5 sm:pl-3 sm:before:hidden";
+
+/**
+ * Why a figure is missing: the savings note for a savings line's consumption (no reason explains that one), else the
+ * line's own reason, else nothing is known. The Members view and the desktop overview say it alike (ruling P217).
+ */
+export const missingReason = (
+  line: Pick<MatrixLine, "funding" | "reason">,
+  column: MatrixColumn,
+  t: ReturnType<typeof useTranslations<"reports">>,
+): string =>
+  column === "consumed" && line.funding === "SAVINGS"
+    ? t("matrix.savingsNote")
+    : line.reason
+      ? t(`reason.${line.reason}`)
+      : t("matrix.noFigure");
 
 /**
  * HU-E9-10 (the Matrix artboard): one table per line of the period's plan, with each member's assigned, contributed
@@ -79,14 +94,7 @@ function MatrixLineSection({
   const savings = line.funding === "SAVINGS";
   const money = (value: MoneyDto) => formatMoney(value, formats);
 
-  // Why a figure is missing: the savings note for a savings line's consumption (no reason explains that one), else
-  // the line's own reason, else nothing is known.
-  const why = (column: Column) =>
-    column === "consumed" && savings
-      ? t("matrix.savingsNote")
-      : line.reason
-        ? t(`reason.${line.reason}`)
-        : t("matrix.noFigure");
+  const why = (column: MatrixColumn) => missingReason(line, column, t);
 
   return (
     <section
@@ -119,7 +127,7 @@ function MatrixLineSection({
           </thead>
           <tbody className="block sm:table-row-group [&>tr:last-child]:border-b-0">
             {line.members.map((cell) => {
-              const figure = (column: Column) => {
+              const figure = (column: MatrixColumn) => {
                 const value = cell[column];
                 return value ? (
                   money(value)
@@ -130,7 +138,7 @@ function MatrixLineSection({
                   </>
                 );
               };
-              const badge = cell.status ? { status: cell.status, ...STATUS[cell.status] } : null;
+              const badge = cell.status ? { status: cell.status, ...MATRIX_STATUS[cell.status] } : null;
               return (
                 <tr
                   key={cell.memberId}

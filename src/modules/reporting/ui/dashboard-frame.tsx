@@ -21,6 +21,7 @@ export function DashboardFrame({
   next,
   formats,
   plan,
+  wide = false,
   children,
 }: {
   readonly space: SpaceDto;
@@ -30,12 +31,16 @@ export function DashboardFrame({
   readonly next: PeriodDto | null;
   readonly formats: Pick<Formats, "dateFormat">;
   readonly plan: ReportPlanDto | null;
+  /** From 1024 px the frame takes the DashDesktop artboard's width, for the desktop overview's two columns (P216). */
+  readonly wide?: boolean;
   readonly children: ReactNode;
 }) {
   const t = useTranslations("reports");
   const periodText = usePeriodText();
   return (
-    <div className="mx-auto flex w-full max-w-[720px] flex-col gap-3 py-4">
+    <div
+      className={`mx-auto flex w-full max-w-[720px] flex-col gap-3 py-4${wide ? " lg:max-w-[1220px]" : ""}`}
+    >
       <header className="flex flex-col gap-1">
         <p className="text-sm break-words text-muted">{space.name}</p>
         <PeriodSwitcher
