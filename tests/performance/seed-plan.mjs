@@ -16,11 +16,10 @@ export const seedPlanRoutes = async (api, { personal, shared, bank }) => {
       items.flatMap((g) => g.categories).flatMap((c) => (c.key ? [[c.key, c.id]] : [])),
     );
   };
-  const savings = await api("POST", `/api/v1/spaces/${personal}/accounts`, {
-    name: "Ahorros",
-    type: "SAVINGS",
-    openingBalance: cop(0),
-  });
+  // Sign-up already opened a SAVINGS starter account (issue 169), whose name follows the locale; the Savings line uses it.
+  const { items: personalAccounts } = await api("GET", `/api/v1/spaces/${personal}/accounts`);
+  const savings = personalAccounts.find((account) => account.type === "SAVINGS");
+  if (savings === undefined) throw new Error("The personal space has no SAVINGS starter account");
   const { items: members } = await api("GET", `/api/v1/spaces/${shared}/members`);
   const registered = members.filter((m) => m.kind === "USER");
   const keys = await keysOf(shared);
