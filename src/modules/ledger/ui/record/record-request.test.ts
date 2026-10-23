@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { afterSaveUrl, recordFieldOf, requestOf, type RecordDraft } from "./record-request";
+import { afterSaveUrl, fundWentNegative, recordFieldOf, requestOf, type RecordDraft } from "./record-request";
 
 const draft = (overrides: Partial<RecordDraft> = {}): RecordDraft => ({
   kind: "EXPENSE",
@@ -263,5 +263,21 @@ describe("afterSaveUrl (HU-E9-06, ruling P170)", () => {
     ]);
     expect(url).toContain("account=a%2Ffund%201");
     expect(url).not.toContain("50000000");
+  });
+});
+
+describe("fundWentNegative (ruling P196)", () => {
+  it("is true only when the answer carries the fund warning, so the saved notice speaks instead of the toast", () => {
+    expect(fundWentNegative()).toBe(false);
+    expect(fundWentNegative([])).toBe(false);
+    expect(
+      fundWentNegative([
+        {
+          code: "FundBalanceNegative",
+          accountId: "a-fund",
+          balance: { amount: "-50000000", currency: "COP" },
+        },
+      ]),
+    ).toBe(true);
   });
 });

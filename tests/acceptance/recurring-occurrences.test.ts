@@ -6,6 +6,8 @@ import { activatePlan, closePlan, newPlan } from "../support/budgeting";
 import { MovableClock } from "../support/in-memory-recurrences";
 import { cop, type TransactionDto } from "../support/ledger";
 import {
+  endRecurrence,
+  extendRecurrence,
   homePlan,
   householdWithFund,
   patchRecurrence,
@@ -83,6 +85,36 @@ describe("recording due occurrences (HU-E4-12)", () => {
     await schedulerRunsOn("2026-12-01");
     await schedulerRunsOn("2026-12-01");
     expect((await expensesIn(h, "2026-12")).map((t) => t.date)).toEqual(["2026-12-01"]);
+  });
+
+  it("records nothing for the dates an ended Rent missed once it is extended: ended on 2026-12-05, extended on 2027-02-10, next 2027-03-01 (#115)", async () => {
+    const h = await householdWithFund();
+    const rent = await define(h.ana, h.spaceId, rentBody(h));
+    await schedulerRunsOn("2026-12-01");
+    clock.set("2026-12-05");
+    expect((await endRecurrence(h.ana, h.spaceId, rent.id)).status).toBe(200);
+    // 2027-01-01 and 2027-02-01 fall due while it is ended: nothing is recorded.
+    await schedulerRunsOn("2027-01-15");
+    await schedulerRunsOn("2027-02-09");
+    clock.set("2027-02-10");
+    const extended = await extendRecurrence(h.ana, h.spaceId, rent.id, { endDate: null });
+    expect(extended.status).toBe(200);
+    expect(await recurrenceOf(h.ana, h.spaceId, rent.id)).toMatchObject({
+      status: "ACTIVE",
+      endDate: null,
+      nextOccurrence: "2027-03-01",
+    });
+    const { occurrences: untilFebruary } = await schedulerRunsOn("2027-02-28");
+    expect(untilFebruary).toEqual([]);
+    const { occurrences: inMarch } = await schedulerRunsOn("2027-03-01");
+    expect(inMarch.map((o) => o.date)).toEqual(["2027-03-01"]);
+    const dates = [
+      ...(await expensesIn(h, "2026-12")),
+      ...(await expensesIn(h, "2027-01")),
+      ...(await expensesIn(h, "2027-02")),
+      ...(await expensesIn(h, "2027-03")),
+    ].map((t) => t.date);
+    expect(dates).toEqual(["2026-12-01", "2027-03-01"]);
   });
 
   it("catches up the 2026-12-01 Rent when the scheduler first runs on 2026-12-04", async () => {

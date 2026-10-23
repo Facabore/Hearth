@@ -117,15 +117,19 @@ describe("editing and archiving accounts (HU-E2-03)", () => {
 
     const archived = await accountCall(archiveAccount, "POST", ana, nequi, undefined, "/archive");
     expect((await archived.json()).archivedAt).toEqual(expect.any(String));
-    expect((await list(ana)).body.items.map((a: AccountDto) => a.name)).toEqual(["Bancolombia"]);
-    expect((await list(ana, "?archived=true")).body.items.map((a: AccountDto) => a.name)).toEqual([
-      "Bancolombia",
-      "Nequi",
-    ]);
+    // Issue 169: sign-up's starter accounts sort among hers, by name.
+    const withStarters = (...names: string[]) =>
+      [...names, "Ahorros", "Billetera digital", "Cuenta bancaria", "Efectivo", "Tarjeta de crédito"].sort();
+    expect((await list(ana)).body.items.map((a: AccountDto) => a.name)).toEqual(withStarters("Bancolombia"));
+    expect((await list(ana, "?archived=true")).body.items.map((a: AccountDto) => a.name)).toEqual(
+      withStarters("Bancolombia", "Nequi"),
+    );
     expect((await accountCall(getAccount, "GET", ana, nequi)).status).toBe(200);
     const restored = await accountCall(restoreAccount, "POST", ana, nequi, undefined, "/restore");
     expect([restored.status, (await restored.json()).archivedAt]).toEqual([200, null]);
-    expect((await list(ana)).body.items.map((a: AccountDto) => a.name)).toEqual(["Bancolombia", "Nequi"]);
+    expect((await list(ana)).body.items.map((a: AccountDto) => a.name)).toEqual(
+      withStarters("Bancolombia", "Nequi"),
+    );
     const juan = await registerUser("Juan");
     const foreign = await call(
       restoreAccount,

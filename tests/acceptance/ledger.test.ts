@@ -332,6 +332,86 @@ describe("edit and delete with an audit trail (HU-E4-06)", () => {
     ]);
   });
 
+  it("moves an expense and an income to Nequi; both balances follow (ruling P186)", async () => {
+    const ana = await ledgerUser("Ana");
+    const tx = await recorded(post(recordExpense, ana, "expenses", market(ana)));
+    const salary = await recorded(
+      post(recordIncome, ana, "incomes", {
+        amount: cop(500_000),
+        date: "2026-10-05",
+        categoryId: ana.salary,
+        accountId: ana.bancolombia,
+      }),
+    );
+    const moved = await onTransaction(editTransaction, "PATCH", ana, tx.id, {
+      body: { accountId: ana.nequi },
+      ifMatch: '"1"',
+    });
+    expect([moved.status, moved.headers.get("etag")]).toEqual([200, '"2"']);
+    expect(((await moved.json()) as TransactionDto).payments.map((p) => p.accountId)).toEqual([ana.nequi]);
+    expect(
+      (await onTransaction(editTransaction, "PATCH", ana, salary.id, { body: { accountId: ana.nequi } }))
+        .status,
+    ).toBe(200);
+    expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(2_000_000));
+    expect(await balanceOf(ana, ana.nequi)).toEqual(cop(415_000));
+  });
+
+  it("refuses accountId together with payments, and a part the type does not have", async () => {
+    const ana = await ledgerUser("Ana");
+    const tx = await recorded(post(recordExpense, ana, "expenses", market(ana)));
+    const both = await onTransaction(editTransaction, "PATCH", ana, tx.id, {
+      body: { accountId: ana.nequi, payments: [] },
+    });
+    expect((await both.json()).code).toBe("ValidationFailed");
+    const wrong = await onTransaction(editTransaction, "PATCH", ana, tx.id, {
+      body: { sourceAccountId: ana.nequi },
+    });
+    expect([wrong.status, (await wrong.json()).code]).toEqual([409, "FieldNotEditable"]);
+  });
+
+  it("moves an own transfer's accounts, audits them, and keeps another person's account out (D9, P187)", async () => {
+    const ana = await ledgerUser("Ana");
+    const juan = await ledgerUser("Juan");
+    const move = await recorded(
+      post(recordTransfer, ana, "transfers", {
+        amount: cop(300_000),
+        date: "2026-10-05",
+        sourceAccountId: ana.bancolombia,
+        destinationAccountId: ana.nequi,
+      }),
+    );
+    const swapped = await onTransaction(editTransaction, "PATCH", ana, move.id, {
+      body: { sourceAccountId: ana.nequi, destinationAccountId: ana.bancolombia },
+    });
+    expect(swapped.status).toBe(200);
+    expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(2_300_000));
+    expect(await balanceOf(ana, ana.nequi)).toEqual(cop(-300_000));
+    expect((await auditOf(ana, move.id))[0]!.changes).toEqual({
+      sourceAccountId: { from: ana.bancolombia, to: ana.nequi },
+      destinationAccountId: { from: ana.nequi, to: ana.bancolombia },
+    });
+    const foreign = await onTransaction(editTransaction, "PATCH", ana, move.id, {
+      body: { destinationAccountId: juan.bancolombia },
+    });
+    expect([foreign.status, (await foreign.json()).code]).toEqual([422, "AccountNotOwned"]);
+    const same = await onTransaction(editTransaction, "PATCH", ana, move.id, {
+      body: { destinationAccountId: ana.nequi },
+    });
+    expect([same.status, (await same.json()).code]).toEqual([409, "SameAccountTransfer"]);
+  });
+
+  it("answers FieldNotEditable with the field for a settlement, and an unchanged body behaves as before (P188)", async () => {
+    const ana = await ledgerUser("Ana");
+    const tx = await recorded(post(recordExpense, ana, "expenses", market(ana)));
+    const untouched = await onTransaction(editTransaction, "PATCH", ana, tx.id, { body: {} });
+    expect([untouched.status, untouched.headers.get("etag")]).toEqual([200, '"1"']);
+    const wrong = await onTransaction(editTransaction, "PATCH", ana, tx.id, {
+      body: { destinationAccountId: ana.nequi },
+    });
+    expect(await wrong.json()).toMatchObject({ code: "FieldNotEditable", field: "destinationAccountId" });
+  });
+
   it("rejects a stale or malformed If-Match with 412 and changes nothing (Review Focus 1)", async () => {
     const ana = await ledgerUser("Ana");
     const tx = await recorded(post(recordExpense, ana, "expenses", market(ana)));

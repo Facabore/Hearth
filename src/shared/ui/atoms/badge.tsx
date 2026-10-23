@@ -6,7 +6,7 @@ import { Icon } from "./icon";
 const TONES = {
   neutral: "bg-track text-muted",
   accent: "bg-accent-soft text-accent",
-  owe: "bg-owe-soft text-owe",
+  owe: "bg-owe-soft text-owe-ink",
 } as const;
 
 export function Badge({
@@ -20,6 +20,7 @@ export function Badge({
 }) {
   return (
     <span
+      data-tone={tone}
       className={cn(
         "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium",
         TONES[tone],

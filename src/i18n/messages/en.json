@@ -12,8 +12,13 @@
     "copy": "Copy",
     "copied": "Copied",
     "copyFailed": "Could not copy: select the link and copy it.",
+    "numberExample": "e.g. {example}",
     "notNow": "Not now",
     "goHome": "Go to Hearth",
+    "periodMonth": "{month} {year}",
+    "periodRange": "{start} – {end}",
+    "previousPeriod": "Previous period",
+    "nextPeriod": "Next period",
     "month": {
       "1": "January",
       "2": "February",
@@ -69,6 +74,7 @@
     "DirectSpaceIsFull": "A space between two people cannot take anyone else.",
     "DirectSpaceMembersFixed": "The members of a space between two people do not change. Archive it if you no longer use it.",
     "EmailTaken": "An account with this email already exists.",
+    "FieldNotEditable": "This detail cannot be changed for this kind of transaction.",
     "GuestAlreadyClaimed": "This guest place has already been claimed.",
     "GuestHasNoAccounts": "A guest has no accounts: remove the account from their payment.",
     "GuestHasNoRole": "Guests have no role in the space.",
@@ -149,6 +155,7 @@
     "SharedFundRequiresSharedSpace": "A shared fund exists only in a shared space.",
     "SharesDoNotMatchAmount": "The payments and the shares must add up to the total amount.",
     "SignUpClosed": "Sign-up is closed. Ask someone in your household for an invitation.",
+    "SourcePlanOpen": "Close the plan for {period} first: this plan carries a balance from that month.",
     "SpaceArchived": "This space is archived and does not take changes.",
     "SpaceCurrencyLocked": "The space's currency can no longer change: it has transactions or a plan.",
     "SpaceNotFound": "That space was not found, or you are no longer a member.",
@@ -207,6 +214,7 @@
       "transactions": "Transactions",
       "record": "Record a transaction",
       "recordShort": "Record",
+      "plan": "Plan",
       "balances": "Balances"
     },
     "space": {
@@ -336,6 +344,7 @@
       "owed": "You owe today",
       "institution": "Institution",
       "lastFour": "Last 4",
+      "lastFourHint": "Optional: the last 4 digits, to tell two accounts at the same bank apart",
       "creditLimit": "Credit limit",
       "cutOffDay": "Cut-off day",
       "paymentDay": "Payment day",
@@ -381,7 +390,10 @@
     "directNote": "This space is between two people: each pays from their personal accounts.",
     "empty": {
       "title": "You have no accounts yet",
+      "noActiveTitle": "You have no active accounts",
       "body": "Add where you keep your money to start tracking it.",
+      "starter": "Create starter accounts",
+      "starterBody": "Cash, bank account, digital wallet, credit card and savings, at zero.",
       "fundsTitle": "This space has no funds yet",
       "directTitle": "This space has no accounts"
     }
@@ -429,6 +441,58 @@
       "title": "Expense saved",
       "dismiss": "Dismiss notice"
     },
+    "detail": {
+      "type": "Type",
+      "when": "Date and time",
+      "noTime": "No time",
+      "noDescription": "No description",
+      "payerAccount": "{name}'s account",
+      "edit": "Edit",
+      "delete": "Delete",
+      "note": {
+        "onlyOwner": "Only {name} can edit it, because the money moves through their account. You can delete it.",
+        "SETTLEMENT": "A payment between members is not edited: delete it and record it again from Balances.",
+        "CONTRIBUTION": "A contribution to the fund is not edited: delete it and record it again."
+      },
+      "open": "Open the details of {name}"
+    },
+    "edit": {
+      "title": "Edit transaction",
+      "save": "Save changes",
+      "kind": "Type: {type}",
+      "reload": "Load the latest version",
+      "reloadNote": "The changes you typed will be discarded."
+    },
+    "toast": {
+      "saved": {
+        "EXPENSE": "Expense saved",
+        "INCOME": "Income saved",
+        "TRANSFER": "Transfer saved"
+      },
+      "edited": "Changes saved",
+      "undo": "Undo",
+      "deleted": {
+        "EXPENSE": "Expense deleted",
+        "INCOME": "Income deleted",
+        "TRANSFER": "Transfer deleted",
+        "SETTLEMENT": "Payment deleted"
+      },
+      "restored": {
+        "EXPENSE": "Expense restored",
+        "INCOME": "Income restored",
+        "TRANSFER": "Transfer restored",
+        "SETTLEMENT": "Payment restored"
+      },
+      "undoFailed": "Could not undo: {message}"
+    },
+    "lineWarning": {
+      "near": "With this expense, {line} would be at {used} of its plan.",
+      "high": "With this expense, {line} would be at {used} of its plan, with {rest} left.",
+      "over": "With this expense you would go {rest} over on {line}.",
+      "confirmTitle": "Save anyway?",
+      "confirm": "Save anyway",
+      "review": "Review the amount"
+    },
     "when": {
       "title": "Date and time",
       "day": "Day",
@@ -444,7 +508,7 @@
       "am": "AM",
       "pm": "PM",
       "now": "Now",
-      "apply": "Use {label}"
+      "apply": "{day, select, today {Use today · {time}} yesterday {Use yesterday · {time}} dayBeforeYesterday {Use the day before yesterday · {time}} other {Use {date} · {time}}}"
     },
     "form": {
       "title": "Record a transaction",
@@ -542,6 +606,11 @@
     }
   },
   "spaces": {
+    "settings": {
+      "title": "Space",
+      "name": "Space name",
+      "nameHint": "How it appears in the space switcher and on its screens."
+    },
     "new": {
       "title": "Create a shared space",
       "name": "Name",
@@ -684,6 +753,9 @@
       "none": "None",
       "payerRequired": "Choose who pays.",
       "save": "Save payment"
+    },
+    "toast": {
+      "settled": "Payment recorded"
     }
   },
   "invitation": {
@@ -728,5 +800,309 @@
     "title": "Something went wrong",
     "connectionTitle": "We couldn't connect to Hearth",
     "connectionBody": "Hearth did not answer. Check your connection and try again."
+  },
+  "budgeting": {
+    "status": {
+      "DRAFT": "Draft",
+      "ACTIVE": "Active",
+      "CLOSED": "Closed"
+    },
+    "planner": {
+      "metaTitle": "Planner",
+      "title": "Plan for {period}",
+      "dates": "{space} · {start} – {end}",
+      "closedNotice": "Closed plan: it is read-only now.",
+      "capacity": "Total capacity",
+      "unallocated": "Unallocated {amount}",
+      "memberShare": "{name} {amount} · {share}",
+      "memberAmount": "{name} {amount}",
+      "editCapacities": "Edit capacities",
+      "lines": "Lines",
+      "addLine": "Add line",
+      "empty": "This plan has no lines yet.",
+      "meta": "{funding} · {rule} · {rollover}",
+      "ofCapacity": "{share} of capacity",
+      "invalidAllocation": "Invalid allocation",
+      "editLine": "Edit {name}",
+      "activate": "Activate plan",
+      "activateHint": "While in draft, the plan does not change how expenses are split. Once active, “By the plan” becomes the default split.",
+      "close": "Close plan",
+      "closeHint": "It can be closed once the period is over, from {date}.",
+      "invalidLines": "It cannot be activated: check the allocation of {lines}.",
+      "goToSource": "Go to the plan for {period}"
+    },
+    "funding": {
+      "DIRECT": "Direct",
+      "SHARED_FUND": "Shared fund",
+      "SAVINGS": "Savings"
+    },
+    "rule": {
+      "PROPORTIONAL": "By capacity",
+      "PERCENT": "Percentage",
+      "FIXED": "Fixed amount",
+      "NONE": "Not allocated"
+    },
+    "rollover": {
+      "RESET": "Resets",
+      "ROLLOVER": "Rolls over",
+      "ADJUSTED": "Adjusts",
+      "hint": {
+        "RESET": "Every period starts from zero.",
+        "ROLLOVER": "What is left moves to the next period and does not count against capacity. Use it to save every month for a yearly bill, such as SOAT, property tax or insurance.",
+        "ADJUSTED": "If you go over, the excess comes off the next period; what is left does not move."
+      },
+      "throughCopy": "It moves when the next plan is created as a copy of this one and this one is closed."
+    },
+    "line": {
+      "catchAll": "Everything else"
+    },
+    "start": {
+      "create": "Create plan",
+      "copy": "Copy previous plan"
+    },
+    "copy": {
+      "title": "Copied from the previous plan",
+      "body": "Same lines, amounts, rules and capacities. What can no longer be used was left out:",
+      "bodyComplete": "Same lines, amounts, rules and capacities.",
+      "droppedMapping": "{category}, which fed {line}",
+      "droppedAccount": "A savings account of {line} that can no longer be used",
+      "droppedLine": "The line {name}: none of its savings accounts is still available"
+    },
+    "capacity": {
+      "title": "Capacities",
+      "subtitle": "What each person puts in for {period}",
+      "you": "{name} (you)",
+      "field": "{name}'s capacity",
+      "suggestion": "Suggested {amount}: your income of {period} in Personal. Only you see it.",
+      "useSuggestion": "Use suggestion",
+      "zeroNote": "Anyone without a capacity counts as {zero}.",
+      "rolesNote": "A Member changes only their own; an Owner or an Admin changes everyone's.",
+      "total": "Total",
+      "save": "Save capacities",
+      "unreadable": "Type an amount like {example}."
+    },
+    "lineEditor": {
+      "metaTitle": "Edit line",
+      "title": "Line {name}",
+      "newTitle": "New line",
+      "figures": "Line figures",
+      "carryOver": "Carried over",
+      "field": {
+        "name": "Name",
+        "planned": "Planned",
+        "plannedHint": "{share} of capacity · {unallocated} unallocated",
+        "plannedNewHint": "Unallocated: {unallocated}",
+        "funding": "Where it comes from",
+        "savingsAccounts": "Savings accounts",
+        "otherAccount": "Another member's savings account",
+        "noSavingsAccounts": "You have no savings accounts in {currency}. Create one in Accounts.",
+        "rollover": "When the period changes",
+        "catchAll": "Everything else",
+        "catchAllHint": "Takes the expenses of categories that are in no other line."
+      },
+      "unreadable": "Type an amount like {example}.",
+      "save": "Save line",
+      "add": "Add line",
+      "remove": {
+        "open": "Remove line",
+        "title": "Remove {name}?",
+        "explain": "The line leaves the plan, and its expenses go to Unbudgeted or to the everything-else line.",
+        "confirm": "Remove"
+      },
+      "readOnly": "Only an Owner or an Admin edits the lines of an open plan."
+    },
+    "mapping": {
+      "label": "Categories",
+      "choose": "Choose categories",
+      "none": "No categories yet",
+      "title": "Categories of {line}",
+      "search": "Search category",
+      "inOtherLine": "In {line}",
+      "done": "Done"
+    },
+    "allocation": {
+      "title": "Who answers for the line",
+      "rule": "Allocation rule",
+      "value": "{name}'s value",
+      "sum": "Sum: {sum}",
+      "unreadable": "Type a number like {example}.",
+      "noCapacity": "Nobody has capacity in this plan: allocate by percentage or by fixed amount.",
+      "note": {
+        "PROPORTIONAL": "Follows each member's capacity. It is recalculated when capacities change.",
+        "PERCENT": "Percentages that add up to 100%.",
+        "FIXED": "Amounts that add up to the {planned} planned.",
+        "NONE": "Group money with no one answering per person: the line shows planned, spent and available, without amounts per member."
+      }
+    }
+  },
+  "reports": {
+    "title": "Plan",
+    "tabs": {
+      "label": "Plan views"
+    },
+    "view": {
+      "lines": "Lines",
+      "members": "Members",
+      "fund": "Fund",
+      "groups": "By group",
+      "trend": "Trend",
+      "mine": "My spending",
+      "calendar": "Upcoming"
+    },
+    "frame": {
+      "editPlan": "Edit plan",
+      "viewPlan": "View plan",
+      "startPlan": "Plan this period"
+    },
+    "spaceScoped": "{space} / {name}",
+    "outsideTheApp": "Paid outside the app",
+    "trend": {
+      "new": "New",
+      "noPrevious": "No previous period",
+      "increased": "Up",
+      "decreased": "Down",
+      "unchanged": "Same",
+      "window": "{count} periods",
+      "personalCaption": "My spending by period",
+      "personalTable": "Consumption by period",
+      "period": "Period",
+      "consumption": "Consumption",
+      "change": "Change",
+      "noPlan": "This period has no plan: there are no lines to compare.",
+      "linesCaption": "Spent by line",
+      "linesTable": "Spent by line and period",
+      "spentIn": "Spent in {period}",
+      "noFigure": "No figure",
+      "linesNote": "Each line is compared with the line it was copied from in the previous plan. Unbudgeted spending has no trend."
+    },
+    "calendar": {
+      "metaTitle": "Upcoming movements",
+      "title": "Next {days} days",
+      "window": "Window",
+      "days": "{days} days",
+      "explain": "The recurring movements of your accounts in all your spaces, with the balance you would have after each day.",
+      "summary": "Summary of what is coming",
+      "opening": "Available today",
+      "incoming": "Coming in",
+      "outgoing": "Going out",
+      "closing": "At the end",
+      "lowest": "Lowest: {balance} on {date}",
+      "listLabel": "Movements by day",
+      "balanceAfter": "Projected balance {balance}",
+      "pending": "Pending since {date}",
+      "estimated": "Estimated",
+      "noEffect": "Does not change your available money",
+      "type": {
+        "EXPENSE": "Expense",
+        "INCOME": "Income",
+        "TRANSFER": "Transfer",
+        "FUND_CONTRIBUTION": "Fund contribution"
+      },
+      "empty": "Nothing is scheduled in the next {days} days.",
+      "otherCurrency": "{space} uses {currency}: its movements are not added here."
+    },
+    "unified": {
+      "consumption": "Consumption",
+      "consumptionHint": "What was for you: your expenses and your share of shared ones.",
+      "cashOut": "Cash out",
+      "cashOutHint": "What left your pockets.",
+      "sources": "Where the cash out comes from",
+      "payments": "Expense payments",
+      "fundContributions": "Fund contributions",
+      "savingsTransfers": "Transfers to your savings",
+      "byCategory": "Consumption by category",
+      "empty": "You consumed nothing in this period.",
+      "otherCurrency": "{name} is in {currency} and is not added here."
+    },
+    "byGroup": {
+      "trail": "Path",
+      "all": "All groups",
+      "total": "Total spending",
+      "totalOf": "Total of {name}",
+      "hint": {
+        "groups": "Tap a group to see its categories.",
+        "categories": "Tap a category to see its subcategories.",
+        "subcategories": "Subcategories"
+      },
+      "groups": "Groups",
+      "categoriesOf": "Categories of {name}",
+      "subcategoriesOf": "Subcategories of {name}",
+      "noSubcategory": "No subcategory",
+      "archived": "Archived",
+      "spaceNote": "Every expense of the space, whoever paid. Income, transfers, fund contributions and settlements do not count.",
+      "personalNote": "Your expenses and your share of shared ones, across all your spaces. Hearth's own groups are merged; groups a space created carry its name."
+    },
+    "fund": {
+      "title": "Fund contributions",
+      "expected": "Expected",
+      "actual": "Contributed",
+      "difference": "Difference",
+      "byMember": "By member",
+      "upToDate": "Up to date",
+      "behind": "Still to pay in",
+      "noPlan": "Without a plan, nobody has an expected contribution.",
+      "note": "Expected: what each one is assigned on the lines paid from the fund. Contributions dated in the period count."
+    },
+    "lines": {
+      "summary": "Plan summary",
+      "totalAvailable": "Available",
+      "totalSpent": "Spent {spent} of {planned}",
+      "caption": "Planned, spent and available per line",
+      "line": "Line",
+      "planned": "Planned",
+      "spent": "Spent",
+      "available": "Available",
+      "overspent": "Overspent",
+      "state": {
+        "NEAR": "Near the limit",
+        "HIGH": "At the limit"
+      },
+      "overBy": "{amount} over plan",
+      "unbudgeted": "Unbudgeted",
+      "unbudgetedNote": "Unbudgeted is what was spent in categories that are in no line.",
+      "carryOver": "{amount} from {period}",
+      "carryOverPending": "Carries over from {period} once that plan is closed."
+    },
+    "noPlan": {
+      "title": "{period} has no plan",
+      "body": "Without a plan, everything spent in this period shows as Unbudgeted and the default split is equal shares.",
+      "managersOnly": "Only an Owner or an Admin can create the plan."
+    },
+    "matrix": {
+      "noPlan": "This period has no plan: there are no allocations to compare.",
+      "kind": "{funding} · {rule}",
+      "caption": "{line} by member",
+      "member": "Member",
+      "assigned": "Assigned",
+      "contributed": "Contributed",
+      "consumed": "Consumed",
+      "gap": "Gap",
+      "formerMember": "Former member",
+      "noFigure": "No figure",
+      "savingsNote": "It counts what reached the line's savings accounts; it has no consumption.",
+      "toFund": "See the fund"
+    },
+    "overview": {
+      "toGroups": "See by group",
+      "fundSummary": "{actual} of {expected}",
+      "againstPrevious": "Against the previous period",
+      "toTrend": "See the 6-period trend",
+      "matrixTitle": "Members by line",
+      "matrixNote": "Lines paid from the fund track contributions under Fund contributions; savings lines count what reached their accounts."
+    },
+    "reason": {
+      "NOT_ALLOCATED": "Not allocated per person: only what was consumed is shown.",
+      "TRACKED_AT_FUND_LEVEL": "Contributions and gaps are tracked at the fund, not per line.",
+      "INVALID_ALLOCATION": "This line's allocation does not add up: nobody has an assigned amount."
+    },
+    "status": {
+      "OVER_CONTRIBUTED": "over-contributed",
+      "UNDER_CONTRIBUTED": "under-contributed",
+      "ON_TARGET": "on target"
+    }
+  },
+  "toast": {
+    "region": "Notifications (F8)",
+    "dismiss": "Dismiss"
   }
 }

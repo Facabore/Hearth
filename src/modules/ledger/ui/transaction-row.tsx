@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { categoryPath, CategoryIcon, findCategory } from "@/modules/categories/ui";
 import { paletteVars, SymbolIcon } from "@/shared/ui";
@@ -19,9 +20,12 @@ export interface RowContext {
 export function TransactionRow({
   tx,
   context,
+  href,
 }: {
   readonly tx: TransactionDto;
   readonly context: RowContext;
+  /** Ruling P189: the row's detail, the same page with `?tx=`. Without it the row opens nothing. */
+  readonly href?: string;
 }) {
   const t = useTranslations("ledger");
   const { formats, viewerZone, groups, accountNames, memberNames } = context;
@@ -54,8 +58,8 @@ export function TransactionRow({
   }
   const money = formatMoney(tx.amount, formats);
   const amount = tx.type === "EXPENSE" ? `${MINUS}${money}` : tx.type === "INCOME" ? `+${money}` : money;
-  return (
-    <li className="flex min-h-16 items-center gap-3 py-2">
+  const content = (
+    <>
       {found ? (
         <CategoryIcon icon={found.category.icon} color={found.category.color} size={40} />
       ) : (
@@ -81,6 +85,16 @@ export function TransactionRow({
       >
         {amount}
       </span>
+    </>
+  );
+  // The link wraps the row's whole text, so its name holds the visible label (WCAG 2.5.3) and the target is the row.
+  return href ? (
+    <li>
+      <Link href={href} scroll={false} className="flex min-h-16 items-center gap-3 rounded-xl py-2">
+        {content}
+      </Link>
     </li>
+  ) : (
+    <li className="flex min-h-16 items-center gap-3 py-2">{content}</li>
   );
 }

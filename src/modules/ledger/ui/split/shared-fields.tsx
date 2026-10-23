@@ -33,6 +33,8 @@ export interface SharedFieldsProps {
   readonly date: string;
   readonly api: Api;
   readonly error?: string | undefined;
+  /** Whether the plan's split (HU-E6-08) is asked for and offered; an edit starts from the saved split and has none (P192). */
+  readonly defaultSplit?: boolean;
 }
 
 const rowClass =
@@ -55,12 +57,13 @@ export function SharedFields({
   date,
   api,
   error,
+  defaultSplit: offerPlan = true,
 }: SharedFieldsProps) {
   const t = useTranslations("ledger.split");
   const names = useTranslations("members");
   const [opened, setOpened] = useState(false);
   const [open, setOpen] = useState(false);
-  const defaultSplit = useDefaultSplit({ api, spaceId, categoryId, date, amount, enabled: true });
+  const defaultSplit = useDefaultSplit({ api, spaceId, categoryId, date, amount, enabled: offerPlan });
   const memberIds = context.members.map((member) => member.id);
   const meUserId = context.members.find((m) => m.id === context.meMemberId)?.userId ?? "";
   const label = (id: string) => {

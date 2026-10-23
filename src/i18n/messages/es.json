@@ -12,8 +12,13 @@
     "copy": "Copiar",
     "copied": "Copiado",
     "copyFailed": "No se pudo copiar: selecciona el enlace y cópialo.",
+    "numberExample": "Ej: {example}",
     "notNow": "Ahora no",
     "goHome": "Ir a Hearth",
+    "periodMonth": "{month} {year}",
+    "periodRange": "{start} – {end}",
+    "previousPeriod": "Período anterior",
+    "nextPeriod": "Período siguiente",
     "month": {
       "1": "enero",
       "2": "febrero",
@@ -69,6 +74,7 @@
     "DirectSpaceIsFull": "Un espacio entre dos personas no admite a nadie más.",
     "DirectSpaceMembersFixed": "Los miembros de un espacio entre dos personas no cambian. Archívalo si ya no lo usan.",
     "EmailTaken": "Ya existe una cuenta con este correo.",
+    "FieldNotEditable": "Este dato no se puede cambiar en este tipo de movimiento.",
     "GuestAlreadyClaimed": "Este lugar de invitado ya fue reclamado.",
     "GuestHasNoAccounts": "Un invitado no tiene cuentas: quita la cuenta de su pago.",
     "GuestHasNoRole": "Los invitados no tienen rol en el espacio.",
@@ -149,6 +155,7 @@
     "SharedFundRequiresSharedSpace": "Un fondo compartido solo existe en un espacio compartido.",
     "SharesDoNotMatchAmount": "Los pagos y las partes deben sumar el monto total.",
     "SignUpClosed": "El registro está cerrado. Pide una invitación a alguien de tu hogar.",
+    "SourcePlanOpen": "Primero cierra el plan de {period}: este plan arrastra saldo de ese mes.",
     "SpaceArchived": "Este espacio está archivado y no admite cambios.",
     "SpaceCurrencyLocked": "La moneda del espacio ya no se puede cambiar: tiene movimientos o un plan.",
     "SpaceNotFound": "No encontramos ese espacio, o ya no eres miembro.",
@@ -207,6 +214,7 @@
       "transactions": "Movimientos",
       "record": "Registrar movimiento",
       "recordShort": "Registrar",
+      "plan": "Plan",
       "balances": "Saldos"
     },
     "space": {
@@ -336,6 +344,7 @@
       "owed": "Debes hoy",
       "institution": "Entidad",
       "lastFour": "Últimos 4",
+      "lastFourHint": "Opcional: los últimos 4 dígitos, para distinguir dos cuentas del mismo banco",
       "creditLimit": "Cupo",
       "cutOffDay": "Día de corte",
       "paymentDay": "Día de pago",
@@ -381,7 +390,10 @@
     "directNote": "Este espacio es entre dos personas: cada una paga desde sus cuentas personales.",
     "empty": {
       "title": "Aún no tienes cuentas",
+      "noActiveTitle": "No tienes cuentas activas",
       "body": "Agrega dónde tienes tu dinero para empezar a llevar tus cuentas.",
+      "starter": "Crear cuentas base",
+      "starterBody": "Efectivo, cuenta bancaria, billetera digital, tarjeta de crédito y ahorros, en cero.",
       "fundsTitle": "Este espacio aún no tiene fondos",
       "directTitle": "Este espacio no tiene cuentas"
     }
@@ -429,6 +441,58 @@
       "title": "Gasto guardado",
       "dismiss": "Cerrar aviso"
     },
+    "detail": {
+      "type": "Tipo",
+      "when": "Fecha y hora",
+      "noTime": "Sin hora",
+      "noDescription": "Sin descripción",
+      "payerAccount": "Cuenta de {name}",
+      "edit": "Editar",
+      "delete": "Eliminar",
+      "note": {
+        "onlyOwner": "Solo {name} puede editarlo, porque el dinero se mueve en su cuenta. Puedes eliminarlo.",
+        "SETTLEMENT": "Un pago entre miembros no se edita: elimínalo y regístralo de nuevo desde Saldos.",
+        "CONTRIBUTION": "Un aporte al fondo no se edita: elimínalo y regístralo de nuevo."
+      },
+      "open": "Ver detalle de {name}"
+    },
+    "edit": {
+      "title": "Editar movimiento",
+      "save": "Guardar cambios",
+      "kind": "Tipo: {type}",
+      "reload": "Cargar la última versión",
+      "reloadNote": "Se descartarán los cambios que escribiste."
+    },
+    "toast": {
+      "saved": {
+        "EXPENSE": "Gasto guardado",
+        "INCOME": "Ingreso guardado",
+        "TRANSFER": "Transferencia guardada"
+      },
+      "edited": "Cambios guardados",
+      "undo": "Deshacer",
+      "deleted": {
+        "EXPENSE": "Gasto eliminado",
+        "INCOME": "Ingreso eliminado",
+        "TRANSFER": "Transferencia eliminada",
+        "SETTLEMENT": "Pago eliminado"
+      },
+      "restored": {
+        "EXPENSE": "Gasto restaurado",
+        "INCOME": "Ingreso restaurado",
+        "TRANSFER": "Transferencia restaurada",
+        "SETTLEMENT": "Pago restaurado"
+      },
+      "undoFailed": "No se pudo deshacer: {message}"
+    },
+    "lineWarning": {
+      "near": "Con este gasto, {line} quedaría en {used} de lo planeado.",
+      "high": "Con este gasto, {line} quedaría en {used} de lo planeado y le quedarían {rest}.",
+      "over": "Con este gasto te pasarías por {rest} en {line}.",
+      "confirmTitle": "¿Guardar de todos modos?",
+      "confirm": "Guardar de todos modos",
+      "review": "Revisar el monto"
+    },
     "when": {
       "title": "Fecha y hora",
       "day": "Día",
@@ -444,7 +508,7 @@
       "am": "AM",
       "pm": "PM",
       "now": "Ahora",
-      "apply": "Usar {label}"
+      "apply": "{day, select, today {Usar hoy · {time}} yesterday {Usar ayer · {time}} dayBeforeYesterday {Usar anteayer · {time}} other {Usar {date} · {time}}}"
     },
     "form": {
       "title": "Registrar movimiento",
@@ -542,6 +606,11 @@
     }
   },
   "spaces": {
+    "settings": {
+      "title": "Espacio",
+      "name": "Nombre del espacio",
+      "nameHint": "Así aparece en el selector de espacios y en sus pantallas."
+    },
     "new": {
       "title": "Crear un espacio compartido",
       "name": "Nombre",
@@ -684,6 +753,9 @@
       "none": "Ninguna",
       "payerRequired": "Elige quién paga.",
       "save": "Guardar pago"
+    },
+    "toast": {
+      "settled": "Pago registrado"
     }
   },
   "invitation": {
@@ -728,5 +800,309 @@
     "title": "Algo salió mal",
     "connectionTitle": "No pudimos conectar con Hearth",
     "connectionBody": "Hearth no respondió. Revisa tu conexión e inténtalo de nuevo."
+  },
+  "budgeting": {
+    "status": {
+      "DRAFT": "Borrador",
+      "ACTIVE": "Activo",
+      "CLOSED": "Cerrado"
+    },
+    "planner": {
+      "metaTitle": "Planeador",
+      "title": "Plan de {period}",
+      "dates": "{space} · {start} – {end}",
+      "closedNotice": "Plan cerrado: queda en solo lectura.",
+      "capacity": "Capacidad total",
+      "unallocated": "Sin asignar {amount}",
+      "memberShare": "{name} {amount} · {share}",
+      "memberAmount": "{name} {amount}",
+      "editCapacities": "Editar capacidades",
+      "lines": "Líneas",
+      "addLine": "Agregar línea",
+      "empty": "Este plan aún no tiene líneas.",
+      "meta": "{funding} · {rule} · {rollover}",
+      "ofCapacity": "{share} de la capacidad",
+      "invalidAllocation": "Asignación inválida",
+      "editLine": "Editar {name}",
+      "activate": "Activar plan",
+      "activateHint": "En borrador el plan no cambia la división de los gastos. Al activarlo, «Según el plan» pasa a ser la división por defecto.",
+      "close": "Cerrar plan",
+      "closeHint": "Se puede cerrar cuando termine el período, desde el {date}.",
+      "invalidLines": "No se puede activar: revisa la asignación de {lines}.",
+      "goToSource": "Ir al plan de {period}"
+    },
+    "funding": {
+      "DIRECT": "Directo",
+      "SHARED_FUND": "Fondo compartido",
+      "SAVINGS": "Ahorro"
+    },
+    "rule": {
+      "PROPORTIONAL": "Según capacidad",
+      "PERCENT": "Porcentaje",
+      "FIXED": "Monto fijo",
+      "NONE": "Sin asignar"
+    },
+    "rollover": {
+      "RESET": "Reinicia",
+      "ROLLOVER": "Acumula",
+      "ADJUSTED": "Ajusta",
+      "hint": {
+        "RESET": "Cada período empieza en cero.",
+        "ROLLOVER": "Lo que sobra pasa al siguiente período y no cuenta contra la capacidad. Úsalo para ahorrar cada mes para un gasto anual, como el SOAT, el predial o un seguro.",
+        "ADJUSTED": "Si te pasas, lo que excede se descuenta del siguiente período; lo que sobra no pasa."
+      },
+      "throughCopy": "Pasa cuando el plan siguiente se crea como copia de este y este se cierra."
+    },
+    "line": {
+      "catchAll": "Todo lo demás"
+    },
+    "start": {
+      "create": "Crear plan",
+      "copy": "Copiar plan anterior"
+    },
+    "copy": {
+      "title": "Copiado del plan anterior",
+      "body": "Mismas líneas, montos, reglas y capacidades. Quedó fuera lo que ya no se puede usar:",
+      "bodyComplete": "Mismas líneas, montos, reglas y capacidades.",
+      "droppedMapping": "{category}, que alimentaba {line}",
+      "droppedAccount": "Una cuenta de ahorro de {line} que ya no se puede usar",
+      "droppedLine": "La línea {name}: ninguna de sus cuentas de ahorro sigue disponible"
+    },
+    "capacity": {
+      "title": "Capacidades",
+      "subtitle": "Lo que cada persona pone en {period}",
+      "you": "{name} (tú)",
+      "field": "Capacidad de {name}",
+      "suggestion": "Sugerido {amount}: tus ingresos de {period} en Personal. Solo tú lo ves.",
+      "useSuggestion": "Usar sugerencia",
+      "zeroNote": "Quien no tiene capacidad cuenta como {zero}.",
+      "rolesNote": "Un Miembro solo cambia la suya; Propietario y Administrador, la de todos.",
+      "total": "Total",
+      "save": "Guardar capacidades",
+      "unreadable": "Escribe un monto como {example}."
+    },
+    "lineEditor": {
+      "metaTitle": "Editar línea",
+      "title": "Línea {name}",
+      "newTitle": "Nueva línea",
+      "figures": "Cifras de la línea",
+      "carryOver": "Arrastrado",
+      "field": {
+        "name": "Nombre",
+        "planned": "Planeado",
+        "plannedHint": "{share} de la capacidad · sin asignar {unallocated}",
+        "plannedNewHint": "Sin asignar: {unallocated}",
+        "funding": "De dónde sale",
+        "savingsAccounts": "Cuentas de ahorro",
+        "otherAccount": "Cuenta de ahorro de otro miembro",
+        "noSavingsAccounts": "No tienes cuentas de ahorro en {currency}. Crea una en Cuentas.",
+        "rollover": "Al cambiar de período",
+        "catchAll": "Todo lo demás",
+        "catchAllHint": "Recibe los gastos de categorías que no están en otra línea."
+      },
+      "unreadable": "Escribe un monto como {example}.",
+      "save": "Guardar línea",
+      "add": "Agregar línea",
+      "remove": {
+        "open": "Quitar línea",
+        "title": "¿Quitar {name}?",
+        "explain": "La línea sale del plan y sus gastos pasan a Sin presupuesto o a la línea de todo lo demás.",
+        "confirm": "Quitar"
+      },
+      "readOnly": "Solo Propietario y Administrador editan las líneas de un plan abierto."
+    },
+    "mapping": {
+      "label": "Categorías",
+      "choose": "Elegir categorías",
+      "none": "Ninguna categoría todavía",
+      "title": "Categorías de {line}",
+      "search": "Buscar categoría",
+      "inOtherLine": "En {line}",
+      "done": "Listo"
+    },
+    "allocation": {
+      "title": "Quién responde por la línea",
+      "rule": "Regla de asignación",
+      "value": "Valor de {name}",
+      "sum": "Suma: {sum}",
+      "unreadable": "Escribe un número como {example}.",
+      "noCapacity": "Nadie tiene capacidad en este plan: asigna por porcentaje o por monto fijo.",
+      "note": {
+        "PROPORTIONAL": "Sigue la capacidad de cada miembro. Si cambian las capacidades, se recalcula.",
+        "PERCENT": "Porcentajes que suman 100 %.",
+        "FIXED": "Montos que suman los {planned} planeados.",
+        "NONE": "Plata del grupo, sin responsable por persona: la línea muestra planeado, gastado y disponible, sin montos por miembro."
+      }
+    }
+  },
+  "reports": {
+    "title": "Plan",
+    "tabs": {
+      "label": "Vistas del plan"
+    },
+    "view": {
+      "lines": "Líneas",
+      "members": "Miembros",
+      "fund": "Fondo",
+      "groups": "Por grupo",
+      "trend": "Tendencia",
+      "mine": "Mi consumo",
+      "calendar": "Próximos"
+    },
+    "frame": {
+      "editPlan": "Editar plan",
+      "viewPlan": "Ver plan",
+      "startPlan": "Planear este período"
+    },
+    "spaceScoped": "{space} / {name}",
+    "outsideTheApp": "Pagado fuera de la app",
+    "trend": {
+      "new": "Nueva",
+      "noPrevious": "Sin período anterior",
+      "increased": "Subió",
+      "decreased": "Bajó",
+      "unchanged": "Igual",
+      "window": "{count} períodos",
+      "personalCaption": "Mi consumo por período",
+      "personalTable": "Consumo por período",
+      "period": "Período",
+      "consumption": "Consumo",
+      "change": "Cambio",
+      "noPlan": "Este período no tiene plan: no hay líneas que comparar.",
+      "linesCaption": "Gastado por línea",
+      "linesTable": "Gastado por línea y período",
+      "spentIn": "Gastado en {period}",
+      "noFigure": "Sin dato",
+      "linesNote": "Cada línea se compara con su línea de origen en el plan anterior. Lo gastado sin presupuesto no tiene tendencia."
+    },
+    "calendar": {
+      "metaTitle": "Próximos movimientos",
+      "title": "Próximos {days} días",
+      "window": "Ventana",
+      "days": "{days} días",
+      "explain": "Los movimientos recurrentes de tus cuentas en todos tus espacios, con el saldo que te quedaría después de cada día.",
+      "summary": "Resumen de lo que viene",
+      "opening": "Disponible hoy",
+      "incoming": "Entra",
+      "outgoing": "Sale",
+      "closing": "Al final",
+      "lowest": "Lo más bajo: {balance} el {date}",
+      "listLabel": "Movimientos por día",
+      "balanceAfter": "Saldo proyectado {balance}",
+      "pending": "Pendiente desde el {date}",
+      "estimated": "Estimado",
+      "noEffect": "No cambia tu disponible",
+      "type": {
+        "EXPENSE": "Gasto",
+        "INCOME": "Ingreso",
+        "TRANSFER": "Transferencia",
+        "FUND_CONTRIBUTION": "Aporte al fondo"
+      },
+      "empty": "No hay movimientos programados en los próximos {days} días.",
+      "otherCurrency": "{space} usa {currency}: sus movimientos no se suman aquí."
+    },
+    "unified": {
+      "consumption": "Consumo",
+      "consumptionHint": "Lo que fue para ti: tus gastos y tu parte de los compartidos.",
+      "cashOut": "Salidas",
+      "cashOutHint": "Lo que salió de tus bolsillos.",
+      "sources": "De dónde salen las salidas",
+      "payments": "Pagos de gastos",
+      "fundContributions": "Aportes al fondo",
+      "savingsTransfers": "Transferencias a tus ahorros",
+      "byCategory": "Consumo por categoría",
+      "empty": "No consumiste nada en este período.",
+      "otherCurrency": "{name} está en {currency} y no se suma aquí."
+    },
+    "byGroup": {
+      "trail": "Ruta",
+      "all": "Todos los grupos",
+      "total": "Gasto total",
+      "totalOf": "Total de {name}",
+      "hint": {
+        "groups": "Toca un grupo para ver sus categorías.",
+        "categories": "Toca una categoría para ver sus subcategorías.",
+        "subcategories": "Subcategorías"
+      },
+      "groups": "Grupos",
+      "categoriesOf": "Categorías de {name}",
+      "subcategoriesOf": "Subcategorías de {name}",
+      "noSubcategory": "Sin subcategoría",
+      "archived": "Archivada",
+      "spaceNote": "Todos los gastos del espacio, pague quien pague. Ingresos, transferencias, aportes al fondo y pagos entre miembros no cuentan.",
+      "personalNote": "Tus gastos y tu parte de los compartidos, en todos tus espacios. Los grupos que trae Hearth se unen; los que creó un espacio llevan su nombre."
+    },
+    "fund": {
+      "title": "Aportes al fondo",
+      "expected": "Esperado",
+      "actual": "Aportado",
+      "difference": "Diferencia",
+      "byMember": "Por miembro",
+      "upToDate": "Al día",
+      "behind": "Le falta aportar",
+      "noPlan": "Sin plan, nadie tiene un aporte esperado.",
+      "note": "Esperado: lo asignado a cada uno en las líneas pagadas con el fondo. Cuentan los aportes fechados en el período."
+    },
+    "lines": {
+      "summary": "Resumen del plan",
+      "totalAvailable": "Disponible",
+      "totalSpent": "Gastado {spent} de {planned}",
+      "caption": "Planeado, gastado y disponible por línea",
+      "line": "Línea",
+      "planned": "Planeado",
+      "spent": "Gastado",
+      "available": "Disponible",
+      "overspent": "Excedida",
+      "state": {
+        "NEAR": "Cerca del límite",
+        "HIGH": "Al límite"
+      },
+      "overBy": "Te pasaste por {amount}",
+      "unbudgeted": "Sin presupuesto",
+      "unbudgetedNote": "Sin presupuesto es lo gastado en categorías que no están en ninguna línea.",
+      "carryOver": "{amount} de {period}",
+      "carryOverPending": "Se arrastra de {period} cuando ese plan se cierre."
+    },
+    "noPlan": {
+      "title": "{period} no tiene plan",
+      "body": "Sin plan, todo lo que se gaste en este período aparece como Sin presupuesto y la división por defecto es en partes iguales.",
+      "managersOnly": "Solo Propietario y Administrador pueden crear el plan."
+    },
+    "matrix": {
+      "noPlan": "Este período no tiene plan: no hay asignaciones que comparar.",
+      "kind": "{funding} · {rule}",
+      "caption": "{line} por miembro",
+      "member": "Miembro",
+      "assigned": "Asignado",
+      "contributed": "Aportó",
+      "consumed": "Consumió",
+      "gap": "Diferencia",
+      "formerMember": "Miembro anterior",
+      "noFigure": "Sin dato",
+      "savingsNote": "Cuenta lo que llegó a las cuentas de ahorro de la línea; no tiene consumo.",
+      "toFund": "Ver fondo"
+    },
+    "overview": {
+      "toGroups": "Ver por grupo",
+      "fundSummary": "{actual} de {expected}",
+      "againstPrevious": "Contra el período anterior",
+      "toTrend": "Ver tendencia de 6 períodos",
+      "matrixTitle": "Miembros por línea",
+      "matrixNote": "Las líneas pagadas con el fondo siguen su aporte en Aportes al fondo; las de ahorro cuentan lo que llegó a sus cuentas."
+    },
+    "reason": {
+      "NOT_ALLOCATED": "Sin asignación por persona: solo se muestra lo consumido.",
+      "TRACKED_AT_FUND_LEVEL": "Aportó y diferencia se siguen en el fondo, no por línea.",
+      "INVALID_ALLOCATION": "La asignación de esta línea no cuadra: nadie tiene un monto asignado."
+    },
+    "status": {
+      "OVER_CONTRIBUTED": "de más",
+      "UNDER_CONTRIBUTED": "de menos",
+      "ON_TARGET": "al día"
+    }
+  },
+  "toast": {
+    "region": "Notificaciones (F8)",
+    "dismiss": "Cerrar aviso"
   }
 }

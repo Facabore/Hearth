@@ -5,6 +5,7 @@ import {
   ACCOUNT_ICONS,
   ACCOUNT_TYPES,
   archiveAccount,
+  holdsMoney,
   iconOf,
   NO_ATTRIBUTES,
   openAccount,
@@ -15,6 +16,19 @@ import {
 } from "./account";
 
 const now = new Date("2026-10-12T12:00:00Z");
+
+describe("holdsMoney (HU-E1-03, issue 169)", () => {
+  it("counts an opening balance, a credit limit or a loan principal, and nothing at zero", () => {
+    const zero = { openingBalance: 0n, terms: NO_ATTRIBUTES.terms };
+    expect(holdsMoney(zero)).toBe(false);
+    expect(holdsMoney({ ...zero, terms: { ...zero.terms, cutOffDay: 5, monthlyRatePpm: 25_000 } })).toBe(
+      false,
+    );
+    expect(holdsMoney({ ...zero, openingBalance: -1n })).toBe(true);
+    expect(holdsMoney({ ...zero, terms: { ...zero.terms, creditLimit: 0n } })).toBe(true);
+    expect(holdsMoney({ ...zero, terms: { ...zero.terms, principal: 500_000_00n } })).toBe(true);
+  });
+});
 const open = (overrides: Partial<Parameters<typeof openAccount>[0]> = {}) =>
   openAccount({
     id: "acc-1" as AccountId,

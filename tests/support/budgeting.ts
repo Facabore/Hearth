@@ -13,7 +13,7 @@ import { POST as activateRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[plan
 import { POST as closeRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/close/route";
 import { GET as defaultSplitRoute } from "@/app/api/v1/spaces/[spaceId]/default-split/route";
 import { call, type TestUser } from "./app";
-import { cop, household, newAccount, type MoneyDto } from "./ledger";
+import { cop, household, starterAccount, type MoneyDto } from "./ledger";
 
 export interface AllocationMemberDto {
   memberId: string;
@@ -35,6 +35,12 @@ export interface LineDto {
   allocation: { rule: string; members: AllocationMemberDto[]; error: string | null };
   spent: MoneyDto;
   carryOver: MoneyDto;
+  /** Ruling P243 (M6c): the plan the carry-over comes from; null for RESET or a line without an origin there. */
+  carryOverFrom: {
+    planId: string;
+    period: { label: string; startDate: string; endDate: string };
+    closed: boolean;
+  } | null;
   available: MoneyDto;
 }
 export interface PlanDto {
@@ -161,7 +167,8 @@ export const lineNamed = (plan: PlanDto, name: string): LineDto => {
  */
 export const referencePlan = async () => {
   const h = await household();
-  const savings = await newAccount(h.ana.personal, "Ahorros", 0, "SAVINGS");
+  // Issue 169: sign-up opened Ana's "Ahorros" (SAVINGS, at zero) as a starter account.
+  const savings = await starterAccount(h.ana.personal, "Ahorros");
   const { id: planId } = await newPlan(h.ana, h.spaceId, "2026-11");
   await setCapacities(h.ana, h.spaceId, planId, [
     [h.ana.memberId, 1_600_000],

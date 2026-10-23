@@ -72,6 +72,7 @@ describe("statusForCode", () => {
     ["OccurrenceNotPending", 409],
     ["InvalidOccurrenceDate", 422],
     ["PeriodNotOver", 409],
+    ["SourcePlanOpen", 409],
     ["CategoryNotInSpace", 422],
     ["CategoryAlreadyMapped", 409],
     ["SameAccountTransfer", 409],
@@ -133,6 +134,19 @@ describe("public details (HU-E1-08)", () => {
     });
   });
 
+  it("adds the source period of SourcePlanOpen as an extension member, and no other detail (ruling P248 of M6c)", async () => {
+    const details = publicDetailsOf("SourcePlanOpen", { sourcePeriod: "2026-11", planId: "plan-1" });
+    expect(details).toEqual({ sourcePeriod: "2026-11" });
+    expect(await problemResponse("SourcePlanOpen", "req-5", undefined, details).json()).toEqual({
+      type: "urn:hearth:problem:SourcePlanOpen",
+      title: "Conflict",
+      status: 409,
+      code: "SourcePlanOpen",
+      requestId: "req-5",
+      sourcePeriod: "2026-11",
+    });
+  });
+
   it("keeps the details of every other code private", () => {
     expect(publicDetailsOf("InvalidSplit", { reason: "duplicatePayer" })).toEqual({});
     expect(publicDetailsOf("OutstandingBalance")).toEqual({});
@@ -165,6 +179,16 @@ describe("public details (HU-E1-08)", () => {
       requestId: "req-5",
       member: "creator",
     });
+  });
+
+  it("names the part of the body a transaction's type keeps, and answers 409 (ruling P188)", async () => {
+    expect(publicDetailsOf("FieldNotEditable", { field: "payments", transactionId: "tx-1" })).toEqual({
+      field: "payments",
+    });
+    expect(statusForCode("FieldNotEditable")).toBe(409);
+    expect(
+      await problemResponse("FieldNotEditable", "req-6", undefined, { field: "accountId" }).json(),
+    ).toMatchObject({ code: "FieldNotEditable", status: 409, field: "accountId" });
   });
 
   it("names the flagged lines of an InvalidAllocation, and none of AllocateBudgetLine's reasons (HU-E6-07)", () => {

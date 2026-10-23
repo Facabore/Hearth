@@ -44,6 +44,7 @@ export interface DashboardLineDto {
   planned: MoneyDto;
   spent: MoneyDto;
   carryOver: MoneyDto;
+  carryOverFrom: { planId: string; period: ReportPeriodDto; closed: boolean } | null;
   available: MoneyDto;
   overspent: boolean;
   state: string;

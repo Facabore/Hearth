@@ -1,9 +1,11 @@
 import type { SpaceMember, SpaceMembership } from "@/modules/spaces/application";
 import { rolledUpCategory, rolledUpSpending, type CategoryParent } from "../domain/category-rollup";
 import type { BudgetPlan } from "../domain/plan";
+import { carriesFromSource } from "../domain/rollover";
 import {
   lineForCategory,
   planFigures,
+  type CarrySource,
   type PlanFigures,
   type PreviousAvailable,
 } from "../domain/plan-figures";
@@ -70,14 +72,25 @@ interface Walk {
   readonly cache?: PlanViewCache;
 }
 
+/** HU-E6-09, ruling P243 (M6c): where a plan's lines carry from, and what the CLOSED source has available. */
+interface Carry {
+  /** The plan this one was copied from; null without one, or when none of its lines carries. */
+  readonly source: CarrySource | null;
+  /** The source's available amounts, by line; empty unless the source is CLOSED. */
+  readonly available: PreviousAvailable[];
+}
+
+const NO_CARRY: Carry = { source: null, available: [] };
+
 /**
  * HU-E6-09: what the lines of the plan `plan` was copied from have available, read only when one of its lines
  * carries over (an origin and a mode other than RESET). The chain follows createdFrom, which always names an
- * earlier plan, so it ends; `seen` stops it anyway. Earlier plans are read whatever their status (ruling P15).
+ * earlier plan, so it ends; `seen` stops it anyway. An earlier plan carries only once CLOSED (ruling P243, amending
+ * P15); a chain walks on only through CLOSED plans, and an open source is named without being figured.
  * The cache is followed only to a plan of an earlier period, as every copy names one (HU-E6-06), so views that share
  * it never wait on each other; a source that is not earlier (malformed rows) is figured without it, as before.
  */
-const previousAvailable = async (
+const carryOf = async (
   deps: ViewDeps,
   space: SpaceMembership,
   plan: BudgetPlan,
@@ -86,20 +99,31 @@ const previousAvailable = async (
     readonly reads: ViewReads;
     readonly walk: Walk;
   },
-): Promise<PreviousAvailable[]> => {
+): Promise<Carry> => {
   const { seen, cache } = context.walk;
-  const rolls = context.parts.lines.some(
-    (line) => line.originLineId !== null && line.rolloverMode !== "RESET",
-  );
-  if (!rolls || plan.createdFrom === null || seen.has(plan.createdFrom)) return [];
+  if (!carriesFromSource(context.parts.lines) || plan.createdFrom === null || seen.has(plan.createdFrom))
+    return NO_CARRY;
   const source = await deps.plans.find(space.spaceId, plan.createdFrom);
-  if (source === null) return [];
+  if (source === null) return NO_CARRY;
+  if (source.status !== "CLOSED") {
+    // Nothing of an open source is figured, so no spending is read: its lines only tell which origins it still holds.
+    const lineIds = (await deps.plans.contents(source.id)).lines.map((line) => line.id);
+    return { source: { planId: source.id, period: source.period, closed: false, lineIds }, available: [] };
+  }
   const walk = { seen: new Set([...seen, plan.id]) };
   const figures =
     cache !== undefined && source.period.start < plan.period.start
       ? await cachedFiguresOf(deps, space, source, context.reads, { ...walk, cache })
       : await figuresOf(deps, space, source, context.reads, walk);
-  return figures.lines.map((figure) => ({ lineId: figure.line.id, available: figure.available }));
+  return {
+    source: {
+      planId: source.id,
+      period: source.period,
+      closed: true,
+      lineIds: figures.lines.map((figure) => figure.line.id),
+    },
+    available: figures.lines.map((figure) => ({ lineId: figure.line.id, available: figure.available })),
+  };
 };
 
 /** The figures of `plan` for the current members: its parts, the spending within its stored dates, its carry-over. */
@@ -133,12 +157,14 @@ const figuresOf = async (
     byAccount:
       accountIds.length === 0 ? [] : await deps.spending.transfersIntoAccounts(accountIds, start, end),
   };
+  const carry = await carryOf(deps, space, plan, { parts, reads, walk });
   return planFigures({
     currency: space.currency,
     memberIds: members.map((m) => m.id),
     parts,
     spending,
-    previousAvailable: await previousAvailable(deps, space, plan, { parts, reads, walk }),
+    previousAvailable: carry.available,
+    source: carry.source,
   });
 };
 

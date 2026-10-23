@@ -380,6 +380,7 @@ Feature: Plan lifecycle
 - Provides the `ClosedPeriodGuard` adapter used by `ledger` (HU-E4-06).
 - `POST …/plans/{planId}/activate` has no body, honours an optional `If-Match` and answers the whole plan with its new `ETag` (like every plan write). Activation checks, in this order, that Σ planned does not exceed the current members' capacity (`PlanExceedsCapacity`, 409) and that every allocation holds (`InvalidAllocation`, 422, whose problem lists the flagged lines in `lineIds`). An ACTIVE plan stays editable and is not checked again. Other errors: `InvalidPlanTransition` (409: any move other than DRAFT → ACTIVE → CLOSED), `BudgetPlanNotFound` (404, malformed ids included), `SpaceArchived` (409).
 - `POST …/plans/{planId}/close` mirrors activation and checks two things, in this order: the transition (ACTIVE → CLOSED, else `InvalidPlanTransition`) and that the plan's period has ended, which means that today in the deployment time zone (`APP_TIMEZONE`, the zone the ledger dates undated records in) is after the plan's stored last day, else `PeriodNotOver` (409) and nothing changes. A close at 2026-11-30 22:00 in Bogota, already 2026-12-01 in UTC, is refused. v1 has no reopening, so an early close would refuse every ledger write of the space dated in the rest of the period (ruling P17, amended after the final review); activation stays free, before or after the period. Once CLOSED, every edit of the plan or its parts answers `PeriodClosed` (409), and so does every write of the space's ledger dated within the plan's stored dates (record, edit on either date, delete; HU-E4-06). The guard reads the plan covering the date `FOR SHARE`, so a ledger write and a close of its period run one after the other. Figures stay derived on read: a transfer recorded in a personal space into a SAVINGS line's account, or a member leaving, still changes a closed plan's figures.
+- **`SourcePlanOpen` (M6c ruling P248):** after those two checks, closing is refused with 409 `SourcePlanOpen` (`sourcePeriod`: the source's period label, e.g. "2026-11") while the plan it was copied from is ACTIVE and at least one of its lines carries over from it (ROLLOVER or ADJUSTED, with an origin line). A carry reads its source only once that source is CLOSED (HU-E6-09, ruling P243), so closing the copy first would let its frozen figures jump when the source closes later; closing in order keeps a CLOSED plan's figures frozen. The rule is "the source is ACTIVE", not "not CLOSED": a DRAFT source never closes, so its copies carry 0 for good, which is stable and does not block closing. A plan whose lines all RESET, or that has no source, closes as before.
 
 ---
 
@@ -453,6 +454,7 @@ Feature: Rollover modes
   Scenario Outline: Carry-over from 2026-11 into 2026-12 for the line "Home"
     Given the line "Home" has planned 1,470,000 COP in both 2026-11 and 2026-12 with rollover "<mode>"
     And spending in "Home" during 2026-11 was <spent>
+    And the plan for 2026-11 is CLOSED before 2026-12 is read
     When "Ana" requests the line "Home" for 2026-12 before any December spending
     Then the November available amount is <novAvailable>
     And the December available amount is <decAvailable>
@@ -466,6 +468,14 @@ Feature: Rollover modes
       | ADJUSTED | 1,270,000 COP | 200,000 COP   | 1,470,000 COP |
       | ADJUSTED | 1,600,000 COP | -130,000 COP  | 1,340,000 COP |
 
+  Scenario: Nothing carries from a plan that is not closed
+    Given the line "Home" has planned 1,470,000 COP in both 2026-11 and 2026-12 with rollover "ROLLOVER"
+    And spending in "Home" during 2026-11 was 1,270,000 COP
+    And the plan for 2026-11 is ACTIVE
+    When "Ana" requests the line "Home" for 2026-12
+    Then the December carry-over is 0 COP and the December available amount is 1,470,000 COP
+    And the line says its carry-over comes from 2026-11, which is not closed
+
   Scenario: No previous plan means no carry-over
     Given "Household" has no plan for 2026-10
     And the line "Home" in 2026-11 has rollover "ROLLOVER" and planned 1,470,000 COP
@@ -473,7 +483,7 @@ Feature: Rollover modes
     Then the available amount is 1,470,000 COP
 
   Scenario: Carry-over follows the copied line, not its name
-    Given the 2026-12 plan was copied from 2026-11 and "Home" had 200,000 COP available with rollover "ROLLOVER"
+    Given the 2026-12 plan was copied from the CLOSED 2026-11 plan and "Home" had 200,000 COP available with rollover "ROLLOVER"
     When "Ana" renames "Home" to "House" in the 2026-12 plan
     Then "House" still receives the 200,000 COP carry-over through its origin line link
 ```
@@ -482,4 +492,7 @@ Feature: Rollover modes
 - Domain service `RolloverCalculator`: available(L) = planned + carry − spent(L); RESET carry 0; ROLLOVER max(prevAvailable, 0); ADJUSTED min(prevAvailable, 0).
 - Previous line resolved via the copied line's origin link (not by name); lines without an origin get carry 0.
 - Computed on read (D7); recursion bounded by the plan chain. Exposed as `available` and `carryOver` on each line of `GET /api/v1/spaces/{spaceId}/plans/{planId}`.
-- The mode that decides is the receiving line's own `rolloverMode`; the previous available is the origin line's `available` in the plan the line was copied from (itself with its own carry-over), whatever that plan's status. An origin removed from its plan after the copy carries 0. Every write's answer carries the same figures.
+- The mode that decides is the receiving line's own `rolloverMode`; the previous available is the origin line's `available` in the plan the line was copied from (itself with its own carry-over). An origin removed from its plan after the copy carries 0. Every write's answer carries the same figures.
+- **Contract change (M6c, ruling P243, amending P15; #143):** a line carries only from the CLOSED plan it was copied from, and only from its origin line there. Until that plan closes, `carryOver` is 0 and the line says which plan it waits for. This changes what `carryOver` answers for a copy of a plan that is DRAFT or ACTIVE: before M6c it carried the source's available amount, whatever the source's status, and a copy of an unused plan credited its whole planned amount. A chain of copies walks on only through CLOSED plans. Turning ROLLOVER or ADJUSTED on for a line whose origin plan is not closed, or for a line with no origin, carries nothing. The carry never counts against capacity: "Σ planned ≤ total capacity" counts planned amounts only (HU-E6-02, ruling P229), and the carry is derived on read and never stored (D7, ruling P230), so no migration is needed.
+- Closing a plan is refused with `SourcePlanOpen` while its source is ACTIVE and a line carries over from it (ruling P248, see HU-E6-07), so a CLOSED plan's carry-over never changes after it closes.
+- `carryOverFrom: { planId, period, closed } | null` on each line of the plan and of the line dashboard (`GET /api/v1/spaces/{spaceId}/reports/lines`) names the plan the carry-over comes from, or waits for (`closed: false`). It is null for RESET, for a line without an origin in the source (a line added by hand, or one the source no longer holds) and for a plan that was not copied.

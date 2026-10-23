@@ -4,7 +4,7 @@ import { expect, test, type APIRequest, type Page } from "@playwright/test";
 import es from "../../src/i18n/messages/es.json" with { type: "json" };
 import { BASE_URL as BASE } from "./support/base-url";
 import { Person } from "./support/people";
-import { get, post, signUp } from "./support/seed";
+import { get, post, put, signUp } from "./support/seed";
 
 const WCAG = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
 /** The phone of the audit (UI Definition of Done): every screen is scanned at 390 x 844. */
@@ -17,7 +17,8 @@ const tokenOf = ({ url }: { url: string }) => new URL(url, BASE).pathname;
 
 /**
  * Ana (the page) in a Household with Juan, the guest Pedro and Marta's pending email invitation; a pending link; a
- * fund that an expense took below zero; and a settlement-ready balance (Ana paid a market that Juan owes half of).
+ * fund that an expense took below zero; a settlement-ready balance (Ana paid a market that Juan owes half of); and
+ * October's DRAFT plan (HU-E9-10), whose "Mercado" line the two expenses take over its budget.
  */
 const seedHousehold = async (page: Page, requests: APIRequest, tag: string) => {
   const personal = await signUp(page, `a11y-shared-${tag}`, ip());
@@ -26,6 +27,23 @@ const seedHousehold = async (page: Page, requests: APIRequest, tag: string) => {
     type: "BANK",
     openingBalance: { amount: "200000000", currency: "COP" },
   });
+  // September's income in Ana's personal space is the private suggestion on her capacities row (D17, HU-E9-08).
+  const { items: personalGroups } = await get(page, `/api/v1/spaces/${personal}/categories`);
+  const salary = personalGroups
+    .flatMap((g: { categories: { id: string; key: string | null }[] }) => g.categories)
+    .find((c: { key: string | null }) => c.key === "salary");
+  await post(
+    page,
+    `/api/v1/spaces/${personal}/incomes`,
+    {
+      description: "Salario",
+      date: "2026-09-15",
+      categoryId: salary.id,
+      amount: { amount: "165000000", currency: "COP" },
+      accountId: bank.id,
+    },
+    idempotent(),
+  );
   const household = await post(page, "/api/v1/spaces", {
     kind: "SHARED",
     name: "Household",
@@ -56,6 +74,9 @@ const seedHousehold = async (page: Page, requests: APIRequest, tag: string) => {
   const ana: string = members.find(
     (m: { kind: string; displayName: string }) => m.kind === "USER" && m.displayName === "Ana",
   ).id;
+  const juanId: string = members.find(
+    (m: { kind: string; displayName: string }) => m.kind === "USER" && m.displayName === "Juan",
+  ).id;
   const base = {
     date: "2026-10-31",
     occurredAt: "2026-10-31T17:00:00.000Z",
@@ -84,10 +105,59 @@ const seedHousehold = async (page: Page, requests: APIRequest, tag: string) => {
     },
     idempotent(),
   );
+  // October is the period that holds the e2e clock's today. The plan answers its version after every write.
+  const money = (pesos: number) => ({ amount: String(pesos * 100), currency: "COP" });
+  const guard = (version: number) => ({ "if-match": `"${version}"` });
+  let plan = await post(page, `${space}/plans`, { period: "2026-10" });
+  plan = await put(
+    page,
+    `${space}/plans/${plan.id}/capacities`,
+    {
+      capacities: [
+        { memberId: ana, amount: money(500_000) },
+        { memberId: juanId, amount: money(300_000) },
+      ],
+    },
+    guard(plan.version),
+  );
+  plan = await post(
+    page,
+    `${space}/plans/${plan.id}/lines`,
+    { name: "Mercado", plannedAmount: money(100_000) },
+    guard(plan.version),
+  );
+  plan = await post(
+    page,
+    `${space}/plans/${plan.id}/lines`,
+    // Paid from the fund and never contributed to, so the Fund view reads Ana as still to pay in (HU-E9-10).
+    { name: "Ocio", plannedAmount: money(200_000), funding: "SHARED_FUND" },
+    guard(plan.version),
+  );
+  const market = plan.lines.find((line: { name: string }) => line.name === "Mercado");
+  plan = await put(
+    page,
+    `${space}/plans/${plan.id}/lines/${market.id}/categories`,
+    { categoryIds: [categoryId] },
+    guard(plan.version),
+  );
+  // HU-E9-10's member matrix: Ana paid the whole market (over-contributed) and Juan paid nothing (under-contributed).
+  await put(
+    page,
+    `${space}/plans/${plan.id}/lines/${market.id}/allocation`,
+    {
+      rule: "PERCENT",
+      members: [
+        { memberId: ana, percent: "60" },
+        { memberId: juanId, percent: "40" },
+      ],
+    },
+    guard(plan.version),
+  );
   return {
     household: household.id as string,
     personal,
     ana,
+    plan: plan.id as string,
     token: tokenOf(pending),
     claim: tokenOf(claim),
     fund: overspent.warnings[0].accountId as string,
@@ -99,6 +169,8 @@ for (const colorScheme of ["light", "dark"] as const) {
     test.use({ colorScheme, viewport: PHONE });
 
     test("every M6b screen and sheet has no WCAG 2.1 AA violation", async ({ page, playwright, browser }) => {
+      // Alone it takes about 31 s; under the full suite's parallel load it outgrows the 60 s default.
+      test.setTimeout(180_000);
       const scan = async (where: string, on: Page = page) => {
         const { violations } = await new AxeBuilder({ page: on }).withTags(WCAG).analyze();
         expect(
@@ -116,12 +188,92 @@ for (const colorScheme of ["light", "dark"] as const) {
         h,
         `${h}/members`,
         `${h}/balances`,
+        // HU-E9-10: the Plan tab of the household, with an overspent line, a line within its plan and Unbudgeted.
+        `${h}/plan`,
+        // HU-E9-08: the planner of that DRAFT plan, with its lines and the Activate action.
+        `${h}/plans/${ids.plan}`,
+        // HU-E9-08: the capacities of that plan, one row per member.
+        `${h}/plans/${ids.plan}/capacities`,
+        // HU-E9-10: the member matrix, with an over- and an under-contributed gap, and a line not allocated.
+        `${h}/plan/members`,
+        // HU-E9-10: the Fund view, with Ana still to pay in what the Ocio line expects of her.
+        `${h}/plan/fund`,
+        // HU-E9-10: spending by group, at its root level.
+        `${h}/plan/groups`,
         `${h}/members/${ids.ana}/history`,
         `${h}/transactions?notice=FundBalanceNegative&account=${ids.fund}`,
       ]) {
         await page.goto(path);
         await scan(path);
       }
+      // HU-E9-10: the household's October plan reads as DRAFT, with the market line over its budget.
+      await page.goto(`${h}/plan`);
+      await expect(page.getByText(es.budgeting.status.DRAFT)).toBeVisible();
+      await expect(page.getByText(es.reports.lines.overspent)).toBeVisible();
+      await expect(page.getByText(es.reports.lines.overBy.replace("{amount}", ""))).toBeVisible();
+      await page.goto(`${h}/plans/${ids.plan}`);
+      await expect(page.getByRole("button", { name: es.budgeting.planner.activate })).toBeVisible();
+      await expect(page.getByRole("listitem", { name: "Mercado" })).toBeVisible();
+      // HU-E9-08: Ana's capacities carry her private suggestion (the scan above ran on the same screen).
+      await page.goto(`${h}/plans/${ids.plan}/capacities`);
+      await expect(page.getByText(/^Sugerido \$\s1\.650\.000:/)).toBeVisible();
+      await expect(page.getByRole("button", { name: es.budgeting.capacity.useSuggestion })).toBeVisible();
+      // HU-E9-08: the line editor, for a new line and for "Mercado" (with the Savings funding and its removal sheet).
+      const october = await get(page, `/api/v1/spaces/${ids.household}/plans/${ids.plan}`);
+      const marketLine = october.lines.find((line: { name: string }) => line.name === "Mercado");
+      await page.goto(`${h}/plans/${ids.plan}/lines/new`);
+      await expect(
+        page.getByRole("heading", { level: 1, name: es.budgeting.lineEditor.newTitle }),
+      ).toBeVisible();
+      await scan("new line");
+      await page.getByRole("radio", { name: es.budgeting.funding.SAVINGS }).click();
+      await scan("new savings line");
+      await page.goto(`${h}/plans/${ids.plan}/lines/${marketLine.id}`);
+      await expect(page.getByRole("region", { name: es.budgeting.lineEditor.figures })).toBeVisible();
+      await scan("existing line");
+      // HU-E9-08: the allocation editor by percentage (with its sum alert, then with the preview), and the category sheet.
+      await page.getByRole("radio", { name: es.budgeting.rule.PERCENT }).click();
+      // The seed already splits "Mercado" 60/40 (HU-E9-10's member matrix), so a value is changed to break the sum.
+      await page.getByLabel(fill(es.budgeting.allocation.value, { name: "Juan" })).fill("50");
+      await expect(
+        page.getByRole("region", { name: es.budgeting.allocation.title }).getByRole("alert"),
+      ).toContainText(es.errors.InvalidAllocation.split(".")[0]!);
+      await scan("existing line with an allocation sum that does not hold");
+      await page.getByLabel(fill(es.budgeting.allocation.value, { name: "Ana" })).fill("40");
+      await page.getByLabel(fill(es.budgeting.allocation.value, { name: "Juan" })).fill("60");
+      await expect(page.getByRole("group", { name: "Juan" })).toContainText("60.000");
+      await scan("existing line with the allocation preview");
+      await page.getByRole("button", { name: es.budgeting.mapping.choose }).click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await expect(page.getByRole("dialog").getByRole("checkbox").first()).toBeVisible();
+      await scan("category sheet");
+      await page.keyboard.press("Escape");
+      await page.getByRole("button", { name: es.budgeting.lineEditor.remove.open }).click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await scan("line removal sheet");
+      await page.keyboard.press("Escape");
+      // HU-E9-10: Ana's gap and Juan's carry a word, an arrow and a sign, not a color alone.
+      await page.goto(`${h}/plan/members`);
+      const market = page.getByRole("table", { name: fill(es.reports.matrix.caption, { line: "Mercado" }) });
+      await expect(market.getByRole("row", { name: /^Ana/ })).toContainText(
+        es.reports.status.OVER_CONTRIBUTED,
+      );
+      await expect(market.getByRole("row", { name: /^Juan/ })).toContainText(
+        es.reports.status.UNDER_CONTRIBUTED,
+      );
+      await expect(
+        page.getByRole("table", { name: fill(es.reports.matrix.caption, { line: "Ocio" }) }),
+      ).toBeVisible();
+      await page.goto(`${h}/plan/fund`);
+      await expect(page.getByText(es.reports.fund.behind).first()).toBeVisible();
+      // HU-E9-10: the By group view drilled into its one group is a level of its own, scanned in both color schemes,
+      // and the browser's Back returns to the groups.
+      await page.goto(`${h}/plan/groups`);
+      await page.getByRole("list", { name: es.reports.byGroup.groups }).getByRole("button").first().click();
+      await expect(page.getByText(es.reports.byGroup.hint.categories)).toBeVisible();
+      await scan(`${h}/plan/groups drilled`);
+      await page.goBack();
+      await expect(page.getByText(es.reports.byGroup.hint.groups)).toBeVisible();
       // U1: a shared space with no funds explains them instead of asking for a first account.
       const bare = await post(page, "/api/v1/spaces", { kind: "SHARED", name: "Vacía", currency: "COP" });
       for (const path of [`/spaces/${bare.id}`, `/spaces/${bare.id}/accounts`]) {
@@ -131,7 +283,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       }
       // U6: the one-time welcome after accepting an invitation.
       await page.goto(`${h}?joined=1`);
-      await expect(page.getByRole("status")).toContainText("Household");
+      await expect(page.locator("main").getByRole("status")).toContainText("Household");
       await scan("home with the joined notice");
       await page.goto(`${h}/members`);
       await page.getByRole("button", { name: es.members.invite }).click();
@@ -180,6 +332,26 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page.getByRole("button").filter({ hasText: es.balances.settle.action }).first().click();
       await scan("settle-up sheet prefilled from a suggestion");
       await page.keyboard.press("Escape");
+
+      // HU-E9-10 and HU-E9-08: November has no plan; copying October's opens the planner with the copy notice. The
+      // category of "Mercado" is archived first, so the notice has something to name.
+      const mercado = (await get(page, `/api/v1/spaces/${ids.household}/plans/${ids.plan}`)).lines.find(
+        (line: { name: string }) => line.name === "Mercado",
+      );
+      const { items: tree } = await get(page, `/api/v1/spaces/${ids.household}/categories`);
+      const fed = tree
+        .flatMap((group: { categories: { id: string; name: string }[] }) => group.categories)
+        .find((category: { id: string }) => category.id === mercado.categoryIds[0]);
+      await post(page, `/api/v1/spaces/${ids.household}/categories/${fed.id}/archive`, {});
+      await page.goto(`${h}/plan?period=2026-11`);
+      await expect(page.getByRole("button", { name: es.budgeting.start.copy })).toBeVisible();
+      await scan("the period without a plan");
+      await page.getByRole("button", { name: es.budgeting.start.copy }).click();
+      const notice = page.getByRole("status").filter({ hasText: es.budgeting.copy.title });
+      await expect(notice).toContainText(
+        es.budgeting.copy.droppedMapping.replace("{category}", fed.name).replace("{line}", "Mercado"),
+      );
+      await scan("the planner of a copy, with its notice");
 
       // The open pages, signed in (Ana) and as a visitor (a fresh context without cookies).
       for (const path of [ids.token, ids.claim]) {

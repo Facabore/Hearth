@@ -6,6 +6,13 @@ export class InMemoryAccounts implements AccountRepository {
   async add(account: Account) {
     this.rows.push(account);
   }
+  async addUnlessNameTaken(account: Account) {
+    const taken = this.rows.some(
+      (a) => a.spaceId === account.spaceId && a.name.toLowerCase() === account.name.toLowerCase(),
+    );
+    if (!taken) this.rows.push(account);
+    return !taken;
+  }
   async listBySpace(spaceId: string) {
     return this.rows.filter((a) => a.spaceId === spaceId);
   }

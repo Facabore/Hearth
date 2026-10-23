@@ -3,14 +3,25 @@
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, useState, type FormEvent } from "react";
-import { Button, ChoiceGroup, ProblemNotice, ScreenHeader, Switch, SymbolIcon, TextField } from "@/shared/ui";
+import {
+  Button,
+  ChoiceGroup,
+  NumberField,
+  ProblemNotice,
+  ScreenHeader,
+  Switch,
+  SymbolIcon,
+  TextField,
+} from "@/shared/ui";
 import type { SymbolName } from "@/shared/kernel/style";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { SpaceDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { safeReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
+import { currencyOf } from "@/shared/ui/format/currencies";
 import { formatNumber, type Formats } from "@/shared/ui/format/formatters";
+import type { NumberRule } from "@/shared/ui/format/number-input";
 import {
   accountBodyOf,
   accountFieldOf,
@@ -34,7 +45,20 @@ const TYPE_ICONS = {
   OTHER: "dots",
   SHARED_FUND: "users",
 } as const satisfies Record<AccountType, SymbolName>;
-const DAY_FIELDS: readonly AccountField[] = ["cutOffDay", "paymentDay", "termDays", "termMonths"];
+/** Issue #164: how each number attribute is typed, and the example under it (as a decimal) when the kind's is not apt. */
+const NUMBER_FIELDS: Partial<
+  Record<AccountField, Omit<NumberRule, "numberFormat"> & { example?: string; unit?: string }>
+> = {
+  lastFour: { kind: "digits", maxLength: 4 },
+  creditLimit: { kind: "money" },
+  principal: { kind: "money" },
+  cutOffDay: { kind: "integer", maxLength: 2, example: "25" },
+  paymentDay: { kind: "integer", maxLength: 2, example: "15" },
+  termDays: { kind: "integer", example: "90" },
+  termMonths: { kind: "integer", example: "36" },
+  monthlyRate: { kind: "decimal", decimals: 4, example: "1.89", unit: "%" },
+  annualRate: { kind: "decimal", decimals: 4, unit: "%" },
+};
 type Where = "name" | "opening" | AccountField;
 
 /** HU-E9-03, the NewAccount artboard as a page: the type first, then only its attributes and the two switches. */
@@ -64,6 +88,7 @@ export function NewAccountForm({
   const [unreadable, setUnreadable] = useState<Where | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
 
+  const currency = currencyOf(space.currency);
   const types: readonly AccountType[] =
     space.kind === "SHARED" ? [...PERSONAL_TYPES, "SHARED_FUND"] : PERSONAL_TYPES;
   const where = problem ? accountFieldOf(problem) : null;
@@ -141,38 +166,52 @@ export function NewAccountForm({
               error={errorOf("name")}
               required
             />
-            <TextField
+            <NumberField
               id="na-opening"
               label={t(OWED_TYPES.includes(type) ? "field.owed" : "field.opening")}
-              inputMode="decimal"
+              kind="money"
+              numberFormat={formats.numberFormat}
+              decimals={currency.exponent}
+              symbol={currency.symbol}
               value={opening}
-              onChange={(event) => {
-                setOpening(event.target.value);
+              onChange={(next) => {
+                setOpening(next);
                 clear("opening");
               }}
               error={errorOf("opening")}
             />
-            {FIELDS_BY_TYPE[type].map((field) => (
-              <TextField
-                key={field}
-                id={`na-${field}`}
-                label={t(`field.${field}`)}
-                type={field === "maturityDate" ? "date" : "text"}
-                inputMode={
-                  DAY_FIELDS.includes(field) || field === "lastFour"
-                    ? "numeric"
-                    : field === "institution" || field === "maturityDate"
-                      ? undefined
-                      : "decimal"
-                }
-                value={fields[field] ?? ""}
-                onChange={(event) => {
-                  setFields((all) => ({ ...all, [field]: event.target.value }));
-                  clear(field);
-                }}
-                error={errorOf(field)}
-              />
-            ))}
+            {FIELDS_BY_TYPE[type].map((field) => {
+              const number = NUMBER_FIELDS[field];
+              const change = (next: string) => {
+                setFields((all) => ({ ...all, [field]: next }));
+                clear(field);
+              };
+              return number ? (
+                <NumberField
+                  key={field}
+                  id={`na-${field}`}
+                  label={t(`field.${field}`)}
+                  {...number}
+                  numberFormat={formats.numberFormat}
+                  decimals={number.kind === "money" ? currency.exponent : number.decimals}
+                  symbol={number.kind === "money" ? currency.symbol : undefined}
+                  hint={field === "lastFour" ? t("field.lastFourHint") : undefined}
+                  value={fields[field] ?? ""}
+                  onChange={change}
+                  error={errorOf(field)}
+                />
+              ) : (
+                <TextField
+                  key={field}
+                  id={`na-${field}`}
+                  label={t(`field.${field}`)}
+                  type={field === "maturityDate" ? "date" : "text"}
+                  value={fields[field] ?? ""}
+                  onChange={(event) => change(event.target.value)}
+                  error={errorOf(field)}
+                />
+              );
+            })}
             <Switch
               id="na-available"
               label={t("switch.available")}

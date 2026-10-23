@@ -51,7 +51,7 @@ describe("app shell (HU-E9-01)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
-  it("shows Saldos in a shared space, after Movimientos and Registrar, and not in the personal one (ruling P160)", () => {
+  it("shows Plan, then Saldos in a shared space, after Movimientos and Registrar, and no Saldos in the personal one (rulings P160, P200)", () => {
     const { unmount } = renderWithIntl(
       <AppShell
         me={{ name: "Ana", email: "ana@example.com", locale: "es" }}
@@ -70,6 +70,7 @@ describe("app shell (HU-E9-01)", () => {
       "/spaces/sp-household",
       "/spaces/sp-household/transactions",
       "/spaces/sp-household/new",
+      "/spaces/sp-household/plan",
       "/spaces/sp-household/balances",
     ]);
     expect(within(nav).getByRole("link", { name: "Saldos" })).toBeInTheDocument();

@@ -24,7 +24,7 @@ const chain = async (
 ) => {
   const w = reportingWorld({ periodPolicy: policy });
   let previous: { planId: string; lineId: string } | null = null;
-  for (const [label, from, spent] of spentFrom) {
+  for (const [index, [label, from, spent]] of spentFrom.entries()) {
     const lineId = `line-home-${from}`;
     const plan = await w.plan(
       label,
@@ -39,7 +39,8 @@ const chain = async (
         ],
         mappings: [{ lineId, categoryId: "cat-groceries" }],
       },
-      { createdFrom: previous?.planId },
+      // Every plan but the last is CLOSED: a copy carries only from a closed source (ruling P243 of M6c).
+      { createdFrom: previous?.planId, status: index < spentFrom.length - 1 ? "CLOSED" : "ACTIVE" },
     );
     w.spending.expenses[from] = [{ categoryId: "cat-groceries", amount: pesos(spent) }];
     previous = { planId: plan.id, lineId };

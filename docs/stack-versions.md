@@ -6,7 +6,7 @@ Pinned on 2026-10-11 (HU-E0-01). Each entry was the latest stable release that d
 |---|---|---|
 | Node.js | 24.21.0 | Current LTS ("Krypton") in `.nvmrc`, Docker and CI; `engines` accepts `>=24.12.0 <25` for local hosts. Vitest 5 requires Node ≥ 22.12 |
 | pnpm | 12.11.2 | `packageManager` field; settings in `pnpm-workspace.yaml` |
-| Next.js | 16.4.0 | App Router, standalone output |
+| Next.js | 16.4.2 | App Router, standalone output; 16.4.2 (2026-10-22, #160) fixes GHSA-2464-fhr4-w9xw (critical, Image Optimization API with SVG) and GHSA-p3m5-59mp-jv5r (high, Server Actions DoS), both affecting 16.0.0 to 16.4.0 |
 | React / React DOM | 19.3.0 | |
 | TypeScript | 6.0.3 | 7.0.2 exists (native Go build) but typescript-eslint 8.71.1 supports `<6.1.0` |
 | Zod | 4.6.5 | 4.6.6 was published on the bootstrap day; 4.6.5 kept for soak time |
@@ -38,6 +38,8 @@ Pinned on 2026-10-11 (HU-E0-01). Each entry was the latest stable release that d
 | playwright-bdd | 9.2.1 | M6a (2026-09-06): the `@e2e` scenarios |
 | lighthouse | 13.5.0 | M6a (2026-09-18): the performance gates (ADR 0004) |
 | web-vitals | 6.2.3 | M6a (2026-10-05): INP over the record flow (ADR 0004) |
+| recharts | 3.10.1 | M6c (2026-07-25), the newest stable on or before the pin date 2026-10-07 (the 3.11 line was a canary until 2026-10-13): draws only the two time series (the personal and line trends) in `src/modules/reporting/ui/charts/`, behind a dynamic `import()` so no other route ships it (rulings P202, P203). Its ranges (`@reduxjs/toolkit`, `immer`, `reselect`, `es-toolkit`, `victory-vendor`, `decimal.js-light`) are fixed by the lockfile. Rejected: Recharts 2.15.x (maintenance line), Victory and Chart.js |
+| react-is | 19.3.0 | M6c (2026-09-09): Recharts' peer. It is pinned because `check:pinned` allows no implicit peer, and because without a direct pin pnpm resolves the peer to the 17.0.2 that `pretty-format` brings, whose `isFragment` does not recognise React 19 elements |
 | PostgreSQL | 18.6 (`postgres:18.6-alpine`) | Same image in dev, tests and production, and for the `backup` service, so `pg_dump` matches the server (its busybox `crond` runs the schedule) |
 | Caddy | 2.11.7 (`caddy:2.11.7-alpine`) | Automatic TLS |
 | rclone | 1.75.1 (`rclone/rclone:1.75.1`) | Pinned on 2026-10-19 (HU-E8-01), published 2026-09-04; 1.75.2 (2026-10-09, a security release) was under two weeks old, so the bump waits for 2026-10-23 (issue #135): the optional `backup-offsite` service (profile `offsite`) and its test |

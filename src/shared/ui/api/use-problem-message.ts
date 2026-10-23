@@ -15,7 +15,8 @@ export const useProblemMessage = (): ((problem: Problem) => {
   return (problem) => {
     const known = t.has(problem.code as "Unknown");
     return {
-      message: known ? t(problem.code as "Unknown") : t("Unknown"),
+      // Ruling P248: a message may name the period a problem points at; the others have no placeholder to fill.
+      message: known ? t(problem.code as "Unknown", { period: problem.sourcePeriod ?? "" }) : t("Unknown"),
       reference:
         !known && problem.requestId !== null ? t("reference", { requestId: problem.requestId }) : null,
     };

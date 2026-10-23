@@ -188,6 +188,7 @@ describe("line dashboard (HU-E7-01)", () => {
       available: pesos(370_000),
       state: "OK",
       overBy: null,
+      carryOverFrom: { planId: october.id, period: october.period, closed: true },
     });
     // 1,340,000 of planned + carry-over (1,670,000) is 80.2 %: measured against planned alone it would read OK.
     w.spending.expenses[NOVEMBER] = novemberSpending().map((s) =>
@@ -211,6 +212,52 @@ describe("line dashboard (HU-E7-01)", () => {
       null,
     ]);
   });
+
+  it.each(["DRAFT", "ACTIVE"] as const)(
+    "carries nothing from a %s 2026-10 and says it waits for that plan (ruling P243 of M6c)",
+    async (status) => {
+      const w = reportingWorld();
+      const october = await w.plan(
+        "2026-10",
+        {
+          capacities: [{ memberId: "member-ana", amount: pesos(4_000_000) }],
+          lines: [
+            aLine("Home", pesos(1_470_000), {
+              id: "line-home-oct" as BudgetLineId,
+              rolloverMode: "ROLLOVER",
+            }),
+          ],
+          mappings: [{ lineId: "line-home-oct", categoryId: "cat-groceries" }],
+        },
+        { status },
+      );
+      const parts = referenceParts();
+      await w.plan(
+        "2026-11",
+        {
+          ...parts,
+          lines: parts.lines.map((l) =>
+            l.name === "Home"
+              ? { ...l, originLineId: "line-home-oct", rolloverMode: "ROLLOVER" as const }
+              : l,
+          ),
+        },
+        { createdFrom: october.id },
+      );
+      w.spending.expenses["2026-10-01"] = [{ categoryId: "cat-groceries", amount: pesos(1_270_000) }];
+      w.spending.expenses[NOVEMBER] = novemberSpending();
+      const dashboard = unwrap(await read(w));
+      expect(dashboard.lines.find((l) => l.name === "Home")).toMatchObject({
+        carryOver: 0n,
+        carryOverFrom: { planId: october.id, period: october.period, closed: false },
+      });
+      expect(dashboard.lines.filter((l) => l.name !== "Home").map((l) => l.carryOverFrom)).toEqual([
+        null,
+        null,
+        null,
+      ]);
+    },
+  );
 
   it("reports every expense of a period without a plan under Unbudgeted, and that no plan exists", async () => {
     const w = reportingWorld();

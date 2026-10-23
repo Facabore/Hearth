@@ -493,7 +493,7 @@ Feature: Budget planner
 ```
 
 **Technical notes:**
-- Containers `PlannerContainer`, `CapacityContainer`, `LineEditorContainer`, `AllocationEditorContainer`; presentational components receive the plan DTO with derived `assigned`, `available` and unallocated capacity.
+- Containers `PlannerContainer`, `CapacityContainer`, `LineEditorContainer`, `AllocationEditorContainer` (the allocation editor is part of the line editor and saves with it, M6c ruling P210); presentational components receive the plan DTO with derived `assigned`, `available` and unallocated capacity.
 - The capacity suggestion is fetched only for the signed-in member (`SuggestCapacity`, spec D17) and is never part of the shared plan DTO.
 - Plan updates send `If-Match` with the plan ETag; a 412 shows `errors.PreconditionFailed` and reloads the plan (HU-E0-10).
 - Category mapping uses a multi-select limited to active categories of the same space (HU-E6-04).
@@ -604,10 +604,10 @@ Feature: Space dashboards
 ```
 
 **Technical notes:**
-- Containers `LineDashboardContainer`, `MemberMatrixContainer`, `FundTrackingContainer`; presentational chart components (Recharts bar per line) receive DTOs only (moved from HU-E7-01).
+- Containers `LineDashboardContainer`, `MemberMatrixContainer`, `FundTrackingContainer`; presentational components with HTML bars beside the same figures (M6c ruling P202) receive DTOs only (moved from HU-E7-01).
 - Reason and status codes (`TRACKED_AT_FUND_LEVEL`, `NOT_ALLOCATED`, `OVER_CONTRIBUTED`) map to `reports.reason.<Code>` and `reports.status.<Code>` keys.
 - Viewers see every dashboard; period navigation follows the space period policy.
-- Spending by group (HU-E7-06): `SpendingByGroupContainer` loads `GET /api/v1/spaces/{spaceId}/reports/spending-by-group` once and passes the tree to a presentational `SpendingChart` (a Recharts donut or bar chart of the groups, with a table of the same figures) and a `DrillBreadcrumb`. Tapping a slice or row goes one level down, from group to category to subcategory, and the breadcrumb (`Food › Groceries`) goes back up; drilling is done on the client over the one response and makes no further request. The entry without a subcategory (`subcategoryId` null) reads the key `reports.byGroup.noSubcategory`, and an `archived` node carries the badge of the key `reports.byGroup.archived`. Amounts and shares come from the API and are rendered with the user's number format (HU-E1-15); the UI never recomputes them.
+- Spending by group (HU-E7-06): `SpendingByGroupContainer` loads `GET /api/v1/spaces/{spaceId}/reports/spending-by-group` once and passes the tree to a presentational `SpendingChart` (rows of the groups with HTML bars, which are the table of the same figures, M6c ruling P202) and a `DrillBreadcrumb`. Tapping a slice or row goes one level down, from group to category to subcategory, and the breadcrumb (`Food › Groceries`) goes back up; drilling is done on the client over the one response and makes no further request. The entry without a subcategory (`subcategoryId` null) reads the key `reports.byGroup.noSubcategory`, and an `archived` node carries the badge of the key `reports.byGroup.archived`. Amounts and shares come from the API and are rendered with the user's number format (HU-E1-15); the UI never recomputes them.
 
 ---
 
@@ -658,7 +658,7 @@ Feature: Personal dashboards
 ```
 
 **Technical notes:**
-- Containers `UnifiedViewContainer`, `LineTrendContainer`, `PersonalTrendContainer`; Recharts line charts with a default window of 6 periods (moved from HU-E7-05).
+- Containers `UnifiedViewContainer`, `LineTrendContainer`, `PersonalTrendContainer`; Recharts line charts (lazy-loaded, M6c ruling P202) with a default window of 6 periods (moved from HU-E7-05).
 - The unified view uses the viewer's personal period and catalog-key grouping from the API (spec D11); custom categories show as "space / category".
 - The change status `NEW` renders the `reports.trend.new` badge; percentages use the user's number format (HU-E1-15) with two decimals.
 - Spending by group (HU-E7-06): `PersonalSpendingByGroupContainer` loads `GET /api/v1/me/reports/spending-by-group` once and uses the same presentational `SpendingChart` and `DrillBreadcrumb` as HU-E9-10 (shared in `reporting/ui`; whichever story lands first builds them), with the same drill-down on the client and the same keys. Seeded rows arrive merged by catalog key. A custom group or category shows as "space / group" or "space / category", written from the row's `space.name` and `name` through one i18n pattern, never by joining strings, and a subcategory shows as "space / subcategory" because subcategories carry no key.
@@ -824,7 +824,7 @@ Feature: Installation rules screen
 Left open on purpose by [the M6a plan](../superpowers/plans/2026-10-20-m6a-web-shell-and-ledger.md) (its Self-Review has the reasons):
 
 1. The account edit form, with #120 (answer stored and effective icon and switches).
-2. Editing, deleting and restoring transactions from the Activity screen (M6b, ruling P140), with the `If-Match` flow and a restore endpoint for transactions; an untimed row gets its first time by editing.
+2. Editing, deleting and restoring transactions from the Activity screen (M6b, ruling P140), with the `If-Match` flow and a restore endpoint for transactions; an untimed row gets its first time by editing. Done in the M6b addendum ([plan](../superpowers/plans/2026-10-21-m6b-addendum-edit-delete-feedback.md)).
 3. A text search, and account and type filters, in the transaction list (an API story first).
 4. Dependency bumps once each release is two weeks old: `@playwright/test` 1.64.x, `jsdom` 30.1.3, `@axe-core/playwright` and `axe-core` 4.14.0, `@testing-library/user-event` 14.6.8 and `radix-ui` 1.8.1.
 5. The controls ruling P126 leaves out, with their stories (HU-E9-04, HU-E9-05, HU-E9-06, HU-E9-07, HU-E9-08, HU-E9-12, HU-E9-14), the recent-category chips and the hide-balances toggle.

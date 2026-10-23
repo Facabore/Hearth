@@ -117,6 +117,31 @@ describe("OpenAPI document", () => {
     ]);
   });
 
+  it("documents extending an ended recurrence as a POST whose body requires a nullable endDate and that answers the recurrence (#115)", () => {
+    type Schema = { required?: string[]; properties?: Record<string, { anyOf?: { type: string }[] }> };
+    type Operation = {
+      requestBody?: { content: Record<string, { schema: Schema }> };
+      responses: Record<string, { content?: Record<string, { schema: { $ref: string } }> }>;
+    };
+    const path = doc.paths["/api/v1/spaces/{spaceId}/recurrences/{recurrenceId}/extend"] as
+      Record<string, Operation> | undefined;
+    const post = path?.post;
+    const body = post?.requestBody?.content["application/json"]?.schema;
+    expect([
+      Object.keys(path ?? {}),
+      Object.keys(post?.responses ?? {}),
+      post?.responses["200"]?.content?.["application/json"]?.schema.$ref,
+      body?.required,
+      body?.properties?.endDate?.anyOf?.map((variant) => variant.type),
+    ]).toEqual([
+      ["post"],
+      ["200", "401", "403", "404", "409", "422"],
+      "#/components/schemas/Recurrence",
+      ["endDate"],
+      ["string", "null"],
+    ]);
+  });
+
   it("says a recurrence edit refuses a payer or split participant who left or never was a member, and a resume one who left", () => {
     type Operation = { responses: Record<string, { description: string }> };
     const path = (suffix: string) =>

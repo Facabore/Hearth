@@ -1,6 +1,7 @@
-import { ok, todayIn, type Result } from "@/shared/kernel";
+import { domainError, err, ok, todayIn, type Result } from "@/shared/kernel";
 import { closedOn, transitioned } from "../domain/plan";
 import { activationCheck, planFigures } from "../domain/plan-figures";
+import { carriesFromSource } from "../domain/rollover";
 import type { BudgetingDeps } from "./deps";
 import { managePlan, planForWrite } from "./plan-access";
 import { loadPlanView, type BudgetPlanView } from "./plan-view";
@@ -52,6 +53,12 @@ export const createActivateBudgetPlan =
  * HU-E6-07: an OWNER or ADMIN closes an ACTIVE plan once its period has ended (PeriodNotOver, P17 amended: today in
  * the deployment time zone must be after the period's last day). From then on neither the plan nor the space's
  * transactions dated within its period change (PeriodClosed, HU-E4-06); there is no reopening in v1.
+ *
+ * Ruling P248 (M6c): a plan is not closed while the plan it was copied from is ACTIVE and one of its lines carries
+ * over from it (SourcePlanOpen, naming the source's period). A carry reads its source only once that source is
+ * CLOSED (ruling P243), so closing the copy first would let its frozen figures jump when the source closes later.
+ * The rule says "ACTIVE", not "not CLOSED", on purpose: a DRAFT source is never closed, so its copies carry 0 for
+ * good, a stable figure that must not block closing. This check runs after the transition and the period ones.
  */
 export const createCloseBudgetPlan =
   (deps: CloseDeps): CloseBudgetPlan =>
@@ -61,7 +68,14 @@ export const createCloseBudgetPlan =
         closedOn(plan, todayIn(deps.clock, deps.timeZone)),
       );
       if (!write.ok) return write;
-      const { space, plan } = write.value;
+      const { space, plan, parts } = write.value;
+      const source =
+        plan.createdFrom !== null && carriesFromSource(parts.lines)
+          ? await deps.plans.find(space.spaceId, plan.createdFrom)
+          : null;
+      if (source?.status === "ACTIVE") {
+        return err(domainError("SourcePlanOpen", { sourcePeriod: source.period.label }));
+      }
       await deps.statuses.setStatus(plan.id, "CLOSED", deps.clock.now());
       return ok(await loadPlanView(deps, space, { ...plan, status: "CLOSED" }));
     });

@@ -1,4 +1,4 @@
-import { domainError, err, ok, type Result } from "@/shared/kernel";
+import { domainError, err, ok, type Period, type Result } from "@/shared/kernel";
 import { assignedAmounts, type LineAllocation } from "./allocation";
 import type { AllocationRule, BudgetLine, CategoryMapping } from "./budget-line";
 import { capacityOf, shareOfTotal, totalCapacity, type MemberCapacity } from "./capacity";
@@ -24,6 +24,18 @@ export interface PeriodSpending {
 export interface PreviousAvailable {
   readonly lineId: string;
   readonly available: bigint;
+}
+
+/**
+ * HU-E6-09, ruling P243 (M6c): the plan this one was copied from, as its carry-over reads it. Only a CLOSED source
+ * carries; before it closes, `previousAvailable` is empty and its lines say they wait for it.
+ */
+export interface CarrySource {
+  readonly planId: string;
+  readonly period: Period;
+  readonly closed: boolean;
+  /** The source's current lines: a line carries only from the line it was copied from, if the source still has it. */
+  readonly lineIds: readonly string[];
 }
 
 export interface CapacityFigure {
@@ -55,6 +67,12 @@ export interface LineFigure {
   readonly spent: bigint;
   /** HU-E6-09: carried from the line this one was copied from, by this line's rollover mode; 0 without one. */
   readonly carryOver: bigint;
+  /** Ruling P243 (M6c): where the carry-over comes from; null for RESET or a line without an origin in the source. */
+  readonly carryOverFrom: {
+    readonly planId: string;
+    readonly period: Period;
+    readonly closed: boolean;
+  } | null;
   readonly available: bigint;
 }
 
@@ -107,7 +125,8 @@ const allocationFigure = (
  * HU-E6-02 … HU-E6-05, HU-E6-09, spec 5.4: every figure of a plan for its current members (`memberIds`, join
  * order), derived on read (D7). available = planned + carry-over − spent; a line's carry-over follows its origin
  * line in `previousAvailable` (the figures of the plan it was copied from), by its own rollover mode (ruling P15),
- * and is 0 without one.
+ * and is 0 without one. Ruling P243 (M6c): a carry comes only from a CLOSED source, which `loadPlanView` enforces by
+ * what it passes as `previousAvailable`; `source` only names where a carrying line's amount comes from, or waits for.
  */
 export const planFigures = (input: {
   readonly currency: string;
@@ -115,8 +134,9 @@ export const planFigures = (input: {
   readonly parts: PlanParts;
   readonly spending: PeriodSpending;
   readonly previousAvailable?: readonly PreviousAvailable[];
+  readonly source?: CarrySource | null;
 }): PlanFigures => {
-  const { currency, memberIds, parts, spending, previousAvailable = [] } = input;
+  const { currency, memberIds, parts, spending, previousAvailable = [], source = null } = input;
   const total = totalCapacity(parts.capacities, memberIds);
   const members = memberIds.map((memberId) => ({
     memberId,
@@ -135,6 +155,14 @@ export const planFigures = (input: {
     // HU-E6-09: by the origin link only, never by name.
     const origin = previousAvailable.find((p) => p.lineId === line.originLineId);
     const carried = carryOver(line.rolloverMode, origin?.available ?? null);
+    // Ruling P243: the source is named only for a line that carries and was copied from a line the source holds.
+    const from =
+      source !== null &&
+      line.rolloverMode !== "RESET" &&
+      line.originLineId !== null &&
+      source.lineIds.includes(line.originLineId)
+        ? { planId: source.planId, period: source.period, closed: source.closed }
+        : null;
     return {
       line,
       categoryIds: parts.mappings.filter((m) => m.lineId === line.id).map((m) => m.categoryId),
@@ -142,6 +170,7 @@ export const planFigures = (input: {
       allocation: allocationFigure(line, parts.allocations, members, currency),
       spent,
       carryOver: carried,
+      carryOverFrom: from,
       available: line.plannedAmount + carried - spent,
     };
   });

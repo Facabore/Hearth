@@ -61,7 +61,7 @@ module.exports = {
       name: "ui-talks-only-to-the-api",
       severity: "error",
       comment:
-        "Ruling P119: the web pages, the proxy, i18n and every ui folder reach the backend only over /api/v1 through the generated client: never a module's domain, application, infrastructure or contracts, the composition root, the API routes, the HTTP or infrastructure layers or server-only packages; of the kernel only time-zone.ts, local-date.ts and style.ts.",
+        "Ruling P119: the web pages, the proxy, i18n and every ui folder reach the backend only over /api/v1 through the generated client: never a module's domain, application, infrastructure or contracts, the composition root, the API routes, the HTTP or infrastructure layers or server-only packages; of the kernel only time-zone.ts, local-date.ts, style.ts and line-state.ts (ruling P244: the record form applies the API's own line levels).",
       from: {
         path: [
           "^src/app/\\(web\\)/",
@@ -77,7 +77,7 @@ module.exports = {
           "^src/composition/",
           "^src/app/api/",
           "^src/shared/(http|infrastructure)/",
-          "^src/shared/kernel/(?!(time-zone|local-date|style)\\.ts$)",
+          "^src/shared/kernel/(?!(time-zone|local-date|style|line-state)\\.ts$)",
           "node_modules/(drizzle-orm|pg|better-auth|@better-auth|zod-openapi|zod)/",
         ],
       },
@@ -109,12 +109,28 @@ module.exports = {
       from: { path: "^src/modules/[^/]+/(domain|application|infrastructure|contracts)/" },
       to: { path: "^src/modules/[^/]+/ui/" },
     },
+    {
+      name: "recharts-only-in-charts",
+      severity: "error",
+      comment:
+        "Ruling P202 (M6c): Recharts is imported only by src/modules/reporting/ui/charts/*-chart.tsx, the files the lazy chart wrapper (lazy-*-chart.tsx) loads with import().",
+      from: { pathNot: "^src/modules/reporting/ui/charts/(?!lazy-)[^/]+-chart\\.tsx$" },
+      to: { path: "node_modules/recharts/" },
+    },
+    {
+      name: "charts-load-lazily",
+      severity: "error",
+      comment:
+        "Ruling P202 (M6c): a chart file is reached only through a dynamic import(), so a route without a chart never ships Recharts. The lazy wrapper (lazy-*-chart.tsx) is the one chart-named file pages import statically.",
+      from: {},
+      to: { path: "^src/modules/reporting/ui/charts/(?!lazy-)[^/]+-chart\\.tsx$", dynamic: false },
+    },
     { name: "no-circular", severity: "error", from: {}, to: { circular: true } },
   ],
   options: {
     doNotFollow: { path: "node_modules" },
     tsPreCompilationDeps: true,
     tsConfig: { fileName: "tsconfig.json" },
-    exclude: { path: ["^tests/architecture/fixtures/", "\\.test\\.(ts|mjs)$"] },
+    exclude: { path: ["^tests/architecture/fixtures/", "\\.test\\.(ts|tsx|mjs)$"] },
   },
 };

@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
 import type { APIRequest, Page } from "@playwright/test";
 import es from "../../../src/i18n/messages/es.json" with { type: "json" };
+import { STARTER_ACCOUNTS } from "../../../src/modules/accounts/domain/starter-accounts";
 import { SeedApi } from "./api";
+import { minor } from "./money";
 import { Person } from "./people";
 
 /** One scenario's state: its page, its visitor address, the person it signed up and the catalog it reads. */
@@ -12,6 +14,8 @@ export class World {
   readonly categories = new Map<string, string>();
   readonly people = new Map<string, Person>();
   readonly spaces = new Map<string, string>();
+  /** The ids of the transactions a scenario recorded through `recordExpense`, by description. */
+  readonly transactions = new Map<string, string>();
   private readonly suffix: string;
 
   constructor(
@@ -64,6 +68,27 @@ export class World {
     return account.id;
   }
 
+  /** Issue 169: keeps the id of the starter account sign-up opened at zero as `name` (e.g. "Ahorros"), and reuses it. */
+  async starterAccount(name: string): Promise<string> {
+    const { items } = (await this.api.get(this.space("/accounts"))) as {
+      items: { id: string; name: string }[];
+    };
+    const account = items.find((a) => a.name === name);
+    if (!account) throw new Error(`No starter account ${name}`);
+    this.accounts.set(name, account.id);
+    return account.id;
+  }
+
+  /** Issue 169: archives the Spanish starter accounts, for a scenario whose person holds only the accounts it names. */
+  async archiveStarterAccounts(): Promise<void> {
+    const starters = new Set(STARTER_ACCOUNTS.map((starter) => starter.names.es));
+    const { items } = (await this.api.get(this.space("/accounts"))) as {
+      items: { id: string; name: string }[];
+    };
+    for (const account of items.filter((a) => starters.has(a.name)))
+      await this.api.post(this.space(`/accounts/${account.id}/archive`), {});
+  }
+
   /** Creates a category in the seeded group whose key is `food` and keeps its id under `name`. */
   async seedCategory(name: string): Promise<string> {
     const { items } = (await this.api.get(this.space("/categories"))) as {
@@ -86,6 +111,26 @@ export class World {
     if (!response.ok())
       throw new Error(`POST ${kind} answered ${response.status()}: ${await response.text()}`);
     return response.json();
+  }
+
+  /** An expense through the API at 2026-10-31 12:00 Bogotá, inside the server's fixed period (P178). */
+  async recordExpense(
+    description: string,
+    pesos: string,
+    category: string,
+    account: string,
+  ): Promise<string> {
+    const recorded = (await this.record("expenses", {
+      description,
+      date: "2026-10-31",
+      occurredAt: "2026-10-31T17:00:00.000Z",
+      timeZone: "America/Bogota",
+      categoryId: this.categories.get(category),
+      amount: { amount: minor(pesos), currency: "COP" },
+      accountId: this.accounts.get(account),
+    })) as { id: string };
+    this.transactions.set(description, recorded.id);
+    return recorded.id;
   }
 
   /** Someone else, signed up once per test with their own session (ruling P178). */

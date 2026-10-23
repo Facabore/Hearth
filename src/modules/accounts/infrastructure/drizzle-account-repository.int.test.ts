@@ -42,6 +42,15 @@ describe("DrizzleAccountRepository", () => {
     expect(await repo.listBySpace(space.spaceId)).toEqual(expect.arrayContaining([bank, card, huge]));
   });
 
+  it("inserts unless the space holds the name ignoring case, and says which (issue 169)", async () => {
+    const space = await personalSpaceFixture(db, pool);
+    expect(await repo.addUnlessNameTaken(account(space, { name: "Efectivo", type: "CASH" }))).toBe(true);
+    const again = account(space, { name: "EFECTIVO", type: "CASH" });
+    expect(await repo.addUnlessNameTaken(again)).toBe(false);
+    expect(await repo.findById(again.id)).toBeNull();
+    expect((await repo.listBySpace(space.spaceId)).map((a) => a.name)).toEqual(["Efectivo"]);
+  });
+
   it("returns null for unknown and malformed ids", async () => {
     expect(await repo.findById(randomUUID())).toBeNull();
     expect(await repo.findById("not-a-uuid")).toBeNull();

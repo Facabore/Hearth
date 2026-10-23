@@ -5,6 +5,7 @@ import type { AccountDto, CategoryGroupDto, PeriodDto, TransactionPageDto } from
 import { getMe, getSpaces, loaded, serverApi, type Loaded } from "@/shared/ui/api/server";
 import { serverNow } from "@/shared/ui/time/server-now";
 import { nowIn } from "@/shared/ui/time/when";
+import { loadTransactionDetail } from "./detail/detail-loader";
 import { TransactionList } from "./transaction-list";
 
 export const PAGE_SIZE = 50;
@@ -73,6 +74,7 @@ export async function TransactionListContainer({
   categoryId,
   notice,
   noticeAccount,
+  transactionId,
 }: {
   readonly spaceId: string;
   readonly period?: string;
@@ -80,11 +82,25 @@ export async function TransactionListContainer({
   /** `?notice=FundBalanceNegative&account=<fund id>` after a save that left a shared fund negative (P170). */
   readonly notice?: string;
   readonly noticeAccount?: string;
+  /** `?tx=<id>`: the transaction whose detail sheet is open (ruling P189). */
+  readonly transactionId?: string;
 }) {
   const [me, spaces] = await Promise.all([getMe(), getSpaces()]);
   const space = spaces.find((s) => s.id === spaceId);
   const shared = (space?.kind ?? "PERSONAL") !== "PERSONAL";
-  const list = await loadTransactionList(await serverApi(), { spaceId, period, categoryId, shared });
+  const api = await serverApi();
+  const [list, detail] = await Promise.all([
+    loadTransactionList(api, { spaceId, period, categoryId, shared }),
+    transactionId && space
+      ? loadTransactionDetail(api, {
+          spaceId,
+          transactionId,
+          space,
+          meUserId: me!.id,
+          personalSpaceId: spaces.find((s) => s.kind === "PERSONAL")?.id,
+        })
+      : undefined,
+  ]);
   if (!list.ok) return <ProblemNotice problem={list.problem} />;
   const { page, groups, accounts, memberNames, previous, next } = list.data;
   const context = {
@@ -103,6 +119,7 @@ export async function TransactionListContainer({
       context={context}
       today={nowIn(serverNow(), me!.timezone).date}
       filter={{ period, categoryId }}
+      {...(detail ? { detail } : {})}
       {...(fund ? { notice: { accountName: fund.name, balance: fund.balance } } : {})}
       {...(shared && space ? { spaceName: space.name } : {})}
       previous={previous}

@@ -60,7 +60,20 @@ export const LineDashboardSchema = z.object({
       planned: MoneySchema,
       spent: MoneySchema,
       /** HU-E6-09: carried from the line this one was copied from, by its rollover mode. */
-      carryOver: MoneySchema,
+      carryOver: MoneySchema.describe(
+        "Since M6c a line carries only from the CLOSED plan it was copied from, and only from its origin line there: carryOver is 0 while that plan is DRAFT or ACTIVE (before, it carried whatever the source's status was), and carryOverFrom names the plan it comes from or waits for. Nothing is stored; both are derived on read.",
+      ),
+      /**
+       * Ruling P243 (M6c): the plan the carry-over comes from, and whether it is CLOSED. A line carries only from the
+       * CLOSED plan it was copied from; `closed: false` means it carries 0 until that plan closes. Null for RESET, or a
+       * line without an origin in the source.
+       */
+      carryOverFrom: z
+        .object({ planId: z.string(), period: PeriodSchema, closed: z.boolean() })
+        .nullable()
+        .describe(
+          "The plan the carry-over comes from, with its period and whether it is CLOSED. closed false means the line carries 0 until that plan closes. Null for a RESET line, a line without an origin in that plan (a line added by hand, or one the source no longer has) and a plan that was not copied.",
+        ),
       /** planned + carry-over − spent. */
       available: MoneySchema,
       /** The available amount is negative. */
@@ -114,6 +127,14 @@ export const lineDashboardDto = (dashboard: LineDashboard): z.infer<typeof LineD
     planned: moneyOf(line.planned, dashboard.currency),
     spent: moneyOf(line.spent, dashboard.currency),
     carryOver: moneyOf(line.carryOver, dashboard.currency),
+    carryOverFrom:
+      line.carryOverFrom === null
+        ? null
+        : {
+            planId: line.carryOverFrom.planId,
+            period: periodDto(line.carryOverFrom.period),
+            closed: line.carryOverFrom.closed,
+          },
     available: moneyOf(line.available, dashboard.currency),
     overspent: line.overspent,
     state: line.state,

@@ -7,6 +7,7 @@ import {
   readTrail,
   replaced,
   stepsBack,
+  cameFrom,
   traversed,
   writeTrail,
   type Trail,
@@ -15,6 +16,7 @@ import {
 const home = "/spaces/s1";
 const movements = "/spaces/s1/transactions";
 const balances = "/spaces/s1/balances";
+const plan = "/spaces/s1/plan";
 const accounts = "/spaces/s1/accounts";
 const create = "/spaces/s1/accounts/new";
 const settings = "/settings";
@@ -24,16 +26,26 @@ const trailOf = (urls: string[], pos = urls.length - 1): Trail => ({ urls, pos }
 const EMPTY: Trail = { urls: [], pos: -1 };
 
 describe("root screens (the bottom navigation's destinations)", () => {
-  it.each([home, movements, balances, "/", `${movements}?period=2026-10`])("%s is a root", (path) => {
-    expect(isRootScreen(path)).toBe(true);
-  });
-
-  it.each([accounts, create, "/spaces/s1/new", "/spaces/new", members, settings, "/sign-in"])(
-    "%s is a screen below the navigation",
+  it.each([home, movements, balances, plan, "/", `${movements}?period=2026-10`, `${plan}?period=2026-11`])(
+    "%s is a root",
     (path) => {
-      expect(isRootScreen(path)).toBe(false);
+      expect(isRootScreen(path)).toBe(true);
     },
   );
+
+  it.each([
+    "/spaces/s1/plans/p1",
+    "/spaces/s1/plans/p1/lines/new",
+    accounts,
+    create,
+    "/spaces/s1/new",
+    "/spaces/new",
+    members,
+    settings,
+    "/sign-in",
+  ])("%s is a screen below the navigation", (path) => {
+    expect(isRootScreen(path)).toBe(false);
+  });
 });
 
 describe("auth and invitation screens", () => {
@@ -49,6 +61,23 @@ describe("auth and invitation screens", () => {
   });
 });
 
+describe("cameFrom: the entry before the current one", () => {
+  const open = `${movements}?tx=t-1`;
+  it("is the previous entry when the trail stands on the current URL", () => {
+    expect(cameFrom(trailOf([movements, open]), open)).toBe(movements);
+  });
+
+  it("is null at the first entry, on a stale trail and on an empty one", () => {
+    expect(cameFrom(trailOf([open]), open)).toBeNull();
+    expect(cameFrom(trailOf([movements, open]), `${movements}?tx=other`)).toBeNull();
+    expect(cameFrom(EMPTY, open)).toBeNull();
+  });
+
+  it("follows the position, not the end of the trail", () => {
+    expect(cameFrom(trailOf([home, movements, open], 1), movements)).toBe(home);
+  });
+});
+
 describe("pushed: a new entry in the browser's history", () => {
   it("starts the trail at the first entry", () => {
     expect(pushed(EMPTY, accounts)).toEqual(trailOf([accounts]));
@@ -61,6 +90,19 @@ describe("pushed: a new entry in the browser's history", () => {
   it("restarts the trail at a root: switching tabs is not a history to unwind", () => {
     expect(pushed(trailOf([movements, accounts]), home)).toEqual(trailOf([home]));
     expect(pushed(trailOf([home]), movements)).toEqual(trailOf([movements]));
+  });
+
+  it("keeps the entry before a query-only push on a root: the screen has not changed, so nothing restarts", () => {
+    expect(pushed(trailOf([movements]), `${movements}?tx=t-1`)).toEqual(
+      trailOf([movements, `${movements}?tx=t-1`]),
+    );
+    expect(pushed(trailOf([home, `${home}?tx=t-1`]), `${home}?tx=t-2`)).toEqual(
+      trailOf([home, `${home}?tx=t-1`, `${home}?tx=t-2`]),
+    );
+  });
+
+  it("still restarts when a root is entered from another screen with the same query", () => {
+    expect(pushed(trailOf([home, accounts]), `${home}?tx=t-1`)).toEqual(trailOf([`${home}?tx=t-1`]));
   });
 
   it("drops the entries ahead of the current one, as the browser does", () => {

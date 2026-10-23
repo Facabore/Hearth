@@ -6,7 +6,7 @@ import { addDays, type LocalDate } from "@/shared/kernel/local-date";
 import { Button, ChoiceGroup, Icon, Sheet, VisuallyHidden } from "@/shared/ui";
 import { formatDate, type Formats, type Wall } from "@/shared/ui/format/formatters";
 import { monthGrid, stepHour, stepMinutes, withHalf } from "@/shared/ui/time/when";
-import { whenLabel, type When } from "./when-label";
+import { whenParts, type When } from "./when-label";
 
 export interface DateTimeSheetProps {
   readonly open: boolean;
@@ -207,7 +207,7 @@ function SheetBody({ value, today, now, formats, onApply, onOpenChange }: DateTi
           onOpenChange(false);
         }}
       >
-        {t("when.apply", { label: whenLabel(draft, today, formats, days) })}
+        {t("when.apply", whenParts(draft, today, formats))}
       </Button>
     </div>
   );

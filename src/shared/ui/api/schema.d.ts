@@ -518,6 +518,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/spaces/{spaceId}/accounts/starter": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create the personal space's starter accounts at zero, in the caller's language, skipping every name the space already holds (archived ones included); a second call creates nothing */
+        post: operations["createStarterAccounts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/spaces/{spaceId}/accounts/{accountId}": {
         parameters: {
             query?: never;
@@ -687,7 +704,7 @@ export interface paths {
         delete: operations["deleteTransaction"];
         options?: never;
         head?: never;
-        /** Change description, date, time, category or amount; send If-Match with the current ETag */
+        /** Change description, date, time, category, amount, accounts, who paid or how it is split; send If-Match with the current ETag */
         patch: operations["editTransaction"];
         trace?: never;
     };
@@ -840,6 +857,23 @@ export interface paths {
         put?: never;
         /** End a recurrence: it and its occurrences stay, and nothing more is recorded */
         post: operations["endRecurrence"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{spaceId}/recurrences/{recurrenceId}/extend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Extend an ENDED recurrence with a new end date, or none: the same recurrence goes on from today, never back-filling the days it was ended */
+        post: operations["extendRecurrence"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1717,7 +1751,20 @@ export interface components {
                     error: "InvalidAllocation" | null;
                 };
                 spent: components["schemas"]["MoneyOutput"];
+                /** @description Since M6c a line carries only from the CLOSED plan it was copied from, and only from its origin line there: carryOver is 0 while that plan is DRAFT or ACTIVE (before, it carried whatever the source's status was), and carryOverFrom names the plan it comes from or waits for. Nothing is stored; both are derived on read. */
                 carryOver: components["schemas"]["MoneyOutput"];
+                /** @description The plan the carry-over comes from, with its period and whether it is CLOSED. closed false means the line carries 0 until that plan closes. Null for a RESET line, a line without an origin in that plan (a line added by hand, or one the source no longer has) and a plan that was not copied. */
+                carryOverFrom: {
+                    planId: string;
+                    period: {
+                        label: string;
+                        /** Format: date */
+                        startDate: string;
+                        /** Format: date */
+                        endDate: string;
+                    };
+                    closed: boolean;
+                } | null;
                 available: components["schemas"]["MoneyOutput"];
             }[];
             unbudgeted: {
@@ -4107,6 +4154,66 @@ export interface operations {
             };
         };
     };
+    createStarterAccounts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The starter accounts this call created; empty when none was missing */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["Account"][];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description InsufficientRole */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description PersonalAccountRequiresPersonalSpace, SpaceArchived */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     getAccount: {
         parameters: {
             query?: {
@@ -5011,6 +5118,42 @@ export interface operations {
                     timeZone?: string;
                     categoryId?: string;
                     amount?: components["schemas"]["Money"];
+                    accountId?: string;
+                    payments?: {
+                        memberId: string | null;
+                        accountId?: string | null;
+                        amount: components["schemas"]["Money"];
+                    }[];
+                    sourceAccountId?: string;
+                    destinationAccountId?: string;
+                    split?: {
+                        /** @constant */
+                        method: "EQUAL";
+                        participants: {
+                            memberId: string;
+                        }[];
+                    } | {
+                        /** @constant */
+                        method: "PERCENT";
+                        participants: {
+                            memberId: string;
+                            percent: string;
+                        }[];
+                    } | {
+                        /** @constant */
+                        method: "EXACT";
+                        participants: {
+                            memberId: string;
+                            amount: components["schemas"]["Money"];
+                        }[];
+                    } | {
+                        /** @constant */
+                        method: "SHARES";
+                        participants: {
+                            memberId: string;
+                            units: number;
+                        }[];
+                    };
                 };
             };
         };
@@ -5042,7 +5185,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description SpaceNotFound, TransactionNotFound, CategoryNotFound */
+            /** @description SpaceNotFound, TransactionNotFound, CategoryNotFound, AccountNotFound */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -5051,7 +5194,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory */
+            /** @description SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory, AccountArchived, SameAccountTransfer, GuestHasNoAccounts, MixedFundPayment, FieldNotEditable */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5069,7 +5212,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone */
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, InvalidSplit, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5816,6 +5959,80 @@ export interface operations {
             };
             /** @description InvalidRecurrenceTransition, SpaceArchived */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    extendRecurrence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+                recurrenceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    endDate: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The recurrence, ACTIVE again */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Recurrence"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description InsufficientRole (the requester may not manage it; with member "creator", the recurrence's creator no longer holds money.record) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound, RecurrenceNotFound, CategoryNotFound, AccountNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description InvalidRecurrenceTransition (it is not ENDED), AccountArchived, CategoryArchived, GuestHasNoAccounts, SameAccountTransfer, SpaceArchived */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed (endDate is required), InvalidDate, InvalidRecurrence (an end date before the start; no schedule date from today, or from where it was due, through the end date), AccountNotOwned (it moves money into or out of its creator's own account: only its creator extends it), AccountNotInSpace, AccountRequired, InvalidFundAccount, NotASpaceMember (a payer or a split participant left; with member "creator", the recurrence's creator left), InvalidSplit, ParticipantsRequired */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6997,7 +7214,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description InvalidPlanTransition, PeriodNotOver (today is not after the period's last day), SpaceArchived */
+            /** @description InvalidPlanTransition, PeriodNotOver (today is not after the period's last day), SourcePlanOpen (the plan it was copied from is still ACTIVE and a line carries over from it; the problem carries the source's `sourcePeriod`), SpaceArchived */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7115,7 +7332,14 @@ export interface operations {
                             isCatchAll: boolean;
                             planned: components["schemas"]["MoneyOutput"];
                             spent: components["schemas"]["MoneyOutput"];
+                            /** @description Since M6c a line carries only from the CLOSED plan it was copied from, and only from its origin line there: carryOver is 0 while that plan is DRAFT or ACTIVE (before, it carried whatever the source's status was), and carryOverFrom names the plan it comes from or waits for. Nothing is stored; both are derived on read. */
                             carryOver: components["schemas"]["MoneyOutput"];
+                            /** @description The plan the carry-over comes from, with its period and whether it is CLOSED. closed false means the line carries 0 until that plan closes. Null for a RESET line, a line without an origin in that plan (a line added by hand, or one the source no longer has) and a plan that was not copied. */
+                            carryOverFrom: {
+                                planId: string;
+                                period: components["schemas"]["Period"];
+                                closed: boolean;
+                            } | null;
                             available: components["schemas"]["MoneyOutput"];
                             overspent: boolean;
                             /**

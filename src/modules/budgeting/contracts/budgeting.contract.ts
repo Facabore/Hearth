@@ -70,7 +70,20 @@ export const BudgetLineSchema = z.object({
   /** Spec 5.4: spent in the plan's period, computed on read (D7). */
   spent: MoneySchema,
   /** HU-E6-09: carried from the line this one was copied from (`originLineId`), by this line's rollover mode. */
-  carryOver: MoneySchema,
+  carryOver: MoneySchema.describe(
+    "Since M6c a line carries only from the CLOSED plan it was copied from, and only from its origin line there: carryOver is 0 while that plan is DRAFT or ACTIVE (before, it carried whatever the source's status was), and carryOverFrom names the plan it comes from or waits for. Nothing is stored; both are derived on read.",
+  ),
+  /**
+   * Ruling P243 (M6c): the plan the carry-over comes from, and whether it is CLOSED. A line carries only from the
+   * CLOSED plan it was copied from, and only from its origin line there, so `closed: false` means it carries 0 until
+   * that plan closes. Null for RESET, or for a line without an origin in the source (a new line carries nothing).
+   */
+  carryOverFrom: z
+    .object({ planId: z.string(), period: PeriodSchema.extend({}), closed: z.boolean() })
+    .nullable()
+    .describe(
+      "The plan the carry-over comes from, with its period and whether it is CLOSED. closed false means the line carries 0 until that plan closes. Null for a RESET line, a line without an origin in that plan (a line added by hand, or one the source no longer has) and a plan that was not copied.",
+    ),
   /** planned + carry-over − spent, computed on read (D7). */
   available: MoneySchema,
 });
@@ -305,6 +318,14 @@ const lineDto = (figure: LineFigure, currency: string): z.infer<typeof BudgetLin
     },
     spent: moneyOf(figure.spent, currency),
     carryOver: moneyOf(figure.carryOver, currency),
+    carryOverFrom:
+      figure.carryOverFrom === null
+        ? null
+        : {
+            planId: figure.carryOverFrom.planId,
+            period: periodDto(figure.carryOverFrom.period),
+            closed: figure.carryOverFrom.closed,
+          },
     available: moneyOf(figure.available, currency),
   };
 };
@@ -560,7 +581,7 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
       {
         "404": "SpaceNotFound, BudgetPlanNotFound",
         "409":
-          "InvalidPlanTransition, PeriodNotOver (today is not after the period's last day), SpaceArchived",
+          "InvalidPlanTransition, PeriodNotOver (today is not after the period's last day), SourcePlanOpen (the plan it was copied from is still ACTIVE and a line carries over from it; the problem carries the source's `sourcePeriod`), SpaceArchived",
       },
       "200",
       false,

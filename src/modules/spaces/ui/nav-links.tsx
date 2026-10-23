@@ -8,8 +8,9 @@ import type { SpaceDto } from "@/shared/ui/api/dto";
 
 /**
  * One landmark for both layouts: a bar fixed at the bottom under 1024 px, a 240 px rail from 1024 px (the Desktop
- * artboard). Ruling P160: the Batch 2 order, Inicio, Movimientos, Registrar, Saldos; Saldos only where balances
- * exist (shared and direct spaces); Plan joins with HU-E9-08 (M6c).
+ * artboard). Ruling P160: the Batch 2 order, Inicio, Movimientos, Registrar, Plan, Saldos; Saldos only where balances
+ * exist (shared and direct spaces). Plan (HU-E9-10, ruling P200, amending P141) is current on every path under
+ * `/plan` and `/plans`.
  */
 export function NavLinks({
   spaceId,
@@ -22,8 +23,12 @@ export function NavLinks({
   const pathname = usePathname();
   const home = `/spaces/${spaceId}`;
   const transactions = `${home}/transactions`;
+  const plan = `${home}/plan`;
   const balances = `${home}/balances`;
   const current = (href: string) => (pathname === href ? ("page" as const) : undefined);
+  const underPlan = [plan, `${home}/plans`].some(
+    (root) => pathname === root || pathname.startsWith(`${root}/`),
+  );
   const item =
     "flex min-h-11 flex-1 flex-col items-center justify-center gap-1 text-xs text-muted aria-[current=page]:text-accent lg:flex-none lg:flex-row lg:justify-start lg:gap-3 lg:rounded-xl lg:px-3 lg:text-base";
   return (
@@ -50,6 +55,10 @@ export function NavLinks({
       >
         <Icon name="plus" />
         <span className="hidden lg:inline">{t("recordShort")}</span>
+      </Link>
+      <Link href={plan} aria-current={underPlan ? "page" : undefined} className={item}>
+        <Icon name="chart" />
+        {t("plan")}
       </Link>
       {spaceKind !== "PERSONAL" ? (
         <Link href={balances} aria-current={current(balances)} className={item}>

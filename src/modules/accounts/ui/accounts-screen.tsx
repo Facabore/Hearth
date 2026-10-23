@@ -5,7 +5,7 @@ import { Icon, ScreenHeader } from "@/shared/ui";
 import type { AccountListDto, SpaceDto } from "@/shared/ui/api/dto";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { safeReturnTo, withReturnTo } from "@/shared/ui/navigation/auth-redirect";
-import { ArchiveAccountButton, RestoreAccountButton } from "./account-actions";
+import { ArchiveAccountButton, RestoreAccountButton, StarterAccountsButton } from "./account-actions";
 import { AccountRow } from "./account-row";
 import { sectionsOf } from "./account-sections";
 
@@ -43,13 +43,17 @@ export function AccountsScreen({
   // Only a shared space's OWNER or ADMIN creates funds; a direct space has no accounts; a personal one always may.
   const canCreate = kind === "PERSONAL" || (shared && controlsFor(role, kind).manageFunds);
   const nothing = list.items.length === 0;
+  // Issue 169: with no active account the totals say nothing, so the empty state stands in for them; a personal
+  // space also offers its starter accounts (archived ones stay listed below and keep their names).
+  const noActive = active.length === 0;
+  const personal = kind === "PERSONAL";
   return (
     <div className="flex flex-col gap-6 py-4">
       <ScreenHeader
         backHref={`/spaces/${spaceId}`}
         title={t("title")}
         action={
-          canCreate && !nothing ? (
+          canCreate && !noActive ? (
             <Link href={newHref} className={ACTION}>
               <Icon name="plus" size={20} />
               {shared ? t("newFund") : t("new")}
@@ -60,15 +64,27 @@ export function AccountsScreen({
       {shared || kind === "DIRECT" ? (
         <p className="text-sm text-muted">{kind === "DIRECT" ? t("directNote") : t("fundsNote")}</p>
       ) : null}
-      {nothing ? (
+      {noActive ? (
         <section
           aria-labelledby="accounts-empty"
           className="flex flex-col items-start gap-3 rounded-2xl bg-surface p-5"
         >
           <h2 id="accounts-empty" className="text-lg font-semibold text-ink">
-            {shared ? t("empty.fundsTitle") : kind === "DIRECT" ? t("empty.directTitle") : t("empty.title")}
+            {shared
+              ? t("empty.fundsTitle")
+              : kind === "DIRECT"
+                ? t("empty.directTitle")
+                : nothing
+                  ? t("empty.title")
+                  : t("empty.noActiveTitle")}
           </h2>
-          {kind === "PERSONAL" ? <p className="text-sm text-muted">{t("empty.body")}</p> : null}
+          {personal ? <p className="text-sm text-muted">{t("empty.body")}</p> : null}
+          {personal ? (
+            <>
+              <p className="text-sm text-muted">{t("empty.starterBody")}</p>
+              <StarterAccountsButton spaceId={spaceId} />
+            </>
+          ) : null}
           {canCreate ? (
             <Link href={newHref} className={ACTION}>
               <Icon name="plus" size={20} />

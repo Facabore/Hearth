@@ -245,6 +245,13 @@ export const reviseAccount = (
   });
 };
 
+/**
+ * HU-E1-03, issue 169: whether the account records money in its space's currency: a non-zero opening balance, a credit
+ * limit or a loan principal. A starter account at zero records none, so it never locks the space's currency.
+ */
+export const holdsMoney = (account: Pick<Account, "openingBalance" | "terms">): boolean =>
+  account.openingBalance !== 0n || account.terms.creditLimit !== null || account.terms.principal !== null;
+
 /** HU-E2-03: archived accounts keep their history but take no new movements. */
 export const archiveAccount = (account: Account, now: Date): Account =>
   account.archivedAt === null ? { ...account, archivedAt: now } : account;

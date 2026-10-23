@@ -5,7 +5,9 @@ import {
   createGetAccount,
   createListAccounts,
   createRestoreAccount,
+  createSeedStarterAccounts,
   createUpdateAccount,
+  holdsMoney,
   switchesOf,
   type AccountsDeps,
   type ArchiveAccount,
@@ -13,6 +15,7 @@ import {
   type GetAccount,
   type ListAccounts,
   type RestoreAccount,
+  type SeedStarterAccounts,
   type UpdateAccount,
 } from "@/modules/accounts/application";
 import { DrizzleAccountRepository } from "@/modules/accounts/infrastructure/drizzle-account-repository";
@@ -106,9 +109,11 @@ import {
   type UpdateRecurrence,
   createEndRecurrence,
   createListScheduledMovements,
+  createExtendRecurrence,
   createPauseRecurrence,
   createResumeRecurrence,
   type EndRecurrence,
+  type ExtendRecurrence,
   type PauseRecurrence,
   type ResumeRecurrence,
   createMaterializeDueOccurrences,
@@ -300,6 +305,8 @@ export interface Container extends RouteDeps {
     readonly updateAccount: UpdateAccount;
     readonly archiveAccount: ArchiveAccount;
     readonly restoreAccount: RestoreAccount;
+    /** Issue 169: the personal space's starter accounts its empty state offers. */
+    readonly createStarterAccounts: SeedStarterAccounts;
     readonly listAccounts: ListAccounts;
     readonly getAccount: GetAccount;
   };
@@ -323,6 +330,7 @@ export interface Container extends RouteDeps {
     readonly pauseRecurrence: PauseRecurrence;
     readonly resumeRecurrence: ResumeRecurrence;
     readonly endRecurrence: EndRecurrence;
+    readonly extendRecurrence: ExtendRecurrence;
     readonly materializeDueOccurrences: MaterializeDueOccurrences;
     readonly listPendingOccurrences: ListPendingOccurrences;
     readonly skipOccurrence: SkipOccurrence;
@@ -532,9 +540,18 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     },
     recordExpense,
   );
-  // HU-E3-01: default categories in the creator's locale, seeded in the same transaction as the space.
-  const onSpaceCreated: SpaceCreatedListener = (space, { locale }) =>
-    seedDefaultCategories({ spaceId: space.id, locale });
+  // Issue 169: starter accounts at zero, so a new person can record from minute one.
+  const seedStarterAccounts = createSeedStarterAccounts(accountsDeps);
+  // HU-E3-01: default categories in the creator's locale, seeded in the same transaction as the space; issue 169: a
+  // personal space (only sign-up creates one) also gets its starter accounts in that transaction and locale.
+  const onSpaceCreated: SpaceCreatedListener = async (space, { locale }) => {
+    const seeded = await seedDefaultCategories({ spaceId: space.id, locale });
+    if (!seeded.ok || space.kind !== "PERSONAL" || space.personalOwnerUserId === null) return seeded;
+    return map(
+      await seedStarterAccounts({ spaceId: space.id, userId: space.personalOwnerUserId, locale }),
+      () => undefined,
+    );
+  };
   const createPersonalSpace = createCreatePersonalSpace({
     spaces: spaceRepository,
     ids,
@@ -701,9 +718,14 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         access,
         tm,
         usage: {
-          // D6: a plan's capacities and lines are amounts in the space currency too (HU-E6-01).
+          // D6: a plan's capacities and lines are amounts in the space currency too (HU-E6-01). Issue 169: an account
+          // records money only when it holds an amount, so sign-up's starter accounts at zero never lock the currency;
+          // an account's currency is its space's (no column of its own), so they follow a change with nothing to move.
+          // A recurrence stores its amount with its own currency and records its occurrences in it; an ended one counts
+          // too, since it keeps that amount and can be extended again (#115).
           hasMoneyRecords: async (spaceId) =>
-            (await accountsDeps.accounts.listBySpace(spaceId)).length > 0 ||
+            (await accountsDeps.accounts.listBySpace(spaceId)).some(holdsMoney) ||
+            (await recurrenceRepository.list(spaceId)).length > 0 ||
             (await ledgerQueries.hasTransactions(spaceId)) ||
             (await budgetPlans.hasPlans(spaceId)),
         },
@@ -772,6 +794,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       updateAccount: createUpdateAccount(accountsDeps),
       archiveAccount: createArchiveAccount(accountsDeps),
       restoreAccount: createRestoreAccount(accountsDeps),
+      createStarterAccounts: seedStarterAccounts,
       listAccounts,
       getAccount,
     },
@@ -795,6 +818,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       pauseRecurrence: createPauseRecurrence(recurrenceDeps),
       resumeRecurrence: createResumeRecurrence(recurrenceDeps),
       endRecurrence: createEndRecurrence(recurrenceDeps),
+      extendRecurrence: createExtendRecurrence(recurrenceDeps),
       materializeDueOccurrences: createMaterializeDueOccurrences(materializeDeps),
       listPendingOccurrences: createListPendingOccurrences(recurrenceDeps),
       skipOccurrence: createSkipOccurrence(recurrenceDeps),

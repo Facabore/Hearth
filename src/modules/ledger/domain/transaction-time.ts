@@ -86,7 +86,8 @@ export const retimed = (
     if (change.date !== undefined && change.date !== date.value) return mismatch(change.date, date.value);
     return ok({ date: date.value, occurredAt: change.occurredAt, timeZone });
   }
-  if (change.date === undefined) {
+  // The stored date again is no move: re-timing it would read the second 02:30 of a repeated hour as the first (issue 119).
+  if (change.date === undefined || change.date === current.date) {
     return ok({ date: current.date, occurredAt: current.occurredAt, timeZone: current.timeZone });
   }
   if (current.occurredAt === null || current.timeZone === null) {

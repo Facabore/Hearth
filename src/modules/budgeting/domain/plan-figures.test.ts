@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import { aLine, referenceLines } from "../../../../tests/support/budget-fixtures";
 import { codeOf } from "../../../../tests/support/fakes";
 import type { BudgetLine, BudgetLineId, RolloverMode } from "./budget-line";
+import type { LocalDate } from "@/shared/kernel";
 import {
   activationCheck,
   lineForCategory,
   planFigures,
+  type CarrySource,
   type PeriodSpending,
   type PlanFigures,
   type PlanParts,
@@ -433,5 +435,67 @@ describe("carry-over (HU-E6-09)", () => {
       [-36_000_000n, 11_000_000n],
       [0n, 147_000_000n],
     ]);
+  });
+});
+
+describe("where a carry-over comes from (ruling P243 of M6c)", () => {
+  const source: CarrySource = {
+    planId: "plan-nov",
+    period: { label: "2026-11", start: "2026-11-01" as LocalDate, end: "2026-11-30" as LocalDate },
+    closed: true,
+    lineIds: ["line-home-nov"],
+  };
+  const figuresFor = (rolloverMode: RolloverMode, closed = true) =>
+    planFigures({
+      currency: "COP",
+      memberIds: [ANA],
+      parts: {
+        capacities: [{ memberId: ANA, amount: 400_000_000n }],
+        lines: [
+          aLine("Home", 147_000_000n, { originLineId: "line-home-nov", rolloverMode }),
+          aLine("Pets", 10_000_000n, {
+            id: "line-pets" as BudgetLineId,
+            originLineId: "line-gone",
+            rolloverMode,
+          }),
+          aLine("Fresh", 5_000_000n, { id: "line-fresh" as BudgetLineId, rolloverMode }),
+        ],
+        mappings: [],
+        allocations: [],
+      },
+      spending: { byCategory: [], byAccount: [] },
+      previousAvailable: closed ? [{ lineId: "line-home-nov", available: 20_000_000n }] : [],
+      source: { ...source, closed },
+    });
+  const carries = (figures: PlanFigures) =>
+    figures.lines.map((l) => [l.line.name, l.carryOver, l.carryOverFrom?.planId ?? null]);
+
+  it("names the source for a carrying line whose origin the source holds, and for no other", () => {
+    expect(carries(figuresFor("ROLLOVER"))).toEqual([
+      ["Home", 20_000_000n, "plan-nov"],
+      ["Pets", 0n, null],
+      ["Fresh", 0n, null],
+    ]);
+  });
+
+  it("names the source of a line that waits for an open one, with closed false and nothing carried", () => {
+    const [home] = figuresFor("ROLLOVER", false).lines;
+    expect([home!.carryOver, home!.carryOverFrom]).toEqual([
+      0n,
+      { planId: "plan-nov", period: source.period, closed: false },
+    ]);
+  });
+
+  it("names no source for a RESET line, nor without a source at all", () => {
+    expect(figuresFor("RESET").lines.map((l) => l.carryOverFrom)).toEqual([null, null, null]);
+    const alone = planFigures({
+      currency: "COP",
+      memberIds: [ANA],
+      parts: reference({
+        lines: [aLine("Home", 147_000_000n, { originLineId: "x", rolloverMode: "ROLLOVER" })],
+      }),
+      spending: { byCategory: [], byAccount: [] },
+    });
+    expect(alone.lines[0]!.carryOverFrom).toBeNull();
   });
 });

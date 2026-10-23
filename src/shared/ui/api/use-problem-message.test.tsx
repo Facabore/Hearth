@@ -20,6 +20,13 @@ describe("useProblemMessage (HU-E9-02)", () => {
     });
   });
 
+  it("fills the period a problem names into its message (ruling P248)", () => {
+    const es = renderHook(() => useProblemMessage(), { wrapper: IntlWrapper("es") }).result.current;
+    expect(es({ ...problem("SourcePlanOpen"), status: 409, sourcePeriod: "2026-11" }).message).toBe(
+      "Primero cierra el plan de 2026-11: este plan arrastra saldo de ese mes.",
+    );
+  });
+
   it("shows errors.Unknown with the request id for a code without a key", () => {
     const es = renderHook(() => useProblemMessage(), { wrapper: IntlWrapper("es") }).result.current;
     expect(es(problem("NoSuchCode"))).toEqual({

@@ -365,6 +365,14 @@ export const recurrenceEditFromBody = (
   });
 };
 
+/** #115: the new end date of an ended recurrence; it is required, and null is none: the recurrence never ends. */
+export const ExtendRecurrenceBodySchema = z.object({ endDate: z.iso.date().nullable() });
+
+/** A validated extension's end date; fails only for an impossible date. */
+export const extensionEndDateFromBody = (
+  body: z.infer<typeof ExtendRecurrenceBodySchema>,
+): Result<LocalDate | null> => (body.endDate === null ? ok(null) : localDate(body.endDate));
+
 /** HU-E4-13: the space's pending occurrences, earliest date first (not paginated, ruling P28). */
 export const PendingOccurrenceListSchema = z.object({ items: z.array(OccurrenceSchema) });
 
@@ -550,6 +558,26 @@ export const recurrencesPaths: ZodOpenApiPathsObject = {
     "endRecurrence",
     "End a recurrence: it and its occurrences stay, and nothing more is recorded",
   ),
+  "/api/v1/spaces/{spaceId}/recurrences/{recurrenceId}/extend": {
+    post: {
+      operationId: "extendRecurrence",
+      summary:
+        "Extend an ENDED recurrence with a new end date, or none: the same recurrence goes on from today, never back-filling the days it was ended",
+      ...securedByUser,
+      requestParams: { path: RecurrencePath },
+      requestBody: { content: jsonContent(ExtendRecurrenceBodySchema) },
+      responses: {
+        "200": recurrenceResponse("The recurrence, ACTIVE again"),
+        ...problems({
+          "401": "Unauthenticated",
+          "403": CREATOR_403,
+          "404": `SpaceNotFound, RecurrenceNotFound, ${TEMPLATE_404}`,
+          "409": `InvalidRecurrenceTransition (it is not ENDED), ${TEMPLATE_409}, SpaceArchived`,
+          "422": `ValidationFailed (endDate is required), InvalidDate, InvalidRecurrence (an end date before the start; no schedule date from today, or from where it was due, through the end date), ${creatorRefusals422("extends", LEFT_ON_RESUME)}`,
+        }),
+      },
+    },
+  },
   "/api/v1/spaces/{spaceId}/pending-occurrences": {
     get: {
       operationId: "listPendingOccurrences",

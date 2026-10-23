@@ -4,10 +4,11 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { Tabs } from "radix-ui";
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { AccountPicker } from "@/modules/accounts/ui";
 import { activeTree, CategoryPicker, categoryPath, type CategoryChoice } from "@/modules/categories/ui";
 import { Button, Icon, ProblemNotice, ScreenHeader, TextField } from "@/shared/ui";
+import { useToast } from "@/shared/ui/molecules/toast";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type {
   AccountDto,
@@ -25,12 +26,23 @@ import { formatMoney, formatNumber, type Formats } from "@/shared/ui/format/form
 import { browserTimeZone } from "@/shared/ui/format/zones";
 import { nowIn } from "@/shared/ui/time/when";
 import type { Person } from "../direct/counterparts";
+// A type only: no runtime code of the edit modules enters the record route (P191, P198).
+import type { RecordInitial } from "../edit/edit-initial";
 import { categoryKeyOf, directBodyOf, type DirectChoice } from "../direct/direct-request";
 import { initialSplitDraft, type SharedExpenseContext } from "../split/shared-context";
 import { SharedFields } from "../split/shared-fields";
 import { AmountField } from "./amount-field";
 import { DateTimeSheet } from "./date-time-sheet";
-import { afterSaveUrl, recordFieldOf, requestOf, type RecordField, type RecordKind } from "./record-request";
+import { LineWarningConfirm, LineWarningNote } from "./line-warning";
+import { asksFirst, lineWarningOf, type LineWatch } from "./line-watch";
+import {
+  afterSaveUrl,
+  fundWentNegative,
+  recordFieldOf,
+  requestOf,
+  type RecordField,
+  type RecordKind,
+} from "./record-request";
 import { useIdempotencyKey } from "./use-idempotency-key";
 import { whenLabel, type When } from "./when-label";
 
@@ -43,6 +55,19 @@ const SplitWithPersonSheet = dynamic(
 const KINDS = ["EXPENSE", "INCOME", "TRANSFER"] as const;
 
 type Sheet = "category" | "account" | "toAccount" | "when" | null;
+
+/** Ruling P191: the form as the edit route uses it: it starts from a transaction and hands Save to the caller. */
+export interface RecordEdit {
+  readonly initial: RecordInitial;
+  readonly backHref: string;
+  /** Saves the built request; a problem is shown in the form, null means saved (the caller then navigates away). */
+  readonly onSave: (
+    built: { kind: RecordKind; body: Record<string, unknown> },
+    state: { when: When },
+  ) => Promise<Problem | null>;
+  /** What to offer under a problem shown above the button, such as loading the latest version (P193). */
+  readonly problemAction?: (problem: Problem) => ReactNode;
+}
 
 export interface RecordFormProps {
   readonly space: SpaceDto;
@@ -60,6 +85,10 @@ export interface RecordFormProps {
   /** The people the recorder shares a space with: a personal space's expense can be split with one (P172). */
   readonly people?: readonly Person[];
   readonly api?: Api;
+  /** Edits a transaction instead of recording one: no kind tabs, no split with someone, no plan's split (P192). */
+  readonly edit?: RecordEdit;
+  /** #142 (P236): the lines of today's period, by category; no warning without it. */
+  readonly lineWatch?: LineWatch | null;
 }
 
 /** HU-E9-03, the QuickAdd artboard as a page: amount, description, category, accounts, date and time, Save. */
@@ -75,10 +104,13 @@ export function RecordForm({
   shared,
   people,
   api: injected,
+  edit,
+  lineWatch = null,
 }: RecordFormProps) {
   const t = useTranslations("ledger");
   const errors = useTranslations("errors");
   const router = useRouter();
+  const toast = useToast();
   const messageOf = useProblemMessage();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   const live = useMemo(() => activeTree(groups), [groups]);
@@ -94,17 +126,21 @@ export function RecordForm({
   const start = client?.now ?? nowIn(new Date(initialNow), serverZone);
   const today = start.date;
 
-  const [kind, setKind] = useState<RecordKind>(initialKind);
-  const [amount, setAmount] = useState("");
-  const [description, setDescription] = useState("");
-  const [category, setCategory] = useState<CategoryChoice>(null);
-  const [accountId, setAccountId] = useState<string | null>(accounts[0]?.id ?? null);
-  const [toAccountId, setToAccountId] = useState<string | null>(null);
-  const [chosenWhen, setChosenWhen] = useState<When | null>(null);
+  const [kind, setKind] = useState<RecordKind>(edit?.initial.kind ?? initialKind);
+  const [amount, setAmount] = useState(edit?.initial.amount ?? "");
+  const [description, setDescription] = useState(edit?.initial.description ?? "");
+  const [category, setCategory] = useState<CategoryChoice>(edit?.initial.category ?? null);
+  const [accountId, setAccountId] = useState<string | null>(
+    edit ? edit.initial.accountId : (accounts[0]?.id ?? null),
+  );
+  const [toAccountId, setToAccountId] = useState<string | null>(edit?.initial.toAccountId ?? null);
+  const [chosenWhen, setChosenWhen] = useState<When | null>(edit?.initial.when ?? null);
   const [sheet, setSheet] = useState<Sheet>(null);
   const [sheetNow, setSheetNow] = useState<When>(start);
   const [pending, setPending] = useState(false);
-  const [split, setSplit] = useState(() => (shared ? initialSplitDraft(shared) : null));
+  const [split, setSplit] = useState(
+    () => edit?.initial.split ?? (shared ? initialSplitDraft(shared) : null),
+  );
   const [unbuilt, setUnbuilt] = useState<"amount" | "account" | "toAccount" | "payer" | "split" | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
   const [direct, setDirect] = useState<DirectChoice | null>(null);
@@ -120,7 +156,7 @@ export function RecordForm({
       : undefined;
   const built = requestOf(draft, space.currency, formats.numberFormat, sharedExpense);
   // A split with someone is its own request (P172): choosing someone else makes a new draft, so a new key.
-  const canSplit = people !== undefined && kind === "EXPENSE" && space.kind === "PERSONAL";
+  const canSplit = !edit && people !== undefined && kind === "EXPENSE" && space.kind === "PERSONAL";
   const splitting = canSplit ? direct : null;
   const { key, renew } = useIdempotencyKey(
     built.ok ? JSON.stringify({ body: built.body, direct: splitting }) : "",
@@ -137,9 +173,27 @@ export function RecordForm({
   const typed = parseDecimal(amount, formats.numberFormat);
   const minor = typed === null ? null : minorOf(typed, currencyOf(space.currency).exponent);
   const positiveMinor = minor !== null && BigInt(minor) > 0n ? minor : null;
+  // #142 (P235, P236): only an expense of the form's own space, never a split with someone nor an edit.
+  const chosenCategory = category ? (category.subcategoryId ?? category.categoryId) : null;
+  const warning =
+    kind === "EXPENSE" && !splitting && !edit
+      ? lineWarningOf(lineWatch, {
+          categoryId: chosenCategory,
+          parentId: category?.subcategoryId ? category.categoryId : null,
+          amountMinor: positiveMinor,
+          date: when.date,
+          currency: space.currency,
+        })
+      : null;
+  // P235: the expense the person was asked about; a change of amount, category or date asks again.
+  const asked = warning ? `${chosenCategory}|${positiveMinor}|${when.date}` : null;
+  const [askingFor, setAskingFor] = useState<string | null>(null);
+  const confirmedFor = useRef<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const asking = asked !== null && askingFor === asked;
   const sharedTitle = [
     description.trim() ||
-      (category ? categoryPath(live, category.subcategoryId ?? category.categoryId) : null),
+      (category ? categoryPath(groups, category.subcategoryId ?? category.categoryId) : null),
     positiveMinor ? formatMoney({ amount: positiveMinor, currency: space.currency }, formats) : null,
     space.name,
   ]
@@ -199,8 +253,20 @@ export function RecordForm({
       setKeylessTried(true);
       return;
     }
+    if (asksFirst(warning) && confirmedFor.current !== asked) {
+      setAskingFor(asked);
+      return;
+    }
     setPending(true);
     try {
+      if (edit) {
+        const failed = await edit.onSave({ kind: built.kind, body: built.body }, { when });
+        if (failed) {
+          setProblem(failed);
+          setPending(false);
+        }
+        return;
+      }
       if (splitting && categoryKey !== null) {
         const { data, error, response } = await api.POST("/api/v1/direct-splits", {
           params: { header: { "idempotency-key": key } },
@@ -209,6 +275,7 @@ export function RecordForm({
         if (response.ok && data) {
           renew();
           const split = data as DirectSplitDto;
+          if (!fundWentNegative(split.expense.warnings)) toast.show({ message: t("toast.saved.EXPENSE") });
           router.replace(afterSaveUrl(split.spaceId, split.expense.warnings));
           router.refresh();
           return;
@@ -232,6 +299,7 @@ export function RecordForm({
         renew();
         const warnings =
           built.kind === "EXPENSE" ? (data as RecordedExpenseDto | undefined)?.warnings : undefined;
+        if (!fundWentNegative(warnings)) toast.show({ message: t(`toast.saved.${built.kind}`) });
         router.replace(afterSaveUrl(space.id, warnings));
         router.refresh();
         return;
@@ -276,25 +344,33 @@ export function RecordForm({
 
   return (
     <div className="flex flex-col gap-5 py-4">
-      <ScreenHeader backHref={`/spaces/${space.id}`} title={t("form.title")} />
+      <ScreenHeader
+        backHref={edit?.backHref ?? `/spaces/${space.id}`}
+        title={edit ? t("edit.title") : t("form.title")}
+      />
       <form
+        ref={formRef}
         data-ready={client ? "true" : undefined}
         onSubmit={(event) => void submit(event)}
         noValidate
         className="flex flex-col gap-5"
       >
         <Tabs.Root value={kind} onValueChange={(next) => setKind(next as RecordKind)}>
-          <Tabs.List aria-label={t("form.kind")} className="flex rounded-[14px] bg-track p-1">
-            {KINDS.map((k) => (
-              <Tabs.Trigger
-                key={k}
-                value={k}
-                className="min-h-11 flex-1 rounded-[10px] text-sm font-medium text-ink data-[state=active]:bg-surface data-[state=active]:shadow"
-              >
-                {t(`type.${k}`)}
-              </Tabs.Trigger>
-            ))}
-          </Tabs.List>
+          {edit ? (
+            <p className="text-sm text-muted">{t("edit.kind", { type: t(`type.${kind}`) })}</p>
+          ) : (
+            <Tabs.List aria-label={t("form.kind")} className="flex rounded-[14px] bg-track p-1">
+              {KINDS.map((k) => (
+                <Tabs.Trigger
+                  key={k}
+                  value={k}
+                  className="min-h-11 flex-1 rounded-[10px] text-sm font-medium text-ink data-[state=active]:bg-surface data-[state=active]:shadow"
+                >
+                  {t(`type.${k}`)}
+                </Tabs.Trigger>
+              ))}
+            </Tabs.List>
+          )}
           <Tabs.Content value={kind} className="mt-5 flex flex-col gap-5" tabIndex={-1}>
             <AmountField
               value={amount}
@@ -323,7 +399,8 @@ export function RecordForm({
               : picker(
                   "category",
                   t("form.category"),
-                  category ? categoryPath(live, category.subcategoryId ?? category.categoryId) : null,
+                  // The whole tree names it: an edited record may use a category archived since (the picker hides those).
+                  category ? categoryPath(groups, category.subcategoryId ?? category.categoryId) : null,
                   "category",
                   t("form.chooseCategory"),
                 )}
@@ -341,6 +418,7 @@ export function RecordForm({
                 date={when.date}
                 api={api}
                 error={errorOf("split") ?? errorOf("payer")}
+                defaultSplit={!edit}
               />
             ) : (
               picker(
@@ -414,10 +492,36 @@ export function RecordForm({
             </div>
           </Tabs.Content>
         </Tabs.Root>
+        {asking && warning ? (
+          <LineWarningConfirm
+            warning={warning}
+            formats={formats}
+            onConfirm={() => {
+              confirmedFor.current = asked;
+              setAskingFor(null);
+              formRef.current?.requestSubmit();
+            }}
+            onReview={() => {
+              setAskingFor(null);
+              document.getElementById("record-amount")?.focus();
+            }}
+          />
+        ) : warning ? (
+          <LineWarningNote warning={warning} formats={formats} />
+        ) : null}
         {problem && where === "form" ? <ProblemNotice problem={problem} /> : null}
-        <Button type="submit" size="lg" disabled={pending || (!built.ok && built.field === "split")}>
-          {t(`form.save.${splitting ? "DIRECT" : kind}`)}
-        </Button>
+        {problem && where === "form" && edit?.problemAction ? edit.problemAction(problem) : null}
+        {/* While asking, the panel's two buttons replace Save, so the last control stays above the bar (17c). */}
+        {asking ? null : (
+          <Button
+            type="submit"
+            size="lg"
+            disabled={pending || (!built.ok && built.field === "split")}
+            aria-describedby={warning ? "record-line-warning" : undefined}
+          >
+            {edit ? t("edit.save") : t(`form.save.${splitting ? "DIRECT" : kind}`)}
+          </Button>
+        )}
         {directOpened && people ? (
           <SplitWithPersonSheet
             open={directOpen}

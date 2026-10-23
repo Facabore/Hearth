@@ -102,17 +102,35 @@ const offsetAt = (instant: number, timeZone: string): number => {
 /** Offsets reach ±14 h, so a 12 h probe can land past the transition; a day lands safely on either side. */
 const DAY = 24 * 60 * 60 * 1000;
 
+/** Seconds-resolution search: the first instant after `from` and up to `to` whose offset is not `offset`. */
+const firstOffsetChange = (from: number, to: number, offset: number, timeZone: string): number => {
+  let low = Math.floor(from / 1000);
+  let high = Math.floor(to / 1000);
+  while (high - low > 1) {
+    const middle = low + Math.floor((high - low) / 2);
+    if (offsetAt(middle * 1000, timeZone) === offset) low = middle;
+    else high = middle;
+  }
+  return high * 1000;
+};
+
 /**
- * HU-E4-14, ruling P42: the instant at which `timeZone`'s clock shows `wall` on `date`. A repeated time takes the
- * earlier instant; a skipped time moves forward by the gap (the offset before the change applies).
+ * HU-E4-14, rulings P42 and issue 119: the instant at which `timeZone`'s clock shows `wall` on `date`. A repeated
+ * time takes the earlier instant; a skipped time moves forward by the gap (the offset before the change applies),
+ * unless that lands on a later day (a gap that ends the day): the date never moves (D19), so it takes the last
+ * instant of `date` before the gap. A date the zone skipped altogether has no such instant and keeps the move.
  */
 export const instantAt = (date: LocalDate, wall: WallTime, timeZone: string): Date => {
   const { year, month, day } = partsOf(date);
   const local = Date.UTC(year, month - 1, day, wall.hour, wall.minute, wall.second, wall.millisecond);
-  const before = local - offsetAt(local - DAY, timeZone);
+  const offsetBefore = offsetAt(local - DAY, timeZone);
+  const before = local - offsetBefore;
   const after = local - offsetAt(local + DAY, timeZone);
   const valid = [before, after]
     .sort((a, b) => a - b)
     .find((candidate) => local - candidate === offsetAt(candidate, timeZone));
-  return new Date(valid ?? before);
+  if (valid !== undefined) return new Date(valid);
+  if (localDateIn(new Date(before), timeZone) === date) return new Date(before);
+  const lastBeforeGap = firstOffsetChange(local - DAY, before, offsetBefore, timeZone) - 1;
+  return new Date(localDateIn(new Date(lastBeforeGap), timeZone) === date ? lastBeforeGap : before);
 };

@@ -57,6 +57,7 @@ Feature: Moving between screens: every address and every flow leads somewhere
 
   @e2e
   Scenario: The record form's account picker creates an account and comes back to the form
+    Given "Ana" archived her starter accounts
     When "Ana" opens the new expense form
     And "Ana" opens the account picker of the form
     Then the picker explains that there are no accounts

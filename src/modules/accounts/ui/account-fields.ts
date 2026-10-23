@@ -29,10 +29,14 @@ export type AccountField =
   | "principal"
   | "termMonths";
 
-/** HU-E2-06: the API's allow-list of attributes per type; the form asks only these (ruling P131). */
+/**
+ * HU-E2-06: the attributes the form asks per type, within the API's allow-list (ruling P131). Issue #164: a wallet is
+ * not asked for Last 4 (Nequi and Daviplata go by phone, not by four digits); the API still takes it, and a wallet
+ * that has one still shows it.
+ */
 export const FIELDS_BY_TYPE: Readonly<Record<AccountType, readonly AccountField[]>> = {
   BANK: ["institution", "lastFour"],
-  WALLET: ["institution", "lastFour"],
+  WALLET: ["institution"],
   CASH: [],
   CREDIT_CARD: ["institution", "lastFour", "creditLimit", "cutOffDay", "paymentDay", "monthlyRate"],
   SAVINGS: ["institution", "lastFour", "annualRate", "termDays", "maturityDate"],

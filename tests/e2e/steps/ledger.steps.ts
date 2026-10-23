@@ -165,6 +165,13 @@ Given(/^"([^"]+)" archived the account "([^"]+)"$/, async ({ world }, _name: str
   await world.api.post(`/api/v1/spaces/${world.user!.spaceId}/accounts/${id}/archive`, {});
 });
 
+Given("{string} archived her starter accounts", async ({ page, world }, name: string) => {
+  expect(name).toBe(world.user!.name);
+  await world.archiveStarterAccounts();
+  // The page the Background opened was rendered with them; read it again.
+  await page.reload();
+});
+
 When("{string} opens the accounts screen", async ({ page, world }, name: string) => {
   expect(name).toBe(world.user!.name);
   await page.goto(`/spaces/${world.user!.spaceId}/accounts`);
@@ -295,7 +302,8 @@ Then("the sheet clock shows {string}", async ({ page, world }, expected: string)
 
 Then("the chip reads {string}", async ({ page, world }, chip: string) => {
   await sheetOf(page, world)
-    .getByRole("button", { name: new RegExp(`^${world.t("ledger.when.apply", { label: "" }).trim()}`) })
+    // ledger.when.apply is a select per day ("Usar hoy · …", "Usar 1/10/2026 · …"): its one fixed word starts it.
+    .getByRole("button", { name: /^Usar / })
     .click();
   await expect(page.getByTestId("when-chip")).toHaveText(onScreen(world, chip), { useInnerText: true });
 });

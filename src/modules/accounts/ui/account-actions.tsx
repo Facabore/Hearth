@@ -79,6 +79,48 @@ export function ArchiveAccountButton(props: ActionProps) {
   );
 }
 
+/**
+ * Issue 169: a personal space with no active account creates its starter accounts in one call; the endpoint skips
+ * every name the space already holds, so pressing it twice creates nothing more.
+ */
+export function StarterAccountsButton({
+  spaceId,
+  api: injected,
+}: {
+  readonly spaceId: string;
+  readonly api?: Api;
+}) {
+  const t = useTranslations("accounts.empty");
+  const router = useRouter();
+  const api = useMemo(() => injected ?? browserApi(), [injected]);
+  const [pending, setPending] = useState(false);
+  const [problem, setProblem] = useState<Problem | null>(null);
+  const run = async () => {
+    setPending(true);
+    setProblem(null);
+    try {
+      const { error, response } = await api.POST("/api/v1/spaces/{spaceId}/accounts/starter", {
+        params: { path: { spaceId } },
+      });
+      if (response.ok) router.refresh();
+      else setProblem(problemFrom(error, response));
+    } catch (error) {
+      setProblem(problemFrom(error, undefined));
+    } finally {
+      setPending(false);
+    }
+  };
+  return (
+    <div className="flex flex-col items-start gap-2">
+      <Button variant="secondary" disabled={pending} onClick={() => void run()}>
+        <Icon name="plus" size={20} />
+        {t("starter")}
+      </Button>
+      {problem ? <ProblemNotice problem={problem} /> : null}
+    </div>
+  );
+}
+
 /** HU-E9-03, Task 2's endpoint: an archived account takes movements again. */
 export function RestoreAccountButton(props: ActionProps) {
   const t = useTranslations("accounts");

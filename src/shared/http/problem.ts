@@ -58,11 +58,15 @@ const TITLES: ReadonlyMap<number, string> = new Map([
 const PUBLIC_DETAILS: ReadonlyMap<string, readonly string[]> = new Map([
   ["OutstandingBalance", ["outstanding"]],
   ["InvalidAllocation", ["lineIds"]],
+  // Ruling P248 (M6c): the label of the ACTIVE source plan a close waits for, e.g. "2026-11".
+  ["SourcePlanOpen", ["sourcePeriod"]],
   // HU-E4-11: "creator" when a recurrence's creator, not the requester, is why a resume or an edit is refused.
   ["InsufficientRole", ["member"]],
   ["NotASpaceMember", ["member"]],
   // HU-E2-06: the term an account type refuses, as the key inside the body's `terms`; the stored key stays private.
   ["AccountAttributeNotAllowed", ["field"]],
+  // Ruling P188: which part of the body the transaction's type keeps.
+  ["FieldNotEditable", ["field"]],
 ]);
 
 /** The details of `code` that are part of the API contract, e.g. the outstanding amount (HU-E1-08). */

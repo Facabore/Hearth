@@ -2,9 +2,11 @@
 
 import { useTranslations } from "next-intl";
 import { memberLabel } from "@/modules/spaces/ui";
-import { Button, ChoiceGroup, Icon, Sheet, cn } from "@/shared/ui";
+import { Button, ChoiceGroup, Icon, Sheet, cn, numberInputProps } from "@/shared/ui";
 import type { AccountDto, MemberDto } from "@/shared/ui/api/dto";
+import { currencyOf } from "@/shared/ui/format/currencies";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
+import { exampleOf, type NumberRule } from "@/shared/ui/format/number-input";
 import { SPLIT_METHODS, type SplitMethod } from "./split-math";
 import { isUntouched, splitFailureMessage, type SplitFailure } from "./split-failure";
 import { splitCheckOf, type SplitDraft } from "./split-request";
@@ -46,6 +48,7 @@ export function SplitSheet(props: SplitSheetProps) {
   const { amount, currency, formats, defaultSplit } = props;
   const t = useTranslations("ledger.split");
   const names = useTranslations("members");
+  const common = useTranslations("common");
   const label = (member: MemberDto) => memberLabel(member, meUserId, names);
 
   const allocation = defaultSplit.status === "ready" ? defaultSplit.shares : null;
@@ -62,6 +65,18 @@ export function SplitSheet(props: SplitSheetProps) {
       : method !== "BY_ALLOCATION",
   );
   const planned = draft.method === "BY_ALLOCATION";
+  // Issue #164: each row takes only what its method holds, and one line above them says how to type it.
+  const numberFormat = formats.numberFormat;
+  const rule: NumberRule =
+    draft.method === "PERCENT"
+      ? { kind: "decimal", numberFormat, decimals: 2 }
+      : draft.method === "EXACT"
+        ? { kind: "money", numberFormat, decimals: currencyOf(currency).exponent }
+        : { kind: "integer", numberFormat };
+  const example = exampleOf(
+    rule,
+    draft.method === "PERCENT" ? "33.5" : draft.method === "SHARES" ? "2" : undefined,
+  );
   // The plan's participants are the API's, so the list follows them whatever the draft remembers.
   const selected = planned && allocation ? allocation.map((s) => s.memberId) : draft.selected;
   const recorder = members.find((m) => m.userId !== null && m.userId === meUserId);
@@ -215,6 +230,11 @@ export function SplitSheet(props: SplitSheetProps) {
 
         <section className="flex flex-col gap-2">
           <h3 className="text-sm font-semibold text-ink">{t("forWhom")}</h3>
+          {!planned && draft.method !== "EQUAL" ? (
+            <p id="split-format" className="text-sm text-muted">
+              {common("numberExample", { example: example ?? "" })}
+            </p>
+          ) : null}
           <ul aria-label={t("forWhom")} className="overflow-hidden rounded-2xl border border-line">
             {members.map((member) => {
               const name = label(member);
@@ -247,10 +267,12 @@ export function SplitSheet(props: SplitSheetProps) {
                       <span className="flex items-center gap-1">
                         <input
                           type="text"
-                          inputMode="decimal"
                           aria-label={t("valueOf", { name })}
-                          value={draft.values[member.id] ?? ""}
-                          onChange={(event) => setValue(member.id, event.target.value)}
+                          aria-describedby="split-format"
+                          {...numberInputProps(rule, {
+                            value: draft.values[member.id] ?? "",
+                            onChange: (next) => setValue(member.id, next),
+                          })}
                           className={cn(
                             "h-11 rounded-[10px] border border-field bg-surface px-2 text-right text-base tabular-nums text-ink",
                             draft.method === "EXACT" ? "w-24" : "w-16",

@@ -103,7 +103,8 @@ describe("new account form (HU-E9-03)", () => {
     renderWithIntl(<NewAccountForm space={spaceDto()} formats={BUILT_IN_FORMATS} api={api} />);
     await userEvent.click(screen.getByRole("radio", { name: "Banco" }));
     await userEvent.type(screen.getByLabelText("Nombre"), "Bancolombia");
-    await userEvent.type(screen.getByLabelText("Saldo inicial"), "dos mil");
+    // Letters cannot be typed (issue #164); three decimals in a two-decimal currency still cannot be read.
+    await userEvent.type(screen.getByLabelText("Saldo inicial"), "1,234");
     await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
     // The unreadable amount stops the save: the name has no error yet, the amount does.
     expect(screen.getByLabelText("Saldo inicial")).toHaveAccessibleDescription(
@@ -120,6 +121,54 @@ describe("new account form (HU-E9-03)", () => {
     await waitFor(() => expect(screen.getByLabelText("Nombre")).toHaveAttribute("aria-invalid", "true"));
     await userEvent.type(screen.getByLabelText("Nombre"), "3");
     expect(screen.getByLabelText("Nombre")).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("takes at most four digits in Last 4, says it is optional and what it is for, and still saves it (#164)", async () => {
+    const { api, requests } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/accounts": () => jsonResponse(accountDto({ name: "Bancolombia" }), 201),
+    });
+    const { container } = renderWithIntl(
+      <NewAccountForm space={spaceDto()} formats={BUILT_IN_FORMATS} api={api} />,
+    );
+    await userEvent.click(screen.getByRole("radio", { name: "Banco" }));
+    const lastFour = screen.getByLabelText("Últimos 4");
+    expect(lastFour).toHaveAccessibleDescription(
+      "Opcional: los últimos 4 dígitos, para distinguir dos cuentas del mismo banco",
+    );
+    expect(lastFour).toHaveAttribute("inputmode", "numeric");
+    await userEvent.type(lastFour, "4a8b2-15");
+    expect(lastFour).toHaveValue("4821");
+    await userEvent.type(screen.getByLabelText("Nombre"), "Bancolombia");
+    await userEvent.type(screen.getByLabelText("Saldo inicial"), "1500000");
+    expect(screen.getByLabelText("Saldo inicial")).toHaveValue("1.500.000");
+    await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
+    expect(await requests[0]!.json()).toEqual({
+      name: "Bancolombia",
+      type: "BANK",
+      openingBalance: { amount: "150000000", currency: "COP" },
+      lastFour: "4821",
+    });
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("does not ask a wallet for Last 4: Nequi and Daviplata go by phone (#164)", async () => {
+    renderWithIntl(<NewAccountForm space={spaceDto()} formats={BUILT_IN_FORMATS} />);
+    await userEvent.click(screen.getByRole("radio", { name: "Billetera" }));
+    expect(screen.getByLabelText("Entidad")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Últimos 4")).toBeNull();
+  });
+
+  it("shows every number field's format before typing, in the person's format (#164)", async () => {
+    renderWithIntl(<NewAccountForm space={spaceDto()} formats={BUILT_IN_FORMATS} />);
+    await userEvent.click(screen.getByRole("radio", { name: "Tarjeta de crédito" }));
+    expect(screen.getByLabelText("Debes hoy")).toHaveAccessibleDescription("Ej: 1.250,50");
+    expect(screen.getByLabelText("Cupo")).toHaveAccessibleDescription("Ej: 1.250,50");
+    expect(screen.getByLabelText("Día de corte")).toHaveAccessibleDescription("Ej: 25");
+    expect(screen.getByLabelText("Interés M.V.")).toHaveAccessibleDescription("Ej: 1,89");
+    await userEvent.type(screen.getByLabelText("Día de corte"), "3x15");
+    expect(screen.getByLabelText("Día de corte")).toHaveValue("31");
+    await userEvent.type(screen.getByLabelText("Interés M.V."), "1.89");
+    expect(screen.getByLabelText("Interés M.V.")).toHaveValue("1,89");
   });
 
   it("offers a shared fund only in a shared space", () => {

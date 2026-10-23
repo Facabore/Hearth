@@ -3,7 +3,7 @@ import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/ro
 import { setContainerForTests, type Container } from "@/composition/container";
 import { POST as archiveAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/archive/route";
 import { call, problemOf, startTestApp, type TestUser } from "../support/app";
-import { categoryWithKey, cop, newAccount, post } from "../support/ledger";
+import { categoryWithKey, cop, newAccount, post, starterAccount } from "../support/ledger";
 import { cashFlowOf, cashFlowRoute, type CashFlowDto } from "../support/reporting";
 import {
   archiveHousehold,
@@ -127,7 +127,7 @@ describe("the cash-flow calendar (#150, rulings P238–P240 of M6c)", () => {
 
   it("counts a transfer by the accounts it touches: out to savings lowers her money, between two counted accounts or into an archived one it follows P240", async () => {
     const h = await householdWithFund();
-    const savings = await newAccount(h.ana.personal, "Ahorros", 0, "SAVINGS");
+    const savings = await starterAccount(h.ana.personal, "Ahorros");
     const nequi = await newAccount(h.ana.personal, "Nequi", 0, "WALLET");
     const old = await newAccount(h.ana.personal, "Viejo", 0, "WALLET");
     const transfer = (description: string, to: string, pesos: number, day: number) =>

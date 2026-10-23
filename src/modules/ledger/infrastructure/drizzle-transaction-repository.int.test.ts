@@ -118,6 +118,39 @@ describe("DrizzleTransactionRepository", () => {
     expect(await repo.save({ ...market, description: "stale" }, 1)).toBe(false);
     expect(await repo.findById(space.spaceId, market.id)).toEqual({ ...edited, version: 2 });
   });
+
+  it("writes an income's and a transfer's accounts on save, so an edit moves them (ruling P186)", async () => {
+    const salary = unwrap(
+      recordIncome({
+        ...common(320_000_000n),
+        categoryId: groceries,
+        destinationAccountId: bank,
+        receivingMemberId: space.memberId,
+      }),
+    );
+    const move = unwrap(
+      recordTransfer({ ...common(50_000_000n), sourceAccountId: bank, destinationAccountId: wallet }),
+    );
+    await repo.add(salary);
+    await repo.add(move);
+    const movedSalary = { ...salary, destinationAccountId: wallet };
+    const movedTransfer = { ...move, sourceAccountId: wallet, destinationAccountId: bank };
+    expect(await repo.save(movedSalary, 1)).toBe(true);
+    expect(await repo.save(movedTransfer, 1)).toBe(true);
+    expect(await repo.findById(space.spaceId, salary.id)).toEqual({ ...movedSalary, version: 2 });
+    expect(await repo.findById(space.spaceId, move.id)).toEqual({ ...movedTransfer, version: 2 });
+  });
+
+  it("writes a new payment account of an expense with its replaced rows", async () => {
+    const market = expense();
+    await repo.add(market);
+    const edited: Expense = {
+      ...market,
+      payments: [{ ...market.payments[0]!, accountId: wallet }],
+    };
+    expect(await repo.save(edited, 1)).toBe(true);
+    expect(await repo.findById(space.spaceId, market.id)).toEqual({ ...edited, version: 2 });
+  });
 });
 
 describe("DrizzleAuditLog", () => {

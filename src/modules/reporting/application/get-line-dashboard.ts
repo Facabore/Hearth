@@ -1,4 +1,9 @@
-import { categoryLinesOf, type CategoryLine, type Funding } from "@/modules/budgeting/application";
+import {
+  categoryLinesOf,
+  type CategoryLine,
+  type Funding,
+  type LineFigure,
+} from "@/modules/budgeting/application";
 import { ok, type Period, type Result } from "@/shared/kernel";
 import { lineStateOf, type LineState } from "@/shared/kernel/line-state";
 import type { ReportingDeps } from "./deps";
@@ -13,6 +18,8 @@ export interface DashboardLine {
   readonly planned: bigint;
   readonly spent: bigint;
   readonly carryOver: bigint;
+  /** Ruling P243 (M6c): the plan the carry-over comes from; it carries only once that plan is CLOSED. */
+  readonly carryOverFrom: LineFigure["carryOverFrom"];
   readonly available: bigint;
   readonly overspent: boolean;
   /** Ruling P244 (M6c): of planned + carry-over; a SAVINGS line is always OK. */
@@ -92,6 +99,7 @@ export const createGetLineDashboard =
       planned: f.line.plannedAmount,
       spent: f.spent,
       carryOver: f.carryOver,
+      carryOverFrom: f.carryOverFrom,
       available: f.available,
       overspent: f.available < 0n,
       // Ruling P244 (M6c): a savings line reaching its plan is the goal, so it is never measured.

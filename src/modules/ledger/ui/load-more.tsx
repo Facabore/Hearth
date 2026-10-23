@@ -8,6 +8,7 @@ import type { TransactionDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { formatDate } from "@/shared/ui/format/formatters";
 import { groupByDay } from "./day-groups";
+import { withTx } from "./detail/tx-href";
 import { TransactionRow, type RowContext } from "./transaction-row";
 
 /** HU-E9-03: the next 50 rows with the same query; a day continued from the page above keeps its heading there. */
@@ -18,6 +19,7 @@ export function LoadMore({
   lastDate,
   today,
   context,
+  listHref,
   api: injected,
 }: {
   readonly spaceId: string;
@@ -26,6 +28,8 @@ export function LoadMore({
   readonly lastDate: string;
   readonly today: string;
   readonly context: RowContext;
+  /** The list's own address: a row opens its detail there (ruling P189). */
+  readonly listHref: string;
   /** For tests: the client to call; the browser's own by default. */
   readonly api?: Api;
 }) {
@@ -65,7 +69,7 @@ export function LoadMore({
           )}
           <ol className="divide-y divide-line rounded-2xl bg-surface px-4">
             {group.items.map((tx) => (
-              <TransactionRow key={tx.id} tx={tx} context={context} />
+              <TransactionRow key={tx.id} tx={tx} context={context} href={withTx(listHref, tx.id)} />
             ))}
           </ol>
         </section>
