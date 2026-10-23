@@ -1,9 +1,12 @@
-import { notFound } from "next/navigation";
 import { getSpaces } from "@/shared/ui/api/server";
 import { spaceOf } from "../report-period";
+import { LineTrendContainer } from "./line-trend-container";
 import { PersonalTrendContainer } from "./personal-trend-container";
 
-/** Ruling P200: the Trend view is the caller's own consumption in the personal space. Task 15 adds the line trend. */
+/**
+ * Ruling P200: the Trend view is the caller's own consumption in the personal space, and the trend of every line of
+ * the end period's plan in a shared space.
+ */
 export async function TrendHomeContainer({
   spaceId,
   period,
@@ -14,6 +17,9 @@ export async function TrendHomeContainer({
   readonly periods?: 6 | 12;
 }) {
   const space = spaceOf(await getSpaces(), spaceId);
-  if (space.kind !== "PERSONAL") notFound();
-  return <PersonalTrendContainer spaceId={spaceId} period={period} periods={periods} />;
+  return space.kind === "PERSONAL" ? (
+    <PersonalTrendContainer spaceId={spaceId} period={period} periods={periods} />
+  ) : (
+    <LineTrendContainer spaceId={spaceId} period={period} periods={periods} />
+  );
 }

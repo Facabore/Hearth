@@ -62,3 +62,4 @@ export type PersonalSpendingByGroupDto = Json<
   paths["/api/v1/me/reports/spending-by-group"]["get"]["responses"][200]
 >;
 export type PersonalTrendDto = Json<paths["/api/v1/me/trend"]["get"]["responses"][200]>;
+export type LineTrendDto = Json<paths["/api/v1/spaces/{spaceId}/reports/trend"]["get"]["responses"][200]>;

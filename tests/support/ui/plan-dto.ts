@@ -2,6 +2,7 @@ import type {
   BudgetPlanDto,
   FundTrackingDto,
   LineDashboardDto,
+  LineTrendDto,
   MemberMatrixDto,
   PersonalSpendingByGroupDto,
   PersonalTrendDto,
@@ -493,3 +494,52 @@ export const sixMonthsTrend = (): PersonalTrendDto => ({
     },
   ],
 });
+
+type TrendLine = LineTrendDto["lines"][number];
+const quiet = (period: string) => ({
+  period,
+  spent: null,
+  change: null,
+  changePercent: null,
+  changeStatus: null,
+});
+
+/** HU-E9-11: Home spent 1,350,000 COP in 2026-10 and 1,300,000 COP in 2026-11; Pets exists only in 2026-11. */
+export const homeTrend = (): LineTrendDto => {
+  const periods = [
+    month("2026-06", 30),
+    month("2026-07", 31),
+    month("2026-08", 31),
+    month("2026-09", 30),
+    month("2026-10", 31),
+    month("2026-11", 30),
+  ];
+  const early = periods.slice(0, 4).map((p) => quiet(p.label));
+  const lines: TrendLine[] = [
+    {
+      lineId: "l-home",
+      name: "Home",
+      points: [
+        ...early,
+        { period: "2026-10", spent: cop(1_350_000), change: null, changePercent: null, changeStatus: "NEW" },
+        {
+          period: "2026-11",
+          spent: cop(1_300_000),
+          change: cop(-50_000),
+          changePercent: "-3.70",
+          changeStatus: "DECREASED",
+        },
+      ],
+    },
+    {
+      lineId: "l-pets",
+      name: "Pets",
+      points: [
+        ...early,
+        quiet("2026-10"),
+        { period: "2026-11", spent: cop(80_000), change: null, changePercent: null, changeStatus: "NEW" },
+      ],
+    },
+  ];
+  return { spaceId: "sp-household", periods, plan: { id: "p-nov", status: "ACTIVE" }, lines };
+};

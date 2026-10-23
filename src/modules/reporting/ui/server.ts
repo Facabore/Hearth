@@ -8,3 +8,4 @@ export { SpendingByGroupContainer } from "./by-group/by-group-container";
 export { GroupsHomeContainer } from "./by-group/groups-home";
 export { TrendHomeContainer } from "./trend/trend-home";
 export { windowOf } from "./trend/personal-trend-container";
+export { LineTrendContainer } from "./trend/line-trend-container";

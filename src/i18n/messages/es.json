@@ -925,7 +925,13 @@
       "personalTable": "Consumo por período",
       "period": "Período",
       "consumption": "Consumo",
-      "change": "Cambio"
+      "change": "Cambio",
+      "noPlan": "Este período no tiene plan: no hay líneas que comparar.",
+      "linesCaption": "Gastado por línea",
+      "linesTable": "Gastado por línea y período",
+      "spentIn": "Gastado en {period}",
+      "noFigure": "Sin dato",
+      "linesNote": "Cada línea se compara con su línea de origen en el plan anterior. Lo gastado sin presupuesto no tiene tendencia."
     },
     "unified": {
       "consumption": "Consumo",

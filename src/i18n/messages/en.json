@@ -925,7 +925,13 @@
       "personalTable": "Consumption by period",
       "period": "Period",
       "consumption": "Consumption",
-      "change": "Change"
+      "change": "Change",
+      "noPlan": "This period has no plan: there are no lines to compare.",
+      "linesCaption": "Spent by line",
+      "linesTable": "Spent by line and period",
+      "spentIn": "Spent in {period}",
+      "noFigure": "No figure",
+      "linesNote": "Each line is compared with the line it was copied from in the previous plan. Unbudgeted spending has no trend."
     },
     "unified": {
       "consumption": "Consumption",
