@@ -5,8 +5,10 @@ import type { Api } from "@/shared/ui/api/client";
 import type { AccountDto, MemberDto, SpaceDto } from "@/shared/ui/api/dto";
 import { getMe, getSpaces, loaded, serverApi, type Loaded } from "@/shared/ui/api/server";
 import { serverNow } from "@/shared/ui/time/server-now";
+import { nowIn } from "@/shared/ui/time/when";
 import { peopleOf, type Person } from "../direct/counterparts";
 import { sharedContextOf, type SharedExpenseContext } from "../split/shared-context";
+import { lineWatchOf, type LineWatch } from "./line-watch";
 import { RecordForm } from "./record-form";
 import type { RecordKind } from "./record-request";
 
@@ -64,6 +66,26 @@ export const loadPeople = async (
   return peopleOf({ meUserId: input.meUserId, spaces: others, membersBySpace });
 };
 
+/**
+ * #142 (P236): the line dashboard of the space's period holding `today`, as a watch for the record form. A failed
+ * read, a period without a plan or a plan that is not ACTIVE gives no watch, and the form simply warns of nothing.
+ */
+export const loadLineWatch = async (
+  api: Api,
+  input: { readonly spaceId: string; readonly today: string },
+): Promise<LineWatch | null> => {
+  const path = { spaceId: input.spaceId };
+  const periods = await loaded(
+    api.GET("/api/v1/spaces/{spaceId}/periods", { params: { path, query: { from: input.today, count: 1 } } }),
+  );
+  const label = periods.ok ? periods.data.items[0]?.label : undefined;
+  if (label === undefined) return null;
+  const dashboard = await loaded(
+    api.GET("/api/v1/spaces/{spaceId}/reports/lines", { params: { path, query: { period: label } } }),
+  );
+  return dashboard.ok ? lineWatchOf(dashboard.data) : null;
+};
+
 /** Server: the space, its active accounts and categories, and the render's instant for the form's first clock. */
 export async function RecordFormContainer({
   spaceId,
@@ -83,6 +105,10 @@ export async function RecordFormContainer({
   const space = spaces.find((s) => s.id === spaceId) ?? notFound();
   if (!accounts.ok) return <ProblemNotice problem={accounts.problem} />;
   if (!categories.ok) return <ProblemNotice problem={categories.problem} />;
+  // Read while the shared context and the people load; it never fails the form (P236).
+  const watch = loadLineWatch(api, { spaceId, today: nowIn(serverNow(), me!.timezone).date });
+  // An early return below leaves the read unawaited: it must never surface as an unhandled rejection.
+  void watch.catch(() => undefined);
   let shared: SharedExpenseContext | undefined;
   if (space.kind !== "PERSONAL") {
     const context = await loadSharedContext(api, {
@@ -106,6 +132,7 @@ export async function RecordFormContainer({
       profileZone={me!.timezone}
       {...(shared ? { shared } : {})}
       {...(people ? { people } : {})}
+      lineWatch={await watch}
     />
   );
 }

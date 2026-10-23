@@ -7,6 +7,7 @@ import {
   spaceDto,
 } from "../../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse } from "../../../../../tests/support/ui/fake-api";
+import { e7Dashboard } from "../../../../../tests/support/ui/plan-dto";
 
 vi.mock("@/shared/ui/api/server", async () => ({
   loaded: async (call: Promise<{ data?: unknown; error?: unknown; response: Response }>) => {
@@ -14,7 +15,7 @@ vi.mock("@/shared/ui/api/server", async () => ({
     return error ? { ok: false, problem: { code: "Failed" } } : { ok: true, data };
   },
 }));
-const { loadPeople, loadSharedContext } = await import("./record-form-container");
+const { loadLineWatch, loadPeople, loadSharedContext } = await import("./record-form-container");
 
 const input = {
   spaceId: "sp-household",
@@ -92,5 +93,28 @@ describe("loadPeople (HU-E9-06, ruling P172)", () => {
     });
     const people = await loadPeople(api, { meUserId: "u-ana", spaces });
     expect(people).toEqual([{ memberId: "m-juan", name: "Juan", isGuest: false, directSpace: null }]);
+  });
+});
+
+describe("loadLineWatch (#142, ruling P236 of M6c)", () => {
+  const october = { label: "2026-10", startDate: "2026-10-01", endDate: "2026-10-31" };
+
+  it("reads the period holding today, then its line dashboard", async () => {
+    const { api, requests } = fakeApi({
+      "GET /api/v1/spaces/{spaceId}/periods": () => jsonResponse({ items: [october] }),
+      "GET /api/v1/spaces/{spaceId}/reports/lines": () => jsonResponse(e7Dashboard({ period: october })),
+    });
+    const watch = await loadLineWatch(api, { spaceId: "sp-household", today: "2026-10-31" });
+    expect(watch?.lineOf["c-groceries"]?.name).toBe("Home");
+    expect(new URL(requests[0]!.url).searchParams.get("from")).toBe("2026-10-31");
+    expect(new URL(requests[1]!.url).searchParams.get("period")).toBe("2026-10");
+  });
+
+  it("is null when a read fails, so the form never fails for its warning", async () => {
+    const { api } = fakeApi({
+      "GET /api/v1/spaces/{spaceId}/periods": () => jsonResponse({ items: [october] }),
+      "GET /api/v1/spaces/{spaceId}/reports/lines": () => problemResponse(403, "InsufficientRole"),
+    });
+    expect(await loadLineWatch(api, { spaceId: "sp-household", today: "2026-10-31" })).toBeNull();
   });
 });

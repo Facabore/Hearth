@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { Tabs } from "radix-ui";
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { AccountPicker } from "@/modules/accounts/ui";
 import { activeTree, CategoryPicker, categoryPath, type CategoryChoice } from "@/modules/categories/ui";
 import { Button, Icon, ProblemNotice, ScreenHeader, TextField } from "@/shared/ui";
@@ -33,6 +33,8 @@ import { initialSplitDraft, type SharedExpenseContext } from "../split/shared-co
 import { SharedFields } from "../split/shared-fields";
 import { AmountField } from "./amount-field";
 import { DateTimeSheet } from "./date-time-sheet";
+import { LineWarningConfirm, LineWarningNote } from "./line-warning";
+import { asksFirst, lineWarningOf, type LineWatch } from "./line-watch";
 import {
   afterSaveUrl,
   fundWentNegative,
@@ -85,6 +87,8 @@ export interface RecordFormProps {
   readonly api?: Api;
   /** Edits a transaction instead of recording one: no kind tabs, no split with someone, no plan's split (P192). */
   readonly edit?: RecordEdit;
+  /** #142 (P236): the lines of today's period, by category; no warning without it. */
+  readonly lineWatch?: LineWatch | null;
 }
 
 /** HU-E9-03, the QuickAdd artboard as a page: amount, description, category, accounts, date and time, Save. */
@@ -101,6 +105,7 @@ export function RecordForm({
   people,
   api: injected,
   edit,
+  lineWatch = null,
 }: RecordFormProps) {
   const t = useTranslations("ledger");
   const errors = useTranslations("errors");
@@ -168,6 +173,24 @@ export function RecordForm({
   const typed = parseDecimal(amount, formats.numberFormat);
   const minor = typed === null ? null : minorOf(typed, currencyOf(space.currency).exponent);
   const positiveMinor = minor !== null && BigInt(minor) > 0n ? minor : null;
+  // #142 (P235, P236): only an expense of the form's own space, never a split with someone nor an edit.
+  const chosenCategory = category ? (category.subcategoryId ?? category.categoryId) : null;
+  const warning =
+    kind === "EXPENSE" && !splitting && !edit
+      ? lineWarningOf(lineWatch, {
+          categoryId: chosenCategory,
+          parentId: category?.subcategoryId ? category.categoryId : null,
+          amountMinor: positiveMinor,
+          date: when.date,
+          currency: space.currency,
+        })
+      : null;
+  // P235: the expense the person was asked about; a change of amount, category or date asks again.
+  const asked = warning ? `${chosenCategory}|${positiveMinor}|${when.date}` : null;
+  const [askingFor, setAskingFor] = useState<string | null>(null);
+  const confirmedFor = useRef<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const asking = asked !== null && askingFor === asked;
   const sharedTitle = [
     description.trim() ||
       (category ? categoryPath(groups, category.subcategoryId ?? category.categoryId) : null),
@@ -228,6 +251,10 @@ export function RecordForm({
     setUnbuilt(null);
     if (splitting && categoryKey === null) {
       setKeylessTried(true);
+      return;
+    }
+    if (asksFirst(warning) && confirmedFor.current !== asked) {
+      setAskingFor(asked);
       return;
     }
     setPending(true);
@@ -322,6 +349,7 @@ export function RecordForm({
         title={edit ? t("edit.title") : t("form.title")}
       />
       <form
+        ref={formRef}
         data-ready={client ? "true" : undefined}
         onSubmit={(event) => void submit(event)}
         noValidate
@@ -464,11 +492,36 @@ export function RecordForm({
             </div>
           </Tabs.Content>
         </Tabs.Root>
+        {asking && warning ? (
+          <LineWarningConfirm
+            warning={warning}
+            formats={formats}
+            onConfirm={() => {
+              confirmedFor.current = asked;
+              setAskingFor(null);
+              formRef.current?.requestSubmit();
+            }}
+            onReview={() => {
+              setAskingFor(null);
+              document.getElementById("record-amount")?.focus();
+            }}
+          />
+        ) : warning ? (
+          <LineWarningNote warning={warning} formats={formats} />
+        ) : null}
         {problem && where === "form" ? <ProblemNotice problem={problem} /> : null}
         {problem && where === "form" && edit?.problemAction ? edit.problemAction(problem) : null}
-        <Button type="submit" size="lg" disabled={pending || (!built.ok && built.field === "split")}>
-          {edit ? t("edit.save") : t(`form.save.${splitting ? "DIRECT" : kind}`)}
-        </Button>
+        {/* While asking, the panel's two buttons replace Save, so the last control stays above the bar (17c). */}
+        {asking ? null : (
+          <Button
+            type="submit"
+            size="lg"
+            disabled={pending || (!built.ok && built.field === "split")}
+            aria-describedby={warning ? "record-line-warning" : undefined}
+          >
+            {edit ? t("edit.save") : t(`form.save.${splitting ? "DIRECT" : kind}`)}
+          </Button>
+        )}
         {directOpened && people ? (
           <SplitWithPersonSheet
             open={directOpen}
