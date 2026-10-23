@@ -48,3 +48,6 @@ export type SpaceMemberDto = components["schemas"]["SpaceMember"];
 export type CapacitySuggestionDto = Json<
   paths["/api/v1/spaces/{spaceId}/plans/{planId}/capacity-suggestion"]["get"]["responses"][200]
 >;
+export type MemberMatrixDto = Json<
+  paths["/api/v1/spaces/{spaceId}/reports/member-matrix"]["get"]["responses"][200]
+>;

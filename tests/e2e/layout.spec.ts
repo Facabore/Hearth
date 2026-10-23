@@ -740,10 +740,82 @@ test.describe("a shared expense saved with a warning (HU-E9-06, ruling P170)", (
   });
 });
 
-test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
-  // 57 of the 60 characters the longest name a line takes (budget-line.ts MAX_NAME).
-  const LONG_LINE = "Mercado, aseo y gastos del hogar de toda la familia Pérez";
+// 57 of the 60 characters the longest name a line takes (budget-line.ts MAX_NAME).
+const LONG_LINE = "Mercado, aseo y gastos del hogar de toda la familia Pérez";
 
+/**
+ * The shared space gets October's plan: a guest with a real, long name beside the person, both with a capacity, and
+ * one line with a very long name and over a billion pesos that is split 60/40 between them. An expense takes the
+ * line past its plan, so its row also carries "Excedida" and the overage in words (#142, ruling P244), and the member
+ * matrix has big figures and a gap of each sign.
+ */
+const seedOverBudgetPlan = async (page: Page, sharedId: string) => {
+  const space = `/api/v1/spaces/${sharedId}`;
+  const guest = await post(page, `${space}/guests`, { displayName: HISTORY_GUEST });
+  let plan = await post(page, `${space}/plans`, { period: "2026-10" });
+  const { items: members } = await get(page, `${space}/members`);
+  const money = (minor: string) => ({ amount: minor, currency: "COP" });
+  plan = await put(
+    page,
+    `${space}/plans/${plan.id}/capacities`,
+    {
+      capacities: [
+        { memberId: members[0].id, amount: money("200000000000") },
+        { memberId: guest.id, amount: money("100000000000") },
+      ],
+    },
+    { "if-match": `"${plan.version}"` },
+  );
+  plan = await post(
+    page,
+    `${space}/plans/${plan.id}/lines`,
+    { name: LONG_LINE, plannedAmount: money("123456789000") },
+    { "if-match": `"${plan.version}"` },
+  );
+  const { items: groups } = await get(page, `${space}/categories`);
+  const categoryId: string = groups.flatMap((g: { categories: { id: string }[] }) => g.categories)[0].id;
+  const line = plan.lines[0].id;
+  plan = await put(
+    page,
+    `${space}/plans/${plan.id}/lines/${line}/categories`,
+    { categoryIds: [categoryId] },
+    { "if-match": `"${plan.version}"` },
+  );
+  await put(
+    page,
+    `${space}/plans/${plan.id}/lines/${line}/allocation`,
+    {
+      rule: "PERCENT",
+      members: [
+        { memberId: members[0].id, percent: "60" },
+        { memberId: guest.id, percent: "40" },
+      ],
+    },
+    { "if-match": `"${plan.version}"` },
+  );
+  const fund = await post(page, `${space}/accounts`, {
+    name: "Fondo",
+    type: "SHARED_FUND",
+    openingBalance: { amount: "0", currency: "COP" },
+  });
+  const spent = money("150000000000");
+  await post(
+    page,
+    `${space}/expenses`,
+    {
+      description: "Mercado grande",
+      date: "2026-10-30",
+      occurredAt: "2026-10-30T17:00:00.000Z",
+      timeZone: "America/Bogota",
+      categoryId,
+      amount: spent,
+      payments: [{ memberId: null, accountId: fund.id, amount: spent }],
+    },
+    { "idempotency-key": crypto.randomUUID() },
+  );
+};
+
+test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
   /**
    * A DRAFT plan of the shared space for `period`, whose only line has a very long name and a plan of over a billion
    * pesos. `copyFrom` makes it a copy of the previous period's plan, as the planner's close action needs to follow.
@@ -774,40 +846,11 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
     }) => {
       await page.setViewportSize(viewport);
       const { spaceId, sharedId } = await session(page, `plan-tab-${viewport.width}`);
-      const space = `/api/v1/spaces/${sharedId}`;
-      const plan = await seedBigPlan(page, sharedId, "2026-10");
-      // An expense takes that line past its plan, so its row also carries "Excedida" and the overage in words
-      // (#142, ruling P244): the row with the most text must still fit.
-      const { items: groups } = await get(page, `${space}/categories`);
-      const categoryId: string = groups.flatMap((g: { categories: { id: string }[] }) => g.categories)[0].id;
-      await put(
-        page,
-        `${space}/plans/${plan.id}/lines/${plan.lines[0]!.id}/categories`,
-        { categoryIds: [categoryId] },
-        { "if-match": `"${plan.version}"` },
-      );
-      const fund = await post(page, `${space}/accounts`, {
-        name: "Fondo",
-        type: "SHARED_FUND",
-        openingBalance: { amount: "0", currency: "COP" },
-      });
-      const spent = { amount: "150000000000", currency: "COP" };
-      await post(
-        page,
-        `${space}/expenses`,
-        {
-          description: "Mercado grande",
-          date: "2026-10-30",
-          occurredAt: "2026-10-30T17:00:00.000Z",
-          timeZone: "America/Bogota",
-          categoryId,
-          amount: spent,
-          payments: [{ memberId: null, accountId: fund.id, amount: spent }],
-        },
-        { "idempotency-key": crypto.randomUUID() },
-      );
+      await seedOverBudgetPlan(page, sharedId);
       for (const [path, tabs] of [
         [`/spaces/${sharedId}/plan`, 5],
+        // The member matrix: a card per member, so no table scrolls and no figure is cut off.
+        [`/spaces/${sharedId}/plan/members`, 5],
         [`/spaces/${spaceId}/plan`, 4],
       ] as const) {
         await page.goto(path);
@@ -856,6 +899,24 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       await expect(page.getByText(LONG_LINE)).toBeVisible();
       await expect(page.getByText(es.reports.lines.overspent)).toBeVisible();
       await expect(page.getByText(es.reports.lines.overBy.replace("{amount}", ""))).toBeVisible();
+
+      // The member matrix keeps the long line, the guest's long name and the big figures inside their cards, and
+      // no table needs to scroll: below 640 px a member is a card (P217).
+      await page.goto(`/spaces/${sharedId}/plan/members`);
+      await expect(page.getByRole("heading", { level: 2, name: LONG_LINE })).toBeVisible();
+      await expect(page.getByRole("rowheader", { name: HISTORY_GUEST })).toBeVisible();
+      const matrixRegion = page.getByRole("region", {
+        name: es.reports.matrix.caption.replace("{line}", LONG_LINE),
+      });
+      expect(
+        await matrixRegion.evaluate((el) => el.scrollWidth - el.clientWidth),
+        "the matrix table does not scroll on a phone",
+      ).toBeLessThanOrEqual(0);
+      for (const cell of await matrixRegion.getByRole("cell").all()) {
+        const box = (await cell.boundingBox())!;
+        expect.soft(box.x, "a figure starts on screen").toBeGreaterThanOrEqual(0);
+        expect.soft(box.x + box.width, "and ends on screen").toBeLessThanOrEqual(viewport.width);
+      }
     });
   }
 
@@ -1278,6 +1339,23 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
     // Ana, the page, still gets hers.
     await page.goto(`/spaces/${sharedId}/plans/${plan.id}/capacities`);
     await expect(page.getByText(/Sugerido \$\s1\.650\.000:/)).toBeVisible();
+  });
+
+  test("from 640 px the member matrix scrolls inside its own focusable region, never the page", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 640, height: 900 });
+    const { sharedId } = await session(page, "plan-matrix-640");
+    await seedOverBudgetPlan(page, sharedId);
+    const path = `/spaces/${sharedId}/plan/members`;
+    await page.goto(path);
+    await settle(page);
+    const { overflow, message } = await overflowReport(page, path);
+    expect(overflow, message).toBeLessThanOrEqual(0);
+    const region = page.getByRole("region", { name: es.reports.matrix.caption.replace("{line}", LONG_LINE) });
+    await region.focus();
+    await expect(region, "the scroll region takes the keyboard").toBeFocused();
+    await expect(region.getByRole("columnheader")).toHaveCount(5);
   });
 });
 

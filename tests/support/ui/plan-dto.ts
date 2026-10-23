@@ -1,6 +1,7 @@
 import type {
   BudgetPlanDto,
   LineDashboardDto,
+  MemberMatrixDto,
   PlanLineDto,
   SpaceDto,
   SpaceMemberDto,
@@ -205,3 +206,60 @@ export const copiedPlanDto = (): BudgetPlanDto => {
 /** Ana's "Ahorros": a SAVINGS account of her personal space, the one the reference Savings line names. */
 export const savingsAccountDto = () =>
   accountDto({ id: "a-savings", name: "Ahorros", type: "SAVINGS", icon: "piggy" });
+
+type MatrixCell = MemberMatrixDto["lines"][number]["members"][number];
+const cell = (
+  memberId: string,
+  [assigned, contributed, consumed, gap]: readonly (number | null)[],
+  status: MatrixCell["status"] = null,
+): MatrixCell => {
+  const money = (pesos: number | null | undefined) =>
+    pesos === null || pesos === undefined ? null : cop(pesos);
+  return {
+    memberId,
+    assigned: money(assigned),
+    contributed: money(contributed),
+    consumed: money(consumed),
+    gap: money(gap),
+    status,
+  };
+};
+
+/** HU-E7-02's November matrix: Rent tracked at fund level, Home per member, Free not allocated. */
+export const e7Matrix = (): MemberMatrixDto => ({
+  spaceId: "sp-household",
+  period: { ...NOVEMBER },
+  plan: { id: "p-nov", status: "ACTIVE" },
+  lines: [
+    {
+      lineId: "l-rent",
+      name: "Rent",
+      funding: "SHARED_FUND",
+      rule: "PROPORTIONAL",
+      reason: "TRACKED_AT_FUND_LEVEL",
+      members: [
+        cell("m-ana", [480_000, null, 480_000, null]),
+        cell("m-juan", [720_000, null, 720_000, null]),
+      ],
+    },
+    {
+      lineId: "l-home",
+      name: "Home",
+      funding: "DIRECT",
+      rule: "PROPORTIONAL",
+      reason: null,
+      members: [
+        cell("m-ana", [588_000, 900_000, 520_000, 312_000], "OVER_CONTRIBUTED"),
+        cell("m-juan", [882_000, 400_000, 780_000, -482_000], "UNDER_CONTRIBUTED"),
+      ],
+    },
+    {
+      lineId: "l-free",
+      name: "Free",
+      funding: "DIRECT",
+      rule: "NONE",
+      reason: "NOT_ALLOCATED",
+      members: [cell("m-ana", [null, null, 125_000, null]), cell("m-juan", [null, null, 125_000, null])],
+    },
+  ],
+});

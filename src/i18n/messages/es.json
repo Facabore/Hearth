@@ -936,6 +936,29 @@
       "title": "{period} no tiene plan",
       "body": "Sin plan, todo lo que se gaste en este período aparece como Sin presupuesto y la división por defecto es en partes iguales.",
       "managersOnly": "Solo Propietario y Administrador pueden crear el plan."
+    },
+    "matrix": {
+      "noPlan": "Este período no tiene plan: no hay asignaciones que comparar.",
+      "kind": "{funding} · {rule}",
+      "caption": "{line} por miembro",
+      "member": "Miembro",
+      "assigned": "Asignado",
+      "contributed": "Aportó",
+      "consumed": "Consumió",
+      "gap": "Diferencia",
+      "formerMember": "Miembro anterior",
+      "noFigure": "Sin dato",
+      "savingsNote": "Cuenta lo que llegó a las cuentas de ahorro de la línea; no tiene consumo."
+    },
+    "reason": {
+      "NOT_ALLOCATED": "Sin asignación por persona: solo se muestra lo consumido.",
+      "TRACKED_AT_FUND_LEVEL": "Aportó y diferencia se siguen en el fondo, no por línea.",
+      "INVALID_ALLOCATION": "La asignación de esta línea no cuadra: nadie tiene un monto asignado."
+    },
+    "status": {
+      "OVER_CONTRIBUTED": "de más",
+      "UNDER_CONTRIBUTED": "de menos",
+      "ON_TARGET": "al día"
     }
   },
   "toast": {

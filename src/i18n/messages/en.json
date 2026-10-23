@@ -936,6 +936,29 @@
       "title": "{period} has no plan",
       "body": "Without a plan, everything spent in this period shows as Unbudgeted and the default split is equal shares.",
       "managersOnly": "Only an Owner or an Admin can create the plan."
+    },
+    "matrix": {
+      "noPlan": "This period has no plan: there are no allocations to compare.",
+      "kind": "{funding} · {rule}",
+      "caption": "{line} by member",
+      "member": "Member",
+      "assigned": "Assigned",
+      "contributed": "Contributed",
+      "consumed": "Consumed",
+      "gap": "Gap",
+      "formerMember": "Former member",
+      "noFigure": "No figure",
+      "savingsNote": "It counts what reached the line's savings accounts; it has no consumption."
+    },
+    "reason": {
+      "NOT_ALLOCATED": "Not allocated per person: only what was consumed is shown.",
+      "TRACKED_AT_FUND_LEVEL": "Contributions and gaps are tracked at the fund, not per line.",
+      "INVALID_ALLOCATION": "This line's allocation does not add up: nobody has an assigned amount."
+    },
+    "status": {
+      "OVER_CONTRIBUTED": "over-contributed",
+      "UNDER_CONTRIBUTED": "under-contributed",
+      "ON_TARGET": "on target"
     }
   },
   "toast": {

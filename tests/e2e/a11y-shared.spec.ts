@@ -74,6 +74,9 @@ const seedHousehold = async (page: Page, requests: APIRequest, tag: string) => {
   const ana: string = members.find(
     (m: { kind: string; displayName: string }) => m.kind === "USER" && m.displayName === "Ana",
   ).id;
+  const juanId: string = members.find(
+    (m: { kind: string; displayName: string }) => m.kind === "USER" && m.displayName === "Juan",
+  ).id;
   const base = {
     date: "2026-10-31",
     occurredAt: "2026-10-31T17:00:00.000Z",
@@ -109,7 +112,12 @@ const seedHousehold = async (page: Page, requests: APIRequest, tag: string) => {
   plan = await put(
     page,
     `${space}/plans/${plan.id}/capacities`,
-    { capacities: [{ memberId: ana, amount: money(500_000) }] },
+    {
+      capacities: [
+        { memberId: ana, amount: money(500_000) },
+        { memberId: juanId, amount: money(300_000) },
+      ],
+    },
     guard(plan.version),
   );
   plan = await post(
@@ -125,10 +133,23 @@ const seedHousehold = async (page: Page, requests: APIRequest, tag: string) => {
     guard(plan.version),
   );
   const market = plan.lines.find((line: { name: string }) => line.name === "Mercado");
-  await put(
+  plan = await put(
     page,
     `${space}/plans/${plan.id}/lines/${market.id}/categories`,
     { categoryIds: [categoryId] },
+    guard(plan.version),
+  );
+  // HU-E9-10's member matrix: Ana paid the whole market (over-contributed) and Juan paid nothing (under-contributed).
+  await put(
+    page,
+    `${space}/plans/${plan.id}/lines/${market.id}/allocation`,
+    {
+      rule: "PERCENT",
+      members: [
+        { memberId: ana, percent: "60" },
+        { memberId: juanId, percent: "40" },
+      ],
+    },
     guard(plan.version),
   );
   return {
@@ -170,6 +191,8 @@ for (const colorScheme of ["light", "dark"] as const) {
         `${h}/plans/${ids.plan}`,
         // HU-E9-08: the capacities of that plan, one row per member.
         `${h}/plans/${ids.plan}/capacities`,
+        // HU-E9-10: the member matrix, with an over- and an under-contributed gap, and a line not allocated.
+        `${h}/plan/members`,
         `${h}/members/${ids.ana}/history`,
         `${h}/transactions?notice=FundBalanceNegative&account=${ids.fund}`,
       ]) {
@@ -203,6 +226,8 @@ for (const colorScheme of ["light", "dark"] as const) {
       await scan("existing line");
       // HU-E9-08: the allocation editor by percentage (with its sum alert, then with the preview), and the category sheet.
       await page.getByRole("radio", { name: es.budgeting.rule.PERCENT }).click();
+      // The seed already splits "Mercado" 60/40 (HU-E9-10's member matrix), so a value is changed to break the sum.
+      await page.getByLabel(fill(es.budgeting.allocation.value, { name: "Juan" })).fill("50");
       await expect(
         page.getByRole("region", { name: es.budgeting.allocation.title }).getByRole("alert"),
       ).toContainText(es.errors.InvalidAllocation.split(".")[0]!);
@@ -220,6 +245,18 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect(page.getByRole("dialog")).toBeVisible();
       await scan("line removal sheet");
       await page.keyboard.press("Escape");
+      // HU-E9-10: Ana's gap and Juan's carry a word, an arrow and a sign, not a color alone.
+      await page.goto(`${h}/plan/members`);
+      const market = page.getByRole("table", { name: fill(es.reports.matrix.caption, { line: "Mercado" }) });
+      await expect(market.getByRole("row", { name: /^Ana/ })).toContainText(
+        es.reports.status.OVER_CONTRIBUTED,
+      );
+      await expect(market.getByRole("row", { name: /^Juan/ })).toContainText(
+        es.reports.status.UNDER_CONTRIBUTED,
+      );
+      await expect(
+        page.getByRole("table", { name: fill(es.reports.matrix.caption, { line: "Ocio" }) }),
+      ).toBeVisible();
       // U1: a shared space with no funds explains them instead of asking for a first account.
       const bare = await post(page, "/api/v1/spaces", { kind: "SHARED", name: "Vacía", currency: "COP" });
       for (const path of [`/spaces/${bare.id}`, `/spaces/${bare.id}/accounts`]) {
