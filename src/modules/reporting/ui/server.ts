@@ -6,3 +6,5 @@ export { FundTrackingContainer } from "./fund/fund-container";
 export { MemberMatrixContainer } from "./matrix/matrix-container";
 export { SpendingByGroupContainer } from "./by-group/by-group-container";
 export { GroupsHomeContainer } from "./by-group/groups-home";
+export { TrendHomeContainer } from "./trend/trend-home";
+export { windowOf } from "./trend/personal-trend-container";

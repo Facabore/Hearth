@@ -223,7 +223,7 @@ describe("the By group view of the Plan tab by kind of space (ruling P200)", () 
     return fake;
   };
 
-  it("frames the personal report with the three personal views and its note, in Spanish", async () => {
+  it("frames the personal report with the four personal views and its note, in Spanish", async () => {
     server.spaces = [personal, householdDto()];
     withApi();
     const { container } = render(
@@ -236,7 +236,7 @@ describe("the By group view of the Plan tab by kind of space (ruling P200)", () 
       within(tabs)
         .getAllByRole("link")
         .map((a) => a.textContent),
-    ).toEqual(["Mi consumo", "Por grupo", "Líneas"]);
+    ).toEqual(["Mi consumo", "Por grupo", "Tendencia", "Líneas"]);
     expect(within(tabs).getByRole("link", { name: "Por grupo" })).toHaveAttribute("aria-current", "page");
     expect(within(tabs).getByRole("link", { name: "Mi consumo" })).toHaveAttribute(
       "href",

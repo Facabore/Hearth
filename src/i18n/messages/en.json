@@ -914,6 +914,19 @@
     },
     "spaceScoped": "{space} / {name}",
     "outsideTheApp": "Paid outside the app",
+    "trend": {
+      "new": "New",
+      "noPrevious": "No previous period",
+      "increased": "Up",
+      "decreased": "Down",
+      "unchanged": "Same",
+      "window": "{count} periods",
+      "personalCaption": "My spending by period",
+      "personalTable": "Consumption by period",
+      "period": "Period",
+      "consumption": "Consumption",
+      "change": "Change"
+    },
     "unified": {
       "consumption": "Consumption",
       "consumptionHint": "What was for you: your expenses and your share of shared ones.",

@@ -61,3 +61,4 @@ export type UnifiedViewDto = Json<paths["/api/v1/me/unified-view"]["get"]["respo
 export type PersonalSpendingByGroupDto = Json<
   paths["/api/v1/me/reports/spending-by-group"]["get"]["responses"][200]
 >;
+export type PersonalTrendDto = Json<paths["/api/v1/me/trend"]["get"]["responses"][200]>;

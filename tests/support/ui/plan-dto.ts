@@ -4,6 +4,7 @@ import type {
   LineDashboardDto,
   MemberMatrixDto,
   PersonalSpendingByGroupDto,
+  PersonalTrendDto,
   PlanLineDto,
   SpaceDto,
   SpaceMemberDto,
@@ -426,6 +427,69 @@ export const e74Groups = (): PersonalSpendingByGroupDto => ({
       share: "1.56",
       space: household,
       categories: [personalCategory("Vet", 25_000, "100.00", { id: "c-vet", key: null, space: household })],
+    },
+  ],
+});
+
+const month = (label: string, last: number) => ({
+  label,
+  startDate: `${label}-01`,
+  endDate: `${label}-${String(last).padStart(2, "0")}`,
+});
+
+/** HU-E9-11 "Six-period personal consumption chart": Ana's consumption from 2026-06 to 2026-11. */
+export const sixMonthsTrend = (): PersonalTrendDto => ({
+  currency: "COP",
+  periods: [
+    month("2026-06", 30),
+    month("2026-07", 31),
+    month("2026-08", 31),
+    month("2026-09", 30),
+    month("2026-10", 31),
+    month("2026-11", 30),
+  ],
+  points: [
+    {
+      period: "2026-06",
+      consumption: cop(1_400_000),
+      change: null,
+      changePercent: null,
+      changeStatus: "NEW",
+    },
+    {
+      period: "2026-07",
+      consumption: cop(1_450_000),
+      change: cop(50_000),
+      changePercent: "3.57",
+      changeStatus: "INCREASED",
+    },
+    {
+      period: "2026-08",
+      consumption: cop(1_450_000),
+      change: cop(0),
+      changePercent: "0.00",
+      changeStatus: "UNCHANGED",
+    },
+    {
+      period: "2026-09",
+      consumption: cop(1_300_000),
+      change: cop(-150_000),
+      changePercent: "-10.34",
+      changeStatus: "DECREASED",
+    },
+    {
+      period: "2026-10",
+      consumption: cop(1_500_000),
+      change: cop(200_000),
+      changePercent: "15.38",
+      changeStatus: "INCREASED",
+    },
+    {
+      period: "2026-11",
+      consumption: cop(1_575_000),
+      change: cop(75_000),
+      changePercent: "5.00",
+      changeStatus: "INCREASED",
     },
   ],
 });
