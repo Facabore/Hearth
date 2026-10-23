@@ -109,12 +109,28 @@ module.exports = {
       from: { path: "^src/modules/[^/]+/(domain|application|infrastructure|contracts)/" },
       to: { path: "^src/modules/[^/]+/ui/" },
     },
+    {
+      name: "recharts-only-in-charts",
+      severity: "error",
+      comment:
+        "Ruling P202 (M6c): Recharts is imported only by src/modules/reporting/ui/charts/*-chart.tsx, the files the lazy chart wrapper (lazy-*-chart.tsx) loads with import().",
+      from: { pathNot: "^src/modules/reporting/ui/charts/(?!lazy-)[^/]+-chart\\.tsx$" },
+      to: { path: "node_modules/recharts/" },
+    },
+    {
+      name: "charts-load-lazily",
+      severity: "error",
+      comment:
+        "Ruling P202 (M6c): a chart file is reached only through a dynamic import(), so a route without a chart never ships Recharts. The lazy wrapper (lazy-*-chart.tsx) is the one chart-named file pages import statically.",
+      from: {},
+      to: { path: "^src/modules/reporting/ui/charts/(?!lazy-)[^/]+-chart\\.tsx$", dynamic: false },
+    },
     { name: "no-circular", severity: "error", from: {}, to: { circular: true } },
   ],
   options: {
     doNotFollow: { path: "node_modules" },
     tsPreCompilationDeps: true,
     tsConfig: { fileName: "tsconfig.json" },
-    exclude: { path: ["^tests/architecture/fixtures/", "\\.test\\.(ts|mjs)$"] },
+    exclude: { path: ["^tests/architecture/fixtures/", "\\.test\\.(ts|tsx|mjs)$"] },
   },
 };

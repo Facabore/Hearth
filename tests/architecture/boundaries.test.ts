@@ -59,6 +59,10 @@ describe("architecture boundaries", () => {
     ["ui-imports-application", "ui-talks-only-to-the-api"],
     ["ui-imports-kernel-barrel", "ui-talks-only-to-the-api"],
     ["ui-crosses-module-ui", "ui-modules-only-through-public-ui-api"],
+    ["chart-imported-statically", "charts-load-lazily"],
+    ["recharts-outside-charts", "recharts-only-in-charts"],
+    ["recharts-in-chart-helper", "recharts-only-in-charts"],
+    ["recharts-in-lazy-wrapper", "recharts-only-in-charts"],
   ])("flags the %s fixture with %s", async (fixture, rule) => {
     expect((await violations(fixture)).map((v) => v.rule)).toContain(rule);
   });
