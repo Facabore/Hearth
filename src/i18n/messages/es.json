@@ -451,6 +451,11 @@
       },
       "open": "Ver detalle de {name}"
     },
+    "edit": {
+      "title": "Editar movimiento",
+      "save": "Guardar cambios",
+      "kind": "Tipo: {type}"
+    },
     "toast": {
       "saved": {
         "EXPENSE": "Gasto guardado",

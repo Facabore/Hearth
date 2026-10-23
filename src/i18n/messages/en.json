@@ -451,6 +451,11 @@
       },
       "open": "Open the details of {name}"
     },
+    "edit": {
+      "title": "Edit transaction",
+      "save": "Save changes",
+      "kind": "Type: {type}"
+    },
     "toast": {
       "saved": {
         "EXPENSE": "Expense saved",

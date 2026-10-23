@@ -26,6 +26,8 @@ import { formatMoney, formatNumber, type Formats } from "@/shared/ui/format/form
 import { browserTimeZone } from "@/shared/ui/format/zones";
 import { nowIn } from "@/shared/ui/time/when";
 import type { Person } from "../direct/counterparts";
+// A type only: no runtime code of the edit modules enters the record route (P191, P198).
+import type { RecordInitial } from "../edit/edit-initial";
 import { categoryKeyOf, directBodyOf, type DirectChoice } from "../direct/direct-request";
 import { initialSplitDraft, type SharedExpenseContext } from "../split/shared-context";
 import { SharedFields } from "../split/shared-fields";
@@ -52,6 +54,19 @@ const KINDS = ["EXPENSE", "INCOME", "TRANSFER"] as const;
 
 type Sheet = "category" | "account" | "toAccount" | "when" | null;
 
+/** Ruling P191: the form as the edit route uses it: it starts from a transaction and hands Save to the caller. */
+export interface RecordEdit {
+  readonly initial: RecordInitial;
+  readonly backHref: string;
+  /** Saves the built request; a problem is shown in the form, null means saved (the caller then navigates away). */
+  readonly onSave: (
+    built: { kind: RecordKind; body: Record<string, unknown> },
+    state: { when: When },
+  ) => Promise<Problem | null>;
+  /** What to offer under a problem shown above the button, such as loading the latest version (P193). */
+  readonly problemAction?: (problem: Problem) => ReactNode;
+}
+
 export interface RecordFormProps {
   readonly space: SpaceDto;
   readonly accounts: readonly AccountDto[];
@@ -68,6 +83,8 @@ export interface RecordFormProps {
   /** The people the recorder shares a space with: a personal space's expense can be split with one (P172). */
   readonly people?: readonly Person[];
   readonly api?: Api;
+  /** Edits a transaction instead of recording one: no kind tabs, no split with someone, no plan's split (P192). */
+  readonly edit?: RecordEdit;
 }
 
 /** HU-E9-03, the QuickAdd artboard as a page: amount, description, category, accounts, date and time, Save. */
@@ -83,6 +100,7 @@ export function RecordForm({
   shared,
   people,
   api: injected,
+  edit,
 }: RecordFormProps) {
   const t = useTranslations("ledger");
   const errors = useTranslations("errors");
@@ -103,17 +121,21 @@ export function RecordForm({
   const start = client?.now ?? nowIn(new Date(initialNow), serverZone);
   const today = start.date;
 
-  const [kind, setKind] = useState<RecordKind>(initialKind);
-  const [amount, setAmount] = useState("");
-  const [description, setDescription] = useState("");
-  const [category, setCategory] = useState<CategoryChoice>(null);
-  const [accountId, setAccountId] = useState<string | null>(accounts[0]?.id ?? null);
-  const [toAccountId, setToAccountId] = useState<string | null>(null);
-  const [chosenWhen, setChosenWhen] = useState<When | null>(null);
+  const [kind, setKind] = useState<RecordKind>(edit?.initial.kind ?? initialKind);
+  const [amount, setAmount] = useState(edit?.initial.amount ?? "");
+  const [description, setDescription] = useState(edit?.initial.description ?? "");
+  const [category, setCategory] = useState<CategoryChoice>(edit?.initial.category ?? null);
+  const [accountId, setAccountId] = useState<string | null>(
+    edit ? edit.initial.accountId : (accounts[0]?.id ?? null),
+  );
+  const [toAccountId, setToAccountId] = useState<string | null>(edit?.initial.toAccountId ?? null);
+  const [chosenWhen, setChosenWhen] = useState<When | null>(edit?.initial.when ?? null);
   const [sheet, setSheet] = useState<Sheet>(null);
   const [sheetNow, setSheetNow] = useState<When>(start);
   const [pending, setPending] = useState(false);
-  const [split, setSplit] = useState(() => (shared ? initialSplitDraft(shared) : null));
+  const [split, setSplit] = useState(
+    () => edit?.initial.split ?? (shared ? initialSplitDraft(shared) : null),
+  );
   const [unbuilt, setUnbuilt] = useState<"amount" | "account" | "toAccount" | "payer" | "split" | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
   const [direct, setDirect] = useState<DirectChoice | null>(null);
@@ -129,7 +151,7 @@ export function RecordForm({
       : undefined;
   const built = requestOf(draft, space.currency, formats.numberFormat, sharedExpense);
   // A split with someone is its own request (P172): choosing someone else makes a new draft, so a new key.
-  const canSplit = people !== undefined && kind === "EXPENSE" && space.kind === "PERSONAL";
+  const canSplit = !edit && people !== undefined && kind === "EXPENSE" && space.kind === "PERSONAL";
   const splitting = canSplit ? direct : null;
   const { key, renew } = useIdempotencyKey(
     built.ok ? JSON.stringify({ body: built.body, direct: splitting }) : "",
@@ -210,6 +232,14 @@ export function RecordForm({
     }
     setPending(true);
     try {
+      if (edit) {
+        const failed = await edit.onSave({ kind: built.kind, body: built.body }, { when });
+        if (failed) {
+          setProblem(failed);
+          setPending(false);
+        }
+        return;
+      }
       if (splitting && categoryKey !== null) {
         const { data, error, response } = await api.POST("/api/v1/direct-splits", {
           params: { header: { "idempotency-key": key } },
@@ -287,7 +317,10 @@ export function RecordForm({
 
   return (
     <div className="flex flex-col gap-5 py-4">
-      <ScreenHeader backHref={`/spaces/${space.id}`} title={t("form.title")} />
+      <ScreenHeader
+        backHref={edit?.backHref ?? `/spaces/${space.id}`}
+        title={edit ? t("edit.title") : t("form.title")}
+      />
       <form
         data-ready={client ? "true" : undefined}
         onSubmit={(event) => void submit(event)}
@@ -295,17 +328,21 @@ export function RecordForm({
         className="flex flex-col gap-5"
       >
         <Tabs.Root value={kind} onValueChange={(next) => setKind(next as RecordKind)}>
-          <Tabs.List aria-label={t("form.kind")} className="flex rounded-[14px] bg-track p-1">
-            {KINDS.map((k) => (
-              <Tabs.Trigger
-                key={k}
-                value={k}
-                className="min-h-11 flex-1 rounded-[10px] text-sm font-medium text-ink data-[state=active]:bg-surface data-[state=active]:shadow"
-              >
-                {t(`type.${k}`)}
-              </Tabs.Trigger>
-            ))}
-          </Tabs.List>
+          {edit ? (
+            <p className="text-sm text-muted">{t("edit.kind", { type: t(`type.${kind}`) })}</p>
+          ) : (
+            <Tabs.List aria-label={t("form.kind")} className="flex rounded-[14px] bg-track p-1">
+              {KINDS.map((k) => (
+                <Tabs.Trigger
+                  key={k}
+                  value={k}
+                  className="min-h-11 flex-1 rounded-[10px] text-sm font-medium text-ink data-[state=active]:bg-surface data-[state=active]:shadow"
+                >
+                  {t(`type.${k}`)}
+                </Tabs.Trigger>
+              ))}
+            </Tabs.List>
+          )}
           <Tabs.Content value={kind} className="mt-5 flex flex-col gap-5" tabIndex={-1}>
             <AmountField
               value={amount}
@@ -352,6 +389,7 @@ export function RecordForm({
                 date={when.date}
                 api={api}
                 error={errorOf("split") ?? errorOf("payer")}
+                defaultSplit={!edit}
               />
             ) : (
               picker(
@@ -426,8 +464,9 @@ export function RecordForm({
           </Tabs.Content>
         </Tabs.Root>
         {problem && where === "form" ? <ProblemNotice problem={problem} /> : null}
+        {problem && where === "form" && edit?.problemAction ? edit.problemAction(problem) : null}
         <Button type="submit" size="lg" disabled={pending || (!built.ok && built.field === "split")}>
-          {t(`form.save.${splitting ? "DIRECT" : kind}`)}
+          {edit ? t("edit.save") : t(`form.save.${splitting ? "DIRECT" : kind}`)}
         </Button>
         {directOpened && people ? (
           <SplitWithPersonSheet
