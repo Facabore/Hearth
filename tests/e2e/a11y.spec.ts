@@ -53,8 +53,10 @@ for (const colorScheme of ["light", "dark"] as const) {
         `/spaces/${spaceId}/accounts`,
         `/spaces/${spaceId}/accounts/new`,
         `/spaces/${spaceId}/new`,
-        // HU-E9-10: the Plan tab of a space with spending and no plan (Unbudgeted alone).
+        // HU-E9-11: My spending, the personal space's Plan tab, with consumption and cash out.
         `/spaces/${spaceId}/plan`,
+        // HU-E9-10: its Lines view, a space with spending and no plan (Unbudgeted alone).
+        `/spaces/${spaceId}/plan/lines`,
         "/settings",
         // N1: the app's own not-found page, for an address and for a space.
         "/nope",

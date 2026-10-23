@@ -913,6 +913,20 @@
       "viewPlan": "View plan"
     },
     "spaceScoped": "{space} / {name}",
+    "outsideTheApp": "Paid outside the app",
+    "unified": {
+      "consumption": "Consumption",
+      "consumptionHint": "What was for you: your expenses and your share of shared ones.",
+      "cashOut": "Cash out",
+      "cashOutHint": "What left your pockets.",
+      "sources": "Where the cash out comes from",
+      "payments": "Expense payments",
+      "fundContributions": "Fund contributions",
+      "savingsTransfers": "Transfers to your savings",
+      "byCategory": "Consumption by category",
+      "empty": "You consumed nothing in this period.",
+      "otherCurrency": "{name} is in {currency} and is not added here."
+    },
     "byGroup": {
       "trail": "Path",
       "all": "All groups",

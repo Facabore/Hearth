@@ -555,8 +555,9 @@ for (const wideFont of [false, true]) {
           `/spaces/${sharedId}`,
           `/spaces/${sharedId}/members`,
           `/spaces/${sharedId}/balances`,
-          // HU-E9-10: the Plan tab, with big figures (personal) and without a plan (shared).
+          // HU-E9-10, HU-E9-11: the Plan tab, My spending (personal) and without a plan (shared).
           `/spaces/${spaceId}/plan`,
+          `/spaces/${spaceId}/plan/lines`,
           `/spaces/${sharedId}/plan`,
           `/spaces/${sharedId}/plan/fund`,
           `/spaces/${sharedId}/plan/groups`,
@@ -865,7 +866,9 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         [`/spaces/${sharedId}/plan/members`, 5],
         [`/spaces/${sharedId}/plan/fund`, 5],
         [`/spaces/${sharedId}/plan/groups`, 5],
+        // HU-E9-11: My spending, the personal space's own page, and its Lines view.
         [`/spaces/${spaceId}/plan`, 4],
+        [`/spaces/${spaceId}/plan/lines`, 4],
       ] as const) {
         await page.goto(path);
         await settle(page);

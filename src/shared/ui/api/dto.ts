@@ -57,6 +57,7 @@ export type FundTrackingDto = Json<
 export type SpendingByGroupDto = Json<
   paths["/api/v1/spaces/{spaceId}/reports/spending-by-group"]["get"]["responses"][200]
 >;
+export type UnifiedViewDto = Json<paths["/api/v1/me/unified-view"]["get"]["responses"][200]>;
 export type PersonalSpendingByGroupDto = Json<
   paths["/api/v1/me/reports/spending-by-group"]["get"]["responses"][200]
 >;

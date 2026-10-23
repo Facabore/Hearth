@@ -7,6 +7,7 @@ import type {
   SpaceDto,
   SpaceMemberDto,
   SpendingByGroupDto,
+  UnifiedViewDto,
 } from "@/shared/ui/api/dto";
 import { accountDto, cop, spaceDto } from "./dto";
 
@@ -339,4 +340,27 @@ export const e7Groups = (): SpendingByGroupDto => ({
     ]),
     group("g-leisure", "Leisure", 250_000, "8.90", [category("c-fun", "Entertainment", 250_000, "100.00")]),
   ],
+});
+
+/** HU-E7-04's November 2026 for Ana: consumption 1,575,000 COP and cash out 2,625,000 COP. */
+export const e74Unified = (overrides: Partial<UnifiedViewDto> = {}): UnifiedViewDto => ({
+  currency: "COP",
+  period: { ...NOVEMBER },
+  consumption: {
+    total: cop(1_575_000),
+    categories: [
+      { key: "groceries", name: "Groceries", space: null, category: null, amount: cop(1_035_000) },
+      { key: "rent", name: "Rent", space: null, category: null, amount: cop(480_000) },
+      { key: "restaurants", name: "Restaurants", space: null, category: null, amount: cop(60_000) },
+    ],
+  },
+  cashOut: {
+    total: cop(2_625_000),
+    payments: cop(2_145_000),
+    fundContributions: cop(480_000),
+    savingsTransfers: cop(0),
+    outsideTheApp: cop(0),
+  },
+  otherCurrencySpaces: [],
+  ...overrides,
 });

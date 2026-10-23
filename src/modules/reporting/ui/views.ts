@@ -4,7 +4,7 @@ import type { SpaceDto } from "@/shared/ui/api/dto";
 export type PlanView = "lines" | "members" | "fund" | "groups" | "trend" | "mine";
 
 const SHARED_VIEWS: readonly PlanView[] = ["lines", "members", "fund", "groups"];
-const PERSONAL_VIEWS: readonly PlanView[] = ["lines"];
+const PERSONAL_VIEWS: readonly PlanView[] = ["mine", "lines"];
 
 export const viewsFor = (kind: SpaceDto["kind"]): readonly PlanView[] =>
   kind === "PERSONAL" ? PERSONAL_VIEWS : SHARED_VIEWS;
