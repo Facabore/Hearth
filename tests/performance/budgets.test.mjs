@@ -27,7 +27,21 @@ describe("performance budgets (ruling P134)", () => {
     for (const route of Object.keys(budgets.scriptKb)) expect(routeUrl(route, ids)).not.toContain(":");
     expect(routeUrl("/spaces/:shared/members/:member/history", ids)).toBe("/spaces/sp-h/members/m-j/history");
     expect(routeUrl("/spaces/:id/transactions/:tx/edit", ids)).toBe("/spaces/sp-p/transactions/t-1/edit");
+    expect(routeUrl("/spaces/:id/transactions?tx=:tx", ids)).toBe("/spaces/sp-p/transactions?tx=t-1");
     expect(() => routeUrl("/spaces/:nope", ids)).toThrow("No id for :nope in /spaces/:nope");
+  });
+
+  it("budgets the edit route and the list with an open sheet within the caps of ruling P198", () => {
+    const caps = {
+      "/spaces/:id/transactions?tx=:tx": 235,
+      "/spaces/:id/transactions/:tx/edit": 210,
+      "/spaces/:id/transactions": 205,
+      "/spaces/:id/new": 205,
+    };
+    for (const [route, cap] of Object.entries(caps)) {
+      expect(budgets.scriptKb[route], route).toBeDefined();
+      expect(budgets.scriptKb[route], route).toBeLessThanOrEqual(cap);
+    }
   });
 
   it("measures the sign-in, sign-up, invitation and claim pages without a session", () => {

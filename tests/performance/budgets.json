@@ -5,6 +5,7 @@
     "/sign-up": 159,
     "/spaces/:id": 158,
     "/spaces/:id/transactions": 173,
+    "/spaces/:id/transactions?tx=:tx": 193,
     "/spaces/:id/transactions/:tx/edit": 190,
     "/spaces/:id/accounts": 160,
     "/spaces/:id/new": 187,

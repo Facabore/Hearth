@@ -1,5 +1,6 @@
 import { randomInt } from "node:crypto";
-import { expect, request, test as base, type Browser, type Page } from "@playwright/test";
+import { expect, request, test as base, type Browser, type Locator, type Page } from "@playwright/test";
+import en from "../../src/i18n/messages/en.json" with { type: "json" };
 import es from "../../src/i18n/messages/es.json" with { type: "json" };
 import { BASE_URL } from "./support/base-url";
 import { Person } from "./support/people";
@@ -2488,6 +2489,113 @@ test.describe("the save toast sits above the bottom navigation and never covers 
       // A tap on the toast's close button reaches it and removes the toast.
       await page.getByRole("button", { name: es.toast.dismiss }).click();
       await expect(toast).toHaveCount(0);
+    });
+  }
+});
+
+test.describe("the toast after a delete never hides or crowds the navigation (P195, P198)", () => {
+  /** True when the element is the topmost one at its own centre: nothing paints over it. */
+  const topmostAtCentre = (control: Locator) =>
+    control.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const top = window.paintedAt(r.left + r.width / 2, r.top + r.height / 2);
+      return top !== null && el.contains(top) ? "ok" : `covered by <${top?.tagName ?? "nothing"}>`;
+    });
+
+  for (const viewport of [PHONE, SMALL_PHONE]) {
+    test(`Deshacer and the close button are full targets, uncovered, and Registrar stays free at ${viewport.width} px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      const { spaceId } = await session(page, `toast-delete-${viewport.width}`);
+      await page.goto(`/spaces/${spaceId}/transactions`);
+      await settle(page);
+      await page.getByRole("link", { name: MARKET }).click();
+      await page.getByRole("button", { name: es.ledger.detail.delete }).click();
+      const toast = page.getByTestId("toast");
+      await expect(toast).toBeVisible();
+      // Hovering holds the toast on screen (WCAG 2.2.1) while it is measured.
+      await toast.hover();
+      const box = (await toast.boundingBox())!;
+      const nav = (await page.locator("nav[aria-label]").boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+      expect(box.y + box.height).toBeLessThanOrEqual(nav.y);
+      for (const name of [es.ledger.toast.undo, es.toast.dismiss]) {
+        const control = toast.getByRole("button", { name });
+        const target = (await control.boundingBox())!;
+        expect.soft(target.width, `${name}: width`).toBeGreaterThanOrEqual(TARGET);
+        expect.soft(target.height, `${name}: height`).toBeGreaterThanOrEqual(TARGET);
+        expect.soft(await topmostAtCentre(control), `${name}: the topmost element at its centre`).toBe("ok");
+      }
+      const record = page.getByRole("navigation", { name: es.shell.nav.main }).getByRole("link", {
+        name: es.shell.nav.record,
+      });
+      const fab = (await record.boundingBox())!;
+      expect(fab.y, "Registrar is under the toast's bottom edge, not covered").toBeGreaterThanOrEqual(
+        box.y + box.height,
+      );
+      expect(await topmostAtCentre(record), "Registrar is the topmost element at its centre").toBe("ok");
+      const { overflow, message } = await overflowReport(page, "the toast");
+      expect(overflow, message).toBeLessThanOrEqual(0);
+    });
+
+    test(`a long message in English wraps inside the width instead of widening the page at ${viewport.width} px`, async ({
+      page,
+      errors,
+    }) => {
+      await page.setViewportSize(viewport);
+      const { spaceId } = await session(page, `toast-long-${viewport.width}`);
+      await patch(page, "/api/v1/me", { locale: "en" });
+      // The undo is refused with the longest English message the catalog has: the failure toast carries it.
+      await page.route("**/restore", (route) =>
+        route.fulfill({
+          status: 422,
+          contentType: "application/problem+json",
+          body: JSON.stringify({
+            type: "urn:hearth:problem:InvalidRecurrence",
+            title: "",
+            status: 422,
+            code: "InvalidRecurrence",
+          }),
+        }),
+      );
+      await page.goto(`/spaces/${spaceId}/transactions`);
+      await settle(page);
+      await page.getByRole("link", { name: MARKET }).click();
+      await page.getByRole("button", { name: en.ledger.detail.delete }).click();
+      const region = page.getByRole("region", { name: en.toast.region });
+      await expect(region.getByRole("status")).toContainText(en.ledger.toast.deleted.EXPENSE);
+      await region.getByRole("button", { name: en.ledger.toast.undo }).click();
+      const alert = region.getByRole("alert");
+      await expect(alert).toContainText(en.errors.InvalidRecurrence);
+      // The browser logs the refusal it was handed on purpose; any other console error still fails the test.
+      errors.splice(0, errors.length, ...errors.filter((e) => !/status of 422 .*\/restore$/.test(e)));
+      const toast = page.locator("[data-toast='alert']").getByTestId("toast");
+      await toast.hover();
+      const box = (await toast.boundingBox())!;
+      const nav = (await page.locator("nav[aria-label]").boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width, "the long message stays inside the width").toBeLessThanOrEqual(
+        viewport.width,
+      );
+      expect(box.y + box.height, "the long message ends above the navigation").toBeLessThanOrEqual(nav.y);
+      // The text itself, not its boxes: it must wrap onto several lines and end inside the screen's width.
+      const text = await alert.locator("p").evaluate((el) => {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const rects = [...range.getClientRects()];
+        return {
+          lines: new Set(rects.map((r) => Math.round(r.top))).size,
+          right: Math.max(...rects.map((r) => r.right)),
+          spills: el.scrollWidth > el.clientWidth,
+        };
+      });
+      expect(text.lines, "the message wraps onto more than one line").toBeGreaterThan(1);
+      expect(text.right, "the text ends inside the width").toBeLessThanOrEqual(viewport.width);
+      expect(text.spills, "the text does not spill out of its paragraph").toBe(false);
+      const { overflow, message } = await overflowReport(page, "the long toast");
+      expect(overflow, message).toBeLessThanOrEqual(0);
     });
   }
 });
