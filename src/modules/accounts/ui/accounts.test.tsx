@@ -43,6 +43,14 @@ const list = {
 const norm = (text: string | null) => (text ?? "").replace(/\s/g, " ");
 
 describe("accounts screen (HU-E9-03)", () => {
+  it("still shows a wallet's Last 4 saved before the form stopped asking for it (#164)", () => {
+    const wallet = accountDto({ id: "a-davi", name: "Daviplata", type: "WALLET", lastFour: "7788" });
+    renderWithIntl(
+      <AccountsScreen spaceId="sp-personal" list={{ ...list, items: [wallet] }} formats={BUILT_IN_FORMATS} />,
+    );
+    expect(norm(screen.getByRole("listitem", { name: /Daviplata/ }).textContent)).toContain("···7788");
+  });
+
   it("wraps the totals instead of overflowing a narrow screen, and keeps each amount whole (S2)", () => {
     renderWithIntl(<AccountsScreen spaceId="sp-personal" list={list} formats={BUILT_IN_FORMATS} />);
     const totals = screen.getByRole("region", { name: "Totales" });

@@ -7,6 +7,7 @@ import {
   Button,
   ChoiceGroup,
   Icon,
+  NumberField,
   ProblemNotice,
   ScreenHeader,
   Sheet,
@@ -309,13 +310,15 @@ export function LineEditor({
           onChange={(event) => change({ name: event.target.value }, "name")}
           error={name}
         />
-        <TextField
+        <NumberField
           id={`${ids}-planned`}
           label={t("field.planned")}
-          inputMode="decimal"
-          autoComplete="off"
+          kind="money"
+          numberFormat={formats.numberFormat}
+          decimals={currencyOf(currency).exponent}
+          symbol={currencyOf(currency).symbol}
           value={draft.planned}
-          onChange={(event) => change({ planned: event.target.value }, "planned")}
+          onChange={(planned) => change({ planned }, "planned")}
           hint={
             line?.capacityShare != null
               ? t("field.plannedHint", {

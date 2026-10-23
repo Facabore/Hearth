@@ -2,7 +2,9 @@
 
 import { useTranslations } from "next-intl";
 import { useId, type Ref } from "react";
-import { ChoiceGroup, Icon, TextField } from "@/shared/ui";
+import { ChoiceGroup, Icon, NumberField } from "@/shared/ui";
+import { currencyOf } from "@/shared/ui/format/currencies";
+import type { NumberRule } from "@/shared/ui/format/number-input";
 import type { MoneyDto, SpaceMemberDto } from "@/shared/ui/api/dto";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import { formatMoney, formatNumber, formatPercent, type Formats } from "@/shared/ui/format/formatters";
@@ -41,7 +43,13 @@ export function AllocationEditor({
   const ids = useId();
   const editable = draft.rule === "PERCENT" || draft.rule === "FIXED";
   const assigned = preview.kind === "assigned" ? preview.amounts : null;
-  const example = formatNumber(draft.rule === "PERCENT" ? "42.5" : "300000", formats);
+  const sample = draft.rule === "PERCENT" ? "42.5" : "300000";
+  const example = formatNumber(sample, formats);
+  // Issue #164: a percent takes the API's two decimals, a fixed amount the currency's.
+  const rule: NumberRule =
+    draft.rule === "PERCENT"
+      ? { kind: "decimal", numberFormat: formats.numberFormat, decimals: 2 }
+      : { kind: "money", numberFormat: formats.numberFormat, decimals: currencyOf(currency).exponent };
 
   return (
     <section
@@ -86,24 +94,16 @@ export function AllocationEditor({
                 </span>
               </div>
               {editable ? (
-                <TextField
+                <NumberField
                   id={`${ids}-${member.id}-value`}
                   label={t("value", { name: member.displayName })}
-                  inputMode="decimal"
-                  autoComplete="off"
+                  {...rule}
+                  example={sample}
+                  unit={draft.rule === "PERCENT" ? "%" : undefined}
+                  symbol={draft.rule === "PERCENT" ? undefined : currencyOf(currency).symbol}
                   value={draft.values[member.id] ?? ""}
-                  onChange={(event) =>
-                    onChange({
-                      rule: draft.rule,
-                      values: { ...draft.values, [member.id]: event.target.value },
-                    })
-                  }
-                  trailing={
-                    draft.rule === "PERCENT" ? (
-                      <span aria-hidden="true" className="px-2 text-muted">
-                        %
-                      </span>
-                    ) : undefined
+                  onChange={(value) =>
+                    onChange({ rule: draft.rule, values: { ...draft.values, [member.id]: value } })
                   }
                   error={
                     preview.kind === "unreadable" && preview.memberId === member.id

@@ -11,6 +11,7 @@ export { ErrorScreen } from "./molecules/error-screen";
 export { NotFoundScreen } from "./molecules/not-found-screen";
 export { ChoiceGroup, type ChoiceGroupProps } from "./molecules/choice-group";
 export { CopyField } from "./molecules/copy-field";
+export { NumberField, numberInputProps, type NumberFieldProps } from "./molecules/number-field";
 export { ProblemNotice } from "./molecules/problem-notice";
 export { PeriodSwitcher } from "./molecules/period-switcher";
 export { usePeriodText } from "./molecules/period-text";

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useId, useMemo, useRef, useState } from "react";
-import { Button, ProblemNotice, ScreenHeader, TextField, usePeriodText } from "@/shared/ui";
+import { Button, NumberField, ProblemNotice, ScreenHeader, usePeriodText } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { BudgetPlanDto, CapacitySuggestionDto, SpaceDto, SpaceMemberDto } from "@/shared/ui/api/dto";
 import type { Problem } from "@/shared/ui/api/problem";
@@ -148,14 +148,16 @@ export function CapacityForm({
                 {mine ? t("capacity.you", { name: member.displayName }) : member.displayName}
               </p>
               {editable ? (
-                <TextField
+                <NumberField
                   id={`${ids}-field-${member.id}`}
                   label={t("capacity.field", { name: member.displayName })}
-                  inputMode="decimal"
-                  autoComplete="off"
+                  kind="money"
+                  numberFormat={formats.numberFormat}
+                  decimals={exponent}
+                  symbol={currencyOf(currency).symbol}
                   value={drafts[member.id] ?? ""}
-                  onChange={(event) => {
-                    setDrafts((current) => ({ ...current, [member.id]: event.target.value }));
+                  onChange={(next) => {
+                    setDrafts((current) => ({ ...current, [member.id]: next }));
                     if (failure?.field === member.id) setFailure(null);
                   }}
                   error={errorOf(member)}

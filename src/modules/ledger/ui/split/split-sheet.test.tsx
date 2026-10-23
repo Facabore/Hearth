@@ -164,6 +164,21 @@ describe("split sheet (HU-E9-06)", () => {
     expect(status()).toHaveClass("text-danger");
   });
 
+  it.each([
+    ["Porcentaje", "4x0.5", "40,5", "Ej: 33,5"],
+    ["Montos", "1000a00", "100.000", "Ej: 1.250,50"],
+    ["Partes", "2,5", "25", "Ej: 2"],
+  ] as const)(
+    "in %s, keeps only what the method holds and shows its format (#164)",
+    async (method, typed, kept, example) => {
+      renderWithIntl(<Harness amount="30000000" />);
+      await userEvent.click(within(sheet()).getByRole("radio", { name: method }));
+      await userEvent.type(valueOf("Ana (tú)"), typed);
+      expect(valueOf("Ana (tú)")).toHaveValue(kept);
+      expect(valueOf("Ana (tú)")).toHaveAccessibleDescription(example);
+    },
+  );
+
   it("says an amount too small to split between three people in whole pesos", async () => {
     renderWithIntl(<Harness amount="200" />);
     await userEvent.click(within(sheet()).getByRole("checkbox", { name: "Pedro (invitado)" }));

@@ -104,6 +104,22 @@ describe("capacities (HU-E9-08)", () => {
     });
   });
 
+  it("shows the amount's format, drops a letter and still saves the capacity (#164)", async () => {
+    const { api, requests } = fakeApi({
+      [PUT]: () => jsonResponse(referencePlanDto({ version: 8 })),
+    });
+    show({ viewer: "u-juan", space: householdDto({ role: "MEMBER" }), api });
+    const field = screen.getByLabelText("Capacidad de Juan");
+    await userEvent.clear(field);
+    expect(field).toHaveAccessibleDescription("Ej: 1.250,50");
+    await userEvent.type(field, "2x500000");
+    expect(field).toHaveValue("2.500.000");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar capacidades" }));
+    expect(await requests[0]!.json()).toEqual({
+      capacities: [{ memberId: "m-juan", amount: { amount: "250000000", currency: "COP" } }],
+    });
+  });
+
   it("only reads for a VIEWER and for a CLOSED plan, whoever the viewer is", () => {
     const viewer = show({ viewer: "u-juan", space: householdDto({ role: "VIEWER" }) });
     expect(screen.queryByRole("textbox")).toBeNull();
@@ -155,7 +171,8 @@ describe("capacities (HU-E9-08)", () => {
     });
     show({ viewer: "u-ana", api });
     await userEvent.clear(screen.getByLabelText("Capacidad de Juan"));
-    await userEvent.type(screen.getByLabelText("Capacidad de Juan"), "dos");
+    // Letters cannot be typed (issue #164); three decimals in COP still cannot be read.
+    await userEvent.type(screen.getByLabelText("Capacidad de Juan"), "1,234");
     await userEvent.click(screen.getByRole("button", { name: "Guardar capacidades" }));
     expect(screen.getByLabelText("Capacidad de Juan")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByText("Escribe un monto como 1.500.000.")).toBeInTheDocument();

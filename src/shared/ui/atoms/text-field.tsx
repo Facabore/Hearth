@@ -5,9 +5,11 @@ import { Icon } from "./icon";
 export type TextFieldProps = InputHTMLAttributes<HTMLInputElement> & {
   readonly id: string;
   readonly label: string;
-  readonly hint?: string;
+  readonly hint?: ReactNode;
   readonly error?: ReactNode;
   readonly trailing?: ReactNode;
+  /** A short unit written inside the field, before what is typed (a currency's symbol); screen readers skip it. */
+  readonly leading?: string;
   /** A figure the screen is about (an amount): 24 px and semibold instead of 16 px. */
   readonly large?: boolean;
   readonly ref?: Ref<HTMLInputElement>;
@@ -20,8 +22,10 @@ export function TextField({
   hint,
   error,
   trailing,
+  leading,
   large,
   className,
+  style,
   ref,
   ...props
 }: TextFieldProps) {
@@ -44,8 +48,20 @@ export function TextField({
             trailing && "pr-14",
             className,
           )}
+          style={leading ? { paddingLeft: `calc(1.5rem + ${leading.length}ch)`, ...style } : style}
           {...props}
         />
+        {leading ? (
+          <span
+            aria-hidden="true"
+            className={cn(
+              "pointer-events-none absolute inset-y-0 left-4 flex items-center text-muted",
+              large ? "text-2xl font-semibold" : "text-base",
+            )}
+          >
+            {leading}
+          </span>
+        ) : null}
         {trailing ? <div className="absolute inset-y-0 right-1 flex items-center">{trailing}</div> : null}
       </div>
       {hint ? (

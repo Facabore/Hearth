@@ -51,6 +51,19 @@ describe("allocation editor (HU-E9-08)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("keeps a percent to two decimals, drops letters and shows each rule's format (#164)", async () => {
+    renderWithIntl(<Harness />);
+    await userEvent.click(screen.getByRole("radio", { name: "Porcentaje" }));
+    const ana = screen.getByLabelText("Valor de Ana");
+    expect(ana).toHaveAccessibleDescription("Ej: 42,5");
+    await userEvent.type(ana, "4x2.505");
+    expect(ana).toHaveValue("42,50");
+    await userEvent.type(screen.getByLabelText("Valor de Juan"), "57,5");
+    expect(normalized(screen.getByRole("group", { name: "Ana" }).textContent)).toContain("$ 310.250");
+    await userEvent.click(screen.getByRole("radio", { name: "Monto fijo" }));
+    expect(screen.getByLabelText("Valor de Ana")).toHaveAccessibleDescription("Ej: 300.000");
+  });
+
   it("shows no member rows when the line is left unallocated", async () => {
     renderWithIntl(<Harness />);
     expect(normalized(screen.getByRole("group", { name: "Ana" }).textContent)).toContain("$ 292.000");

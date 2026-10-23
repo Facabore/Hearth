@@ -204,6 +204,23 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
     });
   });
 
+  it("shows the amount's format, drops a letter and still records the payment (#164)", async () => {
+    const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
+    screenAs("u-juan", api);
+    await userEvent.click(screen.getByRole("button", { name: JUAN_PAYS }));
+    const amount = within(dialog()).getByLabelText("Monto");
+    await userEvent.clear(amount);
+    expect(amount).toHaveAccessibleDescription("Ej: 1.250,50");
+    await userEvent.type(amount, "5x0000");
+    expect(amount).toHaveValue("50.000");
+    await userEvent.click(within(dialog()).getByRole("radio", { name: "Davivienda" }));
+    await userEvent.click(save());
+    expect(await requests[0]!.json()).toMatchObject({
+      amount: { amount: "5000000" },
+      sourceAccountId: "a-davi",
+    });
+  });
+
   it("announces Pago registrado in the status toast once the payment is saved (P196)", async () => {
     const { api } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
     juanInToasts(api);

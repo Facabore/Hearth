@@ -87,6 +87,14 @@ describe("amount field groups the digits while typing (U3)", () => {
     expect(field().value).toBe("6,5");
   });
 
+  it("says how to type an amount before anything is typed, in the person's format (#164)", () => {
+    const { unmount } = renderWithIntl(<Harness />);
+    expect(field()).toHaveAccessibleDescription("Ej: 1.250,50");
+    unmount();
+    renderWithIntl(<Harness numberFormat="COMMA_DOT" />, { locale: "en" });
+    expect(screen.getByLabelText("Amount")).toHaveAccessibleDescription("e.g. 1,250.50");
+  });
+
   it("ignores letters", async () => {
     const onValue = vi.fn();
     renderWithIntl(<Harness onValue={onValue} />);

@@ -5,7 +5,8 @@ import { useTranslations } from "next-intl";
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useIdempotencyKey } from "@/modules/ledger/ui";
 import { memberLabel } from "@/modules/spaces/ui";
-import { Button, ChoiceGroup, Icon, ProblemNotice, Sheet, TextField } from "@/shared/ui";
+import { Button, ChoiceGroup, Icon, NumberField, ProblemNotice, Sheet } from "@/shared/ui";
+import { currencyOf } from "@/shared/ui/format/currencies";
 import { useToast } from "@/shared/ui/molecules/toast";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { AccountDto, MemberDto, SpaceDto, SuggestionDto } from "@/shared/ui/api/dto";
@@ -79,6 +80,7 @@ export function SettleUpSheet({
   const [problem, setProblem] = useState<Problem | null>(null);
   const [pending, setPending] = useState(false);
 
+  const currency = currencyOf(space.currency);
   const meMemberId = members.find((member) => member.userId === meUserId)?.id ?? "";
   const payer = members.find((member) => member.id === draft.payerMemberId);
   const receiver = members.find((member) => member.id === draft.receivingMemberId);
@@ -212,14 +214,16 @@ export function SettleUpSheet({
           <FieldError id="settle-receiver-error" message={errorOf("receiver")} />
         </div>
         <div className="flex flex-col gap-1.5">
-          <TextField
+          <NumberField
             id="settle-amount"
             label={t("amount")}
-            inputMode="decimal"
-            autoComplete="off"
+            kind="money"
+            numberFormat={formats.numberFormat}
+            decimals={currency.exponent}
+            symbol={currency.symbol}
             value={draft.amount}
             error={errorOf("amount")}
-            onChange={(event) => setDraft({ ...draft, amount: event.target.value })}
+            onChange={(amount) => setDraft({ ...draft, amount })}
             large
           />
           {payer && receiver && payer.id !== receiver.id ? (

@@ -119,6 +119,22 @@ describe("line editor (HU-E9-08)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("shows the planned amount's format after its hint, drops a letter and still adds the line (#164)", async () => {
+    const { api, requests } = fakeApi({ [ADD]: added });
+    show(null, api);
+    const planned = screen.getByLabelText("Planeado");
+    expect(planned).toHaveAccessibleDescription(/Ej: 1\.250,50$/);
+    await userEvent.type(screen.getByLabelText("Nombre"), "Rent");
+    await userEvent.type(planned, "1200b000");
+    expect(planned).toHaveValue("1.200.000");
+    await userEvent.click(screen.getByRole("radio", { name: "Fondo compartido" }));
+    await userEvent.click(screen.getByRole("button", { name: "Agregar línea" }));
+    expect(await requests[0]!.json()).toMatchObject({
+      name: "Rent",
+      plannedAmount: { amount: "120000000", currency: "COP" },
+    });
+  });
+
   it("adds Savings with the savings account the person owns, never as the catch-all", async () => {
     const { api, requests } = fakeApi({ [ADD]: added });
     show(null, api);
