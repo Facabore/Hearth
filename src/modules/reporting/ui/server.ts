@@ -5,3 +5,4 @@ export { UnifiedViewContainer } from "./unified/unified-container";
 export { FundTrackingContainer } from "./fund/fund-container";
 export { MemberMatrixContainer } from "./matrix/matrix-container";
 export { SpendingByGroupContainer } from "./by-group/by-group-container";
+export { GroupsHomeContainer } from "./by-group/groups-home";

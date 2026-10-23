@@ -558,6 +558,7 @@ for (const wideFont of [false, true]) {
           // HU-E9-10, HU-E9-11: the Plan tab, My spending (personal) and without a plan (shared).
           `/spaces/${spaceId}/plan`,
           `/spaces/${spaceId}/plan/lines`,
+          `/spaces/${spaceId}/plan/groups`,
           `/spaces/${sharedId}/plan`,
           `/spaces/${sharedId}/plan/fund`,
           `/spaces/${sharedId}/plan/groups`,
@@ -869,6 +870,8 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         // HU-E9-11: My spending, the personal space's own page, and its Lines view.
         [`/spaces/${spaceId}/plan`, 4],
         [`/spaces/${spaceId}/plan/lines`, 4],
+        // HU-E9-11: By group, the person's own spending merged across their spaces.
+        [`/spaces/${spaceId}/plan/groups`, 4],
       ] as const) {
         await page.goto(path);
         await settle(page);
@@ -1447,6 +1450,18 @@ const seedGroupSpending = async (page: Page, sharedId: string) => {
   }
 };
 
+/** No page scroll, and every row and crumb of a By group level is a full target that starts and ends on screen. */
+const levelFits = async (page: Page, viewport: { width: number }, where: string) => {
+  const { overflow, message } = await overflowReport(page, where);
+  expect.soft(overflow, message).toBeLessThanOrEqual(0);
+  for (const control of await page.locator("main").getByRole("button").all()) {
+    const box = (await control.boundingBox())!;
+    expect.soft(box.height, `${where}: a control is at least 44 px tall`).toBeGreaterThanOrEqual(TARGET);
+    expect.soft(box.x, `${where}: and starts on screen`).toBeGreaterThanOrEqual(0);
+    expect.soft(box.x + box.width, `${where}: and ends on screen`).toBeLessThanOrEqual(viewport.width);
+  }
+};
+
 test.describe("the By group view (HU-E9-10, ruling P215)", () => {
   for (const viewport of [PHONE, SMALL_PHONE]) {
     test(`keeps long names and big figures on screen, drills with 44 px targets and goes back level by level at ${viewport.width} px`, async ({
@@ -1459,19 +1474,7 @@ test.describe("the By group view (HU-E9-10, ruling P215)", () => {
       const drills = () => new URL(page.url()).searchParams.getAll("drill");
       const trail = page.getByRole("navigation", { name: es.reports.byGroup.trail });
 
-      /** No page scroll, and every row and crumb of the level is a full target that starts and ends on screen. */
-      const fits = async (where: string) => {
-        const { overflow, message } = await overflowReport(page, where);
-        expect.soft(overflow, message).toBeLessThanOrEqual(0);
-        for (const control of await page.locator("main").getByRole("button").all()) {
-          const box = (await control.boundingBox())!;
-          expect
-            .soft(box.height, `${where}: a control is at least 44 px tall`)
-            .toBeGreaterThanOrEqual(TARGET);
-          expect.soft(box.x, `${where}: and starts on screen`).toBeGreaterThanOrEqual(0);
-          expect.soft(box.x + box.width, `${where}: and ends on screen`).toBeLessThanOrEqual(viewport.width);
-        }
-      };
+      const fits = (where: string) => levelFits(page, viewport, where);
 
       await page.goto(path);
       await settle(page);
@@ -1501,6 +1504,52 @@ test.describe("the By group view (HU-E9-10, ruling P215)", () => {
       expect(drills()).toHaveLength(2);
 
       // The breadcrumb goes back to the root, and the period stays in the address.
+      await trail.getByRole("button", { name: es.reports.byGroup.all }).click();
+      await expect(page.getByText(es.reports.byGroup.hint.groups)).toBeVisible();
+      expect(drills()).toEqual([]);
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(/octubre 2026/i);
+    });
+  }
+});
+
+test.describe("the personal By group view (HU-E9-11, rulings P76 and P215)", () => {
+  for (const viewport of [PHONE, SMALL_PHONE]) {
+    test(`merges the seeded group, names a custom category by its space and goes back level by level at ${viewport.width} px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      const { spaceId, sharedId } = await session(page, `personal-by-group-${viewport.width}`);
+      await seedGroupSpending(page, sharedId);
+      const drills = () => new URL(page.url()).searchParams.getAll("drill");
+      const trail = page.getByRole("navigation", { name: es.reports.byGroup.trail });
+      const scoped = (name: string) =>
+        es.reports.spaceScoped.replace("{space}", "Casa").replace("{name}", name);
+      const fits = (where: string) => levelFits(page, viewport, where);
+
+      // The tab opens from the personal Plan tab's own row of views, on the same period.
+      await page.goto(`/spaces/${spaceId}/plan`);
+      await settle(page);
+      await page.getByRole("link", { name: es.reports.view.groups }).click();
+      await expect(page).toHaveURL(`/spaces/${spaceId}/plan/groups?period=2026-10`);
+      await expect(page.getByText(es.reports.byGroup.personalNote)).toBeVisible();
+      await expect(page.getByText(es.reports.byGroup.hint.groups)).toBeVisible();
+      await fits("groups");
+
+      await page.getByRole("list", { name: es.reports.byGroup.groups }).getByRole("button").first().click();
+      await expect(page.getByText(scoped(LONG_CATEGORY)).first()).toBeVisible();
+      expect(drills()).toHaveLength(1);
+      await fits("categories");
+
+      await page.getByRole("button", { name: new RegExp(`^${scoped(LONG_CATEGORY)}`) }).click();
+      await expect(page.getByText(scoped(LONG_SUBCATEGORY))).toBeVisible();
+      await expect(page.getByText(es.reports.byGroup.noSubcategory)).toBeVisible();
+      expect(drills()).toHaveLength(2);
+      await fits("subcategories");
+
+      // Every level is a history entry, and the breadcrumb climbs back to the groups on the same period.
+      await page.goBack();
+      await expect(page.getByText(es.reports.byGroup.hint.categories)).toBeVisible();
+      await page.goForward();
       await trail.getByRole("button", { name: es.reports.byGroup.all }).click();
       await expect(page.getByText(es.reports.byGroup.hint.groups)).toBeVisible();
       expect(drills()).toEqual([]);

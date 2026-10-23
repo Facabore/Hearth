@@ -942,7 +942,8 @@
       "subcategoriesOf": "Subcategories of {name}",
       "noSubcategory": "No subcategory",
       "archived": "Archived",
-      "spaceNote": "Every expense of the space, whoever paid. Income, transfers, fund contributions and settlements do not count."
+      "spaceNote": "Every expense of the space, whoever paid. Income, transfers, fund contributions and settlements do not count.",
+      "personalNote": "Your expenses and your share of shared ones, across all your spaces. Hearth's own groups are merged; groups a space created carry its name."
     },
     "fund": {
       "title": "Fund contributions",

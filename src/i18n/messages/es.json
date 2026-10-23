@@ -942,7 +942,8 @@
       "subcategoriesOf": "Subcategorías de {name}",
       "noSubcategory": "Sin subcategoría",
       "archived": "Archivada",
-      "spaceNote": "Todos los gastos del espacio, pague quien pague. Ingresos, transferencias, aportes al fondo y pagos entre miembros no cuentan."
+      "spaceNote": "Todos los gastos del espacio, pague quien pague. Ingresos, transferencias, aportes al fondo y pagos entre miembros no cuentan.",
+      "personalNote": "Tus gastos y tu parte de los compartidos, en todos tus espacios. Los grupos que trae Hearth se unen; los que creó un espacio llevan su nombre."
     },
     "fund": {
       "title": "Aportes al fondo",

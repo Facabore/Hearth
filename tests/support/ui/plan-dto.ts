@@ -3,6 +3,7 @@ import type {
   FundTrackingDto,
   LineDashboardDto,
   MemberMatrixDto,
+  PersonalSpendingByGroupDto,
   PlanLineDto,
   SpaceDto,
   SpaceMemberDto,
@@ -363,4 +364,68 @@ export const e74Unified = (overrides: Partial<UnifiedViewDto> = {}): UnifiedView
   },
   otherCurrencySpaces: [],
   ...overrides,
+});
+
+type PersonalGroup = PersonalSpendingByGroupDto["groups"][number];
+type PersonalCategory = PersonalGroup["categories"][number];
+const household = { id: "sp-household", name: "Household" };
+const personalCategory = (
+  name: string,
+  pesos: number,
+  share: string,
+  extra: Partial<PersonalCategory> = {},
+): PersonalCategory => ({
+  id: null,
+  key: name.toLowerCase(),
+  name,
+  archived: false,
+  total: cop(pesos),
+  share,
+  space: null,
+  subcategories: [
+    { subcategoryId: null, name: null, archived: false, total: cop(pesos), share: "100.00", space: null },
+  ],
+  ...extra,
+});
+
+/** HU-E9-11 "Spending by group": Food and Housing merged by key, the custom "Pets" of Household by its space. */
+export const e74Groups = (): PersonalSpendingByGroupDto => ({
+  currency: "COP",
+  period: { ...NOVEMBER },
+  total: cop(1_600_000),
+  groups: [
+    {
+      id: null,
+      key: "food",
+      name: "Food",
+      archived: false,
+      total: cop(1_095_000),
+      share: "68.44",
+      space: null,
+      categories: [
+        personalCategory("Groceries", 1_035_000, "94.52"),
+        personalCategory("Restaurants", 60_000, "5.48"),
+      ],
+    },
+    {
+      id: null,
+      key: "housing",
+      name: "Housing",
+      archived: false,
+      total: cop(480_000),
+      share: "30.00",
+      space: null,
+      categories: [personalCategory("Rent", 480_000, "100.00")],
+    },
+    {
+      id: "g-pets",
+      key: null,
+      name: "Pets",
+      archived: false,
+      total: cop(25_000),
+      share: "1.56",
+      space: household,
+      categories: [personalCategory("Vet", 25_000, "100.00", { id: "c-vet", key: null, space: household })],
+    },
+  ],
 });

@@ -57,6 +57,8 @@ for (const colorScheme of ["light", "dark"] as const) {
         `/spaces/${spaceId}/plan`,
         // HU-E9-10: its Lines view, a space with spending and no plan (Unbudgeted alone).
         `/spaces/${spaceId}/plan/lines`,
+        // HU-E9-11: its By group view, the person's own spending merged across spaces.
+        `/spaces/${spaceId}/plan/groups`,
         "/settings",
         // N1: the app's own not-found page, for an address and for a space.
         "/nope",
