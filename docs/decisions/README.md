@@ -2,11 +2,11 @@
 
 Every decision Hearth has made, in one place. There are three kinds, and each lives where it was decided:
 
-- **Design decisions (D1–D23)** are in the [design spec](../specs/2026-10-11-hearth-design.md#6-key-decisions), section 6.
+- **Design decisions (D1–D24)** are in the [design spec](../specs/2026-10-11-hearth-design.md#6-key-decisions), section 6.
 - **ADRs** record a technology choice: [`docs/adr/`](#adrs).
 - **Rulings (P1–P154)** are execution rulings the controller made while a milestone plan was written or run. Each lives in its plan's Self-Review; this page indexes them.
 
-## Design decisions D1–D23
+## Design decisions D1–D24
 
 Rationale and rejected alternatives are in [section 6 of the spec](../specs/2026-10-11-hearth-design.md#6-key-decisions).
 
@@ -35,6 +35,7 @@ Rationale and rejected alternatives are in [section 6 of the spec](../specs/2026
 | D21 | Each account has two switches, available and net worth, with defaults by type, and a card payment is a transfer, never spending. |
 | D22 | Category groups and categories carry an icon (a fixed symbol or one emoji) and a color from sixteen palette keys, and subcategories derive their parent's. |
 | D23 | Number, time and date formats and the first weekday are four profile preferences, null meaning "follow the installation rule", never derived from the language. |
+| D24 | A language may have regional variants (`es-CO`, `es-MX`, `es-AR`) that replace only vocabulary from a closed glossary over the neutral base; they never change formats or grammar, and Spanish always uses "tú". Proposed 2026-10-23, delivered by HU-E8-19. |
 
 ## ADRs
 
