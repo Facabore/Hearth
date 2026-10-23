@@ -2,13 +2,13 @@
 
 Every decision Hearth has made, in one place. There are three kinds, and each lives where it was decided:
 
-- **Design decisions (D1–D23)** are in the [design spec](../superpowers/specs/2026-10-11-hearth-design.md#6-key-decisions), section 6.
+- **Design decisions (D1–D24)** are in the [design spec](../specs/2026-10-11-hearth-design.md#6-key-decisions), section 6.
 - **ADRs** record a technology choice: [`docs/adr/`](#adrs).
 - **Rulings (P1–P248)** are execution rulings the controller made while a milestone plan was written or run. Each lives in its plan's Self-Review; this page indexes them.
 
-## Design decisions D1–D23
+## Design decisions D1–D24
 
-Rationale and rejected alternatives are in [section 6 of the spec](../superpowers/specs/2026-10-11-hearth-design.md#6-key-decisions).
+Rationale and rejected alternatives are in [section 6 of the spec](../specs/2026-10-11-hearth-design.md#6-key-decisions).
 
 | ID | Decision |
 |---|---|
@@ -35,6 +35,7 @@ Rationale and rejected alternatives are in [section 6 of the spec](../superpower
 | D21 | Each account has two switches, available and net worth, with defaults by type, and a card payment is a transfer, never spending. |
 | D22 | Category groups and categories carry an icon (a fixed symbol or one emoji) and a color from sixteen palette keys, and subcategories derive their parent's. |
 | D23 | Number, time and date formats and the first weekday are four profile preferences, null meaning "follow the installation rule", never derived from the language. |
+| D24 | A language may have regional variants (`es-CO`, `es-MX`, `es-AR`) that replace only vocabulary from a closed glossary over the neutral base; they never change formats or grammar, and Spanish always uses "tú". Proposed 2026-10-23, delivered by HU-E8-19. |
 
 ## ADRs
 
@@ -53,7 +54,7 @@ The ranges are: M3-A P1–P9, M3-B P10–P19, M3-C P20–P31, M3-D P40–P73, P7
 
 ### M3-A: budget plans (P1–P9)
 
-Plan: [`2026-10-14-m3a-budget-plans.md`](../superpowers/plans/2026-10-14-m3a-budget-plans.md). P8 is amended.
+Plan: [`2026-10-14-m3a-budget-plans.md`](../plans/2026-10-14-m3a-budget-plans.md). P8 is amended.
 
 | ID | Ruling | Where |
 |---|---|---|
@@ -69,7 +70,7 @@ Plan: [`2026-10-14-m3a-budget-plans.md`](../superpowers/plans/2026-10-14-m3a-bud
 
 ### M3-B: plan lifecycle (P10–P19)
 
-Plan: [`2026-10-15-m3b-plan-lifecycle.md`](../superpowers/plans/2026-10-15-m3b-plan-lifecycle.md). P17 is amended.
+Plan: [`2026-10-15-m3b-plan-lifecycle.md`](../plans/2026-10-15-m3b-plan-lifecycle.md). P17 is amended.
 
 | ID | Ruling | Where |
 |---|---|---|
@@ -86,7 +87,7 @@ Plan: [`2026-10-15-m3b-plan-lifecycle.md`](../superpowers/plans/2026-10-15-m3b-p
 
 ### M3-C: recurring transactions and balance history (P20–P31)
 
-Plan: [`2026-10-16-m3c-recurring-and-history.md`](../superpowers/plans/2026-10-16-m3c-recurring-and-history.md). Spec 5.2 (Recurrence) was amended with P21–P24.
+Plan: [`2026-10-16-m3c-recurring-and-history.md`](../plans/2026-10-16-m3c-recurring-and-history.md). Spec 5.2 (Recurrence) was amended with P21–P24.
 
 | ID | Ruling | Where |
 |---|---|---|
@@ -105,7 +106,7 @@ Plan: [`2026-10-16-m3c-recurring-and-history.md`](../superpowers/plans/2026-10-1
 
 ### M3-D: ledger refinements for the UI (P40–P73, P78, P79, P84–P94)
 
-Plan: [`2026-10-17-m3d-ledger-refinements.md`](../superpowers/plans/2026-10-17-m3d-ledger-refinements.md). P42, P44, P56, P60 and P67 are amended; M4 also amended P74. P62–P68 are recorded together in one point (23); the full text of P67 and P68 is in the plan's [Execution rulings](../superpowers/plans/2026-10-17-m3d-ledger-refinements.md#execution-rulings-recorded-after-the-merge) section.
+Plan: [`2026-10-17-m3d-ledger-refinements.md`](../plans/2026-10-17-m3d-ledger-refinements.md). P42, P44, P56, P60 and P67 are amended; M4 also amended P74. P62–P68 are recorded together in one point (23); the full text of P67 and P68 is in the plan's [Execution rulings](../plans/2026-10-17-m3d-ledger-refinements.md#execution-rulings-recorded-after-the-merge) section.
 
 Section "Spec contradictions found and controller proposals", item in the Where column:
 
@@ -166,7 +167,7 @@ Section "Preflight rulings (P84–P88)", and, for P89–P94, section "Execution 
 
 ### M4: insight API (P32–P39, P74–P77, P80–P83, P95–P106)
 
-Plan: [`2026-10-17-m4-insight-api.md`](../superpowers/plans/2026-10-17-m4-insight-api.md). P74 is amended. P83 is resolved by P95. P74–P77 and P80–P82 were ruled for HU-E7-06.
+Plan: [`2026-10-17-m4-insight-api.md`](../plans/2026-10-17-m4-insight-api.md). P74 is amended. P83 is resolved by P95. P74–P77 and P80–P82 were ruled for HU-E7-06.
 
 | ID | Ruling | Where |
 |---|---|---|
@@ -201,7 +202,7 @@ Plan: [`2026-10-17-m4-insight-api.md`](../superpowers/plans/2026-10-17-m4-insigh
 
 ### M5: nightly backups (P107–P116)
 
-Plan: [`2026-10-19-m5-nightly-backups.md`](../superpowers/plans/2026-10-19-m5-nightly-backups.md). P107 and P112 are amended. P115 and P116 were ruled during execution, from the reviews of Tasks 2 and 3.
+Plan: [`2026-10-19-m5-nightly-backups.md`](../plans/2026-10-19-m5-nightly-backups.md). P107 and P112 are amended. P115 and P116 were ruled during execution, from the reviews of Tasks 2 and 3.
 
 | ID | Ruling | Where |
 |---|---|---|
@@ -218,7 +219,7 @@ Plan: [`2026-10-19-m5-nightly-backups.md`](../superpowers/plans/2026-10-19-m5-ni
 
 ### M6a: web shell and ledger (P117–P153)
 
-Plan: [`2026-10-20-m6a-web-shell-and-ledger.md`](../superpowers/plans/2026-10-20-m6a-web-shell-and-ledger.md). P140 and P141 are the owner's answers to the planner's two questions. P142–P152 come from the owner's flow review of sign-up and sign-in (the plan's section "Owner flow review"); P142–P144 and P150 are backend changes already shipped. P153 was ruled during execution.
+Plan: [`2026-10-20-m6a-web-shell-and-ledger.md`](../plans/2026-10-20-m6a-web-shell-and-ledger.md). P140 and P141 are the owner's answers to the planner's two questions. P142–P152 come from the owner's flow review of sign-up and sign-in (the plan's section "Owner flow review"); P142–P144 and P150 are backend changes already shipped. P153 was ruled during execution.
 
 | ID | Ruling | Where |
 |---|---|---|
@@ -263,7 +264,7 @@ Plan: [`2026-10-20-m6a-web-shell-and-ledger.md`](../superpowers/plans/2026-10-20
 
 ### M6b: shared spaces, split expenses and balances (P155–P183)
 
-Plan: [`2026-10-21-m6b-shared-spaces-split-balances.md`](../superpowers/plans/2026-10-21-m6b-shared-spaces-split-balances.md). Ruled by the planner under the owner's standing delegation of 2026-10-20 (L1); every design deviation is listed in the plan's Self-Review for the owner's end review.
+Plan: [`2026-10-21-m6b-shared-spaces-split-balances.md`](../plans/2026-10-21-m6b-shared-spaces-split-balances.md). Ruled by the planner under the owner's standing delegation of 2026-10-20 (L1); every design deviation is listed in the plan's Self-Review for the owner's end review.
 
 | ID | Ruling | Where |
 |---|---|---|
@@ -297,7 +298,7 @@ Plan: [`2026-10-21-m6b-shared-spaces-split-balances.md`](../superpowers/plans/20
 | P182 | `serverZone()` reads `APP_TIMEZONE` (default `America/Bogota`) for dates shown to someone without a profile, so the pages a visitor opens need no new variable. | Rulings, 28 |
 | P183 | `currencyOf` carries each currency's rounding unit (COP whole pesos), pinned to the kernel's by a `.test.ts`. | Rulings, 29 |
 
-**M6b amendments and execution notes.** These came up while M6b was built. They take no P number: each amends a ruling above or records a behaviour that shipped beyond the plan (the navigation and UX batches the owner asked for after reviewing the first screens). The [addendum plan](../superpowers/plans/2026-10-21-m6b-addendum-edit-delete-feedback.md) numbers its own rulings from P184.
+**M6b amendments and execution notes.** These came up while M6b was built. They take no P number: each amends a ruling above or records a behaviour that shipped beyond the plan (the navigation and UX batches the owner asked for after reviewing the first screens). The [addendum plan](../plans/2026-10-21-m6b-addendum-edit-delete-feedback.md) numbers its own rulings from P184.
 
 | Amends | Note | Where |
 |---|---|---|
@@ -316,7 +317,7 @@ Plan: [`2026-10-21-m6b-shared-spaces-split-balances.md`](../superpowers/plans/20
 
 ### M6b addendum: edit, delete and save feedback (P184–P199)
 
-Plan: [`2026-10-21-m6b-addendum-edit-delete-feedback.md`](../superpowers/plans/2026-10-21-m6b-addendum-edit-delete-feedback.md). Ruled by the planner under the owner's standing delegation of 2026-10-20.
+Plan: [`2026-10-21-m6b-addendum-edit-delete-feedback.md`](../plans/2026-10-21-m6b-addendum-edit-delete-feedback.md). Ruled by the planner under the owner's standing delegation of 2026-10-20.
 
 | ID | Ruling | Where |
 |---|---|---|
@@ -339,7 +340,7 @@ Plan: [`2026-10-21-m6b-addendum-edit-delete-feedback.md`](../superpowers/plans/2
 
 ### M6c: budget planner and dashboards (P200–P248)
 
-Plan: [`2026-10-21-m6c-planner-and-dashboards.md`](../superpowers/plans/2026-10-21-m6c-planner-and-dashboards.md). Ruled by the planner under the owner's standing delegation of 2026-10-20 (Log L1). P227–P247 come from the three issues the owner moved into M6c (#142, #143 and #150, Log L2) and P243–P247 from the coordinator's hands-on test of a competitor (Log L3). P248 was ruled during execution. Every design deviation is listed in the plan's Self-Review for the owner's review of Batch 2.
+Plan: [`2026-10-21-m6c-planner-and-dashboards.md`](../plans/2026-10-21-m6c-planner-and-dashboards.md). Ruled by the planner under the owner's standing delegation of 2026-10-20 (Log L1). P227–P247 come from the three issues the owner moved into M6c (#142, #143 and #150, Log L2) and P243–P247 from the coordinator's hands-on test of a competitor (Log L3). P248 was ruled during execution. Every design deviation is listed in the plan's Self-Review for the owner's review of Batch 2.
 
 | ID | Ruling | Where |
 |---|---|---|
@@ -413,11 +414,11 @@ These plans predate the P numbering. Their decisions are numbered lists in the S
 
 | Plan | What it records |
 |---|---|
-| [M0 walking skeleton](../superpowers/plans/2026-10-11-m0-walking-skeleton.md) | No numbered decisions. It carries the two ADRs above and the global constraints of the skeleton. |
-| [M1 personal ledger](../superpowers/plans/2026-10-12-m1-personal-ledger.md) | "Spec open questions and assumptions": 15 gaps found while planning, each with the assumption its task makes. |
-| [M2-A shared spaces](../superpowers/plans/2026-10-13-m2a-shared-spaces.md) | "Spec contradictions found" (5) and "Assumptions" (17). |
-| [M2-B shared expenses](../superpowers/plans/2026-10-13-m2b-shared-expenses.md) | "Spec contradictions found" (10) and "Assumptions" (13). |
-| [M2-C member lifecycle](../superpowers/plans/2026-10-14-m2c-member-lifecycle.md) | "Spec contradictions found" (14) and "Assumptions" (14); assumption 4 is the controller ruling O2, and assumption 13 amends D8 (owner directive of 2026-10-14). |
+| [M0 walking skeleton](../plans/2026-10-11-m0-walking-skeleton.md) | No numbered decisions. It carries the two ADRs above and the global constraints of the skeleton. |
+| [M1 personal ledger](../plans/2026-10-12-m1-personal-ledger.md) | "Spec open questions and assumptions": 15 gaps found while planning, each with the assumption its task makes. |
+| [M2-A shared spaces](../plans/2026-10-13-m2a-shared-spaces.md) | "Spec contradictions found" (5) and "Assumptions" (17). |
+| [M2-B shared expenses](../plans/2026-10-13-m2b-shared-expenses.md) | "Spec contradictions found" (10) and "Assumptions" (13). |
+| [M2-C member lifecycle](../plans/2026-10-14-m2c-member-lifecycle.md) | "Spec contradictions found" (14) and "Assumptions" (14); assumption 4 is the controller ruling O2, and assumption 13 amends D8 (owner directive of 2026-10-14). |
 
 ### Amendments to M2-C rulings
 

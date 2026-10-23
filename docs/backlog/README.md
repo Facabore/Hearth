@@ -1,6 +1,6 @@
 # Hearth — Product backlog
 
-This folder is the source of truth for the **content** of Hearth's epics and user stories. **Status** lives in the [Hearth GitHub Project](https://github.com/users/Facabore/projects/4): one issue per story (titled with its story ID), labelled by epic, priority, size and type, assigned to its milestone, with `Blocked by` links. When a story's content changes here, its issue body is updated in the same change. It derives from the design spec: [`docs/superpowers/specs/2026-10-11-hearth-design.md`](../superpowers/specs/2026-10-11-hearth-design.md).
+This folder is the source of truth for the **content** of Hearth's epics and user stories. **Status** lives in the [Hearth GitHub Project](https://github.com/users/Facabore/projects/4): one issue per story (titled with its story ID), labelled by epic, priority, size and type, assigned to its milestone, with `Blocked by` links. When a story's content changes here, its issue body is updated in the same change. It derives from the design spec: [`docs/specs/2026-10-11-hearth-design.md`](../specs/2026-10-11-hearth-design.md).
 
 ## Delivery: backend first (spec D18)
 
@@ -176,6 +176,7 @@ A UI story is `Done` when:
 | [HU-E8-16](E8-hardening-and-later.md) | Reminders for card dates, CDT maturity and recurrences | E8 | M5 | Could | M | Backlog | HU-E1-14, HU-E2-06, HU-E4-12, HU-E4-13, HU-E8-08 |
 | [HU-E8-17](E8-hardening-and-later.md) | Net worth over time | E8 | M5 | Could | M | Backlog | HU-E2-04, HU-E2-07 |
 | [HU-E8-18](E8-hardening-and-later.md) | Installation rules for a white-label deployment | E8 | M5 | Should | M | Backlog | HU-E1-14, HU-E1-15 |
+| [HU-E8-19](E8-hardening-and-later.md) | Regional vocabulary variants of the interface language | E8 | M5 | Could | M | Backlog | HU-E9-02, HU-E1-15, HU-E8-18 |
 | [HU-E9-01](E9-web-ui.md) | App shell, sign-in and sign-up screens | E9 | M6 | Must | M | Ready | HU-E1-01, HU-E1-02, HU-E9-02 |
 | [HU-E9-02](E9-web-ui.md) | Internationalization setup (es, en) | E9 | M6 | Must | S | Ready | HU-E0-01, HU-E1-01, HU-E1-15 |
 | [HU-E9-03](E9-web-ui.md) | Personal ledger screens | E9 | M6 | Must | M | Ready | HU-E1-14, HU-E1-15, HU-E2-01, HU-E2-03, HU-E2-04, HU-E2-05, HU-E2-06, HU-E2-07, HU-E3-04, HU-E3-05, HU-E4-01, HU-E4-02, HU-E4-03, HU-E4-05, HU-E4-14, HU-E9-01 |
@@ -203,7 +204,7 @@ A UI story is `Done` when:
 | **M3** Allocated budgets API | Plans, capacity, lines, allocations, default split by allocation, rollover, recurring transactions | HU-E6-01 … HU-E6-09, HU-E4-11 … HU-E4-13 |
 | **M3-D** Ledger refinements for the UI | Proposed 2026-10-16, not yet in spec section 10: each user's time zone and formatting preferences, the time of every transaction, optional subcategories, category icons and colors, more account types with their attributes, available money and net worth | HU-E1-14, HU-E1-15, HU-E2-05 … HU-E2-07, HU-E3-04, HU-E3-05, HU-E4-14 |
 | **M4** Insight API | Member/category dashboards, shared fund tracking, unified personal view | HU-E7-01 … HU-E7-06 |
-| **M5** Hardening | Backups, observability, import from Splitwise/CSV | HU-E8-01, HU-E8-02, HU-E8-04 … HU-E8-18 (HU-E8-06 … HU-E8-10 are Won't-v1 placeholders; HU-E8-11 … HU-E8-17 are Could follow-ups of the account types; HU-E8-18 is the Should installation rules for white-label deployments) |
+| **M5** Hardening | Backups, observability, import from Splitwise/CSV | HU-E8-01, HU-E8-02, HU-E8-04 … HU-E8-19 (HU-E8-06 … HU-E8-10 are Won't-v1 placeholders; HU-E8-11 … HU-E8-17 are Could follow-ups of the account types; HU-E8-18 is the Should installation rules for white-label deployments; HU-E8-19 is the Could regional vocabulary variants of D24) |
 | **M6** Web UI | Screens for every area (epic E9); an area's UI may start as soon as its API milestone is done | HU-E9-01 … HU-E9-14 |
 
 Notes on placement:

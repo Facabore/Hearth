@@ -4,9 +4,6 @@ repo_url: https://github.com/Facabore/Hearth
 docs_dir: docs
 strict: true
 
-exclude_docs: |
-  superpowers/sdd/
-
 theme:
   name: material
   palette:
@@ -71,20 +68,20 @@ nav:
       - User accounts: operations/accounts.md
       - Stack versions: stack-versions.md
   - Spec:
-      - Design spec: superpowers/specs/2026-10-11-hearth-design.md
+      - Design spec: specs/2026-10-11-hearth-design.md
   - Plans:
-      - "M0 Walking skeleton": superpowers/plans/2026-10-11-m0-walking-skeleton.md
-      - "M1 Personal ledger": superpowers/plans/2026-10-12-m1-personal-ledger.md
-      - "M2-A Shared spaces": superpowers/plans/2026-10-13-m2a-shared-spaces.md
-      - "M2-B Shared expenses": superpowers/plans/2026-10-13-m2b-shared-expenses.md
-      - "M2-C Member lifecycle": superpowers/plans/2026-10-14-m2c-member-lifecycle.md
-      - "M3-A Budget plans": superpowers/plans/2026-10-14-m3a-budget-plans.md
-      - "M3-B Plan lifecycle": superpowers/plans/2026-10-15-m3b-plan-lifecycle.md
-      - "M3-C Recurring and history": superpowers/plans/2026-10-16-m3c-recurring-and-history.md
-      - "M3-D Ledger refinements": superpowers/plans/2026-10-17-m3d-ledger-refinements.md
-      - "M4 Insight API": superpowers/plans/2026-10-17-m4-insight-api.md
-      - "M5 Nightly backups": superpowers/plans/2026-10-19-m5-nightly-backups.md
-      - "M6a Web shell and ledger": superpowers/plans/2026-10-20-m6a-web-shell-and-ledger.md
-      - "M6b Shared spaces, split and balances": superpowers/plans/2026-10-21-m6b-shared-spaces-split-balances.md
-      - "M6b Addendum edit, delete and feedback": superpowers/plans/2026-10-21-m6b-addendum-edit-delete-feedback.md
-      - "M6c Planner and dashboards": superpowers/plans/2026-10-21-m6c-planner-and-dashboards.md
+      - "M0 Walking skeleton": plans/2026-10-11-m0-walking-skeleton.md
+      - "M1 Personal ledger": plans/2026-10-12-m1-personal-ledger.md
+      - "M2-A Shared spaces": plans/2026-10-13-m2a-shared-spaces.md
+      - "M2-B Shared expenses": plans/2026-10-13-m2b-shared-expenses.md
+      - "M2-C Member lifecycle": plans/2026-10-14-m2c-member-lifecycle.md
+      - "M3-A Budget plans": plans/2026-10-14-m3a-budget-plans.md
+      - "M3-B Plan lifecycle": plans/2026-10-15-m3b-plan-lifecycle.md
+      - "M3-C Recurring and history": plans/2026-10-16-m3c-recurring-and-history.md
+      - "M3-D Ledger refinements": plans/2026-10-17-m3d-ledger-refinements.md
+      - "M4 Insight API": plans/2026-10-17-m4-insight-api.md
+      - "M5 Nightly backups": plans/2026-10-19-m5-nightly-backups.md
+      - "M6a Web shell and ledger": plans/2026-10-20-m6a-web-shell-and-ledger.md
+      - "M6b Shared spaces, split and balances": plans/2026-10-21-m6b-shared-spaces-split-balances.md
+      - "M6b Addendum edit, delete and feedback": plans/2026-10-21-m6b-addendum-edit-delete-feedback.md
+      - "M6c Planner and dashboards": plans/2026-10-21-m6c-planner-and-dashboards.md
