@@ -505,7 +505,7 @@
       "am": "AM",
       "pm": "PM",
       "now": "Ahora",
-      "apply": "Usar {label}"
+      "apply": "{day, select, today {Usar hoy · {time}} yesterday {Usar ayer · {time}} dayBeforeYesterday {Usar anteayer · {time}} other {Usar {date} · {time}}}"
     },
     "form": {
       "title": "Registrar movimiento",

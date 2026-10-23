@@ -505,7 +505,7 @@
       "am": "AM",
       "pm": "PM",
       "now": "Now",
-      "apply": "Use {label}"
+      "apply": "{day, select, today {Use today · {time}} yesterday {Use yesterday · {time}} dayBeforeYesterday {Use the day before yesterday · {time}} other {Use {date} · {time}}}"
     },
     "form": {
       "title": "Record a transaction",

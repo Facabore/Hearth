@@ -295,7 +295,8 @@ Then("the sheet clock shows {string}", async ({ page, world }, expected: string)
 
 Then("the chip reads {string}", async ({ page, world }, chip: string) => {
   await sheetOf(page, world)
-    .getByRole("button", { name: new RegExp(`^${world.t("ledger.when.apply", { label: "" }).trim()}`) })
+    // ledger.when.apply is a select per day ("Usar hoy · …", "Usar 1/10/2026 · …"): its one fixed word starts it.
+    .getByRole("button", { name: /^Usar / })
     .click();
   await expect(page.getByTestId("when-chip")).toHaveText(onScreen(world, chip), { useInnerText: true });
 });
