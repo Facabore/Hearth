@@ -22,6 +22,7 @@ export function DashboardFrame({
   formats,
   plan,
   wide = false,
+  offerPlanStart = false,
   children,
 }: {
   readonly space: SpaceDto;
@@ -33,6 +34,11 @@ export function DashboardFrame({
   readonly plan: ReportPlanDto | null;
   /** From 1024 px the frame takes the DashDesktop artboard's width, for the desktop overview's two columns (P216). */
   readonly wide?: boolean;
+  /**
+   * The view knows the period has no plan (`plan` null means so) and leads a manager to the Lines view, where the
+   * plan is created or copied. My spending, the personal space's own page, asks for it: it is where its Plan tab opens.
+   */
+  readonly offerPlanStart?: boolean;
   readonly children: ReactNode;
 }) {
   const t = useTranslations("reports");
@@ -55,6 +61,15 @@ export function DashboardFrame({
               <Link href={`/spaces/${space.id}/plans/${plan.id}`}>
                 <Icon name="pencil" size={16} />
                 {canManage(space.role) ? t("frame.editPlan") : t("frame.viewPlan")}
+              </Link>
+            </Button>
+          </div>
+        ) : offerPlanStart && canManage(space.role) ? (
+          <div className="flex justify-end">
+            <Button asChild variant="secondary" size="compact">
+              <Link href={viewHref(space, "lines", period.label)}>
+                <Icon name="plus" size={16} />
+                {t("frame.startPlan")}
               </Link>
             </Button>
           </div>

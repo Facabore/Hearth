@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
 import { cop, normalized } from "../../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse } from "../../../../../tests/support/ui/fake-api";
-import { e74Unified, NOVEMBER } from "../../../../../tests/support/ui/plan-dto";
+import { e74Unified, e7Dashboard, NOVEMBER } from "../../../../../tests/support/ui/plan-dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { loadUnified } from "./unified-container";
@@ -133,6 +133,46 @@ describe("unified personal view (HU-E9-11)", () => {
     expect(neighbours).toEqual(["2026-10-31", "2026-12-01"]);
     expect(result.ok && result.data.previous).toEqual(NOVEMBER);
     expect(result.ok && result.data.next).toEqual(NOVEMBER);
+  });
+
+  it("reads the period's plan of the personal space, so My spending can lead to it (#167 sibling)", async () => {
+    const { api, requests } = fakeApi({
+      "GET /api/v1/spaces/{spaceId}/periods": () => jsonResponse({ items: [{ ...NOVEMBER }] }),
+      "GET /api/v1/me/unified-view": () => jsonResponse(e74Unified()),
+      "GET /api/v1/spaces/{spaceId}/reports/lines": () =>
+        jsonResponse(e7Dashboard({ plan: { id: "p-nov", status: "DRAFT" } })),
+    });
+    const result = await loadUnified(api, { spaceId: "sp-personal", today: "2026-11-15" });
+    expect(result.ok && result.data.plan).toEqual({ id: "p-nov", status: "DRAFT" });
+    const lines = requests.find((r) => r.url.includes("/reports/lines"))!;
+    expect(new URL(lines.url).pathname).toBe("/api/v1/spaces/sp-personal/reports/lines");
+    expect(new URL(lines.url).searchParams.get("period")).toBe("2026-11");
+  });
+
+  it("knows when the period has no plan, and keeps the view when the plan cannot be read", async () => {
+    const reading = (lines: () => Response) =>
+      fakeApi({
+        "GET /api/v1/spaces/{spaceId}/periods": () => jsonResponse({ items: [{ ...NOVEMBER }] }),
+        "GET /api/v1/me/unified-view": () => jsonResponse(e74Unified()),
+        "GET /api/v1/spaces/{spaceId}/reports/lines": lines,
+      }).api;
+    const none = await loadUnified(
+      reading(() => jsonResponse(e7Dashboard({ plan: null }))),
+      {
+        spaceId: "sp-personal",
+        today: "2026-11-15",
+      },
+    );
+    expect(none.ok && none.data.plan).toBeNull();
+    const unreadable = await loadUnified(
+      reading(() => problemResponse(500, "Internal")),
+      {
+        spaceId: "sp-personal",
+        today: "2026-11-15",
+      },
+    );
+    expect(unreadable.ok && unreadable.data.view.consumption.total).toEqual(cop(1_575_000));
+    expect(unreadable.ok && unreadable.data.plan).toBeUndefined();
   });
 
   it("asks for the period the address names, and hands back the API's refusal", async () => {
