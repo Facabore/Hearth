@@ -14,9 +14,10 @@ import { SpendingChart } from "./spending-chart";
 import { treeOf, type NodeName } from "./spending-tree";
 
 vi.mock("next/headers", () => ({}));
-// Next syncs `useSearchParams` with the browser's own `pushState` and Back (it patches both): the mock does the same.
+// Next syncs `useSearchParams` with the browser's own `pushState` and Back (it patches both), in a transition: the
+// mock does the same, so a level that waits for the URL renders only after the click's own render.
 vi.mock("next/navigation", async () => {
-  const { useSyncExternalStore } = await import("react");
+  const { startTransition, useEffect, useState } = await import("react");
   const pushState = window.history.pushState.bind(window.history);
   window.history.pushState = (...args) => {
     pushState(...args);
@@ -34,14 +35,11 @@ vi.mock("next/navigation", async () => {
   return {
     notFound: vi.fn(),
     redirect: vi.fn(),
-    useSearchParams: () =>
-      new URLSearchParams(
-        useSyncExternalStore(
-          subscribe,
-          () => window.location.search,
-          () => "",
-        ),
-      ),
+    useSearchParams: () => {
+      const [search, setSearch] = useState(() => window.location.search);
+      useEffect(() => subscribe(() => startTransition(() => setSearch(window.location.search))), []);
+      return new URLSearchParams(search);
+    },
   };
 });
 
@@ -94,6 +92,25 @@ describe("spending by group (HU-E9-10)", () => {
     await userEvent.click(within(trail).getByRole("button", { name: "Food" }));
     expect(rows().map((r) => r[0])).toEqual(["Groceries", "Restaurants"]);
     expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("opens a level in the click's own render, before the router's transition catches up with the URL (#161)", async () => {
+    show();
+    const scope = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+    const actEnvironment = scope.IS_REACT_ACT_ENVIRONMENT;
+    // A real click outside `act`: React renders the click's own update in a microtask and a transition in a task.
+    scope.IS_REACT_ACT_ENVIRONMENT = false;
+    try {
+      screen.getByRole("button", { name: /^Food/ }).click();
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+      expect(screen.getByRole("list", { name: "Categorías de Food" })).toBeInTheDocument();
+      expect(drill()).toEqual(["g:g-food"]);
+    } finally {
+      scope.IS_REACT_ACT_ENVIRONMENT = actEnvironment;
+    }
+    // Once the router has the URL, the level stays.
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(rows().map((r) => r[0])).toEqual(["Groceries", "Restaurants"]);
   });
 
   it("makes each level a URL, so Back and the breadcrumb return one level at a time", async () => {

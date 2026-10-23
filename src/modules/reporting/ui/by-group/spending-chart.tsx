@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useEffect, useRef } from "react";
+import { startTransition, useEffect, useOptimistic, useRef } from "react";
 import { Badge, Icon } from "@/shared/ui";
 import type { MoneyDto } from "@/shared/ui/api/dto";
 import { formatMoney, formatPercent, type Formats } from "@/shared/ui/format/formatters";
@@ -22,6 +22,10 @@ const HINTS = ["groups", "categories", "subcategories"] as const;
  * Each level is a URL (`?drill=<id>&drill=<id>`), changed with the browser's own `pushState`, which Next syncs with
  * `useSearchParams` without a request: the browser's Back, Volver and a reload all return to the level the person
  * was on.
+ *
+ * Next applies that `pushState` in a transition that re-renders the route's whole tree (the first one after hydration
+ * takes over 100 ms on a slow phone, #161), so a click shows its level at once as an optimistic path and the URL takes
+ * over when the router has caught up.
  */
 export function SpendingChart({
   tree,
@@ -37,13 +41,17 @@ export function SpendingChart({
   const t = useTranslations("reports.byGroup");
   const nodeText = useNodeText();
   const params = useSearchParams();
-  const { node, rows, trail } = levelAt(tree, params.getAll(DRILL));
+  const [path, showPath] = useOptimistic<readonly string[]>(params.getAll(DRILL));
+  const { node, rows, trail } = levelAt(tree, path);
   const ids = trail.map((n) => n.id);
-  const go = (path: readonly string[]) => {
+  const go = (next: readonly string[]) => {
     const url = new URL(window.location.href);
     url.searchParams.delete(DRILL);
-    for (const id of path) url.searchParams.append(DRILL, id);
-    window.history.pushState(null, "", `${url.pathname}${url.search}`);
+    for (const id of next) url.searchParams.append(DRILL, id);
+    startTransition(() => {
+      showPath(next);
+      window.history.pushState(null, "", `${url.pathname}${url.search}`);
+    });
   };
 
   // A button that opens a level disappears with it: the focus moves to the new level's total, not to the page.
