@@ -31,9 +31,12 @@ export function Switch({ id, label, description, checked, onCheckedChange, disab
         onCheckedChange={onCheckedChange}
         disabled={disabled}
         aria-describedby={description ? `${id}-description` : undefined}
-        className="relative h-7 w-12 shrink-0 rounded-full bg-track transition-colors data-[state=checked]:bg-accent disabled:opacity-50"
+        className="group flex h-11 w-12 shrink-0 items-center rounded-xl disabled:opacity-50"
       >
-        <RadixSwitch.Thumb className="block size-6 translate-x-0.5 rounded-full bg-surface shadow transition-transform data-[state=checked]:translate-x-[22px]" />
+        {/* The control is a 44 px target; the 28 px track inside it is only what is drawn. */}
+        <span className="relative h-7 w-12 rounded-full bg-track transition-colors group-data-[state=checked]:bg-accent">
+          <RadixSwitch.Thumb className="absolute top-0.5 left-0.5 block size-6 rounded-full bg-surface shadow transition-transform data-[state=checked]:translate-x-5" />
+        </span>
       </RadixSwitch.Root>
     </div>
   );

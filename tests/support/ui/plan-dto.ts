@@ -5,7 +5,7 @@ import type {
   SpaceDto,
   SpaceMemberDto,
 } from "@/shared/ui/api/dto";
-import { cop, spaceDto } from "./dto";
+import { accountDto, cop, spaceDto } from "./dto";
 
 /** "Household": Ana's shared space, OWNER, MONTHLY(1), COP. */
 export const householdDto = (overrides: Partial<SpaceDto> = {}): SpaceDto =>
@@ -201,3 +201,7 @@ export const copiedPlanDto = (): BudgetPlanDto => {
     },
   };
 };
+
+/** Ana's "Ahorros": a SAVINGS account of her personal space, the one the reference Savings line names. */
+export const savingsAccountDto = () =>
+  accountDto({ id: "a-savings", name: "Ahorros", type: "SAVINGS", icon: "piggy" });

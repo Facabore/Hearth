@@ -18,12 +18,6 @@ const WIDE_FONT_CSS = '* { font-family: Verdana, "DejaVu Sans", sans-serif !impo
 /** The addresses the tests open on purpose to see the not-found page: the browser logs their 404 (N1). */
 const MISSING = ["/nope", "/spaces/does-not-exist/accounts"];
 
-/**
- * The planner links to the line editor, which Task 7 of M6c adds: until it lands, the prefetch of those links is a
- * 404. That task removes this tolerance with its pages.
- */
-const PLAN_SCREENS_NOT_BUILT_YET = /\/spaces\/[^/]+\/plans\/[^/]+\/lines\/[^/?]+\?_rsc=/;
-
 /** The refusal a test stages on purpose (a plan's close answering 409): the browser logs every failed response. */
 const STAGED_REFUSAL = /\/api\/v1\/spaces\/[^/]+\/plans\/[^/]+\/close$/;
 
@@ -42,7 +36,6 @@ const test = base.extend<{ errors: string[]; wideFont: boolean }>({
         if (message.type() !== "error") return;
         const { url } = message.location();
         if (/ 404 /.test(message.text()) && MISSING.some((path) => url.endsWith(path))) return;
-        if (/ 404 /.test(message.text()) && PLAN_SCREENS_NOT_BUILT_YET.test(url)) return;
         if (/ 409 /.test(message.text()) && STAGED_REFUSAL.test(url)) return;
         errors.push(`${message.text()} @ ${message.location().url}`);
       });
@@ -1088,6 +1081,129 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       await expect(page).toHaveURL(new RegExp(`/spaces/${sharedId}/plans/${plan.id}$`));
     });
   }
+
+  for (const viewport of [PHONE, SMALL_PHONE]) {
+    test(`the line editor keeps a long line and big figures on screen, every control a full target, its last action above the bottom bar, and has a way back at ${viewport.width} px (HU-E9-08)`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      const { sharedId } = await session(page, `line-editor-${viewport.width}`);
+      const plan = await seedBigPlan(page, sharedId, "2026-10");
+      const line: { id: string } = (await get(page, `/api/v1/spaces/${sharedId}/plans/${plan.id}`)).lines[0];
+      const planner = `/spaces/${sharedId}/plans/${plan.id}`;
+
+      /** Inputs, choices, switches and the label of a checkbox are full targets that end on screen. */
+      const expectFullFields = async (what: string) => {
+        const fields = page
+          .locator("main")
+          .getByRole("textbox")
+          .or(page.locator("main").getByRole("radio"))
+          .or(page.locator("main").getByRole("switch"))
+          .or(page.locator("main label:has(input[type='checkbox'])"));
+        expect.soft(await fields.count(), `${what}: has fields`).toBeGreaterThan(0);
+        for (const field of await fields.all()) {
+          const box = (await field.boundingBox())!;
+          const label = (await field.getAttribute("aria-label")) ?? (await field.textContent())?.trim();
+          expect.soft(box.height, `${what}: height of "${label}"`).toBeGreaterThanOrEqual(TARGET);
+          expect.soft(box.width, `${what}: width of "${label}"`).toBeGreaterThanOrEqual(TARGET);
+          expect
+            .soft(box.x + box.width, `${what}: "${label}" stays on screen`)
+            .toBeLessThanOrEqual(viewport.width);
+        }
+      };
+
+      for (const [what, path, title, last] of [
+        ["a new line", `${planner}/lines/new`, es.budgeting.lineEditor.newTitle, es.budgeting.lineEditor.add],
+        [
+          "an existing line",
+          `${planner}/lines/${line.id}`,
+          es.budgeting.lineEditor.title.replace("{name}", LONG_LINE),
+          es.budgeting.lineEditor.remove.open,
+        ],
+      ] as const) {
+        await page.goto(path);
+        await settle(page);
+        await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
+        const { overflow, message } = await overflowReport(page, what);
+        expect.soft(overflow, message).toBeLessThanOrEqual(0);
+        await expectFullTargets(page, what, viewport.width);
+        await expectFullFields(what);
+
+        // The savings accounts appear with the Savings funding: their rows are full targets too.
+        await page.getByRole("radio", { name: es.budgeting.funding.SAVINGS }).click();
+        await expectFullFields(`${what} as savings`);
+        await page.getByRole("radio", { name: es.budgeting.funding.DIRECT }).click();
+
+        // The last control sits above the bottom bar once the page is scrolled to its end.
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        const bottom = (await page.getByRole("button", { name: last, exact: true }).boundingBox())!;
+        const nav = (await page.getByRole("navigation", { name: es.shell.nav.main }).boundingBox())!;
+        expect(bottom.y + bottom.height, `${what}: "${last}" ends above the bottom bar`).toBeLessThanOrEqual(
+          nav.y,
+        );
+
+        // The way back is the shared header's link to the planner.
+        const back = page.getByRole("link", { name: es.common.back, exact: true });
+        await expect(back).toHaveAttribute("href", planner);
+        const box = (await back.boundingBox())!;
+        expect(box.width).toBeGreaterThanOrEqual(TARGET);
+        expect(box.height).toBeGreaterThanOrEqual(TARGET);
+      }
+
+      // The removal confirmation: its last control is on top of everything, and Escape closes it without removing.
+      await page.getByRole("button", { name: es.budgeting.lineEditor.remove.open }).click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+      expect(await lastControlIsOnTop(page), "the removal sheet").toBe("ok");
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+
+      // The way back leads to the planner.
+      await page.getByRole("link", { name: es.common.back, exact: true }).click();
+      await expect(page).toHaveURL(new RegExp(`${planner}$`));
+      await expect(page.getByText(LONG_LINE)).toBeVisible();
+    });
+  }
+
+  test("a line is added, edited and removed through the real API from the planner (HU-E9-08)", async ({
+    page,
+  }) => {
+    const { sharedId } = await session(page, "line-editor-flow");
+    const plan = await seedBigPlan(page, sharedId, "2026-10");
+    const planner = `/spaces/${sharedId}/plans/${plan.id}`;
+    await page.goto(planner);
+    await settle(page);
+    await page.getByRole("link", { name: es.budgeting.planner.addLine }).click();
+    await page.getByLabel(es.budgeting.lineEditor.field.name).fill("Mascotas");
+    await page.getByLabel(es.budgeting.lineEditor.field.planned).fill("100.000");
+    await page.getByRole("radio", { name: es.budgeting.rollover.ROLLOVER }).click();
+    await page.getByRole("button", { name: es.budgeting.lineEditor.add, exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`${planner}$`));
+    const row = page.getByRole("listitem", { name: "Mascotas" });
+    await expect(row).toContainText(es.budgeting.rollover.ROLLOVER);
+    await expect(row).toContainText("100.000");
+
+    await row
+      .getByRole("link", { name: es.budgeting.planner.editLine.replace("{name}", "Mascotas") })
+      .click();
+    await expect(page.getByRole("radio", { name: es.budgeting.rollover.ROLLOVER })).toBeChecked();
+    await page.getByLabel(es.budgeting.lineEditor.field.planned).fill("150.000");
+    await page.getByRole("button", { name: es.budgeting.lineEditor.save, exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`${planner}$`));
+    await expect(page.getByRole("listitem", { name: "Mascotas" })).toContainText("150.000");
+
+    await page
+      .getByRole("listitem", { name: "Mascotas" })
+      .getByRole("link", { name: es.budgeting.planner.editLine.replace("{name}", "Mascotas") })
+      .click();
+    await page.getByRole("button", { name: es.budgeting.lineEditor.remove.open }).click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: es.budgeting.lineEditor.remove.confirm, exact: true })
+      .click();
+    await expect(page).toHaveURL(new RegExp(`${planner}$`));
+    await expect(page.getByRole("listitem", { name: "Mascotas" })).toHaveCount(0);
+    await expect(page.getByText(LONG_LINE)).toBeVisible();
+  });
 
   test("another member never receives Ana's suggestion, in the screen or in the page they are sent (ruling P208)", async ({
     page,

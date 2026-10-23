@@ -834,6 +834,35 @@
       "total": "Total",
       "save": "Save capacities",
       "unreadable": "Type an amount like {example}."
+    },
+    "lineEditor": {
+      "metaTitle": "Edit line",
+      "title": "Line {name}",
+      "newTitle": "New line",
+      "figures": "Line figures",
+      "field": {
+        "name": "Name",
+        "planned": "Planned",
+        "plannedHint": "{share} of capacity · {unallocated} unallocated",
+        "plannedNewHint": "Unallocated: {unallocated}",
+        "funding": "Where it comes from",
+        "savingsAccounts": "Savings accounts",
+        "otherAccount": "Another member's savings account",
+        "noSavingsAccounts": "You have no savings accounts in {currency}. Create one in Accounts.",
+        "rollover": "When the period changes",
+        "catchAll": "Everything else",
+        "catchAllHint": "Takes the expenses of categories that are in no other line."
+      },
+      "unreadable": "Type an amount like {example}.",
+      "save": "Save line",
+      "add": "Add line",
+      "remove": {
+        "open": "Remove line",
+        "title": "Remove {name}?",
+        "explain": "The line leaves the plan, and its expenses go to Unbudgeted or to the everything-else line.",
+        "confirm": "Remove"
+      },
+      "readOnly": "Only an Owner or an Admin edits the lines of an open plan."
     }
   },
   "reports": {

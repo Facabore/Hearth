@@ -834,6 +834,35 @@
       "total": "Total",
       "save": "Guardar capacidades",
       "unreadable": "Escribe un monto como {example}."
+    },
+    "lineEditor": {
+      "metaTitle": "Editar línea",
+      "title": "Línea {name}",
+      "newTitle": "Nueva línea",
+      "figures": "Cifras de la línea",
+      "field": {
+        "name": "Nombre",
+        "planned": "Planeado",
+        "plannedHint": "{share} de la capacidad · sin asignar {unallocated}",
+        "plannedNewHint": "Sin asignar: {unallocated}",
+        "funding": "De dónde sale",
+        "savingsAccounts": "Cuentas de ahorro",
+        "otherAccount": "Cuenta de ahorro de otro miembro",
+        "noSavingsAccounts": "No tienes cuentas de ahorro en {currency}. Crea una en Cuentas.",
+        "rollover": "Al cambiar de período",
+        "catchAll": "Todo lo demás",
+        "catchAllHint": "Recibe los gastos de categorías que no están en otra línea."
+      },
+      "unreadable": "Escribe un monto como {example}.",
+      "save": "Guardar línea",
+      "add": "Agregar línea",
+      "remove": {
+        "open": "Quitar línea",
+        "title": "¿Quitar {name}?",
+        "explain": "La línea sale del plan y sus gastos pasan a Sin presupuesto o a la línea de todo lo demás.",
+        "confirm": "Quitar"
+      },
+      "readOnly": "Solo Propietario y Administrador editan las líneas de un plan abierto."
     }
   },
   "reports": {

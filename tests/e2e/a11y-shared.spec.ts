@@ -188,6 +188,23 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page.goto(`${h}/plans/${ids.plan}/capacities`);
       await expect(page.getByText(/^Sugerido \$\s1\.650\.000:/)).toBeVisible();
       await expect(page.getByRole("button", { name: es.budgeting.capacity.useSuggestion })).toBeVisible();
+      // HU-E9-08: the line editor, for a new line and for "Mercado" (with the Savings funding and its removal sheet).
+      const october = await get(page, `/api/v1/spaces/${ids.household}/plans/${ids.plan}`);
+      const marketLine = october.lines.find((line: { name: string }) => line.name === "Mercado");
+      await page.goto(`${h}/plans/${ids.plan}/lines/new`);
+      await expect(
+        page.getByRole("heading", { level: 1, name: es.budgeting.lineEditor.newTitle }),
+      ).toBeVisible();
+      await scan("new line");
+      await page.getByRole("radio", { name: es.budgeting.funding.SAVINGS }).click();
+      await scan("new savings line");
+      await page.goto(`${h}/plans/${ids.plan}/lines/${marketLine.id}`);
+      await expect(page.getByRole("region", { name: es.budgeting.lineEditor.figures })).toBeVisible();
+      await scan("existing line");
+      await page.getByRole("button", { name: es.budgeting.lineEditor.remove.open }).click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await scan("line removal sheet");
+      await page.keyboard.press("Escape");
       // U1: a shared space with no funds explains them instead of asking for a first account.
       const bare = await post(page, "/api/v1/spaces", { kind: "SHARED", name: "Vacía", currency: "COP" });
       for (const path of [`/spaces/${bare.id}`, `/spaces/${bare.id}/accounts`]) {
