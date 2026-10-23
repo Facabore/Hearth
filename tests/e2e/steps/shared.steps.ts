@@ -184,3 +184,100 @@ Then(
     for (const name of ["Ana", "Juan"]) expect(await shareOf(page, world, name)).toContain(norm(shown(each)));
   },
 );
+
+const householdPath = (world: World, space: string) => `/api/v1/spaces/${world.spaces.get(space)!}`;
+
+Given(
+  /^"([^"]+)" recorded "([^"]+)" in "([^"]+)" for ([\d,]+) COP paid from "([^"]+)", split equally between "([^"]+)" and "([^"]+)"$/,
+  async (
+    { world },
+    payer: string,
+    description: string,
+    space: string,
+    pesos: string,
+    account: string,
+    a: string,
+    b: string,
+  ) => {
+    // 2026-10-31 12:00 in Bogotá, inside the server's fixed period (P178). The payer pays from their personal account.
+    const response = await world.page.request.post(`${householdPath(world, space)}/expenses`, {
+      headers: world.headers({ "idempotency-key": crypto.randomUUID() }),
+      data: {
+        description,
+        date: "2026-10-31",
+        occurredAt: "2026-10-31T17:00:00.000Z",
+        timeZone: "America/Bogota",
+        // The Background's only category.
+        categoryId: [...world.categories.values()][0],
+        amount: cop(pesos),
+        payments: [
+          {
+            memberId: await world.memberId(space, payer),
+            accountId: world.accounts.get(account),
+            amount: cop(pesos),
+          },
+        ],
+        split: {
+          method: "EQUAL",
+          participants: [
+            { memberId: await world.memberId(space, a) },
+            { memberId: await world.memberId(space, b) },
+          ],
+        },
+      },
+    });
+    if (!response.ok())
+      throw new Error(`POST expenses answered ${response.status()}: ${await response.text()}`);
+    world.transactions.set(description, ((await response.json()) as { id: string }).id);
+  },
+);
+
+When(
+  /^"([^"]+)" opens "([^"]+)" from the "([^"]+)" transaction list$/,
+  async ({ page, world }, _n: string, description: string, space: string) => {
+    await page.goto(`/spaces/${world.spaces.get(space)}/transactions`);
+    await page.getByRole("link", { name: new RegExp(`^${description}`) }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+  },
+);
+
+Then(
+  /^the detail sheet lists ([\d,]+) COP for "([^"]+)" and ([\d,]+) COP for "([^"]+)"$/,
+  async ({ page, world }, first: string, a: string, second: string, b: string) => {
+    const division = page.getByRole("dialog").getByRole("list", { name: world.t("ledger.split.split") });
+    for (const [pesos, name] of [
+      [first, a],
+      [second, b],
+    ] as const)
+      expect(
+        norm(
+          await division
+            .getByRole("listitem")
+            .filter({ hasText: labelOf(world, name) })
+            .textContent(),
+        ),
+      ).toContain(norm(shown(pesos)));
+  },
+);
+
+Then(
+  /^"([^"]+)" in "([^"]+)" has shares of ([\d,]+) COP for "([^"]+)" and ([\d,]+) COP for "([^"]+)"$/,
+  async (
+    { world },
+    description: string,
+    space: string,
+    first: string,
+    a: string,
+    second: string,
+    b: string,
+  ) => {
+    const tx = (await world.api.get(
+      `${householdPath(world, space)}/transactions/${world.transactions.get(description)!}`,
+    )) as { shares: { memberId: string; amount: { amount: string } }[] };
+    const shares = Object.fromEntries(tx.shares.map((s) => [s.memberId, s.amount.amount]));
+    expect(shares).toEqual({
+      [await world.memberId(space, a)]: minor(first),
+      [await world.memberId(space, b)]: minor(second),
+    });
+  },
+);

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { APIRequest, Page } from "@playwright/test";
 import es from "../../../src/i18n/messages/es.json" with { type: "json" };
 import { SeedApi } from "./api";
+import { minor } from "./money";
 import { Person } from "./people";
 
 /** One scenario's state: its page, its visitor address, the person it signed up and the catalog it reads. */
@@ -12,6 +13,8 @@ export class World {
   readonly categories = new Map<string, string>();
   readonly people = new Map<string, Person>();
   readonly spaces = new Map<string, string>();
+  /** The ids of the transactions a scenario recorded through `recordExpense`, by description. */
+  readonly transactions = new Map<string, string>();
   private readonly suffix: string;
 
   constructor(
@@ -86,6 +89,26 @@ export class World {
     if (!response.ok())
       throw new Error(`POST ${kind} answered ${response.status()}: ${await response.text()}`);
     return response.json();
+  }
+
+  /** An expense through the API at 2026-10-31 12:00 Bogotá, inside the server's fixed period (P178). */
+  async recordExpense(
+    description: string,
+    pesos: string,
+    category: string,
+    account: string,
+  ): Promise<string> {
+    const recorded = (await this.record("expenses", {
+      description,
+      date: "2026-10-31",
+      occurredAt: "2026-10-31T17:00:00.000Z",
+      timeZone: "America/Bogota",
+      categoryId: this.categories.get(category),
+      amount: { amount: minor(pesos), currency: "COP" },
+      accountId: this.accounts.get(account),
+    })) as { id: string };
+    this.transactions.set(description, recorded.id);
+    return recorded.id;
   }
 
   /** Someone else, signed up once per test with their own session (ruling P178). */
