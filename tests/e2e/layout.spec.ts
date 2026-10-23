@@ -558,6 +558,7 @@ for (const wideFont of [false, true]) {
           // HU-E9-10: the Plan tab, with big figures (personal) and without a plan (shared).
           `/spaces/${spaceId}/plan`,
           `/spaces/${sharedId}/plan`,
+          `/spaces/${sharedId}/plan/fund`,
           history,
           `/spaces/${sharedId}/new`,
           warned,
@@ -742,12 +743,14 @@ test.describe("a shared expense saved with a warning (HU-E9-06, ruling P170)", (
 
 // 57 of the 60 characters the longest name a line takes (budget-line.ts MAX_NAME).
 const LONG_LINE = "Mercado, aseo y gastos del hogar de toda la familia Pérez";
+const FUND_LINE = "Arriendo y servicios del hogar pagados con el fondo común";
 
 /**
  * The shared space gets October's plan: a guest with a real, long name beside the person, both with a capacity, and
  * one line with a very long name and over a billion pesos that is split 60/40 between them. An expense takes the
  * line past its plan, so its row also carries "Excedida" and the overage in words (#142, ruling P244), and the member
- * matrix has big figures and a gap of each sign.
+ * matrix has big figures and a gap of each sign. A second long-named line is paid from the fund, so the Fund view
+ * has billion-peso figures to expect.
  */
 const seedOverBudgetPlan = async (page: Page, sharedId: string) => {
   const space = `/api/v1/spaces/${sharedId}`;
@@ -781,7 +784,7 @@ const seedOverBudgetPlan = async (page: Page, sharedId: string) => {
     { categoryIds: [categoryId] },
     { "if-match": `"${plan.version}"` },
   );
-  await put(
+  plan = await put(
     page,
     `${space}/plans/${plan.id}/lines/${line}/allocation`,
     {
@@ -791,6 +794,14 @@ const seedOverBudgetPlan = async (page: Page, sharedId: string) => {
         { memberId: guest.id, percent: "40" },
       ],
     },
+    { "if-match": `"${plan.version}"` },
+  );
+  // A line paid from the fund and never contributed to: the Fund view then expects over a billion pesos from
+  // each member and reads them as still to pay in (HU-E9-10).
+  await post(
+    page,
+    `${space}/plans/${plan.id}/lines`,
+    { name: FUND_LINE, plannedAmount: money("123456789000"), funding: "SHARED_FUND" },
     { "if-match": `"${plan.version}"` },
   );
   const fund = await post(page, `${space}/accounts`, {
@@ -851,6 +862,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         [`/spaces/${sharedId}/plan`, 5],
         // The member matrix: a card per member, so no table scrolls and no figure is cut off.
         [`/spaces/${sharedId}/plan/members`, 5],
+        [`/spaces/${sharedId}/plan/fund`, 5],
         [`/spaces/${spaceId}/plan`, 4],
       ] as const) {
         await page.goto(path);
@@ -904,10 +916,11 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       // no table needs to scroll: below 640 px a member is a card (P217).
       await page.goto(`/spaces/${sharedId}/plan/members`);
       await expect(page.getByRole("heading", { level: 2, name: LONG_LINE })).toBeVisible();
-      await expect(page.getByRole("rowheader", { name: HISTORY_GUEST })).toBeVisible();
       const matrixRegion = page.getByRole("region", {
         name: es.reports.matrix.caption.replace("{line}", LONG_LINE),
       });
+      // The fund-paid line lists the guest too, so the name is looked up inside the long line's own table.
+      await expect(matrixRegion.getByRole("rowheader", { name: HISTORY_GUEST })).toBeVisible();
       expect(
         await matrixRegion.evaluate((el) => el.scrollWidth - el.clientWidth),
         "the matrix table does not scroll on a phone",
@@ -917,6 +930,12 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         expect.soft(box.x, "a figure starts on screen").toBeGreaterThanOrEqual(0);
         expect.soft(box.x + box.width, "and ends on screen").toBeLessThanOrEqual(viewport.width);
       }
+
+      // The fund cards keep their billion-peso figures and their badges on screen (the loop above measured the
+      // overflow). The person and the guest both still have to pay in.
+      await page.goto(`/spaces/${sharedId}/plan/fund`);
+      await expect(page.getByText(es.reports.fund.behind).first()).toBeVisible();
+      await expect(page.getByText(es.reports.fund.note)).toBeVisible();
     });
   }
 

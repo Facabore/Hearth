@@ -66,6 +66,27 @@ describe("member matrix (HU-E9-10)", () => {
     expect(screen.getAllByText(reason, { selector: "p" })).toHaveLength(1);
   });
 
+  it("links a line tracked at fund level to the fund view of the same period", () => {
+    const { container } = show();
+    expect(screen.getByRole("link", { name: "Ver fondo" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household/plan/fund?period=2026-11",
+    );
+    // Only that line has the link, and it sits inside the line's own section.
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+    expect(container.querySelector("[data-line='l-rent']")).toContainElement(
+      screen.getByRole("link", { name: "Ver fondo" }),
+    );
+  });
+
+  it("names the link in English", () => {
+    show(e7Matrix(), "en");
+    expect(screen.getByRole("link", { name: "See the fund" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household/plan/fund?period=2026-11",
+    );
+  });
+
   it("shows only what a line without allocation consumed, with its reason", () => {
     show();
     const [assigned, , consumed] = cellsOf("Free por miembro", "Ana");

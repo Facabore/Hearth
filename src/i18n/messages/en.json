@@ -912,6 +912,17 @@
       "editPlan": "Edit plan",
       "viewPlan": "View plan"
     },
+    "fund": {
+      "title": "Fund contributions",
+      "expected": "Expected",
+      "actual": "Contributed",
+      "difference": "Difference",
+      "byMember": "By member",
+      "upToDate": "Up to date",
+      "behind": "Still to pay in",
+      "noPlan": "Without a plan, nobody has an expected contribution.",
+      "note": "Expected: what each one is assigned on the lines paid from the fund. Contributions dated in the period count."
+    },
     "lines": {
       "summary": "Plan summary",
       "totalAvailable": "Available",
@@ -948,7 +959,8 @@
       "gap": "Gap",
       "formerMember": "Former member",
       "noFigure": "No figure",
-      "savingsNote": "It counts what reached the line's savings accounts; it has no consumption."
+      "savingsNote": "It counts what reached the line's savings accounts; it has no consumption.",
+      "toFund": "See the fund"
     },
     "reason": {
       "NOT_ALLOCATED": "Not allocated per person: only what was consumed is shown.",

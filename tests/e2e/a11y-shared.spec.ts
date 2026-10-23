@@ -129,7 +129,8 @@ const seedHousehold = async (page: Page, requests: APIRequest, tag: string) => {
   plan = await post(
     page,
     `${space}/plans/${plan.id}/lines`,
-    { name: "Ocio", plannedAmount: money(200_000) },
+    // Paid from the fund and never contributed to, so the Fund view reads Ana as still to pay in (HU-E9-10).
+    { name: "Ocio", plannedAmount: money(200_000), funding: "SHARED_FUND" },
     guard(plan.version),
   );
   const market = plan.lines.find((line: { name: string }) => line.name === "Mercado");
@@ -193,6 +194,8 @@ for (const colorScheme of ["light", "dark"] as const) {
         `${h}/plans/${ids.plan}/capacities`,
         // HU-E9-10: the member matrix, with an over- and an under-contributed gap, and a line not allocated.
         `${h}/plan/members`,
+        // HU-E9-10: the Fund view, with Ana still to pay in what the Ocio line expects of her.
+        `${h}/plan/fund`,
         `${h}/members/${ids.ana}/history`,
         `${h}/transactions?notice=FundBalanceNegative&account=${ids.fund}`,
       ]) {
@@ -257,6 +260,8 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect(
         page.getByRole("table", { name: fill(es.reports.matrix.caption, { line: "Ocio" }) }),
       ).toBeVisible();
+      await page.goto(`${h}/plan/fund`);
+      await expect(page.getByText(es.reports.fund.behind).first()).toBeVisible();
       // U1: a shared space with no funds explains them instead of asking for a first account.
       const bare = await post(page, "/api/v1/spaces", { kind: "SHARED", name: "Vacía", currency: "COP" });
       for (const path of [`/spaces/${bare.id}`, `/spaces/${bare.id}/accounts`]) {

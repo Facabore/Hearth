@@ -912,6 +912,17 @@
       "editPlan": "Editar plan",
       "viewPlan": "Ver plan"
     },
+    "fund": {
+      "title": "Aportes al fondo",
+      "expected": "Esperado",
+      "actual": "Aportado",
+      "difference": "Diferencia",
+      "byMember": "Por miembro",
+      "upToDate": "Al día",
+      "behind": "Le falta aportar",
+      "noPlan": "Sin plan, nadie tiene un aporte esperado.",
+      "note": "Esperado: lo asignado a cada uno en las líneas pagadas con el fondo. Cuentan los aportes fechados en el período."
+    },
     "lines": {
       "summary": "Resumen del plan",
       "totalAvailable": "Disponible",
@@ -948,7 +959,8 @@
       "gap": "Diferencia",
       "formerMember": "Miembro anterior",
       "noFigure": "Sin dato",
-      "savingsNote": "Cuenta lo que llegó a las cuentas de ahorro de la línea; no tiene consumo."
+      "savingsNote": "Cuenta lo que llegó a las cuentas de ahorro de la línea; no tiene consumo.",
+      "toFund": "Ver fondo"
     },
     "reason": {
       "NOT_ALLOCATED": "Sin asignación por persona: solo se muestra lo consumido.",

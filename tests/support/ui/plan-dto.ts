@@ -1,5 +1,6 @@
 import type {
   BudgetPlanDto,
+  FundTrackingDto,
   LineDashboardDto,
   MemberMatrixDto,
   PlanLineDto,
@@ -262,4 +263,17 @@ export const e7Matrix = (): MemberMatrixDto => ({
       members: [cell("m-ana", [null, null, 125_000, null]), cell("m-juan", [null, null, 125_000, null])],
     },
   ],
+});
+
+/** HU-E9-10 "Fund tracking": Ana paid in 480,000 COP on 2026-11-02 and Juan 500,000 COP on 2026-11-03. */
+export const e7Fund = (overrides: Partial<FundTrackingDto> = {}): FundTrackingDto => ({
+  spaceId: "sp-household",
+  period: { ...NOVEMBER },
+  plan: { id: "p-nov", status: "ACTIVE" },
+  members: [
+    { memberId: "m-ana", expected: cop(480_000), actual: cop(480_000), difference: cop(0) },
+    { memberId: "m-juan", expected: cop(720_000), actual: cop(500_000), difference: cop(-220_000) },
+  ],
+  totals: { expected: cop(1_200_000), actual: cop(980_000), difference: cop(-220_000) },
+  ...overrides,
 });

@@ -1,10 +1,12 @@
 import { useId } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Badge, VisuallyHidden } from "@/shared/ui";
 import type { MemberDto, MemberMatrixDto, MoneyDto, SpaceDto } from "@/shared/ui/api/dto";
 import { formatMoney, formatSignedMoney, type Formats } from "@/shared/ui/format/formatters";
 import type { UiIconName } from "@/shared/ui/icons/ui-icons";
 import { memberName } from "../member-name";
+import { viewHref } from "../views";
 
 type MatrixLine = MemberMatrixDto["lines"][number];
 type Status = NonNullable<MatrixLine["members"][number]["status"]>;
@@ -31,11 +33,12 @@ const CELL =
  * (ruling P217).
  */
 export function MemberMatrix({
+  space,
   matrix,
   members,
   formats,
 }: {
-  /** Task 10's link from a fund-level line to the Fund view needs the space. */
+  /** The link from a fund-level line to the Fund view needs the space. */
   readonly space: Pick<SpaceDto, "id" | "kind">;
   readonly matrix: MemberMatrixDto;
   readonly members: readonly Pick<MemberDto, "id" | "displayName">[];
@@ -46,7 +49,13 @@ export function MemberMatrix({
   return (
     <>
       {matrix.lines.map((line) => (
-        <MatrixLineSection key={line.lineId} line={line} members={members} formats={formats} />
+        <MatrixLineSection
+          key={line.lineId}
+          line={line}
+          fundHref={viewHref(space, "fund", matrix.period.label)}
+          members={members}
+          formats={formats}
+        />
       ))}
     </>
   );
@@ -54,10 +63,12 @@ export function MemberMatrix({
 
 function MatrixLineSection({
   line,
+  fundHref,
   members,
   formats,
 }: {
   readonly line: MatrixLine;
+  readonly fundHref: string;
   readonly members: readonly Pick<MemberDto, "id" | "displayName">[];
   readonly formats: Pick<Formats, "numberFormat">;
 }) {
@@ -169,6 +180,14 @@ function MatrixLineSection({
       </div>
       {line.reason ? <p className="text-sm text-muted">{t(`reason.${line.reason}`)}</p> : null}
       {savings ? <p className="text-sm text-muted">{t("matrix.savingsNote")}</p> : null}
+      {line.reason === "TRACKED_AT_FUND_LEVEL" ? (
+        <Link
+          href={fundHref}
+          className="inline-flex min-h-11 items-center self-start font-semibold underline"
+        >
+          {t("matrix.toFund")}
+        </Link>
+      ) : null}
     </section>
   );
 }

@@ -51,3 +51,6 @@ export type CapacitySuggestionDto = Json<
 export type MemberMatrixDto = Json<
   paths["/api/v1/spaces/{spaceId}/reports/member-matrix"]["get"]["responses"][200]
 >;
+export type FundTrackingDto = Json<
+  paths["/api/v1/spaces/{spaceId}/reports/fund-contributions"]["get"]["responses"][200]
+>;
