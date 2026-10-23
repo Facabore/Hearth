@@ -3,18 +3,21 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { categoryPath } from "@/modules/categories/ui";
 import { memberLabel } from "@/modules/spaces/ui";
 import { Button, Icon, ProblemNotice, Sheet } from "@/shared/ui";
+import { browserApi, type Api } from "@/shared/ui/api/client";
+import type { TransactionDto } from "@/shared/ui/api/dto";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import { formatDate, formatMoney, formatTimeAt, MINUS } from "@/shared/ui/format/formatters";
 import { zoneCity } from "@/shared/ui/format/zones";
-import { cameFrom, readTrail } from "@/shared/ui/navigation/history";
 import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import type { RowContext } from "../transaction-row";
 import type { TransactionDetail } from "./detail-loader";
-import { actionsFor } from "./transaction-actions";
+import { leaveSheet } from "./leave-sheet";
+import { actionsFor, type TransactionActions } from "./transaction-actions";
+import { useDeleteWithUndo } from "./use-delete-with-undo";
 
 function Definition({ term, children }: { readonly term: string; readonly children: ReactNode }) {
   return (
@@ -25,22 +28,76 @@ function Definition({ term, children }: { readonly term: string; readonly childr
   );
 }
 
+/** Editar goes to the edit route; Eliminar deletes at once and offers to undo it (ruling P194). */
+function Actions({
+  spaceId,
+  tx,
+  origin,
+  actions,
+  noteText,
+  api: injected,
+}: {
+  readonly spaceId: string;
+  readonly tx: TransactionDto;
+  readonly origin: string;
+  readonly actions: TransactionActions;
+  readonly noteText: string;
+  readonly api?: Api;
+}) {
+  const t = useTranslations("ledger.detail");
+  const api = useMemo(() => injected ?? browserApi(), [injected]);
+  const { remove, pending, problem } = useDeleteWithUndo({
+    api,
+    spaceId,
+    tx,
+    origin,
+  });
+  return (
+    <div className="flex flex-col gap-3">
+      {noteText ? <p className="text-sm text-muted">{noteText}</p> : null}
+      {problem ? <ProblemNotice problem={problem} /> : null}
+      <div
+        className={
+          actions.edit && actions.delete ? "grid grid-cols-1 gap-3 min-[360px]:grid-cols-2" : "grid gap-3"
+        }
+      >
+        {actions.edit ? (
+          <Button asChild variant="secondary" size="lg">
+            <Link href={withReturnTo(`/spaces/${spaceId}/transactions/${tx.id}/edit`, origin)}>
+              <Icon name="pencil" />
+              {t("edit")}
+            </Link>
+          </Button>
+        ) : null}
+        {actions.delete ? (
+          <Button variant="danger" size="lg" disabled={pending} onClick={() => void remove()}>
+            <Icon name="trash" />
+            {t("delete")}
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 /**
- * Rulings P189 and P190: a transaction's detail over the list that opened it. The address (`?tx=`) is the state, so
- * closing replaces it with `origin` and Back closes the sheet too. Editar goes to the edit route; Eliminar is wired
- * by the delete-with-undo task.
+ * Rulings P189, P190 and P194: a transaction's detail over the list that opened it. The address (`?tx=`) is the state,
+ * so closing leaves it for `origin` and Back closes the sheet too. Editar goes to the edit route; Eliminar deletes at
+ * once and the toast offers Deshacer.
  */
 export function TransactionSheet({
   spaceId,
   detail,
   context,
   origin,
+  api,
 }: {
   readonly spaceId: string;
   readonly detail: TransactionDetail;
   readonly context: RowContext;
   /** The page the sheet is over, without `tx`: where closing returns. */
   readonly origin: string;
+  readonly api?: Api;
 }) {
   const t = useTranslations("ledger");
   const names = useTranslations("members");
@@ -51,10 +108,7 @@ export function TransactionSheet({
   // Opened by a push from the list: the entry before is the list, so closing goes back to it and Back then leaves the
   // list to where the person was. A deep link or a reload has no such entry: closing replaces it (ruling P189).
   const close = (open: boolean) => {
-    if (open) return;
-    const here = `${window.location.pathname}${window.location.search}`;
-    if (cameFrom(readTrail(), here) === origin) router.back();
-    else router.replace(origin, { scroll: false });
+    if (!open) leaveSheet(router, origin);
   };
   if (!tx) {
     return (
@@ -120,31 +174,14 @@ export function TransactionSheet({
       description={signed}
       footer={
         actions.edit || actions.delete ? (
-          <div className="flex flex-col gap-3">
-            {noteText ? <p className="text-sm text-muted">{noteText}</p> : null}
-            <div
-              className={
-                actions.edit && actions.delete
-                  ? "grid grid-cols-1 gap-3 min-[360px]:grid-cols-2"
-                  : "grid gap-3"
-              }
-            >
-              {actions.edit ? (
-                <Button asChild variant="secondary" size="lg">
-                  <Link href={withReturnTo(`/spaces/${spaceId}/transactions/${tx.id}/edit`, origin)}>
-                    <Icon name="pencil" />
-                    {t("detail.edit")}
-                  </Link>
-                </Button>
-              ) : null}
-              {actions.delete ? (
-                <Button variant="danger" size="lg">
-                  <Icon name="trash" />
-                  {t("detail.delete")}
-                </Button>
-              ) : null}
-            </div>
-          </div>
+          <Actions
+            spaceId={spaceId}
+            tx={tx}
+            origin={origin}
+            actions={actions}
+            noteText={noteText}
+            api={api}
+          />
         ) : null
       }
     >

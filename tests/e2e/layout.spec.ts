@@ -1668,25 +1668,25 @@ test.describe("sheets fit the screen and only their body scrolls", () => {
   });
 });
 
+const MARKET = /Mercado semanal/;
+const sheet = (page: Page) => page.getByRole("dialog", { name: MARKET });
+
+/** Movimientos reached from Cuentas through the bottom navigation, so there is somewhere to go back to. */
+const listFromAccounts = async (page: Page, tag: string) => {
+  const { spaceId } = await session(page, tag);
+  const list = `/spaces/${spaceId}/transactions`;
+  await page.goto(`/spaces/${spaceId}/accounts`);
+  await settle(page);
+  await page
+    .getByRole("navigation", { name: es.shell.nav.main })
+    .getByRole("link", { name: es.shell.nav.transactions })
+    .click();
+  await expect(page).toHaveURL(new RegExp(`${list}$`));
+  await settle(page);
+  return { spaceId, list, accounts: `/spaces/${spaceId}/accounts` };
+};
+
 test.describe("the transaction detail sheet is addressed by the URL (ruling P189)", () => {
-  const MARKET = /Mercado semanal/;
-  const sheet = (page: Page) => page.getByRole("dialog", { name: MARKET });
-
-  /** Movimientos reached from Cuentas through the bottom navigation, so there is somewhere to go back to. */
-  const listFromAccounts = async (page: Page, tag: string) => {
-    const { spaceId } = await session(page, tag);
-    const list = `/spaces/${spaceId}/transactions`;
-    await page.goto(`/spaces/${spaceId}/accounts`);
-    await settle(page);
-    await page
-      .getByRole("navigation", { name: es.shell.nav.main })
-      .getByRole("link", { name: es.shell.nav.transactions })
-      .click();
-    await expect(page).toHaveURL(new RegExp(`${list}$`));
-    await settle(page);
-    return { spaceId, list, accounts: `/spaces/${spaceId}/accounts` };
-  };
-
   test("a row opens it with a new entry, Back closes it and Forward opens it again", async ({ page }) => {
     const { list } = await listFromAccounts(page, "detail-sheet");
     const entries = () => page.evaluate(() => window.history.length);
@@ -1766,6 +1766,95 @@ test.describe("the transaction detail sheet is addressed by the URL (ruling P189
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page).toHaveURL(new RegExp(`/spaces/${spaceId}/transactions$`));
+  });
+});
+
+test.describe("deleting from the detail sheet leaves the person on the list and offers Deshacer (ruling P194)", () => {
+  const entries = (page: Page) => page.evaluate(() => window.history.length);
+  const statusOf = (page: Page) => page.getByRole("region", { name: es.toast.region }).getByRole("status");
+
+  /** The toast with Deshacer sits above the navigation, inside the width, and its buttons are full targets. */
+  const expectToastAboveNavigation = async (page: Page, width: number) => {
+    const toast = page.getByTestId("toast");
+    await toast.hover();
+    const nav = (await page.locator("nav[aria-label]").boundingBox())!;
+    const box = (await toast.boundingBox())!;
+    expect(box.y + box.height, "the toast ends above the navigation").toBeLessThanOrEqual(nav.y);
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width, "the toast stays inside the width").toBeLessThanOrEqual(width);
+    const undo = (await page.getByRole("button", { name: es.ledger.toast.undo }).boundingBox())!;
+    expect(undo.width).toBeGreaterThanOrEqual(TARGET);
+    expect(undo.height).toBeGreaterThanOrEqual(TARGET);
+    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
+  };
+
+  for (const viewport of [PHONE, SMALL_PHONE]) {
+    test(`from a list opened in the app: back to it with no new entry, Deshacer brings the row back at ${viewport.width} px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      const { list, accounts } = await listFromAccounts(page, `delete-back-${viewport.width}`);
+      await page.getByRole("link", { name: MARKET }).click();
+      await expect(sheet(page)).toBeVisible();
+      const opened = await entries(page);
+
+      await page.getByRole("button", { name: es.ledger.detail.delete }).click();
+      await expect(statusOf(page)).toContainText(es.ledger.toast.deleted.EXPENSE);
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(page).toHaveURL(new RegExp(`${list}$`));
+      // The list behind was refreshed once it was back: the deleted row is gone.
+      await expect(page.getByRole("link", { name: MARKET })).toHaveCount(0);
+      expect(await entries(page), "deleting adds no history entry").toBe(opened);
+      await expectToastAboveNavigation(page, viewport.width);
+
+      await statusOf(page).getByRole("button", { name: es.ledger.toast.undo }).click();
+      await expect(statusOf(page)).toContainText(es.ledger.toast.restored.EXPENSE);
+      await expect(page.getByRole("link", { name: MARKET })).toBeVisible();
+      expect(await entries(page), "undoing adds no history entry").toBe(opened);
+
+      await page.goBack();
+      await expect(page).toHaveURL(new RegExp(`${accounts}$`));
+    });
+  }
+
+  test("from a deep link: the entry is replaced by the list, and Deshacer brings the row back", async ({
+    page,
+  }) => {
+    const { list, accounts } = await listFromAccounts(page, "delete-deep");
+    await page.getByRole("link", { name: MARKET }).click();
+    await expect(sheet(page)).toBeVisible();
+    const deep = page.url();
+    await page.goto(accounts);
+    await settle(page);
+    await page.goto(deep);
+    await expect(sheet(page)).toBeVisible();
+    const opened = await entries(page);
+
+    await page.getByRole("button", { name: es.ledger.detail.delete }).click();
+    await expect(statusOf(page)).toContainText(es.ledger.toast.deleted.EXPENSE);
+    await expect(page).toHaveURL(new RegExp(`${list}$`));
+    await expect(page.getByRole("link", { name: MARKET })).toHaveCount(0);
+    expect(await entries(page), "deleting replaces the entry of the sheet").toBe(opened);
+
+    await statusOf(page).getByRole("button", { name: es.ledger.toast.undo }).click();
+    await expect(statusOf(page)).toContainText(es.ledger.toast.restored.EXPENSE);
+    await expect(page.getByRole("link", { name: MARKET })).toBeVisible();
+  });
+
+  test("the address of a transaction just deleted says it no longer exists, with nothing to delete", async ({
+    page,
+  }) => {
+    const { list } = await listFromAccounts(page, "delete-address");
+    await page.getByRole("link", { name: MARKET }).click();
+    await expect(sheet(page)).toBeVisible();
+    const address = page.url();
+    expect(address).toMatch(/\?tx=/);
+    await page.getByRole("button", { name: es.ledger.detail.delete }).click();
+    await expect(page).toHaveURL(new RegExp(`${list}$`));
+    await page.goto(address);
+    const dialog = page.getByRole("dialog", { name: es.errors.TransactionNotFound });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("button", { name: es.ledger.detail.delete })).toHaveCount(0);
   });
 });
 

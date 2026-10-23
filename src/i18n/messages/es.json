@@ -464,7 +464,21 @@
         "INCOME": "Ingreso guardado",
         "TRANSFER": "Transferencia guardada"
       },
-      "edited": "Cambios guardados"
+      "edited": "Cambios guardados",
+      "undo": "Deshacer",
+      "deleted": {
+        "EXPENSE": "Gasto eliminado",
+        "INCOME": "Ingreso eliminado",
+        "TRANSFER": "Transferencia eliminada",
+        "SETTLEMENT": "Pago eliminado"
+      },
+      "restored": {
+        "EXPENSE": "Gasto restaurado",
+        "INCOME": "Ingreso restaurado",
+        "TRANSFER": "Transferencia restaurada",
+        "SETTLEMENT": "Pago restaurado"
+      },
+      "undoFailed": "No se pudo deshacer: {message}"
     },
     "when": {
       "title": "Fecha y hora",

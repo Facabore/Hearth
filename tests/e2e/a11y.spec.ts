@@ -119,5 +119,47 @@ for (const colorScheme of ["light", "dark"] as const) {
         violations.map((v) => `toast: ${v.id} ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`),
       ).toEqual([]);
     });
+
+    test("has no WCAG 2.1 AA violation while it offers Deshacer after a delete, and after a failed undo", async ({
+      page,
+    }) => {
+      const spaceId = await signUp(
+        page,
+        "undo-" + colorScheme,
+        colorScheme === "light" ? "10.252.0.5" : "10.252.0.6",
+      );
+      await seedLedger(page, spaceId);
+      const scan = async (where: string) => {
+        await page.getByTestId("toast").hover();
+        const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
+        expect(
+          violations.map((v) => `${where}: ${v.id} ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`),
+        ).toEqual([]);
+      };
+      await page.goto(`/spaces/${spaceId}/transactions`);
+      await page.getByRole("link", { name: /Market/ }).click();
+      await page.getByRole("button", { name: es.ledger.detail.delete }).click();
+      const region = page.getByRole("region", { name: es.toast.region });
+      await expect(region.getByRole("status")).toContainText(es.ledger.toast.deleted.EXPENSE);
+      await scan("toast with Deshacer");
+      // The undo is refused (a closed period): the failure shows in the alert region.
+      await page.route("**/restore", (route) =>
+        route.fulfill({
+          status: 409,
+          contentType: "application/problem+json",
+          body: JSON.stringify({
+            type: "urn:hearth:problem:PeriodClosed",
+            title: "",
+            status: 409,
+            code: "PeriodClosed",
+          }),
+        }),
+      );
+      await region.getByRole("button", { name: es.ledger.toast.undo }).click();
+      await expect(region.getByRole("alert")).toContainText(
+        es.ledger.toast.undoFailed.split("{message}")[0]!,
+      );
+      await scan("toast with a failed undo");
+    });
   });
 }

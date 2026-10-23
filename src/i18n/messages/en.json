@@ -464,7 +464,21 @@
         "INCOME": "Income saved",
         "TRANSFER": "Transfer saved"
       },
-      "edited": "Changes saved"
+      "edited": "Changes saved",
+      "undo": "Undo",
+      "deleted": {
+        "EXPENSE": "Expense deleted",
+        "INCOME": "Income deleted",
+        "TRANSFER": "Transfer deleted",
+        "SETTLEMENT": "Payment deleted"
+      },
+      "restored": {
+        "EXPENSE": "Expense restored",
+        "INCOME": "Income restored",
+        "TRANSFER": "Transfer restored",
+        "SETTLEMENT": "Payment restored"
+      },
+      "undoFailed": "Could not undo: {message}"
     },
     "when": {
       "title": "Date and time",
