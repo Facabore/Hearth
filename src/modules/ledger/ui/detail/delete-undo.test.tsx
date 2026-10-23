@@ -45,6 +45,7 @@ const detailOf = (tx: TransactionDto): TransactionDetail => ({
   problem: null,
   members: [],
   viewer: { userId: "u-ana", role: "OWNER", memberId: null },
+  ownAccountNames: {},
 });
 
 /** The sheet over its list: replacing the address removes it, as it does in the app (an open modal hides the toast). */

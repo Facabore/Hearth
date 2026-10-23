@@ -36,7 +36,7 @@ const detailOf = (
   tx: TransactionDto,
   members: MemberDto[] = [],
   viewer: TransactionDetail["viewer"] = ana,
-): TransactionDetail => ({ tx, problem: null, members, viewer });
+): TransactionDetail => ({ tx, problem: null, members, viewer, ownAccountNames: {} });
 
 const open = (detail: TransactionDetail, origin = ORIGIN, locale: "es" | "en" = "es") =>
   renderWithIntl(<TransactionSheet spaceId="s-1" detail={detail} context={rowContext} origin={origin} />, {
@@ -135,6 +135,45 @@ describe("transaction detail sheet (rulings P189, P190)", () => {
     expect(screen.queryByRole("link", { name: "Editar" })).toBeNull();
     expect(screen.getByRole("button", { name: "Eliminar" })).toBeInTheDocument();
     expect(await axeViolations(document.body)).toEqual([]);
+  });
+
+  describe("the viewer's own account in a shared space (issue #165)", () => {
+    const paidBy = (memberId: string, accountId: string) =>
+      transactionDto({
+        id: "t-4",
+        type: "EXPENSE",
+        description: "Groceries",
+        amount: cop(120_000),
+        payments: [{ memberId, accountId, amount: cop(120_000) }],
+        shares: [
+          { memberId: "m-ana", amount: cop(60_000), splitMethod: "EQUAL" },
+          { memberId: "m-juan", amount: cop(60_000), splitMethod: "EQUAL" },
+        ],
+      });
+    const asAna = (tx: TransactionDto): TransactionDetail => ({
+      ...detailOf(tx, [anaMember, juan], { ...ana, memberId: "m-ana" }),
+      ownAccountNames: { "a-ana-savings": "Ahorros Ana" },
+    });
+
+    it("names the account the viewer paid from in their personal space", () => {
+      open(asAna(paidBy("m-ana", "a-ana-savings")));
+      expect(definition("Pagó")).toBe("Ana (tú)");
+      expect(definition("Cuenta")).toBe("Ahorros Ana");
+    });
+
+    it("keeps another member's account private", () => {
+      open(asAna(paidBy("m-juan", "a-juan")));
+      expect(definition("Pagó")).toBe("Juan");
+      expect(definition("Cuenta")).toBe("Cuenta de Juan");
+    });
+
+    it("is also English", () => {
+      const { unmount } = open(asAna(paidBy("m-ana", "a-ana-savings")), ORIGIN, "en");
+      expect(definition("Account")).toBe("Ahorros Ana");
+      unmount();
+      open(asAna(paidBy("m-juan", "a-juan")), ORIGIN, "en");
+      expect(definition("Account")).toBe("Juan's account");
+    });
   });
 
   it("names a guest's payment after the guest, with no account", () => {
@@ -306,6 +345,7 @@ describe("transaction detail sheet (rulings P189, P190)", () => {
       problem: { code: "TransactionNotFound", status: 404, requestId: null, errors: [], field: null },
       members: [],
       viewer: ana,
+      ownAccountNames: {},
     });
     const dialog = screen.getByRole("dialog", { name: "No encontramos ese movimiento." });
     expect(within(dialog).getByRole("alert")).toHaveTextContent("No encontramos ese movimiento.");

@@ -29,7 +29,13 @@ export async function HomeContainer({
     if (!result.ok) return <ProblemNotice problem={result.problem} />;
   if (!space || !page.ok || !accounts.ok || !categories.ok) return null;
   const detail = transactionId
-    ? await loadTransactionDetail(api, { spaceId, transactionId, space, meUserId: me!.id })
+    ? await loadTransactionDetail(api, {
+        spaceId,
+        transactionId,
+        space,
+        meUserId: me!.id,
+        personalSpaceId: spaces.find((s) => s.kind === "PERSONAL")?.id,
+      })
     : undefined;
   const context = {
     formats: me!.preferences.effective,

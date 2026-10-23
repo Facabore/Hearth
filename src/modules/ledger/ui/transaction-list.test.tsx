@@ -320,6 +320,7 @@ describe("the list's states (HU-E9-03, ruling P140)", () => {
       problem: null,
       members: [],
       viewer: { userId: "u-ana", role: "OWNER", memberId: null },
+      ownAccountNames: {},
     };
     const { rerender } = renderWithIntl(listOf());
     expect(screen.queryByRole("dialog")).toBeNull();

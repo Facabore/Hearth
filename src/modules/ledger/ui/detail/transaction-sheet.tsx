@@ -103,7 +103,7 @@ export function TransactionSheet({
   const names = useTranslations("members");
   const problemMessage = useProblemMessage();
   const router = useRouter();
-  const { tx, problem, members, viewer } = detail;
+  const { tx, problem, members, viewer, ownAccountNames } = detail;
   const { formats, viewerZone, groups, accountNames } = context;
   // Opened by a push from the list: the entry before is the list, so closing goes back to it and Back then leaves the
   // list to where the person was. A deep link or a reload has no such entry: closing replaces it (ruling P189).
@@ -125,6 +125,8 @@ export function TransactionSheet({
   };
   const accountOf = (id: string | null, memberId: string | null) => {
     if (id && accountNames[id]) return accountNames[id];
+    // The viewer's own personal account, which pays in a shared space (issue #165).
+    if (id && ownAccountNames[id]) return ownAccountNames[id];
     // An account the viewer cannot read belongs to its payer: "Cuenta de Juan".
     const owner = memberOf(memberId);
     return id && owner ? t("detail.payerAccount", { name: owner.displayName }) : "";

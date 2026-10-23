@@ -80,6 +80,7 @@ describe("the home's recent rows open their detail (ruling P189)", () => {
       problem: null,
       members: [],
       viewer: { userId: "u-ana", role: "OWNER", memberId: null },
+      ownAccountNames: {},
     };
     renderWithIntl(summary({ detail }));
     expect(await screen.findByRole("dialog", { name: "Dinner" })).toBeInTheDocument();

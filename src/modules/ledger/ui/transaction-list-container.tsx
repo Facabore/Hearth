@@ -92,7 +92,13 @@ export async function TransactionListContainer({
   const [list, detail] = await Promise.all([
     loadTransactionList(api, { spaceId, period, categoryId, shared }),
     transactionId && space
-      ? loadTransactionDetail(api, { spaceId, transactionId, space, meUserId: me!.id })
+      ? loadTransactionDetail(api, {
+          spaceId,
+          transactionId,
+          space,
+          meUserId: me!.id,
+          personalSpaceId: spaces.find((s) => s.kind === "PERSONAL")?.id,
+        })
       : undefined,
   ]);
   if (!list.ok) return <ProblemNotice problem={list.problem} />;
