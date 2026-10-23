@@ -863,6 +863,20 @@
         "confirm": "Quitar"
       },
       "readOnly": "Solo Propietario y Administrador editan las líneas de un plan abierto."
+    },
+    "allocation": {
+      "title": "Quién responde por la línea",
+      "rule": "Regla de asignación",
+      "value": "Valor de {name}",
+      "sum": "Suma: {sum}",
+      "unreadable": "Escribe un número como {example}.",
+      "noCapacity": "Nadie tiene capacidad en este plan: asigna por porcentaje o por monto fijo.",
+      "note": {
+        "PROPORTIONAL": "Sigue la capacidad de cada miembro. Si cambian las capacidades, se recalcula.",
+        "PERCENT": "Porcentajes que suman 100 %.",
+        "FIXED": "Montos que suman los {planned} planeados.",
+        "NONE": "Plata del grupo, sin responsable por persona: la línea muestra planeado, gastado y disponible, sin montos por miembro."
+      }
     }
   },
   "reports": {

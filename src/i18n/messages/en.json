@@ -863,6 +863,20 @@
         "confirm": "Remove"
       },
       "readOnly": "Only an Owner or an Admin edits the lines of an open plan."
+    },
+    "allocation": {
+      "title": "Who answers for the line",
+      "rule": "Allocation rule",
+      "value": "{name}'s value",
+      "sum": "Sum: {sum}",
+      "unreadable": "Type a number like {example}.",
+      "noCapacity": "Nobody has capacity in this plan: allocate by percentage or by fixed amount.",
+      "note": {
+        "PROPORTIONAL": "Follows each member's capacity. It is recalculated when capacities change.",
+        "PERCENT": "Percentages that add up to 100%.",
+        "FIXED": "Amounts that add up to the {planned} planned.",
+        "NONE": "Group money with no one answering per person: the line shows planned, spent and available, without amounts per member."
+      }
     }
   },
   "reports": {
