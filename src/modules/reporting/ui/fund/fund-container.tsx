@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { ProblemNotice } from "@/shared/ui";
 import type { Api } from "@/shared/ui/api/client";
 import type { FundTrackingDto, MemberDto, PeriodDto } from "@/shared/ui/api/dto";
@@ -38,7 +39,7 @@ export const loadFund = async (
   };
 };
 
-/** Server: the Fund view of the Plan tab for `?period=`, in the person's formats. */
+/** Server: the Fund view of the Plan tab for `?period=`, in the person's formats; the personal space has none. */
 export async function FundTrackingContainer({
   spaceId,
   period,
@@ -48,6 +49,7 @@ export async function FundTrackingContainer({
 }) {
   const [me, spaces] = await Promise.all([getMe(), getSpaces()]);
   const space = spaceOf(spaces, spaceId);
+  if (space.kind === "PERSONAL") notFound();
   const result = await loadFund(await serverApi(), {
     spaceId,
     period,

@@ -1,16 +1,25 @@
 import { screen } from "@testing-library/react";
+import { notFound } from "next/navigation";
 import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
-import { cop, normalized } from "../../../../../tests/support/ui/dto";
+import { cop, meDto, normalized, spaceDto } from "../../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse } from "../../../../../tests/support/ui/fake-api";
-import { e7Fund, HOUSEHOLD_MEMBERS } from "../../../../../tests/support/ui/plan-dto";
+import { e7Fund, HOUSEHOLD_MEMBERS, householdDto } from "../../../../../tests/support/ui/plan-dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
-import { loadFund } from "./fund-container";
+import { FundTrackingContainer, loadFund } from "./fund-container";
 import { FundTracking } from "./fund-tracking";
+
+const server = vi.hoisted(() => ({ api: undefined as unknown, spaces: [] as unknown[] }));
 
 vi.mock("next/headers", () => ({}));
 vi.mock("next/navigation", () => ({ notFound: vi.fn(), redirect: vi.fn() }));
+vi.mock("@/shared/ui/api/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/shared/ui/api/server")>()),
+  getMe: async () => meDto({ timezone: "America/Bogota" }),
+  getSpaces: async () => server.spaces,
+  serverApi: async () => server.api,
+}));
 
 const show = (fund = e7Fund(), members = HOUSEHOLD_MEMBERS) =>
   renderWithIntl(<FundTracking fund={fund} members={members} formats={BUILT_IN_FORMATS} />);
@@ -118,5 +127,16 @@ describe("fund tracking (HU-E9-10)", () => {
     });
     const result = await loadFund(api, { spaceId: "sp-household", period: "2026-11", today: "2026-10-31" });
     expect(result.ok).toBe(false);
+  });
+
+  it("has no fund view in the personal space, and asks for nothing", async () => {
+    server.spaces = [spaceDto(), householdDto()];
+    const { api, requests } = fakeApi({});
+    server.api = api;
+    vi.mocked(notFound).mockImplementationOnce(() => {
+      throw new Error("not found");
+    });
+    await expect(FundTrackingContainer({ spaceId: "sp-personal" })).rejects.toThrow("not found");
+    expect(requests).toEqual([]);
   });
 });

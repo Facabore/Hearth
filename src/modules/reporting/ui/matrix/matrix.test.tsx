@@ -1,18 +1,27 @@
 import { screen, within } from "@testing-library/react";
+import { notFound } from "next/navigation";
 import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
-import { cop, normalized } from "../../../../../tests/support/ui/dto";
+import { cop, meDto, normalized, spaceDto } from "../../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse } from "../../../../../tests/support/ui/fake-api";
 import { e7Matrix, HOUSEHOLD_MEMBERS, householdDto } from "../../../../../tests/support/ui/plan-dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import type { MemberMatrixDto } from "@/shared/ui/api/dto";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { UI_ICONS } from "@/shared/ui/icons/ui-icons";
-import { loadMatrix } from "./matrix-container";
+import { loadMatrix, MemberMatrixContainer } from "./matrix-container";
 import { MemberMatrix } from "./member-matrix";
+
+const server = vi.hoisted(() => ({ api: undefined as unknown, spaces: [] as unknown[] }));
 
 vi.mock("next/headers", () => ({}));
 vi.mock("next/navigation", () => ({ notFound: vi.fn(), redirect: vi.fn() }));
+vi.mock("@/shared/ui/api/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/shared/ui/api/server")>()),
+  getMe: async () => meDto({ timezone: "America/Bogota" }),
+  getSpaces: async () => server.spaces,
+  serverApi: async () => server.api,
+}));
 
 const cellsOf = (table: string, member: string) =>
   within(
@@ -104,6 +113,17 @@ describe("member matrix (HU-E9-10)", () => {
     expect(result.ok && result.data.members).toHaveLength(2);
     const report = requests.find((r) => r.url.includes("member-matrix"))!;
     expect(new URL(report.url).searchParams.get("period")).toBe("2026-11");
+  });
+
+  it("has no members view in the personal space, and asks for nothing", async () => {
+    server.spaces = [spaceDto(), householdDto()];
+    const { api, requests } = fakeApi({});
+    server.api = api;
+    vi.mocked(notFound).mockImplementationOnce(() => {
+      throw new Error("not found");
+    });
+    await expect(MemberMatrixContainer({ spaceId: "sp-personal" })).rejects.toThrow("not found");
+    expect(requests).toEqual([]);
   });
 });
 

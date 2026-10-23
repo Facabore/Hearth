@@ -68,11 +68,11 @@ export function CashFlowCalendar({
           ).map(([key, value]) => (
             <div key={key} className="flex min-w-0 flex-col">
               <dt className="text-sm text-muted">{t(`calendar.${key}`)}</dt>
-              <dd className="font-semibold tabular-nums">{money(value)}</dd>
+              <dd className="font-semibold tabular-nums [overflow-wrap:anywhere]">{money(value)}</dd>
             </div>
           ))}
         </dl>
-        <p className={`mt-3 text-sm ${negative(flow.lowest.balance) ? "text-owe" : "text-muted"}`}>
+        <p className={`mt-3 text-sm ${negative(flow.lowest.balance) ? "text-owe-ink" : "text-muted"}`}>
           {t("calendar.lowest", {
             balance: money(flow.lowest.balance),
             date: formatDate(flow.lowest.date, formats),
@@ -110,7 +110,7 @@ export function CashFlowCalendar({
                 ))}
               </ul>
               <p
-                className={`text-sm tabular-nums ${negative(date.balanceAfter) ? "text-owe" : "text-muted"}`}
+                className={`text-sm tabular-nums ${negative(date.balanceAfter) ? "text-owe-ink" : "text-muted"}`}
               >
                 {t("calendar.balanceAfter", { balance: money(date.balanceAfter) })}
               </p>
@@ -150,7 +150,7 @@ function MovementRow({
       </div>
       <div className="flex shrink-0 flex-col items-end text-right tabular-nums">
         {moves ? (
-          <span className={negative(movement.effect) ? "text-owe" : undefined}>
+          <span className={negative(movement.effect) ? "text-owe-ink" : undefined}>
             {formatSignedMoney(movement.effect, formats)}
           </span>
         ) : (

@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { ProblemNotice } from "@/shared/ui";
 import type { Api } from "@/shared/ui/api/client";
 import type { MemberDto, MemberMatrixDto, PeriodDto } from "@/shared/ui/api/dto";
@@ -43,7 +44,7 @@ export const loadMatrix = async (
   };
 };
 
-/** Server: the Members view of the Plan tab for `?period=`, in the person's formats. */
+/** Server: the Members view of the Plan tab for `?period=`, in the person's formats; the personal space has none. */
 export async function MemberMatrixContainer({
   spaceId,
   period,
@@ -53,6 +54,7 @@ export async function MemberMatrixContainer({
 }) {
   const [me, spaces] = await Promise.all([getMe(), getSpaces()]);
   const space = spaceOf(spaces, spaceId);
+  if (space.kind === "PERSONAL") notFound();
   const result = await loadMatrix(await serverApi(), {
     spaceId,
     period,

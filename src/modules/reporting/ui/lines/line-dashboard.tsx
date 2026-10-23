@@ -36,7 +36,8 @@ export function LineDashboard({
   const currency = totals.planned.currency;
   const money = (value: { readonly amount: string; readonly currency: string }) =>
     formatMoney(value, formats);
-  const tone = (value: { readonly amount: string }) => (isNegative(value) ? " text-owe" : "");
+  // The owe ink for the table's small figures: the plain owe color fails AA contrast below 18.66 px.
+  const tone = (value: { readonly amount: string }) => (isNegative(value) ? " text-owe-ink" : "");
   return (
     <>
       <section aria-labelledby={summary} className="flex flex-col gap-1 tabular-nums">

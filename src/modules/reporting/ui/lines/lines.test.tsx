@@ -61,6 +61,23 @@ describe("line dashboard (HU-E9-10)", () => {
     expect(within(screen.getByRole("row", { name: /^Rent/ })).queryByText("Excedida")).toBeNull();
   });
 
+  it("writes a small negative available figure in the owe ink, never the owe color that fails AA below 18.66 px", () => {
+    const dashboard = e7Dashboard();
+    dashboard.lines[1] = { ...dashboard.lines[1]!, available: cop(-130_000), overspent: true };
+    renderWithIntl(
+      <LineDashboard dashboard={dashboard} policy={householdDto().periodPolicy} formats={BUILT_IN_FORMATS} />,
+    );
+    const available = (row: RegExp) =>
+      within(screen.getByRole("row", { name: row }))
+        .getAllByRole("cell")
+        .at(-1) as HTMLElement;
+    for (const row of [/^Home/, /^Sin presupuesto/]) {
+      expect(available(row)).toHaveClass("text-owe-ink");
+      expect(available(row)).not.toHaveClass("text-owe");
+    }
+    expect(available(/^Rent/)).not.toHaveClass("text-owe-ink");
+  });
+
   it("shows the API's totals, never a sum of the rows (ruling P201)", () => {
     const totals = { planned: cop(1), spent: cop(2), available: cop(3) };
     renderWithIntl(

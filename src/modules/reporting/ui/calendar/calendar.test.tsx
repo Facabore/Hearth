@@ -69,7 +69,7 @@ describe("the cash-flow calendar (#150, ruling P241 of M6c)", () => {
     expect(day("30/10/2026")).toContain("Saldo proyectado $ 7");
     const lowest = screen.getByText(/Lo más bajo/);
     expect(normalized(lowest.textContent)).toBe("Lo más bajo: −$ 1 el 5/11/2026");
-    expect(lowest).toHaveClass("text-owe");
+    expect(lowest).toHaveClass("text-owe-ink");
   });
 
   it("offers 30 and 60 days and keeps the Plan tab's views", () => {
