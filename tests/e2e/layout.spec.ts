@@ -4,7 +4,9 @@ import en from "../../src/i18n/messages/en.json" with { type: "json" };
 import es from "../../src/i18n/messages/es.json" with { type: "json" };
 import { BASE_URL } from "./support/base-url";
 import { Person } from "./support/people";
+import { categoryIdsByKey, clientOf, seedHome, seedHousehold, seedRecurrence } from "./support/plan-seed";
 import { get, patch, post, put, saveIncomeFromForm, seedLedger, signUp } from "./support/seed";
+import { World } from "./support/world";
 
 /**
  * Phone-width layout guards (UI Definition of Done, WCAG 1.4.10 Reflow, 2.4.11 Focus Not Obscured, 2.5.5 Target Size):
@@ -103,6 +105,64 @@ const session = async (page: Page, tag: string) => {
     id: string;
   };
   return { spaceId, sharedId: shared.id };
+};
+
+/** #150: a recurrence's name with nothing to break it at, as long as a realistic one gets. */
+const UNBROKEN_RECURRENCE = "R".repeat(60);
+
+/**
+ * #142, #143, #150 (Task 17c), seeded through the plan seed's `SeedClient`: the session's Ana gets a household (Juan its
+ * MEMBER) whose ACTIVE October plan has Home rolling over with 1,300,000 COP spent, and its November copy, which waits
+ * for October to close (the longest carry text). Her personal space gets an expense recurrence with an unbroken name
+ * and a 15-digit amount inside the calendar's window. Juan is only needed to seed, so his context is closed here.
+ */
+const seedAdditions = async (page: Page, spaceId: string, testId: string) => {
+  const world = new World(page, testId, `10.252.${randomInt(256)}.${randomInt(1, 255)}`, request);
+  world.user = { name: "Ana", email: "", spaceId };
+  try {
+    const household = await seedHousehold(world, { name: "Household", member: "Juan", role: "MEMBER" });
+    const ana = clientOf(world);
+    // The session's ledger already holds her "Bancolombia"; the savings line needs a SAVINGS account of hers.
+    const { items: owned } = await get(page, `/api/v1/spaces/${spaceId}/accounts`);
+    const savings = (await ana.post(`/api/v1/spaces/${spaceId}/accounts`, {
+      name: "Ahorros",
+      type: "SAVINGS",
+      openingBalance: { amount: "0", currency: "COP" },
+    })) as { id: string };
+    const accounts = {
+      bancolombia: owned.find((a: { name: string }) => a.name === "Bancolombia").id as string,
+      savings: savings.id,
+    };
+    await seedHome(ana, household, accounts, { period: "2026-10", rolloverMode: "ROLLOVER", close: false });
+    await ana.post(`/api/v1/spaces/${household.spaceId}/plans`, { period: "2026-11", copyFrom: "previous" });
+    const keys = await categoryIdsByKey(ana, spaceId);
+    const { items: members } = await get(page, `/api/v1/spaces/${spaceId}/members`);
+    await seedRecurrence(ana, spaceId, {
+      description: UNBROKEN_RECURRENCE,
+      amount: { amount: HUGE_EXPENSE, currency: "COP" },
+      template: {
+        type: "EXPENSE",
+        categoryId: keys.utilities,
+        payer: { memberId: members[0].id, accountId: accounts.bancolombia },
+      },
+      schedule: { kind: "MONTHLY", day: 5 },
+      mode: "AUTO",
+      startDate: "2026-11-05",
+    });
+    return household.spaceId;
+  } finally {
+    await world.dispose();
+  }
+};
+
+/** #142 (ruling P235): on the open record form of the household, 212,300 COP of Groceries takes Home over; Save asks. */
+const askBeforeSaving = async (page: Page) => {
+  await expect(page.locator("[data-ready='true']")).toBeAttached();
+  await page.getByLabel(es.ledger.form.amount).fill("212300");
+  await page.getByRole("button", { name: new RegExp(es.ledger.form.category) }).click();
+  await page.getByRole("radio", { name: /^Mercado|^Groceries/ }).click();
+  await page.getByRole("button", { name: es.ledger.form.save.EXPENSE, exact: true }).click();
+  await expect(page.getByRole("heading", { name: es.ledger.lineWarning.confirmTitle })).toBeFocused();
 };
 
 /**
@@ -591,6 +651,19 @@ for (const wideFont of [false, true]) {
           "/spaces/does-not-exist/accounts",
         ])
           await check(path);
+
+        // #142, #143, #150 (Task 17c): the longest carry text, the calendar's windows and the line warning's question.
+        const household = await seedAdditions(page, spaceId, test.info().testId);
+        for (const path of [
+          `/spaces/${household}/plan?period=2026-11`,
+          `/spaces/${spaceId}/plan/calendar`,
+          `/spaces/${spaceId}/plan/calendar?days=60`,
+        ])
+          await check(path);
+        await page.goto(`/spaces/${household}/new`);
+        await askBeforeSaving(page);
+        const { overflow, message } = await overflowReport(page, "the record form asking before saving");
+        expect.soft(overflow, message).toBeLessThanOrEqual(0);
       });
     }
 
@@ -940,7 +1013,8 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       }
       // The long line wraps inside its row instead of widening the page.
       await page.goto(`/spaces/${sharedId}/plan`);
-      await expect(page.getByText(LONG_LINE)).toBeVisible();
+      // From 1024 px the desktop overview (Task 16) repeats the line; under it those panels are hidden.
+      await expect(page.getByText(LONG_LINE).filter({ visible: true })).toBeVisible();
       await expect(page.getByText(es.reports.lines.overspent)).toBeVisible();
       await expect(page.getByText(es.reports.lines.overBy.replace("{amount}", ""))).toBeVisible();
 
@@ -1023,7 +1097,8 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       expect(box.height).toBeGreaterThanOrEqual(TARGET);
       await back.click();
       await expect(page).toHaveURL(new RegExp(`/spaces/${sharedId}/plan\\?period=2026-10$`));
-      await expect(page.getByText(LONG_LINE)).toBeVisible();
+      // The dashboard again: the desktop overview's hidden panels (Task 16) repeat the line under 1024 px.
+      await expect(page.getByText(LONG_LINE).filter({ visible: true })).toBeVisible();
     });
 
     test(`closing a plan whose source plan is still open names the period and links to it at ${viewport.width} px (ruling P248)`, async ({
@@ -1912,6 +1987,27 @@ test.describe("touch targets are at least 44 x 44 px (WCAG 2.5.5)", () => {
     });
     expect(collisions).toEqual([]);
   });
+
+  test("the line warning's two buttons and the calendar's two window links are full targets (#142, #150)", async ({
+    page,
+  }) => {
+    const { spaceId } = await session(page, "targets-additions");
+    const household = await seedAdditions(page, spaceId, test.info().testId);
+    await page.goto(`/spaces/${household}/new`);
+    await askBeforeSaving(page);
+    const measure = async (label: string, target: Locator) => {
+      const box = (await target.boundingBox())!;
+      expect.soft(box.width, `width of "${label}"`).toBeGreaterThanOrEqual(TARGET);
+      expect.soft(box.height, `height of "${label}"`).toBeGreaterThanOrEqual(TARGET);
+    };
+    for (const name of [es.ledger.lineWarning.confirm, es.ledger.lineWarning.review])
+      await measure(name, page.getByRole("button", { name, exact: true }));
+    await page.goto(`/spaces/${spaceId}/plan/calendar`);
+    for (const days of ["30", "60"]) {
+      const label = es.reports.calendar.days.replace("{days}", days);
+      await measure(label, page.getByRole("main").getByRole("link", { name: label, exact: true }));
+    }
+  });
 });
 
 test.describe("a focused control is never hidden by the bottom navigation (WCAG 2.4.11)", () => {
@@ -1944,10 +2040,12 @@ test.describe("a focused control is never hidden by the bottom navigation (WCAG 
 });
 
 test.describe("the last control of a scrolling screen ends above the bottom bar (UX: nothing under the bar)", () => {
+  /** The seeded ids a screen's address takes: the personal space, and the household when the screen asks for one. */
+  type Ids = { readonly spaceId: string; readonly household?: string };
   const screens = [
     {
       name: "record form",
-      at: (spaceId: string) => `/spaces/${spaceId}/new`,
+      at: ({ spaceId }: Ids) => `/spaces/${spaceId}/new`,
       prepare: async (page: Page) => {
         await expect(page.locator("[data-ready='true']")).toBeAttached();
       },
@@ -1955,12 +2053,20 @@ test.describe("the last control of a scrolling screen ends above the bottom bar 
     },
     {
       name: "new account",
-      at: (spaceId: string) => `/spaces/${spaceId}/accounts/new`,
+      at: ({ spaceId }: Ids) => `/spaces/${spaceId}/accounts/new`,
       // A credit card asks for the most attributes, so the form is the longest it gets.
       prepare: async (page: Page) => {
         await page.getByRole("radio", { name: es.accounts.type.CREDIT_CARD }).click();
       },
       submit: es.accounts.create,
+    },
+    {
+      // #142 (ruling P235): the question the form asks before an expense that takes its line over.
+      name: "record form, line warning confirmation",
+      household: true,
+      at: ({ household }: Ids) => `/spaces/${household}/new`,
+      prepare: askBeforeSaving,
+      submit: es.ledger.lineWarning.confirm,
     },
   ];
 
@@ -1974,7 +2080,9 @@ test.describe("the last control of a scrolling screen ends above the bottom bar 
         const cdp = await page.context().newCDPSession(page);
         await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { bottom: 34 } });
         const { spaceId } = await session(page, "bottom-bar");
-        await page.goto(screen.at(spaceId));
+        const household =
+          "household" in screen ? await seedAdditions(page, spaceId, test.info().testId) : undefined;
+        await page.goto(screen.at({ spaceId, household }));
         await screen.prepare(page);
         const submit = page.getByRole("button", { name: screen.submit, exact: true });
         await expect(submit).toBeVisible();

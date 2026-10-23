@@ -15,4 +15,4 @@ export const test = base.extend<{ world: World }>({
   },
 });
 
-export const { Given, When, Then } = createBdd(test);
+export const { Given, When, Then, After } = createBdd(test);

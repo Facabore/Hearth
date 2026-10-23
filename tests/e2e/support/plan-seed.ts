@@ -197,6 +197,53 @@ const expense = (
   return client.record(`/api/v1/spaces/${spaceId}/expenses`, { ...rest, amount: cop(pesos) });
 };
 
+/** #150 (ruling P241): a recurrence of `spaceId`, as `POST …/recurrences` defines it. */
+export const seedRecurrence = async (
+  client: SeedClient,
+  spaceId: string,
+  body: Record<string, unknown>,
+): Promise<{ id: string }> => {
+  const { id } = (await client.post(`/api/v1/spaces/${spaceId}/recurrences`, body)) as { id: string };
+  return { id };
+};
+
+/**
+ * #142, #143 (Task 17c): the reference plan of `period` (Free off the catch-all), with Home's rollover set to
+ * `rolloverMode`, ACTIVE, and 1,300,000 COP of Groceries on the period's 15th from Ana's Bancolombia; with `close`, the
+ * plan is then closed. The e2e server's today is 2026-10-31 (P133), so any period up to September can be closed.
+ */
+export const seedHome = async (
+  ana: SeedClient,
+  hh: SeededHousehold,
+  accounts: Pick<Accounts, "bancolombia" | "savings">,
+  options: { period: string; rolloverMode: "RESET" | "ROLLOVER" | "ADJUSTED"; close: boolean },
+): Promise<{ planId: string; lineIds: Record<string, string> }> => {
+  const { planId, version, lineIds } = await seedReferencePlan(ana, hh, {
+    period: options.period,
+    catchAll: false,
+    activate: false,
+    savingsAccountId: accounts.savings,
+  });
+  const base = `/api/v1/spaces/${hh.spaceId}/plans/${planId}`;
+  let plan = (await ana.send(
+    "PATCH",
+    `${base}/lines/${lineIds.Home}`,
+    { rolloverMode: options.rolloverMode },
+    { "if-match": `"${version}"` },
+  )) as PlanAnswer;
+  plan = (await ana.post(`${base}/activate`, {}, plan.version)) as PlanAnswer;
+  const keys = await categoryIdsByKey(ana, hh.spaceId);
+  await expense(ana, hh.spaceId, {
+    description: "Groceries",
+    date: `${options.period}-15`,
+    categoryId: keys.groceries!,
+    pesos: 1_300_000,
+    accountId: accounts.bancolombia,
+  });
+  if (options.close) await ana.post(`${base}/close`, {}, plan.version);
+  return { planId, lineIds };
+};
+
 /** HU-E7-01 Background: November 2026's expenses in Household, Restaurants on the period's last day. */
 export const seedE7Expenses = async (ana: SeedClient, hh: SeededHousehold, a: Accounts) => {
   const keys = await categoryIdsByKey(ana, hh.spaceId);

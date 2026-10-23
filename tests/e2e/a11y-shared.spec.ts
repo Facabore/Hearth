@@ -169,6 +169,8 @@ for (const colorScheme of ["light", "dark"] as const) {
     test.use({ colorScheme, viewport: PHONE });
 
     test("every M6b screen and sheet has no WCAG 2.1 AA violation", async ({ page, playwright, browser }) => {
+      // Alone it takes about 31 s; under the full suite's parallel load it outgrows the 60 s default.
+      test.setTimeout(180_000);
       const scan = async (where: string, on: Page = page) => {
         const { violations } = await new AxeBuilder({ page: on }).withTags(WCAG).analyze();
         expect(
