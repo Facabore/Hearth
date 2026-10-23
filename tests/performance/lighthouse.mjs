@@ -5,6 +5,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { chromium } from "@playwright/test";
 import lighthouse from "lighthouse";
+import { seedPlanRoutes } from "./seed-plan.mjs";
 
 // The mjs lint block declares only process, console, Buffer and URL as globals.
 const { fetch } = globalThis;
@@ -97,16 +98,23 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       .getSetCookie()
       .map((c) => c.split(";")[0])
       .join("; ");
-    const call = async (who, method, path, body) => {
+    // Plan writes carry `If-Match: "<version>"` of the last answer (ruling P206).
+    const call = async (who, method, path, body, ifMatch) => {
       const response = await fetch(`${BASE}${path}`, {
         method,
-        headers: { ...who.headers, cookie: who.cookie, "idempotency-key": randomUUID() },
+        headers: {
+          ...who.headers,
+          cookie: who.cookie,
+          "idempotency-key": randomUUID(),
+          ...(ifMatch === undefined ? {} : { "if-match": `"${ifMatch}"` }),
+        },
         body: body && JSON.stringify(body),
       });
-      if (!response.ok) throw new Error(`${method} ${path} answered ${response.status}`);
+      if (!response.ok)
+        throw new Error(`${method} ${path} answered ${response.status}: ${await response.text()}`);
       return response.json();
     };
-    const api = (method, path, body) => call({ headers, cookie }, method, path, body);
+    const api = (method, path, body, ifMatch) => call({ headers, cookie }, method, path, body, ifMatch);
     const {
       items: [space],
     } = await api("GET", "/api/v1/spaces");
@@ -178,7 +186,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       payments: [{ memberId: ana, accountId: account.id, amount: { amount: "30000000", currency: "COP" } }],
       split: { method: "EQUAL", participants: [{ memberId: ana }, { memberId: juan }] },
     });
-    const ids = { id: space.id, shared, member: juan, token, claim, tx };
+    // Ruling P221: the household's six-plan chain and the personal space's recurrences (`:plan`, `:line`).
+    const plan = await seedPlanRoutes(api, { personal: space.id, shared, bank: account.id });
+    const ids = { id: space.id, shared, member: juan, token, claim, tx, ...plan };
     const debugPort = debugPortFor(process.env.E2E_PORT);
     const browser = await chromium.launch({ args: [`--remote-debugging-port=${debugPort}`] });
     try {

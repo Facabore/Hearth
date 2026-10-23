@@ -4,7 +4,7 @@ Every decision Hearth has made, in one place. There are three kinds, and each li
 
 - **Design decisions (D1–D23)** are in the [design spec](../superpowers/specs/2026-10-11-hearth-design.md#6-key-decisions), section 6.
 - **ADRs** record a technology choice: [`docs/adr/`](#adrs).
-- **Rulings (P1–P199)** are execution rulings the controller made while a milestone plan was written or run. Each lives in its plan's Self-Review; this page indexes them.
+- **Rulings (P1–P248)** are execution rulings the controller made while a milestone plan was written or run. Each lives in its plan's Self-Review; this page indexes them.
 
 ## Design decisions D1–D23
 
@@ -45,11 +45,11 @@ Rationale and rejected alternatives are in [section 6 of the spec](../superpower
 | [0003](../adr/0003-web-ui-talks-to-the-api-through-a-generated-client.md) | The web UI talks to `/api/v1` only, through a client generated from the snapshot. | Accepted (2026-10-20) |
 | [0004](../adr/0004-web-ui-testing-and-performance-gates.md) | Test the web UI with Vitest, Playwright and axe, and gate it on Core Web Vitals. | Accepted (2026-10-20) |
 
-## Rulings P1–P199
+## Rulings P1–P248
 
 Rulings are numbered across milestones, not per plan, and not always in the order of the plans: M4's plan holds rulings that were made while M3-D was being planned. The tables are grouped by the plan that records them. In each, "Where" is the plan's Self-Review section and the item number in it. "Amended" marks a ruling the plan itself says was amended.
 
-The ranges are: M3-A P1–P9, M3-B P10–P19, M3-C P20–P31, M3-D P40–P73, P78, P79 and P84–P94, M4 P32–P39, P74–P77, P80–P83 and P95–P106, M5 P107–P116, M6a P117–P154, M6b P155–P183, and the M6b addendum P184–P199; M6c starts at P200. M3-D's P89–P94 were kept outside the repository until the merge and are recorded in the section "Execution rulings (recorded after the merge)" at the end of its plan.
+The ranges are: M3-A P1–P9, M3-B P10–P19, M3-C P20–P31, M3-D P40–P73, P78, P79 and P84–P94, M4 P32–P39, P74–P77, P80–P83 and P95–P106, M5 P107–P116, M6a P117–P154, M6b P155–P183, the M6b addendum P184–P199, and M6c P200–P248. M3-D's P89–P94 were kept outside the repository until the merge and are recorded in the section "Execution rulings (recorded after the merge)" at the end of its plan.
 
 ### M3-A: budget plans (P1–P9)
 
@@ -336,6 +336,72 @@ Plan: [`2026-10-21-m6b-addendum-edit-delete-feedback.md`](../superpowers/plans/2
 | P197 | Recurrence-generated transactions get no special rule: an edit changes that transaction only, a deletion leaves its occurrence `RECORDED`, and a restore brings the same row back. | Rulings, 14 |
 | P198 | The open sheet and the edit route get their own script budgets, set from measurements under the plan's caps; the record route's budget does not move, and the toast card loads lazily to keep it. | Rulings, 15 |
 | P199 | Five `@e2e` scenarios cover edit, delete with undo, a version conflict, save feedback and a shared expense's corrected amount; the sheet, the edit route and the toast join the layout spec, and `a11y-edit.spec.ts` scans them in both themes. | Rulings, 16 |
+
+### M6c: budget planner and dashboards (P200–P248)
+
+Plan: [`2026-10-21-m6c-planner-and-dashboards.md`](../superpowers/plans/2026-10-21-m6c-planner-and-dashboards.md). Ruled by the planner under the owner's standing delegation of 2026-10-20 (Log L1). P227–P247 come from the three issues the owner moved into M6c (#142, #143 and #150, Log L2) and P243–P247 from the coordinator's hands-on test of a competitor (Log L3). P248 was ruled during execution. Every design deviation is listed in the plan's Self-Review for the owner's review of Batch 2.
+
+| ID | Ruling | Where |
+|---|---|---|
+| P200 | The bottom bar gains Plan (amends P141), a link to `/spaces/{spaceId}/plan` that is current under `…/plan` and `…/plans`; a shared or direct space shows Lines, Members, Fund, By group and Trend, the personal space My spending, By group, Trend and Lines, and a dashboard reaches the planner through the `plan` its report answers. | Rulings, 1 |
+| P201 | Figures are the API's: the UI never sums, subtracts or recomputes an amount or a share it shows, so the line dashboard and fund tracking answer `totals`; bar widths are presentation, and the allocation preview is a labelled exception the server overrides. | Rulings, 2 |
+| P202 | Bars are HTML widths inside the rows that carry their figures; Recharts draws only the personal and line trends, fetched after mount by `LazyTrendChart`, and dependency-cruiser's `recharts-only-in-charts` and `charts-load-lazily` enforce both halves (deviates from HU-E9-10's notes). | Rulings, 3 |
+| P203 | The chart dependencies are `recharts` 3.10.1 and its peer `react-is` 19.3.0, pinned exactly; Recharts 2.15.x, Victory and Chart.js were rejected. | Rulings, 4 |
+| P204 | `formatPercent` keeps the API's two decimals ("40,00 %") in the person's number format, with a non-breaking space before "%" and U+2212 for negatives; `formatSignedMoney` writes "+$ 50.000", "−$ 50.000" and "$ 0". | Rulings, 5 |
+| P205 | A dashboard's period is `?period=<label>`, else the space's period that holds today in the viewer's zone; its neighbours come from the day before its start and the day after its end, and the personal views use the personal space's periods. | Rulings, 6 |
+| P206 | Every plan write sends `If-Match: "<version>"` of the last answer and keeps the plan it answers; a 412 shows `errors.PreconditionFailed` and re-reads the plan, and the lifecycle buttons are disabled while a call is pending. | Rulings, 7 |
+| P207 | OWNER and ADMIN edit plans, a MEMBER changes only their own capacity, a VIEWER reads and a CLOSED plan is read-only for everyone; the dashboard's link reads "Editar plan" or "Ver plan", and only managers are offered Create and Copy plan. | Rulings, 8 |
+| P208 | Only the capacities container reads the private capacity suggestion, on the server with the request's cookie; it shows only on the viewer's own row, a failed read is `null`, and the total and the shares stay the stored ones until the save answers. | Rulings, 9 |
+| P209 | A copy's `dropped` reaches the planner once through `sessionStorage` (`hearth.planCopy.<planId>`) and is shown as a notice; a reload or another tab loses it. | Rulings, 10 |
+| P210 | `saveLine` adds or patches the line, then puts its categories, then its allocation, each with the version the step before answered; the first failure stops, keeps what was saved and points at its section, so the allocation editor is part of the line editor (amends HU-E9-08's note). | Rulings, 11 |
+| P211 | `allocate` mirrors the kernel's `Money.allocate` and is pinned to it; PERCENT must sum to exactly 100 % and FIXED to the planned amount, else `errors.InvalidAllocation` and the sum block the save, and the server's answer has the last word. | Rulings, 12 |
+| P212 | Categories are mapped in a sheet of checkboxes over the space's live parent categories; a category mapped to another line is disabled and names it, and a savings line maps none. | Rulings, 13 |
+| P213 | The line editor offers the caller's own active SAVINGS accounts of their personal space in the plan's currency; ids the caller cannot see read "Cuenta de ahorro de otro miembro" and are kept unless unchecked. | Rulings, 14 |
+| P214 | Activate is offered for a DRAFT and its `InvalidAllocation` names the lines of `lineIds`; Close is offered for an ACTIVE plan from the day after the period's last day in the viewer's zone; a CLOSED plan hides every edit control. | Rulings, 15 |
+| P215 | By group loads once and drills on the client; a category drills only when it holds a named subcategory, the breadcrumb starts at "Todos los grupos" with the current crumb `aria-current="location"`, and the bar width is the answered share. | Rulings, 16 |
+| P216 | From 1024 px a shared space's `…/plan` adds the By group, Fund, Against the previous period and Members by line panels, read in parallel; a failed read leaves its panel out. | Rulings, 17 |
+| P217 | The member matrix shows "—" for a null cell and reads its reason to assistive technology and once under the table, explains a SAVINGS line, and links a fund-level line to the Fund view. | Rulings, 18 |
+| P218 | The unified view has consumption and cash-out cards, "Pagado fuera de la app" only when it is not zero, categories in the API's order and named as the API names them ("space / category" for a custom one), and one notice per space in another currency. | Rulings, 19 |
+| P219 | Trends take windows of 6 (default) or 12 periods; `ChangeText` writes "−$ 50.000 (−3,70 %)" with a Down, Up or Same badge, and NEW shows "Nueva" with no percentage. | Rulings, 20 |
+| P220 | Every chart sits in a `figure` with a visible `figcaption`, its SVG is `aria-hidden` with no legend, and the table beside it carries the same series as the accessible source. | Rulings, 21 |
+| P221 | Every new route gets its script budget in `tests/performance/budgets.json` under caps derived from P154's measurements (190 KiB for the server-rendered dashboards, 195 with the drill-down, 200 for the planner and capacities, 215 for the line editor, 300 for the trends); LCP, CLS and TBT are unchanged, and INP covers the drill-down and the allocation editor. | Rulings, 22 |
+| P222 | M6c's e2e scenarios seed households through `tests/e2e/support/plan-seed.ts`: the second member signs up in a request context of their own, plan writes carry `If-Match`, splits are EXACT, and the household is kept in a `WeakMap` keyed by the World. | Rulings, 23 |
+| P223 | Dependency-cruiser excludes every test file (`.test.ts`, `.test.tsx` and `.test.mjs`), so a chart's test may import the chart file directly. | Rulings, 24 |
+| P224 | `periodName` moves to `src/shared/ui/time/period-name.ts`, and `usePeriodText` and `PeriodSwitcher` join `src/shared/ui`, because three modules name periods. | Rulings, 25 |
+| P225 | The interface icons gain `chart` (the Plan tab), `pencil`, `arrowUp` and `arrowDown`, with the Batch 2 artboards' paths. | Rulings, 26 |
+| P226 | Unbudgeted on the line dashboard plans `$ 0` and carries no "Overspent" badge; its negative available amount is shown in the owe color. | Rulings, 27 |
+| P227 | #142, #143 and #150 join M6c as nine lettered tasks: the backend first, right after Task 1 (1b–1e), and each UI task after the tasks it depends on. | Rulings, 28 |
+| P228 | Rollover is HU-E6-09's, unchanged: RESET carries nothing, ROLLOVER the previous available amount floored at 0, ADJUSTED only an overspend; M6c adds no mode. | Rulings, 29 |
+| P229 | `carryOver` is never part of `planned`, so "Σ planned ≤ total capacity" counts the planned amounts only and a carry cannot break it. | Rulings, 30 |
+| P230 | A copy links each line to its source by `originLineId`, and the carried amount is derived on read from the origin line, never stored; only a CLOSED source carries. | Rulings, 31 |
+| P231 | The line dashboard, the planner and the line editor show a carry with its source through one `CarryText` ("+$ 170.000 de septiembre 2026", or the plan it waits for), and `available` is rendered as answered. | Rulings, 32 |
+| P232 | A sinking fund is a ROLLOVER line whose planned amount is the monthly saving toward a yearly bill; M6c adds no target amount, due date or "on track" figure. | Rulings, 33 |
+| P233 | #142's check runs in the browser over the line dashboard that the record form's container reads on the server, so Save still sends its one request; a preview endpoint and a debounced preview call were rejected. | Rulings, 34 |
+| P234 | `GET …/reports/lines` answers `categoryLines` for every live category, computed by budgeting's own `lineForCategory` and `rolledUpCategory`; a SAVINGS line is never checked. | Rulings, 35 |
+| P235 | The warning's budget is planned + carry-over and its level is the kernel's `lineStateOf` over what would be left: OVER asks and states the overage ("te pasarías por $ 42.300") with no percentage, HIGH (above 90 %) asks, NEAR (80 % through 90 %) is a neutral note, and below 80 % nothing shows. | Rulings, 36 |
+| P236 | The check applies only to an EXPENSE in the form's own space (not a split or an edit), dated inside the loaded period, whose plan is ACTIVE and whose category feeds a non-SAVINGS line, with an amount above 0; a failed read means no check. | Rulings, 37 |
+| P237 | The warning is part of the form: a note that Save names with `aria-describedby` and a confirmation panel whose heading takes focus, with "Guardar de todos modos" and "Revisar el monto"; a change of amount, category or date asks again. | Rulings, 38 |
+| P238 | `GET /api/v1/me/cash-flow` (`days` 30 or 60) projects each ACTIVE recurrence's dates and every PENDING occurrence through the ledger's `listScheduledMovements` port, across the caller's current spaces, from today in their zone; nothing new is stored. | Rulings, 39 |
+| P239 | A movement is the caller's when it debits or credits an account they own; a fund-paid bill, a guest's payment from outside the app, another member's bill and the plan's undated expected contributions are left out. | Rulings, 40 |
+| P240 | The projection opens at today's available money of the personal space, moves only by counted accounts, places a movement due before today on today, answers each date's balance, the totals and the lowest balance, flags CONFIRM amounts as estimates and leaves other currencies out. | Rulings, 41 |
+| P241 | The calendar is the personal Plan tab's Próximos view at `…/plan/calendar` (`?days=60` for the longer window), with numeric dates, PENDING and estimate badges and an empty state; it is a Server Component with no client island, and a shared space has none. | Rulings, 42 |
+| P242 | P221's routes gain `/spaces/:id/plan/calendar` at 190 KiB; the record routes keep their budgets with the line warning, and every new screen and state joins the layout spec and the light and dark axe scans (amends P221). | Rulings, 43 |
+| P243 | A line carries only from the CLOSED plan it was copied from, and only from its origin line there; before the source closes it carries 0 and names the plan it waits for, and both line DTOs answer `carryOverFrom` (amends P15). | Rulings, 44 |
+| P244 | The line dashboard answers each line's `state` (OK, NEAR from 80 %, HIGH above 90 %, OVER with `overBy`) from the kernel's `lineStateOf` over planned + carry-over, which the record form's preview also applies; no M6c screen writes a share above 100 %. | Rulings, 45 |
+| P245 | The calendar projects only known future items: a one-off expense moves today's opening and adds no date, and there is no pace-based estimate. | Rulings, 46 |
+| P246 | Every calendar date is a `LocalDate`, today is the caller's local date, and the UI formats `YYYY-MM-DD` without a `Date`, so "2027-03-15" reads 15/3/2027. | Rulings, 47 |
+| P247 | No M6c flow records money in bulk: the calendar has no action, and any later bulk flow first shows a summary of what it will record and asks for confirmation. | Rulings, 48 |
+| P248 | Closing a plan is refused with 409 `SourcePlanOpen` (`sourcePeriod`) while the plan it was copied from is ACTIVE and one of its lines carries over from it (ROLLOVER or ADJUSTED, with an origin line), so a CLOSED plan's figures never move when its source closes later; a DRAFT source does not block, and the planner shows the refusal. Ruled during execution. | Execution, Tasks 1e (`8b0634b`) and 4 |
+
+**M6c amendments and execution notes.** These came up while M6c was built. They take no P number: each amends a ruling above or records what shipped beyond the plan.
+
+| Amends | Note | Where |
+|---|---|---|
+| P221, P242 | **Budgets from measurements.** Since #141 cut about 17 KiB from every route, P221's caps sit far above what the Plan routes weigh, so each budget is its Lighthouse median of five runs plus 3 KiB, never above its cap, measured on 2026-10-22 with the perf household's six-plan chain (2026-05 to 2026-10, October ACTIVE): the shared `/plan` 157 KiB (budget 160), members and fund 156 (159), by group 158 (161), trend 257 (260), the planner and capacities 164 (167), and the line editor, new and existing, 179 (182); the personal `/plan` 157 (160), lines 157 (160), by group 158 (161), trend 257 (260) and the calendar 156 (159). Recharts' chunk measures about 100 KiB (the trend routes over their siblings), under the 130 KiB that would have put hand-drawn SVG to the owner. The two `/plan` routes, budgeted at their caps (190 and 195) by Task 3b, were lowered the same way; the personal Lines view (`/spaces/:id/plan/lines`, P200) is budgeted too, so fourteen Plan routes are measured. The record routes stay within their budgets with the line warning (`/spaces/:id/new` and `/spaces/:shared/new` 186 of 187 KiB). LCP, CLS and TBT are unchanged (Plan routes' LCP 1.8–2.4 s). No budget was raised. | Task 18 |
+| — | Next.js 16.4.0 was upgraded to 16.4.2 (2026-10-22), which fixes GHSA-2464-fhr4-w9xw (critical, the Image Optimization API with SVG) and GHSA-p3m5-59mp-jv5r (high, a Server Actions denial of service), both affecting 16.0.0 to 16.4.0. See [stack versions](../stack-versions.md). | #160 |
+| P119, P244 | `ui-talks-only-to-the-api` in `.dependency-cruiser.cjs` allows a fourth kernel file to UI code, `src/shared/kernel/line-state.ts`, so the record form applies the API's own `lineStateOf` instead of a copy of it. | Task 3c |
+| P200 | The Plan tabs row (`reporting/ui/plan-tabs.tsx`) has `scroll-px-4`, so a tab scrolled into view stays clear of the screen edge whether or not its offset is a whole pixel. | Task 15 |
+| P202, P223 | The two rules as built: `recharts-only-in-charts` lets only `src/modules/reporting/ui/charts/*-chart.tsx` import `recharts`, the `lazy-*-chart.tsx` wrappers excepted, and `charts-load-lazily` fails any static import of those chart files, so the lazy wrapper is the one chart-named file a page imports. | Task 14a |
 
 ### Preflight notes and findings
 
