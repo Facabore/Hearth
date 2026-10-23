@@ -169,3 +169,133 @@ export const seedReferencePlan = async (
     plan = (await ana.post(`${base}/${plan.id}/activate`, {}, plan.version)) as PlanAnswer;
   return { planId: plan.id, version: plan.version, lineIds };
 };
+
+/** Ana's and Juan's personal BANK accounts of 2,000,000 COP, Ana's "Ahorros", and the household's fund. */
+export const seedAccounts = async (world: World, hh: SeededHousehold) => {
+  const ana = clientOf(world);
+  const open = (client: SeedClient, spaceId: string, name: string, type: string, pesos: number) =>
+    client.post(`/api/v1/spaces/${spaceId}/accounts`, {
+      name,
+      type,
+      openingBalance: cop(pesos),
+    }) as Promise<{ id: string }>;
+  return {
+    bancolombia: (await open(ana, world.user!.spaceId, "Bancolombia", "BANK", 2_000_000)).id,
+    savings: (await open(ana, world.user!.spaceId, "Ahorros", "SAVINGS", 0)).id,
+    davivienda: (await open(hh.juan, hh.juanSpaceId, "Davivienda", "BANK", 2_000_000)).id,
+    fund: (await open(ana, hh.spaceId, "Household Fund", "SHARED_FUND", 1_500_000)).id,
+  };
+};
+type Accounts = Awaited<ReturnType<typeof seedAccounts>>;
+
+const expense = (
+  client: SeedClient,
+  spaceId: string,
+  body: { description: string; date: string; categoryId: string; pesos: number } & Record<string, unknown>,
+) => {
+  const { pesos, ...rest } = body;
+  return client.record(`/api/v1/spaces/${spaceId}/expenses`, { ...rest, amount: cop(pesos) });
+};
+
+/** HU-E7-01 Background: November 2026's expenses in Household, Restaurants on the period's last day. */
+export const seedE7Expenses = async (ana: SeedClient, hh: SeededHousehold, a: Accounts) => {
+  const keys = await categoryIdsByKey(ana, hh.spaceId);
+  const fromFund = (pesos: number) => ({
+    payments: [{ memberId: null, accountId: a.fund, amount: cop(pesos) }],
+  });
+  await expense(ana, hh.spaceId, {
+    description: "Rent",
+    date: "2026-11-01",
+    categoryId: keys.rent!,
+    pesos: 1_200_000,
+    ...fromFund(1_200_000),
+  });
+  await expense(ana, hh.spaceId, {
+    description: "Groceries",
+    date: "2026-11-05",
+    categoryId: keys.groceries!,
+    pesos: 900_000,
+    accountId: a.bancolombia,
+  });
+  await expense(hh.juan, hh.spaceId, {
+    description: "Utilities",
+    date: "2026-11-10",
+    categoryId: keys.utilities!,
+    pesos: 400_000,
+    accountId: a.davivienda,
+  });
+  await expense(hh.juan, hh.spaceId, {
+    description: "Entertainment",
+    date: "2026-11-15",
+    categoryId: keys.entertainment!,
+    pesos: 250_000,
+    accountId: a.davivienda,
+  });
+  await expense(ana, hh.spaceId, {
+    description: "Restaurants",
+    date: "2026-11-30",
+    categoryId: keys.restaurants!,
+    pesos: 60_000,
+    accountId: a.bancolombia,
+  });
+};
+
+/** HU-E7-04 Background: Ana's November 2026 in Personal and Household, with her shares as EXACT splits. */
+export const seedE74Movements = async (world: World, hh: SeededHousehold, a: Accounts) => {
+  const ana = clientOf(world);
+  const personal = await categoryIdsByKey(ana, world.user!.spaceId);
+  const shared = await categoryIdsByKey(ana, hh.spaceId);
+  const split = (anaPesos: number, juanPesos: number) => ({
+    split: {
+      method: "EXACT",
+      participants: [
+        { memberId: hh.members["Ana"], amount: cop(anaPesos) },
+        { memberId: hh.members["Juan"], amount: cop(juanPesos) },
+      ],
+    },
+  });
+  await expense(ana, world.user!.spaceId, {
+    description: "Market",
+    date: "2026-11-03",
+    categoryId: personal.groceries!,
+    pesos: 85_000,
+    accountId: a.bancolombia,
+  });
+  await expense(ana, world.user!.spaceId, {
+    description: "Dinner",
+    date: "2026-11-12",
+    categoryId: personal.restaurants!,
+    pesos: 60_000,
+    accountId: a.bancolombia,
+  });
+  await expense(ana, hh.spaceId, {
+    description: "Home purchase",
+    date: "2026-11-05",
+    categoryId: shared.groceries!,
+    pesos: 2_000_000,
+    accountId: a.bancolombia,
+    ...split(800_000, 1_200_000),
+  });
+  await expense(ana, hh.spaceId, {
+    description: "Rent November",
+    date: "2026-11-01",
+    categoryId: shared.rent!,
+    pesos: 1_200_000,
+    payments: [{ memberId: null, accountId: a.fund, amount: cop(1_200_000) }],
+    ...split(480_000, 720_000),
+  });
+  await expense(hh.juan, hh.spaceId, {
+    description: "Weekly market",
+    date: "2026-11-20",
+    categoryId: shared.groceries!,
+    pesos: 300_000,
+    accountId: a.davivienda,
+    ...split(150_000, 150_000),
+  });
+  await ana.record(`/api/v1/spaces/${hh.spaceId}/fund-contributions`, {
+    date: "2026-11-01",
+    amount: cop(480_000),
+    fundAccountId: a.fund,
+    sourceAccountId: a.bancolombia,
+  });
+};
