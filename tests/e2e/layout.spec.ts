@@ -559,6 +559,7 @@ for (const wideFont of [false, true]) {
           `/spaces/${spaceId}/plan`,
           `/spaces/${sharedId}/plan`,
           `/spaces/${sharedId}/plan/fund`,
+          `/spaces/${sharedId}/plan/groups`,
           history,
           `/spaces/${sharedId}/new`,
           warned,
@@ -863,6 +864,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         // The member matrix: a card per member, so no table scrolls and no figure is cut off.
         [`/spaces/${sharedId}/plan/members`, 5],
         [`/spaces/${sharedId}/plan/fund`, 5],
+        [`/spaces/${sharedId}/plan/groups`, 5],
         [`/spaces/${spaceId}/plan`, 4],
       ] as const) {
         await page.goto(path);
@@ -903,7 +905,15 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
           expect
             .soft(box.height, "a link of the dashboard is at least 44 px tall")
             .toBeGreaterThanOrEqual(TARGET);
-          expect.soft(box.x + box.width, "and ends on screen").toBeLessThanOrEqual(viewport.width);
+          // The view tabs scroll inside their own row (P200): below 360 px the fourth waits beyond the edge, and
+          // scrolling brings it fully on screen. Every other link ends on screen where it stands.
+          const inTabs = await link.evaluate(
+            (el, label) => el.closest("nav")?.getAttribute("aria-label") === label,
+            es.reports.tabs.label,
+          );
+          if (inTabs) await link.scrollIntoViewIfNeeded();
+          const shown = (await link.boundingBox())!;
+          expect.soft(shown.x + shown.width, "and ends on screen").toBeLessThanOrEqual(viewport.width);
         }
       }
       // The long line wraps inside its row instead of widening the page.
@@ -944,6 +954,12 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
     const controls = page.locator("main").getByRole("link").or(page.locator("main").getByRole("button"));
     expect.soft(await controls.count(), `${what}: has controls`).toBeGreaterThan(0);
     for (const control of await controls.all()) {
+      // The view tabs scroll inside their own row (P200): a tab beyond the edge is scrolled fully on screen first.
+      const inTabs = await control.evaluate(
+        (el, label) => el.closest("nav")?.getAttribute("aria-label") === label,
+        es.reports.tabs.label,
+      );
+      if (inTabs) await control.scrollIntoViewIfNeeded();
       const box = (await control.boundingBox())!;
       const label = (await control.getAttribute("aria-label")) ?? (await control.textContent())?.trim();
       expect.soft(box.height, `${what}: height of "${label}"`).toBeGreaterThanOrEqual(TARGET);
@@ -1376,6 +1392,118 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
     await expect(region, "the scroll region takes the keyboard").toBeFocused();
     await expect(region.getByRole("columnheader")).toHaveCount(5);
   });
+});
+
+// 59 and 56 of the 60 characters a category name takes.
+const LONG_CATEGORY = "Mascotas, veterinario y accesorios de toda la familia Pérez";
+const LONG_SUBCATEGORY = "Consultas y vacunas de la clínica veterinaria del barrio";
+
+/**
+ * The shared space's first group gets a category and a subcategory with names as long as the API takes, and
+ * billion-peso spending both in the category itself and in the subcategory, so every level of the drill-down has a
+ * long name and big figures (HU-E9-10, ruling P215).
+ */
+const seedGroupSpending = async (page: Page, sharedId: string) => {
+  const space = `/api/v1/spaces/${sharedId}`;
+  const { items: groups } = await get(page, `${space}/categories`);
+  const style = { icon: { kind: "SYMBOL", name: "cart" }, color: "SAND" };
+  const category = await post(page, `${space}/categories`, {
+    groupId: groups[0].id,
+    name: LONG_CATEGORY,
+    ...style,
+  });
+  const subcategory = await post(page, `${space}/categories`, {
+    // A subcategory shows its parent's style and takes none of its own.
+    parentCategoryId: category.id,
+    name: LONG_SUBCATEGORY,
+  });
+  const fund = await post(page, `${space}/accounts`, {
+    name: "Fondo de grupos",
+    type: "SHARED_FUND",
+    openingBalance: { amount: "0", currency: "COP" },
+  });
+  for (const [categoryId, minor] of [
+    [category.id, "123456789000"],
+    [subcategory.id, "98765432100"],
+  ] as const) {
+    const amount = { amount: minor, currency: "COP" };
+    await post(
+      page,
+      `${space}/expenses`,
+      {
+        description: "Gasto de grupo",
+        date: "2026-10-30",
+        occurredAt: "2026-10-30T17:00:00.000Z",
+        timeZone: "America/Bogota",
+        categoryId,
+        amount,
+        payments: [{ memberId: null, accountId: fund.id, amount }],
+      },
+      { "idempotency-key": crypto.randomUUID() },
+    );
+  }
+};
+
+test.describe("the By group view (HU-E9-10, ruling P215)", () => {
+  for (const viewport of [PHONE, SMALL_PHONE]) {
+    test(`keeps long names and big figures on screen, drills with 44 px targets and goes back level by level at ${viewport.width} px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      const { sharedId } = await session(page, `by-group-${viewport.width}`);
+      await seedGroupSpending(page, sharedId);
+      const path = `/spaces/${sharedId}/plan/groups`;
+      const drills = () => new URL(page.url()).searchParams.getAll("drill");
+      const trail = page.getByRole("navigation", { name: es.reports.byGroup.trail });
+
+      /** No page scroll, and every row and crumb of the level is a full target that starts and ends on screen. */
+      const fits = async (where: string) => {
+        const { overflow, message } = await overflowReport(page, where);
+        expect.soft(overflow, message).toBeLessThanOrEqual(0);
+        for (const control of await page.locator("main").getByRole("button").all()) {
+          const box = (await control.boundingBox())!;
+          expect
+            .soft(box.height, `${where}: a control is at least 44 px tall`)
+            .toBeGreaterThanOrEqual(TARGET);
+          expect.soft(box.x, `${where}: and starts on screen`).toBeGreaterThanOrEqual(0);
+          expect.soft(box.x + box.width, `${where}: and ends on screen`).toBeLessThanOrEqual(viewport.width);
+        }
+      };
+
+      await page.goto(path);
+      await settle(page);
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(/octubre 2026/i);
+      await expect(page.getByText(es.reports.byGroup.hint.groups)).toBeVisible();
+      await fits("groups");
+
+      await page.getByRole("list", { name: es.reports.byGroup.groups }).getByRole("button").first().click();
+      await expect(page.getByText(LONG_CATEGORY).first()).toBeVisible();
+      expect(drills()).toHaveLength(1);
+      await fits("categories");
+
+      await page.getByRole("button", { name: new RegExp(`^${LONG_CATEGORY}`) }).click();
+      await expect(page.getByText(LONG_SUBCATEGORY)).toBeVisible();
+      await expect(page.getByText(es.reports.byGroup.noSubcategory)).toBeVisible();
+      expect(drills()).toHaveLength(2);
+      await fits("subcategories");
+
+      // Each level is a history entry: Back climbs one level, Forward descends, and a reload keeps the level.
+      await page.goBack();
+      await expect(page.getByText(es.reports.byGroup.hint.categories)).toBeVisible();
+      expect(drills()).toHaveLength(1);
+      await page.goForward();
+      await expect(page.getByText(LONG_SUBCATEGORY)).toBeVisible();
+      await page.reload();
+      await expect(page.getByText(LONG_SUBCATEGORY)).toBeVisible();
+      expect(drills()).toHaveLength(2);
+
+      // The breadcrumb goes back to the root, and the period stays in the address.
+      await trail.getByRole("button", { name: es.reports.byGroup.all }).click();
+      await expect(page.getByText(es.reports.byGroup.hint.groups)).toBeVisible();
+      expect(drills()).toEqual([]);
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(/octubre 2026/i);
+    });
+  }
 });
 
 test.describe("bottom sheets sit above the bottom navigation", () => {

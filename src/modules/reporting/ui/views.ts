@@ -3,7 +3,7 @@ import type { SpaceDto } from "@/shared/ui/api/dto";
 /** Ruling P200: the views of the Plan tab; the first of a space's list is the tab's own page. */
 export type PlanView = "lines" | "members" | "fund" | "groups" | "trend" | "mine";
 
-const SHARED_VIEWS: readonly PlanView[] = ["lines", "members", "fund"];
+const SHARED_VIEWS: readonly PlanView[] = ["lines", "members", "fund", "groups"];
 const PERSONAL_VIEWS: readonly PlanView[] = ["lines"];
 
 export const viewsFor = (kind: SpaceDto["kind"]): readonly PlanView[] =>

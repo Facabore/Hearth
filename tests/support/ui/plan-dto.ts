@@ -6,6 +6,7 @@ import type {
   PlanLineDto,
   SpaceDto,
   SpaceMemberDto,
+  SpendingByGroupDto,
 } from "@/shared/ui/api/dto";
 import { accountDto, cop, spaceDto } from "./dto";
 
@@ -276,4 +277,66 @@ export const e7Fund = (overrides: Partial<FundTrackingDto> = {}): FundTrackingDt
   ],
   totals: { expected: cop(1_200_000), actual: cop(980_000), difference: cop(-220_000) },
   ...overrides,
+});
+
+type Group = SpendingByGroupDto["groups"][number];
+type GroupCategory = Group["categories"][number];
+const sub = (subcategoryId: string | null, name: string | null, pesos: number, share: string) => ({
+  subcategoryId,
+  name,
+  archived: false,
+  total: cop(pesos),
+  share,
+});
+const category = (
+  id: string,
+  name: string,
+  pesos: number,
+  share: string,
+  subcategories = [sub(null, null, pesos, "100.00")],
+): GroupCategory => ({
+  id,
+  key: null,
+  name,
+  archived: false,
+  total: cop(pesos),
+  share,
+  subcategories,
+});
+const group = (
+  id: string,
+  name: string,
+  pesos: number,
+  share: string,
+  categories: GroupCategory[],
+): Group => ({
+  id,
+  key: null,
+  name,
+  archived: false,
+  total: cop(pesos),
+  share,
+  categories,
+});
+
+/** HU-E9-10 "Spending by group": the E7 November expenses, Groceries split into its subcategories. */
+export const e7Groups = (): SpendingByGroupDto => ({
+  spaceId: "sp-household",
+  period: { ...NOVEMBER },
+  total: cop(2_810_000),
+  groups: [
+    group("g-housing", "Housing", 1_600_000, "56.94", [
+      category("c-rent", "Rent", 1_200_000, "75.00"),
+      category("c-utilities", "Utilities", 400_000, "25.00"),
+    ]),
+    group("g-food", "Food", 960_000, "34.16", [
+      category("c-groceries", "Groceries", 900_000, "93.75", [
+        sub(null, null, 450_000, "50.00"),
+        sub("c-veg", "Vegetables", 270_000, "30.00"),
+        sub("c-meat", "Meat", 180_000, "20.00"),
+      ]),
+      category("c-dining", "Restaurants", 60_000, "6.25"),
+    ]),
+    group("g-leisure", "Leisure", 250_000, "8.90", [category("c-fun", "Entertainment", 250_000, "100.00")]),
+  ],
 });

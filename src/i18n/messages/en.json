@@ -912,6 +912,24 @@
       "editPlan": "Edit plan",
       "viewPlan": "View plan"
     },
+    "spaceScoped": "{space} / {name}",
+    "byGroup": {
+      "trail": "Path",
+      "all": "All groups",
+      "total": "Total spending",
+      "totalOf": "Total of {name}",
+      "hint": {
+        "groups": "Tap a group to see its categories.",
+        "categories": "Tap a category to see its subcategories.",
+        "subcategories": "Subcategories"
+      },
+      "groups": "Groups",
+      "categoriesOf": "Categories of {name}",
+      "subcategoriesOf": "Subcategories of {name}",
+      "noSubcategory": "No subcategory",
+      "archived": "Archived",
+      "spaceNote": "Every expense of the space, whoever paid. Income, transfers, fund contributions and settlements do not count."
+    },
     "fund": {
       "title": "Fund contributions",
       "expected": "Expected",

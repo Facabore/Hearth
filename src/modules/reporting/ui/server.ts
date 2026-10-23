@@ -2,4 +2,5 @@
 export { LineDashboardContainer } from "./lines/lines-container";
 export { FundTrackingContainer } from "./fund/fund-container";
 export { MemberMatrixContainer } from "./matrix/matrix-container";
+export { SpendingByGroupContainer } from "./by-group/by-group-container";
 export { viewHref, viewsFor, type PlanView } from "./views";

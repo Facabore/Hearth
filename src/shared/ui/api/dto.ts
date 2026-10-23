@@ -54,3 +54,9 @@ export type MemberMatrixDto = Json<
 export type FundTrackingDto = Json<
   paths["/api/v1/spaces/{spaceId}/reports/fund-contributions"]["get"]["responses"][200]
 >;
+export type SpendingByGroupDto = Json<
+  paths["/api/v1/spaces/{spaceId}/reports/spending-by-group"]["get"]["responses"][200]
+>;
+export type PersonalSpendingByGroupDto = Json<
+  paths["/api/v1/me/reports/spending-by-group"]["get"]["responses"][200]
+>;

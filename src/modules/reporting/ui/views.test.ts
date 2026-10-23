@@ -5,7 +5,7 @@ const shared = { id: "sp-household", kind: "SHARED" } as const;
 
 describe("Plan tab views (ruling P200)", () => {
   it("opens a space's first view on the tab's own page and keeps the period", () => {
-    expect(viewsFor("SHARED")).toEqual(["lines", "members", "fund"]);
+    expect(viewsFor("SHARED")).toEqual(["lines", "members", "fund", "groups"]);
     expect(viewsFor("PERSONAL")).toEqual(["lines"]);
     expect(viewHref(shared, "lines")).toBe("/spaces/sp-household/plan");
     expect(viewHref(shared, "fund", "2026-11")).toBe("/spaces/sp-household/plan/fund?period=2026-11");

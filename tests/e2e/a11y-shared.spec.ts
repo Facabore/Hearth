@@ -196,6 +196,8 @@ for (const colorScheme of ["light", "dark"] as const) {
         `${h}/plan/members`,
         // HU-E9-10: the Fund view, with Ana still to pay in what the Ocio line expects of her.
         `${h}/plan/fund`,
+        // HU-E9-10: spending by group, at its root level.
+        `${h}/plan/groups`,
         `${h}/members/${ids.ana}/history`,
         `${h}/transactions?notice=FundBalanceNegative&account=${ids.fund}`,
       ]) {
@@ -262,6 +264,14 @@ for (const colorScheme of ["light", "dark"] as const) {
       ).toBeVisible();
       await page.goto(`${h}/plan/fund`);
       await expect(page.getByText(es.reports.fund.behind).first()).toBeVisible();
+      // HU-E9-10: the By group view drilled into its one group is a level of its own, scanned in both color schemes,
+      // and the browser's Back returns to the groups.
+      await page.goto(`${h}/plan/groups`);
+      await page.getByRole("list", { name: es.reports.byGroup.groups }).getByRole("button").first().click();
+      await expect(page.getByText(es.reports.byGroup.hint.categories)).toBeVisible();
+      await scan(`${h}/plan/groups drilled`);
+      await page.goBack();
+      await expect(page.getByText(es.reports.byGroup.hint.groups)).toBeVisible();
       // U1: a shared space with no funds explains them instead of asking for a first account.
       const bare = await post(page, "/api/v1/spaces", { kind: "SHARED", name: "Vacía", currency: "COP" });
       for (const path of [`/spaces/${bare.id}`, `/spaces/${bare.id}/accounts`]) {

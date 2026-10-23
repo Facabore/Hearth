@@ -912,6 +912,24 @@
       "editPlan": "Editar plan",
       "viewPlan": "Ver plan"
     },
+    "spaceScoped": "{space} / {name}",
+    "byGroup": {
+      "trail": "Ruta",
+      "all": "Todos los grupos",
+      "total": "Gasto total",
+      "totalOf": "Total de {name}",
+      "hint": {
+        "groups": "Toca un grupo para ver sus categorías.",
+        "categories": "Toca una categoría para ver sus subcategorías.",
+        "subcategories": "Subcategorías"
+      },
+      "groups": "Grupos",
+      "categoriesOf": "Categorías de {name}",
+      "subcategoriesOf": "Subcategorías de {name}",
+      "noSubcategory": "Sin subcategoría",
+      "archived": "Archivada",
+      "spaceNote": "Todos los gastos del espacio, pague quien pague. Ingresos, transferencias, aportes al fondo y pagos entre miembros no cuentan."
+    },
     "fund": {
       "title": "Aportes al fondo",
       "expected": "Esperado",
