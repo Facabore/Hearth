@@ -821,6 +821,19 @@
       "droppedMapping": "{category}, que alimentaba {line}",
       "droppedAccount": "Una cuenta de ahorro de {line} que ya no se puede usar",
       "droppedLine": "La línea {name}: ninguna de sus cuentas de ahorro sigue disponible"
+    },
+    "capacity": {
+      "title": "Capacidades",
+      "subtitle": "Lo que cada persona pone en {period}",
+      "you": "{name} (tú)",
+      "field": "Capacidad de {name}",
+      "suggestion": "Sugerido {amount}: tus ingresos de {period} en Personal. Solo tú lo ves.",
+      "useSuggestion": "Usar sugerencia",
+      "zeroNote": "Quien no tiene capacidad cuenta como {zero}.",
+      "rolesNote": "Un Miembro solo cambia la suya; Propietario y Administrador, la de todos.",
+      "total": "Total",
+      "save": "Guardar capacidades",
+      "unreadable": "Escribe un monto como {example}."
     }
   },
   "reports": {

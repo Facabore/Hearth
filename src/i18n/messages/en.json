@@ -821,6 +821,19 @@
       "droppedMapping": "{category}, which fed {line}",
       "droppedAccount": "A savings account of {line} that can no longer be used",
       "droppedLine": "The line {name}: none of its savings accounts is still available"
+    },
+    "capacity": {
+      "title": "Capacities",
+      "subtitle": "What each person puts in for {period}",
+      "you": "{name} (you)",
+      "field": "{name}'s capacity",
+      "suggestion": "Suggested {amount}: your income of {period} in Personal. Only you see it.",
+      "useSuggestion": "Use suggestion",
+      "zeroNote": "Anyone without a capacity counts as {zero}.",
+      "rolesNote": "A Member changes only their own; an Owner or an Admin changes everyone's.",
+      "total": "Total",
+      "save": "Save capacities",
+      "unreadable": "Type an amount like {example}."
     }
   },
   "reports": {

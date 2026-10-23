@@ -22,4 +22,12 @@ export class SeedApi {
   patch = (path: string, body: unknown) => this.send("PATCH", path, body);
   put = (path: string, body: unknown) => this.send("PUT", path, body);
   get = (path: string) => this.send("GET", path);
+
+  /** A screen's HTML as this person's session receives it: everything a Server Component sent, props included. */
+  async html(path: string): Promise<string> {
+    const response = await this.request.fetch(path, { headers: { ...this.headers(), accept: "text/html" } });
+    if (!response.ok())
+      throw new Error(`GET ${path} answered ${response.status()}: ${await response.text()}`);
+    return response.text();
+  }
 }

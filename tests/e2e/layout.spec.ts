@@ -19,10 +19,10 @@ const WIDE_FONT_CSS = '* { font-family: Verdana, "DejaVu Sans", sans-serif !impo
 const MISSING = ["/nope", "/spaces/does-not-exist/accounts"];
 
 /**
- * The planner links to the capacities screen and the line editor, which Tasks 6 and 7 of M6c add: until they land, the
- * prefetch of those links is a 404. Those tasks remove this tolerance with their pages.
+ * The planner links to the line editor, which Task 7 of M6c adds: until it lands, the prefetch of those links is a
+ * 404. That task removes this tolerance with its pages.
  */
-const PLAN_SCREENS_NOT_BUILT_YET = /\/spaces\/[^/]+\/plans\/[^/]+\/(capacities|lines\/[^/?]+)\?_rsc=/;
+const PLAN_SCREENS_NOT_BUILT_YET = /\/spaces\/[^/]+\/plans\/[^/]+\/lines\/[^/?]+\?_rsc=/;
 
 /** The refusal a test stages on purpose (a plan's close answering 409): the browser logs every failed response. */
 const STAGED_REFUSAL = /\/api\/v1\/spaces\/[^/]+\/plans\/[^/]+\/close$/;
@@ -1023,6 +1023,101 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       await expect(page.getByRole("heading", { level: 2, name: /no tiene plan/i })).toHaveCount(0);
     });
   }
+
+  /** Ana earns 1,650,000 COP in September in her personal space: the income her October suggestion reads (D17). */
+  const seedIncome = async (page: Page, personalId: string) => {
+    const space = `/api/v1/spaces/${personalId}`;
+    const { items: accounts } = await get(page, `${space}/accounts`);
+    const { items: groups } = await get(page, `${space}/categories`);
+    const salary = groups
+      .flatMap((group: { categories: { id: string; key: string | null }[] }) => group.categories)
+      .find((category: { key: string | null }) => category.key === "salary");
+    await post(
+      page,
+      `${space}/incomes`,
+      {
+        description: "Salario",
+        date: "2026-09-15",
+        categoryId: salary.id,
+        amount: { amount: "165000000", currency: "COP" },
+        accountId: accounts[0].id,
+      },
+      { "idempotency-key": crypto.randomUUID() },
+    );
+  };
+
+  for (const viewport of [PHONE, SMALL_PHONE]) {
+    test(`the capacities screen keeps its figures and the private suggestion on screen, its last action above the bottom bar, and has a way back at ${viewport.width} px (HU-E9-08, ruling P208)`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      const { spaceId, sharedId } = await session(page, `capacities-${viewport.width}`);
+      const plan = await seedBigPlan(page, sharedId, "2026-10");
+      await seedIncome(page, spaceId);
+      await page.goto(`/spaces/${sharedId}/plans/${plan.id}/capacities`);
+      await settle(page);
+      await expect(page.getByRole("heading", { level: 1, name: es.budgeting.capacity.title })).toBeVisible();
+      await expect(
+        page.getByText(
+          /^Sugerido \$\s1\.650\.000: tus ingresos de septiembre 2026 en Personal\. Solo tú lo ves\.$/,
+        ),
+      ).toBeVisible();
+      const { overflow, message } = await overflowReport(page, "the capacities screen");
+      expect.soft(overflow, message).toBeLessThanOrEqual(0);
+      await expectFullTargets(page, "the capacities screen", viewport.width);
+
+      // Use suggestion fills Ana's own field and sends nothing: the plan keeps its capacity until Save.
+      await page.getByRole("button", { name: es.budgeting.capacity.useSuggestion }).click();
+      await expect(page.getByRole("textbox", { name: "Capacidad de Ana" })).toHaveValue("1.650.000");
+
+      // Save is the last control: scrolled to the end of the page it sits above the bottom navigation.
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      const save = (await page.getByRole("button", { name: es.budgeting.capacity.save }).boundingBox())!;
+      const nav = (await page.getByRole("navigation", { name: es.shell.nav.main }).boundingBox())!;
+      expect(save.y + save.height, "Guardar capacidades ends above the bottom bar").toBeLessThanOrEqual(
+        nav.y,
+      );
+
+      // The way back is the shared header's link to the planner.
+      const back = page.getByRole("link", { name: es.common.back, exact: true });
+      await expect(back).toHaveAttribute("href", `/spaces/${sharedId}/plans/${plan.id}`);
+      const box = (await back.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(TARGET);
+      expect(box.height).toBeGreaterThanOrEqual(TARGET);
+      await back.click();
+      await expect(page).toHaveURL(new RegExp(`/spaces/${sharedId}/plans/${plan.id}$`));
+    });
+  }
+
+  test("another member never receives Ana's suggestion, in the screen or in the page they are sent (ruling P208)", async ({
+    page,
+  }) => {
+    const { spaceId, sharedId } = await session(page, "capacities-private");
+    const plan = await seedBigPlan(page, sharedId, "2026-10");
+    await seedIncome(page, spaceId);
+    const { url } = await post(page, `/api/v1/spaces/${sharedId}/invitations`, {
+      kind: "LINK",
+      role: "MEMBER",
+    });
+    const juan = await Person.signUp(request, "Juan", `layout-juan-private-${Date.now()}@example.com`, {
+      "x-forwarded-for": `10.253.${randomInt(256)}.${randomInt(1, 255)}`,
+    });
+    try {
+      await juan.api.post(`/api/v1/invitations/${new URL(url).pathname.split("/").at(-1)}/accept`, {});
+      const sent = await juan.api.html(`/spaces/${sharedId}/plans/${plan.id}/capacities`);
+      // Ana's September income is in neither the text nor the data of Juan's page...
+      expect(sent).not.toContain("1.650.000");
+      expect(sent).not.toContain("165000000");
+      // ...and his own row carries his own suggestion: he earned nothing.
+      expect(sent).toContain("Capacidad de Juan");
+      expect(sent).toMatch(/Sugerido \$\s0:/);
+    } finally {
+      await juan.dispose();
+    }
+    // Ana, the page, still gets hers.
+    await page.goto(`/spaces/${sharedId}/plans/${plan.id}/capacities`);
+    await expect(page.getByText(/Sugerido \$\s1\.650\.000:/)).toBeVisible();
+  });
 });
 
 test.describe("bottom sheets sit above the bottom navigation", () => {

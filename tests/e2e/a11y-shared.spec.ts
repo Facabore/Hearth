@@ -27,6 +27,23 @@ const seedHousehold = async (page: Page, requests: APIRequest, tag: string) => {
     type: "BANK",
     openingBalance: { amount: "200000000", currency: "COP" },
   });
+  // September's income in Ana's personal space is the private suggestion on her capacities row (D17, HU-E9-08).
+  const { items: personalGroups } = await get(page, `/api/v1/spaces/${personal}/categories`);
+  const salary = personalGroups
+    .flatMap((g: { categories: { id: string; key: string | null }[] }) => g.categories)
+    .find((c: { key: string | null }) => c.key === "salary");
+  await post(
+    page,
+    `/api/v1/spaces/${personal}/incomes`,
+    {
+      description: "Salario",
+      date: "2026-09-15",
+      categoryId: salary.id,
+      amount: { amount: "165000000", currency: "COP" },
+      accountId: bank.id,
+    },
+    idempotent(),
+  );
   const household = await post(page, "/api/v1/spaces", {
     kind: "SHARED",
     name: "Household",
@@ -151,6 +168,8 @@ for (const colorScheme of ["light", "dark"] as const) {
         `${h}/plan`,
         // HU-E9-08: the planner of that DRAFT plan, with its lines and the Activate action.
         `${h}/plans/${ids.plan}`,
+        // HU-E9-08: the capacities of that plan, one row per member.
+        `${h}/plans/${ids.plan}/capacities`,
         `${h}/members/${ids.ana}/history`,
         `${h}/transactions?notice=FundBalanceNegative&account=${ids.fund}`,
       ]) {
@@ -165,6 +184,10 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page.goto(`${h}/plans/${ids.plan}`);
       await expect(page.getByRole("button", { name: es.budgeting.planner.activate })).toBeVisible();
       await expect(page.getByRole("listitem", { name: "Mercado" })).toBeVisible();
+      // HU-E9-08: Ana's capacities carry her private suggestion (the scan above ran on the same screen).
+      await page.goto(`${h}/plans/${ids.plan}/capacities`);
+      await expect(page.getByText(/^Sugerido \$\s1\.650\.000:/)).toBeVisible();
+      await expect(page.getByRole("button", { name: es.budgeting.capacity.useSuggestion })).toBeVisible();
       // U1: a shared space with no funds explains them instead of asking for a first account.
       const bare = await post(page, "/api/v1/spaces", { kind: "SHARED", name: "Vacía", currency: "COP" });
       for (const path of [`/spaces/${bare.id}`, `/spaces/${bare.id}/accounts`]) {

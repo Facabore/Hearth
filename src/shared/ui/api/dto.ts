@@ -44,3 +44,7 @@ export type PlanStatus = ReportPlanDto["status"];
 export type BudgetPlanDto = components["schemas"]["BudgetPlan"];
 export type PlanLineDto = BudgetPlanDto["lines"][number];
 export type SpaceMemberDto = components["schemas"]["SpaceMember"];
+/** The caller's own capacity suggestion (D17): private to its member, never part of the plan. */
+export type CapacitySuggestionDto = Json<
+  paths["/api/v1/spaces/{spaceId}/plans/{planId}/capacity-suggestion"]["get"]["responses"][200]
+>;
