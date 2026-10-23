@@ -809,6 +809,18 @@
     },
     "line": {
       "catchAll": "Todo lo demás"
+    },
+    "start": {
+      "create": "Crear plan",
+      "copy": "Copiar plan anterior"
+    },
+    "copy": {
+      "title": "Copiado del plan anterior",
+      "body": "Mismas líneas, montos, reglas y capacidades. Quedó fuera lo que ya no se puede usar:",
+      "bodyComplete": "Mismas líneas, montos, reglas y capacidades.",
+      "droppedMapping": "{category}, que alimentaba {line}",
+      "droppedAccount": "Una cuenta de ahorro de {line} que ya no se puede usar",
+      "droppedLine": "La línea {name}: ninguna de sus cuentas de ahorro sigue disponible"
     }
   },
   "reports": {
@@ -845,6 +857,11 @@
       "overBy": "Te pasaste por {amount}",
       "unbudgeted": "Sin presupuesto",
       "unbudgetedNote": "Sin presupuesto es lo gastado en categorías que no están en ninguna línea."
+    },
+    "noPlan": {
+      "title": "{period} no tiene plan",
+      "body": "Sin plan, todo lo que se gaste en este período aparece como Sin presupuesto y la división por defecto es en partes iguales.",
+      "managersOnly": "Solo Propietario y Administrador pueden crear el plan."
     }
   },
   "toast": {

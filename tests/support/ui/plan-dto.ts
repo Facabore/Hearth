@@ -183,3 +183,21 @@ export const freeAt99 = (plan = referencePlanDto()): BudgetPlanDto => ({
       : line,
   ),
 });
+
+/** HU-E9-08 "Copy the previous plan": December copied from November; "Utilities" (archived) left Home's mapping. */
+export const copiedPlanDto = (): BudgetPlanDto => {
+  const november = referencePlanDto();
+  return {
+    ...november,
+    id: "p-dec",
+    period: { label: "2026-12", startDate: "2026-12-01", endDate: "2026-12-31" },
+    createdFrom: "p-nov",
+    version: 1,
+    lines: november.lines.map((line) => ({ ...line, id: `${line.id}-dec`, originLineId: line.id })),
+    dropped: {
+      mappings: [{ lineId: "l-home-dec", categoryId: "c-utilities" }],
+      savingsAccounts: [],
+      lines: [],
+    },
+  };
+};

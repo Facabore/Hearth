@@ -7,6 +7,7 @@ import { nowIn } from "@/shared/ui/time/when";
 import { DashboardFrame } from "../dashboard-frame";
 import { neighboursOf, periodLabel, spaceOf } from "../report-period";
 import { LineDashboard } from "./line-dashboard";
+import { NoPlan } from "./no-plan";
 
 /** HU-E9-10: the period's line dashboard and its neighbouring periods (ruling P205). */
 export const loadLines = async (
@@ -55,7 +56,11 @@ export async function LineDashboardContainer({
       formats={formats}
       plan={dashboard.plan}
     >
-      <LineDashboard dashboard={dashboard} formats={formats} />
+      {dashboard.plan === null ? (
+        <NoPlan space={space} dashboard={dashboard} formats={formats} />
+      ) : (
+        <LineDashboard dashboard={dashboard} formats={formats} />
+      )}
     </DashboardFrame>
   );
 }

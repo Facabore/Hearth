@@ -961,6 +961,67 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       await expect(page).toHaveURL(new RegExp(`/spaces/${sharedId}/plans/${august.id}$`));
       await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Plan de agosto 2026/i);
     });
+
+    test(`a period without a plan offers to copy the previous one, and the planner says what the copy left out at ${viewport.width} px (HU-E9-10, ruling P209)`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      const { sharedId } = await session(page, `no-plan-${viewport.width}`);
+      const space = `/api/v1/spaces/${sharedId}`;
+      // September's DRAFT plan has the long "Mercado" line fed by one category, which is archived afterwards.
+      const september = await seedBigPlan(page, sharedId, "2026-09");
+      const { items: groups } = await get(page, `${space}/categories`);
+      const category: { id: string; name: string } = groups.flatMap(
+        (group: { categories: { id: string; name: string }[] }) => group.categories,
+      )[0];
+      const plan = await get(page, `${space}/plans/${september.id}`);
+      await put(
+        page,
+        `${space}/plans/${september.id}/lines/${plan.lines[0].id}/categories`,
+        { categoryIds: [category.id] },
+        { "if-match": `"${plan.version}"` },
+      );
+      await post(page, `${space}/categories/${category.id}/archive`, {});
+
+      await page.goto(`/spaces/${sharedId}/plan?period=2026-10`);
+      await settle(page);
+      await expect(
+        page.getByRole("heading", { level: 2, name: /^octubre 2026 no tiene plan$/i }),
+      ).toBeVisible();
+      const create = page.getByRole("button", { name: es.budgeting.start.create });
+      const copy = page.getByRole("button", { name: es.budgeting.start.copy });
+      await expect(create).toBeVisible();
+      const { overflow, message } = await overflowReport(page, "the period without a plan");
+      expect.soft(overflow, message).toBeLessThanOrEqual(0);
+      await expectFullTargets(page, "the period without a plan", viewport.width);
+      // The last control sits above the bottom bar once the page is scrolled to its end.
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      const nav = (await page.getByRole("navigation", { name: es.shell.nav.main }).boundingBox())!;
+      const last = (await create.boundingBox())!;
+      expect(last.y + last.height, "Crear plan ends above the bottom bar").toBeLessThanOrEqual(nav.y);
+
+      await copy.click();
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Plan de octubre 2026/i);
+      const notice = page.getByRole("status").filter({ hasText: es.budgeting.copy.title });
+      await expect(notice).toContainText(
+        es.budgeting.copy.droppedMapping.replace("{category}", category.name).replace("{line}", LONG_LINE),
+      );
+      const planner = await overflowReport(page, "the copied plan");
+      expect.soft(planner.overflow, planner.message).toBeLessThanOrEqual(0);
+      await expectFullTargets(page, "the copied plan", viewport.width);
+      const box = (await notice.boundingBox())!;
+      expect(box.x + box.width, "the notice stays on screen").toBeLessThanOrEqual(viewport.width);
+
+      // Once: a reload of the planner no longer has it, and the way back leads to the dashboard of the period.
+      await page.reload();
+      await settle(page);
+      await expect(page.getByRole("status").filter({ hasText: es.budgeting.copy.title })).toHaveCount(0);
+      const back = page.getByRole("link", { name: es.common.back, exact: true });
+      await expect(back).toHaveAttribute("href", `/spaces/${sharedId}/plan?period=2026-10`);
+      await back.click();
+      await expect(page.getByText(LONG_LINE)).toBeVisible();
+      await expect(page.getByRole("heading", { level: 2, name: /no tiene plan/i })).toHaveCount(0);
+    });
   }
 });
 

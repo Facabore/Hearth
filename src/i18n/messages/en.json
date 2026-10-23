@@ -809,6 +809,18 @@
     },
     "line": {
       "catchAll": "Everything else"
+    },
+    "start": {
+      "create": "Create plan",
+      "copy": "Copy previous plan"
+    },
+    "copy": {
+      "title": "Copied from the previous plan",
+      "body": "Same lines, amounts, rules and capacities. What can no longer be used was left out:",
+      "bodyComplete": "Same lines, amounts, rules and capacities.",
+      "droppedMapping": "{category}, which fed {line}",
+      "droppedAccount": "A savings account of {line} that can no longer be used",
+      "droppedLine": "The line {name}: none of its savings accounts is still available"
     }
   },
   "reports": {
@@ -845,6 +857,11 @@
       "overBy": "{amount} over plan",
       "unbudgeted": "Unbudgeted",
       "unbudgetedNote": "Unbudgeted is what was spent in categories that are in no line."
+    },
+    "noPlan": {
+      "title": "{period} has no plan",
+      "body": "Without a plan, everything spent in this period shows as Unbudgeted and the default split is equal shares.",
+      "managersOnly": "Only an Owner or an Admin can create the plan."
     }
   },
   "toast": {

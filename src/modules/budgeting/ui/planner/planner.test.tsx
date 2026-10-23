@@ -2,9 +2,10 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
-import { normalized } from "../../../../../tests/support/ui/dto";
+import { categoryDto, groupDto, normalized } from "../../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse } from "../../../../../tests/support/ui/fake-api";
 import {
+  copiedPlanDto,
   freeAt99,
   HOUSEHOLD_MEMBERS,
   householdDto,
@@ -12,15 +13,19 @@ import {
 } from "../../../../../tests/support/ui/plan-dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import type { Api } from "@/shared/ui/api/client";
-import type { BudgetPlanDto, SpaceDto } from "@/shared/ui/api/dto";
+import type { BudgetPlanDto, CategoryGroupDto, SpaceDto } from "@/shared/ui/api/dto";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
+import { rememberDropped } from "../copy-notice";
 import { loadPlanner } from "./planner-container";
 import { Planner } from "./planner";
 
 vi.mock("next/headers", () => ({}));
 const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router, notFound: vi.fn(), redirect: vi.fn() }));
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  sessionStorage.clear();
+});
 
 const ACTIVATE = "POST /api/v1/spaces/{spaceId}/plans/{planId}/activate";
 const CLOSE = "POST /api/v1/spaces/{spaceId}/plans/{planId}/close";
@@ -29,7 +34,14 @@ const show = ({
   space = householdDto(),
   api,
   today = "2026-10-31",
-}: { plan?: BudgetPlanDto; space?: SpaceDto; api?: Api; today?: string } = {}) =>
+  groups = [],
+}: {
+  plan?: BudgetPlanDto;
+  space?: SpaceDto;
+  api?: Api;
+  today?: string;
+  groups?: CategoryGroupDto[];
+} = {}) =>
   renderWithIntl(
     <Planner
       space={space}
@@ -37,6 +49,7 @@ const show = ({
       members={HOUSEHOLD_MEMBERS}
       formats={BUILT_IN_FORMATS}
       today={today}
+      groups={groups}
       api={api}
     />,
   );
@@ -176,20 +189,56 @@ describe("planner (HU-E9-08)", () => {
     expect(screen.queryByRole("button", { name: "Activar plan" })).toBeNull();
   });
 
-  it("loads the plan and the space's members", async () => {
+  it("loads the plan, the space's members and its categories, archived ones included", async () => {
+    const tree = [groupDto({ id: "g-home", name: "Hogar" })];
     const { api, requests } = fakeApi({
       "GET /api/v1/spaces/{spaceId}/plans/{planId}": () => jsonResponse(referencePlanDto()),
       "GET /api/v1/spaces/{spaceId}/members": () => jsonResponse({ items: HOUSEHOLD_MEMBERS }),
+      "GET /api/v1/spaces/{spaceId}/categories": () => jsonResponse({ items: tree }),
     });
     const result = await loadPlanner(api, { spaceId: "sp-household", planId: "p-nov" });
-    expect(result.ok && [result.data.plan.id, result.data.members.map((m) => m.displayName)]).toEqual([
-      "p-nov",
-      ["Ana", "Juan"],
-    ]);
+    expect(
+      result.ok && [result.data.plan.id, result.data.members.map((m) => m.displayName), result.data.groups],
+    ).toEqual(["p-nov", ["Ana", "Juan"], tree]);
     expect(requests.map((r) => new URL(r.url).pathname).sort()).toEqual([
+      "/api/v1/spaces/sp-household/categories",
       "/api/v1/spaces/sp-household/members",
       "/api/v1/spaces/sp-household/plans/p-nov",
     ]);
+    const categories = requests.find((r) => r.url.includes("/categories"))!;
+    expect(new URL(categories.url).searchParams.get("archived")).toBe("true");
+  });
+
+  it("answers the problem of the categories read when it fails", async () => {
+    const { api } = fakeApi({
+      "GET /api/v1/spaces/{spaceId}/plans/{planId}": () => jsonResponse(referencePlanDto()),
+      "GET /api/v1/spaces/{spaceId}/members": () => jsonResponse({ items: HOUSEHOLD_MEMBERS }),
+      "GET /api/v1/spaces/{spaceId}/categories": () => problemResponse(500, "Unknown"),
+    });
+    const result = await loadPlanner(api, { spaceId: "sp-household", planId: "p-nov" });
+    expect(result.ok).toBe(false);
+  });
+
+  it("shows what the copy left out under the header, once, named from the space's categories", async () => {
+    const plan = copiedPlanDto();
+    rememberDropped(plan.id, plan.dropped!);
+    const archived = [
+      groupDto({
+        id: "g-home",
+        categories: [
+          categoryDto({ id: "c-utilities", name: "Utilities", archivedAt: "2026-11-20T12:00:00.000Z" }),
+        ],
+      }),
+    ];
+    const { container } = show({ plan, groups: archived });
+    const notice = await screen.findByRole("status");
+    expect(notice).toHaveTextContent("Utilities, que alimentaba Home");
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("shows no copy notice for a plan that was not just copied", () => {
+    show();
+    expect(screen.queryByText("Copiado del plan anterior")).toBeNull();
   });
 });
 
@@ -228,6 +277,7 @@ describe("closing a plan whose source is still open (ruling P248)", () => {
         members={HOUSEHOLD_MEMBERS}
         formats={BUILT_IN_FORMATS}
         today="2026-12-01"
+        groups={[]}
         api={refusing().api}
       />,
       { locale: "en" },

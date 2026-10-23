@@ -224,6 +224,26 @@ for (const colorScheme of ["light", "dark"] as const) {
       await scan("settle-up sheet prefilled from a suggestion");
       await page.keyboard.press("Escape");
 
+      // HU-E9-10 and HU-E9-08: November has no plan; copying October's opens the planner with the copy notice. The
+      // category of "Mercado" is archived first, so the notice has something to name.
+      const mercado = (await get(page, `/api/v1/spaces/${ids.household}/plans/${ids.plan}`)).lines.find(
+        (line: { name: string }) => line.name === "Mercado",
+      );
+      const { items: tree } = await get(page, `/api/v1/spaces/${ids.household}/categories`);
+      const fed = tree
+        .flatMap((group: { categories: { id: string; name: string }[] }) => group.categories)
+        .find((category: { id: string }) => category.id === mercado.categoryIds[0]);
+      await post(page, `/api/v1/spaces/${ids.household}/categories/${fed.id}/archive`, {});
+      await page.goto(`${h}/plan?period=2026-11`);
+      await expect(page.getByRole("button", { name: es.budgeting.start.copy })).toBeVisible();
+      await scan("the period without a plan");
+      await page.getByRole("button", { name: es.budgeting.start.copy }).click();
+      const notice = page.getByRole("status").filter({ hasText: es.budgeting.copy.title });
+      await expect(notice).toContainText(
+        es.budgeting.copy.droppedMapping.replace("{category}", fed.name).replace("{line}", "Mercado"),
+      );
+      await scan("the planner of a copy, with its notice");
+
       // The open pages, signed in (Ana) and as a visitor (a fresh context without cookies).
       for (const path of [ids.token, ids.claim]) {
         await page.goto(path);

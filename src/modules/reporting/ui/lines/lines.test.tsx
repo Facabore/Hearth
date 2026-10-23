@@ -1,11 +1,14 @@
 import { screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
 import { cop, normalized } from "../../../../../tests/support/ui/dto";
-import { e7Dashboard } from "../../../../../tests/support/ui/plan-dto";
+import { e7Dashboard, householdDto } from "../../../../../tests/support/ui/plan-dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { LineDashboard } from "./line-dashboard";
+import { NoPlan } from "./no-plan";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 
 const tableRows = () =>
   within(screen.getByRole("table", { name: "Planeado, gastado y disponible por línea" }))
@@ -108,5 +111,53 @@ describe("line dashboard (HU-E9-10)", () => {
     expect(normalized(screen.getByRole("row", { name: /^Home/ }).textContent)).toContain(
       "Te pasaste por $ 5",
     );
+  });
+
+  it("shows all spending under Unbudgeted and offers managers to create or copy a plan (2027-01)", async () => {
+    const january = { label: "2027-01", startDate: "2027-01-01", endDate: "2027-01-31" };
+    const dashboard = e7Dashboard({
+      period: january,
+      plan: null,
+      lines: [],
+      unbudgeted: { spent: cop(100_000), available: cop(-100_000), overspent: true },
+      totals: { planned: cop(0), spent: cop(100_000), available: cop(-100_000) },
+    });
+    const owner = renderWithIntl(
+      <NoPlan space={householdDto()} dashboard={dashboard} formats={BUILT_IN_FORMATS} />,
+    );
+    expect(screen.getByRole("heading", { level: 2, name: "enero 2027 no tiene plan" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Crear plan" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copiar plan anterior" })).toBeInTheDocument();
+    expect(tableRows()).toEqual([["Sin presupuesto", "$ 0", "$ 100.000", "−$ 100.000"]]);
+    expect(await axeViolations(owner.container)).toEqual([]);
+    owner.unmount();
+    renderWithIntl(
+      <NoPlan space={householdDto({ role: "MEMBER" })} dashboard={dashboard} formats={BUILT_IN_FORMATS} />,
+    );
+    expect(screen.queryByRole("button", { name: "Crear plan" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Copiar plan anterior" })).toBeNull();
+    expect(screen.getByText("Solo Propietario y Administrador pueden crear el plan.")).toBeInTheDocument();
+  });
+
+  it("offers a VIEWER nothing to create, and an ADMIN the same actions as the owner", () => {
+    const dashboard = e7Dashboard({ plan: null, lines: [] });
+    const viewer = renderWithIntl(
+      <NoPlan space={householdDto({ role: "VIEWER" })} dashboard={dashboard} formats={BUILT_IN_FORMATS} />,
+    );
+    expect(screen.queryByRole("button", { name: "Crear plan" })).toBeNull();
+    viewer.unmount();
+    renderWithIntl(
+      <NoPlan space={householdDto({ role: "ADMIN" })} dashboard={dashboard} formats={BUILT_IN_FORMATS} />,
+    );
+    expect(screen.getByRole("button", { name: "Crear plan" })).toBeInTheDocument();
+  });
+
+  it("explains the default split in English", () => {
+    const dashboard = e7Dashboard({ plan: null, lines: [] });
+    renderWithIntl(<NoPlan space={householdDto()} dashboard={dashboard} formats={BUILT_IN_FORMATS} />, {
+      locale: "en",
+    });
+    expect(screen.getByRole("heading", { level: 2, name: "November 2026 has no plan" })).toBeInTheDocument();
+    expect(screen.getByText(/the default split is equal shares/)).toBeInTheDocument();
   });
 });

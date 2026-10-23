@@ -6,9 +6,10 @@ import { useTranslations } from "next-intl";
 import { useId, useMemo, useRef, useState } from "react";
 import { Badge, Button, Icon, ProblemNotice, ScreenHeader, usePeriodText } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
-import type { BudgetPlanDto, SpaceDto, SpaceMemberDto } from "@/shared/ui/api/dto";
+import type { BudgetPlanDto, CategoryGroupDto, SpaceDto, SpaceMemberDto } from "@/shared/ui/api/dto";
 import type { Problem } from "@/shared/ui/api/problem";
 import { formatDate, formatMoney, formatPercent, type Formats } from "@/shared/ui/format/formatters";
+import { CopyNotice } from "../copy-notice";
 import { PlanStatusBadge } from "../plan-status-badge";
 import { canCloseOn, canManage, closesFrom, isEditable } from "../plan-access";
 import { ifMatch, planWrite, rereadPlan } from "../plan-write";
@@ -30,12 +31,15 @@ export function Planner({
   plan: initial,
   members,
   formats,
+  groups,
   today,
   api: injected,
 }: {
   readonly space: SpaceDto;
   readonly plan: BudgetPlanDto;
   readonly members: readonly SpaceMemberDto[];
+  /** The space's categories, archived ones included: the copy notice names what a copy left out (ruling P209). */
+  readonly groups: CategoryGroupDto[];
   readonly formats: Formats;
   readonly today: string;
   readonly api?: Api;
@@ -114,6 +118,7 @@ export function Planner({
         })}
         action={<PlanStatusBadge status={plan.status} />}
       />
+      <CopyNotice plan={plan} groups={groups} />
       {!editable ? (
         <p role="status" className="text-sm text-muted">
           {t("planner.closedNotice")}
