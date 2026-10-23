@@ -1,4 +1,4 @@
-import { POST as createAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/route";
+import { POST as createAccount, GET as listAccounts } from "@/app/api/v1/spaces/[spaceId]/accounts/route";
 import { GET as getAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/route";
 import { GET as listCategories } from "@/app/api/v1/spaces/[spaceId]/categories/route";
 import { POST as addGuestMember } from "@/app/api/v1/spaces/[spaceId]/guests/route";
@@ -50,6 +50,21 @@ export const newAccount = async (
   });
   if (response.status !== 201) throw new Error(`account creation failed with status ${response.status}`);
   return ((await response.json()) as { id: string }).id;
+};
+
+/**
+ * Issue 169: the id of the starter account `name` sign-up opened at zero in `user.spaceId`, e.g. "Ahorros" (SAVINGS) or
+ * "Efectivo" (CASH); a fixture that needs one of those reuses it, since its name is taken.
+ */
+export const starterAccount = async (user: TestUser, name: string): Promise<string> => {
+  const response = await call(listAccounts, "GET", inSpace(user, "accounts"), {
+    user,
+    params: { spaceId: user.spaceId },
+  });
+  const { items } = (await response.json()) as { items: { id: string; name: string }[] };
+  const account = items.find((a) => a.name === name);
+  if (!account) throw new Error(`no starter account named ${name}`);
+  return account.id;
 };
 
 /** The seeded category of `user.spaceId` with the catalog `key`. */

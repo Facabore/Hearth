@@ -181,7 +181,8 @@ export const seedAccounts = async (world: World, hh: SeededHousehold) => {
     }) as Promise<{ id: string }>;
   return {
     bancolombia: (await open(ana, world.user!.spaceId, "Bancolombia", "BANK", 2_000_000)).id,
-    savings: (await open(ana, world.user!.spaceId, "Ahorros", "SAVINGS", 0)).id,
+    // Issue 169: sign-up opened her "Ahorros" (SAVINGS, at zero) as a starter account.
+    savings: await world.starterAccount("Ahorros"),
     davivienda: (await open(hh.juan, hh.juanSpaceId, "Davivienda", "BANK", 2_000_000)).id,
     fund: (await open(ana, hh.spaceId, "Household Fund", "SHARED_FUND", 1_500_000)).id,
   };

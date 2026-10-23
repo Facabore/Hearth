@@ -53,8 +53,9 @@ When(
     dFunding: string,
     rollover: string,
   ) => {
-    // The savings line names an account its owner holds (P8): Ana's own SAVINGS account in her personal space.
-    await world.seedAccount("Ahorros", { type: "SAVINGS", openingBalance: { amount: "0", currency: "COP" } });
+    // The savings line names an account its owner holds (P8): Ana's own SAVINGS account in her personal space, the
+    // "Ahorros" sign-up opened at zero (issue 169).
+    await world.starterAccount("Ahorros");
     const add = async (
       name: string,
       amount: string,

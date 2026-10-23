@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { APIRequest, Page } from "@playwright/test";
 import es from "../../../src/i18n/messages/es.json" with { type: "json" };
+import { STARTER_ACCOUNTS } from "../../../src/modules/accounts/domain/starter-accounts";
 import { SeedApi } from "./api";
 import { minor } from "./money";
 import { Person } from "./people";
@@ -65,6 +66,27 @@ export class World {
     const account = (await this.api.post(this.space("/accounts"), { name, ...body })) as { id: string };
     this.accounts.set(name, account.id);
     return account.id;
+  }
+
+  /** Issue 169: keeps the id of the starter account sign-up opened at zero as `name` (e.g. "Ahorros"), and reuses it. */
+  async starterAccount(name: string): Promise<string> {
+    const { items } = (await this.api.get(this.space("/accounts"))) as {
+      items: { id: string; name: string }[];
+    };
+    const account = items.find((a) => a.name === name);
+    if (!account) throw new Error(`No starter account ${name}`);
+    this.accounts.set(name, account.id);
+    return account.id;
+  }
+
+  /** Issue 169: archives the Spanish starter accounts, for a scenario whose person holds only the accounts it names. */
+  async archiveStarterAccounts(): Promise<void> {
+    const starters = new Set(STARTER_ACCOUNTS.map((starter) => starter.names.es));
+    const { items } = (await this.api.get(this.space("/accounts"))) as {
+      items: { id: string; name: string }[];
+    };
+    for (const account of items.filter((a) => starters.has(a.name)))
+      await this.api.post(this.space(`/accounts/${account.id}/archive`), {});
   }
 
   /** Creates a category in the seeded group whose key is `food` and keeps its id under `name`. */

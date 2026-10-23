@@ -5,7 +5,16 @@ import es from "../../src/i18n/messages/es.json" with { type: "json" };
 import { BASE_URL } from "./support/base-url";
 import { Person } from "./support/people";
 import { categoryIdsByKey, clientOf, seedHome, seedHousehold, seedRecurrence } from "./support/plan-seed";
-import { get, patch, post, put, saveIncomeFromForm, seedLedger, signUp } from "./support/seed";
+import {
+  archiveStarterAccounts,
+  get,
+  patch,
+  post,
+  put,
+  saveIncomeFromForm,
+  seedLedger,
+  signUp,
+} from "./support/seed";
 import { World } from "./support/world";
 
 /**
@@ -93,6 +102,13 @@ const seedLong = async (page: Page, spaceId: string) => {
   );
 };
 
+/**
+ * The session ledger's "Bancolombia". Issue 169's starter accounts ("Ahorros" first) sort around it, so a test names
+ * the account it pays from instead of taking the first one.
+ */
+const bancolombiaIn = (accounts: { id: string; name: string }[]): string =>
+  accounts.find((a) => a.name === "Bancolombia")!.id;
+
 /** A fresh person, her ledger and a shared space, each test from its own address (the throttles never meet). */
 const session = async (page: Page, tag: string) => {
   // Random, not a counter: a failed test restarts its worker, and the sign-up throttle (10 an hour) is per address.
@@ -122,16 +138,12 @@ const seedAdditions = async (page: Page, spaceId: string, testId: string) => {
   try {
     const household = await seedHousehold(world, { name: "Household", member: "Juan", role: "MEMBER" });
     const ana = clientOf(world);
-    // The session's ledger already holds her "Bancolombia"; the savings line needs a SAVINGS account of hers.
+    // The session's ledger already holds her "Bancolombia"; the savings line needs a SAVINGS account of hers: the
+    // "Ahorros" sign-up opened at zero (issue 169).
     const { items: owned } = await get(page, `/api/v1/spaces/${spaceId}/accounts`);
-    const savings = (await ana.post(`/api/v1/spaces/${spaceId}/accounts`, {
-      name: "Ahorros",
-      type: "SAVINGS",
-      openingBalance: { amount: "0", currency: "COP" },
-    })) as { id: string };
     const accounts = {
       bancolombia: owned.find((a: { name: string }) => a.name === "Bancolombia").id as string,
-      savings: savings.id,
+      savings: owned.find((a: { name: string }) => a.name === "Ahorros").id as string,
     };
     await seedHome(ana, household, accounts, { period: "2026-10", rolloverMode: "ROLLOVER", close: false });
     await ana.post(`/api/v1/spaces/${household.spaceId}/plans`, { period: "2026-11", copyFrom: "previous" });
@@ -233,7 +245,7 @@ const historyPath = async (
   const space = `/api/v1/spaces/${sharedId}`;
   // The person pays from an account of their own: a shared space holds only funds, so it is one of their personal space.
   const { items: accounts } = await get(page, `/api/v1/spaces/${spaceId}/accounts`);
-  const account = accounts[0];
+  const account = { id: bancolombiaIn(accounts) };
   const guest = await post(page, `${space}/guests`, { displayName: guestName });
   const { items: members } = await get(page, `${space}/members`);
   const payer = members.find((m: { kind: string }) => m.kind === "USER");
@@ -282,7 +294,7 @@ const ensureDirectSpace = async (page: Page, spaceId: string) => {
       counterpart: { kind: "GUEST", displayName: GUEST_NAME },
       categoryKey,
       amount: { amount: "12000000", currency: "COP" },
-      accountId: accounts[0].id,
+      accountId: bancolombiaIn(accounts),
     },
     { "idempotency-key": crypto.randomUUID() },
   );
@@ -1226,7 +1238,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         date: "2026-09-15",
         categoryId: salary.id,
         amount: { amount: "165000000", currency: "COP" },
-        accountId: accounts[0].id,
+        accountId: bancolombiaIn(accounts),
       },
       { "idempotency-key": crypto.randomUUID() },
     );
@@ -2430,7 +2442,7 @@ test.describe("Movimientos names a shared or direct space (U7)", () => {
           counterpart: { kind: "GUEST", displayName: GUEST_NAME },
           categoryKey,
           amount: { amount: "12000000", currency: "COP" },
-          accountId: accounts[0].id,
+          accountId: bancolombiaIn(accounts),
         },
         { "idempotency-key": crypto.randomUUID() },
       );
@@ -2554,9 +2566,16 @@ test.describe("the empty states of Cuentas and of a shared space explain themsel
         expect.soft(overflow, message).toBeLessThanOrEqual(0);
         return link;
       };
-      // A personal space with no accounts: one Nueva cuenta, in the empty state.
+      // A personal space with no active account (its starter accounts archived, issue 169): one Nueva cuenta and
+      // "Crear cuentas base", in the empty state, both full targets on screen.
+      await archiveStarterAccounts(page, spaceId);
       const add = await full(es.accounts.new, `/spaces/${spaceId}/accounts`);
-      await expect(page.getByRole("heading", { name: es.accounts.empty.title })).toBeVisible();
+      await expect(page.getByRole("heading", { name: es.accounts.empty.noActiveTitle })).toBeVisible();
+      const starter = (await page.getByRole("button", { name: es.accounts.empty.starter }).boundingBox())!;
+      expect.soft(starter.height, "height of Crear cuentas base").toBeGreaterThanOrEqual(TARGET);
+      expect
+        .soft(starter.x + starter.width, "Crear cuentas base stays on screen")
+        .toBeLessThanOrEqual(viewport.width);
       await add.click();
       await page.waitForURL(`**/spaces/${spaceId}/accounts/new?returnTo=*`);
       // A shared space with no funds: never "Agrega tu primera cuenta", the explanation and a fund to create.

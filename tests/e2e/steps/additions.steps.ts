@@ -181,6 +181,8 @@ Given(
   /^"([^"]+)" has only the BANK account "([^"]+)" with ([\d,]+) COP$/,
   async ({ world }, name: string, account: string, pesos: string) => {
     await world.signUp(name);
+    // Issue 169: "only" this account: her starter accounts are archived, so the active list holds just it.
+    await world.archiveStarterAccounts();
     await world.seedAccount(account, { type: "BANK", openingBalance: cop(pesos) });
     const { items } = (await world.api.get(`/api/v1/spaces/${world.user!.spaceId}/accounts`)) as {
       items: unknown[];

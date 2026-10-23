@@ -180,6 +180,46 @@ describe("accounts screen: the add button and the empty states (U4, U1)", () => 
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("offers the starter accounts in a personal space's empty state (issue 169)", () => {
+    renderWithIntl(<AccountsScreen spaceId="sp-personal" list={empty} formats={BUILT_IN_FORMATS} />);
+    const emptyState = screen.getByRole("region", { name: "Aún no tienes cuentas" });
+    // The md button is 48 px tall, above the 44 px target.
+    expect(within(emptyState).getByRole("button", { name: "Crear cuentas base" })).toHaveClass("h-12");
+    expect(
+      within(emptyState).getByText(
+        "Efectivo, cuenta bancaria, billetera digital, tarjeta de crédito y ahorros, en cero.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("with only archived accounts says none is active, offers the starter accounts and keeps the archived ones", async () => {
+    const old = accountDto({
+      id: "a-old",
+      name: "Efectivo",
+      type: "CASH",
+      archivedAt: "2026-10-01T12:00:00.000Z",
+    });
+    const { container } = renderWithIntl(
+      <AccountsScreen
+        spaceId="sp-personal"
+        list={{ items: [old], totals: empty.totals }}
+        formats={BUILT_IN_FORMATS}
+      />,
+    );
+    const emptyState = screen.getByRole("region", { name: "No tienes cuentas activas" });
+    expect(within(emptyState).getByRole("button", { name: "Crear cuentas base" })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Nueva cuenta" })).toHaveLength(1);
+    expect(screen.queryByRole("region", { name: "Totales" })).toBeNull();
+    const archived = screen.getByRole("region", { name: "Archivadas" });
+    expect(within(archived).getByRole("listitem", { name: /Efectivo/ })).toBeInTheDocument();
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("offers no starter accounts once the personal space has an active account", () => {
+    renderWithIntl(<AccountsScreen spaceId="sp-personal" list={list} formats={BUILT_IN_FORMATS} />);
+    expect(screen.queryByRole("button", { name: "Crear cuentas base" })).toBeNull();
+  });
+
   it("keeps a returnTo it was opened with, in the empty state too", () => {
     renderWithIntl(
       <AccountsScreen
@@ -208,6 +248,7 @@ describe("accounts screen: the add button and the empty states (U4, U1)", () => 
     const note = "Cada persona paga desde sus cuentas personales; aquí solo viven los fondos del espacio.";
     expect(screen.getByText(note)).toBeInTheDocument();
     expect(screen.queryByText(/Agrega dónde tienes tu dinero/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Crear cuentas base" })).toBeNull();
     expect(screen.getAllByRole("link", { name: "Crear un fondo" })).toHaveLength(1);
     expect(screen.getByRole("link", { name: "Crear un fondo" })).toHaveAttribute(
       "href",
@@ -260,5 +301,6 @@ describe("accounts screen: the add button and the empty states (U4, U1)", () => 
     );
     expect(screen.getByText(/cada una paga desde sus cuentas personales/i)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Crear un fondo|Nueva cuenta|Nuevo fondo/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Crear cuentas base" })).toBeNull();
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { sequentialIds } from "../../../../tests/support/fakes";
-import { catalogLanguage, DEFAULT_CATALOG, seedTree } from "./default-catalog";
+import { DEFAULT_CATALOG, seedTree } from "./default-catalog";
 import type { CategoryStyle } from "./category-style";
 
 const tree = (locale: string) =>
@@ -22,8 +22,7 @@ describe("default category catalog (HU-E3-01)", () => {
   });
 
   it("falls back to Spanish for other locales", () => {
-    expect(catalogLanguage("fr")).toBe("es");
-    expect(catalogLanguage("EN")).toBe("en");
+    expect(namesIn(tree("fr"), "Housing")).toEqual(namesIn(tree("es-CO"), "Housing"));
   });
 
   it("gives every seeded category a unique, stable catalog key", () => {

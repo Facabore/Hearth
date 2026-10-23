@@ -1,4 +1,5 @@
 import type { IdGenerator } from "@/shared/kernel";
+import { catalogLanguage } from "@/shared/kernel/catalog-language";
 import type { Category, CategoryGroup } from "./category";
 import type { CategoryColor, CategorySymbol } from "./category-style";
 
@@ -85,10 +86,6 @@ export const DEFAULT_CATALOG: readonly CatalogGroup[] = [
     ],
   },
 ];
-
-/** English for "en…" locales; Spanish otherwise (primary locale es-CO). */
-export const catalogLanguage = (locale: string): keyof Names =>
-  locale.toLowerCase().startsWith("en") ? "en" : "es";
 
 /** The default tree for one space, named in the creator's language, keyed and styled by catalog key (HU-E3-05). */
 export const seedTree = (input: {

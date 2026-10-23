@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import es from "../../src/i18n/messages/es.json" with { type: "json" };
-import { saveIncomeFromForm, seedLedger, signUp } from "./support/seed";
+import { archiveStarterAccounts, saveIncomeFromForm, seedLedger, signUp } from "./support/seed";
 
 const WCAG = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
 
@@ -25,18 +25,22 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect(page.getByText(es.auth.signIn.forgotHelp)).toBeVisible();
       await scan("sign-in with the forgotten-password note");
 
-      // A space with no accounts: the home shows the first-account card instead of the summary (P148).
+      // A space with no active account: the home shows the first-account card instead of the summary (P148). Sign-up
+      // opens the starter accounts (issue 169), so this person archived them.
       const spaceId = await signUp(
         page,
         "a11y-" + colorScheme,
         colorScheme === "light" ? "10.252.0.1" : "10.252.0.2",
       );
+      await archiveStarterAccounts(page, spaceId);
       await page.goto(`/spaces/${spaceId}`);
       await expect(page.getByText(es.home.firstAccount.title)).toBeVisible();
       await scan("home of a space without accounts");
-      // U4: the accounts screen of a person with no accounts is an empty state with its action.
+      // U4: the accounts screen of a person with no active account is an empty state with its actions, the starter
+      // accounts among them (issue 169).
       await page.goto(`/spaces/${spaceId}/accounts`);
-      await expect(page.getByRole("heading", { name: es.accounts.empty.title })).toBeVisible();
+      await expect(page.getByRole("heading", { name: es.accounts.empty.noActiveTitle })).toBeVisible();
+      await expect(page.getByRole("button", { name: es.accounts.empty.starter })).toBeVisible();
       await scan("accounts screen without accounts");
       await page.goto(`/spaces/${spaceId}`);
       await page.getByRole("button", { name: es.shell.space.current.replace("{name}", "Personal") }).click();

@@ -11,6 +11,7 @@ export {
   ACCOUNT_COLORS,
   ACCOUNT_ICONS,
   ACCOUNT_TYPES,
+  holdsMoney,
   iconOf,
   NO_ATTRIBUTES,
   switchesOf,
@@ -23,6 +24,7 @@ export type { AccountsDeps } from "./deps";
 
 export { createArchiveAccount, type ArchiveAccount } from "./archive-account";
 export { createRestoreAccount, type RestoreAccount } from "./restore-account";
+export { createSeedStarterAccounts, type SeedStarterAccounts } from "./seed-starter-accounts";
 export {
   createGetAccount,
   createListAccounts,

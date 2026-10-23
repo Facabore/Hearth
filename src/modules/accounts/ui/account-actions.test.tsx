@@ -5,7 +5,7 @@ import { accountDto } from "../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse } from "../../../../tests/support/ui/fake-api";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import es from "@/i18n/messages/es.json";
-import { ArchiveAccountButton, RestoreAccountButton } from "./account-actions";
+import { ArchiveAccountButton, RestoreAccountButton, StarterAccountsButton } from "./account-actions";
 
 const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn(), push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
@@ -56,6 +56,31 @@ describe("archive and restore accounts (HU-E9-03, ruling P131)", () => {
     await userEvent.click(within(sheet).getByRole("button", { name: "Archivar" }));
     expect(await within(sheet).findByRole("alert")).toHaveTextContent(es.errors.SpaceArchived);
     expect(screen.getByRole("dialog", { name: "¿Archivar Nequi?" })).toBeInTheDocument();
+    expect(router.refresh).not.toHaveBeenCalled();
+  });
+});
+
+describe("the starter accounts offer (issue 169)", () => {
+  it("creates the starter accounts once and reads the screen again", async () => {
+    const { api, requests } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/accounts/starter": () => jsonResponse({ items: [nequi] }),
+    });
+    renderWithIntl(<StarterAccountsButton spaceId="sp-personal" api={api} />);
+    await userEvent.click(screen.getByRole("button", { name: "Crear cuentas base" }));
+    await waitFor(() => expect(router.refresh).toHaveBeenCalled());
+    expect(requests).toHaveLength(1);
+    expect(requests[0]!.method).toBe("POST");
+    expect(new URL(requests[0]!.url).pathname).toBe("/api/v1/spaces/sp-personal/accounts/starter");
+  });
+
+  it("shows the problem's message and stays when the call is refused", async () => {
+    const { api } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/accounts/starter": () => problemResponse(409, "SpaceArchived"),
+    });
+    renderWithIntl(<StarterAccountsButton spaceId="sp-personal" api={api} />);
+    await userEvent.click(screen.getByRole("button", { name: "Crear cuentas base" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(es.errors.SpaceArchived);
+    expect(screen.getByRole("button", { name: "Crear cuentas base" })).toBeEnabled();
     expect(router.refresh).not.toHaveBeenCalled();
   });
 });

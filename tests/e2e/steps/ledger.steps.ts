@@ -165,6 +165,13 @@ Given(/^"([^"]+)" archived the account "([^"]+)"$/, async ({ world }, _name: str
   await world.api.post(`/api/v1/spaces/${world.user!.spaceId}/accounts/${id}/archive`, {});
 });
 
+Given("{string} archived her starter accounts", async ({ page, world }, name: string) => {
+  expect(name).toBe(world.user!.name);
+  await world.archiveStarterAccounts();
+  // The page the Background opened was rendered with them; read it again.
+  await page.reload();
+});
+
 When("{string} opens the accounts screen", async ({ page, world }, name: string) => {
   expect(name).toBe(world.user!.name);
   await page.goto(`/spaces/${world.user!.spaceId}/accounts`);

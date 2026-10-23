@@ -390,7 +390,10 @@
     "directNote": "Este espacio es entre dos personas: cada una paga desde sus cuentas personales.",
     "empty": {
       "title": "Aún no tienes cuentas",
+      "noActiveTitle": "No tienes cuentas activas",
       "body": "Agrega dónde tienes tu dinero para empezar a llevar tus cuentas.",
+      "starter": "Crear cuentas base",
+      "starterBody": "Efectivo, cuenta bancaria, billetera digital, tarjeta de crédito y ahorros, en cero.",
       "fundsTitle": "Este espacio aún no tiene fondos",
       "directTitle": "Este espacio no tiene cuentas"
     }

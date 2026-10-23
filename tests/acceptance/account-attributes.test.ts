@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GET as listAccounts, POST as createAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/route";
 import { PATCH as updateAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/route";
 import { setContainerForTests, type Container } from "@/composition/container";
+import { STARTER_ACCOUNTS } from "@/modules/accounts/domain/starter-accounts";
 import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
 import { cop, inSpace } from "../support/ledger";
 import { actingIn, newSharedSpace } from "../support/spaces";
@@ -39,6 +40,8 @@ const patch = (user: TestUser, id: string, body: unknown) =>
     params: { spaceId: user.spaceId, accountId: id },
     body,
   });
+const STARTERS = new Set(STARTER_ACCOUNTS.map((starter) => starter.names.es));
+/** The accounts a test created: every account but the starter ones sign-up opened (issue 169). */
 const listOf = async (user: TestUser) =>
   (
     (await (
@@ -46,7 +49,7 @@ const listOf = async (user: TestUser) =>
     ).json()) as {
       items: AccountDto[];
     }
-  ).items;
+  ).items.filter((account) => !STARTERS.has(account.name));
 
 describe("account types and common attributes (HU-E2-05)", () => {
   it("refuses a NUL character in a text field with 422, not a 500, and creates nothing (issue 118)", async () => {
@@ -87,7 +90,8 @@ describe("account types and common attributes (HU-E2-05)", () => {
 
   it("gives attributes left out the type defaults", async () => {
     const ana = await registerUser("Ana");
-    const cash = await created(ana, { name: "Efectivo", type: "CASH", openingBalance: cop(0) });
+    // Issue 169: sign-up's starter accounts take "Efectivo", so this cash account has its own name.
+    const cash = await created(ana, { name: "Caja menor", type: "CASH", openingBalance: cop(0) });
     expect([cash.icon, cash.institution, cash.lastFour, cash.color]).toEqual(["cash", null, null, null]);
   });
 

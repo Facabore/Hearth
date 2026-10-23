@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import es from "../../../src/i18n/messages/es.json" with { type: "json" };
+import { STARTER_ACCOUNTS } from "../../../src/modules/accounts/domain/starter-accounts";
 
 /** Shared by the a11y and layout specs: a fresh person with a personal space, and the same seeded ledger. */
 const addresses = new WeakMap<Page, string>();
@@ -47,6 +48,15 @@ export const signUp = async (page: Page, tag: string, ip: string): Promise<strin
   });
   const { items: spaces } = await get(page, "/api/v1/spaces");
   return spaces[0].id as string;
+};
+
+/** Issue 169: archives the starter accounts sign-up opened, for a page about a person with no active account. */
+export const archiveStarterAccounts = async (page: Page, spaceId: string): Promise<void> => {
+  const space = `/api/v1/spaces/${spaceId}`;
+  const starters = new Set(STARTER_ACCOUNTS.map((starter) => starter.names.es));
+  const { items } = await get(page, `${space}/accounts`);
+  for (const account of items.filter((a: { name: string }) => starters.has(a.name)))
+    await post(page, `${space}/accounts/${account.id}/archive`, {});
 };
 
 /** The same seeding as the e2e World: "Bancolombia", an archived "Old wallet", one expense in the first category. */

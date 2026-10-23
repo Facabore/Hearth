@@ -390,7 +390,10 @@
     "directNote": "This space is between two people: each pays from their personal accounts.",
     "empty": {
       "title": "You have no accounts yet",
+      "noActiveTitle": "You have no active accounts",
       "body": "Add where you keep your money to start tracking it.",
+      "starter": "Create starter accounts",
+      "starterBody": "Cash, bank account, digital wallet, credit card and savings, at zero.",
       "fundsTitle": "This space has no funds yet",
       "directTitle": "This space has no accounts"
     }
