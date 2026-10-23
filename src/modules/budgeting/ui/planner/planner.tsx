@@ -9,6 +9,7 @@ import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { BudgetPlanDto, CategoryGroupDto, SpaceDto, SpaceMemberDto } from "@/shared/ui/api/dto";
 import type { Problem } from "@/shared/ui/api/problem";
 import { formatDate, formatMoney, formatPercent, type Formats } from "@/shared/ui/format/formatters";
+import { CarryText } from "../carry-text";
 import { CopyNotice } from "../copy-notice";
 import { PlanStatusBadge } from "../plan-status-badge";
 import { canCloseOn, canManage, closesFrom, isEditable } from "../plan-access";
@@ -212,6 +213,7 @@ export function Planner({
                         {t("planner.ofCapacity", { share: formatPercent(line.capacityShare, formats) })}
                       </span>
                     ) : null}
+                    <CarryText line={line} policy={space.periodPolicy} formats={formats} />
                   </p>
                 </div>
                 {manager && editable ? (

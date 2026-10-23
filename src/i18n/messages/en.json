@@ -805,7 +805,13 @@
     "rollover": {
       "RESET": "Resets",
       "ROLLOVER": "Rolls over",
-      "ADJUSTED": "Adjusts"
+      "ADJUSTED": "Adjusts",
+      "hint": {
+        "RESET": "Every period starts from zero.",
+        "ROLLOVER": "What is left moves to the next period and does not count against capacity. Use it to save every month for a yearly bill, such as SOAT, property tax or insurance.",
+        "ADJUSTED": "If you go over, the excess comes off the next period; what is left does not move."
+      },
+      "throughCopy": "It moves when the next plan is created as a copy of this one and this one is closed."
     },
     "line": {
       "catchAll": "Everything else"
@@ -840,6 +846,7 @@
       "title": "Line {name}",
       "newTitle": "New line",
       "figures": "Line figures",
+      "carryOver": "Carried over",
       "field": {
         "name": "Name",
         "planned": "Planned",
@@ -921,7 +928,9 @@
       },
       "overBy": "{amount} over plan",
       "unbudgeted": "Unbudgeted",
-      "unbudgetedNote": "Unbudgeted is what was spent in categories that are in no line."
+      "unbudgetedNote": "Unbudgeted is what was spent in categories that are in no line.",
+      "carryOver": "{amount} from {period}",
+      "carryOverPending": "Carries over from {period} once that plan is closed."
     },
     "noPlan": {
       "title": "{period} has no plan",

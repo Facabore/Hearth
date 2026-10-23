@@ -46,6 +46,58 @@ const show = (
 const added = () => jsonResponse(referencePlanDto({ version: 8 }), 201);
 
 describe("line editor (HU-E9-08)", () => {
+  it("shows the carry-over among the figures and explains the chosen rollover mode (#143, rulings P231 and P232)", async () => {
+    const { container } = show(
+      planLineDto({
+        rolloverMode: "ROLLOVER",
+        carryOver: cop(200_000),
+        available: cop(1_670_000),
+        carryOverFrom: {
+          planId: "p-oct",
+          period: { label: "2026-10", startDate: "2026-10-01", endDate: "2026-10-31" },
+          closed: true,
+        },
+      }),
+    );
+    const figures = normalized(screen.getByRole("region", { name: "Cifras de la línea" }).textContent);
+    expect(figures).toContain("Arrastrado+$ 200.000 de octubre 2026");
+    await userEvent.click(screen.getByRole("radio", { name: "Reinicia" }));
+    const modes = screen.getByRole("radiogroup", { name: "Al cambiar de período" });
+    expect(modes).toHaveAccessibleDescription("Cada período empieza en cero.");
+    await userEvent.click(screen.getByRole("radio", { name: "Acumula" }));
+    expect(modes).toHaveAccessibleDescription(
+      "Lo que sobra pasa al siguiente período y no cuenta contra la capacidad. Úsalo para ahorrar cada mes para un gasto anual, como el SOAT, el predial o un seguro. Pasa cuando el plan siguiente se crea como copia de este y este se cierra.",
+    );
+    await userEvent.click(screen.getByRole("radio", { name: "Ajusta" }));
+    expect(modes).toHaveAccessibleDescription(
+      "Si te pasas, lo que excede se descuenta del siguiente período; lo que sobra no pasa. Pasa cuando el plan siguiente se crea como copia de este y este se cierra.",
+    );
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("names the plan a carry waits for when its source is not closed (ruling P243 of M6c)", () => {
+    show(
+      planLineDto({
+        rolloverMode: "ROLLOVER",
+        carryOverFrom: {
+          planId: "p-oct",
+          period: { label: "2026-10", startDate: "2026-10-01", endDate: "2026-10-31" },
+          closed: false,
+        },
+      }),
+    );
+    expect(normalized(screen.getByRole("region", { name: "Cifras de la línea" }).textContent)).toContain(
+      "ArrastradoSe arrastra de octubre 2026 cuando ese plan se cierre.",
+    );
+  });
+
+  it("shows no carry-over figure when the line carries nothing", () => {
+    show(planLineDto());
+    expect(screen.getByRole("region", { name: "Cifras de la línea" }).textContent).not.toContain(
+      "Arrastrado",
+    );
+  });
+
   it("adds Rent funded by the shared fund with rollover RESET (@golden)", async () => {
     const { api, requests } = fakeApi({ [ADD]: added });
     const { container } = show(null, api);

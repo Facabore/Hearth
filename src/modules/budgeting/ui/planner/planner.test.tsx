@@ -2,7 +2,7 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
-import { categoryDto, groupDto, normalized } from "../../../../../tests/support/ui/dto";
+import { categoryDto, cop, groupDto, normalized } from "../../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse } from "../../../../../tests/support/ui/fake-api";
 import {
   copiedPlanDto,
@@ -239,6 +239,38 @@ describe("planner (HU-E9-08)", () => {
   it("shows no copy notice for a plan that was not just copied", () => {
     show();
     expect(screen.queryByText("Copiado del plan anterior")).toBeNull();
+  });
+
+  it("shows a rolling line's mode and what it carries in, or the plan it waits for (#143)", () => {
+    const october = {
+      planId: "p-oct",
+      period: { label: "2026-10", startDate: "2026-10-01", endDate: "2026-10-31" },
+    };
+    const plan = referencePlanDto();
+    const home = plan.lines.findIndex((line) => line.name === "Home");
+    plan.lines[home] = {
+      ...plan.lines[home]!,
+      rolloverMode: "ROLLOVER",
+      carryOver: cop(200_000),
+      available: cop(1_670_000),
+      carryOverFrom: { ...october, closed: true },
+    };
+    const free = plan.lines.findIndex((line) => line.name === "Free");
+    plan.lines[free] = {
+      ...plan.lines[free]!,
+      rolloverMode: "ADJUSTED",
+      carryOverFrom: { ...october, closed: false },
+    };
+    show({ plan });
+    const homeText = normalized(screen.getByRole("listitem", { name: "Home" }).textContent);
+    expect(homeText).toContain("Directo · Según capacidad · Acumula");
+    expect(homeText).toContain("+$ 200.000 de octubre 2026");
+    expect(normalized(screen.getByRole("listitem", { name: "Free" }).textContent)).toContain(
+      "Se arrastra de octubre 2026 cuando ese plan se cierre.",
+    );
+    expect(normalized(screen.getByRole("listitem", { name: "Rent" }).textContent)).not.toMatch(
+      /octubre|arrastra/,
+    );
   });
 });
 

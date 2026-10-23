@@ -34,7 +34,7 @@ export function NoPlan({
           <p className="text-sm text-muted">{t("managersOnly")}</p>
         )}
       </section>
-      <LineDashboard dashboard={dashboard} formats={formats} />
+      <LineDashboard dashboard={dashboard} policy={space.periodPolicy} formats={formats} />
     </>
   );
 }

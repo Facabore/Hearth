@@ -59,7 +59,7 @@ export async function LineDashboardContainer({
       {dashboard.plan === null ? (
         <NoPlan space={space} dashboard={dashboard} formats={formats} />
       ) : (
-        <LineDashboard dashboard={dashboard} formats={formats} />
+        <LineDashboard dashboard={dashboard} policy={space.periodPolicy} formats={formats} />
       )}
     </DashboardFrame>
   );

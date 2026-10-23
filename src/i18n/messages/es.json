@@ -805,7 +805,13 @@
     "rollover": {
       "RESET": "Reinicia",
       "ROLLOVER": "Acumula",
-      "ADJUSTED": "Ajusta"
+      "ADJUSTED": "Ajusta",
+      "hint": {
+        "RESET": "Cada período empieza en cero.",
+        "ROLLOVER": "Lo que sobra pasa al siguiente período y no cuenta contra la capacidad. Úsalo para ahorrar cada mes para un gasto anual, como el SOAT, el predial o un seguro.",
+        "ADJUSTED": "Si te pasas, lo que excede se descuenta del siguiente período; lo que sobra no pasa."
+      },
+      "throughCopy": "Pasa cuando el plan siguiente se crea como copia de este y este se cierra."
     },
     "line": {
       "catchAll": "Todo lo demás"
@@ -840,6 +846,7 @@
       "title": "Línea {name}",
       "newTitle": "Nueva línea",
       "figures": "Cifras de la línea",
+      "carryOver": "Arrastrado",
       "field": {
         "name": "Nombre",
         "planned": "Planeado",
@@ -921,7 +928,9 @@
       },
       "overBy": "Te pasaste por {amount}",
       "unbudgeted": "Sin presupuesto",
-      "unbudgetedNote": "Sin presupuesto es lo gastado en categorías que no están en ninguna línea."
+      "unbudgetedNote": "Sin presupuesto es lo gastado en categorías que no están en ninguna línea.",
+      "carryOver": "{amount} de {period}",
+      "carryOverPending": "Se arrastra de {period} cuando ese plan se cierre."
     },
     "noPlan": {
       "title": "{period} no tiene plan",

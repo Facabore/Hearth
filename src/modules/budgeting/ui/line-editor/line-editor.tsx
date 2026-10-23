@@ -28,6 +28,7 @@ import { minorOf, parseDecimal } from "@/shared/ui/format/amount-input";
 import { currencyOf } from "@/shared/ui/format/currencies";
 import { formatMoney, formatNumber, formatPercent, type Formats } from "@/shared/ui/format/formatters";
 import { findCategory } from "@/modules/categories/ui";
+import { CarryText } from "../carry-text";
 import { rereadPlan } from "../plan-write";
 import { AllocationEditor } from "./allocation-editor";
 import {
@@ -280,6 +281,14 @@ export function LineEditor({
                 <dd className="font-semibold [overflow-wrap:anywhere] text-ink">{money(value)}</dd>
               </div>
             ))}
+            {line.carryOverFrom ? (
+              <div className="col-span-3 flex min-w-0 flex-col">
+                <dt className="text-sm text-muted">{t("carryOver")}</dt>
+                <dd>
+                  <CarryText line={line} policy={space.periodPolicy} formats={formats} />
+                </dd>
+              </div>
+            ) : null}
           </dl>
         </section>
       ) : null}
@@ -360,12 +369,19 @@ export function LineEditor({
           </fieldset>
         ) : null}
 
-        <ChoiceGroup
-          label={t("field.rollover")}
-          value={draft.rolloverMode}
-          options={ROLLOVERS.map((value) => ({ value, label: tRollover(value) }))}
-          onValueChange={(rolloverMode) => change({ rolloverMode })}
-        />
+        <div className="flex flex-col gap-1.5">
+          <ChoiceGroup
+            label={t("field.rollover")}
+            value={draft.rolloverMode}
+            options={ROLLOVERS.map((value) => ({ value, label: tRollover(value) }))}
+            onValueChange={(rolloverMode) => change({ rolloverMode })}
+            describedBy="line-rollover-hint"
+          />
+          <p id="line-rollover-hint" className="text-sm text-muted">
+            {tRollover(`hint.${draft.rolloverMode}`)}
+            {draft.rolloverMode === "RESET" ? "" : ` ${tRollover("throughCopy")}`}
+          </p>
+        </div>
 
         {!savings ? (
           <div className="flex flex-col gap-1">

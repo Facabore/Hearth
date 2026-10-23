@@ -1,7 +1,8 @@
 import { useId } from "react";
 import { useTranslations } from "next-intl";
+import { CarryText } from "@/modules/budgeting/ui";
 import { Badge } from "@/shared/ui";
-import type { LineDashboardDto } from "@/shared/ui/api/dto";
+import type { LineDashboardDto, SpaceDto } from "@/shared/ui/api/dto";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { barWidth } from "./bar";
 
@@ -21,10 +22,13 @@ const NAME_CELL = "pb-1 text-left font-normal sm:table-cell sm:py-3 sm:pr-3";
  */
 export function LineDashboard({
   dashboard,
+  policy,
   formats,
 }: {
   readonly dashboard: LineDashboardDto;
-  readonly formats: Pick<Formats, "numberFormat">;
+  /** The space's period policy, which names the period a carry-over comes from (ruling P231 of M6c). */
+  readonly policy: SpaceDto["periodPolicy"];
+  readonly formats: Pick<Formats, "numberFormat" | "dateFormat">;
 }) {
   const t = useTranslations("reports.lines");
   const summary = useId();
@@ -89,11 +93,16 @@ export function LineDashboard({
                       {t("overBy", { amount: money(line.overBy) })}
                     </span>
                   ) : null}
+                  {line.carryOverFrom ? (
+                    <span className="mt-0.5 block">
+                      <CarryText line={line} policy={policy} formats={formats} />
+                    </span>
+                  ) : null}
                   <span aria-hidden="true" className={TRACK}>
                     <span
                       data-bar
                       className={`block h-full rounded-full ${line.overspent ? "bg-owe" : "bg-accent"}`}
-                      style={{ width: `${barWidth(line.spent, line.planned)}%` }}
+                      style={{ width: `${barWidth(line.spent, line.planned, line.carryOver)}%` }}
                     />
                   </span>
                 </th>
