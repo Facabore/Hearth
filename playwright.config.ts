@@ -1,7 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import { defineBddConfig } from "playwright-bdd";
-
-const BASE_URL = "http://127.0.0.1:3100";
+import { BASE_URL } from "./tests/e2e/support/base-url";
 
 const bddDir = defineBddConfig({
   features: "tests/e2e/features/*.feature",
@@ -22,14 +21,20 @@ export default defineConfig({
   webServer: {
     command: "node scripts/e2e-server.mjs",
     url: `${BASE_URL}/api/v1/health`,
-    reuseExistingServer: !process.env.CI,
+    // A server already on the port may be another worktree's build: reuse it only when asked (E2E_REUSE=1).
+    reuseExistingServer: process.env.E2E_REUSE === "1",
     timeout: 180_000,
     // POSIX: lets scripts/e2e-server.mjs remove its database (Windows always force-kills: see globalTeardown).
     gracefulShutdown: { signal: "SIGTERM", timeout: 10_000 },
   },
   projects: [
     { name: "e2e", testDir: bddDir, use: { ...devices["Pixel 7"] } },
-    { name: "a11y", testDir: "tests/e2e", testMatch: "a11y.spec.ts", use: { ...devices["Pixel 7"] } },
+    {
+      name: "a11y",
+      testDir: "tests/e2e",
+      testMatch: ["a11y*.spec.ts", "layout.spec.ts"],
+      use: { ...devices["Pixel 7"] },
+    },
     { name: "perf", testDir: "tests/e2e/perf", use: { ...devices["Pixel 7"] } },
   ],
 });

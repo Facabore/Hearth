@@ -26,6 +26,34 @@ describe("problemFrom (HU-E9-02)", () => {
     ).toBe("monthlyRate");
   });
 
+  it("keeps the public outstanding amount of OutstandingBalance and nothing malformed (ruling P163)", () => {
+    const body = {
+      code: "OutstandingBalance",
+      status: 409,
+      requestId: "r",
+      outstanding: { amount: "10000000", currency: "COP" },
+    };
+    expect(problemFrom(body, response(409)).outstanding).toEqual({ amount: "10000000", currency: "COP" });
+    expect(problemFrom({ ...body, outstanding: { amount: 5 } }, response(409))).not.toHaveProperty(
+      "outstanding",
+    );
+    expect(
+      problemFrom({ ...body, outstanding: { amount: 5, currency: "COP" } }, response(409)),
+    ).not.toHaveProperty("outstanding");
+    expect(problemFrom({ ...body, outstanding: { amount: "5" } }, response(409))).not.toHaveProperty(
+      "outstanding",
+    );
+    expect(problemFrom({ code: "SpaceArchived" }, response(409))).not.toHaveProperty("outstanding");
+  });
+
+  it("keeps the public sourcePeriod of SourcePlanOpen and nothing malformed (ruling P248)", () => {
+    const body = { code: "SourcePlanOpen", status: 409, requestId: "r", sourcePeriod: "2026-11" };
+    expect(problemFrom(body, response(409)).sourcePeriod).toBe("2026-11");
+    expect(problemFrom({ ...body, sourcePeriod: 202611 }, response(409))).not.toHaveProperty("sourcePeriod");
+    expect(problemFrom({ ...body, sourcePeriod: "" }, response(409))).not.toHaveProperty("sourcePeriod");
+    expect(problemFrom({ code: "SpaceArchived" }, response(409))).not.toHaveProperty("sourcePeriod");
+  });
+
   it("reads anything else as Unknown, with the request id when the response has one", () => {
     expect(problemFrom("<html>502 Bad Gateway</html>", response(502, "req-2"))).toEqual({
       code: "Unknown",

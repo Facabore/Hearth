@@ -18,6 +18,8 @@
   --on-accent: #ffffff;
   --owe: #b5562f;
   --owe-soft: #f6e9e1;
+  /* Text on --owe-soft: --owe itself is 4.1:1 there, short of AA for small text. */
+  --owe-ink: #96441f;
   --track: #e3e0d8;
   --danger: #b42318;
   --scrim: rgb(28 33 31 / 0.45);
@@ -71,6 +73,7 @@
   --on-accent: #121614;
   --owe: #e09a78;
   --owe-soft: #2e231e;
+  --owe-ink: #e09a78;
   --track: #2c332f;
   --danger: #f97066;
   --scrim: rgb(0 0 0 / 0.6);
@@ -123,6 +126,7 @@
   --color-on-accent: var(--on-accent);
   --color-owe: var(--owe);
   --color-owe-soft: var(--owe-soft);
+  --color-owe-ink: var(--owe-ink);
   --color-track: var(--track);
   --color-danger: var(--danger);
   --color-scrim: var(--scrim);
@@ -130,6 +134,15 @@
 }
 
 @layer base {
+  /* WCAG 2.4.11: a focused field or button scrolls into view above the fixed bottom navigation (h-[76px]). */
+  html {
+    scroll-padding-bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+  @media (min-width: 1024px) {
+    html {
+      scroll-padding-bottom: 0;
+    }
+  }
   body {
     background: var(--bg);
     color: var(--ink);

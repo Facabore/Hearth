@@ -20,6 +20,7 @@ const setup = (overrides: Partial<LedgerDeps> = {}) => {
   const record = createRecordExpenseByCategoryKey(
     {
       access: fixture.deps.access,
+      spaceLocks: fixture.deps.spaceLocks,
       categoryKeys: {
         findByKey: async (spaceId, key) => (spaceId === "space-ana" ? (catalog[key] ?? null) : null),
       },

@@ -13,8 +13,8 @@ import type { SpaceSummary } from "./space-repository";
 import type { SpaceSettingsRepository } from "./space-settings-repository";
 
 /**
- * Whether a space already holds accounts, transactions or plans (their amounts are in its currency); bound by the
- * composition root.
+ * Whether a space already records money in its currency: transactions, plans, recurrences (ended ones included), or
+ * accounts that hold an amount (issue 169: a starter account at zero holds none); bound by the composition root.
  */
 export interface SpaceUsage {
   hasMoneyRecords(spaceId: string): Promise<boolean>;

@@ -10,6 +10,7 @@ import { statusOf } from "../domain/recurrence";
 import type { Expense, Transaction } from "../domain/transaction";
 import {
   createEndRecurrence,
+  createExtendRecurrence,
   createPauseRecurrence,
   createResumeRecurrence,
   createUpdateRecurrence,
@@ -342,6 +343,32 @@ describe("MaterializeDueOccurrences (HU-E4-12)", () => {
     expect(store.rows).toEqual([]);
     await run("2027-01-01");
     expect(store.rows.map((t) => t.date)).toEqual(["2027-01-01"]);
+  });
+
+  it("records no occurrence for the dates an ended recurrence missed once it is extended: ended on 2026-12-05, extended on 2027-02-10, next 2027-03-01 (#115)", async () => {
+    const { define, run, store, deps, clock, recurrences } = materializerWorld();
+    const rent = await define(rentDefinition());
+    const ref = { spaceId: "space-household", userId: "u-ana", recurrenceId: rent.id };
+    await run("2026-12-01");
+    clock.set("2026-12-05");
+    unwrap(await createEndRecurrence(deps)(ref));
+    // The runs of the ended span record nothing: 2027-01-01 and 2027-02-01 fall due and are not recorded.
+    await run("2027-01-15");
+    await run("2027-02-09");
+    expect(store.rows.map((t) => t.date)).toEqual(["2026-12-01"]);
+    clock.set("2027-02-10");
+    const extended = unwrap(await createExtendRecurrence(deps)({ ...ref, endDate: null }));
+    expect([extended.status, extended.nextOccurrence, recurrences.rows[0]!.dueFrom]).toEqual([
+      "ACTIVE",
+      "2027-03-01",
+      "2027-02-10",
+    ]);
+    await run("2027-02-28");
+    expect(store.rows.map((t) => t.date)).toEqual(["2026-12-01"]);
+    expect(recurrences.occurrenceRows.map((o) => o.date)).toEqual(["2026-12-01"]);
+    await run("2027-03-01");
+    expect(store.rows.map((t) => t.date)).toEqual(["2026-12-01", "2027-03-01"]);
+    expect(recurrences.occurrenceRows.map((o) => o.date)).toEqual(["2026-12-01", "2027-03-01"]);
   });
 
   it("counts a recurrence with no schedule date left as finished: nothing due, no failure, and the scheduler stops listing it (P24, Task 2b)", async () => {

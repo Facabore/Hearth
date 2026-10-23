@@ -192,6 +192,18 @@ describe("personal trend over HTTP (HU-E7-05)", () => {
     ]);
   });
 
+  it("ignores a userId in the query string: the trend is always the caller's (issue 131)", async () => {
+    const h = await household();
+    await spendAtHome(h.ana, 100_000, "2026-11-05");
+    await spendAtHome(h.juan, 900_000, "2026-11-06");
+    const query = { endPeriod: "2026-11", periods: 1 };
+    const plain = await trendOf(h.ana.personal, query);
+    expect(plain.points.map((p) => p.consumption)).toEqual([cop(100_000)]);
+    for (const userId of [h.juan.personal.userId, h.juan.userId]) {
+      expect(await trendOf(h.ana.personal, { ...query, userId })).toEqual(plain);
+    }
+  });
+
   it("keeps the personal currency: a USD space of the caller does not enter their COP trend", async () => {
     const ana = await registerUser("Ana");
     const created = await call(createSpace, "POST", "/api/v1/spaces", {

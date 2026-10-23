@@ -1511,6 +1511,92 @@
       }
     },
     "/api/v1/spaces/{spaceId}/invitations": {
+      "get": {
+        "operationId": "listInvitations",
+        "summary": "The space's pending email and link invitations, newest first (OWNER and ADMIN); never their URLs",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pending invitations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Invitation"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "InsufficientRole",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "operationId": "createInvitation",
         "summary": "Invite by email (bound to that address) or by shareable link; the response carries the URL",
@@ -1748,6 +1834,44 @@
           },
           "409": {
             "description": "InvitationAlreadyUsed, SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/invitations/{token}": {
+      "get": {
+        "operationId": "previewInvitation",
+        "summary": "What a visitor holding the token may read of an invitation: space, inviter, role, status, expiry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The invitation's preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationPreview"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "InvitationNotFound",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2211,6 +2335,44 @@
           },
           "409": {
             "description": "NotAGuest, SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/claims/{token}": {
+      "get": {
+        "operationId": "previewClaim",
+        "summary": "What a visitor holding the token may read of a claim link: space, guest, status, expiry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The claim link's preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimPreview"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "InvitationNotFound",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3932,6 +4094,94 @@
           },
           "422": {
             "description": "ValidationFailed, InvalidAccountName, UnknownCurrency, CurrencyMismatch, InvalidCreditLimit, InvalidBillingDay, InvalidRate, InvalidTermDeposit, InvalidTerm, InvalidAmount, InvalidDate",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/accounts/starter": {
+      "post": {
+        "operationId": "createStarterAccounts",
+        "summary": "Create the personal space's starter accounts at zero, in the caller's language, skipping every name the space already holds (archived ones included); a second call creates nothing",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The starter accounts this call created; empty when none was missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Account"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "InsufficientRole",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "PersonalAccountRequiresPersonalSpace, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5712,7 +5962,7 @@
       },
       "patch": {
         "operationId": "editTransaction",
-        "summary": "Change description, date, time, category or amount; send If-Match with the current ETag",
+        "summary": "Change description, date, time, category, amount, accounts, who paid or how it is split; send If-Match with the current ETag",
         "security": [
           {
             "cookieAuth": []
@@ -5785,6 +6035,201 @@
                   },
                   "amount": {
                     "$ref": "#/components/schemas/Money"
+                  },
+                  "accountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "payments": {
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "memberId": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "accountId": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "amount": {
+                          "$ref": "#/components/schemas/Money"
+                        }
+                      },
+                      "required": [
+                        "memberId",
+                        "amount"
+                      ]
+                    }
+                  },
+                  "sourceAccountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "destinationAccountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "split": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "method": {
+                            "type": "string",
+                            "const": "EQUAL"
+                          },
+                          "participants": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "memberId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                }
+                              },
+                              "required": [
+                                "memberId"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "method",
+                          "participants"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "method": {
+                            "type": "string",
+                            "const": "PERCENT"
+                          },
+                          "participants": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "memberId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                "percent": {
+                                  "type": "string",
+                                  "pattern": "^\\d{1,3}(\\.\\d{1,2})?$"
+                                }
+                              },
+                              "required": [
+                                "memberId",
+                                "percent"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "method",
+                          "participants"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "method": {
+                            "type": "string",
+                            "const": "EXACT"
+                          },
+                          "participants": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "memberId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                "amount": {
+                                  "$ref": "#/components/schemas/Money"
+                                }
+                              },
+                              "required": [
+                                "memberId",
+                                "amount"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "method",
+                          "participants"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "method": {
+                            "type": "string",
+                            "const": "SHARES"
+                          },
+                          "participants": {
+                            "maxItems": 100,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "memberId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                "units": {
+                                  "type": "integer",
+                                  "minimum": -9007199254740991,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "memberId",
+                                "units"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "method",
+                          "participants"
+                        ]
+                      }
+                    ],
+                    "type": "object"
                   }
                 }
               }
@@ -5823,7 +6268,7 @@
             }
           },
           "404": {
-            "description": "SpaceNotFound, TransactionNotFound, CategoryNotFound",
+            "description": "SpaceNotFound, TransactionNotFound, CategoryNotFound, AccountNotFound",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5833,7 +6278,7 @@
             }
           },
           "409": {
-            "description": "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory",
+            "description": "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory, AccountArchived, SameAccountTransfer, GuestHasNoAccounts, MixedFundPayment, FieldNotEditable",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -5853,7 +6298,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone",
+            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, InvalidSplit, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6000,7 +6445,8 @@
                             "type": "string",
                             "enum": [
                               "UPDATED",
-                              "DELETED"
+                              "DELETED",
+                              "RESTORED"
                             ]
                           },
                           "actorUserId": {
@@ -6071,6 +6517,110 @@
           },
           "404": {
             "description": "SpaceNotFound, TransactionNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/transactions/{transactionId}/restore": {
+      "post": {
+        "operationId": "restoreTransaction",
+        "summary": "Undo a deletion: the transaction returns to lists, balances and totals; restoring a live one changes nothing",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "transactionId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The restored transaction with its new ETag",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "InsufficientRole",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound, TransactionNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "PeriodClosed, SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "PreconditionFailed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "NotASpaceMember",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6770,7 +7320,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed (including the template, type, payer, accounts or start date, which an edit cannot change), InvalidAmount, InvalidDate, InvalidDescription, InvalidPeriodPolicy, InvalidRecurrence (an end date before the start; a category or split its type does not have), CurrencyMismatch, UnknownCurrency, AccountNotOwned (it moves money into or out of its creator's own account: only its creator changes it), AccountNotInSpace, AccountRequired, InvalidFundAccount, NotASpaceMember (a payer or a split participant left; with member \"creator\", the recurrence's creator left), InvalidSplit, ParticipantsRequired",
+            "description": "ValidationFailed (including the template, type, payer, accounts or start date, which an edit cannot change), InvalidAmount, InvalidDate, InvalidDescription, InvalidPeriodPolicy, InvalidRecurrence (an end date before the start; a category or split its type does not have), CurrencyMismatch, UnknownCurrency, AccountNotOwned (it moves money into or out of its creator's own account: only its creator changes it), AccountNotInSpace, AccountRequired, InvalidFundAccount, NotASpaceMember (a payer or a split participant is not a member, whether they left or never were; with member \"creator\", the recurrence's creator left), InvalidSplit, ParticipantsRequired",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -7193,6 +7743,126 @@
           },
           "409": {
             "description": "InvalidRecurrenceTransition, SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/recurrences/{recurrenceId}/extend": {
+      "post": {
+        "operationId": "extendRecurrence",
+        "summary": "Extend an ENDED recurrence with a new end date, or none: the same recurrence goes on from today, never back-filling the days it was ended",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "recurrenceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "endDate": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "endDate"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The recurrence, ACTIVE again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recurrence"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "InsufficientRole (the requester may not manage it; with member \"creator\", the recurrence's creator no longer holds money.record)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound, RecurrenceNotFound, CategoryNotFound, AccountNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "InvalidRecurrenceTransition (it is not ENDED), AccountArchived, CategoryArchived, GuestHasNoAccounts, SameAccountTransfer, SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed (endDate is required), InvalidDate, InvalidRecurrence (an end date before the start; no schedule date from today, or from where it was due, through the end date), AccountNotOwned (it moves money into or out of its creator's own account: only its creator extends it), AccountNotInSpace, AccountRequired, InvalidFundAccount, NotASpaceMember (a payer or a split participant left; with member \"creator\", the recurrence's creator left), InvalidSplit, ParticipantsRequired",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9234,7 +9904,7 @@
             }
           },
           "409": {
-            "description": "InvalidPlanTransition, PeriodNotOver (today is not after the period's last day), SpaceArchived",
+            "description": "InvalidPlanTransition, PeriodNotOver (today is not after the period's last day), SourcePlanOpen (the plan it was copied from is still ACTIVE and a line carries over from it; the problem carries the source's `sourcePeriod`), SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9516,13 +10186,63 @@
                             "$ref": "#/components/schemas/MoneyOutput"
                           },
                           "carryOver": {
+                            "description": "Since M6c a line carries only from the CLOSED plan it was copied from, and only from its origin line there: carryOver is 0 while that plan is DRAFT or ACTIVE (before, it carried whatever the source's status was), and carryOverFrom names the plan it comes from or waits for. Nothing is stored; both are derived on read.",
                             "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "carryOverFrom": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "planId": {
+                                    "type": "string"
+                                  },
+                                  "period": {
+                                    "$ref": "#/components/schemas/Period"
+                                  },
+                                  "closed": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "planId",
+                                  "period",
+                                  "closed"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The plan the carry-over comes from, with its period and whether it is CLOSED. closed false means the line carries 0 until that plan closes. Null for a RESET line, a line without an origin in that plan (a line added by hand, or one the source no longer has) and a plan that was not copied."
                           },
                           "available": {
                             "$ref": "#/components/schemas/MoneyOutput"
                           },
                           "overspent": {
                             "type": "boolean"
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "OK",
+                              "NEAR",
+                              "HIGH",
+                              "OVER"
+                            ],
+                            "description": "Of planned + carry-over: NEAR from 80 % used, HIGH above 90 %, OVER below 0 left; a SAVINGS line is always OK."
+                          },
+                          "overBy": {
+                            "anyOf": [
+                              {
+                                "$ref": "#/components/schemas/MoneyOutput"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "How much an OVER line went past its budget, positive; null otherwise."
                           }
                         },
                         "required": [
@@ -9533,8 +10253,11 @@
                           "planned",
                           "spent",
                           "carryOver",
+                          "carryOverFrom",
                           "available",
-                          "overspent"
+                          "overspent",
+                          "state",
+                          "overBy"
                         ],
                         "additionalProperties": false
                       }
@@ -9566,6 +10289,50 @@
                         }
                       ],
                       "description": "What no line consumes, every expense when the period has no plan; null when the plan has a catch-all line."
+                    },
+                    "totals": {
+                      "type": "object",
+                      "properties": {
+                        "planned": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "spent": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "available": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        }
+                      },
+                      "required": [
+                        "planned",
+                        "spent",
+                        "available"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Σ of the lines' figures plus Unbudgeted's spent and available; planned counts the lines only."
+                    },
+                    "categoryLines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "categoryId": {
+                            "type": "string"
+                          },
+                          "lineId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "categoryId",
+                          "lineId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "Every live category of the space with the line its expenses consume in the plan: its mapped line, its parent's line for a subcategory, else the catch-all line; null for Unbudgeted. Empty without a plan."
                     }
                   },
                   "required": [
@@ -9573,7 +10340,9 @@
                     "period",
                     "plan",
                     "lines",
-                    "unbudgeted"
+                    "unbudgeted",
+                    "totals",
+                    "categoryLines"
                   ],
                   "additionalProperties": false
                 }
@@ -9972,13 +10741,35 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "totals": {
+                      "type": "object",
+                      "properties": {
+                        "expected": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "actual": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "difference": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        }
+                      },
+                      "required": [
+                        "expected",
+                        "actual",
+                        "difference"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Σ over the listed members of expected, actual and difference."
                     }
                   },
                   "required": [
                     "spaceId",
                     "period",
                     "plan",
-                    "members"
+                    "members",
+                    "totals"
                   ],
                   "additionalProperties": false
                 }
@@ -10340,7 +11131,8 @@
                               "type": "object",
                               "properties": {
                                 "period": {
-                                  "type": "string"
+                                  "type": "string",
+                                  "description": "The period's label, unique within the window and equal to the label of periods[i]: a derived period that shares its label with a stored one is written '<label> (<start>..<end>)'."
                                 },
                                 "spent": {
                                   "anyOf": [
@@ -10516,7 +11308,8 @@
                         "type": "object",
                         "properties": {
                           "period": {
-                            "type": "string"
+                            "type": "string",
+                            "description": "The period's label, unique within the window and equal to the label of periods[i]: a derived period that shares its label with a stored one is written '<label> (<start>..<end>)'."
                           },
                           "consumption": {
                             "$ref": "#/components/schemas/MoneyOutput"
@@ -10587,6 +11380,265 @@
           },
           "422": {
             "description": "ValidationFailed, InvalidPeriodLabel",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/cash-flow": {
+      "get": {
+        "operationId": "getCashFlow",
+        "summary": "What comes into and goes out of the caller's own accounts over the next 30 or 60 days",
+        "description": "Every scheduled date of the active recurrences and every pending occurrence of the spaces the caller is a current member of, when it debits or credits an account the caller owns, with the projected balance of the personal space's available money after each date. Earlier due dates are listed on today.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "schema": {
+              "default": "30",
+              "type": "string",
+              "enum": [
+                "30",
+                "60"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The caller's dated movements and projected balances",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "currency": {
+                      "type": "string"
+                    },
+                    "from": {
+                      "type": "string"
+                    },
+                    "through": {
+                      "type": "string"
+                    },
+                    "days": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "const": 30
+                        },
+                        {
+                          "type": "number",
+                          "const": 60
+                        }
+                      ]
+                    },
+                    "opening": {
+                      "description": "Today's available money of the caller's personal space.",
+                      "$ref": "#/components/schemas/MoneyOutput"
+                    },
+                    "dates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "date": {
+                            "type": "string"
+                          },
+                          "movements": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "recurrenceId": {
+                                  "type": "string"
+                                },
+                                "occurrenceId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "EXPENSE",
+                                    "INCOME",
+                                    "TRANSFER",
+                                    "FUND_CONTRIBUTION"
+                                  ]
+                                },
+                                "description": {
+                                  "type": "string"
+                                },
+                                "space": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "name"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "dueDate": {
+                                  "type": "string",
+                                  "description": "When it was due; a PENDING occurrence or an unreached earlier date is listed on today."
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "SCHEDULED",
+                                    "PENDING"
+                                  ]
+                                },
+                                "estimated": {
+                                  "type": "boolean",
+                                  "description": "A CONFIRM recurrence's estimate, which a member confirms or changes."
+                                },
+                                "amount": {
+                                  "$ref": "#/components/schemas/MoneyOutput"
+                                },
+                                "effect": {
+                                  "description": "The signed change of the caller's available money: + into a counted account, − out of one, 0 between two or none.",
+                                  "$ref": "#/components/schemas/MoneyOutput"
+                                }
+                              },
+                              "required": [
+                                "recurrenceId",
+                                "occurrenceId",
+                                "type",
+                                "description",
+                                "space",
+                                "dueDate",
+                                "status",
+                                "estimated",
+                                "amount",
+                                "effect"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "balanceAfter": {
+                            "$ref": "#/components/schemas/MoneyOutput"
+                          }
+                        },
+                        "required": [
+                          "date",
+                          "movements",
+                          "balanceAfter"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "totals": {
+                      "type": "object",
+                      "properties": {
+                        "incoming": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "outgoing": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "closing": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        }
+                      },
+                      "required": [
+                        "incoming",
+                        "outgoing",
+                        "closing"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "lowest": {
+                      "type": "object",
+                      "properties": {
+                        "date": {
+                          "type": "string"
+                        },
+                        "balance": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        }
+                      },
+                      "required": [
+                        "date",
+                        "balance"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "otherCurrencySpaces": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "spaceId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "currency": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "spaceId",
+                          "name",
+                          "currency"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "currency",
+                    "from",
+                    "through",
+                    "days",
+                    "opening",
+                    "dates",
+                    "totals",
+                    "lowest",
+                    "otherCurrencySpaces"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12502,6 +13554,100 @@
         ],
         "additionalProperties": false
       },
+      "InvitationPreview": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "EMAIL",
+              "LINK"
+            ]
+          },
+          "spaceName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "ADMIN",
+              "MEMBER",
+              "VIEWER"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "ACCEPTED",
+              "REVOKED",
+              "EXPIRED"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "invitedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "spaceName",
+          "role",
+          "status",
+          "expiresAt",
+          "invitedBy"
+        ],
+        "additionalProperties": false
+      },
+      "ClaimPreview": {
+        "type": "object",
+        "properties": {
+          "spaceName": {
+            "type": "string"
+          },
+          "guestName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "ACCEPTED",
+              "REVOKED",
+              "EXPIRED"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "invitedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "spaceName",
+          "guestName",
+          "status",
+          "expiresAt",
+          "invitedBy"
+        ],
+        "additionalProperties": false
+      },
       "Period": {
         "type": "object",
         "properties": {
@@ -13126,7 +14272,57 @@
                   "$ref": "#/components/schemas/MoneyOutput"
                 },
                 "carryOver": {
+                  "description": "Since M6c a line carries only from the CLOSED plan it was copied from, and only from its origin line there: carryOver is 0 while that plan is DRAFT or ACTIVE (before, it carried whatever the source's status was), and carryOverFrom names the plan it comes from or waits for. Nothing is stored; both are derived on read.",
                   "$ref": "#/components/schemas/MoneyOutput"
+                },
+                "carryOverFrom": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "planId": {
+                          "type": "string"
+                        },
+                        "period": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "startDate": {
+                              "type": "string",
+                              "format": "date",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                            },
+                            "endDate": {
+                              "type": "string",
+                              "format": "date",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                            }
+                          },
+                          "required": [
+                            "label",
+                            "startDate",
+                            "endDate"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "closed": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "planId",
+                        "period",
+                        "closed"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The plan the carry-over comes from, with its period and whether it is CLOSED. closed false means the line carries 0 until that plan closes. Null for a RESET line, a line without an origin in that plan (a line added by hand, or one the source no longer has) and a plan that was not copied."
                 },
                 "available": {
                   "$ref": "#/components/schemas/MoneyOutput"
@@ -13146,6 +14342,7 @@
                 "allocation",
                 "spent",
                 "carryOver",
+                "carryOverFrom",
                 "available"
               ],
               "additionalProperties": false

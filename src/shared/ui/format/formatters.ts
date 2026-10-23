@@ -61,6 +61,33 @@ export const formatMoney = (
   return text.startsWith(MINUS) ? `${MINUS}${symbol}${NBSP}${text.slice(1)}` : `${symbol}${NBSP}${text}`;
 };
 
+/**
+ * Ruling P204: "36.75" → "36,75 %", "-3.70" → "−3,70 %". The API's two decimals are kept (a zero fraction too: a
+ * share reads "40,00 %"), the number follows the person's format, and `signed` writes "+" before a positive change.
+ */
+export const formatPercent = (
+  decimal: string,
+  f: Pick<Formats, "numberFormat">,
+  { signed = false }: { readonly signed?: boolean } = {},
+): string => {
+  const negative = decimal.startsWith("-");
+  const [whole = "0", fraction = ""] = decimal.replace(/^[-+]/, "").split(".");
+  const [group, point] = SEPARATORS[f.numberFormat];
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, group);
+  const zero = /^0*$/.test(whole + fraction);
+  const sign = zero ? "" : negative ? MINUS : signed ? "+" : "";
+  return `${sign}${grouped}${fraction === "" ? "" : point + fraction}${NBSP}%`;
+};
+
+/** A change of money: "+$ 50.000" above zero, "−$ 50.000" below, "$ 0" at zero (ruling P204). */
+export const formatSignedMoney = (
+  money: { readonly amount: string; readonly currency: string },
+  f: Pick<Formats, "numberFormat">,
+): string => {
+  const text = formatMoney(money, f);
+  return BigInt(money.amount) > 0n ? `+${text}` : text;
+};
+
 /** Numeric, with "/" and no leading zeros: 5/10/2026, 10/5/2026 or 2026/10/5. */
 export const formatDate = (isoDate: string, f: Pick<Formats, "dateFormat">): string => {
   const [year, month, day] = isoDate.split("-").map(Number);

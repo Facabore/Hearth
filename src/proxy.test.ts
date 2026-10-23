@@ -30,4 +30,36 @@ describe("proxy (HU-E9-01, rulings P125 and P145)", () => {
     expect(response.headers.get("x-middleware-next")).toBe("1");
     expect(response.headers.get("x-middleware-request-x-hearth-path")).toBe("/settings?tab=region");
   });
+
+  it.each(["/invitations/tok-1", "/claims/tok-1"])(
+    "lets %s through without a session cookie, with a stale one and with a live one (ruling P157)",
+    (path) => {
+      for (const cookie of [undefined, "hearth.session_token=stale", "hearth.session_token=abc"]) {
+        const response = proxy(request(path, cookie));
+        expect(response.status).toBe(200);
+        expect(response.headers.get("x-middleware-next")).toBe("1");
+        expect(response.headers.get("x-middleware-request-x-hearth-path")).toBe(path);
+      }
+    },
+  );
+
+  it.each([
+    "/invitations",
+    "/invitations/",
+    "/invitationsx/tok",
+    "/invitations/tok/extra",
+    "/invitations//settings",
+    "/claims/a/../../settings",
+    "/claims/a/%2e%2e/%2e%2e/settings",
+    "/invitations/a/..%2f..%2fsettings",
+  ])("keeps %s behind the session guard: an open prefix opens one token page and nothing else", (path) => {
+    const response = proxy(request(path));
+    expect(response.status).toBe(307);
+    expect(new URL(response.headers.get("location")!).pathname).toBe("/sign-in");
+  });
+
+  it("lets the sign-up screen through with the invitation and the page to return to", () => {
+    const response = proxy(request("/sign-up?invitation=tok-1&next=%2Finvitations%2Ftok-1"));
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+  });
 });

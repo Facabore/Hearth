@@ -28,7 +28,7 @@ export type RecordExpenseByCategoryKey = (
  */
 export const createRecordExpenseByCategoryKey =
   (
-    deps: Pick<LedgerDeps, "access"> & { readonly categoryKeys: CategoryKeyReader },
+    deps: Pick<LedgerDeps, "access" | "spaceLocks"> & { readonly categoryKeys: CategoryKeyReader },
     recordExpense: RecordExpense,
   ): RecordExpenseByCategoryKey =>
   async ({ categoryKey, ...input }) => {

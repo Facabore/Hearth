@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { periodByLabel, type LocalDate, type PeriodPolicy, type StoredPeriod } from "@/shared/kernel";
 import { unwrap } from "../../../../tests/support/fakes";
-import { changeFrom, periodsEndingWith, tracedLines } from "./trend";
+import { changeFrom, distinctLabels, periodsEndingWith, tracedLines } from "./trend";
 
 const pesos = (n: number) => BigInt(n) * 100n;
 const labels = (policy: PeriodPolicy, end: string, count: number) =>
@@ -37,6 +37,56 @@ describe("trend windows (HU-E7-05, spec 5.3)", () => {
     expect(periodsEndingWith(policy, stored, end, 2)).toEqual([
       { start: "2026-10-05", end: "2026-11-04", label: "2026-10" },
       { start: "2026-11-05", end: "2026-11-30", label: "2026-11" },
+    ]);
+  });
+});
+
+describe("distinct labels in a window (#132)", () => {
+  const period = (start: string, end: string, label: string): StoredPeriod => ({
+    start: start as LocalDate,
+    end: end as LocalDate,
+    label,
+  });
+
+  it("leaves a window whose labels differ exactly as it is", () => {
+    const window = [
+      period("2026-10-01", "2026-10-31", "2026-10"),
+      period("2026-11-01", "2026-11-30", "2026-11"),
+    ];
+    expect(distinctLabels(window, [])).toEqual(window);
+  });
+
+  it("keeps the stored period's label and writes the stub it shares it with apart", () => {
+    const stored = [period("2026-10-05", "2026-11-04", "2026-10")];
+    const stub = period("2026-10-01", "2026-10-04", "2026-10");
+    expect(distinctLabels([stub, stored[0]!], stored)).toEqual([
+      { ...stub, label: "2026-10 (2026-10-01..2026-10-04)" },
+      stored[0],
+    ]);
+  });
+
+  it("writes both stubs around a stored period apart and keeps the stored label", () => {
+    const stored = [period("2026-10-10", "2026-10-20", "2026-10")];
+    const window = [
+      period("2026-10-01", "2026-10-09", "2026-10"),
+      stored[0]!,
+      period("2026-10-21", "2026-10-31", "2026-10"),
+    ];
+    expect(distinctLabels(window, stored).map((p) => p.label)).toEqual([
+      "2026-10 (2026-10-01..2026-10-09)",
+      "2026-10",
+      "2026-10 (2026-10-21..2026-10-31)",
+    ]);
+  });
+
+  it("keeps the earliest label when none of the periods sharing it is stored", () => {
+    const window = [
+      period("2026-10-01", "2026-10-09", "2026-10"),
+      period("2026-10-21", "2026-10-31", "2026-10"),
+    ];
+    expect(distinctLabels(window, []).map((p) => p.label)).toEqual([
+      "2026-10",
+      "2026-10 (2026-10-21..2026-10-31)",
     ]);
   });
 });

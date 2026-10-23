@@ -30,17 +30,22 @@ describe("profile sheet (HU-E9-01)", () => {
       <ProfileSheet
         me={{ name: "Ana", email: "ana@example.com", locale: "es" }}
         spaceId="sp-personal"
+        spaceKind="PERSONAL"
         api={api}
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Perfil de Ana" }));
     const sheet = screen.getByRole("dialog", { name: "Ana" });
     expect(within(sheet).getByText("ana@example.com")).toBeInTheDocument();
-    expect(within(sheet).getByRole("link", { name: /Ajustes/ })).toHaveAttribute("href", "/settings");
+    expect(within(sheet).getByRole("link", { name: /Ajustes/ })).toHaveAttribute(
+      "href",
+      "/settings?from=sp-personal",
+    );
     expect(within(sheet).getByRole("link", { name: /Cuentas/ })).toHaveAttribute(
       "href",
       "/spaces/sp-personal/accounts",
     );
+    expect(within(sheet).queryByRole("link", { name: /Miembros/ })).not.toBeInTheDocument();
     await userEvent.click(within(sheet).getByRole("button", { name: "Cerrar sesión" }));
     expect(requests[0]!.method).toBe("POST");
     expect(router.replace).toHaveBeenCalledWith("/sign-in");
@@ -60,6 +65,7 @@ describe("profile sheet (HU-E9-01)", () => {
       <ProfileSheet
         me={{ name: "Ana", email: "ana@example.com", locale: "en" }}
         spaceId="sp-personal"
+        spaceKind="PERSONAL"
         api={api}
       />,
     );
@@ -76,6 +82,7 @@ describe("profile sheet (HU-E9-01)", () => {
       <ProfileSheet
         me={{ name: "Ana", email: "ana@example.com", locale: "en" }}
         spaceId="sp-personal"
+        spaceKind="PERSONAL"
         api={api}
       />,
     );
@@ -83,5 +90,23 @@ describe("profile sheet (HU-E9-01)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Cerrar sesión" }));
     expect(document.cookie).toContain("hearth.locale=en");
     expect(router.replace).toHaveBeenCalledWith("/sign-in");
+  });
+
+  it("links to the members of a shared space (ruling P160)", async () => {
+    const { api } = fakeApi({});
+    renderWithIntl(
+      <ProfileSheet
+        me={{ name: "Ana", email: "ana@example.com", locale: "es" }}
+        spaceId="sp-household"
+        spaceKind="SHARED"
+        api={api}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Perfil de Ana" }));
+    const sheet = screen.getByRole("dialog", { name: "Ana" });
+    expect(within(sheet).getByRole("link", { name: /Miembros e invitaciones/ })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household/members",
+    );
   });
 });

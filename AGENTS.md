@@ -1,68 +1,57 @@
-# Hearth review rules
+# Hearth: review rules
 
-These are the rules every change to Hearth must follow. Gentleman Guardian Angel (`gga`) reviews staged code against this file before each commit, and coding agents read it before they write. Each rule points to where it was decided; the full record is in [docs/decisions/README.md](docs/decisions/README.md).
-
-Fail a review only for a rule below. Do not fail it for style that Prettier or ESLint already enforce.
+These are the rules the code review (gga) checks staged files against. When a change breaks one, name the rule and the file:line. Do not flag style that Prettier and ESLint already enforce.
 
 ## Architecture
 
-- **Hexagonal modules.** Code lives in `src/modules/<module>/` with the layers `domain`, `application`, `contracts`, `infrastructure` and `ui`. Dependencies point inward: `app → application → domain` and `infrastructure → application / domain` ([architecture](docs/architecture/README.md#dependency-rules), ADR 0001).
-- **Pure domain.** `domain/` imports only its own module's domain and `src/shared/kernel`. No Next.js, Drizzle, `fetch`, `Date.now()` or other I/O in the domain; time comes from the `Clock` port.
-- **Modules meet through their public API.** Another module is reached only through `src/modules/<module>/application/index.ts`. The one exception: a Drizzle `*.schema.ts` may import another module's `*.schema.ts` to declare a foreign key.
-- **Ports in application, adapters in infrastructure.** A use case depends on ports it declares. Only `src/composition/container.ts` creates adapters and binds them.
-- **Authorization lives in the use case.** A use case checks the caller's `SpaceMember` and role; a route handler never decides authorization alone.
-- **`src/shared` never imports a module.**
-- **No circular dependencies.** `pnpm lint:boundaries` enforces these rules; a change must not weaken `.dependency-cruiser.cjs` to pass.
+- Modules live in `src/modules/<module>/` and split into `domain`, `application`, `infrastructure`, `contracts` and `ui`.
+  - Domain code imports nothing from infrastructure, HTTP, Next.js or Drizzle.
+  - Application code never imports `src/shared/http`.
+  - dependency-cruiser enforces this (ADR 0001).
+- A helper that two modules share goes to `src/shared/kernel` (pure) or `src/shared/http` (the HTTP edge). Never duplicate it in both modules.
+- The UI talks only to `/api/v1`, through the client generated from `openapi/openapi.snapshot.json` (ADR 0003).
+  - The UI imports no module's `domain`, `application`, `infrastructure` or `contracts`, and nothing from `src/composition`.
+  - There are no server actions.
+  - A module's server containers are exported from `ui/server.ts`. Client-safe code is exported from `ui/index.ts`.
+- Zod validates at the HTTP edge only. Domain rules live in the domain, and a writer that skips HTTP still has to pass them.
+- Expected failures are `Result` values (`err(domainError("Code"))` from `src/shared/kernel/result.ts`) with a stable PascalCase code. Throwing is for broken invariants only.
+- Containers and presentational components stay apart (P127): a server container is a pure `load*` over the `Api` plus an async component, and presentational components fetch nothing.
 
-## Errors and results
+## Money, dates and data
 
-- **Expected failures are `Result` values.** Domain and application code return `err(domainError("Code"))` from `src/shared/kernel/result.ts`, never throw, for anything a caller can cause.
-- **Throwing is for broken invariants only**, such as a `RangeError` for a value a validated caller can never send.
-- **Error codes are stable PascalCase names.** The API answers RFC 9457 `application/problem+json` with the `code`; it never sends translated text.
+- Money is `bigint` minor units (`Money`). Never use floats, never use `Number` for amounts, and never do rounding that isn't `Money`'s own.
+- Calendar dates are `LocalDate` in the space's or person's time zone. Never derive a date from a UTC instant without `localDateIn` or `todayIn`. Time zones are IANA names.
+- Deletes are logical, and every change to money keeps its audit. Never hard-delete stored records.
+- Balances, plan figures and reports are computed on read (D7) and never stored.
+- A write that changes stored data, or the format it is stored in, needs a migration under `drizzle/` and `pnpm db:check` passing.
+- Money writes take the space lock before they read membership (`spaceLocks.lockForMoneyWrite`, issue #89). Never read a balance or a membership before taking that lock.
+- Every change to the contract updates the OpenAPI snapshot and the generated `schema.d.ts`. Optional fields only. Changing what existing clients receive is a breaking change and must be called out.
 
-## Money, time and data
+## Security
 
-- **Money is a `bigint` in minor units with its currency**, and it travels over the wire as a string (D6). Never use `number` or floating point for money.
-- **Figures are computed on read** (D7). Balances, budget figures and reports are never stored.
-- **Deletes are logical** (D8), and edited transaction parts go to the audit.
-- **A transaction keeps its local date, a UTC instant and the recorder's IANA zone** (D19, P40–P44).
-- **Plan boundaries are stored** (D10); a period-policy change never moves history.
-- **Updates honour `If-Match`** where the resource has an `ETag`, and answer `412` on a stale version.
-- **Creating POSTs accept `Idempotency-Key`** where the spec says so; a replay answers the original response.
+- Every route goes through `defineRoute`, which handles the session, Zod, the NUL guard and problem responses. Authorize inside the use case: membership, role and `canModify`.
+- `next`, `returnTo` and `?from=` are validated the way `safeNext` and `safeReturnTo` validate them. A `?from=` must be one of the person's own space ids.
+- Never log secrets, tokens, passwords or full request bodies. Errors in logs go through `failureOf`.
+- Never read `.env` files from code paths other than the config loader.
 
-## HTTP API
+## UI
 
-- **Route handlers are built with `defineRoute`** (`src/composition/route.ts`), which authenticates, validates against the Zod contract and carries `X-Request-Id`.
-- **Contracts are Zod schemas in the module's `contracts/`.** The OpenAPI document is generated from them (ADR 0002). A contract change updates `openapi/openapi.snapshot.json` and `src/shared/ui/api/schema.d.ts` in the same change (P139).
-- **Lists use cursor pagination**: `?cursor=&limit=`, default 50, maximum 200.
-
-## Web UI
-
-- **The UI talks only to `/api/v1`, through the generated client** (ADR 0003, P117). No server actions, and no imports of a module's `domain`, `application`, `infrastructure` or `contracts` from UI code (P118, P119).
-- **Container and presentational components** (P127). A server container is a pure `load*` function over the `Api` plus an async component; presentational components take DTOs and serializable formats and fetch nothing.
-- **Client code imports a module's `ui/index.ts`; server containers come from `ui/server.ts`** (P153). An `index.ts` must never reach the server-only API reader.
-- **Every user-facing string comes from the message catalogs** in `src/i18n/messages/` (`es.json` and `en.json`, typed keys). No hard-coded copy in components, and every API error `code` maps to a key.
-- **Spanish copy uses neutral Spanish with "tú"**, never voseo. Regional words belong to the variants of D24, not the base `es.json`.
-- **Formats never come from the language** (D23). Only `src/shared/ui/format/` formats numbers, dates and times, from the person's effective preferences (P121); no other `Intl` or `toLocale*` call.
-- **Amounts never break across lines**: a no-break space between the symbol and the digits, and a word joiner (U+2060) after a minus sign.
-- **Accessibility.** Every control has an accessible name, a visible keyboard focus and a touch target of at least 44 px ([design rubric R4](docs/design/batch2-ux-critique.md#rubric)); screens pass axe in light and dark.
-- **Speed.** Do not add a dependency or a client component that pushes a route over its script budget in `tests/performance/budgets.json` (ADR 0004, P134). A raised budget is the owner's decision, never a silent change.
+- Every screen below the bottom navigation has a way back (`ScreenHeader`).
+- No horizontal scroll at 390 or 320 px. Targets are at least 44×44 px. Sheets stay above the bar.
+- Copy comes from `src/i18n/messages/{es,en}.json`, with both languages. Spanish uses neutral Latin American tú, never voseo. Prefer "pagó por ti" and "tu parte"; never frame a shared bill as a loan.
+- Regional words ("paz y salvo", "a mano") belong to the regional variants of D24, not to the base `es.json`.
+- Formats never come from the language (D23). Only `src/shared/ui/format/` formats numbers, dates and times, from the person's effective preferences (P121); no other `Intl` or `toLocale*` call.
+- An amount never breaks across lines: a no-break space between the symbol and the digits, and a word joiner (U+2060) after a minus sign.
+- Money direction is never shown by color alone. It always carries a sign or a word.
+- Route script budgets in `tests/performance/budgets.json` are never raised to fit a change. Lazy-load instead.
 
 ## Tests
 
-- **Behavior first, through the public interface.** Use cases are tested through their exported factory, components through Testing Library queries by role and name.
-- **One test per rule the change adds, asserting every observable effect** (result, error code, persisted data, rendered text).
-- **Integration tests use Testcontainers PostgreSQL** (`*.int.test.ts`), never a mocked database.
-- **No test reads the real clock**; use the `Clock` port or the fixed `serverNow()`.
-
-## TypeScript
-
-- **`strict`, `noUncheckedIndexedAccess` and `noImplicitOverride` stay on.** No `any`, no `@ts-ignore`, and no non-null `!` to silence a possibly undefined value without a reason in a comment.
-- **Prefer `readonly`** for domain types and DTOs.
-- **Names in English** for code, identifiers, comments and docs.
+- Every behavior change comes with a test through the public interface: a use case, HTTP acceptance, or a component in jsdom.
+- Concurrency fixes need a deterministic integration test against PostgreSQL, using the `tests/support/locks.ts` barrier.
+- Tests never depend on the wall clock or on network services.
 
 ## Commits and docs
 
-- **Conventional Commits** (`feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`) with the story or issue reference, for example `(Refs #73)`. No AI attribution lines.
-- **Each decision lands in `docs/`** in the same change: a design decision in the spec's section 6 and the decisions index, a technology choice as an ADR, an execution ruling in its plan's Self-Review.
-- **A story that changes the API, the model or a screen updates its spec section, backlog story or design doc** in the same pull request.
+- Conventional Commits with the story or issue reference, for example `(Refs #73)`. No AI attribution lines.
+- A decision lands in `docs/` in the same change: a design decision in the spec's section 6 and the decisions index, a technology choice as an ADR, an execution ruling in its plan's Self-Review.

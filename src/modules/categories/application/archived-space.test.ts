@@ -66,7 +66,21 @@ const WRITES: readonly (readonly [string, (w: World) => Promise<Result<unknown>>
   ["CreateCategoryGroup", (w) => w.createGroup({ ...asAna, name: "Pets" })],
   ["RenameCategoryGroup", (w) => w.renameGroup({ ...asAna, groupId: w.food.id, name: "Eating" })],
   ["CreateCategory", (w) => w.create({ ...asAna, groupId: w.food.id, name: "Bakery" })],
+  [
+    "CreateCategory as a subcategory",
+    (w) => w.create({ ...asAna, parentCategoryId: w.named("Groceries").id, name: "Organic" }),
+  ],
   ["UpdateCategory", (w) => w.update({ ...asAna, categoryId: w.named("Groceries").id, name: "Market" })],
+  [
+    "UpdateCategory restyling it",
+    (w) =>
+      w.update({
+        ...asAna,
+        categoryId: w.named("Groceries").id,
+        icon: { kind: "SYMBOL", name: "basket" },
+        color: "TEAL",
+      }),
+  ],
   ["DeleteCategory", (w) => w.remove({ ...asAna, categoryId: w.named("Groceries").id })],
   ["ArchiveCategory", (w) => w.archive({ ...asAna, categoryId: w.named("Groceries").id })],
   ["RestoreCategory", (w) => w.restore({ ...asAna, categoryId: w.named("Restaurants").id })],

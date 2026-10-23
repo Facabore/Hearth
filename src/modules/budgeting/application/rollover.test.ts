@@ -8,8 +8,8 @@ import {
   HOUSEHOLD,
   householdCategories,
 } from "../../../../tests/support/budgeting-world";
-import { unwrap } from "../../../../tests/support/fakes";
-import type { RolloverMode } from "../domain/budget-line";
+import { money, unwrap } from "../../../../tests/support/fakes";
+import type { BudgetLineId, RolloverMode } from "../domain/budget-line";
 import { createCopyBudgetPlan } from "./copy-budget-plan";
 import { createCreateBudgetPlan } from "./create-budget-plan";
 import { createGetBudgetPlan } from "./get-budget-plan";
@@ -71,7 +71,9 @@ const world = async (mode: RolloverMode, groceriesFrom: Readonly<Record<string, 
     lineId,
     expectedVersion: null,
   });
-  return { ...w, deps, spending, november, copyInto, read, write };
+  // The in-memory repository's own status write, as `plan-lifecycle` leaves a closed plan (ruling P243 of M6c).
+  const close = (planId: string) => w.plans.setStatus(planId, "CLOSED");
+  return { ...w, deps, spending, november, copyInto, read, write, close };
 };
 const home = (view: BudgetPlanView) => {
   const [line] = view.figures.lines;
@@ -80,9 +82,10 @@ const home = (view: BudgetPlanView) => {
 
 describe("carry-over along the chain of copies (HU-E6-09)", () => {
   it("carries Home's 200,000 COP left in 2026-11 into its 2026-12 copy with ROLLOVER, reading November for it", async () => {
-    const { copyInto, read, november, spending } = await world("ROLLOVER", {
+    const { copyInto, read, november, spending, close } = await world("ROLLOVER", {
       "2026-11-01": pesos(1_270_000),
     });
+    await close(november.id);
     spending.asked.length = 0;
     const december = await copyInto("2026-12");
     expect(spending.asked).toEqual(["2026-12-01", "2026-11-01"]);
@@ -91,8 +94,10 @@ describe("carry-over along the chain of copies (HU-E6-09)", () => {
   });
 
   it("reads the space's categories once for the whole chain it walks, not once per plan (HU-E3-04)", async () => {
-    const { copyInto, deps } = await world("ROLLOVER", { "2026-11-01": pesos(1_270_000) });
-    await copyInto("2026-12");
+    const { copyInto, deps, november, close } = await world("ROLLOVER", { "2026-11-01": pesos(1_270_000) });
+    await close(november.id);
+    const december = await copyInto("2026-12");
+    await close(december.plan.id);
     const january = await copyInto("2027-01");
     const asked: string[] = [];
     const categories = {
@@ -114,20 +119,25 @@ describe("carry-over along the chain of copies (HU-E6-09)", () => {
   });
 
   it("carries an ADJUSTED overspend along the chain: 2026-11 into 2026-12 into 2027-01 (Review Focus 4)", async () => {
-    const { copyInto } = await world("ADJUSTED", {
+    const { copyInto, november, close } = await world("ADJUSTED", {
       "2026-11-01": pesos(1_600_000),
       "2026-12-01": pesos(1_500_000),
     });
-    expect(home(await copyInto("2026-12"))).toEqual(["Home", pesos(-130_000), pesos(-160_000)]);
+    await close(november.id);
+    const december = await copyInto("2026-12");
+    expect(home(december)).toEqual(["Home", pesos(-130_000), pesos(-160_000)]);
+    await close(december.plan.id);
     expect(home(await copyInto("2027-01"))).toEqual(["Home", pesos(-160_000), pesos(1_310_000)]);
   });
 
   it("carries a ROLLOVER leftover forward and floors an overspend at 0, so the next period carries 0 (Review Focus 4)", async () => {
-    const { copyInto, read, november, spending } = await world("ROLLOVER", {
+    const { copyInto, read, november, spending, close } = await world("ROLLOVER", {
       "2026-11-01": pesos(1_270_000),
       "2026-12-01": pesos(1_800_000),
     });
+    await close(november.id);
     const december = await copyInto("2026-12");
+    await close(december.plan.id);
     spending.asked.length = 0;
     const january = await copyInto("2027-01");
     // The chain is followed all the way back, though the floor hides what December carried in.
@@ -138,7 +148,10 @@ describe("carry-over along the chain of copies (HU-E6-09)", () => {
   });
 
   it("follows the copied line after a rename: House still receives Home's 200,000 COP", async () => {
-    const { copyInto, deps, read, write } = await world("ROLLOVER", { "2026-11-01": pesos(1_270_000) });
+    const { copyInto, deps, read, write, november, close } = await world("ROLLOVER", {
+      "2026-11-01": pesos(1_270_000),
+    });
+    await close(november.id);
     const december = await copyInto("2026-12");
     const [copied] = december.figures.lines;
     unwrap(
@@ -151,22 +164,32 @@ describe("carry-over along the chain of copies (HU-E6-09)", () => {
   });
 
   it("carries 0 once the origin line was removed from the earlier plan (Review Focus 5)", async () => {
-    const { copyInto, deps, read, write, november } = await world("ROLLOVER", {
+    const { copyInto, deps, read, write, november, close } = await world("ROLLOVER", {
       "2026-11-01": pesos(1_270_000),
     });
     const december = await copyInto("2026-12");
     unwrap(await createRemoveBudgetLine(deps)(write(november.id, "line-home")));
+    await close(november.id);
     expect(home(await read(december.plan.id))).toEqual(["Home", 0n, pesos(1_470_000)]);
   });
 
-  it.each(["ACTIVE", "CLOSED"] as const)(
-    "shows the carry of a %s earlier plan in a DRAFT copy: the earlier plan's status is irrelevant (ruling P15)",
-    async (status) => {
+  it.each([
+    ["DRAFT", 0n, false],
+    ["ACTIVE", 0n, false],
+    ["CLOSED", pesos(200_000), true],
+  ] as const)(
+    "a DRAFT copy of a %s earlier plan carries %s: only a CLOSED source carries (ruling P243 of M6c, amending P15)",
+    async (status, carried, closed) => {
       const { copyInto, plans, november } = await world("ROLLOVER", { "2026-11-01": pesos(1_270_000) });
       await plans.setStatus(november.id, status);
       const december = await copyInto("2026-12");
       expect(december.plan.status).toBe("DRAFT");
-      expect(home(december)).toEqual(["Home", pesos(200_000), pesos(1_670_000)]);
+      expect(home(december)).toEqual(["Home", carried, pesos(1_470_000) + carried]);
+      expect(december.figures.lines[0]!.carryOverFrom).toEqual({
+        planId: november.id,
+        period: november.period,
+        closed,
+      });
     },
   );
 
@@ -178,7 +201,10 @@ describe("carry-over along the chain of copies (HU-E6-09)", () => {
   });
 
   it("takes no lock to read the earlier plans: a write to the copy locks the copy alone and answers its carry-over", async () => {
-    const { copyInto, deps, plans, write } = await world("ROLLOVER", { "2026-11-01": pesos(1_270_000) });
+    const { copyInto, deps, plans, write, november, close } = await world("ROLLOVER", {
+      "2026-11-01": pesos(1_270_000),
+    });
+    await close(november.id);
     const december = await copyInto("2026-12");
     const [copied] = december.figures.lines;
     const lock = vi.spyOn(plans, "lockForWrite");
@@ -195,7 +221,10 @@ describe("carry-over along the chain of copies (HU-E6-09)", () => {
   });
 
   it("ends on a malformed chain whose createdFrom loops back: the plan already seen is not read again", async () => {
-    const { copyInto, plans, read, november } = await world("ROLLOVER", { "2026-11-01": pesos(1_270_000) });
+    const { copyInto, plans, read, november, close } = await world("ROLLOVER", {
+      "2026-11-01": pesos(1_270_000),
+    });
+    await close(november.id);
     const december = await copyInto("2026-12");
     const [copied] = december.figures.lines;
     // No use case can do this (a copy always names an earlier plan), so the stored rows are changed directly:
@@ -216,6 +245,110 @@ describe("carry-over along the chain of copies (HU-E6-09)", () => {
     expect(home(await read(december.plan.id))).toEqual(["Home", pesos(200_000), pesos(1_670_000)]);
     expect(reads).toBeLessThanOrEqual(3);
   });
+
+  it("carries nothing from a plan that is not CLOSED yet, and says which plan it waits for (#143, ruling P243 of M6c)", async () => {
+    const { copyInto, november } = await world("ROLLOVER", { "2026-11-01": pesos(1_270_000) });
+    const december = await copyInto("2026-12");
+    const [line] = december.figures.lines;
+    expect(home(december)).toEqual(["Home", 0n, pesos(1_470_000)]);
+    expect(line!.carryOverFrom).toEqual({ planId: november.id, period: november.period, closed: false });
+  });
+
+  it("carries once the source is CLOSED and names it, and a line the source never had carries nothing", async () => {
+    const { copyInto, november, close, read, plans } = await world("ROLLOVER", {
+      "2026-11-01": pesos(1_270_000),
+    });
+    await close(november.id);
+    const december = await copyInto("2026-12");
+    expect(home(december)).toEqual(["Home", pesos(200_000), pesos(1_670_000)]);
+    expect(december.figures.lines[0]!.carryOverFrom).toEqual({
+      planId: november.id,
+      period: november.period,
+      closed: true,
+    });
+    // A line added to December has no origin: no history, so no carry and no source (the competitor's pitfall).
+    plans.seed(december.plan.id, {
+      lines: [aLine("Pets", pesos(100_000), { id: "line-pets" as BudgetLineId, rolloverMode: "ROLLOVER" })],
+    });
+    const pets = (await read(december.plan.id)).figures.lines.find((f) => f.line.name === "Pets")!;
+    expect([pets.carryOver, pets.carryOverFrom]).toEqual([0n, null]);
+  });
+
+  it("turning ROLLOVER on carries nothing while the line's origin plan is open, and names the plan it waits for (ruling P243)", async () => {
+    const { copyInto, deps, november, close, read, write } = await world("RESET", {
+      "2026-11-01": pesos(1_270_000),
+    });
+    const december = await copyInto("2026-12");
+    const [copied] = december.figures.lines;
+    unwrap(
+      await createUpdateBudgetLine(deps)({
+        ...write(december.plan.id, copied!.line.id),
+        changes: { rolloverMode: "ROLLOVER" },
+      }),
+    );
+    const waiting = (await read(december.plan.id)).figures.lines[0]!;
+    expect([waiting.carryOver, waiting.carryOverFrom]).toEqual([
+      0n,
+      { planId: november.id, period: november.period, closed: false },
+    ]);
+    // It carries from the origin line's own plan only once that plan is CLOSED.
+    await close(november.id);
+    const closed = (await read(december.plan.id)).figures.lines[0]!;
+    expect([closed.carryOver, closed.carryOverFrom?.closed]).toEqual([pesos(200_000), true]);
+  });
+
+  it("names no source for a RESET line, even from a CLOSED plan", async () => {
+    const { copyInto, november, close } = await world("RESET", { "2026-11-01": pesos(1_270_000) });
+    await close(november.id);
+    expect((await copyInto("2026-12")).figures.lines[0]!.carryOverFrom).toBeNull();
+  });
+
+  it("names a source only on the lines that carry: a RESET line beside a ROLLOVER one has none (ruling P243)", async () => {
+    const { copyInto, november, plans, close } = await world("ROLLOVER", { "2026-11-01": pesos(1_270_000) });
+    plans.seed(november.id, {
+      lines: [aLine("Rent", pesos(500_000), { id: "line-rent" as BudgetLineId, rolloverMode: "RESET" })],
+    });
+    await close(november.id);
+    const december = await copyInto("2026-12");
+    expect(december.figures.lines.map((f) => [f.line.name, f.carryOverFrom?.planId ?? null])).toEqual([
+      ["Home", november.id],
+      ["Rent", null],
+    ]);
+  });
+
+  it("walks a chain only through CLOSED plans: a closed December whose November is still open carries 0, and January carries December's whole available (ruling P243)", async () => {
+    const { copyInto, read, november, close } = await world("ROLLOVER", { "2026-11-01": pesos(1_270_000) });
+    const december = await copyInto("2026-12");
+    await close(december.plan.id);
+    const january = await copyInto("2027-01");
+    expect(home(await read(december.plan.id))).toEqual(["Home", 0n, pesos(1_470_000)]);
+    expect((await read(december.plan.id)).figures.lines[0]!.carryOverFrom).toEqual({
+      planId: november.id,
+      period: november.period,
+      closed: false,
+    });
+    expect(home(january)).toEqual(["Home", pesos(1_470_000), pesos(2_940_000)]);
+    expect(january.figures.lines[0]!.carryOverFrom).toMatchObject({ planId: december.plan.id, closed: true });
+  });
+
+  it("never counts a carry-over against the capacity: Home plans all 4,000,000 COP while it carries 200,000 (#143, ruling P229 of M6c)", async () => {
+    const { copyInto, deps, read, write, close, november } = await world("ROLLOVER", {
+      "2026-11-01": pesos(1_270_000),
+    });
+    await close(november.id);
+    const december = await copyInto("2026-12");
+    const [copied] = december.figures.lines;
+    unwrap(
+      await createUpdateBudgetLine(deps)({
+        ...write(december.plan.id, copied!.line.id),
+        changes: { plannedAmount: money(pesos(4_000_000)) },
+      }),
+    );
+    const view = await read(december.plan.id);
+    expect(home(view)).toEqual(["Home", pesos(200_000), pesos(4_200_000)]);
+    expect(view.figures.planned).toBe(pesos(4_000_000));
+    expect(view.figures.unallocated).toBe(0n);
+  });
 });
 
 describe("one request's plan figures, shared by plan id (ruling P105)", () => {
@@ -225,8 +358,11 @@ describe("one request's plan figures, shared by plan id (ruling P105)", () => {
       "2026-12-01": pesos(1_800_000),
       "2027-01-01": pesos(1_000_000),
     });
+    await w.close(w.november.id);
     const december = await w.copyInto("2026-12");
+    await w.close(december.plan.id);
     const january = await w.copyInto("2027-01");
+    await w.close(january.plan.id);
     const february = await w.copyInto("2027-02");
     const space = unwrap(await authorizeSpaceAction(w.deps.access, HOUSEHOLD, "u-ana", "space.read"));
     const plans = [w.november, december.plan, january.plan, february.plan];
@@ -246,9 +382,10 @@ describe("one request's plan figures, shared by plan id (ruling P105)", () => {
   });
 
   it("ends on a malformed chain whose createdFrom loops back, even when both plans are viewed at once", async () => {
-    const { copyInto, deps, plans, read, november } = await world("ROLLOVER", {
+    const { copyInto, deps, plans, read, november, close } = await world("ROLLOVER", {
       "2026-11-01": pesos(1_270_000),
     });
+    await close(november.id);
     const december = await copyInto("2026-12");
     const [copied] = december.figures.lines;
     // As in the seen-guard case above: November made a copy of December, its line copied from December's.

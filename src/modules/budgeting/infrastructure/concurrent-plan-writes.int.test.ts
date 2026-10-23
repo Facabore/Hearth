@@ -357,6 +357,7 @@ describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Foc
     const record = createRecordExpense({
       access: deps.access,
       members: spaces,
+      spaceLocks: spaces,
       transactions: new DrizzleTransactionRepository(tm),
       query: new DrizzleLedgerQueries(tm),
       audit: new DrizzleAuditLog(tm),

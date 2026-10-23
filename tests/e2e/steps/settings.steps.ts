@@ -7,6 +7,7 @@ const KEYS: Record<string, string> = {
   Formats: "settings.formats",
   Region: "settings.region",
   "Appearance and language": "settings.appearance",
+  Space: "spaces.settings.title",
   "12-hour": "settings.timeFormat.H12",
   "24-hour": "settings.timeFormat.H24",
 };
@@ -38,18 +39,20 @@ When("{string} opens the Settings screen", async ({ page, world }, name: string)
 });
 
 Then(
-  /^it shows the sections "([^"]+)", "([^"]+)" and "([^"]+)"$/,
-  async ({ page, world }, first: string, second: string, third: string) => {
-    const sections = [first, second, third];
+  /^it shows the sections "([^"]+)", "([^"]+)", "([^"]+)" and "([^"]+)"$/,
+  async ({ page, world }, first: string, second: string, third: string, fourth: string) => {
+    const sections = [first, second, third, fourth];
     await expect(page.getByRole("heading", { level: 2 })).toHaveText(sections.map((s) => world.t(KEYS[s]!)));
   },
 );
 
 Then(
   /^the preview reads "([^"]+)", "([^"]+)" and "([^"]+)"$/,
-  async ({ page }, first: string, second: string, third: string) => {
+  async ({ page, world }, first: string, second: string, third: string) => {
     const samples = [first, second, third];
-    for (const sample of samples) await expect(page.getByRole("status")).toContainText(sample);
+    // Each saved choice also says Guardado in a status of its own (U5): the preview is the one that is named.
+    const preview = page.getByRole("status", { name: world.t("settings.preview.label") });
+    for (const sample of samples) await expect(preview).toContainText(sample);
   },
 );
 
@@ -79,7 +82,34 @@ Then(
       dateFormat: "MDY",
       timeFormat: "H12",
     });
-    for (const sample of samples) await expect(page.getByRole("status")).toContainText(sample);
+    const preview = page.getByRole("status", { name: world.t("settings.preview.label") });
+    for (const sample of samples) await expect(preview).toContainText(sample);
+  },
+);
+
+When(/^she renames her space "([^"]+)"$/, async ({ page, world }, name: string) => {
+  const stored = page.waitForResponse(
+    (r) =>
+      r.url().endsWith(`/api/v1/spaces/${world.user!.spaceId}`) &&
+      r.request().method() === "PATCH" &&
+      r.status() === 200,
+  );
+  const field = page.getByLabel(world.t("spaces.settings.name"));
+  await field.fill(name);
+  await field.press("Enter");
+  await stored;
+});
+
+Then(
+  /^it says "Guardado" and the space switcher and the Plan tab name her space "([^"]+)"$/,
+  async ({ page, world }, name: string) => {
+    await expect(page.getByRole("status").filter({ hasText: world.t("settings.saved") })).toBeVisible();
+    // The shell around Settings is the renamed space's: the refresh renames it in the switcher at once.
+    await expect(page.getByRole("button", { name: world.t("shell.space.current", { name }) })).toBeVisible();
+    const space = (await world.api.get(`/api/v1/spaces/${world.user!.spaceId}`)) as { name: string };
+    expect(space.name).toBe(name);
+    await page.goto(`/spaces/${world.user!.spaceId}/plan`);
+    await expect(page.getByRole("main").getByText(name, { exact: true })).toBeVisible();
   },
 );
 

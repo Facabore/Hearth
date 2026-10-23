@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
 import {
+  ACCOUNT_COLORS,
+  ACCOUNT_ICONS,
   ACCOUNT_TYPES,
   archiveAccount,
+  holdsMoney,
   iconOf,
   NO_ATTRIBUTES,
   openAccount,
@@ -13,6 +16,19 @@ import {
 } from "./account";
 
 const now = new Date("2026-10-12T12:00:00Z");
+
+describe("holdsMoney (HU-E1-03, issue 169)", () => {
+  it("counts an opening balance, a credit limit or a loan principal, and nothing at zero", () => {
+    const zero = { openingBalance: 0n, terms: NO_ATTRIBUTES.terms };
+    expect(holdsMoney(zero)).toBe(false);
+    expect(holdsMoney({ ...zero, terms: { ...zero.terms, cutOffDay: 5, monthlyRatePpm: 25_000 } })).toBe(
+      false,
+    );
+    expect(holdsMoney({ ...zero, openingBalance: -1n })).toBe(true);
+    expect(holdsMoney({ ...zero, terms: { ...zero.terms, creditLimit: 0n } })).toBe(true);
+    expect(holdsMoney({ ...zero, terms: { ...zero.terms, principal: 500_000_00n } })).toBe(true);
+  });
+});
 const open = (overrides: Partial<Parameters<typeof openAccount>[0]> = {}) =>
   openAccount({
     id: "acc-1" as AccountId,
@@ -177,5 +193,54 @@ describe("account types and common attributes (HU-E2-05)", () => {
     expect(codeOf(reviseAccount(wallet, { type: "BANK", attributes: { color: "SKY" } }, [wallet]))).toBe(
       "AccountTypeImmutable",
     );
+  });
+});
+
+describe("validating the attributes in the domain (issue 124)", () => {
+  const wallet = unwrap(open({ type: "WALLET", attributes: { institution: "Nequi" } }));
+  const revise = (attributes: Parameters<typeof reviseAccount>[1]["attributes"]) =>
+    reviseAccount(wallet, { attributes }, [wallet]);
+
+  it("keeps accepting every palette key, every icon name and an institution of 1 to 60 characters", () => {
+    for (const color of ACCOUNT_COLORS) expect(unwrap(open({ attributes: { color } })).color).toBe(color);
+    for (const icon of ACCOUNT_ICONS) expect(unwrap(open({ attributes: { icon } })).icon).toBe(icon);
+    for (const institution of ["N", "x".repeat(60)]) {
+      expect(unwrap(open({ attributes: { institution } })).institution).toBe(institution);
+      expect(unwrap(revise({ institution })).institution).toBe(institution);
+    }
+    // null clears, undefined keeps: neither is validated.
+    expect(unwrap(revise({ institution: null, color: null, icon: null }))).toMatchObject({
+      institution: null,
+      color: null,
+      icon: null,
+    });
+    expect(unwrap(revise({})).institution).toBe("Nequi");
+  });
+
+  it("stores the institution trimmed, as the HTTP contract hands it over", () => {
+    expect(unwrap(open({ attributes: { institution: "  Nequi " } })).institution).toBe("Nequi");
+    expect(unwrap(revise({ institution: " Bancolombia  " })).institution).toBe("Bancolombia");
+  });
+
+  it.each(["", "   ", "x".repeat(61), ` ${"x".repeat(61)} `])("refuses the institution %j", (institution) => {
+    expect(codeOf(open({ attributes: { institution } }))).toBe("InvalidInstitution");
+    expect(codeOf(revise({ institution }))).toBe("InvalidInstitution");
+  });
+
+  it.each(["pine", "#C0FFEE", "NEON", ""])("refuses the color key %j", (color) => {
+    expect(codeOf(open({ attributes: { color: color as never } }))).toBe("InvalidAccountColor");
+    expect(codeOf(revise({ color: color as never }))).toBe("InvalidAccountColor");
+  });
+
+  it.each(["unicorn", "Cash", "", "constructor"])("refuses the icon name %j", (icon) => {
+    expect(codeOf(open({ attributes: { icon: icon as never } }))).toBe("InvalidAccountIcon");
+    expect(codeOf(revise({ icon: icon as never }))).toBe("InvalidAccountIcon");
+  });
+
+  it("refuses a bad attribute together with a good rename, and changes nothing on a refusal", () => {
+    expect(
+      codeOf(reviseAccount(wallet, { name: "Nequi 2", attributes: { color: "x" as never } }, [wallet])),
+    ).toBe("InvalidAccountColor");
+    expect(wallet.institution).toBe("Nequi");
   });
 });

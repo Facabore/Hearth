@@ -2,13 +2,22 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Deliver the web UI of milestone M6c: a household admin builds the period's plan in a planner screen (capacities with a private suggestion, lines with funding, categories and allocation rules, a copy of the previous plan, and the cycle draft → active → closed; HU-E9-08, #76); every member reads the space's dashboards (planned, spent and available per line, a period without a plan, the member matrix, fund tracking, spending by group with drill-down, and a desktop layout; HU-E9-10, #78); and every person reads their personal dashboards (the unified view across spaces, their spending by group with merged rows, a six-period consumption trend and the line trend; HU-E9-11, #79). The bottom bar gains the Plan tab, which ruling P141 kept hidden until these screens existed.
+**Goal:** Deliver the web UI of milestone M6c: a household admin builds the period's plan in a planner screen (capacities with a private suggestion, lines with funding, categories and allocation rules, a copy of the previous plan, and the cycle draft → active → closed; HU-E9-08, #76); every member reads the space's dashboards (planned, spent and available per line, a period without a plan, the member matrix, fund tracking, spending by group with drill-down, and a desktop layout; HU-E9-10, #78); and every person reads their personal dashboards (the unified view across spaces, their spending by group with merged rows, a six-period consumption trend and the line trend; HU-E9-11, #79). The bottom bar gains the Plan tab, which ruling P141 kept hidden until these screens existed. M6c also takes in three issues the owner moved into it (Log L2):
+- a warning before saving an expense that takes a plan line past 90 % or over, with each line's state on the dashboard (#142);
+- each line's carry-over from the previous closed plan, shown with its source and explained, sinking funds included (#143);
+- a cash-flow calendar of the next 30 and 60 days (#150).
 
-**Architecture:** M6a's architecture holds unchanged (rulings P117–P154): pages under `src/app/(web)`, Server Component containers that read `/api/v1` over loopback through the generated client, writes in the browser through `browserApi()`, presentational components over DTOs and serializable `formats`, and every string in the `es` and `en` catalogs. Two module UI folders are new: `src/modules/budgeting/ui/` (the planner, capacities and the line editor) and `src/modules/reporting/ui/` (the dashboards). All of them live under one Plan tab at `/spaces/{spaceId}/plan`. Its views depend on the space's kind (ruling P200): a shared space shows Lines, Members, Fund, By group and Trend, and the personal space shows My spending, By group, Trend and Lines. The planner lives at `/spaces/{spaceId}/plans/{planId}`, and a dashboard finds it through the `plan` its report answers. **Figures are the API's, never the UI's** (ruling P201). One small backend task comes first: the line dashboard and fund tracking answer their totals, so the summary cards need no sum in the browser. **Bars are HTML and charts are lazy** (ruling P202). The planned/spent bars, the fund bars and the by-group bars are table cells and buttons with CSS widths, so the table and the chart are one element. Recharts 3.10.1 draws only the two time series (the personal trend and the line trend). It sits behind a `React.lazy` import that runs after mount, and dependency-cruiser keeps every other route from importing it. Every new route gets its script budget in `tests/performance/budgets.json` (ruling P221, following P134 and P154).
+**Architecture:** M6a's architecture holds unchanged (rulings P117–P154): pages under `src/app/(web)`, Server Component containers that read `/api/v1` over loopback through the generated client, writes in the browser through `browserApi()`, presentational components over DTOs and serializable `formats`, and every string in the `es` and `en` catalogs. Two module UI folders are new: `src/modules/budgeting/ui/` (the planner, capacities and the line editor) and `src/modules/reporting/ui/` (the dashboards). All of them live under one Plan tab at `/spaces/{spaceId}/plan`. Its views depend on the space's kind (ruling P200): a shared space shows Lines, Members, Fund, By group and Trend, and the personal space shows My spending, By group, Trend and Lines. The planner lives at `/spaces/{spaceId}/plans/{planId}`, and a dashboard finds it through the `plan` its report answers. **Figures are the API's, never the UI's** (ruling P201). One small backend task comes first: the line dashboard and fund tracking answer their totals, so the summary cards need no sum in the browser. **Bars are HTML and charts are lazy** (ruling P202). The planned/spent bars, the fund bars and the by-group bars are table cells and buttons with CSS widths, so the table and the chart are one element. Recharts 3.10.1 draws only the two time series (the personal trend and the line trend). It sits behind a `React.lazy` import that runs after mount, and dependency-cruiser keeps every other route from importing it. Every new route gets its script budget in `tests/performance/budgets.json` (ruling P221, following P134 and P154). The three additions bring four more backend tasks right after Task 1 (ruling P227):
+- the line dashboard names each category's line and each line's state (Task 1b);
+- the ledger lists a space's scheduled movements (Task 1c);
+- `GET /api/v1/me/cash-flow` projects the caller's own money (Task 1d);
+- a line carries only from a closed plan and names it (Task 1e).
+
+The record form checks an expense against its line in the browser, with no request at Save (ruling P233).
 
 **Tech Stack:** Node.js 24.21.0, pnpm 12.11.2, Next.js 16.4.0 (App Router), React 19.3.0, TypeScript 6.0.3 strict, next-intl 4.14.9, Tailwind CSS 4.3.3, `radix-ui` 1.7.0, `openapi-typescript` 7.13.0 + `openapi-fetch` 0.17.0, Vitest 5.0.3 (projects `unit`, `ui`, `integration`, `acceptance`), jsdom 30.1.2, Testing Library, axe-core 4.13.0, Playwright 1.63.0 with `playwright-bdd` 9.2.1 and `@axe-core/playwright` 4.13.0, Lighthouse 13.5.0 and `web-vitals` 6.2.3. **New:** `recharts` 3.10.1 and its peer `react-is` 19.3.0 (ruling P203).
 
-**Spec:** `docs/specs/2026-10-11-hearth-design.md` (D7 figures on read, D11 unified view, D17 capacity suggestion, D18 the API is the contract, D23 formats never from the language; spec 5.2–5.4 plans, allocation and reports). Stories: `docs/backlog/E9-web-ui.md` HU-E9-08, HU-E9-10 and HU-E9-11, read with the epic's rules at the top of the file. The API stories behind them are `docs/backlog/E6-budgeting.md` (HU-E6-01 … HU-E6-09) and `docs/backlog/E7-reporting.md` (HU-E7-01 … HU-E7-06; the "E7 shared fixture" and the HU-E7-04 fixture the scenarios name). **Reference design:** the canvas "Hearth Web UI — Batch 2", files in `.superpowers/sdd/design-batch2/`. The M6c artboards are Planner, Capacity, LineEditor, CopyPlan, Lines, NoPlan, Matrix, Fund, ByGroup, DashDesktop, Unified, PersonalByGroup, PersonalTrend and LineTrend. The owner has not formally reviewed Batch 2. Under the standing instruction of 2026-10-20 (Log L1) the canvas is the reference: where a story and an artboard disagree, the story wins, and every deviation is listed in the Self-Review ("Design deviations") for the owner's later review. Format template and precedent: `docs/plans/2026-10-20-m6a-web-shell-and-ledger.md`. Rulings in force: P1–P154 (the M6b plan's P155–P199 too). This plan rules **P200–P226**.
+**Spec:** `docs/specs/2026-10-11-hearth-design.md` (D7 figures on read, D11 unified view, D17 capacity suggestion, D18 the API is the contract, D23 formats never from the language; spec 5.2–5.4 plans, allocation and reports). Stories: `docs/backlog/E9-web-ui.md` HU-E9-08, HU-E9-10 and HU-E9-11, read with the epic's rules at the top of the file. The API stories behind them are `docs/backlog/E6-budgeting.md` (HU-E6-01 … HU-E6-09) and `docs/backlog/E7-reporting.md` (HU-E7-01 … HU-E7-06; the "E7 shared fixture" and the HU-E7-04 fixture the scenarios name). **Reference design:** the canvas "Hearth Web UI — Batch 2", files in `.superpowers/sdd/design-batch2/`. The M6c artboards are Planner, Capacity, LineEditor, CopyPlan, Lines, NoPlan, Matrix, Fund, ByGroup, DashDesktop, Unified, PersonalByGroup, PersonalTrend and LineTrend. The owner has not formally reviewed Batch 2. Under the standing instruction of 2026-10-20 (Log L1) the canvas is the reference: where a story and an artboard disagree, the story wins, and every deviation is listed in the Self-Review ("Design deviations") for the owner's later review. Format template and precedent: `docs/plans/2026-10-20-m6a-web-shell-and-ledger.md`. Rulings in force: P1–P154 (the M6b plan's P155–P199 too). This plan rules **P200–P247**. Issues #142, #143 and #150, their bodies and the owner's comments, are the spec of Tasks 1b–1e, 3b, 3c, 8b, 15b and 17c. So is the coordinator's evidence from a hands-on test of the competitor on 2026-10-21 (Log L3).
 
 **Baseline: `development` with M6a (Tasks 1–19, `aed175b` and the Task 19 commit) and all of M6b merged.** Verified while planning, at `aed175b` plus the staged Task 19:
 - The snapshot has every endpoint these screens call. The budgeting ones are `POST …/plans` (with `copyFrom: "previous"`), `GET …/plans/{planId}`, `PUT …/capacities`, `GET …/capacity-suggestion`, `POST …/lines`, `PATCH` and `DELETE …/lines/{lineId}`, `PUT …/lines/{lineId}/categories`, `PUT …/lines/{lineId}/allocation`, `POST …/activate` and `POST …/close`. Every plan write takes `If-Match: "<version>"` and none takes an `Idempotency-Key`. The reporting ones are `GET …/reports/lines`, `…/member-matrix`, `…/fund-contributions`, `…/spending-by-group` and `…/trend`, and `GET /api/v1/me/unified-view`, `/me/trend` and `/me/reports/spending-by-group`.
@@ -20,22 +29,42 @@
 - `NavLinks` renders Inicio, Registrar and Movimientos, plus the Saldos tab M6b adds.
 - `recharts` 3.10.1 was published on 2026-07-25 and `react-is` 19.3.0 on 2026-09-09, both read from the registry on 2026-10-20 (`npm view recharts time`, `npm view react-is time`).
 
+Verified while planning the additions, on `development` at `2e06b9d` (M6c Task 1 is `a979741`):
+- Rollover is already in the API (HU-E6-09, ruling P15). A line's `rolloverMode` is RESET, ROLLOVER or ADJUSTED, and both the plan's lines and the line dashboard answer `carryOver`. The carry is read from the plan a copy came from, whatever that plan's status (Task 1e narrows it). Task 7's editor offers the modes; no screen shows the carried amount.
+- An expense's `warnings` (P170) arrive in the answer of the save; nothing answers before it.
+- The line dashboard does not say which line a category feeds, nor how near its plan a line is (Task 1b).
+- Recurrences and their pending occurrences are the ledger's (HU-E4-11 … HU-E4-13). Nothing projects them forward but `GET …/recurrences/{id}/occurrences`, one recurrence at a time (Tasks 1c, 1d).
+- The M6b addendum's toast (A4) and the record form's `edit` prop (A7) are planned, not yet on `development`.
+
 M6b's internals are not assumed: the e2e seeding, the test builders and the DTO aliases of this plan live in their own files. Where M6b already exports the same name (`SpaceMemberDto`), the task says to reuse it.
 
-**Out of scope (later plans):** HU-E9-05, 06 and 07 (M6b), HU-E9-09 (recurrences), HU-E9-12 and HU-E9-14. Plan figures on the Home screen are left out: no M6c story asks for them, and the Batch 1 Home artboard's plan card is a follow-up. So are a "Register a fund contribution" form (the Fund artboard's button: the M6a record form has no contribution kind), a line trend of the personal space, editing a plan's period, deleting a plan, and per-member capacity history. #128 (report latency) is covered as far as the LCP budgets of the new routes reach (ruling P221). Its 24-plan probe stays open.
+**Out of scope (later plans):** HU-E9-05, 06 and 07 (M6b), HU-E9-09 (recurrences), HU-E9-12 and HU-E9-14. Plan figures on the Home screen are left out: no M6c story asks for them, and the Batch 1 Home artboard's plan card is a follow-up. So are a "Register a fund contribution" form (the Fund artboard's button: the M6a record form has no contribution kind), a line trend of the personal space, editing a plan's period, deleting a plan, and per-member capacity history. #128 (report latency) is covered as far as the LCP budgets of the new routes reach (ruling P221). Its 24-plan probe stays open. The follow-ups of #142, #143 and #150 are listed in the Self-Review (follow-ups 11–16).
+
+### Log
+
+- **L1**, the owner, 2026-10-20: "Tu enfoque es terminar lo que tenemos en las HUS siempre con TDD y RDD, tienes granted para todo, resolvé con lo que tengas, luego al final organizamos las ideas de cosas pendientes"
+- **L2**, the owner, 2026-10-21, about #142, #143 and #150: "Dale, metelas en M6c y seguí."
+- **L3**, the coordinator, 2026-10-21: evidence from a hands-on test of the competitor HomeCents, to rule against explicitly. It covers five pitfalls:
+  - rollover credited a whole month to a budget with no history;
+  - an envelope read "5125% spent" with no warning state;
+  - the forecast spread one day of spending over the month;
+  - a 2027-03-15 reminder showed on 14/03, a time-zone bug;
+  - "Settle" recorded every balance at once with no confirmation.
+
+  Rulings P243–P247.
 
 ## Global Constraints
 
 - Versions: Node.js `24.21.0`; pnpm `12.11.2`; Next.js `16.4.0`; React `19.3.0`; TypeScript `6.0.3` (`strict`, `noUncheckedIndexedAccess`); Zod `4.6.5` (server only); next-intl `4.14.9`; Vitest `5.0.3`; Playwright `1.63.0`; PostgreSQL `postgres:18.6-alpine`. **New dependencies, exact pins only** (`pnpm check:pinned`), each published on or before 2026-10-07: dependencies `recharts 3.10.1` and `react-is 19.3.0`. Nothing else: no `d3`, no chart plugin, no date library, no icon set.
 - **The UI talks only to `/api/v1` through the generated client** (P117, P119; `pnpm lint:boundaries`). No server action, no route handler for the UI, no import of a module's `domain`, `application`, `infrastructure` or `contracts` from any `ui` folder or page. Module UIs reach each other only through `ui/index.ts` (client-safe) and `ui/server.ts` (server containers, P153).
-- **Figures come from the API** (ruling P201). The UI never sums, subtracts or recomputes an amount or a share it shows. Totals, shares, `available`, `gap`, `change` and `changePercent` are rendered as answered. Bar widths are presentation, not figures. The one exception is a labelled preview the server overrides on save: the allocation editor's assigned amounts (ruling P211). The capacity form shows the stored total until the save answers (ruling P208).
+- **Figures come from the API** (ruling P201). The UI never sums, subtracts or recomputes an amount or a share it shows. Totals, shares, `available`, `gap`, `change` and `changePercent` are rendered as answered. Bar widths are presentation, not figures. Two labelled previews are the exceptions: the allocation editor's assigned amounts, which the server overrides on save (ruling P211), and the record form's line warning, which the dashboard's answered figures follow (ruling P235). The warning's levels are the API's own `lineStateOf` (ruling P244). The capacity form shows the stored total until the save answers (ruling P208).
 - **Every UI string is translatable** (es default, en): visible text, `aria-label`s, captions and `<title>`s come from `src/i18n/messages/{es,en}.json`; `pnpm i18n:check` fails on a key in one catalog only. Spanish copy is neutral Latin American *tú* ("Elige", "Revisa", "Toca"), never *voseo*. User data (space, line, category, member and account names) is shown as stored. A space-scoped name is written through one pattern, `reports.spaceScoped` "{space} / {name}", never by joining strings in code.
 - **Numbers, dates, times and percentages come from the person's effective preferences**, never from the language: only `src/shared/ui/format/` formats (P121; `tests/architecture/ui-formatting.test.ts`). Percentages keep their two decimals ("40,00 %", ruling P204).
 - **Accessibility:** every control has a label, every screen works with the keyboard alone, focus is visible, touch targets are at least 44 px, contrast meets WCAG AA in light and dark. Every chart sits in a `figure` whose `figcaption` names it, and the chart's SVG is `aria-hidden`. The table next to it carries the same figures and is the accessible source (ruling P220). Component tests run axe-core (contrast off in jsdom), and the e2e run scans every new screen in light and dark.
 - **Performance budgets fail CI** (P134, P154): every new route has its script budget in `tests/performance/budgets.json` (ruling P221), plus LCP ≤ 2500 ms, CLS ≤ 0.1 and TBT ≤ 200 ms. INP ≤ 200 ms covers the drill-down and the allocation editor (Task 18). No route without a chart ships Recharts (ruling P202, enforced by dependency-cruiser).
 - Plan writes send `If-Match: "<plan.version>"` and keep the plan the API answers (ruling P206). A 412 shows `errors.PreconditionFailed` and re-reads the plan.
 - Strict TDD: every behaviour starts with a failing test that is run and seen failing. Pure logic (`*.test.ts`) runs in `unit`, components and containers (`*.test.tsx`) in `ui`, `@e2e` scenarios in Playwright + playwright-bdd against the standalone build and a disposable PostgreSQL. Task 1 follows the backend's conventions (use case, contract, acceptance test, `openapi/openapi.snapshot.json` regenerated and never edited by hand).
-- Code, identifiers, comments, docs and generated artifacts in English; UI copy in the catalogs. Conventional commits referencing the story issue (`Refs #76`, `#78`, `#79`); no AI attribution or `Co-Authored-By` lines.
+- Code, identifiers, comments, docs and generated artifacts in English; UI copy in the catalogs. Conventional commits referencing the story issue (`Refs #76`, `#78`, `#79`, and `#142`, `#143`, `#150` for the additions); no AI attribution or `Co-Authored-By` lines.
 - Agents never read or edit `.env`, `.env.*` or `.env.production.example` (P114). M6c adds no environment variable.
 - Gates for every task: `pnpm exec vitest run --project unit`, `--project ui`, `--project integration`, `--project acceptance`, `pnpm format`, `pnpm exec eslint .`, `pnpm exec tsc --noEmit`, `pnpm exec prettier --check .`, `pnpm lint:boundaries`, `pnpm db:check`, `pnpm check:pinned`, `pnpm api:check`, `pnpm i18n:check`; from Task 3 on also `pnpm build`; from Task 17a on `pnpm test:e2e` (Docker running); in Task 18 `pnpm perf`.
 
@@ -48,6 +77,9 @@ M6b's internals are not assumed: the e2e seeding, the test builders and the DTO 
 5. **Roles and closed plans.** A VIEWER with an Edit link, a MEMBER changing Juan's capacity, Create plan offered to a MEMBER, or a CLOSED plan still editable. Expected: managers (OWNER, ADMIN) edit, a MEMBER changes only their own capacity, VIEWERs and every CLOSED plan are read-only, and the API's `InsufficientRole` is still translated if it answers. Pinned in Task 4 (`canManage`, the planner's controls), Task 5 (the no-plan actions) and Task 6 (capacity rows).
 6. **Charts that cost every route or hide their data.** Recharts imported by a page without a chart, a chart that is the only source of its figures, or a chart that fails axe. Expected: dependency-cruiser fails a static import of a chart file and any import of `recharts` outside `reporting/ui/charts/`, every chart has a table of the same series, and both trend routes pass the axe scans. Pinned in Task 14a (the rules and their fixtures, the lazy wrapper's test), Tasks 14b and 15 (table and chart from one series) and Task 17b (axe on both trend routes).
 7. **Drill-down that drifts from the response.** A second request when tapping a group, a subcategory level for a category without subcategories, the "no subcategory" entry shown as an empty name, or an archived node without its badge. Expected: one request per screen, client-side levels, `reports.byGroup.noSubcategory` and `reports.byGroup.archived`, and breadcrumb buttons that go back up. Pinned in Task 11 (`spending-tree` and the chart tests) and Task 13 (merged and space-scoped rows).
+8. **A warning that slows, blocks or disagrees.** A request on Save, a confirmation for a line at 60 %, a check against a DRAFT plan or another period, a warning that forbids saving, a share measured on planned alone when the line carries money, a dashboard state that differs from the form's warning, or a percentage above 100 %. Expected: Save sends its one request; NEAR (from 80 %) is a note, and HIGH (above 90 %) and OVER ask once and save on "Guardar de todos modos"; the base is planned + carry-over; both screens use `lineStateOf`; an overage is an amount in words. Pinned in Task 1b (`lineStateOf`, `categoryLines`, the states), Task 3b (the badges), Task 3c (the boundaries, one request, no "%" when OVER) and Task 17c.
+9. **Carry-over that is invented, hidden or breaks capacity.** A carry from a plan that is not CLOSED, a carry into a line its source never had, a carry with no source on screen, a carry counted against capacity, or a negative carry under ROLLOVER. Expected: only a CLOSED origin carries, every carry names its plan or the plan it waits for, capacity counts planned amounts only, and ROLLOVER floors at 0. Pinned in Task 1e (the closed gate, `carryOverFrom`, the HU-E6-09 outline with November CLOSED and ACTIVE), Task 8b (the capacity pin, the carry texts) and Task 17c (both rollover scenarios).
+10. **A projection that counts someone else's money, counts twice or drifts in time.** A fund-paid bill in Ana's calendar, a transfer between two counted accounts moving her balance, a pending occurrence listed twice, a past due date placed in the past, a pace estimate from one expense, a date shifted by a time zone, or a balance the browser runs. Expected: only movements of the caller's own accounts, effects by counted accounts, a pending occurrence once and on today, no pace, local dates throughout, and balances answered per date. Pinned in Tasks 1c, 1d (the start of a Bogotá day, the one-off expense) and 15b ("2027-03-15", no action).
 
 ## Execution Workflow
 
@@ -64,19 +96,29 @@ M6b's internals are not assumed: the e2e seeding, the test builders and the DTO 
   - the catalog keys, in both languages.
 
   The markup follows the named artboard.
-- **Task labels and order:** 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14a, 14b, 15, 16, 17a, 17b, 18. That is 20 commits, and each lettered half is a separate commit and RDD pass, green on its own.
+- **Task labels and order:** 1, 1b, 1c, 1d, 1e, 2, 3, 3b, 3c, 4, 5, 6, 7, 8, 8b, 9, 10, 11, 12, 13, 14a, 14b, 15, 15b, 16, 17a, 17b, 17c, 18. That is 29 commits, and each lettered task is a separate commit and RDD pass, green on its own.
+  - Tasks 1b, 1c, 1d, 1e, 3b, 3c, 8b, 15b and 17c come from #142, #143 and #150 (Log L2, ruling P227). Each sits after the tasks it depends on and names them. Their letters mark a place in the order, not split passes of the task before them.
+  - Task 3c also waits for the M6b addendum's A4 and A7. If they have not landed, Task 4 goes on, and 3c runs once they do.
+  - Task 1e names Risk item 3. It commits alone and gets an independent verifier.
 - **Sizes (estimated while planning):** each task is one commit sized for review, with a target under ~400 changed lines. A task over ~500 is split at its named split point into two commits, each green on its own. Excluded from the count, as in M6a: `pnpm-lock.yaml`, the generated `src/shared/ui/api/schema.d.ts`, and snapshot regenerations of more than 30 lines. Estimates:
 
   | Task | Lines | Split point, if it goes over ~500 |
   |---|---|---|
   | 1 | ~220 | |
+  | 1b | ~260 | |
+  | 1c | ~260 | |
+  | 1d | ~520 | `cash-flow.ts` and its test \| the use case, contract, route, wiring and acceptance test |
+  | 1e | ~330 | |
   | 2 | ~330 | |
   | 3 | ~430 | views, frame, tabs and nav link with their tests \| the line dashboard, its container and the page |
+  | 3b | ~120 | |
+  | 3c | ~420 | |
   | 4 | ~470 | `plan-write.ts`, `plan-access.ts`, the status badge and their tests \| the planner, its container and the page |
   | 5 | ~300 | |
   | 6 | ~360 | |
   | 7 | ~430 | `line-draft.ts`, `line-save.ts` and their tests \| the editor, its container and the pages |
   | 8 | ~480 | `allocation.ts`, the allocation editor and their tests \| the mapping sheet, the save steps and the editor wiring |
+  | 8b | ~280 | |
   | 9 | ~300 | |
   | 10 | ~250 | |
   | 11 | ~420 | `spending-tree.ts` and its test \| the chart, the breadcrumb, the container and the page |
@@ -85,21 +127,23 @@ M6b's internals are not assumed: the e2e seeding, the test builders and the DTO 
   | 14a | ~330 | |
   | 14b | ~300 | |
   | 15 | ~330 | |
+  | 15b | ~400 | |
   | 16 | ~330 | |
   | 17a | ~380 | |
   | 17b | ~380 | |
+  | 17c | ~380 | |
   | 18 | ~380 | |
 
   The controller measures each staged candidate (`git diff --cached --numstat`, with the exclusions above) before RDD, and splits it at the named point when it is over ~500.
-- The OpenAPI snapshot changes only in Task 1, which regenerates `src/shared/ui/api/schema.d.ts` in the same commit (P139).
-- When a task starts, move its story issue to **In Progress** on Project #4. When all tasks are done, open one pull request from `development` into `main` that closes #76, #78 and #79 and completes milestone M6's Must web UI. Its description lists, as PR notes:
-  1. the API change of Task 1 (the totals);
+- The OpenAPI snapshot changes only in Tasks 1, 1b, 1d and 1e, each regenerating `src/shared/ui/api/schema.d.ts` in the same commit (P139).
+- When a task starts, move its story issue to **In Progress** on Project #4. When all tasks are done, open one pull request from `development` into `main` that closes #76, #78, #79, #142, #143 and #150 and completes milestone M6's Must web UI. Its description lists, as PR notes:
+  1. the API changes of Tasks 1 (the totals), 1b (`categoryLines`, `state`, `overBy`), 1d (`/me/cash-flow`) and 1e (a carry only from a CLOSED plan, `carryOverFrom`: a change of meaning, Risk item 3);
   2. the new dependencies and why (P203);
   3. the new budgets and their measurements (P221);
-  4. the rulings P200–P226;
+  4. the rulings P200–P247;
   5. the design deviations for the owner's review of Batch 2;
   6. the follow-ups.
-- Task-to-issue map: HU-E9-08 (#76) → Tasks 4, 5, 6, 7, 8, 17a; HU-E9-10 (#78) → Tasks 1, 3, 9, 10, 11, 16, 17b; HU-E9-11 (#79) → Tasks 12, 13, 14a, 14b, 15, 17b; Task 2 references #78; Task 18 references #76, #78 and #79.
+- Task-to-issue map: HU-E9-08 (#76) → Tasks 4, 5, 6, 7, 8, 17a; HU-E9-10 (#78) → Tasks 1, 3, 9, 10, 11, 16, 17b; HU-E9-11 (#79) → Tasks 12, 13, 14a, 14b, 15, 17b; #142 → Tasks 1b, 3b, 3c, 17c; #143 → Tasks 1e, 8b, 17c; #150 → Tasks 1c, 1d, 15b, 17c; Task 2 references #78; Task 18 references #76, #78, #79, #142, #143 and #150.
 
 ## File Structure
 
@@ -107,9 +151,15 @@ M6b's internals are not assumed: the e2e seeding, the test builders and the DTO 
 .
 ├── package.json, pnpm-lock.yaml               # recharts 3.10.1, react-is 19.3.0 (14a)
 ├── .dependency-cruiser.cjs                    # charts-load-lazily, recharts-only-in-charts; *.test.tsx excluded (14a)
-├── openapi/openapi.snapshot.json              # line dashboard and fund tracking totals (1)
+├── openapi/openapi.snapshot.json              # totals (1); categoryLines, state, overBy (1b); /me/cash-flow (1d); carryOverFrom (1e)
 ├── src/
-│   ├── modules/reporting/{application,contracts}/…          # totals (1)
+│   ├── modules/reporting/{application,contracts}/…          # totals (1); categoryLines, states (1b); get-cash-flow (1d); carryOverFrom (1e)
+│   ├── modules/reporting/domain/cash-flow.ts                 # the projection (1d)
+│   ├── modules/budgeting/{domain/plan-figures.ts, application/plan-view.ts}   # categoryLinesOf (1b); CarrySource, the closed gate (1e)
+│   ├── modules/ledger/{domain/recurrence.ts, application/scheduled-movements.ts}   # datesThrough, accountsMovedBy, listScheduledMovements (1c)
+│   ├── shared/kernel/line-state.ts                           # lineStateOf (1b)
+│   ├── app/api/v1/me/cash-flow/route.ts                      # (1d)
+│   ├── modules/ledger/ui/record/{line-watch.ts, line-warning.tsx, record-form.tsx, record-form-container.tsx}   # (3c)
 │   ├── shared/ui/
 │   │   ├── api/{schema.d.ts (regenerated), dto.ts}            # (1, 3, 4, 9–15)
 │   │   ├── format/{formatters.ts, currencies.ts}               # formatPercent, formatSignedMoney, roundingUnit (2)
@@ -119,6 +169,7 @@ M6b's internals are not assumed: the e2e seeding, the test builders and the DTO 
 │   ├── modules/spaces/ui/nav-links.tsx                         # the Plan tab (3)
 │   ├── modules/budgeting/ui/
 │   │   ├── plan-status-badge.tsx, plan-access.ts, plan-write.ts             # (3, 4)
+│   │   ├── carry-text.tsx                                                   # (8b)
 │   │   ├── planner/{planner.tsx, planner-container.tsx}                     # (4, 5)
 │   │   ├── plan-start.tsx, copy-notice.tsx                                  # (5)
 │   │   ├── capacities/{capacity-draft.ts, capacity-form.tsx, capacities-container.tsx}   # (6)
@@ -127,7 +178,8 @@ M6b's internals are not assumed: the e2e seeding, the test builders and the DTO 
 │   │   ├── index.ts, server.ts
 │   ├── modules/reporting/ui/
 │   │   ├── views.ts, report-period.ts, dashboard-frame.tsx, plan-tabs.tsx    # (3)
-│   │   ├── lines/{line-dashboard.tsx, no-plan.tsx, lines-container.tsx}      # (3, 5)
+│   │   ├── lines/{line-dashboard.tsx, no-plan.tsx, lines-container.tsx}      # (3, 5); states (3b); carry-over (8b)
+│   │   ├── calendar/{cash-flow-calendar.tsx, calendar-container.tsx}         # (15b)
 │   │   ├── matrix/…, fund/…                                                 # (9, 10)
 │   │   ├── by-group/{spending-tree.ts, spending-chart.tsx, drill-breadcrumb.tsx, by-group-container.tsx}  # (11, 13)
 │   │   ├── unified/…                                                        # (12)
@@ -137,11 +189,14 @@ M6b's internals are not assumed: the e2e seeding, the test builders and the DTO 
 │   │   ├── index.ts, server.ts
 │   ├── i18n/messages/{es,en}.json                               # namespaces budgeting, reports; shell.nav.plan; common
 │   └── app/(web)/(app)/spaces/[spaceId]/
-│       ├── plan/{page.tsx, lines/page.tsx, members/page.tsx, fund/page.tsx, groups/page.tsx, trend/page.tsx}
+│       ├── plan/{page.tsx, lines/page.tsx, members/page.tsx, fund/page.tsx, groups/page.tsx, trend/page.tsx, calendar/page.tsx}
 │       └── plans/[planId]/{page.tsx, capacities/page.tsx, lines/new/page.tsx, lines/[lineId]/page.tsx}
 ├── tests/
 │   ├── support/ui/plan-dto.ts                                   # builders for plans and reports (3 on)
 │   ├── architecture/{boundaries.test.ts, fixtures/chart-*}      # (14a)
+│   ├── acceptance/cash-flow.test.ts                             # (1d); budget-rollover.test.ts (1e)
+│   ├── e2e/{features/line-warning.feature, features/rollover.feature, features/cash-flow.feature,
+│   │        steps/additions.steps.ts, layout.spec.ts}           # (17c)
 │   ├── e2e/{features/budget-planner.feature, features/dashboards.feature, steps/plan.steps.ts,
 │   │        steps/dashboards.steps.ts, support/plan-seed.ts, a11y-plan.spec.ts, perf/inp-plan.spec.ts}   # (17a, 17b, 18)
 │   └── performance/{budgets.json, lighthouse.mjs, seed-plan.mjs, routes.test.mjs}   # (18)
@@ -161,6 +216,9 @@ Test layout as in M6a: pure UI logic (`*.test.ts`) runs in the `unit` project, a
 | Create or copy a plan, set capacities, add, edit or remove a line, map categories, allocate, activate, close | Client component | `browserApi()` with `If-Match: "<version>"`; the client keeps the answered plan (ruling P206) |
 | Drill-down by group | Client component over the one response | no request (HU-E9-10 note, ruling P215) |
 | A trend chart | Client component, after mount, from a lazy chunk | no request: the server already passed the series (ruling P202) |
+| The record form's line watch | The record form's server container, beside its other reads | `GET …/periods?from=<today>&count=1`, then `GET …/reports/lines?period=` (ruling P236); a failed read means no warning |
+| The line warning and its confirmation | Client, in the record form, from the watch | no request (rulings P233, P235) |
+| The cash-flow calendar | Server Component container of the personal Plan tab | `GET /api/v1/me/cash-flow?days=30\|60` (ruling P238) |
 
 ---
 
@@ -392,6 +450,1381 @@ git add src/modules/reporting tests/support/reporting.ts tests/acceptance/report
   tests/acceptance/reports-fund-contributions.test.ts openapi/openapi.snapshot.json src/shared/ui/api/schema.d.ts \
   docs/backlog/E7-reporting.md
 git commit -m "feat(reporting): answer the totals of the line dashboard and the fund tracking (Refs #78)"
+```
+
+---
+
+### Task 1b: The line dashboard names each category's line and each line's state
+
+Issue #142 checks an expense against its line before it is saved (ruling P233). The record form knows the expense's category, and the line dashboard knows each line's figures, but no response says which line a category feeds. That rule is budgeting's own (`lineForCategory`, HU-E6-04): a category's mapped line, a subcategory's parent's line (HU-E3-04), else the catch-all line, else Unbudgeted. So the API answers it, and the browser never re-implements it (ruling P234): `GET …/reports/lines` gains `categoryLines`.
+
+Each line also answers its `state`: OK, NEAR (80 % used), HIGH (above 90 %) or OVER. An OVER line also answers its `overBy` amount, so the dashboard can say "Te pasaste por $ 130.000" in words (ruling P244). A hands-on test of the competitor on 2026-10-21 showed "5125% spent, $41,000 of $800" with no warning state. The thresholds are one function in the shared kernel, `lineStateOf`, which the API and Task 3c's record form both call, so the warning before a save and the dashboard after it can never disagree. The change is additive; no field changes meaning.
+
+**Depends on:** Task 1 (the same files).
+
+**Files:**
+- Create: `src/shared/kernel/line-state.ts`, `src/shared/kernel/line-state.test.ts`
+- Modify: `src/modules/budgeting/application/plan-view.ts`, `src/modules/budgeting/application/index.ts`, `src/modules/reporting/application/get-line-dashboard.ts`, `src/modules/reporting/application/line-dashboard.test.ts`, `src/modules/reporting/contracts/reporting.contract.ts`, `src/modules/reporting/contracts/reporting.contract.test.ts` (only where it builds a `LineDashboard` by hand: `tsc` names each place), `tests/support/reporting.ts`, `tests/acceptance/reports-lines.test.ts`, `openapi/openapi.snapshot.json` (regenerated), `src/shared/ui/api/schema.d.ts` (regenerated), `docs/backlog/E7-reporting.md`
+
+**Interfaces:**
+- Consumes: `lineForCategory`, `rolledUpCategory` and `CategoryParent` (budgeting domain), `BudgetPlanView`, and the `categories` port reporting already holds through `PlanViewDeps`.
+- Produces:
+  - `interface CategoryLine { readonly categoryId: string; readonly lineId: string | null }` and `categoryLinesOf(view: BudgetPlanView, categories: readonly CategoryParent[]): CategoryLine[]`, both exported from `budgeting/application`;
+  - `LineDashboard.categoryLines: readonly CategoryLine[]`: every live category of the space, archived ones and subcategories included, in the order the categories port lists them; `[]` for a period without a plan;
+  - on the wire, `categoryLines: { categoryId: string; lineId: string | null }[]`. Task 3c reads it;
+  - `src/shared/kernel/line-state.ts`: `type LineState = "OK" | "NEAR" | "HIGH" | "OVER"` and `lineStateOf(budget: bigint, available: bigint): LineState`. It is imported by path (`@/shared/kernel/line-state`), as the UI already imports `@/shared/kernel/local-date`;
+  - `DashboardLine.state: LineState` and `DashboardLine.overBy: bigint | null`. The budget is planned + carry-over. A SAVINGS line is always OK, because reaching its plan is the goal; `overBy` is −available when OVER, else null. On the wire: `state` and `overBy: Money | null`. Unbudgeted has neither (ruling P226). Tasks 3b and 3c read them.
+
+- [ ] **Step 1: Write the failing application tests**
+
+`src/modules/reporting/application/line-dashboard.test.ts`, inside `describe("line dashboard (HU-E7-01)", …)`, after the totals tests of Task 1. The world's Household lists `cat-groceries`, `cat-utilities`, `cat-outings`, `cat-restaurants`, the archived `cat-old`, and Groceries' subcategories `cat-vegetables` and `cat-meat` (`householdCategories`):
+
+```ts
+  it("names the line each category consumes: a subcategory its parent's, an unmapped one none (ruling P234 of M6c)", async () => {
+    const w = reportingWorld();
+    await w.plan("2026-11", referenceParts());
+    expect(unwrap(await read(w)).categoryLines).toEqual([
+      { categoryId: "cat-groceries", lineId: "line-home" },
+      { categoryId: "cat-utilities", lineId: "line-home" },
+      { categoryId: "cat-outings", lineId: null },
+      { categoryId: "cat-restaurants", lineId: null },
+      { categoryId: "cat-old", lineId: null },
+      { categoryId: "cat-vegetables", lineId: "line-home" },
+      { categoryId: "cat-meat", lineId: "line-home" },
+    ]);
+  });
+
+  it("sends every unmapped category to the catch-all line, and names no line for a period without a plan", async () => {
+    const w = reportingWorld();
+    await w.plan("2026-11", { ...referenceParts(), lines: referenceLines() });
+    expect(unwrap(await read(w)).categoryLines).toContainEqual({ categoryId: "cat-restaurants", lineId: "line-free" });
+    expect(unwrap(await read(w, "u-ana", "2027-01")).categoryLines).toEqual([]);
+  });
+```
+
+`src/shared/kernel/line-state.test.ts`:
+
+```ts
+import { describe, expect, it } from "vitest";
+import { lineStateOf } from "./line-state";
+
+describe("a line's state (#142, ruling P244 of M6c)", () => {
+  it("is OK below 80 % used, NEAR from 80 % through 90 %, HIGH above 90 % up to the whole budget, OVER past it", () => {
+    const budget = 100_000_000n;
+    expect([
+      lineStateOf(budget, 20_000_001n),
+      lineStateOf(budget, 20_000_000n),
+      lineStateOf(budget, 10_000_000n),
+      lineStateOf(budget, 9_999_999n),
+      lineStateOf(budget, 0n),
+      lineStateOf(budget, -1n),
+    ]).toEqual(["OK", "NEAR", "NEAR", "HIGH", "HIGH", "OVER"]);
+  });
+
+  it("is OK for an empty budget nothing was spent from, and OVER for one that was spent from", () => {
+    expect([lineStateOf(0n, 0n), lineStateOf(0n, -1n), lineStateOf(-5n, -5n)]).toEqual(["OK", "OVER", "OVER"]);
+  });
+});
+```
+
+`line-dashboard.test.ts`, also appended:
+
+```ts
+  it("answers each line's state against planned plus carry-over, and an overspent line's overage (ruling P244 of M6c)", async () => {
+    const w = reportingWorld();
+    await w.plan("2026-11", referenceParts());
+    w.spending.expenses[NOVEMBER] = novemberSpending();
+    // Rent 100 % used, Home 88.4 %, Savings is never measured, Free 34.2 %.
+    expect(unwrap(await read(w)).lines.map((l) => [l.name, l.state, l.overBy])).toEqual([
+      ["Rent", "HIGH", null],
+      ["Home", "NEAR", null],
+      ["Savings", "OK", null],
+      ["Free", "OK", null],
+    ]);
+    w.spending.expenses[NOVEMBER] = novemberSpending().map((s) =>
+      s.categoryId === "cat-groceries" ? { ...s, amount: pesos(1_200_000) } : s,
+    );
+    const home = unwrap(await read(w)).lines.find((l) => l.name === "Home")!;
+    expect([home.available, home.state, home.overBy]).toEqual([-pesos(130_000), "OVER", pesos(130_000)]);
+  });
+```
+
+- [ ] **Step 2: Run them and see them fail**
+
+Run: `pnpm exec vitest run --project unit src/shared/kernel/line-state.test.ts src/modules/reporting/application/line-dashboard.test.ts`
+Expected: FAIL — `./line-state` does not exist, and `categoryLines`, `state` and `overBy` are `undefined`.
+
+- [ ] **Step 3: Implement the lines of the categories and the states**
+
+`src/shared/kernel/line-state.ts`:
+
+```ts
+/** #142, ruling P244 (M6c): how much of a budget line is used, as the dashboard and the record form's preview say it. */
+export type LineState = "OK" | "NEAR" | "HIGH" | "OVER";
+
+/**
+ * `budget` is planned + carry-over and `available` what is left of it, in minor units. OVER once less than 0 is
+ * left; HIGH above 90 % used (100 % included); NEAR from 80 % through 90 %; else OK. Integer arithmetic only.
+ */
+export const lineStateOf = (budget: bigint, available: bigint): LineState => {
+  if (available < 0n) return "OVER";
+  if (budget <= 0n) return "OK";
+  const used = budget - available;
+  if (used * 100n > budget * 90n) return "HIGH";
+  return used * 100n >= budget * 80n ? "NEAR" : "OK";
+};
+```
+
+`src/modules/budgeting/application/plan-view.ts`: add `lineForCategory` to the import from `../domain/plan-figures`, `type CategoryParent` to the import from `../domain/category-rollup`, and after `loadPlanView` add
+
+```ts
+/** Ruling P234 (M6c): the line a category's expenses consume in the plan; null when they go to Unbudgeted. */
+export interface CategoryLine {
+  readonly categoryId: string;
+  readonly lineId: string | null;
+}
+
+/**
+ * HU-E6-04, HU-E3-04: for each category, the line its expenses consume in `view`'s plan, by the rule the figures
+ * use: its mapped line, its parent's line for a subcategory, else the catch-all line, else none (Unbudgeted).
+ */
+export const categoryLinesOf = (view: BudgetPlanView, categories: readonly CategoryParent[]): CategoryLine[] => {
+  const parts = {
+    lines: view.figures.lines.map((figure) => figure.line),
+    mappings: view.figures.lines.flatMap((figure) =>
+      figure.categoryIds.map((categoryId) => ({ lineId: figure.line.id, categoryId })),
+    ),
+  };
+  return categories.map((category) => ({
+    categoryId: category.id,
+    lineId: lineForCategory(rolledUpCategory(category.id, categories), parts),
+  }));
+};
+```
+
+`src/modules/budgeting/application/index.ts`: the `./plan-view` export gains `categoryLinesOf` and `type CategoryLine`.
+
+`src/modules/reporting/application/get-line-dashboard.ts`:
+- import `categoryLinesOf` and `type CategoryLine` from `@/modules/budgeting/application`;
+- `DashboardLine` gains `readonly state: LineState;` and `readonly overBy: bigint | null;`, and the line mapping adds
+
+```ts
+      // Ruling P244 (M6c): a savings line reaching its plan is the goal, so it is never measured.
+      state: f.line.funding === "SAVINGS" ? "OK" : lineStateOf(f.line.plannedAmount + f.carryOver, f.available),
+      overBy: f.line.funding !== "SAVINGS" && f.available < 0n ? -f.available : null,
+```
+
+  (with `lineStateOf` and `type LineState` imported from `@/shared/kernel/line-state`);
+- `LineDashboard` gains, after `totals`, `/** Ruling P234 (M6c): the line each live category consumes; [] without a plan. */ readonly categoryLines: readonly CategoryLine[];`;
+- the no-plan return gains `categoryLines: []`;
+- the last return becomes
+
+```ts
+    const categoryLines = categoryLinesOf(view, await deps.categories.list(space.spaceId));
+    return ok({ ...base, lines, unbudgeted: rest, totals: totalsOf(lines, rest), categoryLines });
+```
+
+- [ ] **Step 4: Write the failing acceptance check**
+
+`tests/acceptance/reports-lines.test.ts`, in the golden test after the `totals` expectation of Task 1:
+
+```ts
+    expect(dashboard.categoryLines).toContainEqual({ categoryId: r.category.groceries, lineId: r.lineId("Home") });
+    expect(dashboard.categoryLines).toContainEqual({ categoryId: r.category.restaurants, lineId: null });
+```
+
+and in "answers plan null … for 2027-01" after its `totals` expectation:
+
+```ts
+    expect(dashboard.categoryLines).toEqual([]);
+```
+
+and, in the golden test, `expect(dashboard.lines.map((l) => [l.name, l.state, l.overBy])).toEqual([["Rent", "HIGH", null], ["Home", "NEAR", null], ["Savings", "OK", null], ["Free", "OK", null]]);`.
+
+`tests/support/reporting.ts`: `LineDashboardDto` gains `categoryLines: { categoryId: string; lineId: string | null }[];`, and its line type gains `state: string; overBy: MoneyDto | null;`.
+
+Run: `pnpm exec vitest run --project acceptance tests/acceptance/reports-lines.test.ts`
+Expected: FAIL — the response has no `categoryLines`, `state` or `overBy` (the DTO function drops them).
+
+- [ ] **Step 5: Put the lines of the categories on the wire**
+
+`src/modules/reporting/contracts/reporting.contract.ts`: in `LineDashboardSchema`, after `totals`, add
+
+```ts
+  categoryLines: z
+    .array(z.object({ categoryId: z.string(), lineId: z.string().nullable() }))
+    .describe(
+      "Every live category of the space with the line its expenses consume in the plan: its mapped line, its parent's line for a subcategory, else the catch-all line; null for Unbudgeted. Empty without a plan.",
+    ),
+```
+
+and in `lineDashboardDto` after `totals: { … },` add
+
+```ts
+  categoryLines: dashboard.categoryLines.map((c) => ({ categoryId: c.categoryId, lineId: c.lineId })),
+```
+
+Each line of `LineDashboardSchema` gains `state: z.enum(["OK", "NEAR", "HIGH", "OVER"]).describe("Of planned + carry-over: NEAR from 80 % used, HIGH above 90 %, OVER below 0 left; a SAVINGS line is always OK.")` and `overBy: MoneySchema.nullable().describe("How much an OVER line went past its budget, positive; null otherwise.")`. Its DTO maps `state: line.state` and `overBy: line.overBy === null ? null : moneyOf(line.overBy, dashboard.currency)`.
+
+Then add `categoryLines: []`, and each line's `state` and `overBy`, to every hand-built `LineDashboard` that `pnpm exec tsc --noEmit` names in `reporting.contract.test.ts`.
+
+- [ ] **Step 6: Regenerate the snapshot and the client types, and run the gates**
+
+Run: `UPDATE_OPENAPI_SNAPSHOT=1 pnpm exec vitest run --project unit src/composition/openapi.test.ts`, then `pnpm api:types`. The snapshot diff is exactly `categoryLines` and the lines' `state` and `overBy` (and their `required` entries); `schema.d.ts` gains the same. Then every gate.
+Expected: all PASS.
+
+- [ ] **Step 7: Update the backlog note**
+
+`docs/backlog/E7-reporting.md`: in HU-E7-01's last technical note, after the sentence on `totals` that Task 1 added, add "`categoryLines` names, for every live category of the space, the line its expenses consume in the plan (its mapped line, its parent's line for a subcategory, else the catch-all line), or null for Unbudgeted (M6c ruling P234). Each line answers its `state` (OK, NEAR from 80 % used, HIGH above 90 %, OVER) against planned + carry-over, and an OVER line its `overBy` (M6c ruling P244)." The controller updates the issue body the same way.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add src/shared/kernel/line-state.ts src/shared/kernel/line-state.test.ts src/modules/budgeting/application \
+  src/modules/reporting tests/support/reporting.ts \
+  tests/acceptance/reports-lines.test.ts openapi/openapi.snapshot.json src/shared/ui/api/schema.d.ts \
+  docs/backlog/E7-reporting.md
+git commit -m "feat(reporting): name each category's line and each line's state on the line dashboard (Refs #142)"
+```
+
+---
+
+### Task 1c: The ledger lists a space's scheduled movements through a date
+
+Issue #150's calendar shows what will come in and go out, and the ledger owns when that happens: a recurrence's schedule dates from the first one not considered yet (HU-E4-11, ruling P24), and its PENDING occurrences that wait for a member (HU-E4-13). Reporting may not read the ledger's domain, so the ledger answers one application query, `listScheduledMovements`, which the composition root binds into reporting in Task 1d (ruling P238). It is not an HTTP endpoint; nothing new is stored.
+
+**Depends on:** M3-C's recurrences (`upcomingDates`, `pendingOccurrences`). Nothing in M6c.
+
+**Files:**
+- Create: `src/modules/ledger/application/scheduled-movements.ts`, `src/modules/ledger/application/scheduled-movements.test.ts`
+- Modify: `src/modules/ledger/domain/recurrence.ts`, `src/modules/ledger/domain/recurrence.test.ts`, `src/modules/ledger/application/index.ts`
+
+**Interfaces:**
+- Consumes: `scheduleDates`, `Recurrence`, `RecurrenceTemplate`, `RecurrenceType`, `Occurrence`, `RecurrenceRepository.list`, `OccurrenceRepository.pendingOccurrences`.
+- Produces:
+  - domain: `MAX_SCHEDULED = 64`; `datesThrough(recurrence: Recurrence, through: LocalDate): LocalDate[]`; `accountsMovedBy(template: RecurrenceTemplate): { debitAccountId: string | null; creditAccountId: string | null }`;
+  - application: `interface ScheduledMovement { recurrenceId; occurrenceId: string | null; type: RecurrenceType; description; date: LocalDate; status: "SCHEDULED" | "PENDING"; estimated: boolean; amount: bigint; currency; debitAccountId: string | null; creditAccountId: string | null }`, `type ListScheduledMovements = (input: { spaceId: string; through: LocalDate }) => Promise<ScheduledMovement[]>` and `createListScheduledMovements(deps: Pick<RecurrenceDeps, "recurrences" | "occurrences">)`, exported from `ledger/application`. Task 1d consumes them.
+
+- [ ] **Step 1: Write the failing domain tests**
+
+`src/modules/ledger/domain/recurrence.test.ts`: add `MAX_SCHEDULED`, `accountsMovedBy` and `datesThrough` to the import from `./recurrence`, and append (the file's `rent()` is the Rent from the Household Fund, MONTHLY(1), AUTO, from 2026-12-01, defined on 2026-10-28):
+
+```ts
+describe("the dates a recurrence records through a day (ruling P238 of M6c)", () => {
+  it("lists every date from the first not considered yet through the day, and stops at its end date", () => {
+    expect(datesThrough(rent(), day("2027-02-15"))).toEqual(["2026-12-01", "2027-01-01", "2027-02-01"]);
+    expect(datesThrough(rent({ endDate: day("2027-01-10") }), day("2027-02-15"))).toEqual(["2026-12-01", "2027-01-01"]);
+    expect(datesThrough(rent(), day("2026-11-30"))).toEqual([]);
+  });
+
+  it("lists nothing while paused or once ended, and never more than MAX_SCHEDULED dates", () => {
+    const r = rent();
+    expect(datesThrough({ ...r, pausedAt: at("2026-11-01") }, day("2027-02-15"))).toEqual([]);
+    expect(datesThrough({ ...r, endedAt: at("2026-11-01") }, day("2027-02-15"))).toEqual([]);
+    expect(datesThrough(r, day("2040-01-01"))).toHaveLength(MAX_SCHEDULED);
+  });
+});
+
+describe("the accounts a recurrence moves (ruling P239 of M6c)", () => {
+  it("debits the paying or source account and credits the receiving one", () => {
+    expect([
+      accountsMovedBy({
+        type: "EXPENSE",
+        categoryId: "cat-rent",
+        payer: { memberId: "member-ana", accountId: "acc-bancolombia" },
+        split: null,
+      }),
+      accountsMovedBy(RENT),
+      accountsMovedBy({ type: "INCOME", categoryId: "cat-salary", accountId: "acc-bancolombia" }),
+      accountsMovedBy({ type: "TRANSFER", sourceAccountId: "acc-bancolombia", destinationAccountId: "acc-visa" }),
+      accountsMovedBy({
+        type: "FUND_CONTRIBUTION",
+        fundAccountId: "acc-household-fund",
+        memberId: "member-ana",
+        sourceAccountId: "acc-bancolombia",
+      }),
+      accountsMovedBy({
+        type: "FUND_CONTRIBUTION",
+        fundAccountId: "acc-household-fund",
+        memberId: "member-pedro",
+        sourceAccountId: null,
+      }),
+    ]).toEqual([
+      { debitAccountId: "acc-bancolombia", creditAccountId: null },
+      { debitAccountId: "acc-household-fund", creditAccountId: null },
+      { debitAccountId: null, creditAccountId: "acc-bancolombia" },
+      { debitAccountId: "acc-bancolombia", creditAccountId: "acc-visa" },
+      { debitAccountId: "acc-bancolombia", creditAccountId: "acc-household-fund" },
+      { debitAccountId: null, creditAccountId: "acc-household-fund" },
+    ]);
+  });
+});
+```
+
+- [ ] **Step 2: Write the failing application test**
+
+`src/modules/ledger/application/scheduled-movements.test.ts`:
+
+```ts
+import { describe, expect, it } from "vitest";
+import type { LocalDate } from "@/shared/kernel";
+import { unwrap } from "../../../../tests/support/fakes";
+import { InMemoryRecurrences } from "../../../../tests/support/in-memory-recurrences";
+import { pendingOccurrence, type OccurrenceId } from "../domain/occurrence";
+import { defineRecurrence, type NewRecurrence, type RecurrenceId } from "../domain/recurrence";
+import { createListScheduledMovements } from "./scheduled-movements";
+
+const day = (iso: string) => iso as LocalDate;
+const at = (iso: string) => new Date(`${iso}T17:00:00Z`);
+const pesos = (n: number) => BigInt(n) * 100n;
+const FROM_BANCOLOMBIA = { memberId: "member-ana", accountId: "acc-bancolombia" };
+
+/** A recurrence of Household defined on 2026-10-28 in Bogotá. */
+const recurrence = (id: string, overrides: Partial<NewRecurrence>) =>
+  unwrap(
+    defineRecurrence({
+      id: id as RecurrenceId,
+      spaceId: "space-household",
+      description: "Rent",
+      amount: pesos(1_200_000),
+      currency: "COP",
+      template: { type: "EXPENSE", categoryId: "cat-rent", payer: FROM_BANCOLOMBIA, split: null },
+      schedule: { kind: "MONTHLY", day: 1 },
+      mode: "AUTO",
+      startDate: day("2026-11-01"),
+      endDate: null,
+      createdBy: "u-ana",
+      now: at("2026-10-28"),
+      today: day("2026-10-28"),
+      ...overrides,
+    }),
+  );
+
+const world = () => {
+  const store = new InMemoryRecurrences();
+  const list = createListScheduledMovements({ recurrences: store, occurrences: store });
+  return { store, list };
+};
+
+describe("a space's scheduled movements (ruling P238 of M6c)", () => {
+  it("lists its PENDING occurrences first, then every schedule date through the day, by date", async () => {
+    const { store, list } = world();
+    // Defined earlier, so it is listed first on a shared date; its October occurrence waits for a member.
+    const power = {
+      ...recurrence("rec-power", {
+        description: "Electricity",
+        amount: pesos(180_000),
+        schedule: { kind: "MONTHLY", day: 20 },
+        mode: "CONFIRM",
+        startDate: day("2026-10-01"),
+        now: at("2026-10-01"),
+        today: day("2026-10-01"),
+      }),
+      dueFrom: day("2026-10-21"),
+    };
+    await store.add(power);
+    await store.add(recurrence("rec-rent", {}));
+    await store.add(
+      recurrence("rec-salary", {
+        description: "Salary",
+        amount: pesos(3_000_000),
+        template: { type: "INCOME", categoryId: "cat-salary", accountId: "acc-bancolombia" },
+        schedule: { kind: "SEMI_MONTHLY", day1: 15, day2: 30 },
+        startDate: day("2026-10-30"),
+      }),
+    );
+    await store.addOccurrence(pendingOccurrence("occ-power-oct" as OccurrenceId, power, day("2026-10-20"), at("2026-10-20")));
+    const movements = await list({ spaceId: "space-household", through: day("2026-12-16") });
+    expect(movements[0]).toEqual({
+      recurrenceId: "rec-power",
+      occurrenceId: "occ-power-oct",
+      type: "EXPENSE",
+      description: "Electricity",
+      date: "2026-10-20",
+      status: "PENDING",
+      estimated: true,
+      amount: pesos(180_000),
+      currency: "COP",
+      debitAccountId: "acc-bancolombia",
+      creditAccountId: null,
+    });
+    expect(movements.map((m) => [m.description, m.date, m.status, m.estimated, m.creditAccountId])).toEqual([
+      ["Electricity", "2026-10-20", "PENDING", true, null],
+      ["Salary", "2026-10-30", "SCHEDULED", false, "acc-bancolombia"],
+      ["Rent", "2026-11-01", "SCHEDULED", false, null],
+      ["Salary", "2026-11-15", "SCHEDULED", false, "acc-bancolombia"],
+      ["Electricity", "2026-11-20", "SCHEDULED", true, null],
+      ["Salary", "2026-11-30", "SCHEDULED", false, "acc-bancolombia"],
+      ["Rent", "2026-12-01", "SCHEDULED", false, null],
+      ["Salary", "2026-12-15", "SCHEDULED", false, "acc-bancolombia"],
+    ]);
+  });
+
+  it("lists no date of a paused or ended recurrence, keeps its pending occurrence, and reads only its own space", async () => {
+    const { store, list } = world();
+    const paused = { ...recurrence("rec-power", { mode: "CONFIRM" }), pausedAt: at("2026-10-29") };
+    await store.add(paused);
+    await store.add({ ...recurrence("rec-rent", {}), endedAt: at("2026-10-29") });
+    await store.add(recurrence("rec-other", { spaceId: "space-other" }));
+    await store.addOccurrence(pendingOccurrence("occ-1" as OccurrenceId, paused, day("2026-10-01"), at("2026-10-01")));
+    const movements = await list({ spaceId: "space-household", through: day("2026-12-31") });
+    expect(movements.map((m) => [m.recurrenceId, m.status])).toEqual([["rec-power", "PENDING"]]);
+  });
+});
+```
+
+- [ ] **Step 3: Run them and see them fail**
+
+Run: `pnpm exec vitest run --project unit src/modules/ledger/domain/recurrence.test.ts src/modules/ledger/application/scheduled-movements.test.ts`
+Expected: FAIL — `datesThrough`, `accountsMovedBy` and `./scheduled-movements` do not exist.
+
+- [ ] **Step 4: Implement**
+
+`src/modules/ledger/domain/recurrence.ts`, after `upcomingDates`:
+
+```ts
+/**
+ * Ruling P238 (M6c): the cap of `datesThrough`. A 60-day window holds at most five dates of the densest schedule
+ * (SEMI_MONTHLY); the cap only bounds a scheduler backlog or a far `through`, never a real window.
+ */
+export const MAX_SCHEDULED = 64;
+
+/** The dates it will still record on or before `through`, from the first not considered yet; none while paused or ended. */
+export const datesThrough = (recurrence: Recurrence, through: LocalDate): LocalDate[] => {
+  if (recurrence.pausedAt !== null || recurrence.endedAt !== null) return [];
+  const end = recurrence.endDate !== null && recurrence.endDate < through ? recurrence.endDate : through;
+  return scheduleDates(recurrence.schedule, { from: recurrence.dueFrom, through: end }, MAX_SCHEDULED);
+};
+
+/** Ruling P239 (M6c): the account each occurrence takes money from and the one it puts money into; null where none. */
+export const accountsMovedBy = (
+  template: RecurrenceTemplate,
+): { readonly debitAccountId: string | null; readonly creditAccountId: string | null } => {
+  switch (template.type) {
+    case "EXPENSE":
+      return { debitAccountId: template.payer.accountId, creditAccountId: null };
+    case "INCOME":
+      return { debitAccountId: null, creditAccountId: template.accountId };
+    case "TRANSFER":
+      return { debitAccountId: template.sourceAccountId, creditAccountId: template.destinationAccountId };
+    case "FUND_CONTRIBUTION":
+      return { debitAccountId: template.sourceAccountId, creditAccountId: template.fundAccountId };
+  }
+};
+```
+
+`src/modules/ledger/application/scheduled-movements.ts`:
+
+```ts
+import type { LocalDate } from "@/shared/kernel";
+import { accountsMovedBy, datesThrough, type Recurrence, type RecurrenceType } from "../domain/recurrence";
+import type { RecurrenceDeps } from "./recurrence-ports";
+
+/** Ruling P238 (M6c): one movement a recurrence is going to record, as the cash-flow calendar reads it. */
+export interface ScheduledMovement {
+  readonly recurrenceId: string;
+  /** The PENDING occurrence; null for a schedule date the scheduler has not reached. */
+  readonly occurrenceId: string | null;
+  readonly type: RecurrenceType;
+  readonly description: string;
+  /** A schedule date, or the date a PENDING occurrence was due. */
+  readonly date: LocalDate;
+  readonly status: "SCHEDULED" | "PENDING";
+  /** CONFIRM recurrences: the amount is the estimate a member confirms or changes (HU-E4-13). */
+  readonly estimated: boolean;
+  /** Minor units of `currency`, positive. */
+  readonly amount: bigint;
+  readonly currency: string;
+  readonly debitAccountId: string | null;
+  readonly creditAccountId: string | null;
+}
+
+export type ListScheduledMovements = (input: {
+  readonly spaceId: string;
+  readonly through: LocalDate;
+}) => Promise<ScheduledMovement[]>;
+
+const movementOf = (
+  recurrence: Recurrence,
+  at: Pick<ScheduledMovement, "occurrenceId" | "date" | "status" | "amount">,
+): ScheduledMovement => ({
+  recurrenceId: recurrence.id,
+  type: recurrence.template.type,
+  description: recurrence.description,
+  estimated: recurrence.mode === "CONFIRM",
+  currency: recurrence.currency,
+  ...accountsMovedBy(recurrence.template),
+  ...at,
+});
+
+/**
+ * Ruling P238 (M6c): a space's PENDING occurrences (earliest first, as the repository lists them, whatever the
+ * state of their recurrence, HU-E4-13), then every schedule date through `through` of its ACTIVE recurrences, by
+ * date and then in the order they were defined. A pending occurrence is never listed again as a schedule date: its
+ * recurrence's `dueFrom` is already past it. The caller authorizes: this is a port, not an endpoint.
+ */
+export const createListScheduledMovements =
+  (deps: Pick<RecurrenceDeps, "recurrences" | "occurrences">): ListScheduledMovements =>
+  async ({ spaceId, through }) => {
+    const recurrences = await deps.recurrences.list(spaceId);
+    const byId = new Map(recurrences.map((r) => [r.id as string, r]));
+    const pending = (await deps.occurrences.pendingOccurrences(spaceId)).flatMap((occurrence) => {
+      const recurrence = byId.get(occurrence.recurrenceId);
+      return recurrence === undefined
+        ? []
+        : [movementOf(recurrence, { occurrenceId: occurrence.id, date: occurrence.date, status: "PENDING", amount: occurrence.amount })];
+    });
+    const scheduled = recurrences
+      .flatMap((recurrence) =>
+        datesThrough(recurrence, through).map((date) =>
+          movementOf(recurrence, { occurrenceId: null, date, status: "SCHEDULED", amount: recurrence.amount }),
+        ),
+      )
+      // Stable: equal dates keep the recurrences' definition order.
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    return [...pending, ...scheduled];
+  };
+```
+
+`src/modules/ledger/application/index.ts`: `export { createListScheduledMovements, type ListScheduledMovements, type ScheduledMovement } from "./scheduled-movements";`.
+
+- [ ] **Step 5: Run the tests and the gates**
+
+Run: Step 3's command, then every gate.
+Expected: PASS.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/modules/ledger/domain/recurrence.ts src/modules/ledger/domain/recurrence.test.ts \
+  src/modules/ledger/application/scheduled-movements.ts src/modules/ledger/application/scheduled-movements.test.ts \
+  src/modules/ledger/application/index.ts
+git commit -m "feat(ledger): list a space's scheduled movements through a date (Refs #150)"
+```
+
+---
+
+### Task 1d: The cash flow of the next 30 or 60 days
+
+Issue #150: "Show, by day, the money that will come in and go out over the next 30 and 60 days … with the balance projected after each." `GET /api/v1/me/cash-flow?days=30|60` answers it for the signed-in person (ruling P238). It lists every scheduled movement of every space they are a current member of that debits or credits an account they own (ruling P239). It starts from today's "Disponible" of their personal space (HU-E2-07) and projects the balance after each date (ruling P240). Every figure is the API's (ruling P201); the screen of Task 15b only renders it.
+
+Two rules come from a hands-on test of the competitor on 2026-10-21. Its forecast spread one day's spending over the whole month, and a reminder for 2027-03-15 showed on 14/03 (a time-zone bug).
+- The calendar projects only known future items: schedule dates, pending occurrences and fund contributions that recur. It never projects a pace from past spending (ruling P245).
+- It places every item by its local date (`LocalDate`, the space's calendar), never by a UTC instant. "Today" is the caller's local date (ruling P246).
+
+**Depends on:** Task 1c (`listScheduledMovements`).
+
+**Files:**
+- Create: `src/modules/reporting/domain/cash-flow.ts`, `src/modules/reporting/domain/cash-flow.test.ts`, `src/modules/reporting/application/get-cash-flow.ts`, `src/modules/reporting/application/cash-flow.test.ts`, `src/app/api/v1/me/cash-flow/route.ts`, `tests/acceptance/cash-flow.test.ts`
+- Modify: `src/modules/reporting/application/index.ts`, `src/modules/reporting/contracts/reporting.contract.ts`, `src/composition/container.ts`, `tests/support/reporting.ts`, `openapi/openapi.snapshot.json` (regenerated), `src/shared/ui/api/schema.d.ts` (regenerated), `docs/backlog/E7-reporting.md`
+
+**Interfaces:**
+- Consumes: `ScheduledMovement`, `ListScheduledMovements` (Task 1c); `Clock`, `todayIn`, `addDays`, `UserTimeZones`, `LocalDate` (kernel); `MoneySchema`, `moneyOf`.
+- Produces:
+  - domain: `interface PlannedMovement extends ScheduledMovement { spaceId; spaceName }` (declared structurally in reporting, without importing the ledger's domain), `interface OwnAccount { id; counted: boolean }`, `interface CashFlowMovement extends PlannedMovement { effect: bigint }`, `interface CashFlowDate { date; movements; balanceAfter }`, `interface CashFlowProjection { dates; totals: { incoming; outgoing; closing }; lowest: { date; balance }; otherCurrencySpaces }` and `cashFlow(input): CashFlowProjection`;
+  - application: `CASH_FLOW_DAYS = [30, 60] as const`, `type CashFlowDays = 30 | 60`, `interface CashFlowDeps { clock; userTimeZones; spacesOf(userId); scheduled; ownAccountsOf(userId) }`, `interface CashFlowView`, `type GetCashFlow = (input: { userId: string; days: CashFlowDays }) => Promise<Result<CashFlowView>>` and `createGetCashFlow(deps)`;
+  - contract: `CashFlowQuerySchema`, `CashFlowSchema`, `cashFlowDto(view)` and the path `/api/v1/me/cash-flow` (`operationId: "getCashFlow"`);
+  - `container.reporting.getCashFlow`.
+
+- [ ] **Step 1: Write the failing domain test**
+
+`src/modules/reporting/domain/cash-flow.test.ts`:
+
+```ts
+import { describe, expect, it } from "vitest";
+import type { LocalDate } from "@/shared/kernel";
+import { cashFlow, type PlannedMovement } from "./cash-flow";
+
+const pesos = (n: number) => BigInt(n) * 100n;
+const day = (iso: string) => iso as LocalDate;
+
+const movement = (overrides: Partial<PlannedMovement>): PlannedMovement => ({
+  spaceId: "space-ana",
+  spaceName: "Personal",
+  recurrenceId: "rec-1",
+  occurrenceId: null,
+  type: "EXPENSE",
+  description: "Internet",
+  date: day("2026-11-05"),
+  status: "SCHEDULED",
+  estimated: false,
+  amount: pesos(120_000),
+  currency: "COP",
+  debitAccountId: "acc-bancolombia",
+  creditAccountId: null,
+  ...overrides,
+});
+
+/** Ana on 2026-10-29: Bancolombia and Nequi count in her available money; her savings and her Visa do not. */
+const input = (movements: readonly PlannedMovement[]) => ({
+  today: day("2026-10-29"),
+  through: day("2026-11-27"),
+  currency: "COP",
+  opening: pesos(100_000),
+  accounts: [
+    { id: "acc-bancolombia", counted: true },
+    { id: "acc-nequi", counted: true },
+    { id: "acc-savings", counted: false },
+    { id: "acc-visa", counted: false },
+  ],
+  movements,
+});
+
+describe("the cash flow of the coming days (#150, rulings P239 and P240 of M6c)", () => {
+  it("projects the balance after each date from today's available money, with a pending occurrence on today", () => {
+    const flow = cashFlow(
+      input([
+        movement({ description: "Electricity", date: day("2026-10-20"), status: "PENDING", occurrenceId: "occ-1", estimated: true, amount: pesos(180_000), spaceId: "space-household", spaceName: "Household" }),
+        movement({ type: "INCOME", description: "Salary", date: day("2026-10-30"), amount: pesos(3_000_000), debitAccountId: null, creditAccountId: "acc-bancolombia" }),
+        movement({ description: "Rent", date: day("2026-11-01"), amount: pesos(1_200_000), spaceId: "space-household", spaceName: "Household" }),
+        movement({ type: "TRANSFER", description: "To savings", date: day("2026-11-15"), amount: pesos(500_000), creditAccountId: "acc-savings" }),
+        movement({ type: "TRANSFER", description: "To Nequi", date: day("2026-11-16"), amount: pesos(100_000), creditAccountId: "acc-nequi" }),
+      ]),
+    );
+    expect(flow.dates.map((d) => [d.date, d.movements.map((m) => [m.description, m.effect]), d.balanceAfter])).toEqual([
+      ["2026-10-29", [["Electricity", -pesos(180_000)]], -pesos(80_000)],
+      ["2026-10-30", [["Salary", pesos(3_000_000)]], pesos(2_920_000)],
+      ["2026-11-01", [["Rent", -pesos(1_200_000)]], pesos(1_720_000)],
+      ["2026-11-15", [["To savings", -pesos(500_000)]], pesos(1_220_000)],
+      ["2026-11-16", [["To Nequi", 0n]], pesos(1_220_000)],
+    ]);
+    expect(flow.dates[0]!.movements[0]).toMatchObject({ date: "2026-10-20", status: "PENDING", estimated: true });
+    expect(flow.totals).toEqual({ incoming: pesos(3_000_000), outgoing: pesos(1_880_000), closing: pesos(1_220_000) });
+    expect(flow.lowest).toEqual({ date: "2026-10-29", balance: -pesos(80_000) });
+  });
+
+  it("leaves out what moves no account of the caller's, and names a space in another currency once", () => {
+    const flow = cashFlow(
+      input([
+        movement({ description: "Juan's phone", debitAccountId: "acc-davivienda" }),
+        movement({ description: "Fund rent", debitAccountId: "acc-household-fund" }),
+        movement({ description: "Trip", currency: "USD", spaceId: "space-trip", spaceName: "Trip" }),
+        movement({ description: "Trip again", currency: "USD", spaceId: "space-trip", spaceName: "Trip", date: day("2026-11-06") }),
+        movement({ description: "Later", date: day("2026-11-28") }),
+      ]),
+    );
+    expect(flow.dates).toEqual([]);
+    expect(flow.otherCurrencySpaces).toEqual([{ spaceId: "space-trip", name: "Trip", currency: "USD" }]);
+    expect(flow.totals).toEqual({ incoming: 0n, outgoing: 0n, closing: pesos(100_000) });
+    expect(flow.lowest).toEqual({ date: "2026-10-29", balance: pesos(100_000) });
+  });
+
+  it("puts a day's pending occurrences before its scheduled ones, whatever space lists them first", () => {
+    const flow = cashFlow(
+      input([
+        movement({ description: "Today's Internet", date: day("2026-10-29") }),
+        movement({ description: "Late gas", date: day("2026-10-25"), status: "PENDING", occurrenceId: "occ-gas", spaceId: "space-household" }),
+      ]),
+    );
+    expect(flow.dates[0]!.movements.map((m) => m.description)).toEqual(["Late gas", "Today's Internet"]);
+  });
+});
+```
+
+- [ ] **Step 2: Run it and see it fail**
+
+Run: `pnpm exec vitest run --project unit src/modules/reporting/domain/cash-flow.test.ts`
+Expected: FAIL — `./cash-flow` does not exist.
+
+- [ ] **Step 3: Implement the projection**
+
+`src/modules/reporting/domain/cash-flow.ts`:
+
+```ts
+import type { LocalDate } from "@/shared/kernel";
+
+/** Ruling P238 (M6c): a scheduled movement of one of the caller's spaces (the ledger's `ScheduledMovement`, by shape). */
+export interface PlannedMovement {
+  readonly spaceId: string;
+  readonly spaceName: string;
+  readonly recurrenceId: string;
+  readonly occurrenceId: string | null;
+  readonly type: "EXPENSE" | "INCOME" | "TRANSFER" | "FUND_CONTRIBUTION";
+  readonly description: string;
+  /** When it is due: a schedule date, or the date a PENDING occurrence was due. */
+  readonly date: LocalDate;
+  readonly status: "SCHEDULED" | "PENDING";
+  readonly estimated: boolean;
+  readonly amount: bigint;
+  readonly currency: string;
+  readonly debitAccountId: string | null;
+  readonly creditAccountId: string | null;
+}
+
+/** One of the caller's own accounts; `counted` when it counts in their available money (HU-E2-07, P51). */
+export interface OwnAccount {
+  readonly id: string;
+  readonly counted: boolean;
+}
+
+/** Ruling P240: the signed change of the caller's available money. */
+export interface CashFlowMovement extends PlannedMovement {
+  readonly effect: bigint;
+}
+
+export interface CashFlowDate {
+  readonly date: LocalDate;
+  readonly movements: readonly CashFlowMovement[];
+  /** The available money after every movement of the date. */
+  readonly balanceAfter: bigint;
+}
+
+export interface CashFlowProjection {
+  readonly dates: readonly CashFlowDate[];
+  readonly totals: { readonly incoming: bigint; readonly outgoing: bigint; readonly closing: bigint };
+  /** The lowest projected balance and its first date; today's opening when nothing goes lower. */
+  readonly lowest: { readonly date: LocalDate; readonly balance: bigint };
+  readonly otherCurrencySpaces: readonly { readonly spaceId: string; readonly name: string; readonly currency: string }[];
+}
+
+export interface CashFlowInput {
+  readonly today: LocalDate;
+  readonly through: LocalDate;
+  /** The personal space's currency, every sum's (D6). */
+  readonly currency: string;
+  /** Today's available money of the personal space (HU-E2-07). */
+  readonly opening: bigint;
+  readonly accounts: readonly OwnAccount[];
+  readonly movements: readonly PlannedMovement[];
+}
+
+const order = (a: { date: LocalDate; movement: PlannedMovement }, b: { date: LocalDate; movement: PlannedMovement }) => {
+  if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+  if (a.movement.status !== b.movement.status) return a.movement.status === "PENDING" ? -1 : 1;
+  return a.movement.date < b.movement.date ? -1 : a.movement.date > b.movement.date ? 1 : 0;
+};
+
+/**
+ * #150, rulings P239 and P240 (M6c): the caller's movements through `through`, each placed on its date or, when it
+ * was due earlier (a PENDING occurrence, a date the scheduler has not reached), on today. A movement is the caller's
+ * when it debits or credits one of their own accounts. Its effect is +amount into a counted account, −amount out of
+ * one, so 0 between two counted accounts or two uncounted ones. A movement in another currency is left out and its
+ * space named once (ruling P37's rule). Derived on read (D7); ties keep the input order.
+ */
+export const cashFlow = (input: CashFlowInput): CashFlowProjection => {
+  const counted = new Map(input.accounts.map((account) => [account.id, account.counted]));
+  const others = new Map<string, { spaceId: string; name: string; currency: string }>();
+  const placed: { date: LocalDate; movement: CashFlowMovement }[] = [];
+  for (const movement of input.movements) {
+    if (movement.date > input.through) continue;
+    const debit = movement.debitAccountId === null ? undefined : counted.get(movement.debitAccountId);
+    const credit = movement.creditAccountId === null ? undefined : counted.get(movement.creditAccountId);
+    if (debit === undefined && credit === undefined) continue;
+    if (movement.currency !== input.currency) {
+      others.set(movement.spaceId, { spaceId: movement.spaceId, name: movement.spaceName, currency: movement.currency });
+      continue;
+    }
+    const effect = (credit ? movement.amount : 0n) - (debit ? movement.amount : 0n);
+    placed.push({ date: movement.date < input.today ? input.today : movement.date, movement: { ...movement, effect } });
+  }
+  placed.sort(order);
+  const dates: CashFlowDate[] = [];
+  let balance = input.opening;
+  let incoming = 0n;
+  let outgoing = 0n;
+  let lowest = { date: input.today, balance: input.opening };
+  for (const { date, movement } of placed) {
+    balance += movement.effect;
+    if (movement.effect > 0n) incoming += movement.effect;
+    else outgoing -= movement.effect;
+    const last = dates.at(-1);
+    if (last?.date === date) dates[dates.length - 1] = { date, movements: [...last.movements, movement], balanceAfter: balance };
+    else dates.push({ date, movements: [movement], balanceAfter: balance });
+  }
+  for (const { date, balanceAfter } of dates) if (balanceAfter < lowest.balance) lowest = { date, balance: balanceAfter };
+  return {
+    dates,
+    totals: { incoming, outgoing, closing: input.opening + incoming - outgoing },
+    lowest,
+    otherCurrencySpaces: [...others.values()],
+  };
+};
+```
+
+Run: Step 2's command.
+Expected: PASS.
+
+- [ ] **Step 4: Write the failing use case test**
+
+`src/modules/reporting/application/cash-flow.test.ts`:
+
+```ts
+import { describe, expect, it } from "vitest";
+import type { ScheduledMovement } from "@/modules/ledger/application";
+import { FixedClock, type LocalDate } from "@/shared/kernel";
+import { unwrap } from "../../../../tests/support/fakes";
+import { createGetCashFlow, type CashFlowDeps } from "./get-cash-flow";
+
+const pesos = (n: number) => BigInt(n) * 100n;
+const day = (iso: string) => iso as LocalDate;
+
+const salary: ScheduledMovement = {
+  recurrenceId: "rec-salary",
+  occurrenceId: null,
+  type: "INCOME",
+  description: "Salary",
+  date: day("2026-10-30"),
+  status: "SCHEDULED",
+  estimated: false,
+  amount: pesos(3_000_000),
+  currency: "COP",
+  debitAccountId: null,
+  creditAccountId: "acc-bancolombia",
+};
+const rent: ScheduledMovement = { ...salary, recurrenceId: "rec-rent", type: "EXPENSE", description: "Rent", date: day("2026-11-01"), amount: pesos(1_200_000), debitAccountId: "acc-bancolombia", creditAccountId: null };
+
+const world = () => {
+  const asked: [string, string][] = [];
+  const deps: CashFlowDeps = {
+    // 2026-10-29 at noon in Bogotá.
+    clock: new FixedClock(new Date("2026-10-29T17:00:00Z")),
+    userTimeZones: { timeZoneOf: async () => "America/Bogota" },
+    spacesOf: async () => [
+      { spaceId: "space-ana", name: "Personal" },
+      { spaceId: "space-household", name: "Household" },
+    ],
+    scheduled: async ({ spaceId, through }) => {
+      asked.push([spaceId, through]);
+      return spaceId === "space-ana" ? [salary] : [rent];
+    },
+    ownAccountsOf: async () => ({ currency: "COP", available: pesos(100_000), accounts: [{ id: "acc-bancolombia", counted: true }] }),
+  };
+  return { deps, asked };
+};
+
+describe("GetCashFlow (#150, ruling P238 of M6c)", () => {
+  it("reads each of the caller's spaces once through the window's last day, from today in their zone", async () => {
+    const { deps, asked } = world();
+    const view = unwrap(await createGetCashFlow(deps)({ userId: "u-ana", days: 30 }));
+    expect(asked).toEqual([
+      ["space-ana", "2026-11-27"],
+      ["space-household", "2026-11-27"],
+    ]);
+    expect(view).toMatchObject({ currency: "COP", from: "2026-10-29", through: "2026-11-27", days: 30, opening: pesos(100_000) });
+    expect(view.dates.map((d) => [d.date, d.movements[0]!.space, d.balanceAfter])).toEqual([
+      ["2026-10-30", { id: "space-ana", name: "Personal" }, pesos(3_100_000)],
+      ["2026-11-01", { id: "space-household", name: "Household" }, pesos(1_900_000)],
+    ]);
+  });
+
+  it("reaches 59 days past today for a 60-day window", async () => {
+    const { deps, asked } = world();
+    unwrap(await createGetCashFlow(deps)({ userId: "u-ana", days: 60 }));
+    expect(asked[0]).toEqual(["space-ana", "2026-12-27"]);
+  });
+
+  it("starts on the caller's local date at the start and end of a Bogotá day, never the UTC one (ruling P246 of M6c)", async () => {
+    const { deps } = world();
+    const at = (iso: string) => createGetCashFlow({ ...deps, clock: new FixedClock(new Date(iso)) })({ userId: "u-ana", days: 30 });
+    // 23:59:59 on 2026-10-28 in Bogotá is already 2026-10-29 in UTC; 00:00:00 on 2026-10-29 in Bogotá is 05:00 UTC.
+    const late = unwrap(await at("2026-10-29T04:59:59Z"));
+    const early = unwrap(await at("2026-10-29T05:00:00Z"));
+    expect([late.from, late.through, early.from, early.through]).toEqual(["2026-10-28", "2026-11-26", "2026-10-29", "2026-11-27"]);
+  });
+});
+```
+
+Run: `pnpm exec vitest run --project unit src/modules/reporting/application/cash-flow.test.ts`
+Expected: FAIL — `./get-cash-flow` does not exist.
+
+- [ ] **Step 5: Implement the use case**
+
+`src/modules/reporting/application/get-cash-flow.ts`:
+
+```ts
+import type { ListScheduledMovements } from "@/modules/ledger/application";
+import { addDays, ok, todayIn, type Clock, type LocalDate, type Result, type UserTimeZones } from "@/shared/kernel";
+import { cashFlow, type CashFlowDate, type CashFlowMovement, type CashFlowProjection, type OwnAccount } from "../domain/cash-flow";
+
+/** Ruling P241 (M6c): the windows the calendar offers. */
+export const CASH_FLOW_DAYS = [30, 60] as const;
+export type CashFlowDays = (typeof CASH_FLOW_DAYS)[number];
+
+/** What the caller's cash flow reads; the composition root binds each port (ruling P238). */
+export interface CashFlowDeps {
+  readonly clock: Clock;
+  readonly userTimeZones: UserTimeZones;
+  /** The spaces the user is a current member of, archived ones left out, oldest first. */
+  readonly spacesOf: (userId: string) => Promise<readonly { readonly spaceId: string; readonly name: string }[]>;
+  /** The ledger's `listScheduledMovements` (Task 1c). */
+  readonly scheduled: ListScheduledMovements;
+  /** The user's own accounts in their personal space, whether each counts in its available money, and that total. */
+  readonly ownAccountsOf: (userId: string) => Promise<{
+    readonly currency: string;
+    readonly available: bigint;
+    readonly accounts: readonly OwnAccount[];
+  }>;
+}
+
+export interface CashFlowView extends Omit<CashFlowProjection, "dates"> {
+  readonly currency: string;
+  readonly from: LocalDate;
+  readonly through: LocalDate;
+  readonly days: CashFlowDays;
+  readonly opening: bigint;
+  readonly dates: readonly (Omit<CashFlowDate, "movements"> & {
+    readonly movements: readonly (CashFlowMovement & { readonly space: { readonly id: string; readonly name: string } })[];
+  })[];
+}
+
+export type GetCashFlow = (input: { readonly userId: string; readonly days: CashFlowDays }) => Promise<Result<CashFlowView>>;
+
+/**
+ * #150, ruling P238 (M6c): what comes into and goes out of the caller's own accounts from today, in their zone,
+ * through `days` − 1 days later, across every space they are a current member of, with the balance after each date.
+ */
+export const createGetCashFlow =
+  (deps: CashFlowDeps): GetCashFlow =>
+  async ({ userId, days }) => {
+    const today = todayIn(deps.clock, await deps.userTimeZones.timeZoneOf(userId));
+    const through = addDays(today, days - 1);
+    const [spaces, own] = await Promise.all([deps.spacesOf(userId), deps.ownAccountsOf(userId)]);
+    const listed = await Promise.all(
+      spaces.map(async (space) =>
+        (await deps.scheduled({ spaceId: space.spaceId, through })).map((m) => ({
+          ...m,
+          spaceId: space.spaceId,
+          spaceName: space.name,
+        })),
+      ),
+    );
+    const projection = cashFlow({
+      today,
+      through,
+      currency: own.currency,
+      opening: own.available,
+      accounts: own.accounts,
+      movements: listed.flat(),
+    });
+    return ok({
+      ...projection,
+      currency: own.currency,
+      from: today,
+      through,
+      days,
+      opening: own.available,
+      dates: projection.dates.map((d) => ({
+        ...d,
+        movements: d.movements.map((m) => ({ ...m, space: { id: m.spaceId, name: m.spaceName } })),
+      })),
+    });
+  };
+```
+
+`src/modules/reporting/application/index.ts`: `export { CASH_FLOW_DAYS, createGetCashFlow, type CashFlowDays, type CashFlowDeps, type CashFlowView, type GetCashFlow } from "./get-cash-flow";`.
+
+Run: Step 4's command.
+Expected: PASS.
+
+- [ ] **Step 6: Write the failing acceptance test**
+
+`tests/support/reporting.ts` gains `CashFlowDto` (the wire shape of `CashFlowSchema`, amounts as `MoneyDto`) and
+
+```ts
+/** #150: `user`'s cash flow over `days` (a string, so a refused value can be sent). */
+export const cashFlowOf = (user: TestUser, days: string) =>
+  call(cashFlowRoute, "GET", `/api/v1/me/cash-flow?days=${days}`, { user });
+```
+
+with `import { GET as cashFlowRoute } from "@/app/api/v1/me/cash-flow/route";`.
+
+`tests/acceptance/cash-flow.test.ts` runs on the suite's `DEFINITION_DAY_CLOCK` (2026-10-28 in Bogotá), set as `tests/acceptance/recurrences.test.ts` sets it. It keeps the recurrences it defines in `const toEnd: { spaceId: string; user: TestUser; id: string }[] = []`, and an `afterEach` ends each one through `POST …/recurrences/{id}/end`, as that file does, so the job of another file never finds one due:
+
+```ts
+describe("the cash-flow calendar (#150, rulings P238–P240 of M6c)", () => {
+  it("projects Ana's own accounts over 60 days, leaving out the rent the fund pays", async () => {
+    const h = await householdWithFund();
+    const salary = await defined(h.ana.personal, h.ana.personal.spaceId, {
+        description: "Salario",
+        amount: cop(3_000_000),
+        template: { type: "INCOME", categoryId: await categoryWithKey(h.ana.personal, "salary"), accountId: h.ana.account },
+        schedule: { kind: "MONTHLY", day: 30 },
+        mode: "AUTO",
+        startDate: "2026-10-30",
+    });
+    const internet = await defined(
+      h.ana,
+      h.spaceId,
+      rentBody(h, {
+        description: "Internet",
+        amount: cop(120_000),
+        template: { type: "EXPENSE", categoryId: h.utilities, payer: { memberId: h.ana.memberId, accountId: h.ana.account } },
+        schedule: { kind: "MONTHLY", day: 5 },
+        startDate: "2026-11-05",
+      }),
+    );
+    // The fund pays the Rent: it moves no account of Ana's, so it is not hers to see.
+    const rent = await defined(h.ana, h.spaceId, rentBody(h));
+    toEnd.push(
+      { spaceId: h.ana.personal.spaceId, user: h.ana.personal, id: salary.id },
+      { spaceId: h.spaceId, user: h.ana, id: internet.id },
+      { spaceId: h.spaceId, user: h.ana, id: rent.id },
+    );
+    const response = await cashFlowOf(h.ana.personal, "60");
+    expect(response.status).toBe(200);
+    const flow = (await response.json()) as CashFlowDto;
+    expect(flow).toMatchObject({ from: "2026-10-28", through: "2026-12-26", days: 60, opening: cop(2_000_000) });
+    expect(flow.dates.map((d) => [d.date, d.movements.map((m) => [m.description, m.effect]), d.balanceAfter])).toEqual([
+      ["2026-10-30", [["Salario", cop(3_000_000)]], cop(5_000_000)],
+      ["2026-11-05", [["Internet", cop(-120_000)]], cop(4_880_000)],
+      ["2026-11-30", [["Salario", cop(3_000_000)]], cop(7_880_000)],
+      ["2026-12-05", [["Internet", cop(-120_000)]], cop(7_760_000)],
+    ]);
+    expect(flow.totals).toEqual({ incoming: cop(6_000_000), outgoing: cop(240_000), closing: cop(7_760_000) });
+    expect(flow.lowest).toEqual({ date: "2026-10-28", balance: cop(2_000_000) });
+  });
+
+  it("projects only known items: a large one-off expense today lowers today's money and adds no future date (ruling P245)", async () => {
+    const h = await householdWithFund();
+    expect(
+      (
+        await post(recordExpense, h.ana, "expenses", {
+          description: "Laptop",
+          date: "2026-10-28",
+          categoryId: h.groceries,
+          amount: cop(900_000),
+          accountId: h.ana.account,
+        })
+      ).status,
+    ).toBe(201);
+    const flow = (await (await cashFlowOf(h.ana.personal, "60")).json()) as CashFlowDto;
+    expect([flow.opening, flow.dates, flow.lowest]).toEqual([cop(1_100_000), [], { date: "2026-10-28", balance: cop(1_100_000) }]);
+  });
+
+  it("answers 30 days by default and refuses any other window", async () => {
+    const h = await householdWithFund();
+    const flow = (await (await call(cashFlowRoute, "GET", "/api/v1/me/cash-flow", { user: h.ana.personal })).json()) as CashFlowDto;
+    expect([flow.days, flow.through]).toEqual([30, "2026-11-26"]);
+    const refused = await cashFlowOf(h.ana.personal, "45");
+    expect(refused.status).toBe(422);
+    expect((await problemOf(refused)).code).toBe("ValidationFailed");
+  });
+});
+```
+
+Run: `pnpm exec vitest run --project acceptance tests/acceptance/cash-flow.test.ts`
+Expected: FAIL — the route does not exist.
+
+(`post` and `recordExpense` are imported as `tests/acceptance/budget-rollover.test.ts` imports them.)
+
+- [ ] **Step 7: The contract, the route and the wiring**
+
+`src/modules/reporting/contracts/reporting.contract.ts`:
+
+```ts
+/** #150, ruling P241 (M6c): the calendar's window, 30 days unless 60 is asked for. */
+export const CashFlowQuerySchema = z.object({
+  days: z.enum(["30", "60"]).default("30").transform((days) => Number(days) as CashFlowDays),
+});
+
+const CashFlowMovementSchema = z.object({
+  recurrenceId: z.string(),
+  occurrenceId: z.string().nullable(),
+  type: z.enum(["EXPENSE", "INCOME", "TRANSFER", "FUND_CONTRIBUTION"]),
+  description: z.string(),
+  space: z.object({ id: z.string(), name: z.string() }),
+  dueDate: z.string().describe("When it was due; a PENDING occurrence or an unreached earlier date is listed on today."),
+  status: z.enum(["SCHEDULED", "PENDING"]),
+  estimated: z.boolean().describe("A CONFIRM recurrence's estimate, which a member confirms or changes."),
+  amount: MoneySchema,
+  effect: MoneySchema.describe(
+    "The signed change of the caller's available money: + into a counted account, − out of one, 0 between two or none.",
+  ),
+});
+
+export const CashFlowSchema = z.object({
+  currency: z.string(),
+  from: z.string(),
+  through: z.string(),
+  days: z.union([z.literal(30), z.literal(60)]),
+  opening: MoneySchema.describe("Today's available money of the caller's personal space."),
+  dates: z.array(z.object({ date: z.string(), movements: z.array(CashFlowMovementSchema), balanceAfter: MoneySchema })),
+  totals: z.object({ incoming: MoneySchema, outgoing: MoneySchema, closing: MoneySchema }),
+  lowest: z.object({ date: z.string(), balance: MoneySchema }),
+  otherCurrencySpaces: z.array(z.object({ spaceId: z.string(), name: z.string(), currency: z.string() })),
+});
+
+export const cashFlowDto = (view: CashFlowView): z.infer<typeof CashFlowSchema> => {
+  const money = (minor: bigint) => moneyOf(minor, view.currency);
+  return {
+    currency: view.currency,
+    from: view.from,
+    through: view.through,
+    days: view.days,
+    opening: money(view.opening),
+    dates: view.dates.map((d) => ({
+      date: d.date,
+      movements: d.movements.map((m) => ({
+        recurrenceId: m.recurrenceId,
+        occurrenceId: m.occurrenceId,
+        type: m.type,
+        description: m.description,
+        space: m.space,
+        dueDate: m.date,
+        status: m.status,
+        estimated: m.estimated,
+        amount: money(m.amount),
+        effect: money(m.effect),
+      })),
+      balanceAfter: money(d.balanceAfter),
+    })),
+    totals: { incoming: money(view.totals.incoming), outgoing: money(view.totals.outgoing), closing: money(view.totals.closing) },
+    lowest: { date: view.lowest.date, balance: money(view.lowest.balance) },
+    otherCurrencySpaces: [...view.otherCurrencySpaces],
+  };
+};
+```
+
+and in the paths object, after `"/api/v1/me/trend"`:
+
+```ts
+  "/api/v1/me/cash-flow": {
+    get: {
+      operationId: "getCashFlow",
+      summary: "What comes into and goes out of the caller's own accounts over the next 30 or 60 days",
+      description:
+        "Every scheduled date of the active recurrences and every pending occurrence of the spaces the caller is a current member of, when it debits or credits an account the caller owns, with the projected balance of the personal space's available money after each date. Earlier due dates are listed on today.",
+      ...securedByUser,
+      requestParams: { query: CashFlowQuerySchema },
+      responses: {
+        "200": { description: "The caller's dated movements and projected balances", content: jsonContent(CashFlowSchema) },
+        ...problems({ "401": "Unauthenticated", "422": "ValidationFailed" }),
+      },
+    },
+  },
+```
+
+`src/app/api/v1/me/cash-flow/route.ts` follows `src/app/api/v1/me/trend/route.ts`: `query: CashFlowQuerySchema`, `getContainer().reporting.getCashFlow({ userId: user!.id, days: query.days })`, and `cashFlowDto(result.value)` with status 200.
+
+`src/composition/container.ts`: the `reporting` type and object gain `getCashFlow: createGetCashFlow({ … })`, bound with what already exists:
+- `clock` and `userTimeZones`: the ones accounts already receives;
+- `spacesOf`: the spaces' `listForUser(userId, { includeArchived: false })` that `createListMySpaces` reads, mapped to `{ spaceId: id, name }`;
+- `scheduled`: `createListScheduledMovements({ recurrences, occurrences })` over the ledger's repositories;
+- `ownAccountsOf`: the user's personal space (the `PERSONAL` space among `listForUser`), its accounts through `createListAccounts` (`includeArchived: false`), giving `currency`, `totals.available` and, for each account whose `ownerUserId` is the user, `{ id, counted }`, where `counted` is the switch `totalsOf` reads (`switchesOf(account).includeInAvailable`). Export `switchesOf` from `accounts/application` if it is not exported yet.
+
+`docs/backlog/E7-reporting.md`: after HU-E7-06 add a short section "Addition taken into M6c: the cash-flow calendar (#150)" naming `GET /api/v1/me/cash-flow?days=30|60` and rulings P238–P240.
+
+- [ ] **Step 8: Regenerate the snapshot and the client types, and run the gates**
+
+Run: `UPDATE_OPENAPI_SNAPSHOT=1 pnpm exec vitest run --project unit src/composition/openapi.test.ts`, then `pnpm api:types`, then Step 6's command and every gate. The snapshot diff is the new path and its schemas only.
+Expected: all PASS.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add src/modules/reporting src/app/api/v1/me/cash-flow src/composition/container.ts src/modules/accounts/application/index.ts \
+  tests/support/reporting.ts tests/acceptance/cash-flow.test.ts openapi/openapi.snapshot.json src/shared/ui/api/schema.d.ts \
+  docs/backlog/E7-reporting.md
+git commit -m "feat(reporting): project the caller's cash flow over the next 30 or 60 days (Refs #150)"
+```
+
+If the staged candidate is over ~500 lines, commit it in two passes at the named split point:
+1. `cash-flow.ts` and its test: `feat(reporting): project a balance over dated movements of the caller's accounts (Refs #150)`;
+2. the use case, the contract, the route, the wiring and the acceptance test: `feat(reporting): project the caller's cash flow over the next 30 or 60 days (Refs #150)`.
+
+---
+
+### Task 1e: Carry over only from a closed plan, and name where it came from
+
+Issue #143's rollover exists (HU-E6-09, ruling P15), but it reads the plan a line was copied from "whatever its status". A hands-on test of the competitor on 2026-10-21 showed the pitfall this allows. Turning rollover on for a budget with no real history credited a whole month ("$1,500 + $1,500 rolled over"). In Hearth, a copy of a November plan that nobody used yet would carry November's whole planned amount. So a line carries only from a **CLOSED** plan, the one it was copied from, and only from the line it was copied from in that plan. Every carrying line also says where its amount came from, or that it waits for that plan to close (ruling P243, amending P15).
+
+This changes what `carryOver` answers for a copy of a plan that is not CLOSED: 0 until the source closes, where it was the source's available amount. Both line DTOs gain `carryOverFrom`. **Risk: item 3** (an answered figure other clients read changes meaning). The task commits alone and gets an independent verifier after its checks.
+
+**Depends on:** M3's rollover (HU-E6-09) and Task 1b (the same reporting files).
+
+**Files:**
+- Modify:
+  - `src/modules/budgeting/domain/plan-figures.ts`, `src/modules/budgeting/domain/plan-figures.test.ts`;
+  - `src/modules/budgeting/application/plan-view.ts`, `src/modules/budgeting/application/rollover.test.ts`;
+  - `src/modules/budgeting/contracts/budgeting.contract.ts`, `src/modules/budgeting/contracts/budgeting.contract.test.ts`;
+  - `src/modules/reporting/application/get-line-dashboard.ts`, `src/modules/reporting/application/line-dashboard.test.ts`, `src/modules/reporting/application/trend.test.ts` (its ROLLOVER chain);
+  - `src/modules/reporting/contracts/reporting.contract.ts`;
+  - `tests/support/budgeting.ts`, `tests/support/reporting.ts`, `tests/acceptance/budget-rollover.test.ts`, `tests/acceptance/reports-lines.test.ts`;
+  - `openapi/openapi.snapshot.json` (regenerated), `src/shared/ui/api/schema.d.ts` (regenerated);
+  - `docs/backlog/E6-budgeting.md`.
+
+**Interfaces:**
+- Consumes: `planFigures`, `PreviousAvailable`, `carryOver`, `BudgetPlan.status`, `loadPlanView`'s chain walk (`previousAvailable`), `closePlan` and `activatePlan` (`tests/support/budgeting.ts`).
+- Produces:
+  - `interface CarrySource { planId: string; period: Period; closed: boolean; lineIds: readonly string[] }` in `plan-figures.ts`. `planFigures`' input gains `source?: CarrySource | null`;
+  - `LineFigure.carryOverFrom: { planId: string; period: Period; closed: boolean } | null`. It is set when the line's mode is not RESET and its `originLineId` is one of `source.lineIds`, and null otherwise;
+  - `loadPlanView` passes `previousAvailable` only from a CLOSED source, and always passes `source`;
+  - `DashboardLine.carryOverFrom` (same shape);
+  - on the wire, both the plan's lines and the line dashboard's lines gain `carryOverFrom: { planId, period: Period, closed: boolean } | null`.
+
+- [ ] **Step 1: Write the failing tests**
+
+`src/modules/budgeting/application/rollover.test.ts`:
+- The world gains `const close = (planId: string) => w.plans.setStatus(planId, "CLOSED");`, the in-memory repository's own status write, as `plan-lifecycle` leaves a closed plan. The world returns it.
+- Every existing test that expects a non-zero carry first runs `await close(november.id)` (and `close` on December in the three-period ADJUSTED chain), before the copy is read. Their expected figures stay as they are.
+- Append:
+
+```ts
+  it("carries nothing from a plan that is not CLOSED yet, and says which plan it waits for (#143, ruling P243 of M6c)", async () => {
+    const { copyInto, november } = await world("ROLLOVER", { "2026-11-01": pesos(1_270_000) });
+    const december = await copyInto("2026-12");
+    const [line] = december.figures.lines;
+    expect(home(december)).toEqual(["Home", 0n, pesos(1_470_000)]);
+    expect(line!.carryOverFrom).toEqual({ planId: november.id, period: november.period, closed: false });
+  });
+
+  it("carries once the source is CLOSED and names it, and a line the source never had carries nothing", async () => {
+    const { copyInto, november, close, read, deps, w } = await world("ROLLOVER", { "2026-11-01": pesos(1_270_000) });
+    await close(november.id);
+    const december = await copyInto("2026-12");
+    expect(home(december)).toEqual(["Home", pesos(200_000), pesos(1_670_000)]);
+    expect(december.figures.lines[0]!.carryOverFrom).toEqual({ planId: november.id, period: november.period, closed: true });
+    // A line added to December has no origin: no history, so no carry and no source (the competitor's pitfall).
+    w.plans.seed(december.plan.id, {
+      lines: [...december.figures.lines.map((f) => f.line), aLine("Pets", pesos(100_000), { id: "line-pets" as BudgetLineId, rolloverMode: "ROLLOVER" })],
+    });
+    const pets = (await read(december.plan.id)).figures.lines.find((f) => f.line.name === "Pets")!;
+    expect([pets.carryOver, pets.carryOverFrom]).toEqual([0n, null]);
+  });
+
+  it("names no source for a RESET line, even from a CLOSED plan", async () => {
+    const { copyInto, november, close } = await world("RESET", { "2026-11-01": pesos(1_270_000) });
+    await close(november.id);
+    expect((await copyInto("2026-12")).figures.lines[0]!.carryOverFrom).toBeNull();
+  });
+```
+
+(`aLine`, `BudgetLineId` and the world's `w` are already in scope or imported by the file. If `seed` replaces rather than merges the parts, pass the copy's mappings and capacities back too.)
+
+`src/modules/budgeting/domain/plan-figures.test.ts`, appended:
+
+```ts
+describe("where a carry-over comes from (ruling P243 of M6c)", () => {
+  it("names the source for a carrying line whose origin the source holds", () => {
+    const source = { planId: "plan-nov", period: { label: "2026-11", start: "2026-11-01", end: "2026-11-30" }, closed: true, lineIds: ["line-home-nov"] } as const;
+    const figures = planFigures({
+      currency: "COP",
+      memberIds: ["member-ana"],
+      parts: {
+        capacities: [{ memberId: "member-ana", amount: 400_000_000n }],
+        lines: [
+          aLine("Home", 147_000_000n, { originLineId: "line-home-nov", rolloverMode: "ROLLOVER" }),
+          aLine("Pets", 10_000_000n, { id: "line-pets" as BudgetLineId, originLineId: "line-gone", rolloverMode: "ROLLOVER" }),
+        ],
+        mappings: [],
+        allocations: [],
+      },
+      spending: { byCategory: [], byAccount: [] },
+      previousAvailable: [{ lineId: "line-home-nov", available: 20_000_000n }],
+      source,
+    });
+    expect(figures.lines.map((l) => [l.line.name, l.carryOver, l.carryOverFrom?.planId ?? null])).toEqual([
+      ["Home", 20_000_000n, "plan-nov"],
+      ["Pets", 0n, null],
+    ]);
+  });
+});
+```
+
+`tests/acceptance/budget-rollover.test.ts`:
+- The suite runs on a clock after November: `startTestApp({ clock: new FixedClock(new Date("2026-12-02T17:00:00Z")) })`.
+- `rolledInto` activates and closes the November plan (`activatePlan`, then `closePlan`, each with the version it last read) before it copies. The outline's six rows keep their figures.
+- `carryOverFrom` is asserted on December's Home: `{ planId: <November's id>, period: { label: "2026-11", … }, closed: true }`, or `null` for RESET.
+- One test is added: "carries nothing from a November that is only ACTIVE". It is the ROLLOVER row with November activated and not closed: December's Home answers `carryOver` `cop(0)`, available `cop(1_470_000)` and `carryOverFrom.closed` `false`.
+
+`src/modules/reporting/application/line-dashboard.test.ts`: the October-into-November ROLLOVER test, whose October is already `CLOSED`, also expects `carryOverFrom: { planId: october.id, period: october.period, closed: true }` on Home.
+
+Run: `pnpm exec vitest run --project unit src/modules/budgeting src/modules/reporting` and `pnpm exec vitest run --project acceptance tests/acceptance/budget-rollover.test.ts tests/acceptance/reports-lines.test.ts`
+Expected: FAIL — a copy of a DRAFT or ACTIVE plan still carries, and `carryOverFrom` does not exist.
+
+- [ ] **Step 2: Implement**
+
+`src/modules/budgeting/domain/plan-figures.ts`:
+- add, after `PreviousAvailable`:
+
+```ts
+/**
+ * HU-E6-09, ruling P243 (M6c): the plan this one was copied from, as its carry-over reads it. Only a CLOSED source
+ * carries; before it closes, `previousAvailable` is empty and its lines say they wait for it.
+ */
+export interface CarrySource {
+  readonly planId: string;
+  readonly period: Period;
+  readonly closed: boolean;
+  /** The source's current lines: a line carries only from the line it was copied from, if the source still has it. */
+  readonly lineIds: readonly string[];
+}
+```
+
+- `LineFigure` gains `/** Ruling P243 (M6c): where the carry-over comes from; null for RESET or a line without an origin in the source. */ readonly carryOverFrom: { readonly planId: string; readonly period: Period; readonly closed: boolean } | null;`;
+- `planFigures`' input gains `readonly source?: CarrySource | null;`. Each line computes
+
+```ts
+    const from =
+      source && line.rolloverMode !== "RESET" && line.originLineId !== null && source.lineIds.includes(line.originLineId)
+        ? { planId: source.planId, period: source.period, closed: source.closed }
+        : null;
+```
+
+  and returns `carryOverFrom: from`. The carry is unchanged (`carryOver(mode, origin?.available ?? null)`): the application passes `previousAvailable` only from a CLOSED source, so the domain needs no second gate;
+- the doc comment of `planFigures` gains "Ruling P243 (M6c): a carry comes only from a CLOSED source, which `loadPlanView` enforces by what it passes."
+
+`src/modules/budgeting/application/plan-view.ts`, `previousAvailable` becomes `carryOf`. It answers `{ source: CarrySource | null; available: PreviousAvailable[] }`:
+- `{ source: null, available: [] }` where it returned `[]` before;
+- for a source that is not `CLOSED`, `{ source: { planId: source.id, period: source.period, closed: false, lineIds: (await deps.plans.contents(source.id)).lines.map((l) => l.id) }, available: [] }`. Nothing of the source is figured, so no spending is read;
+- for a CLOSED source, its figures as before, with `lineIds` taken from `figures.lines` (no second `contents` read), and `closed: true`.
+
+`figuresOf` passes both `source` and `previousAvailable: available` to `planFigures`. The doc comment's "Earlier plans are read whatever their status (ruling P15)" becomes "An earlier plan carries only once CLOSED (ruling P243, amending P15); a chain walks on only through CLOSED plans."
+
+`src/modules/budgeting/contracts/budgeting.contract.ts`: the line schema gains, after `carryOver`,
+
+```ts
+  /** Ruling P243 (M6c): the plan the carry-over comes from; it carries only once that plan is CLOSED. */
+  carryOverFrom: z.object({ planId: z.string(), period: PeriodSchema.extend({}), closed: z.boolean() }).nullable(),
+```
+
+and the line's DTO maps it with `periodDto`. `src/modules/reporting/application/get-line-dashboard.ts`: `DashboardLine` gains `readonly carryOverFrom: LineFigure["carryOverFrom"];` from `f.carryOverFrom`. `reporting.contract.ts`'s line gains the same field and mapping, so both answers agree (`reports-lines.test.ts` already compares the two line by line; extend that comparison with `carryOverFrom`).
+
+`src/modules/reporting/application/trend.test.ts`: the ROLLOVER `chain` seeds every plan but the last as `CLOSED`. Its figures and the P105 read counts stay as they are, because a CLOSED source is read exactly as before.
+
+`tests/support/budgeting.ts` and `tests/support/reporting.ts`: the line DTO types gain `carryOverFrom`.
+
+- [ ] **Step 3: Regenerate the snapshot and the client types, and run the gates**
+
+Run: `UPDATE_OPENAPI_SNAPSHOT=1 pnpm exec vitest run --project unit src/composition/openapi.test.ts`, then `pnpm api:types`, then Step 1's commands and every gate. The snapshot diff is the two `carryOverFrom` fields only.
+Expected: all PASS.
+
+- [ ] **Step 4: Update the backlog**
+
+`docs/backlog/E6-budgeting.md`, HU-E6-09:
+- the Scenario Outline gains the Given line `And the plan for 2026-11 is CLOSED before 2026-12 is read`;
+- a scenario is added:
+
+```gherkin
+  Scenario: Nothing carries from a plan that is not closed
+    Given the line "Home" has planned 1,470,000 COP in both 2026-11 and 2026-12 with rollover "ROLLOVER"
+    And spending in "Home" during 2026-11 was 1,270,000 COP
+    And the plan for 2026-11 is ACTIVE
+    When "Ana" requests the line "Home" for 2026-12
+    Then the December carry-over is 0 COP and the December available amount is 1,470,000 COP
+    And the line says its carry-over comes from 2026-11, which is not closed
+```
+
+- the technical notes gain "A line carries only from the CLOSED plan it was copied from, and only from its origin line there. `carryOverFrom` names that plan and whether it is closed (M6c ruling P243)."
+
+The controller updates the issue body of HU-E6-09 the same way.
+
+- [ ] **Step 5: Independent verification**
+
+The Risk line names item 3, so after the change's own checks an independent verifier receives this task and rulings P228–P231 and P243. It also receives the baseline commit and the probe forms:
+- the HU-E6-09 outline through the API, with November CLOSED and with November ACTIVE;
+- a December line added by hand;
+- the 30-plan trend chain.
+
+It reports each probe's result before the commit.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/modules/budgeting src/modules/reporting tests/support/budgeting.ts tests/support/reporting.ts \
+  tests/acceptance/budget-rollover.test.ts tests/acceptance/reports-lines.test.ts openapi/openapi.snapshot.json \
+  src/shared/ui/api/schema.d.ts docs/backlog/E6-budgeting.md
+git commit -m "feat(budgeting): carry over only from a closed plan and name where the carry-over comes from (Refs #143)"
 ```
 
 ---
@@ -682,6 +2115,10 @@ const dashLine = (
   carryOver: cop(0),
   available: cop(available),
   overspent: available < 0,
+  // Tasks 1b and 1e: the line's state, its overage and where its carry-over comes from.
+  state: available < 0 ? "OVER" : "OK",
+  overBy: available < 0 ? cop(-available) : null,
+  carryOverFrom: null,
   ...extra,
 });
 
@@ -691,13 +2128,21 @@ export const e7Dashboard = (overrides: Partial<LineDashboardDto> = {}): LineDash
   period: { ...NOVEMBER },
   plan: { id: "p-nov", status: "ACTIVE" },
   lines: [
-    dashLine("l-rent", "Rent", [1_200_000, 1_200_000, 0], { funding: "SHARED_FUND" }),
-    dashLine("l-home", "Home", [1_470_000, 1_300_000, 170_000]),
+    dashLine("l-rent", "Rent", [1_200_000, 1_200_000, 0], { funding: "SHARED_FUND", state: "HIGH" }),
+    dashLine("l-home", "Home", [1_470_000, 1_300_000, 170_000], { state: "NEAR" }),
     dashLine("l-savings", "Savings", [600_000, 0, 600_000], { funding: "SAVINGS" }),
     dashLine("l-free", "Free", [730_000, 250_000, 480_000]),
   ],
   unbudgeted: { spent: cop(60_000), available: cop(-60_000), overspent: true },
   totals: { planned: cop(4_000_000), spent: cop(2_810_000), available: cop(1_190_000) },
+  // Task 1b (ruling P234): the line each category consumes.
+  categoryLines: [
+    { categoryId: "c-rent", lineId: "l-rent" },
+    { categoryId: "c-groceries", lineId: "l-home" },
+    { categoryId: "c-utilities", lineId: "l-home" },
+    { categoryId: "c-entertainment", lineId: "l-free" },
+    { categoryId: "c-restaurants", lineId: null },
+  ],
   ...overrides,
 });
 ```
@@ -1192,6 +2637,481 @@ If the staged candidate is over ~500 lines, commit it in two passes at the named
 
 ---
 
+### Task 3b: The line dashboard says when a line nears or passes its plan
+
+The comment on #142, confirmed by a hands-on test of the competitor on 2026-10-21, asks for two things on the line dashboard. One is a neutral early warning at 80 % that is not yet red, "which gives the household time to adjust". The other is an overage stated in words with its amount ("Te pasaste por $ 130.000"), never only as a red percentage; the competitor showed "5125% spent" with no warning state. The API answers each line's `state` and `overBy` (Task 1b), so the dashboard renders them as answered (rulings P201 and P244):
+- NEAR shows a neutral badge;
+- HIGH shows an owe-toned badge;
+- OVER keeps the "Excedida" badge of Task 3 and adds the sentence with `overBy`.
+
+The dashboards write no share of a line, so no percentage above 100 % can appear. Unbudgeted keeps ruling P226: no badge and no sentence.
+
+**Depends on:** Task 1b (`state`, `overBy`) and Task 3 (`LineDashboard`).
+
+**Files:**
+- Modify: `src/modules/reporting/ui/lines/{line-dashboard.tsx, lines.test.tsx}`, `src/i18n/messages/es.json`, `src/i18n/messages/en.json`
+
+**Interfaces:**
+- Consumes: `LineDashboardDto`'s `state` and `overBy`, `formatMoney`, `Badge`, `e7Dashboard`.
+- Produces: the catalog keys `reports.lines.state.NEAR`, `reports.lines.state.HIGH` and `reports.lines.overBy`.
+
+- [ ] **Step 1: Write the failing test**
+
+`src/modules/reporting/ui/lines/lines.test.tsx`, appended inside `describe("line dashboard (HU-E9-10)", …)`:
+
+```tsx
+  it("says when a line nears or passes its plan, the overage in words (#142, ruling P244 of M6c)", async () => {
+    const dashboard = e7Dashboard();
+    dashboard.lines[0] = { ...dashboard.lines[0]!, state: "HIGH" };
+    dashboard.lines[1] = { ...dashboard.lines[1]!, spent: cop(1_600_000), available: cop(-130_000), overspent: true, state: "OVER", overBy: cop(130_000) };
+    dashboard.lines[3] = { ...dashboard.lines[3]!, state: "NEAR" };
+    const { container } = renderWithIntl(<LineDashboard dashboard={dashboard} formats={BUILT_IN_FORMATS} />);
+    const row = (name: RegExp) => screen.getByRole("row", { name });
+    expect(within(row(/^Free/)).getByText("Cerca del límite")).toHaveAttribute("data-tone", "neutral");
+    expect(within(row(/^Rent/)).getByText("Al límite")).toHaveAttribute("data-tone", "owe");
+    const home = normalized(row(/^Home/).textContent);
+    expect(home).toContain("Excedida");
+    expect(home).toContain("Te pasaste por $ 130.000");
+    expect(home).not.toMatch(/%/);
+    expect(within(row(/^Savings/)).queryByText(/límite|Te pasaste/)).toBeNull();
+    expect(within(row(/^Sin presupuesto/)).queryByText(/límite|Te pasaste/)).toBeNull();
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("writes the overage the API answers, never one of its own (ruling P201)", () => {
+    const dashboard = e7Dashboard();
+    dashboard.lines[1] = { ...dashboard.lines[1]!, available: cop(-130_000), overspent: true, state: "OVER", overBy: cop(5) };
+    renderWithIntl(<LineDashboard dashboard={dashboard} formats={BUILT_IN_FORMATS} />);
+    expect(normalized(screen.getByRole("row", { name: /^Home/ }).textContent)).toContain("Te pasaste por $ 5");
+  });
+```
+
+(If `Badge` exposes its tone otherwise than as `data-tone`, give it that attribute: one line in `badge.tsx`, tested here.)
+
+Run: `pnpm exec vitest run --project ui src/modules/reporting/ui/lines`
+Expected: FAIL — no state badge and no sentence.
+
+- [ ] **Step 2: Implement**
+
+`src/modules/reporting/ui/lines/line-dashboard.tsx`, in each line's row header, after the name:
+- `state` NEAR: `Badge tone="neutral"` `reports.lines.state.NEAR`;
+- `state` HIGH: `Badge tone="owe"` `reports.lines.state.HIGH`;
+- `state` OVER: Task 3's `Badge tone="owe" icon="alert"` `reports.lines.overspent`, and under the name a `span` (`text-sm text-owe`) `reports.lines.overBy` with `{amount}` (`formatMoney(overBy)`).
+
+The Unbudgeted row renders neither. `src/shared/ui/atoms/badge.tsx`: the root gains `data-tone={tone}` if it has no equivalent.
+
+Catalog keys (`reports.lines`), es / en:
+- `state.NEAR` Cerca del límite / Near the limit;
+- `state.HIGH` Al límite / At the limit;
+- `overBy` Te pasaste por {amount} / {amount} over plan.
+
+- [ ] **Step 3: Run the test and the gates**
+
+Run: Step 1's command, then every gate including `pnpm build`.
+Expected: PASS.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add src/modules/reporting/ui/lines src/shared/ui/atoms/badge.tsx src/i18n/messages
+git commit -m "feat(reporting): say when a line nears or passes its plan, with the overage in words (Refs #142)"
+```
+
+---
+
+### Task 3c: Warn before saving an expense that takes a plan line past 90% or over
+
+Issue #142, with its comment: when an expense would leave its line above 90 % of the line's budget, or over it, the record form shows the line's state and asks the person to confirm before saving, and the person can still save. At 80 % a neutral note says so without asking, "which gives the household time to adjust". An overage is stated as an amount ("Te pasarías por $ 42.300 en Home"), not only as a percentage.
+
+The check runs in the browser, from the line dashboard of the period holding today, which the record form's container reads on the server with the form's other data (rulings P233 and P236). Saving sends the one request it sends today, so the common case is not slowed. The warning is a labelled preview, the second after the allocation editor's (ruling P235): the dashboard's figures stay the API's. Its levels come from the API's own rule, the shared kernel's `lineStateOf` (Task 1b, ruling P244), applied to what would be left after the expense. The form and the dashboard therefore cannot disagree, and no percentage above 100 % is ever written. The warning is part of the form. It adds no toast and no live region: the save's feedback stays M6b's (ruling P237).
+
+**Depends on:**
+- Task 1b (`categoryLines`, `lineStateOf`);
+- Task 3b (the dashboard's state badges, whose copy the warning matches);
+- Task 2 (`formatPercent`);
+- Task 3 (`LineDashboardDto`, `e7Dashboard`);
+- the M6b addendum's Tasks A4 and A7, which both edit `record-form.tsx` (the toast and the `edit` prop). This task starts after them, so its edit merges onto theirs. If the addendum has not landed when this task is reached, the task waits and Task 4 goes on: nothing else depends on it.
+
+**Files:**
+- Create: `src/modules/ledger/ui/record/line-watch.ts`, `src/modules/ledger/ui/record/line-watch.test.ts`, `src/modules/ledger/ui/record/line-warning.tsx`, `src/modules/ledger/ui/record/record-form-line-warning.test.tsx`
+- Modify: `src/modules/ledger/ui/record/record-form.tsx`, `src/modules/ledger/ui/record/record-form-container.tsx`, `src/modules/ledger/ui/record/record-form-container.test.tsx`, `src/i18n/messages/es.json`, `src/i18n/messages/en.json`
+
+**Interfaces:**
+- Consumes: `LineDashboardDto`, `MoneyDto` (`dto.ts`); `formatMoney`, `formatPercent` (Task 2); `loaded`, `Api`; `nowIn`, `serverNow`; `e7Dashboard`, `NOVEMBER` (Task 3's builders).
+- Produces:
+  - `line-watch.ts`: `interface LineWatch { startDate: string; endDate: string; currency: string; lineOf: Readonly<Record<string, DashLine>> }`, `lineWatchOf(dashboard: LineDashboardDto): LineWatch | null`, `type LineLevel = Exclude<LineState, "OK">`, `interface LineWarning { level: LineLevel; line: string; used: string | null; rest: MoneyDto }`, `lineWarningOf(watch: LineWatch | null, input: { categoryId: string | null; parentId: string | null; amountMinor: string | null; date: string; currency: string }): LineWarning | null` and `asksFirst(warning: LineWarning | null): boolean`;
+  - `line-warning.tsx`: `LineWarningNote({ warning, formats })` and `LineWarningConfirm({ warning, formats, onConfirm, onReview })`;
+  - `record-form-container.tsx`: `loadLineWatch(api, input: { spaceId: string; today: string }): Promise<LineWatch | null>`;
+  - `RecordFormProps.lineWatch?: LineWatch | null`.
+
+- [ ] **Step 1: Write the failing pure tests**
+
+`src/modules/ledger/ui/record/line-watch.test.ts`:
+
+```ts
+import { describe, expect, it } from "vitest";
+import { cop } from "../../../../../tests/support/ui/dto";
+import { e7Dashboard } from "../../../../../tests/support/ui/plan-dto";
+import { asksFirst, lineWarningOf, lineWatchOf } from "./line-watch";
+
+const OCTOBER = { label: "2026-10", startDate: "2026-10-01", endDate: "2026-10-31" };
+const minor = (pesos: number) => String(pesos * 100);
+
+/** One line, 1,000,000 COP planned and 700,000 spent, fed by Groceries; Free is fed by Restaurants. */
+const watchOf = (home: { planned?: number; spent?: number; carryOver?: number; available?: number } = {}) => {
+  const dashboard = e7Dashboard({ period: OCTOBER });
+  dashboard.lines[1] = {
+    ...dashboard.lines[1]!,
+    planned: cop(home.planned ?? 1_000_000),
+    spent: cop(home.spent ?? 700_000),
+    carryOver: cop(home.carryOver ?? 0),
+    available: cop(home.available ?? 300_000),
+  };
+  return lineWatchOf({
+    ...dashboard,
+    categoryLines: [
+      { categoryId: "c-groceries", lineId: "l-home" },
+      { categoryId: "c-savings", lineId: "l-savings" },
+      { categoryId: "c-restaurants", lineId: null },
+    ],
+  });
+};
+const warn = (pesos: number, overrides: Partial<Parameters<typeof lineWarningOf>[1]> = {}, watch = watchOf()) =>
+  lineWarningOf(watch, {
+    categoryId: "c-groceries",
+    parentId: null,
+    amountMinor: minor(pesos),
+    date: "2026-10-31",
+    currency: "COP",
+    ...overrides,
+  });
+
+describe("the line warning (#142, rulings P235 and P236 of M6c)", () => {
+  it("says nothing below 80 %, notes from 80 % through 90 %, and asks above 90 % or over the line", () => {
+    expect(warn(99_999)).toBeNull();
+    expect(warn(100_000)).toEqual({ level: "NEAR", line: "Home", used: "80.00", rest: cop(200_000) });
+    expect(warn(200_000)).toEqual({ level: "NEAR", line: "Home", used: "90.00", rest: cop(100_000) });
+    expect(warn(200_100)).toEqual({ level: "HIGH", line: "Home", used: "90.01", rest: cop(99_900) });
+    expect(warn(300_000)).toEqual({ level: "HIGH", line: "Home", used: "100.00", rest: cop(0) });
+    expect(warn(342_300)).toEqual({ level: "OVER", line: "Home", used: null, rest: cop(42_300) });
+    expect([warn(100_000), warn(200_100), warn(342_300)].map(asksFirst)).toEqual([false, true, true]);
+  });
+
+  it("measures the line against planned plus what it carried in (HU-E6-09)", () => {
+    const carrying = watchOf({ planned: 1_000_000, carryOver: 500_000, spent: 700_000, available: 800_000 });
+    // 700,000 + 300,000 of 1,500,000 is 66.66 %: no note, where Planned alone would have asked.
+    expect(warn(300_000, {}, carrying)).toBeNull();
+    expect(warn(500_000, {}, carrying)).toEqual({ level: "NEAR", line: "Home", used: "80.00", rest: cop(300_000) });
+  });
+
+  it("checks a subcategory by its parent's line and says nothing for Unbudgeted, a savings line or no category", () => {
+    expect(warn(100_000, { categoryId: "c-veg", parentId: "c-groceries" })?.level).toBe("NEAR");
+    expect(warn(342_300, { categoryId: "c-restaurants" })).toBeNull();
+    expect(warn(342_300, { categoryId: "c-savings" })).toBeNull();
+    expect(warn(342_300, { categoryId: null })).toBeNull();
+  });
+
+  it("says nothing outside the loaded period, in another currency, for no amount, or without an ACTIVE plan", () => {
+    expect(warn(342_300, { date: "2026-11-01" })).toBeNull();
+    expect(warn(342_300, { currency: "USD" })).toBeNull();
+    expect(warn(342_300, { amountMinor: null })).toBeNull();
+    expect(lineWatchOf(e7Dashboard({ plan: { id: "p-nov", status: "DRAFT" } }))).toBeNull();
+    expect(lineWatchOf(e7Dashboard({ plan: { id: "p-nov", status: "CLOSED" } }))).toBeNull();
+    expect(lineWatchOf(e7Dashboard({ plan: null, lines: [] }))).toBeNull();
+    expect(lineWarningOf(null, { categoryId: "c-groceries", parentId: null, amountMinor: "1", date: "2026-10-31", currency: "COP" })).toBeNull();
+  });
+});
+```
+
+- [ ] **Step 2: Write the failing form and container tests**
+
+`src/modules/ledger/ui/record/record-form-line-warning.test.tsx` reuses `record-form.test.tsx`'s setup: the same `router` mock, fake timers at `2026-11-01T04:30:00Z` (31 October, 23:30 in Bogotá), `groceries`, `groups`, `accounts` and `recorded()`, copied into this file, plus `normalized`, `axeViolations` and `import es from "@/i18n/messages/es.json"`. Its `form(api, watch)` renders the same `RecordForm` with `lineWatch={watch}`. The watch is `lineWatchOf({ ...e7Dashboard({ period: OCTOBER }), categoryLines: [{ categoryId: "c-groceries", lineId: "l-home" }] })`: Home has 1,470,000 COP planned, 1,300,000 spent and 170,000 available.
+
+```tsx
+const SAVE = es.ledger.form.save.EXPENSE;
+const CONFIRM_TITLE = "¿Guardar de todos modos?";
+const noteText = () => normalized(document.getElementById("record-line-warning")?.textContent);
+const typeExpense = async (amount: string) => {
+  await userEvent.type(screen.getByLabelText("Monto"), amount);
+  await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
+  await userEvent.click(screen.getByRole("radio", { name: "Groceries" }));
+};
+const expenses = (requests: Request[]) => requests.filter((r) => r.url.endsWith("/expenses"));
+
+describe("the record form warns before a line goes past 90 % (#142, rulings P235–P237 of M6c)", () => {
+  it("notes 80 % in the neutral tone and saves at once", async () => {
+    const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
+    form(api, watch);
+    await typeExpense("20000");
+    expect(noteText()).toBe("Con este gasto, Home quedaría en 89,79 % de lo planeado.");
+    expect(document.getElementById("record-line-warning")).toHaveAttribute("data-level", "NEAR");
+    expect(screen.getByRole("button", { name: SAVE })).toHaveAttribute("aria-describedby", "record-line-warning");
+    await userEvent.click(screen.getByRole("button", { name: SAVE }));
+    await waitFor(() => expect(expenses(requests)).toHaveLength(1));
+    expect(screen.queryByRole("heading", { name: CONFIRM_TITLE })).toBeNull();
+  });
+
+  it("asks first above 90 %, and saves once on Guardar de todos modos", async () => {
+    const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
+    const { container } = form(api, watch);
+    await typeExpense("85000");
+    await userEvent.click(screen.getByRole("button", { name: SAVE }));
+    expect(screen.getByRole("heading", { name: CONFIRM_TITLE })).toHaveFocus();
+    expect(normalized(screen.getByRole("region", { name: CONFIRM_TITLE }).textContent)).toContain(
+      "Con este gasto, Home quedaría en 94,21 % de lo planeado y le quedarían $ 85.000.",
+    );
+    expect(screen.queryByRole("button", { name: SAVE })).toBeNull();
+    expect(expenses(requests)).toHaveLength(0);
+    expect(await axeViolations(container)).toEqual([]);
+    await userEvent.click(screen.getByRole("button", { name: "Guardar de todos modos" }));
+    await waitFor(() => expect(expenses(requests)).toHaveLength(1));
+  });
+
+  it("states the overage as an amount, and Revisar el monto goes back to the amount without saving", async () => {
+    const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
+    form(api, watch);
+    await typeExpense("212300");
+    await userEvent.click(screen.getByRole("button", { name: SAVE }));
+    const panel = normalized(screen.getByRole("region", { name: CONFIRM_TITLE }).textContent);
+    expect(panel).toContain("Con este gasto te pasarías por $ 42.300 en Home.");
+    // Ruling P244: an overage is an amount in words, never a percentage above 100 %.
+    expect(panel).not.toMatch(/%/);
+    await userEvent.click(screen.getByRole("button", { name: "Revisar el monto" }));
+    expect(screen.getByLabelText("Monto")).toHaveFocus();
+    expect(screen.queryByRole("heading", { name: CONFIRM_TITLE })).toBeNull();
+    expect(expenses(requests)).toHaveLength(0);
+  });
+
+  it("asks again once the amount changes after a confirmation was asked", async () => {
+    const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
+    form(api, watch);
+    await typeExpense("212300");
+    await userEvent.click(screen.getByRole("button", { name: SAVE }));
+    await userEvent.type(screen.getByLabelText("Monto"), "0");
+    expect(screen.queryByRole("heading", { name: CONFIRM_TITLE })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: SAVE }));
+    expect(screen.getByRole("heading", { name: CONFIRM_TITLE })).toBeInTheDocument();
+    expect(expenses(requests)).toHaveLength(0);
+  });
+
+  it("warns of nothing without a watch", async () => {
+    const { api } = fakeApi({});
+    form(api, null);
+    await typeExpense("212300");
+    expect(document.getElementById("record-line-warning")).toBeNull();
+  });
+});
+```
+
+`src/modules/ledger/ui/record/record-form-container.test.tsx`, appended:
+
+```tsx
+describe("loadLineWatch (#142, ruling P236 of M6c)", () => {
+  const october = { label: "2026-10", startDate: "2026-10-01", endDate: "2026-10-31" };
+
+  it("reads the period holding today, then its line dashboard", async () => {
+    const { api, requests } = fakeApi({
+      "GET /api/v1/spaces/{spaceId}/periods": () => jsonResponse({ items: [october] }),
+      "GET /api/v1/spaces/{spaceId}/reports/lines": () => jsonResponse(e7Dashboard({ period: october })),
+    });
+    const watch = await loadLineWatch(api, { spaceId: "sp-household", today: "2026-10-31" });
+    expect(watch?.lineOf["c-groceries"]?.name).toBe("Home");
+    expect(new URL(requests[0]!.url).searchParams.get("from")).toBe("2026-10-31");
+    expect(new URL(requests[1]!.url).searchParams.get("period")).toBe("2026-10");
+  });
+
+  it("is null when a read fails, so the form never fails for its warning", async () => {
+    const { api } = fakeApi({
+      "GET /api/v1/spaces/{spaceId}/periods": () => jsonResponse({ items: [october] }),
+      "GET /api/v1/spaces/{spaceId}/reports/lines": () => problemResponse(403, "InsufficientRole"),
+    });
+    expect(await loadLineWatch(api, { spaceId: "sp-household", today: "2026-10-31" })).toBeNull();
+  });
+});
+```
+
+(`e7Dashboard`'s `categoryLines` maps `c-groceries` to `l-home`, Task 3's builder. If the file's imports lack `problemResponse` or `e7Dashboard`, add them.)
+
+- [ ] **Step 3: Run them and see them fail**
+
+Run: `pnpm exec vitest run --project unit src/modules/ledger/ui/record/line-watch.test.ts` and `pnpm exec vitest run --project ui src/modules/ledger/ui/record`
+Expected: FAIL — `./line-watch` does not exist, and the form shows no warning.
+
+- [ ] **Step 4: Implement**
+
+`src/modules/ledger/ui/record/line-watch.ts`:
+
+```ts
+import { lineStateOf, type LineState } from "@/shared/kernel/line-state";
+import type { LineDashboardDto, MoneyDto } from "@/shared/ui/api/dto";
+
+type DashLine = LineDashboardDto["lines"][number];
+
+/** Ruling P236 (M6c): the lines the record form checks an expense against, by category, for one period. */
+export interface LineWatch {
+  readonly startDate: string;
+  readonly endDate: string;
+  readonly currency: string;
+  readonly lineOf: Readonly<Record<string, DashLine>>;
+}
+
+/** Ruling P236: only an ACTIVE plan is checked; SAVINGS lines consume transfers, never expenses (spec 5.4). */
+export const lineWatchOf = (dashboard: LineDashboardDto): LineWatch | null => {
+  if (dashboard.plan?.status !== "ACTIVE") return null;
+  const byId = new Map(dashboard.lines.map((line) => [line.lineId, line]));
+  const lineOf: Record<string, DashLine> = {};
+  for (const { categoryId, lineId } of dashboard.categoryLines) {
+    const line = lineId === null ? undefined : byId.get(lineId);
+    if (line !== undefined && line.funding !== "SAVINGS") lineOf[categoryId] = line;
+  }
+  return {
+    startDate: dashboard.period.startDate,
+    endDate: dashboard.period.endDate,
+    currency: dashboard.totals.planned.currency,
+    lineOf,
+  };
+};
+
+export type LineLevel = Exclude<LineState, "OK">;
+
+export interface LineWarning {
+  readonly level: LineLevel;
+  readonly line: string;
+  /** The share of the line's budget used after the expense, as the API writes shares ("94.21"); null when OVER. */
+  readonly used: string | null;
+  /** What would be left (NEAR, HIGH) or how much over (OVER), never negative. */
+  readonly rest: MoneyDto;
+}
+
+const shareText = (used: bigint, budget: bigint): string => {
+  const basisPoints = (used * 10_000n) / budget;
+  return `${basisPoints / 100n}.${String(basisPoints % 100n).padStart(2, "0")}`;
+};
+
+/**
+ * #142, ruling P235 (M6c): a labelled preview of the state `amountMinor` would leave its line in; the server's
+ * dashboard has the last word. The line's budget is planned + carry-over (HU-E6-09), and after the expense
+ * available − amount is left. The levels are the API's own `lineStateOf` (ruling P244), so the form and the
+ * dashboard cannot disagree. Integer arithmetic in minor units; the share is rounded down to two decimals.
+ */
+export const lineWarningOf = (
+  watch: LineWatch | null,
+  input: {
+    readonly categoryId: string | null;
+    /** The parent of a chosen subcategory, whose line a subcategory consumes (HU-E3-04). */
+    readonly parentId: string | null;
+    readonly amountMinor: string | null;
+    readonly date: string;
+    readonly currency: string;
+  },
+): LineWarning | null => {
+  if (watch === null || input.categoryId === null || input.amountMinor === null) return null;
+  if (input.currency !== watch.currency || input.date < watch.startDate || input.date > watch.endDate) return null;
+  const line = watch.lineOf[input.categoryId] ?? (input.parentId === null ? undefined : watch.lineOf[input.parentId]);
+  const amount = BigInt(input.amountMinor);
+  if (line === undefined || amount <= 0n) return null;
+  const budget = BigInt(line.planned.amount) + BigInt(line.carryOver.amount);
+  const after = BigInt(line.available.amount) - amount;
+  const money = (minor: bigint): MoneyDto => ({ amount: minor.toString(), currency: watch.currency });
+  const state = lineStateOf(budget, after);
+  if (state === "OK") return null;
+  if (state === "OVER") return { level: "OVER", line: line.name, used: null, rest: money(-after) };
+  return { level: state, line: line.name, used: shareText(budget - after, budget), rest: money(after) };
+};
+
+/** Ruling P235: HIGH and OVER ask before saving; NEAR is a note. */
+export const asksFirst = (warning: LineWarning | null): boolean =>
+  warning !== null && warning.level !== "NEAR";
+```
+
+`src/modules/ledger/ui/record/line-warning.tsx` (no `"use client"`; both are rendered by the client form):
+- `LineWarningNote({ warning, formats })`: a `div` `id="record-line-warning"` `data-level={warning.level}` with `Icon name="alert"` and the text. NEAR uses the neutral tone (`bg-track text-muted`); HIGH and OVER use the owe tone (`bg-owe-soft text-owe`). The text is:
+  - NEAR: `ledger.lineWarning.near` with `{line}` and `{used}` (`formatPercent(used, formats)`);
+  - HIGH: `ledger.lineWarning.high` with `{line}`, `{used}` and `{rest}` (`formatMoney(rest, formats)`);
+  - OVER: `ledger.lineWarning.over` with `{line}` and `{rest}`.
+- `LineWarningConfirm({ warning, formats, onConfirm, onReview })`: a `section` labelled by its `h2` `ledger.lineWarning.confirmTitle`. The `h2` has `tabIndex={-1}` and takes focus when the section mounts. Under it are `LineWarningNote`'s text and two buttons in a row that wraps: `Button size="lg"` `ledger.lineWarning.confirm` (`onConfirm`) and `Button variant="secondary" size="lg"` `ledger.lineWarning.review` (`onReview`).
+
+`src/modules/ledger/ui/record/record-form.tsx`:
+- `RecordFormProps` gains `/** #142 (P236): the lines of today's period, by category; no warning without it. */ readonly lineWatch?: LineWatch | null;`.
+- After `positiveMinor`, compute the warning. It applies only to an expense recorded in the form's own space: not a split with someone and not an edit (`edit` is A7's prop).
+
+  ```ts
+  const warning =
+    kind === "EXPENSE" && !splitting && edit === undefined
+      ? lineWarningOf(lineWatch ?? null, {
+          categoryId: category?.subcategoryId ?? category?.categoryId ?? null,
+          parentId: category?.subcategoryId ? category.categoryId : null,
+          amountMinor: positiveMinor,
+          date: when.date,
+          currency: space.currency,
+        })
+      : null;
+  // P235: the expense the person was asked about; a change of amount, category or date asks again.
+  const asked = warning ? `${category?.subcategoryId ?? category?.categoryId}|${positiveMinor}|${when.date}` : null;
+  const [askingFor, setAskingFor] = useState<string | null>(null);
+  const confirmedFor = useRef<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const asking = asked !== null && askingFor === asked;
+  ```
+
+- In `submit`, after the `splitting && categoryKey === null` guard and before `setPending(true)`:
+
+  ```ts
+    if (asksFirst(warning) && confirmedFor.current !== asked) {
+      setAskingFor(asked);
+      return;
+    }
+  ```
+
+- Before the `problem && where === "form"` notice, render `LineWarningConfirm` while `asking`. Its `onConfirm` is `() => { confirmedFor.current = asked; setAskingFor(null); formRef.current?.requestSubmit(); }`. Its `onReview` is `() => { setAskingFor(null); document.getElementById("record-amount")?.focus(); }`. Otherwise, when `warning` is set, render `LineWarningNote`.
+- The form gets `ref={formRef}`. The Save button is not rendered while `asking`: the panel's two buttons replace it, so the last control stays above the bar (Task 17c measures it). When a note shows, the button gets `aria-describedby="record-line-warning"`.
+- Nothing else changes: the save's toast (A4) and the saved-with-warning notice (P170) speak after the save as before.
+
+`src/modules/ledger/ui/record/record-form-container.tsx`:
+
+```ts
+/**
+ * #142 (P236): the line dashboard of the space's period holding `today`, as a watch for the record form. A failed
+ * read, a period without a plan or a plan that is not ACTIVE gives no watch, and the form simply warns of nothing.
+ */
+export const loadLineWatch = async (api: Api, input: { spaceId: string; today: string }): Promise<LineWatch | null> => {
+  const path = { spaceId: input.spaceId };
+  const periods = await loaded(
+    api.GET("/api/v1/spaces/{spaceId}/periods", { params: { path, query: { from: input.today, count: 1 } } }),
+  );
+  const label = periods.ok ? periods.data.items[0]?.label : undefined;
+  if (label === undefined) return null;
+  const dashboard = await loaded(
+    api.GET("/api/v1/spaces/{spaceId}/reports/lines", { params: { path, query: { period: label } } }),
+  );
+  return dashboard.ok ? lineWatchOf(dashboard.data) : null;
+};
+```
+
+In `RecordFormContainer`, right after the first `Promise.all`, start `const watch = loadLineWatch(api, { spaceId, today: nowIn(serverNow(), me!.timezone).date });`. It runs while the shared context and the people load. Pass `lineWatch={await watch}` to `RecordForm`.
+
+Catalog keys (`ledger.lineWarning`), es / en:
+- `near` Con este gasto, {line} quedaría en {used} de lo planeado. / With this expense, {line} would be at {used} of its plan.;
+- `high` Con este gasto, {line} quedaría en {used} de lo planeado y le quedarían {rest}. / With this expense, {line} would be at {used} of its plan, with {rest} left.;
+- `over` Con este gasto te pasarías por {rest} en {line}. / With this expense you would go {rest} over on {line}.;
+- `confirmTitle` ¿Guardar de todos modos? / Save anyway?;
+- `confirm` Guardar de todos modos / Save anyway;
+- `review` Revisar el monto / Review the amount.
+
+- [ ] **Step 5: Run the tests, the gates and the record route's budget**
+
+Run: Step 3's commands, then every gate including `pnpm build`, then `pnpm perf`.
+Expected: PASS, with `/spaces/:id/new` within 205 KiB and `/spaces/:shared/new` within 215 KiB. The budgets are never raised (P134, P198). If a route misses, move `LineWarningConfirm` behind `next/dynamic`, loaded only once a warning exists, as the form already loads `SplitWithPersonSheet`, and measure again.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/modules/ledger/ui/record src/i18n/messages
+git commit -m "feat(ledger): warn before saving an expense that takes a plan line past 90% or over (Refs #142)"
+```
+
+---
+
 ### Task 4: The planner screen and the plan cycle
 
 The Planner artboard, and HU-E9-08 at component level: "Build the reference plan" (the figures) and "Activate and close from the planner". The screen shows:
@@ -1281,6 +3201,8 @@ export const planLineDto = (overrides: Partial<PlanLineDto> = {}): PlanLineDto =
   allocation: proportional(588_000, 882_000),
   spent: cop(0),
   carryOver: cop(0),
+  // Task 1e (ruling P243): nothing carried, so no source.
+  carryOverFrom: null,
   available: cop(1_470_000),
   ...overrides,
 });
@@ -3640,6 +5562,208 @@ If the staged candidate is over ~500 lines, commit it in two passes at the named
 
 ---
 
+### Task 8b: What a line carries from the previous period, and the rollover modes explained
+
+Issue #143 asks for a per-line option to carry a line's leftover into the next period. The API already has it (HU-E6-09, ruling P15). A line's `rolloverMode` is RESET, ROLLOVER or ADJUSTED, and every line figure answers `carryOver`; Task 7's editor already offers the three modes. Task 1e makes a line carry only from the CLOSED plan it was copied from, and name that plan in `carryOverFrom`. What no screen does yet is show the carried amount, where it came from, or what each mode does. This task does all three, on the line dashboard, the planner and the line editor (ruling P231):
+- a carry from a closed plan reads "+$ 170.000 de octubre 2026";
+- a carry still waiting reads "Se arrastra de octubre 2026 cuando ese plan se cierre." (ruling P243). The answers #143 asks for are rulings:
+- an overspent line carries a negative amount only under ADJUSTED (ruling P228);
+- a copy carries by the origin link, only from a CLOSED plan, and stores no amount (rulings P230 and P243);
+- capacity counts planned amounts only, so a carry can never break it (ruling P229, pinned here by a backend test).
+
+The comment's sinking funds for yearly bills are a ROLLOVER line, and the editor's hint says so (ruling P232).
+
+**Depends on:**
+- Task 1e (`carryOverFrom`);
+- Tasks 3 and 3b (`LineDashboard`, `barWidth`, the state badges);
+- Task 4 (the planner's line rows);
+- Task 7 (the line editor's figures and its rollover choice);
+- Task 8 (the line editor's last state).
+
+**Files:**
+- Modify:
+  - `src/modules/budgeting/application/rollover.test.ts`;
+  - `src/modules/reporting/ui/lines/{bar.ts, bar.test.ts, line-dashboard.tsx, lines.test.tsx}`;
+  - `src/modules/budgeting/ui/planner/{planner.tsx, planner.test.tsx}`;
+  - `src/modules/budgeting/ui/line-editor/{line-editor.tsx, line-editor.test.tsx}`;
+  - `src/shared/ui/molecules/choice-group.tsx` (only if it takes no `describedBy` yet);
+  - `src/i18n/messages/es.json`, `src/i18n/messages/en.json`.
+
+**Interfaces:**
+- Consumes: `formatSignedMoney`, `usePeriodText` (Task 2), `planLineDto`, `referencePlanDto`, `e7Dashboard` (Tasks 3, 4), `createUpdateBudgetLine`, the rollover test's `world`, `home` and `write`.
+- Produces: `barWidth(spent: MoneyDto, planned: MoneyDto, carryOver?: MoneyDto): number`, measured against planned + carry-over; `LineDashboard({ dashboard, policy, formats })`, where `policy` (the space's `periodPolicy`) names the source period; `CarryText({ line, policy, formats })` in `src/modules/budgeting/ui/carry-text.tsx`, exported from `budgeting/ui/index.ts` and used by all three screens; the catalog keys below; `ChoiceGroup`'s optional `describedBy?: string`.
+
+- [ ] **Step 1: Pin the capacity rule against a carry-over (backend)**
+
+`src/modules/budgeting/application/rollover.test.ts`, inside `describe("carry-over along the chain of copies (HU-E6-09)", …)`:
+
+```ts
+  it("never counts a carry-over against the capacity: Home plans all 4,000,000 COP while it carries 200,000 (#143, ruling P229 of M6c)", async () => {
+    const { copyInto, deps, read, write, close, november } = await world("ROLLOVER", { "2026-11-01": pesos(1_270_000) });
+    await close(november.id);
+    const december = await copyInto("2026-12");
+    const [copied] = december.figures.lines;
+    unwrap(
+      await createUpdateBudgetLine(deps)({
+        ...write(december.plan.id, copied!.line.id),
+        changes: { plannedAmount: pesos(4_000_000) },
+      }),
+    );
+    const view = await read(december.plan.id);
+    expect(home(view)).toEqual(["Home", pesos(200_000), pesos(4_200_000)]);
+    expect(view.figures.unallocated).toBe(0n);
+  });
+```
+
+Run: `pnpm exec vitest run --project unit src/modules/budgeting/application/rollover.test.ts`
+Expected: PASS on the first run. This pins behaviour that already holds (spec 5.2 counts planned amounts only). See it bite: temporarily add each line's `carried` to `planned` in `planFigures` (`src/modules/budgeting/domain/plan-figures.ts`). The test then fails on `unallocated` (−200,000 COP). Revert.
+
+- [ ] **Step 2: Write the failing UI tests**
+
+`src/modules/reporting/ui/lines/bar.test.ts`, appended inside its `describe`:
+
+```ts
+  it("measures a line against planned plus what it carried in (ruling P231 of M6c)", () => {
+    expect(barWidth(cop(1_300_000), cop(1_470_000), cop(200_000))).toBe(77);
+    expect(barWidth(cop(250_000), cop(730_000), cop(-130_000))).toBe(41);
+    expect(barWidth(cop(100), cop(100), cop(-100))).toBe(100);
+    expect(barWidth(cop(1_300_000), cop(1_470_000))).toBe(88);
+  });
+```
+
+`src/modules/reporting/ui/lines/lines.test.tsx`, appended inside `describe("line dashboard (HU-E9-10)", …)`:
+
+```tsx
+  it("shows what a line carried and from which closed plan, or that it waits for that plan to close (#143, rulings P231 and P243)", () => {
+    const october = { planId: "p-oct", period: { label: "2026-10", startDate: "2026-10-01", endDate: "2026-10-31" } };
+    const dashboard = e7Dashboard();
+    dashboard.lines[1] = { ...dashboard.lines[1]!, carryOver: cop(200_000), available: cop(370_000), carryOverFrom: { ...october, closed: true } };
+    dashboard.lines[3] = { ...dashboard.lines[3]!, carryOver: cop(-130_000), available: cop(350_000), carryOverFrom: { ...october, closed: true } };
+    dashboard.lines[2] = { ...dashboard.lines[2]!, carryOverFrom: { ...october, closed: false } };
+    const { container } = renderWithIntl(
+      <LineDashboard dashboard={dashboard} policy={householdDto().periodPolicy} formats={BUILT_IN_FORMATS} />,
+    );
+    const home = normalized(screen.getByRole("row", { name: /^Home/ }).textContent);
+    expect(home).toContain("+$ 200.000 de octubre 2026");
+    expect(home).toContain("$ 370.000");
+    expect(normalized(screen.getByRole("row", { name: /^Free/ }).textContent)).toContain("−$ 130.000 de octubre 2026");
+    expect(normalized(screen.getByRole("row", { name: /^Savings/ }).textContent)).toContain(
+      "Se arrastra de octubre 2026 cuando ese plan se cierre.",
+    );
+    expect(screen.getByRole("row", { name: /^Rent/ }).textContent).not.toMatch(/octubre|arrastra/);
+    expect(container.querySelector("[data-line='l-home'] [data-bar]")).toHaveStyle({ width: "77%" });
+  });
+```
+
+`src/modules/budgeting/ui/planner/planner.test.tsx`, appended inside `describe("planner (HU-E9-08)", …)`:
+
+```tsx
+  it("shows a rolling line's mode and what it carries in (#143)", () => {
+    const plan = referencePlanDto();
+    plan.lines[1] = {
+      ...plan.lines[1]!,
+      rolloverMode: "ROLLOVER",
+      carryOver: cop(200_000),
+      available: cop(1_670_000),
+      carryOverFrom: { planId: "p-oct", period: { label: "2026-10", startDate: "2026-10-01", endDate: "2026-10-31" }, closed: true },
+    };
+    show({ plan });
+    const home = normalized(screen.getByRole("listitem", { name: "Home" }).textContent);
+    expect(home).toContain("Directo · Según capacidad · Acumula");
+    expect(home).toContain("+$ 200.000 de octubre 2026");
+    expect(normalized(screen.getByRole("listitem", { name: "Free" }).textContent)).not.toContain("octubre");
+  });
+```
+
+(`plan.lines[1]` is Home in `referencePlanDto`; if the builder orders the lines otherwise, find Home by name.)
+
+`src/modules/budgeting/ui/line-editor/line-editor.test.tsx`, appended inside `describe("line editor (HU-E9-08)", …)`:
+
+```tsx
+  it("shows the carry-over among the figures and explains the chosen rollover mode (#143, rulings P231 and P232)", async () => {
+    const { container } = show(
+      planLineDto({
+        rolloverMode: "ROLLOVER",
+        carryOver: cop(200_000),
+        available: cop(1_670_000),
+        carryOverFrom: { planId: "p-oct", period: { label: "2026-10", startDate: "2026-10-01", endDate: "2026-10-31" }, closed: true },
+      }),
+    );
+    const figures = normalized(screen.getByRole("region", { name: "Cifras de la línea" }).textContent);
+    expect(figures).toContain("Arrastrado+$ 200.000 de octubre 2026");
+    await userEvent.click(screen.getByRole("radio", { name: "Reinicia" }));
+    const modes = screen.getByRole("radiogroup", { name: "Al cambiar de período" });
+    expect(modes).toHaveAccessibleDescription("Cada período empieza en cero.");
+    await userEvent.click(screen.getByRole("radio", { name: "Acumula" }));
+    expect(modes).toHaveAccessibleDescription(
+      "Lo que sobra pasa al siguiente período y no cuenta contra la capacidad. Úsalo para ahorrar cada mes para un gasto anual, como el SOAT, el predial o un seguro. Pasa cuando el plan siguiente se crea como copia de este y este se cierra.",
+    );
+    await userEvent.click(screen.getByRole("radio", { name: "Ajusta" }));
+    expect(modes).toHaveAccessibleDescription(
+      "Si te pasas, lo que excede se descuenta del siguiente período; lo que sobra no pasa. Pasa cuando el plan siguiente se crea como copia de este y este se cierra.",
+    );
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("shows no carry-over figure when the line carries nothing", () => {
+    show(planLineDto());
+    expect(screen.getByRole("region", { name: "Cifras de la línea" }).textContent).not.toContain("Arrastrado");
+  });
+```
+
+- [ ] **Step 3: Run them and see them fail**
+
+Run: `pnpm exec vitest run --project unit src/modules/reporting/ui/lines/bar.test.ts` and `pnpm exec vitest run --project ui src/modules/reporting/ui/lines src/modules/budgeting/ui/planner src/modules/budgeting/ui/line-editor`
+Expected: FAIL — `barWidth` ignores a third argument, and no screen shows the carry-over, its source or the hints.
+
+Every existing render of `LineDashboard` (the tests of Tasks 3 and 3b, the container, and Task 16's overview if it renders it) gains `policy={…periodPolicy}`.
+
+- [ ] **Step 4: Implement**
+
+`src/modules/reporting/ui/lines/bar.ts`: `barWidth` takes `carryOver?: MoneyDto`. `const plan = BigInt(planned.amount) + BigInt(carryOver?.amount ?? "0");`, and the doc comment gains "measured against planned + carry-over (HU-E6-09, ruling P231 of M6c); still presentation, never a figure." The rest is unchanged.
+
+`src/modules/reporting/ui/lines/line-dashboard.tsx`:
+- each line row's bar is `barWidth(line.spent, line.planned, line.carryOver)`;
+- when `line.carryOverFrom` is set, the row header shows `<CarryText line={line} policy={policy} formats={formats} />` under the name.
+
+`src/modules/budgeting/ui/carry-text.tsx` (no `"use client"`): `CarryText({ line, policy, formats })` takes any line with `carryOver` and `carryOverFrom`. It renders nothing without `carryOverFrom`. Otherwise it renders a `span` (`text-sm text-muted`), and the source is named `usePeriodText()(carryOverFrom.period, policy, formats)`:
+- `closed`: `reports.lines.carryOver` with `{amount}` (`formatSignedMoney(line.carryOver, formats)`) and `{period}`;
+- not `closed`: `reports.lines.carryOverPending` with `{period}`.
+
+The planned, spent and available cells stay as they are: available already includes the carry-over, as answered.
+
+`src/modules/budgeting/ui/planner/planner.tsx`: in each line's `li`, after `formatMoney(plannedAmount)`, `<CarryText line={line} policy={space.periodPolicy} formats={formats} />`.
+
+`src/modules/budgeting/ui/line-editor/line-editor.tsx`:
+- the figures `section` gains, between planned and spent, a `dl` pair `budgeting.lineEditor.carryOver` with `CarryText`, only when `carryOverFrom` is set;
+- under the rollover `ChoiceGroup` a `p id="line-rollover-hint"` (`text-sm text-muted`) shows `budgeting.rollover.hint.<draft.rolloverMode>`. For ROLLOVER and ADJUSTED it continues, after a space, with `budgeting.rollover.throughCopy`;
+- the group is described by it: `describedBy="line-rollover-hint"`. If `ChoiceGroup` has no such prop, add `describedBy?: string` to it, set as `aria-describedby` on its radiogroup element.
+
+Catalog keys, es / en:
+- `reports.lines.carryOver` {amount} de {period} / {amount} from {period};
+- `reports.lines.carryOverPending` Se arrastra de {period} cuando ese plan se cierre. / Carries over from {period} once that plan is closed.;
+- `budgeting.lineEditor.carryOver` Arrastrado / Carried over;
+- `budgeting.rollover.hint`:
+  - `RESET` Cada período empieza en cero. / Every period starts from zero.;
+  - `ROLLOVER` Lo que sobra pasa al siguiente período y no cuenta contra la capacidad. Úsalo para ahorrar cada mes para un gasto anual, como el SOAT, el predial o un seguro. / What is left moves to the next period and does not count against capacity. Use it to save every month for a yearly bill, such as SOAT, property tax or insurance.;
+  - `ADJUSTED` Si te pasas, lo que excede se descuenta del siguiente período; lo que sobra no pasa. / If you go over, the excess comes off the next period; what is left does not move.;
+- `budgeting.rollover.throughCopy` Pasa cuando el plan siguiente se crea como copia de este y este se cierra. / It moves when the next plan is created as a copy of this one and this one is closed.
+
+- [ ] **Step 5: Run the tests and the gates**
+
+Run: Step 3's commands, then every gate including `pnpm build`.
+Expected: PASS.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/modules/budgeting/application/rollover.test.ts src/modules/reporting/ui/lines src/modules/budgeting/ui \
+  src/shared/ui/molecules/choice-group.tsx src/i18n/messages
+git commit -m "feat(budgeting): show what each line carries from the previous period and explain the rollover modes (Refs #143)"
+```
+
+---
+
 ### Task 9: The member matrix
 
 The Matrix artboard and HU-E9-10's "Member matrix translates reason codes". Each line of the period's plan gets a table of its members, with the columns assigned, contributed, consumed and gap. A gap carries its status (`reports.status.<Code>`: over-contributed, under-contributed, on target). A missing figure reads the line's reason (`reports.reason.<Code>`), visibly as a dash and in full for screen readers, and the reason is also written under the table (ruling P217). Every figure is the API's.
@@ -5214,6 +7338,321 @@ git commit -m "feat(reporting): chart each line's trend with its change against 
 
 ---
 
+### Task 15b: The cash-flow calendar of the next 30 and 60 days
+
+Issue #150 on screen. The personal space's Plan tab gains a view, Próximos, at `/spaces/{spaceId}/plan/calendar?days=30|60` (ruling P241). It shows:
+- a summary: today's available money, what comes in, what goes out, where it ends and the lowest balance with its date;
+- the dates in order, each with its movements and the projected balance after it;
+- a note for each space in another currency.
+
+Every figure is a field of `GET /api/v1/me/cash-flow` (Task 1d), rendered by `formatMoney` and `formatSignedMoney` (ruling P201). It shows only known items, never a pace estimate (ruling P245). Dates are formatted from their `YYYY-MM-DD` text, never through a `Date`, so no time zone moves them (ruling P246). The calendar records nothing, so it has no bulk action to confirm (ruling P247). The screen is a Server Component with no client island and no chart. It is not a period view, so it has no period switcher, and its tab links carry no `?period=`.
+
+**Depends on:**
+- Task 1d (the endpoint);
+- Task 2 (`formatSignedMoney`);
+- Task 3 (`PlanTabs`, `viewsFor`, `viewHref`, `spaceOf`);
+- Tasks 12, 13 and 14b (the personal space's views list, which this task extends last).
+
+**Files:**
+- Create: `src/modules/reporting/ui/calendar/{cash-flow-calendar.tsx, calendar-container.tsx, calendar.test.tsx}`, `src/app/(web)/(app)/spaces/[spaceId]/plan/calendar/page.tsx`
+- Modify: `src/modules/reporting/ui/{views.ts, views.test.ts, plan-tabs.tsx, server.ts}`, `src/shared/ui/api/dto.ts`, `tests/support/ui/plan-dto.ts`, `src/i18n/messages/es.json`, `src/i18n/messages/en.json`
+
+**Interfaces:**
+- Consumes: `PlanTabs`, `spaceOf`, `viewsFor`, `viewHref` (Task 3); `formatMoney`, `formatSignedMoney`, `formatDate`; `Badge`, `VisuallyHidden`, `ProblemNotice`; `loaded`, `serverApi`, `getMe`, `getSpaces`.
+- Produces:
+  - `dto.ts`: `CashFlowDto = Json<paths["/api/v1/me/cash-flow"]["get"]["responses"][200]>`;
+  - `views.ts`: `PlanView` gains `"calendar"`; `viewsFor("PERSONAL")` becomes `["mine", "calendar", "groups", "trend", "lines"]`; `viewHref(space, "calendar", period?)` is always `/spaces/{id}/plan/calendar`, with no period; `calendarHref(space, days: 30 | 60): string`;
+  - `PlanTabs({ space, view, period? })`: `period` becomes optional, and without it the links carry no `?period=`;
+  - `CashFlowCalendar({ space, flow, formats })`; `daysOf(asked?: string): 30 | 60`; `loadCashFlow(api, days)`; `CalendarContainer({ spaceId, days? })`, exported from `reporting/ui/server.ts`;
+  - builder `cashFlowDto(overrides?)` in `plan-dto.ts`.
+
+- [ ] **Step 1: Write the builder and the failing tests**
+
+`tests/support/ui/plan-dto.ts`, appended (`CashFlowDto` joins its type import):
+
+```ts
+type FlowMovement = CashFlowDto["dates"][number]["movements"][number];
+const flowMovement = (overrides: Partial<FlowMovement>): FlowMovement => ({
+  recurrenceId: "rec-internet",
+  occurrenceId: null,
+  type: "EXPENSE",
+  description: "Internet",
+  space: { id: "sp-household", name: "Household" },
+  dueDate: "2026-11-05",
+  status: "SCHEDULED",
+  estimated: false,
+  amount: cop(120_000),
+  effect: cop(-120_000),
+  ...overrides,
+});
+
+/** #150: Ana's next 30 days from 2026-10-28, with today's available money at 2,000,000 COP (Task 1d's shape). */
+export const cashFlowDto = (overrides: Partial<CashFlowDto> = {}): CashFlowDto => ({
+  currency: "COP",
+  from: "2026-10-28",
+  through: "2026-11-26",
+  days: 30,
+  opening: cop(2_000_000),
+  dates: [
+    {
+      date: "2026-10-28",
+      movements: [
+        flowMovement({ recurrenceId: "rec-power", occurrenceId: "occ-power", description: "Energía", dueDate: "2026-10-20", status: "PENDING", estimated: true, amount: cop(180_000), effect: cop(-180_000) }),
+      ],
+      balanceAfter: cop(1_820_000),
+    },
+    {
+      date: "2026-10-30",
+      movements: [
+        flowMovement({ recurrenceId: "rec-salary", type: "INCOME", description: "Salario", space: { id: "sp-personal", name: "Personal" }, dueDate: "2026-10-30", amount: cop(3_000_000), effect: cop(3_000_000) }),
+      ],
+      balanceAfter: cop(4_820_000),
+    },
+    {
+      date: "2026-11-01",
+      movements: [
+        flowMovement({ recurrenceId: "rec-nequi", type: "TRANSFER", description: "A Nequi", space: { id: "sp-personal", name: "Personal" }, dueDate: "2026-11-01", amount: cop(100_000), effect: cop(0) }),
+      ],
+      balanceAfter: cop(4_820_000),
+    },
+    { date: "2026-11-05", movements: [flowMovement({})], balanceAfter: cop(4_700_000) },
+  ],
+  totals: { incoming: cop(3_000_000), outgoing: cop(300_000), closing: cop(4_700_000) },
+  lowest: { date: "2026-10-28", balance: cop(1_820_000) },
+  otherCurrencySpaces: [],
+  ...overrides,
+});
+```
+
+`src/modules/reporting/ui/views.test.ts`: `viewsFor("PERSONAL")` is `["mine", "calendar", "groups", "trend", "lines"]`, and add
+
+```ts
+    expect(viewHref({ id: "sp-personal", kind: "PERSONAL" }, "calendar", "2026-11")).toBe("/spaces/sp-personal/plan/calendar");
+    expect(calendarHref({ id: "sp-personal", kind: "PERSONAL" }, 60)).toBe("/spaces/sp-personal/plan/calendar?days=60");
+```
+
+`src/modules/reporting/ui/calendar/calendar.test.tsx`:
+
+```tsx
+import { screen, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { axeViolations } from "../../../../../tests/support/ui/axe";
+import { cop, normalized, spaceDto } from "../../../../../tests/support/ui/dto";
+import { fakeApi, jsonResponse } from "../../../../../tests/support/ui/fake-api";
+import { cashFlowDto } from "../../../../../tests/support/ui/plan-dto";
+import { renderWithIntl } from "../../../../../tests/support/ui/render";
+import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
+import { daysOf, loadCashFlow } from "./calendar-container";
+import { CashFlowCalendar } from "./cash-flow-calendar";
+
+vi.mock("next/headers", () => ({}));
+vi.mock("next/navigation", () => ({ notFound: vi.fn(), redirect: vi.fn() }));
+
+const personal = spaceDto();
+const show = (flow = cashFlowDto()) =>
+  renderWithIntl(<CashFlowCalendar space={personal} flow={flow} formats={BUILT_IN_FORMATS} />);
+const day = (name: string) =>
+  normalized(screen.getByRole("listitem", { name }).textContent);
+
+describe("the cash-flow calendar (#150, ruling P241 of M6c)", () => {
+  it("lists each date's movements and the balance after it, as the API answers them (@golden)", async () => {
+    const { container } = show();
+    expect(screen.getByRole("heading", { level: 1, name: "Próximos 30 días" })).toBeInTheDocument();
+    const dates = within(screen.getByRole("list", { name: "Movimientos por día" }))
+      .getAllByRole("listitem")
+      .filter((item) => item.getAttribute("aria-labelledby"));
+    expect(dates.map((item) => item.getAttribute("data-date"))).toEqual(["2026-10-28", "2026-10-30", "2026-11-01", "2026-11-05"]);
+    expect(day("28/10/2026")).toContain("Energía");
+    expect(day("28/10/2026")).toContain("Household");
+    expect(day("28/10/2026")).toContain("Pendiente desde el 20/10/2026");
+    expect(day("28/10/2026")).toContain("Estimado");
+    expect(day("28/10/2026")).toContain("−$ 180.000");
+    expect(day("28/10/2026")).toContain("Saldo proyectado $ 1.820.000");
+    expect(day("30/10/2026")).toContain("+$ 3.000.000");
+    expect(day("1/11/2026")).toContain("$ 100.000");
+    expect(day("1/11/2026")).toContain("No cambia tu disponible");
+    expect(day("1/11/2026")).not.toContain("+$");
+    const summary = normalized(screen.getByRole("region", { name: "Resumen de lo que viene" }).textContent);
+    expect(summary).toContain("Disponible hoy$ 2.000.000");
+    expect(summary).toContain("Entra$ 3.000.000");
+    expect(summary).toContain("Sale$ 300.000");
+    expect(summary).toContain("Al final$ 4.700.000");
+    expect(summary).toContain("Lo más bajo: $ 1.820.000 el 28/10/2026");
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("renders the API's balances, never a running sum of its own (ruling P201)", () => {
+    const flow = cashFlowDto();
+    flow.dates[1] = { ...flow.dates[1]!, balanceAfter: cop(7) };
+    show({ ...flow, lowest: { date: "2026-11-05", balance: cop(-1) } });
+    expect(day("30/10/2026")).toContain("Saldo proyectado $ 7");
+    const lowest = screen.getByText(/Lo más bajo/);
+    expect(normalized(lowest.textContent)).toBe("Lo más bajo: −$ 1 el 5/11/2026");
+    expect(lowest).toHaveClass("text-owe");
+  });
+
+  it("offers 30 and 60 days and keeps the Plan tab's views", () => {
+    show();
+    const window = screen.getByRole("navigation", { name: "Ventana" });
+    expect(within(window).getByRole("link", { name: "30 días" })).toHaveAttribute("aria-current", "page");
+    expect(within(window).getByRole("link", { name: "60 días" })).toHaveAttribute("href", "/spaces/sp-personal/plan/calendar?days=60");
+    const tabs = screen.getByRole("navigation", { name: "Vistas del plan" });
+    expect(within(tabs).getByRole("link", { name: "Próximos" })).toHaveAttribute("aria-current", "page");
+    expect(within(tabs).getByRole("link", { name: "Mi consumo" })).toHaveAttribute("href", "/spaces/sp-personal/plan");
+  });
+
+  it("says when nothing is scheduled, and names a space in another currency once", () => {
+    show(cashFlowDto({ dates: [], otherCurrencySpaces: [{ spaceId: "sp-trip", name: "Viaje", currency: "USD" }] }));
+    expect(screen.getByText("No hay movimientos programados en los próximos 30 días.")).toBeInTheDocument();
+    expect(screen.getByText("Viaje usa USD: sus movimientos no se suman aquí.")).toBeInTheDocument();
+  });
+
+  it("places a movement by its local date, never shifted by a time zone (ruling P246 of M6c)", () => {
+    const flow = cashFlowDto();
+    show({ ...flow, dates: [{ ...flow.dates[3]!, date: "2027-03-15" }] });
+    expect(screen.getByRole("listitem", { name: "15/3/2027" })).toHaveAttribute("data-date", "2027-03-15");
+  });
+
+  it("offers no action that records money: it only shows what is coming (ruling P247 of M6c)", () => {
+    const { container } = show();
+    expect(screen.queryAllByRole("button")).toEqual([]);
+    expect(container.querySelector("form")).toBeNull();
+  });
+
+  it("asks for the window it is given, 30 days unless 60 is asked for", async () => {
+    expect([daysOf(undefined), daysOf("60"), daysOf("45")]).toEqual([30, 60, 30]);
+    const { api, requests } = fakeApi({ "GET /api/v1/me/cash-flow": () => jsonResponse(cashFlowDto({ days: 60 })) });
+    const result = await loadCashFlow(api, 60);
+    expect(result.ok && result.data.days).toBe(60);
+    expect(new URL(requests[0]!.url).searchParams.get("days")).toBe("60");
+  });
+});
+```
+
+- [ ] **Step 2: Run them and see them fail**
+
+Run: `pnpm exec vitest run --project unit src/modules/reporting/ui/views.test.ts` and `pnpm exec vitest run --project ui src/modules/reporting/ui/calendar`
+Expected: FAIL — there is no `calendar` view and no `./calendar-container`.
+
+- [ ] **Step 3: Implement**
+
+`src/shared/ui/api/dto.ts`: `export type CashFlowDto = Json<paths["/api/v1/me/cash-flow"]["get"]["responses"][200]>;`.
+
+`src/modules/reporting/ui/views.ts`:
+- `PlanView` gains `| "calendar"`;
+- `PERSONAL_VIEWS` = `["mine", "calendar", "groups", "trend", "lines"]`;
+- in `viewHref`, `if (view === "calendar") return \`${base}/calendar\`;` before the period is added;
+- add
+
+```ts
+/** Ruling P241 (M6c): the calendar's window links. */
+export const calendarHref = (space: Pick<SpaceDto, "id">, days: 30 | 60): string =>
+  `/spaces/${space.id}/plan/calendar${days === 30 ? "" : `?days=${days}`}`;
+```
+
+`reporting/ui/index.ts` also exports `calendarHref`.
+
+`src/modules/reporting/ui/plan-tabs.tsx`: `period` becomes `period?: PeriodDto`, and each link is `viewHref(space, view, period?.label)`.
+
+`src/modules/reporting/ui/calendar/calendar-container.tsx`:
+
+```tsx
+import { notFound } from "next/navigation";
+import { ProblemNotice } from "@/shared/ui";
+import type { Api } from "@/shared/ui/api/client";
+import { getMe, getSpaces, loaded, serverApi } from "@/shared/ui/api/server";
+import { spaceOf } from "../report-period";
+import { CashFlowCalendar } from "./cash-flow-calendar";
+
+/** Ruling P241: `?days=60` asks for 60 days; anything else is the default 30. */
+export const daysOf = (asked: string | undefined): 30 | 60 => (asked === "60" ? 60 : 30);
+
+export const loadCashFlow = (api: Api, days: 30 | 60) =>
+  loaded(api.GET("/api/v1/me/cash-flow", { params: { query: { days: String(days) as "30" | "60" } } }));
+
+/** Server: the personal space's Próximos view (#150); a shared space has no calendar. */
+export async function CalendarContainer({ spaceId, days }: { readonly spaceId: string; readonly days?: string }) {
+  const [me, spaces] = await Promise.all([getMe(), getSpaces()]);
+  const space = spaceOf(spaces, spaceId);
+  if (space.kind !== "PERSONAL") notFound();
+  const flow = await loadCashFlow(await serverApi(), daysOf(days));
+  if (!flow.ok) return <ProblemNotice problem={flow.problem} />;
+  return <CashFlowCalendar space={space} flow={flow.data} formats={me!.preferences.effective} />;
+}
+```
+
+`src/modules/reporting/ui/calendar/cash-flow-calendar.tsx` (no `"use client"`):
+- A `header` holds the space name (`text-sm text-muted`) and the `h1` `reports.calendar.title` with `{days}`. Under it is a `nav` labelled `reports.calendar.window` with two links, `reports.calendar.days` for 30 and for 60, to `calendarHref(space, n)`. They have the trend's 6/12 style (`min-h-11 rounded-full px-4`), and the current one is `aria-current="page"`. Then `<PlanTabs space={space} view="calendar" />` and the `p` `reports.calendar.explain`.
+- A `section` labelled by a visually hidden `h2` `reports.calendar.summary`, with four `dl` pairs: `reports.calendar.opening` (`opening`), `reports.calendar.incoming` (`totals.incoming`), `reports.calendar.outgoing` (`totals.outgoing`) and `reports.calendar.closing` (`totals.closing`), all through `formatMoney`. Under them is a `p` `reports.calendar.lowest` with `{balance}` (`formatMoney(lowest.balance)`) and `{date}` (`formatDate(lowest.date)`), in `text-owe` when the balance is negative.
+- One `p` `reports.calendar.otherCurrency` per `otherCurrencySpaces` entry, with `{space}` and `{currency}`.
+- With no dates, the `p` `reports.calendar.empty` with `{days}`.
+- Else an `ol` labelled `reports.calendar.listLabel`, with one `li` per date: `aria-labelledby` its `h2` (`formatDate(date)`, `id="flow-<date>"`) and `data-date={date}`. Inside it is a `ul` of the date's movements. Each movement `li` shows:
+  - the description (`font-medium`);
+  - `reports.calendar.type.<type>` · the space's name (`text-sm text-muted`);
+  - `Badge` `reports.calendar.pending` with `{date}` (`formatDate(dueDate)`) when PENDING;
+  - `Badge` `reports.calendar.estimated` when `estimated`;
+  - the amount at the row's end (`text-right tabular-nums`). When the effect is not zero it is `formatSignedMoney(effect)`, `text-owe` when negative; else it is `formatMoney(amount)` with `reports.calendar.noEffect` under it.
+
+  After the `ul` comes the `p` `reports.calendar.balanceAfter` with `{balance}` (`formatMoney(balanceAfter)`), `text-owe` when negative.
+- Long descriptions and space names wrap (`break-words`, `min-w-0`), so the page never scrolls sideways at 320 px.
+
+`src/modules/reporting/ui/server.ts`: `export { CalendarContainer } from "./calendar/calendar-container";`.
+
+`src/app/(web)/(app)/spaces/[spaceId]/plan/calendar/page.tsx`:
+
+```tsx
+import { getTranslations } from "next-intl/server";
+import { CalendarContainer } from "@/modules/reporting/ui/server";
+
+export async function generateMetadata() {
+  return { title: (await getTranslations("reports"))("calendar.metaTitle") };
+}
+
+/** #150: what comes in and goes out over the next 30 or 60 days (ruling P241). */
+export default async function CalendarPage({
+  params,
+  searchParams,
+}: {
+  readonly params: Promise<{ spaceId: string }>;
+  readonly searchParams: Promise<{ days?: string }>;
+}) {
+  const [{ spaceId }, { days }] = await Promise.all([params, searchParams]);
+  return <CalendarContainer spaceId={spaceId} days={days} />;
+}
+```
+
+Catalog keys (`reports`), es / en:
+- `view.calendar` Próximos / Upcoming;
+- `calendar`:
+  - `metaTitle` Próximos movimientos / Upcoming movements; `title` Próximos {days} días / Next {days} days;
+  - `window` Ventana / Window; `days` {days} días / {days} days;
+  - `explain` Los movimientos recurrentes de tus cuentas en todos tus espacios, con el saldo que te quedaría después de cada día. / The recurring movements of your accounts in all your spaces, with the balance you would have after each day.;
+  - `summary` Resumen de lo que viene / Summary of what is coming;
+  - `opening` Disponible hoy / Available today; `incoming` Entra / Coming in; `outgoing` Sale / Going out; `closing` Al final / At the end;
+  - `lowest` Lo más bajo: {balance} el {date} / Lowest: {balance} on {date};
+  - `listLabel` Movimientos por día / Movements by day;
+  - `balanceAfter` Saldo proyectado {balance} / Projected balance {balance};
+  - `pending` Pendiente desde el {date} / Pending since {date}; `estimated` Estimado / Estimated;
+  - `noEffect` No cambia tu disponible / Does not change your available money;
+  - `type`: `EXPENSE` Gasto / Expense; `INCOME` Ingreso / Income; `TRANSFER` Transferencia / Transfer; `FUND_CONTRIBUTION` Aporte al fondo / Fund contribution;
+  - `empty` No hay movimientos programados en los próximos {days} días. / Nothing is scheduled in the next {days} days.;
+  - `otherCurrency` {space} usa {currency}: sus movimientos no se suman aquí. / {space} uses {currency}: its movements are not added here.
+
+- [ ] **Step 4: Run the tests and the gates**
+
+Run: Step 2's commands, then every gate including `pnpm build`.
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/modules/reporting/ui "src/app/(web)/(app)/spaces/[spaceId]/plan/calendar" src/shared/ui/api/dto.ts \
+  tests/support/ui/plan-dto.ts src/i18n/messages
+git commit -m "feat(reporting): add the cash-flow calendar of the next 30 and 60 days (Refs #150)"
+```
+
+---
+
 ### Task 16: The desktop layout of a space's dashboards
 
 The DashDesktop artboard: from 1024 px, a shared space's Plan tab shows every panel at once beside the Lines view (ruling P216):
@@ -5882,12 +8321,174 @@ git commit -m "test(reporting): run the dashboard and unified view scenarios and
 
 ---
 
+### Task 17c: The line warning, carry-over and calendar scenarios, with their layout and axe scans
+
+The three additions in a real browser, against the standalone build. Three `@e2e` scenarios bite on the behaviour:
+- #142: an expense over its line asks first and still saves;
+- #143: a copy of a CLOSED plan shows what its ROLLOVER line carried in and from where, and a copy of an open plan carries nothing yet;
+- #150: the calendar projects a person's own account.
+
+Then every new screen and state joins the UI rules of the owner's review (2026-10-21). `tests/e2e/layout.spec.ts` checks that nothing scrolls sideways at 390 and 320 px, that the last control sits above the bottom bar, and that targets are at least 44 px. `tests/e2e/a11y-plan.spec.ts` scans each screen and state in light and dark (ruling P242).
+
+**Depends on:** Task 17b (`a11y-plan.spec.ts`, `seedAccounts`), Task 17a (`plan-seed.ts`), and Tasks 1e, 3b, 3c, 8b and 15b.
+
+**Files:**
+- Create: `tests/e2e/features/line-warning.feature`, `tests/e2e/features/rollover.feature`, `tests/e2e/features/cash-flow.feature`, `tests/e2e/steps/additions.steps.ts`
+- Modify: `tests/e2e/support/plan-seed.ts`, `tests/e2e/a11y-plan.spec.ts`, `tests/e2e/layout.spec.ts`
+
+**Interfaces:**
+- Consumes: `SeedClient`, `seedHousehold`, `seedReferencePlan`, `categoryIdsByKey`, `householdOf`, `clientOf` (Task 17a); `seedAccounts` (Task 17b); `shown`, `minor`; M6a's `World`; `layout.spec.ts`'s `settle`, `overflowReport` and its "last control" table.
+- Produces: in `plan-seed.ts`, `seedRecurrence(client, spaceId, body): Promise<{ id: string }>` and `seedHome(client, hh, accounts, { period, rolloverMode, close }): Promise<{ planId: string; lineIds: Record<string, string> }>`. `seedHome` seeds an ACTIVE reference plan for `period` (`seedReferencePlan`), sets Home's rollover mode, and records 1,300,000 COP of Groceries in that period from Ana's Bancolombia. With `close`, it then closes the plan. The e2e server's today is 2026-10-31 (P133): October is the period holding today, and September is over, so it can be closed.
+
+- [ ] **Step 1: Write the features**
+
+`tests/e2e/features/line-warning.feature`:
+
+```gherkin
+@e2e
+Feature: Warn before saving an expense that takes a plan line past 90% or over (#142)
+
+  Background:
+    Given "Ana" has the household "Household" with "Juan" as "MEMBER"
+    And the ACTIVE plan for 2026-10 has the line "Home" with planned 1,470,000 COP and 1,300,000 COP spent in "Groceries"
+
+  Scenario: An expense over its line asks first and still saves
+    When "Ana" records an expense of 212,300 COP in "Groceries" in "Household" and taps "Guardar gasto"
+    Then the form asks "¿Guardar de todos modos?" and says "Con este gasto te pasarías por $ 42.300 en Home."
+    And nothing was saved
+    When she taps "Guardar de todos modos"
+    Then the expense is saved
+    And the line dashboard for 2026-10 shows "Home" with available "−$ 42.300" and the badge "Excedida"
+
+  Scenario: An expense that leaves its line at 80 % saves at once
+    When "Ana" records an expense of 20,000 COP in "Groceries" in "Household"
+    Then the form notes "Con este gasto, Home quedaría en 89,79 % de lo planeado."
+    And tapping "Guardar gasto" saves it without asking
+```
+
+`tests/e2e/features/rollover.feature`:
+
+```gherkin
+@e2e
+Feature: A plan line's leftover rolls into the next period (#143)
+
+  Background:
+    Given "Ana" has the household "Household" with "Juan" as "MEMBER"
+
+  Scenario: A copy of a closed plan shows what its ROLLOVER line carried in, and from where
+    Given the CLOSED plan for 2026-09 has the line "Home" with rollover "ROLLOVER", planned 1,470,000 COP and 1,300,000 COP spent in "Groceries"
+    When "Ana" copies the plan into 2026-10 and opens the line dashboard for 2026-10
+    Then "Home" shows "+$ 170.000 de septiembre 2026" and available "$ 1.640.000"
+
+  Scenario: A copy of a plan that is not closed carries nothing yet
+    Given the ACTIVE plan for 2026-10 has the line "Home" with rollover "ROLLOVER", planned 1,470,000 COP and 1,300,000 COP spent in "Groceries"
+    When "Ana" copies the plan into 2026-11 and opens the line dashboard for 2026-11
+    Then "Home" shows "Se arrastra de octubre 2026 cuando ese plan se cierre." and available "$ 1.470.000"
+```
+
+`tests/e2e/features/cash-flow.feature`:
+
+```gherkin
+@e2e
+Feature: A cash-flow calendar of the next 30 and 60 days (#150)
+
+  Scenario: The calendar projects Ana's own account
+    Given "Ana" has only the BANK account "Bancolombia" with 900,000 COP
+    And she recorded a one-off expense of 400,000 COP from "Bancolombia" today, which is not repeated
+    And her "Salario" of 3,000,000 COP comes into "Bancolombia" every month on day 30 from 2026-11-01
+    And her "Internet" of 120,000 COP is paid from "Bancolombia" every month on day 5 from 2026-11-05
+    When she opens "Próximos" with 60 days
+    Then the days read
+      | date       | movement | amount        | balance after |
+      | 5/11/2026  | Internet | −$ 120.000    | $ 380.000     |
+      | 30/11/2026 | Salario  | +$ 3.000.000  | $ 3.380.000   |
+      | 5/12/2026  | Internet | −$ 120.000    | $ 3.260.000   |
+    And the summary reads "Lo más bajo: $ 380.000 el 5/11/2026"
+```
+
+(Today's available money is 900,000 − 400,000 = 500,000 COP, and the one-off expense adds no future date: the calendar projects no pace, ruling P245. The window from 2026-10-31 runs through 2026-12-29, so December 30's salary falls outside it.)
+
+- [ ] **Step 2: Write the steps and the seeding**
+
+`tests/e2e/support/plan-seed.ts`: add `seedRecurrence(client, spaceId, body)`, which posts `/api/v1/spaces/${spaceId}/recurrences` and answers `{ id }`, and `seedHome(client, hh, accounts, { period, rolloverMode, close })`, which:
+1. runs `seedReferencePlan(client, hh, { period, catchAll: false, activate: false, savingsAccountId: accounts.savings })`;
+2. `PATCH`es Home's `rolloverMode` with `If-Match`;
+3. activates the plan;
+4. records `client.record(…/expenses, …)` of 1,300,000 COP in Groceries on the 15th of `period` from `accounts.bancolombia`;
+5. with `close`, posts `…/close` with the last version.
+
+`tests/e2e/steps/additions.steps.ts`:
+- binds each step above;
+- reuses `seedHousehold`, `seedAccounts` and `seedHome`;
+- reads every expected string from the catalogs (`world.t(…)`) or from `shown(…)`, never from a hard-coded format.
+
+The copy step posts `…/plans` with `{ period: "2026-11", copyFrom: "previous" }`. The cash-flow steps sign Ana up fresh, with no seeded account but the one the step names. They define both recurrences through `seedRecurrence` in her personal space, with `payer: { memberId: <her personal member id>, accountId }`, and end them in an `After` hook through `POST …/recurrences/{id}/end`, so the e2e server's scheduler never meets them again.
+
+- [ ] **Step 3: Extend the layout spec**
+
+`tests/e2e/layout.spec.ts`:
+- In "no screen scrolls sideways", after the existing paths, seed through `SeedClient` a household with `seedHome(…, { period: "2026-10", rolloverMode: "ROLLOVER", close: false })`, its 2026-11 copy, and one recurrence named with 60 unbroken characters of 15-digit amount. Then check:
+  - `/spaces/<household>/plan?period=2026-11` (a carry-over row waiting for October to close, the longest carry text);
+  - `/spaces/<personal>/plan/calendar` and `/spaces/<personal>/plan/calendar?days=60`;
+  - `/spaces/<household>/new` with the confirm panel open (type 212,300 COP, choose Groceries, tap Save).
+- In "the last control of a scrolling screen ends above the bottom bar", add a screen `"record form, line warning confirmation"`:
+  - `at`: the household's `/new`;
+  - `prepare`: type the amount, choose Groceries and tap `es.ledger.form.save.EXPENSE`;
+  - `submit`: `es.ledger.lineWarning.confirm`.
+
+  Its `prepare` needs the seeded household, so the table entry takes the seeded ids the same way the record form's entry takes `spaceId`.
+- In "touch targets are at least 44 x 44 px", add a test: the confirm panel's two buttons and the calendar's two window links each measure at least `TARGET` in both dimensions.
+
+- [ ] **Step 4: Extend the accessibility scan**
+
+`tests/e2e/a11y-plan.spec.ts`:
+- Its seeding gains three things:
+  - the November plan's Home set to ROLLOVER before the December copy, so December's Home says it carries over from November once November closes;
+  - a CLOSED 2026-09 plan through `seedHome(…, { period: "2026-09", rolloverMode: "ROLLOVER", close: true })` and its copy into 2026-10, activated, so October's Home shows "+$ 170.000 de septiembre 2026". This Home, with 1,640,000 COP of budget and nothing spent in October, is the record form's line too;
+  - one INCOME and one CONFIRM EXPENSE recurrence in Ana's personal space.
+- The path loop gains `${me}/plan/calendar` and `${me}/plan/calendar?days=60`, `${hh}/plan?period=2026-10` (a carried amount, the state badges) and `${hh}/plan?period=2026-12` (a carry waiting for its plan).
+- After the loop:
+
+```ts
+await page.goto(`${hh}/new`);
+await expect(page.locator("[data-ready='true']")).toBeAttached();
+await page.getByLabel(es.ledger.form.amount).fill("1350000"); // 82 % of 1,640,000 COP: the neutral note
+await page.getByRole("button", { name: new RegExp(es.ledger.form.category) }).click();
+await page.getByRole("radio", { name: /^Mercado|^Groceries/ }).click();
+await scan("record form with the line note");
+await page.getByLabel(es.ledger.form.amount).fill("1700000"); // 60,000 COP over: the confirmation
+await page.getByRole("button", { name: es.ledger.form.save.EXPENSE }).click();
+await expect(page.getByRole("heading", { name: es.ledger.lineWarning.confirmTitle })).toBeFocused();
+await scan("record form asking before saving");
+```
+
+(The Groceries radio's name depends on the seed's language, as in 17b's drill-down. Use the catalog key the form's amount label has, if it is not `ledger.form.amount`.)
+
+- [ ] **Step 5: Run them and see them bite**
+
+Run: `pnpm build && pnpm test:e2e`.
+Expected: PASS. Three checks show the scenarios bite; revert each after:
+- Make `asksFirst` answer true for NEAR too: "An expense that leaves its line at 80 % saves at once" fails.
+- In `planFigures`' caller, pass `previousAvailable` from a source that is not CLOSED: "A copy of a plan that is not closed carries nothing yet" fails.
+- In `CashFlowCalendar`, render `opening` in place of each day's `balanceAfter`: "The calendar projects Ana's own account" fails.
+
+A dark-theme contrast failure is fixed by moving its token's mix in `globals.css`, never by disabling the rule (P135). A layout failure is fixed in the component, never by excluding the screen.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add tests/e2e
+git commit -m "test(web): run the line warning, rollover and cash-flow scenarios and check their layout and accessibility (Refs #142, Refs #143, Refs #150)"
+```
+
+---
+
 ### Task 18: Performance budgets for the new routes and the M6c documentation
 
 Ruling P221 gives every new route its budget in `tests/performance/budgets.json`, on the same median-of-three Lighthouse run as P134. The routes:
 - the shared space's Plan views;
 - the planner, its capacities and the line editor;
-- the personal Plan views.
+- the personal Plan views, the cash-flow calendar included (Task 15b, ruling P242).
 
 Lighthouse seeds a household with a six-plan chain, so the trend and the overview run on real data. That is the part of #128 these budgets reach. A Playwright INP check runs over the drill-down and the allocation editor on a 4× slower CPU. Then the docs: the decisions index, the architecture page, the stack versions, the backlog notes and the plan in the nav.
 
@@ -5915,7 +8516,8 @@ Lighthouse seeds a household with a six-plan chain, so the trend and the overvie
     "/spaces/:planSpace/plans/:plan/lines/:line": 215,
     "/spaces/:id/plan": 190,
     "/spaces/:id/plan/groups": 195,
-    "/spaces/:id/plan/trend": 300
+    "/spaces/:id/plan/trend": 300,
+    "/spaces/:id/plan/calendar": 190
 ```
 
 `tests/performance/routes.test.mjs` (the `unit` project already includes `tests/performance/**/*.test.mjs`):
@@ -5940,7 +8542,7 @@ describe("Lighthouse routes (ruling P221)", () => {
   it("has a budget for every Plan route", () => {
     for (const route of Object.keys(budgets.scriptKb).filter((r) => r.includes("/plan")))
       expect(budgets.scriptKb[route]).toBeGreaterThan(0);
-    expect(Object.keys(budgets.scriptKb).filter((r) => r.includes("/plan"))).toHaveLength(12);
+    expect(Object.keys(budgets.scriptKb).filter((r) => r.includes("/plan"))).toHaveLength(13);
   });
 });
 ```
@@ -5969,7 +8571,8 @@ export const routeUrl = (route, ids) =>
 1. It creates the shared space "Household" (the perf person alone, so the matrix and fund have one member) and a SAVINGS account in the personal space.
 2. It creates the plan for 2026-05 with capacity 4,000,000 COP and the four reference lines, then copies it forward each period to 2026-10 (`copyFrom: "previous"`). Under the fixed e2e clock, 2026-10 is the current period. Plan writes need `If-Match`, so it passes the version of each answer, adding an `ifMatch` argument to `api`.
 3. It maps the seeded categories (`rent`, `groceries`, `utilities`) on the 2026-10 plan, activates it, and records ten household expenses in October.
-4. It returns `{ planSpace, plan: <the 2026-10 plan's id>, line: <its Home line's id> }`.
+4. It defines two recurrences in the perf person's personal space on the seeded BANK account: an INCOME on day 30 and an EXPENSE on day 5, both from 2026-11-01. The calendar route then measures real rows (ruling P242).
+5. It returns `{ planSpace, plan: <the 2026-10 plan's id>, line: <its Home line's id> }`.
 
 - [ ] **Step 3: Write the INP check**
 
@@ -5981,7 +8584,7 @@ export const routeUrl = (route, ids) =>
 - [ ] **Step 4: Run the gates and read the numbers**
 
 Run: `pnpm exec vitest run --project unit tests/performance`, `pnpm build`, `pnpm perf`.
-Expected: every route within its budgets and INP ≤ 200 ms; one JSON line per route.
+Expected: every route within its budgets and INP ≤ 200 ms; one JSON line per route. `/spaces/:id/new` stays ≤ 205 and `/spaces/:shared/new` ≤ 215 KiB with Task 3c's line warning (ruling P242).
 
 **If a route misses its budget, do not raise it silently** (P134). First apply the usual fixes:
 - move a client component's import behind the lazy pattern, as `Sheet` and `LazyTrendChart` do;
@@ -5993,15 +8596,17 @@ If a route still misses its budget by 10 KiB or less, follow P154's precedent un
 - [ ] **Step 5: Write the documentation**
 
 - `docs/decisions/README.md`:
-  - the intro line and the "ranges are" sentence gain ", and M6c P200–P226";
-  - a new section `### M6c: budget planner and dashboards (P200–P226)` goes after the M6a section. It has a `Plan:` line linking this file and one row per ruling. Each row's "Where" is `Rulings, <n>`, the Self-Review's numbering below;
+  - the intro line and the "ranges are" sentence gain ", and M6c P200–P247";
+  - a new section `### M6c: budget planner and dashboards (P200–P247)` goes after the M6a section. It has a `Plan:` line linking this file and one row per ruling. Each row's "Where" is `Rulings, <n>`, the Self-Review's numbering below;
   - M6b's section, if it lands in the same file first, keeps its place.
-- `docs/README.md`: "every ruling P1 to P154" becomes "every ruling P1 to P226". If M6b already changed it to P199, replace that.
+- `docs/README.md`: "every ruling P1 to P154" becomes "every ruling P1 to P247". If M6b already changed it to P199, replace that.
 - `docs/architecture/README.md`: in the "Web UI" section add a paragraph:
   - the Plan tab (P200) and the module UIs `budgeting/ui` and `reporting/ui`;
   - "figures are the API's" (P201);
   - HTML bars, and Recharts only in `reporting/ui/charts/*-chart.tsx` behind `import()`, enforced by the two dependency-cruiser rules (P202);
-  - the plan writes' `If-Match` (P206).
+  - the plan writes' `If-Match` (P206);
+  - the record form's line warning, a labelled preview over the line dashboard with the kernel's `lineStateOf` (P233–P237, P244);
+  - the cash-flow calendar, projected by reporting from the ledger's `listScheduledMovements` port (P238–P241, P245, P246).
 
   The Modules paragraph lists `budgeting` and `reporting` among the modules with a `ui/` layer.
 - `docs/stack-versions.md`: two rows: `recharts` "3.10.1 — installed (M6c); 3.11.x was a canary when M6c was planned"; `react-is` "19.3.0 — installed (M6c), Recharts' peer, matching React 19.3.0".
@@ -6023,7 +8628,7 @@ Expected: PASS.
 
 ```bash
 git add tests/performance tests/e2e/perf docs mkdocs.yml
-git commit -m "ci(web): budget every plan and dashboard route, and document M6c (Refs #76, Refs #78, Refs #79)"
+git commit -m "ci(web): budget every plan and dashboard route, and document M6c (Refs #76, Refs #78, Refs #79, Refs #142, Refs #143, Refs #150)"
 ```
 
 ---
@@ -6078,6 +8683,42 @@ git commit -m "ci(web): budget every plan and dashboard route, and document M6c 
 | Note: `NEW` renders `reports.trend.new`; percentages in the user's number format with two decimals | Task 14b (`ChangeText`); Task 2 (`formatPercent`, ruling P204) |
 | Note: `PersonalSpendingByGroupContainer` reuses `SpendingChart` and `DrillBreadcrumb`; "space / group" through one pattern, never joined strings | Task 13 (and `NodeLabel`, Task 11) |
 
+**#142 — Warn before saving an expense that takes a plan line past 90% or over**
+
+| Requirement | Covered by |
+|---|---|
+| "the record form shows the line's state and asks the person to confirm before saving. The person can still save." | Task 3c (the confirmation panel; "Guardar de todos modos" sends the one POST); Task 17c's scenario; ruling P237 |
+| "Reuse the line dashboard figures (planned, spent and available, M6c Task 1 totals)." | Task 1b (`categoryLines`, `state`), Task 3c (`lineWatchOf` over the line dashboard); ruling P234 |
+| "Do it client-side from the plan view, or add an advisory `warnings` entry to the expense response." | Ruling P233 (client-side; a `warnings` entry would arrive after the save) |
+| "The confirm step must not slow the common case. Show it only when the threshold is crossed." | Task 3c (no request on Save; nothing below 80 %; NEAR never asks); rulings P235, P236 |
+| Comment: "A neutral early warning at 80% that is not yet red" | Task 1b (`lineStateOf`), Task 3b (the neutral badge), Task 3c (the neutral note); rulings P235, P244 |
+| Comment: "The overage stated as an amount in words, for example "Te pasaste por $ 42.300"" | Task 3b ("Te pasaste por $ 130.000" from `overBy`), Task 3c ("te pasarías por $ 42.300"); ruling P244 |
+| Coordinator (L3): "5125% spent" with no warning state; cap or reword percentages above 100 % | Tasks 3b and 3c (no "%" on an OVER line or warning); ruling P244 |
+
+**#143 — Roll a plan line's leftover into the next period**
+
+| Requirement | Covered by |
+|---|---|
+| "a per-line option on the monthly plan to carry what is left of a line … into the same line of the next period" | HU-E6-09's ROLLOVER (already in the API), shown and explained by Task 8b; ruling P228 |
+| "whether an overspent line carries a negative amount forward" | Ruling P228 (only ADJUSTED; ROLLOVER floors at 0) |
+| "how copying a plan from the previous period treats the carried amount" | Rulings P230 and P243; Task 1e (by the origin link, only from a CLOSED plan, never stored) |
+| "how the line dashboard shows it" | Task 8b (`CarryText` on the dashboard, the planner and the editor); ruling P231 |
+| "Rollover must not break the rule that lines sum to at most the capacity." | Ruling P229; Task 8b's backend pin |
+| Comment: "sinking funds for yearly bills" | Ruling P232; Task 8b's ROLLOVER hint; follow-up 13 |
+| Coordinator (L3): carry only from closed periods in which the line existed, and show where it came from | Task 1e (`carryOverFrom`, the closed gate, a line without an origin carries nothing); Task 8b; Task 17c (both scenarios); ruling P243 |
+
+**#150 — A cash-flow calendar of what is coming in the next 30 and 60 days**
+
+| Requirement | Covered by |
+|---|---|
+| "Show, by day, the money that will come in and go out over the next 30 and 60 days" | Task 1d (`/me/cash-flow?days=30\|60`), Task 15b (the Próximos view); rulings P238, P241 |
+| "recurring incomes, recurring bills, pending recurrence occurrences and planned transfers to funds" | Task 1c (schedule dates, PENDING occurrences, FUND_CONTRIBUTION recurrences); ruling P239 |
+| "with the balance projected after each" | Task 1d (`balanceAfter`, totals, lowest); ruling P240 |
+| "It uses the recurrence model Hearth already has." | Task 1c (`datesThrough`, `listScheduledMovements`); ruling P238 |
+| Coordinator (L3): only known items, no pace from one spike | Task 1d (the one-off expense adds no date), Task 17c; ruling P245 |
+| Coordinator (L3): place items by local date; a test at the start of a Bogotá day | Task 1d (`04:59:59Z` and `05:00:00Z`), Task 15b ("2027-03-15" as 15/3/2027); ruling P246 |
+| Coordinator (L3): confirm before a bulk money action | Task 15b (no button, no form); ruling P247 |
+
 **Owner constraints**
 
 | Constraint | Covered by |
@@ -6085,7 +8726,8 @@ git commit -m "ci(web): budget every plan and dashboard route, and document M6c 
 | Strict TDD and RDD in every task | Every task opens with its failing test and its "see it fail" step; Execution Workflow, RDD |
 | The stories' `@e2e` scenarios through playwright-bdd | Tasks 17a and 17b (three scenarios, verbatim) |
 | Axe scans of the new screens | Every component test runs axe; Task 17b scans every screen and sheet in light and dark, the desktop overview and both charts |
-| A budget for each new route, following P134 and P154 | Task 18 (twelve routes, the procedure of ruling P221, INP over the drill-down and the allocation editor) |
+| A budget for each new route, following P134 and P154 | Task 18 (thirteen routes with the calendar's, ruling P242; the procedure of ruling P221, INP over the drill-down and the allocation editor); the record routes keep theirs with the line warning (Task 3c) |
+| Every new screen and state meets the UI rules of the owner's review (2026-10-21) and joins the layout spec and the axe scans | Task 17c (`layout.spec.ts` at 390 and 320 px, the last control above the bar, 44 px targets; `a11y-plan.spec.ts` in light and dark); the calendar is a Plan tab view, the confirmation panel ends the form |
 | Recharts pinned on or before 2026-10-07, lazy-loaded, charts with their figures as a table, passing axe | Task 14a (3.10.1 of 2026-07-25; the two rules); Tasks 14b and 15 (table and chart from one series); Task 17b; rulings P202, P203, P220 |
 | The Plan tab in the bottom bar | Task 3 (ruling P200, amending P141) |
 | Reuse of the existing helpers | `browserApi`/`serverApi`, `loaded`, `getMe`, `getSpaces`: every container. `problemFrom`, `fieldOf`/`useProblemMessage`: Tasks 4–8. `formatMoney` and the period helpers (`addDays`, `nowIn`, `serverNow`, `periodName` moved in Task 2): every screen. `Sheet`/`Button`/`TextField`: Tasks 4–8. `fakeApi`/`renderWithIntl`/`axeViolations`: every test. The category tree helpers and `CategoryIcon`: Task 8. `parseDecimal`/`minorOf`: Tasks 6–8 |
@@ -6102,6 +8744,9 @@ git commit -m "ci(web): budget every plan and dashboard route, and document M6c 
 | 5. Roles and closed plans | Task 4 (`canManage`, `capacityEditable`, the VIEWER, MEMBER and CLOSED tests); Task 5 (no actions for a MEMBER); Task 6 (MEMBER rows); Task 7 (the read-only editor) |
 | 6. Charts that cost every route or hide their data | Task 14a (rules, fixtures, lazy wrapper); Tasks 14b and 15; Task 17b; Task 18 (budgets) |
 | 7. Drill-down that drifts from the response | Task 11 (one request, levels, `noSubcategory`, archived, breadcrumb); Task 13 |
+| 8. A warning that slows, blocks or disagrees | Task 1b (`lineStateOf`); Task 3b; Task 3c (boundaries, one request, no "%"); Task 17c |
+| 9. Carry-over that is invented, hidden or breaks capacity | Task 1e (the closed gate, `carryOverFrom`); Task 8b (capacity pin, carry texts); Task 17c |
+| 10. A projection that counts someone else's money, counts twice or drifts in time | Tasks 1c and 1d (own accounts, pending once, the Bogotá day, the one-off expense); Task 15b |
 
 ### Rulings
 
@@ -6175,6 +8820,128 @@ git commit -m "ci(web): budget every plan and dashboard route, and document M6c 
 25. **Shared period pieces** (Task 2). **Ruled by the planner (P224):** `periodName` moves from `ledger/ui/home` to `src/shared/ui/time/period-name.ts`. `usePeriodText` and `PeriodSwitcher` join `src/shared/ui`. Three modules now name periods, and a module UI may not reach into another's non-index files.
 26. **New interface icons** (Task 2). **Ruled by the planner (P225):** `chart` (the Plan tab), `pencil` (edit), `arrowUp` and `arrowDown` (gaps and changes), with the Batch 2 artboards' own paths.
 27. **Unbudgeted on the line dashboard** (Task 3). **Ruled by the planner (P226):** the Unbudgeted row shows planned `$ 0` (it plans nothing by definition, HU-E6-04) and carries no "Overspent" badge: the badge marks lines that went over their plan, while Unbudgeted's `overspent` only says something was spent there. Its negative available amount is shown in the owe color like any other.
+28. **The three additions and their order** (Tasks 1b, 1c, 1d, 1e, 3b, 3c, 8b, 15b, 17c). **Ruled by the planner (P227), under Log L2:**
+    - #142, #143 and #150 join M6c as nine tasks;
+    - the backend comes first, test-first, right after Task 1: 1b (`categoryLines`, the lines' states), 1c (the ledger's scheduled movements), 1d (`/me/cash-flow`) and 1e (carry only from a closed plan);
+    - each UI task sits after the tasks it depends on:
+      - 3b (the dashboard's states) after Task 3;
+      - 3c (the record form's warning) after Task 3b and the M6b addendum's A4 and A7;
+      - 8b after Task 8;
+      - 15b after Task 15;
+    - 17c follows 17b with the scenarios, the layout spec and the axe scans;
+    - Task 18 budgets the calendar's route.
+
+    A lettered label is a place in the order, not a split pass of the task before it. Reasons: Task 1 already set the pattern of a small additive API task first, and no addition blocks a story task. Rejected: a separate milestone (the owner asked for M6c), and amending the story tasks in place (their reviews would mix two scopes).
+29. **Rollover is HU-E6-09's, unchanged** (Task 8b). **Ruled by the planner (P228):**
+    - #143's per-line option already exists as `rolloverMode` (ruling P15): RESET carries nothing; ROLLOVER carries the previous available amount floored at 0; ADJUSTED carries only an overspend.
+    - So an overspent line carries a negative amount only under ADJUSTED. Under ROLLOVER an overspend carries 0, as the backlog's table pins ("ROLLOVER | 1,600,000 COP | −130,000 COP | 1,470,000 COP").
+    - M6c adds no mode. Task 1e narrows where a carry may come from (ruling P243).
+
+    Reasons: the issue's "carry what is left" is ROLLOVER, and its open question was answered when HU-E6-09 was built. Rejected: a fourth mode carrying both signs (ADJUSTED plus ROLLOVER). No story asks for it, and it would let one bad month drain every later one.
+30. **Carry-over and capacity** (Task 8b). **Ruled by the planner (P229):** `carryOver` is never part of `planned`. "Σ planned ≤ total capacity" (spec 5.2, HU-E6-02) counts the lines' planned amounts only, so a carry can never break it. A carry is money set aside in an earlier period, not this period's income. A backend test pins it (Home plans all 4,000,000 COP while it carries 200,000), and the line editor's ROLLOVER hint says so.
+31. **Carry-over through copies, derived on read** (Task 8b). **Ruled by the planner (P230):**
+    - A copy keeps each line's mode and links it to its source by `originLineId` (HU-E6-06).
+    - The carried amount is derived on read from the origin line's available amount and is never stored (D7). Only a CLOSED source carries (ruling P243). A late expense in a closed period is refused (ruling P25), so a carry no longer moves once it shows.
+    - A plan created without copying, or after a period with no plan, carries 0 (HU-E6-09's "No previous plan").
+    - The editor says that a carry passes through a copy of a closed plan (`budgeting.rollover.throughCopy`).
+32. **Carry-over on screen** (Task 8b). **Ruled by the planner (P231):**
+    - The line dashboard's row, the planner's line and the line editor's figures show the carry with its source, through one `CarryText`. A closed source reads "+$ 170.000 de septiembre 2026" (`formatSignedMoney`, the period named as the frame names it); an open one reads "Se arrastra de octubre 2026 cuando ese plan se cierre."
+    - `available` is rendered as answered, since it already includes the carry.
+    - A line's bar measures spent against planned + carry-over. That is presentation, not a figure, which P202 allows.
+    - Each mode has a hint under the editor's choice, described by it.
+
+    Rejected: a fourth table column "Del período anterior". It would push the Lines table past 320 px and show zeros on most rows.
+33. **Sinking funds for yearly bills** (Task 8b). **Ruled by the planner (P232):** a sinking fund is a ROLLOVER line whose planned amount is the monthly saving toward the bill, such as SOAT, predial or insurance. Its balance rolls forward until the bill's expense consumes it. The editor's ROLLOVER hint names that use. M6c adds no target amount, no due date and no "on track" figure (follow-up 13). Paying the bill exactly empties the line, so #142's check asks once there (P235); that costs one tap.
+34. **Where #142's check runs** (Task 3c). **Ruled by the planner (P233):**
+    - The check runs in the browser, from the line dashboard of the period holding today. The record form's container reads that dashboard on the server, beside the form's other data.
+    - It is not an advisory `warnings` entry in the expense's answer. A warning there arrives after the save, and the issue asks to confirm before it.
+    - Saving therefore sends the one request it sends today, which keeps the common case as fast as it is ("The confirm step must not slow the common case").
+
+    Rejected:
+    - a preview endpoint called on Save (a round trip on every save);
+    - a debounced preview call while typing (requests per keystroke, and a race with Save).
+35. **The line of each category comes from the API** (Task 1b). **Ruled by the planner (P234):** `GET …/reports/lines` answers `categoryLines` for every live category: a category's mapped line, a subcategory's parent's line (HU-E3-04), else the catch-all line, else null for Unbudgeted. It is computed by budgeting's own `lineForCategory` and `rolledUpCategory`, so the browser never re-implements the mapping rule. A SAVINGS line consumes transfers and is never checked.
+36. **Thresholds and the line's budget** (Task 3c). **Ruled by the planner (P235):**
+    - The line's budget is planned + carry-over (HU-E6-09). After the expense, available − amount is left, and the share used is (budget − left) ÷ budget, rounded down to two decimals.
+    - The level is the shared kernel's `lineStateOf` applied to what would be left: the API's own rule (ruling P244), so the form and the dashboard cannot disagree.
+    - OVER when less than 0 would be left: it asks first and states the overage as an amount, "te pasarías por $ 42.300" (the comment's "Te pasaste por $ 42.300" in the conditional, since nothing is saved yet). It writes no percentage.
+    - HIGH when more than 90 % would be used (exactly 100 % included): it asks first and says what would be left.
+    - NEAR from 80 % through 90 %: a note in the neutral tone that never asks (the comment's early warning, "not yet red").
+    - Nothing below 80 %.
+
+    Arithmetic is integer, in minor units. This is the second labelled preview after P211: the server's dashboard has the last word, and the dashboards still never compute a figure (P201).
+37. **When the check applies** (Task 3c). **Ruled by the planner (P236):** the check applies only when every condition holds:
+    - the kind is EXPENSE;
+    - the expense is recorded in the form's own space, so not a split with someone and not an edit (A7's `edit`);
+    - the period has an ACTIVE plan, not a DRAFT still being built or a CLOSED period;
+    - the chosen date falls inside the loaded period;
+    - the category feeds a non-SAVINGS line;
+    - the amount is above 0.
+
+    Today is the profile zone's today, read once when the form loads. A failed read means no check, never an error. Every save stays possible.
+38. **One feedback channel** (Task 3c). **Ruled by the planner (P237):**
+    - The warning is part of the form: a note the Save button names with `aria-describedby`, and a confirmation panel whose heading takes focus. It is neither a toast nor a new live region.
+    - "Guardar de todos modos" saves; "Revisar el monto" closes the panel and returns focus to the amount.
+    - A change of amount, category or date asks again.
+    - After the save, the feedback is the M6b addendum's one toast (P195, P196), or P170's saved-with-warning notice, unchanged.
+39. **The cash flow's data** (Tasks 1c, 1d). **Ruled by the planner (P238):**
+    - `GET /api/v1/me/cash-flow?days=30|60`, 30 by default; any other value answers 422 `ValidationFailed`.
+    - The data is the ledger's own: each ACTIVE recurrence's schedule dates from its `dueFrom` through the window's last day, and every PENDING occurrence. It comes through the ledger's `listScheduledMovements`, an application port the composition root binds into reporting.
+    - It covers every space the caller is a current member of, archived spaces left out. Nothing new is stored.
+    - The window runs from today, in the caller's zone, through today + days − 1.
+
+    Rejected: a per-space calendar (a person's money crosses spaces), and a new table of projected rows (D7).
+40. **Which movements are the caller's** (Tasks 1c, 1d). **Ruled by the planner (P239):** a movement is the caller's when it debits or credits an account they own:
+    - an expense's paying account;
+    - an income's receiving account;
+    - a transfer's source and destination;
+    - a contribution's source.
+
+    A bill the fund pays, a guest's contribution from outside the app and another member's bill are left out. The plan's expected fund contributions have no date, so they are left out too (follow-up 14). "Planned transfers to funds" are the FUND_CONTRIBUTION recurrences.
+41. **The projection rule** (Task 1d). **Ruled by the planner (P240):**
+    - The opening is today's available money of the personal space (HU-E2-07's `totals.available`).
+    - A movement's effect is +amount into a counted account (active, and counted in available money as `totalsOf` counts it) and −amount out of one. It is 0 between two counted accounts or two uncounted ones, and is still listed.
+    - A movement due before today (a PENDING occurrence, a date the scheduler has not reached) is placed on today, and a day's PENDING ones come first.
+    - Each date answers its balance after all its movements. The totals are incoming, outgoing and closing (opening + incoming − outgoing), plus the lowest balance with its first date.
+    - CONFIRM amounts are flagged as estimates.
+    - A movement in another currency is left out and its space named once (ruling P37's rule).
+42. **The calendar screen** (Task 15b). **Ruled by the planner (P241):**
+    - It is a view of the personal space's Plan tab, Próximos, after My spending, at `…/plan/calendar?days=30|60`. A shared space has none (404).
+    - The window is two links, as the trend's 6/12 are (P219), and the tab links from it carry no period.
+    - Dates are numeric in the person's format (D23). PENDING and estimated movements carry badges, and a zero effect reads "No cambia tu disponible".
+    - It has an empty state and the other-currency notice.
+    - It is a Server Component with no client island and no chart.
+43. **Budgets and coverage of the additions** (Tasks 3b, 3c, 15b, 17c, 18). **Ruled by the planner (P242), amending P221:**
+    - P221's twelve routes become thirteen: `/spaces/:id/plan/calendar` at 190 KiB, the server-rendered dashboards' figure.
+    - The record routes keep 205 and 215 KiB with the line warning. A miss moves the confirmation panel behind `next/dynamic`, and the budget is never raised.
+    - Every new screen and state joins `layout.spec.ts` and the light and dark axe scans (Task 17c): the state badges, the carry-over rows (carried and waiting), the calendar at both windows, and the record form's note and confirmation.
+44. **Carry only from a closed plan, and name it** (Tasks 1e, 8b). **Ruled by the planner (P243), amending P15, from a hands-on test of the competitor on 2026-10-21:**
+    - The pitfall: turning rollover on for a budget with no history credited a whole month ("$1,500 + $1,500 rolled over").
+    - A line carries only from the CLOSED plan it was copied from, and only from its origin line there. That is the line it was copied from, so a line the source never had carries nothing.
+    - Before the source closes, the line carries 0 and says which plan it waits for. An unused open plan therefore never credits its whole planned amount.
+    - A chain of copies walks on only through CLOSED plans.
+    - Both line DTOs answer `carryOverFrom: { planId, period, closed } | null`, null for RESET or a line without an origin in the source. Every screen names the source.
+
+    This changes the meaning of `carryOver` for a copy of an open plan. That is Risk item 3, so Task 1e commits alone and gets an independent verifier. Rejected: carrying from an ACTIVE plan with a "provisional" flag. The figure would still move under the person's feet, which is the pitfall.
+45. **A line's state, in words** (Tasks 1b, 3b, 3c). **Ruled by the planner (P244), from the same test:**
+    - The pitfall: the competitor showed "5125% spent, $41,000 of $800" with no warning state.
+    - The line dashboard answers each line's `state`: OK; NEAR from 80 % used, a neutral badge "Cerca del límite"; HIGH above 90 %, an owe badge "Al límite"; OVER, the "Excedida" badge plus "Te pasaste por {amount}" from the answered `overBy`.
+    - The rule is `lineStateOf` in `src/shared/kernel/line-state.ts`, over planned + carry-over, and the record form's preview uses the same function.
+    - A SAVINGS line is always OK, and Unbudgeted has no state (P226).
+    - No M6c screen writes a share of a line above 100 %: the dashboards write none, bars cap at 100 % (P202), and the warning's OVER states an amount.
+46. **Only known items are projected** (Tasks 1d, 15b). **Ruled by the planner (P245), from the same test:**
+    - The pitfall: the competitor's forecast spread one day of spending over the whole month.
+    - The calendar projects only known future items: the schedule dates of active recurrences, PENDING occurrences, and fund contributions that recur. A one-off expense moves today's opening and adds no future date (pinned in Task 1d's acceptance test and Task 17c's scenario).
+    - M6c has no pace-based estimate. A later one needs at least three CLOSED periods of history and takes their median, so one spike cannot set the pace. Until then it shows "Aún no hay datos suficientes" / "Not enough data yet" (follow-up 16).
+47. **Local dates end to end** (Tasks 1c, 1d, 15b). **Ruled by the planner (P246), from the same test:**
+    - The pitfall: a reminder entered as 2027-03-15 showed as 14/03, a time-zone bug.
+    - Every calendar date is a `LocalDate` in the space's calendar: schedule dates and due dates as the ledger stores them.
+    - "Today" is the caller's local date (`todayIn` with their zone). The UI formats the `YYYY-MM-DD` text without a `Date`, so no instant and no browser zone ever moves an item.
+    - Pinned at the end and the start of a Bogotá day (`2026-10-29T04:59:59Z` is still 2026-10-28; `05:00:00Z` is 2026-10-29) and with "2027-03-15" shown as 15/3/2027.
+48. **No bulk money action without a summary** (Task 15b). **Ruled by the planner (P247), from the same test:**
+    - The pitfall: the competitor's "Settle" recorded every open balance at once, with no confirmation.
+    - No M6c flow records money in bulk. The calendar has no action at all, and a test pins that it renders no button and no form. Pending occurrences are still confirmed one by one where they are today (HU-E4-13).
+    - Any later bulk flow, such as "confirm every pending occurrence" or "settle every balance", first shows a summary of what it will record (count, each amount, the total) and asks for confirmation.
 
 ### Design deviations (the stories win; for the owner's review of Batch 2)
 
@@ -6207,6 +8974,13 @@ git commit -m "ci(web): budget every plan and dashboard route, and document M6c 
 14. **NoPlan artboard.** The "Solo Propietario y Administrador ven estas acciones" note becomes a note for those who do not see them ("Solo Propietario y Administrador pueden crear el plan.").
 15. **Bottom bar.** The artboards' order is Inicio, Movimientos, Registrar, Plan, Saldos. M6c places Plan after Movimientos and Registrar, before Saldos, so the result depends on the order M6b gave the first three slots.
 16. **DashDesktop artboard.** The panels appear on the Plan tab's own page at desktop width. They are not a separate desktop screen (P216).
+17. **The additions have no artboard.** #142, #143 and #150 reuse existing artboards' parts:
+    - the Lines artboard's badges and rows (the states and the carry-over line);
+    - the LineEditor artboard's segmented choice with a hint (the rollover modes);
+    - the PersonalTrend artboard's window links (30 / 60 días);
+    - the QuickAdd form's full-width button row (the confirmation panel).
+
+    The owner's review of Batch 2 covers them too.
 
 ### Risks
 
@@ -6220,6 +8994,11 @@ git commit -m "ci(web): budget every plan and dashboard route, and document M6c 
 8. If the kernel's `Money.allocate` changes, the preview drifts; Task 8's test fails first.
 9. The e2e server's fixed "today" (2026-10-31 in Bogotá, P133) is before November. The scenarios open the period by its label, and the planner's Close stays disabled there, which no scenario needs.
 10. `react-is` must move with React. A React bump must bump it in the same change (follow-up 7).
+11. Task 1e changes what `carryOver` answers for a copy of an open plan: 0 until that plan closes. A client that read the old figure sees a different number. It is Risk item 3: the task commits alone, its verifier probes the HU-E6-09 outline both ways, and the PR notes name it.
+12. Task 3c depends on the M6b addendum's A4 and A7, which edit `record-form.tsx`. If they slip, 3c waits; nothing else depends on it.
+13. The record routes carry the line warning within 205 and 215 KiB. If either misses, the confirmation panel moves behind `next/dynamic` (P242); the budget is never raised.
+14. The line watch is read for today in the profile's zone. A person whose browser zone differs near midnight may see no warning for a date in the next period. Every save stays possible (P236).
+15. The calendar reads every space's recurrences per request, O(spaces × recurrences). Households have few; #128's caching is the fix if it slows the personal Plan tab.
 
 ### Follow-ups
 
@@ -6233,6 +9012,12 @@ git commit -m "ci(web): budget every plan and dashboard route, and document M6c 
 8. The owner's review of Batch 2, with design deviations 1–16 above.
 9. Move HU-E9-08, HU-E9-10 and HU-E9-11 to `Done` in `docs/backlog/README.md` and update their issue bodies (Task 18's amended notes) when the pull request merges.
 10. An activation problem that also carries each invalid line's sum, for a message like the Planner artboard's.
+11. A line warning on an edit (A7) and on a split with someone, against the direct space's plan (P236).
+12. The line states on the planner and the member matrix, and in the unified view's lines (P244).
+13. A sinking-fund helper: a yearly amount and a due date on a ROLLOVER line, with an "on track" figure (#143's comment, P232).
+14. A cash-flow calendar for a shared space that projects its fund, and the plan's expected fund contributions as dated movements (P239).
+15. Recurrence screens (HU-E9-09), linked from the calendar's empty state and its pending badges.
+16. A pace-based forecast. It needs at least three CLOSED periods of history and takes their median. Until then it says "Aún no hay datos suficientes" (P245).
 
 ### Placeholder and consistency scan
 
@@ -6258,11 +9043,25 @@ git commit -m "ci(web): budget every plan and dashboard route, and document M6c 
   - Task 17a: `SeedClient`, `SeededHousehold`, `seedHousehold`, `householdOf`, `clientOf`, `categoryIdsByKey`, `seedReferencePlan`, `percentShown`.
   - Task 17b: `seedAccounts`, `seedE7Expenses`, `seedE74Movements`.
   - Task 18: `routeUrl`, `seedPlanRoutes`.
+  - Task 1b: `lineStateOf`, `LineState`, `CategoryLine`, `categoryLinesOf`, `categoryLines`, `state`, `overBy`.
+  - Task 1c: `MAX_SCHEDULED`, `datesThrough`, `accountsMovedBy`, `ScheduledMovement`, `ListScheduledMovements`, `createListScheduledMovements`.
+  - Task 1d: `PlannedMovement`, `OwnAccount`, `CashFlowMovement`, `CashFlowDate`, `CashFlowProjection`, `CashFlowInput`, `cashFlow`, `CASH_FLOW_DAYS`, `CashFlowDays`, `CashFlowDeps`, `CashFlowView`, `GetCashFlow`, `createGetCashFlow`, `CashFlowQuerySchema`, `CashFlowSchema`, `cashFlowDto`, `cashFlowOf`, `CashFlowDto` (test support).
+  - Task 1e: `CarrySource`, `carryOverFrom`, `carryOf`, the rollover world's `close`.
+  - Task 3b: `reports.lines.state.*`, `reports.lines.overBy`, `Badge`'s `data-tone`.
+  - Task 3c: `LineWatch`, `lineWatchOf`, `LineLevel`, `LineWarning`, `lineWarningOf`, `asksFirst`, `LineWarningNote`, `LineWarningConfirm`, `loadLineWatch`, `RecordFormProps.lineWatch`.
+  - Task 8b: `barWidth`'s `carryOver`, `CarryText`, `LineDashboard`'s `policy`, `ChoiceGroup`'s `describedBy`.
+  - Task 15b: `CashFlowDto` (dto), `calendarHref`, `PlanView` `"calendar"`, `CashFlowCalendar`, `daysOf`, `loadCashFlow`, `CalendarContainer`, `cashFlowDto` (builder).
+  - Task 17c: `seedRecurrence`, `seedHome`.
 - Environment variables: none new (`E2E_PORT` and `HEARTH_E2E_FIXED_NOW` are M6a's, test-only).
-- Migrations: none. OpenAPI changes: Task 1 only (two additive `totals` objects).
+- Migrations: none. OpenAPI changes:
+  - Task 1: two additive `totals` objects;
+  - Task 1b: `categoryLines`, and each line's `state` and `overBy`, all additive;
+  - Task 1d: the new path `/api/v1/me/cash-flow`;
+  - Task 1e: `carryOverFrom` on both line DTOs, plus the changed meaning of `carryOver` for a copy of an open plan (P243, Risk item 3).
 - New dependencies: exactly `recharts` 3.10.1 and `react-is` 19.3.0 (Task 14a); `pnpm check:pinned` passes after it.
-- Rulings: P200–P226, 27 entries, numbered 1–27 above.
+- Rulings: P200–P247, 48 entries, numbered 1–48 above. P227–P247 are the additions; no number is reused.
+- Spanish copy: every new key (`ledger.lineWarning.*`, `reports.lines.state.*`, `reports.lines.overBy`, `reports.lines.carryOver`, `reports.lines.carryOverPending`, `budgeting.lineEditor.carryOver`, `budgeting.rollover.hint.*`, `budgeting.rollover.throughCopy`, `reports.view.calendar`, `reports.calendar.*`) has es and en, in neutral *tú* ("te pasarías", "Úsalo", "Si te pasas", "tus cuentas"). The owner's Log L2 quote keeps his own words.
 
 ## Open questions for the owner
 
-None. Every decision was taken under the standing instruction of 2026-10-20 (Log L1) and recorded as a ruling. The design deviations above wait for the owner's review of Batch 2, which the instruction defers to the end ("luego al final organizamos las ideas de cosas pendientes").
+None. Every decision was taken under the standing instruction of 2026-10-20 (Log L1) and recorded as a ruling. So were the additions of Log L2 and the coordinator's evidence of Log L3 (P227–P247). The design deviations above wait for the owner's review of Batch 2, which the instruction defers to the end ("luego al final organizamos las ideas de cosas pendientes").

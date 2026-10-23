@@ -2,3 +2,4 @@
 export { HomeContainer } from "./home/home-container";
 export { RecordFormContainer } from "./record/record-form-container";
 export { TransactionListContainer } from "./transaction-list-container";
+export { EditTransactionContainer } from "./edit/edit-container";

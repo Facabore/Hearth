@@ -1,11 +1,21 @@
 import { screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import type { ReactNode } from "react";
+import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
 import { categoryDto, cop, groupDto, transactionDto } from "../../../../tests/support/ui/dto";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import type { TransactionDto } from "@/shared/ui/api/dto";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { TransactionRow, type RowContext } from "./transaction-row";
+
+// Exposes what the row passes to the link: opening a sheet must not scroll the list to its top.
+vi.mock("next/link", () => ({
+  default: ({ scroll, children, ...props }: { scroll?: boolean; children: ReactNode }) => (
+    <a data-scroll={String(scroll)} {...props}>
+      {children}
+    </a>
+  ),
+}));
 
 const norm = (text: string | null) => (text ?? "").replace(/\s/g, " ");
 
@@ -32,6 +42,7 @@ const context: RowContext = {
     }),
   ],
   accountNames: { "a-bank": "Bancolombia", "a-visa": "Visa" },
+  memberNames: {},
 };
 
 /** The row in its list, as the page renders it. */
@@ -55,6 +66,34 @@ const dinner = transactionDto({
 });
 
 describe("transaction row (HU-E9-03, ruling P140)", () => {
+  it("is a link to its detail when given an href, named by its whole row (ruling P189)", async () => {
+    const { container } = renderWithIntl(
+      <ol>
+        <TransactionRow tx={dinner} context={context} href="/spaces/s-1/transactions?tx=t-dinner" />
+      </ol>,
+    );
+    const link = screen.getByRole("link", { name: /Dinner/ });
+    expect(link).toHaveAttribute("href", "/spaces/s-1/transactions?tx=t-dinner");
+    expect(norm(link.textContent)).toBe("Dinner20:45 · Restaurants · Bancolombia−$ 60.000");
+    expect(link.closest("li")).toBe(screen.getByRole("listitem"));
+    expect(link).toHaveAttribute("data-scroll", "false");
+    expect(link).toHaveClass("min-h-16");
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("has no link without an href, as before", () => {
+    renderRow(dinner);
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("keeps the amount whole and lets the text block shrink and truncate (S2)", () => {
+    renderRow(dinner);
+    const amount = screen.getByText(/60\.000/);
+    expect(amount).toHaveClass("shrink-0", "whitespace-nowrap");
+    expect(screen.getByText("Dinner")).toHaveClass("truncate");
+    expect(screen.getByText("Dinner").parentElement).toHaveClass("min-w-0");
+  });
+
   it("reads an expense: the record's wall-clock time, the category, the account and a minus sign", async () => {
     const { container } = renderRow(dinner);
     expect(rowText()).toBe("Dinner20:45 · Restaurants · Bancolombia−$ 60.000");
@@ -123,5 +162,140 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
     renderRow(dinner);
     expect(screen.queryAllByRole("button")).toEqual([]);
     expect(screen.queryAllByRole("link")).toEqual([]);
+  });
+  it("names who paid a shared expense and who paid whom in a settlement (ruling P171)", () => {
+    const shared = {
+      ...context,
+      memberNames: { "m-ana": "Ana", "m-juan": "Juan" },
+      accountNames: { "a-fund": "Fondo Hogar" },
+    };
+    const { unmount } = renderWithIntl(
+      <ol>
+        <TransactionRow
+          tx={transactionDto({
+            type: "EXPENSE",
+            description: "Mercado",
+            payments: [{ memberId: "m-juan", accountId: null, amount: cop(300_000) }],
+          })}
+          context={shared}
+        />
+      </ol>,
+    );
+    expect(screen.getByRole("listitem")).toHaveTextContent("pagó Juan");
+    unmount();
+    const fundPaid = renderWithIntl(
+      <ol>
+        <TransactionRow
+          tx={transactionDto({
+            type: "EXPENSE",
+            payments: [{ memberId: null, accountId: "a-fund", amount: cop(1) }],
+          })}
+          context={shared}
+        />
+      </ol>,
+    );
+    expect(screen.getByRole("listitem")).toHaveTextContent("pagó Fondo Hogar");
+    fundPaid.unmount();
+    renderWithIntl(
+      <ol>
+        <TransactionRow
+          tx={transactionDto({
+            type: "SETTLEMENT",
+            description: "",
+            payerMemberId: "m-juan",
+            receivingMemberId: "m-ana",
+            amount: cop(100_000),
+          })}
+          context={shared}
+        />
+      </ol>,
+    );
+    expect(screen.getByRole("listitem")).toHaveTextContent("Pago entre miembros");
+    expect(screen.getByRole("listitem")).toHaveTextContent("Juan → Ana");
+  });
+
+  it("names the paying account once, and no payer, in a personal space's row", () => {
+    renderWithIntl(
+      <ol>
+        <TransactionRow
+          tx={transactionDto({
+            type: "EXPENSE",
+            description: "Mercado",
+            payments: [{ memberId: "m-ana", accountId: "a-bank", amount: cop(300_000) }],
+          })}
+          context={{ ...context, memberNames: {}, accountNames: { "a-bank": "Bancolombia" } }}
+        />
+      </ol>,
+    );
+    expect(screen.getByRole("listitem")).toHaveTextContent("Bancolombia");
+    expect(screen.getByRole("listitem")).not.toHaveTextContent("pagó");
+  });
+
+  it("names the payer of a shared expense instead of repeating the account, and a guest's payment too", () => {
+    const shared = { ...context, memberNames: { "m-ana": "Ana", "m-pedro": "Pedro" } };
+    renderWithIntl(
+      <ol>
+        <TransactionRow
+          tx={transactionDto({
+            type: "EXPENSE",
+            payments: [{ memberId: "m-ana", accountId: "a-bank", amount: cop(300_000) }],
+          })}
+          context={{ ...shared, accountNames: { "a-bank": "Bancolombia" } }}
+        />
+        <TransactionRow
+          tx={transactionDto({
+            id: "t-2",
+            type: "EXPENSE",
+            payments: [{ memberId: "m-pedro", accountId: null, amount: cop(1) }],
+          })}
+          context={shared}
+        />
+      </ol>,
+    );
+    const [mine, guest] = screen.getAllByRole("listitem");
+    expect(mine).toHaveTextContent("pagó Ana");
+    expect(mine).not.toHaveTextContent("Bancolombia");
+    expect(guest).toHaveTextContent("pagó Pedro");
+  });
+
+  it("falls back to the paying account when the payer is no longer a member", () => {
+    renderWithIntl(
+      <ol>
+        <TransactionRow
+          tx={transactionDto({
+            type: "EXPENSE",
+            payments: [{ memberId: "m-gone", accountId: "a-bank", amount: cop(300_000) }],
+          })}
+          context={{ ...context, memberNames: { "m-ana": "Ana" }, accountNames: { "a-bank": "Bancolombia" } }}
+        />
+      </ol>,
+    );
+    expect(screen.getByRole("listitem")).toHaveTextContent("Bancolombia");
+    expect(screen.getByRole("listitem")).not.toHaveTextContent("pagó");
+  });
+  it("gives the payer its own line, never cut before the time or the category (390 px review, S1)", () => {
+    const shared = { ...context, memberNames: { "m-pedro": "Pedro (invitado)" } };
+    renderWithIntl(
+      <ol>
+        <TransactionRow
+          tx={transactionDto({
+            type: "EXPENSE",
+            description: "Mercado",
+            categoryId: "c-dining",
+            occurredAt: "2026-10-13T01:45:00.000Z",
+            timeZone: "America/Bogota",
+            payments: [{ memberId: "m-pedro", accountId: null, amount: cop(1) }],
+          })}
+          context={shared}
+        />
+      </ol>,
+    );
+    const payer = screen.getByText("pagó Pedro (invitado)");
+    // Its own element: neither inside the truncated detail line nor truncated itself, so a long name wraps.
+    expect(payer.closest(".truncate")).toBeNull();
+    expect(payer).toHaveClass("break-words");
+    const detail = screen.getByText(/20:45 · Restaurants/);
+    expect(detail).toHaveClass("truncate");
+    expect(detail).not.toHaveTextContent("pagó");
   });
 });

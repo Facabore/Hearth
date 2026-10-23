@@ -16,6 +16,22 @@ export const periodsEndingWith = (
   return periods;
 };
 
+/**
+ * HU-E7-05 (ruling of #132): a window may hold two periods with one label, a stored period that runs past its month
+ * (Oct 5 to Nov 4, labelled 2026-10) and the derived stub before it (Oct 1 to 4, also 2026-10, HU-E1-03). The stored
+ * period, else the earliest, keeps the label, which names it in every other report; each other period sharing it is
+ * written `<label> (<start>..<end>)`, so the labels of a window are unique, as the points aligned with it.
+ */
+export const distinctLabels = (periods: readonly Period[], stored: readonly StoredPeriod[]): Period[] => {
+  const isStored = (p: Period): boolean => stored.some((s) => s.start === p.start && s.end === p.end);
+  return periods.map((p, i) => {
+    const sharing = periods.flatMap((q, j) => (q.label === p.label ? [j] : []));
+    if (sharing.length === 1) return p;
+    const keeper = sharing.find((j) => isStored(periods[j]!)) ?? sharing[0];
+    return i === keeper ? p : { ...p, label: `${p.label} (${p.start}..${p.end})` };
+  });
+};
+
 /** HU-E7-05: how a figure moved from the previous period. */
 export const CHANGE_STATUSES = ["NEW", "INCREASED", "DECREASED", "UNCHANGED"] as const;
 export type ChangeStatus = (typeof CHANGE_STATUSES)[number];

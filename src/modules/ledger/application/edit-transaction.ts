@@ -1,4 +1,4 @@
-import { domainError, err, ok, type LocalDate, type Money, type Result } from "@/shared/kernel";
+import { domainError, err, ok, type Result } from "@/shared/kernel";
 import {
   canModify,
   changedDebits,
@@ -8,17 +8,10 @@ import {
 } from "../domain/transaction";
 import { ensureCurrentParties, openPeriod, usableCategory } from "./checks";
 import type { LedgerDeps } from "./deps";
+import { editedParts, type EditChanges } from "./edited-parts";
 import { editedTime } from "./when";
 
-export interface EditChanges {
-  readonly description?: string;
-  readonly date?: LocalDate;
-  /** HU-E4-14: a new instant; null answers TimeRequired, since a time is replaced, never removed (P66). */
-  readonly occurredAt?: Date | null;
-  readonly timeZone?: string;
-  readonly categoryId?: string;
-  readonly amount?: Money;
-}
+export type { EditChanges } from "./edited-parts";
 
 export interface EditTransactionInput {
   readonly spaceId: string;
@@ -52,6 +45,8 @@ export const createEditTransaction =
   (deps: LedgerDeps): EditTransaction =>
   (input) =>
     deps.tm.run(async () => {
+      // Issue #89: the space row first (see authorizeWriter), before anything the write decides on is read.
+      await deps.spaceLocks.lockForMoneyWrite(input.spaceId);
       const membership = await deps.access(input.spaceId, input.userId);
       if (!membership.ok) return membership;
       const current = await deps.transactions.findById(membership.value.spaceId, input.transactionId);
@@ -62,7 +57,8 @@ export const createEditTransaction =
       if (input.expectedVersion !== null && input.expectedVersion !== current.version) {
         return err(domainError("PreconditionFailed"));
       }
-      const { amount, date, occurredAt, timeZone, ...rest } = input.changes;
+      // Ruling P186: the part fields (accounts, payers) are resolved by `editedParts` below.
+      const { description, categoryId, amount, date, occurredAt, timeZone } = input.changes;
       if (amount && amount.currency.code !== current.currency) {
         return err(
           domainError("CurrencyMismatch", { expected: current.currency, actual: amount.currency.code }),
@@ -74,11 +70,21 @@ export const createEditTransaction =
       // HU-E4-14: a new date keeps the wall-clock time; a new time recomputes the date (ruling P42).
       const time = await editedTime(deps, current, input.userId, { date, occurredAt, timeZone });
       if (!time.ok) return time;
-      // Only the three time fields, so no other field of the answer can override `rest`.
+      // Only the three time fields, so no other field of the answer can override the fields passed below.
       const { date: newDate, occurredAt: newOccurredAt, timeZone: newTimeZone } = time.value;
+      const parts = await editedParts(deps, membership.value, current, input.changes, input.userId);
+      if (!parts.ok) return parts;
       const revised = reviseTransaction(
         current,
-        { ...rest, date: newDate, occurredAt: newOccurredAt, timeZone: newTimeZone, amount: amount?.minor },
+        {
+          description,
+          categoryId,
+          ...parts.value,
+          date: newDate,
+          occurredAt: newOccurredAt,
+          timeZone: newTimeZone,
+          amount: amount?.minor,
+        },
         now,
       );
       if (!revised.ok) return revised;
@@ -86,10 +92,13 @@ export const createEditTransaction =
       if (Object.keys(changes).length === 0) return ok(current);
       const debits = await ownedDebits(deps, changedDebits(current, revised.value), input.userId);
       if (!debits.ok) return debits;
-      // HU-E1-08, HU-E1-12: a new amount must not move the balance of a member who left (Task 4b).
-      if (changes.amount) {
-        const parties = await ensureCurrentParties(deps, membership.value.spaceId, current);
-        if (!parties.ok) return parties;
+      // HU-E1-08, HU-E1-12: a new amount, payer or split must not move the balance of a member who left (Task 4b). Both
+      // versions count: a fund-paid expense has no parties, but a member-paid revision of it would move its shares'.
+      if (changes.amount || changes.payments || changes.shares) {
+        for (const version of [current, revised.value]) {
+          const parties = await ensureCurrentParties(deps, membership.value.spaceId, version);
+          if (!parties.ok) return parties;
+        }
       }
       if (changes.date) {
         // HU-E4-06: moving a transaction into a closed period is rejected too.

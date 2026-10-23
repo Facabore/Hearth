@@ -18,6 +18,19 @@ export interface TreeCategory {
   readonly parentCategoryId: string | null;
 }
 
+/**
+ * HU-E7-06 (#130): one group of a space as it stands now, with or without a live category; a merged personal row is
+ * named by the group of its key in the caller's personal space, even when that group holds none (ruling P76).
+ */
+export interface TreeGroup {
+  readonly spaceId: string;
+  readonly groupId: string;
+  /** The seeded group's catalog key; null for groups users create and those the back-fill left without one. */
+  readonly groupKey: string | null;
+  readonly groupName: string;
+  readonly groupArchived: boolean;
+}
+
 /** Where spending recorded in one category counts: its category, and the subcategory it was recorded in, if any. */
 export interface TreePlace {
   readonly category: TreeCategory;

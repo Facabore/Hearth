@@ -204,6 +204,12 @@ export const accountListDto = (list: AccountList): z.infer<typeof ListAccountsRe
   },
 });
 
+/** Issue 169: the starter accounts one call created; empty when the space already held every starter name. */
+export const StarterAccountsResponseSchema = z.object({ items: z.array(AccountSchema) });
+export const starterAccountsDto = (
+  created: readonly AccountView[],
+): z.infer<typeof StarterAccountsResponseSchema> => ({ items: created.map(accountDto) });
+
 const amountOf = (minor: bigint | null, currency: string) =>
   minor === null ? null : { amount: minor.toString(), currency };
 const rateOf = (ppm: number | null) => (ppm === null ? null : percentText(ppm));
@@ -278,6 +284,27 @@ export const accountsPaths: ZodOpenApiPathsObject = {
             "AccountNameTaken, SharedFundRequiresSharedSpace, PersonalAccountRequiresPersonalSpace, SpaceArchived, AccountAttributeNotAllowed",
           "422":
             "ValidationFailed, InvalidAccountName, UnknownCurrency, CurrencyMismatch, InvalidCreditLimit, InvalidBillingDay, InvalidRate, InvalidTermDeposit, InvalidTerm, InvalidAmount, InvalidDate",
+        }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/accounts/starter": {
+    post: {
+      operationId: "createStarterAccounts",
+      summary:
+        "Create the personal space's starter accounts at zero, in the caller's language, skipping every name the space already holds (archived ones included); a second call creates nothing",
+      ...securedByUser,
+      requestParams: { path: SpacePath },
+      responses: {
+        "200": {
+          description: "The starter accounts this call created; empty when none was missing",
+          content: jsonContent(StarterAccountsResponseSchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound",
+          "409": "PersonalAccountRequiresPersonalSpace, SpaceArchived",
         }),
       },
     },

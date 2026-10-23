@@ -7,6 +7,13 @@ export interface InvitationRepository {
   findForUpdate(spaceId: string, invitationId: string): Promise<Invitation | null>;
   /** The invitation whose token hashes to `tokenHash`, locked until the transaction ends; null when there is none. */
   findByTokenHashForUpdate(tokenHash: string): Promise<Invitation | null>;
+  /** Ruling P156: the same invitation, read without a lock, for a preview that changes nothing. */
+  findByTokenHash(tokenHash: string): Promise<Invitation | null>;
+  /**
+   * HU-E9-05, ruling P155: the space's PENDING email and link invitations that have not expired at `now`, newest
+   * first (created at, then id, descending); claim links are not listed; `[]` for a malformed id.
+   */
+  listPending(spaceId: string, now: Date): Promise<Invitation[]>;
   /** Persists status, acceptedAt, acceptedByUserId and revokedAt. */
   save(invitation: Invitation): Promise<void>;
 }

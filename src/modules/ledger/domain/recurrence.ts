@@ -140,6 +140,35 @@ export const defineRecurrence = (input: NewRecurrence): Result<Recurrence> => {
 export const upcomingDates = (recurrence: Recurrence, count: number): LocalDate[] =>
   recurrence.pausedAt !== null || recurrence.endedAt !== null ? [] : datesLeft(recurrence, count);
 
+/**
+ * Ruling P238 (M6c): the cap of `datesThrough`. A 60-day window holds at most five dates of the densest schedule
+ * (SEMI_MONTHLY); the cap only bounds a scheduler backlog or a far `through`, never a real window.
+ */
+export const MAX_SCHEDULED = 64;
+
+/** The dates it will still record on or before `through`, from the first not considered yet; none while paused or ended. */
+export const datesThrough = (recurrence: Recurrence, through: LocalDate): LocalDate[] => {
+  if (recurrence.pausedAt !== null || recurrence.endedAt !== null) return [];
+  const end = recurrence.endDate !== null && recurrence.endDate < through ? recurrence.endDate : through;
+  return scheduleDates(recurrence.schedule, { from: recurrence.dueFrom, through: end }, MAX_SCHEDULED);
+};
+
+/** Ruling P239 (M6c): the account each occurrence takes money from and the one it puts money into; null where none. */
+export const accountsMovedBy = (
+  template: RecurrenceTemplate,
+): { readonly debitAccountId: string | null; readonly creditAccountId: string | null } => {
+  switch (template.type) {
+    case "EXPENSE":
+      return { debitAccountId: template.payer.accountId, creditAccountId: null };
+    case "INCOME":
+      return { debitAccountId: null, creditAccountId: template.accountId };
+    case "TRANSFER":
+      return { debitAccountId: template.sourceAccountId, creditAccountId: template.destinationAccountId };
+    case "FUND_CONTRIBUTION":
+      return { debitAccountId: template.sourceAccountId, creditAccountId: template.fundAccountId };
+  }
+};
+
 /** ENDED once ended or once no schedule date is left up to its end date, PAUSED while paused, ACTIVE otherwise. */
 export const statusOf = (recurrence: Recurrence): RecurrenceStatus => {
   if (recurrence.endedAt !== null) return "ENDED";
@@ -199,8 +228,8 @@ const rescheduledFrom = (current: Recurrence, schedule: Schedule, edit: EditCont
 /**
  * HU-E4-11: an edit applies to every occurrence not recorded yet, an overdue date no run has considered included;
  * recorded ones are snapshots (ruling P24). A schedule change is the exception: it is due from `rescheduledFrom`. An
- * ENDED recurrence takes no edit, whether it was ended or ran out of dates: extending it would back-fill the days it
- * was over, so a finished recurrence is continued by defining a new one.
+ * ENDED recurrence takes no edit, whether it was ended or ran out of dates: an edit would back-fill the days it was
+ * over, so a finished recurrence goes on through `extendedRecurrence` instead (#115).
  */
 export const revisedRecurrence = (
   current: Recurrence,
@@ -274,6 +303,38 @@ export const resumedRecurrence = (
 export const endedRecurrence = (recurrence: Recurrence, now: Date): Result<Recurrence> => {
   const status = statusOf(recurrence);
   return status === "ENDED" ? refused(status, "ENDED") : ok({ ...recurrence, endedAt: now, updatedAt: now });
+};
+
+/**
+ * #115: an ENDED recurrence, whether it was ended or ran out of dates, goes on as the same recurrence, with a new end
+ * date or none. It is due from `today` at the earliest, so the dates it missed while it was ended are never
+ * back-filled (ruling P24), and, as a resume does, `dueFrom` never moves backwards. It is ACTIVE again whatever it was
+ * before it ended: a pause it was ended in is over. Only an ENDED recurrence is extended (`InvalidRecurrenceTransition`
+ * otherwise, as for any move), and the new end date must leave a schedule date from `dueFrom` (`InvalidRecurrence`):
+ * extending never leaves it ENDED.
+ */
+export const extendedRecurrence = (
+  recurrence: Recurrence,
+  endDate: LocalDate | null,
+  now: Date,
+  today: LocalDate,
+): Result<Recurrence> => {
+  const status = statusOf(recurrence);
+  if (status !== "ENDED") return refused(status, "ACTIVE");
+  const dates = endsOnOrAfter(recurrence.startDate, endDate);
+  if (!dates.ok) return dates;
+  const extended: Recurrence = {
+    ...recurrence,
+    endDate,
+    dueFrom: recurrence.dueFrom > today ? recurrence.dueFrom : today,
+    pausedAt: null,
+    pauseReason: null,
+    endedAt: null,
+    updatedAt: now,
+  };
+  return datesLeft(extended, 1).length === 0
+    ? err(domainError("InvalidRecurrence", { reason: "noOccurrence" }))
+    : ok(extended);
 };
 
 /** D9 (ruling P22): whether its occurrences debit a member's own account, so only that member changes how much. */

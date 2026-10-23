@@ -5,11 +5,12 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { chromium } from "@playwright/test";
 import lighthouse from "lighthouse";
+import { seedPlanRoutes } from "./seed-plan.mjs";
 
 // The mjs lint block declares only process, console, Buffer and URL as globals.
 const { fetch } = globalThis;
-const BASE = "http://127.0.0.1:3100";
-const RUNS = 3;
+const BASE = `http://127.0.0.1:${process.env.E2E_PORT ?? "3100"}`;
+const RUNS = 5;
 const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
 
 /** Ruling P134: every route and metric over its budget; a route without a budget fails rather than passes. */
@@ -25,6 +26,19 @@ export const budgetFailures = (results, budgets) =>
       scriptKb > limit && `${route}: script ${scriptKb} KiB > ${limit} KiB`,
     ].filter(Boolean);
   });
+
+/** Ruling P177: the path a budget's route measures, its `:name` segments filled from the seeded ids. */
+export const routeUrl = (route, ids) =>
+  route.replace(/:(\w+)/g, (_, name) => {
+    if (!(name in ids)) throw new Error(`No id for :${name} in ${route}`);
+    return ids[name];
+  });
+
+/** The pages a visitor opens: measured without the session cookie. */
+export const isVisitorRoute = (route) => /^\/(sign-in|sign-up|invitations|claims)(\/|$)/.test(route);
+
+/** The Chromium debug port of a run: 9223 for the default server port, shifted with it so parallel runs never meet. */
+export const debugPortFor = (e2ePort) => 9223 + (Number(e2ePort ?? 3100) - 3100);
 
 /** The medians of one route over RUNS Lighthouse runs (mobile defaults: simulated slow 4G, 4× CPU). */
 const measure = async (port, url, cookie) => {
@@ -84,15 +98,23 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       .getSetCookie()
       .map((c) => c.split(";")[0])
       .join("; ");
-    const api = async (method, path, body) => {
+    // Plan writes carry `If-Match: "<version>"` of the last answer (ruling P206).
+    const call = async (who, method, path, body, ifMatch) => {
       const response = await fetch(`${BASE}${path}`, {
         method,
-        headers: { ...headers, cookie, "idempotency-key": randomUUID() },
+        headers: {
+          ...who.headers,
+          cookie: who.cookie,
+          "idempotency-key": randomUUID(),
+          ...(ifMatch === undefined ? {} : { "if-match": `"${ifMatch}"` }),
+        },
         body: body && JSON.stringify(body),
       });
-      if (!response.ok) throw new Error(`${method} ${path} answered ${response.status}`);
+      if (!response.ok)
+        throw new Error(`${method} ${path} answered ${response.status}: ${await response.text()}`);
       return response.json();
     };
+    const api = (method, path, body, ifMatch) => call({ headers, cookie }, method, path, body, ifMatch);
     const {
       items: [space],
     } = await api("GET", "/api/v1/spaces");
@@ -103,8 +125,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     });
     const { items: groups } = await api("GET", `/api/v1/spaces/${space.id}/categories`);
     const categoryId = groups.flatMap((g) => g.categories)[0].id;
-    for (let i = 0; i < 20; i += 1)
-      await api("POST", `/api/v1/spaces/${space.id}/expenses`, {
+    // The first expense's id is the `:tx` of the edit route (ruling P198).
+    let tx;
+    for (let i = 0; i < 20; i += 1) {
+      const recorded = await api("POST", `/api/v1/spaces/${space.id}/expenses`, {
         description: `Item ${i}`,
         date: "2026-10-31",
         occurredAt: new Date(Date.UTC(2026, 9, 31, 13, i)).toISOString(),
@@ -113,13 +137,66 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         amount: { amount: "1500000", currency: "COP" },
         accountId: account.id,
       });
-    const browser = await chromium.launch({ args: ["--remote-debugging-port=9223"] });
+      tx ??= recorded.id;
+    }
+    // Ruling P177: a household with a second member, a guest with a claim link, a pending invitation (the visitor's
+    // page) and one shared expense, so the household screens render what a household sees.
+    const tokenOf = ({ url }) => new URL(url, BASE).pathname.split("/").at(-1);
+    const household = await api("POST", "/api/v1/spaces", {
+      kind: "SHARED",
+      name: "Household",
+      currency: "COP",
+    });
+    const shared = household.id;
+    const second = { headers: { ...headers, "x-forwarded-for": "10.250.0.2" } };
+    const secondSignUp = await fetch(`${BASE}/api/v1/auth/sign-up`, {
+      method: "POST",
+      headers: second.headers,
+      body: JSON.stringify({
+        name: "Juan",
+        email: `perf-juan-${Date.now()}@example.com`,
+        password: "123456789012",
+        timezone: "America/Bogota",
+      }),
+    });
+    second.cookie = secondSignUp.headers
+      .getSetCookie()
+      .map((c) => c.split(";")[0])
+      .join("; ");
+    const joinLink = await api("POST", `/api/v1/spaces/${shared}/invitations`, {
+      kind: "LINK",
+      role: "MEMBER",
+    });
+    await call(second, "POST", `/api/v1/invitations/${tokenOf(joinLink)}/accept`, {});
+    const guest = await api("POST", `/api/v1/spaces/${shared}/guests`, { displayName: "Pedro" });
+    const claim = tokenOf(await api("POST", `/api/v1/spaces/${shared}/guests/${guest.id}/claim-links`));
+    const token = tokenOf(
+      await api("POST", `/api/v1/spaces/${shared}/invitations`, { kind: "LINK", role: "MEMBER" }),
+    );
+    const { items: members } = await api("GET", `/api/v1/spaces/${shared}/members`);
+    const [ana, juan] = ["Perf", "Juan"].map((name) => members.find((m) => m.displayName === name).id);
+    const { items: sharedGroups } = await api("GET", `/api/v1/spaces/${shared}/categories`);
+    await api("POST", `/api/v1/spaces/${shared}/expenses`, {
+      description: "Mercado",
+      date: "2026-10-31",
+      occurredAt: "2026-10-31T17:00:00.000Z",
+      timeZone: "America/Bogota",
+      categoryId: sharedGroups.flatMap((g) => g.categories)[0].id,
+      amount: { amount: "30000000", currency: "COP" },
+      payments: [{ memberId: ana, accountId: account.id, amount: { amount: "30000000", currency: "COP" } }],
+      split: { method: "EQUAL", participants: [{ memberId: ana }, { memberId: juan }] },
+    });
+    // Ruling P221: the household's six-plan chain and the personal space's recurrences (`:plan`, `:line`).
+    const plan = await seedPlanRoutes(api, { personal: space.id, shared, bank: account.id });
+    const ids = { id: space.id, shared, member: juan, token, claim, tx, ...plan };
+    const debugPort = debugPortFor(process.env.E2E_PORT);
+    const browser = await chromium.launch({ args: [`--remote-debugging-port=${debugPort}`] });
     try {
       const routes = Object.keys(budgets.scriptKb);
       const results = [];
       for (const route of routes) {
-        const url = `${BASE}${route.replace(":id", space.id)}`;
-        const result = { route, ...(await measure(9223, url, route.startsWith("/sign") ? null : cookie)) };
+        const url = `${BASE}${routeUrl(route, ids)}`;
+        const result = { route, ...(await measure(debugPort, url, isVisitorRoute(route) ? null : cookie)) };
         console.log(JSON.stringify(result));
         results.push(result);
       }

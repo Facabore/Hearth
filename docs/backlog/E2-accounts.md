@@ -199,7 +199,7 @@ Feature: Account types and common attributes
 - Liabilities (`CREDIT_CARD`, `LOAN`) carry negative balances for the money owed, as the credit card of HU-E2-01 already does; the net worth of HU-E2-07 relies on that sign.
 - Common optional attributes on every type, SHARED_FUND included:
   - `institution`: 1–60 characters, stored as user data. The UI may suggest a Colombian catalog (Bancolombia, Davivienda, BBVA, Banco de Bogotá, Nu, Nequi, Daviplata, Lulo, other).
-  - `lastFour`: exactly 4 digits. A full card or account number and the CVV are never accepted or stored.
+  - `lastFour`: exactly 4 digits. A full card or account number and the CVV are never accepted or stored. The account form offers it, marked optional and limited to four digits, for BANK, CREDIT_CARD and SAVINGS; not for WALLET, which is known by its phone number (#164). The API still accepts it on every type.
   - `color`: one key of the app's palette (`PINE`, `SAGE`, `OLIVE`, `SAND`, `MUSTARD`, `AMBER`, `EMBER`, `CORAL`, `ROSE`, `PLUM`, `LAVENDER`, `INDIGO`, `SKY`, `TEAL`, `STEEL`, `GRAPHITE`), the same sixteen as categories (D22; #125, ruling P122 of the M6a plan).
   - `icon`: an allow-listed Hearth symbol name: `cash`, `bank`, `wallet`, `card`, `piggy`, `trend`, `coins`, `dots`, `users`, `briefcase`, `car`, `star`, `gift`, `home`, `plane`, `phone`. Defaults by type: CASH `cash`, BANK `bank`, WALLET `wallet`, CREDIT_CARD `card`, SAVINGS `piggy`, INVESTMENT `trend`, LOAN `coins`, OTHER `dots`, SHARED_FUND `users`. Migration `0019_account_style_vocabulary` mapped the earlier lower-case keys and Lucide names.
 - The Zod contract rejects pattern and enum failures (`ValidationFailed`); `PATCH` accepts `null` to clear an attribute. Endpoints are unchanged (`POST /api/v1/spaces/{spaceId}/accounts`, `PATCH .../accounts/{accountId}`); the account DTO gains the fields.
@@ -332,3 +332,42 @@ Feature: Available and net worth totals
 - A card payment is a `TRANSFER` from the paying account to the card (HU-E4-03): no category, never spending. The purchase is the expense, on its date and with its category. In a shared space the split applies to the purchase, never to the payment. Interest and fees become new expenses when they are charged (HU-E8-11 estimates them).
 - Delivered (M3-D Task 16): `GET …/accounts` answers `totals: { available, netWorth }` over the active accounts at `asOf`, whatever `archived` lists; `PATCH` with `null` returns a switch to its type's default. No new error code.
 - **Spec impact:** 5.2 **Account** (the two switches and their defaults), 5.2 **Transaction** (`TRANSFER`: a card payment is a transfer), 5.4 (new derived metrics `available` and `netWorth` per space), section 6 (a new decision recording the switches and the card-payment rule).
+
+---
+
+## Issue 169 — Starter accounts at sign-up
+
+- **Priority:** Must · **Size:** M (this part) · **Depends on:** HU-E1-02, HU-E3-01 · **Module(s):** `accounts`
+
+**Owner request (2026-10-22):** "dejemos unas cuentas base para que el simplememte pueda usarlo desde el minuto 1, inicializadas en cero, si quiere organizar el resto de cosas pues lo hará y ya está." and "cuentas con las categorías pertinentes de cada cosa, así como lo hace money manager".
+
+```gherkin
+Feature: Starter accounts
+
+  Scenario: A new person starts with five accounts at zero
+    When "Ana" signs up in Spanish
+    Then her personal space has the accounts "Efectivo" (CASH), "Cuenta bancaria" (BANK), "Billetera digital" (WALLET), "Tarjeta de crédito" (CREDIT_CARD) and "Ahorros" (SAVINGS)
+    And each has opening balance 0 COP, no attributes and its type's default switches
+
+  Scenario: English names for an English sign-up
+    When "Marta" signs up in English
+    Then her accounts are "Cash", "Bank account", "Digital wallet", "Credit card" and "Savings"
+
+  Scenario: Shared and direct spaces get no starter accounts
+    When "Ana" creates the shared space "Household"
+    Then "Household" has no accounts
+
+  Scenario: The empty state offers the starter accounts again
+    Given "Ana" renamed "Efectivo" and archived her other starter accounts
+    When "Ana" chooses "Crear cuentas base" on her Accounts screen
+    Then only "Efectivo" is created, since archived accounts keep their names
+    And choosing it again creates nothing
+```
+
+**Technical notes:**
+- `SeedStarterAccounts` (accounts) opens each starter through the domain's `openAccount`, so names, `AccountNameTaken` (case-insensitive, archived accounts included) and defaults stay those of `CreateAccount`; a name the space already holds is skipped. It inserts with `AccountRepository.addUnlessNameTaken` (`ON CONFLICT DO NOTHING` on `accounts_space_name_uq`), so parallel calls each answer 200 and each starter exists once; `CreateAccount` keeps `add`. The names live in the accounts domain (`STARTER_ACCOUNTS`), like the default categories' catalog; "en…" locales get English, every other locale Spanish.
+- Sign-up: the space-created listener seeds the default categories and then, for a PERSONAL space only, the starter accounts, in the personal space's transaction and the creator's locale; a failure rolls back the space, its categories and its accounts. Existing people get no backfill.
+- Endpoint: `POST /api/v1/spaces/{spaceId}/accounts/starter`, managers of a PERSONAL space only (`InsufficientRole`, `PersonalAccountRequiresPersonalSpace`, `SpaceNotFound`, `SpaceArchived`); answers `200 { items }` with the accounts it created, empty when none was missing.
+- UI: the Accounts screen of a personal space with no active account shows its empty state ("No tienes cuentas activas" when archived ones exist) with "Crear cuentas base".
+- Currency lock (HU-E1-03, coordinator ruling 2026-10-22, option A): the space currency locks once money is recorded: a transaction, a plan, a recurrence, or an account that holds an amount (a non-zero opening balance, a credit limit or a loan principal: `holdsMoney`), archived accounts included. Every recurrence counts, ended ones too: it stores its amount with its own currency, records its occurrences in it, and an ended one can be extended again (#115). Starter accounts at zero record none, so a new person can still change the personal currency. An account has no currency column of its own: it reads its space's, so after a change every starter account reads the new currency with nothing to move.
+- The edit screen and the "Ocultar" wording of issue 169 are a later unit.

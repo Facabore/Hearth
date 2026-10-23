@@ -1,14 +1,11 @@
-import Link from "next/link";
 import { getTranslations } from "next-intl/server";
+import { NotFoundScreen } from "@/shared/ui";
 
-export default async function NotFound() {
-  const [shell, nav] = await Promise.all([getTranslations("shell"), getTranslations("shell.nav")]);
-  return (
-    <div className="mx-auto flex max-w-[420px] flex-col gap-4 px-4 py-8">
-      <h1 className="text-xl font-semibold text-ink">{shell("notFound")}</h1>
-      <Link href="/" className="font-semibold text-accent">
-        {nav("home")}
-      </Link>
-    </div>
-  );
+export async function generateMetadata() {
+  return { title: (await getTranslations("notFound"))("title") };
+}
+
+/** N1: a space or a page the person cannot open, in the same look as the root's. */
+export default function AppNotFound() {
+  return <NotFoundScreen />;
 }

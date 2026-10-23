@@ -7,6 +7,7 @@ import type { Problem } from "@/shared/ui/api/problem";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import { zoneCity, zoneOffset } from "@/shared/ui/format/zones";
 import { LockBadge } from "./lock-badge";
+import { SavedFlash } from "./saved-flash";
 import { TimeZoneSheet } from "./time-zone-sheet";
 
 /** HU-E9-13: the time zone row; the design's currency row is not built (ruling P126). */
@@ -16,18 +17,22 @@ export function RegionSection({
   onChoose,
   onReset,
   problem,
+  saved = false,
 }: {
   readonly timezone: string;
   readonly state: "locked" | "default" | "custom";
   readonly onChoose: (zone: string) => void;
   readonly onReset: () => void;
   readonly problem: Problem | null;
+  /** U5: the zone was just stored. */
+  readonly saved?: boolean;
 }) {
   const t = useTranslations("settings");
   const messageOf = useProblemMessage();
   const [open, setOpen] = useState(false);
   return (
-    <section aria-labelledby="settings-region" className="flex flex-col gap-3">
+    <section aria-labelledby="settings-region" className="relative flex flex-col gap-3">
+      <SavedFlash show={saved} className="top-0" />
       <h2 id="settings-region" className="text-lg font-semibold text-ink">
         {t("region")}
       </h2>
@@ -52,7 +57,7 @@ export function RegionSection({
         ) : state === "default" ? (
           <Badge>{t("default")}</Badge>
         ) : (
-          <Button variant="ghost" className="h-11 px-2 text-sm" onClick={onReset}>
+          <Button variant="ghost" size="compact" onClick={onReset}>
             {t("reset")}
           </Button>
         )}

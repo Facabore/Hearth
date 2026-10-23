@@ -57,17 +57,17 @@ const DEFAULT_ICONS: Readonly<Record<AccountType, AccountIcon>> = {
  * given; each field names where its rule is enforced.
  */
 export interface AccountAttributes {
-  /** 1–60 characters, refused by the HTTP contract (Task 13); the UI may suggest a Colombian catalog. */
+  /** 1–60 characters once trimmed: refused by the HTTP contract (Task 13) and by the domain (issue 124); the UI may suggest a Colombian catalog. */
   readonly institution: string | null;
   /**
    * Exactly four digits, never a full number: refused by the HTTP contract (Task 13) and by the
    * `accounts_last_four` check in PostgreSQL.
    */
   readonly lastFour: string | null;
-  /** One of `ACCOUNT_COLORS`: refused by the HTTP contract (Task 13); PostgreSQL does not check it. */
+  /** One of `ACCOUNT_COLORS`: refused by the HTTP contract (Task 13) and by the domain (issue 124); PostgreSQL does not check it. */
   readonly color: AccountColor | null;
   /**
-   * One of `ACCOUNT_ICONS`: refused by the HTTP contract (Task 13); PostgreSQL does not check it. Null is the
+   * One of `ACCOUNT_ICONS`: refused by the HTTP contract (Task 13) and by the domain (issue 124); PostgreSQL does not check it. Null is the
    * type's default (`iconOf`, ruling P50).
    */
   readonly icon: AccountIcon | null;
@@ -90,16 +90,52 @@ export const NO_ATTRIBUTES: AccountAttributes & { readonly terms: AccountTerms }
 /** Undefined keeps an attribute, null clears it. */
 export type AttributeChanges = { readonly [K in keyof AccountAttributes]?: AccountAttributes[K] };
 
-const withChanges = (current: AccountAttributes, change: AttributeChanges): AccountAttributes => ({
-  institution: change.institution === undefined ? current.institution : change.institution,
-  lastFour: change.lastFour === undefined ? current.lastFour : change.lastFour,
-  color: change.color === undefined ? current.color : change.color,
-  icon: change.icon === undefined ? current.icon : change.icon,
-  includeInAvailable:
-    change.includeInAvailable === undefined ? current.includeInAvailable : change.includeInAvailable,
-  includeInNetWorth:
-    change.includeInNetWorth === undefined ? current.includeInNetWorth : change.includeInNetWorth,
-});
+const MAX_INSTITUTION = 60;
+
+/** Issue 124: the institution the HTTP contract accepts (ruling P50): trimmed, 1 to 60 characters. */
+const institutionOf = (raw: string): Result<string> => {
+  const institution = raw.trim();
+  return institution.length >= 1 && institution.length <= MAX_INSTITUTION
+    ? ok(institution)
+    : err(domainError("InvalidInstitution", { length: institution.length }));
+};
+
+const colorOf = (color: AccountColor): Result<AccountColor> =>
+  ACCOUNT_COLORS.includes(color) ? ok(color) : err(domainError("InvalidAccountColor"));
+
+const iconNamed = (icon: AccountIcon): Result<AccountIcon> =>
+  ACCOUNT_ICONS.includes(icon) ? ok(icon) : err(domainError("InvalidAccountIcon"));
+
+/** Undefined keeps `current`, null clears it, a value is checked before it is kept. */
+const changed = <T>(
+  current: T | null,
+  change: T | null | undefined,
+  check: (value: T) => Result<T>,
+): Result<T | null> => (change === undefined ? ok(current) : change === null ? ok(null) : check(change));
+
+/**
+ * The attributes after `change`. The domain refuses what the HTTP contract refuses (issue 124), so a writer that skips
+ * HTTP, such as an import, cannot store a value the API would not: institution, color and icon are checked here;
+ * `lastFour` is PostgreSQL's check.
+ */
+const withChanges = (current: AccountAttributes, change: AttributeChanges): Result<AccountAttributes> => {
+  const institution = changed(current.institution, change.institution, institutionOf);
+  if (!institution.ok) return institution;
+  const color = changed(current.color, change.color, colorOf);
+  if (!color.ok) return color;
+  const icon = changed(current.icon, change.icon, iconNamed);
+  if (!icon.ok) return icon;
+  return ok({
+    institution: institution.value,
+    lastFour: change.lastFour === undefined ? current.lastFour : change.lastFour,
+    color: color.value,
+    icon: icon.value,
+    includeInAvailable:
+      change.includeInAvailable === undefined ? current.includeInAvailable : change.includeInAvailable,
+    includeInNetWorth:
+      change.includeInNetWorth === undefined ? current.includeInNetWorth : change.includeInNetWorth,
+  });
+};
 
 /** HU-E2-05: the icon an account shows. */
 export const iconOf = (account: Pick<Account, "type" | "icon">): AccountIcon =>
@@ -158,6 +194,8 @@ export const openAccount = (input: {
     return err(domainError("PersonalAccountRequiresPersonalSpace"));
   }
   if (nameTaken(input.siblings, name.value)) return err(domainError("AccountNameTaken"));
+  const attributes = withChanges(NO_ATTRIBUTES, input.attributes ?? {});
+  if (!attributes.ok) return attributes;
   const terms = revisedTerms(input.type, NO_TERMS, input.terms ?? {});
   if (!terms.ok) return terms;
   return ok({
@@ -169,7 +207,7 @@ export const openAccount = (input: {
     openingBalance: input.openingBalance,
     archivedAt: null,
     createdAt: input.now,
-    ...withChanges(NO_ATTRIBUTES, input.attributes ?? {}),
+    ...attributes.value,
     terms: terms.value,
   });
 };
@@ -194,16 +232,25 @@ export const reviseAccount = (
   const name = change.name === undefined ? ok(account.name) : nameOf(change.name);
   if (!name.ok) return name;
   if (nameTaken(siblings, name.value, account.id)) return err(domainError("AccountNameTaken"));
+  const attributes = withChanges(account, change.attributes ?? {});
+  if (!attributes.ok) return attributes;
   const terms = revisedTerms(account.type, account.terms, change.terms ?? {});
   if (!terms.ok) return terms;
   return ok({
     ...account,
     name: name.value,
     openingBalance: change.openingBalance ?? account.openingBalance,
-    ...withChanges(account, change.attributes ?? {}),
+    ...attributes.value,
     terms: terms.value,
   });
 };
+
+/**
+ * HU-E1-03, issue 169: whether the account records money in its space's currency: a non-zero opening balance, a credit
+ * limit or a loan principal. A starter account at zero records none, so it never locks the space's currency.
+ */
+export const holdsMoney = (account: Pick<Account, "openingBalance" | "terms">): boolean =>
+  account.openingBalance !== 0n || account.terms.creditLimit !== null || account.terms.principal !== null;
 
 /** HU-E2-03: archived accounts keep their history but take no new movements. */
 export const archiveAccount = (account: Account, now: Date): Account =>

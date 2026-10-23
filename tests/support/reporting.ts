@@ -5,6 +5,7 @@ import { GET as fundRoute } from "@/app/api/v1/spaces/[spaceId]/reports/fund-con
 import { GET as unifiedRoute } from "@/app/api/v1/me/unified-view/route";
 import { GET as lineTrendRoute } from "@/app/api/v1/spaces/[spaceId]/reports/trend/route";
 import { GET as personalTrendRoute } from "@/app/api/v1/me/trend/route";
+import { GET as cashFlowRoute } from "@/app/api/v1/me/cash-flow/route";
 import { GET as spendingByGroupRoute } from "@/app/api/v1/spaces/[spaceId]/reports/spending-by-group/route";
 import { GET as personalSpendingByGroupRoute } from "@/app/api/v1/me/reports/spending-by-group/route";
 import {
@@ -43,8 +44,11 @@ export interface DashboardLineDto {
   planned: MoneyDto;
   spent: MoneyDto;
   carryOver: MoneyDto;
+  carryOverFrom: { planId: string; period: ReportPeriodDto; closed: boolean } | null;
   available: MoneyDto;
   overspent: boolean;
+  state: string;
+  overBy: MoneyDto | null;
 }
 export interface LineDashboardDto {
   spaceId: string;
@@ -52,6 +56,8 @@ export interface LineDashboardDto {
   plan: ReportPlanDto | null;
   lines: DashboardLineDto[];
   unbudgeted: { spent: MoneyDto; available: MoneyDto; overspent: boolean } | null;
+  totals: { planned: MoneyDto; spent: MoneyDto; available: MoneyDto };
+  categoryLines: { categoryId: string; lineId: string | null }[];
 }
 
 /** GETs `path` with `query` in its search string as `user`; `params` are the route's path parameters. */
@@ -150,6 +156,7 @@ export interface FundContributionsDto {
   period: ReportPeriodDto;
   plan: ReportPlanDto | null;
   members: { memberId: string; expected: MoneyDto; actual: MoneyDto; difference: MoneyDto }[];
+  totals: { expected: MoneyDto; actual: MoneyDto; difference: MoneyDto };
 }
 
 /** HU-E7-03: `user` reads the fund contribution tracking of `spaceId`. */
@@ -327,3 +334,37 @@ export const groupWithKey = async (user: TestUser, key: string): Promise<string>
   if (group === undefined) throw new Error(`no group with key "${key}" in space ${user.spaceId}`);
   return group.id;
 };
+
+/** #150: the wire shape of `CashFlowSchema`. */
+export interface CashFlowDto {
+  currency: string;
+  from: string;
+  through: string;
+  days: number;
+  opening: MoneyDto;
+  dates: {
+    date: string;
+    movements: {
+      recurrenceId: string;
+      occurrenceId: string | null;
+      type: string;
+      description: string;
+      space: { id: string; name: string };
+      dueDate: string;
+      status: string;
+      estimated: boolean;
+      amount: MoneyDto;
+      effect: MoneyDto;
+    }[];
+    balanceAfter: MoneyDto;
+  }[];
+  totals: { incoming: MoneyDto; outgoing: MoneyDto; closing: MoneyDto };
+  lowest: { date: string; balance: MoneyDto };
+  otherCurrencySpaces: { spaceId: string; name: string; currency: string }[];
+}
+
+/** #150: `user`'s cash flow over `days` (a string, so a refused value can be sent). */
+export const cashFlowOf = (user: TestUser, days: string) =>
+  call(cashFlowRoute, "GET", `/api/v1/me/cash-flow?days=${days}`, { user });
+
+export { cashFlowRoute };

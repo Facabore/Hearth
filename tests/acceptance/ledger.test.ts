@@ -12,14 +12,18 @@ import {
   PATCH as editTransaction,
 } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/route";
 import { GET as transactionAudit } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/audit/route";
+import { POST as restoreTransaction } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/restore/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, registerUser, startTestApp, type RouteHandler, type TestUser } from "../support/app";
 import {
   balanceOf,
   categoryWithKey,
   cop,
+  household,
   inSpace,
+  joinHousehold,
   newAccount,
+  paysEqually,
   post,
   type MoneyDto,
   type TransactionDto,
@@ -328,6 +332,86 @@ describe("edit and delete with an audit trail (HU-E4-06)", () => {
     ]);
   });
 
+  it("moves an expense and an income to Nequi; both balances follow (ruling P186)", async () => {
+    const ana = await ledgerUser("Ana");
+    const tx = await recorded(post(recordExpense, ana, "expenses", market(ana)));
+    const salary = await recorded(
+      post(recordIncome, ana, "incomes", {
+        amount: cop(500_000),
+        date: "2026-10-05",
+        categoryId: ana.salary,
+        accountId: ana.bancolombia,
+      }),
+    );
+    const moved = await onTransaction(editTransaction, "PATCH", ana, tx.id, {
+      body: { accountId: ana.nequi },
+      ifMatch: '"1"',
+    });
+    expect([moved.status, moved.headers.get("etag")]).toEqual([200, '"2"']);
+    expect(((await moved.json()) as TransactionDto).payments.map((p) => p.accountId)).toEqual([ana.nequi]);
+    expect(
+      (await onTransaction(editTransaction, "PATCH", ana, salary.id, { body: { accountId: ana.nequi } }))
+        .status,
+    ).toBe(200);
+    expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(2_000_000));
+    expect(await balanceOf(ana, ana.nequi)).toEqual(cop(415_000));
+  });
+
+  it("refuses accountId together with payments, and a part the type does not have", async () => {
+    const ana = await ledgerUser("Ana");
+    const tx = await recorded(post(recordExpense, ana, "expenses", market(ana)));
+    const both = await onTransaction(editTransaction, "PATCH", ana, tx.id, {
+      body: { accountId: ana.nequi, payments: [] },
+    });
+    expect((await both.json()).code).toBe("ValidationFailed");
+    const wrong = await onTransaction(editTransaction, "PATCH", ana, tx.id, {
+      body: { sourceAccountId: ana.nequi },
+    });
+    expect([wrong.status, (await wrong.json()).code]).toEqual([409, "FieldNotEditable"]);
+  });
+
+  it("moves an own transfer's accounts, audits them, and keeps another person's account out (D9, P187)", async () => {
+    const ana = await ledgerUser("Ana");
+    const juan = await ledgerUser("Juan");
+    const move = await recorded(
+      post(recordTransfer, ana, "transfers", {
+        amount: cop(300_000),
+        date: "2026-10-05",
+        sourceAccountId: ana.bancolombia,
+        destinationAccountId: ana.nequi,
+      }),
+    );
+    const swapped = await onTransaction(editTransaction, "PATCH", ana, move.id, {
+      body: { sourceAccountId: ana.nequi, destinationAccountId: ana.bancolombia },
+    });
+    expect(swapped.status).toBe(200);
+    expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(2_300_000));
+    expect(await balanceOf(ana, ana.nequi)).toEqual(cop(-300_000));
+    expect((await auditOf(ana, move.id))[0]!.changes).toEqual({
+      sourceAccountId: { from: ana.bancolombia, to: ana.nequi },
+      destinationAccountId: { from: ana.nequi, to: ana.bancolombia },
+    });
+    const foreign = await onTransaction(editTransaction, "PATCH", ana, move.id, {
+      body: { destinationAccountId: juan.bancolombia },
+    });
+    expect([foreign.status, (await foreign.json()).code]).toEqual([422, "AccountNotOwned"]);
+    const same = await onTransaction(editTransaction, "PATCH", ana, move.id, {
+      body: { destinationAccountId: ana.nequi },
+    });
+    expect([same.status, (await same.json()).code]).toEqual([409, "SameAccountTransfer"]);
+  });
+
+  it("answers FieldNotEditable with the field for a settlement, and an unchanged body behaves as before (P188)", async () => {
+    const ana = await ledgerUser("Ana");
+    const tx = await recorded(post(recordExpense, ana, "expenses", market(ana)));
+    const untouched = await onTransaction(editTransaction, "PATCH", ana, tx.id, { body: {} });
+    expect([untouched.status, untouched.headers.get("etag")]).toEqual([200, '"1"']);
+    const wrong = await onTransaction(editTransaction, "PATCH", ana, tx.id, {
+      body: { destinationAccountId: ana.nequi },
+    });
+    expect(await wrong.json()).toMatchObject({ code: "FieldNotEditable", field: "destinationAccountId" });
+  });
+
   it("rejects a stale or malformed If-Match with 412 and changes nothing (Review Focus 1)", async () => {
     const ana = await ledgerUser("Ana");
     const tx = await recorded(post(recordExpense, ana, "expenses", market(ana)));
@@ -384,6 +468,65 @@ describe("edit and delete with an audit trail (HU-E4-06)", () => {
       body: { description: "Mine" },
     });
     expect([response.status, (await response.json()).code]).toEqual([404, "SpaceNotFound"]);
+  });
+});
+
+describe("restore a deleted transaction (ruling P185)", () => {
+  const restoreOf = (user: TestUser, id: string) =>
+    onTransaction(restoreTransaction, "POST", user, id, { suffix: "/restore" });
+
+  it("brings it back to lists and balances with the next ETag, once", async () => {
+    const ana = await ledgerUser("Ana");
+    const tx = await recorded(post(recordExpense, ana, "expenses", market(ana)));
+    expect((await onTransaction(deleteTransaction, "DELETE", ana, tx.id)).status).toBe(204);
+    expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(2_000_000));
+    const restored = await restoreOf(ana, tx.id);
+    expect([restored.status, restored.headers.get("etag")]).toEqual([200, '"3"']);
+    expect(((await restored.json()) as TransactionDto).amount).toEqual(cop(85_000));
+    expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(1_915_000));
+    expect((await listOf(ana, "?period=2026-10")).body.items.map((t) => t.id)).toEqual([tx.id]);
+    const again = await restoreOf(ana, tx.id);
+    expect([again.status, again.headers.get("etag")]).toEqual([200, '"3"']);
+    expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(1_915_000));
+    expect((await auditOf(ana, tx.id)).map((e) => [e.action, e.actorUserId])).toEqual([
+      ["DELETED", ana.userId],
+      ["RESTORED", ana.userId],
+    ]);
+  });
+
+  it("hides other users' transactions", async () => {
+    const ana = await ledgerUser("Ana");
+    const juan = await registerUser("Juan");
+    const tx = await recorded(post(recordExpense, ana, "expenses", market(ana)));
+    await onTransaction(deleteTransaction, "DELETE", ana, tx.id);
+    const response = await call(restoreTransaction, "POST", inSpace(ana, `transactions/${tx.id}/restore`), {
+      user: juan,
+      params: { spaceId: ana.spaceId, transactionId: tx.id },
+    });
+    expect(response.status).toBe(404);
+  });
+
+  it("applies the delete role rules: a MEMBER restores only their own, a VIEWER none, an OWNER any", async () => {
+    const h = await household();
+    const sofi = await joinHousehold(h, "Sofi", "VIEWER");
+    const anas = await paysEqually(h.ana, 100_000, [h.ana.memberId, h.juan.memberId], h.groceries);
+    const juans = await paysEqually(h.juan, 60_000, [h.ana.memberId, h.juan.memberId], h.groceries);
+    for (const tx of [anas, juans]) {
+      expect((await onTransaction(deleteTransaction, "DELETE", h.ana, tx.id)).status).toBe(204);
+    }
+    const answer = async (user: TestUser, id: string) => {
+      const response = await restoreOf(user, id);
+      return [response.status, response.status === 200 ? undefined : (await response.json()).code];
+    };
+    expect(await answer(h.juan, anas.id)).toEqual([403, "InsufficientRole"]);
+    expect(await answer(sofi, juans.id)).toEqual([403, "InsufficientRole"]);
+    expect((await auditOf(h.ana, anas.id)).map((e) => e.action)).toEqual(["DELETED"]);
+    expect(await answer(h.juan, juans.id)).toEqual([200, undefined]);
+    expect(await answer(h.ana, anas.id)).toEqual([200, undefined]);
+    expect((await auditOf(h.ana, anas.id)).map((e) => [e.action, e.actorUserId])).toEqual([
+      ["DELETED", h.ana.userId],
+      ["RESTORED", h.ana.userId],
+    ]);
   });
 });
 

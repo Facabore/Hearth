@@ -11,6 +11,7 @@ import {
   DEFINITION_DAY_CLOCK,
   defined,
   endRecurrence,
+  extendRecurrence,
   getRecurrence,
   householdWithFund,
   type HouseholdWithFund,
@@ -951,5 +952,191 @@ describe("pausing, resuming and ending a recurrence (HU-E4-11)", () => {
       await recurrenceOf(h.ana, h.spaceId, rent.id),
       (await recurrenceOf(h.ana, h.spaceId, paused.id)).status,
     ]).toEqual([rent, "PAUSED"]);
+  });
+});
+
+describe("extending an ended recurrence (#115)", () => {
+  const read = async (response: Response) => {
+    const { status, endDate, nextOccurrence } = (await response.json()) as RecurrenceDto;
+    return [response.status, status, endDate, nextOccurrence];
+  };
+  /** Ana's Gym: debited from her own account (D9). */
+  const gymBody = (h: HouseholdWithFund) =>
+    rentBody(h, {
+      description: "Gym",
+      amount: cop(90_000),
+      template: {
+        type: "EXPENSE",
+        categoryId: h.utilities,
+        payer: { memberId: h.ana.memberId, accountId: h.ana.account },
+      },
+      schedule: { kind: "MONTHLY", day: 3 },
+      startDate: "2026-12-03",
+    });
+  /** The Rent, defined and ended by Ana. */
+  const endedRent = async (h: HouseholdWithFund, overrides: Record<string, unknown> = {}) => {
+    const rent = await define(h.ana, h.spaceId, rentBody(h, overrides));
+    expect((await endRecurrence(h.ana, h.spaceId, rent.id)).status).toBe(200);
+    return rent;
+  };
+
+  it("extends the ended Rent with a new end date: 200, the same recurrence ACTIVE again with its next date", async () => {
+    const h = await householdWithFund();
+    const rent = await endedRent(h, { endDate: "2026-12-31" });
+    expect(await read(await extendRecurrence(h.ana, h.spaceId, rent.id, { endDate: "2027-06-30" }))).toEqual([
+      200,
+      "ACTIVE",
+      "2027-06-30",
+      "2026-12-01",
+    ]);
+    expect(await recurrenceOf(h.ana, h.spaceId, rent.id)).toMatchObject({ id: rent.id, status: "ACTIVE" });
+    const list = (await (await listRecurrences(h.ana, h.spaceId)).json()) as { items: RecurrenceDto[] };
+    expect(list.items).toHaveLength(1);
+  });
+
+  it("extends with endDate null, which removes the end, and lets the recurrence be edited and paused again", async () => {
+    const h = await householdWithFund();
+    const rent = await endedRent(h, { endDate: "2027-06-30" });
+    expect(await read(await extendRecurrence(h.ana, h.spaceId, rent.id, { endDate: null }))).toEqual([
+      200,
+      "ACTIVE",
+      null,
+      "2026-12-01",
+    ]);
+    expect([
+      (await patchRecurrence(h.ana, h.spaceId, rent.id, { description: "Rent, renewed" })).status,
+      (await pauseRecurrence(h.ana, h.spaceId, rent.id)).status,
+    ]).toEqual([200, 200]);
+  });
+
+  it("refuses an ACTIVE or a PAUSED recurrence: 409 InvalidRecurrenceTransition, and it is as it was", async () => {
+    const h = await householdWithFund();
+    const active = await define(h.ana, h.spaceId, rentBody(h));
+    const paused = await define(h.ana, h.spaceId, rentBody(h, { description: "Paused rent" }));
+    await pauseRecurrence(h.ana, h.spaceId, paused.id);
+    expect([
+      await problemOf(await extendRecurrence(h.ana, h.spaceId, active.id, { endDate: null })),
+      await problemOf(await extendRecurrence(h.ana, h.spaceId, paused.id, { endDate: null })),
+    ]).toEqual([
+      [409, "InvalidRecurrenceTransition"],
+      [409, "InvalidRecurrenceTransition"],
+    ]);
+    expect([
+      await recurrenceOf(h.ana, h.spaceId, active.id),
+      (await recurrenceOf(h.ana, h.spaceId, paused.id)).status,
+    ]).toEqual([active, "PAUSED"]);
+  });
+
+  it("refuses an end date before the start, and one that leaves no schedule date: 422 InvalidRecurrence", async () => {
+    const h = await householdWithFund();
+    // MONTHLY(15) from 2026-12-01 has no date between the 1st and the 10th.
+    const rent = await endedRent(h, { schedule: { kind: "MONTHLY", day: 15 }, endDate: "2027-06-30" });
+    expect([
+      await problemOf(await extendRecurrence(h.ana, h.spaceId, rent.id, { endDate: "2026-11-30" })),
+      await problemOf(await extendRecurrence(h.ana, h.spaceId, rent.id, { endDate: "2026-12-10" })),
+    ]).toEqual([
+      [422, "InvalidRecurrence"],
+      [422, "InvalidRecurrence"],
+    ]);
+    expect((await recurrenceOf(h.ana, h.spaceId, rent.id)).status).toBe("ENDED");
+  });
+
+  it("refuses a body with no endDate or a malformed one: 422 ValidationFailed", async () => {
+    const h = await householdWithFund();
+    const rent = await endedRent(h);
+    expect([
+      await problemOf(await extendRecurrence(h.ana, h.spaceId, rent.id, {})),
+      await problemOf(await extendRecurrence(h.ana, h.spaceId, rent.id, { endDate: "soon" })),
+      await problemOf(await extendRecurrence(h.ana, h.spaceId, rent.id, { endDate: 20270630 })),
+    ]).toEqual([
+      [422, "ValidationFailed"],
+      [422, "ValidationFailed"],
+      [422, "ValidationFailed"],
+    ]);
+    expect((await recurrenceOf(h.ana, h.spaceId, rent.id)).status).toBe("ENDED");
+  });
+
+  it("lets its creator and an ADMIN extend the Rent, never Juan the MEMBER who did not define it (403 InsufficientRole)", async () => {
+    const h = await householdWithFund();
+    const luis = await joinHousehold(h, "Luis", "ADMIN");
+    const rent = await endedRent(h);
+    // The role is checked before the status: Juan learns nothing of whether Rent is ended.
+    const active = await define(h.ana, h.spaceId, rentBody(h, { description: "Active rent" }));
+    expect([
+      await problemOf(await extendRecurrence(h.juan, h.spaceId, rent.id, { endDate: null })),
+      await problemOf(await extendRecurrence(h.juan, h.spaceId, active.id, { endDate: null })),
+      (await extendRecurrence(luis, h.spaceId, rent.id, { endDate: null })).status,
+    ]).toEqual([[403, "InsufficientRole"], [403, "InsufficientRole"], 200]);
+    const his = await define(h.juan, h.spaceId, rentBody(h, { description: "Juan's rent" }));
+    await endRecurrence(h.juan, h.spaceId, his.id);
+    expect((await extendRecurrence(h.juan, h.spaceId, his.id, { endDate: null })).status).toBe(200);
+  });
+
+  it("refuses Sofi the VIEWER with 403 and a stranger with 404 SpaceNotFound", async () => {
+    const h = await householdWithFund();
+    const sofi = await joinHousehold(h, "Sofi", "VIEWER");
+    const stranger = await registerUser("Luis");
+    const rent = await endedRent(h);
+    expect([
+      await problemOf(await extendRecurrence(sofi, h.spaceId, rent.id, { endDate: null })),
+      await problemOf(await extendRecurrence(stranger, h.spaceId, rent.id, { endDate: null })),
+    ]).toEqual([
+      [403, "InsufficientRole"],
+      [404, "SpaceNotFound"],
+    ]);
+    expect((await recurrenceOf(h.ana, h.spaceId, rent.id)).status).toBe("ENDED");
+  });
+
+  it("lets only Ana extend her ended Gym, debited from her own account: Luis the ADMIN answers 422 AccountNotOwned (D9)", async () => {
+    const h = await householdWithFund();
+    const luis = await joinHousehold(h, "Luis", "ADMIN");
+    const gym = await define(h.ana, h.spaceId, gymBody(h));
+    await endRecurrence(luis, h.spaceId, gym.id);
+    expect(await problemOf(await extendRecurrence(luis, h.spaceId, gym.id, { endDate: null }))).toEqual([
+      422,
+      "AccountNotOwned",
+    ]);
+    expect((await recurrenceOf(h.ana, h.spaceId, gym.id)).status).toBe("ENDED");
+    expect((await extendRecurrence(h.ana, h.spaceId, gym.id, { endDate: null })).status).toBe(200);
+  });
+
+  it("answers the same 404 RecurrenceNotFound for another space's, an unknown and a malformed id", async () => {
+    const h = await householdWithFund();
+    const other = await householdWithFund();
+    const theirs = await endedRent(other);
+    const answers: [number, Record<string, unknown>][] = [];
+    for (const id of [theirs.id, randomUUID(), "not-a-uuid"]) {
+      answers.push(await problemBodyOf(await extendRecurrence(h.ana, h.spaceId, id, { endDate: null })));
+    }
+    expect(answers[0]).toMatchObject([404, { code: "RecurrenceNotFound" }]);
+    for (const answer of answers) expect(answer).toEqual(answers[0]);
+    expect((await recurrenceOf(other.ana, other.spaceId, theirs.id)).status).toBe("ENDED");
+  });
+
+  it("refuses an extension in an archived space with 409 SpaceArchived, while it still reads (HU-E1-09)", async () => {
+    const h = await householdWithFund();
+    const rent = await endedRent(h);
+    await archiveHousehold(h);
+    expect(await problemOf(await extendRecurrence(h.ana, h.spaceId, rent.id, { endDate: null }))).toEqual([
+      409,
+      "SpaceArchived",
+    ]);
+    expect((await recurrenceOf(h.ana, h.spaceId, rent.id)).status).toBe("ENDED");
+  });
+
+  it("leaves the previous behaviour of an ENDED recurrence as it was: edits 409 RecurrenceEnded, moves 409 InvalidRecurrenceTransition", async () => {
+    const h = await householdWithFund();
+    const rent = await endedRent(h);
+    expect([
+      await problemOf(await patchRecurrence(h.ana, h.spaceId, rent.id, { description: "Rent" })),
+      await problemOf(await pauseRecurrence(h.ana, h.spaceId, rent.id)),
+      await problemOf(await resumeRecurrence(h.ana, h.spaceId, rent.id)),
+      await problemOf(await endRecurrence(h.ana, h.spaceId, rent.id)),
+    ]).toEqual([
+      [409, "RecurrenceEnded"],
+      [409, "InvalidRecurrenceTransition"],
+      [409, "InvalidRecurrenceTransition"],
+      [409, "InvalidRecurrenceTransition"],
+    ]);
   });
 });

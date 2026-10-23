@@ -9,10 +9,12 @@ import type { MeDto } from "@/shared/ui/api/dto";
 import type { paths } from "@/shared/ui/api/schema";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { formatDate, formatNumber } from "@/shared/ui/format/formatters";
+import { ScreenHeader } from "@/shared/ui";
 import { AppearanceSection } from "./appearance-section";
 import { FormatPreview } from "./format-preview";
 import { PreferenceRow } from "./preference-row";
 import { RegionSection } from "./region-section";
+import { useSavedFlash } from "./saved-flash";
 import {
   choose,
   chooseRegion,
@@ -37,12 +39,22 @@ const rememberLocale = (locale: string) => {
 };
 
 /** HU-E9-13, the Settings artboard: no Save button; each choice is stored as it is made (ruling P137). */
-export function SettingsForm({ me, api: injected }: { readonly me: MeDto; readonly api?: Api }) {
+export function SettingsForm({
+  me,
+  backHref,
+  api: injected,
+}: {
+  readonly me: MeDto;
+  /** The home of the space the person came from. */
+  readonly backHref: string;
+  readonly api?: Api;
+}) {
   const t = useTranslations("settings");
   const router = useRouter();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   const [current, setCurrent] = useState<MeDto>(me);
   const [problems, setProblems] = useState<Partial<Record<Field, Problem>>>({});
+  const { saved, flash } = useSavedFlash<Field>();
   const preferences = current.preferences;
 
   /** Optimistic: the change applies at once and is rolled back, with its error on its row, when refused. */
@@ -55,6 +67,7 @@ export function SettingsForm({ me, api: injected }: { readonly me: MeDto; readon
       const { data, error, response } = await api.PATCH("/api/v1/me", { body: patch });
       if (data) {
         setCurrent(data);
+        flash(field);
         if (field === "locale") {
           rememberLocale(data.locale);
           router.refresh();
@@ -88,12 +101,13 @@ export function SettingsForm({ me, api: injected }: { readonly me: MeDto; readon
       onChoose={(value) => sendFormat(field, choose(preferences, field, value))}
       onReset={() => sendFormat(field, reset(preferences, field))}
       problem={problems[field] ?? null}
+      saved={saved === field}
     />
   );
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold text-ink">{t("title")}</h1>
+      <ScreenHeader backHref={backHref} title={t("title")} />
       <FormatPreview formats={preferences.effective} />
       <section aria-labelledby="settings-formats" className="flex flex-col gap-5">
         <h2 id="settings-formats" className="text-lg font-semibold text-ink">
@@ -122,6 +136,7 @@ export function SettingsForm({ me, api: injected }: { readonly me: MeDto; readon
         onChoose={(zone) => sendRegion("timezone", zone)}
         onReset={() => sendRegion("timezone", preferences.defaults.timezone)}
         problem={problems.timezone ?? null}
+        saved={saved === "timezone"}
       />
       <AppearanceSection
         locale={current.locale}
@@ -129,6 +144,7 @@ export function SettingsForm({ me, api: injected }: { readonly me: MeDto; readon
         onLocale={(locale) => sendRegion("locale", locale)}
         onLocaleReset={() => sendRegion("locale", preferences.defaults.locale)}
         problem={problems.locale ?? null}
+        localeSaved={saved === "locale"}
       />
     </div>
   );

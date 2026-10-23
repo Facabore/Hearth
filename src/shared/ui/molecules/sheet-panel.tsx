@@ -16,20 +16,25 @@ export interface SheetProps {
   readonly footer?: ReactNode;
 }
 
-/** A bottom sheet under 1024 px, a centered panel above; Escape and the scrim close it, focus returns to the trigger. */
+/**
+ * A bottom sheet under 1024 px, a centered panel above; Escape and the scrim close it, focus returns to the trigger.
+ * It paints above the fixed bottom navigation (z-10); only its body scrolls and the page behind stays put.
+ */
 export function SheetPanel({ open, onOpenChange, title, description, children, footer }: SheetProps) {
   const t = useTranslations("common");
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-scrim" />
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
         <Dialog.Content
           {...(description ? {} : { "aria-describedby": undefined })}
-          className="fixed inset-x-0 bottom-0 flex max-h-[90dvh] flex-col rounded-t-[20px] bg-surface p-4 lg:inset-auto lg:top-1/2 lg:left-1/2 lg:w-full lg:max-w-[480px] lg:-translate-x-1/2 lg:-translate-y-1/2 lg:rounded-[20px]"
+          className="fixed inset-x-0 bottom-0 z-50 flex max-h-[90dvh] flex-col rounded-t-[20px] bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] lg:inset-auto lg:top-1/2 lg:left-1/2 lg:w-full lg:max-w-[480px] lg:-translate-x-1/2 lg:-translate-y-1/2 lg:rounded-[20px]"
         >
           <div aria-hidden="true" className="mx-auto mb-3 h-[5px] w-10 rounded-full bg-track lg:hidden" />
           <div className="flex items-center justify-between gap-2">
-            <Dialog.Title className="text-lg font-semibold text-ink">{title}</Dialog.Title>
+            <Dialog.Title className="min-w-0 text-lg font-semibold [overflow-wrap:anywhere] text-ink">
+              {title}
+            </Dialog.Title>
             <Dialog.Close asChild>
               <Button size="icon" variant="ghost">
                 <Icon name="close" />
@@ -38,9 +43,11 @@ export function SheetPanel({ open, onOpenChange, title, description, children, f
             </Dialog.Close>
           </div>
           {description ? (
-            <Dialog.Description className="text-sm text-muted">{description}</Dialog.Description>
+            <Dialog.Description className="text-sm [overflow-wrap:anywhere] text-muted">
+              {description}
+            </Dialog.Description>
           ) : null}
-          <div className="mt-2 overflow-y-auto">{children}</div>
+          <div className="mt-2 min-h-0 overflow-y-auto overscroll-contain">{children}</div>
           {footer ? <div className="mt-4">{footer}</div> : null}
         </Dialog.Content>
       </Dialog.Portal>

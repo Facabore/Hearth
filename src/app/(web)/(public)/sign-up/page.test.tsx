@@ -11,7 +11,7 @@ vi.mock("@/shared/ui/api/server", () => ({ getSignUpMode: mocks.mode }));
 
 const { default: SignUpPage } = await import("./page");
 
-const open = async (search: { invitation?: string | string[] }) =>
+const open = async (search: { invitation?: string | string[]; next?: string }) =>
   render(await SignUpPage({ searchParams: Promise.resolve(search) }), { wrapper: IntlWrapper("es") });
 
 describe("sign-up page (HU-E9-01, ruling P147)", () => {
@@ -23,6 +23,21 @@ describe("sign-up page (HU-E9-01, ruling P147)", () => {
     expect(screen.getByLabelText("Confirmar contraseña")).toBeInTheDocument();
   });
 
+  it("passes a safe next to the form and drops a foreign one (ruling P157)", async () => {
+    mocks.mode.mockResolvedValue("open");
+    const { unmount } = await open({ next: "/claims/tok-9", invitation: "tok-9" });
+    expect(screen.getByRole("link", { name: "Inicia sesión" })).toHaveAttribute(
+      "href",
+      "/sign-in?next=%2Fclaims%2Ftok-9&invitation=tok-9",
+    );
+    unmount();
+    for (const next of ["//evil.example", "https://evil.example", "/\\evil.example", "/sign-up"]) {
+      const view = await open({ next });
+      expect(screen.getByRole("link", { name: "Inicia sesión" })).toHaveAttribute("href", "/sign-in");
+      view.unmount();
+    }
+  });
+
   it("shows the notice and no form when sign-up is closed and the URL has no invitation", async () => {
     mocks.mode.mockResolvedValue("closed");
     for (const search of [{}, { invitation: "" }, { invitation: ["a", "b"] }]) {
@@ -31,6 +46,15 @@ describe("sign-up page (HU-E9-01, ruling P147)", () => {
       expect(screen.queryByLabelText("Nombre")).not.toBeInTheDocument();
       unmount();
     }
+  });
+
+  it("keeps where the visitor was going in the closed notice's sign-in link (N5)", async () => {
+    mocks.mode.mockResolvedValue("closed");
+    await open({ next: "/spaces/s1/transactions?period=2026-10" });
+    expect(screen.getByRole("link", { name: "Inicia sesión" })).toHaveAttribute(
+      "href",
+      "/sign-in?next=%2Fspaces%2Fs1%2Ftransactions%3Fperiod%3D2026-10",
+    );
   });
 
   it("shows the form when sign-up is closed but the URL carries an invitation", async () => {

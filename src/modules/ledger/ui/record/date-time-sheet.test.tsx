@@ -159,10 +159,41 @@ describe("date and time sheet (HU-E9-03, ruling P129)", () => {
     expect(within(sheet).getByRole("radio", { name: "AM" })).toBeChecked();
     expect(within(sheet).getByRole("button", { name: ":45" })).toHaveAttribute("aria-pressed", "true");
     const apply = within(sheet).getByRole("button", { name: /^Usar/ });
-    expect(apply.textContent?.replace(/\s/g, " ")).toBe("Usar Ayer · 7:45 AM");
+    expect(apply.textContent?.replace(/\s/g, " ")).toBe("Usar ayer · 7:45 AM");
     await userEvent.click(apply);
     expect(onApply).toHaveBeenCalledWith(at("2026-10-15", 7, 45));
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  describe("the apply button reads as one sentence (issue #166)", () => {
+    const applyText = (date: string, locale: "es" | "en") => {
+      const { unmount } = renderWithIntl(
+        <DateTimeSheet
+          open
+          onOpenChange={() => undefined}
+          value={at(date, 20, 6)}
+          now={at("2026-10-16", 22, 30)}
+          today="2026-10-16"
+          formats={BUILT_IN_FORMATS}
+          onApply={() => undefined}
+        />,
+        { locale },
+      );
+      const apply = within(screen.getByRole("dialog")).getByRole("button", { name: /^(Use|Usar) / });
+      const text = apply.textContent?.replace(/\s/g, " ");
+      unmount();
+      return text;
+    };
+
+    it.each([
+      ["2026-10-16", "Use today · 20:06", "Usar hoy · 20:06"],
+      ["2026-10-15", "Use yesterday · 20:06", "Usar ayer · 20:06"],
+      ["2026-10-14", "Use the day before yesterday · 20:06", "Usar anteayer · 20:06"],
+      ["2026-10-01", "Use 1/10/2026 · 20:06", "Usar 1/10/2026 · 20:06"],
+    ])("for %s reads %j and %j", (date, en, es) => {
+      expect(applyText(date, "en")).toBe(en);
+      expect(applyText(date, "es")).toBe(es);
+    });
   });
 
   it("starts from the current value each time it opens", async () => {
@@ -180,5 +211,15 @@ describe("date and time sheet (HU-E9-03, ruling P129)", () => {
     view.rerender(<DateTimeSheet open={false} {...props} />);
     view.rerender(<DateTimeSheet open {...props} />);
     expect(clockText()).toBe("22 : 30");
+  });
+
+  it("keeps every clock control a 44 px target and puts AM/PM on its own row (S3)", () => {
+    open({ formats: { ...BUILT_IN_FORMATS, timeFormat: "H12" } });
+    const clock = screen.getByRole("group", { name: "Hora" });
+    for (const name of ["Una hora menos", "Una hora más", "Cinco minutos menos", "Cinco minutos más"])
+      expect(within(clock).getByRole("button", { name })).toHaveClass("size-11", "shrink-0");
+    const half = within(clock).getByRole("radiogroup", { name: "Mañana o tarde" });
+    expect(half.parentElement).toHaveClass("w-full", "max-w-48");
+    expect(clock).toHaveClass("flex-wrap");
   });
 });

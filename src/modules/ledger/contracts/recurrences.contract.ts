@@ -1,12 +1,11 @@
 import { z } from "zod";
 import type { ZodOpenApiPathsObject } from "zod-openapi";
 import {
-  basisPointsOf,
+  IdSchema,
   jsonContent,
   moneyFromDto,
   MoneySchema,
   optionalLocalDate,
-  PercentSchema,
   percentOf,
   problems,
   securedByUser,
@@ -24,10 +23,8 @@ import type {
   TemplateInput,
 } from "../application";
 import { RecordedExpenseSchema, transactionDto, warningsDto } from "./ledger.contract";
+import { EqualSplitSchema, PercentSplitSchema, SharesSplitSchema, splitOf } from "./split-body";
 
-const Id = z.string().min(1).max(64);
-/** Participants per split: bounds the payload; membership is checked by the domain. */
-const MAX_PARTS = 100;
 const MODES = ["AUTO", "CONFIRM"] as const;
 
 /** Request shape: any integer days, so the domain answers InvalidPeriodPolicy instead of ValidationFailed (HU-E1-03). */
@@ -41,37 +38,11 @@ export const ScheduleInputSchema = z.discriminatedUnion("kind", [
  * each occurrence takes its default split (spec 5.3: BY_ALLOCATION with the ACTIVE plan of its period, else EQUAL).
  */
 export const RecurrenceSplitSchema = z.discriminatedUnion("method", [
-  z.object({ method: z.literal("EQUAL"), participants: z.array(z.object({ memberId: Id })).max(MAX_PARTS) }),
-  z.object({
-    method: z.literal("PERCENT"),
-    participants: z.array(z.object({ memberId: Id, percent: PercentSchema })).max(MAX_PARTS),
-  }),
-  z.object({
-    method: z.literal("SHARES"),
-    participants: z.array(z.object({ memberId: Id, units: z.number().int() })).max(MAX_PARTS),
-  }),
+  EqualSplitSchema,
+  PercentSplitSchema,
+  SharesSplitSchema,
 ]);
 type RecurrenceSplitDto = z.infer<typeof RecurrenceSplitSchema>;
-
-export const splitOf = (split: RecurrenceSplitDto): RecurrenceSplit => {
-  switch (split.method) {
-    case "EQUAL":
-      return { method: "EQUAL", participants: split.participants.map((p) => ({ memberId: p.memberId })) };
-    case "PERCENT":
-      return {
-        method: "PERCENT",
-        participants: split.participants.map((p) => ({
-          memberId: p.memberId,
-          basisPoints: basisPointsOf(p.percent),
-        })),
-      };
-    case "SHARES":
-      return {
-        method: "SHARES",
-        participants: split.participants.map((p) => ({ memberId: p.memberId, units: p.units })),
-      };
-  }
-};
 
 /**
  * HU-E4-11, spec 5.2: what every occurrence records besides its date and amount, fixed once defined (ruling P22). An
@@ -83,17 +54,17 @@ export const splitOf = (split: RecurrenceSplitDto): RecurrenceSplit => {
 const TemplateBodySchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("EXPENSE"),
-    categoryId: Id,
-    payer: z.object({ memberId: Id.nullable(), accountId: Id.nullable().optional() }),
+    categoryId: IdSchema,
+    payer: z.object({ memberId: IdSchema.nullable(), accountId: IdSchema.nullable().optional() }),
     split: RecurrenceSplitSchema.nullable().optional(),
   }),
-  z.object({ type: z.literal("INCOME"), categoryId: Id, accountId: Id }),
-  z.object({ type: z.literal("TRANSFER"), sourceAccountId: Id, destinationAccountId: Id }),
+  z.object({ type: z.literal("INCOME"), categoryId: IdSchema, accountId: IdSchema }),
+  z.object({ type: z.literal("TRANSFER"), sourceAccountId: IdSchema, destinationAccountId: IdSchema }),
   z.object({
     type: z.literal("FUND_CONTRIBUTION"),
-    fundAccountId: Id,
-    memberId: Id.nullable().optional(),
-    sourceAccountId: Id.nullable().optional(),
+    fundAccountId: IdSchema,
+    memberId: IdSchema.nullable().optional(),
+    sourceAccountId: IdSchema.nullable().optional(),
   }),
 ]);
 
@@ -355,7 +326,7 @@ const FIXED_ONCE_DEFINED = z
 export const UpdateRecurrenceBodySchema = z.object({
   description: z.string().max(1000).optional(),
   amount: MoneySchema.optional(),
-  categoryId: Id.optional(),
+  categoryId: IdSchema.optional(),
   /** Null returns to the default split of each occurrence (ruling P23). */
   split: RecurrenceSplitSchema.nullable().optional(),
   schedule: ScheduleInputSchema.optional(),
@@ -393,6 +364,14 @@ export const recurrenceEditFromBody = (
     endDate: endDate.value,
   });
 };
+
+/** #115: the new end date of an ended recurrence; it is required, and null is none: the recurrence never ends. */
+export const ExtendRecurrenceBodySchema = z.object({ endDate: z.iso.date().nullable() });
+
+/** A validated extension's end date; fails only for an impossible date. */
+export const extensionEndDateFromBody = (
+  body: z.infer<typeof ExtendRecurrenceBodySchema>,
+): Result<LocalDate | null> => (body.endDate === null ? ok(null) : localDate(body.endDate));
 
 /** HU-E4-13: the space's pending occurrences, earliest date first (not paginated, ruling P28). */
 export const PendingOccurrenceListSchema = z.object({ items: z.array(OccurrenceSchema) });
@@ -444,11 +423,15 @@ const TEMPLATE_422 = templateRefusals422();
  */
 const CREATOR_403 =
   'InsufficientRole (the requester may not manage it; with member "creator", the recurrence\'s creator no longer holds money.record)';
-const creatorRefusals422 = (only: string) =>
+const creatorRefusals422 = (only: string, notAMember: string) =>
   templateRefusals422(
     `AccountNotOwned (it moves money into or out of its creator's own account: only its creator ${only} it)`,
-    'NotASpaceMember (a payer or a split participant left; with member "creator", the recurrence\'s creator left)',
+    `NotASpaceMember (${notAMember}; with member "creator", the recurrence's creator left)`,
   );
+/** What an edit refuses as NotASpaceMember: a payer or split participant who left, or a new one who never was. */
+const NOT_A_MEMBER_ON_EDIT =
+  "a payer or a split participant is not a member, whether they left or never were";
+const LEFT_ON_RESUME = "a payer or a split participant left";
 /** HU-E4-11: what makes an edit invalid by itself; an edit that leaves no date to record ends the recurrence instead. */
 const INVALID_EDIT =
   "InvalidRecurrence (an end date before the start; a category or split its type does not have)";
@@ -523,7 +506,7 @@ export const recurrencesPaths: ZodOpenApiPathsObject = {
           "403": "InsufficientRole",
           "404": `SpaceNotFound, RecurrenceNotFound, ${TEMPLATE_404}`,
           "409": `RecurrenceEnded, ${TEMPLATE_409}, SpaceArchived`,
-          "422": `ValidationFailed (including the template, type, payer, accounts or start date, which an edit cannot change), InvalidAmount, InvalidDate, InvalidDescription, InvalidPeriodPolicy, ${INVALID_EDIT}, CurrencyMismatch, UnknownCurrency, ${creatorRefusals422("changes")}`,
+          "422": `ValidationFailed (including the template, type, payer, accounts or start date, which an edit cannot change), InvalidAmount, InvalidDate, InvalidDescription, InvalidPeriodPolicy, ${INVALID_EDIT}, CurrencyMismatch, UnknownCurrency, ${creatorRefusals422("changes", NOT_A_MEMBER_ON_EDIT)}`,
         }),
       },
     },
@@ -568,13 +551,33 @@ export const recurrencesPaths: ZodOpenApiPathsObject = {
       "403": CREATOR_403,
       "404": `SpaceNotFound, RecurrenceNotFound, ${TEMPLATE_404}`,
       "409": `InvalidRecurrenceTransition, ${TEMPLATE_409}, SpaceArchived`,
-      "422": creatorRefusals422("resumes"),
+      "422": creatorRefusals422("resumes", LEFT_ON_RESUME),
     },
   ),
   "/api/v1/spaces/{spaceId}/recurrences/{recurrenceId}/end": recurrenceMove(
     "endRecurrence",
     "End a recurrence: it and its occurrences stay, and nothing more is recorded",
   ),
+  "/api/v1/spaces/{spaceId}/recurrences/{recurrenceId}/extend": {
+    post: {
+      operationId: "extendRecurrence",
+      summary:
+        "Extend an ENDED recurrence with a new end date, or none: the same recurrence goes on from today, never back-filling the days it was ended",
+      ...securedByUser,
+      requestParams: { path: RecurrencePath },
+      requestBody: { content: jsonContent(ExtendRecurrenceBodySchema) },
+      responses: {
+        "200": recurrenceResponse("The recurrence, ACTIVE again"),
+        ...problems({
+          "401": "Unauthenticated",
+          "403": CREATOR_403,
+          "404": `SpaceNotFound, RecurrenceNotFound, ${TEMPLATE_404}`,
+          "409": `InvalidRecurrenceTransition (it is not ENDED), ${TEMPLATE_409}, SpaceArchived`,
+          "422": `ValidationFailed (endDate is required), InvalidDate, InvalidRecurrence (an end date before the start; no schedule date from today, or from where it was due, through the end date), ${creatorRefusals422("extends", LEFT_ON_RESUME)}`,
+        }),
+      },
+    },
+  },
   "/api/v1/spaces/{spaceId}/pending-occurrences": {
     get: {
       operationId: "listPendingOccurrences",

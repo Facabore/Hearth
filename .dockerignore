@@ -3,6 +3,8 @@
 node_modules
 coverage
 tests
+# The e2e config imports tests/e2e/support; the image runs no e2e.
+playwright.config.ts
 scripts/*.test.mjs
 **/*.test.ts
 **/*.test.tsx

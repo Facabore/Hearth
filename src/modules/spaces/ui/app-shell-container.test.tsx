@@ -24,8 +24,8 @@ const household = { id: "sp-household", name: "Household", kind: "SHARED", role:
 const me = (locale: string) => ({ id: "u-ana", name: "Ana", email: "ana@example.com", locale });
 
 /** The shell element the container returns; its props are what the presentational AppShell receives. */
-const shellOf = async (spaceId: string | null) => {
-  const element = await AppShellContainer({ spaceId, children: null });
+const shellOf = async (spaceId: string | null, from?: string) => {
+  const element = await AppShellContainer({ spaceId, from, children: null });
   return (element as unknown as { props: Record<string, unknown> }).props;
 };
 
@@ -51,6 +51,17 @@ describe("app shell container (HU-E9-01, rulings P125 and P149)", () => {
     mocks.getMe.mockResolvedValue(me("es"));
     expect(await shellOf("sp-household")).toMatchObject({ activeSpace: { id: "sp-household" } });
     expect(await shellOf(null)).toMatchObject({ activeSpace: { id: "sp-personal" } });
+  });
+
+  it("keeps the space Settings or New space was opened from: its header, switcher and navigation (N3)", async () => {
+    mocks.getMe.mockResolvedValue(me("es"));
+    expect(await shellOf(null, "sp-household")).toMatchObject({ activeSpace: { id: "sp-household" } });
+  });
+
+  it("falls back to the personal space for a ?from= that is not one of hers (N3)", async () => {
+    mocks.getMe.mockResolvedValue(me("es"));
+    expect(await shellOf(null, "sp-stranger")).toMatchObject({ activeSpace: { id: "sp-personal" } });
+    expect(await shellOf(null, "")).toMatchObject({ activeSpace: { id: "sp-personal" } });
   });
 
   it("sends an expired session to the sign-in screen and reads no spaces", async () => {

@@ -58,11 +58,15 @@ const TITLES: ReadonlyMap<number, string> = new Map([
 const PUBLIC_DETAILS: ReadonlyMap<string, readonly string[]> = new Map([
   ["OutstandingBalance", ["outstanding"]],
   ["InvalidAllocation", ["lineIds"]],
+  // Ruling P248 (M6c): the label of the ACTIVE source plan a close waits for, e.g. "2026-11".
+  ["SourcePlanOpen", ["sourcePeriod"]],
   // HU-E4-11: "creator" when a recurrence's creator, not the requester, is why a resume or an edit is refused.
   ["InsufficientRole", ["member"]],
   ["NotASpaceMember", ["member"]],
   // HU-E2-06: the term an account type refuses, as the key inside the body's `terms`; the stored key stays private.
   ["AccountAttributeNotAllowed", ["field"]],
+  // Ruling P188: which part of the body the transaction's type keeps.
+  ["FieldNotEditable", ["field"]],
 ]);
 
 /** The details of `code` that are part of the API contract, e.g. the outstanding amount (HU-E1-08). */
@@ -75,6 +79,24 @@ export const publicDetailsOf = (
       .filter((key) => Object.hasOwn(details, key) && details[key] !== undefined)
       .map((key) => [key, details[key]]),
   );
+
+/**
+ * Issue 121: a domain `ValidationFailed` may name the request fields it refuses as `details.errors`, the same
+ * `errors[]` a contract-level one carries. Only well-formed `{ path, message }` entries leave the server.
+ */
+export const publicFieldErrorsOf = (
+  code: string,
+  details: Readonly<Record<string, unknown>> = {},
+): ProblemFieldError[] | undefined => {
+  const listed = code === "ValidationFailed" && Object.hasOwn(details, "errors") ? details.errors : undefined;
+  if (!Array.isArray(listed)) return undefined;
+  const errors = (listed as unknown[]).flatMap((entry): ProblemFieldError[] => {
+    if (typeof entry !== "object" || entry === null) return [];
+    const { path, message } = entry as Record<string, unknown>;
+    return typeof path === "string" && typeof message === "string" ? [{ path, message }] : [];
+  });
+  return errors.length > 0 ? errors : undefined;
+};
 
 /** Spec section 8: explicit codes first, then naming conventions, then 409 for invariant violations. */
 export const statusForCode = (code: string): number =>

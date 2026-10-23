@@ -74,7 +74,7 @@ describe("leave a space (HU-E1-08)", () => {
     ]);
   });
 
-  it("drops the space from Luis's lists and lets him join again later as a new member", async () => {
+  it("drops the space from Luis's lists and lets him join again later as the same member", async () => {
     const h = await household();
     const luis = await joinHousehold(h, "Luis", "MEMBER");
     expect((await leave(luis, h.spaceId)).status).toBe(204);
@@ -83,7 +83,9 @@ describe("leave a space (HU-E1-08)", () => {
     expect(items.map((s) => s.id)).not.toContain(h.spaceId);
     expect(await memberIdsOf(h.ana, h.spaceId)).not.toContain(luis.memberId);
     await joinAs(h.ana, h.spaceId, luis.personal, "MEMBER");
-    expect(await memberIdOf(h.ana, h.spaceId, "Luis")).not.toBe(luis.memberId);
+    // Issue #90: he takes back his own member row, so what names him names a current member again.
+    expect(await memberIdOf(h.ana, h.spaceId, "Luis")).toBe(luis.memberId);
+    expect(await leftAtOf(luis.memberId)).toBeNull();
   });
 
   it("refuses Juan, who owes Ana 150,000 COP, and states the outstanding amount", async () => {
@@ -195,6 +197,64 @@ describe("a former member's balance stays settled (HU-E1-08, Task 4b)", () => {
       body: { description: "Paid back Luis" },
     });
     expect(renamed.status).toBe(200);
+    expect(await balancesOf(h.ana, h.spaceId)).toEqual([
+      [h.ana.memberId, cop(0)],
+      [h.juan.memberId, cop(0)],
+      [luis.memberId, cop(0)],
+    ]);
+  });
+});
+
+describe("a former member who joined again (issue #90)", () => {
+  it("lets Ana correct and delete what Luis took part in once he is a member again, with one row for him", async () => {
+    const h = await household();
+    const luis = await joinHousehold(h, "Luis", "MEMBER");
+    const groceries = await paysEqually(luis, 100_000, [h.ana.memberId, luis.memberId], h.groceries);
+    const payback = await settles(h.ana, h.ana.memberId, luis.memberId, 50_000);
+    expect((await leave(luis, h.spaceId)).status).toBe(204);
+    const path = (id: string) => `/api/v1/spaces/${h.spaceId}/transactions/${id}`;
+    const onTransaction = (transactionId: string) => ({
+      user: h.ana,
+      params: { spaceId: h.spaceId, transactionId },
+    });
+    // Still a former member: refused, as before (Task 4b).
+    const refused = await call(editTransaction, "PATCH", path(payback.id), {
+      ...onTransaction(payback.id),
+      body: { amount: cop(60_000) },
+    });
+    expect(await problemOf(refused)).toEqual([422, "NotASpaceMember"]);
+
+    await joinAs(h.ana, h.spaceId, luis.personal, "MEMBER");
+
+    const raised = await call(editTransaction, "PATCH", path(payback.id), {
+      ...onTransaction(payback.id),
+      body: { amount: cop(60_000) },
+    });
+    expect(raised.status).toBe(200);
+    // Luis is a current member again, so the correction moves his balance and it shows once, under his one id.
+    expect(await balancesOf(h.ana, h.spaceId)).toEqual([
+      [h.ana.memberId, cop(10_000)],
+      [h.juan.memberId, cop(0)],
+      [luis.memberId, cop(-10_000)],
+    ]);
+    const deleted = await call(deleteTransaction, "DELETE", path(groceries.id), onTransaction(groceries.id));
+    expect(deleted.status).toBe(204);
+    expect(await memberIdsOf(h.ana, h.spaceId)).toEqual([h.ana.memberId, h.juan.memberId, luis.memberId]);
+  });
+
+  it("keeps Luis settled for as long as he has not joined again", async () => {
+    const h = await household();
+    const luis = await joinHousehold(h, "Luis", "MEMBER");
+    const groceries = await paysEqually(luis, 100_000, [h.ana.memberId, luis.memberId], h.groceries);
+    expect((await settles(h.ana, h.ana.memberId, luis.memberId, 50_000)).id).toBeTruthy();
+    expect((await leave(luis, h.spaceId)).status).toBe(204);
+    const deleted = await call(
+      deleteTransaction,
+      "DELETE",
+      `/api/v1/spaces/${h.spaceId}/transactions/${groceries.id}`,
+      { user: h.ana, params: { spaceId: h.spaceId, transactionId: groceries.id } },
+    );
+    expect(await problemOf(deleted)).toEqual([422, "NotASpaceMember"]);
     expect(await balancesOf(h.ana, h.spaceId)).toEqual([
       [h.ana.memberId, cop(0)],
       [h.juan.memberId, cop(0)],

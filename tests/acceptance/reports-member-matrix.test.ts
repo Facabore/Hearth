@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as createCategory } from "@/app/api/v1/spaces/[spaceId]/categories/route";
+import { GET as matrixRoute } from "@/app/api/v1/spaces/[spaceId]/reports/member-matrix/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
 import { activatePlan, putAllocation } from "../support/budgeting";
@@ -93,6 +94,20 @@ describe("member by line matrix over HTTP (HU-E7-02)", () => {
       [r.h.ana.memberId, null, null, cop(25_000), null, null],
       [r.h.juan.memberId, null, null, cop(25_000), null, null],
     ]);
+  });
+
+  it("answers 401 without a session, before it looks at the space or the period (issue 131)", async () => {
+    const r = await reportHousehold();
+    for (const query of ["period=2026-11", "period=not-a-period", ""]) {
+      const anonymous = await call(
+        matrixRoute,
+        "GET",
+        `/api/v1/spaces/${r.h.spaceId}/reports/member-matrix?${query}`,
+        { params: { spaceId: r.h.spaceId } },
+      );
+      expect(await problemOf(anonymous)).toEqual([401, "Unauthenticated"]);
+    }
+    expect((await getMemberMatrix(r.h.ana, r.h.spaceId, { period: "2026-11" })).status).toBe(200);
   });
 
   it("lets VIEWER Sofi read the matrix, where she has nothing assigned, and hides it from non-members", async () => {

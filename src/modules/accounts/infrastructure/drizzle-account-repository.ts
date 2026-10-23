@@ -35,30 +35,41 @@ const toAccount = (row: typeof accounts.$inferSelect): Account => {
   };
 };
 
+const rowOf = (account: Account) => ({
+  id: account.id,
+  spaceId: account.spaceId,
+  name: account.name,
+  type: account.type,
+  ownerUserId: account.ownerUserId,
+  openingBalance: account.openingBalance,
+  archivedAt: account.archivedAt,
+  createdAt: account.createdAt,
+  institution: account.institution,
+  lastFour: account.lastFour,
+  color: account.color,
+  icon: account.icon,
+  includeInAvailable: account.includeInAvailable,
+  includeInNetWorth: account.includeInNetWorth,
+  ...account.terms,
+});
+
 export class DrizzleAccountRepository implements AccountRepository {
   constructor(private readonly tm: DrizzleTransactionManager) {}
 
   async add(account: Account): Promise<void> {
-    await this.tm
+    await this.tm.executor().insert(accounts).values(rowOf(account));
+  }
+
+  async addUnlessNameTaken(account: Account): Promise<boolean> {
+    // The table's unique indexes are its primary key (a fresh UUIDv7 never collides) and accounts_space_name_uq, so a
+    // skipped row is a name conflict; Drizzle names no expression index as a target. Check violations still fail.
+    const inserted = await this.tm
       .executor()
       .insert(accounts)
-      .values({
-        id: account.id,
-        spaceId: account.spaceId,
-        name: account.name,
-        type: account.type,
-        ownerUserId: account.ownerUserId,
-        openingBalance: account.openingBalance,
-        archivedAt: account.archivedAt,
-        createdAt: account.createdAt,
-        institution: account.institution,
-        lastFour: account.lastFour,
-        color: account.color,
-        icon: account.icon,
-        includeInAvailable: account.includeInAvailable,
-        includeInNetWorth: account.includeInNetWorth,
-        ...account.terms,
-      });
+      .values(rowOf(account))
+      .onConflictDoNothing()
+      .returning({ id: accounts.id });
+    return inserted.length === 1;
   }
 
   async listBySpace(spaceId: string): Promise<Account[]> {

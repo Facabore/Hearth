@@ -110,11 +110,93 @@ describe("defineRoute", () => {
     expect(body.errors.map((e: { path: string }) => e.path)).toEqual(["amount", "split.ratio"]);
   });
 
+  it("names the fields of a domain ValidationFailed in errors[], and only of that code (issue 121)", async () => {
+    const fail = (code: string, details: Record<string, unknown>) =>
+      call(defineRoute({ auth: "none", handler: async () => err(domainError(code, details)) }));
+    const named = await (
+      await fail("ValidationFailed", {
+        errors: [
+          { path: "icon", message: "No style of its own", secret: "x" },
+          { path: 7, message: "dropped" },
+        ],
+      })
+    ).json();
+    expect(named.errors).toEqual([{ path: "icon", message: "No style of its own" }]);
+    expect((await (await fail("ValidationFailed", { field: "style" })).json()).errors).toBeUndefined();
+    expect(
+      (await (await fail("InvalidAmount", { errors: [{ path: "a", message: "b" }] })).json()).errors,
+    ).toBe(undefined);
+  });
+
   it("returns 422 ValidationFailed for malformed JSON instead of a 500", async () => {
     const route = defineRoute({ auth: "none", body: z.object({}), handler: async () => ok({ status: 201 }) });
     const response = await call(route, { method: "POST", body: '{"amount": ' });
     expect(response.status).toBe(422);
     expect((await response.json()).code).toBe("ValidationFailed");
+  });
+
+  describe("NUL characters (issue 118)", () => {
+    const echo = defineRoute({
+      auth: "none",
+      body: z.object({ name: z.string(), tags: z.array(z.object({ label: z.string() })).optional() }),
+      query: z.object({ q: z.string().optional() }),
+      handler: async ({ body }) => ok({ status: 200, body }),
+    });
+    const post = (body: string, path = "/api/v1/test") => call(echo, { method: "POST", path, body });
+    const problem = async (response: Response) => {
+      const body = await response.json();
+      return [response.status, body.code, body.errors] as const;
+    };
+
+    it("refuses a NUL in a body string with 422 ValidationFailed at its path", async () => {
+      expect(await problem(await post('{"name":"Nequi\\u0000"}'))).toEqual([
+        422,
+        "ValidationFailed",
+        [{ path: "name", message: "Must not contain NUL characters" }],
+      ]);
+    });
+
+    it("finds a NUL inside nested arrays and objects, and names every offending path", async () => {
+      const [status, code, errors] = await problem(
+        await post('{"name":"\\u0000","tags":[{"label":"ok"},{"label":"a\\u0000b"}]}'),
+      );
+      expect([status, code]).toEqual([422, "ValidationFailed"]);
+      expect(errors?.map((e: { path: string }) => e.path)).toEqual(["name", "tags.1.label"]);
+    });
+
+    it("refuses a NUL in an object key", async () => {
+      const [status, code, errors] = await problem(await post('{"name":"x","bad\\u0000key":1}'));
+      expect([status, code]).toEqual([422, "ValidationFailed"]);
+      expect(errors?.map((e: { path: string }) => e.path)).toEqual(["bad\u0000key"]);
+    });
+
+    it("refuses a NUL in a query value", async () => {
+      const [status, code, errors] = await problem(await post('{"name":"x"}', "/api/v1/test?q=a%00b"));
+      expect([status, code]).toEqual([422, "ValidationFailed"]);
+      expect(errors?.map((e: { path: string }) => e.path)).toEqual(["q"]);
+    });
+
+    it("lists at most 20 offending paths, and survives a deeply nested body", async () => {
+      const many = JSON.stringify({
+        name: "x",
+        tags: Array.from({ length: 50 }, () => ({ label: "\u0000" })),
+      });
+      const [status, , errors] = await problem(await post(many));
+      expect([status, errors?.length]).toEqual([422, 20]);
+
+      const deep = `${"[".repeat(5000)}"a\\u0000"${"]".repeat(5000)}`;
+      const [deepStatus, , deepErrors] = await problem(await post(`{"name":"x","tags":${deep}}`));
+      expect(deepStatus).toBe(422);
+      expect(deepErrors).toHaveLength(1);
+      expect(deepErrors?.[0]?.message).toBe("Must not contain NUL characters");
+    });
+
+    it("keeps accepting other text unchanged: control characters, a literal backslash-u0000, emoji", async () => {
+      const name = "line\none\ttab \\u0000 literal \u{1F600} \u0001";
+      const response = await post(JSON.stringify({ name }));
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ name });
+    });
   });
 
   it("validates the query string", async () => {

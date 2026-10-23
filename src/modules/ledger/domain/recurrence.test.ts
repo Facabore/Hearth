@@ -1,12 +1,16 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
-import type { LocalDate, Result } from "@/shared/kernel";
+import { localDateIn, type LocalDate, type Result } from "@/shared/kernel";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
 import {
+  MAX_SCHEDULED,
   MAX_UPCOMING,
+  accountsMovedBy,
   blockerOf,
+  datesThrough,
   debitsPersonalAccount,
   defineRecurrence,
   endedRecurrence,
+  extendedRecurrence,
   payerOf,
   pausedRecurrence,
   resumedRecurrence,
@@ -771,6 +775,101 @@ describe("pausing, resuming and ending (HU-E4-11)", () => {
   });
 });
 
+describe("extending an ended recurrence (#115)", () => {
+  /** Rent recorded on 2026-12-01 and 2027-01-01 by runs, which left it due from 2027-01-02; ended on 2027-01-10. */
+  const endedRent = (): Recurrence => ({
+    ...unwrap(endedRecurrence({ ...rent(), dueFrom: day("2027-01-02") }, at("2027-01-10"))),
+  });
+
+  it("moves dueFrom to today and keeps the same recurrence: the dates it missed while ended are not due", () => {
+    const extended = unwrap(extendedRecurrence(endedRent(), null, at("2027-04-15"), day("2027-04-15")));
+    expect([
+      extended.id,
+      statusOf(extended),
+      extended.dueFrom,
+      extended.endedAt,
+      extended.endDate,
+      upcomingDates(extended, 2),
+      extended.updatedAt,
+    ]).toEqual([
+      "rec-rent",
+      "ACTIVE",
+      "2027-04-15",
+      null,
+      null,
+      ["2027-05-01", "2027-06-01"],
+      at("2027-04-15"),
+    ]);
+  });
+
+  it("sets the new end date, and null removes the one it had", () => {
+    const withEnd = unwrap(
+      extendedRecurrence(endedRent(), day("2027-06-30"), at("2027-04-15"), day("2027-04-15")),
+    );
+    expect([withEnd.endDate, upcomingDates(withEnd, 5)]).toEqual([
+      "2027-06-30",
+      ["2027-05-01", "2027-06-01"],
+    ]);
+    const closed = { ...endedRent(), endDate: day("2027-02-28") };
+    expect(unwrap(extendedRecurrence(closed, null, at("2027-04-15"), day("2027-04-15"))).endDate).toBeNull();
+  });
+
+  it("extends a recurrence that ran out of dates, with endedAt never set", () => {
+    const exhausted = { ...rent({ endDate: day("2027-01-01") }), dueFrom: day("2027-01-02") };
+    expect(statusOf(exhausted)).toBe("ENDED");
+    const extended = unwrap(
+      extendedRecurrence(exhausted, day("2027-09-30"), at("2027-04-15"), day("2027-04-15")),
+    );
+    expect([statusOf(extended), extended.dueFrom, upcomingDates(extended, 1)]).toEqual([
+      "ACTIVE",
+      "2027-04-15",
+      ["2027-05-01"],
+    ]);
+  });
+
+  it("never moves dueFrom backwards: one ended before it started stays due from its start date", () => {
+    const notStarted = unwrap(endedRecurrence(rent(), at("2026-10-30")));
+    const extended = unwrap(extendedRecurrence(notStarted, null, at("2026-11-02"), day("2026-11-02")));
+    expect([extended.dueFrom, upcomingDates(extended, 1)]).toEqual(["2026-12-01", ["2026-12-01"]]);
+  });
+
+  it("returns a recurrence ended while paused to ACTIVE, with no pause reason left", () => {
+    const stopped = { ...endedRent(), pausedAt: at("2027-01-05"), pauseReason: "PayerLeft" };
+    const extended = unwrap(extendedRecurrence(stopped, null, at("2027-04-15"), day("2027-04-15")));
+    expect([statusOf(extended), extended.pausedAt, extended.pauseReason]).toEqual(["ACTIVE", null, null]);
+  });
+
+  it("refuses an ACTIVE or a PAUSED recurrence with InvalidRecurrenceTransition, saying from and to", () => {
+    const now = at("2027-04-15");
+    const active = rent();
+    const paused = unwrap(pausedRecurrence(active, at("2026-11-01")));
+    const details = (result: Result<Recurrence>) => (result.ok ? null : result.error.details);
+    expect([
+      codeOf(extendedRecurrence(active, null, now, day("2027-04-15"))),
+      codeOf(extendedRecurrence(paused, null, now, day("2027-04-15"))),
+      details(extendedRecurrence(active, null, now, day("2027-04-15"))),
+      details(extendedRecurrence(paused, null, now, day("2027-04-15"))),
+    ]).toEqual([
+      "InvalidRecurrenceTransition",
+      "InvalidRecurrenceTransition",
+      { from: "ACTIVE", to: "ACTIVE" },
+      { from: "PAUSED", to: "ACTIVE" },
+    ]);
+  });
+
+  it("refuses an end date before the start, and one that leaves no schedule date from today (InvalidRecurrence)", () => {
+    const now = at("2027-04-15");
+    const reasons = [day("2026-11-30"), day("2027-04-20")].map((endDate) => {
+      const result = extendedRecurrence(endedRent(), endDate, now, day("2027-04-15"));
+      return [codeOf(result), result.ok ? null : result.error.details];
+    });
+    expect(reasons).toEqual([
+      ["InvalidRecurrence", { reason: "endsBeforeStart" }],
+      ["InvalidRecurrence", { reason: "noOccurrence" }],
+    ]);
+  });
+});
+
 describe("who a recurrence depends on (D9, P22, P26)", () => {
   const internet: RecurrenceTemplate = {
     type: "EXPENSE",
@@ -885,5 +984,87 @@ describe("who a recurrence depends on (D9, P22, P26)", () => {
         blockerOf(r, []),
       ]),
     ).toEqual(Array.from({ length: 3 }, () => [null, "CreatorLeft", "CreatorLeft"]));
+  });
+});
+
+describe("the dates a recurrence records through a day (ruling P238 of M6c)", () => {
+  it("lists every date from the first not considered yet through the day, and stops at its end date", () => {
+    expect(datesThrough(rent(), day("2027-02-15"))).toEqual(["2026-12-01", "2027-01-01", "2027-02-01"]);
+    expect(datesThrough(rent({ endDate: day("2027-01-10") }), day("2027-02-15"))).toEqual([
+      "2026-12-01",
+      "2027-01-01",
+    ]);
+    expect(datesThrough(rent(), day("2026-11-30"))).toEqual([]);
+  });
+
+  it("includes a date that falls on the last day of the window and none the day after", () => {
+    expect(datesThrough(rent(), day("2027-01-01"))).toEqual(["2026-12-01", "2027-01-01"]);
+    expect(datesThrough(rent(), day("2026-12-31"))).toEqual(["2026-12-01"]);
+  });
+
+  it("lists nothing while paused or once ended, and never more than MAX_SCHEDULED dates", () => {
+    const r = rent();
+    expect(datesThrough({ ...r, pausedAt: at("2026-11-01") }, day("2027-02-15"))).toEqual([]);
+    expect(datesThrough({ ...r, endedAt: at("2026-11-01") }, day("2027-02-15"))).toEqual([]);
+    expect(MAX_SCHEDULED).toBe(64);
+    expect(datesThrough(r, day("2040-01-01"))).toHaveLength(MAX_SCHEDULED);
+  });
+
+  it("starts at the definition day in the space's calendar: 04:59:59Z is still 2026-10-28 in Bogota, 05:00:00Z is 2026-10-29 (ruling P246 of M6c)", () => {
+    const defined = (iso: string) =>
+      rent({
+        schedule: { kind: "MONTHLY", day: 28 },
+        startDate: day("2026-10-01"),
+        now: new Date(iso),
+        today: localDateIn(new Date(iso), "America/Bogota"),
+      });
+    expect(datesThrough(defined("2026-10-29T04:59:59Z"), day("2026-12-31"))).toEqual([
+      "2026-10-28",
+      "2026-11-28",
+      "2026-12-28",
+    ]);
+    expect(datesThrough(defined("2026-10-29T05:00:00Z"), day("2026-12-31"))).toEqual([
+      "2026-11-28",
+      "2026-12-28",
+    ]);
+  });
+});
+
+describe("the accounts a recurrence moves (ruling P239 of M6c)", () => {
+  it("debits the paying or source account and credits the receiving one", () => {
+    expect([
+      accountsMovedBy({
+        type: "EXPENSE",
+        categoryId: "cat-rent",
+        payer: { memberId: "member-ana", accountId: "acc-bancolombia" },
+        split: null,
+      }),
+      accountsMovedBy(RENT),
+      accountsMovedBy({ type: "INCOME", categoryId: "cat-salary", accountId: "acc-bancolombia" }),
+      accountsMovedBy({
+        type: "TRANSFER",
+        sourceAccountId: "acc-bancolombia",
+        destinationAccountId: "acc-visa",
+      }),
+      accountsMovedBy({
+        type: "FUND_CONTRIBUTION",
+        fundAccountId: "acc-household-fund",
+        memberId: "member-ana",
+        sourceAccountId: "acc-bancolombia",
+      }),
+      accountsMovedBy({
+        type: "FUND_CONTRIBUTION",
+        fundAccountId: "acc-household-fund",
+        memberId: "member-pedro",
+        sourceAccountId: null,
+      }),
+    ]).toEqual([
+      { debitAccountId: "acc-bancolombia", creditAccountId: null },
+      { debitAccountId: "acc-household-fund", creditAccountId: null },
+      { debitAccountId: null, creditAccountId: "acc-bancolombia" },
+      { debitAccountId: "acc-bancolombia", creditAccountId: "acc-visa" },
+      { debitAccountId: "acc-bancolombia", creditAccountId: "acc-household-fund" },
+      { debitAccountId: null, creditAccountId: "acc-household-fund" },
+    ]);
   });
 });

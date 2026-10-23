@@ -1,61 +1,9 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import es from "../../src/i18n/messages/es.json" with { type: "json" };
+import { archiveStarterAccounts, saveIncomeFromForm, seedLedger, signUp } from "./support/seed";
 
 const WCAG = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
-
-const post = async (page: Page, path: string, data: unknown, extra: Record<string, string> = {}) => {
-  const response = await page.request.post(path, { data, headers: extra });
-  if (!response.ok()) throw new Error(`POST ${path} answered ${response.status()}: ${await response.text()}`);
-  return response.json();
-};
-
-/** A fresh person with a personal space and nothing else: her home shows the first-account card (P148). */
-const signUp = async (page: Page, tag: string): Promise<string> => {
-  await page
-    .context()
-    .setExtraHTTPHeaders({ "x-forwarded-for": tag === "light" ? "10.252.0.1" : "10.252.0.2" });
-  await post(page, "/api/v1/auth/sign-up", {
-    name: "Ana",
-    email: `a11y-${tag}-${Date.now()}@example.com`,
-    password: "123456789012",
-    timezone: "America/Bogota",
-  });
-  const { items: spaces } = await (await page.request.get("/api/v1/spaces")).json();
-  return spaces[0].id as string;
-};
-
-/** The same seeding as the e2e World: "Bancolombia", an archived "Old wallet", one expense in the first category. */
-const seedLedger = async (page: Page, spaceId: string): Promise<void> => {
-  const space = `/api/v1/spaces/${spaceId}`;
-  const account = await post(page, `${space}/accounts`, {
-    name: "Bancolombia",
-    type: "BANK",
-    openingBalance: { amount: "200000000", currency: "COP" },
-  });
-  const old = await post(page, `${space}/accounts`, {
-    name: "Old wallet",
-    type: "WALLET",
-    openingBalance: { amount: "0", currency: "COP" },
-  });
-  await post(page, `${space}/accounts/${old.id}/archive`, {});
-  const { items: groups } = await (await page.request.get(`${space}/categories`)).json();
-  const categoryId: string = groups.flatMap((g: { categories: { id: string }[] }) => g.categories)[0].id;
-  await post(
-    page,
-    `${space}/expenses`,
-    {
-      description: "Market",
-      date: "2026-10-31",
-      occurredAt: "2026-10-31T17:00:00.000Z",
-      timeZone: "America/Bogota",
-      categoryId,
-      amount: { amount: "8500000", currency: "COP" },
-      accountId: account.id,
-    },
-    { "idempotency-key": crypto.randomUUID() },
-  );
-};
 
 for (const colorScheme of ["light", "dark"] as const) {
   test.describe(`accessibility in ${colorScheme} (UI Definition of Done)`, () => {
@@ -77,11 +25,24 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect(page.getByText(es.auth.signIn.forgotHelp)).toBeVisible();
       await scan("sign-in with the forgotten-password note");
 
-      // A space with no accounts: the home shows the first-account card instead of the summary (P148).
-      const spaceId = await signUp(page, colorScheme);
+      // A space with no active account: the home shows the first-account card instead of the summary (P148). Sign-up
+      // opens the starter accounts (issue 169), so this person archived them.
+      const spaceId = await signUp(
+        page,
+        "a11y-" + colorScheme,
+        colorScheme === "light" ? "10.252.0.1" : "10.252.0.2",
+      );
+      await archiveStarterAccounts(page, spaceId);
       await page.goto(`/spaces/${spaceId}`);
       await expect(page.getByText(es.home.firstAccount.title)).toBeVisible();
       await scan("home of a space without accounts");
+      // U4: the accounts screen of a person with no active account is an empty state with its actions, the starter
+      // accounts among them (issue 169).
+      await page.goto(`/spaces/${spaceId}/accounts`);
+      await expect(page.getByRole("heading", { name: es.accounts.empty.noActiveTitle })).toBeVisible();
+      await expect(page.getByRole("button", { name: es.accounts.empty.starter })).toBeVisible();
+      await scan("accounts screen without accounts");
+      await page.goto(`/spaces/${spaceId}`);
       await page.getByRole("button", { name: es.shell.space.current.replace("{name}", "Personal") }).click();
       await scan("space sheet");
       await page.keyboard.press("Escape");
@@ -96,11 +57,31 @@ for (const colorScheme of ["light", "dark"] as const) {
         `/spaces/${spaceId}/accounts`,
         `/spaces/${spaceId}/accounts/new`,
         `/spaces/${spaceId}/new`,
+        // HU-E9-11: My spending, the personal space's Plan tab, with consumption and cash out.
+        `/spaces/${spaceId}/plan`,
+        // HU-E9-10: its Lines view, a space with spending and no plan (Unbudgeted alone).
+        `/spaces/${spaceId}/plan/lines`,
+        // HU-E9-11: its By group view, the person's own spending merged across spaces.
+        `/spaces/${spaceId}/plan/groups`,
         "/settings",
+        // N1: the app's own not-found page, for an address and for a space.
+        "/nope",
+        "/spaces/does-not-exist/accounts",
       ]) {
         await page.goto(path);
         await scan(path);
       }
+      // Ruling P189: a transaction's detail opens over the list from a row.
+      await page.goto(`/spaces/${spaceId}/transactions`);
+      await page.getByRole("link", { name: /Market/ }).click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await expect(page.getByRole("button", { name: es.ledger.detail.delete })).toBeVisible();
+      await scan("transaction detail sheet");
+      // Ruling P191: Editar opens the record form on that transaction.
+      await page.getByRole("link", { name: es.ledger.detail.edit }).click();
+      await expect(page.locator("[data-ready='true']")).toBeAttached();
+      await expect(page.getByRole("heading", { name: es.ledger.edit.title })).toBeVisible();
+      await scan("edit a transaction");
       await page.goto(`/spaces/${spaceId}/accounts`);
       await expect(
         page.getByRole("button", { name: es.accounts.restore.replace("{name}", "Old wallet") }),
@@ -117,6 +98,72 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page.keyboard.press("Escape");
       await page.getByRole("button", { name: /Categoría/ }).click();
       await scan("category picker");
+    });
+  });
+}
+
+for (const colorScheme of ["light", "dark"] as const) {
+  test.describe(`the save toast in ${colorScheme} (P195)`, () => {
+    test.use({ colorScheme });
+
+    test("has no WCAG 2.1 AA violation while it shows a saved income", async ({ page }) => {
+      const spaceId = await signUp(
+        page,
+        "toast-" + colorScheme,
+        colorScheme === "light" ? "10.252.0.3" : "10.252.0.4",
+      );
+      await seedLedger(page, spaceId);
+      await saveIncomeFromForm(page, spaceId);
+      await expect(page.getByRole("region", { name: es.toast.region }).getByRole("status")).toContainText(
+        es.ledger.toast.saved.INCOME,
+      );
+      await page.getByTestId("toast").hover();
+      const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
+      expect(
+        violations.map((v) => `toast: ${v.id} ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`),
+      ).toEqual([]);
+    });
+
+    test("has no WCAG 2.1 AA violation while it offers Deshacer after a delete, and after a failed undo", async ({
+      page,
+    }) => {
+      const spaceId = await signUp(
+        page,
+        "undo-" + colorScheme,
+        colorScheme === "light" ? "10.252.0.5" : "10.252.0.6",
+      );
+      await seedLedger(page, spaceId);
+      const scan = async (where: string) => {
+        await page.getByTestId("toast").hover();
+        const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
+        expect(
+          violations.map((v) => `${where}: ${v.id} ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`),
+        ).toEqual([]);
+      };
+      await page.goto(`/spaces/${spaceId}/transactions`);
+      await page.getByRole("link", { name: /Market/ }).click();
+      await page.getByRole("button", { name: es.ledger.detail.delete }).click();
+      const region = page.getByRole("region", { name: es.toast.region });
+      await expect(region.getByRole("status")).toContainText(es.ledger.toast.deleted.EXPENSE);
+      await scan("toast with Deshacer");
+      // The undo is refused (a closed period): the failure shows in the alert region.
+      await page.route("**/restore", (route) =>
+        route.fulfill({
+          status: 409,
+          contentType: "application/problem+json",
+          body: JSON.stringify({
+            type: "urn:hearth:problem:PeriodClosed",
+            title: "",
+            status: 409,
+            code: "PeriodClosed",
+          }),
+        }),
+      );
+      await region.getByRole("button", { name: es.ledger.toast.undo }).click();
+      await expect(region.getByRole("alert")).toContainText(
+        es.ledger.toast.undoFailed.split("{message}")[0]!,
+      );
+      await scan("toast with a failed undo");
     });
   });
 }

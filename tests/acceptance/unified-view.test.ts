@@ -180,6 +180,16 @@ describe("unified personal view over HTTP (HU-E7-04)", () => {
     expect((await viewOf(h.juan)).consumption.total).toEqual(cop(2_160_000));
   });
 
+  it("ignores a userId in the query string: the view is always the caller's (issue 131)", async () => {
+    const { h } = await background();
+    await spendAtHome(h.juan, "groceries", 90_000, "2026-11-06");
+    const plain = await viewOf(h.ana);
+    const asJuan = await getUnifiedView(h.ana, { period: "2026-11", userId: h.juan.userId });
+    expect(asJuan.status).toBe(200);
+    expect(await asJuan.json()).toEqual(plain);
+    expect(plain.consumption.total).toEqual(cop(1_575_000));
+  });
+
   it("places a shared expense of 2026-11-26 in Ana's 2026-11, while MONTHLY(25) Casa counts it in 2026-12", async () => {
     const ana = await registerUser("Ana");
     const casa = await newSharedSpace(ana, "Casa");
@@ -437,6 +447,16 @@ describe("personal spending by group over HTTP (HU-E7-06)", () => {
     expect((await breakdownOf(h.ana)).total).toEqual(cop(1_575_000));
     // Juan's 90,000 COP and his shares: 1,200,000 Home, 720,000 Rent and 150,000 market.
     expect((await breakdownOf(h.juan)).total).toEqual(cop(2_160_000));
+  });
+
+  it("ignores a userId in the query string: the breakdown is always the caller's (issue 131)", async () => {
+    const { h } = await background();
+    await spendAtHome(h.juan, "groceries", 90_000, "2026-11-06");
+    const plain = await breakdownOf(h.ana);
+    const asJuan = await getPersonalSpendingByGroup(h.ana, { period: "2026-11", userId: h.juan.userId });
+    expect(asJuan.status).toBe(200);
+    expect(await asJuan.json()).toEqual(plain);
+    expect(plain.total).toEqual(cop(1_575_000));
   });
 
   it("leaves out Ana's expense in a space with another currency, keeping her breakdown in COP", async () => {

@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { GET as linesRoute } from "@/app/api/v1/spaces/[spaceId]/reports/lines/route";
 import { setContainerForTests, type Container } from "@/composition/container";
-import { problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
-import { planOf } from "../support/budgeting";
+import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
+import { copyPlan, lineNamed, patchLine, planOf, type PlanDto } from "../support/budgeting";
 import { cop, joinHousehold } from "../support/ledger";
 import { getLineDashboard, reportHousehold, spend, type LineDashboardDto } from "../support/reporting";
 
@@ -47,6 +48,22 @@ describe("line dashboard over HTTP (HU-E7-01)", () => {
       ["Free", cop(730_000), cop(250_000), cop(480_000), false],
     ]);
     expect(dashboard.unbudgeted).toEqual({ spent: cop(60_000), available: cop(-60_000), overspent: true });
+    expect(dashboard.totals).toEqual({
+      planned: cop(4_000_000),
+      spent: cop(2_810_000),
+      available: cop(1_190_000),
+    });
+    expect(dashboard.categoryLines).toContainEqual({
+      categoryId: r.category.groceries,
+      lineId: r.lineId("Home"),
+    });
+    expect(dashboard.categoryLines).toContainEqual({ categoryId: r.category.restaurants, lineId: null });
+    expect(dashboard.lines.map((l) => [l.name, l.state, l.overBy])).toEqual([
+      ["Rent", "HIGH", null],
+      ["Home", "NEAR", null],
+      ["Savings", "OK", null],
+      ["Free", "OK", null],
+    ]);
   });
 
   it("shows each line's figures exactly as the plan view does, carry-over included (P32)", async () => {
@@ -58,10 +75,40 @@ describe("line dashboard over HTTP (HU-E7-01)", () => {
       plan.lines.map((l) => [l.id, l.plannedAmount, l.spent, l.carryOver, l.available]),
     );
     expect(dashboard.lines.map((l) => l.carryOver)).toEqual([cop(0), cop(0), cop(0), cop(0)]);
+    // Both answers agree on where a carry-over comes from too; a plan that was not copied names no source (ruling P243).
+    expect(dashboard.lines.map((l) => l.carryOverFrom)).toEqual(plan.lines.map((l) => l.carryOverFrom));
+    expect(dashboard.lines.map((l) => l.carryOverFrom)).toEqual([null, null, null, null]);
     expect(dashboard.unbudgeted).toMatchObject({
       spent: plan.unbudgeted?.spent,
       available: plan.unbudgeted?.available,
     });
+  });
+
+  it("names the plan a copy's carry-over waits for: a DRAFT 2026-11 carries nothing into 2026-12 (ruling P243 of M6c)", async () => {
+    const r = await reportHousehold();
+    await novemberExpenses(r);
+    const { h, planId, lineId } = r;
+    expect(
+      (await patchLine(h.ana, h.spaceId, planId, lineId("Home"), { rolloverMode: "ROLLOVER" })).status,
+    ).toBe(200);
+    const copied = await copyPlan(h.ana, h.spaceId, "2026-12");
+    expect(copied.status).toBe(201);
+    const december = (await copied.json()) as PlanDto;
+    const dashboard = await dashboardOf(h.ana, h.spaceId, "2026-12");
+    const home = dashboard.lines.find((l) => l.name === "Home")!;
+    expect(home.carryOver).toEqual(cop(0));
+    expect(home.carryOverFrom).toEqual({
+      planId,
+      period: { label: "2026-11", startDate: "2026-11-01", endDate: "2026-11-30" },
+      closed: false,
+    });
+    expect(dashboard.lines.filter((l) => l.name !== "Home").map((l) => l.carryOverFrom)).toEqual([
+      null,
+      null,
+      null,
+    ]);
+    // The plan view of the same copy answers the same source, line by line.
+    expect(lineNamed(december, "Home").carryOverFrom).toEqual(home.carryOverFrom);
   });
 
   it("answers 404 SpaceNotFound for a malformed space id, never a 500", async () => {
@@ -84,6 +131,22 @@ describe("line dashboard over HTTP (HU-E7-01)", () => {
     const dashboard = await dashboardOf(r.h.ana, r.h.spaceId, "2027-01");
     expect(dashboard).toMatchObject({ plan: null, lines: [], period: { label: "2027-01" } });
     expect(dashboard.unbudgeted).toEqual({ spent: cop(100_000), available: cop(-100_000), overspent: true });
+    expect(dashboard.totals).toEqual({ planned: cop(0), spent: cop(100_000), available: cop(-100_000) });
+    expect(dashboard.categoryLines).toEqual([]);
+  });
+
+  it("answers 401 without a session, before it looks at the space or the period (issue 131)", async () => {
+    const r = await reportHousehold();
+    for (const query of ["period=2026-11", "period=not-a-period", ""]) {
+      const anonymous = await call(
+        linesRoute,
+        "GET",
+        `/api/v1/spaces/${r.h.spaceId}/reports/lines?${query}`,
+        { params: { spaceId: r.h.spaceId } },
+      );
+      expect(await problemOf(anonymous)).toEqual([401, "Unauthenticated"]);
+    }
+    expect((await dashboardOf(r.h.ana, r.h.spaceId, "2026-11")).period.label).toBe("2026-11");
   });
 
   it("lets VIEWER Sofi read it and hides the space from non-members and malformed ids", async () => {

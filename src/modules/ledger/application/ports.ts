@@ -79,7 +79,7 @@ export interface TransactionRepository {
 export interface AuditEntry {
   readonly id: string;
   readonly transactionId: string;
-  readonly action: "UPDATED" | "DELETED";
+  readonly action: "UPDATED" | "DELETED" | "RESTORED";
   readonly actorUserId: string;
   readonly at: Date;
   readonly changes: ChangeSet;

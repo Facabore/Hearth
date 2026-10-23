@@ -45,6 +45,7 @@ const setup = (
   const deps: LifecycleDeps = {
     access: createSpaceAccess(store),
     members: store,
+    spaceLocks: store,
     netBalance: nets(byMember),
     clock: new FixedClock(now),
     tm: memoryTm,
@@ -60,6 +61,18 @@ describe("LeaveSpace (HU-E1-08)", () => {
     expect(idsOf(store.members(space))).toEqual(["member-ana", "member-juan", "member-sofi", "member-pedro"]);
     expect(store.left).toEqual([{ spaceId: space, memberId: "member-luis", leftAt: now }]);
     expect(store.locked).toEqual([space]);
+  });
+
+  it("locks the space for a lifecycle change before it reads the balance (issue #89)", async () => {
+    const { store, leave } = setup();
+    unwrap(await leave(as("luis")));
+    expect(store.locks.lifecycle).toEqual([space]);
+  });
+
+  it("takes no lock for a stranger, whose leave is refused before the space is touched (issue #89)", async () => {
+    const { store, leave } = setup();
+    expect(codeOf(await leave({ spaceId: space, userId: "u-nobody" }))).toBe("SpaceNotFound");
+    expect(store.locks.lifecycle).toEqual([]);
   });
 
   it("refuses Juan while he owes Ana 150,000 COP, with the outstanding amount (Review Focus 1)", async () => {

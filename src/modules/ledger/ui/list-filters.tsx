@@ -7,21 +7,12 @@ import { useState } from "react";
 import { CategoryPicker, categoryPath } from "@/modules/categories/ui";
 import { Button, Icon, VisuallyHidden } from "@/shared/ui";
 import type { CategoryGroupDto, PeriodDto } from "@/shared/ui/api/dto";
+import { hrefOf, type ListFilter } from "./list-href";
 
-export interface ListFilter {
-  readonly period?: string;
-  readonly categoryId?: string;
-}
-
-const hrefOf = (spaceId: string, filter: ListFilter) => {
-  const query = new URLSearchParams();
-  if (filter.period) query.set("period", filter.period);
-  if (filter.categoryId) query.set("category", filter.categoryId);
-  const text = query.toString();
-  return `/spaces/${spaceId}/transactions${text ? `?${text}` : ""}`;
-};
-
-/** HU-E9-03: the period with its neighbours, and the category filter (the API rolls subcategories up, P130). */
+/**
+ * HU-E9-03: the period with its neighbours, and the category filter (the API rolls subcategories up, P130). N8: a
+ * period is a place, so its arrows push; the category filter only narrows the place, so it replaces the entry.
+ */
 export function ListFilters({
   spaceId,
   period,
@@ -69,17 +60,13 @@ export function ListFilters({
             variant="secondary"
             aria-pressed="true"
             aria-label={t("removeFilter", { name: chosen })}
-            className="h-11 rounded-full px-4 text-sm"
-            onClick={() => router.push(hrefOf(spaceId, { period: filter.period }))}
+            size="chip"
+            onClick={() => router.replace(hrefOf(spaceId, { period: filter.period }))}
           >
             {chosen} ✕
           </Button>
         ) : (
-          <Button
-            variant="secondary"
-            className="h-11 rounded-full px-4 text-sm"
-            onClick={() => setOpen(true)}
-          >
+          <Button variant="secondary" size="chip" onClick={() => setOpen(true)}>
             <Icon name="search" size={18} />
             {t("filterCategory")}
           </Button>
@@ -93,7 +80,7 @@ export function ListFilters({
         title={t("filterTitle")}
         onChoose={(choice) => {
           if (choice)
-            router.push(
+            router.replace(
               hrefOf(spaceId, { ...filter, categoryId: choice.subcategoryId ?? choice.categoryId }),
             );
         }}

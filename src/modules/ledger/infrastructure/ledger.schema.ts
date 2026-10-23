@@ -130,7 +130,7 @@ export const transactionAudit = pgTable(
     transactionId: uuid("transaction_id")
       .notNull()
       .references(() => transactions.id, { onDelete: "cascade" }),
-    action: text("action", { enum: ["UPDATED", "DELETED"] }).notNull(),
+    action: text("action", { enum: ["UPDATED", "DELETED", "RESTORED"] }).notNull(),
     actorUserId: text("actor_user_id").notNull(),
     at: tz("at").notNull(),
     changes: jsonb("changes").$type<ChangeSet>().notNull(),

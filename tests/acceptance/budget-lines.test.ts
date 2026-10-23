@@ -23,7 +23,7 @@ import {
   type LineSpec,
   type PlanDto,
 } from "../support/budgeting";
-import { cop, household, joinHousehold, newAccount, post } from "../support/ledger";
+import { cop, household, joinHousehold, newAccount, post, starterAccount } from "../support/ledger";
 import { actingIn, joinAs } from "../support/spaces";
 
 let app: Container;
@@ -156,12 +156,12 @@ describe("budget lines and unallocated capacity (HU-E6-03)", () => {
     expect(await problemOf(await savings([]))).toEqual([422, "SavingsAccountRequired"]);
     expect(await problemOf(await savings([h.ana.account]))).toEqual([422, "InvalidSavingsAccount"]);
     const marta = await registerUser("Marta");
-    const martas = await newAccount(marta, "Ahorros", 0, "SAVINGS");
+    const martas = await starterAccount(marta, "Ahorros");
     expect(await problemOf(await savings([martas]))).toEqual([404, "AccountNotFound"]);
     expect(await problemOf(await savings(["not-a-uuid"]))).toEqual([404, "AccountNotFound"]);
-    const juans = await newAccount(h.juan.personal, "Ahorros", 0, "SAVINGS");
+    const juans = await starterAccount(h.juan.personal, "Ahorros");
     expect(await problemOf(await savings([juans]))).toEqual([404, "AccountNotFound"]);
-    const anas = await newAccount(h.ana.personal, "Ahorros", 0, "SAVINGS");
+    const anas = await starterAccount(h.ana.personal, "Ahorros");
     expect((await savings([anas])).status).toBe(201);
   });
 
@@ -169,7 +169,7 @@ describe("budget lines and unallocated capacity (HU-E6-03)", () => {
     const { h, planId } = await background();
     const luis = await joinHousehold(h, "Luis", "ADMIN");
     const vera = await joinHousehold(h, "Vera", "VIEWER");
-    const luiss = await newAccount(luis.personal, "Ahorros", 0, "SAVINGS");
+    const luiss = await starterAccount(luis.personal, "Ahorros");
     const attached = await postLine(luis, h.spaceId, planId, {
       name: "Savings",
       pesos: 600_000,
@@ -283,7 +283,7 @@ describe("budget lines and unallocated capacity (HU-E6-03)", () => {
 
   it("refuses an account twice, accounts on a line that is not SAVINGS, and an archived account", async () => {
     const { h, planId } = await background();
-    const anas = await newAccount(h.ana.personal, "Ahorros", 0, "SAVINGS");
+    const anas = await starterAccount(h.ana.personal, "Ahorros");
     const line = (name: string, extra: { funding?: string; savingsAccountIds?: string[] }) =>
       postLine(h.ana, h.spaceId, planId, { name, pesos: 100_000, ...extra });
     const twice = await line("Twice", { funding: "SAVINGS", savingsAccountIds: [anas, anas] });
@@ -309,7 +309,7 @@ describe("budget lines and unallocated capacity (HU-E6-03)", () => {
 
   it("accepts one catch-all line, refuses a second, and refuses a SAVINGS line as catch-all", async () => {
     const { h, planId } = await background();
-    const anas = await newAccount(h.ana.personal, "Ahorros", 0, "SAVINGS");
+    const anas = await starterAccount(h.ana.personal, "Ahorros");
     const first = await addLine(h.ana, h.spaceId, planId, {
       name: "Everything else",
       pesos: 100_000,

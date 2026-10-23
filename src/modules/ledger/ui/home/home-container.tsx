@@ -1,9 +1,20 @@
 import { ProblemNotice } from "@/shared/ui";
 import { getMe, getSpaces, loaded, serverApi } from "@/shared/ui/api/server";
+import { loadTransactionDetail } from "../detail/detail-loader";
 import { HomeSummary } from "./home-summary";
 
 /** Server: the current period's three latest rows and totals, the active accounts, and the names rows need. */
-export async function HomeContainer({ spaceId }: { readonly spaceId: string }) {
+export async function HomeContainer({
+  spaceId,
+  joined = false,
+  transactionId,
+}: {
+  readonly spaceId: string;
+  /** `?joined=1`: the person has just accepted an invitation to this space (U6). */
+  readonly joined?: boolean;
+  /** `?tx=<id>`: the transaction whose detail sheet is open (ruling P189). */
+  readonly transactionId?: string;
+}) {
   const api = await serverApi();
   const path = { spaceId };
   const [me, spaces, page, accounts, categories] = await Promise.all([
@@ -17,19 +28,33 @@ export async function HomeContainer({ spaceId }: { readonly spaceId: string }) {
   for (const result of [page, accounts, categories])
     if (!result.ok) return <ProblemNotice problem={result.problem} />;
   if (!space || !page.ok || !accounts.ok || !categories.ok) return null;
+  const detail = transactionId
+    ? await loadTransactionDetail(api, {
+        spaceId,
+        transactionId,
+        space,
+        meUserId: me!.id,
+        personalSpaceId: spaces.find((s) => s.kind === "PERSONAL")?.id,
+      })
+    : undefined;
   const context = {
     formats: me!.preferences.effective,
     viewerZone: me!.timezone,
     groups: categories.data.items,
     accountNames: Object.fromEntries(accounts.data.items.map((a) => [a.id, a.name])),
+    memberNames: {},
   };
   return (
     <HomeSummary
       spaceId={spaceId}
+      kind={space.kind}
+      role={space.role}
+      joined={joined ? { space: space.name, dismissHref: `/spaces/${spaceId}` } : undefined}
       policy={space.periodPolicy}
       page={page.data}
       accounts={accounts.data.items}
       context={context}
+      {...(detail ? { detail } : {})}
     />
   );
 }

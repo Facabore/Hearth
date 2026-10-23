@@ -130,6 +130,30 @@ describe("AcceptInvitation (HU-E1-07)", () => {
     ).toBe("AlreadyMember");
   });
 
+  it("gives a member who left their own member row back, with the invited role and the new join time (issue #90)", async () => {
+    const w = await invited({ kind: "LINK" }, "MEMBER");
+    unwrap(await w.accept({ token: "token-1", ...juan }));
+    const [before] = juanRows(w.store.members(space));
+    expect(await w.store.markLeft(space, before!.id, "USER", new Date("2026-10-13T09:00:00Z"))).toBe(true);
+    expect(juanRows(w.store.members(space))).toEqual([]);
+    w.clock.set(new Date("2026-10-14T09:00:00Z"));
+    expect(unwrap(await w.accept({ token: "token-1", ...juan }))).toMatchObject({
+      id: space,
+      role: "MEMBER",
+    });
+    expect(juanRows(w.store.members(space))).toEqual([
+      { ...before, joinedAt: new Date("2026-10-14T09:00:00Z") },
+    ]);
+  });
+
+  it("still gives a newcomer who never left a new row (issue #90)", async () => {
+    const w = await invited({ kind: "LINK" }, "MEMBER");
+    unwrap(await w.accept({ token: "token-1", ...juan }));
+    unwrap(await w.accept({ token: "token-1", ...luis }));
+    const ids = w.store.members(space).map((m) => m.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it("numbers the display name of a newcomer whose name is taken", async () => {
     const w = await invited({ kind: "LINK" });
     unwrap(

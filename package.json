@@ -32,21 +32,22 @@
     "test:acceptance": "vitest run --project acceptance",
     "test:ops": "vitest run --project operations",
     "test:e2e": "bddgen && playwright test --project e2e --project a11y",
-    "perf": "node tests/performance/lighthouse.mjs && playwright test --project perf"
+    "perf": "node tests/performance/lighthouse.mjs && playwright test --project perf --workers=1"
   },
   "dependencies": {
     "better-auth": "1.7.7",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "drizzle-orm": "0.45.4",
-    "next": "16.4.0",
+    "next": "16.4.2",
     "next-intl": "4.14.9",
     "openapi-fetch": "0.17.0",
     "pg": "8.23.1",
     "radix-ui": "1.7.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "tailwind-merge": "3.7.0",
+    "react-is": "19.3.0",
+    "recharts": "3.10.1",
     "uuid": "14.0.3",
     "zod": "4.6.5",
     "zod-openapi": "6.0.2"

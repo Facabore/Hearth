@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   SPLIT_METHODS,
   type BudgetPlan,
+  type BudgetLineId,
   type BudgetPlanId,
   type BudgetPlanView,
 } from "@/modules/budgeting/application";
@@ -98,11 +99,45 @@ describe("BudgetPlan on the wire (HU-E6-01 … HU-E6-05)", () => {
       },
       spent: cop(900_000),
       carryOver: cop(0),
+      carryOverFrom: null,
       available: cop(570_000),
     });
     expect(dto.lines.find((l) => l.name === "Free")!.allocation.members).toEqual([
       { memberId: "member-ana", percent: "42.00", amount: null, assigned: cop(306_600) },
       { memberId: "member-juan", percent: "58.00", amount: null, assigned: cop(423_400) },
+    ]);
+  });
+
+  it("prints where a carry-over comes from: the source plan, its period and whether it is closed (ruling P243 of M6c)", () => {
+    const lines = referenceLines().map((l) =>
+      l.name === "Home"
+        ? { ...l, originLineId: "line-home-nov" as BudgetLineId, rolloverMode: "ROLLOVER" as const }
+        : l,
+    );
+    const source = { label: "2026-10", start: "2026-10-01" as LocalDate, end: "2026-10-31" as LocalDate };
+    const { figures } = view(lines);
+    const withSource = planFigures({
+      currency: "COP",
+      memberIds: ["member-ana", "member-juan"],
+      parts: {
+        capacities: figures.capacities.map((c) => ({ memberId: c.memberId, amount: c.amount })),
+        lines,
+        mappings: [],
+        allocations: [],
+      },
+      spending: { byCategory: [], byAccount: [] },
+      source: { planId: "plan-october", period: source, closed: false, lineIds: ["line-home-nov"] },
+    });
+    const dto = budgetPlanDto({ plan, currency: "COP", figures: withSource });
+    expect(dto.lines.find((l) => l.name === "Home")!.carryOverFrom).toEqual({
+      planId: "plan-october",
+      period: { label: "2026-10", startDate: "2026-10-01", endDate: "2026-10-31" },
+      closed: false,
+    });
+    expect(dto.lines.filter((l) => l.name !== "Home").map((l) => l.carryOverFrom)).toEqual([
+      null,
+      null,
+      null,
     ]);
   });
 

@@ -1,3 +1,5 @@
+import type { MoneyDto } from "./dto";
+
 /** HU-E9-02: what the UI knows of a failed call: a stable code to translate, never a raw message or a stack. */
 export interface Problem {
   readonly code: string;
@@ -5,6 +7,10 @@ export interface Problem {
   readonly requestId: string | null;
   readonly errors: readonly { path: string; message: string }[];
   readonly field: string | null;
+  /** Ruling P163: the public `outstanding` member of OutstandingBalance; absent for every other problem. */
+  readonly outstanding?: MoneyDto;
+  /** Ruling P248: the public `sourcePeriod` of SourcePlanOpen, the period label of the plan to close first. */
+  readonly sourcePeriod?: string;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -17,12 +23,23 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 export const problemFrom = (error: unknown, response: Response | undefined): Problem => {
   const headerId = response?.headers.get("x-request-id") ?? null;
   if (isRecord(error) && typeof error.code === "string" && error.code !== "") {
+    const outstanding = error.outstanding;
+    const money =
+      isRecord(outstanding) &&
+      typeof outstanding.amount === "string" &&
+      typeof outstanding.currency === "string"
+        ? { outstanding: { amount: outstanding.amount, currency: outstanding.currency } }
+        : {};
     return {
       code: error.code,
       status: typeof error.status === "number" ? error.status : (response?.status ?? 0),
       requestId: typeof error.requestId === "string" ? error.requestId : headerId,
       errors: Array.isArray(error.errors) ? (error.errors as Problem["errors"]) : [],
       field: typeof error.field === "string" ? error.field : null,
+      ...money,
+      ...(typeof error.sourcePeriod === "string" && error.sourcePeriod !== ""
+        ? { sourcePeriod: error.sourcePeriod }
+        : {}),
     };
   }
   return { code: "Unknown", status: response?.status ?? 0, requestId: headerId, errors: [], field: null };

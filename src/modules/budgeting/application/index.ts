@@ -29,9 +29,11 @@ export type {
 } from "./ports";
 export type { BudgetingDeps } from "./deps";
 export {
+  categoryLinesOf,
   loadPlanView,
   planViewCache,
   type BudgetPlanView,
+  type CategoryLine,
   type PlanViewCache,
   type PlanViewDeps,
 } from "./plan-view";

@@ -117,6 +117,48 @@ describe("OpenAPI document", () => {
     ]);
   });
 
+  it("documents extending an ended recurrence as a POST whose body requires a nullable endDate and that answers the recurrence (#115)", () => {
+    type Schema = { required?: string[]; properties?: Record<string, { anyOf?: { type: string }[] }> };
+    type Operation = {
+      requestBody?: { content: Record<string, { schema: Schema }> };
+      responses: Record<string, { content?: Record<string, { schema: { $ref: string } }> }>;
+    };
+    const path = doc.paths["/api/v1/spaces/{spaceId}/recurrences/{recurrenceId}/extend"] as
+      Record<string, Operation> | undefined;
+    const post = path?.post;
+    const body = post?.requestBody?.content["application/json"]?.schema;
+    expect([
+      Object.keys(path ?? {}),
+      Object.keys(post?.responses ?? {}),
+      post?.responses["200"]?.content?.["application/json"]?.schema.$ref,
+      body?.required,
+      body?.properties?.endDate?.anyOf?.map((variant) => variant.type),
+    ]).toEqual([
+      ["post"],
+      ["200", "401", "403", "404", "409", "422"],
+      "#/components/schemas/Recurrence",
+      ["endDate"],
+      ["string", "null"],
+    ]);
+  });
+
+  it("says a recurrence edit refuses a payer or split participant who left or never was a member, and a resume one who left", () => {
+    type Operation = { responses: Record<string, { description: string }> };
+    const path = (suffix: string) =>
+      doc.paths[`/api/v1/spaces/{spaceId}/recurrences/{recurrenceId}${suffix}`] as unknown as Record<
+        string,
+        Operation
+      >;
+    const refusal = (operation: Operation | undefined) =>
+      operation?.responses["422"]?.description.match(/NotASpaceMember \(([^)]*)\)/)?.[1];
+    expect(refusal(path("").patch)).toBe(
+      `a payer or a split participant is not a member, whether they left or never were; with member "creator", the recurrence's creator left`,
+    );
+    expect(refusal(path("/resume").post)).toBe(
+      `a payer or a split participant left; with member "creator", the recurrence's creator left`,
+    );
+  });
+
   it("gives every category node an icon and a palette color, and every group its key, with no new Output variant (HU-E3-05)", () => {
     const schemas = doc.components.schemas as Record<
       string,

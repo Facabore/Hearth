@@ -1,0 +1,57 @@
+"use client";
+
+import Link from "next/link";
+import { useTranslations } from "next-intl";
+import type { MouseEvent, ReactNode } from "react";
+import { Icon } from "../atoms/icon";
+import { readTrail, stepsBack } from "../navigation/history";
+
+/**
+ * Volver goes back in the browser, to the screen the person actually came from, when the navigation tracker knows of
+ * one; a modified click (a new tab) is left to the browser. `history.go` is what `router.back()` calls, and it also
+ * skips the screens of a flow in one step. Without a previous screen the link's own href applies.
+ */
+const goBack = (event: MouseEvent<HTMLAnchorElement>) => {
+  if (event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  const steps = stepsBack(readTrail(), window.location.pathname);
+  if (steps === null) return;
+  event.preventDefault();
+  window.history.go(-steps);
+};
+
+/**
+ * The header of a screen below the navigation (the Members artboard's): a 48 px Volver link, the title and an
+ * optional subtitle. The link is a real `<a href>` to the explicit parent route, which a deep link, a new tab and a
+ * visitor without JavaScript follow; a click returns to where the person was instead (`goBack`). An `action` sits
+ * after the title.
+ */
+export function ScreenHeader({
+  backHref,
+  title,
+  subtitle,
+  action,
+}: {
+  readonly backHref: string;
+  readonly title: string;
+  readonly subtitle?: string;
+  readonly action?: ReactNode;
+}) {
+  const t = useTranslations("common");
+  return (
+    <header className="flex items-center gap-2">
+      <Link
+        href={backHref}
+        onClick={goBack}
+        aria-label={t("back")}
+        className="-ml-2 flex size-12 shrink-0 items-center justify-center rounded-full text-ink"
+      >
+        <Icon name="back" />
+      </Link>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <h1 className="min-w-0 text-2xl font-semibold [overflow-wrap:anywhere] text-ink">{title}</h1>
+        {subtitle ? <p className="text-sm break-words text-muted">{subtitle}</p> : null}
+      </div>
+      {action}
+    </header>
+  );
+}

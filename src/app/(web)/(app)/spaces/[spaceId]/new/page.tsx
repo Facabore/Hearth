@@ -16,10 +16,8 @@ export default async function NewTransactionPage({
   readonly searchParams: Promise<{ type?: string }>;
 }) {
   const [{ spaceId }, { type }] = await Promise.all([params, searchParams]);
-  const t = await getTranslations("ledger.form");
   return (
     <div className="mx-auto max-w-[560px]">
-      <h1 className="pt-4 text-2xl font-semibold text-ink">{t("title")}</h1>
       <RecordFormContainer spaceId={spaceId} kind={KINDS[type as keyof typeof KINDS] ?? "EXPENSE"} />
     </div>
   );

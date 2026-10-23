@@ -36,9 +36,9 @@ const formatterOf = (timeZone: string): Intl.DateTimeFormat => {
 };
 
 /**
- * HU-E1-14: the canonical name of a zone Intl accepts ("america/bogota" → "America/Bogota"); null otherwise.
- * Ruling P45 keeps "valid when Intl accepts it", which also admits offset names such as "+05:00"; restricting the
- * zone to IANA names is plan follow-up 2.
+ * HU-E1-14: the canonical name of a zone Intl accepts ("america/bogota" → "America/Bogota"); null otherwise. This is
+ * the READ rule and stays "valid when Intl accepts it" (ruling P45), so a stored offset name such as "+05:00" keeps
+ * reading as itself. Writers go through `parseTimeZone` or `writableTimeZone`, which also demand an IANA name.
  */
 export const canonicalTimeZone = (raw: string): string | null => {
   try {
@@ -48,9 +48,19 @@ export const canonicalTimeZone = (raw: string): string | null => {
   }
 };
 
-/** HU-E1-14: a zone sent explicitly; an unknown one is InvalidTimeZone. */
+/** Issue 126: offset-form names ("+05:00", "-03", "+0500") start with a sign; every IANA name starts with a letter. */
+export const isIanaName = (raw: string): boolean => !/^[+-]/.test(raw);
+
+/**
+ * Issue 126: the canonical name of an IANA zone a writer may store ("US/Pacific" → "America/Los_Angeles"); null for
+ * an offset-form name or anything Intl refuses. The one rule of every write path; readers use `canonicalTimeZone`.
+ */
+export const writableTimeZone = (raw: string): string | null =>
+  isIanaName(raw) ? canonicalTimeZone(raw) : null;
+
+/** HU-E1-14: a zone sent explicitly; an unknown or offset-form one is InvalidTimeZone (issue 126). */
 export const parseTimeZone = (raw: string): Result<string> => {
-  const zone = canonicalTimeZone(raw);
+  const zone = writableTimeZone(raw);
   return zone === null ? err(domainError("InvalidTimeZone", { value: raw })) : ok(zone);
 };
 
@@ -92,17 +102,35 @@ const offsetAt = (instant: number, timeZone: string): number => {
 /** Offsets reach ±14 h, so a 12 h probe can land past the transition; a day lands safely on either side. */
 const DAY = 24 * 60 * 60 * 1000;
 
+/** Seconds-resolution search: the first instant after `from` and up to `to` whose offset is not `offset`. */
+const firstOffsetChange = (from: number, to: number, offset: number, timeZone: string): number => {
+  let low = Math.floor(from / 1000);
+  let high = Math.floor(to / 1000);
+  while (high - low > 1) {
+    const middle = low + Math.floor((high - low) / 2);
+    if (offsetAt(middle * 1000, timeZone) === offset) low = middle;
+    else high = middle;
+  }
+  return high * 1000;
+};
+
 /**
- * HU-E4-14, ruling P42: the instant at which `timeZone`'s clock shows `wall` on `date`. A repeated time takes the
- * earlier instant; a skipped time moves forward by the gap (the offset before the change applies).
+ * HU-E4-14, rulings P42 and issue 119: the instant at which `timeZone`'s clock shows `wall` on `date`. A repeated
+ * time takes the earlier instant; a skipped time moves forward by the gap (the offset before the change applies),
+ * unless that lands on a later day (a gap that ends the day): the date never moves (D19), so it takes the last
+ * instant of `date` before the gap. A date the zone skipped altogether has no such instant and keeps the move.
  */
 export const instantAt = (date: LocalDate, wall: WallTime, timeZone: string): Date => {
   const { year, month, day } = partsOf(date);
   const local = Date.UTC(year, month - 1, day, wall.hour, wall.minute, wall.second, wall.millisecond);
-  const before = local - offsetAt(local - DAY, timeZone);
+  const offsetBefore = offsetAt(local - DAY, timeZone);
+  const before = local - offsetBefore;
   const after = local - offsetAt(local + DAY, timeZone);
   const valid = [before, after]
     .sort((a, b) => a - b)
     .find((candidate) => local - candidate === offsetAt(candidate, timeZone));
-  return new Date(valid ?? before);
+  if (valid !== undefined) return new Date(valid);
+  if (localDateIn(new Date(before), timeZone) === date) return new Date(before);
+  const lastBeforeGap = firstOffsetChange(local - DAY, before, offsetBefore, timeZone) - 1;
+  return new Date(localDateIn(new Date(lastBeforeGap), timeZone) === date ? lastBeforeGap : before);
 };

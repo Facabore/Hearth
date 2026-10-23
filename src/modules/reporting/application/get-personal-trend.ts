@@ -1,5 +1,5 @@
 import { ok, type Period, type Result } from "@/shared/kernel";
-import { changeFrom, periodsEndingWith, type Change } from "../domain/trend";
+import { changeFrom, distinctLabels, periodsEndingWith, type Change } from "../domain/trend";
 import { consumptionTotal, personalScope, type PersonalDeps } from "./personal-scope";
 
 export interface PersonalTrendPoint {
@@ -36,7 +36,8 @@ export const createGetPersonalTrend =
     const { personal, period, stored } = scope.value;
     const window = periodsEndingWith(personal.periodPolicy, stored, period, input.periods + 1);
     const totals = await Promise.all(window.map((p) => consumptionTotal(deps, scope.value, p)));
-    const shown = window.slice(1);
+    // Ruling of #132: a window never lists two periods under one label.
+    const shown = distinctLabels(window.slice(1), stored);
     return ok({
       currency: personal.currency,
       periods: shown,

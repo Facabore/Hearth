@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Money, type LocalDate } from "@/shared/kernel";
 import {
   basisPointsOf,
+  IdSchema,
   percentOf,
   PercentSchema,
   MoneySchema,
@@ -105,5 +106,19 @@ describe("percentages (HU-E4-08, HU-E6-03, HU-E6-05)", () => {
       "0.05",
       "111.11",
     ]);
+  });
+});
+
+describe("IdSchema", () => {
+  it("takes 1 to 64 characters of any kind, since whether it names anything is the use case's to say", () => {
+    expect(IdSchema.safeParse("a").success).toBe(true);
+    expect(IdSchema.safeParse("x".repeat(64)).success).toBe(true);
+    expect(IdSchema.safeParse("not-a-uuid").success).toBe(true);
+  });
+
+  it("refuses an empty id, a longer one and a non-string", () => {
+    expect(IdSchema.safeParse("").success).toBe(false);
+    expect(IdSchema.safeParse("x".repeat(65)).success).toBe(false);
+    expect(IdSchema.safeParse(7).success).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import { canonicalTimeZone, domainError, err, ok, type AuthUser, type Result } from "@/shared/kernel";
+import { domainError, err, ok, writableTimeZone, type AuthUser, type Result } from "@/shared/kernel";
 import type { Locale } from "../domain/preferences";
 import type { AuthProvider, AuthSession } from "./auth-provider";
 import type { UserProfiles } from "./profile";
@@ -51,7 +51,7 @@ export const createSignUp =
     const created = await deps.auth.signUp({ ...input, email });
     if (!created.ok) return created;
     const { user } = created.value;
-    const zone = canonicalTimeZone(timezone ?? "") ?? deps.defaultTimeZone;
+    const zone = writableTimeZone(timezone ?? "") ?? deps.defaultTimeZone;
     const language = locale ?? (user.locale as Locale);
     const withProfile: AuthUser = { ...user, timezone: zone, locale: language };
     let cause = "ProfileWriteThrew";

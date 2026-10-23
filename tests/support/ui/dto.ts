@@ -1,7 +1,9 @@
 import type {
   AccountDto,
   CategoryGroupDto,
+  InvitationDto,
   MeDto,
+  MemberDto,
   MoneyDto,
   SpaceDto,
   TransactionDto,
@@ -42,6 +44,47 @@ export const spaceDto = (overrides: Partial<SpaceDto> = {}): SpaceDto => ({
   currency: "COP",
   periodPolicy: { kind: "MONTHLY", day: 1 },
   role: "OWNER",
+  ...overrides,
+});
+
+/** The shared space "Household" as its OWNER reads it. */
+export const householdSpace = (overrides: Partial<SpaceDto> = {}): SpaceDto =>
+  spaceDto({ id: "sp-household", name: "Household", kind: "SHARED", role: "OWNER", ...overrides });
+
+/** Ana as a member: the OWNER who created the space. */
+export const memberDto = (overrides: Partial<MemberDto> = {}): MemberDto => ({
+  id: "m-ana",
+  kind: "USER",
+  userId: "u-ana",
+  displayName: "Ana",
+  role: "OWNER",
+  contactEmail: null,
+  joinedAt: "2026-10-01T12:00:00.000Z",
+  ...overrides,
+});
+
+/** Pedro, a guest: no user and no role, cannot sign in (D15). */
+export const guestDto = (overrides: Partial<MemberDto> = {}): MemberDto =>
+  memberDto({
+    id: "m-pedro",
+    kind: "GUEST",
+    userId: null,
+    displayName: "Pedro",
+    role: null,
+    joinedAt: "2026-10-05T12:00:00.000Z",
+    ...overrides,
+  });
+
+/** A pending LINK invitation to Household as MEMBER, valid 7 days. */
+export const invitationDto = (overrides: Partial<InvitationDto> = {}): InvitationDto => ({
+  id: "inv-1",
+  spaceId: "sp-household",
+  kind: "LINK",
+  email: null,
+  role: "MEMBER",
+  status: "PENDING",
+  createdAt: "2026-10-12T12:00:00.000Z",
+  expiresAt: "2026-10-19T12:00:00.000Z",
   ...overrides,
 });
 
@@ -172,6 +215,7 @@ export const rowContext = {
   viewerZone: "America/Bogota",
   groups: octoberGroups,
   accountNames: { "a-bank": "Bancolombia", "a-visa": "Visa" },
+  memberNames: {},
 };
 /** An expense paid from Bancolombia, timed in Bogotá when `at` is set. */
 export const octoberExpense = (

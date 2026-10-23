@@ -88,6 +88,12 @@ export interface TransactionChanges {
   readonly timeZone?: string | null;
   readonly categoryId?: string;
   readonly amount?: bigint;
+  /** Ruling P186: an expense's new payments and shares, replaced whole; they must still add up to the amount. */
+  readonly payments?: readonly Payment[];
+  readonly shares?: readonly Share[];
+  /** Ruling P186: an income's receiving account, or an own transfer's accounts. */
+  readonly sourceAccountId?: string;
+  readonly destinationAccountId?: string;
 }
 
 /**
@@ -265,7 +271,10 @@ export const recordSettlement = (
   });
 };
 
-/** HU-E4-06: a sole payment or share follows a new amount; otherwise the parts must still add up. */
+/**
+ * HU-E4-06: a sole payment or share follows a new amount; otherwise the parts must still add up. Ruling P186: new
+ * `payments`, `shares` or accounts replace the current ones.
+ */
 export const reviseTransaction = (
   tx: Transaction,
   changes: TransactionChanges,
@@ -296,18 +305,28 @@ export const reviseTransaction = (
   switch (tx.type) {
     case "EXPENSE": {
       const payments =
-        tx.payments.length === 1 ? [{ ...tx.payments[0]!, amount: amount.value }] : tx.payments;
-      const shares = tx.shares.length === 1 ? [{ ...tx.shares[0]!, amount: amount.value }] : tx.shares;
+        changes.payments ??
+        (tx.payments.length === 1 ? [{ ...tx.payments[0]!, amount: amount.value }] : tx.payments);
+      const shares =
+        changes.shares ?? (tx.shares.length === 1 ? [{ ...tx.shares[0]!, amount: amount.value }] : tx.shares);
       const parts = checkParts(amount.value, payments, shares);
       if (!parts.ok) return parts;
       return ok({ ...tx, ...common, categoryId: changes.categoryId ?? tx.categoryId, payments, shares });
     }
     case "INCOME":
-      return ok({ ...tx, ...common, categoryId: changes.categoryId ?? tx.categoryId });
-    case "TRANSFER":
-      return changes.categoryId === undefined
-        ? ok({ ...tx, ...common })
-        : err(domainError("TransferHasNoCategory"));
+      return ok({
+        ...tx,
+        ...common,
+        categoryId: changes.categoryId ?? tx.categoryId,
+        destinationAccountId: changes.destinationAccountId ?? tx.destinationAccountId,
+      });
+    case "TRANSFER": {
+      if (changes.categoryId !== undefined) return err(domainError("TransferHasNoCategory"));
+      const source = changes.sourceAccountId ?? tx.sourceAccountId;
+      const destination = changes.destinationAccountId ?? tx.destinationAccountId;
+      if (source === destination) return err(domainError("SameAccountTransfer"));
+      return ok({ ...tx, ...common, sourceAccountId: source, destinationAccountId: destination });
+    }
     case "SETTLEMENT":
       return changes.categoryId === undefined
         ? ok({ ...tx, ...common })
@@ -355,6 +374,13 @@ export const softDelete = (tx: Transaction, now: Date): Transaction => ({
   updatedAt: now,
 });
 
+/** Ruling P185: undoing a deletion; the row comes back as it was deleted (D8). */
+export const restore = (tx: Transaction, now: Date): Transaction => ({
+  ...tx,
+  deletedAt: null,
+  updatedAt: now,
+});
+
 const AUDITED = ["description", "date", "categoryId", "amount"] as const;
 
 /**
@@ -383,6 +409,11 @@ const auditedValues = (tx: Transaction): ReadonlyMap<string, string | null> => {
     values.set("payments", JSON.stringify(payments));
     values.set("shares", JSON.stringify(shares));
   }
+  // Ruling P187: an income's, a transfer's and a settlement's accounts, so an edit of them is traceable.
+  if (tx.type !== "EXPENSE") {
+    values.set("sourceAccountId", tx.type === "INCOME" ? null : tx.sourceAccountId);
+    values.set("destinationAccountId", tx.destinationAccountId);
+  }
   return values;
 };
 
@@ -400,6 +431,13 @@ export const changesBetween = (before: Transaction, after: Transaction): ChangeS
 export const deletionChanges = (tx: Transaction): ChangeSet => {
   const changes: Record<string, { from: string; to: null }> = {};
   for (const [key, from] of auditedValues(tx)) if (from !== null) changes[key] = { from, to: null };
+  return changes;
+};
+
+/** Ruling P185: a restore brings every audited value back, each `from: null`, mirroring `deletionChanges`. */
+export const restorationChanges = (tx: Transaction): ChangeSet => {
+  const changes: Record<string, { from: null; to: string }> = {};
+  for (const [key, to] of auditedValues(tx)) if (to !== null) changes[key] = { from: null, to };
   return changes;
 };
 

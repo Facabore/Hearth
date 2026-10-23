@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import type { BudgetLineId, RolloverMode } from "@/modules/budgeting/application";
+import type { BudgetLineId, BudgetPlanId, RolloverMode } from "@/modules/budgeting/application";
+import type { SpaceId } from "@/modules/spaces/application";
 import { fromParts, type PeriodPolicy } from "@/shared/kernel";
 import { aLine } from "../../../../tests/support/budget-fixtures";
 import { HOUSEHOLD } from "../../../../tests/support/budgeting-world";
@@ -23,7 +24,7 @@ const chain = async (
 ) => {
   const w = reportingWorld({ periodPolicy: policy });
   let previous: { planId: string; lineId: string } | null = null;
-  for (const [label, from, spent] of spentFrom) {
+  for (const [index, [label, from, spent]] of spentFrom.entries()) {
     const lineId = `line-home-${from}`;
     const plan = await w.plan(
       label,
@@ -38,7 +39,8 @@ const chain = async (
         ],
         mappings: [{ lineId, categoryId: "cat-groceries" }],
       },
-      { createdFrom: previous?.planId },
+      // Every plan but the last is CLOSED: a copy carries only from a closed source (ruling P243 of M6c).
+      { createdFrom: previous?.planId, status: index < spentFrom.length - 1 ? "CLOSED" : "ACTIVE" },
     );
     w.spending.expenses[from] = [{ categoryId: "cat-groceries", amount: pesos(spent) }];
     previous = { planId: plan.id, lineId };
@@ -140,7 +142,7 @@ describe("line trend (HU-E7-05)", () => {
     ]);
   });
 
-  it("follows a stored period that shares its label with the derived stub before it, never merging the two", async () => {
+  it("follows a stored period that shares its label with the derived stub before it, labelling the stub apart (#132)", async () => {
     // A stored 2026-10 of Oct 5 to Nov 4 leaves Oct 1-4 as a derived period that is also labelled 2026-10 (HU-E1-03).
     const w = reportingWorld();
     const october = await w.plan("2026-10", {
@@ -171,16 +173,27 @@ describe("line trend (HU-E7-05)", () => {
     w.spending.expenses["2026-10-05"] = [{ categoryId: "cat-groceries", amount: pesos(1_000_000) }];
     w.spending.expenses["2026-11-05"] = [{ categoryId: "cat-groceries", amount: pesos(1_100_000) }];
     const trend = unwrap(await trendOf(w, "2026-11", 3));
+    // Ruling of #132: the stored period keeps the label, the stub it shares it with is written apart.
     expect(trend.periods.map((p) => [p.label, p.start, p.end])).toEqual([
-      ["2026-10", "2026-10-01", "2026-10-04"],
+      ["2026-10 (2026-10-01..2026-10-04)", "2026-10-01", "2026-10-04"],
       ["2026-10", "2026-10-05", "2026-11-04"],
       ["2026-11", "2026-11-05", "2026-11-30"],
     ]);
     expect(points(trend, "Home")).toEqual([
-      ["2026-10", null, null, null, null],
+      ["2026-10 (2026-10-01..2026-10-04)", null, null, null, null],
       ["2026-10", pesos(1_000_000), null, null, "NEW"],
       ["2026-11", pesos(1_100_000), pesos(100_000), 1_000, "INCREASED"],
     ]);
+  });
+
+  it("keeps every label of a window without a stub as the policy names it (#132)", async () => {
+    const w = await chain({ kind: "MONTHLY", day: 1 }, [
+      ["2026-10", "2026-10-01", 1_350_000],
+      ["2026-11", "2026-11-01", 1_300_000],
+    ]);
+    const trend = unwrap(await trendOf(w, "2026-11", 2));
+    expect(trend.periods.map((p) => p.label)).toEqual(["2026-10", "2026-11"]);
+    expect(trend.lines[0]!.points.map((p) => p.period.label)).toEqual(["2026-10", "2026-11"]);
   });
 
   it("keeps a line's trace across a period without a plan (P98): Aug's House is Oct's Home, Sep has no figure", async () => {
@@ -315,6 +328,40 @@ describe("personal trend (HU-E7-05)", () => {
       ["2026-11", pesos(50_000), "NEW"],
     ]);
   });
+  it("labels the derived stub apart when a stored personal period shares its label, keeping points aligned with periods (#132)", async () => {
+    const w = personalWorld();
+    w.plans.plans.push({
+      id: "plan-ana-oct" as BudgetPlanId,
+      spaceId: "space-ana" as SpaceId,
+      period: { start: fromParts(2026, 10, 5), end: fromParts(2026, 11, 4), label: "2026-10" },
+      status: "ACTIVE",
+      createdFrom: null,
+      version: 1,
+      createdBy: "u-ana",
+      createdAt: new Date("2026-10-05T12:00:00Z"),
+    });
+    w.sums.consumption["2026-10-01"] = [
+      { spaceId: "space-ana", categoryId: "cat-ana-groceries", amount: pesos(30_000) },
+    ];
+    w.sums.consumption["2026-10-05"] = [
+      { spaceId: "space-ana", categoryId: "cat-ana-groceries", amount: pesos(270_000) },
+    ];
+    const trend = unwrap(
+      await createGetPersonalTrend(w.deps)({ userId: "u-ana", endPeriod: "2026-11", periods: 3 }),
+    );
+    expect(trend.periods.map((p) => [p.label, p.start, p.end])).toEqual([
+      ["2026-10 (2026-10-01..2026-10-04)", "2026-10-01", "2026-10-04"],
+      ["2026-10", "2026-10-05", "2026-11-04"],
+      ["2026-11", "2026-11-05", "2026-11-30"],
+    ]);
+    expect(trend.points.map((p) => [p.period.label, p.consumption])).toEqual([
+      ["2026-10 (2026-10-01..2026-10-04)", pesos(30_000)],
+      ["2026-10", pesos(270_000)],
+      ["2026-11", 0n],
+    ]);
+    expect(trend.points.map((p) => p.period)).toEqual(trend.periods);
+  });
+
   it("reads only the caller's own member rows of the personal space's currency, one question per period of the window", async () => {
     const w = personalWorld([
       place("space-ana", "member-ana-personal", "Personal", { spaceKind: "PERSONAL" }),

@@ -1,16 +1,31 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getLocale } from "next-intl/server";
 import type { ReactNode } from "react";
 import type { Locale } from "@/i18n/locale";
 import { LanguageToggle } from "@/modules/identity/ui";
-import { Logo } from "@/shared/ui";
+import { ErrorScreen, Logo } from "@/shared/ui";
 import { getMe } from "@/shared/ui/api/server";
+import { PATH_HEADER } from "@/shared/ui/api/server-headers";
 import { hasSession } from "@/shared/ui/api/session";
+import { nextFromPath } from "@/shared/ui/navigation/auth-redirect";
 
-/** HU-E9-01: the visitor's screens. A real session check (not only a cookie), so an expired cookie never loops. */
+/**
+ * HU-E9-01: the visitor's screens. A real session check (not only a cookie), so an expired cookie never loops. N4: a
+ * signed-in person goes to the screen `next` names (made safe), not always to the home. N2: when the API does not
+ * answer, the screen says so and offers a retry, instead of Next's bare error page.
+ */
 export default async function PublicLayout({ children }: { readonly children: ReactNode }) {
-  if (hasSession(await cookies()) && (await getMe()) !== null) redirect("/");
+  let signedIn = false;
+  let unreachable = false;
+  if (hasSession(await cookies())) {
+    try {
+      signedIn = (await getMe()) !== null;
+    } catch {
+      unreachable = true;
+    }
+  }
+  if (signedIn) redirect(nextFromPath((await headers()).get(PATH_HEADER)));
   const locale = (await getLocale()) as Locale;
   return (
     <main className="mx-auto max-w-[420px] px-4 pt-4 pb-6">
@@ -18,7 +33,7 @@ export default async function PublicLayout({ children }: { readonly children: Re
         <Logo />
         <LanguageToggle locale={locale} />
       </div>
-      {children}
+      {unreachable ? <ErrorScreen variant="connection" /> : children}
     </main>
   );
 }

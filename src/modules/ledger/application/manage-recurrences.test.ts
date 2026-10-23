@@ -10,6 +10,7 @@ import type { Recurrence } from "../domain/recurrence";
 import { createDefineRecurrence, type DefineRecurrenceInput } from "./define-recurrence";
 import {
   createEndRecurrence,
+  createExtendRecurrence,
   createPauseRecurrence,
   createResumeRecurrence,
   createUpdateRecurrence,
@@ -122,6 +123,7 @@ const world = async (definition: DefineRecurrenceInput = rentDefinition()) => {
     pause: createPauseRecurrence(deps),
     resume: createResumeRecurrence(deps),
     end: createEndRecurrence(deps),
+    extend: createExtendRecurrence(deps),
     list: createListRecurrences(deps),
     get: createGetRecurrence(deps),
     upcoming: createListUpcomingOccurrences(deps),
@@ -697,6 +699,170 @@ describe("managing a recurrence (HU-E4-11)", () => {
     ]).toEqual(["SpaceArchived", "SpaceArchived", "SpaceArchived", "SpaceArchived", "ok"]);
     expect(recurrences.rows).toEqual([defined]);
     expect(events.filter((e) => e === "lock" || e === "save")).toEqual([]);
+  });
+});
+
+describe("extending an ended recurrence (#115)", () => {
+  /** The world with the definition ended by its definer on 2026-10-28, and the clock on the day of the extension. */
+  const endedWorld = async (
+    definition: DefineRecurrenceInput = rentDefinition(),
+    extendDay = "2027-03-10",
+  ) => {
+    const w = await world(definition);
+    unwrap(await w.end(w.ref(definition.userId)));
+    w.clock.set(extendDay);
+    w.events.length = 0;
+    return w;
+  };
+
+  it("extends the ended Rent in place: ACTIVE, due from today in APP_TIMEZONE, the new end date set, nothing back-filled", async () => {
+    const { extend, ref, recurrences, defined, upcoming } = await endedWorld();
+    const view = unwrap(await extend({ ...ref(), endDate: day("2027-06-30") }));
+    expect([view.status, view.recurrence.id, view.recurrence.endDate, view.nextOccurrence]).toEqual([
+      "ACTIVE",
+      defined.id,
+      "2027-06-30",
+      "2027-04-01",
+    ]);
+    expect(recurrences.rows).toHaveLength(1);
+    expect([recurrences.rows[0]!.dueFrom, recurrences.rows[0]!.endedAt]).toEqual(["2027-03-10", null]);
+    expect(unwrap(await upcoming({ ...ref(), count: 5 }))).toEqual([
+      "2027-04-01",
+      "2027-05-01",
+      "2027-06-01",
+    ]);
+  });
+
+  it("takes today from the space's time zone, not the UTC date", async () => {
+    const { deps, ref, recurrences } = await endedWorld();
+    // 03:00 UTC on the 11th is still 22:00 of the 10th in Bogotá.
+    const lateEvening = { ...deps, clock: new FixedClock(new Date("2027-03-11T03:00:00Z")) };
+    unwrap(await createExtendRecurrence(lateEvening)({ ...ref(), endDate: null }));
+    expect(recurrences.rows[0]!.dueFrom).toBe("2027-03-10");
+  });
+
+  it("removes the end date with null, and extends one that ran out of dates", async () => {
+    const w = await world(rentDefinition({ endDate: day("2027-01-15") }));
+    // A run recorded its last date: the cursor went past the end date, with endedAt never set.
+    await w.recurrences.save({ ...w.recurrences.rows[0]!, dueFrom: day("2027-01-16") });
+    w.clock.set("2027-03-10");
+    expect(w.recurrences.rows[0]!.endedAt).toBeNull();
+    const view = unwrap(await w.extend({ ...w.ref(), endDate: null }));
+    expect([view.status, view.recurrence.endDate, view.nextOccurrence]).toEqual([
+      "ACTIVE",
+      null,
+      "2027-04-01",
+    ]);
+  });
+
+  it("refuses an end date that leaves no date to record, and one before the start: InvalidRecurrence, storing nothing", async () => {
+    const { extend, ref, recurrences, events } = await endedWorld();
+    const stored = recurrences.rows[0]!;
+    const refused = [
+      await extend({ ...ref(), endDate: day("2027-03-20") }),
+      await extend({ ...ref(), endDate: day("2026-11-30") }),
+    ];
+    expect(refused.map(codeOf)).toEqual(["InvalidRecurrence", "InvalidRecurrence"]);
+    expect(refused.map(detailsOf)).toEqual([{ reason: "noOccurrence" }, { reason: "endsBeforeStart" }]);
+    expect(recurrences.rows).toEqual([stored]);
+    expect(stored.endedAt).not.toBeNull();
+    expect(events).not.toContain("save");
+  });
+
+  it("refuses an ACTIVE or PAUSED recurrence with InvalidRecurrenceTransition, storing nothing", async () => {
+    const active = await world();
+    const paused = await pausedWorld(rentDefinition());
+    const answers = [
+      await active.extend({ ...active.ref(), endDate: null }),
+      await paused.extend({ ...paused.ref(), endDate: null }),
+    ];
+    expect(answers.map(codeOf)).toEqual(["InvalidRecurrenceTransition", "InvalidRecurrenceTransition"]);
+    expect(answers.map(detailsOf)).toEqual([
+      { from: "ACTIVE", to: "ACTIVE" },
+      { from: "PAUSED", to: "ACTIVE" },
+    ]);
+    expect(active.recurrences.rows).toEqual([active.defined]);
+    expect(paused.recurrences.rows[0]!.pausedAt).not.toBeNull();
+  });
+
+  it("lets its creator, OWNERs and ADMINs extend it, never other MEMBERs or VIEWERs, and answers before looking at its state (P30)", async () => {
+    const w = await endedWorld(rentDefinition({ userId: "u-luis", description: "Luis's rent" }));
+    const active = await world();
+    expect([
+      codeOf(await w.extend({ ...w.ref("u-sofi"), endDate: null })),
+      codeOf(await active.extend({ ...active.ref("u-luis"), endDate: null })),
+      codeOf(await active.extend({ ...active.ref("u-sofi"), endDate: null })),
+    ]).toEqual(["InsufficientRole", "InsufficientRole", "InsufficientRole"]);
+    expect(w.recurrences.rows[0]!.endedAt).not.toBeNull();
+    expect(codeOf(await w.extend({ ...w.ref("u-juan"), endDate: null }))).toBe("ok");
+    const own = await endedWorld(rentDefinition({ userId: "u-luis" }));
+    expect(codeOf(await own.extend({ ...own.ref("u-luis"), endDate: null }))).toBe("ok");
+    const byOwner = await endedWorld(rentDefinition({ userId: "u-luis" }));
+    expect(codeOf(await byOwner.extend({ ...byOwner.ref("u-ana"), endDate: null }))).toBe("ok");
+  });
+
+  it("no longer lets its creator extend it once demoted to VIEWER (canModify)", async () => {
+    const { extend, ref, spaces } = await endedWorld(rentDefinition({ userId: "u-luis" }));
+    await spaces.updateRole("space-household", "member-luis" as SpaceMemberId, "VIEWER");
+    expect(codeOf(await extend({ ...ref("u-luis"), endDate: null }))).toBe("InsufficientRole");
+  });
+
+  it("lets only its creator extend what debits their own account: it turns the debits back on (D9)", async () => {
+    const w = await endedWorld(gym);
+    expect(codeOf(await w.extend({ ...w.ref("u-juan"), endDate: null }))).toBe("AccountNotOwned");
+    expect(w.recurrences.rows[0]!.endedAt).not.toBeNull();
+    expect(codeOf(await w.extend({ ...w.ref("u-ana"), endDate: null }))).toBe("ok");
+  });
+
+  it("checks the template again for its creator, as resuming does: a creator who left or may no longer record refuses (P21, P26)", async () => {
+    const left = await endedWorld();
+    await left.spaces.markLeft("space-household", "member-ana", "USER", new Date("2027-03-01T12:00:00Z"));
+    const refusedLeft = await left.extend({ ...left.ref("u-juan"), endDate: null });
+    expect([codeOf(refusedLeft), detailsOf(refusedLeft)]).toEqual(["NotASpaceMember", { member: "creator" }]);
+    const demoted = await endedWorld(rentDefinition({ userId: "u-luis" }));
+    await demoted.spaces.updateRole("space-household", "member-luis" as SpaceMemberId, "VIEWER");
+    const refusedDemoted = await demoted.extend({ ...demoted.ref("u-ana"), endDate: null });
+    expect([codeOf(refusedDemoted), detailsOf(refusedDemoted)]).toEqual([
+      "InsufficientRole",
+      { member: "creator" },
+    ]);
+    expect([left.recurrences.rows[0]!.endedAt, demoted.recurrences.rows[0]!.endedAt]).not.toContain(null);
+  });
+
+  it("answers RecurrenceNotFound for another space's or a malformed id, and SpaceArchived in an archived space, storing nothing", async () => {
+    const { extend, ref, spaces, recurrences, events } = await endedWorld();
+    expect([
+      codeOf(await extend({ ...ref(), recurrenceId: "not-a-recurrence", endDate: null })),
+      codeOf(await extend({ ...ref(), spaceId: "space-ana", endDate: null })),
+      codeOf(await extend({ ...ref("u-marta"), endDate: null })),
+    ]).toEqual(["RecurrenceNotFound", "RecurrenceNotFound", "SpaceNotFound"]);
+    await spaces.archive("space-household");
+    events.length = 0;
+    const stored = recurrences.rows[0]!;
+    expect(codeOf(await extend({ ...ref(), endDate: null }))).toBe("SpaceArchived");
+    expect(recurrences.rows).toEqual([stored]);
+    expect(events.filter((e) => e === "lock" || e === "save")).toEqual([]);
+  });
+
+  it("takes the lock inside the transaction and saves once", async () => {
+    const { extend, ref, events } = await endedWorld();
+    unwrap(await extend({ ...ref(), endDate: null }));
+    expect(events).toEqual(["begin", "lock", "save", "end"]);
+  });
+
+  it("leaves the previous behaviour of an ENDED recurrence unchanged: edits answer RecurrenceEnded, moves InvalidRecurrenceTransition", async () => {
+    const { update, pause, resume, end, ref } = await endedWorld();
+    expect([
+      codeOf(await update({ ...ref(), changes: { description: "Rent" } })),
+      codeOf(await pause(ref())),
+      codeOf(await resume(ref())),
+      codeOf(await end(ref())),
+    ]).toEqual([
+      "RecurrenceEnded",
+      "InvalidRecurrenceTransition",
+      "InvalidRecurrenceTransition",
+      "InvalidRecurrenceTransition",
+    ]);
   });
 });
 

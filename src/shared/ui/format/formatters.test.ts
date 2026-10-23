@@ -5,8 +5,12 @@ import {
   formatDate,
   formatMoney,
   formatNumber,
+  formatPercent,
+  formatSignedMoney,
   formatTime,
   formatTimeAt,
+  MINUS,
+  NBSP,
   type Formats,
 } from "./formatters";
 
@@ -70,5 +74,32 @@ describe("formatters (HU-E9-02 outline, ruling P121): the preferences, never the
   it("reads an instant on the clock of the record's own zone", () => {
     expect(formatTimeAt("2026-11-01T04:30:00Z", "America/Bogota", BUILT_IN_FORMATS)).toBe("23:30");
     expect(formatTimeAt("2026-11-01T04:30:00Z", "Europe/Madrid", BUILT_IN_FORMATS)).toBe("05:30");
+  });
+});
+
+describe("percentages and signed amounts (ruling P204)", () => {
+  it("keeps two decimals in the person's number format, with a non-breaking space before %", () => {
+    expect(formatPercent("40.00", BUILT_IN_FORMATS)).toBe(`40,00${NBSP}%`);
+    expect(formatPercent("36.75", BUILT_IN_FORMATS)).toBe(`36,75${NBSP}%`);
+    expect(formatPercent("1234.50", BUILT_IN_FORMATS)).toBe(`1.234,50${NBSP}%`);
+    expect(formatPercent("100.00", { numberFormat: "COMMA_DOT" })).toBe(`100.00${NBSP}%`);
+  });
+
+  it("writes a negative change with U+2212 and a positive one with + only when asked", () => {
+    expect(formatPercent("-3.70", BUILT_IN_FORMATS)).toBe(`${MINUS}3,70${NBSP}%`);
+    expect(formatPercent("3.70", BUILT_IN_FORMATS, { signed: true })).toBe(`+3,70${NBSP}%`);
+    expect(formatPercent("3.70", BUILT_IN_FORMATS)).toBe(`3,70${NBSP}%`);
+    expect(formatPercent("0.00", BUILT_IN_FORMATS, { signed: true })).toBe(`0,00${NBSP}%`);
+    expect(formatPercent("-0.00", BUILT_IN_FORMATS)).toBe(`0,00${NBSP}%`);
+  });
+
+  it("signs an amount of change: + above zero, U+2212 below, nothing at zero", () => {
+    expect(formatSignedMoney({ amount: "5000000", currency: "COP" }, BUILT_IN_FORMATS)).toBe(
+      `+$${NBSP}50.000`,
+    );
+    expect(formatSignedMoney({ amount: "-5000000", currency: "COP" }, BUILT_IN_FORMATS)).toBe(
+      `${MINUS}$${NBSP}50.000`,
+    );
+    expect(formatSignedMoney({ amount: "0", currency: "COP" }, BUILT_IN_FORMATS)).toBe(`$${NBSP}0`);
   });
 });

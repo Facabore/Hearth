@@ -150,6 +150,14 @@ describe("an archived space only reads (HU-E1-09, Review Focus 4)", () => {
     expect(answers).toEqual(reads.map(([what]) => [what, 200]));
   });
 
+  it("answers the totals of its accounts, as an active space does", async () => {
+    const { juan } = await archivedHousehold();
+    const response = await juan(listAccounts, "GET", "/accounts");
+    expect(response.status).toBe(200);
+    const { totals } = (await response.json()) as { totals: { available: unknown; netWorth: unknown } };
+    expect(totals).toEqual({ available: cop(0), netWorth: cop(0) });
+  });
+
   it("answers every space-scoped write endpoint of M1–M2-C with 409 SpaceArchived", async () => {
     const { h, pedro, tx, fund, groupId, invitationId, ana, juan } = await archivedHousehold();
     const category = h.groceries;
@@ -203,6 +211,13 @@ describe("an archived space only reads (HU-E1-09, Review Focus 4)", () => {
         () => ana(createCategory, "POST", "/categories", { body: { groupId, name: "Snacks" } }),
       ],
       [
+        "create a subcategory",
+        () =>
+          ana(createCategory, "POST", "/categories", {
+            body: { parentCategoryId: category, name: "Organic" },
+          }),
+      ],
+      [
         "update a category",
         () =>
           ana(updateCategory, "PATCH", `/categories/${category}`, {
@@ -229,6 +244,30 @@ describe("an archived space only reads (HU-E1-09, Review Focus 4)", () => {
       [
         "update an account",
         () => ana(updateAccount, "PATCH", `/accounts/${fund}`, { ...onFund, body: { name: "Pot" } }),
+      ],
+      [
+        "set the attributes of an account",
+        () =>
+          ana(updateAccount, "PATCH", `/accounts/${fund}`, {
+            ...onFund,
+            body: { institution: "Bancolombia", lastFour: "1234", color: "TEAL", icon: "bank" },
+          }),
+      ],
+      [
+        "set the terms of an account",
+        () =>
+          ana(updateAccount, "PATCH", `/accounts/${fund}`, {
+            ...onFund,
+            body: { terms: { creditLimit: cop(5_000_000), cutOffDay: 5 } },
+          }),
+      ],
+      [
+        "set the switches of an account",
+        () =>
+          ana(updateAccount, "PATCH", `/accounts/${fund}`, {
+            ...onFund,
+            body: { includeInAvailable: false, includeInNetWorth: false },
+          }),
       ],
       ["archive an account", () => ana(archiveAccount, "POST", `/accounts/${fund}/archive`, onFund)],
       ["restore an account", () => ana(restoreAccount, "POST", `/accounts/${fund}/restore`, onFund)],
@@ -273,6 +312,14 @@ describe("an archived space only reads (HU-E1-09, Review Focus 4)", () => {
           ana(editTransaction, "PATCH", `/transactions/${tx}`, {
             ...onTransaction,
             body: { description: "Old" },
+          }),
+      ],
+      [
+        "edit the time of a transaction",
+        () =>
+          ana(editTransaction, "PATCH", `/transactions/${tx}`, {
+            ...onTransaction,
+            body: { occurredAt: "2026-10-14T10:00:00-05:00", timeZone: "America/Bogota" },
           }),
       ],
       ["delete a transaction", () => ana(deleteTransaction, "DELETE", `/transactions/${tx}`, onTransaction)],

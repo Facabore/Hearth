@@ -16,6 +16,8 @@ export interface SignUpFormProps {
   readonly fieldErrors: Readonly<Partial<Record<SignUpField, ReactNode>>>;
   /** A problem that names no field. */
   readonly problem: Problem | null;
+  /** Ruling P157: the way back to sign in, keeping where the visitor was going and the invitation they hold. */
+  readonly signInHref?: string;
 }
 
 /**
@@ -23,7 +25,13 @@ export interface SignUpFormProps {
  * API. Ruling P147: a confirmation that differs sends nothing, says so under it and takes the focus; it is never
  * part of the body.
  */
-export function SignUpForm({ onSubmit, pending, fieldErrors, problem }: SignUpFormProps) {
+export function SignUpForm({
+  onSubmit,
+  pending,
+  fieldErrors,
+  problem,
+  signInHref = "/sign-in",
+}: SignUpFormProps) {
   const t = useTranslations("auth");
   const [mismatch, setMismatch] = useState(false);
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -90,9 +98,12 @@ export function SignUpForm({ onSubmit, pending, fieldErrors, problem }: SignUpFo
       <Button type="submit" size="lg" disabled={pending}>
         {t("signUp.submit")}
       </Button>
-      <p className="text-center text-sm text-muted">
-        {t("signUp.haveAccount")}{" "}
-        <Link href="/sign-in" className="font-semibold text-accent">
+      <p className="flex flex-wrap items-center justify-center gap-x-1 text-center text-sm text-muted">
+        {t("signUp.haveAccount")}
+        <Link
+          href={signInHref}
+          className="inline-flex min-h-11 min-w-11 items-center justify-center font-semibold text-accent"
+        >
           {t("signUp.signIn")}
         </Link>
       </p>
