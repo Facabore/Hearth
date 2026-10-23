@@ -864,6 +864,15 @@
       },
       "readOnly": "Solo Propietario y Administrador editan las líneas de un plan abierto."
     },
+    "mapping": {
+      "label": "Categorías",
+      "choose": "Elegir categorías",
+      "none": "Ninguna categoría todavía",
+      "title": "Categorías de {line}",
+      "search": "Buscar categoría",
+      "inOtherLine": "En {line}",
+      "done": "Listo"
+    },
     "allocation": {
       "title": "Quién responde por la línea",
       "rule": "Regla de asignación",

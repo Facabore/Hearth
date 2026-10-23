@@ -201,6 +201,21 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page.goto(`${h}/plans/${ids.plan}/lines/${marketLine.id}`);
       await expect(page.getByRole("region", { name: es.budgeting.lineEditor.figures })).toBeVisible();
       await scan("existing line");
+      // HU-E9-08: the allocation editor by percentage (with its sum alert, then with the preview), and the category sheet.
+      await page.getByRole("radio", { name: es.budgeting.rule.PERCENT }).click();
+      await expect(
+        page.getByRole("region", { name: es.budgeting.allocation.title }).getByRole("alert"),
+      ).toContainText(es.errors.InvalidAllocation.split(".")[0]!);
+      await scan("existing line with an allocation sum that does not hold");
+      await page.getByLabel(fill(es.budgeting.allocation.value, { name: "Ana" })).fill("40");
+      await page.getByLabel(fill(es.budgeting.allocation.value, { name: "Juan" })).fill("60");
+      await expect(page.getByRole("group", { name: "Juan" })).toContainText("60.000");
+      await scan("existing line with the allocation preview");
+      await page.getByRole("button", { name: es.budgeting.mapping.choose }).click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await expect(page.getByRole("dialog").getByRole("checkbox").first()).toBeVisible();
+      await scan("category sheet");
+      await page.keyboard.press("Escape");
       await page.getByRole("button", { name: es.budgeting.lineEditor.remove.open }).click();
       await expect(page.getByRole("dialog")).toBeVisible();
       await scan("line removal sheet");

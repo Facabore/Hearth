@@ -1134,6 +1134,16 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         await expectFullFields(`${what} as savings`);
         await page.getByRole("radio", { name: es.budgeting.funding.DIRECT }).click();
 
+        // The allocation editor: its four rules are full targets, and so is a member's value field by percentage.
+        await expect(page.getByRole("region", { name: es.budgeting.allocation.title })).toBeVisible();
+        await page.getByRole("radio", { name: es.budgeting.rule.PERCENT }).click();
+        await expect(
+          page.getByRole("region", { name: es.budgeting.allocation.title }).getByRole("group").first(),
+        ).toBeVisible();
+        await expectFullFields(`${what} by percentage`);
+        const byPercentage = await overflowReport(page, `${what} by percentage`);
+        expect.soft(byPercentage.overflow, byPercentage.message).toBeLessThanOrEqual(0);
+
         // The last control sits above the bottom bar once the page is scrolled to its end.
         await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
         const bottom = (await page.getByRole("button", { name: last, exact: true }).boundingBox())!;
@@ -1149,6 +1159,25 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         expect(box.width).toBeGreaterThanOrEqual(TARGET);
         expect(box.height).toBeGreaterThanOrEqual(TARGET);
       }
+
+      // The category sheet: every row is a full target on screen, its last control is on top, and Escape closes it.
+      await page.getByRole("button", { name: es.budgeting.mapping.choose }).click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+      const rows = page.getByRole("dialog").locator("label:has(input[type='checkbox'])");
+      expect(await rows.count(), "the category sheet lists the space's categories").toBeGreaterThan(0);
+      for (const row of await rows.all()) {
+        const box = (await row.boundingBox())!;
+        const label = (await row.textContent())?.trim();
+        expect.soft(box.height, `category sheet: height of "${label}"`).toBeGreaterThanOrEqual(TARGET);
+        expect
+          .soft(box.x + box.width, `category sheet: "${label}" stays on screen`)
+          .toBeLessThanOrEqual(viewport.width);
+      }
+      const mappingSheet = await overflowReport(page, "the category sheet");
+      expect.soft(mappingSheet.overflow, mappingSheet.message).toBeLessThanOrEqual(0);
+      expect(await lastControlIsOnTop(page), "the category sheet").toBe("ok");
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
 
       // The removal confirmation: its last control is on top of everything, and Escape closes it without removing.
       await page.getByRole("button", { name: es.budgeting.lineEditor.remove.open }).click();
@@ -1187,9 +1216,25 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       .click();
     await expect(page.getByRole("radio", { name: es.budgeting.rollover.ROLLOVER })).toBeChecked();
     await page.getByLabel(es.budgeting.lineEditor.field.planned).fill("150.000");
+    // HU-E9-08: a category and a percentage, which the real API must answer the way the preview said.
+    await page.getByRole("button", { name: es.budgeting.mapping.choose }).click();
+    const categories = page.getByRole("dialog");
+    await categories.getByRole("checkbox").first().check();
+    await categories.getByRole("button", { name: es.budgeting.mapping.done }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await page.getByRole("radio", { name: es.budgeting.rule.PERCENT }).click();
+    const own = page.getByRole("region", { name: es.budgeting.allocation.title }).getByRole("group").first();
+    await own.getByRole("textbox").fill("100");
+    await expect(own).toContainText("150.000");
     await page.getByRole("button", { name: es.budgeting.lineEditor.save, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`${planner}$`));
     await expect(page.getByRole("listitem", { name: "Mascotas" })).toContainText("150.000");
+    const saved = (await get(page, `/api/v1/spaces/${sharedId}/plans/${plan.id}`)).lines.find(
+      (line: { name: string }) => line.name === "Mascotas",
+    );
+    expect(saved.categoryIds).toHaveLength(1);
+    expect(saved.allocation.rule).toBe("PERCENT");
+    expect(saved.allocation.members[0].assigned.amount).toBe("15000000");
 
     await page
       .getByRole("listitem", { name: "Mascotas" })

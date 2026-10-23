@@ -2,9 +2,10 @@ import { screen } from "@testing-library/react";
 import { createTranslator } from "next-intl";
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cop, meDto, spaceDto } from "../../../../../tests/support/ui/dto";
+import { categoryDto, cop, groupDto, meDto, spaceDto } from "../../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse } from "../../../../../tests/support/ui/fake-api";
 import {
+  HOUSEHOLD_MEMBERS,
   householdDto,
   planLineDto,
   referencePlanDto,
@@ -42,6 +43,11 @@ const serve = (plan: BudgetPlanDto, role = "OWNER") => {
   served.role = role;
   const fake = fakeApi({
     "GET /api/v1/spaces/{spaceId}/plans/{planId}": () => jsonResponse(plan),
+    "GET /api/v1/spaces/{spaceId}/categories": () =>
+      jsonResponse({
+        items: [groupDto({ categories: [categoryDto({ id: "c-groceries", name: "Groceries" })] })],
+      }),
+    "GET /api/v1/spaces/{spaceId}/members": () => jsonResponse({ items: HOUSEHOLD_MEMBERS }),
     "GET /api/v1/spaces/{spaceId}/accounts": () =>
       jsonResponse({ items: [savingsAccountDto()], totals: { available: cop(0), netWorth: cop(0) } }),
   });
@@ -52,6 +58,8 @@ const rendered = async (lineId: string | null) =>
   (await LineEditorContainer({ spaceId: "sp-household", planId: "p-nov", lineId })) as ReactElement<{
     line: { id: string } | null;
     savingsAccounts: { id: string }[];
+    groups: { categories: { id: string }[] }[];
+    members: { displayName: string }[];
   }>;
 
 beforeEach(() => vi.clearAllMocks());
@@ -66,6 +74,18 @@ describe("LineEditorContainer (HU-E9-08)", () => {
     expect(accounts.map((request) => new URL(request.url).pathname)).toEqual([
       "/api/v1/spaces/sp-personal/accounts",
     ]);
+  });
+
+  it("hands the editor the space's categories and its members of the shared space", async () => {
+    const requests = serve(referencePlanDto());
+    const element = await rendered("l-home");
+    expect(element.props.groups.flatMap((group) => group.categories.map((c) => c.id))).toEqual([
+      "c-groceries",
+    ]);
+    expect(element.props.members.map((member) => member.displayName)).toEqual(["Ana", "Juan"]);
+    const paths = requests.map((request) => new URL(request.url).pathname);
+    expect(paths).toContain("/api/v1/spaces/sp-household/categories");
+    expect(paths).toContain("/api/v1/spaces/sp-household/members");
   });
 
   it("hands the editor no line to add one", async () => {

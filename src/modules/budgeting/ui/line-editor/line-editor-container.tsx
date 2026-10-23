@@ -2,7 +2,13 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { ProblemNotice, ScreenHeader } from "@/shared/ui";
 import type { Api } from "@/shared/ui/api/client";
-import type { AccountDto, BudgetPlanDto, PlanLineDto } from "@/shared/ui/api/dto";
+import type {
+  AccountDto,
+  BudgetPlanDto,
+  CategoryGroupDto,
+  PlanLineDto,
+  SpaceMemberDto,
+} from "@/shared/ui/api/dto";
 import { getMe, getSpaces, loaded, serverApi, type Loaded } from "@/shared/ui/api/server";
 import { personalSpaceOf } from "@/modules/spaces/ui";
 import { canManage, isEditable } from "../plan-access";
@@ -21,19 +27,33 @@ export const loadLineEditor = async (
     lineId,
     personalSpaceId,
   }: { spaceId: string; planId: string; lineId: string | null; personalSpaceId: string },
-): Promise<Loaded<{ plan: BudgetPlanDto; line: PlanLineDto | null; savingsAccounts: AccountDto[] }>> => {
-  const [plan, accounts] = await Promise.all([
+): Promise<
+  Loaded<{
+    plan: BudgetPlanDto;
+    line: PlanLineDto | null;
+    savingsAccounts: AccountDto[];
+    groups: CategoryGroupDto[];
+    members: SpaceMemberDto[];
+  }>
+> => {
+  const [plan, accounts, categories, members] = await Promise.all([
     loaded(api.GET("/api/v1/spaces/{spaceId}/plans/{planId}", { params: { path: { spaceId, planId } } })),
     loaded(api.GET("/api/v1/spaces/{spaceId}/accounts", { params: { path: { spaceId: personalSpaceId } } })),
+    loaded(api.GET("/api/v1/spaces/{spaceId}/categories", { params: { path: { spaceId } } })),
+    loaded(api.GET("/api/v1/spaces/{spaceId}/members", { params: { path: { spaceId } } })),
   ]);
   if (!plan.ok) return plan;
   if (!accounts.ok) return accounts;
+  if (!categories.ok) return categories;
+  if (!members.ok) return members;
   const line = lineId === null ? null : (plan.data.lines.find((l) => l.id === lineId) ?? notFound());
   return {
     ok: true,
     data: {
       plan: plan.data,
       line,
+      groups: categories.data.items,
+      members: members.data.items,
       savingsAccounts: accounts.data.items.filter(
         (account) =>
           account.type === "SAVINGS" &&
@@ -63,7 +83,7 @@ export async function LineEditorContainer({
     personalSpaceId: personalSpaceOf(spaces).id,
   });
   if (!result.ok) return <ProblemNotice problem={result.problem} />;
-  const { plan, line, savingsAccounts } = result.data;
+  const { plan, line, savingsAccounts, groups, members } = result.data;
   if (!canManage(space.role) || !isEditable(plan)) {
     const t = await getTranslations("budgeting.lineEditor");
     return (
@@ -82,6 +102,8 @@ export async function LineEditorContainer({
       plan={plan}
       line={line}
       savingsAccounts={savingsAccounts}
+      groups={groups}
+      members={members}
       formats={me!.preferences.effective}
     />
   );

@@ -14,22 +14,42 @@ import {
   TextField,
 } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
-import type { AccountDto, BudgetPlanDto, PlanLineDto, SpaceDto } from "@/shared/ui/api/dto";
+import type {
+  AccountDto,
+  BudgetPlanDto,
+  CategoryGroupDto,
+  PlanLineDto,
+  SpaceDto,
+  SpaceMemberDto,
+} from "@/shared/ui/api/dto";
 import type { Problem } from "@/shared/ui/api/problem";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
+import { minorOf, parseDecimal } from "@/shared/ui/format/amount-input";
+import { currencyOf } from "@/shared/ui/format/currencies";
 import { formatMoney, formatNumber, formatPercent, type Formats } from "@/shared/ui/format/formatters";
+import { findCategory } from "@/modules/categories/ui";
 import { rereadPlan } from "../plan-write";
+import { AllocationEditor } from "./allocation-editor";
+import {
+  allocationBodyOf,
+  allocationChanged,
+  allocationDraftOf,
+  previewOf,
+  type AllocationDraft,
+} from "./allocation";
+import { CategoryMappingSheet } from "./category-mapping-sheet";
 import {
   lineBodyOf,
   lineChanges,
   lineDraftOf,
   lineFieldOf,
+  sameSet,
   type Funding,
   type LineDraft,
   type LineField,
   type RolloverMode,
 } from "./line-draft";
-import { removeLine, saveLine } from "./line-save";
+import { removeLine, saveLine, type LineSection } from "./line-save";
 
 const FUNDINGS: readonly Funding[] = ["DIRECT", "SHARED_FUND", "SAVINGS"];
 const ROLLOVERS: readonly RolloverMode[] = ["RESET", "ROLLOVER", "ADJUSTED"];
@@ -45,15 +65,18 @@ function FieldError({ id, children }: { readonly id: string; readonly children: 
 }
 
 /**
- * HU-E9-08, the LineEditor artboard's upper half (rulings P210, P213): a line's name, planned amount, funding,
- * rollover and catch-all switch. An existing line also shows what was planned, spent and left, and can be removed
- * after a confirmation. Saving sends one request, the plan's `If-Match` with it, and keeps the plan it answers.
+ * HU-E9-08, the LineEditor artboard (rulings P210 to P213): a line's name, planned amount, funding, rollover and
+ * catch-all switch, then its categories and who answers for it (the allocation, with its preview). An existing line
+ * also shows what was planned, spent and left, and can be removed after a confirmation. Saving sends the steps that
+ * have something to send, in order, each with the `If-Match` of the plan the step before answered.
  */
 export function LineEditor({
   space,
   plan: initial,
   line,
   savingsAccounts,
+  groups,
+  members,
   formats,
   api: injected,
 }: {
@@ -63,6 +86,10 @@ export function LineEditor({
   readonly line: PlanLineDto | null;
   /** The caller's own active SAVINGS accounts in the plan's currency (ruling P213). */
   readonly savingsAccounts: readonly AccountDto[];
+  /** The space's live category groups, for the mapping sheet (ruling P212). */
+  readonly groups: readonly CategoryGroupDto[];
+  /** The space's members in join order, one allocation row each. */
+  readonly members: readonly SpaceMemberDto[];
   readonly formats: Formats;
   readonly api?: Api;
 }) {
@@ -70,19 +97,47 @@ export function LineEditor({
   const tFunding = useTranslations("budgeting.funding");
   const tRollover = useTranslations("budgeting.rollover");
   const tReports = useTranslations("reports.lines");
+  const tMapping = useTranslations("budgeting.mapping");
   const router = useRouter();
   const messageOf = useProblemMessage();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   const ids = useId();
   const [plan, setPlan] = useState(initial);
   const [draft, setDraft] = useState<LineDraft>(() => lineDraftOf(line, formats));
+  const [categoryIds, setCategoryIds] = useState<readonly string[]>(() => line?.categoryIds ?? []);
+  const [allocationDraft, setAllocationDraft] = useState<AllocationDraft>(() =>
+    allocationDraftOf(line, formats),
+  );
+  const [mapping, setMapping] = useState(false);
   const [fieldError, setFieldError] = useState<{ field: LineField; text: string } | null>(null);
+  const [sectionError, setSectionError] = useState<{ section: LineSection; text: string } | null>(null);
   const [formProblem, setFormProblem] = useState<Problem | null>(null);
   const [pending, setPending] = useState(false);
   const [removing, setRemoving] = useState(false);
+  /**
+   * The line as the last answer has it, which a save compares the draft with. A step that fails after the line was
+   * saved updates it, so a retry edits a new line instead of adding it again.
+   */
+  const [stored, setStored] = useState<PlanLineDto | null>(line);
   const inFlight = useRef(false);
+  const allocationSection = useRef<HTMLElement>(null);
 
   const currency = plan.totalCapacity.currency;
+  const lineId = stored?.id ?? null;
+  const plannedMinor = (() => {
+    const decimal = parseDecimal(draft.planned, formats.numberFormat);
+    return decimal === null ? null : minorOf(decimal, currencyOf(currency).exponent);
+  })();
+  const plannedNow = { amount: plannedMinor ?? stored?.plannedAmount.amount ?? "0", currency };
+  const preview = previewOf(allocationDraft, {
+    planned: plannedNow.amount,
+    currency,
+    members: members.map((member) => ({
+      memberId: member.id,
+      capacity: plan.capacities.find((capacity) => capacity.memberId === member.id)?.amount.amount ?? "0",
+    })),
+    numberFormat: formats.numberFormat,
+  });
   const money = (value: { readonly amount: string; readonly currency: string }) =>
     formatMoney(value, formats);
   const back = `/spaces/${space.id}/plans/${plan.id}`;
@@ -116,6 +171,7 @@ export function LineEditor({
     if (inFlight.current) return;
     setFormProblem(null);
     setFieldError(null);
+    setSectionError(null);
     const built = lineBodyOf(draft, currency, formats.numberFormat);
     if (!built.ok) {
       setFieldError({
@@ -124,19 +180,48 @@ export function LineEditor({
       });
       return;
     }
+    // The preview already shows why: a sum that does not hold, nobody with capacity, or a value nobody can read.
+    if (preview.kind === "invalid" || preview.kind === "noCapacity" || preview.kind === "unreadable") {
+      allocationSection.current?.focus();
+      return;
+    }
+    const allocation = allocationBodyOf(
+      allocationDraft,
+      members.map((member) => member.id),
+      currency,
+      formats.numberFormat,
+    );
+    // A savings line takes no categories (ruling P212).
+    const mapped = savings
+      ? null
+      : stored === null
+        ? categoryIds.length > 0
+          ? categoryIds
+          : null
+        : sameSet(categoryIds, stored.categoryIds)
+          ? null
+          : categoryIds;
     inFlight.current = true;
     setPending(true);
     const outcome = await saveLine(
       api,
-      { spaceId: space.id, plan, lineId: line?.id ?? null },
-      { line: line ? lineChanges(line, built.body) : built.body },
+      { spaceId: space.id, plan, lineId },
+      {
+        line: stored ? lineChanges(stored, built.body) : built.body,
+        categoryIds: mapped,
+        allocation: allocation !== null && allocationChanged(stored, allocation) ? allocation : null,
+      },
     );
     if (outcome.ok) {
       router.push(back);
       router.refresh();
     } else {
       setPlan(outcome.plan);
+      if (outcome.lineId !== null)
+        setStored(outcome.plan.lines.find((other) => other.id === outcome.lineId) ?? stored);
       if (outcome.problem.code === "PreconditionFailed") await conflict(outcome.problem);
+      else if (outcome.section !== "line")
+        setSectionError({ section: outcome.section, text: messageOf(outcome.problem).message });
       else {
         const field = lineFieldOf(outcome.problem);
         if (field === "form") setFormProblem(outcome.problem);
@@ -166,6 +251,12 @@ export function LineEditor({
   const planned = errorOf("planned");
   const savingsError = errorOf("savings");
   const catchAllError = errorOf("catchAll");
+  const chosen = categoryIds.flatMap((id) => {
+    const category = findCategory(groups, id)?.category;
+    return category ? [category] : [];
+  });
+  const categoriesError = sectionError?.section === "categories" ? sectionError.text : undefined;
+  const allocationError = sectionError?.section === "allocation" ? sectionError.text : undefined;
 
   return (
     <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4 py-4">
@@ -289,11 +380,68 @@ export function LineEditor({
           </div>
         ) : null}
 
+        {!savings ? (
+          <div className="flex flex-col gap-2">
+            <p id={`${ids}-categories`} className="text-sm font-medium text-ink">
+              {tMapping("label")}
+            </p>
+            {chosen.length > 0 ? (
+              <ul aria-labelledby={`${ids}-categories`} className="flex flex-wrap gap-2">
+                {chosen.map((category) => (
+                  <li
+                    key={category.id}
+                    className="rounded-full border border-line px-3 py-1 text-sm [overflow-wrap:anywhere] text-ink"
+                  >
+                    {category.name}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted">{tMapping("none")}</p>
+            )}
+            {categoriesError ? (
+              <FieldError id={`${ids}-categories-error`}>{categoriesError}</FieldError>
+            ) : null}
+            <Button variant="secondary" onClick={() => setMapping(true)}>
+              {tMapping("choose")}
+            </Button>
+          </div>
+        ) : null}
+
+        <AllocationEditor
+          ref={allocationSection}
+          draft={allocationDraft}
+          onChange={(next) => {
+            setAllocationDraft(next);
+            setSectionError(null);
+          }}
+          preview={preview}
+          members={members}
+          formats={formats}
+          currency={currency}
+          planned={plannedNow}
+        />
+        {allocationError ? <FieldError id={`${ids}-allocation-error`}>{allocationError}</FieldError> : null}
+
         {formProblem !== null && !removing ? <ProblemNotice problem={formProblem} /> : null}
         <Button type="submit" size="lg" disabled={pending}>
           {line === null ? t("add") : t("save")}
         </Button>
       </form>
+
+      <CategoryMappingSheet
+        open={mapping}
+        onOpenChange={setMapping}
+        groups={groups}
+        plan={plan}
+        lineId={lineId}
+        lineName={draft.name.trim() || (line?.name ?? t("newTitle"))}
+        value={categoryIds}
+        onChange={(next) => {
+          setCategoryIds(next);
+          setSectionError(null);
+        }}
+      />
 
       {line !== null ? (
         <>

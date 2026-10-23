@@ -73,7 +73,7 @@ export const lineBodyOf = (
   };
 };
 
-const sameSet = (a: readonly string[], b: readonly string[]) =>
+export const sameSet = (a: readonly string[], b: readonly string[]) =>
   a.length === b.length && a.every((id) => b.includes(id));
 
 /** HU-E6-03: an edit sends only the fields that changed (the PATCH keeps the rest). */

@@ -864,6 +864,15 @@
       },
       "readOnly": "Only an Owner or an Admin edits the lines of an open plan."
     },
+    "mapping": {
+      "label": "Categories",
+      "choose": "Choose categories",
+      "none": "No categories yet",
+      "title": "Categories of {line}",
+      "search": "Search category",
+      "inOtherLine": "In {line}",
+      "done": "Done"
+    },
     "allocation": {
       "title": "Who answers for the line",
       "rule": "Allocation rule",
