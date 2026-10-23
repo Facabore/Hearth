@@ -27,7 +27,8 @@ const data = {
   ],
 };
 
-describe("lazy trend chart (ruling P202, P220)", () => {
+// The first transform of the Recharts chunk is slow on a cold cache, as in CI: give it room.
+describe("lazy trend chart (ruling P202, P220)", { timeout: 60_000 }, () => {
   it("shows a placeholder of the same size, then the chart from its own chunk, hidden from assistive tech", async () => {
     const { container } = renderWithIntl(
       <ChartFrame caption="Mi consumo por período">
@@ -37,7 +38,7 @@ describe("lazy trend chart (ruling P202, P220)", () => {
     expect(screen.getByRole("figure", { name: "Mi consumo por período" })).toBeInTheDocument();
     expect(container.querySelector("[data-chart-placeholder]")).toHaveAttribute("aria-hidden", "true");
     expect(screen.queryByTestId("trend-chart")).toBeNull();
-    const chart = await screen.findByTestId("trend-chart");
+    const chart = await screen.findByTestId("trend-chart", {}, { timeout: 45_000 });
     expect(chart).toHaveAttribute("data-points", "6");
     expect(chart).toHaveAttribute("aria-hidden", "true");
     expect(container.querySelector("[data-chart-placeholder]")).toBeNull();
@@ -60,7 +61,7 @@ describe("lazy trend chart (ruling P202, P220)", () => {
       ],
     };
     renderWithIntl(<LazyTrendChart data={gap} />);
-    const chart = await screen.findByTestId("trend-chart");
+    const chart = await screen.findByTestId("trend-chart", {}, { timeout: 45_000 });
     const curve = chart.querySelector("path.recharts-line-curve");
     expect(curve?.getAttribute("d")?.match(/M/g)).toHaveLength(2);
     expect(curve).not.toHaveAttribute("stroke-dasharray");
@@ -83,7 +84,7 @@ describe("lazy trend chart (ruling P202, P220)", () => {
       })),
     };
     renderWithIntl(<LazyTrendChart data={many} />);
-    const chart = await screen.findByTestId("trend-chart");
+    const chart = await screen.findByTestId("trend-chart", {}, { timeout: 45_000 });
     const strokes = [...chart.querySelectorAll("path.recharts-line-curve")].map((path) =>
       path.getAttribute("stroke"),
     );
@@ -120,7 +121,7 @@ describe("lazy trend chart (ruling P202, P220)", () => {
     );
     try {
       const { unmount } = renderWithIntl(<LazyTrendChart data={data} />);
-      const chart = await screen.findByTestId("trend-chart");
+      const chart = await screen.findByTestId("trend-chart", {}, { timeout: 45_000 });
       expect(chart.querySelector(".recharts-wrapper")).toHaveAttribute("width", "320");
       expect(observers[0]?.observed).toBe(true);
       act(() => {
