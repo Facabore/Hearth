@@ -12,6 +12,8 @@ export interface MemberControls {
   readonly recordMoney: boolean;
   /** Create a shared fund (U1). */
   readonly manageFunds: boolean;
+  /** Rename the space, of any kind, the personal one included (#167). */
+  readonly rename: boolean;
 }
 
 /**
@@ -26,11 +28,13 @@ export const SPACE_CONTROLS = {
   removeGuests: ["OWNER", "ADMIN", "MEMBER"],
   recordMoney: ["OWNER", "ADMIN", "MEMBER"],
   manageFunds: ["OWNER", "ADMIN"],
+  rename: ["OWNER", "ADMIN"],
 } as const satisfies Record<keyof MemberControls, readonly SpaceRole[]>;
 
 /**
  * The controls a role gets in a space. D16: a direct space keeps its two members (no invitations, guests or role
  * changes), but its guest can still be handed a claim link (HU-E1-11); a personal space has none of these screens.
+ * Every kind of space can be renamed (#167).
  */
 export const controlsFor = (role: SpaceRole | null, kind: SpaceDto["kind"]): MemberControls => {
   const has = (control: keyof MemberControls) =>
@@ -44,5 +48,6 @@ export const controlsFor = (role: SpaceRole | null, kind: SpaceDto["kind"]): Mem
     removeGuests: shared && has("removeGuests"),
     recordMoney: has("recordMoney"),
     manageFunds: shared && has("manageFunds"),
+    rename: has("rename"),
   };
 };

@@ -603,6 +603,11 @@
     }
   },
   "spaces": {
+    "settings": {
+      "title": "Space",
+      "name": "Space name",
+      "nameHint": "How it appears in the space switcher and on its screens."
+    },
     "new": {
       "title": "Create a shared space",
       "name": "Name",

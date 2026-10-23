@@ -603,6 +603,11 @@
     }
   },
   "spaces": {
+    "settings": {
+      "title": "Espacio",
+      "name": "Nombre del espacio",
+      "nameHint": "Así aparece en el selector de espacios y en sus pantallas."
+    },
     "new": {
       "title": "Crear un espacio compartido",
       "name": "Nombre",

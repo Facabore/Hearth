@@ -10,6 +10,7 @@ const ACTIONS = {
   removeGuests: "guest.remove",
   recordMoney: "money.record",
   manageFunds: "fund.manage",
+  rename: "space.manage",
 } as const satisfies Record<keyof MemberControls, string>;
 const ROLES = ["OWNER", "ADMIN", "MEMBER", "VIEWER"] as const;
 
@@ -50,6 +51,16 @@ describe("space controls (HU-E9-05, ruling P158)", () => {
       removeGuests: false,
       recordMoney: true,
       manageFunds: false,
+      rename: true,
     });
+  });
+
+  it("lets an OWNER or ADMIN rename any kind of space, the personal one included (#167)", () => {
+    for (const kind of ["PERSONAL", "SHARED", "DIRECT"] as const) {
+      expect([kind, controlsFor("OWNER", kind).rename]).toEqual([kind, true]);
+      expect([kind, controlsFor("ADMIN", kind).rename]).toEqual([kind, true]);
+      expect([kind, controlsFor("MEMBER", kind).rename]).toEqual([kind, false]);
+      expect([kind, controlsFor("VIEWER", kind).rename]).toEqual([kind, false]);
+    }
   });
 });
