@@ -1,5 +1,6 @@
 import type {
   BudgetPlanDto,
+  CashFlowDto,
   FundTrackingDto,
   LineDashboardDto,
   LineTrendDto,
@@ -543,3 +544,80 @@ export const homeTrend = (): LineTrendDto => {
   ];
   return { spaceId: "sp-household", periods, plan: { id: "p-nov", status: "ACTIVE" }, lines };
 };
+
+type FlowMovement = CashFlowDto["dates"][number]["movements"][number];
+const flowMovement = (overrides: Partial<FlowMovement>): FlowMovement => ({
+  recurrenceId: "rec-internet",
+  occurrenceId: null,
+  type: "EXPENSE",
+  description: "Internet",
+  space: { id: "sp-household", name: "Household" },
+  dueDate: "2026-11-05",
+  status: "SCHEDULED",
+  estimated: false,
+  amount: cop(120_000),
+  effect: cop(-120_000),
+  ...overrides,
+});
+
+/** #150: Ana's next 30 days from 2026-10-28, with today's available money at 2,000,000 COP (Task 1d's shape). */
+export const cashFlowDto = (overrides: Partial<CashFlowDto> = {}): CashFlowDto => ({
+  currency: "COP",
+  from: "2026-10-28",
+  through: "2026-11-26",
+  days: 30,
+  opening: cop(2_000_000),
+  dates: [
+    {
+      date: "2026-10-28",
+      movements: [
+        flowMovement({
+          recurrenceId: "rec-power",
+          occurrenceId: "occ-power",
+          description: "Energía",
+          dueDate: "2026-10-20",
+          status: "PENDING",
+          estimated: true,
+          amount: cop(180_000),
+          effect: cop(-180_000),
+        }),
+      ],
+      balanceAfter: cop(1_820_000),
+    },
+    {
+      date: "2026-10-30",
+      movements: [
+        flowMovement({
+          recurrenceId: "rec-salary",
+          type: "INCOME",
+          description: "Salario",
+          space: { id: "sp-personal", name: "Personal" },
+          dueDate: "2026-10-30",
+          amount: cop(3_000_000),
+          effect: cop(3_000_000),
+        }),
+      ],
+      balanceAfter: cop(4_820_000),
+    },
+    {
+      date: "2026-11-01",
+      movements: [
+        flowMovement({
+          recurrenceId: "rec-nequi",
+          type: "TRANSFER",
+          description: "A Nequi",
+          space: { id: "sp-personal", name: "Personal" },
+          dueDate: "2026-11-01",
+          amount: cop(100_000),
+          effect: cop(0),
+        }),
+      ],
+      balanceAfter: cop(4_820_000),
+    },
+    { date: "2026-11-05", movements: [flowMovement({})], balanceAfter: cop(4_700_000) },
+  ],
+  totals: { incoming: cop(3_000_000), outgoing: cop(300_000), closing: cop(4_700_000) },
+  lowest: { date: "2026-10-28", balance: cop(1_820_000) },
+  otherCurrencySpaces: [],
+  ...overrides,
+});

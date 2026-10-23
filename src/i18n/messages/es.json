@@ -928,7 +928,8 @@
       "fund": "Fondo",
       "groups": "Por grupo",
       "trend": "Tendencia",
-      "mine": "Mi consumo"
+      "mine": "Mi consumo",
+      "calendar": "Próximos"
     },
     "frame": {
       "editPlan": "Editar plan",
@@ -954,6 +955,32 @@
       "spentIn": "Gastado en {period}",
       "noFigure": "Sin dato",
       "linesNote": "Cada línea se compara con su línea de origen en el plan anterior. Lo gastado sin presupuesto no tiene tendencia."
+    },
+    "calendar": {
+      "metaTitle": "Próximos movimientos",
+      "title": "Próximos {days} días",
+      "window": "Ventana",
+      "days": "{days} días",
+      "explain": "Los movimientos recurrentes de tus cuentas en todos tus espacios, con el saldo que te quedaría después de cada día.",
+      "summary": "Resumen de lo que viene",
+      "opening": "Disponible hoy",
+      "incoming": "Entra",
+      "outgoing": "Sale",
+      "closing": "Al final",
+      "lowest": "Lo más bajo: {balance} el {date}",
+      "listLabel": "Movimientos por día",
+      "balanceAfter": "Saldo proyectado {balance}",
+      "pending": "Pendiente desde el {date}",
+      "estimated": "Estimado",
+      "noEffect": "No cambia tu disponible",
+      "type": {
+        "EXPENSE": "Gasto",
+        "INCOME": "Ingreso",
+        "TRANSFER": "Transferencia",
+        "FUND_CONTRIBUTION": "Aporte al fondo"
+      },
+      "empty": "No hay movimientos programados en los próximos {days} días.",
+      "otherCurrency": "{space} usa {currency}: sus movimientos no se suman aquí."
     },
     "unified": {
       "consumption": "Consumo",

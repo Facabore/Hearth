@@ -928,7 +928,8 @@
       "fund": "Fund",
       "groups": "By group",
       "trend": "Trend",
-      "mine": "My spending"
+      "mine": "My spending",
+      "calendar": "Upcoming"
     },
     "frame": {
       "editPlan": "Edit plan",
@@ -954,6 +955,32 @@
       "spentIn": "Spent in {period}",
       "noFigure": "No figure",
       "linesNote": "Each line is compared with the line it was copied from in the previous plan. Unbudgeted spending has no trend."
+    },
+    "calendar": {
+      "metaTitle": "Upcoming movements",
+      "title": "Next {days} days",
+      "window": "Window",
+      "days": "{days} days",
+      "explain": "The recurring movements of your accounts in all your spaces, with the balance you would have after each day.",
+      "summary": "Summary of what is coming",
+      "opening": "Available today",
+      "incoming": "Coming in",
+      "outgoing": "Going out",
+      "closing": "At the end",
+      "lowest": "Lowest: {balance} on {date}",
+      "listLabel": "Movements by day",
+      "balanceAfter": "Projected balance {balance}",
+      "pending": "Pending since {date}",
+      "estimated": "Estimated",
+      "noEffect": "Does not change your available money",
+      "type": {
+        "EXPENSE": "Expense",
+        "INCOME": "Income",
+        "TRANSFER": "Transfer",
+        "FUND_CONTRIBUTION": "Fund contribution"
+      },
+      "empty": "Nothing is scheduled in the next {days} days.",
+      "otherCurrency": "{space} uses {currency}: its movements are not added here."
     },
     "unified": {
       "consumption": "Consumption",

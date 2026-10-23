@@ -14,7 +14,8 @@ export function PlanTabs({
 }: {
   readonly space: Pick<SpaceDto, "id" | "kind">;
   readonly view: PlanView;
-  readonly period: string;
+  /** The period label the links keep; a view that is not a period view (the calendar) passes none. */
+  readonly period?: string;
 }) {
   const t = useTranslations("reports");
   return (

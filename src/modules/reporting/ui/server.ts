@@ -9,3 +9,4 @@ export { GroupsHomeContainer } from "./by-group/groups-home";
 export { TrendHomeContainer } from "./trend/trend-home";
 export { windowOf } from "./trend/personal-trend-container";
 export { LineTrendContainer } from "./trend/line-trend-container";
+export { CalendarContainer } from "./calendar/calendar-container";
