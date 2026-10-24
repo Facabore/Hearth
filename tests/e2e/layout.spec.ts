@@ -1012,15 +1012,9 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
           expect
             .soft(box.height, "a link of the dashboard is at least 44 px tall")
             .toBeGreaterThanOrEqual(TARGET);
-          // The view tabs scroll inside their own row (P200): below 360 px the fourth waits beyond the edge, and
-          // scrolling brings it fully on screen. Every other link ends on screen where it stands.
-          const inTabs = await link.evaluate(
-            (el, label) => el.closest("nav")?.getAttribute("aria-label") === label,
-            es.reports.tabs.label,
-          );
-          if (inTabs) await link.scrollIntoViewIfNeeded();
-          const shown = (await link.boundingBox())!;
-          expect.soft(shown.x + shown.width, "and ends on screen").toBeLessThanOrEqual(viewport.width);
+          // Issue #174 (U3): the view tabs wrap to a second row, so every link, a tab included, ends on screen where
+          // it stands, with no scrolling.
+          expect.soft(box.x + box.width, "and ends on screen").toBeLessThanOrEqual(viewport.width);
         }
       }
       // The long line wraps inside its row instead of widening the page.
@@ -1062,12 +1056,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
     const controls = page.locator("main").getByRole("link").or(page.locator("main").getByRole("button"));
     expect.soft(await controls.count(), `${what}: has controls`).toBeGreaterThan(0);
     for (const control of await controls.all()) {
-      // The view tabs scroll inside their own row (P200): a tab beyond the edge is scrolled fully on screen first.
-      const inTabs = await control.evaluate(
-        (el, label) => el.closest("nav")?.getAttribute("aria-label") === label,
-        es.reports.tabs.label,
-      );
-      if (inTabs) await control.scrollIntoViewIfNeeded();
+      // Issue #174 (U3): the view tabs wrap instead of scrolling, so no control waits beyond the edge.
       const box = (await control.boundingBox())!;
       const label = (await control.getAttribute("aria-label")) ?? (await control.textContent())?.trim();
       expect.soft(box.height, `${what}: height of "${label}"`).toBeGreaterThanOrEqual(TARGET);
