@@ -429,9 +429,29 @@ Two follow-up issues changed what M2-C accepted or ruled. They carry no P number
 | O2 (no lock against concurrent money writes, assumption 4) | Issue #89 adds the lock. Leaving, removing a guest and archiving lock the space row `FOR NO KEY UPDATE` right after authorization, and every money write locks it `FOR SHARE` before it reads the membership (the order is always space row first, then member rows), so each race ends as one of its two serial orders. The space row, not the member rows, because `FOR UPDATE` on member rows conflicts with the `FOR KEY SHARE` locks the foreign keys of every insert take. | [HU-E1-08](../backlog/E1-identity-and-spaces.md), `src/modules/spaces/application/space-locks.ts` |
 | O1 (a former member stays settled, Task 4b) | Issue #90 keeps the rule and lifts its dead end: a user who joins again takes back their own member row (`leftAt` cleared, new role, name and `joinedAt`), so what names that member id names a current member and can be corrected. A former member who has not joined again stays settled. | [HU-E1-07](../backlog/E1-identity-and-spaces.md) |
 
+## UI design decisions U1–U12
+
+UX decisions on screens, made from the Penpot design reviews. Each row's rationale and the before/after boards are in [batch2-ux-decisions.md](../design/batch2-ux-decisions.md).
+
+| ID | Decision |
+|---|---|
+| U1 | Household vocabulary in the UI (Rubro, Cuánto aporta cada uno, Cada uno paga…); code and API keep the model terms. |
+| U2 | One verb, "Saldar", for every settle action, and amounts never break across lines. |
+| U3 | View chips are 44 px, wrap instead of scrolling, and keep one order in every space. |
+| U4 | Inicio shows a one-line "Tu mes" shortcut to the unified view (1 tap). |
+| U5 | The line editor collapses rollover and allocation into "Más opciones", whose summary shows the real value. |
+| U6 | "Crear plan" opens a suggested plan prefilled from contributions. |
+| U7 | The split editor shows every payer and method without horizontal scroll. |
+| U8 | Ajustes fits one view with three summary rows. |
+| U9 | The space sheet offers "Invitar" on each shared space. |
+| U10 | The unified view has one hero figure. |
+| U11 | The personal record form offers "Dividir con alguien". |
+| U12 | Every save confirms with a toast and shows the changed state. |
+
 ## How to add a decision
 
 - **A design-level decision** (it changes how the product behaves or how the model works) goes into the spec's decisions table in section 6 as the next `D` number, with its rationale and the alternatives rejected. Add its row to the table above.
 - **A technology choice** (a library, a tool, a generator) gets an ADR in `docs/adr/`, numbered in order, with Context, Decision and Consequences. Add it to the ADR table above.
 - **An execution ruling** (how a plan resolves a gap, a contradiction or an assumption) goes into the milestone plan's Self-Review, as "Ruled by the controller (P<n>)" with the next free number. Then add its line to the group of that plan above, in the same pull request.
 - A milestone's pull request updates this index with its new rulings.
+- **A UI design decision** (a screen's copy, layout or navigation, decided in a design review) goes into the batch's decisions file in `docs/design/` as the next `U` number. Add its row to the table above.
