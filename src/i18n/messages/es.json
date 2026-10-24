@@ -469,6 +469,7 @@
         "INCOME": "Ingreso guardado",
         "TRANSFER": "Transferencia guardada"
       },
+      "view": "Ver",
       "edited": "Cambios guardados",
       "undo": "Deshacer",
       "deleted": {

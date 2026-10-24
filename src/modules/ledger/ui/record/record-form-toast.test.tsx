@@ -124,6 +124,59 @@ describe("record form save feedback (ruling P196)", () => {
     expect(router.replace).toHaveBeenCalledWith("/spaces/sp-ana-juan/transactions");
   });
 
+  it("goes back to the screen it was recorded from, and Ver opens the movement (issue #172)", async () => {
+    const { api } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
+    form(api, "EXPENSE", { returnTo: `/spaces/${PERSONAL.id}?period=2026-10` });
+    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute(
+      "href",
+      `/spaces/${PERSONAL.id}?period=2026-10`,
+    );
+    await userEvent.type(screen.getByLabelText("Monto"), "85000");
+    await chooseGroceries();
+    await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
+    await saved("Gasto guardado");
+    expect(router.replace).toHaveBeenCalledWith(`/spaces/${PERSONAL.id}?period=2026-10`);
+    await userEvent.click(screen.getByRole("button", { name: "Ver" }));
+    expect(router.push).toHaveBeenCalledWith(`/spaces/${PERSONAL.id}/transactions?tx=t-new`);
+  });
+
+  it("ignores a returnTo that leaves the app and lands on the list (issue #172)", async () => {
+    const { api } = fakeApi({ "POST /api/v1/spaces/{spaceId}/incomes": recorded });
+    form(api, "INCOME", { returnTo: "//evil.example" });
+    await userEvent.type(screen.getByLabelText("Monto"), "1.200.000");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar ingreso" }));
+    await saved("Ingreso guardado");
+    expect(router.replace).toHaveBeenCalledWith(`/spaces/${PERSONAL.id}/transactions`);
+  });
+
+  it("goes back after a split with someone, and Ver opens it in the direct space (issue #172)", async () => {
+    const people: Person[] = [
+      { memberId: "m-juan-d", name: "Juan", isGuest: false, directSpace: "Ana & Juan" },
+    ];
+    const { api } = fakeApi({
+      "POST /api/v1/direct-splits": () =>
+        jsonResponse(
+          {
+            spaceId: "sp-ana-juan",
+            created: false,
+            expense: { ...transactionDto({ id: "t-1" }), warnings: [] },
+          },
+          201,
+        ),
+    });
+    form(api, "EXPENSE", { people, returnTo: `/spaces/${PERSONAL.id}` });
+    await userEvent.type(screen.getByLabelText("Monto"), "120000");
+    await chooseGroceries();
+    await userEvent.click(screen.getByRole("button", { name: "Dividir con alguien" }));
+    await userEvent.click(await screen.findByRole("radio", { name: /Juan/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Seguir con Juan" }));
+    await userEvent.click(screen.getByRole("button", { name: "Guardar y dividir" }));
+    await saved("Gasto guardado");
+    expect(router.replace).toHaveBeenCalledWith(`/spaces/${PERSONAL.id}`);
+    await userEvent.click(screen.getByRole("button", { name: "Ver" }));
+    expect(router.push).toHaveBeenCalledWith("/spaces/sp-ana-juan/transactions?tx=t-1");
+  });
+
   it("stays silent when the request fails, so nothing claims a save that did not happen", async () => {
     const { api } = fakeApi({
       "POST /api/v1/spaces/{spaceId}/expenses": () => problemResponse(422, "InvalidDescription"),

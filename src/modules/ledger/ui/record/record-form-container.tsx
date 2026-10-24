@@ -90,9 +90,12 @@ export const loadLineWatch = async (
 export async function RecordFormContainer({
   spaceId,
   kind,
+  returnTo = null,
 }: {
   readonly spaceId: string;
   readonly kind: RecordKind;
+  /** Issue #172: the screen the form was opened from; the form validates it before using it. */
+  readonly returnTo?: string | null;
 }) {
   const api = await serverApi();
   const path = { spaceId };
@@ -133,6 +136,7 @@ export async function RecordFormContainer({
       {...(shared ? { shared } : {})}
       {...(people ? { people } : {})}
       lineWatch={await watch}
+      returnTo={returnTo}
     />
   );
 }

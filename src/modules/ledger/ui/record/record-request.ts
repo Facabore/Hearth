@@ -3,6 +3,7 @@ import type { Problem } from "@/shared/ui/api/problem";
 import { minorOf, parseDecimal } from "@/shared/ui/format/amount-input";
 import { currencyOf } from "@/shared/ui/format/currencies";
 import type { NumberFormat } from "@/shared/ui/format/formatters";
+import { safeReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { occurredAtOf } from "@/shared/ui/time/when";
 import { sharedPartsOf, type SplitDraft } from "../split/split-request";
 import type { When } from "./when-label";
@@ -125,11 +126,22 @@ export const recordFieldOf = (problem: Problem): RecordField | "form" => {
 export const fundWentNegative = (warnings: RecordedExpenseDto["warnings"] = []): boolean =>
   warnings.some((warning) => warning.code === "FundBalanceNegative");
 
-/** Ruling P170: the list after a save; a fund left negative travels as a code and an account id, never an amount. */
-export const afterSaveUrl = (spaceId: string, warnings: RecordedExpenseDto["warnings"] = []): string => {
+/**
+ * Ruling P170: where a save lands; a fund left negative travels as a code and an account id, never an amount. Issue
+ * #172: otherwise the screen the form was opened from (a validated `returnTo`), or the list.
+ */
+export const afterSaveUrl = (
+  spaceId: string,
+  warnings: RecordedExpenseDto["warnings"] = [],
+  returnTo?: string | null,
+): string => {
   const negative = warnings.find((w) => w.code === "FundBalanceNegative");
   const list = `/spaces/${spaceId}/transactions`;
   return negative
     ? `${list}?notice=FundBalanceNegative&account=${encodeURIComponent(negative.accountId)}`
-    : list;
+    : (safeReturnTo(returnTo) ?? list);
 };
+
+/** Issue #172: the toast's Ver, the movement's detail sheet over its space's list (ruling P189). */
+export const movementUrl = (spaceId: string, transactionId: string): string =>
+  `/spaces/${spaceId}/transactions?tx=${encodeURIComponent(transactionId)}`;

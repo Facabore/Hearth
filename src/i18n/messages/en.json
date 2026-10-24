@@ -469,6 +469,7 @@
         "INCOME": "Income saved",
         "TRANSFER": "Transfer saved"
       },
+      "view": "View",
       "edited": "Changes saved",
       "undo": "Undo",
       "deleted": {

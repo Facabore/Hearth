@@ -19,7 +19,7 @@ import type {
 } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
-import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
+import { safeReturnTo, withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { minorOf, parseDecimal } from "@/shared/ui/format/amount-input";
 import { currencyOf } from "@/shared/ui/format/currencies";
 import { formatMoney, formatNumber, type Formats } from "@/shared/ui/format/formatters";
@@ -37,6 +37,7 @@ import { LineWarningConfirm, LineWarningNote } from "./line-warning";
 import { asksFirst, lineWarningOf, type LineWatch } from "./line-watch";
 import {
   afterSaveUrl,
+  movementUrl,
   fundWentNegative,
   recordFieldOf,
   requestOf,
@@ -89,6 +90,8 @@ export interface RecordFormProps {
   readonly edit?: RecordEdit;
   /** #142 (P236): the lines of today's period, by category; no warning without it. */
   readonly lineWatch?: LineWatch | null;
+  /** Issue #172: the screen the form was opened from; saving and the back arrow land there when it is a valid path. */
+  readonly returnTo?: string | null;
 }
 
 /** HU-E9-03, the QuickAdd artboard as a page: amount, description, category, accounts, date and time, Save. */
@@ -106,11 +109,25 @@ export function RecordForm({
   api: injected,
   edit,
   lineWatch = null,
+  returnTo = null,
 }: RecordFormProps) {
   const t = useTranslations("ledger");
   const errors = useTranslations("errors");
   const router = useRouter();
   const toast = useToast();
+  // Issue #172: the save lands where the form was opened, so the toast offers the movement itself.
+  const savedToast = (kind: RecordKind, spaceId: string, transactionId: string | undefined) =>
+    toast.show({
+      message: t(`toast.saved.${kind}`),
+      ...(transactionId
+        ? {
+            action: {
+              label: t("toast.view"),
+              onAction: () => router.push(movementUrl(spaceId, transactionId)),
+            },
+          }
+        : {}),
+    });
   const messageOf = useProblemMessage();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   const live = useMemo(() => activeTree(groups), [groups]);
@@ -205,7 +222,10 @@ export function RecordForm({
     ? undefined
     : withReturnTo(
         `/spaces/${space.id}/accounts/new`,
-        `/spaces/${space.id}/new${kind === "EXPENSE" ? "" : `?type=${kind.toLowerCase()}`}`,
+        withReturnTo(
+          `/spaces/${space.id}/new${kind === "EXPENSE" ? "" : `?type=${kind.toLowerCase()}`}`,
+          returnTo,
+        ),
       );
   const found = problem ? recordFieldOf(problem) : null;
   // In a shared expense the account an API problem names is the payer's.
@@ -275,8 +295,9 @@ export function RecordForm({
         if (response.ok && data) {
           renew();
           const split = data as DirectSplitDto;
-          if (!fundWentNegative(split.expense.warnings)) toast.show({ message: t("toast.saved.EXPENSE") });
-          router.replace(afterSaveUrl(split.spaceId, split.expense.warnings));
+          if (!fundWentNegative(split.expense.warnings))
+            savedToast("EXPENSE", split.spaceId, split.expense.id);
+          router.replace(afterSaveUrl(split.spaceId, split.expense.warnings, returnTo));
           router.refresh();
           return;
         }
@@ -297,10 +318,10 @@ export function RecordForm({
             : await api.POST("/api/v1/spaces/{spaceId}/transfers", options);
       if (response.ok) {
         renew();
-        const warnings =
-          built.kind === "EXPENSE" ? (data as RecordedExpenseDto | undefined)?.warnings : undefined;
-        if (!fundWentNegative(warnings)) toast.show({ message: t(`toast.saved.${built.kind}`) });
-        router.replace(afterSaveUrl(space.id, warnings));
+        const recorded = data as RecordedExpenseDto | undefined;
+        const warnings = built.kind === "EXPENSE" ? recorded?.warnings : undefined;
+        if (!fundWentNegative(warnings)) savedToast(built.kind, space.id, recorded?.id);
+        router.replace(afterSaveUrl(space.id, warnings, returnTo));
         router.refresh();
         return;
       }
@@ -345,7 +366,7 @@ export function RecordForm({
   return (
     <div className="flex flex-col gap-5 py-4">
       <ScreenHeader
-        backHref={edit?.backHref ?? `/spaces/${space.id}`}
+        backHref={edit?.backHref ?? safeReturnTo(returnTo) ?? `/spaces/${space.id}`}
         title={edit ? t("edit.title") : t("form.title")}
       />
       <form
