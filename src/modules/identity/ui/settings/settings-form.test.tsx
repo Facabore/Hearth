@@ -11,6 +11,16 @@ const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn(), push: vi.
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 beforeEach(() => vi.clearAllMocks());
 
+describe("settings: order and header (issue #176)", () => {
+  it("puts Apariencia e idioma before Formatos, and keeps the header with Volver on screen", () => {
+    renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={meDto()} api={fakeApi({}).api} />);
+    const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(headings.indexOf("Apariencia e idioma")).toBeLessThan(headings.indexOf("Formatos"));
+    const back = screen.getByRole("link", { name: "Volver" });
+    expect(back.closest("[data-sticky-header]")).toHaveClass("sticky", "top-0");
+  });
+});
+
 describe("settings: formats (HU-E9-13)", () => {
   it("previews the installation's formats and stores each choice as it is made", async () => {
     const bodies: unknown[] = [];

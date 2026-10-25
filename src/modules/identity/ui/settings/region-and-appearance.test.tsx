@@ -14,12 +14,12 @@ beforeEach(() => {
 });
 
 describe("settings: region, theme and language (HU-E9-13)", () => {
-  it("shows the three sections", () => {
+  it("shows the three sections, Apariencia e idioma first (issue #176)", () => {
     renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={meDto()} api={fakeApi({}).api} />);
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
+      "Apariencia e idioma",
       "Formatos",
       "Región",
-      "Apariencia e idioma",
     ]);
   });
 
