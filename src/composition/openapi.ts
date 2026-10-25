@@ -98,3 +98,26 @@ export const changedOperations = (before: { paths?: Paths }, after: { paths?: Pa
     .map(({ method, path }) => `${method.toUpperCase()} ${path}`)
     .sort();
 };
+
+/**
+ * Issue #114: the snapshot file's text. zod-openapi emits a component it meets before any operation at the end of
+ * `components.schemas` and moves it once an operation names it, so its component schemas are written in name order:
+ * a component never moves, and a snapshot diff shows only what changed.
+ */
+export const snapshotOf = (doc: Record<string, unknown>): string => {
+  const components = doc.components as { schemas?: Record<string, unknown> } | undefined;
+  const schemas = components?.schemas;
+  const sorted =
+    schemas === undefined
+      ? doc
+      : {
+          ...doc,
+          components: {
+            ...components,
+            schemas: Object.fromEntries(
+              Object.entries(schemas).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+            ),
+          },
+        };
+  return `${JSON.stringify(sorted, null, 2)}\n`;
+};
