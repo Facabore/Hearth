@@ -122,6 +122,7 @@ export async function TransactionListContainer({
       {...(detail ? { detail } : {})}
       {...(fund ? { notice: { accountName: fund.name, balance: fund.balance } } : {})}
       {...(shared && space ? { spaceName: space.name } : {})}
+      periodPolicy={space?.periodPolicy}
       previous={previous}
       next={next}
     />

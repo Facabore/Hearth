@@ -181,11 +181,20 @@ const listOf = (props: Partial<ComponentProps<typeof TransactionList>> = {}) => 
   />
 );
 
+describe("the period's name (issue #178)", () => {
+  it("names a calendar month the way the Plan does", () => {
+    renderWithIntl(listOf({ periodPolicy: { kind: "MONTHLY", day: 1 } }));
+    expect(screen.getByText("octubre 2026")).toBeInTheDocument();
+    expect(screen.queryByText("Período 2026-10")).not.toBeInTheDocument();
+  });
+});
+
 describe("the period and the category filter (HU-E9-03, ruling P130)", () => {
   it("steps to the neighbouring periods and keeps the chosen category", () => {
     renderWithIntl(
       listOf({ previous: other, next: later, filter: { period: "2026-10", categoryId: "c-groceries" } }),
     );
+    // Issue #178: without the space's period policy the list still names the period by its label.
     expect(screen.getByText("Período 2026-10")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Período anterior" })).toHaveAttribute(
       "href",
