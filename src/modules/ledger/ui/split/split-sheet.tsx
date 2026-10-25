@@ -5,9 +5,10 @@ import { memberLabel } from "@/modules/spaces/ui";
 import { Button, ChoiceGroup, Icon, Sheet, cn, numberInputProps } from "@/shared/ui";
 import type { AccountDto, MemberDto } from "@/shared/ui/api/dto";
 import { currencyOf } from "@/shared/ui/format/currencies";
-import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
+import { parseDecimal } from "@/shared/ui/format/amount-input";
+import { formatMoney, formatNumber, type Formats } from "@/shared/ui/format/formatters";
 import { exampleOf, type NumberRule } from "@/shared/ui/format/number-input";
-import { SPLIT_METHODS, type SplitMethod } from "./split-math";
+import { equalPercents, remainingPercent, SPLIT_METHODS, type SplitMethod } from "./split-math";
 import { isUntouched, splitFailureMessage, type SplitFailure } from "./split-failure";
 import { splitCheckOf, type SplitDraft } from "./split-request";
 import type { DefaultSplitState } from "./use-default-split";
@@ -99,11 +100,16 @@ export function SplitSheet(props: SplitSheetProps) {
         },
       });
   };
+  // The selected people in the members' order: the last one is who a percent split fills in (issue #177).
+  const selectedInOrder = members.map((m) => m.id).filter((id) => draft.selected.includes(id));
   // A method, a participant or a value is the person's own work: the default split never undoes it (P167).
   const pickMethod = (method: SplitMethod) => {
     const planIds = (defaultSplit.status === "ready" ? (defaultSplit.shares ?? []) : [])
       .filter((s) => BigInt(s.amount) > 0n)
       .map((s) => s.memberId);
+    // Issue #177: Porcentaje starts from equal shares that already add up, not from empty rows.
+    const percents =
+      method === "PERCENT" && draft.method !== "PERCENT" ? equalPercents(selectedInOrder.length) : null;
     onChange({
       ...draft,
       method,
@@ -112,6 +118,14 @@ export function SplitSheet(props: SplitSheetProps) {
         method === "BY_ALLOCATION"
           ? members.map((m) => m.id).filter((id) => planIds.includes(id))
           : draft.selected,
+      values: percents
+        ? {
+            ...draft.values,
+            ...Object.fromEntries(
+              selectedInOrder.map((id, index) => [id, formatNumber(percents[index]!, formats)]),
+            ),
+          }
+        : draft.values,
     });
   };
   const toggle = (id: string) =>
@@ -124,8 +138,20 @@ export function SplitSheet(props: SplitSheetProps) {
           memberId === id ? !draft.selected.includes(id) : draft.selected.includes(memberId),
         ),
     });
-  const setValue = (id: string, value: string) =>
-    onChange({ ...draft, chosen: true, values: { ...draft.values, [id]: value } });
+  const setValue = (id: string, value: string) => {
+    const values = { ...draft.values, [id]: value };
+    // Issue #177: in Porcentaje the last selected person takes what the others leave, while it is not negative.
+    const last = selectedInOrder.at(-1);
+    if (draft.method === "PERCENT" && last !== undefined && id !== last) {
+      const rest = remainingPercent(
+        selectedInOrder
+          .filter((memberId) => memberId !== last)
+          .map((memberId) => parseDecimal(values[memberId] ?? "", formats.numberFormat)),
+      );
+      if (rest !== null) values[last] = formatNumber(rest, formats);
+    }
+    onChange({ ...draft, chosen: true, values });
+  };
 
   const reason = (failure: SplitFailure) =>
     splitFailureMessage(failure, t, {
@@ -181,6 +207,19 @@ export function SplitSheet(props: SplitSheetProps) {
       }
     >
       <div className="flex flex-col gap-5">
+        {/* Issue #177: how it is split comes first, so its rows sit higher in the sheet. */}
+        <section className="flex flex-col gap-2">
+          <h3 className="text-sm font-semibold text-ink">{t("method")}</h3>
+          <ChoiceGroup
+            layout="chips"
+            label={t("method")}
+            value={draft.method}
+            onValueChange={pickMethod}
+            options={methods.map((method) => ({ value: method, label: t(`methods.${method}`) }))}
+          />
+          <p className="text-sm text-muted">{t(`note.${draft.method}`)}</p>
+        </section>
+
         <section className="flex flex-col gap-2">
           <h3 className="text-sm font-semibold text-ink">{t("payer")}</h3>
           <ChoiceGroup
@@ -214,18 +253,6 @@ export function SplitSheet(props: SplitSheetProps) {
           {fundPaying ? (
             <p className="text-sm text-muted">{t("fundPays", { fund: fundPaying.name })}</p>
           ) : null}
-        </section>
-
-        <section className="flex flex-col gap-2">
-          <h3 className="text-sm font-semibold text-ink">{t("method")}</h3>
-          <ChoiceGroup
-            layout="chips"
-            label={t("method")}
-            value={draft.method}
-            onValueChange={pickMethod}
-            options={methods.map((method) => ({ value: method, label: t(`methods.${method}`) }))}
-          />
-          <p className="text-sm text-muted">{t(`note.${draft.method}`)}</p>
         </section>
 
         <section className="flex flex-col gap-2">

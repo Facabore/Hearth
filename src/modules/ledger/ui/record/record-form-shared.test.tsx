@@ -193,7 +193,10 @@ describe("shared expense (HU-E9-06)", () => {
     await userEvent.click(divisionRow());
     const sheet = await splitSheet();
     await userEvent.click(within(sheet).getByRole("radio", { name: "Porcentaje" }));
+    // Porcentaje starts from equal shares and fills in Juan (issue #177): Juan's 50 is typed last, over it.
+    await userEvent.clear(within(sheet).getByLabelText("Valor de Ana (tú)"));
     await userEvent.type(within(sheet).getByLabelText("Valor de Ana (tú)"), "40");
+    await userEvent.clear(within(sheet).getByLabelText("Valor de Juan"));
     await userEvent.type(within(sheet).getByLabelText("Valor de Juan"), "50");
     await userEvent.keyboard("{Escape}");
     expect(screen.getByRole("button", { name: "Guardar gasto" })).toBeDisabled();
