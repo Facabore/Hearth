@@ -158,6 +158,31 @@ describe("the category sheet offers only the movement's own categories (issue #1
   });
 });
 
+describe("recent categories as chips (issue #173)", () => {
+  const key = `hearth.recentCategories.${spaceDto().id}.EXPENSE`;
+  afterEach(() => localStorage.clear());
+
+  it("offers a recent category as one tap, and a save remembers the category used", async () => {
+    localStorage.setItem(key, JSON.stringify([{ categoryId: "c-groceries", subcategoryId: "c-veg" }]));
+    const { api } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
+    form(api);
+    const recent = await screen.findByRole("group", { name: "Recientes" });
+    await userEvent.click(within(recent).getByRole("button", { name: "Groceries › Vegetables" }));
+    expect(screen.getByRole("button", { name: /Categoría/ })).toHaveTextContent("Groceries › Vegetables");
+    await userEvent.type(screen.getByLabelText("Monto"), "85000");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
+    expect(JSON.parse(localStorage.getItem(key)!)).toEqual([
+      { categoryId: "c-groceries", subcategoryId: "c-veg" },
+    ]);
+  });
+
+  it("offers none without recents", () => {
+    form(fakeApi({}).api);
+    expect(screen.queryByRole("group", { name: "Recientes" })).not.toBeInTheDocument();
+  });
+});
+
 describe("the kind tabs (issue #182: native tabs)", () => {
   it("are one tab stop, and the arrow keys move and select the kind, wrapping", async () => {
     form(fakeApi({}).api);

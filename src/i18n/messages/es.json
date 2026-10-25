@@ -519,6 +519,7 @@
       "description": "Descripción",
       "category": "Categoría",
       "chooseCategory": "Elegir categoría",
+      "recent": "Recientes",
       "account": "Cuenta",
       "receivingAccount": "Cuenta que recibe",
       "from": "Desde",

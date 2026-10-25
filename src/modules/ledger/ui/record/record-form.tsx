@@ -12,6 +12,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
   type ReactNode,
+  useSyncExternalStore,
 } from "react";
 import { AccountPicker } from "@/modules/accounts/ui";
 import {
@@ -48,6 +49,7 @@ import { SharedFields } from "../split/shared-fields";
 import { AmountField } from "./amount-field";
 import { DateTimeSheet } from "./date-time-sheet";
 import { LineWarningConfirm, LineWarningNote } from "./line-warning";
+import { offeredRecent, parseRecent, rawRecent, rememberRecent } from "./recent-categories";
 import { asksFirst, lineWarningOf, type LineWatch } from "./line-watch";
 import {
   afterSaveUrl,
@@ -66,6 +68,9 @@ const SplitWithPersonSheet = dynamic(
   () => import("../direct/split-with-person-sheet").then((module) => module.SplitWithPersonSheet),
   { ssr: false },
 );
+
+/** Recents change only when this form saves, and it reads them again on the next mount. */
+const noSubscription = () => () => undefined;
 
 const KINDS = ["EXPENSE", "INCOME", "TRANSFER"] as const;
 const KIND_PANEL = "record-kind-panel";
@@ -213,6 +218,13 @@ export function RecordForm({
   const today = start.date;
 
   const [kind, setKind] = useState<RecordKind>(edit?.initial.kind ?? initialKind);
+  // Issue #173: this browser's recent categories for the kind, read after mount so the server render never differs.
+  const recentText = useSyncExternalStore(
+    noSubscription,
+    () => (kind === "TRANSFER" || edit ? null : rawRecent(globalThis.localStorage, space.id, kind)),
+    () => null,
+  );
+  const recent = useMemo(() => parseRecent(recentText), [recentText]);
   const [amount, setAmount] = useState(edit?.initial.amount ?? "");
   const [description, setDescription] = useState(edit?.initial.description ?? "");
   const [category, setCategory] = useState<CategoryChoice>(edit?.initial.category ?? null);
@@ -223,6 +235,15 @@ export function RecordForm({
       nextKind !== "TRANSFER" &&
       groupsForKind(live, nextKind).some((g) => g.categories.some((c) => c.id === category?.categoryId));
     if (category && !offered) setCategory(null);
+  };
+  // Issue #173: the recent categories the kind's sheet still lists, as one-tap chips.
+  const offered = offeredRecent(recent, kind === "TRANSFER" ? [] : groupsForKind(live, kind));
+  const remember = () => {
+    if (kind !== "TRANSFER" && category)
+      rememberRecent(globalThis.localStorage, space.id, kind, {
+        categoryId: category.categoryId,
+        subcategoryId: category.subcategoryId ?? null,
+      });
   };
   const [accountId, setAccountId] = useState<string | null>(
     edit ? edit.initial.accountId : (accounts[0]?.id ?? null),
@@ -371,6 +392,7 @@ export function RecordForm({
         });
         if (response.ok && data) {
           renew();
+          remember();
           const split = data as DirectSplitDto;
           if (!fundWentNegative(split.expense.warnings))
             savedToast("EXPENSE", split.spaceId, split.expense.id);
@@ -395,6 +417,7 @@ export function RecordForm({
             : await api.POST("/api/v1/spaces/{spaceId}/transfers", options);
       if (response.ok) {
         renew();
+        remember();
         const recorded = data as RecordedExpenseDto | undefined;
         const warnings = built.kind === "EXPENSE" ? recorded?.warnings : undefined;
         if (!fundWentNegative(warnings)) savedToast(built.kind, space.id, recorded?.id);
@@ -503,6 +526,35 @@ export function RecordForm({
                   "category",
                   t("form.chooseCategory"),
                 )}
+            {kind !== "TRANSFER" && offered.length > 0 ? (
+              <div className="-mt-2 flex flex-col gap-2">
+                <p id="record-recent" className="text-sm text-muted">
+                  {t("form.recent")}
+                </p>
+                <div role="group" aria-labelledby="record-recent" className="flex flex-wrap gap-2">
+                  {offered.map((r) => {
+                    const id = r.subcategoryId ?? r.categoryId;
+                    const chosen =
+                      category?.categoryId === r.categoryId &&
+                      (category.subcategoryId ?? null) === r.subcategoryId;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        aria-pressed={chosen}
+                        onClick={() => {
+                          setCategory({ categoryId: r.categoryId, subcategoryId: r.subcategoryId });
+                          clear("category");
+                        }}
+                        className="min-h-11 rounded-full border border-line px-4 text-sm font-medium text-ink aria-pressed:border-accent aria-pressed:bg-accent-soft"
+                      >
+                        {categoryPath(groups, id)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
             {sharedExpense && shared && split ? (
               <SharedFields
                 context={shared}
