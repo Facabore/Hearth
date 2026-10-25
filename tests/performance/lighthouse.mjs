@@ -62,9 +62,13 @@ const measure = async (port, url, cookie) => {
       cls: Number((lhr.audits["cumulative-layout-shift"].numericValue ?? 0).toFixed(3)),
       tbt: Math.round(lhr.audits["total-blocking-time"].numericValue ?? 0),
       scriptKb: Math.round(scripts.reduce((sum, r) => sum + (r.transferSize ?? 0), 0) / 1024),
+      // Issue #182: the server's share of LCP, printed for diagnosis and never budgeted.
+      ttfb: Math.round(lhr.audits["server-response-time"]?.numericValue ?? 0),
     });
   }
-  return Object.fromEntries(["lcp", "cls", "tbt", "scriptKb"].map((k) => [k, median(runs.map((r) => r[k]))]));
+  return Object.fromEntries(
+    ["lcp", "cls", "tbt", "scriptKb", "ttfb"].map((k) => [k, median(runs.map((r) => r[k]))]),
+  );
 };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
