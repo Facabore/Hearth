@@ -2502,7 +2502,7 @@ test.describe("Settings says Guardado and keeps Restablecer where it was (U5)", 
       const reset = slot.getByRole("button", { name: es.settings.reset });
       await expect(reset).toBeVisible();
       const status = group.getByRole("status");
-      await expect(status).toHaveText(es.settings.saved);
+      await expect(status).toHaveText(es.common.saved);
       const after = {
         slot: (await slot.boundingBox())!,
         choices: (await group.getByRole("radiogroup").boundingBox())!,

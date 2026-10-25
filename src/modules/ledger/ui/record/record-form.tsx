@@ -331,7 +331,7 @@ export function RecordForm({
   const errorOf = (field: RecordField): string | undefined => {
     // A category of the person's own cannot travel to the direct space; none chosen is asked for as usual.
     if (field === "category" && keylessTried && splitting && categoryKey === null)
-      return category === null ? errors("CategoryRequired") : t("direct.noKey");
+      return category === null ? errors("CategoryRequired") : t("direct.noKey", { space: space.name });
     if (unbuilt === field)
       return field === "amount"
         ? t("form.amountUnreadable", { example: formatNumber("85000", formats) })
@@ -679,6 +679,7 @@ export function RecordForm({
             onOpenChange={setDirectOpen}
             people={people}
             currency={space.currency}
+            spaceName={space.name}
             onChoose={setDirect}
           />
         ) : null}

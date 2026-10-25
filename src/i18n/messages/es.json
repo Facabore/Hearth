@@ -42,7 +42,8 @@
       "SATURDAY": "S",
       "SUNDAY": "D"
     },
-    "toStart": "Ir al inicio"
+    "toStart": "Ir al inicio",
+    "saved": "Guardado"
   },
   "errors": {
     "AccountArchived": "Esta cuenta está archivada. Restáurala para registrar movimientos en ella.",
@@ -303,8 +304,7 @@
       "hint": "Solo cambia los textos. Los formatos de arriba no dependen del idioma.",
       "es": "Español",
       "en": "English"
-    },
-    "saved": "Guardado"
+    }
   },
   "accounts": {
     "title": "Cuentas",
@@ -592,7 +592,7 @@
     "direct": {
       "open": "Dividir con alguien",
       "title": "Dividir con alguien",
-      "intro": "El gasto queda en un espacio solo para ustedes dos. Si ya existe, se usa el mismo; si no, se crea en {currency}, la moneda de tu espacio Personal.",
+      "intro": "El gasto queda en un espacio solo para ustedes dos. Si ya existe, se usa el mismo; si no, se crea en {currency}, la moneda de tu espacio {space}.",
       "people": "Personas con las que compartes un espacio",
       "existing": "Ya tienen «{space}»: se usa ese",
       "new": "Se crea un espacio para los dos",
@@ -604,7 +604,7 @@
       "continue": "Seguir con {name}",
       "with": "Con {name} · mitad y mitad",
       "remove": "Quitar la división con {name}",
-      "noKey": "Esta categoría es solo de tu espacio Personal. Elige una categoría predeterminada para dividir el gasto."
+      "noKey": "Esta categoría es solo de tu espacio {space}. Elige una categoría predeterminada para dividir el gasto."
     }
   },
   "spaces": {

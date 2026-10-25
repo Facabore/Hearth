@@ -14,7 +14,7 @@ import { AppearanceSection } from "./appearance-section";
 import { FormatPreview } from "./format-preview";
 import { PreferenceRow } from "./preference-row";
 import { RegionSection } from "./region-section";
-import { useSavedFlash } from "./saved-flash";
+import { useSavedFlash } from "@/shared/ui/molecules/saved-flash";
 import {
   choose,
   chooseRegion,

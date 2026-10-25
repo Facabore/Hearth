@@ -42,7 +42,8 @@
       "SATURDAY": "S",
       "SUNDAY": "S"
     },
-    "toStart": "Go to the start page"
+    "toStart": "Go to the start page",
+    "saved": "Saved"
   },
   "errors": {
     "AccountArchived": "This account is archived. Restore it to record transactions in it.",
@@ -303,8 +304,7 @@
       "hint": "Only the texts change. The formats above do not depend on the language.",
       "es": "Español",
       "en": "English"
-    },
-    "saved": "Saved"
+    }
   },
   "accounts": {
     "title": "Accounts",
@@ -592,7 +592,7 @@
     "direct": {
       "open": "Split with someone",
       "title": "Split with someone",
-      "intro": "The expense goes to a space for just the two of you. If it exists it is reused; if not, it is created in {currency}, your Personal space's currency.",
+      "intro": "The expense goes to a space for just the two of you. If it exists it is reused; if not, it is created in {currency}, the currency of your space {space}.",
       "people": "People you share a space with",
       "existing": "You already have \"{space}\": it is reused",
       "new": "A space for the two of you is created",
@@ -604,7 +604,7 @@
       "continue": "Continue with {name}",
       "with": "With {name} · half each",
       "remove": "Remove the split with {name}",
-      "noKey": "This category belongs only to your Personal space. Choose a default category to split the expense."
+      "noKey": "This category belongs only to your space {space}. Choose a default category to split the expense."
     }
   },
   "spaces": {

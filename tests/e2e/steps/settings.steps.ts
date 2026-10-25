@@ -103,7 +103,7 @@ When(/^she renames her space "([^"]+)"$/, async ({ page, world }, name: string) 
 Then(
   /^it says "Guardado" and the space switcher and the Plan tab name her space "([^"]+)"$/,
   async ({ page, world }, name: string) => {
-    await expect(page.getByRole("status").filter({ hasText: world.t("settings.saved") })).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: world.t("common.saved") })).toBeVisible();
     // The shell around Settings is the renamed space's: the refresh renames it in the switcher at once.
     await expect(page.getByRole("button", { name: world.t("shell.space.current", { name }) })).toBeVisible();
     const space = (await world.api.get(`/api/v1/spaces/${world.user!.spaceId}`)) as { name: string };

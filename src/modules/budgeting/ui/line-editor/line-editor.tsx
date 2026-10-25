@@ -350,7 +350,11 @@ export function LineEditor({
         <ChoiceGroup
           label={t("field.funding")}
           value={draft.funding}
-          options={FUNDINGS.map((value) => ({ value, label: tFunding(value) }))}
+          // #170: a personal space has no shared fund, so its lines are paid directly or saved.
+          options={FUNDINGS.filter((value) => !personal || value !== "SHARED_FUND").map((value) => ({
+            value,
+            label: tFunding(value),
+          }))}
           onValueChange={(funding) => change({ funding })}
         />
 

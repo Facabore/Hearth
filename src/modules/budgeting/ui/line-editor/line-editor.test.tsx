@@ -140,6 +140,8 @@ describe("line editor (HU-E9-08)", () => {
     await userEvent.click(screen.getByRole("radio", { name: "Directo" }));
     await userEvent.click(screen.getByRole("button", { name: "Agregar línea" }));
     expect(screen.queryByText(/Nadie tiene capacidad/)).not.toBeInTheDocument();
+    // #170: a personal space has no shared fund to offer.
+    expect(screen.queryByRole("radio", { name: "Fondo compartido" })).not.toBeInTheDocument();
     expect(requests).toHaveLength(1);
     expect(await requests[0]!.json()).toMatchObject({ name: "Mercado", funding: "DIRECT" });
   });

@@ -2,16 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 import { TextField } from "@/shared/ui";
+import { SavedFlash, useSavedFlash } from "@/shared/ui/molecules/saved-flash";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { SpaceDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import { controlsFor } from "./members/space-controls";
-
-/** U5: how long a stored change says so, as the Settings screen's own fields do. */
-const SAVED_MS = 2000;
 
 /**
  * #167: the Settings screen's section for the space the person came from, where an OWNER or ADMIN renames it, the
@@ -21,17 +19,15 @@ const SAVED_MS = 2000;
  */
 export function SpaceNameSection({ space, api: injected }: { readonly space: SpaceDto; readonly api?: Api }) {
   const t = useTranslations("spaces.settings");
-  const common = useTranslations("settings");
   const router = useRouter();
   const messageOf = useProblemMessage();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   const [stored, setStored] = useState(space.name);
   const [name, setName] = useState(space.name);
   const [problem, setProblem] = useState<Problem | null>(null);
-  const [saved, setSaved] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // #170: the same "Guardado" as the Settings screen's own fields (U5).
+  const savedFlash = useSavedFlash<"name">();
   const inFlight = useRef(false);
-  useEffect(() => () => clearTimeout(timer.current), []);
 
   if (!controlsFor(space.role, space.kind).rename) return null;
 
@@ -48,9 +44,7 @@ export function SpaceNameSection({ space, api: injected }: { readonly space: Spa
       if (data) {
         setStored(data.name);
         setName(data.name);
-        clearTimeout(timer.current);
-        setSaved(true);
-        timer.current = setTimeout(() => setSaved(false), SAVED_MS);
+        savedFlash.flash("name");
         router.refresh();
       } else setProblem(problemFrom(error, response));
     } catch (error) {
@@ -66,14 +60,7 @@ export function SpaceNameSection({ space, api: injected }: { readonly space: Spa
 
   return (
     <section aria-labelledby="settings-space" className="relative flex flex-col gap-3">
-      {saved ? (
-        <span
-          role="status"
-          className="pointer-events-none absolute top-0 right-0 text-sm font-medium text-accent"
-        >
-          {common("saved")}
-        </span>
-      ) : null}
+      <SavedFlash show={savedFlash.saved === "name"} className="top-0" />
       <h2 id="settings-space" className="text-lg font-semibold text-ink">
         {t("title")}
       </h2>

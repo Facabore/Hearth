@@ -6,7 +6,7 @@ import { ChoiceGroup } from "@/shared/ui";
 import type { Problem } from "@/shared/ui/api/problem";
 import { readTheme, saveTheme, type Theme } from "@/shared/ui/theme/theme";
 import { PreferenceRow } from "./preference-row";
-import { SavedFlash, useSavedFlash } from "./saved-flash";
+import { SavedFlash, useSavedFlash } from "@/shared/ui/molecules/saved-flash";
 
 const THEMES = ["system", "light", "dark"] as const;
 const LOCALES = ["es", "en"] as const;
