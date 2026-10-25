@@ -62,12 +62,18 @@ const measure = async (port, url, cookie) => {
       cls: Number((lhr.audits["cumulative-layout-shift"].numericValue ?? 0).toFixed(3)),
       tbt: Math.round(lhr.audits["total-blocking-time"].numericValue ?? 0),
       scriptKb: Math.round(scripts.reduce((sum, r) => sum + (r.transferSize ?? 0), 0) / 1024),
-      // Issue #182: the server's share of LCP, printed for diagnosis and never budgeted.
+      // Issue #182: the server's share of LCP and the document's size (its inline RSC payload grows it, and every
+      // extra round trip of simulated slow 4G adds about 150 ms), printed for diagnosis and never budgeted.
       ttfb: Math.round(lhr.audits["server-response-time"]?.numericValue ?? 0),
+      htmlKb: Math.round(
+        requests
+          .filter((r) => r.resourceType === "Document")
+          .reduce((sum, r) => sum + (r.transferSize ?? 0), 0) / 1024,
+      ),
     });
   }
   return Object.fromEntries(
-    ["lcp", "cls", "tbt", "scriptKb", "ttfb"].map((k) => [k, median(runs.map((r) => r[k]))]),
+    ["lcp", "cls", "tbt", "scriptKb", "ttfb", "htmlKb"].map((k) => [k, median(runs.map((r) => r[k]))]),
   );
 };
 
