@@ -158,6 +158,22 @@ describe("the category sheet offers only the movement's own categories (issue #1
   });
 });
 
+describe("the kind tabs (issue #182: native tabs)", () => {
+  it("are one tab stop, and the arrow keys move and select the kind, wrapping", async () => {
+    form(fakeApi({}).api);
+    const tab = (name: string) => screen.getByRole("tab", { name });
+    expect(tab("Gasto")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tabpanel")).toHaveAccessibleName("Gasto");
+    tab("Gasto").focus();
+    await userEvent.keyboard("{ArrowRight}");
+    expect(tab("Ingreso")).toHaveFocus();
+    expect(tab("Ingreso")).toHaveAttribute("aria-selected", "true");
+    expect(tab("Gasto")).toHaveAttribute("tabindex", "-1");
+    await userEvent.keyboard("{ArrowLeft}{ArrowLeft}");
+    expect(tab("Transferencia")).toHaveAttribute("aria-selected", "true");
+  });
+});
+
 describe("record form (HU-E9-03)", () => {
   it("records a personal expense now, in the browser's zone, with one idempotency key", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });

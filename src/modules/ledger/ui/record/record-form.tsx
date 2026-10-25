@@ -3,8 +3,16 @@
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
-import { Tabs } from "radix-ui";
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { AccountPicker } from "@/modules/accounts/ui";
 import {
   activeTree,
@@ -60,6 +68,61 @@ const SplitWithPersonSheet = dynamic(
 );
 
 const KINDS = ["EXPENSE", "INCOME", "TRANSFER"] as const;
+const KIND_PANEL = "record-kind-panel";
+const kindTabId = (kind: RecordKind) => `record-kind-${kind.toLowerCase()}`;
+
+/**
+ * The kind tabs, as the WAI-ARIA tabs pattern: one tab stop on the selected tab, and the arrow keys move and select
+ * (automatic activation), wrapping. Issue #182: written without Radix Tabs, whose roving-focus code weighed on the
+ * record route's script.
+ */
+function KindTabs({
+  label,
+  value,
+  onChange,
+  labelOf,
+}: {
+  readonly label: string;
+  readonly value: RecordKind;
+  readonly onChange: (kind: RecordKind) => void;
+  readonly labelOf: (kind: RecordKind) => string;
+}) {
+  const tabs = useRef(new Map<RecordKind, HTMLButtonElement>());
+  const move = (event: KeyboardEvent<HTMLDivElement>) => {
+    const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+    if (step === 0) return;
+    event.preventDefault();
+    const next = KINDS[(KINDS.indexOf(value) + step + KINDS.length) % KINDS.length]!;
+    onChange(next);
+    tabs.current.get(next)?.focus();
+  };
+  return (
+    <div role="tablist" aria-label={label} onKeyDown={move} className="flex rounded-[14px] bg-track p-1">
+      {KINDS.map((k) => (
+        <button
+          key={k}
+          ref={(node) => {
+            if (node) tabs.current.set(k, node);
+            else tabs.current.delete(k);
+          }}
+          id={kindTabId(k)}
+          type="button"
+          role="tab"
+          aria-selected={k === value}
+          aria-controls={KIND_PANEL}
+          data-state={k === value ? "active" : "inactive"}
+          tabIndex={k === value ? 0 : -1}
+          onClick={() => {
+            if (k !== value) onChange(k);
+          }}
+          className="min-h-11 flex-1 rounded-[10px] text-sm font-medium text-ink data-[state=active]:bg-surface data-[state=active]:shadow"
+        >
+          {labelOf(k)}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 type Sheet = "category" | "account" | "toAccount" | "when" | null;
 
@@ -153,6 +216,14 @@ export function RecordForm({
   const [amount, setAmount] = useState(edit?.initial.amount ?? "");
   const [description, setDescription] = useState(edit?.initial.description ?? "");
   const [category, setCategory] = useState<CategoryChoice>(edit?.initial.category ?? null);
+  const changeKind = (nextKind: RecordKind) => {
+    setKind(nextKind);
+    // Issue #173: a category the new kind's sheet does not offer goes, so it is never saved unseen.
+    const offered =
+      nextKind !== "TRANSFER" &&
+      groupsForKind(live, nextKind).some((g) => g.categories.some((c) => c.id === category?.categoryId));
+    if (category && !offered) setCategory(null);
+  };
   const [accountId, setAccountId] = useState<string | null>(
     edit ? edit.initial.accountId : (accounts[0]?.id ?? null),
   );
@@ -382,36 +453,24 @@ export function RecordForm({
         noValidate
         className="flex flex-col gap-5"
       >
-        <Tabs.Root
-          value={kind}
-          onValueChange={(next) => {
-            const nextKind = next as RecordKind;
-            setKind(nextKind);
-            // Issue #173: a category the new kind's sheet does not offer goes, so it is never saved unseen.
-            const offered =
-              nextKind !== "TRANSFER" &&
-              groupsForKind(live, nextKind).some((g) =>
-                g.categories.some((c) => c.id === category?.categoryId),
-              );
-            if (category && !offered) setCategory(null);
-          }}
-        >
+        <div>
           {edit ? (
             <p className="text-sm text-muted">{t("edit.kind", { type: t(`type.${kind}`) })}</p>
           ) : (
-            <Tabs.List aria-label={t("form.kind")} className="flex rounded-[14px] bg-track p-1">
-              {KINDS.map((k) => (
-                <Tabs.Trigger
-                  key={k}
-                  value={k}
-                  className="min-h-11 flex-1 rounded-[10px] text-sm font-medium text-ink data-[state=active]:bg-surface data-[state=active]:shadow"
-                >
-                  {t(`type.${k}`)}
-                </Tabs.Trigger>
-              ))}
-            </Tabs.List>
+            <KindTabs
+              label={t("form.kind")}
+              value={kind}
+              onChange={changeKind}
+              labelOf={(k) => t(`type.${k}`)}
+            />
           )}
-          <Tabs.Content value={kind} className="mt-5 flex flex-col gap-5" tabIndex={-1}>
+          <div
+            id={KIND_PANEL}
+            role={edit ? undefined : "tabpanel"}
+            aria-labelledby={edit ? undefined : kindTabId(kind)}
+            className="mt-5 flex flex-col gap-5"
+            tabIndex={-1}
+          >
             <AmountField
               value={amount}
               onChange={(next) => {
@@ -530,8 +589,8 @@ export function RecordForm({
                 </p>
               ) : null}
             </div>
-          </Tabs.Content>
-        </Tabs.Root>
+          </div>
+        </div>
         {asking && warning ? (
           <LineWarningConfirm
             warning={warning}

@@ -1,7 +1,6 @@
 "use client";
 
-import { RadioGroup } from "radix-ui";
-import type { ReactNode } from "react";
+import { useRef, type KeyboardEvent, type ReactNode } from "react";
 import { cn } from "../cn";
 
 export interface ChoiceGroupProps<T extends string> {
@@ -27,7 +26,14 @@ const ITEM = {
   grid: "rounded-[14px] border border-line px-2 data-[state=checked]:border-accent data-[state=checked]:bg-accent-soft",
 } as const;
 
-/** One choice among a few (radix RadioGroup): the arrow keys move and select, disabled choices are skipped. */
+const NEXT = new Set(["ArrowRight", "ArrowDown"]);
+const PREVIOUS = new Set(["ArrowLeft", "ArrowUp"]);
+
+/**
+ * One choice among a few, as the WAI-ARIA radio group pattern: one tab stop on the chosen option, and the arrow keys
+ * move and choose, skipping disabled options and wrapping. Issue #182: written without Radix's RadioGroup, whose
+ * collection and roving-focus code was the largest shared chunk of the form routes.
+ */
 export function ChoiceGroup<T extends string>({
   label,
   value,
@@ -37,29 +43,58 @@ export function ChoiceGroup<T extends string>({
   layout = "segmented",
   describedBy,
 }: ChoiceGroupProps<T>) {
+  const items = useRef(new Map<T, HTMLButtonElement>());
+  const enabled = options.filter((option) => !disabled && !option.disabled);
+  // The chosen option is the tab stop; with none chosen (or it disabled), the first enabled one.
+  const tabStop = enabled.some((option) => option.value === value) ? value : enabled[0]?.value;
+
+  const move = (event: KeyboardEvent<HTMLDivElement>) => {
+    const step = NEXT.has(event.key) ? 1 : PREVIOUS.has(event.key) ? -1 : 0;
+    if (step === 0 || enabled.length === 0) return;
+    event.preventDefault();
+    const current = enabled.findIndex((option) => option.value === value);
+    const next = enabled[(current + step + enabled.length) % enabled.length]!.value;
+    onValueChange(next);
+    items.current.get(next)?.focus();
+  };
+
   return (
-    <RadioGroup.Root
+    <div
+      role="radiogroup"
       aria-label={label}
       aria-describedby={describedBy}
-      value={value}
-      onValueChange={(next) => onValueChange(next as T)}
-      disabled={disabled}
-      orientation="horizontal"
+      aria-disabled={disabled || undefined}
+      onKeyDown={move}
       className={ROOT[layout]}
     >
-      {options.map((option) => (
-        <RadioGroup.Item
-          key={option.value}
-          value={option.value}
-          disabled={option.disabled}
-          className={cn(
-            "min-h-11 text-sm font-medium text-ink disabled:cursor-not-allowed disabled:opacity-50",
-            ITEM[layout],
-          )}
-        >
-          {option.label}
-        </RadioGroup.Item>
-      ))}
-    </RadioGroup.Root>
+      {options.map((option) => {
+        const checked = option.value === value;
+        return (
+          <button
+            key={option.value}
+            ref={(node) => {
+              if (node) items.current.set(option.value, node);
+              else items.current.delete(option.value);
+            }}
+            type="button"
+            role="radio"
+            aria-checked={checked}
+            data-state={checked ? "checked" : "unchecked"}
+            value={option.value}
+            disabled={disabled || option.disabled}
+            tabIndex={option.value === tabStop ? 0 : -1}
+            onClick={() => {
+              if (!checked) onValueChange(option.value);
+            }}
+            className={cn(
+              "min-h-11 text-sm font-medium text-ink disabled:cursor-not-allowed disabled:opacity-50",
+              ITEM[layout],
+            )}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
