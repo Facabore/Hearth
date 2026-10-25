@@ -2489,6 +2489,9 @@ test.describe("Settings says Guardado and keeps Restablecer where it was (U5)", 
       const group = page.getByRole("group", { name: es.settings.field.numberFormat });
       const slot = group.getByTestId("preference-state");
       await expect(slot.getByText(es.settings.default)).toBeVisible();
+      // Since Apariencia e idioma comes first (#176), the group sits near the bottom bar: centring it first keeps the
+      // click from scrolling the page, so a moved box can only mean the layout moved.
+      await group.evaluate((el) => el.scrollIntoView({ block: "center" }));
       const before = {
         slot: (await slot.boundingBox())!,
         choices: (await group.getByRole("radiogroup").boundingBox())!,
