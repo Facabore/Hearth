@@ -95,7 +95,8 @@ export const accountBodyOf = (
     const minor = decimal === null ? null : minorOf(decimal, exponent);
     return minor === null ? null : { amount: minor, currency };
   };
-  const opening = money(draft.opening);
+  // Issue #178: an opening balance left empty is 0, not a required field.
+  const opening = money(draft.opening.trim() === "" ? "0" : draft.opening);
   if (!opening) return { ok: false, field: "opening" };
   const owed = OWED_TYPES.includes(draft.type) && opening.amount !== "0";
   const body: Record<string, unknown> = {
