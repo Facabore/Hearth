@@ -107,6 +107,7 @@ export function LineEditor({
   const tRollover = useTranslations("budgeting.rollover");
   const tReports = useTranslations("reports.lines");
   const tMapping = useTranslations("budgeting.mapping");
+  const tAllocation = useTranslations("budgeting.allocation");
   const router = useRouter();
   const messageOf = useProblemMessage();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
@@ -333,12 +334,15 @@ export function LineEditor({
           value={draft.planned}
           onChange={(planned) => change({ planned }, "planned")}
           hint={
-            line?.capacityShare != null
-              ? t("field.plannedHint", {
-                  share: formatPercent(line.capacityShare, formats),
-                  unallocated: money(plan.unallocated),
-                })
-              : t("field.plannedNewHint", { unallocated: money(plan.unallocated) })
+            // Issue #175: in a shared plan the capacity check speaks here too, not only at the form's end.
+            !personal && preview.kind === "noCapacity"
+              ? tAllocation("noCapacity")
+              : line?.capacityShare != null
+                ? t("field.plannedHint", {
+                    share: formatPercent(line.capacityShare, formats),
+                    unallocated: money(plan.unallocated),
+                  })
+                : t("field.plannedNewHint", { unallocated: money(plan.unallocated) })
           }
           error={planned}
         />
