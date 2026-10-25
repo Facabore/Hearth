@@ -177,6 +177,26 @@ describe("recent categories as chips (issue #173)", () => {
     ]);
   });
 
+  it("still renders and saves once when the browser blocks storage", async () => {
+    const blocked = vi.spyOn(window, "localStorage", "get").mockImplementation(() => {
+      throw new DOMException("blocked", "SecurityError");
+    });
+    try {
+      const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
+      form(api);
+      await userEvent.type(screen.getByLabelText("Monto"), "85000");
+      await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
+      await userEvent.click(screen.getByRole("radio", { name: "Groceries" }));
+      await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
+      await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
+      await waitFor(() => expect(router.replace).toHaveBeenCalled());
+      expect(requests).toHaveLength(1);
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    } finally {
+      blocked.mockRestore();
+    }
+  });
+
   it("offers none without recents", () => {
     form(fakeApi({}).api);
     expect(screen.queryByRole("group", { name: "Recientes" })).not.toBeInTheDocument();

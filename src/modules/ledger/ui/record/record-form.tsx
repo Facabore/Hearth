@@ -49,7 +49,7 @@ import { SharedFields } from "../split/shared-fields";
 import { AmountField } from "./amount-field";
 import { DateTimeSheet } from "./date-time-sheet";
 import { LineWarningConfirm, LineWarningNote } from "./line-warning";
-import { offeredRecent, parseRecent, rawRecent, rememberRecent } from "./recent-categories";
+import { offeredRecent, parseRecent, rawRecent, rememberRecent, safeStorage } from "./recent-categories";
 import { asksFirst, lineWarningOf, type LineWatch } from "./line-watch";
 import {
   afterSaveUrl,
@@ -221,7 +221,7 @@ export function RecordForm({
   // Issue #173: this browser's recent categories for the kind, read after mount so the server render never differs.
   const recentText = useSyncExternalStore(
     noSubscription,
-    () => (kind === "TRANSFER" || edit ? null : rawRecent(globalThis.localStorage, space.id, kind)),
+    () => (kind === "TRANSFER" || edit ? null : rawRecent(safeStorage(), space.id, kind)),
     () => null,
   );
   const recent = useMemo(() => parseRecent(recentText), [recentText]);
@@ -240,7 +240,7 @@ export function RecordForm({
   const offered = offeredRecent(recent, kind === "TRANSFER" ? [] : groupsForKind(live, kind));
   const remember = () => {
     if (kind !== "TRANSFER" && category)
-      rememberRecent(globalThis.localStorage, space.id, kind, {
+      rememberRecent(safeStorage(), space.id, kind, {
         categoryId: category.categoryId,
         subcategoryId: category.subcategoryId ?? null,
       });
