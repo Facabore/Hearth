@@ -67,6 +67,7 @@ export function TransactionList({
         groups={context.groups}
         periodPolicy={periodPolicy}
         formats={context.formats}
+        memberNames={context.memberNames}
       />
       <section aria-label={t("list.totals")} className="rounded-2xl bg-surface p-4 text-ink">
         {t("list.expenses", { amount: formatMoney(page.totals.expenses, context.formats) })} ·{" "}
@@ -88,7 +89,11 @@ export function TransactionList({
       {page.nextCursor ? (
         <LoadMore
           spaceId={spaceId}
-          query={{ period: page.period.label, categoryIds: filter.categoryId }}
+          query={{
+            period: page.period.label,
+            categoryIds: filter.categoryId,
+            payerMemberId: filter.payerMemberId,
+          }}
           cursor={page.nextCursor}
           lastDate={days.at(-1)?.date ?? ""}
           today={today}

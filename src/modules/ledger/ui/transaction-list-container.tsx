@@ -16,7 +16,7 @@ export const PAGE_SIZE = 50;
  */
 export const loadTransactionList = async (
   api: Api,
-  input: { spaceId: string; period?: string; categoryId?: string; shared?: boolean },
+  input: { spaceId: string; period?: string; categoryId?: string; payerMemberId?: string; shared?: boolean },
 ): Promise<
   Loaded<{
     page: TransactionPageDto;
@@ -32,7 +32,15 @@ export const loadTransactionList = async (
   const [page, categories, accounts, members] = await Promise.all([
     loaded(
       api.GET("/api/v1/spaces/{spaceId}/transactions", {
-        params: { path, query: { period: input.period, categoryIds: input.categoryId, limit: PAGE_SIZE } },
+        params: {
+          path,
+          query: {
+            period: input.period,
+            categoryIds: input.categoryId,
+            payerMemberId: input.payerMemberId,
+            limit: PAGE_SIZE,
+          },
+        },
       }),
     ),
     loaded(api.GET("/api/v1/spaces/{spaceId}/categories", { params: { path, query: { archived: "true" } } })),
@@ -72,6 +80,7 @@ export async function TransactionListContainer({
   spaceId,
   period,
   categoryId,
+  payerMemberId,
   notice,
   noticeAccount,
   transactionId,
@@ -79,6 +88,8 @@ export async function TransactionListContainer({
   readonly spaceId: string;
   readonly period?: string;
   readonly categoryId?: string;
+  /** Issue #148: `?payer=<member id>`, what one member paid. */
+  readonly payerMemberId?: string;
   /** `?notice=FundBalanceNegative&account=<fund id>` after a save that left a shared fund negative (P170). */
   readonly notice?: string;
   readonly noticeAccount?: string;
@@ -90,7 +101,7 @@ export async function TransactionListContainer({
   const shared = (space?.kind ?? "PERSONAL") !== "PERSONAL";
   const api = await serverApi();
   const [list, detail] = await Promise.all([
-    loadTransactionList(api, { spaceId, period, categoryId, shared }),
+    loadTransactionList(api, { spaceId, period, categoryId, payerMemberId, shared }),
     transactionId && space
       ? loadTransactionDetail(api, {
           spaceId,
@@ -118,7 +129,7 @@ export async function TransactionListContainer({
       page={page}
       context={context}
       today={nowIn(serverNow(), me!.timezone).date}
-      filter={{ period, categoryId }}
+      filter={{ period, categoryId, payerMemberId }}
       {...(detail ? { detail } : {})}
       {...(fund ? { notice: { accountName: fund.name, balance: fund.balance } } : {})}
       {...(shared && space ? { spaceName: space.name } : {})}

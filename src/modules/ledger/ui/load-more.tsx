@@ -23,7 +23,11 @@ export function LoadMore({
   api: injected,
 }: {
   readonly spaceId: string;
-  readonly query: { readonly period?: string; readonly categoryIds?: string };
+  readonly query: {
+    readonly period?: string;
+    readonly categoryIds?: string;
+    readonly payerMemberId?: string;
+  };
   readonly cursor: string;
   readonly lastDate: string;
   readonly today: string;

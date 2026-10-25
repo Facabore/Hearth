@@ -550,6 +550,13 @@ describe("what the list loads (HU-E9-03, ruling P130)", () => {
     ]);
   });
 
+  it("asks the API for one member's payments when the list is filtered by payer (issue #148)", async () => {
+    const { api, requests } = fakeApi(routes(() => jsonResponse({ items: [] })));
+    await loadTransactionList(api, { spaceId: "sp-personal", period: "2026-10", payerMemberId: "m-juan" });
+    const list = requests.find((r) => new URL(r.url).pathname.endsWith("/transactions"))!;
+    expect(new URL(list.url).searchParams.get("payerMemberId")).toBe("m-juan");
+  });
+
   it("names the members of a shared space for the rows, and fails with the members' problem", async () => {
     const members = (response: () => Response) =>
       fakeApi({
@@ -761,5 +768,40 @@ describe("the list container (HU-E9-03, HU-E9-02)", () => {
     mocks.serverApi.mockResolvedValue(api);
     renderWithIntl(await TransactionListContainer({ spaceId: "sp-personal" }));
     expect(screen.getByRole("alert")).toHaveTextContent(es.errors.SpaceArchived);
+  });
+});
+
+describe("the payer filter (issue #148)", () => {
+  const shared = { ...context, memberNames: { "m-ana": "Ana", "m-juan": "Juan" } };
+
+  it("offers Todos and each member as links that keep the period and category", () => {
+    renderWithIntl(listOf({ context: shared, filter: { period: "2026-10", categoryId: "c-groceries" } }));
+    const payers = screen.getByRole("navigation", { name: "Pagó" });
+    expect(within(payers).getByRole("link", { name: "Todos" })).toHaveAttribute("aria-current", "page");
+    expect(within(payers).getByRole("link", { name: "Juan" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/transactions?period=2026-10&category=c-groceries&payer=m-juan",
+    );
+  });
+
+  it("marks the chosen member and keeps it when the period changes", () => {
+    renderWithIntl(
+      listOf({ context: shared, next: later, filter: { period: "2026-10", payerMemberId: "m-juan" } }),
+    );
+    const payers = screen.getByRole("navigation", { name: "Pagó" });
+    expect(within(payers).getByRole("link", { name: "Juan" })).toHaveAttribute("aria-current", "page");
+    expect(within(payers).getByRole("link", { name: "Todos" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/transactions?period=2026-10",
+    );
+    expect(screen.getByRole("link", { name: "Período siguiente" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/transactions?period=2026-11&payer=m-juan",
+    );
+  });
+
+  it("offers none in a personal space", () => {
+    renderWithIntl(listOf());
+    expect(screen.queryByRole("navigation", { name: "Pagó" })).not.toBeInTheDocument();
   });
 });

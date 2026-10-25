@@ -421,7 +421,9 @@
       "filterTitle": "Filter by category",
       "removeFilter": "Remove the {name} filter",
       "empty": "There are no transactions in this period.",
-      "loadMore": "Load more"
+      "loadMore": "Load more",
+      "paidBy": "Paid by",
+      "anyone": "Everyone"
     },
     "day": {
       "today": "Today",

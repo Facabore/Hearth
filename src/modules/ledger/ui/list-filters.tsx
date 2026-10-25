@@ -23,6 +23,7 @@ export function ListFilters({
   groups,
   periodPolicy,
   formats,
+  memberNames = {},
 }: {
   readonly spaceId: string;
   readonly period: PeriodDto;
@@ -33,6 +34,8 @@ export function ListFilters({
   /** Issue #178: with the space's policy the period is named as the Plan names it ("octubre 2026", P205). */
   readonly periodPolicy?: SpaceDto["periodPolicy"] | undefined;
   readonly formats: Pick<Formats, "dateFormat">;
+  /** Issue #148: a shared space's members, by id; with two or more the list can be filtered by who paid. */
+  readonly memberNames?: Readonly<Record<string, string>>;
 }) {
   const t = useTranslations("ledger.list");
   const periodText = usePeriodText();
@@ -70,7 +73,9 @@ export function ListFilters({
             aria-pressed="true"
             aria-label={t("removeFilter", { name: chosen })}
             size="chip"
-            onClick={() => router.replace(hrefOf(spaceId, { period: filter.period }))}
+            onClick={() =>
+              router.replace(hrefOf(spaceId, { period: filter.period, payerMemberId: filter.payerMemberId }))
+            }
           >
             {chosen} ✕
           </Button>
@@ -81,6 +86,25 @@ export function ListFilters({
           </Button>
         )}
       </div>
+      {Object.keys(memberNames).length > 1 ? (
+        <nav aria-label={t("paidBy")} className="flex flex-wrap gap-2">
+          {[["", t("anyone")] as const, ...Object.entries(memberNames)].map(([id, name]) => {
+            const current = (filter.payerMemberId ?? "") === id;
+            return (
+              <Link
+                key={id || "anyone"}
+                href={hrefOf(spaceId, { ...filter, payerMemberId: id || undefined })}
+                aria-current={current ? "page" : undefined}
+                className={`flex min-h-11 items-center rounded-full px-4 text-sm font-medium [overflow-wrap:anywhere] ${
+                  current ? "bg-accent-soft text-accent" : "border border-line bg-surface text-ink"
+                }`}
+              >
+                {name}
+              </Link>
+            );
+          })}
+        </nav>
+      ) : null}
       <CategoryPicker
         open={open}
         onOpenChange={setOpen}

@@ -421,7 +421,9 @@
       "filterTitle": "Filtrar por categoría",
       "removeFilter": "Quitar el filtro {name}",
       "empty": "No hay movimientos en este período.",
-      "loadMore": "Cargar más"
+      "loadMore": "Cargar más",
+      "paidBy": "Pagó",
+      "anyone": "Todos"
     },
     "day": {
       "today": "Hoy",
