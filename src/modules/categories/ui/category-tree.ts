@@ -11,6 +11,16 @@ export const activeTree = (groups: readonly CategoryGroupDto[]): CategoryGroupDt
         .map((c) => ({ ...c, subcategories: c.subcategories.filter((s) => s.archivedAt === null) })),
     }));
 
+/**
+ * Issue #173: the groups a movement of `kind` offers. Groups carry no type, so the catalog's income group (key
+ * "income", D11) is the only income one: an expense leaves it out and an income offers only it. A group of the
+ * person's own has no key and is offered to both.
+ */
+export const groupsForKind = (
+  groups: readonly CategoryGroupDto[],
+  kind: "EXPENSE" | "INCOME",
+): CategoryGroupDto[] => groups.filter((g) => g.key === null || (g.key === "income") === (kind === "INCOME"));
+
 /** A category or subcategory anywhere in the tree, archived ones included (old rows still name them). */
 export const findCategory = (
   groups: readonly CategoryGroupDto[],

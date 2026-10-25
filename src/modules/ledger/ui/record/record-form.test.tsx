@@ -110,6 +110,46 @@ describe("the amount of a record groups its digits in the currency's own way (U3
   });
 });
 
+describe("the category sheet offers only the movement's own categories (issue #173)", () => {
+  const withIncome = [
+    ...groups,
+    groupDto({
+      id: "g-income",
+      key: "income",
+      name: "Ingresos",
+      categories: [categoryDto({ id: "c-salary", groupId: "g-income", name: "Salario" })],
+    }),
+  ];
+  const sheet = async (kind: RecordKind) => {
+    renderWithIntl(
+      <RecordForm
+        space={spaceDto()}
+        accounts={accounts}
+        groups={withIncome}
+        formats={BUILT_IN_FORMATS}
+        initialKind={kind}
+        initialNow="2026-11-01T04:30:00.000Z"
+        timeZone="America/Bogota"
+        api={fakeApi({}).api}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
+    return screen.getByRole("dialog");
+  };
+
+  it("an expense lists Groceries but not Salario", async () => {
+    const dialog = await sheet("EXPENSE");
+    expect(within(dialog).getByRole("radio", { name: "Groceries" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("radio", { name: "Salario" })).not.toBeInTheDocument();
+  });
+
+  it("an income lists Salario but not Groceries", async () => {
+    const dialog = await sheet("INCOME");
+    expect(within(dialog).getByRole("radio", { name: "Salario" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("radio", { name: "Groceries" })).not.toBeInTheDocument();
+  });
+});
+
 describe("record form (HU-E9-03)", () => {
   it("records a personal expense now, in the browser's zone, with one idempotency key", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });

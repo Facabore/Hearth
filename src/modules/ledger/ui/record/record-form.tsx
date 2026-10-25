@@ -6,7 +6,13 @@ import { useTranslations } from "next-intl";
 import { Tabs } from "radix-ui";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { AccountPicker } from "@/modules/accounts/ui";
-import { activeTree, CategoryPicker, categoryPath, type CategoryChoice } from "@/modules/categories/ui";
+import {
+  activeTree,
+  CategoryPicker,
+  categoryPath,
+  groupsForKind,
+  type CategoryChoice,
+} from "@/modules/categories/ui";
 import { Button, Icon, ProblemNotice, ScreenHeader, TextField } from "@/shared/ui";
 import { useToast } from "@/shared/ui/molecules/toast";
 import { browserApi, type Api } from "@/shared/ui/api/client";
@@ -555,7 +561,7 @@ export function RecordForm({
         <CategoryPicker
           open={sheet === "category"}
           onOpenChange={(open) => setSheet(open ? "category" : null)}
-          groups={live}
+          groups={groupsForKind(live, kind === "INCOME" ? "INCOME" : "EXPENSE")}
           value={category}
           onChoose={(choice) => {
             setCategory(choice);
