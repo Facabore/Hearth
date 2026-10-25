@@ -73,6 +73,10 @@ describe("the private suggestion (ruling P208, D17)", () => {
     expect(ownSuggestion(suggestion("m-ana"), ana)).toEqual(suggestion("m-ana"));
   });
 
+  it("drops a suggestion of 0: no income last period suggests nothing (issue #175)", () => {
+    expect(ownSuggestion({ ...suggestion("m-ana"), suggested: cop(0) }, ana)).toBeNull();
+  });
+
   it("drops one that names anyone else, one with no amount, and one for a viewer with no member", () => {
     expect(ownSuggestion(suggestion("m-ana"), juan)).toBeNull();
     expect(ownSuggestion({ ...suggestion("m-ana"), suggested: null }, ana)).toBeNull();

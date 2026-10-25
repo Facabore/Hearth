@@ -1463,9 +1463,10 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       // Ana's September income is in neither the text nor the data of Juan's page...
       expect(sent).not.toContain("1.650.000");
       expect(sent).not.toContain("165000000");
-      // ...and his own row carries his own suggestion: he earned nothing.
+      // ...and his own row has no suggestion: he earned nothing, and a suggestion of 0 is dropped (#175).
       expect(sent).toContain("Capacidad de Juan");
-      expect(sent).toMatch(/Sugerido \$\s0:/);
+      // The catalog's "Sugerido {amount}" template travels with the messages; no rendered amount follows it.
+      expect(sent).not.toMatch(/Sugerido \$/);
     } finally {
       await juan.dispose();
     }
