@@ -12,6 +12,8 @@ export interface SplitWithPersonSheetProps {
   readonly people: readonly Person[];
   /** The Personal space's currency: a new direct space is created in it. */
   readonly currency: string;
+  /** The personal space's own name, which the person may have renamed (#170). */
+  readonly spaceName: string;
   readonly onChoose: (choice: DirectChoice) => void;
 }
 
@@ -21,6 +23,7 @@ export function SplitWithPersonSheet({
   onOpenChange,
   people,
   currency,
+  spaceName,
   onChoose,
 }: SplitWithPersonSheetProps) {
   const t = useTranslations("ledger.direct");
@@ -46,7 +49,7 @@ export function SplitWithPersonSheet({
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
       title={t("title")}
-      description={t("intro", { currency })}
+      description={t("intro", { currency, space: spaceName })}
       footer={
         <Button
           size="lg"

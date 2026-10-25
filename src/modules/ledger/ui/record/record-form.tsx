@@ -3,10 +3,25 @@
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
-import { Tabs } from "radix-ui";
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+  type ReactNode,
+  useSyncExternalStore,
+} from "react";
 import { AccountPicker } from "@/modules/accounts/ui";
-import { activeTree, CategoryPicker, categoryPath, type CategoryChoice } from "@/modules/categories/ui";
+import {
+  activeTree,
+  CategoryPicker,
+  categoryPath,
+  groupsForKind,
+  type CategoryChoice,
+} from "@/modules/categories/ui";
 import { Button, Icon, ProblemNotice, ScreenHeader, TextField } from "@/shared/ui";
 import { useToast } from "@/shared/ui/molecules/toast";
 import { browserApi, type Api } from "@/shared/ui/api/client";
@@ -19,7 +34,7 @@ import type {
 } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
-import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
+import { safeReturnTo, withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { minorOf, parseDecimal } from "@/shared/ui/format/amount-input";
 import { currencyOf } from "@/shared/ui/format/currencies";
 import { formatMoney, formatNumber, type Formats } from "@/shared/ui/format/formatters";
@@ -34,9 +49,11 @@ import { SharedFields } from "../split/shared-fields";
 import { AmountField } from "./amount-field";
 import { DateTimeSheet } from "./date-time-sheet";
 import { LineWarningConfirm, LineWarningNote } from "./line-warning";
+import { offeredRecent, parseRecent, rawRecent, rememberRecent, safeStorage } from "./recent-categories";
 import { asksFirst, lineWarningOf, type LineWatch } from "./line-watch";
 import {
   afterSaveUrl,
+  movementUrl,
   fundWentNegative,
   recordFieldOf,
   requestOf,
@@ -52,7 +69,65 @@ const SplitWithPersonSheet = dynamic(
   { ssr: false },
 );
 
+/** Recents change only when this form saves, and it reads them again on the next mount. */
+const noSubscription = () => () => undefined;
+
 const KINDS = ["EXPENSE", "INCOME", "TRANSFER"] as const;
+const KIND_PANEL = "record-kind-panel";
+const kindTabId = (kind: RecordKind) => `record-kind-${kind.toLowerCase()}`;
+
+/**
+ * The kind tabs, as the WAI-ARIA tabs pattern: one tab stop on the selected tab, and the arrow keys move and select
+ * (automatic activation), wrapping. Issue #182: written without Radix Tabs, whose roving-focus code weighed on the
+ * record route's script.
+ */
+function KindTabs({
+  label,
+  value,
+  onChange,
+  labelOf,
+}: {
+  readonly label: string;
+  readonly value: RecordKind;
+  readonly onChange: (kind: RecordKind) => void;
+  readonly labelOf: (kind: RecordKind) => string;
+}) {
+  const tabs = useRef(new Map<RecordKind, HTMLButtonElement>());
+  const move = (event: KeyboardEvent<HTMLDivElement>) => {
+    const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+    if (step === 0) return;
+    event.preventDefault();
+    const next = KINDS[(KINDS.indexOf(value) + step + KINDS.length) % KINDS.length]!;
+    onChange(next);
+    tabs.current.get(next)?.focus();
+  };
+  return (
+    <div role="tablist" aria-label={label} onKeyDown={move} className="flex rounded-[14px] bg-track p-1">
+      {KINDS.map((k) => (
+        <button
+          key={k}
+          ref={(node) => {
+            if (node) tabs.current.set(k, node);
+            else tabs.current.delete(k);
+          }}
+          id={kindTabId(k)}
+          type="button"
+          role="tab"
+          aria-selected={k === value}
+          aria-controls={KIND_PANEL}
+          data-state={k === value ? "active" : "inactive"}
+          tabIndex={k === value ? 0 : -1}
+          onClick={() => {
+            if (k !== value) onChange(k);
+          }}
+          className="min-h-11 flex-1 rounded-[10px] text-sm font-medium text-ink data-[state=active]:bg-surface data-[state=active]:shadow"
+        >
+          {labelOf(k)}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 type Sheet = "category" | "account" | "toAccount" | "when" | null;
 
@@ -89,6 +164,8 @@ export interface RecordFormProps {
   readonly edit?: RecordEdit;
   /** #142 (P236): the lines of today's period, by category; no warning without it. */
   readonly lineWatch?: LineWatch | null;
+  /** Issue #172: the screen the form was opened from; saving and the back arrow land there when it is a valid path. */
+  readonly returnTo?: string | null;
 }
 
 /** HU-E9-03, the QuickAdd artboard as a page: amount, description, category, accounts, date and time, Save. */
@@ -106,11 +183,25 @@ export function RecordForm({
   api: injected,
   edit,
   lineWatch = null,
+  returnTo = null,
 }: RecordFormProps) {
   const t = useTranslations("ledger");
   const errors = useTranslations("errors");
   const router = useRouter();
   const toast = useToast();
+  // Issue #172: the save lands where the form was opened, so the toast offers the movement itself.
+  const savedToast = (kind: RecordKind, spaceId: string, transactionId: string | undefined) =>
+    toast.show({
+      message: t(`toast.saved.${kind}`),
+      ...(transactionId
+        ? {
+            action: {
+              label: t("toast.view"),
+              onAction: () => router.push(movementUrl(spaceId, transactionId)),
+            },
+          }
+        : {}),
+    });
   const messageOf = useProblemMessage();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   const live = useMemo(() => activeTree(groups), [groups]);
@@ -127,9 +218,33 @@ export function RecordForm({
   const today = start.date;
 
   const [kind, setKind] = useState<RecordKind>(edit?.initial.kind ?? initialKind);
+  // Issue #173: this browser's recent categories for the kind, read after mount so the server render never differs.
+  const recentText = useSyncExternalStore(
+    noSubscription,
+    () => (kind === "TRANSFER" || edit ? null : rawRecent(safeStorage(), space.id, kind)),
+    () => null,
+  );
+  const recent = useMemo(() => parseRecent(recentText), [recentText]);
   const [amount, setAmount] = useState(edit?.initial.amount ?? "");
   const [description, setDescription] = useState(edit?.initial.description ?? "");
   const [category, setCategory] = useState<CategoryChoice>(edit?.initial.category ?? null);
+  const changeKind = (nextKind: RecordKind) => {
+    setKind(nextKind);
+    // Issue #173: a category the new kind's sheet does not offer goes, so it is never saved unseen.
+    const offered =
+      nextKind !== "TRANSFER" &&
+      groupsForKind(live, nextKind).some((g) => g.categories.some((c) => c.id === category?.categoryId));
+    if (category && !offered) setCategory(null);
+  };
+  // Issue #173: the recent categories the kind's sheet still lists, as one-tap chips.
+  const offered = offeredRecent(recent, kind === "TRANSFER" ? [] : groupsForKind(live, kind));
+  const remember = () => {
+    if (kind !== "TRANSFER" && category)
+      rememberRecent(safeStorage(), space.id, kind, {
+        categoryId: category.categoryId,
+        subcategoryId: category.subcategoryId ?? null,
+      });
+  };
   const [accountId, setAccountId] = useState<string | null>(
     edit ? edit.initial.accountId : (accounts[0]?.id ?? null),
   );
@@ -205,7 +320,10 @@ export function RecordForm({
     ? undefined
     : withReturnTo(
         `/spaces/${space.id}/accounts/new`,
-        `/spaces/${space.id}/new${kind === "EXPENSE" ? "" : `?type=${kind.toLowerCase()}`}`,
+        withReturnTo(
+          `/spaces/${space.id}/new${kind === "EXPENSE" ? "" : `?type=${kind.toLowerCase()}`}`,
+          returnTo,
+        ),
       );
   const found = problem ? recordFieldOf(problem) : null;
   // In a shared expense the account an API problem names is the payer's.
@@ -213,7 +331,7 @@ export function RecordForm({
   const errorOf = (field: RecordField): string | undefined => {
     // A category of the person's own cannot travel to the direct space; none chosen is asked for as usual.
     if (field === "category" && keylessTried && splitting && categoryKey === null)
-      return category === null ? errors("CategoryRequired") : t("direct.noKey");
+      return category === null ? errors("CategoryRequired") : t("direct.noKey", { space: space.name });
     if (unbuilt === field)
       return field === "amount"
         ? t("form.amountUnreadable", { example: formatNumber("85000", formats) })
@@ -274,9 +392,11 @@ export function RecordForm({
         });
         if (response.ok && data) {
           renew();
+          remember();
           const split = data as DirectSplitDto;
-          if (!fundWentNegative(split.expense.warnings)) toast.show({ message: t("toast.saved.EXPENSE") });
-          router.replace(afterSaveUrl(split.spaceId, split.expense.warnings));
+          if (!fundWentNegative(split.expense.warnings))
+            savedToast("EXPENSE", split.spaceId, split.expense.id);
+          router.replace(afterSaveUrl(split.spaceId, split.expense.warnings, returnTo));
           router.refresh();
           return;
         }
@@ -297,10 +417,11 @@ export function RecordForm({
             : await api.POST("/api/v1/spaces/{spaceId}/transfers", options);
       if (response.ok) {
         renew();
-        const warnings =
-          built.kind === "EXPENSE" ? (data as RecordedExpenseDto | undefined)?.warnings : undefined;
-        if (!fundWentNegative(warnings)) toast.show({ message: t(`toast.saved.${built.kind}`) });
-        router.replace(afterSaveUrl(space.id, warnings));
+        remember();
+        const recorded = data as RecordedExpenseDto | undefined;
+        const warnings = built.kind === "EXPENSE" ? recorded?.warnings : undefined;
+        if (!fundWentNegative(warnings)) savedToast(built.kind, space.id, recorded?.id);
+        router.replace(afterSaveUrl(space.id, warnings, returnTo));
         router.refresh();
         return;
       }
@@ -345,7 +466,7 @@ export function RecordForm({
   return (
     <div className="flex flex-col gap-5 py-4">
       <ScreenHeader
-        backHref={edit?.backHref ?? `/spaces/${space.id}`}
+        backHref={edit?.backHref ?? safeReturnTo(returnTo) ?? `/spaces/${space.id}`}
         title={edit ? t("edit.title") : t("form.title")}
       />
       <form
@@ -355,23 +476,24 @@ export function RecordForm({
         noValidate
         className="flex flex-col gap-5"
       >
-        <Tabs.Root value={kind} onValueChange={(next) => setKind(next as RecordKind)}>
+        <div>
           {edit ? (
             <p className="text-sm text-muted">{t("edit.kind", { type: t(`type.${kind}`) })}</p>
           ) : (
-            <Tabs.List aria-label={t("form.kind")} className="flex rounded-[14px] bg-track p-1">
-              {KINDS.map((k) => (
-                <Tabs.Trigger
-                  key={k}
-                  value={k}
-                  className="min-h-11 flex-1 rounded-[10px] text-sm font-medium text-ink data-[state=active]:bg-surface data-[state=active]:shadow"
-                >
-                  {t(`type.${k}`)}
-                </Tabs.Trigger>
-              ))}
-            </Tabs.List>
+            <KindTabs
+              label={t("form.kind")}
+              value={kind}
+              onChange={changeKind}
+              labelOf={(k) => t(`type.${k}`)}
+            />
           )}
-          <Tabs.Content value={kind} className="mt-5 flex flex-col gap-5" tabIndex={-1}>
+          <div
+            id={KIND_PANEL}
+            role={edit ? undefined : "tabpanel"}
+            aria-labelledby={edit ? undefined : kindTabId(kind)}
+            className="mt-5 flex flex-col gap-5"
+            tabIndex={-1}
+          >
             <AmountField
               value={amount}
               onChange={(next) => {
@@ -404,6 +526,35 @@ export function RecordForm({
                   "category",
                   t("form.chooseCategory"),
                 )}
+            {kind !== "TRANSFER" && offered.length > 0 ? (
+              <div className="-mt-2 flex flex-col gap-2">
+                <p id="record-recent" className="text-sm text-muted">
+                  {t("form.recent")}
+                </p>
+                <div role="group" aria-labelledby="record-recent" className="flex flex-wrap gap-2">
+                  {offered.map((r) => {
+                    const id = r.subcategoryId ?? r.categoryId;
+                    const chosen =
+                      category?.categoryId === r.categoryId &&
+                      (category.subcategoryId ?? null) === r.subcategoryId;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        aria-pressed={chosen}
+                        onClick={() => {
+                          setCategory({ categoryId: r.categoryId, subcategoryId: r.subcategoryId });
+                          clear("category");
+                        }}
+                        className="min-h-11 rounded-full border border-line px-4 text-sm font-medium text-ink aria-pressed:border-accent aria-pressed:bg-accent-soft"
+                      >
+                        {categoryPath(groups, id)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
             {sharedExpense && shared && split ? (
               <SharedFields
                 context={shared}
@@ -490,8 +641,8 @@ export function RecordForm({
                 </p>
               ) : null}
             </div>
-          </Tabs.Content>
-        </Tabs.Root>
+          </div>
+        </div>
         {asking && warning ? (
           <LineWarningConfirm
             warning={warning}
@@ -528,13 +679,14 @@ export function RecordForm({
             onOpenChange={setDirectOpen}
             people={people}
             currency={space.currency}
+            spaceName={space.name}
             onChoose={setDirect}
           />
         ) : null}
         <CategoryPicker
           open={sheet === "category"}
           onOpenChange={(open) => setSheet(open ? "category" : null)}
-          groups={live}
+          groups={groupsForKind(live, kind === "INCOME" ? "INCOME" : "EXPENSE")}
           value={category}
           onChoose={(choice) => {
             setCategory(choice);

@@ -8,7 +8,7 @@
 
 **Tech Stack:** Node.js 24.21.0, pnpm 12.11.2, Next.js 16.4.0 (App Router route handlers), React 19.3.0, TypeScript 6.0.3 strict, Zod 4.6.5, zod-openapi 6.0.2, drizzle-orm 0.45.4 + drizzle-kit 0.31.11, pg 8.23.1, better-auth 1.7.7, Vitest 5.0.3, PostgreSQL 18.6 (Docker CLI in tests). No new dependencies.
 
-**Spec:** `docs/superpowers/specs/2026-10-11-hearth-design.md` (approved 2026-10-11). Stories: `docs/backlog/E1-identity-and-spaces.md` (HU-E1-03), `docs/backlog/E2-accounts.md` (HU-E2-01, HU-E2-03, HU-E2-04), `docs/backlog/E3-categories.md` (HU-E3-01 … HU-E3-03), `docs/backlog/E4-ledger.md` (HU-E4-01 … HU-E4-06). Format template: `docs/superpowers/plans/2026-10-11-m0-walking-skeleton.md`. GitHub Project: https://github.com/users/Facabore/projects/4.
+**Spec:** `docs/specs/2026-10-11-hearth-design.md` (approved 2026-10-11). Stories: `docs/backlog/E1-identity-and-spaces.md` (HU-E1-03), `docs/backlog/E2-accounts.md` (HU-E2-01, HU-E2-03, HU-E2-04), `docs/backlog/E3-categories.md` (HU-E3-01 … HU-E3-03), `docs/backlog/E4-ledger.md` (HU-E4-01 … HU-E4-06). Format template: `docs/plans/2026-10-11-m0-walking-skeleton.md`. GitHub Project: https://github.com/users/Facabore/projects/4.
 
 ## Global Constraints
 

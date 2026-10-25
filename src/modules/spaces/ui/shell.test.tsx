@@ -16,6 +16,7 @@ beforeEach(() => {
   navigation.pathname = "/spaces/sp-personal";
   navigation.search = "";
 });
+const withoutQuery = (href: string | null) => href?.split("?")[0];
 
 describe("app shell (HU-E9-01)", () => {
   const spaces = [
@@ -44,9 +45,10 @@ describe("app shell (HU-E9-01)", () => {
       "href",
       "/spaces/sp-personal/transactions",
     );
+    // Issue #172: the form comes back to the screen it was opened from.
     expect(within(nav).getByRole("link", { name: "Registrar movimiento" })).toHaveAttribute(
       "href",
-      "/spaces/sp-personal/new",
+      `/spaces/sp-personal/new?returnTo=${encodeURIComponent("/spaces/sp-personal")}`,
     );
     expect(await axeViolations(container)).toEqual([]);
   });
@@ -65,7 +67,7 @@ describe("app shell (HU-E9-01)", () => {
     expect(
       within(nav)
         .getAllByRole("link")
-        .map((l) => l.getAttribute("href")),
+        .map((l) => withoutQuery(l.getAttribute("href"))),
     ).toEqual([
       "/spaces/sp-household",
       "/spaces/sp-household/transactions",

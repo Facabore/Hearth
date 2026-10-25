@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Icon, Logo } from "@/shared/ui";
+import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import type { SpaceDto } from "@/shared/ui/api/dto";
 
 /**
@@ -21,7 +22,13 @@ export function NavLinks({
 }) {
   const t = useTranslations("shell.nav");
   const pathname = usePathname();
+  const search = useSearchParams().toString();
   const home = `/spaces/${spaceId}`;
+  // Issue #172: the record form returns to the screen it was opened from, unless that is the form itself.
+  const record = withReturnTo(
+    `${home}/new`,
+    pathname === `${home}/new` ? null : `${pathname}${search ? `?${search}` : ""}`,
+  );
   const transactions = `${home}/transactions`;
   const plan = `${home}/plan`;
   const balances = `${home}/balances`;
@@ -48,7 +55,7 @@ export function NavLinks({
         {t("transactions")}
       </Link>
       <Link
-        href={`${home}/new`}
+        href={record}
         aria-label={t("record")}
         aria-current={current(`${home}/new`)}
         className="order-none mx-2 flex size-14 items-center justify-center rounded-full bg-accent text-on-accent lg:-order-1 lg:mx-0 lg:h-12 lg:w-auto lg:gap-2 lg:rounded-[14px] lg:font-semibold"

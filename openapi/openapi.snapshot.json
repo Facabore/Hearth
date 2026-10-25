@@ -12155,870 +12155,6 @@
   },
   "components": {
     "schemas": {
-      "Money": {
-        "type": "object",
-        "properties": {
-          "amount": {
-            "type": "string",
-            "pattern": "^-?\\d{1,19}$"
-          },
-          "currency": {
-            "type": "string",
-            "pattern": "^[A-Z]{3}$"
-          }
-        },
-        "required": [
-          "amount",
-          "currency"
-        ]
-      },
-      "Category": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "groupId": {
-            "type": "string"
-          },
-          "parentCategoryId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "name": {
-            "type": "string"
-          },
-          "key": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "archivedAt": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "icon": {
-            "oneOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "SYMBOL"
-                  },
-                  "name": {
-                    "type": "string",
-                    "maxLength": 64
-                  }
-                },
-                "required": [
-                  "kind",
-                  "name"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "EMOJI"
-                  },
-                  "value": {
-                    "type": "string",
-                    "maxLength": 64
-                  }
-                },
-                "required": [
-                  "kind",
-                  "value"
-                ]
-              }
-            ],
-            "type": "object"
-          },
-          "color": {
-            "type": "string",
-            "enum": [
-              "PINE",
-              "SAGE",
-              "OLIVE",
-              "SAND",
-              "MUSTARD",
-              "AMBER",
-              "EMBER",
-              "CORAL",
-              "ROSE",
-              "PLUM",
-              "LAVENDER",
-              "INDIGO",
-              "SKY",
-              "TEAL",
-              "STEEL",
-              "GRAPHITE"
-            ]
-          }
-        },
-        "required": [
-          "id",
-          "groupId",
-          "parentCategoryId",
-          "name",
-          "key",
-          "archivedAt",
-          "icon",
-          "color"
-        ]
-      },
-      "RecurrenceDefinition": {
-        "type": "object",
-        "properties": {
-          "description": {
-            "type": "string",
-            "maxLength": 1000
-          },
-          "amount": {
-            "$ref": "#/components/schemas/Money"
-          },
-          "template": {
-            "oneOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "EXPENSE"
-                  },
-                  "categoryId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 64
-                  },
-                  "payer": {
-                    "type": "object",
-                    "properties": {
-                      "memberId": {
-                        "anyOf": [
-                          {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 64
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      },
-                      "accountId": {
-                        "anyOf": [
-                          {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 64
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      }
-                    },
-                    "required": [
-                      "memberId"
-                    ]
-                  },
-                  "split": {
-                    "anyOf": [
-                      {
-                        "oneOf": [
-                          {
-                            "type": "object",
-                            "properties": {
-                              "method": {
-                                "type": "string",
-                                "const": "EQUAL"
-                              },
-                              "participants": {
-                                "maxItems": 100,
-                                "type": "array",
-                                "items": {
-                                  "type": "object",
-                                  "properties": {
-                                    "memberId": {
-                                      "type": "string",
-                                      "minLength": 1,
-                                      "maxLength": 64
-                                    }
-                                  },
-                                  "required": [
-                                    "memberId"
-                                  ]
-                                }
-                              }
-                            },
-                            "required": [
-                              "method",
-                              "participants"
-                            ]
-                          },
-                          {
-                            "type": "object",
-                            "properties": {
-                              "method": {
-                                "type": "string",
-                                "const": "PERCENT"
-                              },
-                              "participants": {
-                                "maxItems": 100,
-                                "type": "array",
-                                "items": {
-                                  "type": "object",
-                                  "properties": {
-                                    "memberId": {
-                                      "type": "string",
-                                      "minLength": 1,
-                                      "maxLength": 64
-                                    },
-                                    "percent": {
-                                      "type": "string",
-                                      "pattern": "^\\d{1,3}(\\.\\d{1,2})?$"
-                                    }
-                                  },
-                                  "required": [
-                                    "memberId",
-                                    "percent"
-                                  ]
-                                }
-                              }
-                            },
-                            "required": [
-                              "method",
-                              "participants"
-                            ]
-                          },
-                          {
-                            "type": "object",
-                            "properties": {
-                              "method": {
-                                "type": "string",
-                                "const": "SHARES"
-                              },
-                              "participants": {
-                                "maxItems": 100,
-                                "type": "array",
-                                "items": {
-                                  "type": "object",
-                                  "properties": {
-                                    "memberId": {
-                                      "type": "string",
-                                      "minLength": 1,
-                                      "maxLength": 64
-                                    },
-                                    "units": {
-                                      "type": "integer",
-                                      "minimum": -9007199254740991,
-                                      "maximum": 9007199254740991
-                                    }
-                                  },
-                                  "required": [
-                                    "memberId",
-                                    "units"
-                                  ]
-                                }
-                              }
-                            },
-                            "required": [
-                              "method",
-                              "participants"
-                            ]
-                          }
-                        ],
-                        "type": "object"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  }
-                },
-                "required": [
-                  "type",
-                  "categoryId",
-                  "payer"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "INCOME"
-                  },
-                  "categoryId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 64
-                  },
-                  "accountId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 64
-                  }
-                },
-                "required": [
-                  "type",
-                  "categoryId",
-                  "accountId"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "TRANSFER"
-                  },
-                  "sourceAccountId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 64
-                  },
-                  "destinationAccountId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 64
-                  }
-                },
-                "required": [
-                  "type",
-                  "sourceAccountId",
-                  "destinationAccountId"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "FUND_CONTRIBUTION"
-                  },
-                  "fundAccountId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 64
-                  },
-                  "memberId": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 64
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "sourceAccountId": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 64
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  }
-                },
-                "required": [
-                  "type",
-                  "fundAccountId"
-                ]
-              }
-            ],
-            "type": "object"
-          },
-          "schedule": {
-            "oneOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "MONTHLY"
-                  },
-                  "day": {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991
-                  }
-                },
-                "required": [
-                  "kind",
-                  "day"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "SEMI_MONTHLY"
-                  },
-                  "day1": {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991
-                  },
-                  "day2": {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991
-                  }
-                },
-                "required": [
-                  "kind",
-                  "day1",
-                  "day2"
-                ]
-              }
-            ],
-            "type": "object"
-          },
-          "mode": {
-            "type": "string",
-            "enum": [
-              "AUTO",
-              "CONFIRM"
-            ]
-          },
-          "startDate": {
-            "type": "string",
-            "format": "date",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-          },
-          "endDate": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "description",
-          "amount",
-          "template",
-          "schedule",
-          "mode",
-          "startDate"
-        ]
-      },
-      "Problem": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "status": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
-          },
-          "code": {
-            "type": "string"
-          },
-          "requestId": {
-            "type": "string"
-          },
-          "errors": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "path": {
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "path",
-                "message"
-              ],
-              "additionalProperties": false
-            }
-          },
-          "outstanding": {
-            "$ref": "#/components/schemas/MoneyOutput"
-          },
-          "lineIds": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "member": {
-            "type": "string",
-            "enum": [
-              "creator"
-            ]
-          },
-          "field": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "title",
-          "status",
-          "code",
-          "requestId"
-        ],
-        "additionalProperties": false
-      },
-      "CategoryGroup": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "key": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "archivedAt": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "icon": {
-            "oneOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "SYMBOL"
-                  },
-                  "name": {
-                    "type": "string",
-                    "maxLength": 64
-                  }
-                },
-                "required": [
-                  "kind",
-                  "name"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "EMOJI"
-                  },
-                  "value": {
-                    "type": "string",
-                    "maxLength": 64
-                  }
-                },
-                "required": [
-                  "kind",
-                  "value"
-                ],
-                "additionalProperties": false
-              }
-            ],
-            "type": "object"
-          },
-          "color": {
-            "type": "string",
-            "enum": [
-              "PINE",
-              "SAGE",
-              "OLIVE",
-              "SAND",
-              "MUSTARD",
-              "AMBER",
-              "EMBER",
-              "CORAL",
-              "ROSE",
-              "PLUM",
-              "LAVENDER",
-              "INDIGO",
-              "SKY",
-              "TEAL",
-              "STEEL",
-              "GRAPHITE"
-            ]
-          },
-          "categories": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "groupId": {
-                  "type": "string"
-                },
-                "parentCategoryId": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "name": {
-                  "type": "string"
-                },
-                "key": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "archivedAt": {
-                  "anyOf": [
-                    {
-                      "type": "string",
-                      "format": "date-time",
-                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "icon": {
-                  "oneOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "kind": {
-                          "type": "string",
-                          "const": "SYMBOL"
-                        },
-                        "name": {
-                          "type": "string",
-                          "maxLength": 64
-                        }
-                      },
-                      "required": [
-                        "kind",
-                        "name"
-                      ],
-                      "additionalProperties": false
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "kind": {
-                          "type": "string",
-                          "const": "EMOJI"
-                        },
-                        "value": {
-                          "type": "string",
-                          "maxLength": 64
-                        }
-                      },
-                      "required": [
-                        "kind",
-                        "value"
-                      ],
-                      "additionalProperties": false
-                    }
-                  ],
-                  "type": "object"
-                },
-                "color": {
-                  "type": "string",
-                  "enum": [
-                    "PINE",
-                    "SAGE",
-                    "OLIVE",
-                    "SAND",
-                    "MUSTARD",
-                    "AMBER",
-                    "EMBER",
-                    "CORAL",
-                    "ROSE",
-                    "PLUM",
-                    "LAVENDER",
-                    "INDIGO",
-                    "SKY",
-                    "TEAL",
-                    "STEEL",
-                    "GRAPHITE"
-                  ]
-                },
-                "subcategories": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CategoryOutput"
-                  }
-                }
-              },
-              "required": [
-                "id",
-                "groupId",
-                "parentCategoryId",
-                "name",
-                "key",
-                "archivedAt",
-                "icon",
-                "color",
-                "subcategories"
-              ],
-              "additionalProperties": false
-            }
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "key",
-          "archivedAt",
-          "icon",
-          "color",
-          "categories"
-        ],
-        "additionalProperties": false
-      },
-      "CategoryGroupSummary": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "key": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "archivedAt": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "icon": {
-            "oneOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "SYMBOL"
-                  },
-                  "name": {
-                    "type": "string",
-                    "maxLength": 64
-                  }
-                },
-                "required": [
-                  "kind",
-                  "name"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "EMOJI"
-                  },
-                  "value": {
-                    "type": "string",
-                    "maxLength": 64
-                  }
-                },
-                "required": [
-                  "kind",
-                  "value"
-                ],
-                "additionalProperties": false
-              }
-            ],
-            "type": "object"
-          },
-          "color": {
-            "type": "string",
-            "enum": [
-              "PINE",
-              "SAGE",
-              "OLIVE",
-              "SAND",
-              "MUSTARD",
-              "AMBER",
-              "EMBER",
-              "CORAL",
-              "ROSE",
-              "PLUM",
-              "LAVENDER",
-              "INDIGO",
-              "SKY",
-              "TEAL",
-              "STEEL",
-              "GRAPHITE"
-            ]
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "key",
-          "archivedAt",
-          "icon",
-          "color"
-        ],
-        "additionalProperties": false
-      },
       "Account": {
         "type": "object",
         "properties": {
@@ -13331,719 +12467,6 @@
           "includeInNetWorth",
           "terms",
           "derived"
-        ],
-        "additionalProperties": false
-      },
-      "Space": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "PERSONAL",
-              "SHARED",
-              "DIRECT"
-            ]
-          },
-          "currency": {
-            "type": "string"
-          },
-          "periodPolicy": {
-            "oneOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "MONTHLY"
-                  },
-                  "day": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 31
-                  }
-                },
-                "required": [
-                  "kind",
-                  "day"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "SEMI_MONTHLY"
-                  },
-                  "day1": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 31
-                  },
-                  "day2": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 31
-                  }
-                },
-                "required": [
-                  "kind",
-                  "day1",
-                  "day2"
-                ],
-                "additionalProperties": false
-              }
-            ],
-            "type": "object"
-          },
-          "role": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "OWNER",
-                  "ADMIN",
-                  "MEMBER",
-                  "VIEWER"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "kind",
-          "currency",
-          "periodPolicy",
-          "role"
-        ],
-        "additionalProperties": false
-      },
-      "SpaceMember": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "USER",
-              "GUEST"
-            ]
-          },
-          "userId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "displayName": {
-            "type": "string"
-          },
-          "role": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "OWNER",
-                  "ADMIN",
-                  "MEMBER",
-                  "VIEWER"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "contactEmail": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "joinedAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-          }
-        },
-        "required": [
-          "id",
-          "kind",
-          "userId",
-          "displayName",
-          "role",
-          "contactEmail",
-          "joinedAt"
-        ],
-        "additionalProperties": false
-      },
-      "Invitation": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "spaceId": {
-            "type": "string"
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "EMAIL",
-              "LINK",
-              "CLAIM"
-            ]
-          },
-          "email": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "role": {
-            "type": "string",
-            "enum": [
-              "ADMIN",
-              "MEMBER",
-              "VIEWER"
-            ]
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "PENDING",
-              "ACCEPTED",
-              "REVOKED",
-              "EXPIRED"
-            ]
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-          },
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-          }
-        },
-        "required": [
-          "id",
-          "spaceId",
-          "kind",
-          "email",
-          "role",
-          "status",
-          "createdAt",
-          "expiresAt"
-        ],
-        "additionalProperties": false
-      },
-      "InvitationPreview": {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "type": "string",
-            "enum": [
-              "EMAIL",
-              "LINK"
-            ]
-          },
-          "spaceName": {
-            "type": "string"
-          },
-          "role": {
-            "type": "string",
-            "enum": [
-              "ADMIN",
-              "MEMBER",
-              "VIEWER"
-            ]
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "PENDING",
-              "ACCEPTED",
-              "REVOKED",
-              "EXPIRED"
-            ]
-          },
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-          },
-          "invitedBy": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "kind",
-          "spaceName",
-          "role",
-          "status",
-          "expiresAt",
-          "invitedBy"
-        ],
-        "additionalProperties": false
-      },
-      "ClaimPreview": {
-        "type": "object",
-        "properties": {
-          "spaceName": {
-            "type": "string"
-          },
-          "guestName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "PENDING",
-              "ACCEPTED",
-              "REVOKED",
-              "EXPIRED"
-            ]
-          },
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-          },
-          "invitedBy": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "spaceName",
-          "guestName",
-          "status",
-          "expiresAt",
-          "invitedBy"
-        ],
-        "additionalProperties": false
-      },
-      "Period": {
-        "type": "object",
-        "properties": {
-          "label": {
-            "type": "string"
-          },
-          "startDate": {
-            "type": "string",
-            "format": "date",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-          },
-          "endDate": {
-            "type": "string",
-            "format": "date",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-          }
-        },
-        "required": [
-          "label",
-          "startDate",
-          "endDate"
-        ],
-        "additionalProperties": false
-      },
-      "Transaction": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "EXPENSE",
-              "INCOME",
-              "TRANSFER",
-              "SETTLEMENT"
-            ]
-          },
-          "description": {
-            "type": "string"
-          },
-          "date": {
-            "type": "string",
-            "format": "date",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-          },
-          "occurredAt": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "timeZone": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "amount": {
-            "$ref": "#/components/schemas/MoneyOutput"
-          },
-          "categoryId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "payments": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "memberId": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "accountId": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "amount": {
-                  "$ref": "#/components/schemas/MoneyOutput"
-                }
-              },
-              "required": [
-                "memberId",
-                "accountId",
-                "amount"
-              ],
-              "additionalProperties": false
-            }
-          },
-          "shares": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "memberId": {
-                  "type": "string"
-                },
-                "amount": {
-                  "$ref": "#/components/schemas/MoneyOutput"
-                },
-                "splitMethod": {
-                  "type": "string",
-                  "enum": [
-                    "EQUAL",
-                    "PERCENT",
-                    "EXACT",
-                    "SHARES",
-                    "BY_ALLOCATION"
-                  ]
-                }
-              },
-              "required": [
-                "memberId",
-                "amount",
-                "splitMethod"
-              ],
-              "additionalProperties": false
-            }
-          },
-          "sourceAccountId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "destinationAccountId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "receivingMemberId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "payerMemberId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "createdBy": {
-            "type": "string"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-          },
-          "version": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
-          }
-        },
-        "required": [
-          "id",
-          "type",
-          "description",
-          "date",
-          "occurredAt",
-          "timeZone",
-          "amount",
-          "categoryId",
-          "payments",
-          "shares",
-          "sourceAccountId",
-          "destinationAccountId",
-          "receivingMemberId",
-          "payerMemberId",
-          "createdBy",
-          "createdAt",
-          "updatedAt",
-          "version"
-        ],
-        "additionalProperties": false
-      },
-      "RecordedExpense": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "EXPENSE",
-              "INCOME",
-              "TRANSFER",
-              "SETTLEMENT"
-            ]
-          },
-          "description": {
-            "type": "string"
-          },
-          "date": {
-            "type": "string",
-            "format": "date",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-          },
-          "occurredAt": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "timeZone": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "amount": {
-            "$ref": "#/components/schemas/MoneyOutput"
-          },
-          "categoryId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "payments": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "memberId": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "accountId": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "amount": {
-                  "$ref": "#/components/schemas/MoneyOutput"
-                }
-              },
-              "required": [
-                "memberId",
-                "accountId",
-                "amount"
-              ],
-              "additionalProperties": false
-            }
-          },
-          "shares": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "memberId": {
-                  "type": "string"
-                },
-                "amount": {
-                  "$ref": "#/components/schemas/MoneyOutput"
-                },
-                "splitMethod": {
-                  "type": "string",
-                  "enum": [
-                    "EQUAL",
-                    "PERCENT",
-                    "EXACT",
-                    "SHARES",
-                    "BY_ALLOCATION"
-                  ]
-                }
-              },
-              "required": [
-                "memberId",
-                "amount",
-                "splitMethod"
-              ],
-              "additionalProperties": false
-            }
-          },
-          "sourceAccountId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "destinationAccountId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "receivingMemberId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "payerMemberId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "createdBy": {
-            "type": "string"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-          },
-          "version": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
-          },
-          "warnings": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "code": {
-                  "type": "string",
-                  "enum": [
-                    "FundBalanceNegative"
-                  ]
-                },
-                "accountId": {
-                  "type": "string"
-                },
-                "balance": {
-                  "$ref": "#/components/schemas/MoneyOutput"
-                }
-              },
-              "required": [
-                "code",
-                "accountId",
-                "balance"
-              ],
-              "additionalProperties": false
-            }
-          }
-        },
-        "required": [
-          "id",
-          "type",
-          "description",
-          "date",
-          "occurredAt",
-          "timeZone",
-          "amount",
-          "categoryId",
-          "payments",
-          "shares",
-          "sourceAccountId",
-          "destinationAccountId",
-          "receivingMemberId",
-          "payerMemberId",
-          "createdBy",
-          "createdAt",
-          "updatedAt",
-          "version",
-          "warnings"
         ],
         "additionalProperties": false
       },
@@ -14456,6 +12879,1101 @@
         ],
         "additionalProperties": false
       },
+      "Category": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "groupId": {
+            "type": "string"
+          },
+          "parentCategoryId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "archivedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "icon": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "SYMBOL"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "name"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "EMOJI"
+                  },
+                  "value": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ]
+              }
+            ],
+            "type": "object"
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "PINE",
+              "SAGE",
+              "OLIVE",
+              "SAND",
+              "MUSTARD",
+              "AMBER",
+              "EMBER",
+              "CORAL",
+              "ROSE",
+              "PLUM",
+              "LAVENDER",
+              "INDIGO",
+              "SKY",
+              "TEAL",
+              "STEEL",
+              "GRAPHITE"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "groupId",
+          "parentCategoryId",
+          "name",
+          "key",
+          "archivedAt",
+          "icon",
+          "color"
+        ]
+      },
+      "CategoryGroup": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "archivedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "icon": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "SYMBOL"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "EMOJI"
+                  },
+                  "value": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            ],
+            "type": "object"
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "PINE",
+              "SAGE",
+              "OLIVE",
+              "SAND",
+              "MUSTARD",
+              "AMBER",
+              "EMBER",
+              "CORAL",
+              "ROSE",
+              "PLUM",
+              "LAVENDER",
+              "INDIGO",
+              "SKY",
+              "TEAL",
+              "STEEL",
+              "GRAPHITE"
+            ]
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "groupId": {
+                  "type": "string"
+                },
+                "parentCategoryId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "key": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "archivedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "icon": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "SYMBOL"
+                        },
+                        "name": {
+                          "type": "string",
+                          "maxLength": 64
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "EMOJI"
+                        },
+                        "value": {
+                          "type": "string",
+                          "maxLength": 64
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ],
+                  "type": "object"
+                },
+                "color": {
+                  "type": "string",
+                  "enum": [
+                    "PINE",
+                    "SAGE",
+                    "OLIVE",
+                    "SAND",
+                    "MUSTARD",
+                    "AMBER",
+                    "EMBER",
+                    "CORAL",
+                    "ROSE",
+                    "PLUM",
+                    "LAVENDER",
+                    "INDIGO",
+                    "SKY",
+                    "TEAL",
+                    "STEEL",
+                    "GRAPHITE"
+                  ]
+                },
+                "subcategories": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryOutput"
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "groupId",
+                "parentCategoryId",
+                "name",
+                "key",
+                "archivedAt",
+                "icon",
+                "color",
+                "subcategories"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "key",
+          "archivedAt",
+          "icon",
+          "color",
+          "categories"
+        ],
+        "additionalProperties": false
+      },
+      "CategoryGroupSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "archivedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "icon": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "SYMBOL"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "EMOJI"
+                  },
+                  "value": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            ],
+            "type": "object"
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "PINE",
+              "SAGE",
+              "OLIVE",
+              "SAND",
+              "MUSTARD",
+              "AMBER",
+              "EMBER",
+              "CORAL",
+              "ROSE",
+              "PLUM",
+              "LAVENDER",
+              "INDIGO",
+              "SKY",
+              "TEAL",
+              "STEEL",
+              "GRAPHITE"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "key",
+          "archivedAt",
+          "icon",
+          "color"
+        ],
+        "additionalProperties": false
+      },
+      "CategoryOutput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "groupId": {
+            "type": "string"
+          },
+          "parentCategoryId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "archivedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "icon": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "SYMBOL"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "EMOJI"
+                  },
+                  "value": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            ],
+            "type": "object"
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "PINE",
+              "SAGE",
+              "OLIVE",
+              "SAND",
+              "MUSTARD",
+              "AMBER",
+              "EMBER",
+              "CORAL",
+              "ROSE",
+              "PLUM",
+              "LAVENDER",
+              "INDIGO",
+              "SKY",
+              "TEAL",
+              "STEEL",
+              "GRAPHITE"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "groupId",
+          "parentCategoryId",
+          "name",
+          "key",
+          "archivedAt",
+          "icon",
+          "color"
+        ],
+        "additionalProperties": false
+      },
+      "ClaimPreview": {
+        "type": "object",
+        "properties": {
+          "spaceName": {
+            "type": "string"
+          },
+          "guestName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "ACCEPTED",
+              "REVOKED",
+              "EXPIRED"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "invitedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "spaceName",
+          "guestName",
+          "status",
+          "expiresAt",
+          "invitedBy"
+        ],
+        "additionalProperties": false
+      },
+      "Invitation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "spaceId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "EMAIL",
+              "LINK",
+              "CLAIM"
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "ADMIN",
+              "MEMBER",
+              "VIEWER"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "ACCEPTED",
+              "REVOKED",
+              "EXPIRED"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "id",
+          "spaceId",
+          "kind",
+          "email",
+          "role",
+          "status",
+          "createdAt",
+          "expiresAt"
+        ],
+        "additionalProperties": false
+      },
+      "InvitationPreview": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "EMAIL",
+              "LINK"
+            ]
+          },
+          "spaceName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "ADMIN",
+              "MEMBER",
+              "VIEWER"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "ACCEPTED",
+              "REVOKED",
+              "EXPIRED"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "invitedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "spaceName",
+          "role",
+          "status",
+          "expiresAt",
+          "invitedBy"
+        ],
+        "additionalProperties": false
+      },
+      "Money": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d{1,19}$"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          }
+        },
+        "required": [
+          "amount",
+          "currency"
+        ]
+      },
+      "MoneyOutput": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d{1,19}$"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          }
+        },
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "additionalProperties": false
+      },
+      "Occurrence": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "recurrenceId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "EXPENSE",
+              "INCOME",
+              "TRANSFER",
+              "FUND_CONTRIBUTION"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "RECORDED",
+              "PENDING",
+              "SKIPPED"
+            ]
+          },
+          "amount": {
+            "$ref": "#/components/schemas/MoneyOutput"
+          },
+          "categoryId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "transactionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "recurrenceId",
+          "type",
+          "description",
+          "date",
+          "status",
+          "amount",
+          "categoryId",
+          "transactionId",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "Period": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          }
+        },
+        "required": [
+          "label",
+          "startDate",
+          "endDate"
+        ],
+        "additionalProperties": false
+      },
+      "Problem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "code": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "message"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "outstanding": {
+            "$ref": "#/components/schemas/MoneyOutput"
+          },
+          "lineIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "member": {
+            "type": "string",
+            "enum": [
+              "creator"
+            ]
+          },
+          "field": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "RecordedExpense": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "EXPENSE",
+              "INCOME",
+              "TRANSFER",
+              "SETTLEMENT"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "occurredAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timeZone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "amount": {
+            "$ref": "#/components/schemas/MoneyOutput"
+          },
+          "categoryId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "memberId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "accountId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "amount": {
+                  "$ref": "#/components/schemas/MoneyOutput"
+                }
+              },
+              "required": [
+                "memberId",
+                "accountId",
+                "amount"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "shares": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "memberId": {
+                  "type": "string"
+                },
+                "amount": {
+                  "$ref": "#/components/schemas/MoneyOutput"
+                },
+                "splitMethod": {
+                  "type": "string",
+                  "enum": [
+                    "EQUAL",
+                    "PERCENT",
+                    "EXACT",
+                    "SHARES",
+                    "BY_ALLOCATION"
+                  ]
+                }
+              },
+              "required": [
+                "memberId",
+                "amount",
+                "splitMethod"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "sourceAccountId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "destinationAccountId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "receivingMemberId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payerMemberId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "enum": [
+                    "FundBalanceNegative"
+                  ]
+                },
+                "accountId": {
+                  "type": "string"
+                },
+                "balance": {
+                  "$ref": "#/components/schemas/MoneyOutput"
+                }
+              },
+              "required": [
+                "code",
+                "accountId",
+                "balance"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "description",
+          "date",
+          "occurredAt",
+          "timeZone",
+          "amount",
+          "categoryId",
+          "payments",
+          "shares",
+          "sourceAccountId",
+          "destinationAccountId",
+          "receivingMemberId",
+          "payerMemberId",
+          "createdBy",
+          "createdAt",
+          "updatedAt",
+          "version",
+          "warnings"
+        ],
+        "additionalProperties": false
+      },
       "Recurrence": {
         "type": "object",
         "properties": {
@@ -14803,13 +14321,517 @@
         ],
         "additionalProperties": false
       },
-      "Occurrence": {
+      "RecurrenceDefinition": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "amount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "template": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "EXPENSE"
+                  },
+                  "categoryId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "payer": {
+                    "type": "object",
+                    "properties": {
+                      "memberId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "accountId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "memberId"
+                    ]
+                  },
+                  "split": {
+                    "anyOf": [
+                      {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "method": {
+                                "type": "string",
+                                "const": "EQUAL"
+                              },
+                              "participants": {
+                                "maxItems": 100,
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "memberId": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    }
+                                  },
+                                  "required": [
+                                    "memberId"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "method",
+                              "participants"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "method": {
+                                "type": "string",
+                                "const": "PERCENT"
+                              },
+                              "participants": {
+                                "maxItems": 100,
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "memberId": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    },
+                                    "percent": {
+                                      "type": "string",
+                                      "pattern": "^\\d{1,3}(\\.\\d{1,2})?$"
+                                    }
+                                  },
+                                  "required": [
+                                    "memberId",
+                                    "percent"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "method",
+                              "participants"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "method": {
+                                "type": "string",
+                                "const": "SHARES"
+                              },
+                              "participants": {
+                                "maxItems": 100,
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "memberId": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    },
+                                    "units": {
+                                      "type": "integer",
+                                      "minimum": -9007199254740991,
+                                      "maximum": 9007199254740991
+                                    }
+                                  },
+                                  "required": [
+                                    "memberId",
+                                    "units"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "method",
+                              "participants"
+                            ]
+                          }
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "categoryId",
+                  "payer"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "INCOME"
+                  },
+                  "categoryId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "accountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "type",
+                  "categoryId",
+                  "accountId"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "TRANSFER"
+                  },
+                  "sourceAccountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "destinationAccountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "type",
+                  "sourceAccountId",
+                  "destinationAccountId"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "FUND_CONTRIBUTION"
+                  },
+                  "fundAccountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "memberId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "sourceAccountId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "fundAccountId"
+                ]
+              }
+            ],
+            "type": "object"
+          },
+          "schedule": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "MONTHLY"
+                  },
+                  "day": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "kind",
+                  "day"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "SEMI_MONTHLY"
+                  },
+                  "day1": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "day2": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "kind",
+                  "day1",
+                  "day2"
+                ]
+              }
+            ],
+            "type": "object"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "AUTO",
+              "CONFIRM"
+            ]
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "endDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "description",
+          "amount",
+          "template",
+          "schedule",
+          "mode",
+          "startDate"
+        ]
+      },
+      "Space": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string"
           },
-          "recurrenceId": {
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "PERSONAL",
+              "SHARED",
+              "DIRECT"
+            ]
+          },
+          "currency": {
+            "type": "string"
+          },
+          "periodPolicy": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "MONTHLY"
+                  },
+                  "day": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 31
+                  }
+                },
+                "required": [
+                  "kind",
+                  "day"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "SEMI_MONTHLY"
+                  },
+                  "day1": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 31
+                  },
+                  "day2": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 31
+                  }
+                },
+                "required": [
+                  "kind",
+                  "day1",
+                  "day2"
+                ],
+                "additionalProperties": false
+              }
+            ],
+            "type": "object"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "OWNER",
+                  "ADMIN",
+                  "MEMBER",
+                  "VIEWER"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "currency",
+          "periodPolicy",
+          "role"
+        ],
+        "additionalProperties": false
+      },
+      "SpaceMember": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "GUEST"
+            ]
+          },
+          "userId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "OWNER",
+                  "ADMIN",
+                  "MEMBER",
+                  "VIEWER"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "contactEmail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "joinedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "userId",
+          "displayName",
+          "role",
+          "contactEmail",
+          "joinedAt"
+        ],
+        "additionalProperties": false
+      },
+      "Transaction": {
+        "type": "object",
+        "properties": {
+          "id": {
             "type": "string"
           },
           "type": {
@@ -14818,7 +14840,7 @@
               "EXPENSE",
               "INCOME",
               "TRANSFER",
-              "FUND_CONTRIBUTION"
+              "SETTLEMENT"
             ]
           },
           "description": {
@@ -14829,93 +14851,7 @@
             "format": "date",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
           },
-          "status": {
-            "type": "string",
-            "enum": [
-              "RECORDED",
-              "PENDING",
-              "SKIPPED"
-            ]
-          },
-          "amount": {
-            "$ref": "#/components/schemas/MoneyOutput"
-          },
-          "categoryId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "transactionId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "reason": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "id",
-          "recurrenceId",
-          "type",
-          "description",
-          "date",
-          "status",
-          "amount",
-          "categoryId",
-          "transactionId",
-          "reason"
-        ],
-        "additionalProperties": false
-      },
-      "MoneyOutput": {
-        "type": "object",
-        "properties": {
-          "amount": {
-            "type": "string",
-            "pattern": "^-?\\d{1,19}$"
-          },
-          "currency": {
-            "type": "string",
-            "pattern": "^[A-Z]{3}$"
-          }
-        },
-        "required": [
-          "amount",
-          "currency"
-        ],
-        "additionalProperties": false
-      },
-      "CategoryOutput": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "groupId": {
-            "type": "string"
-          },
-          "parentCategoryId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "name": {
-            "type": "string"
-          },
-          "key": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "archivedAt": {
+          "occurredAt": {
             "anyOf": [
               {
                 "type": "string",
@@ -14927,78 +14863,142 @@
               }
             ]
           },
-          "icon": {
-            "oneOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "SYMBOL"
-                  },
-                  "name": {
-                    "type": "string",
-                    "maxLength": 64
-                  }
-                },
-                "required": [
-                  "kind",
-                  "name"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "EMOJI"
-                  },
-                  "value": {
-                    "type": "string",
-                    "maxLength": 64
-                  }
-                },
-                "required": [
-                  "kind",
-                  "value"
-                ],
-                "additionalProperties": false
-              }
-            ],
-            "type": "object"
-          },
-          "color": {
-            "type": "string",
-            "enum": [
-              "PINE",
-              "SAGE",
-              "OLIVE",
-              "SAND",
-              "MUSTARD",
-              "AMBER",
-              "EMBER",
-              "CORAL",
-              "ROSE",
-              "PLUM",
-              "LAVENDER",
-              "INDIGO",
-              "SKY",
-              "TEAL",
-              "STEEL",
-              "GRAPHITE"
+          "timeZone": {
+            "type": [
+              "string",
+              "null"
             ]
+          },
+          "amount": {
+            "$ref": "#/components/schemas/MoneyOutput"
+          },
+          "categoryId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "memberId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "accountId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "amount": {
+                  "$ref": "#/components/schemas/MoneyOutput"
+                }
+              },
+              "required": [
+                "memberId",
+                "accountId",
+                "amount"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "shares": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "memberId": {
+                  "type": "string"
+                },
+                "amount": {
+                  "$ref": "#/components/schemas/MoneyOutput"
+                },
+                "splitMethod": {
+                  "type": "string",
+                  "enum": [
+                    "EQUAL",
+                    "PERCENT",
+                    "EXACT",
+                    "SHARES",
+                    "BY_ALLOCATION"
+                  ]
+                }
+              },
+              "required": [
+                "memberId",
+                "amount",
+                "splitMethod"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "sourceAccountId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "destinationAccountId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "receivingMemberId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payerMemberId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           }
         },
         "required": [
           "id",
-          "groupId",
-          "parentCategoryId",
-          "name",
-          "key",
-          "archivedAt",
-          "icon",
-          "color"
+          "type",
+          "description",
+          "date",
+          "occurredAt",
+          "timeZone",
+          "amount",
+          "categoryId",
+          "payments",
+          "shares",
+          "sourceAccountId",
+          "destinationAccountId",
+          "receivingMemberId",
+          "payerMemberId",
+          "createdBy",
+          "createdAt",
+          "updatedAt",
+          "version"
         ],
         "additionalProperties": false
       }

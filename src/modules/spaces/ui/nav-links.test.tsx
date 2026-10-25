@@ -3,11 +3,36 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { NavLinks } from "./nav-links";
 
-const where = vi.hoisted(() => ({ pathname: "/spaces/sp-household/plans/p-nov" }));
-vi.mock("next/navigation", () => ({ usePathname: () => where.pathname }));
+const where = vi.hoisted(() => ({ pathname: "/spaces/sp-household/plans/p-nov", search: "" }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => where.pathname,
+  useSearchParams: () => new URLSearchParams(where.search),
+}));
 
 beforeEach(() => {
   where.pathname = "/spaces/sp-household/plans/p-nov";
+  where.search = "";
+});
+
+describe("the Registrar button (issue #172)", () => {
+  it("carries the screen it is pressed on, with its query, as the form's returnTo", () => {
+    where.pathname = "/spaces/sp-household";
+    where.search = "period=2026-10";
+    renderWithIntl(<NavLinks spaceId="sp-household" spaceKind="SHARED" />);
+    expect(screen.getByRole("link", { name: "Registrar movimiento" })).toHaveAttribute(
+      "href",
+      `/spaces/sp-household/new?returnTo=${encodeURIComponent("/spaces/sp-household?period=2026-10")}`,
+    );
+  });
+
+  it("carries none on the record form itself", () => {
+    where.pathname = "/spaces/sp-household/new";
+    renderWithIntl(<NavLinks spaceId="sp-household" spaceKind="SHARED" />);
+    expect(screen.getByRole("link", { name: "Registrar movimiento" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household/new",
+    );
+  });
 });
 
 const names = () =>

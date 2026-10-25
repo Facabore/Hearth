@@ -176,7 +176,7 @@ export function BalancesScreen({
                   prefetch={false}
                   className="flex min-h-[60px] items-center gap-3 px-3.5 py-2"
                 >
-                  <span className="min-w-0 flex-1 truncate font-medium text-ink">{name}</span>
+                  <span className="min-w-0 flex-1 font-medium [overflow-wrap:anywhere] text-ink">{name}</span>
                   <span
                     className={`text-[15px] font-semibold tabular-nums ${memberState === "owes" ? "text-owe" : memberState === "owed" ? "text-accent" : "text-muted"}`}
                   >

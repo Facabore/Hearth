@@ -2,7 +2,7 @@
 
 - **Status:** Draft for owner validation
 - **Date:** 2026-10-11
-- **Source of truth:** [design spec](../superpowers/specs/2026-10-11-hearth-design.md) and [backlog](../backlog/README.md). This document explains *how each feature behaves* so the owner can confirm it matches expectations before any code is written.
+- **Source of truth:** [design spec](../specs/2026-10-11-hearth-design.md) and [backlog](../backlog/README.md). This document explains *how each feature behaves* so the owner can confirm it matches expectations before any code is written.
 
 ## 0. Guiding principle: independent first, shared by choice
 

@@ -119,6 +119,44 @@ describe("line editor (HU-E9-08)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("adds a line to a personal plan with no capacities, without asking who answers for it (#175)", async () => {
+    const { api, requests } = fakeApi({ [ADD]: added });
+    renderWithIntl(
+      <LineEditor
+        space={householdDto({ id: "sp-personal", name: "Personal", kind: "PERSONAL" })}
+        plan={referencePlanDto({ lines: [], capacities: [], totalCapacity: cop(0), planned: cop(0) })}
+        line={null}
+        savingsAccounts={[]}
+        groups={[]}
+        members={[HOUSEHOLD_MEMBERS[0]!]}
+        formats={BUILT_IN_FORMATS}
+        api={api}
+      />,
+    );
+    expect(screen.queryByRole("group", { name: "Quién responde por la línea" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Quién responde/)).not.toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Nombre"), "Mercado");
+    await userEvent.type(screen.getByLabelText("Planeado"), "500.000");
+    await userEvent.click(screen.getByRole("radio", { name: "Directo" }));
+    await userEvent.click(screen.getByRole("button", { name: "Agregar línea" }));
+    expect(screen.queryByText(/Nadie tiene capacidad/)).not.toBeInTheDocument();
+    // #170: a personal space has no shared fund to offer.
+    expect(screen.queryByRole("radio", { name: "Fondo compartido" })).not.toBeInTheDocument();
+    expect(requests).toHaveLength(1);
+    expect(await requests[0]!.json()).toMatchObject({ name: "Mercado", funding: "DIRECT" });
+  });
+
+  it("says next to Planeado that nobody has capacity, in a shared plan without capacities (#175)", () => {
+    show(
+      null,
+      undefined,
+      referencePlanDto({ lines: [], capacities: [], totalCapacity: cop(0), planned: cop(0) }),
+    );
+    expect(screen.getByLabelText("Planeado")).toHaveAccessibleDescription(
+      /Nadie tiene capacidad en este plan: asigna por porcentaje o por monto fijo\./,
+    );
+  });
+
   it("shows the planned amount's format after its hint, drops a letter and still adds the line (#164)", async () => {
     const { api, requests } = fakeApi({ [ADD]: added });
     show(null, api);

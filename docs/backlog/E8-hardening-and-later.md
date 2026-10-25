@@ -43,7 +43,7 @@ Feature: Backups and restore
 **Technical notes:**
 - Backup container or cron sidecar in Docker Compose; retention configurable (`BACKUP_RETENTION_DAYS`, default 14).
 - Off-site copy target documented in `docs/operations/backups.md`; restore drill performed at least once before declaring M5 done.
-- Built in M5 (plan `2026-10-19-m5-nightly-backups.md`, rulings P107–P116): the `backup` service (`postgres:18.6-alpine`, busybox `crond`, 02:00 in `APP_TIMEZONE`) runs `scripts/backup.sh`, which writes `hearth-YYYY-MM-DD.sql.gz` with its snapshot's transaction count on the first line and then keeps the newest `BACKUP_RETENTION_DAYS` files; `scripts/restore-drill.sh` restores into `hearth_restore_drill`, compares the count and drops it; the optional `backup-offsite` service (`rclone/rclone:1.75.1`, profile `offsite`) copies the files to any rclone remote at 03:00. Logs are JSON lines with the `job` `nightly-backup`, `restore-drill` or `offsite-copy`. The drill on the VPS is recorded in `docs/operations/backups.md`.
+- Built in M5 (plan `2026-10-19-m5-nightly-backups.md`, rulings P107–P116): the `backup` service (`postgres:18.6-alpine`, busybox `crond`, 02:00 in `APP_TIMEZONE`) runs `scripts/backup.sh`, which writes `hearth-YYYY-MM-DD.sql.gz` with its snapshot's transaction count on the first line and then keeps the newest `BACKUP_RETENTION_DAYS` files; `scripts/restore-drill.sh` restores into `hearth_restore_drill`, compares the count and drops it; the optional `backup-offsite` service (`rclone/rclone:1.75.2`, profile `offsite`) copies the files to any rclone remote at 03:00. Logs are JSON lines with the `job` `nightly-backup`, `restore-drill` or `offsite-copy`. The drill on the VPS is recorded in `docs/operations/backups.md`.
 
 ---
 
@@ -790,3 +790,67 @@ Feature: Installation rules
 - Audit: every change is an entry in an append-only `installation_audit` table written through an `InstallationAuditLog` port (the `AuditLog` of HU-E4-06 belongs to `ledger`). Entries are never edited or deleted, and each keeps only the logical change: actor, instant, field, and the values before and after; a logo change records the content hash of the image, never its bytes.
 - Out of scope: a brand name per language, branding per space, several installations in one database, custom domains and email templates. The screen is HU-E9-14.
 - **Spec impact:** 5.2 (new `InstallationSettings`; **User** gains `installationRole`), section 3 (`APP_TIMEZONE` seeds the installation time zone), section 6 (a new decision: a rules level above spaces and people for white-label deployments, with the cascade and the locks), section 7 (the installation endpoints and a public route).
+
+## HU-E8-19 — Regional vocabulary variants of the interface language
+
+- **Milestone:** M5 · **Priority:** Could · **Size:** M · **Depends on:** HU-E9-02, HU-E1-15, HU-E8-18 · **Module(s):** `identity`, web UI (`src/i18n`)
+
+**User story:** As a person who uses Hearth in my own country, I want the app to talk about money with the words people use where I live, so that settling up and splitting read naturally to me and to my household.
+
+```gherkin
+Feature: Regional vocabulary variants
+
+  Background:
+    Given the base Spanish says "Para quedar saldados" for the balances suggestions heading
+    And the "es-CO" variant replaces it with "Para quedar a paz y salvo"
+    And the "es-MX" variant replaces it with "Para quedar a mano"
+    And the installation rules have numberFormat "DOT_COMMA" and no locks
+
+  Scenario: A variant replaces only the words in its glossary
+    Given "Ana" has the locale "es-CO"
+    When "Ana" opens the balances screen
+    Then the suggestions heading reads "Para quedar a paz y salvo"
+    And every text the "es-CO" variant does not define reads as in the base Spanish
+
+  Scenario: A variant never changes formats
+    Given "Juan" has the locale "es-MX" and stores no numberFormat
+    When "Juan" opens the balances screen
+    Then the suggestions heading reads "Para quedar a mano"
+    And amounts are written as "$ 100.000", following his effective numberFormat "DOT_COMMA"
+
+  Scenario: An unsupported region falls back to its base language
+    Given a visitor without a session whose browser sends "Accept-Language: es-PE, en;q=0.5"
+    When the visitor opens the sign-in screen
+    Then the screen is in the base Spanish
+
+  Scenario: The browser's region chooses a supported variant
+    Given a visitor without a session whose browser sends "Accept-Language: es-MX"
+    When the visitor opens the sign-in screen
+    Then the screen is in the "es-MX" variant
+
+  Scenario: A person chooses a variant in Settings
+    Given "Ana" has the locale "es"
+    When "Ana" sets her locale to "es-CO"
+    Then "GET /api/v1/me" returns the locale "es-CO"
+    When "Ana" sets her locale to "es-XX"
+    Then the request fails with status 422 and the code "ValidationFailed"
+    And "Ana" keeps the locale "es-CO"
+
+  Scenario: The installation default can be a variant
+    Given the installation administrator has set the default locale to "es-CO"
+    When "Luis" signs up without sending a locale
+    Then "Luis" is created with the locale "es-CO"
+```
+
+**Technical notes:**
+- Decision D24. `LOCALES` grows from `es`, `en` to `es`, `es-CO`, `es-MX`, `es-AR`, `en` in `src/i18n/locale.ts` and in identity's mirror of it; `PATCH /api/v1/me`, the sign-up body (P142) and the installation rules' `locale` (HU-E8-18) accept the new values. The stored values `es` and `en` stay valid, so no migration rewrites anyone's language.
+- Messages: `es.json` stays the complete, neutral base. Each variant is a small overlay (`es-CO.json`, `es-MX.json`, `es-AR.json`) merged over the base when `src/i18n/request.ts` loads messages, so a key the overlay does not define falls back to the base.
+- Glossary: the keys a variant may replace are listed in one closed glossary (money and debt verbs, settling up, splitting, everyday expressions; about 20 to 40 keys). A unit test fails when an overlay defines a key outside the glossary or a key the base does not have, so overlays stay vocabulary, never grammar.
+- Grammar: every Spanish variant addresses the user with "tú" (the rule of `es.json`); `es-AR` does not use voseo, because that would rewrite the grammar of every string.
+- Resolution (amends ruling P120): `resolveLocale` keeps the region of `Accept-Language` and of the cookie. A supported variant wins; an unsupported region (`es-PE`) falls back to its base language (`es`); an unsupported language keeps today's fallback to Spanish.
+- Formats stay independent (D23 and ruling P121): a variant never sets a number, date or time format, and `src/shared/ui/format/` never reads the locale.
+- Today's `es.json` already carries Colombian jargon ("paz y salvo"). This story moves those expressions to `es-CO.json`, writes neutral wording in the base, and sets the built-in installation default to `es-CO`, so a Colombian installation reads exactly as it does today.
+- Settings (HU-E9-13): the language row lists "Español (Colombia)", "Español (México)", "Español (Argentina)", "Español (neutro)" and "English".
+- Open question for the owner: the Mexican and Argentine wording of each glossary key needs a native speaker's review before those overlays ship; `es-CO` can ship first, alone.
+- Out of scope: regional variants of English, a glossary per installation (rejected in D24) and per-space vocabulary.
+- **Spec impact:** section 3 (UI i18n names the variants), 5.2 (**User** `locale` values), section 6 (D24, already recorded), section 7 (`locale` values of `PATCH /api/v1/me`, sign-up and the installation rules).

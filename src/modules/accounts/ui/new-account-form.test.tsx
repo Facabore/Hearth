@@ -88,7 +88,8 @@ describe("new account form (HU-E9-03)", () => {
     renderWithIntl(<NewAccountForm space={spaceDto()} formats={BUILT_IN_FORMATS} api={api} />);
     await userEvent.click(screen.getByRole("radio", { name: "Banco" }));
     await userEvent.type(screen.getByLabelText("Nombre"), "Bancolombia");
-    await userEvent.type(screen.getByLabelText("Saldo inicial"), "dos mil");
+    // Letters never reach the field (#164) and an empty balance is 0 (#178); COP keeps two decimals, so "1,555" is unreadable.
+    await userEvent.type(screen.getByLabelText("Saldo inicial"), "1,555");
     await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
     expect(screen.getByLabelText("Saldo inicial")).toHaveAccessibleDescription(
       "Escribe un monto como 1.500.000.",

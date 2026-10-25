@@ -59,6 +59,21 @@ describe("account form fields (HU-E9-03, ruling P131)", () => {
     });
   });
 
+  it("sends an empty opening balance as 0 (issue #178)", () => {
+    const draft = {
+      type: "BANK",
+      name: "B",
+      opening: "  ",
+      fields: {},
+      includeInAvailable: null,
+      includeInNetWorth: null,
+    } as const;
+    expect(accountBodyOf(draft, "COP", "DOT_COMMA")).toMatchObject({
+      ok: true,
+      body: { openingBalance: { amount: "0", currency: "COP" } },
+    });
+  });
+
   it("points an unreadable amount at its field and maps API codes and paths", () => {
     const draft = {
       type: "BANK",

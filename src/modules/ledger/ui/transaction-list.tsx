@@ -1,5 +1,5 @@
 import { useTranslations } from "next-intl";
-import type { MoneyDto, PeriodDto, TransactionPageDto } from "@/shared/ui/api/dto";
+import type { MoneyDto, PeriodDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
 import { formatDate, formatMoney } from "@/shared/ui/format/formatters";
 import { groupByDay } from "./day-groups";
 import type { TransactionDetail } from "./detail/detail-loader";
@@ -22,6 +22,7 @@ export function TransactionList({
   next = null,
   notice,
   spaceName,
+  periodPolicy,
   detail,
 }: {
   readonly spaceId: string;
@@ -35,6 +36,8 @@ export function TransactionList({
   readonly notice?: { readonly accountName: string; readonly balance: MoneyDto };
   /** U7: the name of a shared or direct space, under the title; a personal space shows none. */
   readonly spaceName?: string | undefined;
+  /** Issue #178: the space's period policy, so the period reads as the Plan names it. */
+  readonly periodPolicy?: SpaceDto["periodPolicy"] | undefined;
   /** Ruling P189: the transaction behind `?tx=`, shown in a sheet over the list. */
   readonly detail?: TransactionDetail | undefined;
 }) {
@@ -62,6 +65,9 @@ export function TransactionList({
         next={next}
         filter={filter}
         groups={context.groups}
+        periodPolicy={periodPolicy}
+        formats={context.formats}
+        memberNames={context.memberNames}
       />
       <section aria-label={t("list.totals")} className="rounded-2xl bg-surface p-4 text-ink">
         {t("list.expenses", { amount: formatMoney(page.totals.expenses, context.formats) })} ·{" "}
@@ -83,7 +89,11 @@ export function TransactionList({
       {page.nextCursor ? (
         <LoadMore
           spaceId={spaceId}
-          query={{ period: page.period.label, categoryIds: filter.categoryId }}
+          query={{
+            period: page.period.label,
+            categoryIds: filter.categoryId,
+            payerMemberId: filter.payerMemberId,
+          }}
           cursor={page.nextCursor}
           lastDate={days.at(-1)?.date ?? ""}
           today={today}

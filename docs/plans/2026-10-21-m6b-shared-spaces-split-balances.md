@@ -8,7 +8,7 @@
 
 **Tech Stack:** unchanged from M6a: Node.js 24.21.0, pnpm 12.11.2, Next.js 16.4.0, React 19.3.0, TypeScript 6.0.3 strict, Zod 4.6.5 (server only), next-intl 4.14.9, Tailwind CSS 4.3.3, `radix-ui` 1.7.0, `openapi-typescript` 7.13.0 + `openapi-fetch` 0.17.0, Vitest 5.0.3 with jsdom 30.1.2 and Testing Library, axe-core 4.13.0, Playwright 1.63.0 with `playwright-bdd` 9.2.1 and `@axe-core/playwright` 4.13.0, Lighthouse 13.5.0 and `web-vitals` 6.2.3, PostgreSQL 18.6. **No new dependency.**
 
-**Spec:** `docs/superpowers/specs/2026-10-11-hearth-design.md` (D2 a personal space is a shared space with one member; D4 a line's allocation is the default split; D5 fund-paid expenses create no debt; D9 a member moves money only through accounts they own; D15 guests; D16 direct spaces; spec 5.2 payments and shares, 5.3 the split rules). Stories: `docs/backlog/E9-web-ui.md` (the epic's rules, HU-E9-05, HU-E9-06, HU-E9-07; every dependency is `Done`). **Reference design:** the canvas "Hearth Web UI — Batch 2" (https://claude.ai/artifact/9hMXNC2hevXLDhBw3H8h78), files in `.superpowers/sdd/design-batch2/` (`canvas.json` and one `*.dc.html` per artboard). M6b uses the artboards Main (the members screen), Invite, AddGuest, GuestSheet, NewSpace, InvitePage, SharedExpense, Split, SplitWithPerson, FundWarning, Balances, SettleUp and BalanceHistory. The owner has not reviewed Batch 2 formally; their standing instruction (Log L1, below) makes the canvas the reference design, the story wins where they disagree, and every deviation is listed in the Self-Review for the owner's end review. Format template and precedent: `docs/superpowers/plans/2026-10-20-m6a-web-shell-and-ledger.md`. Rulings in force: P1–P154 (P117–P154 are M6a's, indexed in `docs/decisions/README.md`); this plan rules **P155–P183**. M6c (HU-E9-08, HU-E9-10, HU-E9-11) is planned in parallel from P200. GitHub Project: https://github.com/users/Facabore/projects/4.
+**Spec:** `docs/specs/2026-10-11-hearth-design.md` (D2 a personal space is a shared space with one member; D4 a line's allocation is the default split; D5 fund-paid expenses create no debt; D9 a member moves money only through accounts they own; D15 guests; D16 direct spaces; spec 5.2 payments and shares, 5.3 the split rules). Stories: `docs/backlog/E9-web-ui.md` (the epic's rules, HU-E9-05, HU-E9-06, HU-E9-07; every dependency is `Done`). **Reference design:** the canvas "Hearth Web UI — Batch 2" (https://claude.ai/artifact/9hMXNC2hevXLDhBw3H8h78), files in `.superpowers/sdd/design-batch2/` (`canvas.json` and one `*.dc.html` per artboard). M6b uses the artboards Main (the members screen), Invite, AddGuest, GuestSheet, NewSpace, InvitePage, SharedExpense, Split, SplitWithPerson, FundWarning, Balances, SettleUp and BalanceHistory. The owner has not reviewed Batch 2 formally; their standing instruction (Log L1, below) makes the canvas the reference design, the story wins where they disagree, and every deviation is listed in the Self-Review for the owner's end review. Format template and precedent: `docs/plans/2026-10-20-m6a-web-shell-and-ledger.md`. Rulings in force: P1–P154 (P117–P154 are M6a's, indexed in `docs/decisions/README.md`); this plan rules **P155–P183**. M6c (HU-E9-08, HU-E9-10, HU-E9-11) is planned in parallel from P200. GitHub Project: https://github.com/users/Facabore/projects/4.
 
 **Baseline: `development` after M6a's Task 19 commit** (`origin/development` at `aed175b` plus Task 19's commit `ci(web): fail the build on Core Web Vitals and script budgets, and document M6a`). The local checkout `C:/Things/hearth` was at `fcc4ff8` (M6a Task 9) while planning: the controller fast-forwards it first (`git pull --ff-only`) and starts from the commit that holds Task 19. Verified on that state while planning (worktree `hearth-worktrees/ship`):
 
@@ -2098,7 +2098,7 @@ Risk: none.
 
 ### Task 8: Guests: add one, hand over a claim link, remove a settled one
 
-The AddGuest and GuestSheet artboards (scenarios "An added guest is offered as payer and participant" — its members-screen half; "Create a claim link for a guest"; "Removing a guest with a balance shows the outstanding amount"; and "Controls follow the member's role", completed here; ruling P163). Add guest is offered to OWNER, ADMIN and MEMBER in a shared space; a guest's row has an options button when the viewer may create claim links or remove guests; the guest sheet shows the guest's balance sentence, creates a single-use claim link valid 7 days and shows it in a `CopyField`, and removes the guest after a confirmation. A removal refused with `OutstandingBalance` shows `errors.OutstandingBalance` with the problem's `outstanding` amount under it, and the guest stays listed. (The sheet's "Registrar pago" link joins in Task 19, when the settle-up form exists.)
+The AddGuest and GuestSheet artboards (scenarios "An added guest is offered as payer and participant" — its members-screen half; "Create a claim link for a guest"; "Removing a guest with a balance shows the outstanding amount"; and "Controls follow the member's role", completed here; ruling P163). Add guest is offered to OWNER, ADMIN and MEMBER in a shared space; a guest's row has an options button when the viewer may create claim links or remove guests; the guest sheet shows the guest's balance sentence, creates a single-use claim link valid 7 days and shows it in a `CopyField`, and removes the guest after a confirmation. A removal refused with `OutstandingBalance` shows `errors.OutstandingBalance` with the problem's `outstanding` amount under it, and the guest stays listed. (The sheet's "Saldar" link joins in Task 19, when the settle-up form exists.)
 
 **Files:**
 - Create: `src/modules/spaces/ui/members/{add-guest-sheet.tsx, guest-sheet.tsx, members-guests.test.tsx}`, `src/modules/balances/ui/{net-state.ts, net-state.test.ts, index.ts}`
@@ -4499,7 +4499,7 @@ Expected: FAIL — `Cannot find module './balances-screen'` and `'./balances-con
 
 The page `src/app/(web)/(app)/spaces/[spaceId]/balances/page.tsx` titles itself `balances.title` and renders `<div className="mx-auto max-w-[720px] py-4"><BalancesContainer spaceId={spaceId} /></div>` (Task 19 passes `settle`).
 
-Catalog keys (`balances`), es / en: `title` Saldos / Balances; `yours` Tu saldo en {space} / Your balance in {space}; `you.owes` Debes {amount} / You owe {amount}; `you.owed` Te deben {amount} / You are owed {amount}; `you.settled` Estás a paz y salvo / You are settled up; `suggestions` Para quedar a paz y salvo / To settle up; `owes` {payer} le debe {amount} a {receiver} / {payer} owes {receiver} {amount}; `suggestionsNote` Sugerencia con el menor número de pagos. Liquidar solo prellena el formulario. / The fewest payments that settle everyone. Settle only fills in the form.; `allSettled` Nadie le debe a nadie en {space}. / Nobody owes anybody in {space}.; `members` Cada miembro / Each member; `member.link` {name}: {sentence}. Ver historial / {name}: {sentence}. See history. (`member.owes`, `member.owed` and `member.settled` are Task 8's.)
+Catalog keys (`balances`), es / en: `title` Saldos / Balances; `yours` Tu saldo en {space} / Your balance in {space}; `you.owes` Debes {amount} / You owe {amount}; `you.owed` Te deben {amount} / You are owed {amount}; `you.settled` Estás a paz y salvo / You are settled up; `suggestions` Para quedar a paz y salvo / To settle up; `owes` {payer} le debe {amount} a {receiver} / {payer} owes {receiver} {amount}; `suggestionsNote` Sugerencia con el menor número de pagos. Saldar solo prellena el formulario. / The fewest payments that settle everyone. Settle only fills in the form.; `allSettled` Nadie le debe a nadie en {space}. / Nobody owes anybody in {space}.; `members` Cada miembro / Each member; `member.link` {name}: {sentence}. Ver historial / {name}: {sentence}. See history. (`member.owes`, `member.owed` and `member.settled` are Task 8's.)
 
 - [ ] **Step 4: Run the tests and the gates**
 
@@ -4641,7 +4641,7 @@ Risk: none.
 
 ### Task 19: Settle up from a suggestion, or record any payment
 
-The SettleUp artboard as a sheet of the balances screen (scenarios "Settle up from a suggestion" at component level, "Record a partial settlement" and "Settlement paid by a guest has no account field"; rulings P174 and P175). **Liquidar** on a suggestion only prefills the sheet (payer, receiver, amount); **Registrar pago** opens it with the viewer as receiver; `?settle=<memberId>` opens it with that member as payer and their suggestion's amount, which is how the guest sheet's "Registrar pago" arrives (added here to Task 8's OutstandingBalance notice). The sheet chooses who pays and who receives among the current members, the amount (a partial one is fine; the note says paying more flips the debt), the source account only when the viewer pays (their own accounts, optional) and the receiving account only when the viewer receives (optional); a guest pays without any account. It records now, in the browser's zone (no date picker in v1), with one `Idempotency-Key` per draft, through `POST …/settlements`, then refreshes the screen.
+The SettleUp artboard as a sheet of the balances screen (scenarios "Settle up from a suggestion" at component level, "Record a partial settlement" and "Settlement paid by a guest has no account field"; rulings P174 and P175). **Saldar** on a suggestion only prefills the sheet (payer, receiver, amount); **Saldar otro monto** opens it with the viewer as receiver; `?settle=<memberId>` opens it with that member as payer and their suggestion's amount, which is how the guest sheet's "Saldar" arrives (added here to Task 8's OutstandingBalance notice). The sheet chooses who pays and who receives among the current members, the amount (a partial one is fine; the note says paying more flips the debt), the source account only when the viewer pays (their own accounts, optional) and the receiving account only when the viewer receives (optional); a guest pays without any account. It records now, in the browser's zone (no date picker in v1), with one `Idempotency-Key` per draft, through `POST …/settlements`, then refreshes the screen.
 
 **Files:**
 - Create: `src/modules/balances/ui/{settlement-request.ts, settlement-request.test.ts, settle-up-sheet.tsx, settle-up.test.tsx}`
@@ -4732,7 +4732,7 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
   it("prefills the form from Juan's suggestion and records 100,000 COP from Juan to Ana once", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
     screenAs("u-juan", api);
-    await userEvent.click(screen.getByRole("button", { name: "Liquidar: Juan le paga $ 100.000 a Ana" }));
+    await userEvent.click(screen.getByRole("button", { name: "Saldar: Juan le paga $ 100.000 a Ana" }));
     expect(within(dialog()).getByRole("radiogroup", { name: "Quién paga" })).toBeInTheDocument();
     expect(within(within(dialog()).getByRole("radiogroup", { name: "Quién paga" })).getByRole("radio", { name: "Juan (tú)" })).toBeChecked();
     expect(within(within(dialog()).getByRole("radiogroup", { name: "Quién recibe" })).getByRole("radio", { name: "Ana" })).toBeChecked();
@@ -4754,7 +4754,7 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
   it("records a partial payment of 500,000 COP", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
     screenAs("u-juan", api);
-    await userEvent.click(screen.getByRole("button", { name: "Liquidar: Juan le paga $ 100.000 a Ana" }));
+    await userEvent.click(screen.getByRole("button", { name: "Saldar: Juan le paga $ 100.000 a Ana" }));
     await userEvent.clear(within(dialog()).getByLabelText("Monto"));
     await userEvent.type(within(dialog()).getByLabelText("Monto"), "50.000");
     await userEvent.click(within(dialog()).getByRole("radio", { name: "Davivienda" }));
@@ -4765,7 +4765,7 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
   it("hides the source account when the guest Pedro pays", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
     screenAs("u-ana", api);
-    await userEvent.click(screen.getByRole("button", { name: "Registrar pago" }));
+    await userEvent.click(screen.getByRole("button", { name: "Saldar otro monto" }));
     await userEvent.click(within(within(dialog()).getByRole("radiogroup", { name: "Quién paga" })).getByRole("radio", { name: "Pedro (invitado)" }));
     expect(within(dialog()).getByText("Pedro es invitado: pagó fuera de la app, así que no hay cuenta de origen.")).toBeInTheDocument();
     expect(within(dialog()).queryByRole("radiogroup", { name: "Sale de (opcional)" })).not.toBeInTheDocument();
@@ -4780,7 +4780,7 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
   it("refuses a payment to oneself without sending it", async () => {
     const { api, requests } = fakeApi({});
     screenAs("u-ana", api);
-    await userEvent.click(screen.getByRole("button", { name: "Registrar pago" }));
+    await userEvent.click(screen.getByRole("button", { name: "Saldar otro monto" }));
     await userEvent.click(within(within(dialog()).getByRole("radiogroup", { name: "Quién paga" })).getByRole("radio", { name: "Ana (tú)" }));
     await userEvent.type(within(dialog()).getByLabelText("Monto"), "1.000");
     await userEvent.click(within(dialog()).getByRole("button", { name: "Guardar pago" }));
@@ -4798,12 +4798,12 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
 
 (`ANA`, `JUAN`, `LUIS`, `net`, `router` and the imports as in `balances.test.tsx`, plus `accountDto`, `transactionDto`, `fakeApi`, `jsonResponse`, `userEvent`, `waitFor`. The radio "Juan (tú)" reads its label through `memberLabel`. The zone is passed, like the record form's tests do, so the date does not depend on the machine's zone.)
 
-`members-guests.test.tsx`, in "refuses to remove Pedro while he owes 100,000 COP": add `expect(within(alert).getByRole("link", { name: "Registrar pago" })).toHaveAttribute("href", "/spaces/sp-household/balances?settle=m-pedro");`.
+`members-guests.test.tsx`, in "refuses to remove Pedro while he owes 100,000 COP": add `expect(within(alert).getByRole("link", { name: "Saldar" })).toHaveAttribute("href", "/spaces/sp-household/balances?settle=m-pedro");`.
 
 - [ ] **Step 2: Run them and see them fail**
 
 Run: `pnpm exec vitest run --project unit src/modules/balances/ui/settlement-request.test.ts` and `pnpm exec vitest run --project ui src/modules/balances/ui src/modules/spaces/ui/members/members-guests.test.tsx`
-Expected: FAIL — the new modules do not exist; no "Liquidar" or "Registrar pago" buttons; no link in the guest's notice.
+Expected: FAIL — the new modules do not exist; no "Saldar" or "Saldar otro monto" buttons; no link in the guest's notice.
 
 - [ ] **Step 3: Implement**
 
@@ -4910,7 +4910,7 @@ export const prefillOf = (input: {
 
 `guest-sheet.tsx`: the `OutstandingBalance` detail becomes `<>{t("guest.outstanding", { amount })} <Link href={`/spaces/${space.id}/balances?settle=${guest.id}`}>{t("guest.settle")}</Link></>`.
 
-Catalog keys, es / en: `balances.record` Registrar pago / Record a payment; `balances.settle.action` Liquidar / Settle; `balances.settle.suggestion` Liquidar: {payer} le paga {amount} a {receiver} / Settle: {payer} pays {receiver} {amount}; `balances.settle.title` Registrar pago / Record a payment; `balances.settle.payer` Quién paga / Who pays; `balances.settle.receiver` Quién recibe / Who receives; `balances.settle.amount` Monto / Amount; `balances.settle.debt` {payer} le debe {amount} a {receiver}. Puedes registrar un pago parcial; si pagas de más, la deuda cambia de lado. / {payer} owes {receiver} {amount}. You can record a partial payment; paying more turns the debt around.; `balances.settle.noDebt` {payer} no le debe nada a {receiver}. / {payer} owes {receiver} nothing.; `balances.settle.guestNote` {name} es invitado: pagó fuera de la app, así que no hay cuenta de origen. / {name} is a guest: they paid outside the app, so there is no source account.; `balances.settle.from` Sale de (opcional) / Paid from (optional); `balances.settle.to` Llega a (opcional) / Received in (optional); `balances.settle.none` Ninguna / None; `balances.settle.payerRequired` Elige quién paga. / Choose who pays.; `balances.settle.save` Guardar pago / Save payment; `members.guest.settle` Registrar pago / Record a payment.
+Catalog keys, es / en: `balances.record` Saldar otro monto / Settle another amount; `balances.settle.action` Saldar / Settle; `balances.settle.suggestion` Saldar: {payer} le paga {amount} a {receiver} / Settle: {payer} pays {receiver} {amount}; `balances.settle.title` Registrar pago / Record a payment; `balances.settle.payer` Quién paga / Who pays; `balances.settle.receiver` Quién recibe / Who receives; `balances.settle.amount` Monto / Amount; `balances.settle.debt` {payer} le debe {amount} a {receiver}. Puedes registrar un pago parcial; si pagas de más, la deuda cambia de lado. / {payer} owes {receiver} {amount}. You can record a partial payment; paying more turns the debt around.; `balances.settle.noDebt` {payer} no le debe nada a {receiver}. / {payer} owes {receiver} nothing.; `balances.settle.guestNote` {name} es invitado: pagó fuera de la app, así que no hay cuenta de origen. / {name} is a guest: they paid outside the app, so there is no source account.; `balances.settle.from` Sale de (opcional) / Paid from (optional); `balances.settle.to` Llega a (opcional) / Received in (optional); `balances.settle.none` Ninguna / None; `balances.settle.payerRequired` Elige quién paga. / Choose who pays.; `balances.settle.save` Guardar pago / Save payment; `members.guest.settle` Registrar pago / Record a payment.
 
 - [ ] **Step 4: Run the tests and the gates**
 
@@ -4931,7 +4931,7 @@ Risk: none.
 
 ### Task 20: The @e2e scenario of settling up from a suggestion
 
-HU-E9-07's `@e2e` scenario, verbatim: in "Trip 2026" the nets are Ana +150,000, Juan −100,000 and Luis −50,000 COP (seeded as one expense Ana paid, split EXACT 100,000 / 50,000 between Juan and Luis); Juan, the page's person, opens the balances screen, chooses **Liquidar** on "Juan pays Ana 100,000 COP", confirms the prefilled form, finds the settlement in the transaction list and reads his net as settled. The browser's clock reads 2026-10-31 12:00 Bogotá, inside the server's current period (P178).
+HU-E9-07's `@e2e` scenario, verbatim: in "Trip 2026" the nets are Ana +150,000, Juan −100,000 and Luis −50,000 COP (seeded as one expense Ana paid, split EXACT 100,000 / 50,000 between Juan and Luis); Juan, the page's person, opens the balances screen, chooses **Saldar** on "Juan pays Ana 100,000 COP", confirms the prefilled form, finds the settlement in the transaction list and reads his net as settled. The browser's clock reads 2026-10-31 12:00 Bogotá, inside the server's current period (P178).
 
 **Files:**
 - Create: `tests/e2e/features/balances.feature`, `tests/e2e/steps/balances.steps.ts`
@@ -5341,7 +5341,7 @@ The owner's rule "every decision, architecture and ERD in `docs/`, one decisions
   - HU-E9-07's notes: the containers become `BalancesContainer` (with the settle-up sheet) and `HistoryContainer`; "Accepting a suggestion only prefills the form" gains "(the sheet records now in the browser's zone, with one `Idempotency-Key` per draft, P174)"; the history note "a period of the space, `?from=<date>` (P176)".
   - A new section `## Follow-ups after M6b` listing the Self-Review's follow-ups.
 - `docs/architecture/README.md`, section "Web UI": a paragraph on the open pages (route group `(open)`, `OPEN_PREFIXES` in the proxy, the public previews) and one on the split preview mirroring `splitShares` with a parity test; the Modules paragraph adds `balances` to the modules with a `ui/` layer.
-- `mkdocs.yml`: the plans list gains `"M6b Shared spaces, split and balances": superpowers/plans/2026-10-21-m6b-shared-spaces-split-balances.md` after M6a.
+- `mkdocs.yml`: the plans list gains `"M6b Shared spaces, split and balances": plans/2026-10-21-m6b-shared-spaces-split-balances.md` after M6a.
 - `.superpowers/sdd/pending-ideas.md`: under "Decisions taken under the standing delegation", one line per design deviation of the Self-Review and per M6b follow-up, for the owner's end review (L1).
 
 - [ ] **Step 2: Run the gates**
@@ -5372,7 +5372,7 @@ Risk: none (passive documentation).
 | `@e2e` A visitor accepts a link invitation after signing up (page shows Household and MEMBER; sign up; returned; accept; members list Juan as Member) | Task 2 (preview), Task 3 (open path, sign-up `next`), Task 9 (card states), Task 10 (`spaces.feature`) |
 | An added guest is offered as payer and participant; the members screen lists "Pedro (guest)" | Task 8 (add guest, "Pedro (invitado)" row); Task 13 (payer radios "Ana (tú)", "Pedro (invitado)"; participants Ana, Luis, Pedro) |
 | Create a claim link for a guest, copyable, expiring 7 days later | Task 8 (claim link in a `CopyField`, "Un solo uso · vence el 19/10/2026"); Task 4 (`CopyField`) |
-| Removing a guest with a balance shows `errors.OutstandingBalance` with the amount; still listed | Task 4 (`Problem.outstanding`, `ProblemNotice` detail); Task 8 (notice with "Saldo pendiente: $ 100.000", no refresh); Task 19 (its "Registrar pago" link) |
+| Removing a guest with a balance shows `errors.OutstandingBalance` with the amount; still listed | Task 4 (`Problem.outstanding`, `ProblemNotice` detail); Task 8 (notice with "Saldo pendiente: $ 100.000", no refresh); Task 19 (its "Saldar" link) |
 | Controls follow the member's role (Luis: Add guest, no Invite; Sofi: neither) | Task 6 (`SPACE_CONTROLS` parity, `controlsFor`); Task 7 (Invitar for OWNER only); Task 8 (the scenario) |
 | Note: the containers and actions (`CreateSharedSpace`, `CreateInvitation`, `RevokeInvitation`, `AcceptInvitation`, `AddGuestMember`, `CreateGuestClaim`, `ClaimGuestPlace`, `RemoveGuestMember`, `ChangeMemberRole`) | Tasks 5–9 through `/api/v1` (P117); `ChangeMemberRole` in Task 6; the pending list needed Task 1's `GET …/invitations` |
 | Note: invitation and claim pages reachable without a session; signing up from them returns to the same page | Tasks 2, 3 and 9 (P156, P157) |
@@ -5398,7 +5398,7 @@ Risk: none (passive documentation).
 | Scenario or technical note | Covered by |
 |---|---|
 | Balances show who owes whom ("Juan owes Ana 150,000 COP") | Task 17 (`balances.owes` "Juan le debe $ 150.000 a Ana", English "Juan owes Ana $ 150.000") |
-| `@e2e` Settle up from a suggestion (prefilled form; settlement listed; Juan at 0) | Task 19 (Liquidar prefill, body, one key); Task 14 (settlement row "Juan → Ana"); Task 20 (e2e) |
+| `@e2e` Settle up from a suggestion (prefilled form; settlement listed; Juan at 0) | Task 19 (Saldar prefill, body, one key); Task 14 (settlement row "Juan → Ana"); Task 20 (e2e) |
 | Record a partial settlement (500,000 of 1,200,000) | Task 19 ("records a partial payment"); the remaining 700,000 is the API's (HU-E5-02 acceptance tests) |
 | Settlement paid by a guest has no account field; Pedro ends at 0 | Task 19 (no "Sale de", no `sourceAccountId`); the resulting net is the API's |
 | Balance history per member (running −150,000, −100,000, 0) | Task 18 (rows "debe $ 150.000", "debe $ 100.000", "a paz y salvo") |
@@ -5450,7 +5450,7 @@ Risk: none (passive documentation).
 18. **Split with someone** (Task 15). **Ruled by the planner (P172):** only from the personal space's expense form; the people are each registered co-member once (their direct space's member when one exists) and the guests of the person's direct spaces, or a new guest by name; the category travels by its catalog key (the subcategory's, else its parent's), and a category without one is refused before the request; always halves (the API takes no split); afterwards the direct space's list. Alternative rejected: a new endpoint listing counterparts (the members of each space already answer it; one server read per space).
 19. **Balance sentences** (Tasks 8, 17, 18). **Ruled by the planner (P173):** a net is "debe", "le deben" or "a paz y salvo" with the absolute amount, from `memberSentence`; suggestion and member sentences use names, never "you", so the story's "Juan owes Ana 150,000 COP" reads the same from every seat; only the header speaks to the viewer.
 20. **Settle-up** (Task 19). **Ruled by the planner (P174):** a sheet on the balances screen; payer and receiver among the current members, different; the source account only when the viewer pays, the receiving one only when the viewer receives, both optional; a guest uses none; recorded now in the browser's zone (no date picker in v1); one `Idempotency-Key` per draft; a VIEWER sees no settle-up controls.
-21. **Prefill** (Task 19). **Ruled by the planner (P175):** Liquidar prefills a suggestion's payer, receiver and amount; Registrar pago makes the viewer the receiver; `?settle=<memberId>` opens the sheet with that member as payer and their suggestion's amount (the guest sheet's link).
+21. **Prefill** (Task 19). **Ruled by the planner (P175):** Saldar prefills a suggestion's payer, receiver and amount; Saldar otro monto makes the viewer the receiver; `?settle=<memberId>` opens the sheet with that member as payer and their suggestion's amount (the guest sheet's link).
 22. **Balance history range** (Task 18). **Ruled by the planner (P176):** a period of the space, the current one by default and `?from=<date>` for another, with previous and next links from `GET …/periods`; entries show the date, the description (or the type), the change and the running balance as a sentence.
 23. **Budgets of the new routes** (Task 21). **Ruled by the planner (P177), under the owner's standing delegation of P154:** `/spaces/new` 190, members 200, balances 200, history 190, the shared expense form 215, the invitation and claim pages 185 KiB, set from P154's measured siblings plus the new code; LCP, CLS, TBT and INP unchanged; a second INP run over the split editor; a missed budget is fixed by lazy loading or reported, never raised; a budget may be lowered to its measurement plus 5 KiB.
 24. **e2e people and clocks** (Tasks 10, 16, 20). **Ruled by the planner (P178):** other people in a scenario sign up in their own Playwright request contexts with the test's address, and are disposed at its end; each scenario that records money fixes the browser's clock inside the server's fixed period (2026-10-31 12:00 Bogotá) or, for the plan scenario, at 2026-11-08 14:32 Bogotá.
@@ -5472,7 +5472,7 @@ Risk: none (passive documentation).
 8. **Split:** a sheet, not a full screen; other registered members are not payers (D9, P168); the account is a chip row "Desde", not a nested picker.
 9. **SplitWithPerson:** "Se crea un espacio para los dos" instead of "Se crea «Ana y Luis»", and direct spaces are named "Ana & Luis" by the domain.
 10. **FundWarning:** the day headings and per-day totals stay M6a's (P130).
-11. **Balances:** suggestions read "Juan le debe $ 100.000 a Ana" (the story's "owes") with a "Liquidar" button whose name says "le paga"; no cross-space hint; the Plan tab is M6c's.
+11. **Balances:** suggestions read "Juan le debe $ 100.000 a Ana" (the story's "owes") with a "Saldar" button whose name says "le paga"; no cross-space hint; the Plan tab is M6c's.
 12. **SettleUp:** no date control (records now, P174); the receiver is a choice, not fixed to the viewer.
 13. **BalanceHistory:** entry titles are descriptions (the API's entries have no payer or amount); the range moves by period instead of a free range.
 

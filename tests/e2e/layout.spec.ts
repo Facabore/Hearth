@@ -1012,15 +1012,9 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
           expect
             .soft(box.height, "a link of the dashboard is at least 44 px tall")
             .toBeGreaterThanOrEqual(TARGET);
-          // The view tabs scroll inside their own row (P200): below 360 px the fourth waits beyond the edge, and
-          // scrolling brings it fully on screen. Every other link ends on screen where it stands.
-          const inTabs = await link.evaluate(
-            (el, label) => el.closest("nav")?.getAttribute("aria-label") === label,
-            es.reports.tabs.label,
-          );
-          if (inTabs) await link.scrollIntoViewIfNeeded();
-          const shown = (await link.boundingBox())!;
-          expect.soft(shown.x + shown.width, "and ends on screen").toBeLessThanOrEqual(viewport.width);
+          // Issue #174 (U3): the view tabs wrap to a second row, so every link, a tab included, ends on screen where
+          // it stands, with no scrolling.
+          expect.soft(box.x + box.width, "and ends on screen").toBeLessThanOrEqual(viewport.width);
         }
       }
       // The long line wraps inside its row instead of widening the page.
@@ -1062,12 +1056,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
     const controls = page.locator("main").getByRole("link").or(page.locator("main").getByRole("button"));
     expect.soft(await controls.count(), `${what}: has controls`).toBeGreaterThan(0);
     for (const control of await controls.all()) {
-      // The view tabs scroll inside their own row (P200): a tab beyond the edge is scrolled fully on screen first.
-      const inTabs = await control.evaluate(
-        (el, label) => el.closest("nav")?.getAttribute("aria-label") === label,
-        es.reports.tabs.label,
-      );
-      if (inTabs) await control.scrollIntoViewIfNeeded();
+      // Issue #174 (U3): the view tabs wrap instead of scrolling, so no control waits beyond the edge.
       const box = (await control.boundingBox())!;
       const label = (await control.getAttribute("aria-label")) ?? (await control.textContent())?.trim();
       expect.soft(box.height, `${what}: height of "${label}"`).toBeGreaterThanOrEqual(TARGET);
@@ -1474,9 +1463,10 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       // Ana's September income is in neither the text nor the data of Juan's page...
       expect(sent).not.toContain("1.650.000");
       expect(sent).not.toContain("165000000");
-      // ...and his own row carries his own suggestion: he earned nothing.
+      // ...and his own row has no suggestion: he earned nothing, and a suggestion of 0 is dropped (#175).
       expect(sent).toContain("Capacidad de Juan");
-      expect(sent).toMatch(/Sugerido \$\s0:/);
+      // The catalog's "Sugerido {amount}" template travels with the messages; no rendered amount follows it.
+      expect(sent).not.toMatch(/Sugerido \$/);
     } finally {
       await juan.dispose();
     }
@@ -2500,6 +2490,9 @@ test.describe("Settings says Guardado and keeps Restablecer where it was (U5)", 
       const group = page.getByRole("group", { name: es.settings.field.numberFormat });
       const slot = group.getByTestId("preference-state");
       await expect(slot.getByText(es.settings.default)).toBeVisible();
+      // Since Apariencia e idioma comes first (#176), the group sits near the bottom bar: centring it first keeps the
+      // click from scrolling the page, so a moved box can only mean the layout moved.
+      await group.evaluate((el) => el.scrollIntoView({ block: "center" }));
       const before = {
         slot: (await slot.boundingBox())!,
         choices: (await group.getByRole("radiogroup").boundingBox())!,
@@ -2509,7 +2502,7 @@ test.describe("Settings says Guardado and keeps Restablecer where it was (U5)", 
       const reset = slot.getByRole("button", { name: es.settings.reset });
       await expect(reset).toBeVisible();
       const status = group.getByRole("status");
-      await expect(status).toHaveText(es.settings.saved);
+      await expect(status).toHaveText(es.common.saved);
       const after = {
         slot: (await slot.boundingBox())!,
         choices: (await group.getByRole("radiogroup").boundingBox())!,

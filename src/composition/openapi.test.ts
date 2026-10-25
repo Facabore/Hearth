@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { buildOpenApiDocument, changedOperations } from "./openapi";
+import { buildOpenApiDocument, changedOperations, snapshotOf } from "./openapi";
 
 const SNAPSHOT = "openapi/openapi.snapshot.json";
 
@@ -22,7 +22,7 @@ describe("OpenAPI document", () => {
 
   it("matches the committed snapshot operation by operation", () => {
     if (process.env.UPDATE_OPENAPI_SNAPSHOT === "1") {
-      writeFileSync(SNAPSHOT, `${JSON.stringify(doc, null, 2)}\n`);
+      writeFileSync(SNAPSHOT, snapshotOf(doc));
       return;
     }
     const committed = JSON.parse(readFileSync(SNAPSHOT, "utf8"));
@@ -191,5 +191,21 @@ describe("OpenAPI document", () => {
 
   it("reports nothing for identical documents", () => {
     expect(changedOperations(doc, structuredClone(doc))).toEqual([]);
+  });
+
+  it("writes the snapshot with its component schemas in name order, so a component never moves (#114)", () => {
+    const written = JSON.parse(
+      snapshotOf({ openapi: "3.1.0", paths: {}, components: { schemas: { Zeta: {}, Alpha: {}, Mid: {} } } }),
+    );
+    expect(Object.keys(written.components.schemas)).toEqual(["Alpha", "Mid", "Zeta"]);
+    expect(Object.keys(JSON.parse(snapshotOf(doc)).components.schemas)).toEqual(
+      Object.keys(doc.components.schemas).sort(),
+    );
+  });
+
+  it("is committed in that order", () => {
+    const committed = JSON.parse(readFileSync(SNAPSHOT, "utf8"));
+    const names = Object.keys(committed.components.schemas);
+    expect(names).toEqual([...names].sort());
   });
 });

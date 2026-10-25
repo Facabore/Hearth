@@ -7,7 +7,7 @@ import type { Problem } from "@/shared/ui/api/problem";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import { zoneCity, zoneOffset } from "@/shared/ui/format/zones";
 import { LockBadge } from "./lock-badge";
-import { SavedFlash } from "./saved-flash";
+import { SavedFlash } from "@/shared/ui/molecules/saved-flash";
 import { TimeZoneSheet } from "./time-zone-sheet";
 
 /** HU-E9-13: the time zone row; the design's currency row is not built (ruling P126). */

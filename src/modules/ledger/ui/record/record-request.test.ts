@@ -253,6 +253,22 @@ describe("afterSaveUrl (HU-E9-06, ruling P170)", () => {
     ).toBe("/spaces/sp-household/transactions?notice=FundBalanceNegative&account=a-fund");
   });
 
+  it("returns to a valid returnTo (issue #172), and to the list when it is invalid or the fund went negative", () => {
+    const negative = [
+      {
+        code: "FundBalanceNegative" as const,
+        accountId: "a-fund",
+        balance: { amount: "-50000000", currency: "COP" },
+      },
+    ];
+    expect(afterSaveUrl("sp-household", [], "/spaces/sp-household/plan")).toBe("/spaces/sp-household/plan");
+    expect(afterSaveUrl("sp-household", [], "//evil.example")).toBe("/spaces/sp-household/transactions");
+    expect(afterSaveUrl("sp-household", [], "/sign-in")).toBe("/spaces/sp-household/transactions");
+    expect(afterSaveUrl("sp-household", negative, "/spaces/sp-household/plan")).toBe(
+      "/spaces/sp-household/transactions?notice=FundBalanceNegative&account=a-fund",
+    );
+  });
+
   it("never puts an amount in the address and encodes the account id", () => {
     const url = afterSaveUrl("sp-household", [
       {

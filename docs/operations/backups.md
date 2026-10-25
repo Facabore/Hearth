@@ -125,7 +125,7 @@ To turn it on:
         RCLONE_CONFIG_RAW_SECRET_ACCESS_KEY=…
         RCLONE_CONFIG_OFFSITE_TYPE=crypt
         RCLONE_CONFIG_OFFSITE_REMOTE=raw:my-bucket/hearth
-        # The next value is the output of: docker run --rm -i rclone/rclone:1.75.1 obscure -   (type the passphrase, then Ctrl-D).
+        # The next value is the output of: docker run --rm -i rclone/rclone:1.75.2 obscure -   (type the passphrase, then Ctrl-D).
         # Keep comments on their own lines: `docker run --env-file` would read a trailing comment as part of the value.
         RCLONE_CONFIG_OFFSITE_PASSWORD=…
         BACKUP_OFFSITE_REMOTE=offsite:
@@ -140,5 +140,5 @@ To turn it off, remove `COMPOSE_PROFILES=offsite` from `.env` and stop the runni
 
 To restore from the off-site copy, download the file next to `compose.yaml` (`backup-offsite` cannot write to the volume), put it in the volume with `docker compose cp`, and follow [Restoring for real](#restoring-for-real):
 
-    docker run --rm --env-file .env.offsite -v "$PWD:/data" --entrypoint sh rclone/rclone:1.75.1 -c 'rclone copy "$BACKUP_OFFSITE_REMOTE" /data --include hearth-2026-11-12.sql.gz'
+    docker run --rm --env-file .env.offsite -v "$PWD:/data" --entrypoint sh rclone/rclone:1.75.2 -c 'rclone copy "$BACKUP_OFFSITE_REMOTE" /data --include hearth-2026-11-12.sql.gz'
     docker compose cp hearth-2026-11-12.sql.gz backup:/backups/

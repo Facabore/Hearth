@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { splitShares, type SplitInput } from "@/modules/ledger/domain/split";
 import { Money } from "@/shared/kernel";
-import { allocateMinor, previewSplit, type ParticipantValue, type ShareMethod } from "./split-math";
+import {
+  allocateMinor,
+  equalPercents,
+  previewSplit,
+  remainingPercent,
+  type ParticipantValue,
+  type ShareMethod,
+} from "./split-math";
 
 const JOIN_ORDER = ["m-ana", "m-juan", "m-luis"];
 const preview = (method: ShareMethod, amount: string, participants: ParticipantValue[]) =>
@@ -277,5 +284,21 @@ describe("allocateMinor equals Money.allocate for any weights", () => {
       if (!expected.ok) throw new Error("bad weights");
       expect(allocateMinor(minor, weights, unit)).toEqual(expected.value.map((part) => part.minor));
     }
+  });
+});
+
+describe("percent helpers (issue #177)", () => {
+  it("splits 100 % in equal hundredths with the remainder on the last", () => {
+    expect(equalPercents(2)).toEqual(["50", "50"]);
+    expect(equalPercents(3)).toEqual(["33.33", "33.33", "33.34"]);
+    expect(equalPercents(0)).toEqual([]);
+  });
+
+  it("works out the last person's percent from the others, and none past 100 % or with an unreadable one", () => {
+    expect(remainingPercent(["40"])).toBe("60");
+    expect(remainingPercent(["33.33", "33.33"])).toBe("33.34");
+    expect(remainingPercent(["100"])).toBe("0");
+    expect(remainingPercent(["70", "40"])).toBeNull();
+    expect(remainingPercent(["40", null])).toBeNull();
   });
 });

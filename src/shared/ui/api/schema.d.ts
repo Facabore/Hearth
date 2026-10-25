@@ -1366,164 +1366,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        Money: {
-            amount: string;
-            currency: string;
-        };
-        Category: {
-            id: string;
-            groupId: string;
-            parentCategoryId: string | null;
-            name: string;
-            key: string | null;
-            archivedAt: string | null;
-            icon: {
-                /** @constant */
-                kind: "SYMBOL";
-                name: string;
-            } | {
-                /** @constant */
-                kind: "EMOJI";
-                value: string;
-            };
-            /** @enum {string} */
-            color: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
-        };
-        RecurrenceDefinition: {
-            description: string;
-            amount: components["schemas"]["Money"];
-            template: {
-                /** @constant */
-                type: "EXPENSE";
-                categoryId: string;
-                payer: {
-                    memberId: string | null;
-                    accountId?: string | null;
-                };
-                split?: ({
-                    /** @constant */
-                    method: "EQUAL";
-                    participants: {
-                        memberId: string;
-                    }[];
-                } | {
-                    /** @constant */
-                    method: "PERCENT";
-                    participants: {
-                        memberId: string;
-                        percent: string;
-                    }[];
-                } | {
-                    /** @constant */
-                    method: "SHARES";
-                    participants: {
-                        memberId: string;
-                        units: number;
-                    }[];
-                }) | null;
-            } | {
-                /** @constant */
-                type: "INCOME";
-                categoryId: string;
-                accountId: string;
-            } | {
-                /** @constant */
-                type: "TRANSFER";
-                sourceAccountId: string;
-                destinationAccountId: string;
-            } | {
-                /** @constant */
-                type: "FUND_CONTRIBUTION";
-                fundAccountId: string;
-                memberId?: string | null;
-                sourceAccountId?: string | null;
-            };
-            schedule: {
-                /** @constant */
-                kind: "MONTHLY";
-                day: number;
-            } | {
-                /** @constant */
-                kind: "SEMI_MONTHLY";
-                day1: number;
-                day2: number;
-            };
-            /** @enum {string} */
-            mode: "AUTO" | "CONFIRM";
-            /** Format: date */
-            startDate: string;
-            endDate?: string | null;
-        };
-        Problem: {
-            type: string;
-            title: string;
-            status: number;
-            code: string;
-            requestId: string;
-            errors?: {
-                path: string;
-                message: string;
-            }[];
-            outstanding?: components["schemas"]["MoneyOutput"];
-            lineIds?: string[];
-            /** @enum {string} */
-            member?: "creator";
-            field?: string;
-        };
-        CategoryGroup: {
-            id: string;
-            name: string;
-            key: string | null;
-            archivedAt: string | null;
-            icon: {
-                /** @constant */
-                kind: "SYMBOL";
-                name: string;
-            } | {
-                /** @constant */
-                kind: "EMOJI";
-                value: string;
-            };
-            /** @enum {string} */
-            color: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
-            categories: {
-                id: string;
-                groupId: string;
-                parentCategoryId: string | null;
-                name: string;
-                key: string | null;
-                archivedAt: string | null;
-                icon: {
-                    /** @constant */
-                    kind: "SYMBOL";
-                    name: string;
-                } | {
-                    /** @constant */
-                    kind: "EMOJI";
-                    value: string;
-                };
-                /** @enum {string} */
-                color: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
-                subcategories: components["schemas"]["CategoryOutput"][];
-            }[];
-        };
-        CategoryGroupSummary: {
-            id: string;
-            name: string;
-            key: string | null;
-            archivedAt: string | null;
-            icon: {
-                /** @constant */
-                kind: "SYMBOL";
-                name: string;
-            } | {
-                /** @constant */
-                kind: "EMOJI";
-                value: string;
-            };
-            /** @enum {string} */
-            color: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
-        };
         Account: {
             id: string;
             name: string;
@@ -1559,150 +1401,6 @@ export interface components {
                 equivalentMonthlyRate: string | null;
                 startDate: string | null;
             };
-        };
-        Space: {
-            id: string;
-            name: string;
-            /** @enum {string} */
-            kind: "PERSONAL" | "SHARED" | "DIRECT";
-            currency: string;
-            periodPolicy: {
-                /** @constant */
-                kind: "MONTHLY";
-                day: number;
-            } | {
-                /** @constant */
-                kind: "SEMI_MONTHLY";
-                day1: number;
-                day2: number;
-            };
-            role: ("OWNER" | "ADMIN" | "MEMBER" | "VIEWER") | null;
-        };
-        SpaceMember: {
-            id: string;
-            /** @enum {string} */
-            kind: "USER" | "GUEST";
-            userId: string | null;
-            displayName: string;
-            role: ("OWNER" | "ADMIN" | "MEMBER" | "VIEWER") | null;
-            contactEmail: string | null;
-            /** Format: date-time */
-            joinedAt: string;
-        };
-        Invitation: {
-            id: string;
-            spaceId: string;
-            /** @enum {string} */
-            kind: "EMAIL" | "LINK" | "CLAIM";
-            email: string | null;
-            /** @enum {string} */
-            role: "ADMIN" | "MEMBER" | "VIEWER";
-            /** @enum {string} */
-            status: "PENDING" | "ACCEPTED" | "REVOKED" | "EXPIRED";
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            expiresAt: string;
-        };
-        InvitationPreview: {
-            /** @enum {string} */
-            kind: "EMAIL" | "LINK";
-            spaceName: string;
-            /** @enum {string} */
-            role: "ADMIN" | "MEMBER" | "VIEWER";
-            /** @enum {string} */
-            status: "PENDING" | "ACCEPTED" | "REVOKED" | "EXPIRED";
-            /** Format: date-time */
-            expiresAt: string;
-            invitedBy: string | null;
-        };
-        ClaimPreview: {
-            spaceName: string;
-            guestName: string | null;
-            /** @enum {string} */
-            status: "PENDING" | "ACCEPTED" | "REVOKED" | "EXPIRED";
-            /** Format: date-time */
-            expiresAt: string;
-            invitedBy: string | null;
-        };
-        Period: {
-            label: string;
-            /** Format: date */
-            startDate: string;
-            /** Format: date */
-            endDate: string;
-        };
-        Transaction: {
-            id: string;
-            /** @enum {string} */
-            type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
-            description: string;
-            /** Format: date */
-            date: string;
-            occurredAt: string | null;
-            timeZone: string | null;
-            amount: components["schemas"]["MoneyOutput"];
-            categoryId: string | null;
-            payments: {
-                memberId: string | null;
-                accountId: string | null;
-                amount: components["schemas"]["MoneyOutput"];
-            }[];
-            shares: {
-                memberId: string;
-                amount: components["schemas"]["MoneyOutput"];
-                /** @enum {string} */
-                splitMethod: "EQUAL" | "PERCENT" | "EXACT" | "SHARES" | "BY_ALLOCATION";
-            }[];
-            sourceAccountId: string | null;
-            destinationAccountId: string | null;
-            receivingMemberId: string | null;
-            payerMemberId: string | null;
-            createdBy: string;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-            version: number;
-        };
-        RecordedExpense: {
-            id: string;
-            /** @enum {string} */
-            type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
-            description: string;
-            /** Format: date */
-            date: string;
-            occurredAt: string | null;
-            timeZone: string | null;
-            amount: components["schemas"]["MoneyOutput"];
-            categoryId: string | null;
-            payments: {
-                memberId: string | null;
-                accountId: string | null;
-                amount: components["schemas"]["MoneyOutput"];
-            }[];
-            shares: {
-                memberId: string;
-                amount: components["schemas"]["MoneyOutput"];
-                /** @enum {string} */
-                splitMethod: "EQUAL" | "PERCENT" | "EXACT" | "SHARES" | "BY_ALLOCATION";
-            }[];
-            sourceAccountId: string | null;
-            destinationAccountId: string | null;
-            receivingMemberId: string | null;
-            payerMemberId: string | null;
-            createdBy: string;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-            version: number;
-            warnings: {
-                /** @enum {string} */
-                code: "FundBalanceNegative";
-                accountId: string;
-                balance: components["schemas"]["MoneyOutput"];
-            }[];
         };
         BudgetPlan: {
             id: string;
@@ -1786,6 +1484,219 @@ export interface components {
                 }[];
             };
         };
+        Category: {
+            id: string;
+            groupId: string;
+            parentCategoryId: string | null;
+            name: string;
+            key: string | null;
+            archivedAt: string | null;
+            icon: {
+                /** @constant */
+                kind: "SYMBOL";
+                name: string;
+            } | {
+                /** @constant */
+                kind: "EMOJI";
+                value: string;
+            };
+            /** @enum {string} */
+            color: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
+        };
+        CategoryGroup: {
+            id: string;
+            name: string;
+            key: string | null;
+            archivedAt: string | null;
+            icon: {
+                /** @constant */
+                kind: "SYMBOL";
+                name: string;
+            } | {
+                /** @constant */
+                kind: "EMOJI";
+                value: string;
+            };
+            /** @enum {string} */
+            color: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
+            categories: {
+                id: string;
+                groupId: string;
+                parentCategoryId: string | null;
+                name: string;
+                key: string | null;
+                archivedAt: string | null;
+                icon: {
+                    /** @constant */
+                    kind: "SYMBOL";
+                    name: string;
+                } | {
+                    /** @constant */
+                    kind: "EMOJI";
+                    value: string;
+                };
+                /** @enum {string} */
+                color: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
+                subcategories: components["schemas"]["CategoryOutput"][];
+            }[];
+        };
+        CategoryGroupSummary: {
+            id: string;
+            name: string;
+            key: string | null;
+            archivedAt: string | null;
+            icon: {
+                /** @constant */
+                kind: "SYMBOL";
+                name: string;
+            } | {
+                /** @constant */
+                kind: "EMOJI";
+                value: string;
+            };
+            /** @enum {string} */
+            color: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
+        };
+        CategoryOutput: {
+            id: string;
+            groupId: string;
+            parentCategoryId: string | null;
+            name: string;
+            key: string | null;
+            archivedAt: string | null;
+            icon: {
+                /** @constant */
+                kind: "SYMBOL";
+                name: string;
+            } | {
+                /** @constant */
+                kind: "EMOJI";
+                value: string;
+            };
+            /** @enum {string} */
+            color: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
+        };
+        ClaimPreview: {
+            spaceName: string;
+            guestName: string | null;
+            /** @enum {string} */
+            status: "PENDING" | "ACCEPTED" | "REVOKED" | "EXPIRED";
+            /** Format: date-time */
+            expiresAt: string;
+            invitedBy: string | null;
+        };
+        Invitation: {
+            id: string;
+            spaceId: string;
+            /** @enum {string} */
+            kind: "EMAIL" | "LINK" | "CLAIM";
+            email: string | null;
+            /** @enum {string} */
+            role: "ADMIN" | "MEMBER" | "VIEWER";
+            /** @enum {string} */
+            status: "PENDING" | "ACCEPTED" | "REVOKED" | "EXPIRED";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        InvitationPreview: {
+            /** @enum {string} */
+            kind: "EMAIL" | "LINK";
+            spaceName: string;
+            /** @enum {string} */
+            role: "ADMIN" | "MEMBER" | "VIEWER";
+            /** @enum {string} */
+            status: "PENDING" | "ACCEPTED" | "REVOKED" | "EXPIRED";
+            /** Format: date-time */
+            expiresAt: string;
+            invitedBy: string | null;
+        };
+        Money: {
+            amount: string;
+            currency: string;
+        };
+        MoneyOutput: {
+            amount: string;
+            currency: string;
+        };
+        Occurrence: {
+            id: string;
+            recurrenceId: string;
+            /** @enum {string} */
+            type: "EXPENSE" | "INCOME" | "TRANSFER" | "FUND_CONTRIBUTION";
+            description: string;
+            /** Format: date */
+            date: string;
+            /** @enum {string} */
+            status: "RECORDED" | "PENDING" | "SKIPPED";
+            amount: components["schemas"]["MoneyOutput"];
+            categoryId: string | null;
+            transactionId: string | null;
+            reason: string | null;
+        };
+        Period: {
+            label: string;
+            /** Format: date */
+            startDate: string;
+            /** Format: date */
+            endDate: string;
+        };
+        Problem: {
+            type: string;
+            title: string;
+            status: number;
+            code: string;
+            requestId: string;
+            errors?: {
+                path: string;
+                message: string;
+            }[];
+            outstanding?: components["schemas"]["MoneyOutput"];
+            lineIds?: string[];
+            /** @enum {string} */
+            member?: "creator";
+            field?: string;
+        };
+        RecordedExpense: {
+            id: string;
+            /** @enum {string} */
+            type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
+            description: string;
+            /** Format: date */
+            date: string;
+            occurredAt: string | null;
+            timeZone: string | null;
+            amount: components["schemas"]["MoneyOutput"];
+            categoryId: string | null;
+            payments: {
+                memberId: string | null;
+                accountId: string | null;
+                amount: components["schemas"]["MoneyOutput"];
+            }[];
+            shares: {
+                memberId: string;
+                amount: components["schemas"]["MoneyOutput"];
+                /** @enum {string} */
+                splitMethod: "EQUAL" | "PERCENT" | "EXACT" | "SHARES" | "BY_ALLOCATION";
+            }[];
+            sourceAccountId: string | null;
+            destinationAccountId: string | null;
+            receivingMemberId: string | null;
+            payerMemberId: string | null;
+            createdBy: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            version: number;
+            warnings: {
+                /** @enum {string} */
+                code: "FundBalanceNegative";
+                accountId: string;
+                balance: components["schemas"]["MoneyOutput"];
+            }[];
+        };
         Recurrence: {
             id: string;
             /** @enum {string} */
@@ -1850,43 +1761,132 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
-        Occurrence: {
-            id: string;
-            recurrenceId: string;
+        RecurrenceDefinition: {
+            description: string;
+            amount: components["schemas"]["Money"];
+            template: {
+                /** @constant */
+                type: "EXPENSE";
+                categoryId: string;
+                payer: {
+                    memberId: string | null;
+                    accountId?: string | null;
+                };
+                split?: ({
+                    /** @constant */
+                    method: "EQUAL";
+                    participants: {
+                        memberId: string;
+                    }[];
+                } | {
+                    /** @constant */
+                    method: "PERCENT";
+                    participants: {
+                        memberId: string;
+                        percent: string;
+                    }[];
+                } | {
+                    /** @constant */
+                    method: "SHARES";
+                    participants: {
+                        memberId: string;
+                        units: number;
+                    }[];
+                }) | null;
+            } | {
+                /** @constant */
+                type: "INCOME";
+                categoryId: string;
+                accountId: string;
+            } | {
+                /** @constant */
+                type: "TRANSFER";
+                sourceAccountId: string;
+                destinationAccountId: string;
+            } | {
+                /** @constant */
+                type: "FUND_CONTRIBUTION";
+                fundAccountId: string;
+                memberId?: string | null;
+                sourceAccountId?: string | null;
+            };
+            schedule: {
+                /** @constant */
+                kind: "MONTHLY";
+                day: number;
+            } | {
+                /** @constant */
+                kind: "SEMI_MONTHLY";
+                day1: number;
+                day2: number;
+            };
             /** @enum {string} */
-            type: "EXPENSE" | "INCOME" | "TRANSFER" | "FUND_CONTRIBUTION";
+            mode: "AUTO" | "CONFIRM";
+            /** Format: date */
+            startDate: string;
+            endDate?: string | null;
+        };
+        Space: {
+            id: string;
+            name: string;
+            /** @enum {string} */
+            kind: "PERSONAL" | "SHARED" | "DIRECT";
+            currency: string;
+            periodPolicy: {
+                /** @constant */
+                kind: "MONTHLY";
+                day: number;
+            } | {
+                /** @constant */
+                kind: "SEMI_MONTHLY";
+                day1: number;
+                day2: number;
+            };
+            role: ("OWNER" | "ADMIN" | "MEMBER" | "VIEWER") | null;
+        };
+        SpaceMember: {
+            id: string;
+            /** @enum {string} */
+            kind: "USER" | "GUEST";
+            userId: string | null;
+            displayName: string;
+            role: ("OWNER" | "ADMIN" | "MEMBER" | "VIEWER") | null;
+            contactEmail: string | null;
+            /** Format: date-time */
+            joinedAt: string;
+        };
+        Transaction: {
+            id: string;
+            /** @enum {string} */
+            type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
             description: string;
             /** Format: date */
             date: string;
-            /** @enum {string} */
-            status: "RECORDED" | "PENDING" | "SKIPPED";
+            occurredAt: string | null;
+            timeZone: string | null;
             amount: components["schemas"]["MoneyOutput"];
             categoryId: string | null;
-            transactionId: string | null;
-            reason: string | null;
-        };
-        MoneyOutput: {
-            amount: string;
-            currency: string;
-        };
-        CategoryOutput: {
-            id: string;
-            groupId: string;
-            parentCategoryId: string | null;
-            name: string;
-            key: string | null;
-            archivedAt: string | null;
-            icon: {
-                /** @constant */
-                kind: "SYMBOL";
-                name: string;
-            } | {
-                /** @constant */
-                kind: "EMOJI";
-                value: string;
-            };
-            /** @enum {string} */
-            color: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
+            payments: {
+                memberId: string | null;
+                accountId: string | null;
+                amount: components["schemas"]["MoneyOutput"];
+            }[];
+            shares: {
+                memberId: string;
+                amount: components["schemas"]["MoneyOutput"];
+                /** @enum {string} */
+                splitMethod: "EQUAL" | "PERCENT" | "EXACT" | "SHARES" | "BY_ALLOCATION";
+            }[];
+            sourceAccountId: string | null;
+            destinationAccountId: string | null;
+            receivingMemberId: string | null;
+            payerMemberId: string | null;
+            createdBy: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            version: number;
         };
     };
     responses: never;

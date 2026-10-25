@@ -14,12 +14,15 @@ These are the rules the code review (gga) checks staged files against. When a ch
   - There are no server actions.
   - A module's server containers are exported from `ui/server.ts`. Client-safe code is exported from `ui/index.ts`.
 - Zod validates at the HTTP edge only. Domain rules live in the domain, and a writer that skips HTTP still has to pass them.
+- Expected failures are `Result` values (`err(domainError("Code"))` from `src/shared/kernel/result.ts`) with a stable PascalCase code. Throwing is for broken invariants only.
+- Containers and presentational components stay apart (P127): a server container is a pure `load*` over the `Api` plus an async component, and presentational components fetch nothing.
 
 ## Money, dates and data
 
 - Money is `bigint` minor units (`Money`). Never use floats, never use `Number` for amounts, and never do rounding that isn't `Money`'s own.
 - Calendar dates are `LocalDate` in the space's or person's time zone. Never derive a date from a UTC instant without `localDateIn` or `todayIn`. Time zones are IANA names.
 - Deletes are logical, and every change to money keeps its audit. Never hard-delete stored records.
+- Balances, plan figures and reports are computed on read (D7) and never stored.
 - A write that changes stored data, or the format it is stored in, needs a migration under `drizzle/` and `pnpm db:check` passing.
 - Money writes take the space lock before they read membership (`spaceLocks.lockForMoneyWrite`, issue #89). Never read a balance or a membership before taking that lock.
 - Every change to the contract updates the OpenAPI snapshot and the generated `schema.d.ts`. Optional fields only. Changing what existing clients receive is a breaking change and must be called out.
@@ -36,6 +39,9 @@ These are the rules the code review (gga) checks staged files against. When a ch
 - Every screen below the bottom navigation has a way back (`ScreenHeader`).
 - No horizontal scroll at 390 or 320 px. Targets are at least 44×44 px. Sheets stay above the bar.
 - Copy comes from `src/i18n/messages/{es,en}.json`, with both languages. Spanish uses neutral Latin American tú, never voseo. Prefer "pagó por ti" and "tu parte"; never frame a shared bill as a loan.
+- Regional words ("paz y salvo", "a mano") belong to the regional variants of D24, not to the base `es.json`.
+- Formats never come from the language (D23). Only `src/shared/ui/format/` formats numbers, dates and times, from the person's effective preferences (P121); no other `Intl` or `toLocale*` call.
+- An amount never breaks across lines: a no-break space between the symbol and the digits, and a word joiner (U+2060) after a minus sign.
 - Money direction is never shown by color alone. It always carries a sign or a word.
 - Route script budgets in `tests/performance/budgets.json` are never raised to fit a change. Lazy-load instead.
 
@@ -44,3 +50,8 @@ These are the rules the code review (gga) checks staged files against. When a ch
 - Every behavior change comes with a test through the public interface: a use case, HTTP acceptance, or a component in jsdom.
 - Concurrency fixes need a deterministic integration test against PostgreSQL, using the `tests/support/locks.ts` barrier.
 - Tests never depend on the wall clock or on network services.
+
+## Commits and docs
+
+- Conventional Commits with the story or issue reference, for example `(Refs #73)`. No AI attribution lines.
+- A decision lands in `docs/` in the same change: a design decision in the spec's section 6 and the decisions index, a technology choice as an ADR, an execution ruling in its plan's Self-Review.

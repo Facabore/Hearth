@@ -8,7 +8,7 @@
 
 **Tech Stack:** Node.js 24.21.0, pnpm 12.11.2, Next.js 16.4.0 (App Router route handlers), React 19.3.0, TypeScript 6.0.3 strict, Zod 4.6.5, zod-openapi 6.0.2, drizzle-orm 0.45.4 + drizzle-kit 0.31.11, pg 8.23.1, better-auth 1.7.7, Vitest 5.0.3, PostgreSQL 18.6 (Docker CLI in tests). No new dependencies (tokens use `node:crypto`).
 
-**Spec:** `docs/superpowers/specs/2026-10-11-hearth-design.md` (approved 2026-10-11). Stories: `docs/backlog/E1-identity-and-spaces.md` (HU-E1-04, HU-E1-05, HU-E1-06, HU-E1-07, HU-E1-10), `docs/backlog/E2-accounts.md` (HU-E2-02). Format template: `docs/superpowers/plans/2026-10-12-m1-personal-ledger.md`. GitHub Project: https://github.com/users/Facabore/projects/4.
+**Spec:** `docs/specs/2026-10-11-hearth-design.md` (approved 2026-10-11). Stories: `docs/backlog/E1-identity-and-spaces.md` (HU-E1-04, HU-E1-05, HU-E1-06, HU-E1-07, HU-E1-10), `docs/backlog/E2-accounts.md` (HU-E2-02). Format template: `docs/plans/2026-10-12-m1-personal-ledger.md`. GitHub Project: https://github.com/users/Facabore/projects/4.
 
 **Out of scope (later M2 plans):** shared expenses and split methods (HU-E4-07 … HU-E4-10), balances and settlements (HU-E5-*), leave, archive, claim, guest removal and direct spaces (HU-E1-08, HU-E1-09, HU-E1-11, HU-E1-12, HU-E1-13). Where a scenario of this plan's stories depends on them, the plan pins the rule at the level it can reach now and records the assumption in the Self-Review.
 

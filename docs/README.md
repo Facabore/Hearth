@@ -10,8 +10,8 @@ This folder is Hearth's wiki. It is versioned with the code and reviewed in pull
 - **`adr/`** holds the architecture decision records, one file per technology choice.
 - **`backlog/`** is the source of truth for the content of the epics and user stories. Status lives in the GitHub Project.
 - **`operations/`** holds the guides for running Hearth, [deploying to a VPS](operations/deploy.md) and [backups and restore](operations/backups.md).
-- **`superpowers/specs/`** holds the design spec, the living document every decision refers back to.
-- **`superpowers/plans/`** holds one implementation plan per milestone, with the rulings made while planning and running it.
+- **`specs/`** holds the design spec, the living document every decision refers back to.
+- **`plans/`** holds one implementation plan per milestone, with the rulings made while planning and running it.
 - **`stack-versions.md`** lists the pinned versions of the stack.
 
 ## Start here

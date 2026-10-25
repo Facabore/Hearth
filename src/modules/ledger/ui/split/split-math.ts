@@ -23,6 +23,36 @@ export type SplitCheck =
 /** 100 % in basis points, as the server counts percents (two decimals). */
 const WHOLE = 10_000n;
 
+/** Basis points as a decimal percent, without a zero fraction: 5000n → "50", 3334n → "33.34". */
+const percentOf = (basisPoints: bigint): string => {
+  const fraction = basisPoints % 100n;
+  return fraction === 0n
+    ? String(basisPoints / 100n)
+    : `${basisPoints / 100n}.${String(fraction).padStart(2, "0")}`;
+};
+
+/** Issue #177: 100 % in equal hundredths for `count` people, the remainder on the last ("33.33", "33.33", "33.34"). */
+export const equalPercents = (count: number): string[] => {
+  if (count <= 0) return [];
+  const each = WHOLE / BigInt(count);
+  const last = WHOLE - each * BigInt(count - 1);
+  return Array.from({ length: count }, (_, index) => percentOf(index === count - 1 ? last : each));
+};
+
+/**
+ * Issue #177: the percent the last person needs for `others` (decimals, null when unreadable) to reach 100 %; null
+ * when one cannot be read or they already pass 100 %.
+ */
+export const remainingPercent = (others: readonly (string | null)[]): string | null => {
+  let sum = 0n;
+  for (const decimal of others) {
+    const basisPoints = decimal === null ? null : minorOf(decimal, 2);
+    if (basisPoints === null) return null;
+    sum += BigInt(basisPoints);
+  }
+  return sum > WHOLE ? null : percentOf(WHOLE - sum);
+};
+
 /**
  * Ruling P166: `Money.allocate` for the browser. Whole rounding units by largest remainder, ties to the earlier
  * participant; the units below the rounding unit stay with the first participant; a negative amount mirrors.

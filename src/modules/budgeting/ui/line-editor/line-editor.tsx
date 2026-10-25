@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useId, useMemo, useRef, useState, type ReactNode } from "react";
@@ -39,7 +40,6 @@ import {
   previewOf,
   type AllocationDraft,
 } from "./allocation";
-import { CategoryMappingSheet } from "./category-mapping-sheet";
 import {
   lineBodyOf,
   lineChanges,
@@ -52,6 +52,13 @@ import {
   type RolloverMode,
 } from "./line-draft";
 import { removeLine, saveLine, type LineSection } from "./line-save";
+
+// Issue #182: the mapping sheet's code loads only when someone opens it, so the editor's first view carries less
+// script and its LCP stays under the budget (the pattern of P177).
+const CategoryMappingSheet = dynamic(
+  () => import("./category-mapping-sheet").then((module) => module.CategoryMappingSheet),
+  { ssr: false },
+);
 
 const FUNDINGS: readonly Funding[] = ["DIRECT", "SHARED_FUND", "SAVINGS"];
 const ROLLOVERS: readonly RolloverMode[] = ["RESET", "ROLLOVER", "ADJUSTED"];
@@ -100,6 +107,7 @@ export function LineEditor({
   const tRollover = useTranslations("budgeting.rollover");
   const tReports = useTranslations("reports.lines");
   const tMapping = useTranslations("budgeting.mapping");
+  const tAllocation = useTranslations("budgeting.allocation");
   const router = useRouter();
   const messageOf = useProblemMessage();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
@@ -126,6 +134,8 @@ export function LineEditor({
 
   const currency = plan.totalCapacity.currency;
   const lineId = stored?.id ?? null;
+  // Issue #175: a personal plan's line answers to its one member, so it has no "Quién responde" nor capacity check.
+  const personal = space.kind === "PERSONAL";
   const plannedMinor = (() => {
     const decimal = parseDecimal(draft.planned, formats.numberFormat);
     return decimal === null ? null : minorOf(decimal, currencyOf(currency).exponent);
@@ -183,7 +193,11 @@ export function LineEditor({
       return;
     }
     // The preview already shows why: a sum that does not hold, nobody with capacity, or a value nobody can read.
-    if (preview.kind === "invalid" || preview.kind === "noCapacity" || preview.kind === "unreadable") {
+    // A personal space has no one to share a line with, so it never asks (issue #175).
+    if (
+      !personal &&
+      (preview.kind === "invalid" || preview.kind === "noCapacity" || preview.kind === "unreadable")
+    ) {
       allocationSection.current?.focus();
       return;
     }
@@ -320,12 +334,15 @@ export function LineEditor({
           value={draft.planned}
           onChange={(planned) => change({ planned }, "planned")}
           hint={
-            line?.capacityShare != null
-              ? t("field.plannedHint", {
-                  share: formatPercent(line.capacityShare, formats),
-                  unallocated: money(plan.unallocated),
-                })
-              : t("field.plannedNewHint", { unallocated: money(plan.unallocated) })
+            // Issue #175: in a shared plan the capacity check speaks here too, not only at the form's end.
+            !personal && preview.kind === "noCapacity"
+              ? tAllocation("noCapacity")
+              : line?.capacityShare != null
+                ? t("field.plannedHint", {
+                    share: formatPercent(line.capacityShare, formats),
+                    unallocated: money(plan.unallocated),
+                  })
+                : t("field.plannedNewHint", { unallocated: money(plan.unallocated) })
           }
           error={planned}
         />
@@ -333,7 +350,11 @@ export function LineEditor({
         <ChoiceGroup
           label={t("field.funding")}
           value={draft.funding}
-          options={FUNDINGS.map((value) => ({ value, label: tFunding(value) }))}
+          // #170: a personal space has no shared fund, so its lines are paid directly or saved.
+          options={FUNDINGS.filter((value) => !personal || value !== "SHARED_FUND").map((value) => ({
+            value,
+            label: tFunding(value),
+          }))}
           onValueChange={(funding) => change({ funding })}
         />
 
@@ -427,19 +448,21 @@ export function LineEditor({
           </div>
         ) : null}
 
-        <AllocationEditor
-          ref={allocationSection}
-          draft={allocationDraft}
-          onChange={(next) => {
-            setAllocationDraft(next);
-            setSectionError(null);
-          }}
-          preview={preview}
-          members={members}
-          formats={formats}
-          currency={currency}
-          planned={plannedNow}
-        />
+        {personal ? null : (
+          <AllocationEditor
+            ref={allocationSection}
+            draft={allocationDraft}
+            onChange={(next) => {
+              setAllocationDraft(next);
+              setSectionError(null);
+            }}
+            preview={preview}
+            members={members}
+            formats={formats}
+            currency={currency}
+            planned={plannedNow}
+          />
+        )}
         {allocationError ? <FieldError id={`${ids}-allocation-error`}>{allocationError}</FieldError> : null}
 
         {formProblem !== null && !removing ? <ProblemNotice problem={formProblem} /> : null}
@@ -448,19 +471,21 @@ export function LineEditor({
         </Button>
       </form>
 
-      <CategoryMappingSheet
-        open={mapping}
-        onOpenChange={setMapping}
-        groups={groups}
-        plan={plan}
-        lineId={lineId}
-        lineName={draft.name.trim() || (line?.name ?? t("newTitle"))}
-        value={categoryIds}
-        onChange={(next) => {
-          setCategoryIds(next);
-          setSectionError(null);
-        }}
-      />
+      {mapping ? (
+        <CategoryMappingSheet
+          open={mapping}
+          onOpenChange={setMapping}
+          groups={groups}
+          plan={plan}
+          lineId={lineId}
+          lineName={draft.name.trim() || (line?.name ?? t("newTitle"))}
+          value={categoryIds}
+          onChange={(next) => {
+            setCategoryIds(next);
+            setSectionError(null);
+          }}
+        />
+      ) : null}
 
       {line !== null ? (
         <>

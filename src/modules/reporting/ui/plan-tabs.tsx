@@ -4,8 +4,8 @@ import type { SpaceDto } from "@/shared/ui/api/dto";
 import { viewHref, viewsFor, type PlanView } from "./views";
 
 /**
- * Ruling P200: the views of the Plan tab as a row of links that scrolls inside itself, never the page.
- * Its scroll padding keeps a tab scrolled into view clear of the screen edge, whole pixels or not.
+ * Ruling P200: the views of the Plan tab as a row of links. Issue #174 (decision U3): the row wraps to a second line
+ * instead of scrolling, so every view, the current one included, is on screen at 320 px.
  */
 export function PlanTabs({
   space,
@@ -19,7 +19,7 @@ export function PlanTabs({
 }) {
   const t = useTranslations("reports");
   return (
-    <nav aria-label={t("tabs.label")} className="-mx-4 flex scroll-px-4 gap-2 overflow-x-auto px-4 pb-1">
+    <nav aria-label={t("tabs.label")} className="flex flex-wrap gap-2">
       {viewsFor(space.kind).map((item) => (
         <Link
           key={item}

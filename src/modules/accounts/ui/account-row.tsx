@@ -52,7 +52,7 @@ export function AccountRow({
         <SymbolIcon name={account.icon} size={22} />
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span id={`account-${account.id}`} className="truncate font-medium text-ink">
+        <span id={`account-${account.id}`} className="font-medium [overflow-wrap:anywhere] text-ink">
           {account.name}
         </span>
         {details.length > 0 ? <span className="text-sm text-muted">{details.join(" · ")}</span> : null}

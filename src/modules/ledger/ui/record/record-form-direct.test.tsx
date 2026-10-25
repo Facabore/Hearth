@@ -120,6 +120,18 @@ describe("split with someone from Personal (HU-E9-06, ruling P172)", () => {
     expect(router.replace).toHaveBeenCalledWith("/spaces/sp-new/transactions");
   });
 
+  it("names the personal space by its own name, renamed or not (#170)", async () => {
+    form(fakeApi({}).api, { space: spaceDto({ name: "Mis finanzas" }) });
+    await userEvent.type(screen.getByLabelText("Monto"), "50000");
+    await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
+    await userEvent.click(screen.getByRole("radio", { name: "Mine" }));
+    await splitWith("Luis");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar y dividir" }));
+    expect(screen.getByRole("button", { name: /Categoría/ })).toHaveAccessibleDescription(
+      "Esta categoría es solo de tu espacio Mis finanzas. Elige una categoría predeterminada para dividir el gasto.",
+    );
+  });
+
   it("refuses a category of the person's own, and the split can be removed", async () => {
     const { api, requests } = fakeApi({});
     form(api);

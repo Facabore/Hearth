@@ -77,6 +77,35 @@ const valueOf = (name: string) => within(sheet()).getByLabelText(`Valor de ${nam
 const done = () => within(sheet()).getByRole("button", { name: "Listo" });
 const status = () => within(sheet()).getByRole("status");
 
+describe("percent split (issue #177)", () => {
+  it("starts Porcentaje from equal shares that already add up", async () => {
+    renderWithIntl(<Harness amount="30000000" />);
+    await userEvent.click(within(sheet()).getByRole("radio", { name: "Porcentaje" }));
+    expect(valueOf("Ana (tú)")).toHaveValue("50");
+    expect(valueOf("Juan")).toHaveValue("50");
+    expect(status()).toHaveTextContent("Suma $ 300.000: cuadra con el gasto");
+    expect(done()).toBeEnabled();
+  });
+
+  it("works out the last person's share from the rest", async () => {
+    renderWithIntl(<Harness amount="30000000" />);
+    await userEvent.click(within(sheet()).getByRole("radio", { name: "Porcentaje" }));
+    await userEvent.clear(valueOf("Ana (tú)"));
+    await userEvent.type(valueOf("Ana (tú)"), "40");
+    expect(valueOf("Juan")).toHaveValue("60");
+    expect(shareOf("Juan")).toContain("$ 180.000");
+    expect(done()).toBeEnabled();
+  });
+
+  it("asks how it is split before who paid", () => {
+    renderWithIntl(<Harness amount="30000000" />);
+    const headings = within(sheet())
+      .getAllByRole("heading", { level: 3 })
+      .map((h) => h.textContent);
+    expect(headings.indexOf("Cómo se divide")).toBeLessThan(headings.indexOf("Pagó"));
+  });
+});
+
 describe("split sheet (HU-E9-06)", () => {
   it("splits 300,000 COP equally between Ana and Juan and says the sum matches", async () => {
     renderWithIntl(<Harness amount="30000000" />);
@@ -95,7 +124,10 @@ describe("split sheet (HU-E9-06)", () => {
   ] as const)("previews %s split by %s", async (amount, method, [ana, juan], [anaShare, juanShare]) => {
     renderWithIntl(<Harness amount={amount} />);
     await userEvent.click(within(sheet()).getByRole("radio", { name: method }));
+    // Porcentaje starts from equal shares (issue #177): each row is cleared before it is typed.
+    await userEvent.clear(valueOf("Ana (tú)"));
     await userEvent.type(valueOf("Ana (tú)"), ana);
+    await userEvent.clear(valueOf("Juan"));
     await userEvent.type(valueOf("Juan"), juan);
     expect(shareOf("Ana (tú)")).toContain(anaShare);
     expect(shareOf("Juan")).toContain(juanShare);
@@ -104,7 +136,9 @@ describe("split sheet (HU-E9-06)", () => {
   it("says that 10 % remains unassigned and keeps Listo disabled", async () => {
     renderWithIntl(<Harness amount="30000000" />);
     await userEvent.click(within(sheet()).getByRole("radio", { name: "Porcentaje" }));
+    await userEvent.clear(valueOf("Ana (tú)"));
     await userEvent.type(valueOf("Ana (tú)"), "40");
+    await userEvent.clear(valueOf("Juan"));
     await userEvent.type(valueOf("Juan"), "50");
     expect(status()).toHaveTextContent("Falta asignar 10 %");
     expect(done()).toBeDisabled();
@@ -122,7 +156,9 @@ describe("split sheet (HU-E9-06)", () => {
   it("says what is too much, unreadable, or missing", async () => {
     renderWithIntl(<Harness amount="30000000" />);
     await userEvent.click(within(sheet()).getByRole("radio", { name: "Porcentaje" }));
+    await userEvent.clear(valueOf("Ana (tú)"));
     await userEvent.type(valueOf("Ana (tú)"), "70");
+    await userEvent.clear(valueOf("Juan"));
     await userEvent.type(valueOf("Juan"), "50");
     expect(status()).toHaveTextContent("Sobra 20 %: deben sumar 100 %");
     await userEvent.clear(valueOf("Juan"));
@@ -134,7 +170,6 @@ describe("split sheet (HU-E9-06)", () => {
   });
 
   it.each([
-    ["Porcentaje", "Revisa el valor"],
     ["Montos", "Revisa el valor"],
     ["Partes", "Revisa el valor"],
   ] as const)(
@@ -152,7 +187,8 @@ describe("split sheet (HU-E9-06)", () => {
 
   it("reports a row only after that row was edited, and keeps the others quiet (S2)", async () => {
     renderWithIntl(<Harness amount="30000000" />);
-    await userEvent.click(within(sheet()).getByRole("radio", { name: "Porcentaje" }));
+    // Montos starts empty; Porcentaje starts from equal shares (issue #177).
+    await userEvent.click(within(sheet()).getByRole("radio", { name: "Montos" }));
     await userEvent.type(valueOf("Juan"), "5");
     await userEvent.clear(valueOf("Juan"));
     // Ana is the first unreadable row and was never edited: her row stays quiet, the hint stays neutral.
@@ -173,6 +209,7 @@ describe("split sheet (HU-E9-06)", () => {
     async (method, typed, kept, example) => {
       renderWithIntl(<Harness amount="30000000" />);
       await userEvent.click(within(sheet()).getByRole("radio", { name: method }));
+      await userEvent.clear(valueOf("Ana (tú)"));
       await userEvent.type(valueOf("Ana (tú)"), typed);
       expect(valueOf("Ana (tú)")).toHaveValue(kept);
       expect(valueOf("Ana (tú)")).toHaveAccessibleDescription(example);
@@ -322,13 +359,15 @@ describe("split sheet (HU-E9-06)", () => {
     renderWithIntl(<Harness amount="30000000" seen={(d) => drafts.push(d)} />);
     await userEvent.click(within(sheet()).getByRole("checkbox", { name: "Pedro (invitado)" }));
     await userEvent.click(within(sheet()).getByRole("radio", { name: "Porcentaje" }));
+    await userEvent.clear(valueOf("Ana (tú)"));
     await userEvent.type(valueOf("Ana (tú)"), "5");
-    expect(drafts).toHaveLength(3);
+    expect(drafts).toHaveLength(4);
     expect(drafts.every((d) => d.chosen)).toBe(true);
+    // Issue #177: the last selected person, Pedro, takes what Ana and Juan leave.
     expect(drafts.at(-1)).toMatchObject({
       method: "PERCENT",
       selected: ["m-ana", "m-juan", "m-pedro"],
-      values: { "m-ana": "5" },
+      values: { "m-ana": "5", "m-juan": "33,33", "m-pedro": "61,67" },
     });
   });
 
@@ -338,7 +377,10 @@ describe("split sheet (HU-E9-06)", () => {
       <Harness amount="30000000" initial={{ ...start, method: "PERCENT" }} seen={(d) => drafts.push(d)} />,
     );
     await userEvent.type(valueOf("Ana (tú)"), "4");
-    expect(drafts).toEqual([expect.objectContaining({ chosen: true, values: { "m-ana": "4" } })]);
+    // Issue #177: Juan, the last selected, takes the rest.
+    expect(drafts).toEqual([
+      expect.objectContaining({ chosen: true, values: { "m-ana": "4", "m-juan": "96" } }),
+    ]);
   });
 
   it("asks a value only of the selected people, and none for equal parts", async () => {

@@ -821,10 +821,10 @@ Feature: Installation rules screen
 
 ## Follow-ups after M6a
 
-Left open on purpose by [the M6a plan](../superpowers/plans/2026-10-20-m6a-web-shell-and-ledger.md) (its Self-Review has the reasons):
+Left open on purpose by [the M6a plan](../plans/2026-10-20-m6a-web-shell-and-ledger.md) (its Self-Review has the reasons):
 
 1. The account edit form, with #120 (answer stored and effective icon and switches).
-2. Editing, deleting and restoring transactions from the Activity screen (M6b, ruling P140), with the `If-Match` flow and a restore endpoint for transactions; an untimed row gets its first time by editing. Done in the M6b addendum ([plan](../superpowers/plans/2026-10-21-m6b-addendum-edit-delete-feedback.md)).
+2. Editing, deleting and restoring transactions from the Activity screen (M6b, ruling P140), with the `If-Match` flow and a restore endpoint for transactions; an untimed row gets its first time by editing. Done in the M6b addendum ([plan](../plans/2026-10-21-m6b-addendum-edit-delete-feedback.md)).
 3. A text search, and account and type filters, in the transaction list (an API story first).
 4. Dependency bumps once each release is two weeks old: `@playwright/test` 1.64.x, `jsdom` 30.1.3, `@axe-core/playwright` and `axe-core` 4.14.0, `@testing-library/user-event` 14.6.8 and `radix-ui` 1.8.1.
 5. The controls ruling P126 leaves out, with their stories (HU-E9-04, HU-E9-05, HU-E9-06, HU-E9-07, HU-E9-08, HU-E9-12, HU-E9-14), the recent-category chips and the hide-balances toggle.
@@ -837,11 +837,11 @@ Left open on purpose by [the M6a plan](../superpowers/plans/2026-10-20-m6a-web-s
 
 ## Follow-ups after M6b
 
-Left open on purpose by [the M6b plan](../superpowers/plans/2026-10-21-m6b-shared-spaces-split-balances.md) (its Self-Review has the reasons), and by the navigation and UX work built beside it:
+Left open on purpose by [the M6b plan](../plans/2026-10-21-m6b-shared-spaces-split-balances.md) (its Self-Review has the reasons), and by the navigation and UX work built beside it:
 
 1. Space settings screen: rename, currency (until money is recorded) and period policy (the NewSpace artboard's period controls).
 2. Leave and archive a space from the members screen (`POST …/leave`, `POST …/archive`).
-3. Editing, deleting and restoring transactions from Activity (P140, P179): the [M6b addendum plan](../superpowers/plans/2026-10-21-m6b-addendum-edit-delete-feedback.md) takes it up.
+3. Editing, deleting and restoring transactions from Activity (P140, P179): the [M6b addendum plan](../plans/2026-10-21-m6b-addendum-edit-delete-feedback.md) takes it up.
 4. A date control in the settle-up sheet.
 5. The default split's line name in `GET …/default-split` (for "Según el plan (Casa)"), and the payer and amount in history entries (for "Ana pagó $ 300.000").
 6. The Balances artboard's cross-space hint ("En Hogar: debes …").

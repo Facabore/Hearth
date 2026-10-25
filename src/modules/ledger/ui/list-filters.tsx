@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { CategoryPicker, categoryPath } from "@/modules/categories/ui";
-import { Button, Icon, VisuallyHidden } from "@/shared/ui";
-import type { CategoryGroupDto, PeriodDto } from "@/shared/ui/api/dto";
+import { Button, Icon, usePeriodText, VisuallyHidden } from "@/shared/ui";
+import type { CategoryGroupDto, PeriodDto, SpaceDto } from "@/shared/ui/api/dto";
+import type { Formats } from "@/shared/ui/format/formatters";
 import { hrefOf, type ListFilter } from "./list-href";
 
 /**
@@ -20,6 +21,9 @@ export function ListFilters({
   next,
   filter,
   groups,
+  periodPolicy,
+  formats,
+  memberNames = {},
 }: {
   readonly spaceId: string;
   readonly period: PeriodDto;
@@ -27,8 +31,14 @@ export function ListFilters({
   readonly next: PeriodDto | null;
   readonly filter: ListFilter;
   readonly groups: CategoryGroupDto[];
+  /** Issue #178: with the space's policy the period is named as the Plan names it ("octubre 2026", P205). */
+  readonly periodPolicy?: SpaceDto["periodPolicy"] | undefined;
+  readonly formats: Pick<Formats, "dateFormat">;
+  /** Issue #148: a shared space's members, by id; with two or more the list can be filtered by who paid. */
+  readonly memberNames?: Readonly<Record<string, string>>;
 }) {
   const t = useTranslations("ledger.list");
+  const periodText = usePeriodText();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const chosen = filter.categoryId ? categoryPath(groups, filter.categoryId) : null;
@@ -44,7 +54,9 @@ export function ListFilters({
         ) : (
           <span className="size-11" />
         )}
-        <p className="font-medium text-ink">{t("period", { label: period.label })}</p>
+        <p className="font-medium text-ink">
+          {periodPolicy ? periodText(period, periodPolicy, formats) : t("period", { label: period.label })}
+        </p>
         {next ? (
           <Link href={hrefOf(spaceId, { ...filter, period: next.label })} className={step}>
             <Icon name="chevronRight" />
@@ -61,7 +73,9 @@ export function ListFilters({
             aria-pressed="true"
             aria-label={t("removeFilter", { name: chosen })}
             size="chip"
-            onClick={() => router.replace(hrefOf(spaceId, { period: filter.period }))}
+            onClick={() =>
+              router.replace(hrefOf(spaceId, { period: filter.period, payerMemberId: filter.payerMemberId }))
+            }
           >
             {chosen} ✕
           </Button>
@@ -72,6 +86,25 @@ export function ListFilters({
           </Button>
         )}
       </div>
+      {Object.keys(memberNames).length > 1 ? (
+        <nav aria-label={t("paidBy")} className="flex flex-wrap gap-2">
+          {[["", t("anyone")] as const, ...Object.entries(memberNames)].map(([id, name]) => {
+            const current = (filter.payerMemberId ?? "") === id;
+            return (
+              <Link
+                key={id || "anyone"}
+                href={hrefOf(spaceId, { ...filter, payerMemberId: id || undefined })}
+                aria-current={current ? "page" : undefined}
+                className={`flex min-h-11 items-center rounded-full px-4 text-sm font-medium [overflow-wrap:anywhere] ${
+                  current ? "bg-accent-soft text-accent" : "border border-line bg-surface text-ink"
+                }`}
+              >
+                {name}
+              </Link>
+            );
+          })}
+        </nav>
+      ) : null}
       <CategoryPicker
         open={open}
         onOpenChange={setOpen}

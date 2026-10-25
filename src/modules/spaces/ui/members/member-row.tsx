@@ -24,7 +24,7 @@ export function MemberRow({
     <li aria-labelledby={`member-${member.id}`} className="flex min-h-16 items-center gap-3 py-2">
       <Avatar name={member.displayName} />
       <span className="flex min-w-0 flex-1 flex-col">
-        <span id={`member-${member.id}`} className="truncate font-medium text-ink">
+        <span id={`member-${member.id}`} className="font-medium [overflow-wrap:anywhere] text-ink">
           {label}
         </span>
         <span className="text-sm text-muted">{detail}</span>

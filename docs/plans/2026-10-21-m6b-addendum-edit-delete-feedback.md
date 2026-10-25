@@ -13,7 +13,7 @@ The detail sheet is addressed by the URL (`?tx=<id>`), so Back closes it and a r
 
 **Tech Stack:** unchanged from M6b: Node.js 24.21.0, pnpm 12.11.2, Next.js 16.4.0, React 19.3.0, TypeScript 6.0.3 strict, Zod 4.6.5 (server only), next-intl 4.14.9, Tailwind CSS 4.3.3, `radix-ui` 1.7.0, `openapi-typescript` 7.13.0 + `openapi-fetch` 0.17.0, Vitest 5.0.3 with jsdom 30.1.2 and Testing Library, axe-core 4.13.0, Playwright 1.63.0 with `playwright-bdd` 9.2.1 and `@axe-core/playwright` 4.13.0, Lighthouse 13.5.0 and `web-vitals` 6.2.3, PostgreSQL 18.6. **No new dependency.**
 
-**Spec:** `docs/superpowers/specs/2026-10-11-hearth-design.md` covers:
+**Spec:** `docs/specs/2026-10-11-hearth-design.md` covers:
 - D8: every delete is logical, and the audit keeps the full history;
 - D9: a member moves money only through accounts they own;
 - D15: guests;
@@ -31,7 +31,7 @@ The UI rules are the owner's UX review of 2026-10-21:
 - `.superpowers/sdd/2026-10-21-m6b/dispatch.md`, section "UI rules every screen must meet";
 - `.superpowers/sdd/ux-state-of-the-art.md`, checklist items 20, 23, 27 and 28, and anti-patterns 8 and 9.
 
-Format template, conventions and rulings in force: `docs/superpowers/plans/2026-10-21-m6b-shared-spaces-split-balances.md`, rulings P1–P183. This addendum rules **P184–P199**. M6c rules from P200.
+Format template, conventions and rulings in force: `docs/plans/2026-10-21-m6b-shared-spaces-split-balances.md`, rulings P1–P183. This addendum rules **P184–P199**. M6c rules from P200.
 
 **Baseline: `development` after M6b's Task 22 commit** (`docs: record M6b …`). M6b runs its Tasks 19–22 first, on the same branch. While planning, `origin/development` was at `09eaefb` (M6b Task 18). The worktree `C:/Things/hearth-worktrees/rb` held the same tree. The following was verified on that state:
 
@@ -3508,7 +3508,7 @@ Risk: none.
   - HU-E4-06's technical notes gain two bullets:
     - "Ruling P185: `POST …/transactions/{transactionId}/restore` undoes a deletion with the delete's guards and audits `RESTORED`."
     - "Ruling P186: `PATCH` also takes `accountId`, `payments`, `split`, `sourceAccountId` and `destinationAccountId`; settlements and fund contributions answer `FieldNotEditable`."
-  - E9 follow-up 2 reads: `Done in the M6b addendum ([plan](../superpowers/plans/2026-10-21-m6b-addendum-edit-delete-feedback.md)).`
+  - E9 follow-up 2 reads: `Done in the M6b addendum ([plan](../plans/2026-10-21-m6b-addendum-edit-delete-feedback.md)).`
 
 - [ ] **Step 2: Verify**
 

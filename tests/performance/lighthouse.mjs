@@ -43,6 +43,7 @@ export const debugPortFor = (e2ePort) => 9223 + (Number(e2ePort ?? 3100) - 3100)
 /** The medians of one route over RUNS Lighthouse runs (mobile defaults: simulated slow 4G, 4× CPU). */
 const measure = async (port, url, cookie) => {
   const runs = [];
+  let lcpElement = null;
   for (let i = 0; i < RUNS; i += 1) {
     const { lhr } = await lighthouse(url, {
       port,
@@ -62,9 +63,25 @@ const measure = async (port, url, cookie) => {
       cls: Number((lhr.audits["cumulative-layout-shift"].numericValue ?? 0).toFixed(3)),
       tbt: Math.round(lhr.audits["total-blocking-time"].numericValue ?? 0),
       scriptKb: Math.round(scripts.reduce((sum, r) => sum + (r.transferSize ?? 0), 0) / 1024),
+      // Issue #182: the server's share of LCP and the document's size (its inline RSC payload grows it, and every
+      // extra round trip of simulated slow 4G adds about 150 ms), printed for diagnosis and never budgeted.
+      ttfb: Math.round(lhr.audits["server-response-time"]?.numericValue ?? 0),
+      htmlKb: Math.round(
+        requests
+          .filter((r) => r.resourceType === "Document")
+          .reduce((sum, r) => sum + (r.transferSize ?? 0), 0) / 1024,
+      ),
     });
+    // Issue #182: which element is the LCP (the last run's), for diagnosis only.
+    const node = lhr.audits["lcp-breakdown-insight"]?.details?.items?.find((item) => item.type === "node");
+    lcpElement = node?.nodeLabel ?? node?.snippet ?? lcpElement;
   }
-  return Object.fromEntries(["lcp", "cls", "tbt", "scriptKb"].map((k) => [k, median(runs.map((r) => r[k]))]));
+  return {
+    ...Object.fromEntries(
+      ["lcp", "cls", "tbt", "scriptKb", "ttfb", "htmlKb"].map((k) => [k, median(runs.map((r) => r[k]))]),
+    ),
+    lcpElement,
+  };
 };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

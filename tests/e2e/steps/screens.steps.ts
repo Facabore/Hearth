@@ -63,9 +63,12 @@ Then("the shell of the screen is the one of {string}", async ({ page, world }, s
     "href",
     `/spaces/${id}`,
   );
+  // Issue #172: the record form comes back to the screen it was opened from.
+  const here = new URL(page.url());
+  const search = here.searchParams.toString();
   await expect(nav.getByRole("link", { name: world.t("shell.nav.record") })).toHaveAttribute(
     "href",
-    `/spaces/${id}/new`,
+    `/spaces/${id}/new?returnTo=${encodeURIComponent(`${here.pathname}${search ? `?${search}` : ""}`)}`,
   );
 });
 

@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-/** U5: how long a saved preference says so. */
+/** U5: how long a stored change says so, on Settings and wherever a field saves itself (#170). */
 export const SAVED_MS = 2000;
 
 /**
@@ -28,7 +28,7 @@ export const useSavedFlash = <F extends string>() => {
  * says where in it.
  */
 export function SavedFlash({ show, className }: { readonly show: boolean; readonly className: string }) {
-  const t = useTranslations("settings");
+  const t = useTranslations("common");
   return show ? (
     <span
       role="status"

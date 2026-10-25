@@ -6,7 +6,7 @@ import { Badge, Button, ChoiceGroup } from "@/shared/ui";
 import type { Problem } from "@/shared/ui/api/problem";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import { LockBadge } from "./lock-badge";
-import { SavedFlash } from "./saved-flash";
+import { SavedFlash } from "@/shared/ui/molecules/saved-flash";
 
 export interface PreferenceRowProps<T extends string> {
   readonly id: string;

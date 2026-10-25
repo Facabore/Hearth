@@ -47,11 +47,16 @@ export const capacityFieldOf = (problem: Problem, sentIds: readonly string[]): s
 /**
  * Ruling P208, D17: the suggestion is private to its member. Only one that names the viewer's own member, and
  * carries an amount, goes on to the screen; anything else is dropped here, so it never reaches the page's payload.
+ * Issue #175: an amount of 0 (no income last period) suggests nothing, so it is dropped too.
  */
 export const ownSuggestion = (
   suggestion: CapacitySuggestionDto | null,
   own: Pick<SpaceMemberDto, "id"> | null,
 ): CapacitySuggestionDto | null =>
-  suggestion !== null && own !== null && suggestion.suggested !== null && suggestion.memberId === own.id
+  suggestion !== null &&
+  own !== null &&
+  suggestion.suggested !== null &&
+  BigInt(suggestion.suggested.amount) !== 0n &&
+  suggestion.memberId === own.id
     ? suggestion
     : null;

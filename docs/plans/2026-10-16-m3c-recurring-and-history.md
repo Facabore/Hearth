@@ -8,9 +8,9 @@
 
 **Tech Stack:** Node.js 24.21.0, pnpm 12.11.2, Next.js 16.4.0 (App Router route handlers, `instrumentation.ts`), React 19.3.0, TypeScript 6.0.3 strict, Zod 4.6.5, zod-openapi 6.0.2, drizzle-orm 0.45.4 + drizzle-kit 0.31.11, pg 8.23.1, better-auth 1.7.7, Vitest 5.0.3 (fake timers in Task 9a), PostgreSQL 18.6 (Docker CLI in tests). No new dependencies.
 
-**Spec:** `docs/superpowers/specs/2026-10-11-hearth-design.md` (approved 2026-10-11; sections 4, 5.2 (Recurrence, Transaction, Payment, Share, SpaceMember, BudgetPlan), 5.3 (default split, rounding, periods), 5.4, 7 (HTTP conventions, idempotency on POSTs that create a transaction or a recurrence), 8 and decisions D2, D5, D6, D7, D8, D9, D10, D12, D13, D15, D17, D18 bind this plan). Stories: `docs/backlog/E4-ledger.md` (HU-E4-11 … HU-E4-13, from line 437), `docs/backlog/E5-balances-and-settlements.md` (HU-E5-04, from line 147) and the dependency rows of `docs/backlog/README.md` (HU-E4-11 ← HU-E4-07, HU-E0-04, HU-E1-10; HU-E4-12 ← HU-E4-11, HU-E6-07, HU-E6-08; HU-E4-13 ← HU-E4-12; HU-E5-04 ← HU-E5-02). Format template and precedent: `docs/superpowers/plans/2026-10-15-m3b-plan-lifecycle.md`, whose rulings P10–P19 stay in force with M3-A's P1–P9 (P8 as amended) and preflight notes N1–N6. GitHub Project: https://github.com/users/Facabore/projects/4.
+**Spec:** `docs/specs/2026-10-11-hearth-design.md` (approved 2026-10-11; sections 4, 5.2 (Recurrence, Transaction, Payment, Share, SpaceMember, BudgetPlan), 5.3 (default split, rounding, periods), 5.4, 7 (HTTP conventions, idempotency on POSTs that create a transaction or a recurrence), 8 and decisions D2, D5, D6, D7, D8, D9, D10, D12, D13, D15, D17, D18 bind this plan). Stories: `docs/backlog/E4-ledger.md` (HU-E4-11 … HU-E4-13, from line 437), `docs/backlog/E5-balances-and-settlements.md` (HU-E5-04, from line 147) and the dependency rows of `docs/backlog/README.md` (HU-E4-11 ← HU-E4-07, HU-E0-04, HU-E1-10; HU-E4-12 ← HU-E4-11, HU-E6-07, HU-E6-08; HU-E4-13 ← HU-E4-12; HU-E5-04 ← HU-E5-02). Format template and precedent: `docs/plans/2026-10-15-m3b-plan-lifecycle.md`, whose rulings P10–P19 stay in force with M3-A's P1–P9 (P8 as amended) and preflight notes N1–N6. GitHub Project: https://github.com/users/Facabore/projects/4.
 
-**Baseline: `development` at `0dc49ce` (M3-B merged in PR #93; the preflight dry-ran this plan at `05bc6c5`, the same code).** This plan executes, and its preflight dry run runs, only after `docs/superpowers/plans/2026-10-15-m3b-plan-lifecycle.md` is merged (its Tasks 1–6 are committed as of `d7ae3e2`; Tasks 7–15b deliver exactly what that plan's code blocks show). It relies on M3-B's names as final: `ClosedPeriodGuard` (ledger port, bound to budgeting's `createClosedPeriodGuard` in `src/composition/container.ts` by M3-B Task 5b; it reads the covering plan `FOR SHARE`), `DefaultSplitSource` and `DefaultSplitQuery` (`src/modules/ledger/application/ports.ts`, M3-B Task 13), `LedgerDeps.defaultSplits` (M3-B Task 13, bound to `defaultSplitOf` by M3-B Task 15b), `RecordExpense` checking the closed period before it reads the default split (M3-B Task 13, ruling P14), the `defaultSplits` line of `ledgerFixture` in `tests/support/in-memory-ledger.ts` (M3-B Task 13), and `activatePlan`, `closePlan` in `tests/support/budgeting.ts` (M3-B Tasks 5a, 5b). Every anchor below names a line that M3-B leaves as it is today or writes in the form its code blocks show; where M3-B changes a file this plan also edits (`src/composition/container.ts`, `src/modules/ledger/application/index.ts`, `tests/support/in-memory-ledger.ts`), this plan anchors on lines M3-B does not touch or appends to the end of the file.
+**Baseline: `development` at `0dc49ce` (M3-B merged in PR #93; the preflight dry-ran this plan at `05bc6c5`, the same code).** This plan executes, and its preflight dry run runs, only after `docs/plans/2026-10-15-m3b-plan-lifecycle.md` is merged (its Tasks 1–6 are committed as of `d7ae3e2`; Tasks 7–15b deliver exactly what that plan's code blocks show). It relies on M3-B's names as final: `ClosedPeriodGuard` (ledger port, bound to budgeting's `createClosedPeriodGuard` in `src/composition/container.ts` by M3-B Task 5b; it reads the covering plan `FOR SHARE`), `DefaultSplitSource` and `DefaultSplitQuery` (`src/modules/ledger/application/ports.ts`, M3-B Task 13), `LedgerDeps.defaultSplits` (M3-B Task 13, bound to `defaultSplitOf` by M3-B Task 15b), `RecordExpense` checking the closed period before it reads the default split (M3-B Task 13, ruling P14), the `defaultSplits` line of `ledgerFixture` in `tests/support/in-memory-ledger.ts` (M3-B Task 13), and `activatePlan`, `closePlan` in `tests/support/budgeting.ts` (M3-B Tasks 5a, 5b). Every anchor below names a line that M3-B leaves as it is today or writes in the form its code blocks show; where M3-B changes a file this plan also edits (`src/composition/container.ts`, `src/modules/ledger/application/index.ts`, `tests/support/in-memory-ledger.ts`), this plan anchors on lines M3-B does not touch or appends to the end of the file.
 
 **Out of scope (later plans):** M4 reporting, epic E7 (HU-E7-01 … HU-E7-05; the line dashboard's "expected" pending occurrences of HU-E4-13's note belong to HU-E7-01); the web UI, epic E9 (HU-E9-09 recurring transactions and pending confirmations screens, including the schedule preview of a recurrence not yet defined; HU-E9-07's history view). Also out: WEEKLY and BIWEEKLY schedules (HU-E8-09), notifications of pending occurrences (HU-E8-08), recurring settlements (the backlog lists expense, income, transfer and fund contribution only), `EXACT` recurrence splits (ruling P23), pagination of the new lists (ruling P28), the balance history of former members (ruling P29), and a recurrence id on transactions (ruling P31).
 
@@ -69,7 +69,7 @@
 │   ├── backlog/E4-ledger.md                                         # notes of HU-E4-11 … HU-E4-13 (Tasks 6e, 6f, 7b, 9b, 11b)
 │   ├── backlog/E5-balances-and-settlements.md                       # HU-E5-04 note (Task 14)
 │   ├── operations/deploy.md                                         # the recurring-transactions job (Task 9a)
-│   └── superpowers/specs/2026-10-11-hearth-design.md                # 5.2 Recurrence amended (Task 9b, rulings P21–P24)
+│   └── specs/2026-10-11-hearth-design.md                # 5.2 Recurrence amended (Task 9b, rulings P21–P24)
 ├── drizzle/0011_recurrences.sql (+ meta/0011_snapshot.json, _journal.json)   # Task 3a, generated
 ├── openapi/openapi.snapshot.json                                    # Tasks 6d, 6e2, 6f, 7a, 7b, 11a, 11b, 14
 ├── src/
@@ -6976,7 +6976,7 @@ Decisions:
 
 **Files:**
 - Create: `tests/acceptance/recurring-occurrences.test.ts`
-- Modify: `tests/support/recurrences.ts`, `docs/backlog/E4-ledger.md`, `docs/superpowers/specs/2026-10-11-hearth-design.md`
+- Modify: `tests/support/recurrences.ts`, `docs/backlog/E4-ledger.md`, `docs/specs/2026-10-11-hearth-design.md`
 
 **Interfaces:**
 - Consumes: `Container.ledger.materializeDueOccurrences` (Task 9a); `defined`, `rentBody`, `householdWithFund`, `recurrenceOf`, `patchRecurrence` (Tasks 6e–7a); `MovableClock` (Task 4); `newPlan`, `setCapacities`, `addLine`, `lineNamed`, `putCategories`, `putAllocation`, `activatePlan`, `closePlan` (`tests/support/budgeting.ts`, M3-A and M3-B Tasks 5a, 5b); `cop`, `TransactionDto` (`tests/support/ledger.ts`); the transactions route.
@@ -7237,7 +7237,7 @@ In `docs/backlog/E4-ledger.md`, replace the four lines from `  Scenario: Closed 
     And the "Rent" expense dated 2027-01-01 is recorded
 ```
 
-In `docs/superpowers/specs/2026-10-11-hearth-design.md`, replace the line that starts with `**Recurrence** — id, spaceId, template` with:
+In `docs/specs/2026-10-11-hearth-design.md`, replace the line that starts with `**Recurrence** — id, spaceId, template` with:
 
 ```markdown
 **Recurrence** — id, spaceId, template (transaction type, amount or estimated amount, category, payer SpaceMember or fund, account, and a split by ratios, `EQUAL`, `PERCENT` or `SHARES`, or none, which takes the default split of each occurrence), schedule (same anchor rules as `PeriodPolicy`: MONTHLY(day) or SEMI_MONTHLY(day1, day2), clamped), mode (`AUTO` records the transaction on its date; `CONFIRM` creates a pending occurrence that a member confirms with the real amount or skips), startDate, endDate, pausedAt. Occurrences are idempotent per (recurrenceId, date); missed runs are caught up, from the day the recurrence was defined and never across a pause; occurrences in a CLOSED period are skipped. `BY_ALLOCATION` is resolved with the plan of each occurrence's period. Every AUTO occurrence is recorded on behalf of the member who defined the recurrence, and a pending one on behalf of the member who confirms it, through the same use cases a member calls. Edits apply to future occurrences only; the type, payer and accounts never change. (Amended 2026-10-16, M3-C rulings P21–P24.)
@@ -7251,7 +7251,7 @@ Expected: all exit 0.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add tests/acceptance/recurring-occurrences.test.ts tests/support/recurrences.ts docs/backlog/E4-ledger.md docs/superpowers/specs/2026-10-11-hearth-design.md
+git add tests/acceptance/recurring-occurrences.test.ts tests/support/recurrences.ts docs/backlog/E4-ledger.md docs/specs/2026-10-11-hearth-design.md
 git commit -m "test(ledger): record due occurrences end to end with each period's plan and closed periods (Refs #41)"
 ```
 
