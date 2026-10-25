@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useId, useMemo, useRef, useState, type ReactNode } from "react";
@@ -39,7 +40,6 @@ import {
   previewOf,
   type AllocationDraft,
 } from "./allocation";
-import { CategoryMappingSheet } from "./category-mapping-sheet";
 import {
   lineBodyOf,
   lineChanges,
@@ -52,6 +52,13 @@ import {
   type RolloverMode,
 } from "./line-draft";
 import { removeLine, saveLine, type LineSection } from "./line-save";
+
+// Issue #182: the mapping sheet's code loads only when someone opens it, so the editor's first view carries less
+// script and its LCP stays under the budget (the pattern of P177).
+const CategoryMappingSheet = dynamic(
+  () => import("./category-mapping-sheet").then((module) => module.CategoryMappingSheet),
+  { ssr: false },
+);
 
 const FUNDINGS: readonly Funding[] = ["DIRECT", "SHARED_FUND", "SAVINGS"];
 const ROLLOVERS: readonly RolloverMode[] = ["RESET", "ROLLOVER", "ADJUSTED"];
@@ -456,19 +463,21 @@ export function LineEditor({
         </Button>
       </form>
 
-      <CategoryMappingSheet
-        open={mapping}
-        onOpenChange={setMapping}
-        groups={groups}
-        plan={plan}
-        lineId={lineId}
-        lineName={draft.name.trim() || (line?.name ?? t("newTitle"))}
-        value={categoryIds}
-        onChange={(next) => {
-          setCategoryIds(next);
-          setSectionError(null);
-        }}
-      />
+      {mapping ? (
+        <CategoryMappingSheet
+          open={mapping}
+          onOpenChange={setMapping}
+          groups={groups}
+          plan={plan}
+          lineId={lineId}
+          lineName={draft.name.trim() || (line?.name ?? t("newTitle"))}
+          value={categoryIds}
+          onChange={(next) => {
+            setCategoryIds(next);
+            setSectionError(null);
+          }}
+        />
+      ) : null}
 
       {line !== null ? (
         <>
