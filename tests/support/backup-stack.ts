@@ -41,7 +41,7 @@ export const HEARTH_SCRIPTS: string[] = [
 ];
 
 /** The image of the optional backup-offsite service. */
-export const RCLONE_IMAGE = "rclone/rclone:1.75.1";
+export const RCLONE_IMAGE = "rclone/rclone:1.75.2";
 
 export interface RunOptions {
   /** Defaults to POSTGRES_IMAGE, the image of the backup service. */

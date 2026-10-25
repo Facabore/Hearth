@@ -68,7 +68,7 @@ services:
 
   # Optional off-site copy of the backups (HU-E8-01): runs only with COMPOSE_PROFILES=offsite in .env.
   backup-offsite:
-    image: rclone/rclone:1.75.1
+    image: rclone/rclone:1.75.2
     profiles: [offsite]
     restart: unless-stopped
     entrypoint: ["sh", "/hearth/cron-entrypoint.sh"]
