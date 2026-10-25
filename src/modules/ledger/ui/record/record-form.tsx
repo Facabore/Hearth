@@ -382,7 +382,20 @@ export function RecordForm({
         noValidate
         className="flex flex-col gap-5"
       >
-        <Tabs.Root value={kind} onValueChange={(next) => setKind(next as RecordKind)}>
+        <Tabs.Root
+          value={kind}
+          onValueChange={(next) => {
+            const nextKind = next as RecordKind;
+            setKind(nextKind);
+            // Issue #173: a category the new kind's sheet does not offer goes, so it is never saved unseen.
+            const offered =
+              nextKind !== "TRANSFER" &&
+              groupsForKind(live, nextKind).some((g) =>
+                g.categories.some((c) => c.id === category?.categoryId),
+              );
+            if (category && !offered) setCategory(null);
+          }}
+        >
           {edit ? (
             <p className="text-sm text-muted">{t("edit.kind", { type: t(`type.${kind}`) })}</p>
           ) : (

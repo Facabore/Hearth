@@ -143,6 +143,14 @@ describe("the category sheet offers only the movement's own categories (issue #1
     expect(within(dialog).queryByRole("radio", { name: "Salario" })).not.toBeInTheDocument();
   });
 
+  it("drops a category the new kind does not offer when the kind changes", async () => {
+    const dialog = await sheet("INCOME");
+    await userEvent.click(within(dialog).getByRole("radio", { name: "Salario" }));
+    expect(screen.getByRole("button", { name: /Categoría/ })).toHaveTextContent("Salario");
+    await userEvent.click(screen.getByRole("tab", { name: "Gasto" }));
+    expect(screen.getByRole("button", { name: /Categoría/ })).not.toHaveTextContent("Salario");
+  });
+
   it("an income lists Salario but not Groceries", async () => {
     const dialog = await sheet("INCOME");
     expect(within(dialog).getByRole("radio", { name: "Salario" })).toBeInTheDocument();
