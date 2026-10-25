@@ -126,6 +126,8 @@ export function LineEditor({
 
   const currency = plan.totalCapacity.currency;
   const lineId = stored?.id ?? null;
+  // Issue #175: a personal plan's line answers to its one member, so it has no "Quién responde" nor capacity check.
+  const personal = space.kind === "PERSONAL";
   const plannedMinor = (() => {
     const decimal = parseDecimal(draft.planned, formats.numberFormat);
     return decimal === null ? null : minorOf(decimal, currencyOf(currency).exponent);
@@ -183,7 +185,11 @@ export function LineEditor({
       return;
     }
     // The preview already shows why: a sum that does not hold, nobody with capacity, or a value nobody can read.
-    if (preview.kind === "invalid" || preview.kind === "noCapacity" || preview.kind === "unreadable") {
+    // A personal space has no one to share a line with, so it never asks (issue #175).
+    if (
+      !personal &&
+      (preview.kind === "invalid" || preview.kind === "noCapacity" || preview.kind === "unreadable")
+    ) {
       allocationSection.current?.focus();
       return;
     }
@@ -427,19 +433,21 @@ export function LineEditor({
           </div>
         ) : null}
 
-        <AllocationEditor
-          ref={allocationSection}
-          draft={allocationDraft}
-          onChange={(next) => {
-            setAllocationDraft(next);
-            setSectionError(null);
-          }}
-          preview={preview}
-          members={members}
-          formats={formats}
-          currency={currency}
-          planned={plannedNow}
-        />
+        {personal ? null : (
+          <AllocationEditor
+            ref={allocationSection}
+            draft={allocationDraft}
+            onChange={(next) => {
+              setAllocationDraft(next);
+              setSectionError(null);
+            }}
+            preview={preview}
+            members={members}
+            formats={formats}
+            currency={currency}
+            planned={plannedNow}
+          />
+        )}
         {allocationError ? <FieldError id={`${ids}-allocation-error`}>{allocationError}</FieldError> : null}
 
         {formProblem !== null && !removing ? <ProblemNotice problem={formProblem} /> : null}
