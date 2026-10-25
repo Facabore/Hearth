@@ -64,6 +64,15 @@ describe("the home's recent rows open their detail (ruling P189)", () => {
     />
   );
 
+  it("wraps a long account name instead of cutting it (issue #178)", () => {
+    renderWithIntl(
+      summary({ accounts: [accountDto({ name: "Tarjeta de crédito Visa Oro", balance: cop(1) })] }),
+    );
+    const name = screen.getByText("Tarjeta de crédito Visa Oro");
+    expect(name).not.toHaveClass("truncate");
+    expect(name.className).toContain("[overflow-wrap:anywhere]");
+  });
+
   it("links every recent row to the home's address with its transaction", () => {
     renderWithIntl(summary());
     const rows = within(screen.getByRole("region", { name: "Recientes" })).getAllByRole("listitem");

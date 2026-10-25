@@ -138,7 +138,7 @@ export function HomeSummary({
                       key={account.id}
                       className="flex w-[156px] shrink-0 flex-col rounded-2xl bg-surface p-4"
                     >
-                      <span className="truncate text-sm text-muted">{account.name}</span>
+                      <span className="text-sm [overflow-wrap:anywhere] text-muted">{account.name}</span>
                       <span className="font-semibold [overflow-wrap:anywhere] text-ink">
                         {formatMoney(account.balance, formats)}
                       </span>
