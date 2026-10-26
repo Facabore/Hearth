@@ -434,10 +434,13 @@ const settle = async (page: Page) => {
   await page.evaluate(() => document.fonts.ready);
 };
 
-/** The last control a person can act on in the open sheet, scrolled to the end of its own scroll area. */
+/**
+ * The last control a person can act on in the open sheet, scrolled to the end of its own scroll area. With sheets
+ * stacked (HU-E9-04's icon library over the category sheet) it is the top one, the last opened.
+ */
 const lastControlIsOnTop = (page: Page) =>
   page.evaluate(() => {
-    const dialog = document.querySelector<HTMLElement>("[role='dialog']");
+    const dialog = [...document.querySelectorAll<HTMLElement>("[role='dialog']")].at(-1);
     if (!dialog) return "no open dialog";
     const visible = (el: Element) => {
       const r = el.getBoundingClientRect();
@@ -498,6 +501,20 @@ const sheets: {
     open: async (page) => {
       await expect(page.locator("[data-ready='true']")).toBeAttached();
       await page.getByTestId("when-chip").click();
+    },
+  },
+  {
+    name: "category edit sheet",
+    path: "categories",
+    open: (page) =>
+      page.getByRole("button", { name: es.categories.edit.replace("{name}", "Arriendo") }).click(),
+  },
+  {
+    name: "icon library",
+    path: "categories",
+    open: async (page) => {
+      await page.getByRole("button", { name: es.categories.edit.replace("{name}", "Arriendo") }).click();
+      await page.getByRole("button", { name: es.categories.icons.seeAll }).click();
     },
   },
   {
@@ -641,6 +658,9 @@ for (const wideFont of [false, true]) {
           `/spaces/${sharedId}`,
           `/spaces/${sharedId}/members`,
           `/spaces/${sharedId}/balances`,
+          // HU-E9-04: the category tree, managed (personal) and its shared counterpart.
+          `/spaces/${spaceId}/categories`,
+          `/spaces/${sharedId}/categories`,
           // HU-E9-10, HU-E9-11: the Plan tab, My spending (personal) and without a plan (shared).
           `/spaces/${spaceId}/plan`,
           `/spaces/${spaceId}/plan/lines`,

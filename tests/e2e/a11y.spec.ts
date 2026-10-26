@@ -57,6 +57,8 @@ for (const colorScheme of ["light", "dark"] as const) {
         `/spaces/${spaceId}/accounts`,
         `/spaces/${spaceId}/accounts/new`,
         `/spaces/${spaceId}/new`,
+        // HU-E9-04: the seeded category tree.
+        `/spaces/${spaceId}/categories`,
         // HU-E9-11: My spending, the personal space's Plan tab, with consumption and cash out.
         `/spaces/${spaceId}/plan`,
         // HU-E9-10: its Lines view, a space with spending and no plan (Unbudgeted alone).
@@ -71,6 +73,14 @@ for (const colorScheme of ["light", "dark"] as const) {
         await page.goto(path);
         await scan(path);
       }
+      // HU-E9-04: a category's edit sheet (icon picker, color row) and the icon library over it.
+      await page.goto(`/spaces/${spaceId}/categories`);
+      await page.getByRole("button", { name: es.categories.edit.replace("{name}", "Arriendo") }).click();
+      await expect(page.getByRole("radiogroup", { name: es.categories.colorLabel })).toBeVisible();
+      await scan("category edit sheet");
+      await page.getByRole("button", { name: es.categories.icons.seeAll }).click();
+      await expect(page.getByRole("dialog", { name: es.categories.icons.library })).toBeVisible();
+      await scan("icon library");
       // Ruling P189: a transaction's detail opens over the list from a row.
       await page.goto(`/spaces/${spaceId}/transactions`);
       await page.getByRole("link", { name: /Market/ }).click();

@@ -8,6 +8,7 @@
     "/spaces/:id/transactions?tx=:tx": 193,
     "/spaces/:id/transactions/:tx/edit": 190,
     "/spaces/:id/accounts": 160,
+    "/spaces/:id/categories": 168,
     "/spaces/:id/new": 187,
     "/settings": 175,
     "/spaces/new": 172,

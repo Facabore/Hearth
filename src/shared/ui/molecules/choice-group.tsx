@@ -9,7 +9,7 @@ export interface ChoiceGroupProps<T extends string> {
   readonly options: readonly { value: T; label: ReactNode; disabled?: boolean }[];
   readonly onValueChange: (value: T) => void;
   readonly disabled?: boolean;
-  readonly layout?: "segmented" | "chips" | "grid";
+  readonly layout?: "segmented" | "chips" | "grid" | "tiles" | "swatches";
   readonly describedBy?: string;
 }
 
@@ -17,6 +17,8 @@ const ROOT = {
   segmented: "flex rounded-[14px] bg-track p-1",
   chips: "flex flex-wrap gap-2",
   grid: "grid grid-cols-4 gap-2",
+  tiles: "grid grid-cols-6 gap-1",
+  swatches: "flex flex-wrap gap-1",
 } as const;
 
 const ITEM = {
@@ -24,6 +26,12 @@ const ITEM = {
   chips:
     "rounded-full border border-line px-4 data-[state=checked]:border-accent data-[state=checked]:bg-accent-soft",
   grid: "rounded-[14px] border border-line px-2 data-[state=checked]:border-accent data-[state=checked]:bg-accent-soft",
+  // HU-E9-04: an icon picker's square tiles, six to a row (44 px at 320 px wide).
+  tiles:
+    "flex aspect-square items-center justify-center rounded-[14px] border border-line data-[state=checked]:border-accent data-[state=checked]:bg-accent-soft",
+  // HU-E9-04: a color row's 44 px swatches; the chosen one is ringed.
+  swatches:
+    "flex size-11 items-center justify-center rounded-full border-2 border-transparent data-[state=checked]:border-accent",
 } as const;
 
 const NEXT = new Set(["ArrowRight", "ArrowDown"]);

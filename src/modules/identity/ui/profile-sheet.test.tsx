@@ -22,7 +22,7 @@ describe("profile sheet (HU-E9-01)", () => {
     router.refresh.mockClear();
   });
 
-  it("shows the person, links to settings and accounts, and signs out to the sign-in screen", async () => {
+  it("shows the person, links to settings, categories and accounts, and signs out to the sign-in screen", async () => {
     const { api, requests } = fakeApi({
       "POST /api/v1/auth/sign-out": () => new Response(null, { status: 204 }),
     });
@@ -44,6 +44,11 @@ describe("profile sheet (HU-E9-01)", () => {
     expect(within(sheet).getByRole("link", { name: /Cuentas/ })).toHaveAttribute(
       "href",
       "/spaces/sp-personal/accounts",
+    );
+    // HU-E9-04: Avatar › Categories, in every kind of space.
+    expect(within(sheet).getByRole("link", { name: /Categorías/ })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/categories",
     );
     expect(within(sheet).queryByRole("link", { name: /Miembros/ })).not.toBeInTheDocument();
     await userEvent.click(within(sheet).getByRole("button", { name: "Cerrar sesión" }));
