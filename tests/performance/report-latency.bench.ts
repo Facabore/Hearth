@@ -41,8 +41,16 @@ import {
  * includes the session, Zod, the use case, the queries and reading the JSON body; it leaves out Next.js routing.
  */
 const NOW = new Date("2026-10-25T17:00:00Z");
-const EXPENSES = Number(process.env.HEARTH_LATENCY_EXPENSES ?? 300);
-const RUNS = Number(process.env.HEARTH_LATENCY_RUNS ?? 30);
+/** The environment variable `name` as a positive integer, `fallback` when unset; anything else stops the probe (#186). */
+const positiveInteger = (name: string, fallback: number): number => {
+  const raw = process.env[name];
+  if (raw === undefined) return fallback;
+  if (!/^[1-9]\d*$/.test(raw))
+    throw new Error(`${name} must be a positive integer, got ${JSON.stringify(raw)}`);
+  return Number(raw);
+};
+const EXPENSES = positiveInteger("HEARTH_LATENCY_EXPENSES", 300);
+const RUNS = positiveInteger("HEARTH_LATENCY_RUNS", 30);
 const PERSONAL_EXPENSES = 100;
 
 /** The 24 monthly periods ending in 2026-10: 2024-11 … 2026-10. */
