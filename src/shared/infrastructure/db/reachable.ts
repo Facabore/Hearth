@@ -9,10 +9,13 @@ export const reachableWithin = async (ms: number, probe: () => Promise<unknown>)
   });
   try {
     return await Promise.race([
-      probe().then(
-        () => true,
-        () => false,
-      ),
+      // A probe that throws at once counts as a failure too, like one that rejects.
+      Promise.resolve()
+        .then(probe)
+        .then(
+          () => true,
+          () => false,
+        ),
       timeUp,
     ]);
   } finally {

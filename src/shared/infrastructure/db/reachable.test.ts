@@ -7,6 +7,11 @@ describe("reachableWithin (HU-E8-02)", () => {
   it("is true when the probe succeeds and false when it fails", async () => {
     expect(await reachableWithin(2_000, async () => 1)).toBe(true);
     expect(await reachableWithin(2_000, () => Promise.reject(new Error("refused")))).toBe(false);
+    expect(
+      await reachableWithin(2_000, () => {
+        throw new Error("no pool");
+      }),
+    ).toBe(false);
   });
 
   it("is false once the time is up for a probe that never answers", async () => {
