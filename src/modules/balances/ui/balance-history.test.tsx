@@ -106,6 +106,19 @@ describe("balance history (HU-E9-07, ruling P176)", () => {
     expect(screen.getByRole("link", { name: "Back" })).toBeInTheDocument();
   });
 
+  it("links to what Juan paid in the same period in Movimientos, in Spanish and English (issue #148)", () => {
+    view();
+    expect(screen.getByRole("link", { name: "Ver lo que pagó Juan" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household/transactions?period=2026-10&payer=m-juan",
+    );
+    view({}, "en");
+    expect(screen.getByRole("link", { name: "See what Juan paid" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household/transactions?period=2026-10&payer=m-juan",
+    );
+  });
+
   it("says when nothing changed the balance in the period", () => {
     view({ previous: null, history: { ...HISTORY, entries: [] } });
     expect(screen.getByText("Nada cambió su saldo en este período.")).toBeInTheDocument();

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { transactionListHref } from "@/modules/ledger/ui";
 import { Icon, ScreenHeader, VisuallyHidden } from "@/shared/ui";
 import type { BalanceHistoryDto, MemberDto, MoneyDto, PeriodDto } from "@/shared/ui/api/dto";
 import { formatDate, formatMoney, type Formats } from "@/shared/ui/format/formatters";
@@ -12,6 +13,9 @@ const INK = { owes: "text-owe", owed: "text-accent", settled: "text-ink" } as co
  * net at the start and at the end of a period of the space, and each movement that changed it as the running balance
  * after it (a sentence, ruling P173) over how much it changed it. The API's entries carry no payer or amount, so an
  * entry is titled by its description or the name of its type, not by the artboard's "Ana pagó $ 300.000".
+ *
+ * Issue #148: Saldos leads here, and from here to what the member paid in the same period (Movimientos filtered by
+ * payer), so a household goes from a balance to the payments behind it.
  */
 export function BalanceHistory({
   spaceId,
@@ -87,6 +91,15 @@ export function BalanceHistory({
           </div>
         ))}
       </section>
+      <Link
+        href={transactionListHref(spaceId, { period: period.label, payerMemberId: member.id })}
+        className="flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-3.5 py-2.5 font-medium text-ink"
+      >
+        <span className="min-w-0 [overflow-wrap:anywhere]">
+          {t("history.paid", { name: member.displayName })}
+        </span>
+        <Icon name="chevronRight" />
+      </Link>
       <section aria-labelledby="balance-history-entries" className="flex flex-col gap-1.5">
         <h2 id="balance-history-entries" className="px-0.5 text-sm font-semibold text-muted">
           {t("history.entries")}

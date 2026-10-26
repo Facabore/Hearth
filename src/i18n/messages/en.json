@@ -740,6 +740,7 @@
       "closing": "At the end",
       "entries": "Movements that changed their balance",
       "empty": "Nothing changed their balance in this period.",
+      "paid": "See what {name} paid",
       "note": "On the right, the balance after each movement and, under it, how much it changed."
     },
     "record": "Record a payment",

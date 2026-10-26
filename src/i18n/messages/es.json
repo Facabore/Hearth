@@ -740,6 +740,7 @@
       "closing": "Al terminar",
       "entries": "Movimientos que cambian su saldo",
       "empty": "Nada cambió su saldo en este período.",
+      "paid": "Ver lo que pagó {name}",
       "note": "A la derecha, el saldo después de cada movimiento y debajo cuánto cambió."
     },
     "record": "Registrar pago",
