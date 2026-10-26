@@ -78,14 +78,14 @@ describe("accounts screen (HU-E9-03)", () => {
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
       "Bancos, billeteras y efectivo",
       "Tarjetas de crédito",
-      "Archivadas",
+      "Ocultas",
     ]);
-    const archived = screen.getByRole("region", { name: "Archivadas" });
+    const archived = screen.getByRole("region", { name: "Ocultas" });
     expect(within(archived).getByText("Old wallet")).toBeInTheDocument();
-    expect(within(archived).getByRole("button", { name: "Restaurar Old wallet" })).toBeInTheDocument();
-    expect(within(archived).queryByRole("button", { name: /^Archivar/ })).toBeNull();
-    expect(within(bank).getByRole("button", { name: "Archivar Bancolombia" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^Restaurar (?!Old)/ })).toBeNull();
+    expect(within(archived).getByRole("button", { name: "Mostrar Old wallet" })).toBeInTheDocument();
+    expect(within(archived).queryByRole("button", { name: /^Ocultar/ })).toBeNull();
+    expect(within(bank).getByRole("button", { name: "Ocultar Bancolombia" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Mostrar (?!Old)/ })).toBeNull();
     expect(screen.getByRole("link", { name: "Nueva cuenta" })).toHaveAttribute(
       "href",
       "/spaces/sp-personal/accounts/new?returnTo=%2Fspaces%2Fsp-personal%2Faccounts",
@@ -210,7 +210,7 @@ describe("accounts screen: the add button and the empty states (U4, U1)", () => 
     expect(within(emptyState).getByRole("button", { name: "Crear cuentas base" })).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "Nueva cuenta" })).toHaveLength(1);
     expect(screen.queryByRole("region", { name: "Totales" })).toBeNull();
-    const archived = screen.getByRole("region", { name: "Archivadas" });
+    const archived = screen.getByRole("region", { name: "Ocultas" });
     expect(within(archived).getByRole("listitem", { name: /Efectivo/ })).toBeInTheDocument();
     expect(await axeViolations(container)).toEqual([]);
   });
@@ -287,6 +287,38 @@ describe("accounts screen: the add button and the empty states (U4, U1)", () => 
       "/spaces/sp-household/accounts/new?returnTo=%2Fspaces%2Fsp-household%2Faccounts",
     );
     expect(screen.queryByRole("link", { name: "Nueva cuenta" })).toBeNull();
+  });
+
+  it("opens an active account's edit screen from its row, never a hidden one's (issue 169)", () => {
+    renderWithIntl(<AccountsScreen spaceId="sp-personal" list={list} formats={BUILT_IN_FORMATS} />);
+    const bank = screen.getByRole("listitem", { name: /Bancolombia/ });
+    expect(within(bank).getByRole("link", { name: /^Bancolombia.*Editar$/ })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/accounts/a-bank/edit",
+    );
+    const hidden = screen.getByRole("region", { name: "Ocultas" });
+    expect(within(hidden).queryByRole("link")).toBeNull();
+  });
+
+  it("lets an ADMIN edit a fund, and a MEMBER who may not manage funds only see it (issue 169)", () => {
+    const shared = (role: "ADMIN" | "MEMBER") =>
+      renderWithIntl(
+        <AccountsScreen
+          spaceId="sp-household"
+          kind="SHARED"
+          role={role}
+          list={{ items: [fund], totals: empty.totals }}
+          formats={BUILT_IN_FORMATS}
+        />,
+      );
+    const admin = shared("ADMIN");
+    expect(screen.getByRole("link", { name: /Editar$/ })).toHaveAttribute(
+      "href",
+      `/spaces/sp-household/accounts/${fund.id}/edit`,
+    );
+    admin.unmount();
+    shared("MEMBER");
+    expect(screen.queryByRole("link", { name: /Editar$/ })).toBeNull();
   });
 
   it("in a direct space says each person pays from their own accounts and offers nothing to create", () => {

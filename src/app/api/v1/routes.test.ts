@@ -20,10 +20,11 @@ const PREFERENCES = {
   defaults: RULES,
   locked: [],
 };
-const use = (resolve: (h: Headers) => Promise<AuthUser | null>) =>
+const use = (resolve: (h: Headers) => Promise<AuthUser | null>, databaseReachable = async () => true) =>
   setContainerForTests({
     sessionResolver: { resolve },
     logger: jsonLogger,
+    databaseReachable,
     // HU-E1-15: GET /me answers the profile query; here with no stored format and the built-in rules.
     identity: { getProfile: async ({ user }: { user: AuthUser }) => ok({ user, preferences: PREFERENCES }) },
   } as unknown as Container);
@@ -40,11 +41,24 @@ describe("foundation routes", () => {
     expect((await response.json()).openapi).toBe("3.1.0");
   });
 
-  it("serves health without credentials", async () => {
-    use(async () => null);
+  it("serves health without credentials, reporting the database (HU-E8-02)", async () => {
+    use(
+      async () => null,
+      async () => true,
+    );
     const response = await health(get("/api/v1/health"));
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ status: "ok" });
+    expect(await response.json()).toEqual({ status: "ok", db: "ok" });
+  });
+
+  it("answers health 503 with db unreachable when the database does not answer (HU-E8-02)", async () => {
+    use(
+      async () => null,
+      async () => false,
+    );
+    const response = await health(get("/api/v1/health"));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ status: "unavailable", db: "unreachable" });
   });
 
   it("rejects GET /me without credentials", async () => {

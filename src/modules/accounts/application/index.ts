@@ -11,6 +11,7 @@ export {
   ACCOUNT_COLORS,
   ACCOUNT_ICONS,
   ACCOUNT_TYPES,
+  defaultsOf,
   holdsMoney,
   iconOf,
   NO_ATTRIBUTES,

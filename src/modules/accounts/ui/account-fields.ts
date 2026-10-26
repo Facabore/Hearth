@@ -1,8 +1,9 @@
+import type { AccountDto } from "@/shared/ui/api/dto";
 import type { Problem } from "@/shared/ui/api/problem";
 import { minorOf, parseDecimal } from "@/shared/ui/format/amount-input";
 import { currencyOf } from "@/shared/ui/format/currencies";
-import type { NumberFormat } from "@/shared/ui/format/formatters";
-import type { AccountType } from "./account-look";
+import { decimalOf, formatNumber, type NumberFormat } from "@/shared/ui/format/formatters";
+import type { AccountIcon, AccountType } from "./account-look";
 
 /** The NewAccount artboard's types, in its order (a shared fund only in a shared space). */
 export const PERSONAL_TYPES = [
@@ -82,49 +83,140 @@ export interface AccountDraft {
 const MONEY_TERMS: readonly AccountField[] = ["creditLimit", "principal"];
 const INTEGER_TERMS: readonly AccountField[] = ["cutOffDay", "paymentDay", "termDays", "termMonths"];
 const RATE_TERMS: readonly AccountField[] = ["monthlyRate", "annualRate"];
+const COMMON: readonly AccountField[] = ["institution", "lastFour"];
 
-/** The create body, or the field whose text cannot be read; a switch left alone is not sent (P51). */
-export const accountBodyOf = (
-  draft: AccountDraft,
-  currency: string,
-  numberFormat: NumberFormat,
-): { ok: true; body: Record<string, unknown> } | { ok: false; field: "opening" | AccountField } => {
+type Built = { ok: true; body: Record<string, unknown> } | { ok: false; field: "opening" | AccountField };
+
+const moneyIn = (currency: string, numberFormat: NumberFormat) => {
   const { exponent } = currencyOf(currency);
-  const money = (text: string) => {
+  return (text: string) => {
     const decimal = parseDecimal(text, numberFormat);
     const minor = decimal === null ? null : minorOf(decimal, exponent);
     return minor === null ? null : { amount: minor, currency };
   };
+};
+
+/** One attribute's text as the API takes it; null when it cannot be read. */
+const valueOf = (
+  field: AccountField,
+  text: string,
+  currency: string,
+  numberFormat: NumberFormat,
+): unknown => {
+  if (MONEY_TERMS.includes(field)) return moneyIn(currency, numberFormat)(text);
+  if (INTEGER_TERMS.includes(field)) return /^\d+$/.test(text) ? Number(text) : null;
+  if (RATE_TERMS.includes(field)) return parseDecimal(text, numberFormat);
+  return text;
+};
+
+/** The opening balance's text, typed without a sign, as money; `negative` sends it below zero. */
+const openingOf = (text: string, negative: boolean, currency: string, numberFormat: NumberFormat) => {
   // Issue #178: an opening balance left empty is 0, not a required field.
-  const opening = money(draft.opening.trim() === "" ? "0" : draft.opening);
-  if (!opening) return { ok: false, field: "opening" };
-  const owed = OWED_TYPES.includes(draft.type) && opening.amount !== "0";
-  const body: Record<string, unknown> = {
-    name: draft.name.trim(),
-    type: draft.type,
-    openingBalance: owed ? { ...opening, amount: `-${opening.amount}` } : opening,
-  };
+  const opening = moneyIn(currency, numberFormat)(text.trim() === "" ? "0" : text);
+  if (!opening) return null;
+  return negative && opening.amount !== "0" ? { ...opening, amount: `-${opening.amount}` } : opening;
+};
+
+/** The create body, or the field whose text cannot be read; a switch left alone is not sent (P51). */
+export const accountBodyOf = (draft: AccountDraft, currency: string, numberFormat: NumberFormat): Built => {
+  // A card's or a loan's opening balance is typed as what is owed and sent negative.
+  const openingBalance = openingOf(draft.opening, OWED_TYPES.includes(draft.type), currency, numberFormat);
+  if (!openingBalance) return { ok: false, field: "opening" };
+  const body: Record<string, unknown> = { name: draft.name.trim(), type: draft.type, openingBalance };
   const terms: Record<string, unknown> = {};
   for (const field of FIELDS_BY_TYPE[draft.type]) {
     const text = draft.fields[field]?.trim();
     if (!text) continue;
-    if (field === "institution" || field === "lastFour") body[field] = text;
-    else if (MONEY_TERMS.includes(field)) {
-      const value = money(text);
-      if (!value) return { ok: false, field };
-      terms[field] = value;
-    } else if (INTEGER_TERMS.includes(field)) {
-      if (!/^\d+$/.test(text)) return { ok: false, field };
-      terms[field] = Number(text);
-    } else if (RATE_TERMS.includes(field)) {
-      const rate = parseDecimal(text, numberFormat);
-      if (rate === null) return { ok: false, field };
-      terms[field] = rate;
-    } else terms[field] = text;
+    const value = valueOf(field, text, currency, numberFormat);
+    if (value === null) return { ok: false, field };
+    if (COMMON.includes(field)) body[field] = value;
+    else terms[field] = value;
   }
   if (Object.keys(terms).length > 0) body.terms = terms;
   if (draft.includeInAvailable !== null) body.includeInAvailable = draft.includeInAvailable;
   if (draft.includeInNetWorth !== null) body.includeInNetWorth = draft.includeInNetWorth;
+  return { ok: true, body };
+};
+
+/** Issue 169: what the edit form holds; the icon and switches as stored (null: the type's default, P253). */
+export interface AccountEdit {
+  readonly name: string;
+  readonly opening: string;
+  /**
+   * Whether the opening balance, typed without its sign, is below zero: as stored, or for a card or a loan at zero. An
+   * edit keeps it, so a card in credit or an overdrawn bank account never flips sign.
+   */
+  readonly openingNegative: boolean;
+  readonly fields: Readonly<Partial<Record<AccountField, string>>>;
+  readonly icon: AccountIcon | null;
+  readonly includeInAvailable: boolean | null;
+  readonly includeInNetWorth: boolean | null;
+}
+
+const POINTS: Readonly<Record<NumberFormat, string>> = { DOT_COMMA: ",", COMMA_DOT: ".", SPACE_COMMA: "," };
+
+/** Issue 169: an account as its edit form starts, every number as the person types it in their number format. */
+export const editOf = (account: AccountDto, numberFormat: NumberFormat): AccountEdit => {
+  const { exponent } = currencyOf(account.openingBalance.currency);
+  // What is owed is typed without its sign, as on the create form.
+  const money = (amount: string) =>
+    formatNumber(decimalOf(amount.replace(/^-/, ""), exponent), { numberFormat });
+  // "1.8900" is typed "1,89": a rate is never grouped, and the zeros that end its fraction say nothing.
+  const rate = (text: string) =>
+    text
+      .replace(/(\.\d*?)0+$/, "$1")
+      .replace(/\.$/, "")
+      .replace(".", POINTS[numberFormat]);
+  const fields: Partial<Record<AccountField, string>> = {};
+  for (const field of FIELDS_BY_TYPE[account.type]) {
+    const stored = COMMON.includes(field)
+      ? account[field as "institution" | "lastFour"]
+      : account.terms[field as keyof AccountDto["terms"]];
+    if (stored === null) continue;
+    if (typeof stored === "object") fields[field] = money(stored.amount);
+    else if (RATE_TERMS.includes(field)) fields[field] = rate(String(stored));
+    else fields[field] = String(stored);
+  }
+  const { amount } = account.openingBalance;
+  return {
+    name: account.name,
+    opening: money(amount),
+    openingNegative: amount.startsWith("-") || (amount === "0" && OWED_TYPES.includes(account.type)),
+    fields,
+    ...account.stored,
+  };
+};
+
+/**
+ * Issue 169: the PATCH body, holding only what changed since `before`, or the field whose text cannot be read. An
+ * emptied attribute is sent as null (cleared), and so is a style returned to its type's default (P253).
+ */
+export const editBodyOf = (
+  type: AccountType,
+  before: AccountEdit,
+  after: AccountEdit,
+  currency: string,
+  numberFormat: NumberFormat,
+): Built => {
+  const body: Record<string, unknown> = {};
+  if (after.name.trim() !== before.name) body.name = after.name.trim();
+  if (after.opening !== before.opening) {
+    const openingBalance = openingOf(after.opening, before.openingNegative, currency, numberFormat);
+    if (!openingBalance) return { ok: false, field: "opening" };
+    body.openingBalance = openingBalance;
+  }
+  const terms: Record<string, unknown> = {};
+  for (const field of FIELDS_BY_TYPE[type]) {
+    const text = after.fields[field]?.trim() ?? "";
+    if (text === (before.fields[field] ?? "")) continue;
+    const value = text === "" ? null : valueOf(field, text, currency, numberFormat);
+    if (value === null && text !== "") return { ok: false, field };
+    if (COMMON.includes(field)) body[field] = value;
+    else terms[field] = value;
+  }
+  if (Object.keys(terms).length > 0) body.terms = terms;
+  for (const key of ["icon", "includeInAvailable", "includeInNetWorth"] as const)
+    if (after[key] !== before[key]) body[key] = after[key];
   return { ok: true, body };
 };
 

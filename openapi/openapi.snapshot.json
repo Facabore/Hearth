@@ -8,10 +8,10 @@
     "/api/v1/health": {
       "get": {
         "operationId": "getHealth",
-        "summary": "Liveness check",
+        "summary": "Liveness and database check",
         "responses": {
           "200": {
-            "description": "The process is up",
+            "description": "The process is up and PostgreSQL answers",
             "content": {
               "application/json": {
                 "schema": {
@@ -20,10 +20,39 @@
                     "status": {
                       "type": "string",
                       "const": "ok"
+                    },
+                    "db": {
+                      "type": "string",
+                      "const": "ok"
                     }
                   },
                   "required": [
                     "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "PostgreSQL does not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "unavailable"
+                    },
+                    "db": {
+                      "type": "string",
+                      "const": "unreachable"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "db"
                   ],
                   "additionalProperties": false
                 }
@@ -12269,6 +12298,95 @@
           "includeInNetWorth": {
             "type": "boolean"
           },
+          "stored": {
+            "type": "object",
+            "properties": {
+              "icon": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "cash",
+                      "bank",
+                      "wallet",
+                      "card",
+                      "piggy",
+                      "trend",
+                      "coins",
+                      "dots",
+                      "users",
+                      "briefcase",
+                      "car",
+                      "star",
+                      "gift",
+                      "home",
+                      "plane",
+                      "phone"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "includeInAvailable": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "includeInNetWorth": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "icon",
+              "includeInAvailable",
+              "includeInNetWorth"
+            ],
+            "additionalProperties": false
+          },
+          "defaults": {
+            "type": "object",
+            "properties": {
+              "icon": {
+                "type": "string",
+                "enum": [
+                  "cash",
+                  "bank",
+                  "wallet",
+                  "card",
+                  "piggy",
+                  "trend",
+                  "coins",
+                  "dots",
+                  "users",
+                  "briefcase",
+                  "car",
+                  "star",
+                  "gift",
+                  "home",
+                  "plane",
+                  "phone"
+                ]
+              },
+              "includeInAvailable": {
+                "type": "boolean"
+              },
+              "includeInNetWorth": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "icon",
+              "includeInAvailable",
+              "includeInNetWorth"
+            ],
+            "additionalProperties": false
+          },
           "terms": {
             "type": "object",
             "properties": {
@@ -12465,6 +12583,8 @@
           "icon",
           "includeInAvailable",
           "includeInNetWorth",
+          "stored",
+          "defaults",
           "terms",
           "derived"
         ],

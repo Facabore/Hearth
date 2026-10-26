@@ -188,6 +188,8 @@ for (const colorScheme of ["light", "dark"] as const) {
         h,
         `${h}/members`,
         `${h}/balances`,
+        // HU-E9-04: the household's category tree, as its OWNER manages it.
+        `${h}/categories`,
         // HU-E9-10: the Plan tab of the household, with an overspent line, a line within its plan and Unbudgeted.
         `${h}/plan`,
         // HU-E9-08: the planner of that DRAFT plan, with its lines and the Activate action.

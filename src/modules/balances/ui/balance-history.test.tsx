@@ -78,8 +78,8 @@ describe("balance history (HU-E9-07, ruling P176)", () => {
       screen.getByRole("region", { name: "Movimientos que cambian su saldo" }),
     ).getAllByRole("listitem");
     expect(rows.map((r) => normalized(r.textContent))).toEqual([
-      "3/10/2026Mercadodebe $ 150.000−$ 150.000",
-      "10/10/2026Cenadebe $ 100.000+$ 50.000",
+      "3/10/2026Mercadole toca poner $ 150.000−$ 150.000",
+      "10/10/2026Cenale toca poner $ 100.000+$ 50.000",
       "30/10/2026Pago entre miembrosa paz y salvo+$ 100.000",
     ]);
     expect(await axeViolations(container)).toEqual([]);
@@ -104,6 +104,19 @@ describe("balance history (HU-E9-07, ruling P176)", () => {
     expect(normalized(summary.textContent)).toContain("At the startowes $ 150.000");
     expect(normalized(summary.textContent)).toContain("At the endis owed $ 20.000");
     expect(screen.getByRole("link", { name: "Back" })).toBeInTheDocument();
+  });
+
+  it("links to what Juan paid in the same period in Movimientos, in Spanish and English (issue #148)", () => {
+    view();
+    expect(screen.getByRole("link", { name: "Ver lo que pagó Juan" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household/transactions?period=2026-10&payer=m-juan",
+    );
+    view({}, "en");
+    expect(screen.getByRole("link", { name: "See what Juan paid" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household/transactions?period=2026-10&payer=m-juan",
+    );
   });
 
   it("says when nothing changed the balance in the period", () => {

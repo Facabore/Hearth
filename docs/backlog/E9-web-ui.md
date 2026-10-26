@@ -282,6 +282,20 @@ Feature: Categories screen
 - Color row: all 16 palette keys of HU-E3-05 as swatches, each named by its localized label for assistive technology; each key takes its light or dark tokens from the theme.
 - Groups: "New group" is a "+" on the screen's header and the last choice of the group choice in the category form. Both open one sheet (name, icon picker, color row, "Create group", calling `CreateCategoryGroup`); from the category form, creating selects the new group there and the form keeps its draft, and back leaves without creating. Like every create control, both show only to roles that manage the tree.
 
+**As built (issue #72, ruling P254):**
+
+- **Route and entry.** `/spaces/{spaceId}/categories`, with `ScreenHeader` back to the space's home. The entry is Avatar › Categorías, in every kind of space. The "Manage" entry in the expense form's category picker is left to HU-E9-12: leaving the form for this screen would drop the expense draft, which HU-E9-12 exists to keep.
+- **Who manages.** OWNER and ADMIN (a personal space's owner is its OWNER). Every other role sees the tree read-only, with a note that says who changes it: no "+", no "Agregar categoría", no edit, restore, archive or delete control. Opening and closing subcategories stays.
+- **Tabs.** "Gastos" and "Ingresos" split the groups as the pickers do (`groupsForKind`, issue #173). A group created here has no catalog key, so it shows on both tabs.
+- **Live updates.** `CategoryTreeContainer` reads the whole tree once (`?archived=true`). Each create, update, archive, restore and delete updates the shown tree from what the API answered (`withGroup`, `withCategory`, `withoutCategory` in `category-tree.ts`), so nothing reloads and the screen makes no read of its own (P127). A category keeps its place when it stays in its group and goes last into another one. Its subcategories follow its group, its style (HU-E3-05 derives theirs) and its archiving.
+- **Rows.** A category row shows its icon, name and subcategory count, and opens the edit sheet. A chevron opens or closes its subcategories, which show their parent's icon. A subcategory row opens the subcategory's sheet.
+- **Edit sheet.** A category's sheet has the name, the group choice (chips, then "Nuevo grupo"), the icon picker, the color row, its subcategories with "Nueva subcategoría" and "Agregar subcategoría", and Archivar and Eliminar. "Guardar cambios" sends one `PATCH` with only what changed. A subcategory's sheet has the name, a note that it shows its parent's style, and Archivar and Eliminar. It offers no picker, no group choice and no subcategory of its own, and moving a subcategory to another parent is not offered (no scenario asks for it).
+- **Archive and delete.** Both ask first, in the sheet. Archiving a category with live subcategories says they are archived too. A delete refused with `CategoryInUse` shows its `errors.CategoryInUse` message and "Archivar en su lugar", which archives the category and closes the sheet.
+- **Archived section.** "Archivadas" lists the archived categories and subcategories of the tab's live groups, a subcategory by its path ("Groceries › Vegetables"), each with "Restaurar" for who manages. A refusal such as `ParentCategoryArchived` shows its `errors.<Code>` message above the list. Archived groups are not shown: archiving and restoring groups is not part of this story.
+- **Icon picker.** The quick symbols are the story's list (cart, bread, cup, fork, bus, home, bulb, heart, gift, book and gym), where the artboard showed car, ticket and plane. The story wins (M6a Self-Review, "Design deviations"). The "see all" tile is the twelfth cell of the 6 × 2 grid, so 11 tiles and it fit 44 px each at 320 px. `ChoiceGroup` gains two layouts for this: `tiles` and `swatches`.
+- **Emoji library.** 64 emoji in eight sections: food, home, transport, health, leisure, shopping, money, and people and work. Each emoji has a label in both catalogs (`categories.emoji.<id>`), so search finds 🛒 by "carrito" or "shopping cart". The quick emoji are the first 11. The 58 symbol labels, the nine symbol section names and the 16 color names live in `categories.symbol`, `categories.symbolSection` and `categories.color`. HU-E9-12 reuses `IconPicker`, `ColorRow` and `GroupSheet` from `categories/ui`.
+- **Performance.** The category and group sheets, with the pickers and the library, load on the first tap (`next/dynamic`). Measured with Lighthouse mobile, the route loads 165 KiB of script with an LCP of 1862 ms (167 KiB and 2360 ms before the sheets were split out). Its budget is 168 KiB.
+
 ---
 
 ## HU-E9-05 — Shared spaces, members, guests and invitations screens
@@ -823,7 +837,7 @@ Feature: Installation rules screen
 
 Left open on purpose by [the M6a plan](../plans/2026-10-20-m6a-web-shell-and-ledger.md) (its Self-Review has the reasons):
 
-1. The account edit form, with #120 (answer stored and effective icon and switches).
+1. The account edit form, with #120 (answer stored and effective icon and switches). Done with issue 169 ([E2-accounts.md](E2-accounts.md), ruling P253).
 2. Editing, deleting and restoring transactions from the Activity screen (M6b, ruling P140), with the `If-Match` flow and a restore endpoint for transactions; an untimed row gets its first time by editing. Done in the M6b addendum ([plan](../plans/2026-10-21-m6b-addendum-edit-delete-feedback.md)).
 3. A text search, and account and type filters, in the transaction list (an API story first).
 4. Dependency bumps once each release is two weeks old: `@playwright/test` 1.64.x, `jsdom` 30.1.3, `@axe-core/playwright` and `axe-core` 4.14.0, `@testing-library/user-event` 14.6.8 and `radix-ui` 1.8.1.

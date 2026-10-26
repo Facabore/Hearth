@@ -434,10 +434,13 @@ const settle = async (page: Page) => {
   await page.evaluate(() => document.fonts.ready);
 };
 
-/** The last control a person can act on in the open sheet, scrolled to the end of its own scroll area. */
+/**
+ * The last control a person can act on in the open sheet, scrolled to the end of its own scroll area. With sheets
+ * stacked (HU-E9-04's icon library over the category sheet) it is the top one, the last opened.
+ */
 const lastControlIsOnTop = (page: Page) =>
   page.evaluate(() => {
-    const dialog = document.querySelector<HTMLElement>("[role='dialog']");
+    const dialog = [...document.querySelectorAll<HTMLElement>("[role='dialog']")].at(-1);
     if (!dialog) return "no open dialog";
     const visible = (el: Element) => {
       const r = el.getBoundingClientRect();
@@ -498,6 +501,20 @@ const sheets: {
     open: async (page) => {
       await expect(page.locator("[data-ready='true']")).toBeAttached();
       await page.getByTestId("when-chip").click();
+    },
+  },
+  {
+    name: "category edit sheet",
+    path: "categories",
+    open: (page) =>
+      page.getByRole("button", { name: es.categories.edit.replace("{name}", "Arriendo") }).click(),
+  },
+  {
+    name: "icon library",
+    path: "categories",
+    open: async (page) => {
+      await page.getByRole("button", { name: es.categories.edit.replace("{name}", "Arriendo") }).click();
+      await page.getByRole("button", { name: es.categories.icons.seeAll }).click();
     },
   },
   {
@@ -641,6 +658,9 @@ for (const wideFont of [false, true]) {
           `/spaces/${sharedId}`,
           `/spaces/${sharedId}/members`,
           `/spaces/${sharedId}/balances`,
+          // HU-E9-04: the category tree, managed (personal) and its shared counterpart.
+          `/spaces/${spaceId}/categories`,
+          `/spaces/${sharedId}/categories`,
           // HU-E9-10, HU-E9-11: the Plan tab, My spending (personal) and without a plan (shared).
           `/spaces/${spaceId}/plan`,
           `/spaces/${spaceId}/plan/lines`,
@@ -1725,6 +1745,36 @@ test.describe("sheets fit the screen and only their body scrolls", () => {
         .join("\n"),
     );
     expect(sources).toMatch(/max-height:\s*90dvh/);
+  });
+
+  test("in Porcentaje, each share of the split sheet comes into view above Listo on the audit's phone (#177)", async ({
+    page,
+  }) => {
+    await page.setViewportSize(PHONE);
+    const { sharedId } = await session(page, "split-percent");
+    await page.goto(`/spaces/${sharedId}/new`);
+    await ensureSecondMember(page);
+    await page.reload();
+    await expect(page.locator("[data-ready='true']")).toBeAttached();
+    await page.locator("#record-amount").fill("300000");
+    await page.getByRole("button", { name: new RegExp(es.ledger.split.split) }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("radio", { name: es.ledger.split.methods.PERCENT }).click();
+    const shares = dialog.getByLabel(new RegExp(`^${es.ledger.split.valueOf.replace("{name}", "")}`));
+    expect(await shares.count()).toBeGreaterThanOrEqual(2);
+    const done = dialog.getByRole("button", { name: es.ledger.split.done });
+    for (const share of await shares.all()) {
+      await share.scrollIntoViewIfNeeded();
+      const box = (await share.boundingBox())!;
+      const footer = (await done.boundingBox())!;
+      expect(box.y + box.height, "the share ends above Listo").toBeLessThanOrEqual(footer.y);
+      const onTop = await share.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const hit = window.paintedAt(r.left + r.width / 2, r.top + r.height / 2);
+        return hit !== null && (el === hit || el.contains(hit));
+      });
+      expect(onTop, "nothing covers the share").toBe(true);
+    }
   });
 
   test("the page behind does not scroll while a sheet is open", async ({ page }) => {

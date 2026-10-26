@@ -362,6 +362,19 @@ Feature: Starter accounts
     When "Ana" chooses "Crear cuentas base" on her Accounts screen
     Then only "Efectivo" is created, since archived accounts keep their names
     And choosing it again creates nothing
+
+  Scenario: Edit an account from its row
+    Given "Ana" chose the icon "Estrella" for "Tarjeta de crédito"
+    When she opens it from its row on her Accounts screen
+    Then the form shows its name, what she owes, its attributes in her number format, and "Tipo: Tarjeta de crédito"
+    And the icon says "Restablecer" while each switch says "Predeterminado"
+    When she renames it "Visa Oro", clears its Last 4 and chooses "Restablecer" on the icon
+    Then only the name, Last 4 (null) and icon (null) are sent, and the card shows its type's icon again
+
+  Scenario: Hide an account
+    When "Ana" chooses "Ocultar" on "Ahorros"
+    Then the sheet says it leaves the lists and pickers and keeps its history
+    And "Ahorros" moves to "Ocultas", where "Mostrar" brings it back
 ```
 
 **Technical notes:**
@@ -370,4 +383,6 @@ Feature: Starter accounts
 - Endpoint: `POST /api/v1/spaces/{spaceId}/accounts/starter`, managers of a PERSONAL space only (`InsufficientRole`, `PersonalAccountRequiresPersonalSpace`, `SpaceNotFound`, `SpaceArchived`); answers `200 { items }` with the accounts it created, empty when none was missing.
 - UI: the Accounts screen of a personal space with no active account shows its empty state ("No tienes cuentas activas" when archived ones exist) with "Crear cuentas base".
 - Currency lock (HU-E1-03, coordinator ruling 2026-10-22, option A): the space currency locks once money is recorded: a transaction, a plan, a recurrence, or an account that holds an amount (a non-zero opening balance, a credit limit or a loan principal: `holdsMoney`), archived accounts included. Every recurrence counts, ended ones too: it stores its amount with its own currency, records its occurrences in it, and an ended one can be extended again (#115). Starter accounts at zero record none, so a new person can still change the personal currency. An account has no currency column of its own: it reads its space's, so after a change every starter account reads the new currency with nothing to move.
-- The edit screen and the "Ocultar" wording of issue 169 are a later unit.
+- Stored and default style (issue #120, ruling P253): every account answer keeps `icon`, `includeInAvailable` and `includeInNetWorth` as the effective values and adds `stored: { icon, includeInAvailable, includeInNetWorth }` (`null` shows the type's default) and `defaults` (the type's, `defaultsOf` in the domain). Additive; no field changes meaning.
+- Edit screen (`/spaces/{spaceId}/accounts/{accountId}/edit`): the row's icon, name and details link to it for whoever may manage the account (a personal space's owner; a shared space's OWNER or ADMIN for funds). It edits the name, the opening balance (what is owed, for a card or a loan), the icon, the type's attributes with #164's number fields, and the two switches; the type never changes. The icon and switches show "Predeterminado" while stored as `null` and "Restablecer" otherwise (P253). Saving sends `PATCH` with only what changed (an emptied attribute and a restored default as `null`); nothing changed goes back without a call.
+- Hide: the archive (P123, history kept, restore brings it back) reads "Ocultar" in the UI, and restore reads "Mostrar"; the sheet says the account leaves the lists and pickers and keeps its history, the section is "Ocultas", and `AccountArchived` says the account is hidden. The API keeps `archive` and `restore`.

@@ -5,12 +5,14 @@ import {
   ACCOUNT_ICONS,
   ACCOUNT_TYPES,
   archiveAccount,
+  defaultsOf,
   holdsMoney,
   iconOf,
   NO_ATTRIBUTES,
   openAccount,
   restoreAccount,
   reviseAccount,
+  switchesOf,
   type Account,
   type AccountId,
 } from "./account";
@@ -160,6 +162,18 @@ describe("account types and common attributes (HU-E2-05)", () => {
       "dots",
       "users",
     ]);
+  });
+
+  it("answers each type's defaults, which a stored null shows (issue 120)", () => {
+    expect(defaultsOf("CREDIT_CARD")).toEqual({
+      icon: "card",
+      includeInAvailable: false,
+      includeInNetWorth: true,
+    });
+    for (const type of ACCOUNT_TYPES) {
+      const unset = { type, icon: null, includeInAvailable: null, includeInNetWorth: null };
+      expect({ icon: iconOf(unset), ...switchesOf(unset) }).toEqual(defaultsOf(type));
+    }
   });
 
   it("shows an explicit icon instead of the type's default", () => {

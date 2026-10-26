@@ -1,6 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GET as listAccounts, POST as createAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/route";
-import { PATCH as updateAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/route";
+import {
+  GET as getAccount,
+  PATCH as updateAccount,
+} from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/route";
 import { POST as archiveAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/archive/route";
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
 import { POST as recordTransfer } from "@/app/api/v1/spaces/[spaceId]/transfers/route";
@@ -62,6 +65,39 @@ describe("available money and net worth (HU-E2-07)", () => {
     expect(await totalsOf(w.ana)).toEqual([cop(12_300_000), cop(3_650_000)]);
     expect((await patch(w.ana, w.cdt, { includeInAvailable: null })).status).toBe(200);
     expect(await totalsOf(w.ana)).toEqual([cop(2_300_000), cop(3_650_000)]);
+  });
+
+  it("answers the stored icon and switches beside the effective ones and the type's defaults (issue 120)", async () => {
+    const w = await background();
+    const read = async () =>
+      (await call(getAccount, "GET", inSpace(w.ana, `accounts/${w.cdt}`), {
+        user: w.ana,
+        params: { spaceId: w.ana.spaceId, accountId: w.cdt },
+      }).then((response) => response.json())) as Record<string, unknown>;
+    const defaults = { icon: "piggy", includeInAvailable: false, includeInNetWorth: true };
+    expect(await read()).toMatchObject({
+      icon: "piggy",
+      includeInAvailable: false,
+      stored: { icon: null, includeInAvailable: null, includeInNetWorth: null },
+      defaults,
+    });
+
+    const chosen = await patch(w.ana, w.cdt, { icon: "star", includeInAvailable: true });
+    expect(chosen.status).toBe(200);
+    expect(await chosen.json()).toMatchObject({
+      icon: "star",
+      includeInAvailable: true,
+      stored: { icon: "star", includeInAvailable: true, includeInNetWorth: null },
+      defaults,
+    });
+
+    expect((await patch(w.ana, w.cdt, { icon: null, includeInAvailable: null })).status).toBe(200);
+    expect(await read()).toMatchObject({
+      icon: "piggy",
+      includeInAvailable: false,
+      stored: { icon: null, includeInAvailable: null, includeInNetWorth: null },
+      defaults,
+    });
   });
 
   it("takes both switches in a create body, and the list totals follow them", async () => {

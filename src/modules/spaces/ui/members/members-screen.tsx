@@ -16,6 +16,7 @@ import { MemberRow } from "./member-row";
 import { PendingInvitations } from "./pending-invitations";
 import { RoleSheet } from "./role-sheet";
 import { controlsFor, type SpaceRole } from "./space-controls";
+import { SpaceNameSection } from "../space-name-section";
 
 /** HU-E9-05, the Main artboard as `/spaces/{spaceId}/members`: the members, and the controls the viewer's role allows. */
 export function MembersScreen({
@@ -87,6 +88,8 @@ export function MembersScreen({
           {t("readOnlyNote", { space: space.name, role: space.role ? roles(space.role) : "" })}
         </p>
       ) : null}
+      {/* #176: an OWNER or ADMIN renames the space here too, not only in Ajustes; the section hides itself otherwise. */}
+      <SpaceNameSection key={space.id} space={space} api={api} />
       <section aria-labelledby="members-count" className="flex flex-col gap-1.5">
         <h2 id="members-count" className="text-sm font-semibold text-muted">
           {t("count", { count: members.length })}

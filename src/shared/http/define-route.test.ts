@@ -374,4 +374,128 @@ describe("defineRoute", () => {
     });
     expect((await call(route)).headers.get("x-wrapped")).toBe("yes");
   });
+
+  describe("access log and error stacks (HU-E8-02, issue #62)", () => {
+    const logged = () => {
+      const info = vi.fn();
+      const error = vi.fn();
+      const define = createRouteFactory(() => ({
+        sessionResolver: { resolve: async () => null },
+        logger: { info, error },
+      }));
+      return { info, error, define };
+    };
+
+    it("logs every request once with its request id, method, route, status and duration, also when refused", async () => {
+      const { info, define } = logged();
+      const route = define<undefined, undefined, { spaceId: string }>({
+        auth: "none",
+        handler: async () => ok({ status: 201 }),
+      });
+      const response = await route(
+        new Request("http://localhost/api/v1/spaces/sp-1/things", { method: "POST" }),
+        { params: Promise.resolve({ spaceId: "sp-1" }) },
+      );
+      expect(info).toHaveBeenCalledTimes(1);
+      expect(info).toHaveBeenCalledWith("request", {
+        requestId: response.headers.get("x-request-id"),
+        method: "POST",
+        route: "/api/v1/spaces/[spaceId]/things",
+        status: 201,
+        durationMs: expect.any(Number),
+      });
+      info.mockClear();
+      const refused = await define({ auth: "required", handler: async () => ok({ status: 200 }) })(
+        new Request("http://localhost/api/v1/me"),
+      );
+      expect(info).toHaveBeenCalledWith(
+        "request",
+        expect.objectContaining({ route: "/api/v1/me", status: 401 }),
+      );
+      expect(refused.status).toBe(401);
+    });
+
+    it("writes route parameters as their names, so a token in the path never reaches the log", async () => {
+      const { info, define } = logged();
+      const route = define<undefined, undefined, { token: string }>({
+        auth: "required",
+        handler: async () => ok({ status: 200 }),
+      });
+      await route(
+        new Request("http://localhost/api/v1/invitations/secret-token-123/accept", { method: "POST" }),
+        {
+          params: Promise.resolve({ token: "secret-token-123" }),
+        },
+      );
+      expect(JSON.stringify(info.mock.calls)).not.toContain("secret-token-123");
+      expect(info).toHaveBeenCalledWith(
+        "request",
+        expect.objectContaining({ route: "/api/v1/invitations/[token]/accept", status: 401 }),
+      );
+    });
+
+    it("answers a path with a malformed percent-escape as usual and logs its segment as it came", async () => {
+      const { info, define } = logged();
+      const route = define<undefined, undefined, { id: string }>({
+        auth: "none",
+        handler: async () => ok({ status: 200 }),
+      });
+      const response = await route(new Request("http://localhost/api/v1/things/%E0%A4%A/x"), {
+        params: Promise.resolve({ id: "x" }),
+      });
+      expect(response.status).toBe(200);
+      expect(info).toHaveBeenCalledWith(
+        "request",
+        expect.objectContaining({ route: "/api/v1/things/%E0%A4%A/[id]", status: 200 }),
+      );
+    });
+
+    it("writes each value of a catch-all parameter as its name", async () => {
+      const { info, define } = logged();
+      const route = define<undefined, undefined, Record<string, string>>({
+        auth: "none",
+        handler: async () => ok({ status: 200 }),
+      });
+      await route(new Request("http://localhost/api/v1/files/a-secret/b-secret"), {
+        params: Promise.resolve({ path: ["a-secret", "b-secret"] } as unknown as Record<string, string>),
+      });
+      expect(JSON.stringify(info.mock.calls)).not.toContain("secret");
+      expect(info).toHaveBeenCalledWith(
+        "request",
+        expect.objectContaining({ route: "/api/v1/files/[path]/[path]" }),
+      );
+    });
+
+    it("keeps the answer when writing the access line fails", async () => {
+      const define = createRouteFactory(() => ({
+        sessionResolver: { resolve: async () => null },
+        logger: {
+          info: () => {
+            throw new Error("stdout closed");
+          },
+          error: vi.fn(),
+        },
+      }));
+      const response = await call(define({ auth: "none", handler: async () => ok({ status: 204 }) }));
+      expect(response.status).toBe(204);
+    });
+
+    it("adds the stack frames of an unexpected error to its log line, without the message's parameters", async () => {
+      const { error, define } = logged();
+      const failure = new Error("Failed query: select 1 params: secret-hash");
+      const response = await call(
+        define({
+          auth: "none",
+          handler: async () => {
+            throw failure;
+          },
+        }),
+      );
+      const [, data] = error.mock.calls[0] as [string, { requestId: string; stack: string[] }];
+      expect(data.requestId).toBe(response.headers.get("x-request-id"));
+      expect(data.stack.length).toBeGreaterThan(0);
+      expect(data.stack.every((frame) => frame.startsWith("at "))).toBe(true);
+      expect(JSON.stringify(data)).not.toContain("secret-hash");
+    });
+  });
 });

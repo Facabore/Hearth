@@ -20,27 +20,29 @@ const old = accountDto({
 });
 
 describe("archive and restore accounts (HU-E9-03, ruling P131)", () => {
-  it("archives after a confirmation that explains what it does", async () => {
+  it('hides (issue 169: "Ocultar") after a confirmation that it leaves the lists and pickers and keeps its history', async () => {
     const { api, requests } = fakeApi({
       "POST /api/v1/spaces/{spaceId}/accounts/{accountId}/archive": () =>
         jsonResponse({ ...nequi, archivedAt: "2026-10-16T00:00:00.000Z" }),
     });
     renderWithIntl(<ArchiveAccountButton spaceId="sp-personal" account={nequi} api={api} />);
-    await userEvent.click(screen.getByRole("button", { name: "Archivar Nequi" }));
-    const sheet = screen.getByRole("dialog", { name: "¿Archivar Nequi?" });
-    expect(sheet).toHaveAccessibleDescription(es.accounts.archive.explain);
-    await userEvent.click(within(sheet).getByRole("button", { name: "Archivar" }));
+    await userEvent.click(screen.getByRole("button", { name: "Ocultar Nequi" }));
+    const sheet = screen.getByRole("dialog", { name: "¿Ocultar Nequi?" });
+    expect(sheet).toHaveAccessibleDescription(
+      "Sale de las listas y de los selectores, y conserva su historial. Puedes volver a mostrarla cuando quieras.",
+    );
+    await userEvent.click(within(sheet).getByRole("button", { name: "Ocultar" }));
     await waitFor(() => expect(router.refresh).toHaveBeenCalled());
     expect(new URL(requests[0]!.url).pathname).toBe("/api/v1/spaces/sp-personal/accounts/a-nequi/archive");
   });
 
-  it("restores an archived account", async () => {
+  it('shows a hidden account again ("Mostrar")', async () => {
     const { api, requests } = fakeApi({
       "POST /api/v1/spaces/{spaceId}/accounts/{accountId}/restore": () =>
         jsonResponse({ ...old, archivedAt: null }),
     });
     renderWithIntl(<RestoreAccountButton spaceId="sp-personal" account={old} api={api} />);
-    await userEvent.click(screen.getByRole("button", { name: "Restaurar Old wallet" }));
+    await userEvent.click(screen.getByRole("button", { name: "Mostrar Old wallet" }));
     await waitFor(() => expect(router.refresh).toHaveBeenCalled());
     expect(new URL(requests[0]!.url).pathname).toBe("/api/v1/spaces/sp-personal/accounts/a-old/restore");
   });
@@ -51,11 +53,11 @@ describe("archive and restore accounts (HU-E9-03, ruling P131)", () => {
         problemResponse(409, "SpaceArchived"),
     });
     renderWithIntl(<ArchiveAccountButton spaceId="sp-personal" account={nequi} api={api} />);
-    await userEvent.click(screen.getByRole("button", { name: "Archivar Nequi" }));
-    const sheet = screen.getByRole("dialog", { name: "¿Archivar Nequi?" });
-    await userEvent.click(within(sheet).getByRole("button", { name: "Archivar" }));
+    await userEvent.click(screen.getByRole("button", { name: "Ocultar Nequi" }));
+    const sheet = screen.getByRole("dialog", { name: "¿Ocultar Nequi?" });
+    await userEvent.click(within(sheet).getByRole("button", { name: "Ocultar" }));
     expect(await within(sheet).findByRole("alert")).toHaveTextContent(es.errors.SpaceArchived);
-    expect(screen.getByRole("dialog", { name: "¿Archivar Nequi?" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "¿Ocultar Nequi?" })).toBeInTheDocument();
     expect(router.refresh).not.toHaveBeenCalled();
   });
 });

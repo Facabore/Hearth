@@ -5,13 +5,13 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import { localeCookie, type Locale } from "@/i18n/locale";
-import { Avatar, Button, Icon, Sheet } from "@/shared/ui";
+import { Avatar, Button, Icon, Sheet, SymbolIcon } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { SpaceDto } from "@/shared/ui/api/dto";
 
 /**
- * HU-E9-01, the ProfileSheet artboard; Categories and rules come with HU-E9-04 and -14 (ruling P126); the Members
- * entry, outside the personal space, is HU-E9-05 (ruling P160).
+ * HU-E9-01, the ProfileSheet artboard; the Categories entry is HU-E9-04 and rules come with HU-E9-14 (ruling P126); the
+ * Members entry, outside the personal space, is HU-E9-05 (ruling P160).
  */
 export function ProfileSheet({
   me,
@@ -67,6 +67,13 @@ export function ProfileSheet({
             </span>
           </Link>
         ) : null}
+        <Link href={`/spaces/${spaceId}/categories`} className={row} onClick={() => setOpen(false)}>
+          <SymbolIcon name="tag" />
+          <span className="flex flex-col">
+            <span>{t("categories")}</span>
+            <span className="text-sm text-muted">{t("categoriesHint")}</span>
+          </span>
+        </Link>
         <Link href={`/spaces/${spaceId}/accounts`} className={row} onClick={() => setOpen(false)}>
           <Icon name="list" />
           {t("accounts")}

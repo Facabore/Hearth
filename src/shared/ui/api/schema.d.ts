@@ -7,7 +7,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Liveness check */
+        /** Liveness and database check */
         get: operations["getHealth"];
         put?: never;
         post?: never;
@@ -1382,6 +1382,17 @@ export interface components {
             icon: "cash" | "bank" | "wallet" | "card" | "piggy" | "trend" | "coins" | "dots" | "users" | "briefcase" | "car" | "star" | "gift" | "home" | "plane" | "phone";
             includeInAvailable: boolean;
             includeInNetWorth: boolean;
+            stored: {
+                icon: ("cash" | "bank" | "wallet" | "card" | "piggy" | "trend" | "coins" | "dots" | "users" | "briefcase" | "car" | "star" | "gift" | "home" | "plane" | "phone") | null;
+                includeInAvailable: boolean | null;
+                includeInNetWorth: boolean | null;
+            };
+            defaults: {
+                /** @enum {string} */
+                icon: "cash" | "bank" | "wallet" | "card" | "piggy" | "trend" | "coins" | "dots" | "users" | "briefcase" | "car" | "star" | "gift" | "home" | "plane" | "phone";
+                includeInAvailable: boolean;
+                includeInNetWorth: boolean;
+            };
             terms: {
                 creditLimit: components["schemas"]["MoneyOutput"] | null;
                 cutOffDay: number | null;
@@ -1906,7 +1917,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The process is up */
+            /** @description The process is up and PostgreSQL answers */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1915,6 +1926,22 @@ export interface operations {
                     "application/json": {
                         /** @constant */
                         status: "ok";
+                        /** @constant */
+                        db?: "ok";
+                    };
+                };
+            };
+            /** @description PostgreSQL does not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        status: "unavailable";
+                        /** @constant */
+                        db: "unreachable";
                     };
                 };
             };

@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { categoryDto, groupDto } from "../../../../tests/support/ui/dto";
-import { activeTree, categoryPath, groupsForKind, matches } from "./category-tree";
+import {
+  activeTree,
+  categoryPath,
+  groupsForKind,
+  matches,
+  withCategory,
+  withGroup,
+  withoutCategory,
+} from "./category-tree";
 
 const groceries = categoryDto({
   id: "c-groceries",
@@ -68,5 +76,58 @@ describe("groupsForKind (issue #173)", () => {
 
   it("offers an income only the income group and the person's own groups", () => {
     expect(groupsForKind(all, "INCOME").map((g) => g.id)).toEqual(["g-income", "g-mine"]);
+  });
+});
+
+describe("tree updates from what the API answered (HU-E9-04)", () => {
+  // An answer carries no subcategories; the tree keeps the ones it has.
+  const saved = { ...groceries, subcategories: undefined };
+  const pantry = groupDto({ id: "g-pantry", name: "Pantry", key: null });
+  const food = [groupDto({ categories: [groceries] })];
+
+  it("adds a group last, with no categories", () => {
+    expect(withGroup(food, pantry).map((g) => [g.name, g.categories.length])).toEqual([
+      ["Food", 1],
+      ["Pantry", 0],
+    ]);
+  });
+
+  it("moves a category to another group with its subcategories, which take its style and group", () => {
+    const moved = withCategory([...food, pantry], {
+      ...saved,
+      groupId: "g-pantry",
+      icon: { kind: "EMOJI", value: "🛒" },
+      color: "PLUM",
+    });
+    expect(moved[0]!.categories).toEqual([]);
+    const [node] = moved[1]!.categories;
+    expect(node!.subcategories.map((s) => [s.name, s.groupId, s.icon, s.color])).toEqual([
+      ["Vegetables", "g-pantry", { kind: "EMOJI", value: "🛒" }, "PLUM"],
+      ["Old", "g-pantry", { kind: "EMOJI", value: "🛒" }, "PLUM"],
+    ]);
+  });
+
+  it("keeps a renamed category in its place, and archives its live subcategories with it", () => {
+    const two = [groupDto({ categories: [groceries, categoryDto({ id: "c-dining", name: "Restaurants" })] })];
+    const renamed = withCategory(two, { ...saved, name: "Market" });
+    expect(renamed[0]!.categories.map((c) => c.name)).toEqual(["Market", "Restaurants"]);
+    const archivedAt = "2026-10-26T00:00:00.000Z";
+    const archived = withCategory(two, { ...saved, archivedAt });
+    expect(archived[0]!.categories[0]!.subcategories.map((s) => s.archivedAt)).toEqual([
+      archivedAt,
+      "2026-10-01T00:00:00.000Z",
+    ]);
+  });
+
+  it("nests a new subcategory under its parent and drops a deleted one", () => {
+    const added = withCategory(
+      groups,
+      categoryDto({ id: "c-meat", name: "Meat", parentCategoryId: "c-groceries" }),
+    );
+    expect(added[0]!.categories[0]!.subcategories.map((s) => s.name)).toEqual(["Vegetables", "Old", "Meat"]);
+    expect(withoutCategory(added, "c-veg")[0]!.categories[0]!.subcategories.map((s) => s.name)).toEqual([
+      "Old",
+      "Meat",
+    ]);
   });
 });

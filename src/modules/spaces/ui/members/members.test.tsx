@@ -158,6 +158,26 @@ describe("members screen (HU-E9-05)", () => {
     ).toBeInTheDocument();
   });
 
+  it("lets the OWNER rename the household from Miembros (#176)", async () => {
+    const { api, requests } = fakeApi({
+      "PATCH /api/v1/spaces/{spaceId}": () => jsonResponse(householdSpace({ name: "Casa" })),
+    });
+    screenAs("u-ana", "OWNER", api);
+    const field = screen.getByLabelText("Nombre del espacio");
+    expect(field).toHaveValue("Household");
+    await userEvent.clear(field);
+    await userEvent.type(field, "Casa{Enter}");
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(new URL(requests[0]!.url).pathname).toBe("/api/v1/spaces/sp-household");
+    expect(await requests[0]!.json()).toEqual({ name: "Casa" });
+    expect(router.refresh).toHaveBeenCalled();
+  });
+
+  it("offers no name field to a VIEWER (#176)", () => {
+    screenAs("u-sofi", "VIEWER");
+    expect(screen.queryByLabelText("Nombre del espacio")).not.toBeInTheDocument();
+  });
+
   it("says a direct space takes nobody else", () => {
     screenAs("u-ana", "OWNER", fakeApi({}).api, householdSpace({ kind: "DIRECT", name: "Ana & Juan" }));
     expect(

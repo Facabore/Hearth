@@ -4,7 +4,7 @@ Every decision Hearth has made, in one place. There are three kinds, and each li
 
 - **Design decisions (D1–D24)** are in the [design spec](../specs/2026-10-11-hearth-design.md#6-key-decisions), section 6.
 - **ADRs** record a technology choice: [`docs/adr/`](#adrs).
-- **Rulings (P1–P251)** are execution rulings the controller made while a milestone plan was written or run. Each lives in its plan's Self-Review; this page indexes them.
+- **Rulings (P1–P255)** are execution rulings the controller made while a milestone plan was written or run. Each lives in its plan's Self-Review; this page indexes them.
 
 ## Design decisions D1–D24
 
@@ -46,11 +46,11 @@ Rationale and rejected alternatives are in [section 6 of the spec](../specs/2026
 | [0003](../adr/0003-web-ui-talks-to-the-api-through-a-generated-client.md) | The web UI talks to `/api/v1` only, through a client generated from the snapshot. | Accepted (2026-10-20) |
 | [0004](../adr/0004-web-ui-testing-and-performance-gates.md) | Test the web UI with Vitest, Playwright and axe, and gate it on Core Web Vitals. | Accepted (2026-10-20) |
 
-## Rulings P1–P251
+## Rulings P1–P255
 
 Rulings are numbered across milestones, not per plan, and not always in the order of the plans: M4's plan holds rulings that were made while M3-D was being planned. The tables are grouped by the plan that records them. In each, "Where" is the plan's Self-Review section and the item number in it. "Amended" marks a ruling the plan itself says was amended.
 
-The ranges are: M3-A P1–P9, M3-B P10–P19, M3-C P20–P31, M3-D P40–P73, P78, P79 and P84–P94, M4 P32–P39, P74–P77, P80–P83 and P95–P106, M5 P107–P116, M6a P117–P154, M6b P155–P183, the M6b addendum P184–P199, and M6c P200–P248, with the post-milestone follow-ups P249–P251. M3-D's P89–P94 were kept outside the repository until the merge and are recorded in the section "Execution rulings (recorded after the merge)" at the end of its plan.
+The ranges are: M3-A P1–P9, M3-B P10–P19, M3-C P20–P31, M3-D P40–P73, P78, P79 and P84–P94, M4 P32–P39, P74–P77, P80–P83 and P95–P106, M5 P107–P116, M6a P117–P154, M6b P155–P183, the M6b addendum P184–P199, and M6c P200–P248, with the post-milestone follow-ups P249–P255. M3-D's P89–P94 were kept outside the repository until the merge and are recorded in the section "Execution rulings (recorded after the merge)" at the end of its plan.
 
 ### M3-A: budget plans (P1–P9)
 
@@ -404,7 +404,7 @@ Plan: [`2026-10-21-m6c-planner-and-dashboards.md`](../plans/2026-10-21-m6c-plann
 | P200 | The Plan tabs row (`reporting/ui/plan-tabs.tsx`) has `scroll-px-4`, so a tab scrolled into view stays clear of the screen edge whether or not its offset is a whole pixel. | Task 15 |
 | P202, P223 | The two rules as built: `recharts-only-in-charts` lets only `src/modules/reporting/ui/charts/*-chart.tsx` import `recharts`, the `lazy-*-chart.tsx` wrappers excepted, and `charts-load-lazily` fails any static import of those chart files, so the lazy wrapper is the one chart-named file a page imports. | Task 14a |
 
-### Post-milestone follow-up rulings (P249–P251)
+### Post-milestone follow-up rulings (P249–P255)
 
 Execution rulings made while closing follow-up issues after their milestone shipped. Each lives in the Self-Review of the plan whose follow-up it resolves, or in the note of the backlog story it amends.
 
@@ -413,6 +413,10 @@ Execution rulings made while closing follow-up issues after their milestone ship
 | P249 | Report latency (M4 follow-up 2, issue #128) is bounded and pinned by read-count tests, not a wall-clock figure: the line trend at `periods=24` over a 30-plan ROLLOVER chain reads each plan once (O(window + chain), no duplicate computation under the `Promise.all` fan-out), and the unified view and spending by group read each space once. No report figures are cached (D7 stands). Its wall-clock addendum, `pnpm perf:reports` (a manual probe outside `pnpm test`), measured a worst p95 of about 0.25 s (line trend and line dashboard at the end of a 24-plan ROLLOVER chain, 300 expenses per period). | M4 plan Self-Review, Follow-up 2 (`3378a93`) |
 | P250 | Activating a DRAFT plan is refused with 409 `CopyAlreadyClosed` (`copyPeriod`) while a plan copied from it is already CLOSED and carries over from it (the mirror of P248), so a CLOSED copy's frozen 0 carry never jumps when its DRAFT source is later activated and closed; an all-RESET or not-yet-closed copy does not block. | E6-budgeting.md HU-E6-07, issue #158 |
 | P251 | Activating a plan and closing its copy serialize (issue #183): activation locks every copy of the plan FOR SHARE (`lockCopiesOf`, any status, oldest first) after its own version lock, so it waits for a close of a copy in progress and then refuses with `CopyAlreadyClosed`, and a close that starts meanwhile waits at the copy's version lock and then refuses with `SourcePlanOpen`. A close still reads its source without a lock, so the two never wait on each other's plan in opposite order. | E6-budgeting.md HU-E6-07, issue #183 |
+| P252 | Observability as built (issue #62): one access log line per answer, with `route` written as its template so path ids and tokens never reach the log; unhandled errors log their stack frames, never the message's parameters; `GET /api/v1/health` answers 503 `db: unreachable` when `SELECT 1` fails; `LOG_LEVEL` is honoured; and the JSON console adapter stays, with no pino. | E8-hardening-and-later.md HU-E8-02, issue #62 |
+| P253 | An account answer keeps `icon`, `includeInAvailable` and `includeInNetWorth` as the effective values and adds `stored` (the same three as stored, `null` meaning the type's default) and `defaults` (the type's), as HU-E1-15's preferences do; the account form shows "Predeterminado" while a value is stored as `null` and offers "Restablecer" (`PATCH … null`) otherwise. The change is additive: no existing field changes meaning. Rejected: the UI deriving the defaults from the type (a second copy of P50's and P51's tables, which the UI may not import from the domain). | E2-accounts.md issue 169, issue #120 |
+| P254 | The categories screen as built (issue #72): `/spaces/{spaceId}/categories` from Avatar › Categorías, read-only for every role but OWNER and ADMIN; the "Manage" entry of the expense form's picker is left to HU-E9-12; Gastos and Ingresos tabs as the pickers split groups; every change shows from the API's answer with no client read (P127), and the sheets load on the first tap (budget 168 KiB); delete and archive ask first and `CategoryInUse` offers "Archivar en su lugar"; the archived section lists archived categories and subcategories of live groups, never archived groups; the story's quick symbols win over the artboard's; the emoji library has 64 labelled emoji in eight UI-only sections; `ChoiceGroup` gains the `tiles` and `swatches` layouts. | E9-web-ui.md HU-E9-04, issue #72 |
+| P255 | Shared money is never framed as a debt in the base Spanish (issue #157, amends P173's words). A net reads "te toca poner" or "te toca recibir", or "le toca poner" or "le toca recibir" for a member. A suggestion reads "{payer} le paga {amount} a {receiver}", and the whole space settled reads "Todos están al día" (`balances.allSettled`). The keys `balances.you.settled`, `balances.member.settled` and `balances.suggestions` keep "paz y salvo" until HU-E8-19 (#180) moves them to `es-CO`, so the screen mixes both until then. `OutstandingBalance` explains the zero-balance rule for leaving, removing someone and archiving. "Debes hoy" for a credit card is a real debt and stays. English is unchanged. | Issue #157 |
 
 ### Preflight notes and findings
 

@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { ACCOUNT_TYPES, switchesOf } from "@/modules/accounts/domain/account";
-import { accountBodyOf, accountFieldOf, FIELDS_BY_TYPE, SWITCH_DEFAULTS } from "./account-fields";
+import { ACCOUNT_ICONS, ACCOUNT_TYPES, switchesOf } from "@/modules/accounts/domain/account";
+import { accountDto, cop } from "../../../../tests/support/ui/dto";
+import {
+  accountBodyOf,
+  accountFieldOf,
+  editBodyOf,
+  editOf,
+  FIELDS_BY_TYPE,
+  SWITCH_DEFAULTS,
+} from "./account-fields";
+import { ACCOUNT_ICON_CHOICES } from "./account-look";
 
 describe("account form fields (HU-E9-03, ruling P131)", () => {
   it("shows each type's default switches exactly as the API applies them", () => {
@@ -98,5 +107,100 @@ describe("account form fields (HU-E9-03, ruling P131)", () => {
       accountFieldOf(p("ValidationFailed", { errors: [{ path: "terms.cutOffDay", message: "x" }] })),
     ).toBe("cutOffDay");
     expect(accountFieldOf(p("InvalidBillingDay"))).toBe("form");
+  });
+});
+
+describe("the account edit form's values (issue 169)", () => {
+  const visa = accountDto({
+    name: "Visa",
+    type: "CREDIT_CARD",
+    openingBalance: cop(-350_000),
+    lastFour: "4821",
+    icon: "star",
+    includeInAvailable: false,
+    stored: { icon: "star", includeInAvailable: null, includeInNetWorth: null },
+    defaults: { icon: "card", includeInAvailable: false, includeInNetWorth: true },
+    terms: { ...accountDto().terms, creditLimit: cop(5_000_000), cutOffDay: 25, monthlyRate: "1.8900" },
+  });
+
+  it("offers every icon the API takes, in its order", () => {
+    expect(ACCOUNT_ICON_CHOICES).toEqual(ACCOUNT_ICONS);
+  });
+
+  it("starts from the account as stored, each number as the person types it", () => {
+    expect(editOf(visa, "DOT_COMMA")).toEqual({
+      name: "Visa",
+      opening: "350.000",
+      openingNegative: true,
+      fields: { lastFour: "4821", creditLimit: "5.000.000", cutOffDay: "25", monthlyRate: "1,89" },
+      icon: "star",
+      includeInAvailable: null,
+      includeInNetWorth: null,
+    });
+    expect(editOf(visa, "COMMA_DOT").fields.monthlyRate).toBe("1.89");
+    // Only a fraction's zeros go: a whole rate keeps its own.
+    const rateOf = (annualRate: string) =>
+      editOf(accountDto({ type: "SAVINGS", terms: { ...accountDto().terms, annualRate } }), "DOT_COMMA")
+        .fields.annualRate;
+    expect(["10.0000", "12.5000", "10", "0.0500"].map(rateOf)).toEqual(["10", "12,5", "10", "0,05"]);
+  });
+
+  it("sends only what changed: an emptied attribute and a style back to its default as null", () => {
+    const before = editOf(visa, "DOT_COMMA");
+    const after = {
+      ...before,
+      name: " Visa Oro ",
+      fields: { ...before.fields, lastFour: "", cutOffDay: "20" },
+      icon: null,
+      includeInAvailable: true,
+    };
+    expect(editBodyOf("CREDIT_CARD", before, after, "COP", "DOT_COMMA")).toEqual({
+      ok: true,
+      body: {
+        name: "Visa Oro",
+        lastFour: null,
+        terms: { cutOffDay: 20 },
+        icon: null,
+        includeInAvailable: true,
+      },
+    });
+    expect(editBodyOf("CREDIT_CARD", before, before, "COP", "DOT_COMMA")).toEqual({ ok: true, body: {} });
+  });
+
+  it("sends a changed debt negative, and points at a field it cannot read", () => {
+    const before = editOf(visa, "DOT_COMMA");
+    expect(editBodyOf("CREDIT_CARD", before, { ...before, opening: "400.000" }, "COP", "DOT_COMMA")).toEqual({
+      ok: true,
+      body: { openingBalance: { amount: "-40000000", currency: "COP" } },
+    });
+    expect(editBodyOf("CREDIT_CARD", before, { ...before, opening: "" }, "COP", "DOT_COMMA")).toEqual({
+      ok: true,
+      body: { openingBalance: { amount: "0", currency: "COP" } },
+    });
+    const cleared = { ...before, fields: { ...before.fields, creditLimit: "", cutOffDay: "" } };
+    expect(editBodyOf("CREDIT_CARD", before, cleared, "COP", "DOT_COMMA")).toEqual({
+      ok: true,
+      body: { terms: { creditLimit: null, cutOffDay: null } },
+    });
+    const unreadable = { ...before, fields: { ...before.fields, creditLimit: "cinco" } };
+    expect(editBodyOf("CREDIT_CARD", before, unreadable, "COP", "DOT_COMMA")).toEqual({
+      ok: false,
+      field: "creditLimit",
+    });
+  });
+
+  it("keeps the opening balance's sign: a card in credit stays positive, an overdrawn bank stays negative", () => {
+    const edited = (account: ReturnType<typeof accountDto>) => {
+      const before = editOf(account, "DOT_COMMA");
+      return editBodyOf(account.type, before, { ...before, opening: "60.000" }, "COP", "DOT_COMMA");
+    };
+    const amountOf = (built: ReturnType<typeof edited>) =>
+      built.ok ? (built.body.openingBalance as { amount: string }).amount : null;
+    expect(amountOf(edited(accountDto({ type: "CREDIT_CARD", openingBalance: cop(50_000) })))).toBe(
+      "6000000",
+    );
+    expect(amountOf(edited(accountDto({ type: "BANK", openingBalance: cop(-50_000) })))).toBe("-6000000");
+    expect(amountOf(edited(accountDto({ type: "LOAN", openingBalance: cop(0) })))).toBe("-6000000");
+    expect(amountOf(edited(accountDto({ type: "BANK", openingBalance: cop(0) })))).toBe("6000000");
   });
 });

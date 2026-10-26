@@ -6,7 +6,7 @@ This folder is Hearth's wiki. It is versioned with the code and reviewed in pull
 
 - **`product/`** is the functional overview: how each feature behaves, written so the owner can confirm it matches expectations.
 - **`architecture/`** explains how the system works: the [overview](architecture/README.md) (deployment, request lifecycle, modules, dependency rules) and the [data model](architecture/data-model.md) (every table, column and foreign key).
-- **`decisions/`** is the single [decisions index](decisions/README.md): the design decisions D1 to D23, the ADRs and every ruling P1 to P251, with where each one is recorded.
+- **`decisions/`** is the single [decisions index](decisions/README.md): the design decisions D1 to D24, the ADRs and every ruling P1 to P255, with where each one is recorded.
 - **`adr/`** holds the architecture decision records, one file per technology choice.
 - **`backlog/`** is the source of truth for the content of the epics and user stories. Status lives in the GitHub Project.
 - **`operations/`** holds the guides for running Hearth, [deploying to a VPS](operations/deploy.md) and [backups and restore](operations/backups.md).
