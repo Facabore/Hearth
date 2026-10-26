@@ -85,6 +85,16 @@ Feature: Observability
 - Extends the liveness-only `GET /api/v1/health` of HU-E0-07 with the database check; the Docker health check uses it and Caddy only routes to healthy containers.
 - The generic 500 problem comes from the HU-E0-09 mapper; this story adds the stack trace to the log line of that request id.
 
+**As built (issue #62, ruling P252):**
+
+- **Access log.** `defineRoute` writes one `info` line per answer: `requestId`, `method`, `route`, `status` and `durationMs`. Refused answers get one too.
+  - `route` is the path with each route parameter written as its name, for example `/api/v1/invitations/[token]/accept`. The log groups by route and never carries an id or a token from the path.
+  - The query string and the body are never logged.
+- **Error stack.** An unhandled error's line gains `stack`: its frames (`at …`) without the first line, which repeats the message. The message stays reduced to its first line without the `params:` tail, as before.
+- **Health.** `GET /api/v1/health` runs `SELECT 1` on the pool. It answers 200 `{ status: "ok", db: "ok" }`, or 503 `{ status: "unavailable", db: "unreachable" }` on any failure, so the Docker HEALTHCHECK's `wget` fails and Caddy stops routing. `db` is optional in the 200 schema, for older clients. The HEALTHCHECK's 3 s timeout bounds a database that hangs.
+- **LOG_LEVEL.** `LOG_LEVEL` is now honoured: `info` and `debug` write the access log, while `warn` and `error` keep only errors. The tests run at `error`.
+- **No pino.** The `Logger` port keeps its JSON-lines console adapter. A pino adapter would add a dependency for no behaviour the scenarios need. It can be added behind the same port later.
+
 ---
 
 ## HU-E8-03 — Recurring transactions (moved)

@@ -71,9 +71,40 @@ const summaryOf = (error: unknown): Record<string, string> => {
   };
 };
 
+/** HU-E8-02: the stack frames of an unhandled error ("at …"), without its first line, which repeats the message. */
+const framesOf = (error: unknown): string[] =>
+  error instanceof Error && error.stack
+    ? error.stack
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith("at "))
+    : [];
+
+/**
+ * HU-E8-02: the request's path with each route parameter written as its name ("/api/v1/invitations/[token]"), so the
+ * access log groups by route and never writes an id or a token from the path. Before the parameters are known, the
+ * path is not logged at all.
+ */
+const routeOf = (request: Request, params: Record<string, unknown> | null): string => {
+  if (params === null) return "unknown";
+  const names = new Map(
+    Object.entries(params).flatMap(([name, value]) =>
+      typeof value === "string" ? [[value, name] as const] : [],
+    ),
+  );
+  return new URL(request.url).pathname
+    .split("/")
+    .map((segment) => {
+      const name = names.get(decodeURIComponent(segment));
+      return name === undefined ? segment : `[${name}]`;
+    })
+    .join("/");
+};
+
 /**
  * Builds Next.js route handlers: resolves the user, validates query and body with Zod,
- * maps `Err` results to problem+json and turns unexpected throws into a logged 500.
+ * maps `Err` results to problem+json and turns unexpected throws into a logged 500. Every request ends with one
+ * access log line: request id, method, route, status and duration (HU-E8-02).
  */
 export const createRouteFactory =
   (getDeps: () => RouteDeps) =>
@@ -82,76 +113,93 @@ export const createRouteFactory =
   ) =>
   async (request: Request, context?: { params?: Promise<P> }): Promise<Response> => {
     const requestId = requestIdFrom(request);
+    const started = performance.now();
     // Until the dependencies exist, failures are logged with the default JSON logger.
     let logger: Logger = jsonLogger;
-    try {
-      const deps = getDeps();
-      logger = deps.logger;
-      const user = spec.auth === "none" ? null : await deps.sessionResolver.resolve(request.headers);
-      if (spec.auth === "required" && !user) return problemResponse("Unauthenticated", requestId);
+    let params: P | null = null;
+    const response = await respond();
+    logger.info("request", {
+      requestId,
+      method: request.method,
+      route: routeOf(request, params),
+      status: response.status,
+      durationMs: Math.round(performance.now() - started),
+    });
+    return response;
 
-      let query = undefined as Q;
-      if (spec.query) {
-        const rawQuery = Object.fromEntries(new URL(request.url).searchParams);
-        const nul = nulFieldErrors(rawQuery);
-        if (nul.length > 0) return problemResponse("ValidationFailed", requestId, nul);
-        const parsed = spec.query.safeParse(rawQuery);
-        if (!parsed.success)
-          return problemResponse("ValidationFailed", requestId, toFieldErrors(parsed.error.issues));
-        query = parsed.data;
-      }
+    async function respond(): Promise<Response> {
+      try {
+        // The parameters first, so the access log can name the route of any answer, a refused one included.
+        params = ((await context?.params) ?? {}) as P;
+        const deps = getDeps();
+        logger = deps.logger;
+        const user = spec.auth === "none" ? null : await deps.sessionResolver.resolve(request.headers);
+        if (spec.auth === "required" && !user) return problemResponse("Unauthenticated", requestId);
 
-      let body = undefined as B;
-      if (spec.body) {
-        let raw: unknown;
-        try {
-          raw = await request.json();
-        } catch {
-          return problemResponse("ValidationFailed", requestId, [
-            { path: "", message: "Body must be valid JSON" },
-          ]);
+        let query = undefined as Q;
+        if (spec.query) {
+          const rawQuery = Object.fromEntries(new URL(request.url).searchParams);
+          const nul = nulFieldErrors(rawQuery);
+          if (nul.length > 0) return problemResponse("ValidationFailed", requestId, nul);
+          const parsed = spec.query.safeParse(rawQuery);
+          if (!parsed.success)
+            return problemResponse("ValidationFailed", requestId, toFieldErrors(parsed.error.issues));
+          query = parsed.data;
         }
-        // Issue 118: PostgreSQL text refuses NUL, so it is refused here for every field of every route.
-        const nul = nulFieldErrors(raw);
-        if (nul.length > 0) return problemResponse("ValidationFailed", requestId, nul);
-        const parsed = spec.body.safeParse(raw);
-        if (!parsed.success)
-          return problemResponse("ValidationFailed", requestId, toFieldErrors(parsed.error.issues));
-        body = parsed.data;
-      }
 
-      const params = ((await context?.params) ?? {}) as P;
-      const ctx: RouteContext<B, Q, P> = { request, requestId, user, body, query, params };
-      const result = spec.before ? await spec.before(ctx, () => spec.handler(ctx)) : await spec.handler(ctx);
-      if (!result.ok) {
-        // Server-side failures reach clients as a bare code; their details go to the log only.
-        if (statusForCode(result.error.code) >= 500) {
-          logger.error("route_error_result", {
+        let body = undefined as B;
+        if (spec.body) {
+          let raw: unknown;
+          try {
+            raw = await request.json();
+          } catch {
+            return problemResponse("ValidationFailed", requestId, [
+              { path: "", message: "Body must be valid JSON" },
+            ]);
+          }
+          // Issue 118: PostgreSQL text refuses NUL, so it is refused here for every field of every route.
+          const nul = nulFieldErrors(raw);
+          if (nul.length > 0) return problemResponse("ValidationFailed", requestId, nul);
+          const parsed = spec.body.safeParse(raw);
+          if (!parsed.success)
+            return problemResponse("ValidationFailed", requestId, toFieldErrors(parsed.error.issues));
+          body = parsed.data;
+        }
+
+        const ctx: RouteContext<B, Q, P> = { request, requestId, user, body, query, params };
+        const result = spec.before
+          ? await spec.before(ctx, () => spec.handler(ctx))
+          : await spec.handler(ctx);
+        if (!result.ok) {
+          // Server-side failures reach clients as a bare code; their details go to the log only.
+          if (statusForCode(result.error.code) >= 500) {
+            logger.error("route_error_result", {
+              requestId,
+              code: result.error.code,
+              details: result.error.details,
+            });
+          }
+          const { code, details } = result.error;
+          return problemResponse(
+            code,
             requestId,
-            code: result.error.code,
-            details: result.error.details,
-          });
+            publicFieldErrorsOf(code, details),
+            publicDetailsOf(code, details),
+          );
         }
-        const { code, details } = result.error;
-        return problemResponse(
-          code,
-          requestId,
-          publicFieldErrorsOf(code, details),
-          publicDetailsOf(code, details),
-        );
-      }
 
-      const headers = new Headers({ "x-request-id": requestId });
-      for (const [name, value] of result.value.headers ?? []) headers.append(name, value);
-      if (result.value.body === undefined)
-        return new Response(null, { status: result.value.status, headers });
-      headers.set("content-type", "application/json");
-      return new Response(JSON.stringify(result.value.body, bigintAsString), {
-        status: result.value.status,
-        headers,
-      });
-    } catch (error) {
-      logger.error("unhandled_route_error", { requestId, error: summaryOf(error) });
-      return problemResponse("InternalError", requestId);
+        const headers = new Headers({ "x-request-id": requestId });
+        for (const [name, value] of result.value.headers ?? []) headers.append(name, value);
+        if (result.value.body === undefined)
+          return new Response(null, { status: result.value.status, headers });
+        headers.set("content-type", "application/json");
+        return new Response(JSON.stringify(result.value.body, bigintAsString), {
+          status: result.value.status,
+          headers,
+        });
+      } catch (error) {
+        logger.error("unhandled_route_error", { requestId, error: summaryOf(error), stack: framesOf(error) });
+        return problemResponse("InternalError", requestId);
+      }
     }
   };

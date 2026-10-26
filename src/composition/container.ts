@@ -241,7 +241,7 @@ import {
 import { cryptoInvitationTokens } from "@/modules/spaces/infrastructure/crypto-invitation-tokens";
 import { DrizzleInvitationRepository } from "@/modules/spaces/infrastructure/drizzle-invitation-repository";
 import { DrizzleSpaceRepository } from "@/modules/spaces/infrastructure/drizzle-space-repository";
-import { createFixedWindowLimiter, jsonLogger, type IdempotencyDeps, type RouteDeps } from "@/shared/http";
+import { createFixedWindowLimiter, leveledLogger, type IdempotencyDeps, type RouteDeps } from "@/shared/http";
 import { createDatabase, type Database } from "@/shared/infrastructure/db/client";
 import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { DrizzleIdempotencyStore } from "@/shared/infrastructure/drizzle-idempotency-store";
@@ -256,6 +256,8 @@ export interface Container extends RouteDeps {
   readonly db: Database;
   readonly pool: Pool;
   readonly tm: DrizzleTransactionManager;
+  /** HU-E8-02: whether PostgreSQL answers a trivial query now. */
+  readonly databaseReachable: () => Promise<boolean>;
   readonly idempotency: IdempotencyDeps;
   readonly identity: {
     readonly signUp: SignUp;
@@ -686,7 +688,16 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     db,
     pool,
     tm,
-    logger: jsonLogger,
+    logger: leveledLogger(env.LOG_LEVEL),
+    // HU-E8-02: the health check's database probe; any failure (refused, auth, timeout) reads as unreachable.
+    databaseReachable: async () => {
+      try {
+        await pool.query("SELECT 1");
+        return true;
+      } catch {
+        return false;
+      }
+    },
     sessionResolver: provider,
     idempotency: { tm, store: new DrizzleIdempotencyStore(tm) },
     identity: {
