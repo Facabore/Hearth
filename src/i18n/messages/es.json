@@ -157,6 +157,7 @@
     "SharesDoNotMatchAmount": "Los pagos y las partes deben sumar el monto total.",
     "SignUpClosed": "El registro está cerrado. Pide una invitación a alguien de tu hogar.",
     "SourcePlanOpen": "Primero cierra el plan de {period}: este plan arrastra saldo de ese mes.",
+    "CopyAlreadyClosed": "No puedes activar este plan: el plan de {period}, copiado de este, ya está cerrado y arrastra saldo de este mes.",
     "SpaceArchived": "Este espacio está archivado y no admite cambios.",
     "SpaceCurrencyLocked": "La moneda del espacio ya no se puede cambiar: tiene movimientos o un plan.",
     "SpaceNotFound": "No encontramos ese espacio, o ya no eres miembro.",

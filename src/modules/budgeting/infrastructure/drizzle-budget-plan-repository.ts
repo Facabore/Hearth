@@ -88,6 +88,22 @@ export class DrizzleBudgetPlanRepository implements BudgetPlanRepository {
     return row ? toPlan(row) : null;
   }
 
+  async lockCopiesOf(spaceId: string, planId: string): Promise<BudgetPlan[]> {
+    // Issue #158: ids come from URLs; anything that is not a UUID would fail the uuid cast.
+    if (!isUuid(spaceId) || !isUuid(planId)) return [];
+    // Issue #183: every copy, not only the CLOSED ones, so a copy whose close is in progress is locked too. FOR SHARE
+    // waits for that close (FOR NO KEY UPDATE) and then reads the row as committed (READ COMMITTED re-checks it), and
+    // locking oldest first keeps the order the same in every transaction.
+    const rows = await this.tm
+      .executor()
+      .select()
+      .from(budgetPlans)
+      .where(and(eq(budgetPlans.spaceId, spaceId), eq(budgetPlans.createdFromPlanId, planId)))
+      .orderBy(asc(budgetPlans.startDate))
+      .for("share");
+    return rows.map(toPlan);
+  }
+
   async storedPeriods(spaceId: string): Promise<StoredPeriod[]> {
     if (!isUuid(spaceId)) return [];
     const rows = await this.tm

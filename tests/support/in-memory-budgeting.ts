@@ -38,6 +38,12 @@ export class InMemoryBudgetPlans implements BudgetPlanRepository {
     return this.plans.find((p) => p.spaceId === spaceId && p.id === planId) ?? null;
   }
 
+  async lockCopiesOf(spaceId: string, planId: string): Promise<BudgetPlan[]> {
+    return this.plans
+      .filter((p) => p.spaceId === spaceId && p.createdFrom === planId)
+      .sort((a, b) => compare(a.period.start, b.period.start));
+  }
+
   async storedPeriods(spaceId: string): Promise<StoredPeriod[]> {
     return this.plans
       .filter((p) => p.spaceId === spaceId)

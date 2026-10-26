@@ -54,6 +54,14 @@ describe("problemFrom (HU-E9-02)", () => {
     expect(problemFrom({ code: "SpaceArchived" }, response(409))).not.toHaveProperty("sourcePeriod");
   });
 
+  it("keeps the public copyPeriod of CopyAlreadyClosed and nothing malformed (issue #158)", () => {
+    const body = { code: "CopyAlreadyClosed", status: 409, requestId: "r", copyPeriod: "2026-12" };
+    expect(problemFrom(body, response(409)).copyPeriod).toBe("2026-12");
+    expect(problemFrom({ ...body, copyPeriod: 202612 }, response(409))).not.toHaveProperty("copyPeriod");
+    expect(problemFrom({ ...body, copyPeriod: "" }, response(409))).not.toHaveProperty("copyPeriod");
+    expect(problemFrom({ code: "SpaceArchived" }, response(409))).not.toHaveProperty("copyPeriod");
+  });
+
   it("reads anything else as Unknown, with the request id when the response has one", () => {
     expect(problemFrom("<html>502 Bad Gateway</html>", response(502, "req-2"))).toEqual({
       code: "Unknown",

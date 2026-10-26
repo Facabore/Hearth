@@ -565,7 +565,8 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
       null,
       {
         "404": "SpaceNotFound, BudgetPlanNotFound",
-        "409": "InvalidPlanTransition, PlanExceedsCapacity, SpaceArchived",
+        "409":
+          "InvalidPlanTransition, PlanExceedsCapacity, CopyAlreadyClosed (a plan copied from this one is already CLOSED and carries over from it; the problem carries the closed copy's `copyPeriod`), SpaceArchived",
         "422": "InvalidAllocation (lineIds names the lines whose allocation does not hold)",
       },
       "200",

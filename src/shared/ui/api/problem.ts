@@ -11,6 +11,8 @@ export interface Problem {
   readonly outstanding?: MoneyDto;
   /** Ruling P248: the public `sourcePeriod` of SourcePlanOpen, the period label of the plan to close first. */
   readonly sourcePeriod?: string;
+  /** Issue #158: the public `copyPeriod` of CopyAlreadyClosed, the period label of the CLOSED copy that blocks activation. */
+  readonly copyPeriod?: string;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -39,6 +41,9 @@ export const problemFrom = (error: unknown, response: Response | undefined): Pro
       ...money,
       ...(typeof error.sourcePeriod === "string" && error.sourcePeriod !== ""
         ? { sourcePeriod: error.sourcePeriod }
+        : {}),
+      ...(typeof error.copyPeriod === "string" && error.copyPeriod !== ""
+        ? { copyPeriod: error.copyPeriod }
         : {}),
     };
   }

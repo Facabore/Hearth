@@ -29,6 +29,12 @@ const NO_SPENDING = { byCategory: [], byAccount: [] };
 /**
  * HU-E6-07: an OWNER or ADMIN activates a DRAFT plan while its lines fit its capacity (PlanExceedsCapacity) and
  * every allocation holds (InvalidAllocation, naming the lines). From then on it drives default splits (HU-E6-08).
+ *
+ * Issue #158 (ruling P250, the mirror of P248): a DRAFT plan is not activated while a CLOSED plan copied from it
+ * carries over from it (CopyAlreadyClosed, naming the copy's period). A copy of a DRAFT source carries 0 while the
+ * source stays a draft (P248). Activating the source and closing it later would make the copy read its figures (P243),
+ * and the copy's frozen 0 would jump. Refusing the activation keeps the CLOSED copy's figures still. This check runs
+ * after the capacity and allocation ones.
  */
 export const createActivateBudgetPlan =
   (deps: PlanStatusDeps): ActivateBudgetPlan =>
@@ -45,6 +51,14 @@ export const createActivateBudgetPlan =
       });
       const valid = activationCheck(figures);
       if (!valid.ok) return valid;
+      // Issue #183: the copies are locked, so a close of one in progress is waited for and seen (and one that starts
+      // now waits for this activation, then sees the source ACTIVE and answers SourcePlanOpen).
+      for (const copy of await deps.plans.lockCopiesOf(space.spaceId, plan.id)) {
+        if (copy.status !== "CLOSED") continue;
+        const copyParts = await deps.plans.contents(copy.id);
+        if (carriesFromSource(copyParts.lines))
+          return err(domainError("CopyAlreadyClosed", { copyPeriod: copy.period.label }));
+      }
       await deps.statuses.setStatus(plan.id, "ACTIVE", deps.clock.now());
       return ok(await loadPlanView(deps, space, { ...plan, status: "ACTIVE" }));
     });
@@ -57,8 +71,11 @@ export const createActivateBudgetPlan =
  * Ruling P248 (M6c): a plan is not closed while the plan it was copied from is ACTIVE and one of its lines carries
  * over from it (SourcePlanOpen, naming the source's period). A carry reads its source only once that source is
  * CLOSED (ruling P243), so closing the copy first would let its frozen figures jump when the source closes later.
- * The rule says "ACTIVE", not "not CLOSED", on purpose: a DRAFT source is never closed, so its copies carry 0 for
- * good, a stable figure that must not block closing. This check runs after the transition and the period ones.
+ * The rule says "ACTIVE", not "not CLOSED", on purpose: a copy of a DRAFT source carries 0 while the source stays a
+ * draft, and the activation guard (P250) keeps it a draft once this copy is CLOSED, so that 0 is stable and must not
+ * block closing. The source is read without a lock: an activation of it in progress holds this copy FOR SHARE
+ * (issue #183), so this close waits at its own version lock and then reads the source as committed. This check runs
+ * after the transition and the period ones.
  */
 export const createCloseBudgetPlan =
   (deps: CloseDeps): CloseBudgetPlan =>
