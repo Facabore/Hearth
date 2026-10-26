@@ -41,7 +41,7 @@ export function AccountsScreen({
   );
   const shared = kind === "SHARED";
   // Only a shared space's OWNER or ADMIN creates or edits funds; a direct space has no accounts; a personal one always may.
-  const canCreate = kind === "PERSONAL" || (shared && controlsFor(role, kind).manageFunds);
+  const canManage = kind === "PERSONAL" || (shared && controlsFor(role, kind).manageFunds);
   const nothing = list.items.length === 0;
   // Issue 169: with no active account the totals say nothing, so the empty state stands in for them; a personal
   // space also offers its starter accounts (archived ones stay listed below and keep their names).
@@ -53,7 +53,7 @@ export function AccountsScreen({
         backHref={`/spaces/${spaceId}`}
         title={t("title")}
         action={
-          canCreate && !noActive ? (
+          canManage && !noActive ? (
             <Link href={newHref} className={ACTION}>
               <Icon name="plus" size={20} />
               {shared ? t("newFund") : t("new")}
@@ -85,7 +85,7 @@ export function AccountsScreen({
               <StarterAccountsButton spaceId={spaceId} />
             </>
           ) : null}
-          {canCreate ? (
+          {canManage ? (
             <Link href={newHref} className={ACTION}>
               <Icon name="plus" size={20} />
               {shared ? t("createFund") : t("new")}
@@ -121,7 +121,7 @@ export function AccountsScreen({
                 key={account.id}
                 account={account}
                 formats={formats}
-                editHref={canCreate ? `/spaces/${spaceId}/accounts/${account.id}/edit` : undefined}
+                editHref={canManage ? `/spaces/${spaceId}/accounts/${account.id}/edit` : undefined}
                 actions={<ArchiveAccountButton spaceId={spaceId} account={account} />}
               />
             ))}

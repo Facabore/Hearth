@@ -131,6 +131,7 @@ describe("the account edit form's values (issue 169)", () => {
     expect(editOf(visa, "DOT_COMMA")).toEqual({
       name: "Visa",
       opening: "350.000",
+      openingNegative: true,
       fields: { lastFour: "4821", creditLimit: "5.000.000", cutOffDay: "25", monthlyRate: "1,89" },
       icon: "star",
       includeInAvailable: null,
@@ -172,10 +173,34 @@ describe("the account edit form's values (issue 169)", () => {
       ok: true,
       body: { openingBalance: { amount: "-40000000", currency: "COP" } },
     });
+    expect(editBodyOf("CREDIT_CARD", before, { ...before, opening: "" }, "COP", "DOT_COMMA")).toEqual({
+      ok: true,
+      body: { openingBalance: { amount: "0", currency: "COP" } },
+    });
+    const cleared = { ...before, fields: { ...before.fields, creditLimit: "", cutOffDay: "" } };
+    expect(editBodyOf("CREDIT_CARD", before, cleared, "COP", "DOT_COMMA")).toEqual({
+      ok: true,
+      body: { terms: { creditLimit: null, cutOffDay: null } },
+    });
     const unreadable = { ...before, fields: { ...before.fields, creditLimit: "cinco" } };
     expect(editBodyOf("CREDIT_CARD", before, unreadable, "COP", "DOT_COMMA")).toEqual({
       ok: false,
       field: "creditLimit",
     });
+  });
+
+  it("keeps the opening balance's sign: a card in credit stays positive, an overdrawn bank stays negative", () => {
+    const edited = (account: ReturnType<typeof accountDto>) => {
+      const before = editOf(account, "DOT_COMMA");
+      return editBodyOf(account.type, before, { ...before, opening: "60.000" }, "COP", "DOT_COMMA");
+    };
+    const amountOf = (built: ReturnType<typeof edited>) =>
+      built.ok ? (built.body.openingBalance as { amount: string }).amount : null;
+    expect(amountOf(edited(accountDto({ type: "CREDIT_CARD", openingBalance: cop(50_000) })))).toBe(
+      "6000000",
+    );
+    expect(amountOf(edited(accountDto({ type: "BANK", openingBalance: cop(-50_000) })))).toBe("-6000000");
+    expect(amountOf(edited(accountDto({ type: "LOAN", openingBalance: cop(0) })))).toBe("-6000000");
+    expect(amountOf(edited(accountDto({ type: "BANK", openingBalance: cop(0) })))).toBe("6000000");
   });
 });

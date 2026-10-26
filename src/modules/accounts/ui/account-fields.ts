@@ -109,18 +109,18 @@ const valueOf = (
   return text;
 };
 
-/** The opening balance's text as money; a card's or a loan's is typed as what is owed and sent negative. */
-const openingOf = (type: AccountType, text: string, currency: string, numberFormat: NumberFormat) => {
+/** The opening balance's text, typed without a sign, as money; `negative` sends it below zero. */
+const openingOf = (text: string, negative: boolean, currency: string, numberFormat: NumberFormat) => {
   // Issue #178: an opening balance left empty is 0, not a required field.
   const opening = moneyIn(currency, numberFormat)(text.trim() === "" ? "0" : text);
   if (!opening) return null;
-  const owed = OWED_TYPES.includes(type) && opening.amount !== "0";
-  return owed ? { ...opening, amount: `-${opening.amount}` } : opening;
+  return negative && opening.amount !== "0" ? { ...opening, amount: `-${opening.amount}` } : opening;
 };
 
 /** The create body, or the field whose text cannot be read; a switch left alone is not sent (P51). */
 export const accountBodyOf = (draft: AccountDraft, currency: string, numberFormat: NumberFormat): Built => {
-  const openingBalance = openingOf(draft.type, draft.opening, currency, numberFormat);
+  // A card's or a loan's opening balance is typed as what is owed and sent negative.
+  const openingBalance = openingOf(draft.opening, OWED_TYPES.includes(draft.type), currency, numberFormat);
   if (!openingBalance) return { ok: false, field: "opening" };
   const body: Record<string, unknown> = { name: draft.name.trim(), type: draft.type, openingBalance };
   const terms: Record<string, unknown> = {};
@@ -142,6 +142,11 @@ export const accountBodyOf = (draft: AccountDraft, currency: string, numberForma
 export interface AccountEdit {
   readonly name: string;
   readonly opening: string;
+  /**
+   * Whether the opening balance, typed without its sign, is below zero: as stored, or for a card or a loan at zero. An
+   * edit keeps it, so a card in credit or an overdrawn bank account never flips sign.
+   */
+  readonly openingNegative: boolean;
   readonly fields: Readonly<Partial<Record<AccountField, string>>>;
   readonly icon: AccountIcon | null;
   readonly includeInAvailable: boolean | null;
@@ -172,7 +177,14 @@ export const editOf = (account: AccountDto, numberFormat: NumberFormat): Account
     else if (RATE_TERMS.includes(field)) fields[field] = rate(String(stored));
     else fields[field] = String(stored);
   }
-  return { name: account.name, opening: money(account.openingBalance.amount), fields, ...account.stored };
+  const { amount } = account.openingBalance;
+  return {
+    name: account.name,
+    opening: money(amount),
+    openingNegative: amount.startsWith("-") || (amount === "0" && OWED_TYPES.includes(account.type)),
+    fields,
+    ...account.stored,
+  };
 };
 
 /**
@@ -189,7 +201,7 @@ export const editBodyOf = (
   const body: Record<string, unknown> = {};
   if (after.name.trim() !== before.name) body.name = after.name.trim();
   if (after.opening !== before.opening) {
-    const openingBalance = openingOf(type, after.opening, currency, numberFormat);
+    const openingBalance = openingOf(after.opening, before.openingNegative, currency, numberFormat);
     if (!openingBalance) return { ok: false, field: "opening" };
     body.openingBalance = openingBalance;
   }
