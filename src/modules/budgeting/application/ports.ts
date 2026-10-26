@@ -42,7 +42,7 @@ export interface BudgetPlanRepository {
   /** Capacities by member; lines that are not deleted in creation order; current mappings and values by line. */
   contents(planId: BudgetPlanId): Promise<PlanContents>;
   /**
-   * Issues #158 and #183 (ruling P250): every plan of the space copied from `planId`, of any status, oldest first; `[]`
+   * Issues #158 and #183 (rulings P250, P251): every plan of the space copied from `planId`, of any status, oldest first; `[]`
    * for malformed ids. Each row is locked FOR SHARE until the caller's transaction ends, so the read waits for a close
    * of a copy in progress (`lockForWrite`, FOR NO KEY UPDATE) and sees its committed status, and a close that starts
    * meanwhile waits for this transaction. Activation reads them, after locking the source, to refuse activating a
