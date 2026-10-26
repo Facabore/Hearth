@@ -130,7 +130,11 @@ export function CategoryTree({
       <ChoiceGroup
         label={t("kindLabel")}
         value={kind}
-        onValueChange={setKind}
+        onValueChange={(next) => {
+          // A restore refusal belongs to the tab it happened on.
+          setProblem(null);
+          setKind(next);
+        }}
         options={KINDS.map((value) => ({ value, label: t(`kind.${value}`) }))}
       />
       {shown.map((group) => (
@@ -244,7 +248,7 @@ export function CategoryTree({
           key={open!.mode === "edit" ? open!.id : `new-${open!.groupId}`}
           spaceId={space.id}
           target={target}
-          groups={groupsForKind(live, kind)}
+          groups={shown}
           api={api}
           onClose={() => setOpen(null)}
           onSaved={(saved) => setTree((current) => withCategory(current, saved))}

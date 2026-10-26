@@ -88,7 +88,6 @@ export const withCategory = (
     previous.category.groupId === saved.groupId &&
     previous.category.parentCategoryId === saved.parentCategoryId;
   if (saved.parentCategoryId !== null) {
-    const sub: SavedCategory = { ...saved };
     const rest = stays ? groups : withoutCategory(groups, saved.id);
     return rest.map((group) => ({
       ...group,
@@ -98,13 +97,15 @@ export const withCategory = (
           : {
               ...category,
               subcategories: stays
-                ? category.subcategories.map((s) => (s.id === saved.id ? sub : s))
-                : [...category.subcategories, sub],
+                ? category.subcategories.map((s) => (s.id === saved.id ? saved : s))
+                : [...category.subcategories, saved],
             },
       ),
     }));
   }
-  const existing = groups.flatMap((group) => group.categories).find((category) => category.id === saved.id);
+  // `findCategory` types a match as a bare category; its group holds the node with the subcategories.
+  const existing =
+    previous?.parent === null ? previous.group.categories.find((c) => c.id === saved.id) : undefined;
   const subcategories = (existing?.subcategories ?? []).map((sub) => ({
     ...sub,
     groupId: saved.groupId,

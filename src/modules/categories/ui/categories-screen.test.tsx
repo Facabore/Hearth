@@ -387,11 +387,59 @@ describe("categories screen (HU-E9-04)", () => {
     expect(within(group("Archivadas")).queryByText("Groceries")).not.toBeInTheDocument();
   });
 
+  it("keeps a sheet open with its draft when the API refuses, and lets the person try again", async () => {
+    const { requests } = renderTree(household(), {
+      routes: {
+        "POST /api/v1/spaces/{spaceId}/category-groups": () => problemResponse(409, "CategoryGroupNameTaken"),
+        "PATCH /api/v1/spaces/{spaceId}/categories/{categoryId}": () =>
+          problemResponse(409, "CategoryNameTaken"),
+      },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Nuevo grupo" }));
+    const newGroup = await screen.findByRole("dialog", { name: "Nuevo grupo" });
+    await userEvent.type(within(newGroup).getByLabelText("Nombre"), "Food");
+    await userEvent.click(within(newGroup).getByRole("button", { name: "Crear grupo" }));
+    expect(await within(newGroup).findByRole("alert")).toHaveTextContent("Ya hay un grupo con ese nombre.");
+    expect(within(newGroup).getByLabelText("Nombre")).toHaveValue("Food");
+    expect(within(newGroup).getByRole("button", { name: "Crear grupo" })).toBeEnabled();
+    await userEvent.click(within(newGroup).getByRole("button", { name: "Cerrar" }));
+    expect(await screen.findAllByRole("region", { name: "Food" })).toHaveLength(1);
+
+    await userEvent.click(screen.getByRole("button", { name: "Editar Groceries" }));
+    const edit = await screen.findByRole("dialog", { name: "Editar Groceries" });
+    await userEvent.clear(within(edit).getByLabelText("Nombre"));
+    await userEvent.type(within(edit).getByLabelText("Nombre"), "Restaurants");
+    await userEvent.click(within(edit).getByRole("button", { name: "Guardar cambios" }));
+    expect(await within(edit).findByRole("alert")).toHaveTextContent(
+      "Ya hay una categoría con ese nombre aquí.",
+    );
+    expect(within(edit).getByLabelText("Nombre")).toHaveValue("Restaurants");
+    expect(within(edit).getByRole("button", { name: "Guardar cambios" })).toBeEnabled();
+    expect(requests.filter((r) => r.method === "PATCH")).toHaveLength(1);
+    await userEvent.click(within(edit).getByRole("button", { name: "Cerrar" }));
+    await waitFor(() => expect(namesIn(group("Food"))).toEqual(["Groceries", "Restaurants"]));
+  });
+
+  it("clears a restore refusal when the person switches tab", async () => {
+    const archivedAt = "2026-10-20T15:00:00.000Z";
+    renderTree(household({ subcategories: [sub("c-veg", "Vegetables", { archivedAt })] }), {
+      routes: {
+        "POST /api/v1/spaces/{spaceId}/categories/{categoryId}/restore": () =>
+          problemResponse(409, "ParentCategoryArchived"),
+      },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Restaurar Groceries › Vegetables" }));
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("radio", { name: "Ingresos" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Gastos" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("shows a VIEWER the tree read-only: no create, edit, move, archive, restore or delete control", async () => {
     const { container } = renderTree(
       household({
         subcategories: [sub("c-veg", "Vegetables")],
-      }).concat(),
+      }),
       { space: householdSpace({ role: "VIEWER" }) },
     );
     expect(
