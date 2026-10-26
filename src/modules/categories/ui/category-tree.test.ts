@@ -84,6 +84,11 @@ describe("tree updates from what the API answered (HU-E9-04)", () => {
   const saved = { ...groceries, subcategories: undefined };
   const pantry = groupDto({ id: "g-pantry", name: "Pantry", key: null });
   const food = [groupDto({ categories: [groceries] })];
+  /** The tree a placeable answer gives. */
+  const placed = (tree: ReturnType<typeof withCategory>) => {
+    expect(tree).not.toBeNull();
+    return tree!;
+  };
 
   it("adds a group last, with no categories", () => {
     expect(withGroup(food, pantry).map((g) => [g.name, g.categories.length])).toEqual([
@@ -93,12 +98,14 @@ describe("tree updates from what the API answered (HU-E9-04)", () => {
   });
 
   it("moves a category to another group with its subcategories, which take its style and group", () => {
-    const moved = withCategory([...food, pantry], {
-      ...saved,
-      groupId: "g-pantry",
-      icon: { kind: "EMOJI", value: "🛒" },
-      color: "PLUM",
-    });
+    const moved = placed(
+      withCategory([...food, pantry], {
+        ...saved,
+        groupId: "g-pantry",
+        icon: { kind: "EMOJI", value: "🛒" },
+        color: "PLUM",
+      }),
+    );
     expect(moved[0]!.categories).toEqual([]);
     const [node] = moved[1]!.categories;
     expect(node!.subcategories.map((s) => [s.name, s.groupId, s.icon, s.color])).toEqual([
@@ -109,10 +116,10 @@ describe("tree updates from what the API answered (HU-E9-04)", () => {
 
   it("keeps a renamed category in its place, and archives its live subcategories with it", () => {
     const two = [groupDto({ categories: [groceries, categoryDto({ id: "c-dining", name: "Restaurants" })] })];
-    const renamed = withCategory(two, { ...saved, name: "Market" });
+    const renamed = placed(withCategory(two, { ...saved, name: "Market" }));
     expect(renamed[0]!.categories.map((c) => c.name)).toEqual(["Market", "Restaurants"]);
     const archivedAt = "2026-10-26T00:00:00.000Z";
-    const archived = withCategory(two, { ...saved, archivedAt });
+    const archived = placed(withCategory(two, { ...saved, archivedAt }));
     expect(archived[0]!.categories[0]!.subcategories.map((s) => s.archivedAt)).toEqual([
       archivedAt,
       "2026-10-01T00:00:00.000Z",
@@ -120,14 +127,18 @@ describe("tree updates from what the API answered (HU-E9-04)", () => {
   });
 
   it("nests a new subcategory under its parent and drops a deleted one", () => {
-    const added = withCategory(
-      groups,
-      categoryDto({ id: "c-meat", name: "Meat", parentCategoryId: "c-groceries" }),
+    const added = placed(
+      withCategory(groups, categoryDto({ id: "c-meat", name: "Meat", parentCategoryId: "c-groceries" })),
     );
     expect(added[0]!.categories[0]!.subcategories.map((s) => s.name)).toEqual(["Vegetables", "Old", "Meat"]);
     expect(withoutCategory(added, "c-veg")[0]!.categories[0]!.subcategories.map((s) => s.name)).toEqual([
       "Old",
       "Meat",
     ]);
+  });
+
+  it("gives no tree for an answer it has no group or parent for, rather than losing the category", () => {
+    expect(withCategory(food, { ...saved, groupId: "g-unknown" })).toBeNull();
+    expect(withCategory(food, categoryDto({ id: "c-x", parentCategoryId: "c-unknown" }))).toBeNull();
   });
 });

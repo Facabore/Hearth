@@ -77,11 +77,17 @@ export const withoutCategory = (groups: readonly CategoryGroupDto[], id: string)
  * HU-E9-04: the tree once `saved` (what a create, update, archive or restore answered) is where it now lives, so the
  * screen shows it without a reload. A category keeps its place when it stays in its group and moves last into another
  * one, with its subcategories: they follow its group and style (HU-E3-05: theirs is derived), and its archiving.
+ * `null` when the tree holds no group (or parent) to put it in, so the caller reads the tree again instead of losing it.
  */
 export const withCategory = (
   groups: readonly CategoryGroupDto[],
   saved: SavedCategory,
-): CategoryGroupDto[] => {
+): CategoryGroupDto[] | null => {
+  const home =
+    saved.parentCategoryId === null
+      ? groups.some((group) => group.id === saved.groupId)
+      : groups.some((group) => group.categories.some((c) => c.id === saved.parentCategoryId));
+  if (!home) return null;
   const previous = findCategory(groups, saved.id);
   const stays =
     previous !== null &&

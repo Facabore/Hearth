@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import { Button, ChoiceGroup, Icon, ProblemNotice, ScreenHeader, VisuallyHidden } from "@/shared/ui";
@@ -60,7 +61,14 @@ export function CategoryTree({
   const t = useTranslations("categories");
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   const manage = managesCategories(space.role);
+  const router = useRouter();
   const [tree, setTree] = useState<readonly CategoryGroupDto[]>(groups);
+  // A fresh read from the server (after `router.refresh()`) replaces what the screen holds.
+  const [read, setRead] = useState(groups);
+  if (groups !== read) {
+    setRead(groups);
+    setTree(groups);
+  }
   const [kind, setKind] = useState<Kind>("EXPENSE");
   const [open, setOpen] = useState<Open | null>(null);
   const [addingGroup, setAddingGroup] = useState(false);
@@ -88,6 +96,13 @@ export function CategoryTree({
     };
   })();
 
+  /** Shows what the API answered, or reads the tree again when the screen has nowhere to put it. */
+  const place = (saved: CategoryDto) => {
+    const next = withCategory(tree, saved);
+    if (next) setTree(next);
+    else router.refresh();
+  };
+
   const toggle = (id: string) =>
     setExpanded((current) => {
       const next = new Set(current);
@@ -102,7 +117,7 @@ export function CategoryTree({
         "/api/v1/spaces/{spaceId}/categories/{categoryId}/restore",
         { params: { path: { spaceId: space.id, categoryId: category.id } } },
       );
-      if (data) setTree((current) => withCategory(current, data));
+      if (data) place(data);
       else setProblem(problemFrom(error, response));
     } catch (error) {
       setProblem(problemFrom(error, undefined));
@@ -251,7 +266,7 @@ export function CategoryTree({
           groups={shown}
           api={api}
           onClose={() => setOpen(null)}
-          onSaved={(saved) => setTree((current) => withCategory(current, saved))}
+          onSaved={place}
           onDeleted={(id) => setTree((current) => withoutCategory(current, id))}
           onGroupCreated={(group) => setTree((current) => withGroup(current, group))}
         />
