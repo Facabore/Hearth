@@ -1,20 +1,26 @@
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
-import { paletteVars, SymbolIcon } from "@/shared/ui";
+import { paletteVars, SymbolIcon, VisuallyHidden } from "@/shared/ui";
 import type { AccountDto } from "@/shared/ui/api/dto";
 import { formatDate, formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { colorOf } from "./account-look";
 import { rateText } from "./account-sections";
 
-/** HU-E9-03, the Accounts artboard's row: type icon and color, name, details and balance. */
+/**
+ * HU-E9-03, the Accounts artboard's row: type icon and color, name, details and balance. Issue 169: with `editHref`, the
+ * icon, name and details are the link to the account's edit screen.
+ */
 export function AccountRow({
   account,
   formats,
   actions,
+  editHref,
 }: {
   readonly account: AccountDto;
   readonly formats: Formats;
   readonly actions?: ReactNode;
+  readonly editHref?: string;
 }) {
   const t = useTranslations("accounts");
   const color = colorOf(account);
@@ -41,8 +47,8 @@ export function AccountRow({
     if (terms.termMonths !== null) details.push(t("loan.months", { months: String(terms.termMonths) }));
   }
   const negative = account.balance.amount.startsWith("-");
-  return (
-    <li aria-labelledby={`account-${account.id}`} className="flex min-h-16 items-center gap-3 py-2">
+  const look = (
+    <>
       <span
         data-icon={account.icon}
         data-color={color}
@@ -57,6 +63,17 @@ export function AccountRow({
         </span>
         {details.length > 0 ? <span className="text-sm text-muted">{details.join(" · ")}</span> : null}
       </span>
+    </>
+  );
+  return (
+    <li aria-labelledby={`account-${account.id}`} className="flex min-h-16 items-center gap-3 py-2">
+      {editHref ? (
+        <Link href={editHref} className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-xl">
+          {look} <VisuallyHidden>{t("edit.action")}</VisuallyHidden>
+        </Link>
+      ) : (
+        look
+      )}
       <span className="flex flex-col items-end">
         <span className={negative ? "font-semibold text-owe" : "font-semibold text-ink"}>
           {formatMoney(account.balance, formats)}

@@ -91,6 +91,10 @@ for (const colorScheme of ["light", "dark"] as const) {
         .click();
       await scan("archive confirmation");
       await page.keyboard.press("Escape");
+      // Issue 169: a row opens its account's edit screen.
+      await page.getByRole("link", { name: new RegExp(`^Bancolombia.*${es.accounts.edit.action}$`) }).click();
+      await expect(page.getByRole("heading", { name: es.accounts.edit.title })).toBeVisible();
+      await scan("edit an account");
       await page.goto(`/spaces/${spaceId}/new`);
       await expect(page.locator("[data-ready='true']")).toBeAttached();
       await page.getByTestId("when-chip").click();

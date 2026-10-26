@@ -823,7 +823,7 @@ Feature: Installation rules screen
 
 Left open on purpose by [the M6a plan](../plans/2026-10-20-m6a-web-shell-and-ledger.md) (its Self-Review has the reasons):
 
-1. The account edit form, with #120 (answer stored and effective icon and switches).
+1. The account edit form, with #120 (answer stored and effective icon and switches). Done with issue 169 ([E2-accounts.md](E2-accounts.md), ruling P253).
 2. Editing, deleting and restoring transactions from the Activity screen (M6b, ruling P140), with the `If-Match` flow and a restore endpoint for transactions; an untimed row gets its first time by editing. Done in the M6b addendum ([plan](../plans/2026-10-21-m6b-addendum-edit-delete-feedback.md)).
 3. A text search, and account and type filters, in the transaction list (an API story first).
 4. Dependency bumps once each release is two weeks old: `@playwright/test` 1.64.x, `jsdom` 30.1.3, `@axe-core/playwright` and `axe-core` 4.14.0, `@testing-library/user-event` 14.6.8 and `radix-ui` 1.8.1.

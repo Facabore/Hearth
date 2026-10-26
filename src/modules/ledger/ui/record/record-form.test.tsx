@@ -344,7 +344,7 @@ describe("record form (HU-E9-03)", () => {
     [
       "AccountArchived",
       /Cuenta/,
-      "Esta cuenta está archivada. Restáurala para registrar movimientos en ella.",
+      "Esta cuenta está oculta. Muéstrala de nuevo para registrar movimientos en ella.",
     ],
   ])("shows %s next to its field and keeps the draft", async (code, field, message) => {
     const { api } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": () => problemResponse(422, code) });
@@ -520,7 +520,7 @@ describe("record form: an error clears as soon as its field changes (390 px revi
     form(api);
     await userEvent.type(screen.getByLabelText("Monto"), "85000");
     await save();
-    const message = "Esta cuenta está archivada. Restáurala para registrar movimientos en ella.";
+    const message = "Esta cuenta está oculta. Muéstrala de nuevo para registrar movimientos en ella.";
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /Cuenta/ })).toHaveAccessibleDescription(message),
     );

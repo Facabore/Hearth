@@ -40,7 +40,7 @@ export function AccountsScreen({
     safeReturnTo(returnTo) ?? `/spaces/${spaceId}/accounts`,
   );
   const shared = kind === "SHARED";
-  // Only a shared space's OWNER or ADMIN creates funds; a direct space has no accounts; a personal one always may.
+  // Only a shared space's OWNER or ADMIN creates or edits funds; a direct space has no accounts; a personal one always may.
   const canCreate = kind === "PERSONAL" || (shared && controlsFor(role, kind).manageFunds);
   const nothing = list.items.length === 0;
   // Issue 169: with no active account the totals say nothing, so the empty state stands in for them; a personal
@@ -121,6 +121,7 @@ export function AccountsScreen({
                 key={account.id}
                 account={account}
                 formats={formats}
+                editHref={canCreate ? `/spaces/${spaceId}/accounts/${account.id}/edit` : undefined}
                 actions={<ArchiveAccountButton spaceId={spaceId} account={account} />}
               />
             ))}
