@@ -410,7 +410,7 @@ Execution rulings made while closing follow-up issues after their milestone ship
 
 | P# | Ruling | Where |
 |---|---|---|
-| P249 | Report latency (M4 follow-up 2, issue #128) is bounded and pinned by read-count tests, not a wall-clock figure: the line trend at `periods=24` over a 30-plan ROLLOVER chain reads each plan once (O(window + chain), no duplicate computation under the `Promise.all` fan-out), and the unified view and spending by group read each space once. No report figures are cached (D7 stands). | M4 plan Self-Review, Follow-up 2 (`3378a93`) |
+| P249 | Report latency (M4 follow-up 2, issue #128) is bounded and pinned by read-count tests, not a wall-clock figure: the line trend at `periods=24` over a 30-plan ROLLOVER chain reads each plan once (O(window + chain), no duplicate computation under the `Promise.all` fan-out), and the unified view and spending by group read each space once. No report figures are cached (D7 stands). Its wall-clock addendum, `pnpm perf:reports` (a manual probe outside `pnpm test`), measured a worst p95 of about 0.25 s (line trend and line dashboard at the end of a 24-plan ROLLOVER chain, 300 expenses per period). | M4 plan Self-Review, Follow-up 2 (`3378a93`) |
 | P250 | Activating a DRAFT plan is refused with 409 `CopyAlreadyClosed` (`copyPeriod`) while a plan copied from it is already CLOSED and carries over from it (the mirror of P248), so a CLOSED copy's frozen 0 carry never jumps when its DRAFT source is later activated and closed; an all-RESET or not-yet-closed copy does not block. | E6-budgeting.md HU-E6-07, issue #158 |
 
 ### Preflight notes and findings
