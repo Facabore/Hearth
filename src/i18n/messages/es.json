@@ -131,7 +131,7 @@
     "NotASpaceMember": "Esa persona no es miembro de este espacio.",
     "OccurrenceNotFound": "No encontramos ese movimiento programado.",
     "OccurrenceNotPending": "Ese movimiento programado ya se registró o se omitió.",
-    "OutstandingBalance": "Para salir del espacio, quitar a alguien o archivarlo, los saldos tienen que quedar en cero. Registra los pagos que falten para quedar al día y vuelve a intentarlo.",
+    "OutstandingBalance": "Para salir del espacio, quitar a alguien o archivar el espacio, los saldos tienen que quedar en cero. Registra los pagos que falten para quedar al día y vuelve a intentarlo.",
     "ParentCategoryArchived": "La categoría superior está archivada. Restáurala primero.",
     "ParticipantsRequired": "Elige al menos una persona para dividir el gasto.",
     "PasswordTooShort": "La contraseña debe tener al menos 8 caracteres.",

@@ -228,7 +228,7 @@ describe("guests (HU-E9-05, ruling P163)", () => {
     await userEvent.click(within(sheet).getByRole("button", { name: "Sí, quitar" }));
     const alert = await within(sheet).findByRole("alert");
     expect(alert).toHaveTextContent(
-      "Para salir del espacio, quitar a alguien o archivarlo, los saldos tienen que quedar en cero. Registra los pagos que falten para quedar al día y vuelve a intentarlo.",
+      "Para salir del espacio, quitar a alguien o archivar el espacio, los saldos tienen que quedar en cero. Registra los pagos que falten para quedar al día y vuelve a intentarlo.",
     );
     expect(normalized(alert.textContent)).toContain("Saldo pendiente: $ 100.000");
     expect(within(alert).getByRole("link", { name: "Registrar pago" })).toHaveAttribute(
