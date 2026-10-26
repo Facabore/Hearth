@@ -46,7 +46,7 @@ Rationale and rejected alternatives are in [section 6 of the spec](../specs/2026
 | [0003](../adr/0003-web-ui-talks-to-the-api-through-a-generated-client.md) | The web UI talks to `/api/v1` only, through a client generated from the snapshot. | Accepted (2026-10-20) |
 | [0004](../adr/0004-web-ui-testing-and-performance-gates.md) | Test the web UI with Vitest, Playwright and axe, and gate it on Core Web Vitals. | Accepted (2026-10-20) |
 
-## Rulings P1–P252
+## Rulings P1–P253
 
 Rulings are numbered across milestones, not per plan, and not always in the order of the plans: M4's plan holds rulings that were made while M3-D was being planned. The tables are grouped by the plan that records them. In each, "Where" is the plan's Self-Review section and the item number in it. "Amended" marks a ruling the plan itself says was amended.
 
@@ -404,7 +404,7 @@ Plan: [`2026-10-21-m6c-planner-and-dashboards.md`](../plans/2026-10-21-m6c-plann
 | P200 | The Plan tabs row (`reporting/ui/plan-tabs.tsx`) has `scroll-px-4`, so a tab scrolled into view stays clear of the screen edge whether or not its offset is a whole pixel. | Task 15 |
 | P202, P223 | The two rules as built: `recharts-only-in-charts` lets only `src/modules/reporting/ui/charts/*-chart.tsx` import `recharts`, the `lazy-*-chart.tsx` wrappers excepted, and `charts-load-lazily` fails any static import of those chart files, so the lazy wrapper is the one chart-named file a page imports. | Task 14a |
 
-### Post-milestone follow-up rulings (P249–P252)
+### Post-milestone follow-up rulings (P249–P253)
 
 Execution rulings made while closing follow-up issues after their milestone shipped. Each lives in the Self-Review of the plan whose follow-up it resolves, or in the note of the backlog story it amends.
 
@@ -414,6 +414,7 @@ Execution rulings made while closing follow-up issues after their milestone ship
 | P250 | Activating a DRAFT plan is refused with 409 `CopyAlreadyClosed` (`copyPeriod`) while a plan copied from it is already CLOSED and carries over from it (the mirror of P248), so a CLOSED copy's frozen 0 carry never jumps when its DRAFT source is later activated and closed; an all-RESET or not-yet-closed copy does not block. | E6-budgeting.md HU-E6-07, issue #158 |
 | P251 | Activating a plan and closing its copy serialize (issue #183): activation locks every copy of the plan FOR SHARE (`lockCopiesOf`, any status, oldest first) after its own version lock, so it waits for a close of a copy in progress and then refuses with `CopyAlreadyClosed`, and a close that starts meanwhile waits at the copy's version lock and then refuses with `SourcePlanOpen`. A close still reads its source without a lock, so the two never wait on each other's plan in opposite order. | E6-budgeting.md HU-E6-07, issue #183 |
 | P252 | Observability as built (issue #62): one access log line per answer, with `route` written as its template so path ids and tokens never reach the log; unhandled errors log their stack frames, never the message's parameters; `GET /api/v1/health` answers 503 `db: unreachable` when `SELECT 1` fails; `LOG_LEVEL` is honoured; and the JSON console adapter stays, with no pino. | E8-hardening-and-later.md HU-E8-02, issue #62 |
+| P253 | An account answer keeps `icon`, `includeInAvailable` and `includeInNetWorth` as the effective values and adds `stored` (the same three as stored, `null` meaning the type's default) and `defaults` (the type's), as HU-E1-15's preferences do; the account form shows "Predeterminado" while a value is stored as `null` and offers "Restablecer" (`PATCH … null`) otherwise. The change is additive: no existing field changes meaning. Rejected: the UI deriving the defaults from the type (a second copy of P50's and P51's tables, which the UI may not import from the domain). | E2-accounts.md issue 169, issue #120 |
 
 ### Preflight notes and findings
 

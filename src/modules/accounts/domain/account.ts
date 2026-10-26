@@ -263,8 +263,18 @@ export const restoreAccount = (account: Account): Account =>
 /** HU-E2-07: types that count in available money by default; every type counts in net worth by default. */
 const AVAILABLE_BY_DEFAULT: ReadonlySet<AccountType> = new Set(["CASH", "BANK", "WALLET", "SHARED_FUND"]);
 
-/** HU-E2-07, ruling P51: the switches an account shows: the chosen value, else the type's default. */
-export const switchesOf = (account: Pick<Account, "type" | "includeInAvailable" | "includeInNetWorth">) => ({
-  includeInAvailable: account.includeInAvailable ?? AVAILABLE_BY_DEFAULT.has(account.type),
-  includeInNetWorth: account.includeInNetWorth ?? true,
+/** Issue 120 (P253): what a type shows while its account stores null: its icon (P50) and its switches (P51). */
+export const defaultsOf = (type: AccountType) => ({
+  icon: DEFAULT_ICONS[type],
+  includeInAvailable: AVAILABLE_BY_DEFAULT.has(type),
+  includeInNetWorth: true,
 });
+
+/** HU-E2-07, ruling P51: the switches an account shows: the chosen value, else the type's default. */
+export const switchesOf = (account: Pick<Account, "type" | "includeInAvailable" | "includeInNetWorth">) => {
+  const defaults = defaultsOf(account.type);
+  return {
+    includeInAvailable: account.includeInAvailable ?? defaults.includeInAvailable,
+    includeInNetWorth: account.includeInNetWorth ?? defaults.includeInNetWorth,
+  };
+};

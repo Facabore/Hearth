@@ -15,6 +15,7 @@ import {
   ACCOUNT_COLORS,
   ACCOUNT_ICONS,
   ACCOUNT_TYPES,
+  defaultsOf,
   iconOf,
   percentText,
   ratePpmOf,
@@ -120,6 +121,14 @@ export const AccountSchema = z.object({
   /** HU-E2-07: whether it counts in the space's available money and net worth (the type's default unless set). */
   includeInAvailable: z.boolean(),
   includeInNetWorth: z.boolean(),
+  /** Issue 120 (P253): the icon and switches as stored; null shows the type's default (what `PATCH … null` stores). */
+  stored: z.object({
+    icon: Icon.nullable(),
+    includeInAvailable: z.boolean().nullable(),
+    includeInNetWorth: z.boolean().nullable(),
+  }),
+  /** Issue 120 (P253): the type's defaults, which a stored null shows. */
+  defaults: z.object({ icon: Icon, includeInAvailable: z.boolean(), includeInNetWorth: z.boolean() }),
   /** HU-E2-06: the type's stored terms; rates as percent strings with four decimals. */
   terms: z.object({
     creditLimit: MoneySchema.nullable(),
@@ -227,6 +236,12 @@ export const accountDto = (view: AccountView): z.infer<typeof AccountSchema> => 
   color: view.color,
   icon: iconOf(view),
   ...switchesOf(view),
+  stored: {
+    icon: view.icon,
+    includeInAvailable: view.includeInAvailable,
+    includeInNetWorth: view.includeInNetWorth,
+  },
+  defaults: defaultsOf(view.type),
   terms: {
     creditLimit: amountOf(view.terms.creditLimit, view.currency),
     cutOffDay: view.terms.cutOffDay,

@@ -121,6 +121,8 @@ export const accountDto = (overrides: Partial<AccountDto> = {}): AccountDto => (
   icon: "bank",
   includeInAvailable: true,
   includeInNetWorth: true,
+  stored: { icon: null, includeInAvailable: null, includeInNetWorth: null },
+  defaults: { icon: "bank", includeInAvailable: true, includeInNetWorth: true },
   terms: {
     creditLimit: null,
     cutOffDay: null,

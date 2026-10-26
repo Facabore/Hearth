@@ -1382,6 +1382,17 @@ export interface components {
             icon: "cash" | "bank" | "wallet" | "card" | "piggy" | "trend" | "coins" | "dots" | "users" | "briefcase" | "car" | "star" | "gift" | "home" | "plane" | "phone";
             includeInAvailable: boolean;
             includeInNetWorth: boolean;
+            stored: {
+                icon: ("cash" | "bank" | "wallet" | "card" | "piggy" | "trend" | "coins" | "dots" | "users" | "briefcase" | "car" | "star" | "gift" | "home" | "plane" | "phone") | null;
+                includeInAvailable: boolean | null;
+                includeInNetWorth: boolean | null;
+            };
+            defaults: {
+                /** @enum {string} */
+                icon: "cash" | "bank" | "wallet" | "card" | "piggy" | "trend" | "coins" | "dots" | "users" | "briefcase" | "car" | "star" | "gift" | "home" | "plane" | "phone";
+                includeInAvailable: boolean;
+                includeInNetWorth: boolean;
+            };
             terms: {
                 creditLimit: components["schemas"]["MoneyOutput"] | null;
                 cutOffDay: number | null;

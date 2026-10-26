@@ -246,3 +246,46 @@ describe("the field an account type refuses (HU-E2-06)", () => {
     expect(withPublicField(odd)).toBe(odd);
   });
 });
+
+/** Issue 120 (P253): an answer carries the effective icon and switches, what is stored (null: the default) and the defaults. */
+describe("account answers with stored, effective and default style (issue 120)", () => {
+  const today = unwrap(localDate("2026-10-17"));
+  const answer = (attributes: Parameters<typeof openAccount>[0]["attributes"]) =>
+    accountDto(
+      toView(
+        unwrap(
+          openAccount({
+            id: "acc-1" as AccountId,
+            spaceId: "space-ana",
+            spaceKind: "PERSONAL",
+            ownerUserId: "u-ana",
+            name: "Visa",
+            type: "CREDIT_CARD",
+            openingBalance: 0n,
+            now: new Date("2026-10-12T12:00:00Z"),
+            siblings: [],
+            attributes,
+          }),
+        ),
+        "COP",
+        today,
+      ),
+    );
+  const defaults = { icon: "card", includeInAvailable: false, includeInNetWorth: true };
+
+  it("answers null as stored, and the type's defaults as effective, for an account that set nothing", () => {
+    const card = answer(undefined);
+
+    expect(card).toMatchObject({ icon: "card", includeInAvailable: false, includeInNetWorth: true });
+    expect(card.stored).toEqual({ icon: null, includeInAvailable: null, includeInNetWorth: null });
+    expect(card.defaults).toEqual(defaults);
+  });
+
+  it("answers what was chosen as stored and effective, and the type's defaults beside them", () => {
+    const card = answer({ icon: "star", includeInAvailable: true, includeInNetWorth: true });
+
+    expect(card).toMatchObject({ icon: "star", includeInAvailable: true, includeInNetWorth: true });
+    expect(card.stored).toEqual({ icon: "star", includeInAvailable: true, includeInNetWorth: true });
+    expect(card.defaults).toEqual(defaults);
+  });
+});
