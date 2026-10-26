@@ -91,3 +91,31 @@ describe("closing a copy whose source is still open (ruling P248 of M6c)", () =>
     expect((await closePlan(h.ana, h.spaceId, december.id)).status).toBe(200);
   });
 });
+
+describe("activating a DRAFT source whose copy already closed (issue #158, ruling P250)", () => {
+  it("answers 409 CopyAlreadyClosed naming 2026-12, and November stays DRAFT while December keeps its frozen 0 carry (#184)", async () => {
+    const ref = await referencePlan();
+    const { h, planId, lineId } = ref;
+    expect((await putCategories(h.ana, h.spaceId, planId, lineId("Home"), [h.groceries])).status).toBe(200);
+    expect(
+      (await patchLine(h.ana, h.spaceId, planId, lineId("Home"), { rolloverMode: "ROLLOVER" })).status,
+    ).toBe(200);
+    // December is copied from the DRAFT November and closes carrying 0, the carry of a source still a draft (P248).
+    const copied = await copyPlan(h.ana, h.spaceId, "2026-12");
+    expect(copied.status).toBe(201);
+    const december = (await copied.json()) as PlanDto;
+    expect((await activatePlan(h.ana, h.spaceId, december.id)).status).toBe(200);
+    expect((await closePlan(h.ana, h.spaceId, december.id)).status).toBe(200);
+    const frozen = lineNamed(await planOf(h.ana, h.spaceId, december.id), "Home");
+    expect(frozen).toMatchObject({ carryOver: cop(0) });
+    const refused = await activatePlan(h.ana, h.spaceId, planId);
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toMatchObject({
+      code: "CopyAlreadyClosed",
+      status: 409,
+      copyPeriod: "2026-12",
+    });
+    expect((await planOf(h.ana, h.spaceId, planId)).status).toBe("DRAFT");
+    expect(lineNamed(await planOf(h.ana, h.spaceId, december.id), "Home")).toEqual(frozen);
+  });
+});
