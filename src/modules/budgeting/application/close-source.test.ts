@@ -155,3 +155,38 @@ describe("closing a plan whose carries read from an open source (ruling P248 of 
     expect(codeOf(await w.close(december.plan.id))).toBe("ok");
   });
 });
+
+describe("activating a DRAFT source whose copy already closed (issue #158, mirror of ruling P248)", () => {
+  it.each(["ROLLOVER", "ADJUSTED"] as const)(
+    "refuses to activate the DRAFT source of a CLOSED %s copy with CopyAlreadyClosed, naming the copy's period, and leaves it DRAFT",
+    async (mode) => {
+      // December is copied from the DRAFT November and closes carrying 0 (a DRAFT source never closes, P248).
+      const w = await world(mode);
+      const december = await w.copyInto("2026-12");
+      unwrap(await w.activate(december.plan.id));
+      unwrap(await w.close(december.plan.id));
+      // Activating November now would let December's frozen 0 carry jump once November closed later.
+      const result = await w.activate(w.november.id);
+      expect(codeOf(result)).toBe("CopyAlreadyClosed");
+      expect(!result.ok && result.error.details).toEqual({ copyPeriod: "2026-12" });
+      expect(await w.status(w.november.id)).toBe("DRAFT");
+      // The figures the refusal protects: December's carry stays the frozen 0.
+      expect(await w.homeOf(december.plan.id)).toEqual([0n, pesos(-30_000), false]);
+    },
+  );
+
+  it("activates a DRAFT source whose only CLOSED copy carries nothing from it (all RESET), as before", async () => {
+    const w = await world("RESET");
+    const december = await w.copyInto("2026-12");
+    unwrap(await w.activate(december.plan.id));
+    unwrap(await w.close(december.plan.id));
+    expect(unwrap(await w.activate(w.november.id)).plan.status).toBe("ACTIVE");
+  });
+
+  it("activates a DRAFT source whose copy from it is not CLOSED yet (still ACTIVE)", async () => {
+    const w = await world("ROLLOVER");
+    const december = await w.copyInto("2026-12");
+    unwrap(await w.activate(december.plan.id));
+    expect(unwrap(await w.activate(w.november.id)).plan.status).toBe("ACTIVE");
+  });
+});

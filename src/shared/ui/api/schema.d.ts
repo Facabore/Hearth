@@ -7135,7 +7135,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description InvalidPlanTransition, PlanExceedsCapacity, SpaceArchived */
+            /** @description InvalidPlanTransition, PlanExceedsCapacity, CopyAlreadyClosed (a plan copied from this one is already CLOSED and carries over from it; the problem carries the closed copy's `copyPeriod`), SpaceArchived */
             409: {
                 headers: {
                     [name: string]: unknown;

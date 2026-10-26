@@ -27,6 +27,13 @@ describe("useProblemMessage (HU-E9-02)", () => {
     );
   });
 
+  it("fills the closed copy's period into CopyAlreadyClosed (issue #158)", () => {
+    const es = renderHook(() => useProblemMessage(), { wrapper: IntlWrapper("es") }).result.current;
+    expect(es({ ...problem("CopyAlreadyClosed"), status: 409, copyPeriod: "2026-12" }).message).toBe(
+      "No puedes activar este plan: el plan de 2026-12, copiado de este, ya está cerrado y arrastra saldo de este mes.",
+    );
+  });
+
   it("shows errors.Unknown with the request id for a code without a key", () => {
     const es = renderHook(() => useProblemMessage(), { wrapper: IntlWrapper("es") }).result.current;
     expect(es(problem("NoSuchCode"))).toEqual({

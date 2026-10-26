@@ -60,6 +60,8 @@ const PUBLIC_DETAILS: ReadonlyMap<string, readonly string[]> = new Map([
   ["InvalidAllocation", ["lineIds"]],
   // Ruling P248 (M6c): the label of the ACTIVE source plan a close waits for, e.g. "2026-11".
   ["SourcePlanOpen", ["sourcePeriod"]],
+  // Issue #158 (P248 mirror): the label of the CLOSED copy that refuses activating its DRAFT source, e.g. "2026-12".
+  ["CopyAlreadyClosed", ["copyPeriod"]],
   // HU-E4-11: "creator" when a recurrence's creator, not the requester, is why a resume or an edit is refused.
   ["InsufficientRole", ["member"]],
   ["NotASpaceMember", ["member"]],

@@ -41,6 +41,12 @@ export interface BudgetPlanRepository {
   ): Promise<BudgetPlan | null>;
   /** Capacities by member; lines that are not deleted in creation order; current mappings and values by line. */
   contents(planId: BudgetPlanId): Promise<PlanContents>;
+  /**
+   * Issue #158 (mirror of ruling P248): the space's CLOSED plans copied from `planId`, oldest first; `[]` for
+   * malformed ids. Activation reads them to refuse activating a DRAFT source whose closed copy carries from it,
+   * which would otherwise let that copy's frozen figures jump once the source closes later.
+   */
+  closedCopiesOf(spaceId: string, planId: string): Promise<BudgetPlan[]>;
 }
 
 /** Spec 5.4, D7: spending within dates, summed on read by the ledger and bound by the composition root. */

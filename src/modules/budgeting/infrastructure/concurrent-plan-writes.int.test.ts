@@ -134,6 +134,7 @@ const repositoryWith = (overrides: Partial<BudgetPlanRepository>): BudgetPlanRep
   covering: (spaceId, date, options) => plans.covering(spaceId, date, options),
   lockForWrite: (planId, expectedVersion, lockedAt) => plans.lockForWrite(planId, expectedVersion, lockedAt),
   contents: (planId) => plans.contents(planId),
+  closedCopiesOf: (spaceId, planId) => plans.closedCopiesOf(spaceId, planId),
   ...overrides,
 });
 

@@ -101,6 +101,38 @@ describe("DrizzleBudgetPlanRepository plans (HU-E6-01, D10)", () => {
     const { rows } = await pool.query("SELECT updated_at FROM budget_plans WHERE id = $1", [november.id]);
     expect(rows[0].updated_at).toEqual(later);
   });
+
+  it("lists only the CLOSED plans copied from a plan, oldest first, like its in-memory twin (issue #158)", async () => {
+    const { space } = await household();
+    const november = aPlan(space.id, "2026-11", "2026-11-01", "2026-11-30");
+    const december = {
+      ...aPlan(space.id, "2026-12", "2026-12-01", "2026-12-31"),
+      createdFrom: november.id,
+      status: "CLOSED" as const,
+    };
+    const january = {
+      ...aPlan(space.id, "2027-01", "2027-01-01", "2027-01-31"),
+      createdFrom: november.id,
+      status: "CLOSED" as const,
+    };
+    const draftCopy = { ...aPlan(space.id, "2027-02", "2027-02-01", "2027-02-28"), createdFrom: november.id };
+    const unrelated = { ...aPlan(space.id, "2026-10", "2026-10-01", "2026-10-31"), status: "CLOSED" as const };
+    const run = async (plans: BudgetPlanRepository) => {
+      for (const plan of [november, december, january, draftCopy, unrelated]) await plans.add(plan);
+      return {
+        copies: (await plans.closedCopiesOf(space.id, november.id)).map((p) => p.period.label),
+        none: await plans.closedCopiesOf(space.id, december.id),
+        malformed: [
+          await plans.closedCopiesOf("not-a-uuid", november.id),
+          await plans.closedCopiesOf(space.id, "not-a-uuid"),
+        ],
+      };
+    };
+    // December and January are CLOSED copies of November; the DRAFT copy and the unrelated CLOSED plan are left out.
+    const expected = { copies: ["2026-12", "2027-01"], none: [], malformed: [[], []] };
+    expect(await run(new InMemoryBudgetPlans())).toEqual(expected);
+    expect(await run(repo)).toEqual(expected);
+  });
 });
 
 /** What the tables hold, history included; written to PostgreSQL and to the twin alike. */

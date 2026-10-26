@@ -88,6 +88,24 @@ export class DrizzleBudgetPlanRepository implements BudgetPlanRepository {
     return row ? toPlan(row) : null;
   }
 
+  async closedCopiesOf(spaceId: string, planId: string): Promise<BudgetPlan[]> {
+    // Issue #158: ids come from URLs; anything that is not a UUID would fail the uuid cast.
+    if (!isUuid(spaceId) || !isUuid(planId)) return [];
+    const rows = await this.tm
+      .executor()
+      .select()
+      .from(budgetPlans)
+      .where(
+        and(
+          eq(budgetPlans.spaceId, spaceId),
+          eq(budgetPlans.createdFromPlanId, planId),
+          eq(budgetPlans.status, "CLOSED"),
+        ),
+      )
+      .orderBy(asc(budgetPlans.startDate));
+    return rows.map(toPlan);
+  }
+
   async storedPeriods(spaceId: string): Promise<StoredPeriod[]> {
     if (!isUuid(spaceId)) return [];
     const rows = await this.tm
