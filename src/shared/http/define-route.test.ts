@@ -434,6 +434,52 @@ describe("defineRoute", () => {
       );
     });
 
+    it("answers a path with a malformed percent-escape as usual and logs its segment as it came", async () => {
+      const { info, define } = logged();
+      const route = define<undefined, undefined, { id: string }>({
+        auth: "none",
+        handler: async () => ok({ status: 200 }),
+      });
+      const response = await route(new Request("http://localhost/api/v1/things/%E0%A4%A/x"), {
+        params: Promise.resolve({ id: "x" }),
+      });
+      expect(response.status).toBe(200);
+      expect(info).toHaveBeenCalledWith(
+        "request",
+        expect.objectContaining({ route: "/api/v1/things/%E0%A4%A/[id]", status: 200 }),
+      );
+    });
+
+    it("writes each value of a catch-all parameter as its name", async () => {
+      const { info, define } = logged();
+      const route = define<undefined, undefined, Record<string, string>>({
+        auth: "none",
+        handler: async () => ok({ status: 200 }),
+      });
+      await route(new Request("http://localhost/api/v1/files/a-secret/b-secret"), {
+        params: Promise.resolve({ path: ["a-secret", "b-secret"] } as unknown as Record<string, string>),
+      });
+      expect(JSON.stringify(info.mock.calls)).not.toContain("secret");
+      expect(info).toHaveBeenCalledWith(
+        "request",
+        expect.objectContaining({ route: "/api/v1/files/[path]/[path]" }),
+      );
+    });
+
+    it("keeps the answer when writing the access line fails", async () => {
+      const define = createRouteFactory(() => ({
+        sessionResolver: { resolve: async () => null },
+        logger: {
+          info: () => {
+            throw new Error("stdout closed");
+          },
+          error: vi.fn(),
+        },
+      }));
+      const response = await call(define({ auth: "none", handler: async () => ok({ status: 204 }) }));
+      expect(response.status).toBe(204);
+    });
+
     it("adds the stack frames of an unexpected error to its log line, without the message's parameters", async () => {
       const { error, define } = logged();
       const failure = new Error("Failed query: select 1 params: secret-hash");

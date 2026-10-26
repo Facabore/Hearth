@@ -80,22 +80,34 @@ const framesOf = (error: unknown): string[] =>
         .filter((line) => line.startsWith("at "))
     : [];
 
+/** A path segment as Next.js passes it to the params; a malformed percent-escape is left as it is. */
+const decodedSegment = (segment: string): string => {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+};
+
 /**
  * HU-E8-02: the request's path with each route parameter written as its name ("/api/v1/invitations/[token]"), so the
- * access log groups by route and never writes an id or a token from the path. Before the parameters are known, the
- * path is not logged at all.
+ * access log groups by route and never writes an id or a token from the path. A catch-all parameter's values each
+ * become its name. The template is found by value: a static segment equal to a parameter's value is written as that
+ * name too, which only blurs the route, never leaks. Before the parameters are known, the path is not logged at all.
  */
 const routeOf = (request: Request, params: Record<string, unknown> | null): string => {
   if (params === null) return "unknown";
   const names = new Map(
     Object.entries(params).flatMap(([name, value]) =>
-      typeof value === "string" ? [[value, name] as const] : [],
+      (Array.isArray(value) ? value : [value]).flatMap((one) =>
+        typeof one === "string" ? [[one, name] as const] : [],
+      ),
     ),
   );
   return new URL(request.url).pathname
     .split("/")
     .map((segment) => {
-      const name = names.get(decodeURIComponent(segment));
+      const name = names.get(decodedSegment(segment));
       return name === undefined ? segment : `[${name}]`;
     })
     .join("/");
@@ -118,13 +130,18 @@ export const createRouteFactory =
     let logger: Logger = jsonLogger;
     let params: P | null = null;
     const response = await respond();
-    logger.info("request", {
-      requestId,
-      method: request.method,
-      route: routeOf(request, params),
-      status: response.status,
-      durationMs: Math.round(performance.now() - started),
-    });
+    // Logging never changes the answer: a failure to write the access line is dropped.
+    try {
+      logger.info("request", {
+        requestId,
+        method: request.method,
+        route: routeOf(request, params),
+        status: response.status,
+        durationMs: Math.round(performance.now() - started),
+      });
+    } catch {
+      // The response stands.
+    }
     return response;
 
     async function respond(): Promise<Response> {
