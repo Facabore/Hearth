@@ -115,8 +115,8 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
       }),
     ).toBeChecked();
     expect(within(dialog()).getByLabelText("Monto")).toHaveValue("100.000");
-    expect(normalized(within(dialog()).getByText(/le debe/).textContent)).toContain(
-      "Juan le debe $ 100.000 a Ana. Puedes registrar un pago parcial; si pagas de más, la deuda cambia de lado.",
+    expect(normalized(within(dialog()).getByText(/le paga/).textContent)).toContain(
+      "Para quedar al día, Juan le paga $ 100.000 a Ana. Puedes registrar un pago parcial; si pagas de más, el saldo cambia de lado.",
     );
     // Prefilling records nothing by itself.
     expect(requests).toHaveLength(0);
@@ -253,8 +253,8 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
       within(dialog()).queryByRole("radiogroup", { name: "Sale de (opcional)" }),
     ).not.toBeInTheDocument();
     expect(within(dialog()).getByRole("radiogroup", { name: "Llega a (opcional)" })).toBeInTheDocument();
-    expect(normalized(within(dialog()).getByText(/no le debe nada/).textContent)).toBe(
-      "Pedro no le debe nada a Ana.",
+    expect(normalized(within(dialog()).getByText(/ya está al día/).textContent)).toBe(
+      "Pedro ya está al día con Ana.",
     );
     await userEvent.type(within(dialog()).getByLabelText("Monto"), "100.000");
     await userEvent.click(save());

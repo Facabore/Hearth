@@ -33,26 +33,26 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
     const { container } = view();
     expect(screen.getByRole("heading", { level: 1, name: "Saldos" })).toBeInTheDocument();
     expect(normalized(screen.getByRole("region", { name: "Tu saldo en Household" }).textContent)).toContain(
-      "Debes $ 150.000",
+      "Te toca poner $ 150.000",
     );
     const suggestions = screen.getByRole("region", { name: "Para quedar a paz y salvo" });
-    expect(normalized(suggestions.textContent)).toContain("Juan le debe $ 150.000 a Ana");
+    expect(normalized(suggestions.textContent)).toContain("Juan le paga $ 150.000 a Ana");
     const members = screen.getByRole("region", { name: "Cada miembro" });
     expect(
-      within(members).getByRole("link", { name: named("Ana: le deben $ 150.000. Ver historial") }),
+      within(members).getByRole("link", { name: named("Ana: le toca recibir $ 150.000. Ver historial") }),
     ).toHaveAttribute("href", "/spaces/sp-household/members/m-ana/history");
     expect(
-      within(members).getByRole("link", { name: named("Juan (tú): debe $ 150.000. Ver historial") }),
+      within(members).getByRole("link", { name: named("Juan (tú): le toca poner $ 150.000. Ver historial") }),
     ).toBeInTheDocument();
     expect(await axeViolations(container)).toEqual([]);
   });
 
   it("colors who owes and who is owed, never by the sign alone", () => {
     view();
-    expect(screen.getByText(/^Debes/)).toHaveClass("text-owe");
+    expect(screen.getByText(/^Te toca poner/)).toHaveClass("text-owe");
     const members = screen.getByRole("region", { name: "Cada miembro" });
-    expect(within(members).getByText(/^debe\s/)).toHaveClass("text-owe");
-    expect(within(members).getByText(/^le deben\s/)).toHaveClass("text-accent");
+    expect(within(members).getByText(/^le toca poner\s/)).toHaveClass("text-owe");
+    expect(within(members).getByText(/^le toca recibir\s/)).toHaveClass("text-accent");
   });
 
   it("reads the same sentences in English", () => {
@@ -76,14 +76,14 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
       ],
     });
     expect(normalized(screen.getByRole("region", { name: "Tu saldo en Household" }).textContent)).toContain(
-      "Te deben $ 150.000",
+      "Te toca recibir $ 150.000",
     );
     const suggestions = within(
       screen.getByRole("region", { name: "Para quedar a paz y salvo" }),
     ).getAllByRole("listitem");
     expect(suggestions).toHaveLength(2);
-    expect(normalized(suggestions[0]!.textContent)).toContain("Juan le debe $ 100.000 a Ana");
-    expect(normalized(suggestions[1]!.textContent)).toContain("Luis le debe $ 50.000 a Ana");
+    expect(normalized(suggestions[0]!.textContent)).toContain("Juan le paga $ 100.000 a Ana");
+    expect(normalized(suggestions[1]!.textContent)).toContain("Luis le paga $ 50.000 a Ana");
     expect(
       screen.getByRole("link", { name: named("Pedro (invitado): a paz y salvo. Ver historial") }),
     ).toBeInTheDocument();
@@ -94,7 +94,7 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
     expect(normalized(screen.getByRole("region", { name: "Tu saldo en Household" }).textContent)).toContain(
       "Estás a paz y salvo",
     );
-    expect(screen.getByText("Nadie le debe a nadie en Household.")).toBeInTheDocument();
+    expect(screen.getByText("Todos están al día en Household.")).toBeInTheDocument();
     const suggestions = screen.getByRole("region", { name: "Para quedar a paz y salvo" });
     expect(within(suggestions).queryAllByRole("listitem")).toHaveLength(0);
     expect(within(suggestions).queryByText(/prellena el formulario/)).toBeNull();

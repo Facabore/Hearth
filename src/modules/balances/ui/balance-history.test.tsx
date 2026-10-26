@@ -78,8 +78,8 @@ describe("balance history (HU-E9-07, ruling P176)", () => {
       screen.getByRole("region", { name: "Movimientos que cambian su saldo" }),
     ).getAllByRole("listitem");
     expect(rows.map((r) => normalized(r.textContent))).toEqual([
-      "3/10/2026Mercadodebe $ 150.000−$ 150.000",
-      "10/10/2026Cenadebe $ 100.000+$ 50.000",
+      "3/10/2026Mercadole toca poner $ 150.000−$ 150.000",
+      "10/10/2026Cenale toca poner $ 100.000+$ 50.000",
       "30/10/2026Pago entre miembrosa paz y salvo+$ 100.000",
     ]);
     expect(await axeViolations(container)).toEqual([]);

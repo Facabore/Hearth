@@ -222,12 +222,14 @@ describe("guests (HU-E9-05, ruling P163)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Opciones de Pedro (invitado)" }));
     const sheet = screen.getByRole("dialog", { name: "Pedro (invitado)" });
     expect(normalized(within(sheet).getByText(/En Household/).textContent)).toBe(
-      "En Household · debe $ 100.000",
+      "En Household · le toca poner $ 100.000",
     );
     await userEvent.click(within(sheet).getByRole("button", { name: "Quitar de Household" }));
     await userEvent.click(within(sheet).getByRole("button", { name: "Sí, quitar" }));
     const alert = await within(sheet).findByRole("alert");
-    expect(alert).toHaveTextContent("Quedan saldos pendientes. Sáldalos antes de continuar.");
+    expect(alert).toHaveTextContent(
+      "Para salir del espacio, quitar a alguien o archivarlo, los saldos tienen que quedar en cero. Registra los pagos que falten para quedar al día y vuelve a intentarlo.",
+    );
     expect(normalized(alert.textContent)).toContain("Saldo pendiente: $ 100.000");
     expect(within(alert).getByRole("link", { name: "Registrar pago" })).toHaveAttribute(
       "href",
