@@ -30,11 +30,11 @@ const NO_SPENDING = { byCategory: [], byAccount: [] };
  * HU-E6-07: an OWNER or ADMIN activates a DRAFT plan while its lines fit its capacity (PlanExceedsCapacity) and
  * every allocation holds (InvalidAllocation, naming the lines). From then on it drives default splits (HU-E6-08).
  *
- * Issue #158 (mirror of ruling P248): a DRAFT plan is not activated while a CLOSED plan copied from it carries over
- * from it (CopyAlreadyClosed, naming the copy's period). A copy of a DRAFT source carries 0 for good (P248), but if
- * the source were activated and later closed, the copy reads its figures (P243) and that frozen 0 would jump. A
- * DRAFT source never closes, so refusing its activation is what keeps the copy's frozen figures still. This check
- * runs after the capacity and allocation ones.
+ * Issue #158 (ruling P250, the mirror of P248): a DRAFT plan is not activated while a CLOSED plan copied from it
+ * carries over from it (CopyAlreadyClosed, naming the copy's period). A copy of a DRAFT source carries 0 while the
+ * source stays a draft (P248). Activating the source and closing it later would make the copy read its figures (P243),
+ * and the copy's frozen 0 would jump. Refusing the activation keeps the CLOSED copy's figures still. This check runs
+ * after the capacity and allocation ones.
  */
 export const createActivateBudgetPlan =
   (deps: PlanStatusDeps): ActivateBudgetPlan =>

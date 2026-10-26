@@ -135,7 +135,7 @@ describe("closing a plan whose carries read from an open source (ruling P248 of 
     expect(codeOf(await w.close(december.plan.id))).toBe("ok");
   });
 
-  it("closes a ROLLOVER copy of a DRAFT source, which never closes, and it carries 0 for good", async () => {
+  it("closes a ROLLOVER copy of a DRAFT source, carrying 0 while the source stays a draft", async () => {
     const w = await world("ROLLOVER");
     const december = await w.copyInto("2026-12");
     unwrap(await w.activate(december.plan.id));
@@ -160,7 +160,7 @@ describe("activating a DRAFT source whose copy already closed (issue #158, mirro
   it.each(["ROLLOVER", "ADJUSTED"] as const)(
     "refuses to activate the DRAFT source of a CLOSED %s copy with CopyAlreadyClosed, naming the copy's period, and leaves it DRAFT",
     async (mode) => {
-      // December is copied from the DRAFT November and closes carrying 0 (a DRAFT source never closes, P248).
+      // December is copied from the DRAFT November and closes carrying 0, the carry of a source that is still a draft (P248).
       const w = await world(mode);
       const december = await w.copyInto("2026-12");
       unwrap(await w.activate(december.plan.id));
