@@ -116,7 +116,10 @@ describe("DrizzleBudgetPlanRepository plans (HU-E6-01, D10)", () => {
       status: "CLOSED" as const,
     };
     const draftCopy = { ...aPlan(space.id, "2027-02", "2027-02-01", "2027-02-28"), createdFrom: november.id };
-    const unrelated = { ...aPlan(space.id, "2026-10", "2026-10-01", "2026-10-31"), status: "CLOSED" as const };
+    const unrelated = {
+      ...aPlan(space.id, "2026-10", "2026-10-01", "2026-10-31"),
+      status: "CLOSED" as const,
+    };
     const run = async (plans: BudgetPlanRepository) => {
       for (const plan of [november, december, january, draftCopy, unrelated]) await plans.add(plan);
       return {
