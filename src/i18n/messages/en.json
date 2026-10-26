@@ -46,7 +46,7 @@
     "saved": "Saved"
   },
   "errors": {
-    "AccountArchived": "This account is archived. Restore it to record transactions in it.",
+    "AccountArchived": "This account is hidden. Show it again to record transactions in it.",
     "AccountAttributeNotAllowed": "This account type does not take that detail.",
     "AccountNameTaken": "There is already an account with that name in this space.",
     "AccountNotFound": "That account was not found.",
@@ -321,7 +321,7 @@
       "other": "Other",
       "funds": "Shared funds"
     },
-    "archived": "Archived",
+    "archived": "Hidden",
     "outsideAvailable": "outside available",
     "card": {
       "limit": "Limit {amount}",
@@ -340,6 +340,7 @@
     "create": "Create account",
     "field": {
       "type": "Account type",
+      "icon": "Icon",
       "name": "Name",
       "opening": "Opening balance",
       "owed": "You owe today",
@@ -376,12 +377,36 @@
     "currency": "Currency: {currency}",
     "amountUnreadable": "Type an amount like {example}.",
     "archive": {
-      "open": "Archive {name}",
-      "title": "Archive {name}?",
-      "explain": "Its history stays and it takes no new transactions. You can restore it at any time.",
-      "confirm": "Archive"
+      "open": "Hide {name}",
+      "title": "Hide {name}?",
+      "explain": "It leaves the lists and pickers and keeps its history. You can show it again at any time.",
+      "confirm": "Hide"
     },
-    "restore": "Restore {name}",
+    "restore": "Show {name}",
+    "edit": {
+      "title": "Edit account",
+      "action": "Edit",
+      "type": "Type: {type}",
+      "save": "Save changes"
+    },
+    "icon": {
+      "cash": "Cash",
+      "bank": "Bank",
+      "wallet": "Wallet",
+      "card": "Card",
+      "piggy": "Piggy bank",
+      "trend": "Rising chart",
+      "coins": "Coins",
+      "dots": "Dots",
+      "users": "People",
+      "briefcase": "Briefcase",
+      "car": "Car",
+      "star": "Star",
+      "gift": "Gift",
+      "home": "House",
+      "plane": "Plane",
+      "phone": "Phone"
+    },
     "picker": {
       "empty": "There are no accounts to choose from. Create a new one."
     },

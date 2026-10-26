@@ -46,7 +46,7 @@
     "saved": "Guardado"
   },
   "errors": {
-    "AccountArchived": "Esta cuenta está archivada. Restáurala para registrar movimientos en ella.",
+    "AccountArchived": "Esta cuenta está oculta. Muéstrala de nuevo para registrar movimientos en ella.",
     "AccountAttributeNotAllowed": "Este tipo de cuenta no lleva ese dato.",
     "AccountNameTaken": "Ya hay una cuenta con ese nombre en este espacio.",
     "AccountNotFound": "No encontramos esa cuenta.",
@@ -321,7 +321,7 @@
       "other": "Otras",
       "funds": "Fondos compartidos"
     },
-    "archived": "Archivadas",
+    "archived": "Ocultas",
     "outsideAvailable": "fuera del disponible",
     "card": {
       "limit": "Cupo {amount}",
@@ -340,6 +340,7 @@
     "create": "Crear cuenta",
     "field": {
       "type": "Tipo de cuenta",
+      "icon": "Ícono",
       "name": "Nombre",
       "opening": "Saldo inicial",
       "owed": "Debes hoy",
@@ -376,12 +377,36 @@
     "currency": "Moneda: {currency}",
     "amountUnreadable": "Escribe un monto como {example}.",
     "archive": {
-      "open": "Archivar {name}",
-      "title": "¿Archivar {name}?",
-      "explain": "Su historial se conserva y deja de recibir movimientos nuevos. Puedes restaurarla cuando quieras.",
-      "confirm": "Archivar"
+      "open": "Ocultar {name}",
+      "title": "¿Ocultar {name}?",
+      "explain": "Sale de las listas y de los selectores, y conserva su historial. Puedes volver a mostrarla cuando quieras.",
+      "confirm": "Ocultar"
     },
-    "restore": "Restaurar {name}",
+    "restore": "Mostrar {name}",
+    "edit": {
+      "title": "Editar cuenta",
+      "action": "Editar",
+      "type": "Tipo: {type}",
+      "save": "Guardar cambios"
+    },
+    "icon": {
+      "cash": "Efectivo",
+      "bank": "Banco",
+      "wallet": "Billetera",
+      "card": "Tarjeta",
+      "piggy": "Alcancía",
+      "trend": "Gráfica al alza",
+      "coins": "Monedas",
+      "dots": "Puntos",
+      "users": "Personas",
+      "briefcase": "Maletín",
+      "car": "Carro",
+      "star": "Estrella",
+      "gift": "Regalo",
+      "home": "Casa",
+      "plane": "Avión",
+      "phone": "Teléfono"
+    },
     "picker": {
       "empty": "No hay cuentas para elegir. Crea una nueva."
     },
