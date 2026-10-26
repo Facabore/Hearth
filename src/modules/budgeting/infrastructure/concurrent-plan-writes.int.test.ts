@@ -23,8 +23,8 @@ import { createClosedPeriodGuard, type ClosedPeriods } from "../application/clos
 import { createCopyBudgetPlan } from "../application/copy-budget-plan";
 import { createCreateBudgetPlan } from "../application/create-budget-plan";
 import { createMapCategoriesToLine } from "../application/map-categories-to-line";
-import { createCloseBudgetPlan } from "../application/plan-lifecycle";
-import type { BudgetPlanRepository, PlanSpending } from "../application/ports";
+import { createActivateBudgetPlan, createCloseBudgetPlan } from "../application/plan-lifecycle";
+import type { BudgetPlanRepository, PlanSpending, PlanStatusRepository } from "../application/ports";
 import { createUpdateBudgetLine, type LineChanges } from "../application/update-budget-line";
 import { DrizzleBudgetPlanRepository } from "./drizzle-budget-plan-repository";
 
@@ -134,7 +134,7 @@ const repositoryWith = (overrides: Partial<BudgetPlanRepository>): BudgetPlanRep
   covering: (spaceId, date, options) => plans.covering(spaceId, date, options),
   lockForWrite: (planId, expectedVersion, lockedAt) => plans.lockForWrite(planId, expectedVersion, lockedAt),
   contents: (planId) => plans.contents(planId),
-  closedCopiesOf: (spaceId, planId) => plans.closedCopiesOf(spaceId, planId),
+  lockCopiesOf: (spaceId, planId) => plans.lockCopiesOf(spaceId, planId),
   ...overrides,
 });
 
@@ -513,5 +513,75 @@ describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Foc
     const second = copyOver(active)(input).finally(h.release);
     expect(await outcomesOf(first, second)).toEqual(["PlanAlreadyExists", "ok"]);
     expect(await plans.storedPeriods(active.space.id)).toHaveLength(2);
+  });
+});
+
+describe("activating a DRAFT source while its carrying copy closes (issue #183, rulings P248 and P250)", () => {
+  /**
+   * A DRAFT 2026-10 plan with a ROLLOVER line and its copy 2026-11, ACTIVE, whose line carries from it. `activate`
+   * runs on the source and `close` on the copy (after its period); `holding` stops either right after it set its
+   * status, inside its transaction, until the other queues behind a lock it holds or finishes.
+   */
+  const sourceAndCarryingCopy = async () => {
+    const { ana, space, deps } = await household();
+    const { plan: source } = unwrap(
+      await createCreateBudgetPlan(deps)({ spaceId: space.id, userId: ana.id, period: "2026-10" }),
+    );
+    await plans.setCapacities(source.id, [{ memberId: space.members[0]!.id, amount: 100_000_000n }], at);
+    const onSource = { spaceId: space.id, userId: ana.id, planId: source.id, expectedVersion: null };
+    unwrap(
+      await createAddBudgetLine({ ...deps, lines: plans })({
+        ...onSource,
+        line: { name: "Home", plannedAmount: money(30_000_000n), rolloverMode: "ROLLOVER" },
+      }),
+    );
+    const { view } = unwrap(
+      await createCopyBudgetPlan({
+        ...deps,
+        capacities: plans,
+        lines: plans,
+        mappings: plans,
+        allocations: plans,
+        categories: { list: async () => [] },
+      })({ spaceId: space.id, userId: ana.id, period: "2026-11" }),
+    );
+    const copy = view.plan;
+    await plans.setStatus(copy.id, "ACTIVE", at);
+    const onCopy = { ...onSource, planId: copy.id };
+    const holding = (h?: ReturnType<typeof holder>): PlanStatusRepository => ({
+      setStatus: async (planId, status, changedAt) => {
+        await plans.setStatus(planId, status, changedAt);
+        await h?.hold();
+      },
+    });
+    const activate = (h?: ReturnType<typeof holder>) =>
+      createActivateBudgetPlan({ ...deps, statuses: holding(h) })(onSource);
+    const close = (h?: ReturnType<typeof holder>) =>
+      createCloseBudgetPlan({ ...deps, ...afterNovember, statuses: holding(h) })(onCopy);
+    const statuses = async () => [
+      (await plans.find(space.id, source.id))?.status,
+      (await plans.find(space.id, copy.id))?.status,
+    ];
+    return { activate, close, statuses };
+  };
+
+  it("makes an activation wait for the copy's close in progress, which it then refuses with CopyAlreadyClosed", async () => {
+    const { activate, close, statuses } = await sourceAndCarryingCopy();
+    const h = holder();
+    const closing = close(h);
+    await h.held;
+    const activating = activate().finally(h.release);
+    expect(await outcomesOf(closing, activating)).toEqual(["CopyAlreadyClosed", "ok"]);
+    expect(await statuses()).toEqual(["DRAFT", "CLOSED"]);
+  });
+
+  it("makes the copy's close wait for an activation in progress, which it then refuses with SourcePlanOpen", async () => {
+    const { activate, close, statuses } = await sourceAndCarryingCopy();
+    const h = holder();
+    const activating = activate(h);
+    await h.held;
+    const closing = close().finally(h.release);
+    expect(await outcomesOf(activating, closing)).toEqual(["SourcePlanOpen", "ok"]);
+    expect(await statuses()).toEqual(["ACTIVE", "ACTIVE"]);
   });
 });
