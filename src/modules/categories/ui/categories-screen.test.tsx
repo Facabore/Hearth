@@ -442,6 +442,54 @@ describe("categories screen (HU-E9-04)", () => {
     await waitFor(() => expect(namesIn(group("Food"))).toEqual(["Groceries", "Restaurants"]));
   });
 
+  it("reads the tree again when a restored category belongs to a group the screen does not hold", async () => {
+    renderTree(household({ archivedAt: "2026-10-20T15:00:00.000Z" }), {
+      routes: {
+        "POST /api/v1/spaces/{spaceId}/categories/{categoryId}/restore": () =>
+          jsonResponse(categoryDto({ id: "c-groceries", name: "Groceries", groupId: "g-elsewhere" })),
+      },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Restaurar Groceries" }));
+    await waitFor(() => expect(router.refresh).toHaveBeenCalledTimes(1));
+    expect(within(group("Archivadas")).getByText("Groceries")).toBeInTheDocument();
+  });
+
+  it("lands two overlapping answers, the second built on the first", async () => {
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    renderTree(
+      household({ archivedAt: "2026-10-20T15:00:00.000Z" }).map((g) =>
+        g.id === "g-food"
+          ? {
+              ...g,
+              categories: [
+                ...g.categories,
+                categoryDto({ id: "c-pets", name: "Pets", archivedAt: "2026-10-20T15:00:00.000Z" }),
+              ],
+            }
+          : g,
+      ),
+      {
+        routes: {
+          "POST /api/v1/spaces/{spaceId}/categories/{categoryId}/restore": async (
+            _request,
+            { categoryId },
+          ) => {
+            if (categoryId === "c-groceries") await held;
+            return jsonResponse(
+              categoryDto({ id: categoryId, name: categoryId === "c-pets" ? "Pets" : "Groceries" }),
+            );
+          },
+        },
+      },
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Restaurar Groceries" }));
+    await userEvent.click(screen.getByRole("button", { name: "Restaurar Pets" }));
+    await waitFor(() => expect(namesIn(group("Food"))).toEqual(["Restaurants", "Pets"]));
+    release();
+    await waitFor(() => expect(namesIn(group("Food"))).toEqual(["Groceries", "Restaurants", "Pets"]));
+  });
+
   it("shows a fresh read of the tree when the server sends one", () => {
     const { api } = fakeApi({});
     const { rerender } = renderWithIntl(

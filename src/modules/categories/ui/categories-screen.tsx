@@ -96,11 +96,13 @@ export function CategoryTree({
     };
   })();
 
-  /** Shows what the API answered, or reads the tree again when the screen has nowhere to put it. */
+  /**
+   * Shows what the API answered, or reads the tree again when the screen has nowhere to put it. The update builds on
+   * the latest tree, so two answers that overlap both land; whether a home exists is asked of the rendered one.
+   */
   const place = (saved: CategoryDto) => {
-    const next = withCategory(tree, saved);
-    if (next) setTree(next);
-    else router.refresh();
+    setTree((current) => withCategory(current, saved) ?? current);
+    if (withCategory(tree, saved) === null) router.refresh();
   };
 
   const toggle = (id: string) =>
@@ -125,7 +127,7 @@ export function CategoryTree({
   };
 
   return (
-    <div className="flex flex-col gap-4 pb-4">
+    <div className="flex flex-col gap-3 pb-3">
       <ScreenHeader
         backHref={`/spaces/${space.id}`}
         title={t("title")}
