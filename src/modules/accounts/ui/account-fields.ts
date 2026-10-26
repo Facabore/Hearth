@@ -156,8 +156,12 @@ export const editOf = (account: AccountDto, numberFormat: NumberFormat): Account
   // What is owed is typed without its sign, as on the create form.
   const money = (amount: string) =>
     formatNumber(decimalOf(amount.replace(/^-/, ""), exponent), { numberFormat });
-  // "1.8900" is typed "1,89": a rate is never grouped, and its trailing zeros say nothing.
-  const rate = (text: string) => text.replace(/\.?0+$/, "").replace(".", POINTS[numberFormat]);
+  // "1.8900" is typed "1,89": a rate is never grouped, and the zeros that end its fraction say nothing.
+  const rate = (text: string) =>
+    text
+      .replace(/(\.\d*?)0+$/, "$1")
+      .replace(/\.$/, "")
+      .replace(".", POINTS[numberFormat]);
   const fields: Partial<Record<AccountField, string>> = {};
   for (const field of FIELDS_BY_TYPE[account.type]) {
     const stored = COMMON.includes(field)

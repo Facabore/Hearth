@@ -137,6 +137,11 @@ describe("the account edit form's values (issue 169)", () => {
       includeInNetWorth: null,
     });
     expect(editOf(visa, "COMMA_DOT").fields.monthlyRate).toBe("1.89");
+    // Only a fraction's zeros go: a whole rate keeps its own.
+    const rateOf = (annualRate: string) =>
+      editOf(accountDto({ type: "SAVINGS", terms: { ...accountDto().terms, annualRate } }), "DOT_COMMA")
+        .fields.annualRate;
+    expect(["10.0000", "12.5000", "10", "0.0500"].map(rateOf)).toEqual(["10", "12,5", "10", "0,05"]);
   });
 
   it("sends only what changed: an emptied attribute and a style back to its default as null", () => {
