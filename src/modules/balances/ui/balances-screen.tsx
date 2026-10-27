@@ -79,7 +79,7 @@ export function BalancesScreen({
   );
 
   return (
-    <div className="flex flex-col gap-5 pb-4">
+    <div className="flex flex-col gap-3 pb-3">
       <h1 className="sr-only">{t("title")}</h1>
       <section aria-label={t("yours", { space: space.name })} className="flex flex-col gap-1.5 pt-1">
         <div className="flex items-start justify-between gap-3">
@@ -111,7 +111,7 @@ export function BalancesScreen({
           </p>
         ) : (
           <>
-            <ol className="flex flex-col gap-2">
+            <ol className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
               {suggestions.map((suggestion) => {
                 const payer = names.get(suggestion.payerMemberId) ?? "";
                 const receiver = names.get(suggestion.receivingMemberId) ?? "";
@@ -123,7 +123,7 @@ export function BalancesScreen({
                 return (
                   <li
                     key={`${suggestion.payerMemberId}-${suggestion.receivingMemberId}`}
-                    className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-3"
+                    className="flex min-h-row-lg items-center gap-3 px-3 py-1.5"
                   >
                     <Avatar name={payer} />
                     <span className="min-w-0 flex-1 text-base tabular-nums [overflow-wrap:anywhere]">
@@ -174,7 +174,7 @@ export function BalancesScreen({
                   href={`/spaces/${space.id}/members/${member.id}/history`}
                   aria-label={t("member.link", { name, sentence })}
                   prefetch={false}
-                  className="flex min-h-[60px] items-center gap-3 px-3.5 py-2"
+                  className="flex min-h-12 items-center gap-3 px-3 py-1.5"
                 >
                   <span className="min-w-0 flex-1 font-medium [overflow-wrap:anywhere] text-ink">{name}</span>
                   <span

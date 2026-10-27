@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
 import { categoryDto, groupDto, householdSpace, spaceDto } from "../../../../tests/support/ui/dto";
 import {
@@ -14,6 +14,10 @@ import type { CategoryGroupDto, SpaceDto } from "@/shared/ui/api/dto";
 import { CategoryTree } from "./categories-screen";
 
 type Node = CategoryGroupDto["categories"][number];
+
+const router = vi.hoisted(() => ({ refresh: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
+beforeEach(() => vi.clearAllMocks());
 
 // HU-E3-01's seeded tree as Ana (locale "es") reads it: names are user data, shown as stored.
 const SEEDED = [
@@ -277,6 +281,8 @@ describe("categories screen (HU-E9-04)", () => {
     const newGroup = await screen.findByRole("dialog", { name: "Nuevo grupo" });
     await userEvent.type(within(newGroup).getByLabelText("Nombre"), "Pantry");
     await userEvent.click(within(newGroup).getByRole("button", { name: "Crear grupo" }));
+    // The preselected style is the API's own default, so an untouched one is not sent.
+    expect(await bodyOf(requests.at(-1)!)).toEqual({ name: "Pantry" });
     // Back in the category form, with the new group chosen and the draft kept.
     await waitFor(() =>
       expect(within(edit).getByRole("radio", { name: "Pantry" })).toHaveAttribute("aria-checked", "true"),
@@ -418,6 +424,137 @@ describe("categories screen (HU-E9-04)", () => {
     expect(requests.filter((r) => r.method === "PATCH")).toHaveLength(1);
     await userEvent.click(within(edit).getByRole("button", { name: "Cerrar" }));
     await waitFor(() => expect(namesIn(group("Food"))).toEqual(["Groceries", "Restaurants"]));
+  });
+
+  it("reads the tree again when the API places a category in a group the screen does not hold", async () => {
+    renderTree(household(), {
+      routes: {
+        "PATCH /api/v1/spaces/{spaceId}/categories/{categoryId}": () =>
+          jsonResponse(categoryDto({ id: "c-groceries", name: "Mercado", groupId: "g-elsewhere" })),
+      },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Editar Groceries" }));
+    const edit = await screen.findByRole("dialog", { name: "Editar Groceries" });
+    await userEvent.clear(within(edit).getByLabelText("Nombre"));
+    await userEvent.type(within(edit).getByLabelText("Nombre"), "Mercado");
+    await userEvent.click(within(edit).getByRole("button", { name: "Guardar cambios" }));
+    await waitFor(() => expect(router.refresh).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(namesIn(group("Food"))).toEqual(["Groceries", "Restaurants"]));
+  });
+
+  it("reads the tree again when a restored category belongs to a group the screen does not hold", async () => {
+    renderTree(household({ archivedAt: "2026-10-20T15:00:00.000Z" }), {
+      routes: {
+        "POST /api/v1/spaces/{spaceId}/categories/{categoryId}/restore": () =>
+          jsonResponse(categoryDto({ id: "c-groceries", name: "Groceries", groupId: "g-elsewhere" })),
+      },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Restaurar Groceries" }));
+    await waitFor(() => expect(router.refresh).toHaveBeenCalledTimes(1));
+    expect(within(group("Archivadas")).getByText("Groceries")).toBeInTheDocument();
+  });
+
+  it("sends one restore for a double tap, and waits while it is in flight", async () => {
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const { requests } = renderTree(household({ archivedAt: "2026-10-20T15:00:00.000Z" }), {
+      routes: {
+        "POST /api/v1/spaces/{spaceId}/categories/{categoryId}/restore": async () => {
+          await held;
+          return jsonResponse(categoryDto({ id: "c-groceries", name: "Groceries" }));
+        },
+      },
+    });
+    const restore = screen.getByRole("button", { name: "Restaurar Groceries" });
+    await userEvent.dblClick(restore);
+    expect(restore).toBeDisabled();
+    release();
+    await waitFor(() => expect(namesIn(group("Food"))).toEqual(["Groceries", "Restaurants"]));
+    expect(requests.filter((r) => r.url.endsWith("/restore"))).toHaveLength(1);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("keeps each overlapping restore waiting until its own answer, and lets a refused one be tried again", async () => {
+    const releases: Record<string, () => void> = {};
+    const archivedAt = "2026-10-20T15:00:00.000Z";
+    renderTree(
+      household({ archivedAt }).map((g) =>
+        g.id === "g-food"
+          ? { ...g, categories: [...g.categories, categoryDto({ id: "c-pets", name: "Pets", archivedAt })] }
+          : g,
+      ),
+      {
+        routes: {
+          "POST /api/v1/spaces/{spaceId}/categories/{categoryId}/restore": async (
+            _request,
+            { categoryId },
+          ) => {
+            await new Promise<void>((resolve) => (releases[categoryId!] = resolve));
+            return categoryId === "c-pets"
+              ? problemResponse(409, "CategoryGroupArchived")
+              : jsonResponse(categoryDto({ id: "c-groceries", name: "Groceries" }));
+          },
+        },
+      },
+    );
+    const groceries = screen.getByRole("button", { name: "Restaurar Groceries" });
+    const pets = screen.getByRole("button", { name: "Restaurar Pets" });
+    await userEvent.click(groceries);
+    await userEvent.click(pets);
+    await waitFor(() => expect(Object.keys(releases)).toHaveLength(2));
+    releases["c-groceries"]!();
+    await waitFor(() => expect(namesIn(group("Food"))).toEqual(["Groceries", "Restaurants"]));
+    expect(pets).toBeDisabled();
+    releases["c-pets"]!();
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(pets).toBeEnabled();
+  });
+
+  it("lands two overlapping answers, the second built on the first", async () => {
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    renderTree(
+      household({ archivedAt: "2026-10-20T15:00:00.000Z" }).map((g) =>
+        g.id === "g-food"
+          ? {
+              ...g,
+              categories: [
+                ...g.categories,
+                categoryDto({ id: "c-pets", name: "Pets", archivedAt: "2026-10-20T15:00:00.000Z" }),
+              ],
+            }
+          : g,
+      ),
+      {
+        routes: {
+          "POST /api/v1/spaces/{spaceId}/categories/{categoryId}/restore": async (
+            _request,
+            { categoryId },
+          ) => {
+            if (categoryId === "c-groceries") await held;
+            return jsonResponse(
+              categoryDto({ id: categoryId, name: categoryId === "c-pets" ? "Pets" : "Groceries" }),
+            );
+          },
+        },
+      },
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Restaurar Groceries" }));
+    await userEvent.click(screen.getByRole("button", { name: "Restaurar Pets" }));
+    await waitFor(() => expect(namesIn(group("Food"))).toEqual(["Restaurants", "Pets"]));
+    release();
+    await waitFor(() => expect(namesIn(group("Food"))).toEqual(["Groceries", "Restaurants", "Pets"]));
+  });
+
+  it("shows a fresh read of the tree when the server sends one", () => {
+    const { api } = fakeApi({});
+    const { rerender } = renderWithIntl(
+      <CategoryTree space={householdSpace()} groups={household()} api={api} />,
+    );
+    expect(namesIn(group("Food"))).toEqual(["Groceries", "Restaurants"]);
+    rerender(<CategoryTree space={householdSpace()} groups={SEEDED} api={api} />);
+    expect(namesIn(group("Vivienda"))).toEqual(["Arriendo", "Servicios", "Mantenimiento"]);
+    expect(screen.queryByRole("region", { name: "Food" })).not.toBeInTheDocument();
   });
 
   it("clears a restore refusal when the person switches tab", async () => {

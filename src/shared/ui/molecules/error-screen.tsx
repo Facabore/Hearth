@@ -27,7 +27,7 @@ export function ErrorScreen({
   const common = useTranslations("common");
   const connection = variant === "connection";
   return (
-    <section className="flex flex-col gap-5 py-8">
+    <section className="flex flex-col gap-3 py-6">
       <h1 className="text-2xl font-semibold text-ink">{connection ? t("connectionTitle") : t("title")}</h1>
       {connection ? (
         <p className="text-muted">{t("connectionBody")}</p>

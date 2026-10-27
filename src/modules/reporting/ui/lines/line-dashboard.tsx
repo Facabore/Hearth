@@ -56,7 +56,7 @@ export function LineDashboard({
           {t("totalSpent", { spent: money(totals.spent), planned: money(totals.planned) })}
         </p>
       </section>
-      <div className="rounded-2xl border border-line bg-surface px-4">
+      <div className="rounded-2xl border border-line bg-surface px-3">
         <table className="block w-full text-sm sm:table">
           <caption className="sr-only">{t("caption")}</caption>
           <thead className="sr-only sm:not-sr-only sm:table-header-group">

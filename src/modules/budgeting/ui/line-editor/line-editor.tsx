@@ -420,55 +420,61 @@ export function LineEditor({
           </div>
         ) : null}
 
-        {!savings ? (
-          <div className="flex flex-col gap-2">
-            <p id={`${ids}-categories`} className="text-sm font-medium text-ink">
-              {tMapping("label")}
-            </p>
-            {chosen.length > 0 ? (
-              <ul aria-labelledby={`${ids}-categories`} className="flex flex-wrap gap-2">
-                {chosen.map((category) => (
-                  <li
-                    key={category.id}
-                    className="rounded-full border border-line px-3 py-1 text-sm [overflow-wrap:anywhere] text-ink"
-                  >
-                    {category.name}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted">{tMapping("none")}</p>
-            )}
-            {categoriesError ? (
-              <FieldError id={`${ids}-categories-error`}>{categoriesError}</FieldError>
-            ) : null}
-            <Button variant="secondary" onClick={() => setMapping(true)}>
-              {tMapping("choose")}
-            </Button>
-          </div>
-        ) : null}
+        {/* Issue #182 (P256): what sits below the fold is laid out and painted only when it nears the viewport, so
+            the first frame lands before the framework chunks start evaluating and Lighthouse stops counting them. Its
+            paint containment clips at the padding box, so `-m-1 p-1` keeps room for the 2 px focus outline and its
+            2 px offset. */}
+        <div className="-m-1 flex flex-col gap-4 p-1 [contain-intrinsic-size:auto_640px] [content-visibility:auto]">
+          {!savings ? (
+            <div className="flex flex-col gap-2">
+              <p id={`${ids}-categories`} className="text-sm font-medium text-ink">
+                {tMapping("label")}
+              </p>
+              {chosen.length > 0 ? (
+                <ul aria-labelledby={`${ids}-categories`} className="flex flex-wrap gap-2">
+                  {chosen.map((category) => (
+                    <li
+                      key={category.id}
+                      className="rounded-full border border-line px-3 py-1 text-sm [overflow-wrap:anywhere] text-ink"
+                    >
+                      {category.name}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted">{tMapping("none")}</p>
+              )}
+              {categoriesError ? (
+                <FieldError id={`${ids}-categories-error`}>{categoriesError}</FieldError>
+              ) : null}
+              <Button variant="secondary" onClick={() => setMapping(true)}>
+                {tMapping("choose")}
+              </Button>
+            </div>
+          ) : null}
 
-        {personal ? null : (
-          <AllocationEditor
-            ref={allocationSection}
-            draft={allocationDraft}
-            onChange={(next) => {
-              setAllocationDraft(next);
-              setSectionError(null);
-            }}
-            preview={preview}
-            members={members}
-            formats={formats}
-            currency={currency}
-            planned={plannedNow}
-          />
-        )}
-        {allocationError ? <FieldError id={`${ids}-allocation-error`}>{allocationError}</FieldError> : null}
+          {personal ? null : (
+            <AllocationEditor
+              ref={allocationSection}
+              draft={allocationDraft}
+              onChange={(next) => {
+                setAllocationDraft(next);
+                setSectionError(null);
+              }}
+              preview={preview}
+              members={members}
+              formats={formats}
+              currency={currency}
+              planned={plannedNow}
+            />
+          )}
+          {allocationError ? <FieldError id={`${ids}-allocation-error`}>{allocationError}</FieldError> : null}
 
-        {formProblem !== null && !removing ? <ProblemNotice problem={formProblem} /> : null}
-        <Button type="submit" size="lg" disabled={pending}>
-          {line === null ? t("add") : t("save")}
-        </Button>
+          {formProblem !== null && !removing ? <ProblemNotice problem={formProblem} /> : null}
+          <Button type="submit" size="lg" disabled={pending}>
+            {line === null ? t("add") : t("save")}
+          </Button>
+        </div>
       </form>
 
       {mapping ? (

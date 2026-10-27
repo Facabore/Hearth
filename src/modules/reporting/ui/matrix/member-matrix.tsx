@@ -100,7 +100,7 @@ function MatrixLineSection({
     <section
       aria-labelledby={heading}
       data-line={line.lineId}
-      className="flex flex-col gap-2 rounded-2xl border border-line bg-surface px-4 py-3"
+      className="flex flex-col gap-2 rounded-2xl border border-line bg-surface p-3"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         <h2 id={heading} className="text-base font-semibold text-ink [overflow-wrap:anywhere]">

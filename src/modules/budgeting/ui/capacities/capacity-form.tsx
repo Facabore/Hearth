@@ -120,7 +120,7 @@ export function CapacityForm({
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4 py-4">
+    <div className="mx-auto flex w-full max-w-[720px] flex-col gap-3 py-3">
       <ScreenHeader
         backHref={`/spaces/${space.id}/plans/${plan.id}`}
         title={t("capacity.title")}

@@ -62,7 +62,13 @@ const chooseGroceries = async () => {
   await userEvent.click(screen.getByRole("radio", { name: "Groceries" }));
   await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
 };
+// Issue #171: the split is folded under Más opciones until it is opened; once open it stays open.
+const openMore = async () => {
+  const more = screen.queryByRole("button", { name: "Más opciones" });
+  if (more) await userEvent.click(more);
+};
 const openSheet = async () => {
+  await openMore();
   await userEvent.click(screen.getByRole("button", { name: "Dividir con alguien" }));
   // The sheet is imported lazily on first open: wait for it rather than racing the chunk.
   return screen.findByRole("dialog", { name: "Dividir con alguien" });
@@ -74,6 +80,17 @@ const splitWith = async (name: string) => {
 };
 
 describe("split with someone from Personal (HU-E9-06, ruling P172)", () => {
+  it("keeps the chosen person on screen, so Más opciones can never fold a split away (#171)", async () => {
+    form(fakeApi({}).api);
+    await userEvent.type(screen.getByLabelText("Monto"), "120000");
+    await chooseGroceries();
+    await splitWith("Juan");
+    expect(screen.getByText("Con Juan · mitad y mitad")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /^(Más|Menos) opciones$/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Quitar la división con Juan" }));
+    expect(screen.getByRole("button", { name: /^(Más|Menos) opciones$/ })).toBeInTheDocument();
+  });
+
   it("splits a dinner with Juan through their direct space and opens its list", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/direct-splits": () => created("sp-ana-juan") });
     const { container } = form(api);
@@ -225,6 +242,7 @@ describe("split with someone from Personal (HU-E9-06, ruling P172)", () => {
 
   it("offers the split only on an expense", async () => {
     form(fakeApi({}).api);
+    await openMore();
     expect(screen.getByRole("button", { name: "Dividir con alguien" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("tab", { name: "Ingreso" }));
     expect(screen.queryByRole("button", { name: "Dividir con alguien" })).not.toBeInTheDocument();

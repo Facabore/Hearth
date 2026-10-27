@@ -82,7 +82,7 @@ export function AddGuestSheet({
         </Button>
       }
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         <TextField
           id="guest-name"
           autoComplete="off"

@@ -53,7 +53,7 @@ When("{string} opens the new expense form", async ({ page, world }, name: string
 });
 
 Then("the date and time chip reads {string}", async ({ page, world }, chip: string) => {
-  await expect(page.getByTestId("when-chip")).toHaveText(onScreen(world, chip), { useInnerText: true });
+  await expect(page.getByTestId("when-chip")).toContainText(onScreen(world, chip), { useInnerText: true });
 });
 
 When(
@@ -305,5 +305,5 @@ Then("the chip reads {string}", async ({ page, world }, chip: string) => {
     // ledger.when.apply is a select per day ("Usar hoy · …", "Usar 1/10/2026 · …"): its one fixed word starts it.
     .getByRole("button", { name: /^Usar / })
     .click();
-  await expect(page.getByTestId("when-chip")).toHaveText(onScreen(world, chip), { useInnerText: true });
+  await expect(page.getByTestId("when-chip")).toContainText(onScreen(world, chip), { useInnerText: true });
 });

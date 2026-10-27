@@ -125,10 +125,10 @@ export function InvitationCard({
           ? t("claim.signedInBody", { space })
           : t("signedInBody", { space, email: viewer?.email ?? "" });
     return (
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-3">
         <section
           aria-labelledby="invitation-title"
-          className="flex flex-col gap-4 rounded-[20px] border border-line bg-surface p-5"
+          className="flex flex-col gap-3 rounded-[20px] border border-line bg-surface p-3"
         >
           <div className="flex items-center gap-3">
             {tile}
@@ -183,10 +183,10 @@ export function InvitationCard({
 
   if (state === "otherAccount") {
     return (
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-3">
         <section
           aria-labelledby="invitation-title"
-          className="flex flex-col gap-4 rounded-[20px] border border-line bg-surface p-5"
+          className="flex flex-col gap-3 rounded-[20px] border border-line bg-surface p-3"
         >
           <div className="flex items-center gap-3">
             {tile}
@@ -229,10 +229,10 @@ export function InvitationCard({
     missing: { message: errors("InvitationNotFound"), body: null },
   }[state];
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-3">
       <section
         aria-labelledby="invitation-title"
-        className="flex flex-col gap-4 rounded-[20px] border border-line bg-surface p-5"
+        className="flex flex-col gap-3 rounded-[20px] border border-line bg-surface p-3"
       >
         <div className="flex items-center gap-3">
           {tile}

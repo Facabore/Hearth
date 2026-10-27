@@ -46,7 +46,7 @@ export function BalanceHistory({
     `${BigInt(change.amount) > 0n ? "+" : ""}${formatMoney(change, formats)}`;
 
   return (
-    <div className="flex flex-col gap-4 pb-4">
+    <div className="flex flex-col gap-3 pb-3">
       <ScreenHeader
         backHref={`/spaces/${spaceId}/balances`}
         title={t("history.title", { name: member.displayName })}
@@ -110,7 +110,7 @@ export function BalanceHistory({
           <>
             <ol className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
               {history.entries.map((entry) => (
-                <li key={entry.transactionId} className="flex min-h-[76px] items-center gap-3 px-3.5 py-2.5">
+                <li key={entry.transactionId} className="flex min-h-row-lg items-center gap-3 px-3 py-2">
                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className="text-[13px] tabular-nums text-muted">
                       {formatDate(entry.date, formats)}

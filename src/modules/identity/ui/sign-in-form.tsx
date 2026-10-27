@@ -61,7 +61,7 @@ export function SignInForm({
   ].filter((part) => part !== null);
   const createAccount = query.length === 0 ? "/sign-up" : `/sign-up?${query.join("&")}`;
   return (
-    <form ref={form} onSubmit={submit} className="flex flex-col gap-5" noValidate>
+    <form ref={form} onSubmit={submit} className="flex flex-col gap-3" noValidate>
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold text-ink">{t("signIn.title")}</h1>
         <p className="text-muted">{t("signIn.subtitle")}</p>

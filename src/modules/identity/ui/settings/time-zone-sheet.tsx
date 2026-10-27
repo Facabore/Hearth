@@ -37,7 +37,7 @@ export function TimeZoneSheet({
       }}
       title={t("field.timezone")}
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         <TextField
           id="settings-timezone-search"
           label={t("timezone.search")}

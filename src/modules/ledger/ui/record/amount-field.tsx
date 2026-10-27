@@ -1,16 +1,16 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { Icon, NumberField } from "@/shared/ui";
+import { useEffect, useRef } from "react";
+import { Icon, numberInputProps } from "@/shared/ui";
 import type { NumberFormat } from "@/shared/ui/format/formatters";
-import { filterNumber, type NumberRule } from "@/shared/ui/format/number-input";
-
-const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "000", "0"] as const;
+import { exampleOf, type NumberRule } from "@/shared/ui/format/number-input";
 
 /**
- * HU-E9-03, the QuickAdd artboard: the amount first, typed or tapped on the keypad (56 px keys). U3: a money
- * NumberField, so the digits are grouped as they are typed, in the person's number format (6000 reads 6.000), the
- * caret stays after the digit it was after, and the example under it says how to type one (issue #164).
+ * Issue #171, the Main artboard: the amount card, typed on the phone's own decimal keyboard (the 56 px keypad is
+ * gone), focused when a new record opens so the keyboard comes up with it. U3: the money rule's input props, so the
+ * digits are grouped as they are typed, in the person's number format (6000 reads 6.000), the caret stays after the
+ * digit it was after, and the example under it says how to type one (issue #164).
  */
 export function AmountField({
   value,
@@ -19,6 +19,7 @@ export function AmountField({
   numberFormat,
   exponent,
   error,
+  autoFocus = false,
 }: {
   readonly value: string;
   readonly onChange: (value: string) => void;
@@ -26,50 +27,49 @@ export function AmountField({
   readonly numberFormat: NumberFormat;
   /** The currency's decimals: a currency with none has no point to type. */
   readonly exponent: number;
-  readonly error?: string;
+  readonly error?: string | undefined;
+  /** Focus the amount once, on mount: a new record, never an edit. */
+  readonly autoFocus?: boolean;
 }) {
   const t = useTranslations("ledger.form");
+  const common = useTranslations("common");
+  const input = useRef<HTMLInputElement>(null);
+  // Once, when the form opens: a later change of the prop never takes the focus back.
+  const focusOnOpen = useRef(autoFocus);
+  useEffect(() => {
+    if (focusOnOpen.current) input.current?.focus();
+  }, []);
   const rule: NumberRule = { kind: "money", numberFormat, decimals: exponent };
-  const key = "flex h-14 items-center justify-center rounded-[14px] bg-track text-xl font-semibold text-ink";
+  const sample = error ? null : exampleOf(rule);
+  const described = error ? "record-amount-error" : sample ? "record-amount-hint" : undefined;
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-start gap-2">
-        {/* Level with the typed figure: under the 26 px label row, centred on the 52 px field. */}
-        <span aria-hidden="true" className="pt-9 text-2xl font-semibold text-muted">
+    <div className="flex flex-col gap-0.5 rounded-2xl bg-surface px-3 py-2">
+      <label htmlFor="record-amount" className="text-xs text-muted">
+        {t("amount")}
+      </label>
+      <div className="flex items-center gap-1.5">
+        <span aria-hidden="true" className="text-[26px] leading-none font-semibold text-muted">
           {symbol}
         </span>
-        <div className="flex-1">
-          <NumberField
-            id="record-amount"
-            label={t("amount")}
-            {...rule}
-            value={value}
-            onChange={onChange}
-            error={error}
-            large
-          />
-        </div>
+        <input
+          ref={input}
+          id="record-amount"
+          {...numberInputProps(rule, { value, onChange })}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={described}
+          className="h-10 w-full min-w-0 rounded-lg bg-transparent px-1 text-[32px] font-[650] text-ink tabular-nums aria-invalid:ring-2 aria-invalid:ring-danger"
+        />
       </div>
-      <div className="grid grid-cols-3 gap-2">
-        {KEYS.map((digit) => (
-          <button
-            key={digit}
-            type="button"
-            className={key}
-            onClick={() => onChange(filterNumber(value + digit, rule, value))}
-          >
-            {digit}
-          </button>
-        ))}
-        <button
-          type="button"
-          aria-label={t("backspace")}
-          className={key}
-          onClick={() => onChange(filterNumber(value.slice(0, -1), rule, value))}
-        >
-          <Icon name="backspace" />
-        </button>
-      </div>
+      {error ? (
+        <p id="record-amount-error" className="flex items-center gap-1.5 text-sm text-danger">
+          <Icon name="alert" size={16} />
+          {error}
+        </p>
+      ) : sample ? (
+        <p id="record-amount-hint" className="text-xs text-muted">
+          {common("numberExample", { example: sample })}
+        </p>
+      ) : null}
     </div>
   );
 }

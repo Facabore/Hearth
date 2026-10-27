@@ -90,11 +90,11 @@ export function TransactionRow({
   // The link wraps the row's whole text, so its name holds the visible label (WCAG 2.5.3) and the target is the row.
   return href ? (
     <li>
-      <Link href={href} scroll={false} className="flex min-h-16 items-center gap-3 rounded-xl py-2">
+      <Link href={href} scroll={false} className="flex min-h-row-lg items-center gap-3 rounded-xl py-1.5">
         {content}
       </Link>
     </li>
   ) : (
-    <li className="flex min-h-16 items-center gap-3 py-2">{content}</li>
+    <li className="flex min-h-row-lg items-center gap-3 py-1.5">{content}</li>
   );
 }

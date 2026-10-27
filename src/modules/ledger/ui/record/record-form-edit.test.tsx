@@ -122,7 +122,7 @@ describe("record form in edit mode (ruling P191)", () => {
     expect(router.replace).not.toHaveBeenCalled();
   });
 
-  it("still offers the split with someone when it is not an edit", () => {
+  it("still offers the split with someone when it is not an edit", async () => {
     const { api } = fakeApi({});
     renderWithIntl(
       <RecordForm
@@ -137,6 +137,7 @@ describe("record form in edit mode (ruling P191)", () => {
         api={api}
       />,
     );
+    await userEvent.click(screen.getByRole("button", { name: "Más opciones" }));
     expect(screen.getByRole("button", { name: /Dividir con alguien/ })).toBeInTheDocument();
     expect(screen.getByRole("tablist")).toBeInTheDocument();
   });

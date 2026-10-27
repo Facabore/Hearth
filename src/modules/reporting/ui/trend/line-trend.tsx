@@ -43,7 +43,7 @@ export function LineTrend({
   const end = trend.periods.at(-1)?.label;
   const endName = names.at(-1) ?? end ?? "";
   return (
-    <section className="flex flex-col gap-4">
+    <section className="flex flex-col gap-3">
       <TrendWindow space={space} end={end} periods={periods} />
       <ChartFrame caption={t("trend.linesCaption")}>
         <LazyTrendChart

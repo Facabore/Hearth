@@ -21,7 +21,7 @@ export function MemberRow({
 }) {
   const t = useTranslations("members");
   return (
-    <li aria-labelledby={`member-${member.id}`} className="flex min-h-16 items-center gap-3 py-2">
+    <li aria-labelledby={`member-${member.id}`} className="flex min-h-row-lg items-center gap-3 py-1.5">
       <Avatar name={member.displayName} />
       <span className="flex min-w-0 flex-1 flex-col">
         <span id={`member-${member.id}`} className="font-medium [overflow-wrap:anywhere] text-ink">

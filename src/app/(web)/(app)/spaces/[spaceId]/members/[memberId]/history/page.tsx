@@ -15,7 +15,7 @@ export default async function BalanceHistoryPage({
 }) {
   const [{ spaceId, memberId }, { from }] = await Promise.all([params, searchParams]);
   return (
-    <div className="mx-auto max-w-[720px] py-4">
+    <div className="mx-auto max-w-[720px] py-3">
       <HistoryContainer
         spaceId={spaceId}
         memberId={memberId}

@@ -9,9 +9,12 @@ import type { CategoryGroupDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { ColorRow } from "./color-row";
 import { IconPicker } from "./icon-picker";
-import type { IconChoice } from "./style-library";
+import { isSameIcon, type IconChoice } from "./style-library";
 
-/** HU-E3-05: the style a group created without one takes, shown preselected. */
+/**
+ * HU-E3-05: the style a group created without one takes (the domain's `CUSTOM_GROUP_STYLE`), shown preselected. The
+ * sheet sends a style only once the person changed it, so the API's own default stays the one that is stored.
+ */
 const DEFAULT_ICON: IconChoice = { kind: "SYMBOL", name: "tag" };
 const DEFAULT_COLOR: PaletteKey = "GRAPHITE";
 
@@ -45,7 +48,11 @@ export function GroupSheet({
     try {
       const { data, error, response } = await api.POST("/api/v1/spaces/{spaceId}/category-groups", {
         params: { path: { spaceId } },
-        body: { name: name.trim(), icon, color },
+        body: {
+          name: name.trim(),
+          ...(isSameIcon(icon, DEFAULT_ICON) ? {} : { icon }),
+          ...(color === DEFAULT_COLOR ? {} : { color }),
+        },
       });
       if (data) {
         onCreated(data);
@@ -71,7 +78,7 @@ export function GroupSheet({
         </Button>
       }
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         <TextField
           id={`${id}-name`}
           label={t("name")}

@@ -576,6 +576,7 @@ const sheets: {
     open: async (page) => {
       await expect(page.locator("[data-ready='true']")).toBeAttached();
       await page.locator("#record-amount").fill("300000");
+      await page.getByRole("button", { name: es.ledger.form.moreOptions }).click();
       await page.getByRole("button", { name: new RegExp(es.ledger.split.split) }).click();
     },
   },
@@ -586,6 +587,7 @@ const sheets: {
       await ensureDirectSpace(page, spaceId);
       await page.reload();
       await expect(page.locator("[data-ready='true']")).toBeAttached();
+      await page.getByRole("button", { name: es.ledger.form.moreOptions }).click();
       await page.getByRole("button", { name: es.ledger.direct.open }).click();
       // Someone picked, so the footer's action is enabled and is the last control to reach.
       await page.getByRole("radio", { name: new RegExp(GUEST_NAME) }).click();
@@ -1757,6 +1759,7 @@ test.describe("sheets fit the screen and only their body scrolls", () => {
     await page.reload();
     await expect(page.locator("[data-ready='true']")).toBeAttached();
     await page.locator("#record-amount").fill("300000");
+    await page.getByRole("button", { name: es.ledger.form.moreOptions }).click();
     await page.getByRole("button", { name: new RegExp(es.ledger.split.split) }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByRole("radio", { name: es.ledger.split.methods.PERCENT }).click();

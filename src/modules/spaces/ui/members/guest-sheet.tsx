@@ -88,7 +88,7 @@ export function GuestSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title={label}>
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         <p className="text-sm text-muted">
           {t("guest.balance", { space: space.name, sentence: memberSentence(net, formats, balances) })}
         </p>

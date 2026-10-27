@@ -77,7 +77,7 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
     expect(norm(link.textContent)).toBe("Dinner20:45 · Restaurants · Bancolombia−$ 60.000");
     expect(link.closest("li")).toBe(screen.getByRole("listitem"));
     expect(link).toHaveAttribute("data-scroll", "false");
-    expect(link).toHaveClass("min-h-16");
+    expect(link).toHaveClass("min-h-row-lg");
     expect(await axeViolations(container)).toEqual([]);
   });
 

@@ -206,7 +206,7 @@ export function SplitSheet(props: SplitSheetProps) {
         </div>
       }
     >
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-3">
         {/* Issue #177: how it is split comes first, so its rows sit higher in the sheet. */}
         <section className="flex flex-col gap-2">
           <h3 className="text-sm font-semibold text-ink">{t("method")}</h3>
@@ -272,7 +272,7 @@ export function SplitSheet(props: SplitSheetProps) {
                 <li
                   key={member.id}
                   aria-labelledby={`split-name-${member.id}`}
-                  className="flex min-h-[60px] flex-wrap items-center gap-x-2 border-b border-line py-1 pr-3.5 pl-1.5 last:border-b-0"
+                  className="flex min-h-row flex-wrap items-center gap-x-2 border-b border-line py-1 pr-3.5 pl-1.5 last:border-b-0"
                 >
                   <label className="flex min-h-11 min-w-32 flex-1 items-center gap-2.5 pl-2">
                     <input

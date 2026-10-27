@@ -9,7 +9,7 @@ export async function generateMetadata() {
 export default async function CategoriesPage({ params }: { readonly params: Promise<{ spaceId: string }> }) {
   const { spaceId } = await params;
   return (
-    <div className="mx-auto max-w-[720px] py-4">
+    <div className="mx-auto max-w-[720px] py-3">
       <CategoryTreeContainer spaceId={spaceId} />
     </div>
   );

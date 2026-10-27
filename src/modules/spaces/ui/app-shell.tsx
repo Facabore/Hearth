@@ -16,8 +16,8 @@ export interface AppShellProps {
 export function AppShell({ me, spaces, activeSpace, children }: AppShellProps) {
   return (
     <div className="min-h-dvh pb-[calc(76px+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-[240px]">
-      <div className="mx-auto max-w-[1200px] px-4">
-        <header className="flex h-[60px] items-center justify-between">
+      <div className="mx-auto max-w-[1200px] px-4 max-[359px]:px-3">
+        <header className="flex h-12 items-center justify-between">
           <SpaceSwitcher spaces={spaces} activeSpace={activeSpace} />
           <ProfileSheet me={me} spaceId={activeSpace.id} spaceKind={activeSpace.kind} />
         </header>

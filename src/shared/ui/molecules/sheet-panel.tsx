@@ -48,7 +48,7 @@ export function SheetPanel({ open, onOpenChange, title, description, children, f
             </Dialog.Description>
           ) : null}
           <div className="mt-2 min-h-0 overflow-y-auto overscroll-contain">{children}</div>
-          {footer ? <div className="mt-4">{footer}</div> : null}
+          {footer ? <div className="mt-3">{footer}</div> : null}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

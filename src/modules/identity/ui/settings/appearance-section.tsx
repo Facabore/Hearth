@@ -45,7 +45,7 @@ export function AppearanceSection({
   // The theme is stored on the device at once, so it says so itself (U5).
   const themeSaved = useSavedFlash<"theme">();
   return (
-    <section aria-labelledby="settings-appearance" className="flex flex-col gap-5">
+    <section aria-labelledby="settings-appearance" className="flex flex-col gap-3">
       <h2 id="settings-appearance" className="text-lg font-semibold text-ink">
         {t("appearance")}
       </h2>

@@ -21,5 +21,5 @@ The owner kept React and Next.js on one condition: the UI must be fast, with Cor
 ## Consequences
 
 - A missed budget is the owner's decision, never a silent raise. The first measurement set the script budgets just above the measured bundles, because the framework alone is 129 KiB gzip (ruling P154).
-- Lighthouse's simulated throttling varies on shared runners; medians of five reduce the noise, they do not remove it. Simulated LCP is bimodal on this app (it steps in about 150 ms and swings by a second between runs), so a median of three failed about one CI run in twenty with no code change; five runs cut that to under one in fifty (M6b Task 21, amending P134).
+- Lighthouse's simulated throttling varies on shared runners; medians of five reduce the noise, they do not remove it. Simulated LCP is bimodal on this app (it steps in about 150 ms and swings by a second between runs), so a median of three failed about one CI run in twenty with no code change; five runs cut that to under one in fifty (M6b Task 21, amending P134). [ADR 0005](0005-measure-lcp-under-applied-throttling.md) times LCP under applied throttling instead (issue #182), because the swing moved the whole app between runs; CLS, TBT and script stay simulated.
 - The `performance` job blocks the image build.

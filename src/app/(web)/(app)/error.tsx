@@ -11,7 +11,7 @@ export default function AppError({
   reset: () => void;
 }) {
   return (
-    <main className="mx-auto max-w-[420px] px-4">
+    <main className="mx-auto max-w-[420px] px-4 max-[359px]:px-3">
       <ErrorScreen digest={error.digest} onRetry={reset} />
     </main>
   );

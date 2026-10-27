@@ -163,6 +163,7 @@ When(
 Then(
   /^the split "([^"]+)" is preselected with ([\d,]+) COP for "([^"]+)" and ([\d,]+) COP for "([^"]+)"$/,
   async ({ page, world }, method: string, ana: string, a: string, juan: string, b: string) => {
+    await page.getByRole("button", { name: world.t("ledger.form.moreOptions") }).click();
     const row = page.getByRole("button", { name: new RegExp(world.t("ledger.split.split")) });
     // The row reads "Con Ana y Juan · según el plan" (U2); the sheet's radio is named by the method itself.
     await expect(row).toContainText(world.t(`ledger.split.how.${method}`));

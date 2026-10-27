@@ -54,9 +54,9 @@ export function NewSpaceForm({
   };
 
   return (
-    <div className="flex flex-col gap-5 py-4">
+    <div className="flex flex-col gap-3 py-3">
       <ScreenHeader backHref={backHref} title={t("new.title")} />
-      <form onSubmit={(event) => void submit(event)} noValidate className="flex flex-col gap-5">
+      <form onSubmit={(event) => void submit(event)} noValidate className="flex flex-col gap-3">
         <TextField
           id="space-name"
           label={t("new.name")}

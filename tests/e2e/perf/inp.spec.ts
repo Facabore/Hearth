@@ -38,8 +38,7 @@ test("INP stays within budget over the record flow on a 4× slower CPU (ruling P
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
   await page.goto(`/spaces/${space.id}/new`);
   await expect(page.locator("[data-ready='true']")).toBeAttached();
-  for (const digit of ["8", "5", "0", "0", "0"])
-    await page.getByRole("button", { name: digit, exact: true }).click();
+  await page.locator("#record-amount").pressSequentially("85000");
   await page.getByRole("button", { name: /Categoría/ }).click();
   await page.getByRole("radio").first().click();
   await page.getByTestId("when-chip").click();

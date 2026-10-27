@@ -78,7 +78,7 @@ export function ProfileSheet({
           <Icon name="list" />
           {t("accounts")}
         </Link>
-        <Button variant="danger" size="lg" className="mt-4" onClick={() => void signOut()}>
+        <Button variant="danger" size="lg" className="mt-3" onClick={() => void signOut()}>
           <Icon name="signOut" />
           {t("signOut")}
         </Button>

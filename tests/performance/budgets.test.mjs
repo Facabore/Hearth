@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import budgets from "./budgets.json" with { type: "json" };
-import { budgetFailures, debugPortFor, isVisitorRoute, routeUrl } from "./lighthouse.mjs";
+import {
+  appliedLcp,
+  budgetFailures,
+  debugPortFor,
+  isVisitorRoute,
+  lcpFlags,
+  lighthouseFlags,
+  routeUrl,
+} from "./lighthouse.mjs";
 
 describe("performance budgets (ruling P134)", () => {
   it("names every route and metric over its budget, and passes the ones within", () => {
@@ -59,6 +67,40 @@ describe("performance budgets (ruling P134)", () => {
         isVisitorRoute,
       ),
     ).toEqual([true, true, true, true, false, false]);
+  });
+
+  it("times LCP under applied throttling and keeps TBT, CLS and script on the simulated runs (ADR 0005)", () => {
+    const simulated = {
+      port: 9223,
+      output: "json",
+      logLevel: "error",
+      onlyCategories: ["performance"],
+      extraHeaders: { cookie: "session=abc" },
+    };
+    expect(lighthouseFlags(9223, "session=abc")).toEqual(simulated);
+    expect(lcpFlags(9223, "session=abc")).toEqual({ ...simulated, throttlingMethod: "devtools" });
+    expect(lighthouseFlags(9223, null).extraHeaders).toEqual({});
+    expect(lcpFlags(9223, null).extraHeaders).toEqual({});
+  });
+
+  it("takes one applied LCP within the budget, and confirms one over it with two more runs (ADR 0005)", async () => {
+    const sampler = (values) => {
+      const calls = [];
+      const sample = async () => {
+        const lcp = values[calls.length];
+        calls.push(lcp);
+        return { lcp, lcpElement: `run ${calls.length}` };
+      };
+      return { sample, calls };
+    };
+    const within = sampler([1400]);
+    expect(await appliedLcp(within.sample, 2500)).toEqual({ lcp: 1400, lcpElement: "run 1" });
+    expect(within.calls).toEqual([1400]);
+    const stall = sampler([3100, 1410, 1390]);
+    expect(await appliedLcp(stall.sample, 2500)).toEqual({ lcp: 1410, lcpElement: "run 2" });
+    expect(stall.calls).toHaveLength(3);
+    const slow = sampler([2600, 2700, 2550]);
+    expect(await appliedLcp(slow.sample, 2500)).toEqual({ lcp: 2600, lcpElement: "run 1" });
   });
 
   it("gives each parallel run its own Chromium debug port, derived from its server port", () => {

@@ -22,7 +22,7 @@ import {
   groupsForKind,
   type CategoryChoice,
 } from "@/modules/categories/ui";
-import { Button, Icon, ProblemNotice, ScreenHeader, TextField } from "@/shared/ui";
+import { Button, Icon, ProblemNotice, ScreenHeader, SymbolIcon } from "@/shared/ui";
 import { useToast } from "@/shared/ui/molecules/toast";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type {
@@ -48,6 +48,7 @@ import { initialSplitDraft, type SharedExpenseContext } from "../split/shared-co
 import { SharedFields } from "../split/shared-fields";
 import { AmountField } from "./amount-field";
 import { DateTimeSheet } from "./date-time-sheet";
+import { DescriptionField, FormRow, RowError } from "./form-rows";
 import { LineWarningConfirm, LineWarningNote } from "./line-warning";
 import { offeredRecent, parseRecent, rawRecent, rememberRecent, safeStorage } from "./recent-categories";
 import { asksFirst, lineWarningOf, type LineWatch } from "./line-watch";
@@ -432,39 +433,51 @@ export function RecordForm({
     setPending(false);
   };
 
-  const picker = (
+  const row = (
     field: RecordField,
     name: string,
     value: string | null,
     open: Sheet,
     placeholder: string,
+    icon: ReactNode,
   ): ReactNode => {
     const error = errorOf(field);
     return (
-      <div className="flex flex-col gap-1">
-        <button
-          type="button"
+      <li>
+        <FormRow
+          name={name}
+          value={value ?? placeholder}
+          icon={icon}
           onClick={() => setSheet(open)}
-          aria-describedby={error ? `record-${field}-error` : undefined}
-          className="flex min-h-14 items-center justify-between gap-3 rounded-xl border border-field bg-surface px-4 text-left"
-        >
-          <span className="flex flex-col">
-            <span className="text-sm text-muted">{name}</span>
-            <span className="font-medium text-ink">{value ?? placeholder}</span>
-          </span>
-          <Icon name="chevronRight" size={20} />
-        </button>
-        {error ? (
-          <p id={`record-${field}-error`} className="text-sm text-danger">
-            {error}
-          </p>
-        ) : null}
-      </div>
+          errorId={error ? `record-${field}-error` : undefined}
+        />
+        {error ? <RowError id={`record-${field}-error`}>{error}</RowError> : null}
+      </li>
     );
   };
+  const accountLabel = t(
+    kind === "TRANSFER" ? "form.from" : kind === "INCOME" ? "form.receivingAccount" : "form.account",
+  );
+  const accountIcon = <SymbolIcon name="wallet" size={16} />;
+  const whenError = errorOf("when");
+  const directName = direct ? (direct.kind === "MEMBER" ? direct.name : direct.displayName) : "";
+
+  // Issue #171: Más opciones folds how a shared expense is split (who paid stays on screen) and the button that starts
+  // a split with someone; a person already chosen stays on screen. It starts open on an edit that already has a split.
+  // While the division has a problem (the API's, or a chosen split that no longer adds up and disables Save) it is
+  // open and offers no Menos opciones, so the problem cannot be folded away.
+  const foldsShared = Boolean(sharedExpense && shared && split);
+  const foldsDirect = canSplit && !direct;
+  const foldable = foldsShared || foldsDirect;
+  const sharedError = errorOf("split") ?? errorOf("payer");
+  const divisionNeedsLook =
+    foldsShared &&
+    (sharedError !== undefined || Boolean(split?.chosen && !built.ok && built.field === "split"));
+  const [moreOpen, setMoreOpen] = useState(Boolean(edit?.initial.split));
+  if (divisionNeedsLook && !moreOpen) setMoreOpen(true);
 
   return (
-    <div className="flex flex-col gap-5 py-4">
+    <div className="flex flex-col gap-3 py-3">
       <ScreenHeader
         backHref={edit?.backHref ?? safeReturnTo(returnTo) ?? `/spaces/${space.id}`}
         title={edit ? t("edit.title") : t("form.title")}
@@ -474,7 +487,7 @@ export function RecordForm({
         data-ready={client ? "true" : undefined}
         onSubmit={(event) => void submit(event)}
         noValidate
-        className="flex flex-col gap-5"
+        className="flex flex-col gap-3"
       >
         <div>
           {edit ? (
@@ -491,7 +504,7 @@ export function RecordForm({
             id={KIND_PANEL}
             role={edit ? undefined : "tabpanel"}
             aria-labelledby={edit ? undefined : kindTabId(kind)}
-            className="mt-5 flex flex-col gap-5"
+            className="mt-3 flex flex-col gap-3"
             tabIndex={-1}
           >
             <AmountField
@@ -504,30 +517,62 @@ export function RecordForm({
               numberFormat={formats.numberFormat}
               exponent={currencyOf(space.currency).exponent}
               error={errorOf("amount")}
+              autoFocus={!edit}
             />
-            <TextField
-              id="record-description"
-              label={t("form.description")}
-              autoComplete="off"
-              value={description}
-              onChange={(event) => {
-                setDescription(event.target.value);
-                clear("description");
-              }}
-              error={errorOf("description")}
-            />
-            {kind === "TRANSFER"
-              ? null
-              : picker(
-                  "category",
-                  t("form.category"),
-                  // The whole tree names it: an edited record may use a category archived since (the picker hides those).
-                  category ? categoryPath(groups, category.subcategoryId ?? category.categoryId) : null,
-                  "category",
-                  t("form.chooseCategory"),
-                )}
+            <ul
+              aria-label={t("form.details")}
+              className="divide-y divide-line overflow-hidden rounded-2xl bg-surface"
+            >
+              {kind === "TRANSFER"
+                ? null
+                : row(
+                    "category",
+                    t("form.category"),
+                    // The whole tree names it: an edited record may use a category archived since (the picker hides those).
+                    category ? categoryPath(groups, category.subcategoryId ?? category.categoryId) : null,
+                    "category",
+                    t("form.chooseCategory"),
+                    <SymbolIcon name="tag" size={16} />,
+                  )}
+              {/* A shared expense names who paid instead of one account, in its own row below (P168). */}
+              {foldsShared
+                ? null
+                : row(
+                    "account",
+                    accountLabel,
+                    nameOf(accountId),
+                    "account",
+                    t("form.chooseAccount"),
+                    accountIcon,
+                  )}
+              {kind === "TRANSFER"
+                ? row(
+                    "toAccount",
+                    t("form.to"),
+                    nameOf(toAccountId),
+                    "toAccount",
+                    t("form.chooseAccount"),
+                    accountIcon,
+                  )
+                : null}
+              <li>
+                <FormRow
+                  name={t("form.date")}
+                  value={label}
+                  icon={<Icon name="calendar" size={16} />}
+                  testId="when-chip"
+                  ariaLabel={t("form.when", { label })}
+                  errorId={whenError ? "record-when-error" : undefined}
+                  onClick={() => {
+                    setSheetNow(nowIn(new Date(), zone));
+                    setSheet("when");
+                  }}
+                />
+                {whenError ? <RowError id="record-when-error">{whenError}</RowError> : null}
+              </li>
+            </ul>
             {kind !== "TRANSFER" && offered.length > 0 ? (
-              <div className="-mt-2 flex flex-col gap-2">
+              <div className="flex flex-col gap-2">
                 <p id="record-recent" className="text-sm text-muted">
                   {t("form.recent")}
                 </p>
@@ -555,92 +600,86 @@ export function RecordForm({
                 </div>
               </div>
             ) : null}
-            {sharedExpense && shared && split ? (
-              <SharedFields
-                context={shared}
-                draft={split}
-                onChange={changeSplit}
-                amount={positiveMinor}
-                currency={space.currency}
-                formats={formats}
-                title={sharedTitle}
-                spaceId={space.id}
-                categoryId={category ? (category.subcategoryId ?? category.categoryId) : null}
-                date={when.date}
-                api={api}
-                error={errorOf("split") ?? errorOf("payer")}
-                defaultSplit={!edit}
-              />
-            ) : (
-              picker(
-                "account",
-                t(
-                  kind === "TRANSFER"
-                    ? "form.from"
-                    : kind === "INCOME"
-                      ? "form.receivingAccount"
-                      : "form.account",
-                ),
-                nameOf(accountId),
-                "account",
-                t("form.chooseAccount"),
-              )
-            )}
-            {canSplit ? (
-              direct ? (
-                <div className="flex items-center justify-between gap-2 rounded-xl bg-accent-soft px-4">
-                  <span className="min-w-0 py-2 font-medium break-words text-accent">
-                    {t("direct.with", { name: direct.kind === "MEMBER" ? direct.name : direct.displayName })}
-                  </span>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    aria-label={t("direct.remove", {
-                      name: direct.kind === "MEMBER" ? direct.name : direct.displayName,
-                    })}
-                    onClick={() => setDirect(null)}
+            <DescriptionField
+              value={description}
+              onChange={(next) => {
+                setDescription(next);
+                clear("description");
+              }}
+              label={t("form.description")}
+              placeholder={t("form.descriptionPlaceholder")}
+              error={errorOf("description")}
+            />
+            {foldable ? (
+              <div className="flex flex-col gap-3">
+                {/* Who paid stays on screen; only the division row folds (issue #171). Never unmounted (P167). */}
+                {foldsShared && shared && split ? (
+                  <SharedFields
+                    context={shared}
+                    draft={split}
+                    onChange={changeSplit}
+                    amount={positiveMinor}
+                    currency={space.currency}
+                    formats={formats}
+                    title={sharedTitle}
+                    spaceId={space.id}
+                    categoryId={category ? (category.subcategoryId ?? category.categoryId) : null}
+                    date={when.date}
+                    api={api}
+                    error={sharedError}
+                    defaultSplit={!edit}
+                    splitHidden={!moreOpen}
+                    splitId="record-more-split"
+                  />
+                ) : null}
+                {divisionNeedsLook ? null : (
+                  <button
+                    type="button"
+                    aria-expanded={moreOpen}
+                    aria-controls={foldsShared ? "record-more-split" : "record-more"}
+                    onClick={() => setMoreOpen((open) => !open)}
+                    className="flex min-h-11 items-center gap-1 self-start rounded-lg px-1 text-sm font-medium text-accent"
                   >
-                    <Icon name="close" />
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  variant="secondary"
-                  className="self-start"
-                  onClick={() => {
-                    setDirectOpened(true);
-                    setDirectOpen(true);
-                  }}
-                >
-                  <Icon name="userPlus" size={20} />
-                  {t("direct.open")}
-                </Button>
-              )
+                    {moreOpen ? t("form.fewerOptions") : t("form.moreOptions")}
+                    <Icon
+                      name="chevronDown"
+                      size={18}
+                      className={moreOpen ? "rotate-180 transition-transform" : "transition-transform"}
+                    />
+                  </button>
+                )}
+                {foldsDirect ? (
+                  <div id="record-more" hidden={!moreOpen} className="flex flex-col gap-3">
+                    <Button
+                      variant="secondary"
+                      className="self-start"
+                      onClick={() => {
+                        setDirectOpened(true);
+                        setDirectOpen(true);
+                      }}
+                    >
+                      <Icon name="userPlus" size={20} />
+                      {t("direct.open")}
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
             ) : null}
-            {kind === "TRANSFER"
-              ? picker("toAccount", t("form.to"), nameOf(toAccountId), "toAccount", t("form.chooseAccount"))
-              : null}
-            <div className="flex flex-col gap-1">
-              <button
-                type="button"
-                data-testid="when-chip"
-                aria-label={t("form.when", { label })}
-                aria-describedby={errorOf("when") ? "record-when-error" : undefined}
-                onClick={() => {
-                  setSheetNow(nowIn(new Date(), zone));
-                  setSheet("when");
-                }}
-                className="flex min-h-11 items-center gap-2 self-start rounded-full bg-accent-soft px-4 text-sm font-medium text-accent"
-              >
-                <Icon name="calendar" size={18} />
-                {label}
-              </button>
-              {errorOf("when") ? (
-                <p id="record-when-error" className="text-sm text-danger">
-                  {errorOf("when")}
-                </p>
-              ) : null}
-            </div>
+            {canSplit && direct ? (
+              <div className="flex items-center justify-between gap-2 rounded-xl bg-accent-soft px-4">
+                <span className="min-w-0 py-2 font-medium break-words text-accent">
+                  {t("direct.with", { name: directName })}
+                </span>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label={t("direct.remove", { name: directName })}
+                  onClick={() => setDirect(null)}
+                >
+                  <Icon name="close" />
+                </Button>
+              </div>
+            ) : null}
           </div>
         </div>
         {asking && warning ? (
@@ -666,7 +705,8 @@ export function RecordForm({
         {asking ? null : (
           <Button
             type="submit"
-            size="lg"
+            size="md"
+            className="w-full"
             disabled={pending || (!built.ok && built.field === "split")}
             aria-describedby={warning ? "record-line-warning" : undefined}
           >

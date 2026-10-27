@@ -15,7 +15,7 @@ import type { Overview } from "./overview-container";
 
 type Money = Pick<Formats, "numberFormat">;
 
-const PANEL = "flex min-w-0 flex-col gap-3 rounded-2xl border border-line bg-surface p-5";
+const PANEL = "flex min-w-0 flex-col gap-3 rounded-2xl border border-line bg-surface p-3";
 const LINK = "inline-flex min-h-11 items-center self-start font-semibold underline";
 const HEAD = "py-2 pl-3 text-right font-medium text-muted first:pl-0";
 const FIGURE = "py-2 pl-3 text-right whitespace-nowrap tabular-nums";
@@ -56,7 +56,7 @@ export function DashOverview({
   const showsMatrix = matrix !== null && matrix.plan !== null;
   if (!groups && !fund && !showsTrend && !showsMatrix) return null;
   return (
-    <div className="hidden gap-4 lg:grid lg:grid-cols-[repeat(auto-fit,minmax(min(480px,100%),1fr))] lg:items-start">
+    <div className="hidden gap-3 lg:grid lg:grid-cols-[repeat(auto-fit,minmax(min(480px,100%),1fr))] lg:items-start">
       {groups ? <GroupsPanel space={space} groups={groups} formats={formats} /> : null}
       {fund ? <FundPanel fund={fund} members={members} formats={formats} /> : null}
       {showsTrend ? <TrendPanel space={space} trend={trend} formats={formats} /> : null}

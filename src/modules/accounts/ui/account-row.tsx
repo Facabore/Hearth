@@ -66,7 +66,7 @@ export function AccountRow({
     </>
   );
   return (
-    <li aria-labelledby={`account-${account.id}`} className="flex min-h-16 items-center gap-3 py-2">
+    <li aria-labelledby={`account-${account.id}`} className="flex min-h-row-lg items-center gap-3 py-1.5">
       {editHref ? (
         <Link href={editHref} className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-xl">
           {look} <VisuallyHidden>{t("edit.action")}</VisuallyHidden>

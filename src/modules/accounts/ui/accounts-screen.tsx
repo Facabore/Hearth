@@ -48,7 +48,7 @@ export function AccountsScreen({
   const noActive = active.length === 0;
   const personal = kind === "PERSONAL";
   return (
-    <div className="flex flex-col gap-6 py-4">
+    <div className="flex flex-col gap-3 py-3">
       <ScreenHeader
         backHref={`/spaces/${spaceId}`}
         title={t("title")}
@@ -67,7 +67,7 @@ export function AccountsScreen({
       {noActive ? (
         <section
           aria-labelledby="accounts-empty"
-          className="flex flex-col items-start gap-3 rounded-2xl bg-surface p-5"
+          className="flex flex-col items-start gap-3 rounded-2xl bg-surface p-3"
         >
           <h2 id="accounts-empty" className="text-lg font-semibold text-ink">
             {shared
@@ -95,13 +95,13 @@ export function AccountsScreen({
       ) : (
         <section aria-label={t("totals")} className="flex flex-wrap gap-3">
           <dl className="contents">
-            <div className="flex-auto rounded-2xl bg-surface p-4">
+            <div className="flex-auto rounded-2xl bg-surface p-3">
               <dt className="text-sm text-muted">{t("available")}</dt>
               <dd className="text-xl font-semibold whitespace-nowrap text-ink">
                 {formatMoney(list.totals.available, formats)}
               </dd>
             </div>
-            <div className="flex-auto rounded-2xl bg-surface p-4">
+            <div className="flex-auto rounded-2xl bg-surface p-3">
               <dt className="text-sm text-muted">{t("netWorth")}</dt>
               <dd className="text-xl font-semibold whitespace-nowrap text-ink">
                 {formatMoney(list.totals.netWorth, formats)}
@@ -115,7 +115,7 @@ export function AccountsScreen({
           <h2 id={`accounts-${section.key}`} className="mb-1 text-sm font-semibold text-muted">
             {t(`section.${section.key}`)}
           </h2>
-          <ul className="divide-y divide-line rounded-2xl bg-surface px-4">
+          <ul className="divide-y divide-line rounded-2xl bg-surface px-3">
             {section.accounts.map((account) => (
               <AccountRow
                 key={account.id}
@@ -133,7 +133,7 @@ export function AccountsScreen({
           <h2 id="accounts-archived" className="mb-1 text-sm font-semibold text-muted">
             {t("archived")}
           </h2>
-          <ul className="divide-y divide-line rounded-2xl bg-surface px-4">
+          <ul className="divide-y divide-line rounded-2xl bg-surface px-3">
             {archived.map((account) => (
               <AccountRow
                 key={account.id}
