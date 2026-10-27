@@ -706,7 +706,8 @@
       "delete": "Eliminar",
       "note": {
         "onlyOwner": "Solo {name} puede editarlo, porque el dinero se mueve en su cuenta. Puedes eliminarlo.",
-        "SETTLEMENT": "Un pago entre miembros no se edita: elimínalo y regístralo de nuevo desde Saldos."
+        "SETTLEMENT": "Un pago entre miembros no se edita: elimínalo y regístralo de nuevo desde Saldos.",
+        "CONTRIBUTION": "El aporte de un invitado no se edita: elimínalo y regístralo de nuevo."
       },
       "open": "Ver detalle de {name}"
     },
@@ -730,7 +731,8 @@
       "converted": {
         "EXPENSE": "Ahora es un gasto",
         "INCOME": "Ahora es un ingreso",
-        "TRANSFER": "Ahora es una transferencia"
+        "TRANSFER": "Ahora es una transferencia",
+        "FUND_CONTRIBUTION": "Ahora es un aporte al fondo"
       },
       "deleted": {
         "EXPENSE": "Gasto eliminado",

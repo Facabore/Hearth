@@ -68,6 +68,10 @@ describe("who sees Editar and Eliminar (ruling P190, D9)", () => {
       delete: true,
       note: { key: "onlyOwner", name: "Juan" },
     });
+    // A guest's contribution has no account to keep it a transfer with, so it is deleted and recorded again.
+    expect(
+      actionsFor({ ...contribution, payerMemberId: "m-pedro", sourceAccountId: null }, ana, members),
+    ).toEqual({ edit: false, delete: true, note: { key: "CONTRIBUTION" } });
   });
 
   it("lets only the receiver edit an income and only the creator edit an own transfer", () => {

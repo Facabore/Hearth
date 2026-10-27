@@ -706,7 +706,8 @@
       "delete": "Delete",
       "note": {
         "onlyOwner": "Only {name} can edit it, because the money moves through their account. You can delete it.",
-        "SETTLEMENT": "A payment between members is not edited: delete it and record it again from Balances."
+        "SETTLEMENT": "A payment between members is not edited: delete it and record it again from Balances.",
+        "CONTRIBUTION": "A guest's contribution is not edited: delete it and record it again."
       },
       "open": "Open the details of {name}"
     },
@@ -730,7 +731,8 @@
       "converted": {
         "EXPENSE": "Now an expense",
         "INCOME": "Now an income",
-        "TRANSFER": "Now a transfer"
+        "TRANSFER": "Now a transfer",
+        "FUND_CONTRIBUTION": "Now a contribution to the fund"
       },
       "deleted": {
         "EXPENSE": "Expense deleted",

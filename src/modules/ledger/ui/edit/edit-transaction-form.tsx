@@ -135,10 +135,11 @@ export function EditTransactionForm({
         },
       );
       if (response.ok && data) {
+        const became = conversionBodyOf(space, built).type as RecordKind | "FUND_CONTRIBUTION";
         router.replace(withTx(origin, data.id));
         router.refresh();
         toast.show({
-          message: t(`toast.converted.${built.kind}`),
+          message: t(`toast.converted.${became}`),
           action: { label: t("toast.undo"), onAction: () => void undoConversion() },
         });
         return null;

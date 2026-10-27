@@ -493,6 +493,7 @@ describe("change a movement's type while editing it (issue #195)", () => {
       sourceAccountId: "a-bank",
       fundAccountId: "a-fund",
     });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Ahora es un aporte al fondo"));
   });
 
   it("turns a contribution back into an expense paid by its payer from the account it came from", async () => {

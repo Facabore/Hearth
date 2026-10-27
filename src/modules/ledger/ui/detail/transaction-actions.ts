@@ -10,7 +10,10 @@ export interface Viewer {
 export interface TransactionActions {
   readonly edit: boolean;
   readonly delete: boolean;
-  readonly note: { readonly key: "onlyOwner"; readonly name: string } | { readonly key: "SETTLEMENT" } | null;
+  readonly note:
+    | { readonly key: "onlyOwner"; readonly name: string }
+    | { readonly key: "SETTLEMENT" | "CONTRIBUTION" }
+    | null;
 }
 
 const NONE: TransactionActions = { edit: false, delete: false, note: null };
@@ -39,6 +42,9 @@ export const actionsFor = (
         : tx.payerMemberId !== null
           ? byMember(tx.payerMemberId)
           : byUser(tx.createdBy);
+  // Issue #195: a guest's contribution has no account to stay a transfer with; it is deleted and recorded again.
+  if (tx.type === "TRANSFER" && tx.payerMemberId !== null && owner?.userId === null)
+    return { edit: false, delete: true, note: { key: "CONTRIBUTION" } };
   // A guest or the fund paid (no user), or the money is the viewer's: theirs to change.
   if (!owner || owner.userId === null || owner.userId === userId)
     return { edit: true, delete: true, note: null };
