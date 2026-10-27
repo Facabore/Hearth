@@ -110,7 +110,9 @@ describe("edit account form (issue 169)", () => {
     await userEvent.clear(screen.getByLabelText("Interés M.V."));
     await userEvent.type(screen.getByLabelText("Interés M.V."), "1,");
     await userEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
-    expect(screen.getByLabelText("Interés M.V.")).toHaveAccessibleDescription(/Escribe un número como 1,89\./);
+    expect(screen.getByLabelText("Interés M.V.")).toHaveAccessibleDescription(
+      /Escribe un número como 1,89\./,
+    );
     expect(requests).toHaveLength(0);
   });
 
