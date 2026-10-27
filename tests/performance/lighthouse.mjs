@@ -72,7 +72,7 @@ const measure = async (port, url, cookie) => {
       tbt: Math.round(lhr.audits["total-blocking-time"].numericValue ?? 0),
       scriptKb: Math.round(scripts.reduce((sum, r) => sum + (r.transferSize ?? 0), 0) / 1024),
       // Issue #182: the server's share of LCP and the document's size (its inline RSC payload grows it, and every
-      // extra round trip of slow 4G adds about 150 ms), printed for diagnosis and never budgeted.
+      // extra round trip of the applied slow 4G adds about 560 ms), printed for diagnosis and never budgeted.
       ttfb: Math.round(lhr.audits["server-response-time"]?.numericValue ?? 0),
       htmlKb: Math.round(
         requests

@@ -11,7 +11,7 @@ The race moved the whole app from run to run. With no code change, CI measured `
 
 ## Decision
 
-`tests/performance/lighthouse.mjs` passes `throttlingMethod: "devtools"`: the same slow 4G and 4× slower CPU are applied to the load itself, and LCP is the paint the browser actually reports. The budgets, the five runs, the medians and every metric stay as ADR 0004 sets them (`lighthouseFlags`, pinned by `budgets.test.mjs`).
+`tests/performance/lighthouse.mjs` passes `throttlingMethod: "devtools"`: the same slow 4G and 4× slower CPU are applied to the load itself, and LCP is the paint the browser actually reports. The budgets, the five runs, the medians and every metric stay as ADR 0004 sets them. `budgets.test.mjs` pins the flags (`lighthouseFlags`) and how budgets fail. It does not pin the run count.
 
 Measured locally on the line editor's build: every route measured 1.36 to 1.46 s, a spread of about ±50 ms from run to run, with TBT at 76 to 114 ms.
 
