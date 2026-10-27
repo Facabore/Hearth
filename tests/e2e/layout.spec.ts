@@ -1228,7 +1228,10 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       const back = page.getByRole("link", { name: es.common.back, exact: true });
       await expect(back).toHaveAttribute("href", `/spaces/${sharedId}/plan?period=2026-10`);
       await back.click();
-      await expect(page.getByText(LONG_LINE)).toBeVisible();
+      // The dashboard names the line in its table, its list and its members matrix: wait for it, not for a moment
+      // when one of them happens to be the only one on screen (#196: a skeleton now fills that moment).
+      await expect(page).toHaveURL(new RegExp(`/spaces/${sharedId}/plan\\?period=2026-10$`));
+      await expect(page.getByRole("table").getByText(LONG_LINE).first()).toBeVisible();
       await expect(page.getByRole("heading", { level: 2, name: /no tiene plan/i })).toHaveCount(0);
     });
   }

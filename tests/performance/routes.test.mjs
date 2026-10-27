@@ -35,6 +35,8 @@ const planPages = () =>
           .split(sep)
           .join("/")
           .replace(/\/?page\.tsx$/, "")
+          // A route group, such as the planner's own `(planner)` beside its subroutes, is not part of the URL.
+          .replace(/\/\([^)]+\)/g, "")
           .replace("[planId]", ":plan")
           .replace("[lineId]", ":line"),
       ),
