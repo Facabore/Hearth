@@ -20,6 +20,35 @@
 
 If a required variable is missing, Compose refuses to start and names it; a missing or invalid `BETTER_AUTH_SECRET` makes the `app` container exit with status 1 and the message `Missing or invalid environment variables: BETTER_AUTH_SECRET`.
 
+## Behind a reverse proxy the host already runs
+
+When the VPS already serves other sites through its own proxy on 80 and 443 (for example a Caddy installed on the host), the bundled `caddy` service cannot bind those ports. Keep it off and let the host proxy reach the app on loopback only:
+
+1. Next to `compose.yaml`, create `compose.override.yaml` (Compose merges it on its own):
+
+   ```yaml
+   services:
+     app:
+       ports: ["127.0.0.1:5300:3000"]
+     caddy:
+       profiles: [bundled-proxy]
+   ```
+
+   Pick any free loopback port. Never publish the app on `0.0.0.0`.
+
+2. Add a site to the host proxy. For a host Caddy, append to `/etc/caddy/Caddyfile`, then run `caddy validate --config /etc/caddy/Caddyfile` and `systemctl reload caddy`:
+
+   ```
+   hearth.example.com {
+   	encode zstd gzip
+   	reverse_proxy 127.0.0.1:5300
+   }
+   ```
+
+   Without `trusted_proxies`, the host Caddy also replaces any client-sent `X-Forwarded-For`, so the sign-in throttles keep keying on the real address (see Reverse proxy and client addresses).
+
+Everything else, including `HEARTH_DOMAIN` in `.env`, stays as in First deployment.
+
 ## Recurring transactions job
 
 The `app` container records due recurring transactions itself (HU-E4-12): a timer runs the job when the server starts, so a restart catches up the days it missed, and then `RECURRENCE_JOB_INTERVAL_SECONDS` after each run ends (default 300; `0` turns it off), so two runs of one container never overlap. No endpoint triggers it. Running it in two containers is safe: runs of one recurrence take turns on its row and a date is never recorded twice. Each run logs JSON lines, and never an error message, a query or its parameters:
@@ -45,7 +74,7 @@ To let someone join later, send them an invitation from a shared space. To reope
 
 ## Reverse proxy and client addresses
 
-The sign-in and sign-up throttles key on the client address from `X-Forwarded-For`. Caddy replaces any client-sent value with the real peer address because no `trusted_proxies` are configured, and the `app` service publishes no port, so it is reachable only through Caddy. Keep both properties: never publish port 3000, and only add `trusted_proxies` if another proxy you control sits in front of Caddy.
+The sign-in and sign-up throttles key on the client address from `X-Forwarded-For`. Caddy replaces any client-sent value with the real peer address because no `trusted_proxies` are configured, and the `app` service publishes no port, so it is reachable only through Caddy. Keep both properties: never publish port 3000 beyond loopback (behind a host proxy, `127.0.0.1` only), and only add `trusted_proxies` if another proxy you control sits in front of Caddy.
 
 ## Web UI
 
