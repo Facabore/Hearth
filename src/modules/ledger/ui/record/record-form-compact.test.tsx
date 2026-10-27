@@ -211,7 +211,8 @@ describe("Más opciones folds the split (#171, S3)", () => {
     expect(more()).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     expect(await screen.findByText("Revisa cómo se divide el gasto.")).toBeVisible();
-    expect(more()).toHaveAttribute("aria-expanded", "true");
+    // While the problem stands there is no Menos opciones to fold it away again.
+    expect(screen.queryByRole("button", { name: /^(Más|Menos) opciones$/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /División/ })).toHaveAccessibleDescription(
       "Revisa cómo se divide el gasto.",
     );

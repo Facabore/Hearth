@@ -80,6 +80,17 @@ const splitWith = async (name: string) => {
 };
 
 describe("split with someone from Personal (HU-E9-06, ruling P172)", () => {
+  it("keeps the chosen person on screen, so Más opciones can never fold a split away (#171)", async () => {
+    form(fakeApi({}).api);
+    await userEvent.type(screen.getByLabelText("Monto"), "120000");
+    await chooseGroceries();
+    await splitWith("Juan");
+    expect(screen.getByText("Con Juan · mitad y mitad")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /^(Más|Menos) opciones$/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Quitar la división con Juan" }));
+    expect(screen.getByRole("button", { name: /^(Más|Menos) opciones$/ })).toBeInTheDocument();
+  });
+
   it("splits a dinner with Juan through their direct space and opens its list", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/direct-splits": () => created("sp-ana-juan") });
     const { container } = form(api);

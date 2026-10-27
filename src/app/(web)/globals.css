@@ -155,9 +155,10 @@
 
 /* Body text sets at 1.35 (#171); headings and figures keep their own leading. */
 @theme {
-  --text-xs--line-height: 1.35;
-  --text-sm--line-height: 1.35;
-  --text-base--line-height: 1.35;
+  --leading-body: 1.35;
+  --text-xs--line-height: var(--leading-body);
+  --text-sm--line-height: var(--leading-body);
+  --text-base--line-height: var(--leading-body);
 }
 
 @layer base {
@@ -174,7 +175,7 @@
     background: var(--bg);
     color: var(--ink);
     font-family: var(--font-sans);
-    line-height: 1.35;
+    line-height: var(--leading-body);
   }
   :focus-visible {
     outline: 2px solid var(--accent);

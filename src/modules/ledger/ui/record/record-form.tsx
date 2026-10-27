@@ -462,22 +462,19 @@ export function RecordForm({
   const whenError = errorOf("when");
   const directName = direct ? (direct.kind === "MEMBER" ? direct.name : direct.displayName) : "";
 
-  // Issue #171: Más opciones folds how a shared expense is split (who paid stays on screen), or the split with someone. It starts open on an edit
-  // that already has a split, and opens by itself when an error lands inside it, so an error is never hidden.
+  // Issue #171: Más opciones folds how a shared expense is split (who paid stays on screen) and the button that starts
+  // a split with someone; a person already chosen stays on screen. It starts open on an edit that already has a split.
+  // While the division has a problem (the API's, or a chosen split that no longer adds up and disables Save) it is
+  // open and offers no Menos opciones, so the problem cannot be folded away.
   const foldsShared = Boolean(sharedExpense && shared && split);
-  const foldable = foldsShared || canSplit;
-  const foldedError = foldsShared
-    ? (errorOf("split") ??
-      errorOf("payer") ??
-      // A split the person chose that no longer adds up disables Save: its reason is in the division row.
-      (split?.chosen && !built.ok && built.field === "split" ? "unbalanced" : undefined))
-    : undefined;
+  const foldsDirect = canSplit && !direct;
+  const foldable = foldsShared || foldsDirect;
+  const sharedError = errorOf("split") ?? errorOf("payer");
+  const divisionNeedsLook =
+    foldsShared &&
+    (sharedError !== undefined || Boolean(split?.chosen && !built.ok && built.field === "split"));
   const [moreOpen, setMoreOpen] = useState(Boolean(edit?.initial.split));
-  const [shownError, setShownError] = useState(foldedError);
-  if (foldedError !== shownError) {
-    setShownError(foldedError);
-    if (foldedError !== undefined) setMoreOpen(true);
-  }
+  if (divisionNeedsLook && !moreOpen) setMoreOpen(true);
 
   return (
     <div className="flex flex-col gap-3 py-3">
@@ -537,8 +534,8 @@ export function RecordForm({
                     t("form.chooseCategory"),
                     <SymbolIcon name="tag" size={16} />,
                   )}
-              {/* A shared expense names who paid instead of one account: that row is under Más opciones (P168). */}
-              {sharedExpense
+              {/* A shared expense names who paid instead of one account, in its own row below (P168). */}
+              {foldsShared
                 ? null
                 : row(
                     "account",
@@ -629,58 +626,58 @@ export function RecordForm({
                     categoryId={category ? (category.subcategoryId ?? category.categoryId) : null}
                     date={when.date}
                     api={api}
-                    error={errorOf("split") ?? errorOf("payer")}
+                    error={sharedError}
                     defaultSplit={!edit}
                     splitHidden={!moreOpen}
                     splitId="record-more-split"
                   />
                 ) : null}
-                <button
-                  type="button"
-                  aria-expanded={moreOpen}
-                  aria-controls={foldsShared ? "record-more-split record-more" : "record-more"}
-                  onClick={() => setMoreOpen((open) => !open)}
-                  className="flex min-h-11 items-center gap-1 self-start rounded-lg px-1 text-sm font-medium text-accent"
+                {divisionNeedsLook ? null : (
+                  <button
+                    type="button"
+                    aria-expanded={moreOpen}
+                    aria-controls={foldsShared ? "record-more-split" : "record-more"}
+                    onClick={() => setMoreOpen((open) => !open)}
+                    className="flex min-h-11 items-center gap-1 self-start rounded-lg px-1 text-sm font-medium text-accent"
+                  >
+                    {moreOpen ? t("form.fewerOptions") : t("form.moreOptions")}
+                    <Icon
+                      name="chevronDown"
+                      size={18}
+                      className={moreOpen ? "rotate-180 transition-transform" : "transition-transform"}
+                    />
+                  </button>
+                )}
+                {foldsDirect ? (
+                  <div id="record-more" hidden={!moreOpen} className="flex flex-col gap-3">
+                    <Button
+                      variant="secondary"
+                      className="self-start"
+                      onClick={() => {
+                        setDirectOpened(true);
+                        setDirectOpen(true);
+                      }}
+                    >
+                      <Icon name="userPlus" size={20} />
+                      {t("direct.open")}
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {canSplit && direct ? (
+              <div className="flex items-center justify-between gap-2 rounded-xl bg-accent-soft px-4">
+                <span className="min-w-0 py-2 font-medium break-words text-accent">
+                  {t("direct.with", { name: directName })}
+                </span>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label={t("direct.remove", { name: directName })}
+                  onClick={() => setDirect(null)}
                 >
-                  {moreOpen ? t("form.fewerOptions") : t("form.moreOptions")}
-                  <Icon
-                    name="chevronDown"
-                    size={18}
-                    className={moreOpen ? "rotate-180 transition-transform" : "transition-transform"}
-                  />
-                </button>
-                {/* Hidden, never unmounted: the shared fields ask for the plan's split while folded (P167). */}
-                <div id="record-more" hidden={!moreOpen} className="flex flex-col gap-3">
-                  {canSplit ? (
-                    direct ? (
-                      <div className="flex items-center justify-between gap-2 rounded-xl bg-accent-soft px-4">
-                        <span className="min-w-0 py-2 font-medium break-words text-accent">
-                          {t("direct.with", { name: directName })}
-                        </span>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          aria-label={t("direct.remove", { name: directName })}
-                          onClick={() => setDirect(null)}
-                        >
-                          <Icon name="close" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button
-                        variant="secondary"
-                        className="self-start"
-                        onClick={() => {
-                          setDirectOpened(true);
-                          setDirectOpen(true);
-                        }}
-                      >
-                        <Icon name="userPlus" size={20} />
-                        {t("direct.open")}
-                      </Button>
-                    )
-                  ) : null}
-                </div>
+                  <Icon name="close" />
+                </Button>
               </div>
             ) : null}
           </div>
