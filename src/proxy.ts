@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { PATH_HEADER } from "@/shared/ui/api/server-headers";
+import { DOCUMENT_HEADER, PATH_HEADER } from "@/shared/ui/api/server-headers";
 import { hasSession } from "@/shared/ui/api/session";
 import { redirectFor } from "@/shared/ui/navigation/auth-redirect";
 
@@ -10,6 +10,7 @@ export function proxy(request: NextRequest) {
   if (target) return NextResponse.redirect(new URL(target, request.url));
   const headers = new Headers(request.headers);
   headers.set(PATH_HEADER, `${pathname}${search}`);
+  headers.set(DOCUMENT_HEADER, request.headers.has("rsc") ? "0" : "1");
   return NextResponse.next({ request: { headers } });
 }
 

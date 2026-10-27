@@ -31,6 +31,18 @@ describe("proxy (HU-E9-01, rulings P125 and P145)", () => {
     expect(response.headers.get("x-middleware-request-x-hearth-path")).toBe("/settings?tab=region");
   });
 
+  it("tells the page a document request from a client navigation, never trusting the browser's own claim (#196)", () => {
+    const page = (headers: Record<string, string>) =>
+      proxy(
+        new NextRequest("http://hearth.test/spaces/s1", {
+          headers: { cookie: "hearth.session_token=abc", ...headers },
+        }),
+      ).headers.get("x-middleware-request-x-hearth-document");
+    expect(page({})).toBe("1");
+    expect(page({ rsc: "1" })).toBe("0");
+    expect(page({ rsc: "1", "x-hearth-document": "1" })).toBe("0");
+  });
+
   it.each(["/invitations/tok-1", "/claims/tok-1"])(
     "lets %s through without a session cookie, with a stale one and with a live one (ruling P157)",
     (path) => {
