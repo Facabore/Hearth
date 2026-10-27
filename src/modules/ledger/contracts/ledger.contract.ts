@@ -18,6 +18,7 @@ import {
   err,
   isUuid,
   localDate,
+  map,
   ok,
   type LocalDate,
   type Money,
@@ -25,6 +26,7 @@ import {
 } from "@/shared/kernel";
 import type {
   AuditEntry,
+  ConversionTarget,
   EditChanges,
   LedgerWarning,
   PaymentInput,
@@ -128,22 +130,21 @@ export const SplitBodySchema = z.discriminatedUnion("method", [
  * BY_ALLOCATION when the category resolves to an allocated line of the ACTIVE plan covering the date, else
  * EQUAL among every current member, which in a personal space is the requester alone.
  */
-export const RecordExpenseBodySchema = z
-  .object({
-    description: Description,
-    date: z.iso.date().optional(),
-    occurredAt: Instant.nullable().optional(),
-    timeZone: TimeZoneName.optional(),
-    categoryId: IdSchema.optional(),
-    amount: MoneySchema,
-    accountId: IdSchema.optional(),
-    payments: z.array(PaymentBodySchema).max(MAX_PARTS).optional(),
-    split: SplitBodySchema.optional(),
-  })
-  .refine((body) => body.accountId === undefined || body.payments === undefined, {
-    error: "Send accountId or payments, not both",
-    path: ["payments"],
-  });
+const RecordExpenseFields = z.object({
+  description: Description,
+  date: z.iso.date().optional(),
+  occurredAt: Instant.nullable().optional(),
+  timeZone: TimeZoneName.optional(),
+  categoryId: IdSchema.optional(),
+  amount: MoneySchema,
+  accountId: IdSchema.optional(),
+  payments: z.array(PaymentBodySchema).max(MAX_PARTS).optional(),
+  split: SplitBodySchema.optional(),
+});
+const accountOrPayments = (body: { accountId?: string; payments?: unknown }) =>
+  body.accountId === undefined || body.payments === undefined;
+const accountOrPaymentsError = { error: "Send accountId or payments, not both", path: ["payments"] };
+export const RecordExpenseBodySchema = RecordExpenseFields.refine(accountOrPayments, accountOrPaymentsError);
 type RecordExpenseBody = z.infer<typeof RecordExpenseBodySchema>;
 
 /** The split as the use case takes it; EXACT amounts become Money (UnknownCurrency otherwise). */
@@ -208,6 +209,52 @@ export const RecordTransferBodySchema = z.object({
   sourceAccountId: IdSchema,
   destinationAccountId: IdSchema,
 });
+
+/**
+ * Issue #195: what an expense, income or transfer becomes, named by `type`, with the body its own record endpoint
+ * takes. Every rule of recording it applies, and the original is soft-deleted in the same transaction.
+ */
+export const ConvertTransactionBodySchema = z.discriminatedUnion("type", [
+  RecordExpenseFields.extend({ type: z.literal("EXPENSE") }).refine(
+    accountOrPayments,
+    accountOrPaymentsError,
+  ),
+  RecordIncomeBodySchema.extend({ type: z.literal("INCOME") }),
+  RecordTransferBodySchema.extend({ type: z.literal("TRANSFER") }),
+]);
+
+/** A validated conversion body as the use case's target; fails only for impossible dates and unknown currencies. */
+export const conversionFromBody = (
+  body: z.infer<typeof ConvertTransactionBodySchema>,
+): Result<ConversionTarget> => {
+  if (body.type === "EXPENSE") {
+    const { type, ...fields } = body;
+    return map(expenseFromBody(fields), (expense) => ({ type, ...expense }));
+  }
+  const amount = moneyFromDto(body.amount);
+  if (!amount.ok) return amount;
+  const when = whenFromBody(body);
+  if (!when.ok) return when;
+  return ok(
+    body.type === "INCOME"
+      ? {
+          type: body.type,
+          description: body.description,
+          ...when.value,
+          categoryId: body.categoryId,
+          amount: amount.value,
+          accountId: body.accountId,
+        }
+      : {
+          type: body.type,
+          description: body.description,
+          ...when.value,
+          amount: amount.value,
+          sourceAccountId: body.sourceAccountId,
+          destinationAccountId: body.destinationAccountId,
+        },
+  );
+};
 
 /**
  * HU-E4-09: `memberId` defaults to the requester; `sourceAccountId` is the contributor's own account,
@@ -470,7 +517,9 @@ export const AuditEntrySchema = z.object({
   at: z.iso.datetime(),
   /**
    * Changed values as strings (amounts in minor units); an expense's `payments` and `shares` are JSON
-   * arrays (D8, Task 0b), and a deletion lists every value it retires with `to: null`.
+   * arrays (D8, Task 0b), and a deletion lists every value it retires with `to: null`. Issue #195: a conversion's
+   * deletion carries `convertedTo` (the new movement's id) and the new movement starts with an UPDATED entry carrying
+   * `convertedFrom`; its undo writes the same keys back with `from` and `to` swapped.
    */
   changes: z.record(z.string(), z.object({ from: z.string().nullable(), to: z.string().nullable() })),
 });
@@ -742,6 +791,54 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
           "403": "InsufficientRole",
           "404": "SpaceNotFound, TransactionNotFound",
           "409": "PeriodClosed, SpaceArchived",
+          "412": "PreconditionFailed",
+          "422": "NotASpaceMember",
+        }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/transactions/{transactionId}/convert": {
+    post: {
+      operationId: "convertTransaction",
+      summary:
+        "Change an expense, income or transfer into another of the three: the new movement is recorded and the original soft-deleted in one transaction, linked both ways in the audit; send If-Match with the current ETag",
+      ...securedByUser,
+      requestParams: { path: TransactionPath, header: IfMatchHeader },
+      requestBody: { content: jsonContent(ConvertTransactionBodySchema) },
+      responses: {
+        "201": {
+          description: "The new movement; ETag carries its version",
+          content: jsonContent(TransactionSchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound, TransactionNotFound, CategoryNotFound, AccountNotFound",
+          "409":
+            "TransactionNotConvertible, PeriodClosed, SpaceArchived, AccountArchived, CategoryArchived, SameAccountTransfer, SharesDoNotMatchAmount, GuestHasNoAccounts, MixedFundPayment",
+          "412": "PreconditionFailed",
+          "422": `${invalidMoney}, SameTransactionType, CategoryRequired, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
+        }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/transactions/{transactionId}/convert/undo": {
+    post: {
+      operationId: "undoTransactionConversion",
+      summary:
+        "Undo a conversion: the original returns as it was and what it became is soft-deleted; undoing for a live original changes nothing",
+      ...securedByUser,
+      requestParams: { path: TransactionPath },
+      responses: {
+        "200": {
+          description: "The restored original with its new ETag",
+          content: jsonContent(TransactionSchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound, TransactionNotFound",
+          "409": "TransactionNotConverted, PeriodClosed, SpaceArchived",
           "412": "PreconditionFailed",
           "422": "NotASpaceMember",
         }),

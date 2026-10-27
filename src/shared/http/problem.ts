@@ -37,6 +37,8 @@ const EXPLICIT: ReadonlyMap<string, number> = new Map([
   ["EmailTaken", 409],
   // HU-E1-15: the installation rules lock the field; explicit, as the story asks.
   ["PreferenceLocked", 409],
+  // Issue #195: converting to the type it already has is the request's mistake; the default would be 409.
+  ["SameTransactionType", 422],
   ["IdempotencyKeyConflict", 409],
   ["PreconditionFailed", 412],
   ["TooManyRequests", 429],

@@ -742,6 +742,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/spaces/{spaceId}/transactions/{transactionId}/convert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change an expense, income or transfer into another of the three: the new movement is recorded and the original soft-deleted in one transaction, linked both ways in the audit; send If-Match with the current ETag */
+        post: operations["convertTransaction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{spaceId}/transactions/{transactionId}/convert/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Undo a conversion: the original returns as it was and what it became is soft-deleted; undoing for a live original changes nothing */
+        post: operations["undoTransactionConversion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/direct-splits": {
         parameters: {
             query?: never;
@@ -5355,6 +5389,232 @@ export interface operations {
                 };
             };
             /** @description PeriodClosed, SpaceArchived */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description PreconditionFailed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description NotASpaceMember */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    convertTransaction: {
+        parameters: {
+            query?: never;
+            header?: {
+                "if-match"?: string;
+            };
+            path: {
+                spaceId: string;
+                transactionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    description?: string;
+                    /** Format: date */
+                    date?: string;
+                    occurredAt?: string | null;
+                    timeZone?: string;
+                    categoryId?: string;
+                    amount: components["schemas"]["Money"];
+                    accountId?: string;
+                    payments?: {
+                        memberId: string | null;
+                        accountId?: string | null;
+                        amount: components["schemas"]["Money"];
+                    }[];
+                    split?: {
+                        /** @constant */
+                        method: "EQUAL";
+                        participants: {
+                            memberId: string;
+                        }[];
+                    } | {
+                        /** @constant */
+                        method: "PERCENT";
+                        participants: {
+                            memberId: string;
+                            percent: string;
+                        }[];
+                    } | {
+                        /** @constant */
+                        method: "EXACT";
+                        participants: {
+                            memberId: string;
+                            amount: components["schemas"]["Money"];
+                        }[];
+                    } | {
+                        /** @constant */
+                        method: "SHARES";
+                        participants: {
+                            memberId: string;
+                            units: number;
+                        }[];
+                    };
+                    /** @constant */
+                    type: "EXPENSE";
+                } | {
+                    description?: string;
+                    /** Format: date */
+                    date?: string;
+                    occurredAt?: string | null;
+                    timeZone?: string;
+                    categoryId?: string;
+                    amount: components["schemas"]["Money"];
+                    accountId: string;
+                    /** @constant */
+                    type: "INCOME";
+                } | {
+                    description?: string;
+                    /** Format: date */
+                    date?: string;
+                    occurredAt?: string | null;
+                    timeZone?: string;
+                    amount: components["schemas"]["Money"];
+                    sourceAccountId: string;
+                    destinationAccountId: string;
+                    /** @constant */
+                    type: "TRANSFER";
+                };
+            };
+        };
+        responses: {
+            /** @description The new movement; ETag carries its version */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transaction"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description InsufficientRole */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound, TransactionNotFound, CategoryNotFound, AccountNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description TransactionNotConvertible, PeriodClosed, SpaceArchived, AccountArchived, CategoryArchived, SameAccountTransfer, SharesDoNotMatchAmount, GuestHasNoAccounts, MixedFundPayment */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description PreconditionFailed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, SameTransactionType, CategoryRequired, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount, DateTimeMismatch, TimeRequired, InvalidTimeZone */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    undoTransactionConversion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+                transactionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The restored original with its new ETag */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transaction"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description InsufficientRole */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound, TransactionNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description TransactionNotConverted, PeriodClosed, SpaceArchived */
             409: {
                 headers: {
                     [name: string]: unknown;
