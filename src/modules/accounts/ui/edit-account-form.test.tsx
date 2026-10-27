@@ -104,6 +104,16 @@ describe("edit account form (issue 169)", () => {
     expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/accounts");
   });
 
+  it("says a rate it cannot read is a number, with a rate as the example, and sends nothing", async () => {
+    const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse(visa) });
+    render(api);
+    await userEvent.clear(screen.getByLabelText("Interés M.V."));
+    await userEvent.type(screen.getByLabelText("Interés M.V."), "1,");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    expect(screen.getByLabelText("Interés M.V.")).toHaveAccessibleDescription(/Escribe un número como 1,89\./);
+    expect(requests).toHaveLength(0);
+  });
+
   it("shows a taken name next to the name field and stays", async () => {
     const { api } = fakeApi({ [PATCH]: () => problemResponse(409, "AccountNameTaken") });
     render(api);

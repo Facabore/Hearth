@@ -16,21 +16,20 @@ import {
 import type { SymbolName } from "@/shared/kernel/style";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { SpaceDto } from "@/shared/ui/api/dto";
-import { problemFrom, type Problem } from "@/shared/ui/api/problem";
+import { problemFrom } from "@/shared/ui/api/problem";
 import { safeReturnTo } from "@/shared/ui/navigation/auth-redirect";
-import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import { currencyOf } from "@/shared/ui/format/currencies";
-import { formatNumber, type Formats } from "@/shared/ui/format/formatters";
+import type { Formats } from "@/shared/ui/format/formatters";
 import { AccountAttributeFields } from "./account-attribute-fields";
 import {
   accountBodyOf,
-  accountFieldOf,
   OWED_TYPES,
   PERSONAL_TYPES,
   SWITCH_DEFAULTS,
   type AccountField,
 } from "./account-fields";
 import type { AccountType } from "./account-look";
+import { useAccountErrors } from "./use-account-errors";
 
 /** The type grid's icons: each type's default (the API's `iconOf`, P50). */
 const TYPE_ICONS = {
@@ -44,7 +43,6 @@ const TYPE_ICONS = {
   OTHER: "dots",
   SHARED_FUND: "users",
 } as const satisfies Record<AccountType, SymbolName>;
-type Where = "name" | "opening" | AccountField;
 
 /** HU-E9-03, the NewAccount artboard as a page: the type first, then only its attributes and the two switches. */
 export function NewAccountForm({
@@ -61,7 +59,6 @@ export function NewAccountForm({
 }) {
   const t = useTranslations("accounts");
   const router = useRouter();
-  const messageOf = useProblemMessage();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   const [type, setType] = useState<AccountType | "">("");
   const [name, setName] = useState("");
@@ -70,25 +67,11 @@ export function NewAccountForm({
   const [available, setAvailable] = useState<boolean | null>(null);
   const [netWorth, setNetWorth] = useState<boolean | null>(null);
   const [pending, setPending] = useState(false);
-  const [unreadable, setUnreadable] = useState<Where | null>(null);
-  const [problem, setProblem] = useState<Problem | null>(null);
+  const { problem, setProblem, setUnreadable, where, errorOf, clear } = useAccountErrors(formats);
 
   const currency = currencyOf(space.currency);
   const types: readonly AccountType[] =
     space.kind === "SHARED" ? [...PERSONAL_TYPES, "SHARED_FUND"] : PERSONAL_TYPES;
-  const where = problem ? accountFieldOf(problem) : null;
-  const errorOf = (field: Where) =>
-    unreadable === field
-      ? t("amountUnreadable", { example: formatNumber("1500000", formats) })
-      : where === field && problem
-        ? messageOf(problem).message
-        : undefined;
-
-  // A field's error is about its last value: it goes as soon as that field changes, never waiting for the next save.
-  const clear = (field: Where) => {
-    if (unreadable === field) setUnreadable(null);
-    if (problem && where === field) setProblem(null);
-  };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

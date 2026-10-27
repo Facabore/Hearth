@@ -17,22 +17,14 @@ import {
 } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { AccountDto, SpaceDto } from "@/shared/ui/api/dto";
-import { problemFrom, type Problem } from "@/shared/ui/api/problem";
-import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
+import { problemFrom } from "@/shared/ui/api/problem";
 import { currencyOf } from "@/shared/ui/format/currencies";
-import { formatNumber, type Formats } from "@/shared/ui/format/formatters";
+import type { Formats } from "@/shared/ui/format/formatters";
 import { AccountAttributeFields } from "./account-attribute-fields";
-import {
-  accountFieldOf,
-  editBodyOf,
-  editOf,
-  OWED_TYPES,
-  type AccountEdit,
-  type AccountField,
-} from "./account-fields";
+import { editBodyOf, editOf, OWED_TYPES, type AccountEdit } from "./account-fields";
 import { ACCOUNT_ICON_CHOICES } from "./account-look";
+import { useAccountErrors } from "./use-account-errors";
 
-type Where = "name" | "opening" | AccountField;
 type Style = "icon" | "includeInAvailable" | "includeInNetWorth";
 
 /**
@@ -71,27 +63,14 @@ export function EditAccountForm({
 }) {
   const t = useTranslations("accounts");
   const router = useRouter();
-  const messageOf = useProblemMessage();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   const before = useMemo(() => editOf(account, formats.numberFormat), [account, formats.numberFormat]);
   const [edit, setEdit] = useState<AccountEdit>(before);
   const [pending, setPending] = useState(false);
-  const [unreadable, setUnreadable] = useState<Where | null>(null);
-  const [problem, setProblem] = useState<Problem | null>(null);
+  const { problem, setProblem, setUnreadable, where, errorOf, clear } = useAccountErrors(formats);
 
   const back = `/spaces/${space.id}/accounts`;
   const currency = currencyOf(space.currency);
-  const where = problem ? accountFieldOf(problem) : null;
-  const errorOf = (field: Where) =>
-    unreadable === field
-      ? t("amountUnreadable", { example: formatNumber("1500000", formats) })
-      : where === field && problem
-        ? messageOf(problem).message
-        : undefined;
-  const clear = (field: Where) => {
-    if (unreadable === field) setUnreadable(null);
-    if (problem && where === field) setProblem(null);
-  };
   const style = (key: Style, value: AccountEdit[Style]) => setEdit((all) => ({ ...all, [key]: value }));
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {

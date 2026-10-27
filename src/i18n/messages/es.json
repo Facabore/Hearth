@@ -378,6 +378,7 @@
     },
     "currency": "Moneda: {currency}",
     "amountUnreadable": "Escribe un monto como {example}.",
+    "numberUnreadable": "Escribe un número como {example}.",
     "archive": {
       "open": "Ocultar {name}",
       "title": "¿Ocultar {name}?",

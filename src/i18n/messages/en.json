@@ -378,6 +378,7 @@
     },
     "currency": "Currency: {currency}",
     "amountUnreadable": "Type an amount like {example}.",
+    "numberUnreadable": "Type a number like {example}.",
     "archive": {
       "open": "Hide {name}",
       "title": "Hide {name}?",
