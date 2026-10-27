@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { pushed, readTrail, replaced, traversed, writeTrail, type Trail } from "./history";
+import { goBack, pushed, readTrail, replaced, traversed, writeTrail, type Trail } from "./history";
 
 const here = () => `${window.location.pathname}${window.location.search}`;
 
@@ -14,7 +14,9 @@ const openedByUrl = () =>
  * Mounted once in the app layout: keeps the trail of this tab's browser history (`history.ts`), so Volver can return
  * to where the person was. The router changes the history only through `pushState` and `replaceState`, and the
  * browser's Back and Forward (and a Volver that goes back) arrive as `popstate`; each is recorded with the URL the
- * browser ends up at, so every entry counts, whatever changed in it: the path or only the query.
+ * browser ends up at, so every entry counts, whatever changed in it: the path or only the query. It also gives a route's
+ * skeleton its Volver (#196): the skeleton is server markup with a plain link marked `data-back`, and a click on it goes
+ * back here the way `ScreenHeader`'s does, with no script of its own on any route.
  */
 export function NavigationTracker() {
   useEffect(() => {
@@ -34,10 +36,15 @@ export function NavigationTracker() {
       return result;
     };
     const onPop = () => record(traversed);
+    const onClick = (event: MouseEvent) => {
+      if (event.target instanceof Element && event.target.closest("a[data-back]")) goBack(event);
+    };
     window.history.pushState = push;
     window.history.replaceState = replace;
     window.addEventListener("popstate", onPop);
+    document.addEventListener("click", onClick);
     return () => {
+      document.removeEventListener("click", onClick);
       window.removeEventListener("popstate", onPop);
       if (window.history.pushState === push) window.history.pushState = pushState;
       if (window.history.replaceState === replace) window.history.replaceState = replaceState;

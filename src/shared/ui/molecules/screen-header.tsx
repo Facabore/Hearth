@@ -2,22 +2,9 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import type { MouseEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Icon } from "../atoms/icon";
-import { readTrail, stepsBack } from "../navigation/history";
-
-/**
- * Volver goes back in the browser, to the screen the person actually came from, when the navigation tracker knows of
- * one; a modified click (a new tab) is left to the browser. `history.go` is what `router.back()` calls, and it also
- * skips the screens of a flow in one step. Without a previous screen the link's own href applies.
- */
-const goBack = (event: MouseEvent<HTMLAnchorElement>) => {
-  if (event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-  const steps = stepsBack(readTrail(), window.location.pathname);
-  if (steps === null) return;
-  event.preventDefault();
-  window.history.go(-steps);
-};
+import { goBack } from "../navigation/history";
 
 /**
  * The header of a screen below the navigation (#171): 48 px tall, a 48 px Volver link, a 17 px title and an
