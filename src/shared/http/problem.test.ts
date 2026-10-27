@@ -79,6 +79,7 @@ describe("statusForCode", () => {
     ["SameTransactionType", 422],
     ["TransactionNotConvertible", 409],
     ["TransactionNotConverted", 409],
+    ["ConversionSuperseded", 409],
     ["AccountArchived", 409],
     ["ValidationFailed", 422],
     ["PreconditionFailed", 412],

@@ -152,6 +152,7 @@
     "SameTransactionType": "Choose a type other than the one it has.",
     "TransactionNotConvertible": "A payment between members cannot change its type.",
     "TransactionNotConverted": "This movement was not changed to another type, so there is nothing to undo.",
+    "ConversionSuperseded": "What this change became has changed type again. Undo the most recent change first.",
     "SavingsAccountAlreadyUsed": "That savings account is already in another line of the plan.",
     "SavingsAccountRequired": "A savings line needs at least one savings account.",
     "SavingsLineNotMappable": "A savings line does not take categories.",

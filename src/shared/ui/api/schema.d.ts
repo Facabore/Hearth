@@ -5626,7 +5626,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description TransactionNotConverted, PeriodClosed, SpaceArchived */
+            /** @description TransactionNotConverted, ConversionSuperseded, PeriodClosed, SpaceArchived */
             409: {
                 headers: {
                     [name: string]: unknown;

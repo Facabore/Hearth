@@ -295,6 +295,35 @@ describe("UndoConversion (issue #195)", () => {
     expect(store.rows).toEqual(rows);
   });
 
+  it("refuses to undo a conversion whose result was converted again, so the money is never counted twice", async () => {
+    const { convert, undo, store, market } = setup();
+    const income = unwrap(
+      await convert({ ...asAna, transactionId: market.id, expectedVersion: 1, to: asIncome }),
+    );
+    const transfer = unwrap(
+      await convert({
+        ...asAna,
+        transactionId: income.id,
+        expectedVersion: 1,
+        to: {
+          type: "TRANSFER",
+          date,
+          amount: money(8_500_000n),
+          sourceAccountId: ACCOUNTS.bancolombia.id,
+          destinationAccountId: ACCOUNTS.nequi.id,
+        },
+      }),
+    );
+    const rows = structuredClone(store.rows);
+    expect(codeOf(await undo({ ...asAna, transactionId: market.id }))).toBe("ConversionSuperseded");
+    expect(store.rows).toEqual(rows);
+    expect(store.rows.filter((t) => t.deletedAt === null).map((t) => t.id)).toEqual([transfer.id]);
+    // The latest conversion is still undone one step at a time.
+    expect(unwrap(await undo({ ...asAna, transactionId: income.id })).id).toBe(income.id);
+    expect(unwrap(await undo({ ...asAna, transactionId: market.id })).id).toBe(market.id);
+    expect(store.rows.filter((t) => t.deletedAt === null).map((t) => t.id)).toEqual([market.id]);
+  });
+
   it("refuses a plain deletion, an unknown id and a closed period, and changes nothing", async () => {
     const { convert, undo, state, store, market, deps } = setup();
     const salary = anIncome(date, 300_000_000n);

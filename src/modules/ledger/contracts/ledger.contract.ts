@@ -844,7 +844,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
           "401": "Unauthenticated",
           "403": "InsufficientRole",
           "404": "SpaceNotFound, TransactionNotFound",
-          "409": "TransactionNotConverted, PeriodClosed, SpaceArchived",
+          "409": "TransactionNotConverted, ConversionSuperseded, PeriodClosed, SpaceArchived",
           "412": "PreconditionFailed",
           "422": "NotASpaceMember",
         }),

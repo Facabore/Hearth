@@ -18,6 +18,15 @@ export type UndoConversion = (input: {
   transactionId: string;
 }) => Promise<Result<Transaction>>;
 
+/** What a movement was converted into, read from its latest deletion: one converted, restored and deleted again is a plain deletion. */
+const convertedIdOf = async (
+  deps: Pick<LedgerDeps, "audit">,
+  transactionId: string,
+): Promise<string | null> => {
+  const deletion = (await deps.audit.listFor(transactionId)).filter((e) => e.action === "DELETED").at(-1);
+  return deletion?.changes[CONVERTED_TO]?.to ?? null;
+};
+
 /**
  * Issue #195: the undo of a conversion, in one transaction. The original comes back as it was (ruling P185) and what it
  * became is soft-deleted, each under the rules of a restore and a deletion; an original that is live is answered
@@ -38,16 +47,18 @@ export const createUndoConversion =
         return err(domainError("InsufficientRole"));
       }
       if (original.deletedAt === null) return ok(original);
-      // The latest deletion decides: a movement converted, restored and deleted again is a plain deletion.
-      const deletion = (await deps.audit.listFor(original.id)).filter((e) => e.action === "DELETED").at(-1);
-      const convertedId = deletion?.changes[CONVERTED_TO]?.to ?? null;
+      const convertedId = await convertedIdOf(deps, original.id);
       if (convertedId === null) return err(domainError("TransactionNotConverted"));
       const open = await openPeriod(deps, original.spaceId, original.date);
       if (!open.ok) return open;
       const parties = await ensureCurrentParties(deps, spaceId, original);
       if (!parties.ok) return parties;
-      // Deleted on its own since, it stays deleted; only the original comes back.
       const converted = await deps.transactions.findById(spaceId, convertedId);
+      // Converted again since, its own result is live: bringing the original back would count the money twice. Only
+      // the latest conversion is undone; one deleted on its own stays deleted and only the original comes back.
+      if (!converted && (await convertedIdOf(deps, convertedId)) !== null) {
+        return err(domainError("ConversionSuperseded"));
+      }
       if (converted) {
         if (!canModify(membership.value.role, converted.createdBy, input.userId)) {
           return err(domainError("InsufficientRole"));

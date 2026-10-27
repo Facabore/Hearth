@@ -7259,7 +7259,7 @@
             }
           },
           "409": {
-            "description": "TransactionNotConverted, PeriodClosed, SpaceArchived",
+            "description": "TransactionNotConverted, ConversionSuperseded, PeriodClosed, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
