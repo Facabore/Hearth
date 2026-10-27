@@ -44,19 +44,22 @@ export const loadMyAccounts = async (
     spaceId: string;
     personalSpaceId: string;
     meUserId: string;
-    members: readonly MemberDto[];
+    /** The space's members; they only pick the viewer's accounts, so the reads never wait for them (issue #196). */
+    members: readonly MemberDto[] | PromiseLike<readonly MemberDto[]>;
   },
 ): Promise<AccountDto[]> => {
-  const [space, personal] = await Promise.all(
-    [input.spaceId, input.personalSpaceId].map((spaceId) =>
-      loaded(api.GET("/api/v1/spaces/{spaceId}/accounts", { params: { path: { spaceId } } })),
+  const [space, personal, members] = await Promise.all([
+    loaded(api.GET("/api/v1/spaces/{spaceId}/accounts", { params: { path: { spaceId: input.spaceId } } })),
+    loaded(
+      api.GET("/api/v1/spaces/{spaceId}/accounts", { params: { path: { spaceId: input.personalSpaceId } } }),
     ),
-  );
-  if (!space?.ok || !personal?.ok) return [];
+    input.members,
+  ]);
+  if (!space.ok || !personal.ok) return [];
   return [
     ...(sharedContextOf({
       meUserId: input.meUserId,
-      members: input.members,
+      members,
       spaceAccounts: space.data.items,
       personalAccounts: personal.data.items,
     })?.myAccounts ?? []),
@@ -72,21 +75,34 @@ export async function BalancesContainer({
   /** A member id from `?settle=`: the settle-up sheet opens for that member. */
   readonly settle?: string | undefined;
 }) {
-  const [me, spaces] = await Promise.all([getMe(), getSpaces()]);
-  const space = spaces.find((s) => s.id === spaceId);
-  if (!space || space.kind === "PERSONAL") notFound();
-  const api = await serverApi();
-  const result = await loadBalances(api, { spaceId });
-  if (!result.ok) return <ProblemNotice problem={result.problem} />;
+  const meRead = getMe();
+  const spacesRead = getSpaces();
+  // A personal space has no balances: the reads wait for that check, never for the person.
+  const spaceRead = spacesRead.then((spaces) => {
+    const space = spaces.find((s) => s.id === spaceId);
+    return !space || space.kind === "PERSONAL" ? notFound() : space;
+  });
+  const balancesRead = Promise.all([serverApi(), spaceRead]).then(([api]) => loadBalances(api, { spaceId }));
+  // Issue #196: the viewer's accounts start beside the balances; the members only pick them once both answered.
   // Only somebody who records money is offered the accounts; a viewer reads the balances alone.
-  const myAccounts = controlsFor(space.role, space.kind).recordMoney
-    ? await loadMyAccounts(api, {
-        spaceId,
-        personalSpaceId: personalSpaceOf(spaces).id,
-        meUserId: me!.id,
-        members: result.data.members,
-      })
-    : [];
+  const accountsRead = Promise.all([serverApi(), meRead, spacesRead, spaceRead]).then(
+    ([api, me, spaces, space]) =>
+      controlsFor(space.role, space.kind).recordMoney
+        ? loadMyAccounts(api, {
+            spaceId,
+            personalSpaceId: personalSpaceOf(spaces).id,
+            meUserId: me!.id,
+            members: balancesRead.then((result) => (result.ok ? result.data.members : [])),
+          })
+        : [],
+  );
+  // A failed read returns first and leaves the others unawaited: never an unhandled rejection.
+  void balancesRead.catch(() => undefined);
+  void accountsRead.catch(() => undefined);
+  const [me, space] = await Promise.all([meRead, spaceRead]);
+  const result = await balancesRead;
+  if (!result.ok) return <ProblemNotice problem={result.problem} />;
+  const myAccounts = await accountsRead;
   return (
     <BalancesScreen
       space={space}

@@ -34,7 +34,12 @@ const planOf = async (
  */
 export const loadUnified = async (
   api: Api,
-  input: { spaceId: string; period?: string; today: string },
+  input: {
+    spaceId: string;
+    period?: string;
+    /** Today in the person's zone; it names the period only when none is asked for, so it may still be arriving. */
+    today: string | PromiseLike<string>;
+  },
 ): Promise<
   Loaded<{
     view: UnifiedViewDto;
@@ -43,7 +48,8 @@ export const loadUnified = async (
     next: PeriodDto | null;
   }>
 > => {
-  const label = await periodLabel(api, input.spaceId, input.period, input.today);
+  // An asked period never waits for the person: only today's period needs their zone (issue #196).
+  const label = await periodLabel(api, input.spaceId, input.period, input.period ? "" : await input.today);
   if (!label.ok) return label;
   const [view, plan] = await Promise.all([
     loaded(api.GET("/api/v1/me/unified-view", { params: { query: { period: label.data } } })),
@@ -64,13 +70,18 @@ export async function UnifiedViewContainer({
   readonly spaceId: string;
   readonly period?: string;
 }) {
-  const [me, spaces] = await Promise.all([getMe(), getSpaces()]);
-  const space = spaceOf(spaces, spaceId);
-  const result = await loadUnified(await serverApi(), {
-    spaceId,
-    period,
-    today: nowIn(serverNow(), me!.timezone).date,
-  });
+  const meRead = getMe();
+  const today = meRead.then((me) => nowIn(serverNow(), me!.timezone).date);
+  // An asked period leaves today unread; a failed read of the person throws below, never as an unhandled rejection.
+  void today.catch(() => undefined);
+  // The reads wait for the space check, never for the person: only today's period needs their zone (issue #196).
+  const spaceRead = getSpaces().then((spaces) => spaceOf(spaces, spaceId));
+  const read = Promise.all([serverApi(), spaceRead]).then(([api]) =>
+    loadUnified(api, { spaceId, period, today }),
+  );
+  void read.catch(() => undefined);
+  const [me, space] = await Promise.all([meRead, spaceRead]);
+  const result = await read;
   if (!result.ok) return <ProblemNotice problem={result.problem} />;
   const { view, plan, previous, next } = result.data;
   const formats = me!.preferences.effective;

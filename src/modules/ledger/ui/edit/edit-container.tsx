@@ -42,15 +42,33 @@ export const loadEditContext = async (
   input: { readonly spaceId: string; readonly transactionId: string },
 ): Promise<Loaded<EditContext | null>> => {
   const path = { spaceId: input.spaceId };
-  const [me, spaces, read, accounts, categories] = await Promise.all([
-    getMe(),
-    getSpaces(),
+  const viewer = Promise.all([getMe(), getSpaces()]);
+  const accountsRead = loaded(
+    api.GET("/api/v1/spaces/{spaceId}/accounts", { params: { path, query: { archived: "true" } } }),
+  );
+  // Issue #196: a shared space's members and the recorder's own accounts need only the person and their spaces, so
+  // they start as soon as those answer instead of after the transaction, the accounts and the categories.
+  const sharedRead = viewer.then(([me, spaces]) => {
+    const space = spaces.find((s) => s.id === input.spaceId);
+    return me && space && space.kind !== "PERSONAL"
+      ? loadSharedContext(api, {
+          spaceId: input.spaceId,
+          meUserId: me.id,
+          personalSpaceId: personalSpaceOf(spaces).id,
+          spaceAccounts: accountsRead.then((accounts) => (accounts.ok ? accounts.data.items : [])),
+        })
+      : undefined;
+  });
+  // A failed read below returns first and leaves the shared reads unawaited: never an unhandled rejection.
+  void sharedRead.catch(() => undefined);
+  const [[me, spaces], read, accounts, categories] = await Promise.all([
+    viewer,
     api
       .GET("/api/v1/spaces/{spaceId}/transactions/{transactionId}", {
         params: { path: { ...path, transactionId: input.transactionId } },
       })
       .catch((error: unknown) => ({ data: undefined, error, response: undefined })),
-    loaded(api.GET("/api/v1/spaces/{spaceId}/accounts", { params: { path, query: { archived: "true" } } })),
+    accountsRead,
     loaded(api.GET("/api/v1/spaces/{spaceId}/categories", { params: { path, query: { archived: "true" } } })),
   ]);
   if (!me || read.response?.status === 401) return redirectToSignIn();
@@ -62,13 +80,8 @@ export const loadEditContext = async (
   if (!space) return { ok: true, data: null };
   const tx = read.data;
   let shared: SharedExpenseContext | undefined;
-  if (space.kind !== "PERSONAL") {
-    const context = await loadSharedContext(api, {
-      spaceId: input.spaceId,
-      meUserId: me.id,
-      personalSpaceId: personalSpaceOf(spaces).id,
-      spaceAccounts: accounts.data.items,
-    });
+  const context = await sharedRead;
+  if (context) {
     if (!context.ok) return context;
     if (!context.data) return { ok: true, data: null };
     shared = context.data;

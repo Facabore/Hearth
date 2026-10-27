@@ -74,14 +74,15 @@ export async function LineEditorContainer({
   readonly planId: string;
   readonly lineId: string | null;
 }) {
-  const [me, spaces] = await Promise.all([getMe(), getSpaces()]);
-  const space = spaces.find((s) => s.id === spaceId) ?? notFound();
-  const result = await loadLineEditor(await serverApi(), {
-    spaceId,
-    planId,
-    lineId,
-    personalSpaceId: personalSpaceOf(spaces).id,
-  });
+  // The reads wait for the space check and the personal space, never for the person (issue #196).
+  const spacesRead = getSpaces();
+  const spaceRead = spacesRead.then((spaces) => spaces.find((s) => s.id === spaceId) ?? notFound());
+  const read = Promise.all([serverApi(), spacesRead, spaceRead]).then(([api, spaces]) =>
+    loadLineEditor(api, { spaceId, planId, lineId, personalSpaceId: personalSpaceOf(spaces).id }),
+  );
+  void read.catch(() => undefined);
+  const [me, space] = await Promise.all([getMe(), spaceRead]);
+  const result = await read;
   if (!result.ok) return <ProblemNotice problem={result.problem} />;
   const { plan, line, savingsAccounts, groups, members } = result.data;
   if (!canManage(space.role) || !isEditable(plan)) {

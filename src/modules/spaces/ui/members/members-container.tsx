@@ -49,13 +49,17 @@ export async function MembersContainer({
   /** `?invite=1`: the invite sheet opens at once (N10). */
   readonly openInvite?: boolean;
 }) {
-  const [me, spaces] = await Promise.all([getMe(), getSpaces()]);
-  const space = spaces.find((s) => s.id === spaceId);
-  if (!space || space.kind === "PERSONAL") notFound();
-  const result = await loadMembers(await serverApi(), {
-    spaceId,
-    canInvite: controlsFor(space.role, space.kind).invite,
+  // A personal space has no members screen: the reads wait for that check, never for the person (issue #196).
+  const spaceRead = getSpaces().then((spaces) => {
+    const space = spaces.find((s) => s.id === spaceId);
+    return !space || space.kind === "PERSONAL" ? notFound() : space;
   });
+  const read = Promise.all([serverApi(), spaceRead]).then(([api, space]) =>
+    loadMembers(api, { spaceId, canInvite: controlsFor(space.role, space.kind).invite }),
+  );
+  void read.catch(() => undefined);
+  const [me, space] = await Promise.all([getMe(), spaceRead]);
+  const result = await read;
   if (!result.ok) return <ProblemNotice problem={result.problem} />;
   return (
     <MembersScreen

@@ -26,30 +26,40 @@ export const loadBalanceHistory = async (
   const path = { spaceId: input.spaceId };
   const periodsFrom = (from: string | undefined) =>
     loaded(api.GET("/api/v1/spaces/{spaceId}/periods", { params: { path, query: { from, count: 1 } } }));
-  const [periods, members] = await Promise.all([
-    periodsFrom(input.from),
-    loaded(api.GET("/api/v1/spaces/{spaceId}/members", { params: { path } })),
-  ]);
-  if (!periods.ok) return periods;
-  if (!members.ok) return members;
-  const period = periods.data.items[0];
-  if (!period) throw new Error("The API answered no period");
+  const periods = periodsFrom(input.from);
   const neighbour = async (from: string) => {
     const result = await periodsFrom(from);
     return result.ok ? (result.data.items[0] ?? null) : null;
   };
-  const [history, previous, next] = await Promise.all([
-    loaded(
-      api.GET("/api/v1/spaces/{spaceId}/members/{memberId}/balance-history", {
-        params: {
-          path: { spaceId: input.spaceId, memberId: input.memberId },
-          query: { from: period.startDate, to: period.endDate },
-        },
-      }),
-    ),
-    neighbour(addDays(period.startDate as LocalDate, -1)),
-    neighbour(addDays(period.endDate as LocalDate, 1)),
+  // Issue #196: the movements and the neighbours need only the period, so they never wait for the members.
+  const rest = periods.then((found) => {
+    const period = found.ok ? found.data.items[0] : undefined;
+    return period
+      ? Promise.all([
+          loaded(
+            api.GET("/api/v1/spaces/{spaceId}/members/{memberId}/balance-history", {
+              params: {
+                path: { spaceId: input.spaceId, memberId: input.memberId },
+                query: { from: period.startDate, to: period.endDate },
+              },
+            }),
+          ),
+          neighbour(addDays(period.startDate as LocalDate, -1)),
+          neighbour(addDays(period.endDate as LocalDate, 1)),
+        ])
+      : null;
+  });
+  // A failed read below returns first and leaves these unawaited: never an unhandled rejection.
+  void rest.catch(() => undefined);
+  const [found, members] = await Promise.all([
+    periods,
+    loaded(api.GET("/api/v1/spaces/{spaceId}/members", { params: { path } })),
   ]);
+  if (!found.ok) return found;
+  if (!members.ok) return members;
+  const period = found.data.items[0];
+  if (!period) throw new Error("The API answered no period");
+  const [history, previous, next] = (await rest)!;
   if (!history.ok) return history;
   return {
     ok: true,
@@ -73,10 +83,17 @@ export async function HistoryContainer({
   readonly memberId: string;
   readonly from?: string;
 }) {
-  const [me, spaces] = await Promise.all([getMe(), getSpaces()]);
-  const space = spaces.find((s) => s.id === spaceId);
-  if (!space || space.kind === "PERSONAL") notFound();
-  const result = await loadBalanceHistory(await serverApi(), { spaceId, memberId, from });
+  // A personal space has no balances: the reads wait for that check, never for the person (issue #196).
+  const spaceRead = getSpaces().then((spaces) => {
+    const space = spaces.find((s) => s.id === spaceId);
+    return !space || space.kind === "PERSONAL" ? notFound() : space;
+  });
+  const read = Promise.all([serverApi(), spaceRead]).then(([api]) =>
+    loadBalanceHistory(api, { spaceId, memberId, from }),
+  );
+  void read.catch(() => undefined);
+  const [me, space] = await Promise.all([getMe(), spaceRead]);
+  const result = await read;
   if (!result.ok) return <ProblemNotice problem={result.problem} />;
   const { member, period, previous, next, history } = result.data;
   if (!member) notFound();

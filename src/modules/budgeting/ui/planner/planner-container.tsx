@@ -41,9 +41,12 @@ export async function PlannerContainer({
   readonly spaceId: string;
   readonly planId: string;
 }) {
-  const [me, spaces] = await Promise.all([getMe(), getSpaces()]);
-  const space = spaces.find((s) => s.id === spaceId) ?? notFound();
-  const result = await loadPlanner(await serverApi(), { spaceId, planId });
+  // The reads wait for the space check, never for the person (issue #196).
+  const spaceRead = getSpaces().then((spaces) => spaces.find((s) => s.id === spaceId) ?? notFound());
+  const read = Promise.all([serverApi(), spaceRead]).then(([api]) => loadPlanner(api, { spaceId, planId }));
+  void read.catch(() => undefined);
+  const [me, space] = await Promise.all([getMe(), spaceRead]);
+  const result = await read;
   if (!result.ok) return <ProblemNotice problem={result.problem} />;
   return (
     <Planner
