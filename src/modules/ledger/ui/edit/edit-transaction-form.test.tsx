@@ -296,3 +296,73 @@ describe("edit a transaction (rulings P191, P193)", () => {
     expect(requests).toEqual([]);
   });
 });
+
+// Issue #171 on the edit route: the form a transaction opens in is the compact record form, so it fits above the
+// bottom bar in every context (an expense, an income, a shared expense with its split).
+describe("the edit form is the compact record form (#171)", () => {
+  const sharedTwo: SharedExpenseContext = {
+    members: [memberDto({ id: "m-ana", userId: "u-ana" }), memberDto({ id: "m-juan", userId: "u-juan" })],
+    meMemberId: "m-ana",
+    myAccounts: [accountDto({ id: "a-bank", name: "Bancolombia" })],
+    funds: [],
+  };
+  const splitTx = transactionDto({
+    ...tx,
+    shares: [
+      { memberId: "m-ana", amount: cop(42_500), splitMethod: "EQUAL" },
+      { memberId: "m-juan", amount: cop(42_500), splitMethod: "EQUAL" },
+    ],
+  });
+  const income = transactionDto({
+    ...tx,
+    type: "INCOME",
+    description: "Salary",
+    destinationAccountId: "a-bank",
+    payments: [],
+    shares: [],
+  });
+  const rowNames = () =>
+    within(screen.getByRole("list", { name: "Detalles del movimiento" }))
+      .getAllByRole("button")
+      .map((row) => {
+        expect(row).toHaveClass("min-h-12");
+        return row.firstElementChild?.nextElementSibling?.textContent;
+      });
+  const expectPhoneKeyboard = () => {
+    const amount = screen.getByLabelText("Monto");
+    expect(amount).toHaveAttribute("inputmode", "decimal");
+    // The edit leaves the focus alone, so the keyboard comes up only when the person taps the amount.
+    expect(amount).not.toHaveFocus();
+    for (const key of ["0", "1", "9", "000", "Borrar"])
+      expect(screen.queryByRole("button", { name: key })).not.toBeInTheDocument();
+  };
+
+  it("takes an expense's amount on the phone's keyboard, with no keypad, and its details as 48 px rows", async () => {
+    const { container } = renderForm(fakeApi({}).api);
+    expectPhoneKeyboard();
+    expect(rowNames()).toEqual(["Categoría", "Cuenta", "Fecha"]);
+    expect(screen.getAllByRole("button").at(-1)).toHaveAccessibleName("Guardar cambios");
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("does the same for an income, whose account row names where it was received", () => {
+    renderForm(fakeApi({}).api, LIST, { tx: income });
+    expectPhoneKeyboard();
+    expect(rowNames()).toEqual(["Categoría", "Cuenta que recibe", "Fecha"]);
+    expect(screen.getAllByRole("button").at(-1)).toHaveAccessibleName("Guardar cambios");
+  });
+
+  it("does the same for a shared expense with its split, and keeps Guardar cambios last", () => {
+    renderForm(fakeApi({}).api, LIST, {
+      tx: splitTx,
+      shared: sharedTwo,
+      space: householdSpace({ id: "s-1" }),
+    });
+    expectPhoneKeyboard();
+    // Who paid replaces the account row (P168); the division sits under Más opciones (#171).
+    expect(rowNames()).toEqual(["Categoría", "Fecha"]);
+    expect(screen.getByRole("button", { name: /Pagas tú/ })).toBeVisible();
+    expect(screen.getByRole("button", { name: /División/ })).toBeInTheDocument();
+    expect(screen.getAllByRole("button").at(-1)).toHaveAccessibleName("Guardar cambios");
+  });
+});
