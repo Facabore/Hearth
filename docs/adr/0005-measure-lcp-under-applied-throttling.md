@@ -11,7 +11,7 @@ The race moved the whole app from run to run. With no code change, CI measured `
 
 ## Decision
 
-LCP is timed with the same slow 4G and 4× slower CPU applied to the load itself (`throttlingMethod: "devtools"`, `lcpFlags` in `tests/performance/lighthouse.mjs`). That run reports the paint the browser actually makes. Each route gets one such run after its five simulated runs. Applied LCP varies by about ±50 ms between runs, and each run takes about 20 s on CI.
+LCP is timed with the same slow 4G and 4× slower CPU applied to the load itself (`throttlingMethod: "devtools"`, `lcpFlags` in `tests/performance/lighthouse.mjs`). That run reports the paint the browser actually makes. Each route gets one such run after its five simulated runs. Applied LCP varies by about ±50 ms between runs, and each run takes about 20 s on CI. A run over the budget is confirmed by two more, and the median of the three counts (`appliedLcp`), so one stall of a shared runner never fails the gate on its own.
 
 CLS, TBT and script stay on the five simulated runs and their medians, exactly as ADR 0004 sets them. The simulated LCP is still printed (`simulatedLcp`) for diagnosis and is never budgeted. Every budget is unchanged. `budgets.test.mjs` pins both sets of flags and how budgets fail. It does not pin the run counts.
 

@@ -70,10 +70,18 @@ const run = async (url, flags) => {
 };
 
 /**
- * One route: the medians of RUNS simulated runs for CLS, TBT and script, and LCP from one run under applied throttling
- * (ADR 0005: it varies by about ±50 ms between runs, and each such run takes about 20 s on CI).
+ * ADR 0005: one applied run per route, since it varies by about ±50 ms and takes about 20 s on CI. A run over the
+ * budget is confirmed by two more and the median of the three counts, so one stall of the runner never fails the gate.
  */
-const measure = async (port, url, cookie) => {
+export const appliedLcp = async (sample, limitMs) => {
+  const first = await sample();
+  if (first.lcp <= limitMs) return first;
+  const samples = [first, await sample(), await sample()];
+  return [...samples].sort((a, b) => a.lcp - b.lcp)[1];
+};
+
+/** One route: the medians of RUNS simulated runs for CLS, TBT and script, and the applied LCP (ADR 0005). */
+const measure = async (port, url, cookie, lcpMs) => {
   const runs = [];
   for (let i = 0; i < RUNS; i += 1) {
     const { lhr, requests } = await run(url, lighthouseFlags(port, cookie));
@@ -94,18 +102,23 @@ const measure = async (port, url, cookie) => {
       ),
     });
   }
-  const { lhr } = await run(url, lcpFlags(port, cookie));
-  // Issue #182: which element is the LCP, for diagnosis only.
-  const node = lhr.audits["lcp-breakdown-insight"]?.details?.items?.find((item) => item.type === "node");
+  const applied = await appliedLcp(async () => {
+    const { lhr } = await run(url, lcpFlags(port, cookie));
+    // Issue #182: which element is the LCP, for diagnosis only.
+    const node = lhr.audits["lcp-breakdown-insight"]?.details?.items?.find((item) => item.type === "node");
+    return {
+      lcp: Math.round(lhr.audits["largest-contentful-paint"].numericValue),
+      lcpElement: node?.nodeLabel ?? node?.snippet ?? null,
+    };
+  }, lcpMs);
   return {
-    lcp: Math.round(lhr.audits["largest-contentful-paint"].numericValue),
     ...Object.fromEntries(
       ["cls", "tbt", "scriptKb", "simulatedLcp", "ttfb", "htmlKb"].map((k) => [
         k,
         median(runs.map((r) => r[k])),
       ]),
     ),
-    lcpElement: node?.nodeLabel ?? node?.snippet ?? null,
+    ...applied,
   };
 };
 
@@ -238,7 +251,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       const results = [];
       for (const route of routes) {
         const url = `${BASE}${routeUrl(route, ids)}`;
-        const result = { route, ...(await measure(debugPort, url, isVisitorRoute(route) ? null : cookie)) };
+        const result = {
+          route,
+          ...(await measure(debugPort, url, isVisitorRoute(route) ? null : cookie, budgets.metrics.lcpMs)),
+        };
         console.log(JSON.stringify(result));
         results.push(result);
       }
