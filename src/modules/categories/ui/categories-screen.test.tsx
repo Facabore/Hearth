@@ -474,6 +474,42 @@ describe("categories screen (HU-E9-04)", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("keeps each overlapping restore waiting until its own answer, and lets a refused one be tried again", async () => {
+    const releases: Record<string, () => void> = {};
+    const archivedAt = "2026-10-20T15:00:00.000Z";
+    renderTree(
+      household({ archivedAt }).map((g) =>
+        g.id === "g-food"
+          ? { ...g, categories: [...g.categories, categoryDto({ id: "c-pets", name: "Pets", archivedAt })] }
+          : g,
+      ),
+      {
+        routes: {
+          "POST /api/v1/spaces/{spaceId}/categories/{categoryId}/restore": async (
+            _request,
+            { categoryId },
+          ) => {
+            await new Promise<void>((resolve) => (releases[categoryId!] = resolve));
+            return categoryId === "c-pets"
+              ? problemResponse(409, "CategoryGroupArchived")
+              : jsonResponse(categoryDto({ id: "c-groceries", name: "Groceries" }));
+          },
+        },
+      },
+    );
+    const groceries = screen.getByRole("button", { name: "Restaurar Groceries" });
+    const pets = screen.getByRole("button", { name: "Restaurar Pets" });
+    await userEvent.click(groceries);
+    await userEvent.click(pets);
+    await waitFor(() => expect(Object.keys(releases)).toHaveLength(2));
+    releases["c-groceries"]!();
+    await waitFor(() => expect(namesIn(group("Food"))).toEqual(["Groceries", "Restaurants"]));
+    expect(pets).toBeDisabled();
+    releases["c-pets"]!();
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(pets).toBeEnabled();
+  });
+
   it("lands two overlapping answers, the second built on the first", async () => {
     let release = () => {};
     const held = new Promise<void>((resolve) => (release = resolve));
