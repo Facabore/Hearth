@@ -30,6 +30,9 @@ const WIDE_FONT_CSS = '* { font-family: Verdana, "DejaVu Sans", sans-serif !impo
 /** The addresses the tests open on purpose to see the not-found page: the browser logs their 404 (N1). */
 const MISSING = ["/nope", "/spaces/does-not-exist/accounts"];
 
+/** An id no record has: the screens of #196 opened with it answer 404 on purpose, and the browser logs that. */
+const MISSING_ID = "01a17f29-6bd5-710c-9636-fd9fa33e3b6a";
+
 /** The refusal a test stages on purpose (a plan's close answering 409): the browser logs every failed response. */
 const STAGED_REFUSAL = /\/api\/v1\/spaces\/[^/]+\/plans\/[^/]+\/close$/;
 
@@ -47,7 +50,11 @@ const test = base.extend<{ errors: string[]; wideFont: boolean }>({
       page.on("console", (message) => {
         if (message.type() !== "error") return;
         const { url } = message.location();
-        if (/ 404 /.test(message.text()) && MISSING.some((path) => url.endsWith(path))) return;
+        if (
+          / 404 /.test(message.text()) &&
+          (MISSING.some((path) => url.endsWith(path)) || url.includes(MISSING_ID))
+        )
+          return;
         if (/ 409 /.test(message.text()) && STAGED_REFUSAL.test(url)) return;
         errors.push(`${message.text()} @ ${message.location().url}`);
       });
@@ -2479,6 +2486,21 @@ test.describe("the app's own not-found page (N1)", () => {
       }
     });
   }
+
+  test("a screen under its own loading boundary still answers 404 on a document request (#196, ruling P257)", async ({
+    page,
+  }) => {
+    const { spaceId } = await session(page, "notfound-boundary");
+    // Each 404 comes from the screen's own read in its container, not from a check copied into a layout.
+    for (const path of [
+      `/spaces/${spaceId}/accounts/${MISSING_ID}/edit`,
+      `/spaces/${spaceId}/plans/${MISSING_ID}`,
+    ]) {
+      const response = await page.goto(path);
+      expect(response?.status(), path).toBe(404);
+      await expect(page.getByRole("heading", { level: 1, name: es.notFound.title })).toBeVisible();
+    }
+  });
 });
 
 test.describe("Settings and New space keep the space they were opened from (N3)", () => {
