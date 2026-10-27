@@ -58,26 +58,61 @@ describe("the loading boundaries of the app's routes (#196)", () => {
   });
 
   it.each([
-    ["spaces/[spaceId]/transactions/[transactionId]/edit", "Editar movimiento", "../.."],
-    ["spaces/[spaceId]/new", "Registrar movimiento", "."],
-    ["spaces/[spaceId]/accounts/(list)", "Cuentas", "."],
-    ["spaces/[spaceId]/accounts/new", "Nueva cuenta", "../accounts"],
-    ["spaces/[spaceId]/accounts/[accountId]/edit", "Editar cuenta", "../../accounts"],
-    ["spaces/[spaceId]/categories", "Categorías", "."],
-    ["spaces/[spaceId]/members/(list)", "Miembros", "."],
-    ["spaces/[spaceId]/members/[memberId]/history", "Cargando…", "../../balances"],
-    ["spaces/[spaceId]/plans/[planId]/(planner)", "Cargando…", "../../plan"],
-    ["spaces/[spaceId]/plans/[planId]/capacities", es.budgeting.capacity.title, "."],
-    ["spaces/[spaceId]/plans/[planId]/lines/new", es.budgeting.lineEditor.newTitle, ".."],
-    ["spaces/[spaceId]/plans/[planId]/lines/[lineId]", "Cargando…", "../.."],
-    ["settings", "Ajustes", "/"],
-    ["spaces/new", es.spaces.new.title, "/"],
-  ])("shows %s with its own header and way back", async (folder, title, back) => {
-    await show(folder.split("/").join(sep));
-    expect(screen.getByRole("region", { name: "Cargando…" })).toHaveAttribute("aria-busy", "true");
-    expect(screen.getByRole("heading", { level: 1, name: title })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute("href", back);
-  });
+    [
+      "spaces/[spaceId]/transactions/[transactionId]/edit",
+      "Editar movimiento",
+      "/spaces/s1/transactions/t1/edit",
+      "/spaces/s1/",
+    ],
+    ["spaces/[spaceId]/new", "Registrar movimiento", "/spaces/s1/new", "/spaces/s1/"],
+    ["spaces/[spaceId]/accounts/(list)", "Cuentas", "/spaces/s1/accounts", "/spaces/s1/"],
+    ["spaces/[spaceId]/accounts/new", "Nueva cuenta", "/spaces/s1/accounts/new", "/spaces/s1/accounts"],
+    [
+      "spaces/[spaceId]/accounts/[accountId]/edit",
+      "Editar cuenta",
+      "/spaces/s1/accounts/a1/edit",
+      "/spaces/s1/accounts",
+    ],
+    ["spaces/[spaceId]/categories", "Categorías", "/spaces/s1/categories", "/spaces/s1/"],
+    ["spaces/[spaceId]/members/(list)", "Miembros", "/spaces/s1/members", "/spaces/s1/"],
+    [
+      "spaces/[spaceId]/members/[memberId]/history",
+      "Cargando…",
+      "/spaces/s1/members/m1/history",
+      "/spaces/s1/balances",
+    ],
+    ["spaces/[spaceId]/plans/[planId]/(planner)", "Cargando…", "/spaces/s1/plans/p1", "/spaces/s1/plan"],
+    [
+      "spaces/[spaceId]/plans/[planId]/capacities",
+      es.budgeting.capacity.title,
+      "/spaces/s1/plans/p1/capacities",
+      "/spaces/s1/plans/p1/",
+    ],
+    [
+      "spaces/[spaceId]/plans/[planId]/lines/new",
+      es.budgeting.lineEditor.newTitle,
+      "/spaces/s1/plans/p1/lines/new",
+      "/spaces/s1/plans/p1/",
+    ],
+    [
+      "spaces/[spaceId]/plans/[planId]/lines/[lineId]",
+      "Cargando…",
+      "/spaces/s1/plans/p1/lines/l1",
+      "/spaces/s1/plans/p1/",
+    ],
+    ["settings", "Ajustes", "/settings", "/"],
+    ["spaces/new", es.spaces.new.title, "/spaces/new", "/"],
+  ])(
+    "shows %s with its own header, and a way back that leads from its URL to its parent",
+    async (folder, title, url, parent) => {
+      await show(folder.split("/").join(sep));
+      expect(screen.getByRole("region", { name: "Cargando…" })).toHaveAttribute("aria-busy", "true");
+      expect(screen.getByRole("heading", { level: 1, name: title })).toBeInTheDocument();
+      // The link is relative (a loading boundary gets no params), so it is checked where the browser resolves it.
+      const back = screen.getByRole("link", { name: "Volver" }).getAttribute("href")!;
+      expect(new URL(back, `http://hearth.test${url}`).pathname).toBe(parent);
+    },
+  );
 
   it.each([
     "spaces/[spaceId]/(home)",
