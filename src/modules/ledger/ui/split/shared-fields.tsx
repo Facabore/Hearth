@@ -35,6 +35,10 @@ export interface SharedFieldsProps {
   readonly error?: string | undefined;
   /** Whether the plan's split (HU-E6-08) is asked for and offered; an edit starts from the saved split and has none (P192). */
   readonly defaultSplit?: boolean;
+  /** Issue #171: the division row is folded under Más opciones; who paid stays on screen. */
+  readonly splitHidden?: boolean;
+  /** The division row's id, for the Más opciones toggle's aria-controls. */
+  readonly splitId?: string;
 }
 
 const rowClass =
@@ -42,7 +46,8 @@ const rowClass =
 
 /**
  * HU-E9-06, the SharedExpense artboard: two rows, who paid and how it is split, both opening the split sheet. The
- * plan's default split is preselected until the person picks a method or a participant (P167).
+ * plan's default split is preselected until the person picks a method or a participant (P167). Issue #171: the record
+ * form folds the division row under Más opciones (`splitHidden`), never who paid.
  */
 export function SharedFields({
   context,
@@ -58,6 +63,8 @@ export function SharedFields({
   api,
   error,
   defaultSplit: offerPlan = true,
+  splitHidden = false,
+  splitId,
 }: SharedFieldsProps) {
   const t = useTranslations("ledger.split");
   const names = useTranslations("members");
@@ -139,7 +146,7 @@ export function SharedFields({
           <span className="font-medium text-ink">{paid}</span>
           <Icon name="chevronRight" size={20} />
         </button>
-        <div className="flex flex-col gap-1">
+        <div id={splitId} hidden={splitHidden} className="flex flex-col gap-1">
           <button
             type="button"
             onClick={show}

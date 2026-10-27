@@ -84,11 +84,14 @@ const form = (api: Api, shared = context()) =>
       api={api}
     />,
   );
+// Issue #171: the split is folded under Más opciones until it is opened.
+const openMore = () => userEvent.click(screen.getByRole("button", { name: "Más opciones" }));
 const enter = async (pesos: string) => {
   await userEvent.type(screen.getByLabelText("Monto"), pesos);
   await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
   await userEvent.click(screen.getByRole("radio", { name: "Groceries" }));
   await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
+  await openMore();
 };
 const divisionRow = () => screen.getByRole("button", { name: /División/ });
 // The sheet is a lazily imported chunk: it exists only after the import resolves, so it is awaited, never assumed.

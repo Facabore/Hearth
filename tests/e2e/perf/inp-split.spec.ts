@@ -66,10 +66,10 @@ test("INP stays within budget while editing a split on a 4× slower CPU (rulings
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
   await page.goto(`/spaces/${shared.id}/new`);
   await expect(page.locator("[data-ready='true']")).toBeAttached();
-  for (const digit of ["3", "0", "0", "0", "0", "0"])
-    await page.getByRole("button", { name: digit, exact: true }).click();
+  await page.locator("#record-amount").pressSequentially("300000");
   await page.getByRole("button", { name: /Categoría/ }).click();
   await page.getByRole("radio").first().click();
+  await page.getByRole("button", { name: "Más opciones" }).click();
   await page.getByRole("button", { name: /División/ }).click();
   await page.getByRole("radio", { name: "Porcentaje" }).click();
   await page.getByLabel(/^Valor de Inp/).pressSequentially("40");

@@ -62,7 +62,13 @@ const chooseGroceries = async () => {
   await userEvent.click(screen.getByRole("radio", { name: "Groceries" }));
   await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
 };
+// Issue #171: the split is folded under Más opciones until it is opened; once open it stays open.
+const openMore = async () => {
+  const more = screen.queryByRole("button", { name: "Más opciones" });
+  if (more) await userEvent.click(more);
+};
 const openSheet = async () => {
+  await openMore();
   await userEvent.click(screen.getByRole("button", { name: "Dividir con alguien" }));
   // The sheet is imported lazily on first open: wait for it rather than racing the chunk.
   return screen.findByRole("dialog", { name: "Dividir con alguien" });
@@ -225,6 +231,7 @@ describe("split with someone from Personal (HU-E9-06, ruling P172)", () => {
 
   it("offers the split only on an expense", async () => {
     form(fakeApi({}).api);
+    await openMore();
     expect(screen.getByRole("button", { name: "Dividir con alguien" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("tab", { name: "Ingreso" }));
     expect(screen.queryByRole("button", { name: "Dividir con alguien" })).not.toBeInTheDocument();
