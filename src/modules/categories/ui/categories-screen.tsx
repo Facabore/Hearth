@@ -74,6 +74,8 @@ export function CategoryTree({
   const [addingGroup, setAddingGroup] = useState(false);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [problem, setProblem] = useState<Problem | null>(null);
+  // The category whose restore is in flight: its button waits, so a double tap sends one request.
+  const [restoring, setRestoring] = useState<string | null>(null);
 
   const live = activeTree(tree);
   const shown = groupsForKind(live, kind);
@@ -114,6 +116,7 @@ export function CategoryTree({
 
   const restore = async (category: CategoryDto) => {
     setProblem(null);
+    setRestoring(category.id);
     try {
       const { data, error, response } = await api.POST(
         "/api/v1/spaces/{spaceId}/categories/{categoryId}/restore",
@@ -124,6 +127,7 @@ export function CategoryTree({
     } catch (error) {
       setProblem(problemFrom(error, undefined));
     }
+    setRestoring(null);
   };
 
   return (
@@ -249,6 +253,7 @@ export function CategoryTree({
                     <Button
                       variant="secondary"
                       aria-label={t("archived.restore", { name })}
+                      disabled={restoring === category.id}
                       onClick={() => void restore(category)}
                     >
                       {t("archived.restoreShort")}

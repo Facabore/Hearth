@@ -488,7 +488,7 @@
       "seeAll": "See all",
       "library": "Icon library",
       "search": "Search icon",
-      "noMatch": "There is no icon «{query}»."
+      "noMatch": "There is no icon “{query}”."
     },
     "colorLabel": "Color",
     "color": {

@@ -175,7 +175,7 @@ export const QUICK_SYMBOLS = [
 /** HU-E9-04: the emoji tab's quick choices, the first 11 of the library. */
 export const QUICK_EMOJI = ALL_EMOJI.slice(0, QUICK_COUNT).map(([, value]) => value);
 
-const same = (a: IconChoice, b: IconChoice) =>
+export const isSameIcon = (a: IconChoice, b: IconChoice): boolean =>
   a.kind === "SYMBOL" ? b.kind === "SYMBOL" && a.name === b.name : b.kind === "EMOJI" && a.value === b.value;
 
 /**
@@ -187,11 +187,9 @@ export const quickChoices = (tab: IconTab, current: IconChoice): IconChoice[] =>
     tab === "SYMBOL"
       ? QUICK_SYMBOLS.map((name) => ({ kind: "SYMBOL", name }))
       : QUICK_EMOJI.map((value) => ({ kind: "EMOJI", value }));
-  if (current.kind !== tab || quick.some((choice) => same(choice, current))) return quick;
+  if (current.kind !== tab || quick.some((choice) => isSameIcon(choice, current))) return quick;
   return [current, ...quick.slice(0, QUICK_COUNT - 1)];
 };
-
-export const isSameIcon = same;
 
 /** A stable key for a choice: `SYMBOL:cart` or `EMOJI:🛒`. */
 export const iconKey = (icon: IconChoice): string =>

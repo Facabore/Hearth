@@ -454,6 +454,26 @@ describe("categories screen (HU-E9-04)", () => {
     expect(within(group("Archivadas")).getByText("Groceries")).toBeInTheDocument();
   });
 
+  it("sends one restore for a double tap, and waits while it is in flight", async () => {
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const { requests } = renderTree(household({ archivedAt: "2026-10-20T15:00:00.000Z" }), {
+      routes: {
+        "POST /api/v1/spaces/{spaceId}/categories/{categoryId}/restore": async () => {
+          await held;
+          return jsonResponse(categoryDto({ id: "c-groceries", name: "Groceries" }));
+        },
+      },
+    });
+    const restore = screen.getByRole("button", { name: "Restaurar Groceries" });
+    await userEvent.dblClick(restore);
+    expect(restore).toBeDisabled();
+    release();
+    await waitFor(() => expect(namesIn(group("Food"))).toEqual(["Groceries", "Restaurants"]));
+    expect(requests.filter((r) => r.url.endsWith("/restore"))).toHaveLength(1);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("lands two overlapping answers, the second built on the first", async () => {
     let release = () => {};
     const held = new Promise<void>((resolve) => (release = resolve));
