@@ -18,9 +18,32 @@ import { withTx } from "../detail/tx-href";
 import { initialOf, draftOf } from "./edit-initial";
 import { editBodyOf, ifMatchOf } from "./edit-request";
 
-/** Issue #195: what the kind tabs can turn a movement into; a settlement and a fund contribution keep their kind. */
-const convertibleOf = (space: SpaceDto, tx: TransactionDto): boolean =>
-  space.kind === "PERSONAL" && (tx.type === "EXPENSE" || tx.type === "INCOME" || tx.type === "TRANSFER");
+const contribution = (tx: TransactionDto) => tx.type === "TRANSFER" && tx.payerMemberId !== null;
+
+/**
+ * Issue #195: the kinds the tabs offer. A personal space converts among the three; a shared space with a fund, the
+ * owner's ruling, between an expense and a contribution to the fund (it holds no income or own transfer, D9).
+ */
+const kindsOf = (
+  space: SpaceDto,
+  tx: TransactionDto,
+  shared: SharedExpenseContext | undefined,
+): readonly RecordKind[] | undefined => {
+  if (space.kind === "PERSONAL")
+    return tx.type === "SETTLEMENT" ? undefined : ["EXPENSE", "INCOME", "TRANSFER"];
+  if (!shared || shared.funds.length === 0) return undefined;
+  return tx.type === "EXPENSE" || contribution(tx) ? ["EXPENSE", "TRANSFER"] : undefined;
+};
+
+/** A shared space's transfer is a FUND_CONTRIBUTION: the same fields, with the fund as `fundAccountId`. */
+const conversionBodyOf = (
+  space: SpaceDto,
+  built: { kind: RecordKind; body: Record<string, unknown> },
+): Record<string, unknown> => {
+  if (space.kind === "PERSONAL" || built.kind !== "TRANSFER") return { type: built.kind, ...built.body };
+  const { destinationAccountId, ...rest } = built.body;
+  return { type: "FUND_CONTRIBUTION", ...rest, fundAccountId: destinationAccountId };
+};
 
 /**
  * Rulings P191 and P193: the record form on a transaction. It sends only what changed, with the version it was loaded
@@ -73,6 +96,7 @@ export function EditTransactionForm({
     );
     return built.ok ? built.body : {};
   });
+  const kinds = kindsOf(space, tx, shared);
   // Both ways out lead to the sheet of this transaction, in the place it was opened from.
   const sheet = withTx(origin, tx.id);
 
@@ -107,7 +131,7 @@ export function EditTransactionForm({
             header: { "if-match": ifMatchOf(tx.version) },
           },
           // Ruling P118: the form builds a plain object; the API is the validator of its shape.
-          body: { type: built.kind, ...built.body } as never,
+          body: conversionBodyOf(space, built) as never,
         },
       );
       if (response.ok && data) {
@@ -174,7 +198,7 @@ export function EditTransactionForm({
         initial,
         backHref: sheet,
         onSave,
-        convertible: convertibleOf(space, tx),
+        ...(kinds ? { kinds } : {}),
         problemAction: (problem) =>
           problem.code === "PreconditionFailed" ? (
             <div className="flex flex-col gap-2">

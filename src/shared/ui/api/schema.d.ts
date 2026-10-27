@@ -751,7 +751,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Change an expense, income or transfer into another of the three: the new movement is recorded and the original soft-deleted in one transaction, linked both ways in the audit; send If-Match with the current ETag */
+        /** Change an expense, income, transfer or fund contribution into another of them: the new movement is recorded and the original soft-deleted in one transaction, linked both ways in the audit; send If-Match with the current ETag */
         post: operations["convertTransaction"];
         delete?: never;
         options?: never;
@@ -5497,6 +5497,18 @@ export interface operations {
                     destinationAccountId: string;
                     /** @constant */
                     type: "TRANSFER";
+                } | {
+                    description?: string;
+                    /** Format: date */
+                    date?: string;
+                    occurredAt?: string | null;
+                    timeZone?: string;
+                    amount: components["schemas"]["Money"];
+                    fundAccountId: string;
+                    memberId?: string;
+                    sourceAccountId?: string | null;
+                    /** @constant */
+                    type: "FUND_CONTRIBUTION";
                 };
             };
         };

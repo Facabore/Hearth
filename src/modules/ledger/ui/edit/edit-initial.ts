@@ -5,7 +5,7 @@ import { decimalOf, formatNumber, type Formats } from "@/shared/ui/format/format
 import { nowIn } from "@/shared/ui/time/when";
 import type { RecordDraft, RecordKind } from "../record/record-request";
 import type { When } from "../record/when-label";
-import type { SharedExpenseContext } from "../split/shared-context";
+import { initialSplitDraft, type SharedExpenseContext } from "../split/shared-context";
 import type { Payer, SplitDraft } from "../split/split-request";
 
 /** The record form's starting state when it edits a transaction (ruling P192). */
@@ -69,6 +69,18 @@ const splitOf = (tx: TransactionDto, shared: SharedExpenseContext, formats: Form
   };
 };
 
+/** Issue #195: a contribution switched to an expense starts paid by its payer, from the account it came from. */
+const contributionSplitOf = (tx: TransactionDto, shared: SharedExpenseContext): SplitDraft => {
+  const payer = shared.members.find((m) => m.id === tx.payerMemberId);
+  return {
+    ...initialSplitDraft(shared),
+    payer:
+      payer && payer.userId === null
+        ? { kind: "GUEST", memberId: payer.id }
+        : { kind: "ME", memberId: tx.payerMemberId!, accountId: tx.sourceAccountId },
+  };
+};
+
 export const initialOf = (
   tx: TransactionDto,
   input: {
@@ -105,7 +117,11 @@ export const initialOf = (
           : (tx.payments[0]?.accountId ?? null),
     toAccountId: kind === "TRANSFER" ? tx.destinationAccountId : null,
     when: { date: tx.date, wall },
-    split: sharedExpense ? splitOf(tx, input.shared!, input.formats) : null,
+    split: sharedExpense
+      ? splitOf(tx, input.shared!, input.formats)
+      : kind === "TRANSFER" && tx.payerMemberId !== null && input.shared
+        ? contributionSplitOf(tx, input.shared)
+        : null,
   };
 };
 

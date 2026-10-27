@@ -211,52 +211,6 @@ export const RecordTransferBodySchema = z.object({
 });
 
 /**
- * Issue #195: what an expense, income or transfer becomes, named by `type`, with the body its own record endpoint
- * takes. Every rule of recording it applies, and the original is soft-deleted in the same transaction.
- */
-export const ConvertTransactionBodySchema = z.discriminatedUnion("type", [
-  RecordExpenseFields.extend({ type: z.literal("EXPENSE") }).refine(
-    accountOrPayments,
-    accountOrPaymentsError,
-  ),
-  RecordIncomeBodySchema.extend({ type: z.literal("INCOME") }),
-  RecordTransferBodySchema.extend({ type: z.literal("TRANSFER") }),
-]);
-
-/** A validated conversion body as the use case's target; fails only for impossible dates and unknown currencies. */
-export const conversionFromBody = (
-  body: z.infer<typeof ConvertTransactionBodySchema>,
-): Result<ConversionTarget> => {
-  if (body.type === "EXPENSE") {
-    const { type, ...fields } = body;
-    return map(expenseFromBody(fields), (expense) => ({ type, ...expense }));
-  }
-  const amount = moneyFromDto(body.amount);
-  if (!amount.ok) return amount;
-  const when = whenFromBody(body);
-  if (!when.ok) return when;
-  return ok(
-    body.type === "INCOME"
-      ? {
-          type: body.type,
-          description: body.description,
-          ...when.value,
-          categoryId: body.categoryId,
-          amount: amount.value,
-          accountId: body.accountId,
-        }
-      : {
-          type: body.type,
-          description: body.description,
-          ...when.value,
-          amount: amount.value,
-          sourceAccountId: body.sourceAccountId,
-          destinationAccountId: body.destinationAccountId,
-        },
-  );
-};
-
-/**
  * HU-E4-09: `memberId` defaults to the requester; `sourceAccountId` is the contributor's own account,
  * omitted (or null) only for a guest, who contributes outside the app.
  */
@@ -287,6 +241,58 @@ export const fundContributionFromBody = (
     memberId: body.memberId,
     sourceAccountId: body.sourceAccountId ?? null,
   });
+};
+
+/**
+ * Issue #195: what an expense, income, transfer or fund contribution becomes, named by `type`, with the body its own
+ * record endpoint takes. Every rule of recording it applies, and the original is soft-deleted in the same transaction.
+ * In a shared space a transfer is a FUND_CONTRIBUTION: the payer's money into the shared fund.
+ */
+export const ConvertTransactionBodySchema = z.discriminatedUnion("type", [
+  RecordExpenseFields.extend({ type: z.literal("EXPENSE") }).refine(
+    accountOrPayments,
+    accountOrPaymentsError,
+  ),
+  RecordIncomeBodySchema.extend({ type: z.literal("INCOME") }),
+  RecordTransferBodySchema.extend({ type: z.literal("TRANSFER") }),
+  RecordFundContributionBodySchema.extend({ type: z.literal("FUND_CONTRIBUTION") }),
+]);
+
+/** A validated conversion body as the use case's target; fails only for impossible dates and unknown currencies. */
+export const conversionFromBody = (
+  body: z.infer<typeof ConvertTransactionBodySchema>,
+): Result<ConversionTarget> => {
+  if (body.type === "EXPENSE") {
+    const { type, ...fields } = body;
+    return map(expenseFromBody(fields), (expense) => ({ type, ...expense }));
+  }
+  if (body.type === "FUND_CONTRIBUTION") {
+    const { type, ...fields } = body;
+    return map(fundContributionFromBody(fields), (contribution) => ({ type, ...contribution }));
+  }
+  const amount = moneyFromDto(body.amount);
+  if (!amount.ok) return amount;
+  const when = whenFromBody(body);
+  if (!when.ok) return when;
+  return ok(
+    body.type === "INCOME"
+      ? {
+          type: body.type,
+          description: body.description,
+          ...when.value,
+          categoryId: body.categoryId,
+          amount: amount.value,
+          accountId: body.accountId,
+        }
+      : {
+          type: body.type,
+          description: body.description,
+          ...when.value,
+          amount: amount.value,
+          sourceAccountId: body.sourceAccountId,
+          destinationAccountId: body.destinationAccountId,
+        },
+  );
 };
 
 /** HU-E5-02: `payerMemberId` paid `receivingMemberId`; both accounts are optional and never sent for a guest. */
@@ -801,7 +807,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     post: {
       operationId: "convertTransaction",
       summary:
-        "Change an expense, income or transfer into another of the three: the new movement is recorded and the original soft-deleted in one transaction, linked both ways in the audit; send If-Match with the current ETag",
+        "Change an expense, income, transfer or fund contribution into another of them: the new movement is recorded and the original soft-deleted in one transaction, linked both ways in the audit; send If-Match with the current ETag",
       ...securedByUser,
       requestParams: { path: TransactionPath, header: IfMatchHeader },
       requestBody: { content: jsonContent(ConvertTransactionBodySchema) },

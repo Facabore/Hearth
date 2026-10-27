@@ -87,24 +87,26 @@ function KindTabs({
   value,
   onChange,
   labelOf,
+  kinds = KINDS,
 }: {
   readonly label: string;
   readonly value: RecordKind;
   readonly onChange: (kind: RecordKind) => void;
   readonly labelOf: (kind: RecordKind) => string;
+  readonly kinds?: readonly RecordKind[];
 }) {
   const tabs = useRef(new Map<RecordKind, HTMLButtonElement>());
   const move = (event: KeyboardEvent<HTMLDivElement>) => {
     const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
     if (step === 0) return;
     event.preventDefault();
-    const next = KINDS[(KINDS.indexOf(value) + step + KINDS.length) % KINDS.length]!;
+    const next = kinds[(kinds.indexOf(value) + step + kinds.length) % kinds.length]!;
     onChange(next);
     tabs.current.get(next)?.focus();
   };
   return (
     <div role="tablist" aria-label={label} onKeyDown={move} className="flex rounded-[14px] bg-track p-1">
-      {KINDS.map((k) => (
+      {kinds.map((k) => (
         <button
           key={k}
           ref={(node) => {
@@ -143,8 +145,11 @@ export interface RecordEdit {
   ) => Promise<Problem | null>;
   /** What to offer under a problem shown above the button, such as loading the latest version (P193). */
   readonly problemAction?: (problem: Problem) => ReactNode;
-  /** Issue #195: the kind tabs are offered; saving another kind converts the movement instead of editing it. */
-  readonly convertible?: boolean;
+  /**
+   * Issue #195: the kinds the tabs offer; saving another kind converts the movement instead of editing it. In a shared
+   * space a transfer is a contribution from the recorder's account to the fund (the owner's ruling).
+   */
+  readonly kinds?: readonly RecordKind[];
 }
 
 export interface RecordFormProps {
@@ -222,7 +227,11 @@ export function RecordForm({
   const today = start.date;
 
   const [kind, setKind] = useState<RecordKind>(edit?.initial.kind ?? initialKind);
-  const kindTabs = !edit || edit.convertible === true;
+  const kindTabs = !edit || edit.kinds !== undefined;
+  // Issue #195: a shared space's transfer goes from the recorder's own account into its fund.
+  const fundTransfer = edit !== undefined && shared !== undefined && kind === "TRANSFER";
+  const fromAccounts = fundTransfer ? shared.myAccounts : accounts;
+  const toAccounts = fundTransfer ? shared.funds : accounts;
   // Issue #173: this browser's recent categories for the kind, read after mount so the server render never differs.
   const recentText = useSyncExternalStore(
     noSubscription,
@@ -235,6 +244,11 @@ export function RecordForm({
   const [category, setCategory] = useState<CategoryChoice>(edit?.initial.category ?? null);
   const changeKind = (nextKind: RecordKind) => {
     setKind(nextKind);
+    if (edit && shared && nextKind === "TRANSFER") {
+      // A fund that paid is never the source of a contribution, and only a fund receives one.
+      if (!shared.myAccounts.some((a) => a.id === accountId)) setAccountId(shared.myAccounts[0]?.id ?? null);
+      if (!shared.funds.some((a) => a.id === toAccountId)) setToAccountId(null);
+    }
     // Issue #173: a category the new kind's sheet does not offer goes, so it is never saved unseen.
     const offered =
       nextKind !== "TRANSFER" &&
@@ -288,7 +302,8 @@ export function RecordForm({
     dayBeforeYesterday: t("day.dayBeforeYesterday"),
   };
   const label = whenLabel(when, today, formats, days);
-  const nameOf = (id: string | null) => accounts.find((a) => a.id === id)?.name ?? null;
+  const nameOf = (id: string | null) =>
+    [...accounts, ...(shared?.myAccounts ?? [])].find((a) => a.id === id)?.name ?? null;
   // The typed amount in minor units while it is above zero (the default split refuses 0), whatever else is unbuilt.
   const typed = parseDecimal(amount, formats.numberFormat);
   const minor = typed === null ? null : minorOf(typed, currencyOf(space.currency).exponent);
@@ -500,6 +515,7 @@ export function RecordForm({
               value={kind}
               onChange={changeKind}
               labelOf={(k) => t(`type.${k}`)}
+              {...(edit?.kinds ? { kinds: edit.kinds } : {})}
             />
           ) : (
             <p className="text-sm text-muted">{t("edit.kind", { type: t(`type.${kind}`) })}</p>
@@ -743,7 +759,7 @@ export function RecordForm({
         <AccountPicker
           open={sheet === "account"}
           onOpenChange={(open) => setSheet(open ? "account" : null)}
-          accounts={accounts}
+          accounts={fromAccounts}
           newAccountHref={newAccountHref}
           value={accountId}
           onChoose={(id) => {
@@ -758,7 +774,7 @@ export function RecordForm({
         <AccountPicker
           open={sheet === "toAccount"}
           onOpenChange={(open) => setSheet(open ? "toAccount" : null)}
-          accounts={accounts.filter((a) => a.id !== accountId)}
+          accounts={toAccounts.filter((a) => a.id !== accountId)}
           newAccountHref={newAccountHref}
           value={toAccountId}
           onChoose={(id) => {

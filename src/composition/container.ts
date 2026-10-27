@@ -527,6 +527,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   const recordExpense = createRecordExpense(ledgerDeps);
   const recordIncome = createRecordIncome(ledgerDeps);
   const recordTransfer = createRecordTransfer(ledgerDeps);
+  const recordFundContribution = createRecordFundContribution(ledgerDeps);
   // HU-E4-11 … HU-E4-13: recurrences live in the ledger and record through its own use cases (ruling P21).
   const recurrenceRepository = new DrizzleRecurrenceRepository(tm);
   const recurrenceDeps: RecurrenceDeps = {
@@ -816,7 +817,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       recordExpense,
       recordIncome,
       recordTransfer,
-      recordFundContribution: createRecordFundContribution(ledgerDeps),
+      recordFundContribution,
       recordSettlement: createRecordSettlement(ledgerDeps),
       listTransactions: createListTransactions(ledgerDeps),
       getTransaction: createGetTransaction(ledgerDeps),
@@ -828,6 +829,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         recordExpense,
         recordIncome,
         recordTransfer,
+        recordFundContribution,
       }),
       undoConversion: createUndoConversion(ledgerDeps),
       listAudit: createListAudit(ledgerDeps),

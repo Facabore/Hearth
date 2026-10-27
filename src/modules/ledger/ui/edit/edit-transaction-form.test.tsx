@@ -452,8 +452,77 @@ describe("change a movement's type while editing it (issue #195)", () => {
     expect(requests.map((r) => r.method)).toEqual(["PATCH"]);
   });
 
-  it("keeps the type fixed in a shared space", () => {
-    renderForm(fakeApi({}).api, LIST, { space: householdSpace() });
+  const household = (funds: SharedExpenseContext["funds"]): SharedExpenseContext => ({
+    members: [memberDto({ id: "m-ana", userId: "u-ana" }), memberDto({ id: "m-juan", userId: "u-juan" })],
+    meMemberId: "m-ana",
+    myAccounts: [accountDto({ id: "a-bank", name: "Bancolombia" })],
+    funds,
+  });
+  const fund = accountDto({ id: "a-fund", name: "Household Fund", type: "SHARED_FUND" });
+  const sharedTx = transactionDto({
+    ...tx,
+    shares: [
+      { memberId: "m-ana", amount: cop(42_500), splitMethod: "EQUAL" },
+      { memberId: "m-juan", amount: cop(42_500), splitMethod: "EQUAL" },
+    ],
+  });
+
+  it("in a shared space offers Gasto and Transferencia, a contribution from her account to the fund (the owner's ruling)", async () => {
+    const { api, requests } = fakeApi({ [CONVERT]: () => jsonResponse(transfer, 201) });
+    renderForm(api, LIST, { space: householdSpace(), tx: sharedTx, shared: household([fund]) });
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Gasto", "Transferencia"]);
+    await userEvent.click(screen.getByRole("tab", { name: "Transferencia" }));
+    expect(screen.getByRole("button", { name: /Desde/ })).toHaveTextContent("Bancolombia");
+    await userEvent.click(screen.getByRole("button", { name: /Hacia/ }));
+    const to = screen.getByRole("dialog", { name: "Hacia" });
+    expect(
+      within(to)
+        .getAllByRole("radio")
+        .map((radio) => radio.textContent),
+    ).toEqual([expect.stringContaining("Household Fund")]);
+    await userEvent.click(within(to).getByRole("radio", { name: /Household Fund/ }));
+    await save();
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith(`${LIST}&tx=t-new`));
+    expect(await requests[0]!.json()).toEqual({
+      type: "FUND_CONTRIBUTION",
+      description: "Market",
+      date: "2026-10-31",
+      occurredAt: "2026-10-31T17:30:00.000Z",
+      timeZone: "America/Bogota",
+      amount: { amount: "8500000", currency: "COP" },
+      sourceAccountId: "a-bank",
+      fundAccountId: "a-fund",
+    });
+  });
+
+  it("turns a contribution back into an expense paid by its payer from the account it came from", async () => {
+    const { api, requests } = fakeApi({ [CONVERT]: () => jsonResponse({ ...sharedTx, id: "t-new" }, 201) });
+    const given = transactionDto({
+      ...tx,
+      type: "TRANSFER",
+      categoryId: null,
+      payerMemberId: "m-ana",
+      sourceAccountId: "a-bank",
+      destinationAccountId: "a-fund",
+      payments: [],
+      shares: [],
+    });
+    renderForm(api, LIST, { space: householdSpace(), tx: given, shared: household([fund]) });
+    expect(screen.getByRole("tab", { name: "Transferencia" })).toHaveAttribute("aria-selected", "true");
+    await userEvent.click(screen.getByRole("tab", { name: "Gasto" }));
+    await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
+    await userEvent.click(screen.getByRole("radio", { name: "Groceries" }));
+    await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
+    await save();
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith(`${LIST}&tx=t-new`));
+    expect(await requests[0]!.json()).toMatchObject({
+      type: "EXPENSE",
+      payments: [{ memberId: "m-ana", accountId: "a-bank", amount: { amount: "8500000", currency: "COP" } }],
+    });
+  });
+
+  it("keeps the type fixed in a shared space without a fund", () => {
+    renderForm(fakeApi({}).api, LIST, { space: householdSpace(), tx: sharedTx, shared: household([]) });
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
     expect(screen.getByText("Tipo: Gasto")).toBeInTheDocument();
   });

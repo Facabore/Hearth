@@ -36,7 +36,7 @@ Rationale and rejected alternatives are in [section 6 of the spec](../specs/2026
 | D22 | Category groups and categories carry an icon (a fixed symbol or one emoji) and a color from sixteen palette keys, and subcategories derive their parent's. |
 | D23 | Number, time and date formats and the first weekday are four profile preferences, null meaning "follow the installation rule", never derived from the language. |
 | D24 | A language may have regional variants (`es-CO`, `es-MX`, `es-AR`) that replace only vocabulary from a closed glossary over the neutral base; they never change formats or grammar, and Spanish always uses "tú". Proposed 2026-10-23, delivered by HU-E8-19. |
-| D25 | A movement's type changes by conversion, never by edit: the new expense, income or transfer is recorded through its own use case and the original soft-deleted in one transaction, linked both ways in the audit (`convertedTo`, `convertedFrom`), with an atomic undo; settlements never convert, and only a personal space offers the switch. Issue #195, 2026-10-27. |
+| D25 | A movement's type changes by conversion, never by edit: the new expense, income or transfer is recorded through its own use case and the original soft-deleted in one transaction, linked both ways in the audit (`convertedTo`, `convertedFrom`), with an atomic undo; settlements never convert; a personal space converts among the three, and a shared space between an expense and a contribution to its fund (the owner's ruling). Issue #195, 2026-10-27. |
 
 ## ADRs
 

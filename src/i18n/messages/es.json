@@ -705,8 +705,7 @@
       "delete": "Eliminar",
       "note": {
         "onlyOwner": "Solo {name} puede editarlo, porque el dinero se mueve en su cuenta. Puedes eliminarlo.",
-        "SETTLEMENT": "Un pago entre miembros no se edita: elimínalo y regístralo de nuevo desde Saldos.",
-        "CONTRIBUTION": "Un aporte al fondo no se edita: elimínalo y regístralo de nuevo."
+        "SETTLEMENT": "Un pago entre miembros no se edita: elimínalo y regístralo de nuevo desde Saldos."
       },
       "open": "Ver detalle de {name}"
     },

@@ -16,6 +16,7 @@ import { createDeleteTransaction } from "./delete-transaction";
 import { createListAudit } from "./list-audit";
 import { createListTransactions } from "./list-transactions";
 import { createRecordExpense } from "./record-expense";
+import { createRecordFundContribution } from "./record-fund-contribution";
 import { createRecordIncome } from "./record-income";
 import { createRecordTransfer } from "./record-transfer";
 import { createUndoConversion } from "./undo-conversion";
@@ -29,6 +30,7 @@ const converterOf = (deps: LedgerDeps) =>
     recordExpense: createRecordExpense(deps),
     recordIncome: createRecordIncome(deps),
     recordTransfer: createRecordTransfer(deps),
+    recordFundContribution: createRecordFundContribution(deps),
   });
 
 const setup = (overrides: Partial<LedgerDeps> = {}) => {
@@ -169,6 +171,66 @@ describe("ConvertTransaction (issue #195)", () => {
       codeOf(await convert({ ...asAna, transactionId: market.id, expectedVersion: 1, to: archived })),
     ).toBe("AccountArchived");
     expect(store.rows).toEqual(rows);
+  });
+
+  it("in a shared space, turns an expense into a contribution to the fund and back (the owner's ruling)", async () => {
+    const { deps, store } = householdLedger();
+    const anas = anExpense(date, 6_000_000n, {
+      spaceId: "space-household",
+      categoryId: CATEGORIES.household.id,
+      createdBy: "u-ana",
+    });
+    store.rows.push(anas);
+    const convert = converterOf(deps);
+    const asAnaHere = { spaceId: "space-household", userId: "u-ana" };
+    const contribution = unwrap(
+      await convert({
+        ...asAnaHere,
+        transactionId: anas.id,
+        expectedVersion: 1,
+        to: {
+          type: "FUND_CONTRIBUTION",
+          date,
+          amount: money(6_000_000n),
+          fundAccountId: ACCOUNTS.householdFund.id,
+          sourceAccountId: ACCOUNTS.bancolombia.id,
+        },
+      }),
+    );
+    expect(contribution).toMatchObject({
+      type: "TRANSFER",
+      payerMemberId: "member-ana",
+      sourceAccountId: ACCOUNTS.bancolombia.id,
+      destinationAccountId: ACCOUNTS.householdFund.id,
+    });
+    expect(store.netOf(ACCOUNTS.householdFund.id)).toBe(6_000_000n);
+    const again = {
+      type: "FUND_CONTRIBUTION" as const,
+      date,
+      amount: money(6_000_000n),
+      fundAccountId: ACCOUNTS.householdFund.id,
+    };
+    expect(
+      codeOf(await convert({ ...asAnaHere, transactionId: contribution.id, expectedVersion: 1, to: again })),
+    ).toBe("SameTransactionType");
+    const expense = unwrap(
+      await convert({
+        ...asAnaHere,
+        transactionId: contribution.id,
+        expectedVersion: 1,
+        to: {
+          type: "EXPENSE",
+          date,
+          categoryId: CATEGORIES.household.id,
+          amount: money(6_000_000n),
+          payments: [
+            { memberId: "member-ana", accountId: ACCOUNTS.bancolombia.id, amount: money(6_000_000n) },
+          ],
+        },
+      }),
+    );
+    expect(expense).toMatchObject({ type: "EXPENSE", amount: 6_000_000n });
+    expect(store.rows.filter((t) => t.deletedAt === null).map((t) => t.id)).toEqual([expense.id]);
   });
 
   it("applies the edit role rules in a shared space: a MEMBER converts only their own, a VIEWER none", async () => {

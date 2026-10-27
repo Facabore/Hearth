@@ -246,16 +246,66 @@ describe("convert a movement's type in a personal space (issue #195)", () => {
   });
 });
 
-describe("convert a movement's type in a shared space (issue #195)", () => {
-  it("applies the edit role rules and the record rules, and moves no balance when refused", async () => {
+describe("convert a movement's type in a shared space (issue #195, the owner's ruling)", () => {
+  it("turns Ana's shared expense into her contribution to the fund and back: balances follow, read once", async () => {
+    const h = await household();
+    const fund = await newAccount(h.ana, "Household Fund", 0, "SHARED_FUND");
+    const shared = await paysEqually(h.ana, 100_000, [h.ana.memberId, h.juan.memberId], h.groceries);
+    expect(await balancesOf(h.ana, h.spaceId)).toEqual([
+      [h.ana.memberId, cop(50_000)],
+      [h.juan.memberId, cop(-50_000)],
+    ]);
+    const converted = await convert(h.ana, shared.id, {
+      type: "FUND_CONTRIBUTION",
+      amount: cop(100_000),
+      date,
+      fundAccountId: fund,
+      sourceAccountId: h.ana.account,
+    });
+    expect(converted.status).toBe(201);
+    const contribution = (await converted.json()) as TransactionDto;
+    expect(contribution).toMatchObject({
+      type: "TRANSFER",
+      payerMemberId: h.ana.memberId,
+      sourceAccountId: h.ana.account,
+      destinationAccountId: fund,
+    });
+    expect(await balancesOf(h.ana, h.spaceId)).toEqual([
+      [h.ana.memberId, cop(0)],
+      [h.juan.memberId, cop(0)],
+    ]);
+    expect(await balanceOf(h.ana.personal, h.ana.account)).toEqual(cop(1_900_000));
+    expect(await balanceOf(h.ana, fund)).toEqual(cop(100_000));
+    expect(await spentIn(h.ana, h.spaceId)).toEqual(cop(0));
+    const back = await convert(h.ana, contribution.id, {
+      type: "EXPENSE",
+      amount: cop(100_000),
+      date,
+      categoryId: h.groceries,
+      payments: [{ memberId: h.ana.memberId, accountId: h.ana.account, amount: cop(100_000) }],
+      split: { method: "EQUAL", participants: [{ memberId: h.ana.memberId }, { memberId: h.juan.memberId }] },
+    });
+    expect(back.status).toBe(201);
+    expect(await balancesOf(h.ana, h.spaceId)).toEqual([
+      [h.ana.memberId, cop(50_000)],
+      [h.juan.memberId, cop(-50_000)],
+    ]);
+    expect(await balanceOf(h.ana, fund)).toEqual(cop(0));
+    expect(await spentIn(h.ana, h.spaceId)).toEqual(cop(100_000));
+  });
+
+  it("refuses a MEMBER who did not record it, and an income, which a shared space cannot hold (D9)", async () => {
     const h = await household();
     const fund = await newAccount(h.ana, "Household Fund", 0, "SHARED_FUND");
     const salary = await categoryWithKey(h.ana, "salary");
     const shared = await paysEqually(h.ana, 100_000, [h.ana.memberId, h.juan.memberId], h.groceries);
     const before = await balancesOf(h.ana, h.spaceId);
+    const toContribution = { type: "FUND_CONTRIBUTION", amount: cop(100_000), date, fundAccountId: fund };
+    expect(await answerOf(await convert(h.juan, shared.id, toContribution))).toEqual([
+      403,
+      "InsufficientRole",
+    ]);
     const toIncome = { type: "INCOME", amount: cop(100_000), date, categoryId: salary, accountId: fund };
-    expect(await answerOf(await convert(h.juan, shared.id, toIncome))).toEqual([403, "InsufficientRole"]);
-    // D9: a shared space holds only its fund, which nobody owns; an income needs the person's own account there.
     expect(await answerOf(await convert(h.ana, shared.id, toIncome))).toEqual([422, "AccountNotOwned"]);
     expect(await balancesOf(h.ana, h.spaceId)).toEqual(before);
     expect(await spentIn(h.ana, h.spaceId)).toEqual(cop(100_000));
