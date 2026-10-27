@@ -20,10 +20,16 @@ export async function CalendarContainer({
   readonly spaceId: string;
   readonly days?: string;
 }) {
-  const [me, spaces] = await Promise.all([getMe(), getSpaces()]);
-  const space = spaceOf(spaces, spaceId);
-  if (space.kind !== "PERSONAL") notFound();
-  const flow = await loadCashFlow(await serverApi(), daysOf(days));
+  // A shared space has no calendar: the read waits for that check, never for the person (issue #196).
+  const spaceRead = getSpaces().then((spaces) => {
+    const space = spaceOf(spaces, spaceId);
+    if (space.kind !== "PERSONAL") notFound();
+    return space;
+  });
+  const read = Promise.all([serverApi(), spaceRead]).then(([api]) => loadCashFlow(api, daysOf(days)));
+  void read.catch(() => undefined);
+  const [me, space] = await Promise.all([getMe(), spaceRead]);
+  const flow = await read;
   if (!flow.ok) return <ProblemNotice problem={flow.problem} />;
   return <CashFlowCalendar space={space} flow={flow.data} formats={me!.preferences.effective} />;
 }

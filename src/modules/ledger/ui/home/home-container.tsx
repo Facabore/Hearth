@@ -17,9 +17,25 @@ export async function HomeContainer({
 }) {
   const api = await serverApi();
   const path = { spaceId };
-  const [me, spaces, page, accounts, categories] = await Promise.all([
-    getMe(),
-    getSpaces(),
+  const viewer = Promise.all([getMe(), getSpaces()]);
+  // Issue #196: the detail behind `?tx=` needs only the person and their spaces, so it starts as soon as they answer,
+  // beside the rows, the accounts and the categories.
+  const detailRead = viewer.then(([me, spaces]) => {
+    const space = spaces.find((s) => s.id === spaceId);
+    return transactionId && space
+      ? loadTransactionDetail(api, {
+          spaceId,
+          transactionId,
+          space,
+          meUserId: me!.id,
+          personalSpaceId: spaces.find((s) => s.kind === "PERSONAL")?.id,
+        })
+      : undefined;
+  });
+  // A failed read below returns first and leaves the detail unawaited: never an unhandled rejection.
+  void detailRead.catch(() => undefined);
+  const [[me, spaces], page, accounts, categories] = await Promise.all([
+    viewer,
     loaded(api.GET("/api/v1/spaces/{spaceId}/transactions", { params: { path, query: { limit: 3 } } })),
     loaded(api.GET("/api/v1/spaces/{spaceId}/accounts", { params: { path } })),
     loaded(api.GET("/api/v1/spaces/{spaceId}/categories", { params: { path, query: { archived: "true" } } })),
@@ -28,15 +44,7 @@ export async function HomeContainer({
   for (const result of [page, accounts, categories])
     if (!result.ok) return <ProblemNotice problem={result.problem} />;
   if (!space || !page.ok || !accounts.ok || !categories.ok) return null;
-  const detail = transactionId
-    ? await loadTransactionDetail(api, {
-        spaceId,
-        transactionId,
-        space,
-        meUserId: me!.id,
-        personalSpaceId: spaces.find((s) => s.kind === "PERSONAL")?.id,
-      })
-    : undefined;
+  const detail = await detailRead;
   const context = {
     formats: me!.preferences.effective,
     viewerZone: me!.timezone,

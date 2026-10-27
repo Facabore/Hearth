@@ -76,4 +76,35 @@ describe("the home container and the detail sheet (ruling P189)", () => {
       detail: { tx: null, problem: { code: "TransactionNotFound" } },
     });
   });
+
+  it("asks for the detail as soon as the spaces answer, while the rows are still unanswered (issue #196)", async () => {
+    mocks.getSpaces.mockResolvedValue([spaceDto()]);
+    let release!: () => void;
+    const released = new Promise<void>((resolve) => (release = resolve));
+    const held = Object.fromEntries(
+      Object.entries({
+        ...routes,
+        "GET /api/v1/spaces/{spaceId}/transactions/{transactionId}": () => jsonResponse(octoberPage.items[1]),
+      }).map(([route, respond]) => [
+        route,
+        async () => {
+          await released;
+          return respond();
+        },
+      ]),
+    );
+    const { api, requests } = fakeApi(held);
+    mocks.serverApi.mockResolvedValue(api);
+    const element = HomeContainer({ spaceId: "sp-personal", transactionId: "t-dinner" });
+    await vi.waitFor(() =>
+      expect(paths(requests).sort()).toEqual([
+        "/api/v1/spaces/sp-personal/accounts",
+        "/api/v1/spaces/sp-personal/categories",
+        "/api/v1/spaces/sp-personal/transactions",
+        "/api/v1/spaces/sp-personal/transactions/t-dinner",
+      ]),
+    );
+    release();
+    expect(propsOf(await element)).toMatchObject({ detail: { tx: { id: "t-dinner" } } });
+  });
 });

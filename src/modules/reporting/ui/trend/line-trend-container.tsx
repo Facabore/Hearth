@@ -14,11 +14,18 @@ import { LineTrend } from "./line-trend";
  */
 export const loadLineTrend = async (
   api: Api,
-  input: { spaceId: string; period?: string; periods: 6 | 12; today: string },
+  input: {
+    spaceId: string;
+    period?: string;
+    periods: 6 | 12;
+    /** Today in the person's zone; it names the period only when none is asked for, so it may still be arriving. */
+    today: string | PromiseLike<string>;
+  },
 ): Promise<
   Loaded<{ trend: LineTrendDto; period: PeriodDto; previous: PeriodDto | null; next: PeriodDto | null }>
 > => {
-  const label = await periodLabel(api, input.spaceId, input.period, input.today);
+  // An asked period never waits for the person: only today's period needs their zone (issue #196).
+  const label = await periodLabel(api, input.spaceId, input.period, input.period ? "" : await input.today);
   if (!label.ok) return label;
   const trend = await loaded(
     api.GET("/api/v1/spaces/{spaceId}/reports/trend", {
@@ -46,14 +53,23 @@ export async function LineTrendContainer({
   readonly period?: string;
   readonly periods: 6 | 12;
 }) {
-  const [me, spaces] = await Promise.all([getMe(), getSpaces()]);
-  const space = spaceOf(spaces, spaceId);
-  const result = await loadLineTrend(await serverApi(), {
-    spaceId,
-    period,
-    periods,
-    today: nowIn(serverNow(), me!.timezone).date,
-  });
+  const meRead = getMe();
+  const today = meRead.then((me) => nowIn(serverNow(), me!.timezone).date);
+  // An asked period leaves today unread; a failed read of the person throws below, never as an unhandled rejection.
+  void today.catch(() => undefined);
+  // The reads wait for the space check, never for the person: only today's period needs their zone (issue #196).
+  const spaceRead = getSpaces().then((spaces) => spaceOf(spaces, spaceId));
+  const read = Promise.all([serverApi(), spaceRead]).then(([api]) =>
+    loadLineTrend(api, {
+      spaceId,
+      period,
+      periods,
+      today,
+    }),
+  );
+  void read.catch(() => undefined);
+  const [me, space] = await Promise.all([meRead, spaceRead]);
+  const result = await read;
   if (!result.ok) return <ProblemNotice problem={result.problem} />;
   const { trend, previous, next } = result.data;
   const formats = me!.preferences.effective;

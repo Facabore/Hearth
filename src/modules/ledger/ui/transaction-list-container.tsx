@@ -1,7 +1,13 @@
 import { addDays, type LocalDate } from "@/shared/kernel/local-date";
 import { ProblemNotice } from "@/shared/ui";
 import type { Api } from "@/shared/ui/api/client";
-import type { AccountDto, CategoryGroupDto, PeriodDto, TransactionPageDto } from "@/shared/ui/api/dto";
+import type {
+  AccountDto,
+  CategoryGroupDto,
+  PeriodDto,
+  SpaceDto,
+  TransactionPageDto,
+} from "@/shared/ui/api/dto";
 import { getMe, getSpaces, loaded, serverApi, type Loaded } from "@/shared/ui/api/server";
 import { serverNow } from "@/shared/ui/time/server-now";
 import { nowIn } from "@/shared/ui/time/when";
@@ -12,11 +18,19 @@ export const PAGE_SIZE = 50;
 
 /**
  * The period's first page, the categories and accounts that name its rows (archived ones too: old rows keep their
- * names), and the neighbouring periods, from the day before the start and the day after the end (ruling P130).
+ * names), and the neighbouring periods, from the day before the start and the day after the end (ruling P130). Issue
+ * #196: every read starts at once; the members wait only for `shared`, the neighbours only for the page's period.
  */
 export const loadTransactionList = async (
   api: Api,
-  input: { spaceId: string; period?: string; categoryId?: string; payerMemberId?: string; shared?: boolean },
+  input: {
+    spaceId: string;
+    period?: string;
+    categoryId?: string;
+    payerMemberId?: string;
+    /** Whether the space is shared or direct; it may still be arriving with the person's spaces. */
+    shared?: boolean | PromiseLike<boolean>;
+  },
 ): Promise<
   Loaded<{
     page: TransactionPageDto;
@@ -29,43 +43,52 @@ export const loadTransactionList = async (
   }>
 > => {
   const path = { spaceId: input.spaceId };
-  const [page, categories, accounts, members] = await Promise.all([
-    loaded(
-      api.GET("/api/v1/spaces/{spaceId}/transactions", {
-        params: {
-          path,
-          query: {
-            period: input.period,
-            categoryIds: input.categoryId,
-            payerMemberId: input.payerMemberId,
-            limit: PAGE_SIZE,
-          },
+  const page = loaded(
+    api.GET("/api/v1/spaces/{spaceId}/transactions", {
+      params: {
+        path,
+        query: {
+          period: input.period,
+          categoryIds: input.categoryId,
+          payerMemberId: input.payerMemberId,
+          limit: PAGE_SIZE,
         },
-      }),
-    ),
-    loaded(api.GET("/api/v1/spaces/{spaceId}/categories", { params: { path, query: { archived: "true" } } })),
-    loaded(api.GET("/api/v1/spaces/{spaceId}/accounts", { params: { path, query: { archived: "true" } } })),
-    input.shared ? loaded(api.GET("/api/v1/spaces/{spaceId}/members", { params: { path } })) : null,
-  ]);
-  if (!page.ok) return page;
-  if (!categories.ok) return categories;
-  if (!accounts.ok) return accounts;
-  if (members && !members.ok) return members;
+      },
+    }),
+  );
   const neighbour = async (from: string) => {
     const result = await loaded(
       api.GET("/api/v1/spaces/{spaceId}/periods", { params: { path, query: { from, count: 1 } } }),
     );
     return result.ok ? (result.data.items[0] ?? null) : null;
   };
-  const { startDate, endDate } = page.data.period;
-  const [previous, next] = await Promise.all([
-    neighbour(addDays(startDate as LocalDate, -1)),
-    neighbour(addDays(endDate as LocalDate, 1)),
+  const neighbours = page.then((first) =>
+    first.ok
+      ? Promise.all([
+          neighbour(addDays(first.data.period.startDate as LocalDate, -1)),
+          neighbour(addDays(first.data.period.endDate as LocalDate, 1)),
+        ])
+      : null,
+  );
+  // A failed read below returns first and leaves the neighbours unawaited: never an unhandled rejection.
+  void neighbours.catch(() => undefined);
+  const [first, categories, accounts, members] = await Promise.all([
+    page,
+    loaded(api.GET("/api/v1/spaces/{spaceId}/categories", { params: { path, query: { archived: "true" } } })),
+    loaded(api.GET("/api/v1/spaces/{spaceId}/accounts", { params: { path, query: { archived: "true" } } })),
+    Promise.resolve(input.shared).then((shared) =>
+      shared ? loaded(api.GET("/api/v1/spaces/{spaceId}/members", { params: { path } })) : null,
+    ),
   ]);
+  if (!first.ok) return first;
+  if (!categories.ok) return categories;
+  if (!accounts.ok) return accounts;
+  if (members && !members.ok) return members;
+  const [previous, next] = (await neighbours) ?? [null, null];
   return {
     ok: true,
     data: {
-      page: page.data,
+      page: first.data,
       groups: categories.data.items,
       accounts: accounts.data.items,
       memberNames: members ? Object.fromEntries(members.data.items.map((m) => [m.id, m.displayName])) : {},
@@ -96,13 +119,16 @@ export async function TransactionListContainer({
   /** `?tx=<id>`: the transaction whose detail sheet is open (ruling P189). */
   readonly transactionId?: string;
 }) {
-  const [me, spaces] = await Promise.all([getMe(), getSpaces()]);
-  const space = spaces.find((s) => s.id === spaceId);
-  const shared = (space?.kind ?? "PERSONAL") !== "PERSONAL";
-  const api = await serverApi();
-  const [list, detail] = await Promise.all([
+  // Issue #196: the list's reads start with the person and their spaces; only what needs the space waits for it.
+  const reads = Promise.all([getMe(), getSpaces()]);
+  const spaceOf = (spaces: readonly SpaceDto[]) => spaces.find((s) => s.id === spaceId);
+  const shared = reads.then(([, spaces]) => (spaceOf(spaces)?.kind ?? "PERSONAL") !== "PERSONAL");
+  const list = serverApi().then((api) =>
     loadTransactionList(api, { spaceId, period, categoryId, payerMemberId, shared }),
-    transactionId && space
+  );
+  const details = Promise.all([serverApi(), reads]).then(([api, [me, spaces]]) => {
+    const space = spaceOf(spaces);
+    return transactionId && space
       ? loadTransactionDetail(api, {
           spaceId,
           transactionId,
@@ -110,10 +136,18 @@ export async function TransactionListContainer({
           meUserId: me!.id,
           personalSpaceId: spaces.find((s) => s.kind === "PERSONAL")?.id,
         })
-      : undefined,
-  ]);
-  if (!list.ok) return <ProblemNotice problem={list.problem} />;
-  const { page, groups, accounts, memberNames, previous, next } = list.data;
+      : undefined;
+  });
+  // A failed read of the person or their spaces throws first and leaves these unawaited.
+  void shared.catch(() => undefined);
+  void list.catch(() => undefined);
+  void details.catch(() => undefined);
+  const [me, spaces] = await reads;
+  const space = spaceOf(spaces);
+  const [loadedList, detail] = await Promise.all([list, details]);
+  if (!loadedList.ok) return <ProblemNotice problem={loadedList.problem} />;
+  const { page, groups, accounts, memberNames, previous, next } = loadedList.data;
+  const isShared = (space?.kind ?? "PERSONAL") !== "PERSONAL";
   const context = {
     formats: me!.preferences.effective,
     viewerZone: me!.timezone,
@@ -132,7 +166,7 @@ export async function TransactionListContainer({
       filter={{ period, categoryId, payerMemberId }}
       {...(detail ? { detail } : {})}
       {...(fund ? { notice: { accountName: fund.name, balance: fund.balance } } : {})}
-      {...(shared && space ? { spaceName: space.name } : {})}
+      {...(isShared && space ? { spaceName: space.name } : {})}
       periodPolicy={space?.periodPolicy}
       previous={previous}
       next={next}

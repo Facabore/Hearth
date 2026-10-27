@@ -2095,16 +2095,100 @@ test.describe("a focused control is never hidden by the bottom navigation (WCAG 
 });
 
 test.describe("the last control of a scrolling screen ends above the bottom bar (UX: nothing under the bar)", () => {
-  /** The seeded ids a screen's address takes: the personal space, and the household when the screen asks for one. */
-  type Ids = { readonly spaceId: string; readonly household?: string };
-  const screens = [
+  /**
+   * The seeded ids a screen's address takes: the personal space, the shared space "Casa", and the household when the
+   * screen asks for one.
+   */
+  type Ids = { readonly spaceId: string; readonly sharedId: string; readonly household?: string };
+  const ready = async (page: Page) => {
+    await expect(page.locator("[data-ready='true']")).toBeAttached();
+  };
+  /** The edit route of a transaction the API just recorded (ruling P191). */
+  const editOf = (spaceId: string, transaction: { id: string }) =>
+    `/spaces/${spaceId}/transactions/${transaction.id}/edit`;
+  /** Ruling P191 and #171: an income of the personal space, so its edit form names the account that received it. */
+  const editIncome = async ({ spaceId }: Ids, page: Page) => {
+    const space = `/api/v1/spaces/${spaceId}`;
+    const { items: accounts } = await get(page, `${space}/accounts`);
+    const { items: groups } = await get(page, `${space}/categories`);
+    const salary = groups
+      .flatMap((group: { categories: { id: string; key: string | null }[] }) => group.categories)
+      .find((category: { key: string | null }) => category.key === "salary");
+    const income = await post(
+      page,
+      `${space}/incomes`,
+      {
+        description: "Salario de octubre con la prima y las horas extra del mes",
+        date: "2026-10-30",
+        categoryId: salary.id,
+        amount: { amount: BIG_EXPENSE, currency: "COP" },
+        accountId: bancolombiaIn(accounts),
+      },
+      { "idempotency-key": crypto.randomUUID() },
+    );
+    return editOf(spaceId, income);
+  };
+  /**
+   * Ruling P191 and #171: a shared expense of "Casa" split with a guest whose name is as long as a real one, paid from
+   * the person's own account. Its edit form names who paid and starts with the division open: its tallest context.
+   */
+  const editSharedSplit = async ({ spaceId, sharedId }: Ids, page: Page) => {
+    const space = `/api/v1/spaces/${sharedId}`;
+    const { items: accounts } = await get(page, `/api/v1/spaces/${spaceId}/accounts`);
+    const guest = await post(page, `${space}/guests`, { displayName: HISTORY_GUEST });
+    const { items: members } = await get(page, `${space}/members`);
+    const owner = members.find((m: { kind: string }) => m.kind === "USER");
+    const { items: groups } = await get(page, `${space}/categories`);
+    const categoryId: string = groups.flatMap((g: { categories: { id: string }[] }) => g.categories)[0].id;
+    const amount = { amount: BIG_EXPENSE, currency: "COP" };
+    const expense = await post(
+      page,
+      `${space}/expenses`,
+      {
+        description: "Mercado semanal en la plaza de Paloquemao con frutas verduras y otras cosas",
+        date: "2026-10-30",
+        occurredAt: "2026-10-30T17:00:00.000Z",
+        timeZone: "America/Bogota",
+        categoryId,
+        amount,
+        payments: [{ memberId: owner.id, accountId: bancolombiaIn(accounts), amount }],
+        split: { method: "EQUAL", participants: [{ memberId: owner.id }, { memberId: guest.id }] },
+      },
+      { "idempotency-key": crypto.randomUUID() },
+    );
+    return editOf(sharedId, expense);
+  };
+  const screens: {
+    readonly name: string;
+    readonly household?: boolean;
+    readonly at: (ids: Ids, page: Page) => string | Promise<string>;
+    readonly prepare: (page: Page) => Promise<void>;
+    readonly submit: string;
+  }[] = [
     {
       name: "record form",
       at: ({ spaceId }: Ids) => `/spaces/${spaceId}/new`,
-      prepare: async (page: Page) => {
-        await expect(page.locator("[data-ready='true']")).toBeAttached();
-      },
+      prepare: ready,
       submit: es.ledger.form.save.EXPENSE,
+    },
+    // #171 on the edit route (ruling P191): the same compact form, in each context it opens in.
+    {
+      name: "edit form, an expense with a long description, account and amount",
+      at: ({ spaceId }: Ids, page: Page) => editPathOf(page, spaceId),
+      prepare: ready,
+      submit: es.ledger.edit.save,
+    },
+    {
+      name: "edit form, an income",
+      at: editIncome,
+      prepare: ready,
+      submit: es.ledger.edit.save,
+    },
+    {
+      name: "edit form, a shared expense with its split",
+      at: editSharedSplit,
+      prepare: ready,
+      submit: es.ledger.edit.save,
     },
     {
       name: "new account",
@@ -2134,10 +2218,11 @@ test.describe("the last control of a scrolling screen ends above the bottom bar 
         // A phone with a home indicator: the bar grows by the safe area, and so must the room under the page.
         const cdp = await page.context().newCDPSession(page);
         await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { bottom: 34 } });
-        const { spaceId } = await session(page, "bottom-bar");
-        const household =
-          "household" in screen ? await seedAdditions(page, spaceId, test.info().testId) : undefined;
-        await page.goto(screen.at({ spaceId, household }));
+        const { spaceId, sharedId } = await session(page, "bottom-bar");
+        const household = screen.household
+          ? await seedAdditions(page, spaceId, test.info().testId)
+          : undefined;
+        await page.goto(await screen.at({ spaceId, sharedId, ...(household ? { household } : {}) }, page));
         await screen.prepare(page);
         const submit = page.getByRole("button", { name: screen.submit, exact: true });
         await expect(submit).toBeVisible();

@@ -51,8 +51,11 @@ export async function InvitationContainer({
   readonly kind: PreviewKind;
   readonly token: string;
 }) {
-  const [api, me] = await Promise.all([serverApi(), getMe()]);
-  const result = await loadPreview(api, { kind, token });
+  // Issue #196: the preview needs no session, so it never waits for the person.
+  const [result, me] = await Promise.all([
+    serverApi().then((api) => loadPreview(api, { kind, token })),
+    getMe(),
+  ]);
   if (result.kind === "problem") return <ProblemNotice problem={result.problem} />;
   return (
     <InvitationCard

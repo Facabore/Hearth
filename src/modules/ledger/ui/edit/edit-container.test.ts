@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   accountDto,
   categoryDto,
@@ -18,19 +18,26 @@ import {
   type FakeHandler,
 } from "../../../../../tests/support/ui/fake-api";
 
-const session = vi.hoisted(() => ({ spaces: [] as unknown[] }));
+// `spacesAnswer` lets a test hold the spaces back, to see which reads start before they arrive.
+const session = vi.hoisted(() => ({ spaces: [] as unknown[], spacesAnswer: Promise.resolve() }));
 vi.mock("@/shared/ui/api/server", async () => ({
   loaded: async (call: Promise<{ data?: unknown; error?: unknown; response: Response }>) => {
     const { data, error } = await call;
     return error ? { ok: false, problem: { code: "Failed" } } : { ok: true, data };
   },
   getMe: async () => (await import("../../../../../tests/support/ui/dto")).meDto(),
-  getSpaces: async () => session.spaces,
+  getSpaces: async () => {
+    await session.spacesAnswer;
+    return session.spaces;
+  },
   redirectToSignIn: async () => {
     throw new Error("sign in");
   },
 }));
 const { loadEditContext } = await import("./edit-container");
+afterEach(() => {
+  session.spacesAnswer = Promise.resolve();
+});
 
 const TX = "/api/v1/spaces/{spaceId}/transactions/{transactionId}";
 const expense = transactionDto({
@@ -183,5 +190,56 @@ describe("loadEditContext (ruling P191)", () => {
       "GET /api/v1/spaces/{spaceId}/accounts": () => jsonResponse({ items: [] }),
     });
     await expect(loadEditContext(api, input)).rejects.toThrow("sign in");
+  });
+
+  it("starts the shared reads as soon as the spaces answer, without waiting for the other reads (issue #196)", async () => {
+    let answerSpaces!: () => void;
+    session.spacesAnswer = new Promise<void>((resolve) => (answerSpaces = resolve));
+    session.spaces = [spaceDto(), householdSpace({ role: "OWNER" })];
+    let release!: () => void;
+    const released = new Promise<void>((resolve) => (release = resolve));
+    const hold =
+      (respond: FakeHandler): FakeHandler =>
+      async (request, params) => {
+        await released;
+        return respond(request, params);
+      };
+    const { api, requests } = fakeApi({
+      [`GET ${TX}`]: hold(() => jsonResponse(expense)),
+      "GET /api/v1/spaces/{spaceId}/categories": hold(() => jsonResponse({ items: groups })),
+      "GET /api/v1/spaces/{spaceId}/accounts": hold(() =>
+        jsonResponse({ items: [accountDto({ id: "a-old" })] }),
+      ),
+      "GET /api/v1/spaces/{spaceId}/members": hold(() =>
+        jsonResponse({ items: [memberDto({ id: "m-ana" })] }),
+      ),
+    });
+    const paths = () => requests.map((r) => new URL(r.url).pathname).sort();
+
+    const context = loadEditContext(api, { spaceId: "sp-household", transactionId: "t-1" });
+    await vi.waitFor(() =>
+      expect(paths()).toEqual([
+        "/api/v1/spaces/sp-household/accounts",
+        "/api/v1/spaces/sp-household/categories",
+        "/api/v1/spaces/sp-household/transactions/t-1",
+      ]),
+    );
+
+    // Nothing has answered but the spaces: the members and the recorder's own accounts are already asked for.
+    answerSpaces();
+    await vi.waitFor(() =>
+      expect(paths()).toEqual([
+        "/api/v1/spaces/sp-household/accounts",
+        "/api/v1/spaces/sp-household/categories",
+        "/api/v1/spaces/sp-household/members",
+        "/api/v1/spaces/sp-household/transactions/t-1",
+        "/api/v1/spaces/sp-personal/accounts",
+      ]),
+    );
+
+    release();
+    const result = await context;
+    expect(result.ok && result.data?.shared?.meMemberId).toBe("m-ana");
+    expect(requests).toHaveLength(5);
   });
 });

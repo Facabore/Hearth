@@ -12,20 +12,29 @@ import { FundTracking } from "./fund-tracking";
 /** HU-E9-10: the period's fund report, the space's members and the neighbouring periods (ruling P205). */
 export const loadFund = async (
   api: Api,
-  input: { spaceId: string; period?: string; today: string },
+  input: {
+    spaceId: string;
+    period?: string;
+    /** Today in the person's zone; it names the period only when none is asked for, so it may still be arriving. */
+    today: string | PromiseLike<string>;
+  },
 ): Promise<
   Loaded<{ fund: FundTrackingDto; members: MemberDto[]; previous: PeriodDto | null; next: PeriodDto | null }>
 > => {
-  const label = await periodLabel(api, input.spaceId, input.period, input.today);
-  if (!label.ok) return label;
   const path = { path: { spaceId: input.spaceId } };
+  // Issue #196: the members need no period, so they start with its lookup.
+  const membersRead = loaded(api.GET("/api/v1/spaces/{spaceId}/members", { params: path }));
+  void membersRead.catch(() => undefined);
+  // An asked period never waits for the person: only today's period needs their zone (issue #196).
+  const label = await periodLabel(api, input.spaceId, input.period, input.period ? "" : await input.today);
+  if (!label.ok) return label;
   const [fund, members] = await Promise.all([
     loaded(
       api.GET("/api/v1/spaces/{spaceId}/reports/fund-contributions", {
         params: { ...path, query: { period: label.data } },
       }),
     ),
-    loaded(api.GET("/api/v1/spaces/{spaceId}/members", { params: path })),
+    membersRead,
   ]);
   if (!fund.ok) return fund;
   if (!members.ok) return members;
@@ -47,14 +56,22 @@ export async function FundTrackingContainer({
   readonly spaceId: string;
   readonly period?: string;
 }) {
-  const [me, spaces] = await Promise.all([getMe(), getSpaces()]);
-  const space = spaceOf(spaces, spaceId);
-  if (space.kind === "PERSONAL") notFound();
-  const result = await loadFund(await serverApi(), {
-    spaceId,
-    period,
-    today: nowIn(serverNow(), me!.timezone).date,
+  const meRead = getMe();
+  const today = meRead.then((me) => nowIn(serverNow(), me!.timezone).date);
+  // An asked period leaves today unread; a failed read of the person throws below, never as an unhandled rejection.
+  void today.catch(() => undefined);
+  // The personal space has none: the reads wait for that check, never for the person (issue #196).
+  const spaceRead = getSpaces().then((spaces) => {
+    const space = spaceOf(spaces, spaceId);
+    if (space.kind === "PERSONAL") notFound();
+    return space;
   });
+  const read = Promise.all([serverApi(), spaceRead]).then(([api]) =>
+    loadFund(api, { spaceId, period, today }),
+  );
+  void read.catch(() => undefined);
+  const [me, space] = await Promise.all([meRead, spaceRead]);
+  const result = await read;
   if (!result.ok) return <ProblemNotice problem={result.problem} />;
   const { fund, members, previous, next } = result.data;
   const formats = me!.preferences.effective;

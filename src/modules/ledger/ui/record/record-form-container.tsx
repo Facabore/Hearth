@@ -22,14 +22,16 @@ export const loadSharedContext = async (
     readonly spaceId: string;
     readonly meUserId: string;
     readonly personalSpaceId: string;
-    readonly spaceAccounts: readonly AccountDto[];
+    /** The space's own accounts; they only name things, so the reads above never wait for them (issue #196). */
+    readonly spaceAccounts: readonly AccountDto[] | PromiseLike<readonly AccountDto[]>;
   },
 ): Promise<Loaded<SharedExpenseContext | null>> => {
-  const [members, personal] = await Promise.all([
+  const [members, personal, spaceAccounts] = await Promise.all([
     loaded(api.GET("/api/v1/spaces/{spaceId}/members", { params: { path: { spaceId: input.spaceId } } })),
     loaded(
       api.GET("/api/v1/spaces/{spaceId}/accounts", { params: { path: { spaceId: input.personalSpaceId } } }),
     ),
+    input.spaceAccounts,
   ]);
   if (!members.ok) return members;
   if (!personal.ok) return personal;
@@ -38,7 +40,7 @@ export const loadSharedContext = async (
     data: sharedContextOf({
       meUserId: input.meUserId,
       members: members.data.items,
-      spaceAccounts: input.spaceAccounts,
+      spaceAccounts,
       personalAccounts: personal.data.items,
     }),
   };
@@ -99,31 +101,47 @@ export async function RecordFormContainer({
 }) {
   const api = await serverApi();
   const path = { spaceId };
-  const [me, spaces, accounts, categories] = await Promise.all([
-    getMe(),
-    getSpaces(),
-    loaded(api.GET("/api/v1/spaces/{spaceId}/accounts", { params: { path } })),
+  const viewer = Promise.all([getMe(), getSpaces()]);
+  const accountsRead = loaded(api.GET("/api/v1/spaces/{spaceId}/accounts", { params: { path } }));
+  // Issue #196: what needs only the person and their spaces starts as soon as they answer, beside the accounts and the
+  // categories: the line watch (it never fails the form, P236), and the shared context or the people to split with.
+  const found = viewer.then(([me, spaces]) => {
+    const space = spaces.find((s) => s.id === spaceId);
+    return space ? { me: me!, spaces, space } : null;
+  });
+  const watch = found.then((f) =>
+    f ? loadLineWatch(api, { spaceId, today: nowIn(serverNow(), f.me.timezone).date }) : null,
+  );
+  const sharedRead = found.then((f) =>
+    f && f.space.kind !== "PERSONAL"
+      ? loadSharedContext(api, {
+          spaceId,
+          meUserId: f.me.id,
+          personalSpaceId: personalSpaceOf(f.spaces).id,
+          spaceAccounts: accountsRead.then((accounts) => (accounts.ok ? accounts.data.items : [])),
+        })
+      : undefined,
+  );
+  const peopleRead = found.then((f) =>
+    f && f.space.kind === "PERSONAL" ? loadPeople(api, { meUserId: f.me.id, spaces: f.spaces }) : undefined,
+  );
+  // An early return below leaves these reads unawaited: they must never surface as unhandled rejections.
+  for (const read of [watch, sharedRead, peopleRead]) void read.catch(() => undefined);
+  const [[me, spaces], accounts, categories] = await Promise.all([
+    viewer,
+    accountsRead,
     loaded(api.GET("/api/v1/spaces/{spaceId}/categories", { params: { path } })),
   ]);
   const space = spaces.find((s) => s.id === spaceId) ?? notFound();
   if (!accounts.ok) return <ProblemNotice problem={accounts.problem} />;
   if (!categories.ok) return <ProblemNotice problem={categories.problem} />;
-  // Read while the shared context and the people load; it never fails the form (P236).
-  const watch = loadLineWatch(api, { spaceId, today: nowIn(serverNow(), me!.timezone).date });
-  // An early return below leaves the read unawaited: it must never surface as an unhandled rejection.
-  void watch.catch(() => undefined);
   let shared: SharedExpenseContext | undefined;
-  if (space.kind !== "PERSONAL") {
-    const context = await loadSharedContext(api, {
-      spaceId,
-      meUserId: me!.id,
-      personalSpaceId: personalSpaceOf(spaces).id,
-      spaceAccounts: accounts.data.items,
-    });
+  const context = await sharedRead;
+  if (context) {
     if (!context.ok) return <ProblemNotice problem={context.problem} />;
     shared = context.data ?? notFound();
   }
-  const people = space.kind === "PERSONAL" ? await loadPeople(api, { meUserId: me!.id, spaces }) : undefined;
+  const people = await peopleRead;
   return (
     <RecordForm
       space={space}
