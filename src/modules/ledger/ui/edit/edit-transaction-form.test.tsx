@@ -366,3 +366,95 @@ describe("the edit form is the compact record form (#171)", () => {
     expect(screen.getAllByRole("button").at(-1)).toHaveAccessibleName("Guardar cambios");
   });
 });
+
+describe("change a movement's type while editing it (issue #195)", () => {
+  const CONVERT = "POST /api/v1/spaces/{spaceId}/transactions/{transactionId}/convert";
+  const UNDO = "POST /api/v1/spaces/{spaceId}/transactions/{transactionId}/convert/undo";
+  const transfer = transactionDto({ ...tx, id: "t-new", type: "TRANSFER", version: 1 });
+
+  it("switches an expense to a transfer with its amount, description, time and account, and asks for the second account", async () => {
+    const { api, requests } = fakeApi({ [CONVERT]: () => jsonResponse(transfer, 201) });
+    renderForm(api);
+    expect(screen.getByRole("tab", { name: "Gasto" })).toHaveAttribute("aria-selected", "true");
+    await userEvent.click(screen.getByRole("tab", { name: "Transferencia" }));
+    expect(screen.getByText(/este movimiento cambia a Transferencia/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Monto")).toHaveValue("85.000");
+    expect(screen.getByLabelText("Descripción")).toHaveValue("Market");
+    expect(screen.getByRole("button", { name: /Desde/ })).toHaveTextContent("Bancolombia");
+    expect(screen.getByRole("button", { name: /Hacia/ })).toHaveTextContent("Elegir cuenta");
+    await save();
+    expect(requests).toEqual([]);
+    await userEvent.click(screen.getByRole("button", { name: /Hacia/ }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: "Hacia" })).getByRole("radio", { name: /Visa/ }),
+    );
+    await save();
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith(`${LIST}&tx=t-new`));
+    const [request] = requests;
+    expect(new URL(request!.url).pathname).toBe("/api/v1/spaces/s-1/transactions/t-1/convert");
+    expect(request!.headers.get("if-match")).toBe('"2"');
+    expect(await request!.json()).toEqual({
+      type: "TRANSFER",
+      description: "Market",
+      date: "2026-10-31",
+      occurredAt: "2026-10-31T17:30:00.000Z",
+      timeZone: "America/Bogota",
+      amount: { amount: "8500000", currency: "COP" },
+      sourceAccountId: "a-bank",
+      destinationAccountId: "a-visa",
+    });
+    expect(router.refresh).toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Ahora es una transferencia"));
+  });
+
+  it("undoes the conversion from the toast and shows the original's sheet again", async () => {
+    const { api, requests } = fakeApi({
+      [CONVERT]: () => jsonResponse(transfer, 201),
+      [UNDO]: () => jsonResponse({ ...tx, version: 4 }),
+    });
+    renderForm(api);
+    await userEvent.click(screen.getByRole("tab", { name: "Transferencia" }));
+    await userEvent.click(screen.getByRole("button", { name: /Hacia/ }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: "Hacia" })).getByRole("radio", { name: /Visa/ }),
+    );
+    await save();
+    await userEvent.click(await screen.findByRole("button", { name: "Deshacer" }));
+    await waitFor(() => expect(router.replace).toHaveBeenLastCalledWith(SHEET));
+    expect(new URL(requests[1]!.url).pathname).toBe("/api/v1/spaces/s-1/transactions/t-1/convert/undo");
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Gasto restaurado"));
+  });
+
+  it("shows a refused conversion in the form and stays on it", async () => {
+    const { api } = fakeApi({ [CONVERT]: () => problemResponse(409, "AccountArchived") });
+    renderForm(api);
+    await userEvent.click(screen.getByRole("tab", { name: "Transferencia" }));
+    await userEvent.click(screen.getByRole("button", { name: /Hacia/ }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: "Hacia" })).getByRole("radio", { name: /Visa/ }),
+    );
+    await save();
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it("switching back to the movement's own kind edits it as before, with a PATCH", async () => {
+    const { api, requests } = fakeApi({
+      [PATCH]: () => jsonResponse({ ...tx, amount: cop(95_000), version: 3 }),
+    });
+    renderForm(api);
+    await userEvent.click(screen.getByRole("tab", { name: "Ingreso" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Gasto" }));
+    expect(screen.queryByText(/este movimiento cambia a/)).not.toBeInTheDocument();
+    await retype("95000");
+    await save();
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith(SHEET));
+    expect(requests.map((r) => r.method)).toEqual(["PATCH"]);
+  });
+
+  it("keeps the type fixed in a shared space", () => {
+    renderForm(fakeApi({}).api, LIST, { space: householdSpace() });
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.getByText("Tipo: Gasto")).toBeInTheDocument();
+  });
+});

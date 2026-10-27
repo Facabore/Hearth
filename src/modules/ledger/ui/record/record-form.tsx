@@ -143,6 +143,8 @@ export interface RecordEdit {
   ) => Promise<Problem | null>;
   /** What to offer under a problem shown above the button, such as loading the latest version (P193). */
   readonly problemAction?: (problem: Problem) => ReactNode;
+  /** Issue #195: the kind tabs are offered; saving another kind converts the movement instead of editing it. */
+  readonly convertible?: boolean;
 }
 
 export interface RecordFormProps {
@@ -161,7 +163,8 @@ export interface RecordFormProps {
   /** The people the recorder shares a space with: a personal space's expense can be split with one (P172). */
   readonly people?: readonly Person[];
   readonly api?: Api;
-  /** Edits a transaction instead of recording one: no kind tabs, no split with someone, no plan's split (P192). */
+  /** Edits a transaction instead of recording one: no split with someone, no plan's split (P192), and no kind tabs
+   * unless the movement is convertible (issue #195). */
   readonly edit?: RecordEdit;
   /** #142 (P236): the lines of today's period, by category; no warning without it. */
   readonly lineWatch?: LineWatch | null;
@@ -219,6 +222,7 @@ export function RecordForm({
   const today = start.date;
 
   const [kind, setKind] = useState<RecordKind>(edit?.initial.kind ?? initialKind);
+  const kindTabs = !edit || edit.convertible === true;
   // Issue #173: this browser's recent categories for the kind, read after mount so the server render never differs.
   const recentText = useSyncExternalStore(
     noSubscription,
@@ -490,20 +494,23 @@ export function RecordForm({
         className="flex flex-col gap-3"
       >
         <div>
-          {edit ? (
-            <p className="text-sm text-muted">{t("edit.kind", { type: t(`type.${kind}`) })}</p>
-          ) : (
+          {kindTabs ? (
             <KindTabs
               label={t("form.kind")}
               value={kind}
               onChange={changeKind}
               labelOf={(k) => t(`type.${k}`)}
             />
+          ) : (
+            <p className="text-sm text-muted">{t("edit.kind", { type: t(`type.${kind}`) })}</p>
           )}
+          {edit && kind !== edit.initial.kind ? (
+            <p className="mt-2 text-sm text-muted">{t("edit.convertNote", { type: t(`type.${kind}`) })}</p>
+          ) : null}
           <div
             id={KIND_PANEL}
-            role={edit ? undefined : "tabpanel"}
-            aria-labelledby={edit ? undefined : kindTabId(kind)}
+            role={kindTabs ? "tabpanel" : undefined}
+            aria-labelledby={kindTabs ? kindTabId(kind) : undefined}
             className="mt-3 flex flex-col gap-3"
             tabIndex={-1}
           >
