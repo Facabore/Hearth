@@ -40,39 +40,52 @@ export const isVisitorRoute = (route) => /^\/(sign-in|sign-up|invitations|claims
 /** The Chromium debug port of a run: 9223 for the default server port, shifted with it so parallel runs never meet. */
 export const debugPortFor = (e2ePort) => 9223 + (Number(e2ePort ?? 3100) - 3100);
 
-/**
- * ADR 0005 (amends ADR 0004): Lighthouse's mobile defaults, slow 4G and a 4× slower CPU, applied to the load itself.
- * The simulated default re-times an unthrottled load, and there the stylesheet and the framework chunks arrive together:
- * whether those chunks evaluate before the first frame is a race that swung the same page between 1.8 and 2.5 s.
- */
+/** Lighthouse 13.5.0 with its mobile defaults: slow 4G and a 4× slower CPU, simulated (ADR 0004). */
 export const lighthouseFlags = (port, cookie) => ({
   port,
   output: "json",
   logLevel: "error",
   onlyCategories: ["performance"],
-  throttlingMethod: "devtools",
   extraHeaders: cookie ? { cookie } : {},
 });
 
-/** The medians of one route over RUNS Lighthouse runs. */
+/**
+ * ADR 0005 (amends ADR 0004): LCP is timed with the same slow 4G and 4× slower CPU applied to the load itself. The
+ * simulation re-times an unthrottled load, where the stylesheet and the framework chunks arrive together, so whether
+ * those chunks counted toward LCP was a race that swung the same page between 1.8 and 2.5 s.
+ */
+export const lcpFlags = (port, cookie) => ({
+  ...lighthouseFlags(port, cookie),
+  throttlingMethod: "devtools",
+});
+
+/** One Lighthouse run of `url`, failing closed: a missing audit must never read as "0 KiB of script" or "no LCP". */
+const run = async (url, flags) => {
+  const { lhr } = await lighthouse(url, flags);
+  const requests = lhr.audits["network-requests"]?.details?.items;
+  if (!Array.isArray(requests)) throw new Error(`Lighthouse returned no network-requests audit for ${url}`);
+  if (!lhr.audits["largest-contentful-paint"]?.numericValue)
+    throw new Error(`Lighthouse measured no LCP for ${url}`);
+  return { lhr, requests };
+};
+
+/**
+ * One route: the medians of RUNS simulated runs for CLS, TBT and script, and LCP from one run under applied throttling
+ * (ADR 0005: it varies by about ±50 ms between runs, and each such run takes about 20 s on CI).
+ */
 const measure = async (port, url, cookie) => {
   const runs = [];
-  let lcpElement = null;
   for (let i = 0; i < RUNS; i += 1) {
-    const { lhr } = await lighthouse(url, lighthouseFlags(port, cookie));
-    // Fail closed: a missing audit must never read as "0 KiB of script" or "no LCP problem".
-    const requests = lhr.audits["network-requests"]?.details?.items;
-    if (!Array.isArray(requests)) throw new Error(`Lighthouse returned no network-requests audit for ${url}`);
-    if (!lhr.audits["largest-contentful-paint"]?.numericValue)
-      throw new Error(`Lighthouse measured no LCP for ${url}`);
+    const { lhr, requests } = await run(url, lighthouseFlags(port, cookie));
     const scripts = requests.filter((r) => r.resourceType === "Script");
     runs.push({
-      lcp: Math.round(lhr.audits["largest-contentful-paint"].numericValue),
+      // Issue #182: the simulated LCP, printed for diagnosis and never budgeted (ADR 0005).
+      simulatedLcp: Math.round(lhr.audits["largest-contentful-paint"].numericValue),
       cls: Number((lhr.audits["cumulative-layout-shift"].numericValue ?? 0).toFixed(3)),
       tbt: Math.round(lhr.audits["total-blocking-time"].numericValue ?? 0),
       scriptKb: Math.round(scripts.reduce((sum, r) => sum + (r.transferSize ?? 0), 0) / 1024),
       // Issue #182: the server's share of LCP and the document's size (its inline RSC payload grows it, and every
-      // extra round trip of the applied slow 4G adds about 560 ms), printed for diagnosis and never budgeted.
+      // extra round trip of slow 4G adds about 150 ms simulated), printed for diagnosis and never budgeted.
       ttfb: Math.round(lhr.audits["server-response-time"]?.numericValue ?? 0),
       htmlKb: Math.round(
         requests
@@ -80,15 +93,19 @@ const measure = async (port, url, cookie) => {
           .reduce((sum, r) => sum + (r.transferSize ?? 0), 0) / 1024,
       ),
     });
-    // Issue #182: which element is the LCP (the last run's), for diagnosis only.
-    const node = lhr.audits["lcp-breakdown-insight"]?.details?.items?.find((item) => item.type === "node");
-    lcpElement = node?.nodeLabel ?? node?.snippet ?? lcpElement;
   }
+  const { lhr } = await run(url, lcpFlags(port, cookie));
+  // Issue #182: which element is the LCP, for diagnosis only.
+  const node = lhr.audits["lcp-breakdown-insight"]?.details?.items?.find((item) => item.type === "node");
   return {
+    lcp: Math.round(lhr.audits["largest-contentful-paint"].numericValue),
     ...Object.fromEntries(
-      ["lcp", "cls", "tbt", "scriptKb", "ttfb", "htmlKb"].map((k) => [k, median(runs.map((r) => r[k]))]),
+      ["cls", "tbt", "scriptKb", "simulatedLcp", "ttfb", "htmlKb"].map((k) => [
+        k,
+        median(runs.map((r) => r[k])),
+      ]),
     ),
-    lcpElement,
+    lcpElement: node?.nodeLabel ?? node?.snippet ?? null,
   };
 };
 

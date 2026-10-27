@@ -11,13 +11,21 @@ The race moved the whole app from run to run. With no code change, CI measured `
 
 ## Decision
 
-`tests/performance/lighthouse.mjs` passes `throttlingMethod: "devtools"`: the same slow 4G and 4× slower CPU are applied to the load itself, and LCP is the paint the browser actually reports. The budgets, the five runs, the medians and every metric stay as ADR 0004 sets them. `budgets.test.mjs` pins the flags (`lighthouseFlags`) and how budgets fail. It does not pin the run count.
+LCP is timed with the same slow 4G and 4× slower CPU applied to the load itself (`throttlingMethod: "devtools"`, `lcpFlags` in `tests/performance/lighthouse.mjs`). That run reports the paint the browser actually makes. Each route gets one such run after its five simulated runs. Applied LCP varies by about ±50 ms between runs, and each run takes about 20 s on CI.
 
-Measured locally on the line editor's build: every route measured 1.36 to 1.46 s, a spread of about ±50 ms from run to run, with TBT at 76 to 114 ms.
+CLS, TBT and script stay on the five simulated runs and their medians, exactly as ADR 0004 sets them. The simulated LCP is still printed (`simulatedLcp`) for diagnosis and is never budgeted. Every budget is unchanged. `budgets.test.mjs` pins both sets of flags and how budgets fail. It does not pin the run counts.
+
+The `performance` job's timeout goes from 30 to 45 minutes, because the applied runs add about ten minutes.
+
+Measured locally on the line editor's build, applied LCP was 1.35 to 1.46 s on every route. On CI's first run under applied throttling it was 1286 to 1318 ms.
 
 ## Consequences
 
 - LCP measures what a phone on slow 4G sees: the first paint waits for the document and the stylesheet, not for the script race. A route that blocks its first paint on more bytes or more work still shows it.
-- TBT now measures the runner's own CPU slowed by 4×, so a slower runner raises it. If TBT starts failing with no code change, that is the signal to revisit, never to raise its budget.
-- The script budgets are unchanged. They still guard what the simulation used to penalize: script that every visitor downloads.
-- Rejected: keep the simulation and cut first-frame work route by route (it lowered the line editor locally, P256, but CI still swung the whole app); raise the LCP budget (forbidden by AGENTS.md); more runs (the race is shared by every run of a job).
+- TBT stays simulated. Applying the 4× slower CPU to the runner itself measured `/spaces/:id/plan/trend` at 361 to 525 ms, against 173 to 175 ms simulated. That says more about the runner than about the chart, so moving TBT would change what passes without anyone asking for it.
+- The script budgets are unchanged. They still guard what every visitor downloads.
+- Rejected:
+  - Measuring every metric under applied throttling. It took about 100 s per route, about 52 minutes for 31 routes, and it moved TBT as above.
+  - Keeping the simulation and cutting first-frame work route by route. It lowered the line editor locally (P256), but CI still swung the whole app.
+  - Raising the LCP budget, which AGENTS.md forbids.
+  - More simulated runs, which don't help because every run of a job shares the same runner and the same race.

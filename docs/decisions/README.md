@@ -45,7 +45,7 @@ Rationale and rejected alternatives are in [section 6 of the spec](../specs/2026
 | [0002](../adr/0002-openapi-generator-zod-openapi.md) | Generate OpenAPI 3.1 with zod-openapi. | Accepted (2026-10-12) |
 | [0003](../adr/0003-web-ui-talks-to-the-api-through-a-generated-client.md) | The web UI talks to `/api/v1` only, through a client generated from the snapshot. | Accepted (2026-10-20) |
 | [0004](../adr/0004-web-ui-testing-and-performance-gates.md) | Test the web UI with Vitest, Playwright and axe, and gate it on Core Web Vitals. | Accepted (2026-10-20) |
-| [0005](../adr/0005-measure-lcp-under-applied-throttling.md) | Measure LCP under applied throttling (`devtools`), not Lighthouse’s simulation; the budgets stay. Amends 0004. | Accepted (2026-10-26) |
+| [0005](../adr/0005-measure-lcp-under-applied-throttling.md) | Time LCP under applied throttling (`devtools`), one run per route; CLS, TBT and script stay on the simulated runs, and every budget stays. Amends 0004. | Accepted (2026-10-26) |
 
 ## Rulings P1–P256
 

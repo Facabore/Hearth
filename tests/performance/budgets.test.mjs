@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import budgets from "./budgets.json" with { type: "json" };
-import { budgetFailures, debugPortFor, isVisitorRoute, lighthouseFlags, routeUrl } from "./lighthouse.mjs";
+import {
+  budgetFailures,
+  debugPortFor,
+  isVisitorRoute,
+  lcpFlags,
+  lighthouseFlags,
+  routeUrl,
+} from "./lighthouse.mjs";
 
 describe("performance budgets (ruling P134)", () => {
   it("names every route and metric over its budget, and passes the ones within", () => {
@@ -61,16 +68,18 @@ describe("performance budgets (ruling P134)", () => {
     ).toEqual([true, true, true, true, false, false]);
   });
 
-  it("measures under applied throttling, so the paint is timed rather than simulated from a race (ADR 0005)", () => {
-    expect(lighthouseFlags(9223, "session=abc")).toEqual({
+  it("times LCP under applied throttling and keeps TBT, CLS and script on the simulated runs (ADR 0005)", () => {
+    const simulated = {
       port: 9223,
       output: "json",
       logLevel: "error",
       onlyCategories: ["performance"],
-      throttlingMethod: "devtools",
       extraHeaders: { cookie: "session=abc" },
-    });
+    };
+    expect(lighthouseFlags(9223, "session=abc")).toEqual(simulated);
+    expect(lcpFlags(9223, "session=abc")).toEqual({ ...simulated, throttlingMethod: "devtools" });
     expect(lighthouseFlags(9223, null).extraHeaders).toEqual({});
+    expect(lcpFlags(9223, null).extraHeaders).toEqual({});
   });
 
   it("gives each parallel run its own Chromium debug port, derived from its server port", () => {
