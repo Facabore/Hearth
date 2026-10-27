@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import budgets from "./budgets.json" with { type: "json" };
-import { budgetFailures, debugPortFor, isVisitorRoute, routeUrl } from "./lighthouse.mjs";
+import { budgetFailures, debugPortFor, isVisitorRoute, lighthouseFlags, routeUrl } from "./lighthouse.mjs";
 
 describe("performance budgets (ruling P134)", () => {
   it("names every route and metric over its budget, and passes the ones within", () => {
@@ -59,6 +59,18 @@ describe("performance budgets (ruling P134)", () => {
         isVisitorRoute,
       ),
     ).toEqual([true, true, true, true, false, false]);
+  });
+
+  it("measures under applied throttling, so the paint is timed rather than simulated from a race (ADR 0005)", () => {
+    expect(lighthouseFlags(9223, "session=abc")).toEqual({
+      port: 9223,
+      output: "json",
+      logLevel: "error",
+      onlyCategories: ["performance"],
+      throttlingMethod: "devtools",
+      extraHeaders: { cookie: "session=abc" },
+    });
+    expect(lighthouseFlags(9223, null).extraHeaders).toEqual({});
   });
 
   it("gives each parallel run its own Chromium debug port, derived from its server port", () => {

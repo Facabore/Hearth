@@ -40,18 +40,26 @@ export const isVisitorRoute = (route) => /^\/(sign-in|sign-up|invitations|claims
 /** The Chromium debug port of a run: 9223 for the default server port, shifted with it so parallel runs never meet. */
 export const debugPortFor = (e2ePort) => 9223 + (Number(e2ePort ?? 3100) - 3100);
 
-/** The medians of one route over RUNS Lighthouse runs (mobile defaults: simulated slow 4G, 4× CPU). */
+/**
+ * ADR 0005 (amends ADR 0004): Lighthouse's mobile defaults, slow 4G and a 4× slower CPU, applied to the load itself.
+ * The simulated default re-times an unthrottled load, and there the stylesheet and the framework chunks arrive together:
+ * whether those chunks evaluate before the first frame is a race that swung the same page between 1.8 and 2.5 s.
+ */
+export const lighthouseFlags = (port, cookie) => ({
+  port,
+  output: "json",
+  logLevel: "error",
+  onlyCategories: ["performance"],
+  throttlingMethod: "devtools",
+  extraHeaders: cookie ? { cookie } : {},
+});
+
+/** The medians of one route over RUNS Lighthouse runs. */
 const measure = async (port, url, cookie) => {
   const runs = [];
   let lcpElement = null;
   for (let i = 0; i < RUNS; i += 1) {
-    const { lhr } = await lighthouse(url, {
-      port,
-      output: "json",
-      logLevel: "error",
-      onlyCategories: ["performance"],
-      extraHeaders: cookie ? { cookie } : {},
-    });
+    const { lhr } = await lighthouse(url, lighthouseFlags(port, cookie));
     // Fail closed: a missing audit must never read as "0 KiB of script" or "no LCP problem".
     const requests = lhr.audits["network-requests"]?.details?.items;
     if (!Array.isArray(requests)) throw new Error(`Lighthouse returned no network-requests audit for ${url}`);
@@ -64,7 +72,7 @@ const measure = async (port, url, cookie) => {
       tbt: Math.round(lhr.audits["total-blocking-time"].numericValue ?? 0),
       scriptKb: Math.round(scripts.reduce((sum, r) => sum + (r.transferSize ?? 0), 0) / 1024),
       // Issue #182: the server's share of LCP and the document's size (its inline RSC payload grows it, and every
-      // extra round trip of simulated slow 4G adds about 150 ms), printed for diagnosis and never budgeted.
+      // extra round trip of slow 4G adds about 150 ms), printed for diagnosis and never budgeted.
       ttfb: Math.round(lhr.audits["server-response-time"]?.numericValue ?? 0),
       htmlKb: Math.round(
         requests
