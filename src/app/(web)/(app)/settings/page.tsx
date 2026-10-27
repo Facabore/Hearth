@@ -23,7 +23,7 @@ export default async function SettingsPage({
   const space = activeSpaceOf(spaces, null, from)!;
   return (
     <AppShellContainer spaceId={null} from={from}>
-      <div className="mx-auto flex max-w-[640px] flex-col gap-6 py-4">
+      <div className="mx-auto flex max-w-[640px] flex-col gap-3 py-3">
         <SettingsContainer backHref={spaceHomeHref(spaces, from)} />
         {/* Keyed by the space: another `?from=` starts the field afresh, its own rename's refresh does not. */}
         <SpaceNameSection key={space.id} space={space} />

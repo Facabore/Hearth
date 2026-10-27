@@ -45,9 +45,9 @@ export function TransactionList({
   const days = groupByDay(page.items, today);
   const listHref = hrefOf(spaceId, filter);
   return (
-    <div className="flex flex-col gap-5 py-4">
+    <div className="flex flex-col gap-3 py-3">
       <header className="flex flex-col gap-0.5">
-        <h1 className="text-2xl font-semibold text-ink">{t("list.title")}</h1>
+        <h1 className="text-[17px] leading-tight font-semibold text-ink">{t("list.title")}</h1>
         {spaceName ? <p className="text-sm text-muted [overflow-wrap:anywhere]">{spaceName}</p> : null}
       </header>
       {notice ? (
@@ -69,7 +69,7 @@ export function TransactionList({
         formats={context.formats}
         memberNames={context.memberNames}
       />
-      <section aria-label={t("list.totals")} className="rounded-2xl bg-surface p-4 text-ink">
+      <section aria-label={t("list.totals")} className="rounded-2xl bg-surface p-3 text-ink">
         {t("list.expenses", { amount: formatMoney(page.totals.expenses, context.formats) })} ·{" "}
         {t("list.income", { amount: formatMoney(page.totals.income, context.formats) })}
       </section>
@@ -79,7 +79,7 @@ export function TransactionList({
           <h2 id={`day-${day.date}`} className="mb-1 text-sm font-semibold text-muted">
             {day.relative ? t(`day.${day.relative}`) : formatDate(day.date, context.formats)}
           </h2>
-          <ol className="divide-y divide-line rounded-2xl bg-surface px-4">
+          <ol className="divide-y divide-line rounded-2xl bg-surface px-3">
             {day.items.map((tx) => (
               <TransactionRow key={tx.id} tx={tx} context={context} href={withTx(listHref, tx.id)} />
             ))}

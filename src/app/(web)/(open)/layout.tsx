@@ -11,7 +11,7 @@ import { Logo } from "@/shared/ui";
 export default async function OpenLayout({ children }: { readonly children: ReactNode }) {
   const locale = (await getLocale()) as Locale;
   return (
-    <main className="mx-auto max-w-[420px] px-4 pt-4 pb-6">
+    <main className="mx-auto max-w-[420px] px-4 pt-3 pb-4 max-[359px]:px-3">
       <div className="mb-8 flex items-center justify-between">
         <Logo />
         <LanguageToggle locale={locale} />

@@ -106,9 +106,12 @@ export function SettingsForm({
   );
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3">
       {/* Issue #176: on a long screen Volver stays reachable; the page's own background hides what scrolls under it. */}
-      <div data-sticky-header className="sticky top-0 z-[5] -mx-4 bg-bg px-4">
+      <div
+        data-sticky-header
+        className="sticky top-0 z-[5] -mx-4 bg-bg px-4 max-[359px]:-mx-3 max-[359px]:px-3"
+      >
         <ScreenHeader backHref={backHref} title={t("title")} />
       </div>
       {/* Issue #176: theme and language, the most changed, come first. */}
@@ -121,7 +124,7 @@ export function SettingsForm({
         localeSaved={saved === "locale"}
       />
       <FormatPreview formats={preferences.effective} />
-      <section aria-labelledby="settings-formats" className="flex flex-col gap-5">
+      <section aria-labelledby="settings-formats" className="flex flex-col gap-3">
         <h2 id="settings-formats" className="text-lg font-semibold text-ink">
           {t("formats")}
         </h2>

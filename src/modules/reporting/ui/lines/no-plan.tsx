@@ -22,7 +22,7 @@ export function NoPlan({
   const periodText = usePeriodText();
   return (
     <>
-      <section className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4">
+      <section className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-3">
         <Icon name="calendar" size={24} />
         <h2 className="text-base font-semibold text-ink [overflow-wrap:anywhere]">
           {t("title", { period: periodText(dashboard.period, space.periodPolicy, formats) })}

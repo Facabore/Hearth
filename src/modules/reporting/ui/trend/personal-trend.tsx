@@ -30,7 +30,7 @@ export function PersonalTrend({
   const end = trend.periods.at(-1)?.label;
   const rows = trend.points.map((point, index) => ({ point, name: names[index] ?? point.period })).reverse();
   return (
-    <section className="flex flex-col gap-4">
+    <section className="flex flex-col gap-3">
       <TrendWindow space={space} end={end} periods={periods} />
       <ChartFrame caption={t("trend.personalCaption")}>
         <LazyTrendChart

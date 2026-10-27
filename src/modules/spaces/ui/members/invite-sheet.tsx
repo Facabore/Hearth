@@ -87,7 +87,7 @@ export function InviteSheet({
         </Button>
       }
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         <ChoiceGroup
           label={t("how")}
           value={how}

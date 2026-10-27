@@ -118,12 +118,12 @@ export function SpendingChart({
                 <button
                   type="button"
                   onClick={() => go([...ids, row.id])}
-                  className="flex min-h-[68px] w-full flex-col gap-2 px-3.5 py-3 text-left"
+                  className="flex min-h-row-lg w-full flex-col gap-2 px-3 py-2 text-left"
                 >
                   {content}
                 </button>
               ) : (
-                <div className="flex min-h-[68px] flex-col gap-2 px-3.5 py-3">{content}</div>
+                <div className="flex min-h-row-lg flex-col gap-2 px-3 py-2">{content}</div>
               )}
             </li>
           );

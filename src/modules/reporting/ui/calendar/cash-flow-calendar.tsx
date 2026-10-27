@@ -31,10 +31,12 @@ export function CashFlowCalendar({
   const t = useTranslations("reports");
   const money = (value: Money) => formatMoney(value, formats);
   return (
-    <div className="mx-auto flex w-full max-w-[720px] min-w-0 flex-col gap-3 py-4">
+    <div className="mx-auto flex w-full max-w-[720px] min-w-0 flex-col gap-3 py-3">
       <header className="flex flex-col gap-1">
         <p className="text-sm break-words text-muted">{space.name}</p>
-        <h1 className="text-xl font-semibold">{t("calendar.title", { days: flow.days })}</h1>
+        <h1 className="text-[17px] leading-tight font-semibold">
+          {t("calendar.title", { days: flow.days })}
+        </h1>
       </header>
       <nav aria-label={t("calendar.window")} className="flex gap-2">
         {WINDOWS.map((days) => (
@@ -53,7 +55,7 @@ export function CashFlowCalendar({
       <PlanTabs space={space} view="calendar" />
       <p className="text-sm text-muted">{t("calendar.explain")}</p>
 
-      <section aria-labelledby="flow-summary" className="rounded-xl border border-line bg-surface p-4">
+      <section aria-labelledby="flow-summary" className="rounded-xl border border-line bg-surface p-3">
         <h2 id="flow-summary">
           <VisuallyHidden>{t("calendar.summary")}</VisuallyHidden>
         </h2>
@@ -95,7 +97,7 @@ export function CashFlowCalendar({
               key={date.date}
               aria-labelledby={`flow-${date.date}`}
               data-date={date.date}
-              className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4"
+              className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-3"
             >
               <h2 id={`flow-${date.date}`} className="font-semibold">
                 {formatDate(date.date, formats)}

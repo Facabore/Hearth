@@ -53,7 +53,7 @@ export function SignUpForm({
     });
   };
   return (
-    <form onSubmit={submit} className="flex flex-col gap-5" noValidate>
+    <form onSubmit={submit} className="flex flex-col gap-3" noValidate>
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold text-ink">{t("signUp.title")}</h1>
         <p className="text-muted">{t("signUp.subtitle")}</p>

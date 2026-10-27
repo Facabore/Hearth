@@ -24,6 +24,16 @@
   --danger: #b42318;
   --scrim: rgb(28 33 31 / 0.45);
 
+  /* Density (#171). --space-1..4 equal Tailwind's own 1..4 steps (p-1..p-4, gap-1..gap-4), which the markup uses. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  /* A list row; --row-lg for a two-line row. Interactive targets never go below --control. */
+  --row: 48px;
+  --row-lg: 56px;
+  --control: 44px;
+
   --pal-pine-tint: #e5eeea;
   --pal-pine-ink: #2e5e4e;
   --pal-sage-tint: #e9efe4;
@@ -56,6 +66,13 @@
   --pal-steel-ink: #3c5663;
   --pal-graphite-tint: #ecebe8;
   --pal-graphite-ink: #3e4542;
+}
+
+/* From 1024 px up a fine pointer gets 40 px rows; touch keeps 48 (#171). A row that is itself a target keeps min-h-12. */
+@media (min-width: 1024px) and (pointer: fine) {
+  :root {
+    --row: 40px;
+  }
 }
 
 /* dark palette */
@@ -131,6 +148,16 @@
   --color-danger: var(--danger);
   --color-scrim: var(--scrim);
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --spacing-row: var(--row);
+  --spacing-row-lg: var(--row-lg);
+  --spacing-control: var(--control);
+}
+
+/* Body text sets at 1.35 (#171); headings and figures keep their own leading. */
+@theme {
+  --text-xs--line-height: 1.35;
+  --text-sm--line-height: 1.35;
+  --text-base--line-height: 1.35;
 }
 
 @layer base {
@@ -147,6 +174,7 @@
     background: var(--bg);
     color: var(--ink);
     font-family: var(--font-sans);
+    line-height: 1.35;
   }
   :focus-visible {
     outline: 2px solid var(--accent);

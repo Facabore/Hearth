@@ -78,7 +78,7 @@ export function GroupSheet({
         </Button>
       }
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         <TextField
           id={`${id}-name`}
           label={t("name")}

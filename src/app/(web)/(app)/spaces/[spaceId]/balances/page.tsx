@@ -18,7 +18,7 @@ export default async function BalancesPage({
 }) {
   const { settle } = await searchParams;
   return (
-    <div className="mx-auto max-w-[720px] py-4">
+    <div className="mx-auto max-w-[720px] py-3">
       <BalancesContainer
         spaceId={(await params).spaceId}
         settle={typeof settle === "string" ? settle : undefined}

@@ -112,9 +112,9 @@ export function EditAccountForm({
   );
 
   return (
-    <div className="flex flex-col gap-5 py-4">
+    <div className="flex flex-col gap-3 py-3">
       <ScreenHeader backHref={back} title={t("edit.title")} />
-      <form onSubmit={(event) => void submit(event)} noValidate className="flex flex-col gap-5">
+      <form onSubmit={(event) => void submit(event)} noValidate className="flex flex-col gap-3">
         <p className="text-sm text-muted">{t("edit.type", { type: t(`type.${account.type}`) })}</p>
         <TextField
           id="ea-name"

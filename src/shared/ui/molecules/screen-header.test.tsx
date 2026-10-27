@@ -23,6 +23,14 @@ describe("screen header", () => {
     expect(screen.getByRole("link", { name: "Volver" })).toHaveClass("size-12");
   });
 
+  it("is a compact 48 px header with a 17 px semibold title (#171)", () => {
+    const { container } = renderWithIntl(<ScreenHeader backHref="/" title="Ajustes" />);
+    expect(container.querySelector("header")).toHaveClass("min-h-12");
+    const title = screen.getByRole("heading", { level: 1 });
+    expect(title).toHaveClass("text-[17px]", "font-semibold");
+    expect(title).not.toHaveClass("text-2xl");
+  });
+
   it("lets one very long unbroken title wrap inside the screen instead of widening it", () => {
     renderWithIntl(<ScreenHeader backHref="/" title={"M".repeat(60)} />);
     const title = screen.getByRole("heading", { level: 1 });

@@ -76,7 +76,7 @@ export function DashboardFrame({
         ) : null}
       </header>
       <PlanTabs space={space} view={view} period={period.label} />
-      <div className="flex flex-col gap-4">{children}</div>
+      <div className="flex flex-col gap-3">{children}</div>
     </div>
   );
 }

@@ -24,7 +24,7 @@ export function SavedNotice({
   return (
     <div
       role="status"
-      className="flex items-start gap-3 rounded-2xl border border-owe/30 bg-owe-soft p-4 text-ink"
+      className="flex items-start gap-3 rounded-2xl border border-owe/30 bg-owe-soft p-3 text-ink"
     >
       <span aria-hidden="true" className="mt-0.5 shrink-0 text-owe">
         <Icon name="warning" size={22} />

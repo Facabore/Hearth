@@ -108,7 +108,7 @@ export function Planner({
 
   const heading = (key: string) => `${ids}-${key}`;
   return (
-    <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4 py-4">
+    <div className="mx-auto flex w-full max-w-[720px] flex-col gap-3 py-3">
       <ScreenHeader
         backHref={`/spaces/${space.id}/plan?period=${plan.period.label}`}
         title={t("planner.title", { period: periodText(plan.period, space.periodPolicy, formats) })}
@@ -178,13 +178,9 @@ export function Planner({
         {plan.lines.length === 0 ? (
           <p className="text-sm text-muted">{t("planner.empty")}</p>
         ) : (
-          <ul className="flex flex-col gap-2">
+          <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
             {plan.lines.map((line) => (
-              <li
-                key={line.id}
-                aria-labelledby={heading(line.id)}
-                className="flex items-start gap-2 rounded-xl border border-line bg-surface p-3"
-              >
+              <li key={line.id} aria-labelledby={heading(line.id)} className="flex items-start gap-2 p-3">
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span id={heading(line.id)} className="font-medium [overflow-wrap:anywhere] text-ink">

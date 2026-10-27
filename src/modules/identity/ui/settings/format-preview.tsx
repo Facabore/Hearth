@@ -9,7 +9,7 @@ export function FormatPreview({ formats }: { readonly formats: Formats }) {
       role="status"
       aria-live="polite"
       aria-label={t("preview.label")}
-      className="rounded-2xl bg-accent-soft p-4 text-ink"
+      className="rounded-2xl bg-accent-soft p-3 text-ink"
     >
       <p className="text-sm text-muted">{t("preview.label")}</p>
       <p className="mt-1 text-lg font-semibold">

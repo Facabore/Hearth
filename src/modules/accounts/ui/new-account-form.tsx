@@ -103,9 +103,9 @@ export function NewAccountForm({
   };
 
   return (
-    <div className="flex flex-col gap-5 py-4">
+    <div className="flex flex-col gap-3 py-3">
       <ScreenHeader backHref={`/spaces/${space.id}/accounts`} title={t("newTitle")} />
-      <form onSubmit={(event) => void submit(event)} noValidate className="flex flex-col gap-5">
+      <form onSubmit={(event) => void submit(event)} noValidate className="flex flex-col gap-3">
         <ChoiceGroup
           label={t("field.type")}
           layout="grid"

@@ -71,7 +71,7 @@ export function LoadMore({
               {group.relative ? t(`day.${group.relative}`) : formatDate(group.date, context.formats)}
             </h2>
           )}
-          <ol className="divide-y divide-line rounded-2xl bg-surface px-4">
+          <ol className="divide-y divide-line rounded-2xl bg-surface px-3">
             {group.items.map((tx) => (
               <TransactionRow key={tx.id} tx={tx} context={context} href={withTx(listHref, tx.id)} />
             ))}

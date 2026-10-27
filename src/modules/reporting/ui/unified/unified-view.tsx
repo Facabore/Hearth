@@ -74,14 +74,14 @@ export function UnifiedView({
           {t("byCategory")}
         </h2>
         {largest ? (
-          <ul className="flex flex-col gap-2">
+          <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
             {consumption.categories.map((row, index) => {
               const nameId = `${base}-row-${index}`;
               return (
                 <li
                   key={`${row.key ?? row.category?.id ?? index}`}
                   aria-labelledby={nameId}
-                  className="flex flex-col gap-1.5 rounded-2xl border border-line bg-surface p-3.5"
+                  className="flex flex-col gap-1.5 px-3 py-2.5"
                 >
                   <div className="flex items-baseline justify-between gap-3">
                     <span id={nameId} className="min-w-0 font-semibold [overflow-wrap:anywhere]">

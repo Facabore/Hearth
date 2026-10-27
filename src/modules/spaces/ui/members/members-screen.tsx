@@ -57,7 +57,7 @@ export function MembersScreen({
       : t("policy.SEMI_MONTHLY", { day1: space.periodPolicy.day1, day2: space.periodPolicy.day2 });
 
   return (
-    <div className="flex flex-col gap-4 pb-4">
+    <div className="flex flex-col gap-3 pb-3">
       <div className="flex flex-col">
         <ScreenHeader
           backHref={`/spaces/${space.id}`}
@@ -94,7 +94,7 @@ export function MembersScreen({
         <h2 id="members-count" className="text-sm font-semibold text-muted">
           {t("count", { count: members.length })}
         </h2>
-        <ul className="divide-y divide-line rounded-2xl bg-surface px-4">
+        <ul className="divide-y divide-line rounded-2xl bg-surface px-3">
           {members.map((member) => {
             const role = member.role;
             const editable = controls.changeRoles && role !== null && member.userId !== meUserId;

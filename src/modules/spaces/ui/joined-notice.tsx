@@ -18,7 +18,7 @@ export function JoinedNotice({
   return (
     <div
       role="status"
-      className="flex items-start gap-3 rounded-2xl border border-accent/30 bg-accent-soft p-4 text-ink"
+      className="flex items-start gap-3 rounded-2xl border border-accent/30 bg-accent-soft p-3 text-ink"
     >
       <span aria-hidden="true" className="mt-0.5 shrink-0 text-accent">
         <Icon name="check" size={22} />

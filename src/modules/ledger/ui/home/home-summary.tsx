@@ -51,14 +51,14 @@ export function HomeSummary({
   const accountsNote = useTranslations("accounts");
   const personal = kind === "PERSONAL";
   return (
-    <div className="grid grid-cols-1 gap-6 py-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-3 py-3 lg:grid-cols-2">
       <h1 className="sr-only">{t("title")}</h1>
       {joined ? (
         <div className="lg:col-span-2">
           <JoinedNotice space={joined.space} dismissHref={joined.dismissHref} />
         </div>
       ) : null}
-      <div className="flex min-w-0 flex-col gap-6">
+      <div className="flex min-w-0 flex-col gap-3">
         {kind !== "PERSONAL" ? (
           <div className="flex flex-wrap gap-2">
             <Link href={`/spaces/${spaceId}/members`} className={pill}>
@@ -76,7 +76,7 @@ export function HomeSummary({
         {personal && accounts.length === 0 ? (
           <section
             aria-labelledby="home-first-account"
-            className="flex flex-col items-start gap-3 rounded-2xl bg-surface p-5"
+            className="flex flex-col items-start gap-3 rounded-2xl bg-surface p-3"
           >
             <h2 id="home-first-account" className="text-lg font-semibold text-ink">
               {t("firstAccount.title")}
@@ -91,7 +91,7 @@ export function HomeSummary({
           </section>
         ) : (
           <>
-            <section aria-label={t("summary")} className="rounded-2xl bg-surface p-5">
+            <section aria-label={t("summary")} className="rounded-2xl bg-surface p-3">
               <p className="text-sm text-muted">
                 {name.kind === "month"
                   ? t("spentIn", { month: common(`month.${name.month as 1}`) })
@@ -100,7 +100,7 @@ export function HomeSummary({
                       end: formatDate(name.end, formats),
                     })}
               </p>
-              <p className="text-[clamp(1.75rem,8.5vw,2.5rem)] leading-tight font-semibold [overflow-wrap:anywhere] text-ink">
+              <p className="text-[clamp(1.75rem,8.5vw,2rem)] leading-tight font-semibold [overflow-wrap:anywhere] text-ink">
                 {formatMoney(page.totals.expenses, formats)}
               </p>
               <p className="text-sm text-muted">
@@ -136,7 +136,7 @@ export function HomeSummary({
                   {accounts.map((account) => (
                     <li
                       key={account.id}
-                      className="flex w-[156px] shrink-0 flex-col rounded-2xl bg-surface p-4"
+                      className="flex w-[156px] shrink-0 flex-col rounded-2xl bg-surface p-3"
                     >
                       <span className="text-sm [overflow-wrap:anywhere] text-muted">{account.name}</span>
                       <span className="font-semibold [overflow-wrap:anywhere] text-ink">
@@ -160,9 +160,9 @@ export function HomeSummary({
           </Link>
         </div>
         {page.items.length === 0 ? (
-          <p className="rounded-2xl bg-surface p-4 text-sm text-muted">{t("recentEmpty")}</p>
+          <p className="rounded-2xl bg-surface p-3 text-sm text-muted">{t("recentEmpty")}</p>
         ) : (
-          <ol className="divide-y divide-line rounded-2xl bg-surface px-4">
+          <ol className="divide-y divide-line rounded-2xl bg-surface px-3">
             {page.items.map((tx) => (
               <TransactionRow
                 key={tx.id}

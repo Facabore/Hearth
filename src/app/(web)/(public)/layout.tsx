@@ -28,7 +28,7 @@ export default async function PublicLayout({ children }: { readonly children: Re
   if (signedIn) redirect(nextFromPath((await headers()).get(PATH_HEADER)));
   const locale = (await getLocale()) as Locale;
   return (
-    <main className="mx-auto max-w-[420px] px-4 pt-4 pb-6">
+    <main className="mx-auto max-w-[420px] px-4 pt-3 pb-4 max-[359px]:px-3">
       <div className="mb-8 flex items-center justify-between">
         <Logo />
         <LanguageToggle locale={locale} />

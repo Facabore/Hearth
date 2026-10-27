@@ -65,7 +65,7 @@ function PickerBody({
     close();
   };
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       <TextField
         id="category-search"
         label={t("search")}

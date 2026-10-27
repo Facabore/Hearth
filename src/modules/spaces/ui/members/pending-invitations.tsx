@@ -61,13 +61,13 @@ export function PendingInvitations({
         {t("pending")}
       </h2>
       {problem ? <ProblemNotice problem={problem} /> : null}
-      <ul className="divide-y divide-line rounded-2xl bg-surface px-4">
+      <ul className="divide-y divide-line rounded-2xl bg-surface px-3">
         {invitations.map((invitation) => {
           const role = roles(invitation.role);
           const date = formatDate(localDateIn(new Date(invitation.expiresAt), viewerZone), formats);
           const email = invitation.email;
           return (
-            <li key={invitation.id} className="flex min-h-16 items-center gap-3 py-2">
+            <li key={invitation.id} className="flex min-h-row-lg items-center gap-3 py-1.5">
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate font-medium text-ink">{email ?? t("pendingLinkTitle")}</span>
                 <span className="text-sm text-muted">

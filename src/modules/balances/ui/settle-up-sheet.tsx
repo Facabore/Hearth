@@ -187,7 +187,7 @@ export function SettleUpSheet({
         id="settle-up-form"
         noValidate
         onSubmit={(event) => void submit(event)}
-        className="flex flex-col gap-4"
+        className="flex flex-col gap-3"
       >
         <div className="flex flex-col gap-2">
           <FieldLabel>{t("payer")}</FieldLabel>

@@ -15,7 +15,7 @@ export default async function MembersPage({
 }) {
   const [{ spaceId }, { invite }] = await Promise.all([params, searchParams]);
   return (
-    <div className="mx-auto max-w-[720px] py-4">
+    <div className="mx-auto max-w-[720px] py-3">
       <MembersContainer spaceId={spaceId} openInvite={invite === "1"} />
     </div>
   );
