@@ -185,9 +185,18 @@ describe("recovering and leaving", () => {
 
   it("signs out to the sign-in screen and keeps none of the person's answers", async () => {
     let session = true;
+    // Once signed out, every read answers 401, as the API does: none may send the sign-in screen to itself (P151).
+    const reads = Object.fromEntries(
+      Object.entries(signedIn()).map(([route, handle]) => [
+        route,
+        route.includes("/auth/")
+          ? handle
+          : (((...args) => (session ? handle(...args) : problemResponse(401, "Unauthenticated"))) as FakeHandler),
+      ]),
+    );
     // The profile sheet signs out through the app's own client, like every component inside the SPA.
     const spa = renderSpa("/spaces/sp-personal", {
-      ...signedIn(),
+      ...reads,
       "GET /api/v1/me": () => (session ? jsonResponse(meDto()) : problemResponse(401, "Unauthenticated")),
       "POST /api/v1/auth/sign-out": () => {
         session = false;
@@ -195,9 +204,14 @@ describe("recovering and leaving", () => {
       },
     });
     await userEvent.click(await screen.findByRole("button", { name: "Perfil de Ana" }));
+    const before = spa.requests.length;
     await userEvent.click(await screen.findByRole("button", { name: "Cerrar sesión" }));
     expect(await screen.findByRole("heading", { name: "Hola de nuevo" })).toBeVisible();
     expect(spa.location()).toBe("/sign-in");
     expect(spa.queryClient.getQueryData(queryKeys.spaces)).toBeUndefined();
+    // The refresh after signing out re-reads none of the space's screens: each would only answer 401. The shell may read
+    // its list of spaces once more as it leaves; that 401 lands on the sign-in screen, which stays put (P151).
+    const after = spa.requests.slice(before).map((r) => new URL(r.url).pathname);
+    expect(after.filter((path) => path.startsWith("/api/v1/spaces/"))).toEqual([]);
   });
 });

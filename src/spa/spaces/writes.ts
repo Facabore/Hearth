@@ -29,6 +29,7 @@ const joined = (queryClient: QueryClient, space: SpaceDto) => {
  * - A new space, or one joined from an invitation or a claim (P157), joins the list before the screen lands in it,
  *   so the shell finds it at once; the list is read again.
  * - A renamed space shows its new name everywhere the list does.
+ * - Signing out leaves the cache to the sign-in screen's guard, which drops the person's answers.
  * - A preference changes every format on every screen, and the profile's answer is the whole profile: it replaces the
  *   cached one, so every screen formats again without reading anything.
  */
@@ -55,6 +56,9 @@ export const spaceWrites: WritePlanner = (call) => {
         void queryClient.invalidateQueries({ queryKey: queryKeys.spaces });
       },
     };
+  // Signing out reads nothing again: every read of the person would answer 401. The sign-in screen's guard finds the
+  // person gone and drops their answers (guards.ts).
+  if (call.method === "POST" && call.path === "/api/v1/auth/sign-out") return { accepted: () => undefined };
   if (call.method === "PATCH" && call.path === "/api/v1/me")
     return {
       accepted: (queryClient, data) => queryClient.setQueryData<MeDto | null>(queryKeys.me, data as MeDto),

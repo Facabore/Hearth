@@ -1,5 +1,5 @@
 import createClient, { type Client, type Middleware } from "openapi-fetch";
-import { expiredSignInUrl } from "../navigation/auth-redirect";
+import { expiredSignInUrl, isPublicPath } from "../navigation/auth-redirect";
 import type { paths } from "./schema";
 
 /** Ruling P117: the one client of /api/v1, typed by the generated `paths`. */
@@ -30,11 +30,16 @@ const AUTH_PREFIX = "/api/v1/auth/";
 /**
  * Ruling P151: a 401 from any call outside `/api/v1/auth/*` means the session ended while the page was open, so the
  * browser goes to the sign-in screen and comes back to this page. The auth calls answer their own 401 (wrong
- * credentials) to the form. A half-filled form is lost; that is accepted for M6a.
+ * credentials) to the form. A half-filled form is lost; that is accepted for M6a. On the sign-in and sign-up screens there
+ * is nowhere to come back to: a call left over from the page before them (a sign-out's reads) answering 401 stays put.
  */
 const sessionExpiry = (where: BrowserLocation): Middleware => ({
   onResponse({ request, response }) {
-    if (response.status === 401 && !new URL(request.url).pathname.startsWith(AUTH_PREFIX)) {
+    if (
+      response.status === 401 &&
+      !new URL(request.url).pathname.startsWith(AUTH_PREFIX) &&
+      !isPublicPath(where.pathname)
+    ) {
       where.assign(expiredSignInUrl(where));
     }
   },

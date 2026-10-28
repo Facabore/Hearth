@@ -1,11 +1,11 @@
 /** HU-E9-01: the screens a visitor without a session may open. */
 export const PUBLIC_PATHS = ["/sign-in", "/sign-up"] as const;
 
-const isPublic = (pathname: string) =>
+export const isPublicPath = (pathname: string): boolean =>
   PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}?`));
 
 /**
- * The app's icons (Next's file-based metadata: `src/app/icon.svg`, `apple-icon.png`). Browsers fetch them with no
+ * The app's icons (`src/spa/public/icon.svg`, `apple-icon.png`). Browsers fetch them with no
  * regard for the session, on the sign-in screen first, so they are exact matches that never redirect.
  */
 export const ICON_PATHS = ["/icon.svg", "/apple-icon.png"] as const;
@@ -50,7 +50,7 @@ const reachesApi = (value: string): boolean => {
  */
 export const safeReturnTo = (value: string | null | undefined): string | null =>
   value && value.startsWith("/") && !value.startsWith("//") && ![...value].some(bends)
-    ? isPublic(value.split("?")[0] ?? "") || reachesApi(value)
+    ? isPublicPath(value.split("?")[0] ?? "") || reachesApi(value)
       ? null
       : value
     : null;
@@ -88,7 +88,7 @@ export const redirectFor = (input: {
 }): string | null => {
   if (
     input.hasSession ||
-    isPublic(input.pathname) ||
+    isPublicPath(input.pathname) ||
     isOpenPath(input.pathname) ||
     (ICON_PATHS as readonly string[]).includes(input.pathname)
   )
