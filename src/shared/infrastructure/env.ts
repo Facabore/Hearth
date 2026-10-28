@@ -19,8 +19,8 @@ const EnvSchema = z.object({
   /** Ruling P143: `closed` makes sign-up invite-only (an invitation or claim link token still lets a visitor in). */
   HEARTH_SIGN_UP: z.enum(["open", "closed"]).default("open"),
   /**
-   * Ruling P133, e2e only: fixes the API's clock (and, through serverNow, the server renders') at this instant, so a
-   * scenario's "Given the Clock reads …" holds on both sides. Never set in production: `docker compose` does not pass it.
+   * Ruling P133, e2e only: fixes the API's clock at this instant, so a scenario's "Given the Clock reads …" holds there.
+   * Never set in production: `docker compose` does not pass it.
    */
   HEARTH_E2E_FIXED_NOW: z.iso.datetime({ offset: true }).optional(),
 });
