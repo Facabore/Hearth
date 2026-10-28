@@ -1,0 +1,13 @@
+{
+  "scriptKb": {
+    "shell": 118,
+    "routes/public-layout.tsx": 3,
+    "routes/sign-in.tsx": 9,
+    "routes/sign-up.tsx": 9,
+    "routes/space-shell.tsx": 9,
+    "routes/space-home.tsx": 3,
+    "../shared/ui/molecules/sheet-panel.tsx": 18,
+    "../i18n/messages/es.json": 18,
+    "../i18n/messages/en.json": 17
+  }
+}

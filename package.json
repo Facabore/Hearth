@@ -17,6 +17,7 @@
     "spa:dev": "vite --config vite.spa.config.ts",
     "spa:build": "vite build --config vite.spa.config.ts",
     "spa:preview": "vite preview --config vite.spa.config.ts",
+    "spa:budget": "node scripts/spa-budget.mjs",
     "lint": "eslint .",
     "lint:boundaries": "depcruise src --config .dependency-cruiser.cjs",
     "typecheck": "tsc --noEmit",
@@ -34,7 +35,7 @@
     "test:int": "vitest run --project integration",
     "test:acceptance": "vitest run --project acceptance",
     "test:ops": "vitest run --project operations",
-    "test:e2e": "bddgen && playwright test --project e2e --project a11y",
+    "test:e2e": "bddgen && playwright test --project e2e --project a11y --project spa",
     "perf": "node tests/performance/lighthouse.mjs && playwright test --project perf --workers=1",
     "perf:reports": "vitest run --config vitest.latency.config.ts"
   },

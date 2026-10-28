@@ -35,6 +35,16 @@ The web UI becomes a client-rendered single-page app, and the server leaves the 
 - **Native apps:** a native shell later points the same client at an absolute API origin and uses Better Auth's Bearer plugin, which is already installed. The SPA needs no server of its own.
 - Library versions are pinned in `docs/stack-versions.md` when the first slice lands, following its two-week rule.
 
+## Implementation (slice 1, 2026-10-27)
+
+- **The components move unchanged.** `vite.spa.config.ts` resolves the components' `next/link`, `next/navigation`, `next/dynamic` and `next-intl` imports to small adapters in `src/spa/next/` over TanStack Router, the query cache and use-intl. `refresh()` invalidates every query and runs the guards again. dependency-cruiser keeps `src/spa/` away from `ui/server.ts`, the server-only API reader and `src/app` (rule `spa-is-client-only`).
+- **URLs stay as they are.** The router's base is `/app`; inside it the paths are the Next.js UI's own, so `safeNext`, `safeReturnTo`, `redirectFor` and `activeSpaceOf` (`?from=`) apply unchanged. Search params are read and written as plain strings, a repeated name as a list, like the Next.js pages; TanStack's JSON default would turn `?expired=1` into a number.
+- **Guards.** The root `beforeLoad` is `src/proxy.ts`: `redirectFor` decides which paths need a session. The browser cannot read the HttpOnly session cookie, so the guard asks `/api/v1/me` instead. A cached answer is trusted only when it lets the person through, and a redirect is decided only on a fresh one, so a sign-in or sign-out that just happened is never undone by a stale answer. When the person changes, every cached answer except the profile, sign-up's mode and the catalogs is dropped, so nobody paints from the previous person's data.
+- **Two clients.** Screens use `browserApi` over the router's location, so a session that ends mid-use goes to the app's own sign-in with `expired=1` (P151). The guards' profile read uses a plain client, where a 401 only means signed out.
+- **Texts.** The intl provider waits for the profile, so a signed-in person never sees a frame in the visitor's language, and loads one catalog per language as its own chunk. The catalogs are precompiled like `next.config.ts` does (P134).
+- **Serving.** A `web` image (`FROM caddy`, `Caddyfile.web`) holds the build under `/srv/app`. The edge Caddy, bundled or the host's own, proxies `/app` and `/app/*` to it. One image serves both deployments and the edge configuration stays config only.
+- **Budgets.** `scripts/spa-budget.mjs` gates the gzip size of the shell (the entry and its static imports) and of each lazy chunk against `tests/performance/spa-budgets.json`, about 3 KiB above the first measurement. The shell measured 115.5 KiB, against 158–162 KiB for the Next.js sign-in and home routes.
+
 ## Consequences
 
 - Moving between screens already in the cache costs no network round trip. A screen seen for the first time costs its own API calls only, about 30 to 130 ms each, with no server render on top. Saving updates the screen at once and rolls back with the API's error message if the save is refused.

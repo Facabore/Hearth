@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import { defineBddConfig } from "playwright-bdd";
-import { BASE_URL } from "./tests/e2e/support/base-url";
+import { BASE_URL, E2E_PORT, E2E_SPA_PORT, SPA_BASE_URL } from "./tests/e2e/support/base-url";
 
 const bddDir = defineBddConfig({
   features: "tests/e2e/features/*.feature",
@@ -18,15 +18,25 @@ export default defineConfig({
   reporter: [["list"]],
   globalTeardown: "./tests/e2e/support/global-teardown.ts",
   use: { baseURL: BASE_URL, locale: "es-CO", timezoneId: "America/Bogota", trace: "retain-on-failure" },
-  webServer: {
-    command: "node scripts/e2e-server.mjs",
-    url: `${BASE_URL}/api/v1/health`,
-    // A server already on the port may be another worktree's build: reuse it only when asked (E2E_REUSE=1).
-    reuseExistingServer: process.env.E2E_REUSE === "1",
-    timeout: 180_000,
-    // POSIX: lets scripts/e2e-server.mjs remove its database (Windows always force-kills: see globalTeardown).
-    gracefulShutdown: { signal: "SIGTERM", timeout: 10_000 },
-  },
+  webServer: [
+    {
+      command: "node scripts/e2e-server.mjs",
+      url: `${BASE_URL}/api/v1/health`,
+      // A server already on the port may be another worktree's build: reuse it only when asked (E2E_REUSE=1).
+      reuseExistingServer: process.env.E2E_REUSE === "1",
+      timeout: 180_000,
+      // POSIX: lets scripts/e2e-server.mjs remove its database (Windows always force-kills: see globalTeardown).
+      gracefulShutdown: { signal: "SIGTERM", timeout: 10_000 },
+    },
+    {
+      // ADR 0006 (#199): the SPA's build (`pnpm spa:build`) at /app/, the rest proxied to the server above, like Caddy.
+      command: "pnpm exec vite preview --config vite.spa.config.ts",
+      url: `${SPA_BASE_URL}/app/`,
+      env: { E2E_PORT, E2E_SPA_PORT },
+      reuseExistingServer: process.env.E2E_REUSE === "1",
+      timeout: 60_000,
+    },
+  ],
   projects: [
     { name: "e2e", testDir: bddDir, use: { ...devices["Pixel 7"] } },
     {
@@ -36,5 +46,6 @@ export default defineConfig({
       use: { ...devices["Pixel 7"] },
     },
     { name: "perf", testDir: "tests/e2e/perf", use: { ...devices["Pixel 7"] } },
+    { name: "spa", testDir: "tests/e2e/spa", use: { ...devices["Pixel 7"], baseURL: SPA_BASE_URL } },
   ],
 });

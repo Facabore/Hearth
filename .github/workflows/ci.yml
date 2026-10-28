@@ -76,7 +76,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm build
-      - name: End-to-end scenarios (standalone server, PostgreSQL through the Docker CLI)
+      - run: pnpm spa:build
+      - name: End-to-end scenarios (standalone server, the SPA at /app/, PostgreSQL through the Docker CLI)
         run: pnpm test:e2e
 
   performance:
@@ -90,6 +91,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm build
+      - run: pnpm spa:build
+      - name: The single-page app's chunk budgets (ADR 0006)
+        run: pnpm spa:budget
       - name: Core Web Vitals and script budgets (Lighthouse mobile, INP with web-vitals)
         run: pnpm perf
 
