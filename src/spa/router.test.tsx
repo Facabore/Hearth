@@ -191,7 +191,8 @@ describe("recovering and leaving", () => {
         route,
         route.includes("/auth/")
           ? handle
-          : (((...args) => (session ? handle(...args) : problemResponse(401, "Unauthenticated"))) as FakeHandler),
+          : (((...args) =>
+              session ? handle(...args) : problemResponse(401, "Unauthenticated")) as FakeHandler),
       ]),
     );
     // The profile sheet signs out through the app's own client, like every component inside the SPA.

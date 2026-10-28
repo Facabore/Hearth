@@ -168,6 +168,20 @@ describe("shared spaces in the SPA (slice 4 of #199, ADR 0006)", () => {
     expect(
       await screen.findByRole("button", { name: es.shell.space.current.replace("{name}", "Trip") }),
     ).toBeVisible();
+    // U6: the one-time welcome, on the home of the space joined.
+    expect(await screen.findByText(es.spaces.joined.title.replace("{space}", "Trip"))).toBeVisible();
+  });
+
+  it("lands a person who opened the invitation first thing in the space joined, with every other space", async () => {
+    const { routes } = server();
+    const spa = renderSpa("/invitations/tok-1", routes);
+    // Nothing read the person's spaces yet: the invitation screen is the first one they open.
+    expect(spa.queryClient.getQueryData(["spaces", "list"])).toBeUndefined();
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Aceptar y entrar a Trip" }, { timeout: 5_000 }),
+    );
+    expect(await screen.findByText(es.spaces.joined.title.replace("{space}", "Trip"))).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Algo salió mal" })).toBeNull();
   });
   it("tries an invitation's preview once more when the server fails it (5xx), as it may pass a moment later", async () => {
     const { routes } = server(false);

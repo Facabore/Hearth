@@ -16,10 +16,14 @@ const MEMBERS = new Set([
 ]);
 const ACCEPTS = new Set(["/api/v1/invitations/{token}/accept", "/api/v1/claims/{token}/accept"]);
 
-/** A space someone just joined or created: it joins the person's spaces before the screen lands in it. */
+/**
+ * A space someone just joined or created: it joins the person's cached spaces before the screen lands in it. When none
+ * are cached (an invitation opened first thing), there is no list to add to: the space's screen reads the whole one,
+ * personal space included.
+ */
 const joined = (queryClient: QueryClient, space: SpaceDto) => {
-  queryClient.setQueryData<SpaceDto[]>(queryKeys.spaces, (spaces = []) =>
-    spaces.some((one) => one.id === space.id) ? spaces : [...spaces, space],
+  queryClient.setQueryData<SpaceDto[]>(queryKeys.spaces, (spaces) =>
+    spaces === undefined || spaces.some((one) => one.id === space.id) ? spaces : [...spaces, space],
   );
   void queryClient.invalidateQueries({ queryKey: queryKeys.spaces });
 };
