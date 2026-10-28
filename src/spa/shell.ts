@@ -34,8 +34,9 @@ export const loadShell = async (
   spaceId: string | null,
   from?: string,
 ): Promise<void> => {
-  // A signed-in screen can write: its plans load now, so the first save waits on no download.
-  void appWrites();
+  // A signed-in screen can write: its plans load now, so the first save waits on no download. A chunk that cannot load
+  // (offline, or gone after a release) is no error here: a write without its plans is still sent (`writes.ts`).
+  void appWrites().catch(() => undefined);
   const [me, spaces] = await Promise.all([
     queryClient.ensureQueryData(meQuery(apis.sessionApi)),
     queryClient.ensureQueryData(spacesQuery(apis.api)),

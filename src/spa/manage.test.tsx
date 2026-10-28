@@ -14,7 +14,7 @@ import {
   patchedMe,
   spaceDto,
 } from "../../tests/support/ui/dto";
-import { jsonResponse, type FakeHandler } from "../../tests/support/ui/fake-api";
+import { jsonResponse, problemResponse, type FakeHandler } from "../../tests/support/ui/fake-api";
 import { renderSpa } from "../../tests/support/ui/spa";
 
 const ACCOUNTS = "/spaces/sp-personal/accounts";
@@ -68,8 +68,10 @@ const server = () => {
     },
     "GET /api/v1/auth/sign-up": () => jsonResponse({ signUp: "open" }),
     "GET /api/v1/spaces/{spaceId}/accounts": () => jsonResponse(list()),
-    "GET /api/v1/spaces/{spaceId}/accounts/{accountId}": (_, { accountId }) =>
-      jsonResponse(state.accounts.find((account) => account.id === accountId)),
+    "GET /api/v1/spaces/{spaceId}/accounts/{accountId}": (_, { accountId }) => {
+      const account = state.accounts.find((one) => one.id === accountId);
+      return account ? jsonResponse(account) : problemResponse(404, "AccountNotFound");
+    },
     "POST /api/v1/spaces/{spaceId}/accounts": async (request) => {
       const body = (await request.json()) as { name: string; type: AccountDto["type"] };
       const created = accountDto({ id: "a-new", name: body.name, type: body.type });
@@ -214,5 +216,21 @@ describe("accounts, categories and settings in the SPA (slice 3 of #199, ADR 000
     expect(
       (spa.queryClient.getQueryData<SpaceDto[]>(["spaces", "list"]) ?? []).map((space) => space.name),
     ).toContain("Casa");
+  });
+  it("answers an account that does not exist with the not-found screen, after one read: a 404 is never retried", async () => {
+    const { routes } = server();
+    const spa = renderSpa(`${ACCOUNTS}/a-gone/edit`, routes);
+    expect(await screen.findByRole("heading", { name: es.notFound.title })).toBeVisible();
+    expect(count(spa.requests, "GET", /\/accounts\/a-gone$/)).toBe(1);
+  });
+
+  it("sends a visitor without a session from Settings to sign in, and back there afterwards", async () => {
+    const { routes } = server();
+    const spa = renderSpa("/settings?from=sp-household", {
+      ...routes,
+      "GET /api/v1/me": () => problemResponse(401, "Unauthenticated"),
+    });
+    expect(await screen.findByRole("heading", { name: es.auth.signIn.title })).toBeVisible();
+    expect(spa.location()).toBe(`/sign-in?next=${encodeURIComponent("/settings?from=sp-household")}`);
   });
 });

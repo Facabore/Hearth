@@ -1,14 +1,24 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { RouterProvider, type RouterHistory } from "@tanstack/react-router";
+import { isNotFound, RouterProvider, type RouterHistory } from "@tanstack/react-router";
 import { ApisProvider, spaApis, type SpaApis } from "./api";
 import { registerBrowserApi } from "./next/api-client";
 import { IntlRoot } from "./i18n";
+import { ProblemError } from "./read";
 import { createSpaRouter } from "./router";
 import { appWrites, trackWrites } from "./writes-catalog";
 
-/** ADR 0006: TanStack Query owns server state. A failed read is tried once more before its screen says so. */
+/**
+ * ADR 0006: TanStack Query owns server state. A read the network failed is tried once more before its screen says so;
+ * one the API answered, a 404 or a refusal, would answer the same again, so its screen says so at once.
+ */
 export const createQueryClient = (): QueryClient =>
-  new QueryClient({ defaultOptions: { queries: { retry: 1 } } });
+  new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: (failures, error) => failures < 1 && !isNotFound(error) && !(error instanceof ProblemError),
+      },
+    },
+  });
 
 /**
  * The whole app: its query cache, its two API clients, the router and the texts. `apisFor` builds the clients from the
