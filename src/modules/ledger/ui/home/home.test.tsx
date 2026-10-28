@@ -49,6 +49,24 @@ describe("home (HU-E9-01)", () => {
     );
     expect(await axeViolations(container)).toEqual([]);
   });
+
+  it("lets the keyboard reach and scroll the accounts strip, which overflows sideways with several accounts", async () => {
+    renderWithIntl(
+      <HomeSummary
+        spaceId="sp-personal"
+        policy={{ kind: "MONTHLY", day: 1 }}
+        page={{ ...octoberPage, items: [] }}
+        accounts={["Efectivo", "Bancolombia", "Nequi", "Visa"].map((name, i) =>
+          accountDto({ id: `a-${i}`, name, balance: cop(1) }),
+        )}
+        context={rowContext}
+      />,
+    );
+    const strip = screen.getByRole("list", { name: "Cuentas" });
+    await userEvent.tab();
+    await userEvent.tab();
+    expect(strip).toHaveFocus();
+  });
 });
 
 describe("the home's recent rows open their detail (ruling P189)", () => {

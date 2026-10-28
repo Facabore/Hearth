@@ -132,7 +132,8 @@ export function HomeSummary({
                     {t("allAccountsShort")}
                   </Link>
                 </div>
-                <ul className="flex gap-3 overflow-x-auto pb-1">
+                {/* It scrolls sideways once the accounts outgrow the screen: the keyboard can reach it to scroll. */}
+                <ul aria-labelledby="home-accounts" tabIndex={0} className="flex gap-3 overflow-x-auto pb-1">
                   {accounts.map((account) => (
                     <li
                       key={account.id}
