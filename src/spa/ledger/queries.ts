@@ -140,18 +140,30 @@ const sharedSpace = (space: SpaceDto) => space.kind !== "PERSONAL";
 const when = <T>(yes: boolean, queries: T[]): T[] => (yes ? queries : []);
 
 /**
- * ADR 0006's stale-while-revalidate: a read already in the cache resolves at once and is refreshed in the background,
- * on a visit and on a prefetch on intent alike (a tap reuses the prefetch's load), so the screen paints from the cache
- * and then shows what changed elsewhere; a read not in the cache is waited for.
+ * A route's loader: its router context, and why it runs. TanStack Router says "enter" for a visit, "preload" for a
+ * prefetch on intent, and "stay" when only the address of the screen on display changed (a sheet, a filter).
+ */
+export interface Load extends RouterContext {
+  readonly cause: "enter" | "stay" | "preload";
+}
+
+/**
+ * ADR 0006's stale-while-revalidate: a read already in the cache resolves at once, and arriving at a screen (a visit,
+ * or the prefetch a tap then reuses) refreshes it in the background, so the screen paints from the cache and then
+ * shows what changed elsewhere. Staying on the screen reads only what it is missing: opening a sheet or closing it reads
+ * the list again for nothing. A read not in the cache is waited for.
  */
 const ensurer =
-  ({ queryClient }: RouterContext): QueryClient["ensureQueryData"] =>
+  ({ queryClient, cause }: Load): QueryClient["ensureQueryData"] =>
   (options) =>
-    queryClient.ensureQueryData({ ...options, revalidateIfStale: true });
+    queryClient.ensureQueryData({ ...options, revalidateIfStale: cause !== "stay" });
 
-/** The detail's reads (ruling P189): the transaction, and in a shared space its members and the viewer's own accounts. */
-const loadDetail = async (load: RouterContext, viewer: Viewer, transactionId: string): Promise<void> => {
-  const ensure = ensurer(load);
+/**
+ * The detail's reads (ruling P189): the transaction, and in a shared space its members and the viewer's own accounts.
+ * Opening a row is arriving at it, so its detail is refreshed even when the list under it stays.
+ */
+const loadDetail = async (load: Load, viewer: Viewer, transactionId: string): Promise<void> => {
+  const ensure = ensurer({ ...load, cause: "enter" });
   const { api } = load.apis;
   const shared = sharedSpace(viewer.space);
   await Promise.all([
@@ -165,7 +177,7 @@ const loadDetail = async (load: RouterContext, viewer: Viewer, transactionId: st
  * HU-E9-01's home: its latest rows, the active accounts, every category (old rows keep their names) and the detail
  * behind `?tx=`.
  */
-export const loadHome = async (load: RouterContext, spaceId: string, transactionId?: string) => {
+export const loadHome = async (load: Load, spaceId: string, transactionId?: string) => {
   const ensure = ensurer(load);
   const { api } = load.apis;
   await Promise.all([
@@ -179,12 +191,7 @@ export const loadHome = async (load: RouterContext, spaceId: string, transaction
 };
 
 /** HU-E9-03's list: the page, every category and account, a shared space's members and the neighbouring periods. */
-export const loadList = async (
-  load: RouterContext,
-  spaceId: string,
-  filter: ListFilter,
-  transactionId?: string,
-) => {
+export const loadList = async (load: Load, spaceId: string, filter: ListFilter, transactionId?: string) => {
   const ensure = ensurer(load);
   const { api } = load.apis;
   const viewer = viewerOf(load, spaceId);
@@ -204,7 +211,7 @@ export const loadList = async (
 };
 
 /** HU-E9-06 (P168): a shared or direct space's members and the recorder's own accounts. */
-const loadShared = (load: RouterContext, viewer: Viewer, spaceAccounts: "active" | "all") => {
+const loadShared = (load: Load, viewer: Viewer, spaceAccounts: "active" | "all") => {
   const ensure = ensurer(load);
   const { api } = load.apis;
   return Promise.all([
@@ -215,7 +222,7 @@ const loadShared = (load: RouterContext, viewer: Viewer, spaceAccounts: "active"
 };
 
 /** #142 (P236): today's period and its line dashboard; neither ever fails the form. */
-const loadLineWatch = async (load: RouterContext, viewer: Viewer) => {
+const loadLineWatch = async (load: Load, viewer: Viewer) => {
   const ensure = ensurer(load);
   const { api } = load.apis;
   const today = nowIn(new Date(), viewer.me.timezone).date;
@@ -224,7 +231,7 @@ const loadLineWatch = async (load: RouterContext, viewer: Viewer) => {
 };
 
 /** HU-E9-03's record form: the active accounts and categories, who shares or whom to split with, and the line watch. */
-export const loadRecord = async (load: RouterContext, spaceId: string) => {
+export const loadRecord = async (load: Load, spaceId: string) => {
   const ensure = ensurer(load);
   const { api } = load.apis;
   const viewer = viewerOf(load, spaceId);
@@ -248,7 +255,7 @@ export const loadRecord = async (load: RouterContext, spaceId: string) => {
  * Ruling P191: the edit form's transaction, every account and category, and a shared space's members. A transaction
  * that is gone is not found (N1).
  */
-export const loadEdit = async (load: RouterContext, spaceId: string, transactionId: string) => {
+export const loadEdit = async (load: Load, spaceId: string, transactionId: string) => {
   const ensure = ensurer(load);
   const { api } = load.apis;
   const viewer = viewerOf(load, spaceId);
