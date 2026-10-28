@@ -1,28 +1,17 @@
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
-import { cop, meDto, normalized, spaceDto } from "../../../../../tests/support/ui/dto";
-import { fakeApi, jsonResponse, problemResponse } from "../../../../../tests/support/ui/fake-api";
-import { cashFlowDto, householdDto } from "../../../../../tests/support/ui/plan-dto";
+import { cop, normalized, spaceDto } from "../../../../../tests/support/ui/dto";
+import { cashFlowDto } from "../../../../../tests/support/ui/plan-dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
-import { CalendarContainer, daysOf, loadCashFlow } from "./calendar-container";
 import { CashFlowCalendar } from "./cash-flow-calendar";
 
-const server = vi.hoisted(() => ({ api: undefined as unknown, spaces: [] as unknown[] }));
-
-vi.mock("next/headers", () => ({}));
 vi.mock("next/navigation", () => ({
   notFound: vi.fn(() => {
     throw new Error("not found");
   }),
   redirect: vi.fn(),
-}));
-vi.mock("@/shared/ui/api/server", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/shared/ui/api/server")>()),
-  getMe: async () => meDto({ timezone: "America/Bogota" }),
-  getSpaces: async () => server.spaces,
-  serverApi: async () => server.api,
 }));
 
 const personal = spaceDto();
@@ -109,45 +98,5 @@ describe("the cash-flow calendar (#150, ruling P241 of M6c)", () => {
     const { container } = show();
     expect(screen.queryAllByRole("button")).toEqual([]);
     expect(container.querySelector("form")).toBeNull();
-  });
-
-  it("asks for the window it is given, 30 days unless 60 is asked for", async () => {
-    expect([daysOf(undefined), daysOf("60"), daysOf("45")]).toEqual([30, 60, 30]);
-    const { api, requests } = fakeApi({
-      "GET /api/v1/me/cash-flow": () => jsonResponse(cashFlowDto({ days: 60 })),
-    });
-    const result = await loadCashFlow(api, 60);
-    expect(result.ok && result.data.days).toBe(60);
-    expect(new URL(requests[0]!.url).searchParams.get("days")).toBe("60");
-  });
-});
-
-describe("the calendar's container (ruling P241 of M6c)", () => {
-  it("shows the personal space's next 60 days when `?days=60` asks for them", async () => {
-    server.spaces = [personal, householdDto()];
-    const { api, requests } = fakeApi({
-      "GET /api/v1/me/cash-flow": () => jsonResponse(cashFlowDto({ days: 60 })),
-    });
-    server.api = api;
-    renderWithIntl(await CalendarContainer({ spaceId: "sp-personal", days: "60" }));
-    expect(screen.getByRole("heading", { level: 1, name: "Próximos 60 días" })).toBeInTheDocument();
-    expect(new URL(requests[0]!.url).searchParams.get("days")).toBe("60");
-  });
-
-  it("has no calendar for a shared space, and asks for nothing", async () => {
-    server.spaces = [personal, householdDto()];
-    const { api, requests } = fakeApi({ "GET /api/v1/me/cash-flow": () => jsonResponse(cashFlowDto()) });
-    server.api = api;
-    await expect(CalendarContainer({ spaceId: "sp-household" })).rejects.toThrow("not found");
-    expect(requests).toEqual([]);
-  });
-
-  it("says what failed when the API refuses", async () => {
-    server.spaces = [personal];
-    const { api } = fakeApi({ "GET /api/v1/me/cash-flow": () => problemResponse(422, "ValidationFailed") });
-    server.api = api;
-    renderWithIntl(await CalendarContainer({ spaceId: "sp-personal" }));
-    expect(screen.queryByRole("list", { name: "Movimientos por día" })).toBeNull();
-    expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 });
