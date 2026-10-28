@@ -1,7 +1,7 @@
 import { fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cameFrom, readTrail, stepsBack, writeTrail, type Trail } from "./history";
-import { NavigationTracker } from "./navigation-tracker";
+import { NavigationTracker, trackNavigation } from "./navigation-tracker";
 
 const trailOf = (urls: string[], pos = urls.length - 1): Trail => ({ urls, pos });
 const here = () => `${window.location.pathname}${window.location.search}`;
@@ -39,6 +39,17 @@ describe("navigation tracker: starting", () => {
     loadedBy(type);
     openAt("/spaces/s1/accounts", trailOf(["/spaces/s1/transactions", "/spaces/s1/accounts"]));
     render(<NavigationTracker />);
+    expect(readTrail()).toEqual(trailOf(["/spaces/s1/transactions", "/spaces/s1/accounts"]));
+  });
+
+  it("records from the moment it is started, with no component to render first (ADR 0006: the SPA's entry)", () => {
+    loadedBy("navigate");
+    openAt("/spaces/s1/transactions");
+    const stop = trackNavigation();
+    window.history.pushState({}, "", "/spaces/s1/accounts");
+    expect(readTrail()).toEqual(trailOf(["/spaces/s1/transactions", "/spaces/s1/accounts"]));
+    stop();
+    window.history.pushState({}, "", "/settings");
     expect(readTrail()).toEqual(trailOf(["/spaces/s1/transactions", "/spaces/s1/accounts"]));
   });
 

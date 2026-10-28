@@ -11,7 +11,6 @@ import { ScreenError } from "./app-error";
 import { guardSession, leaveWhenSignedIn, type RouterContext } from "./guards";
 import { signUpModeQuery, spacesQuery } from "./queries";
 import { textParam, textsParam } from "./search";
-import dynamic from "./next/dynamic";
 import { loadShell } from "./shell";
 
 /**
@@ -25,7 +24,6 @@ const rootRoute = createRootRouteWithContext<RouterContext>()({
       <>
         <Outlet />
         <ThemeSync />
-        <NavigationTracker />
       </>
     );
   },
@@ -70,14 +68,6 @@ const indexRoute = createRoute({
     throw redirect({ href: `/spaces/${personalSpaceOf(spaces).id}`, replace: true });
   },
 });
-
-/**
- * Volver's trail (history.ts): it records from its first render on, and nothing can navigate before the app has
- * rendered, so it loads beside the first screen rather than with the app shell.
- */
-const NavigationTracker = dynamic(() =>
-  import("@/shared/ui/navigation/navigation-tracker").then((m) => m.NavigationTracker),
-);
 
 /** The ledger's loaders load beside each screen's own chunk, never with the app shell. */
 const ledger = () => import("./ledger/queries");
