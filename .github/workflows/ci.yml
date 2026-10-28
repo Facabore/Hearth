@@ -4,6 +4,8 @@ on:
   pull_request:
   push:
     branches: [main, development]
+  # Runs the performance gates on demand (Actions > CI > Run workflow), on any branch.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -76,10 +78,16 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm build
-      - name: End-to-end scenarios (standalone server, PostgreSQL through the Docker CLI)
+      - run: pnpm spa:build
+      - name: The single-page app's chunk budgets (ADR 0006)
+        run: pnpm spa:budget
+      - name: End-to-end scenarios (standalone server, the SPA at /app/, PostgreSQL through the Docker CLI)
         run: pnpm test:e2e
 
+  # The slowest gate (Lighthouse five times per route, INP): it validates a release, not every push (ADR 0004,
+  # amended 2026-10-28). It runs on main and on demand; pull requests and development skip it.
   performance:
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -90,11 +98,15 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm build
+      # Playwright starts the SPA's preview with the e2e server, so the build must exist.
+      - run: pnpm spa:build
       - name: Core Web Vitals and script budgets (Lighthouse mobile, INP with web-vitals)
         run: pnpm perf
 
   build-image:
     needs: [lint, boundaries, typecheck, test, e2e, performance]
+    # A skipped performance job (outside main) must not skip the image; a failed one still blocks it.
+    if: ${{ !cancelled() && !failure() }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -103,6 +115,7 @@ jobs:
     env:
       APP_IMAGE: ghcr.io/facabore/hearth
       MIGRATOR_IMAGE: ghcr.io/facabore/hearth-migrator
+      WEB_IMAGE: ghcr.io/facabore/hearth-web
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -123,6 +136,25 @@ jobs:
           load: true
           tags: ${{ env.MIGRATOR_IMAGE }}:${{ github.sha }}
           cache-from: type=gha
+      - name: Build web image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: web
+          load: true
+          tags: ${{ env.WEB_IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+      - name: Smoke test the web image (ADR 0006)
+        run: |
+          docker run -d --name web -p 8080:8080 "$WEB_IMAGE:${{ github.sha }}"
+          for i in $(seq 1 30); do curl -fsS -o /dev/null http://localhost:8080/app/ && break; sleep 1; done
+          # A screen's path is the app's page; an asset is served as itself; a missing asset is a 404.
+          curl -fsS http://localhost:8080/app/ | grep -q '<div id="root">'
+          curl -fsS http://localhost:8080/app/spaces/x/transactions | grep -q '<div id="root">'
+          asset=$(curl -fsS http://localhost:8080/app/ | grep -o '/app/assets/index-[^"]*\.js' | head -n1)
+          curl -fsS -o /dev/null "http://localhost:8080$asset"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/app/assets/missing.js)" = 404
+          test "$(curl -s -o /dev/null -w '%{redirect_url}' http://localhost:8080/app)" = "http://localhost:8080/app/"
       - name: Smoke test the images against PostgreSQL
         run: |
           docker network create smoke
@@ -140,7 +172,7 @@ jobs:
           curl -fsS http://localhost:3000/api/v1/openapi.json | grep -q '"openapi":"3.1.0"'
       - name: App logs
         if: always()
-        run: docker logs app || true
+        run: docker logs app || true; docker logs web || true
       - name: Log in to GHCR
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -151,7 +183,7 @@ jobs:
       - name: Push images tagged with the commit SHA and main
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          for image in "$APP_IMAGE" "$MIGRATOR_IMAGE"; do
+          for image in "$APP_IMAGE" "$MIGRATOR_IMAGE" "$WEB_IMAGE"; do
             docker tag "$image:${{ github.sha }}" "$image:main"
             docker push "$image:${{ github.sha }}"
             docker push "$image:main"

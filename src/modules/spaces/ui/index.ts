@@ -1,3 +1,4 @@
+export { AppShell, type AppShellProps } from "./app-shell";
 export { activeSpaceOf, newSpaceBackHref, personalSpaceOf, spaceHomeHref } from "./space-helpers";
 export { JoinedNotice } from "./joined-notice";
 export { NewSpaceForm } from "./new-space-form";

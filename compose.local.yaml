@@ -4,3 +4,5 @@ services:
     build: { context: ., target: migrator }
   app:
     build: { context: ., target: runner }
+  web:
+    build: { context: ., target: web }

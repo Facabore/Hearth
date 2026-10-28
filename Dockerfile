@@ -12,6 +12,18 @@ FROM deps AS builder
 COPY . .
 RUN pnpm build
 
+FROM deps AS spa-builder
+COPY . .
+RUN pnpm spa:build
+
+# ADR 0006 (#199): the single-page app's static files, served at /app/ by Caddy (Caddyfile.web).
+FROM caddy:2.11.7-alpine AS web
+COPY Caddyfile.web /etc/caddy/Caddyfile
+COPY --from=spa-builder /app/dist/spa /srv/app
+EXPOSE 8080
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=5 \
+  CMD wget -qO /dev/null http://127.0.0.1:8080/app/ || exit 1
+
 FROM base AS migrator
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile --prod

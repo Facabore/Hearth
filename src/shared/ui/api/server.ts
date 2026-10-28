@@ -5,8 +5,11 @@ import { cache } from "react";
 import { createApi, type Api } from "./client";
 import type { MeDto, SignUpMode, SpaceDto } from "./dto";
 import { problemFrom, type Problem } from "./problem";
+import { meFrom, outcomeOf, searchRecordOf, signUpModeFrom } from "./readers";
 import { DOCUMENT_HEADER, PATH_HEADER } from "./server-headers";
 import { hasSession } from "./session";
+
+export { meFrom, outcomeOf, signUpModeFrom, type Outcome } from "./readers";
 
 /** Ruling P117: Server Components read /api/v1 over loopback, unless the deployment names another origin. */
 export const internalOrigin = (env: Record<string, string | undefined> = process.env): string =>
@@ -41,27 +44,7 @@ export const isDocumentRequest = async (): Promise<boolean> => (await headers())
 /** The query of the page asked for (the proxy's path header), shaped as Next hands it to a page: a repeated name is a list. */
 export const requestSearchParams = async (): Promise<Record<string, string | string[]>> => {
   const path = (await headers()).get(PATH_HEADER) ?? "";
-  const query = new URLSearchParams(path.includes("?") ? path.slice(path.indexOf("?") + 1) : "");
-  const search: Record<string, string | string[]> = {};
-  for (const [name, value] of query) {
-    const seen = search[name];
-    search[name] = seen === undefined ? value : [...(Array.isArray(seen) ? seen : [seen]), value];
-  }
-  return search;
-};
-
-export type Outcome<T> =
-  | { kind: "ok"; data: T }
-  | { kind: "unauthenticated" }
-  | { kind: "missing" }
-  | { kind: "problem"; problem: Problem };
-
-export const outcomeOf = <T>(result: { data?: T; error?: unknown; response: Response }): Outcome<T> => {
-  if (result.response.status === 401) return { kind: "unauthenticated" };
-  if (result.response.status === 404) return { kind: "missing" };
-  if (result.error !== undefined || result.data === undefined)
-    return { kind: "problem", problem: problemFrom(result.error, result.response) };
-  return { kind: "ok", data: result.data };
+  return searchRecordOf(path.includes("?") ? path.slice(path.indexOf("?") + 1) : "");
 };
 
 export type Loaded<T> = { ok: true; data: T } | { ok: false; problem: Problem };
@@ -91,33 +74,11 @@ export const loaded = async <T>(
   }
 };
 
-/**
- * The profile answer as the signed-in person, or null on a 401. Any other failure throws to the error page: reading
- * it as "signed out" would send a signed-in person to the sign-in screen, which sends them back (ruling P145).
- */
-export const meFrom = <T>(result: { data?: T; error?: unknown; response: Response }): T | null => {
-  const outcome = outcomeOf(result);
-  if (outcome.kind === "ok") return outcome.data;
-  if (outcome.kind === "unauthenticated") return null;
-  const code = outcome.kind === "problem" ? outcome.problem.code : "NotFound";
-  throw new Error(`Reading the profile failed: ${code}`);
-};
-
 /** The signed-in person, or null without a session (no call is made then) or when the API says 401. */
 export const getMe = cache(async (): Promise<MeDto | null> => {
   if (!hasSession(await cookies())) return null;
   return meFrom(await (await serverApi()).GET("/api/v1/me"));
 });
-
-/**
- * Ruling P143: closed only when the API says so. A failed read must not take the sign-in screen down, so it answers
- * open; the sign-up call answers `SignUpClosed` by itself when the installation is closed.
- */
-export const signUpModeFrom = (result: {
-  data?: { signUp: SignUpMode };
-  error?: unknown;
-  response: Response;
-}): SignUpMode => (result.data?.signUp === "closed" ? "closed" : "open");
 
 /** Whether the installation takes sign-ups from anyone (`open`) or only from invitees (`closed`); public endpoint. */
 export const getSignUpMode = cache(async (): Promise<SignUpMode> => {

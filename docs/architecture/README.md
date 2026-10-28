@@ -6,7 +6,7 @@ The database has its own page: [data model](data-model.md).
 
 ## Deployment
 
-The production stack is Docker Compose on a VPS: Caddy, the `app` container, PostgreSQL, a one-shot `migrate` container and the nightly `backup` container. CI builds the images; the operator pulls them by commit SHA. The steps are in [Deploying Hearth to a VPS](../operations/deploy.md); the definitions are [`compose.yaml`](https://github.com/Facabore/Hearth/blob/development/compose.yaml) and [`Caddyfile`](https://github.com/Facabore/Hearth/blob/development/Caddyfile).
+The production stack is Docker Compose on a VPS: Caddy, the `app` container, the `web` container (the single-page app's files, [ADR 0006](../adr/0006-client-first-single-page-app.md)), PostgreSQL, a one-shot `migrate` container and the nightly `backup` container. CI builds the images; the operator pulls them by commit SHA. The steps are in [Deploying Hearth to a VPS](../operations/deploy.md); the definitions are [`compose.yaml`](https://github.com/Facabore/Hearth/blob/development/compose.yaml) and [`Caddyfile`](https://github.com/Facabore/Hearth/blob/development/Caddyfile).
 
 ```mermaid
 flowchart TB
@@ -17,6 +17,7 @@ flowchart TB
     subgraph vps ["VPS: Docker Compose, private network"]
         caddy["Caddy: only public entry, ports 80 and 443"]
         app["app (Next.js): /api/v1 and the recurrence job, no published port"]
+        spa["web (Caddy): the single-page app's files at /app/, no published port"]
         migrate["migrate: runs migrations, then exits"]
         db[("PostgreSQL: never published")]
         backup["backup: nightly pg_dump at 02:00, keeps 14"]
@@ -31,6 +32,7 @@ flowchart TB
     clients -->|HTTPS| caddy
     mobile -.->|HTTPS| caddy
     caddy -->|"proxy to app:3000"| app
+    caddy -->|"/app/* to web:8080"| spa
     app -->|SQL| db
     migrate -->|migrations| db
     migrate -->|"must finish first"| app
@@ -44,10 +46,11 @@ flowchart TB
 
 What the files say:
 
-- **Caddy** is the only service that publishes ports (`80`, `443` and `443/udp`). It terminates TLS, compresses responses and proxies everything to `app:3000`. It sets `X-Forwarded-For` to the real peer address, which the sign-in throttles rely on.
+- **Caddy** is the only service that publishes ports (`80`, `443` and `443/udp`). It terminates TLS, compresses responses, proxies `/app` and `/app/*` to `web:8080` and everything else to `app:3000`. It sets `X-Forwarded-For` to the real peer address, which the sign-in throttles rely on.
+- **`web`** publishes no port. It is a Caddy holding the single-page app's build (`Caddyfile.web`): `index.html` for every app path, the hashed assets with a year's cache, a 404 for a missing file (ADR 0006, until the cut-over of #199).
 - **`app`** publishes no port. It starts only after `migrate` has completed successfully, and it records due recurring transactions itself with an in-process timer ([recurring transactions job](../operations/deploy.md#recurring-transactions-job)).
 - **PostgreSQL** is on the internal network only. Its data lives in the `db-data` volume, and its nightly dumps in the `backups` volume.
-- **CI** (`.github/workflows/ci.yml`) runs lint, boundary check, typecheck and tests, builds the two images (`hearth` and `hearth-migrator`) and smoke-tests them against PostgreSQL. On a push to `main` it pushes them to GHCR tagged with the commit SHA and `main`. Releases are deployed by setting both image tags in `.env` to the SHA.
+- **CI** (`.github/workflows/ci.yml`) runs lint, boundary check, typecheck and tests, builds the three images (`hearth`, `hearth-migrator` and `hearth-web`) and smoke-tests them, the first two against PostgreSQL. On a push to `main` it pushes them to GHCR tagged with the commit SHA and `main`. Releases are deployed by setting the image tags in `.env` to the SHA.
 - **`backup`** runs `pg_dump` every night at 02:00 in `APP_TIMEZONE` into the `backups` volume and keeps the newest `BACKUP_RETENTION_DAYS` (14) files; `scripts/restore-drill.sh` restores the newest into a scratch database, checks its transaction count and drops it (HU-E8-01, [Backups and restore](../operations/backups.md)). It publishes no port.
 - **`backup-offsite`** is optional (compose profile `offsite`, off by default): it copies the backups to any rclone remote at 03:00 and never deletes there; it is on its own network, without the database.
 

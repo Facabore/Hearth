@@ -1,4 +1,5 @@
 import { defineConfig } from "vitest/config";
+import { NEXT_ADAPTERS } from "./vite.spa.config";
 
 const dbProject = {
   globalSetup: ["./tests/support/postgres-global-setup.ts"],
@@ -21,7 +22,7 @@ export default defineConfig({
             "tests/support/**/*.test.ts",
             "tests/performance/**/*.test.mjs",
           ],
-          exclude: ["src/**/*.int.test.ts"],
+          exclude: ["src/**/*.int.test.ts", "src/spa/**"],
         },
       },
       {
@@ -30,7 +31,20 @@ export default defineConfig({
           name: "ui",
           environment: "jsdom",
           include: ["src/**/*.test.tsx"],
+          exclude: ["src/spa/**"],
           // Radix sheets and user-event typing under jsdom slow down a lot on a loaded machine; 5 s timed out at random.
+          testTimeout: 20_000,
+          setupFiles: ["./tests/support/ui-setup.ts", "./src/shared/ui/molecules/sheet.setup.ts"],
+        },
+      },
+      {
+        // ADR 0006: the SPA's routes, guards and query hooks, with the components' Next.js imports on its adapters.
+        extends: true,
+        resolve: { alias: NEXT_ADAPTERS },
+        test: {
+          name: "spa",
+          environment: "jsdom",
+          include: ["src/spa/**/*.test.{ts,tsx}"],
           testTimeout: 20_000,
           setupFiles: ["./tests/support/ui-setup.ts", "./src/shared/ui/molecules/sheet.setup.ts"],
         },
