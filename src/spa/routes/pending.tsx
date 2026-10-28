@@ -77,3 +77,12 @@ export function HistoryPending() {
 }
 
 export const BalancesPending = () => <LoadingScreen shape="cards" />;
+
+/** A Plan tab view while its reports are read. */
+export const PlanPending = () => <LoadingScreen shape="cards" />;
+
+/** The planner and its forms, with their way back to the Plan tab. */
+export function PlannerPending() {
+  const { spaceId } = useParams({ strict: false });
+  return <LoadingScreen header={{ backHref: `/spaces/${spaceId}/plan` }} shape="form" />;
+}

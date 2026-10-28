@@ -121,8 +121,9 @@ describe("accounts, categories and settings in the SPA (slice 3 of #199, ADR 000
   it("lists the space's accounts and creates one: saving lands on the list, which reads its accounts again", async () => {
     const { routes } = server();
     const spa = renderSpa(ACCOUNTS, routes);
-    expect(await screen.findByRole("heading", { level: 1, name: es.accounts.title })).toBeVisible();
-    expect(screen.getByText("Nequi")).toBeInTheDocument();
+    // The first screen of the file also waits for its modules to be transformed, which a browser never does.
+    expect(await screen.findByText("Nequi", {}, { timeout: 5_000 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: es.accounts.title })).toBeVisible();
     expect(document.title).toBe(`${es.accounts.title} · Hearth`);
 
     await spa.router.navigate({ href: `${ACCOUNTS}/new` });

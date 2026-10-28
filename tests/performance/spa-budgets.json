@@ -31,6 +31,12 @@
     "routes/invitation.tsx": 12,
     "manage/loaders.ts": 3,
     "spaces/loaders.ts": 4,
+    "routes/plan.tsx": 26,
+    "routes/plans.tsx": 33,
+    "plan/loaders.ts": 6,
+    "plan/writes.ts": 3,
+    "../modules/budgeting/ui/line-editor/category-mapping-sheet.tsx": 10,
+    "../modules/reporting/ui/charts/trend-chart.tsx": 123,
     "../i18n/messages/es.json": 18,
     "../i18n/messages/en.json": 17
   }

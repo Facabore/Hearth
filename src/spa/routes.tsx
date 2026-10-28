@@ -88,6 +88,19 @@ const manage = () => import("./manage/loaders");
 /** The shared spaces' loaders, likewise. */
 const sharedSpaces = () => import("./spaces/loaders");
 
+/** The Plan tab's and the planner's loaders, likewise. */
+const plans = () => import("./plan/loaders");
+
+/** A Plan tab view's query string (ruling P200): the period, the trend's window and the calendar's days. */
+const planSearch = (search: Record<string, unknown>) => ({
+  period: textParam(search.period),
+  periods: textParam(search.periods),
+  days: textParam(search.days),
+});
+
+const planPending = lazyRouteComponent(() => import("./routes/pending"), "PlanPending");
+const plannerPending = lazyRouteComponent(() => import("./routes/pending"), "PlannerPending");
+
 /** The app shell of a space: its header with the space switcher and profile, and the bottom navigation. */
 const spaceRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -293,6 +306,132 @@ const claimRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/invitation"), "ClaimRoute"),
 });
 
+/** HU-E9-10, HU-E9-11: the Plan tab's own page and its views, each with `?period=` (P200). */
+const planRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "plan",
+  validateSearch: planSearch,
+  loaderDeps: ({ search }) => search,
+  loader: async ({ context, params, deps, cause }) =>
+    (await plans()).loadPlanView({ ...context, cause }, params.spaceId, "home", deps),
+  pendingComponent: planPending,
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/plan"), "PlanRoute"),
+});
+
+const linesRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "plan/lines",
+  validateSearch: planSearch,
+  loaderDeps: ({ search }) => search,
+  loader: async ({ context, params, deps, cause }) =>
+    (await plans()).loadPlanView({ ...context, cause }, params.spaceId, "lines", deps),
+  pendingComponent: planPending,
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/plan"), "LinesRoute"),
+});
+
+const groupsRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "plan/groups",
+  validateSearch: planSearch,
+  loaderDeps: ({ search }) => search,
+  loader: async ({ context, params, deps, cause }) =>
+    (await plans()).loadPlanView({ ...context, cause }, params.spaceId, "groups", deps),
+  pendingComponent: planPending,
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/plan"), "GroupsRoute"),
+});
+
+const trendRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "plan/trend",
+  validateSearch: planSearch,
+  loaderDeps: ({ search }) => search,
+  loader: async ({ context, params, deps, cause }) =>
+    (await plans()).loadPlanView({ ...context, cause }, params.spaceId, "trend", deps),
+  pendingComponent: planPending,
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/plan"), "TrendRoute"),
+});
+
+const fundRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "plan/fund",
+  validateSearch: planSearch,
+  loaderDeps: ({ search }) => search,
+  loader: async ({ context, params, deps, cause }) =>
+    (await plans()).loadPlanView({ ...context, cause }, params.spaceId, "fund", deps),
+  pendingComponent: planPending,
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/plan"), "FundRoute"),
+});
+
+const matrixRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "plan/members",
+  validateSearch: planSearch,
+  loaderDeps: ({ search }) => search,
+  loader: async ({ context, params, deps, cause }) =>
+    (await plans()).loadPlanView({ ...context, cause }, params.spaceId, "members", deps),
+  pendingComponent: planPending,
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/plan"), "MembersMatrixRoute"),
+});
+
+const calendarRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "plan/calendar",
+  validateSearch: planSearch,
+  loaderDeps: ({ search }) => search,
+  loader: async ({ context, params, deps, cause }) =>
+    (await plans()).loadPlanView({ ...context, cause }, params.spaceId, "calendar", deps),
+  pendingComponent: planPending,
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/plan"), "CalendarRoute"),
+});
+
+/** HU-E9-08: the planner of one plan, its capacities and its lines. */
+const plannerRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "plans/$planId",
+  loader: async ({ context, params, cause }) =>
+    (await plans()).loadPlanner({ ...context, cause }, params.spaceId, params.planId),
+  pendingComponent: plannerPending,
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/plans"), "PlannerRoute"),
+});
+
+const capacitiesRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "plans/$planId/capacities",
+  loader: async ({ context, params, cause }) =>
+    (await plans()).loadCapacities({ ...context, cause }, params.spaceId, params.planId),
+  pendingComponent: plannerPending,
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/plans"), "CapacitiesRoute"),
+});
+
+const newLineRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "plans/$planId/lines/new",
+  loader: async ({ context, params, cause }) =>
+    (await plans()).loadLineEditor({ ...context, cause }, params.spaceId, params.planId),
+  pendingComponent: plannerPending,
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/plans"), "NewLineRoute"),
+});
+
+const editLineRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "plans/$planId/lines/$lineId",
+  loader: async ({ context, params, cause }) =>
+    (await plans()).loadLineEditor({ ...context, cause }, params.spaceId, params.planId),
+  pendingComponent: plannerPending,
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/plans"), "EditLineRoute"),
+});
+
 export const routeTree = rootRoute.addChildren([
   publicRoute.addChildren([signInRoute, signUpRoute]),
   openRoute.addChildren([invitationRoute, claimRoute]),
@@ -311,5 +450,16 @@ export const routeTree = rootRoute.addChildren([
     membersRoute,
     historyRoute,
     balancesRoute,
+    planRoute,
+    linesRoute,
+    groupsRoute,
+    trendRoute,
+    fundRoute,
+    matrixRoute,
+    calendarRoute,
+    plannerRoute,
+    capacitiesRoute,
+    newLineRoute,
+    editLineRoute,
   ]),
 ]);
