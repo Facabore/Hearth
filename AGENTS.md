@@ -12,10 +12,10 @@ These are the rules the code review (gga) checks staged files against. When a ch
 - The UI talks only to `/api/v1`, through the client generated from `openapi/openapi.snapshot.json` (ADR 0003).
   - The UI imports no module's `domain`, `application`, `infrastructure` or `contracts`, and nothing from `src/composition`.
   - There are no server actions.
-  - A module's server containers are exported from `ui/server.ts`. Client-safe code is exported from `ui/index.ts`.
+  - A module's whole screens are exported to the SPA from `ui/screens.ts`. Client-safe code is exported from `ui/index.ts`.
 - Zod validates at the HTTP edge only. Domain rules live in the domain, and a writer that skips HTTP still has to pass them.
 - Expected failures are `Result` values (`err(domainError("Code"))` from `src/shared/kernel/result.ts`) with a stable PascalCase code. Throwing is for broken invariants only.
-- Containers and presentational components stay apart (P127): a server container is a pure `load*` over the `Api` plus an async component, and presentational components fetch nothing.
+- Data loading and presentational components stay apart (P127): the SPA's route loaders and queries read the `Api` (ADR 0006), and presentational components fetch nothing.
 
 ## Money, dates and data
 

@@ -1,6 +1,6 @@
 # Architecture overview
 
-Hearth is a modular monolith. One Next.js application hosts the versioned HTTP API under `/api/v1`, and a single PostgreSQL database holds the data. This page shows how it is deployed, how a request travels through the code, which modules exist and which rules keep them apart. The source of truth for every decision is the [design spec](../specs/2026-10-11-hearth-design.md); this page summarises it and points back to it.
+Hearth is a modular monolith. One Next.js application hosts the versioned HTTP API under `/api/v1`, a single-page app is the web UI, and a single PostgreSQL database holds the data. This page shows how it is deployed, how a request travels through the code, which modules exist and which rules keep them apart. The source of truth for every decision is the [design spec](../specs/2026-10-11-hearth-design.md); this page summarises it and points back to it.
 
 The database has its own page: [data model](data-model.md).
 
@@ -10,14 +10,14 @@ The production stack is Docker Compose on a VPS: Caddy, the `app` container, the
 
 ```mermaid
 flowchart TB
-    web["Web UI (Next.js pages in app, M6)"]
+    web["Web UI (the single-page app, ADR 0006)"]
     clients["API clients"]
     mobile["Mobile app (post-MVP)"]
 
     subgraph vps ["VPS: Docker Compose, private network"]
         caddy["Caddy: only public entry, ports 80 and 443"]
         app["app (Next.js): /api/v1 and the recurrence job, no published port"]
-        spa["web (Caddy): the single-page app's files at /app/, no published port"]
+        spa["web (Caddy): the single-page app's files at the root, no published port"]
         migrate["migrate: runs migrations, then exits"]
         db[("PostgreSQL: never published")]
         backup["backup: nightly pg_dump at 02:00, keeps 14"]
@@ -31,8 +31,8 @@ flowchart TB
     web -->|HTTPS| caddy
     clients -->|HTTPS| caddy
     mobile -.->|HTTPS| caddy
-    caddy -->|"proxy to app:3000"| app
-    caddy -->|"/app/* to web:8080"| spa
+    caddy -->|"/api/* to app:3000"| app
+    caddy -->|"everything else to web:8080"| spa
     app -->|SQL| db
     migrate -->|migrations| db
     migrate -->|"must finish first"| app
@@ -46,8 +46,8 @@ flowchart TB
 
 What the files say:
 
-- **Caddy** is the only service that publishes ports (`80`, `443` and `443/udp`). It terminates TLS, compresses responses, proxies `/app` and `/app/*` to `web:8080` and everything else to `app:3000`. It sets `X-Forwarded-For` to the real peer address, which the sign-in throttles rely on.
-- **`web`** publishes no port. It is a Caddy holding the single-page app's build (`Caddyfile.web`): `index.html` for every app path, the hashed assets with a year's cache, a 404 for a missing file (ADR 0006, until the cut-over of #199).
+- **Caddy** is the only service that publishes ports (`80`, `443` and `443/udp`). It terminates TLS, compresses responses, proxies `/api` and `/api/*` to `app:3000` and everything else to `web:8080`. It sets `X-Forwarded-For` to the real peer address, which the sign-in throttles rely on.
+- **`web`** publishes no port. It is a Caddy holding the single-page app's build (`Caddyfile.web`): `index.html` for every app path, the hashed assets with a year's cache, a 404 for a missing file, and a 308 from `/app` and `/app/*` to the same path at the root for bookmarks made before the cut-over of #199 (ADR 0006).
 - **`app`** publishes no port. It starts only after `migrate` has completed successfully, and it records due recurring transactions itself with an in-process timer ([recurring transactions job](../operations/deploy.md#recurring-transactions-job)).
 - **PostgreSQL** is on the internal network only. Its data lives in the `db-data` volume, and its nightly dumps in the `backups` volume.
 - **CI** (`.github/workflows/ci.yml`) runs lint, boundary check, typecheck and tests, builds the three images (`hearth`, `hearth-migrator` and `hearth-web`) and smoke-tests them, the first two against PostgreSQL. On a push to `main` it pushes them to GHCR tagged with the commit SHA and `main`. Releases are deployed by setting the image tags in `.env` to the SHA.
@@ -67,29 +67,29 @@ What happens to a request such as `POST /api/v1/spaces/{spaceId}/expenses` ([spe
 
 ## Web UI
 
-The pages live in `src/app/(web)`, with no locale in the URL ([ADR 0003](../adr/0003-web-ui-talks-to-the-api-through-a-generated-client.md), ruling P117):
+The screens are a client-first single-page app in `src/spa` (Vite, React, TanStack Router and TanStack Query), served at the root with no locale in the URL ([ADR 0006](../adr/0006-client-first-single-page-app.md), [ADR 0003](../adr/0003-web-ui-talks-to-the-api-through-a-generated-client.md), ruling P117). Next.js serves only the API since the cut-over of #199:
 
-- **Reads:** a Server Component container calls `/api/v1` over loopback (`INTERNAL_API_ORIGIN`, default `http://127.0.0.1:$PORT`) with the request's cookie, client address and language.
-- **Writes:** client containers call the same-origin `/api/v1` from the browser, then refresh the Server Components. There are no server actions.
-- **Session redirect:** `src/proxy.ts` sends a request without a session cookie to `/sign-in?next=<path>`; only same-origin paths are honoured.
-- **Language:** next-intl picks `es` or `en` from the stored locale, a visitor cookie or `Accept-Language` (P120).
+- **Reads:** each route's loader reads `/api/v1` from the browser through the generated client into the query cache, so a screen seen before opens from the cache and revalidates.
+- **Writes:** the same-origin `/api/v1` from the browser; each write updates the cache it changes. There are no server actions.
+- **Session redirect:** the router's `beforeLoad` guards send a visitor without a session to `/sign-in?next=<path>`; only same-origin paths are honoured.
+- **Language:** use-intl over the same `es` and `en` catalogs, from the stored locale, a visitor cookie or the browser (P120). The components keep importing `next-intl` and `next/*`; `vite.spa.config.ts` resolves those imports to the SPA's adapters.
 - **Formats:** only `src/shared/ui/format/` formats numbers, dates and times, from the person's effective preferences (P121).
-- **Open pages:** the invitation and claim pages live in the route group `(open)`, whose layout never redirects, and the proxy lets `OPEN_PREFIXES` (`/invitations/`, `/claims/`) through with or without a session (P157); they read the public previews `GET /api/v1/invitations/{token}` and `GET /api/v1/claims/{token}`, which answer without a session and never carry an email (P156).
+- **Open pages:** the invitation and claim screens open with or without a session (P157); they read the public previews `GET /api/v1/invitations/{token}` and `GET /api/v1/claims/{token}`, which answer without a session and never carry an email (P156).
 - **Split preview:** the shared expense form previews a split in the browser with `previewSplit`, which mirrors the domain's `splitShares` (largest remainder, the currency's rounding unit, join order) and is pinned to it by a parity test; the request carries the person's choices, never the preview, and the server's answer is authoritative (P166).
-- **Navigation trail:** `NavigationTracker`, mounted in the root layout, mirrors this tab's history in `sessionStorage` so `ScreenHeader`'s Volver can return to the nearest earlier screen, and a flow that saves uses `router.replace` so its form leaves the trail; `returnTo` and `?from=` are validated like `safeNext`. The root layout also holds the app-level not-found page and `ThemeSync`. The rules are in [the decisions index](../decisions/README.md#m6b-shared-spaces-split-expenses-and-balances-p155p183).
+- **Navigation trail:** `NavigationTracker` mirrors this tab's history in `sessionStorage` so `ScreenHeader`'s Volver can return to the nearest earlier screen, and a flow that saves replaces its own entry so its form leaves the trail; `returnTo` and `?from=` are validated like `safeNext`. The rules are in [the decisions index](../decisions/README.md#m6b-shared-spaces-split-expenses-and-balances-p155p183).
 - **The Plan tab (M6c):** the bottom bar's Plan links to `/spaces/{spaceId}/plan`, whose views depend on the space's kind (Lines, Members, Fund, By group and Trend in a shared space; My spending, Próximos, By group, Trend and Lines in the personal one), and the planner lives at `/spaces/{spaceId}/plans/{planId}` with its capacities and line editor (P200). The screens are the module UIs `budgeting/ui` (planner, capacities, line and allocation editors) and `reporting/ui` (dashboards and the cash-flow calendar).
   - **Figures are the API's:** no screen sums, subtracts or recomputes an amount or a share it shows; the reports answer their totals (P201).
   - **Bars and charts:** bars are HTML widths inside the rows that carry their figures. Recharts draws only the two trends, in `reporting/ui/charts/*-chart.tsx`, which pages reach only through the lazy wrapper's `import()`; dependency-cruiser's `recharts-only-in-charts` and `charts-load-lazily` enforce it (P202).
   - **Plan writes** send `If-Match: "<version>"` of the last answer, and a 412 re-reads the plan (P206).
-  - **The record form's line warning** is a labelled preview over the line dashboard the form's container reads on the server: it applies the kernel's `lineStateOf` to what would be left, so the form and the dashboard cannot disagree, and Save still sends one request (P233–P237, P244).
+  - **The record form's line warning** is a labelled preview over the line dashboard the form's loader reads: it applies the kernel's `lineStateOf` to what would be left, so the form and the dashboard cannot disagree, and Save still sends one request (P233–P237, P244).
   - **The cash-flow calendar** (the personal space's Próximos) reads `GET /api/v1/me/cash-flow`, which reporting projects from the ledger's `listScheduledMovements` port: only known future items, by local date, with no action (P238–P241, P245, P246). The rules are in [the decisions index](../decisions/README.md#m6c-budget-planner-and-dashboards-p200p248).
 - **Boundaries:** dependency-cruiser keeps UI code to the generated client and four pure kernel files, `time-zone.ts`, `local-date.ts`, `style.ts` and `line-state.ts` (P119, P244).
-- **Server and client entries:** a module's `ui/index.ts` is imported by client code and a module's server containers are exported from `ui/server.ts` (P153); a boundary rule fails an `index.ts` that reaches the server-only API reader.
-- **Speed:** `package.json` declares `sideEffects: ["**/*.css"]` so the bundler can drop what a route does not use from barrel files, and the sheets' Radix Dialog loads when the first sheet opens. [ADR 0004](../adr/0004-web-ui-testing-and-performance-gates.md) has the gates that hold the line.
+- **Screen entries:** a module exposes whole screens to the SPA only through `ui/screens.ts`, and client-safe pieces through `ui/index.ts`; dependency-cruiser's `ui-screens-only-for-the-spa` enforces it.
+- **Speed:** each route is its own chunk, held to `tests/performance/spa-budgets.json` by `pnpm spa:budget`; `package.json` declares `sideEffects: ["**/*.css"]` so the bundler can drop what a route does not use from barrel files, and the sheets' Radix Dialog loads when the first sheet opens. [ADR 0004](../adr/0004-web-ui-testing-and-performance-gates.md) has the gates that hold the line.
 
 ## Modules
 
-The eight modules live in `src/modules/<module>/` ([spec 5.1](../specs/2026-10-11-hearth-design.md#51-bounded-contexts-modules)). A tick means the folder exists today; `balances` and `reporting` are read models and have no tables, so they have no `infrastructure/`. Since M6a the `ui/` layer exists in `identity`, `spaces`, `accounts`, `categories` and `ledger`, since M6b in `balances`, and since M6c in `budgeting` and `reporting` too (containers over presentational components).
+The eight modules live in `src/modules/<module>/` ([spec 5.1](../specs/2026-10-11-hearth-design.md#51-bounded-contexts-modules)). A tick means the folder exists today; `balances` and `reporting` are read models and have no tables, so they have no `infrastructure/`. Since M6a the `ui/` layer exists in `identity`, `spaces`, `accounts`, `categories` and `ledger`, since M6b in `balances`, and since M6c in `budgeting` and `reporting` too (presentational components; the SPA's loaders read the data).
 
 | Module | Responsibility | `domain` | `application` | `contracts` | `infrastructure` |
 |---|---|---|---|---|---|
