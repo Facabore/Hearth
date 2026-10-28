@@ -134,6 +134,33 @@ describe("the Plan tab and the planner in the SPA (slice 5 of #199, ADR 0006)", 
     expect(await screen.findByRole("heading", { name: es.notFound.title })).toBeVisible();
   });
 
+  it("shows the plan the address names after moving from another plan's planner (ruling P248)", async () => {
+    const OCTOBER = { label: "2026-10", startDate: "2026-10-01", endDate: "2026-10-31" };
+    const spa = renderSpa(`${HOUSEHOLD}/plans/p-nov`, {
+      ...server(),
+      "GET /api/v1/spaces/{spaceId}/plans/{planId}": (_, { planId }) =>
+        jsonResponse(referencePlanDto(planId === "p-oct" ? { id: "p-oct", period: OCTOBER } : {})),
+    });
+    expect(
+      await screen.findByRole("heading", { level: 1, name: /noviembre 2026/i }, { timeout: 5_000 }),
+    ).toBeVisible();
+    await spa.router.navigate({ href: `${HOUSEHOLD}/plans/p-oct` });
+    expect(await screen.findByRole("heading", { level: 1, name: /octubre 2026/i })).toBeVisible();
+  });
+
+  it("shows the lines of the plan the server answers last, such as a line just added (HU-E9-08)", async () => {
+    let lines = referencePlanDto().lines;
+    const spa = renderSpa(`${HOUSEHOLD}/plans/p-nov`, {
+      ...server(),
+      "GET /api/v1/spaces/{spaceId}/plans/{planId}": () =>
+        jsonResponse(referencePlanDto({ version: 7 + lines.length, lines })),
+    });
+    await screen.findByRole("listitem", { name: "Rent" }, { timeout: 5_000 });
+    lines = [...lines, { ...lines[0]!, id: "l-pets", name: "Mascotas" }];
+    await spa.queryClient.invalidateQueries({ queryKey: ["plans", "sp-household"] });
+    expect(await screen.findByRole("listitem", { name: "Mascotas" })).toBeVisible();
+  });
+
   it("saves the capacities through a PUT: the plan and its reports are read again, the ledger is not", async () => {
     const spa = renderSpa(`${HOUSEHOLD}/plans/p-nov/capacities`, server());
     const save = await screen.findByRole("button", { name: "Guardar capacidades" }, { timeout: 5_000 });
