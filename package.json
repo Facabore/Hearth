@@ -57,7 +57,7 @@
     "recharts": "3.10.1",
     "use-intl": "4.14.9",
     "uuid": "14.0.3",
-    "zod": "4.6.5",
+    "zod": "4.6.6",
     "zod-openapi": "6.0.2"
   },
   "devDependencies": {
