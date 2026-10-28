@@ -1,4 +1,4 @@
-import type { WritePlanner } from "./writes";
+import type { WritePlanner } from "./write-plan";
 
 export { trackWrites } from "./writes";
 

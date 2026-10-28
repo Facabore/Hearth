@@ -1,47 +1,9 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { Api } from "@/shared/ui/api/client";
+import { forgetSettledWrite, type WriteCall, type WritePlanner, type WriteResult } from "./write-plan";
 
-/** One write as the components send it: the method, the path template and its parameters, and the body. */
-export interface WriteCall {
-  readonly method: "POST" | "PATCH" | "DELETE";
-  readonly path: string;
-  readonly params: Readonly<Record<string, string>>;
-  readonly body: unknown;
-}
-
-/** What the generated client hands back: `openapi-fetch` answers a refusal instead of throwing it. */
-export interface WriteResult {
-  readonly data?: unknown;
-  readonly error?: unknown;
-  readonly response: Response;
-}
-
-/**
- * What one write does to the query cache (ADR 0006).
- * - `optimistic` moves the screen before the API answers and returns how to put it back if the API refuses;
- * - `accepted` writes the API's answer into the cache and invalidates exactly the keys the write changed.
- */
-export interface WritePlan {
-  readonly optimistic?: (queryClient: QueryClient) => Promise<() => void>;
-  readonly accepted: (queryClient: QueryClient, data: unknown) => void;
-}
-
-/** A module's writes: the plan for a call it owns, or null for one it does not. */
-export type WritePlanner = (call: WriteCall, queryClient: QueryClient) => WritePlan | null;
-
-const settled = new WeakSet<QueryClient>();
-
-/** A planned write was accepted and has already updated what it changed (`mutations.ts`). */
-export const markSettledWrite = (queryClient: QueryClient): void => {
-  settled.add(queryClient);
-};
-
-/**
- * The components call `router.refresh()` after a save, as the Next.js UI needs. A write that went through a plan has
- * already updated what it changed, so that refresh has nothing left to read: it takes this mark and stops
- * (`next/navigation`'s adapter).
- */
-export const takeSettledWrite = (queryClient: QueryClient): boolean => settled.delete(queryClient);
+export { takeSettledWrite } from "./write-plan";
+export type { WriteCall, WritePlan, WritePlanner, WriteResult } from "./write-plan";
 
 export type Send = (
   path: string,
@@ -65,7 +27,7 @@ export const trackWrites = (
     async (path, init) => {
       const send = () => (api[method] as unknown as Send)(path, init);
       // A new write makes any earlier mark stale: only the refresh() right after a planned save may skip its reads.
-      settled.delete(queryClient);
+      forgetSettledWrite(queryClient);
       // A plan that cannot load (offline, or a chunk gone after a release) never stops the save: it is sent as it is,
       // and the components' refresh() reads the screen again.
       const loaded = await Promise.all([planner(), import("./mutations")]).catch(() => null);

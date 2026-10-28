@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { bumpLocale } from "../locale-epoch";
-import { takeSettledWrite } from "../writes";
+import { takeSettledWrite } from "../write-plan";
 
 /** The part of Next.js's App Router the components call, over TanStack Router and the query cache (ADR 0006). */
 export interface AppRouterInstance {

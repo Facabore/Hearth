@@ -1,5 +1,5 @@
 import { MutationObserver, type QueryClient } from "@tanstack/react-query";
-import { markSettledWrite, type WritePlan, type WriteResult } from "./writes";
+import { markSettledWrite, type WritePlan, type WriteResult } from "./write-plan";
 
 class Refused extends Error {
   constructor(readonly result: WriteResult) {

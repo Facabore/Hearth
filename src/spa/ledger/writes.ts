@@ -1,7 +1,7 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import type { SpaceDto, TransactionDto, TransactionPageDto } from "@/shared/ui/api/dto";
 import { moduleKeys, queryKeys } from "../queries";
-import type { WritePlan, WritePlanner } from "../writes";
+import type { WritePlan, WritePlanner } from "../write-plan";
 import { ledgerKeys, type PageQuery, type TransactionRead } from "./queries";
 
 /**
