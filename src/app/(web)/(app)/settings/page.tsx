@@ -23,7 +23,8 @@ export default routeScreen<Record<never, never>, { from?: string }>(async (_para
     from,
     children: (
       <div className="mx-auto flex max-w-[640px] flex-col gap-3 py-3">
-        <SettingsContainer backHref={spaceHomeHref(spaces, from)} />
+        {/* Called, so its read runs inside the screen and the document streams no skeleton first (#196). */}
+        {await SettingsContainer({ backHref: spaceHomeHref(spaces, from) })}
         {/* Keyed by the space: another `?from=` starts the field afresh, its own rename's refresh does not. */}
         <SpaceNameSection key={space.id} space={space} />
       </div>

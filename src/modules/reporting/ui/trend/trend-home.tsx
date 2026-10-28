@@ -17,9 +17,8 @@ export async function TrendHomeContainer({
   readonly periods?: 6 | 12;
 }) {
   const space = spaceOf(await getSpaces(), spaceId);
-  return space.kind === "PERSONAL" ? (
-    <PersonalTrendContainer spaceId={spaceId} period={period} periods={periods} />
-  ) : (
-    <LineTrendContainer spaceId={spaceId} period={period} periods={periods} />
-  );
+  // Issue #196: called, not rendered as an element, so its reads and checks run inside the route's screen.
+  return space.kind === "PERSONAL"
+    ? PersonalTrendContainer({ spaceId, period, periods })
+    : LineTrendContainer({ spaceId, period, periods });
 }

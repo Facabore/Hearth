@@ -12,9 +12,8 @@ export async function GroupsHomeContainer({
   readonly period?: string;
 }) {
   const space = spaceOf(await getSpaces(), spaceId);
-  return space.kind === "PERSONAL" ? (
-    <PersonalSpendingByGroupContainer spaceId={spaceId} period={period} />
-  ) : (
-    <SpendingByGroupContainer spaceId={spaceId} period={period} />
-  );
+  // Issue #196: called, not rendered as an element, so its reads and checks run inside the route's screen.
+  return space.kind === "PERSONAL"
+    ? PersonalSpendingByGroupContainer({ spaceId, period })
+    : SpendingByGroupContainer({ spaceId, period });
 }

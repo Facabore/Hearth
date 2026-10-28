@@ -2487,6 +2487,26 @@ test.describe("the app's own not-found page (N1)", () => {
     });
   }
 
+  test("a document request renders a screen whose container picks another one in place, with no skeleton ahead (#196, ruling P257)", async ({
+    page,
+  }) => {
+    const { spaceId, sharedId } = await session(page, "document-in-place");
+    // The Plan tab's own page and By group pick their container by the space's kind, and so does Trend. Rendered as an
+    // element, the picked one finished after the stream started: a skeleton streamed ahead of it, the browser paid for
+    // the swap in blocking time (Trend over its TBT budget on CI), and a 404 of its own would have lost its status.
+    for (const path of [
+      ...["/plan", "/plan/groups"].flatMap((screen) => [
+        `/spaces/${spaceId}${screen}`,
+        `/spaces/${sharedId}${screen}`,
+      ]),
+      `/spaces/${sharedId}/plan/trend`,
+    ]) {
+      const html = await (await page.request.get(path)).text();
+      expect(html, path).not.toContain('aria-busy="true"');
+      expect(html, path).not.toContain("<!--$?-->");
+    }
+  });
+
   test("a screen under its own loading boundary still answers 404 on a document request (#196, ruling P257)", async ({
     page,
   }) => {

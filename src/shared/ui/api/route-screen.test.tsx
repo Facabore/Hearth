@@ -1,7 +1,9 @@
+import type { ReactElement, ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ headers: {} as Record<string, string> }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers(mocks.headers) }));
+vi.mock("next-intl", () => ({ useTranslations: () => () => "" }));
 // React's own `cache` memoizes per request only inside a server render; here one map stands for one request.
 vi.mock("react", async (original) => {
   const react = await original<typeof import("react")>();
@@ -44,16 +46,23 @@ describe("a route's screen around its loading boundary (#196)", () => {
       return JSON.stringify({ params, search });
     });
     const children = "children";
-    expect(await layout({ children, params: Promise.resolve({ spaceId: "s1" }) })).toBe(children);
+    const shown = await layout({ children, params: Promise.resolve({ spaceId: "s1" }) });
     order.push("children");
-    const shown = await page({
+    // Around the boundary it also settles next-intl's per-request config, so the screen under it never suspends.
+    const around = shown as ReactElement<{ children: ReactNode }>;
+    expect(around.props.children).toBe(children);
+    expect((around.type as (props: { children: ReactNode }) => ReactNode)({ children })).toBe(children);
+    const screen = page({
       params: Promise.resolve({ spaceId: "s1" }),
       searchParams: Promise.resolve({ period: "2026-10", categoryId: ["c1", "c2"] }),
     });
     expect(order).toEqual(["screen", "children"]);
     expect(render).toHaveBeenCalledOnce();
     expect(render).toHaveBeenCalledWith({ spaceId: "s1" }, { period: "2026-10", categoryId: ["c1", "c2"] });
-    expect(shown).toBe(
+    // The page hands back the finished screen itself, not a promise: its boundary never suspends, so the document
+    // streams no skeleton before the screen (a swap the browser pays for in blocking time, #196).
+    expect(screen).not.toBeInstanceOf(Promise);
+    expect(screen).toBe(
       JSON.stringify({ params: { spaceId: "s1" }, search: { period: "2026-10", categoryId: ["c1", "c2"] } }),
     );
   });

@@ -282,12 +282,12 @@ describe("the By group view of the Plan tab by kind of space (ruling P200)", () 
 
   it("chooses the personal container for a personal space and the space's for a shared one", async () => {
     server.spaces = [personal, householdDto()];
-    // An async container renders on the server only: the choice is the element the home returns.
-    const personalHome = await GroupsHomeContainer({ spaceId: "sp-personal", period: "2026-11" });
-    expect(personalHome.type).toBe(PersonalSpendingByGroupContainer);
-    expect(personalHome.props).toEqual({ spaceId: "sp-personal", period: "2026-11" });
-    const sharedHome = await GroupsHomeContainer({ spaceId: "sp-household", period: "2026-11" });
-    expect(sharedHome.type).toBe(SpendingByGroupContainer);
-    expect(sharedHome.props).toEqual({ spaceId: "sp-household", period: "2026-11" });
+    // The home calls the container it picks (#196), so it answers with that container's own screen.
+    expect(await GroupsHomeContainer({ spaceId: "sp-personal", period: "2026-11" })).toEqual(
+      await PersonalSpendingByGroupContainer({ spaceId: "sp-personal", period: "2026-11" }),
+    );
+    expect(await GroupsHomeContainer({ spaceId: "sp-household", period: "2026-11" })).toEqual(
+      await SpendingByGroupContainer({ spaceId: "sp-household", period: "2026-11" }),
+    );
   });
 });
