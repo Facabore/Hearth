@@ -197,6 +197,7 @@ When(
     for (let step = 0; step < times; step += 1) {
       const before = page.url();
       const href = await previous.getAttribute("href");
+      expect(href, "the previous period's link").not.toBeNull();
       await previous.click();
       await expect.poll(() => page.url()).not.toBe(before);
       // ADR 0006: the address moves before the period's screen does; a step is taken once the screen shows it.

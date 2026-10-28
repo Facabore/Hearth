@@ -53,7 +53,7 @@ const test = base.extend<{ errors: string[]; missing: RegExp[]; wideFont: boolea
       page.on("console", (message) => {
         if (message.type() !== "error") return;
         const { url } = message.location();
-        const path = url ? new URL(url).pathname : "";
+        const path = URL.canParse(url) ? new URL(url).pathname : "";
         if (
           / 404 /.test(message.text()) &&
           (MISSING.some((missing) => path.endsWith(missing)) ||
@@ -61,8 +61,9 @@ const test = base.extend<{ errors: string[]; missing: RegExp[]; wideFont: boolea
             expected.some((pattern) => pattern.test(path)))
         )
           return;
-        // ADR 0006: the SPA asks the API who is signed in, and a visitor's answer is a 401 on purpose.
-        if (/ 401 /.test(message.text()) && path === "/api/v1/me") return;
+        // ADR 0006: the SPA asks the API who is signed in, and on a visitor's screen the answer is a 401 on purpose.
+        const visitor = /^\/(sign-in|sign-up|invitations\/|claims\/)/.test(new URL(page.url()).pathname);
+        if (/ 401 /.test(message.text()) && path === "/api/v1/me" && visitor) return;
         if (/ 409 /.test(message.text()) && STAGED_REFUSAL.test(url)) return;
         errors.push(`${message.text()} @ ${message.location().url}`);
       });
@@ -2004,10 +2005,10 @@ test.describe("deleting from the detail sheet leaves the person on the list and 
     missing,
   }) => {
     const { list } = await listFromAccounts(page, "delete-address");
-    missing.push(/\/api\/v1\/spaces\/[^/]+\/transactions\/[^/]+$/);
     await page.getByRole("link", { name: MARKET }).click();
     await expect(sheet(page)).toBeVisible();
     const address = page.url();
+    missing.push(new RegExp(`/transactions/${new URL(address).searchParams.get("tx")}$`));
     expect(address).toMatch(/\?tx=/);
     await page.getByRole("button", { name: es.ledger.detail.delete }).click();
     await expect(page).toHaveURL(new RegExp(`${list}$`));
@@ -2516,9 +2517,9 @@ test.describe("the app's own not-found screen (N1, ADR 0006)", () => {
       [`/spaces/${spaceId}/accounts/${MISSING_ID}/edit`, `/api/v1/spaces/${spaceId}/accounts/${MISSING_ID}`],
       [`/spaces/${spaceId}/plans/${MISSING_ID}`, `/api/v1/spaces/${spaceId}/plans/${MISSING_ID}`],
     ] as const) {
-      const missing = page.waitForResponse((r) => new URL(r.url()).pathname === read);
+      const answer = page.waitForResponse((r) => new URL(r.url()).pathname === read);
       await page.goto(path);
-      expect((await missing).status(), read).toBe(404);
+      expect((await answer).status(), read).toBe(404);
       await expect(page.getByRole("heading", { level: 1, name: es.notFound.title })).toBeVisible();
     }
   });
