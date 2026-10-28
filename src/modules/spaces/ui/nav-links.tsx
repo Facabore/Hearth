@@ -36,6 +36,10 @@ export function NavLinks({
   const underPlan = [plan, `${home}/plans`].some(
     (root) => pathname === root || pathname.startsWith(`${root}/`),
   );
+  // Issue #196: a tab prefetches its skeleton under the space's own layout. Settings and New space draw this shell
+  // themselves, so that prefetch would load the shell's script a second time (+14 KiB on their budgets): there a tab
+  // loads when it is tapped, as before.
+  const prefetch = pathname === home || pathname.startsWith(`${home}/`) ? {} : { prefetch: false };
   const item =
     "flex min-h-11 flex-1 flex-col items-center justify-center gap-1 text-xs text-muted aria-[current=page]:text-accent lg:flex-none lg:flex-row lg:justify-start lg:gap-3 lg:rounded-xl lg:px-3 lg:text-base";
   return (
@@ -46,16 +50,17 @@ export function NavLinks({
       <div className="hidden lg:mb-6 lg:block">
         <Logo />
       </div>
-      <Link href={home} aria-current={current(home)} className={item}>
+      <Link href={home} {...prefetch} aria-current={current(home)} className={item}>
         <Icon name="home" />
         {t("home")}
       </Link>
-      <Link href={transactions} aria-current={current(transactions)} className={item}>
+      <Link href={transactions} {...prefetch} aria-current={current(transactions)} className={item}>
         <Icon name="list" />
         {t("transactions")}
       </Link>
       <Link
         href={record}
+        {...prefetch}
         aria-label={t("record")}
         aria-current={current(`${home}/new`)}
         className="order-none mx-2 flex size-14 items-center justify-center rounded-full bg-accent text-on-accent lg:-order-1 lg:mx-0 lg:h-12 lg:w-auto lg:gap-2 lg:rounded-[14px] lg:font-semibold"
@@ -63,12 +68,12 @@ export function NavLinks({
         <Icon name="plus" />
         <span className="hidden lg:inline">{t("recordShort")}</span>
       </Link>
-      <Link href={plan} aria-current={underPlan ? "page" : undefined} className={item}>
+      <Link href={plan} {...prefetch} aria-current={underPlan ? "page" : undefined} className={item}>
         <Icon name="chart" />
         {t("plan")}
       </Link>
       {spaceKind !== "PERSONAL" ? (
-        <Link href={balances} aria-current={current(balances)} className={item}>
+        <Link href={balances} {...prefetch} aria-current={current(balances)} className={item}>
           <Icon name="swap" />
           {t("balances")}
         </Link>

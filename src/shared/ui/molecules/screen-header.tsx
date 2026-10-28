@@ -10,24 +10,28 @@ import { goBack } from "../navigation/history";
  * The header of a screen below the navigation (#171): 48 px tall, a 48 px Volver link, a 17 px title and an
  * optional subtitle. The link is a real `<a href>` to the explicit parent route, which a deep link, a new tab and a
  * visitor without JavaScript follow; a click returns to where the person was instead (`goBack`). An `action` sits
- * after the title.
+ * after the title. `prefetch={false}` is for a screen that draws the space's shell itself (#196): prefetching a space
+ * route from there would load the shell's script a second time.
  */
 export function ScreenHeader({
   backHref,
   title,
   subtitle,
   action,
+  prefetch,
 }: {
   readonly backHref: string;
   readonly title: string;
   readonly subtitle?: string;
   readonly action?: ReactNode;
+  readonly prefetch?: false;
 }) {
   const t = useTranslations("common");
   return (
     <header className="flex min-h-12 items-center gap-2">
       <Link
         href={backHref}
+        {...(prefetch === false ? { prefetch } : {})}
         onClick={goBack}
         aria-label={t("back")}
         className="-ml-2 flex size-12 shrink-0 items-center justify-center rounded-full text-ink"

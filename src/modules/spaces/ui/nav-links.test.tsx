@@ -1,4 +1,5 @@
 import { screen, within } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { NavLinks } from "./nav-links";
@@ -7,6 +8,15 @@ const where = vi.hoisted(() => ({ pathname: "/spaces/sp-household/plans/p-nov", 
 vi.mock("next/navigation", () => ({
   usePathname: () => where.pathname,
   useSearchParams: () => new URLSearchParams(where.search),
+}));
+
+// The link's `prefetch` lands on the anchor, so a test can read what the router was asked to do.
+vi.mock("next/link", () => ({
+  default: ({ prefetch, children, ...props }: { prefetch?: boolean | null; children: ReactNode }) => (
+    <a data-prefetch={prefetch === false ? "false" : "auto"} {...props}>
+      {children}
+    </a>
+  ),
 }));
 
 beforeEach(() => {
@@ -72,4 +82,29 @@ describe("the Plan tab (ruling P200, amends P141; P160 for the order)", () => {
       unmount();
     }
   });
+});
+
+describe("the navigation's prefetch (#196)", () => {
+  const prefetches = () =>
+    within(screen.getByRole("navigation", { name: "Principal" }))
+      .getAllByRole("link")
+      .map((link) => link.getAttribute("data-prefetch"));
+
+  it.each(["/spaces/sp-household", "/spaces/sp-household/plans/p-nov", "/spaces/sp-household/members"])(
+    "prefetches each tab's skeleton on %s, a screen of the space itself",
+    (pathname) => {
+      where.pathname = pathname;
+      renderWithIntl(<NavLinks spaceId="sp-household" spaceKind="SHARED" />);
+      expect(new Set(prefetches())).toEqual(new Set(["auto"]));
+    },
+  );
+
+  it.each(["/settings", "/spaces/new"])(
+    "prefetches nothing on %s, which draws the shell itself: the space's shell would load its script a second time",
+    (pathname) => {
+      where.pathname = pathname;
+      renderWithIntl(<NavLinks spaceId="sp-household" spaceKind="SHARED" />);
+      expect(new Set(prefetches())).toEqual(new Set(["false"]));
+    },
+  );
 });

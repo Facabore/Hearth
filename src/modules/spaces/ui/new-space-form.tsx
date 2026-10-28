@@ -55,7 +55,8 @@ export function NewSpaceForm({
 
   return (
     <div className="flex flex-col gap-3 py-3">
-      <ScreenHeader backHref={backHref} title={t("new.title")} />
+      {/* The screen draws the shell itself: a prefetch of the space's home would load its script again (#196). */}
+      <ScreenHeader backHref={backHref} title={t("new.title")} prefetch={false} />
       <form onSubmit={(event) => void submit(event)} noValidate className="flex flex-col gap-3">
         <TextField
           id="space-name"

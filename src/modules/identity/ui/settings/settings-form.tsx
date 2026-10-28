@@ -112,7 +112,8 @@ export function SettingsForm({
         data-sticky-header
         className="sticky top-0 z-[5] -mx-4 bg-bg px-4 max-[359px]:-mx-3 max-[359px]:px-3"
       >
-        <ScreenHeader backHref={backHref} title={t("title")} />
+        {/* The screen draws the shell itself: a prefetch of the space's home would load its script again (#196). */}
+        <ScreenHeader backHref={backHref} title={t("title")} prefetch={false} />
       </div>
       {/* Issue #176: theme and language, the most changed, come first. */}
       <AppearanceSection

@@ -1,9 +1,19 @@
 import { fireEvent, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { writeTrail } from "../navigation/history";
 import { ScreenHeader } from "./screen-header";
+
+// The link's `prefetch` lands on the anchor, so a test can read what the router was asked to do.
+vi.mock("next/link", () => ({
+  default: ({ prefetch, children, ...props }: { prefetch?: boolean | null; children: ReactNode }) => (
+    <a data-prefetch={prefetch === false ? "false" : "auto"} {...props}>
+      {children}
+    </a>
+  ),
+}));
 
 describe("screen header", () => {
   it("renders a real link named Volver to an explicit parent route, then the title and subtitle", async () => {
@@ -45,6 +55,18 @@ describe("screen header", () => {
     });
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "Add" })).toBeInTheDocument();
+  });
+});
+
+describe("screen header: prefetch of the way back (#196)", () => {
+  it("prefetches its parent route by default", () => {
+    renderWithIntl(<ScreenHeader backHref="/spaces/sp-1" title="Cuentas" />);
+    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute("data-prefetch", "auto");
+  });
+
+  it("does not when the screen asks, as one that draws the space's shell itself does", () => {
+    renderWithIntl(<ScreenHeader backHref="/spaces/sp-1" title="Ajustes" prefetch={false} />);
+    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute("data-prefetch", "false");
   });
 });
 
