@@ -1,5 +1,5 @@
 import type { useRouter } from "next/navigation";
-import { cameFrom, readTrail } from "@/shared/ui/navigation/history";
+import { appLocation, cameFrom, readTrail } from "@/shared/ui/navigation/history";
 
 /**
  * Ruling P189: leaves the detail sheet for `origin`, the list under it, without adding a history entry. A sheet opened
@@ -8,7 +8,8 @@ import { cameFrom, readTrail } from "@/shared/ui/navigation/history";
  * replace, on the browser's `popstate` after a back (the router has not traversed before that).
  */
 export const leaveSheet = (router: ReturnType<typeof useRouter>, origin: string, then?: () => void): void => {
-  const here = `${window.location.pathname}${window.location.search}`;
+  const { pathname, search } = appLocation();
+  const here = `${pathname}${search}`;
   if (cameFrom(readTrail(), here) === origin) {
     if (then) window.addEventListener("popstate", then, { once: true });
     router.back();

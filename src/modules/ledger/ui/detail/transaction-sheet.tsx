@@ -14,7 +14,7 @@ import { formatDate, formatMoney, formatTimeAt, MINUS } from "@/shared/ui/format
 import { zoneCity } from "@/shared/ui/format/zones";
 import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import type { RowContext } from "../transaction-row";
-import type { TransactionDetail } from "./detail-loader";
+import type { TransactionDetail } from "./transaction-detail";
 import { leaveSheet } from "./leave-sheet";
 import { actionsFor, type TransactionActions } from "./transaction-actions";
 import { useDeleteWithUndo } from "./use-delete-with-undo";

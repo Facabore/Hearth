@@ -1,9 +1,21 @@
 "use client";
 
 import { useEffect } from "react";
-import { goBack, pushed, readTrail, replaced, traversed, writeTrail, type Trail } from "./history";
+import {
+  appLocation,
+  goBack,
+  pushed,
+  readTrail,
+  replaced,
+  traversed,
+  writeTrail,
+  type Trail,
+} from "./history";
 
-const here = () => `${window.location.pathname}${window.location.search}`;
+const here = () => {
+  const { pathname, search } = appLocation();
+  return `${pathname}${search}`;
+};
 
 /** A page opened by a typed URL or an outside link is a new start; a reload or a Back/Forward load continues the walk. */
 const openedByUrl = () =>

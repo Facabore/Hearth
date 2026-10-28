@@ -6,7 +6,7 @@ import type { AccountDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/d
 import { formatDate, formatMoney } from "@/shared/ui/format/formatters";
 import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { periodName } from "@/shared/ui/time/period-name";
-import type { TransactionDetail } from "../detail/detail-loader";
+import type { TransactionDetail } from "../detail/transaction-detail";
 import { TransactionSheetHost } from "../detail/transaction-sheet-host";
 import { withTx } from "../detail/tx-href";
 import { TransactionRow, type RowContext } from "../transaction-row";
@@ -132,7 +132,8 @@ export function HomeSummary({
                     {t("allAccountsShort")}
                   </Link>
                 </div>
-                <ul className="flex gap-3 overflow-x-auto pb-1">
+                {/* It scrolls sideways once the accounts outgrow the screen: the keyboard can reach it to scroll. */}
+                <ul aria-labelledby="home-accounts" tabIndex={0} className="flex gap-3 overflow-x-auto pb-1">
                   {accounts.map((account) => (
                     <li
                       key={account.id}

@@ -15,6 +15,25 @@ export interface Trail {
   readonly pos: number;
 }
 
+let appBase = "";
+
+/** The single-page app lives under a base path (`/app`, ADR 0006) and declares it once at start; the Next.js UI has none. */
+export const setAppBase = (base: string): void => {
+  appBase = base;
+};
+
+/**
+ * The browser's address as the app's own paths read it: without the base, so the trail, Volver and the detail sheet
+ * compare the same paths the screens link to.
+ */
+export const appLocation = (
+  location: Pick<Location, "pathname" | "search"> = window.location,
+): { pathname: string; search: string } => {
+  const { pathname, search } = location;
+  const inside = appBase !== "" && (pathname === appBase || pathname.startsWith(`${appBase}/`));
+  return { pathname: inside ? pathname.slice(appBase.length) || "/" : pathname, search };
+};
+
 /** The browser keeps 50 entries; so does the trail. */
 export const MAX_ENTRIES = 50;
 const KEY = "hearth:navigation";
@@ -83,7 +102,7 @@ export const goBack = (
   event: Pick<MouseEvent, "button" | "metaKey" | "ctrlKey" | "shiftKey" | "altKey" | "preventDefault">,
 ): void => {
   if (event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-  const steps = stepsBack(readTrail(), window.location.pathname);
+  const steps = stepsBack(readTrail(), appLocation().pathname);
   if (steps === null) return;
   event.preventDefault();
   window.history.go(-steps);

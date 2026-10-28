@@ -2,7 +2,7 @@ import { useTranslations } from "next-intl";
 import type { MoneyDto, PeriodDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
 import { formatDate, formatMoney } from "@/shared/ui/format/formatters";
 import { groupByDay } from "./day-groups";
-import type { TransactionDetail } from "./detail/detail-loader";
+import type { TransactionDetail } from "./detail/transaction-detail";
 import { TransactionSheetHost } from "./detail/transaction-sheet-host";
 import { withTx } from "./detail/tx-href";
 import { ListFilters } from "./list-filters";

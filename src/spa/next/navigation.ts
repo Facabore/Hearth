@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { bumpLocale } from "../locale-epoch";
+import { takeSettledWrite } from "../write-plan";
 
 /** The part of Next.js's App Router the components call, over TanStack Router and the query cache (ADR 0006). */
 export interface AppRouterInstance {
@@ -14,7 +15,10 @@ export interface AppRouterInstance {
   replace(href: string, options?: { scroll?: boolean }): void;
   back(): void;
   forward(): void;
-  /** Next.js renders the page again on the server; here every query is read again and the guards run again. */
+  /**
+   * Next.js renders the page again on the server; here the screen's queries are read again and the guards run again.
+   * After a save that went through the app's writes, the cache already holds what changed, so nothing is read.
+   */
   refresh(): void;
   prefetch(href: string): void;
 }
@@ -29,6 +33,7 @@ export function useRouter(): AppRouterInstance {
       back: () => router.history.back(),
       forward: () => router.history.forward(),
       refresh: () => {
+        if (takeSettledWrite(queryClient)) return;
         bumpLocale();
         void queryClient.invalidateQueries();
         void router.invalidate();
