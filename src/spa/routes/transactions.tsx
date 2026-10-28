@@ -3,7 +3,7 @@ import { useTranslations } from "use-intl";
 import { TransactionList, TransactionSheetHost, transactionListHref } from "@/modules/ledger/ui";
 import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
-import { useList, useTransactionDetail, useViewer } from "../ledger/queries";
+import { useList, useTransactionDetail, useViewer } from "../ledger/hooks";
 import { useTitle } from "../title";
 
 const route = getRouteApi("/spaces/$spaceId/transactions");

@@ -1,4 +1,4 @@
-import { MutationObserver, type QueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import type { Api } from "@/shared/ui/api/client";
 
 /** One write as the components send it: the method, the path template and its parameters, and the body. */
@@ -29,14 +29,12 @@ export interface WritePlan {
 /** A module's writes: the plan for a call it owns, or null for one it does not. */
 export type WritePlanner = (call: WriteCall, queryClient: QueryClient) => WritePlan | null;
 
-class Refused extends Error {
-  constructor(readonly result: WriteResult) {
-    super(`The API refused the write: ${result.response.status}`);
-    this.name = "Refused";
-  }
-}
-
 const settled = new WeakSet<QueryClient>();
+
+/** A planned write was accepted and has already updated what it changed (`mutations.ts`). */
+export const markSettledWrite = (queryClient: QueryClient): void => {
+  settled.add(queryClient);
+};
 
 /**
  * The components call `router.refresh()` after a save, as the Next.js UI needs. A write that went through a plan has
@@ -45,7 +43,7 @@ const settled = new WeakSet<QueryClient>();
  */
 export const takeSettledWrite = (queryClient: QueryClient): boolean => settled.delete(queryClient);
 
-type Send = (
+export type Send = (
   path: string,
   init?: { params?: { path?: Record<string, string> }; body?: unknown },
 ) => Promise<WriteResult>;
@@ -54,36 +52,21 @@ type Send = (
  * The components' client with their writes run as TanStack Query mutations (ADR 0006): a planned write applies its
  * optimistic change, rolls it back when the API refuses, and on success writes the answer into the cache and
  * invalidates what it touched. The component still gets the client's own answer, so a refusal shows its code next to
- * its field (P118) as before. Reads, and writes no plan claims, pass through untouched.
+ * its field (P118) as before. Reads, and writes no plan claims, pass through untouched. The plans and the mutation
+ * runner load with the first write, or before it with the first screen that can write, never with the app shell.
  */
-export const trackWrites = (api: Api, queryClient: QueryClient, planner: WritePlanner): Api => {
+export const trackWrites = (
+  api: Api,
+  queryClient: QueryClient,
+  planner: () => Promise<WritePlanner>,
+): Api => {
   const write =
     (method: WriteCall["method"]): Send =>
-    (path, init) => {
+    async (path, init) => {
       const send = () => (api[method] as unknown as Send)(path, init);
-      const plan = planner({ method, path, params: init?.params?.path ?? {}, body: init?.body }, queryClient);
-      if (!plan) return send();
-      const observer = new MutationObserver<WriteResult, unknown, void, (() => void) | undefined>(
-        queryClient,
-        {
-          mutationKey: [method, path],
-          mutationFn: async () => {
-            const result = await send();
-            if (!result.response.ok) throw new Refused(result);
-            return result;
-          },
-          onMutate: () => plan.optimistic?.(queryClient),
-          onError: (_error, _variables, rollback) => rollback?.(),
-          onSuccess: (result) => {
-            plan.accepted(queryClient, result.data);
-            settled.add(queryClient);
-          },
-        },
-      );
-      return observer.mutate().catch((error: unknown) => {
-        if (error instanceof Refused) return error.result;
-        throw error;
-      });
+      const [plans, { runPlanned }] = await Promise.all([planner(), import("./mutations")]);
+      const plan = plans({ method, path, params: init?.params?.path ?? {}, body: init?.body }, queryClient);
+      return plan ? runPlanned(queryClient, [method, path], plan, send) : send();
     };
   return { ...api, POST: write("POST"), PATCH: write("PATCH"), DELETE: write("DELETE") } as unknown as Api;
 };

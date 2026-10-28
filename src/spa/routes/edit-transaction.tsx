@@ -4,7 +4,7 @@ import { useTranslations } from "use-intl";
 import { EditTransactionForm, originOf, withTx } from "@/modules/ledger/ui";
 import { NotFoundScreen, ProblemNotice } from "@/shared/ui";
 import { useApis } from "../api";
-import { useEdit, useViewer } from "../ledger/queries";
+import { useEdit, useViewer } from "../ledger/hooks";
 import { useTitle } from "../title";
 
 const route = getRouteApi("/spaces/$spaceId/transactions/$transactionId/edit");

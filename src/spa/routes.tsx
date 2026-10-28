@@ -6,13 +6,13 @@ import {
   redirect,
 } from "@tanstack/react-router";
 import { personalSpaceOf } from "@/modules/spaces/ui";
-import { NavigationTracker } from "@/shared/ui/navigation/navigation-tracker";
 import { ThemeSync } from "@/shared/ui/theme/theme-sync";
 import { ScreenError } from "./app-error";
 import { guardSession, leaveWhenSignedIn, type RouterContext } from "./guards";
-import { loadEdit, loadHome, loadList, loadRecord } from "./ledger/queries";
 import { signUpModeQuery, spacesQuery } from "./queries";
 import { textParam, textsParam } from "./search";
+import { ledgerWrites } from "./writes-catalog";
+import dynamic from "./next/dynamic";
 import { loadShell } from "./shell";
 
 /**
@@ -72,6 +72,23 @@ const indexRoute = createRoute({
   },
 });
 
+/**
+ * Volver's trail (history.ts): it records from its first render on, and nothing can navigate before the app has
+ * rendered, so it loads beside the first screen rather than with the app shell.
+ */
+const NavigationTracker = dynamic(() =>
+  import("@/shared/ui/navigation/navigation-tracker").then((m) => m.NavigationTracker),
+);
+
+/**
+ * The ledger's loaders load beside each screen's own chunk, never with the app shell; a screen that can write also warms
+ * the write plans, so its first save waits on no download.
+ */
+const ledger = () => {
+  void ledgerWrites();
+  return import("./ledger/queries");
+};
+
 /** The app shell of a space: its header with the space switcher and profile, and the bottom navigation. */
 const spaceRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -88,7 +105,8 @@ const spaceHomeRoute = createRoute({
     tx: textParam(search.tx),
   }),
   loaderDeps: ({ search }) => ({ tx: search.tx }),
-  loader: ({ context, params, deps, cause }) => loadHome({ ...context, cause }, params.spaceId, deps.tx),
+  loader: async ({ context, params, deps, cause }) =>
+    (await ledger()).loadHome({ ...context, cause }, params.spaceId, deps.tx),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "HomePending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/space-home"), "SpaceHome"),
@@ -110,8 +128,8 @@ const transactionsRoute = createRoute({
     filter: { period: search.period, categoryId: search.category, payerMemberId: search.payer },
     tx: search.tx,
   }),
-  loader: ({ context, params, deps, cause }) =>
-    loadList({ ...context, cause }, params.spaceId, deps.filter, deps.tx),
+  loader: async ({ context, params, deps, cause }) =>
+    (await ledger()).loadList({ ...context, cause }, params.spaceId, deps.filter, deps.tx),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "ListPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/transactions"), "TransactionsScreen"),
@@ -125,7 +143,8 @@ const recordRoute = createRoute({
     type: textParam(search.type),
     returnTo: textParam(search.returnTo),
   }),
-  loader: ({ context, params, cause }) => loadRecord({ ...context, cause }, params.spaceId),
+  loader: async ({ context, params, cause }) =>
+    (await ledger()).loadRecord({ ...context, cause }, params.spaceId),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "RecordPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/record"), "RecordScreen"),
@@ -136,8 +155,8 @@ const editRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "transactions/$transactionId/edit",
   validateSearch: (search: Record<string, unknown>) => ({ returnTo: textParam(search.returnTo) }),
-  loader: ({ context, params, cause }) =>
-    loadEdit({ ...context, cause }, params.spaceId, params.transactionId),
+  loader: async ({ context, params, cause }) =>
+    (await ledger()).loadEdit({ ...context, cause }, params.spaceId, params.transactionId),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "EditPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/edit-transaction"), "EditTransactionScreen"),

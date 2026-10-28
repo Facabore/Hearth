@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useTranslations } from "use-intl";
 import { RecordForm } from "@/modules/ledger/ui";
 import { useApis } from "../api";
-import { useRecord, useViewer } from "../ledger/queries";
+import { useRecord, useViewer } from "../ledger/hooks";
 import { useTitle } from "../title";
 
 const route = getRouteApi("/spaces/$spaceId/new");

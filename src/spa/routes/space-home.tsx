@@ -2,7 +2,7 @@ import { getRouteApi } from "@tanstack/react-router";
 import { useTranslations } from "use-intl";
 import { HomeSummary, TransactionSheetHost } from "@/modules/ledger/ui";
 import { useApis } from "../api";
-import { useHome, useTransactionDetail, useViewer } from "../ledger/queries";
+import { useHome, useTransactionDetail, useViewer } from "../ledger/hooks";
 import { useTitle } from "../title";
 
 const route = getRouteApi("/spaces/$spaceId/");

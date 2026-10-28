@@ -2,9 +2,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, type RouterHistory } from "@tanstack/react-router";
 import { ApisProvider, spaApis, type SpaApis } from "./api";
 import { IntlRoot } from "./i18n";
-import { ledgerWrites } from "./ledger/writes";
 import { createSpaRouter } from "./router";
-import { trackWrites } from "./writes";
+import { ledgerWrites, trackWrites } from "./writes-catalog";
 
 /** ADR 0006: TanStack Query owns server state. A failed read is tried once more before its screen says so. */
 export const createQueryClient = (): QueryClient =>

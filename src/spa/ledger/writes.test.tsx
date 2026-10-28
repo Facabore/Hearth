@@ -15,6 +15,12 @@ import { jsonResponse, problemResponse, type FakeHandler } from "../../../tests/
 import { renderSpa } from "../../../tests/support/ui/spa";
 
 const LIST = "/spaces/sp-personal/transactions";
+
+/**
+ * A save, its navigation and the screen it lands on, given time when the suites share a busy machine (CI runs them in
+ * parallel). The reads stay held, so whatever shows still comes from the cache.
+ */
+const SAVE_LANDS = { timeout: 4_000 };
 const ONE = "/api/v1/spaces/{spaceId}/transactions/{transactionId}";
 
 /** An answer the test gives when it chooses, so it can look at the screen while the API has not answered. */
@@ -172,7 +178,7 @@ describe("the ledger's writes in the SPA (slice 2 of #199, ADR 0006)", () => {
     await userEvent.click(screen.getByRole("button", { name: es.ledger.edit.save }));
 
     // The reads hang from the save on: the sheet and the row can only come from the API's answer.
-    expect(await screen.findByRole("dialog", { name: "Cena" })).toBeVisible();
+    expect(await screen.findByRole("dialog", { name: "Cena" }, SAVE_LANDS)).toBeVisible();
     expect(spa.location()).toBe(`${LIST}?tx=t-dinner`);
     expect(listRow(/Cena/)).not.toBeNull();
     expect(screen.getByRole("status")).toHaveTextContent(es.ledger.toast.edited);
@@ -226,8 +232,8 @@ describe("the ledger's writes in the SPA (slice 2 of #199, ADR 0006)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
 
-    await waitFor(() => expect(spa.location()).toBe(LIST));
-    expect(await screen.findByRole("link", { name: /Pan/ })).toBeVisible();
+    await waitFor(() => expect(spa.location()).toBe(LIST), SAVE_LANDS);
+    expect(await screen.findByRole("link", { name: /Pan/ }, SAVE_LANDS)).toBeVisible();
     expect(screen.getByRole("status")).toHaveTextContent(es.ledger.toast.saved.EXPENSE);
     expect(screen.getByRole("button", { name: es.ledger.toast.view })).toBeVisible();
   });

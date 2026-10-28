@@ -66,6 +66,18 @@ export default defineConfig({
     // The budgets read the gzip sizes themselves (scripts/spa-budget.mjs).
     reportCompressedSize: false,
     rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              // The app shell's libraries in one file: split across the screens that share them, they became a dozen
+              // small chunks that each compress on their own, 5 KiB more gzip for the same code (slice 2 of #199).
+              name: "framework",
+              test: /[\\/]node_modules[\\/](react|react-dom|scheduler|@tanstack|openapi-fetch|use-intl|@formatjs)[\\/]/,
+            },
+          ],
+        },
+      },
       // The shared components and Radix carry Next.js's "use client"; a client-only bundle has nothing to keep it for.
       onwarn(warning, warn) {
         if (warning.code !== "MODULE_LEVEL_DIRECTIVE") warn(warning);
