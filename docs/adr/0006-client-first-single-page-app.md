@@ -74,6 +74,18 @@ The web UI becomes a client-rendered single-page app, and the server leaves the 
 - **Budgets.** The shell measures 117.9 KiB against its 118 KiB budget, unchanged: about 1 KiB for six route definitions and the client adapter. Slices 4 and 5 add some twenty routes, so their definitions will need to move out of the shell before then.
 - **Gate.** `tests/e2e/spa/manage.spec.ts` runs against the real API and scans each screen with axe. It creates an account from the form and finds it on the list, opens the category tree, changes the number format in Settings and finds the new format on the accounts screen, and opens New space inside its shell.
 
+## Implementation (slice 4, 2026-10-28): shared spaces
+
+- **Screens.** Members (`?invite=1`), a member's balance history (`?from=`), balances and settle-up (`?settle=`), and the invitation and claim pages. A personal space has no members, balances or history, so those answer the not-found screen, as the Next.js containers do. The invitation and claim pages hang off an open layout: the public frame without its "already signed in" redirect, since anyone may open them (P157). Dates there use the person's own zone when signed in. Without a profile, they use the installation's default zone, because the SPA reads no server environment (`APP_TIMEZONE`, P182).
+- **`ui/screens.ts`.** A module's whole screens, which only the SPA composes, have their own entry. They sit above every module's barrel: the members screen, for example, reaches the balances and through them the ledger, whose forms import the spaces barrel. Exported from `index.ts`, they closed import cycles. dependency-cruiser lets only `src/spa` import a `screens.ts` (`ui-screens-only-for-the-spa`).
+- **Plans.**
+  - Accepting an invitation or a claim adds the space to the person's spaces before the screen lands in it.
+  - Inviting, revoking, adding or removing a guest, a claim link and a role invalidate the space's members (its invitations among them) and its balances.
+  - A settle-up is a movement. Every movement now also invalidates the space's balances: in a shared space, each expense changes them.
+- **Reads moved out of the shell.** The screens' reads moved from `queries.ts` (the shell's: the profile, sign-up and spaces) to `reads.ts`, which loads with the screens. The slice 3 loaders became lazy too, and the app base moved out of `history.ts`, so declaring it no longer loads the Volver trail. The shell measures 117.8 KiB against its 118 KiB budget, unchanged. The chunks that now carry that code got budgets about 3 KiB above their new measurement: the ledger's sheet, split, record, edit, list and home.
+- **Retries.** Only a read that failed for a passing reason is retried: the network, or a 5xx. A 404 or a refusal would answer the same again, so it shows at once.
+- **Gate.** `tests/e2e/spa/shared.spec.ts` runs two people against the real API, with axe on every screen. Ana invites, Juan opens the open invitation page in a browser of his own and accepts it, and lands in Household. Ana sees him among the members, records a shared expense, and settles up from the balances' suggestion, which goes away. Then she opens Juan's history.
+
 ## Consequences
 
 - Moving between screens already in the cache costs no network round trip. A screen seen for the first time costs its own API calls only, about 30 to 130 ms each, with no server render on top. Saving updates the screen at once and rolls back with the API's error message if the save is refused.

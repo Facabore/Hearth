@@ -14,7 +14,7 @@ import { addDays, type LocalDate } from "@/shared/kernel/local-date";
 import type { CategoryGroupDto, MeDto, MemberDto, TransactionDto } from "@/shared/ui/api/dto";
 import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
-import { accountsQuery, categoriesQuery, lineReportQuery, membersQuery, periodQuery } from "../queries";
+import { accountsQuery, categoriesQuery, lineReportQuery, membersQuery, periodQuery } from "../reads";
 import { sharedSpace, type Viewer } from "../load";
 
 export { useViewer } from "../viewer";

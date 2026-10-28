@@ -4,7 +4,7 @@ import { useTranslations } from "use-intl";
 import { CategoryTree } from "@/modules/categories/ui";
 import { useApis } from "../api";
 import { useViewer } from "../viewer";
-import { categoriesQuery } from "../queries";
+import { categoriesQuery } from "../reads";
 import { useTitle } from "../title";
 
 const route = getRouteApi("/spaces/$spaceId/categories");

@@ -4,7 +4,7 @@ import { useTranslations } from "use-intl";
 import { AccountsScreen, EditAccountForm, NewAccountForm } from "@/modules/accounts/ui";
 import { useApis } from "../api";
 import { useViewer } from "../viewer";
-import { accountListQuery, accountQuery } from "../queries";
+import { accountListQuery, accountQuery } from "../reads";
 import { useTitle } from "../title";
 
 const list = getRouteApi("/spaces/$spaceId/accounts");

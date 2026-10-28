@@ -1,7 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "../app/(web)/globals.css";
-import { setAppBase } from "@/shared/ui/navigation/history";
+import { setAppBase } from "@/shared/ui/navigation/app-base";
 import { createSpa } from "./app";
 import { catalogQuery, visitorLocale } from "./i18n";
 import { meQuery } from "./queries";

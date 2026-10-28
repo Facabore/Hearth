@@ -65,3 +65,15 @@ export const SettingsPending = () => (
 export const NewSpacePending = () => (
   <LoadingScreen header={{ backHref: "/", title: useTranslations("spaces.new")("title") }} shape="form" />
 );
+
+export const MembersPending = () => (
+  <SpaceScreenPending title={useTranslations("members")("title")} shape="list" />
+);
+
+/** The history's title names the member, which only the read knows: its skeleton has the way back alone. */
+export function HistoryPending() {
+  const { spaceId } = useParams({ strict: false });
+  return <LoadingScreen header={{ backHref: `/spaces/${spaceId}/balances` }} shape="list" />;
+}
+
+export const BalancesPending = () => <LoadingScreen shape="cards" />;

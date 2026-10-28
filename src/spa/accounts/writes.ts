@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { AccountDto } from "@/shared/ui/api/dto";
-import { moduleKeys } from "../queries";
+import { moduleKeys } from "../reads";
 import type { WritePlanner } from "../write-plan";
 
 const ACCOUNTS = "/api/v1/spaces/{spaceId}/accounts";

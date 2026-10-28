@@ -16,7 +16,7 @@ import {
   lineReportQuery,
   membersQuery,
   periodQuery,
-} from "../queries";
+} from "../reads";
 import { ensurer, sharedSpace, viewerOf, type Load, type Viewer } from "../load";
 import { read } from "../read";
 

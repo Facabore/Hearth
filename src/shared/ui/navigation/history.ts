@@ -1,3 +1,5 @@
+import { appLocation } from "./app-base";
+
 /**
  * The browser's history of this tab, as the app saw it, so Volver can return to where the person actually was.
  *
@@ -15,24 +17,7 @@ export interface Trail {
   readonly pos: number;
 }
 
-let appBase = "";
-
-/** The single-page app lives under a base path (`/app`, ADR 0006) and declares it once at start; the Next.js UI has none. */
-export const setAppBase = (base: string): void => {
-  appBase = base;
-};
-
-/**
- * The browser's address as the app's own paths read it: without the base, so the trail, Volver and the detail sheet
- * compare the same paths the screens link to.
- */
-export const appLocation = (
-  location: Pick<Location, "pathname" | "search"> = window.location,
-): { pathname: string; search: string } => {
-  const { pathname, search } = location;
-  const inside = appBase !== "" && (pathname === appBase || pathname.startsWith(`${appBase}/`));
-  return { pathname: inside ? pathname.slice(appBase.length) || "/" : pathname, search };
-};
+export { appLocation, setAppBase } from "./app-base";
 
 /** The browser keeps 50 entries; so does the trail. */
 export const MAX_ENTRIES = 50;

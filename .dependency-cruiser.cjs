@@ -87,12 +87,20 @@ module.exports = {
       name: "ui-modules-only-through-public-ui-api",
       severity: "error",
       comment:
-        "A module's ui reaches another module's ui only through src/modules/<module>/ui/index.ts (client-safe) or ui/server.ts (server containers), and the web pages reach every module only through them.",
+        "A module's ui reaches another module's ui only through src/modules/<module>/ui/index.ts (client-safe) or ui/server.ts (server containers), and the web pages reach every module only through them; the single-page app also through ui/screens.ts.",
       from: { path: ["^src/modules/([^/]+)/ui/", "^src/app/\\(web\\)/", "^src/spa/"] },
       to: {
         path: "^src/modules/[^/]+/ui/",
-        pathNot: ["^src/modules/[^/]+/ui/(index|server)\\.ts$", "^src/modules/$1/ui/"],
+        pathNot: ["^src/modules/[^/]+/ui/(index|server|screens)\\.ts$", "^src/modules/$1/ui/"],
       },
+    },
+    {
+      name: "ui-screens-only-for-the-spa",
+      severity: "error",
+      comment:
+        "ADR 0006: a module's ui/screens.ts holds its whole screens, which only the single-page app composes. They sit above every module's index.ts, so a component importing them would close a cycle through the barrels.",
+      from: { pathNot: "^src/spa/" },
+      to: { path: "^src/modules/[^/]+/ui/screens\\.ts$" },
     },
     {
       name: "ui-index-is-client-safe",

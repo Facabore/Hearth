@@ -9,8 +9,7 @@ import { personalSpaceOf } from "@/modules/spaces/ui";
 import { ThemeSync } from "@/shared/ui/theme/theme-sync";
 import { ScreenError } from "./app-error";
 import { guardSession, leaveWhenSignedIn, type RouterContext } from "./guards";
-import { ensurer } from "./load";
-import { accountListQuery, accountQuery, categoriesQuery, signUpModeQuery, spacesQuery } from "./queries";
+import { signUpModeQuery, spacesQuery } from "./queries";
 import { textParam, textsParam } from "./search";
 import dynamic from "./next/dynamic";
 import { loadShell } from "./shell";
@@ -82,6 +81,12 @@ const NavigationTracker = dynamic(() =>
 
 /** The ledger's loaders load beside each screen's own chunk, never with the app shell. */
 const ledger = () => import("./ledger/queries");
+
+/** Slice 3's loaders, likewise. */
+const manage = () => import("./manage/loaders");
+
+/** The shared spaces' loaders, likewise. */
+const sharedSpaces = () => import("./spaces/loaders");
 
 /** The app shell of a space: its header with the space switcher and profile, and the bottom navigation. */
 const spaceRoute = createRoute({
@@ -161,8 +166,8 @@ const accountsRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "accounts",
   validateSearch: (search: Record<string, unknown>) => ({ returnTo: textParam(search.returnTo) }),
-  loader: ({ context, params, cause }) =>
-    ensurer({ ...context, cause })(accountListQuery(context.apis.api, params.spaceId, "all")),
+  loader: async ({ context, params, cause }) =>
+    (await manage()).loadAccounts({ ...context, cause }, params.spaceId),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "AccountsPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/accounts"), "AccountsRoute"),
@@ -182,8 +187,8 @@ const newAccountRoute = createRoute({
 const editAccountRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "accounts/$accountId/edit",
-  loader: ({ context, params, cause }) =>
-    ensurer({ ...context, cause })(accountQuery(context.apis.api, params.spaceId, params.accountId)),
+  loader: async ({ context, params, cause }) =>
+    (await manage()).loadAccount({ ...context, cause }, params.spaceId, params.accountId),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "EditAccountPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/accounts"), "EditAccountRoute"),
@@ -193,8 +198,8 @@ const editAccountRoute = createRoute({
 const categoriesRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "categories",
-  loader: ({ context, params, cause }) =>
-    ensurer({ ...context, cause })(categoriesQuery(context.apis.api, params.spaceId, "all")),
+  loader: async ({ context, params, cause }) =>
+    (await manage()).loadCategories({ ...context, cause }, params.spaceId),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "CategoriesPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/categories"), "CategoriesRoute"),
@@ -227,8 +232,70 @@ const newSpaceRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/settings"), "NewSpaceRoute"),
 });
 
+/** HU-E9-05: the members of a shared or direct space; `?invite=1` opens the invite sheet (N10). */
+const membersRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "members",
+  validateSearch: (search: Record<string, unknown>) => ({ invite: textParam(search.invite) }),
+  loader: async ({ context, params, cause }) =>
+    (await sharedSpaces()).loadMembers({ ...context, cause }, params.spaceId),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "MembersPending"),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/members"), "MembersRoute"),
+});
+
+/** HU-E9-07, ruling P176: a member's balance history, `?from=<date>` for another period. */
+const historyRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "members/$memberId/history",
+  validateSearch: (search: Record<string, unknown>) => ({ from: textParam(search.from) }),
+  loaderDeps: ({ search }) => ({ from: search.from }),
+  loader: async ({ context, params, deps, cause }) =>
+    (await sharedSpaces()).loadHistory({ ...context, cause }, params.spaceId, params.memberId, deps.from),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "HistoryPending"),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/members"), "HistoryRoute"),
+});
+
+/** HU-E9-07: balances and settle-up; `?settle=<member id>` opens the sheet with that member paying. */
+const balancesRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "balances",
+  validateSearch: (search: Record<string, unknown>) => ({ settle: textParam(search.settle) }),
+  loader: async ({ context, params, cause }) =>
+    (await sharedSpaces()).loadBalances({ ...context, cause }, params.spaceId),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "BalancesPending"),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/balances"), "BalancesRoute"),
+});
+
+/**
+ * Ruling P157: the invitation and claim pages, open to anyone, signed in or not: in the public frame, but without its
+ * redirect of a signed-in person, and each page reads the session it needs.
+ */
+const openRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  id: "_open",
+  component: lazyRouteComponent(() => import("./routes/public-layout"), "PublicLayout"),
+});
+
+const invitationRoute = createRoute({
+  getParentRoute: () => openRoute,
+  path: "invitations/$token",
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/invitation"), "InvitationRoute"),
+});
+
+const claimRoute = createRoute({
+  getParentRoute: () => openRoute,
+  path: "claims/$token",
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/invitation"), "ClaimRoute"),
+});
+
 export const routeTree = rootRoute.addChildren([
   publicRoute.addChildren([signInRoute, signUpRoute]),
+  openRoute.addChildren([invitationRoute, claimRoute]),
   indexRoute,
   settingsRoute,
   newSpaceRoute,
@@ -241,5 +308,8 @@ export const routeTree = rootRoute.addChildren([
     newAccountRoute,
     editAccountRoute,
     categoriesRoute,
+    membersRoute,
+    historyRoute,
+    balancesRoute,
   ]),
 ]);

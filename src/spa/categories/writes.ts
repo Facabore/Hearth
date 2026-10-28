@@ -1,4 +1,4 @@
-import { moduleKeys } from "../queries";
+import { moduleKeys } from "../reads";
 import type { WritePlanner } from "../write-plan";
 
 const SPACE = "/api/v1/spaces/{spaceId}";
