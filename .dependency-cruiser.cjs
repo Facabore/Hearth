@@ -65,6 +65,7 @@ module.exports = {
       from: {
         path: [
           "^src/app/\\(web\\)/",
+          "^src/spa/",
           "^src/i18n/",
           "^src/proxy\\.ts$",
           "^src/shared/ui/",
@@ -87,7 +88,7 @@ module.exports = {
       severity: "error",
       comment:
         "A module's ui reaches another module's ui only through src/modules/<module>/ui/index.ts (client-safe) or ui/server.ts (server containers), and the web pages reach every module only through them.",
-      from: { path: ["^src/modules/([^/]+)/ui/", "^src/app/\\(web\\)/"] },
+      from: { path: ["^src/modules/([^/]+)/ui/", "^src/app/\\(web\\)/", "^src/spa/"] },
       to: {
         path: "^src/modules/[^/]+/ui/",
         pathNot: ["^src/modules/[^/]+/ui/(index|server)\\.ts$", "^src/modules/$1/ui/"],
@@ -100,6 +101,21 @@ module.exports = {
         "Ruling P153: a module's ui/index.ts is imported by client code, so it must never reach the server-only API reader (next/headers); server containers are exported from ui/server.ts.",
       from: { path: "^src/modules/[^/]+/ui/index\\.ts$" },
       to: { path: "^src/shared/ui/api/server\\.ts$", reachable: true },
+    },
+    {
+      name: "spa-is-client-only",
+      severity: "error",
+      comment:
+        "ADR 0006: the single-page app runs only in the browser, so it never reaches a server container (ui/server.ts), the server-only API reader or the Next.js server; the components' next/link, next/navigation, next/dynamic and next-intl resolve to its adapters (vite.spa.config.ts).",
+      from: { path: "^src/spa/" },
+      to: {
+        path: [
+          "^src/modules/[^/]+/ui/server\\.ts$",
+          "^src/shared/ui/api/server\\.ts$",
+          "^src/app/(?!\\(web\\)/globals\\.css$)",
+        ],
+        reachable: true,
+      },
     },
     {
       name: "only-ui-reaches-ui",

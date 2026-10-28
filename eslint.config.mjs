@@ -7,6 +7,7 @@ export default defineConfig([
   globalIgnores([
     ".next/**",
     "out/**",
+    "dist/**",
     "coverage/**",
     "next-env.d.ts",
     "drizzle/**",

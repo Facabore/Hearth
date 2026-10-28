@@ -2,6 +2,7 @@ pnpm-lock.yaml
 drizzle/
 openapi/openapi.snapshot.json
 .next/
+dist/
 docs/
 .superpowers
 src/shared/ui/api/schema.d.ts
