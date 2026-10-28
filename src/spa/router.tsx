@@ -1,4 +1,9 @@
-import { createRouter, type ErrorComponentProps, type RouterHistory } from "@tanstack/react-router";
+import {
+  createRouter,
+  useRouter,
+  type ErrorComponentProps,
+  type RouterHistory,
+} from "@tanstack/react-router";
 import { useTranslations } from "use-intl";
 import { ErrorScreen, NotFoundScreen } from "@/shared/ui";
 import type { RouterContext } from "./guards";
@@ -15,11 +20,19 @@ function AppNotFound() {
   return <NotFoundScreen />;
 }
 
-/** N2: a screen whose load failed, with Reintentar; an API that did not answer says so. */
+/**
+ * N2: a screen whose load failed, with Reintentar; an API that did not answer says so. Retrying loads the screen again
+ * (its guards, loaders and queries), not only the boundary, which alone would show the same failure.
+ */
 function AppError({ error, reset }: ErrorComponentProps) {
+  const router = useRouter();
+  const retry = () => {
+    reset();
+    void router.invalidate();
+  };
   return (
     <main className="mx-auto max-w-[420px] px-4 max-[359px]:px-3">
-      <ErrorScreen onRetry={reset} variant={error instanceof TypeError ? "connection" : "unexpected"} />
+      <ErrorScreen onRetry={retry} variant={error instanceof TypeError ? "connection" : "unexpected"} />
     </main>
   );
 }

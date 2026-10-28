@@ -105,7 +105,8 @@ services:
       - caddy-config:/config
     depends_on:
       app: { condition: service_healthy }
-      web: { condition: service_healthy }
+      # Started, not healthy: a broken SPA image must never keep the API and the Next.js UI offline.
+      web: { condition: service_started }
     networks: [internal]
 
 networks:

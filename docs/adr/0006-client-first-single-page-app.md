@@ -43,7 +43,7 @@ The web UI becomes a client-rendered single-page app, and the server leaves the 
 - **Two clients.** Screens use `browserApi` over the router's location, so a session that ends mid-use goes to the app's own sign-in with `expired=1` (P151). The guards' profile read uses a plain client, where a 401 only means signed out.
 - **Texts.** The intl provider waits for the profile, so a signed-in person never sees a frame in the visitor's language, and loads one catalog per language as its own chunk. The catalogs are precompiled like `next.config.ts` does (P134).
 - **Serving.** A `web` image (`FROM caddy`, `Caddyfile.web`) holds the build under `/srv/app`. The edge Caddy, bundled or the host's own, proxies `/app` and `/app/*` to it. One image serves both deployments and the edge configuration stays config only.
-- **Budgets.** `scripts/spa-budget.mjs` gates the gzip size of the shell (the entry and its static imports) and of each lazy chunk against `tests/performance/spa-budgets.json`, about 3 KiB above the first measurement. The shell measured 115.5 KiB, against 158–162 KiB for the Next.js sign-in and home routes.
+- **Budgets.** `scripts/spa-budget.mjs` gates the gzip size of the shell (the entry and its static imports) and of each lazy chunk against `tests/performance/spa-budgets.json`, about 3 KiB above the first measurement. The shell measured 115.5 KiB; the Next.js sign-in and home routes have script budgets of 158 to 162 KiB.
 
 ## Consequences
 

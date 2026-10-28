@@ -104,7 +104,7 @@ The Next.js UI's Server Components call `/api/v1` on `INTERNAL_API_ORIGIN` (defa
 
 ## Rolling back
 
-Set the image tags back to the previous SHA and run `docker compose up -d`. Migrations are forward-only; a release whose migration is not backward compatible must say so in its PR.
+Set the image tags back to the previous SHA and run `docker compose up -d`. A release from before the web service has no `hearth-web` image: keep `HEARTH_WEB_IMAGE` at the first release that has one (the SPA is independent of the app's version until cut-over), or restore that release's `compose.yaml` and `Caddyfile` too. Migrations are forward-only; a release whose migration is not backward compatible must say so in its PR.
 
 ## Backups
 

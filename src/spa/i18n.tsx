@@ -1,5 +1,5 @@
-import { keepPreviousData, queryOptions, useQuery } from "@tanstack/react-query";
-import { useEffect, useSyncExternalStore, type ReactNode } from "react";
+import { queryOptions, useQuery } from "@tanstack/react-query";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { IntlProvider, type AbstractIntlMessages } from "use-intl";
 import { LOCALE_COOKIE, resolveLocale, type Locale } from "@/i18n/locale";
 import { useApis } from "./api";
@@ -33,8 +33,8 @@ export const visitorLocale = (userLocale?: string | null): Locale =>
 
 /**
  * The texts of the whole app (use-intl over the existing catalogs). It waits for the profile, so a signed-in person
- * never sees a frame in the visitor's language, then for the catalog; a language change keeps the old texts until the
- * new ones are in. Formats never come from here (D23, P121): only `src/shared/ui/format/` formats.
+ * never sees a frame in the visitor's language, then for the catalog. A language change keeps the texts on screen until
+ * the new ones are in, and keeps them if the new catalog cannot load (a flaky network, a chunk gone after a release). Formats never come from here (D23, P121): only `src/shared/ui/format/` formats.
  */
 export function IntlRoot({ children }: { readonly children: ReactNode }) {
   const { sessionApi } = useApis();
@@ -42,19 +42,18 @@ export function IntlRoot({ children }: { readonly children: ReactNode }) {
   // A refresh may have changed the language cookie: render again and read it (the profile's language wins anyway).
   useSyncExternalStore(subscribeLocale, localeEpoch);
   const locale = visitorLocale(me.data?.locale);
-  const messages = useQuery({
-    ...catalogQuery(locale),
-    placeholderData: keepPreviousData,
-    enabled: !me.isPending,
-  });
+  const catalog = useQuery({ ...catalogQuery(locale), enabled: !me.isPending }).data;
+  const [shown, setShown] = useState<{ locale: Locale; messages: AbstractIntlMessages } | null>(null);
+  if (catalog && (shown?.locale !== locale || shown.messages !== catalog))
+    setShown({ locale, messages: catalog });
   useEffect(() => {
-    if (messages.data && !messages.isPlaceholderData) document.documentElement.lang = locale;
-  }, [locale, messages.data, messages.isPlaceholderData]);
-  if (me.isPending || !messages.data) return null;
+    if (shown) document.documentElement.lang = shown.locale;
+  }, [shown]);
+  if (me.isPending || !shown) return null;
   return (
     <IntlProvider
-      locale={messages.isPlaceholderData ? (document.documentElement.lang as Locale) : locale}
-      messages={messages.data}
+      locale={shown.locale}
+      messages={shown.messages}
       // use-intl's own formatting is never used (ruling P121); the zone only keeps it from warning.
       timeZone={me.data?.timezone ?? "America/Bogota"}
     >

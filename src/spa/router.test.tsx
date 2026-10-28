@@ -169,3 +169,34 @@ describe("a session that ends while the app is open (ruling P151)", () => {
     expect(history.location.pathname).toBe("/app/sign-in");
   });
 });
+
+describe("recovering and leaving", () => {
+  it("loads the screen again on Reintentar after its load failed (N2)", async () => {
+    let failures = 2;
+    renderSpa("/spaces/sp-personal", {
+      ...signedIn(),
+      "GET /api/v1/spaces": () =>
+        failures-- > 0 ? problemResponse(500, "Internal") : jsonResponse({ items: [spaceDto()] }),
+    });
+    expect(await screen.findByRole("heading", { name: "Algo salió mal" })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(await screen.findByRole("button", { name: /Personal/ })).toBeVisible();
+  });
+
+  it("signs out to the sign-in screen and keeps none of the person's answers", async () => {
+    let session = true;
+    vi.stubGlobal("fetch", async (request: Request) => {
+      if (new URL(request.url).pathname === "/api/v1/auth/sign-out") session = false;
+      return new Response(null, { status: 204 });
+    });
+    const spa = renderSpa("/spaces/sp-personal", {
+      ...signedIn(),
+      "GET /api/v1/me": () => (session ? jsonResponse(meDto()) : problemResponse(401, "Unauthenticated")),
+    });
+    await userEvent.click(await screen.findByRole("button", { name: "Perfil de Ana" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Cerrar sesión" }));
+    expect(await screen.findByRole("heading", { name: "Hola de nuevo" })).toBeVisible();
+    expect(spa.location()).toBe("/sign-in");
+    expect(spa.queryClient.getQueryData(queryKeys.spaces)).toBeUndefined();
+  });
+});

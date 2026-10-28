@@ -103,11 +103,11 @@ describe("compose.yaml backups (HU-E8-01)", () => {
     });
   });
 
-  it("serves the single-page app from the web image on the internal network only, and Caddy waits for it (ADR 0006)", () => {
+  it("serves the single-page app from the web image on the internal network only, and never holds Caddy back on it (ADR 0006)", () => {
     const { caddy, web } = services();
     expect(web).toMatchObject({ restart: "unless-stopped", networks: { internal: null } });
     expect(web!.ports).toBeUndefined();
-    expect(caddy!.depends_on).toMatchObject({ web: { condition: "service_healthy" } });
+    expect(caddy!.depends_on).toMatchObject({ web: { condition: "service_started" } });
   });
 
   it("leaves backup-offsite out unless COMPOSE_PROFILES names offsite", () => {
