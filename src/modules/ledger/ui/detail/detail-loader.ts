@@ -1,20 +1,10 @@
 import type { Api } from "@/shared/ui/api/client";
-import type { MemberDto, SpaceDto, TransactionDto } from "@/shared/ui/api/dto";
-import { problemFrom, type Problem } from "@/shared/ui/api/problem";
+import type { SpaceDto } from "@/shared/ui/api/dto";
+import { problemFrom } from "@/shared/ui/api/problem";
 import { loaded, redirectToSignIn } from "@/shared/ui/api/server";
-import type { Viewer } from "./transaction-actions";
+import type { TransactionDetail } from "./transaction-detail";
 
-export interface TransactionDetail {
-  readonly tx: TransactionDto | null;
-  readonly problem: Problem | null;
-  readonly members: MemberDto[];
-  readonly viewer: Viewer;
-  /**
-   * Issue #165: account id to name of the viewer's own accounts, read from their personal space (archived ones too),
-   * so a shared row paid from one of them names it. Empty in a personal space, whose list already names its accounts.
-   */
-  readonly ownAccountNames: Record<string, string>;
-}
+export type { TransactionDetail };
 
 /**
  * Ruling P189: the transaction behind `?tx=`, and in a shared or direct space the members who name its parts and the

@@ -6,7 +6,7 @@ import type { AccountDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/d
 import { formatDate, formatMoney } from "@/shared/ui/format/formatters";
 import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { periodName } from "@/shared/ui/time/period-name";
-import type { TransactionDetail } from "../detail/detail-loader";
+import type { TransactionDetail } from "../detail/transaction-detail";
 import { TransactionSheetHost } from "../detail/transaction-sheet-host";
 import { withTx } from "../detail/tx-href";
 import { TransactionRow, type RowContext } from "../transaction-row";

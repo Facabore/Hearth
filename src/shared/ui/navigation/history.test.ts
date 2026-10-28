@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
+  appLocation,
+  setAppBase,
   MAX_ENTRIES,
   isAuthScreen,
   isRootScreen,
@@ -262,5 +264,27 @@ describe("the trail in sessionStorage", () => {
     const { storage, data } = storageOf();
     data.set("hearth:navigation", raw);
     expect(readTrail(storage)).toEqual(EMPTY);
+  });
+});
+
+describe("appLocation (ADR 0006: the single-page app under /app)", () => {
+  afterEach(() => setAppBase(""));
+
+  it("is the browser's own path in the Next.js UI, which has no base", () => {
+    expect(appLocation({ pathname: "/app/spaces/s-1", search: "?tx=t-1" })).toEqual({
+      pathname: "/app/spaces/s-1",
+      search: "?tx=t-1",
+    });
+  });
+
+  it("drops the app's base, so the trail and the sheet compare the paths the screens link to", () => {
+    setAppBase("/app");
+    expect(appLocation({ pathname: "/app/spaces/s-1/transactions", search: "?tx=t-1" })).toEqual({
+      pathname: "/spaces/s-1/transactions",
+      search: "?tx=t-1",
+    });
+    expect(appLocation({ pathname: "/app", search: "" }).pathname).toBe("/");
+    // Only the base as a whole segment: another path that starts with the same letters is left as it is.
+    expect(appLocation({ pathname: "/apple-icon.png", search: "" }).pathname).toBe("/apple-icon.png");
   });
 });

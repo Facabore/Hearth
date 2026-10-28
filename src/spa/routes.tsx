@@ -6,8 +6,11 @@ import {
   redirect,
 } from "@tanstack/react-router";
 import { personalSpaceOf } from "@/modules/spaces/ui";
+import { NavigationTracker } from "@/shared/ui/navigation/navigation-tracker";
 import { ThemeSync } from "@/shared/ui/theme/theme-sync";
+import { ScreenError } from "./app-error";
 import { guardSession, leaveWhenSignedIn, type RouterContext } from "./guards";
+import { loadEdit, loadHome, loadList, loadRecord } from "./ledger/queries";
 import { signUpModeQuery, spacesQuery } from "./queries";
 import { textParam, textsParam } from "./search";
 import { loadShell } from "./shell";
@@ -23,6 +26,7 @@ const rootRoute = createRootRouteWithContext<RouterContext>()({
       <>
         <Outlet />
         <ThemeSync />
+        <NavigationTracker />
       </>
     );
   },
@@ -79,11 +83,66 @@ const spaceRoute = createRoute({
 const spaceHomeRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "/",
+  validateSearch: (search: Record<string, unknown>) => ({
+    joined: textParam(search.joined),
+    tx: textParam(search.tx),
+  }),
+  loaderDeps: ({ search }) => ({ tx: search.tx }),
+  loader: ({ context, params, deps }) => loadHome(context, params.spaceId, deps.tx),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "HomePending"),
+  errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/space-home"), "SpaceHome"),
+});
+
+/** HU-E9-03: Movimientos, with its filters and the detail sheet behind `?tx=` (P189). */
+const transactionsRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "transactions",
+  validateSearch: (search: Record<string, unknown>) => ({
+    period: textParam(search.period),
+    category: textParam(search.category),
+    payer: textParam(search.payer),
+    notice: textParam(search.notice),
+    account: textParam(search.account),
+    tx: textParam(search.tx),
+  }),
+  loaderDeps: ({ search }) => ({
+    filter: { period: search.period, categoryId: search.category, payerMemberId: search.payer },
+    tx: search.tx,
+  }),
+  loader: ({ context, params, deps }) => loadList(context, params.spaceId, deps.filter, deps.tx),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "ListPending"),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/transactions"), "TransactionsScreen"),
+});
+
+/** HU-E9-03: the record form, `?type=` and `?returnTo=` (#172). */
+const recordRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "new",
+  validateSearch: (search: Record<string, unknown>) => ({
+    type: textParam(search.type),
+    returnTo: textParam(search.returnTo),
+  }),
+  loader: ({ context, params }) => loadRecord(context, params.spaceId),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "RecordPending"),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/record"), "RecordScreen"),
+});
+
+/** Ruling P191: the edit form, `?returnTo=` the screen its sheet was opened on. */
+const editRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "transactions/$transactionId/edit",
+  validateSearch: (search: Record<string, unknown>) => ({ returnTo: textParam(search.returnTo) }),
+  loader: ({ context, params }) => loadEdit(context, params.spaceId, params.transactionId),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "EditPending"),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/edit-transaction"), "EditTransactionScreen"),
 });
 
 export const routeTree = rootRoute.addChildren([
   publicRoute.addChildren([signInRoute, signUpRoute]),
   indexRoute,
-  spaceRoute.addChildren([spaceHomeRoute]),
+  spaceRoute.addChildren([spaceHomeRoute, transactionsRoute, recordRoute, editRoute]),
 ]);
