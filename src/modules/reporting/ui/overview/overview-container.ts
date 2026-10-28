@@ -1,21 +1,8 @@
 import type { Api } from "@/shared/ui/api/client";
-import type {
-  FundTrackingDto,
-  LineTrendDto,
-  MemberMatrixDto,
-  SpaceMemberDto,
-  SpendingByGroupDto,
-} from "@/shared/ui/api/dto";
 import { loaded } from "@/shared/ui/api/server";
+import type { Overview } from "./overview";
 
-/** The desktop panels of a shared space's Plan tab; each is null when its read failed. */
-export interface Overview {
-  readonly matrix: MemberMatrixDto | null;
-  readonly fund: FundTrackingDto | null;
-  readonly groups: SpendingByGroupDto | null;
-  readonly trend: LineTrendDto | null;
-  readonly members: SpaceMemberDto[];
-}
+export type { Overview };
 
 /** Ruling P216: the desktop panels, read in parallel for the period the line dashboard named; a failed read is left out. */
 export const loadOverview = async (

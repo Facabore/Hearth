@@ -4,3 +4,4 @@ export { activeTree, categoryPath, findCategory, groupsForKind, matches } from "
 export { ColorRow } from "./color-row";
 export { GroupSheet } from "./group-sheet";
 export { IconPicker } from "./icon-picker";
+export { CategoryTree } from "./categories-screen";

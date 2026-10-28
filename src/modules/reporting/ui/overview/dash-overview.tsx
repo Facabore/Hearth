@@ -11,7 +11,7 @@ import { MATRIX_STATUS, missingReason, type MatrixColumn } from "../matrix/membe
 import { memberName } from "../member-name";
 import { ChangeText } from "../trend/change-text";
 import { viewHref } from "../views";
-import type { Overview } from "./overview-container";
+import type { Overview } from "./overview";
 
 type Money = Pick<Formats, "numberFormat">;
 

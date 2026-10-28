@@ -1,9 +1,11 @@
+import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { useTranslations } from "use-intl";
 import { TransactionList, TransactionSheetHost, transactionListHref } from "@/modules/ledger/ui";
 import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
 import { useList, useTransactionDetail, useViewer } from "../ledger/hooks";
+import { writesQuery } from "../ledger/queries";
 import { useTitle } from "../title";
 
 const route = getRouteApi("/spaces/$spaceId/transactions");
@@ -23,11 +25,14 @@ export function TransactionsScreen() {
   const { page, accounts, context, previous, next } = useList(viewer, filter);
   const detail = useTransactionDetail(viewer, tx);
   const { me, space } = viewer;
+  // A write starts the list afresh, rows "Cargar más" added included: none of them can show what the write changed.
+  const written = useQuery(writesQuery(spaceId)).data;
   // The balance is the fund's balance now, read with the list: no amount ever travels in the address (P170).
   const fund = notice === "FundBalanceNegative" ? accounts.find((a) => a.id === account) : undefined;
   return (
     <>
       <TransactionList
+        key={written}
         spaceId={spaceId}
         page={page}
         context={context}

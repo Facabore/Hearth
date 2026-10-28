@@ -1,6 +1,7 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import type { SpaceDto, TransactionDto, TransactionPageDto } from "@/shared/ui/api/dto";
-import { moduleKeys, queryKeys } from "../queries";
+import { queryKeys } from "../queries";
+import { moduleKeys } from "../reads";
 import type { WritePlan, WritePlanner } from "../write-plan";
 import { ledgerKeys, type PageQuery, type TransactionRead } from "./queries";
 
@@ -81,7 +82,7 @@ const detailOf = (tx: TransactionDto): TransactionRead => ({ tx, problem: null, 
 
 /**
  * "Cambios respectivos para cada cosa" (ADR 0006): a movement changes its space's pages and totals, its accounts'
- * balances and the plan's reports (D7: all computed on read). In a shared or direct space it may be paid from the
+ * balances, the members' balances and the plan's reports (D7: all computed on read). In a shared or direct space it may be paid from the
  * person's own accounts, which live in their personal space. Nothing else is read again: not the categories, the
  * members, the periods, the person or their spaces.
  */
@@ -90,11 +91,15 @@ const invalidateMovement = (queryClient: QueryClient, spaceId: string): void => 
     ledgerKeys.pages(spaceId),
     moduleKeys.accounts(spaceId),
     moduleKeys.reports(spaceId),
+    moduleKeys.balances(spaceId),
   ];
   const spaces = queryClient.getQueryData<SpaceDto[]>(queryKeys.spaces) ?? [];
   const personal = spaces.find((space) => space.kind === "PERSONAL");
-  if (personal && personal.id !== spaceId) keys.push(moduleKeys.accounts(personal.id));
+  // From a shared space, the person's own accounts may pay, and My spending counts their share (D11).
+  if (personal && personal.id !== spaceId)
+    keys.push(moduleKeys.accounts(personal.id), moduleKeys.reports(personal.id));
   for (const queryKey of keys) void queryClient.invalidateQueries({ queryKey });
+  queryClient.setQueryData<number>(ledgerKeys.writes(spaceId), (written = 0) => written + 1);
 };
 
 /** A transaction that no longer exists: its cached detail is stale, but no open sheet reads it again at once. */
@@ -134,6 +139,9 @@ export const ledgerWrites: WritePlanner = (call): WritePlan | null => {
   const { spaceId = "", transactionId = "" } = call.params;
   if (call.method === "POST" && RECORD.test(call.path))
     return { accepted: (queryClient, data) => saved(queryClient, spaceId, movementOf(data)) };
+  // HU-E9-07: a settle-up is a movement of its own (a SETTLEMENT), recorded from the balances screen.
+  if (call.method === "POST" && call.path === "/api/v1/spaces/{spaceId}/settlements")
+    return { accepted: (queryClient, data) => saved(queryClient, spaceId, data as TransactionDto) };
   if (call.method === "POST" && call.path === "/api/v1/direct-splits")
     return {
       accepted: (queryClient, data) => {

@@ -36,5 +36,11 @@ export const trackWrites = (
       const plan = plans({ method, path, params: init?.params?.path ?? {}, body: init?.body }, queryClient);
       return plan ? runPlanned(queryClient, [method, path], plan, send) : send();
     };
-  return { ...api, POST: write("POST"), PATCH: write("PATCH"), DELETE: write("DELETE") } as unknown as Api;
+  return {
+    ...api,
+    POST: write("POST"),
+    PUT: write("PUT"),
+    PATCH: write("PATCH"),
+    DELETE: write("DELETE"),
+  } as unknown as Api;
 };

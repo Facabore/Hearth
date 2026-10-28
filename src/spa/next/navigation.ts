@@ -17,7 +17,7 @@ export interface AppRouterInstance {
   forward(): void;
   /**
    * Next.js renders the page again on the server; here the screen's queries are read again and the guards run again.
-   * After a save that went through the app's writes, the cache already holds what changed, so nothing is read.
+   * After a save that went through the app's writes, the cache already holds what changed, so nothing is read again.
    */
   refresh(): void;
   prefetch(href: string): void;
@@ -33,8 +33,9 @@ export function useRouter(): AppRouterInstance {
       back: () => router.history.back(),
       forward: () => router.history.forward(),
       refresh: () => {
-        if (takeSettledWrite(queryClient)) return;
+        // The language cookie has no change event; reading it again needs no network.
         bumpLocale();
+        if (takeSettledWrite(queryClient)) return;
         void queryClient.invalidateQueries();
         void router.invalidate();
       },
