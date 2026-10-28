@@ -126,13 +126,24 @@ describe("the Plan tab and the planner in the SPA (slice 5 of #199, ADR 0006)", 
     const spa = renderSpa(`${HOUSEHOLD}/plans/p-nov/capacities`, server());
     const save = await screen.findByRole("button", { name: "Guardar capacidades" }, { timeout: 5_000 });
     const plans = count(spa.requests, "GET", /\/plans\/p-nov$/);
+    // Household's Lines and My spending, read earlier in the session: the person's share counts in both (D11).
+    spa.queryClient.setQueryData(["reports", "sp-household", "lines", "2026-11"], e7Dashboard());
+    spa.queryClient.setQueryData(["reports", "sp-personal", "unified", { period: "2026-11" }], e74Unified());
     await userEvent.click(save);
 
     await waitFor(() => expect(spa.location()).toBe(`${HOUSEHOLD}/plans/p-nov`));
     await waitFor(() => expect(count(spa.requests, "GET", /\/plans\/p-nov$/)).toBeGreaterThan(plans));
+    // The plan's figures are computed on read (D7): the space's reports and the person's own are stale now.
+    const stale = (key: readonly unknown[]) => {
+      const queries = spa.queryClient.getQueryCache().findAll({ queryKey: key });
+      return queries.length > 0 && queries.every((query) => query.state.isInvalidated);
+    };
+    expect(stale(["reports", "sp-household"])).toBe(true);
+    expect(stale(["reports", "sp-personal"])).toBe(true);
     expect(count(spa.requests, "PUT", /\/capacities$/)).toBe(1);
     expect(count(spa.requests, "GET", /\/transactions$/)).toBe(0);
-    expect(count(spa.requests, "GET", /\/me$/)).toBe(1);
+    // No blanket refresh: the profile, which every screen reads, was never marked stale by the save.
+    expect(spa.queryClient.getQueryState(["identity", "me"])?.isInvalidated).toBe(false);
   });
 
   it("edits a plan's line, and a line that is not the plan's is not found", async () => {
@@ -142,5 +153,16 @@ describe("the Plan tab and the planner in the SPA (slice 5 of #199, ADR 0006)", 
     });
     await spa.router.navigate({ href: `${HOUSEHOLD}/plans/p-nov/lines/l-gone` });
     expect(await screen.findByRole("heading", { name: es.notFound.title })).toBeVisible();
+  });
+  it("shows a plan's line read-only to someone who may not edit it, with the way back to the planner", async () => {
+    renderSpa(`${HOUSEHOLD}/plans/p-nov/lines/new`, {
+      ...server(),
+      "GET /api/v1/spaces": () => jsonResponse({ items: [spaceDto(), householdDto({ role: "MEMBER" })] }),
+    });
+    expect(await screen.findByText(es.budgeting.lineEditor.readOnly, {}, { timeout: 5_000 })).toBeVisible();
+    expect(screen.getByRole("link", { name: /Volver/ })).toHaveAttribute(
+      "href",
+      `/app${HOUSEHOLD}/plans/p-nov`,
+    );
   });
 });

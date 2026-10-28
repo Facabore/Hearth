@@ -1,4 +1,4 @@
-import { notFound } from "@tanstack/react-router";
+import { isNotFound, notFound } from "@tanstack/react-router";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { outcomeOf } from "@/shared/ui/api/readers";
 
@@ -9,6 +9,10 @@ export class ProblemError extends Error {
     this.name = "ProblemError";
   }
 }
+
+/** A failure that may pass a moment later: the network, or the server itself (5xx), such as during a release. */
+export const isTransient = (error: unknown): boolean =>
+  error instanceof ProblemError ? error.problem.status >= 500 : !isNotFound(error);
 
 /**
  * A screen's read as a query function (ADR 0006): the data, a 404 as the route's not-found screen (N1), any other

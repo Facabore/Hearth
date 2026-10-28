@@ -22,7 +22,7 @@ import type {
   SuggestionDto,
   UnifiedViewDto,
 } from "@/shared/ui/api/dto";
-import { read } from "./read";
+import { isTransient, read } from "./read";
 
 // The screens' reads (ADR 0006), keyed by module first. They load with the screens and their loaders, never with the
 // app shell, whose own reads are in queries.ts.
@@ -199,7 +199,7 @@ export const planQuery = (api: Api, spaceId: string, planId: string) =>
 
 /**
  * Ruling P208: the caller's own capacity suggestion (the endpoint takes no member). One that cannot be read never
- * blocks the screen: it is null.
+ * blocks the screen: it is null. A failure that may pass is thrown instead, so it is tried once more first.
  */
 export const capacitySuggestionQuery = (api: Api, spaceId: string, planId: string) =>
   queryOptions<CapacitySuggestionDto | null>({
@@ -212,7 +212,8 @@ export const capacitySuggestionQuery = (api: Api, spaceId: string, planId: strin
             params: { path: { spaceId, planId } },
           }),
         );
-      } catch {
+      } catch (error) {
+        if (isTransient(error)) throw error;
         return null;
       }
     },
@@ -292,14 +293,20 @@ export const cashFlowQuery = (api: Api, personalSpaceId: string, days: 30 | 60) 
       read(api.GET("/api/v1/me/cash-flow", { params: { query: { days: String(days) as "30" | "60" } } })),
   });
 
-/** Ruling P216: a shared space's desktop overview; each part that cannot be read is left out, never the view. */
+/**
+ * Ruling P216: a shared space's desktop overview; each part that cannot be read is left out, never the view. A
+ * failure that may pass is thrown instead, so the overview is tried once more before any part is left out.
+ */
 export const overviewQuery = (api: Api, spaceId: string, period: string) =>
   queryOptions({
     ...LOADER_OWNED,
     queryKey: moduleKeys.report(spaceId, "overview", { period }),
     queryFn: async () => {
       const part = <T>(call: Promise<{ data?: T; error?: unknown; response: Response }>) =>
-        read(call).catch(() => null);
+        read(call).catch((error: unknown) => {
+          if (isTransient(error)) throw error;
+          return null;
+        });
       const path = { spaceId };
       const query = { period };
       const [matrix, fund, groups, trend, members] = await Promise.all([

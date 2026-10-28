@@ -1,15 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { isNotFound, RouterProvider, type RouterHistory } from "@tanstack/react-router";
+import { RouterProvider, type RouterHistory } from "@tanstack/react-router";
 import { ApisProvider, spaApis, type SpaApis } from "./api";
 import { registerBrowserApi } from "./next/api-client";
 import { IntlRoot } from "./i18n";
-import { ProblemError } from "./read";
+import { isTransient } from "./read";
 import { createSpaRouter } from "./router";
 import { appWrites, trackWrites } from "./writes-catalog";
-
-/** A failure that may pass a moment later: the network, or the server itself (5xx), such as during a release. */
-const transient = (error: unknown): boolean =>
-  error instanceof ProblemError ? error.problem.status >= 500 : !isNotFound(error);
 
 /**
  * ADR 0006: TanStack Query owns server state. A read that failed for a passing reason is tried once more before its
@@ -19,7 +15,7 @@ export const createQueryClient = (): QueryClient =>
   new QueryClient({
     defaultOptions: {
       queries: {
-        retry: (failures, error) => failures < 1 && transient(error),
+        retry: (failures, error) => failures < 1 && isTransient(error),
       },
     },
   });
