@@ -4,6 +4,8 @@ on:
   pull_request:
   push:
     branches: [main, development]
+  # Runs the performance gates on demand (Actions > CI > Run workflow), on any branch.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -77,10 +79,15 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm build
       - run: pnpm spa:build
+      - name: The single-page app's chunk budgets (ADR 0006)
+        run: pnpm spa:budget
       - name: End-to-end scenarios (standalone server, the SPA at /app/, PostgreSQL through the Docker CLI)
         run: pnpm test:e2e
 
+  # The slowest gate (Lighthouse five times per route, INP): it validates a release, not every push (ADR 0004,
+  # amended 2026-10-28). It runs on main and on demand; pull requests and development skip it.
   performance:
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -91,14 +98,15 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm build
+      # Playwright starts the SPA's preview with the e2e server, so the build must exist.
       - run: pnpm spa:build
-      - name: The single-page app's chunk budgets (ADR 0006)
-        run: pnpm spa:budget
       - name: Core Web Vitals and script budgets (Lighthouse mobile, INP with web-vitals)
         run: pnpm perf
 
   build-image:
     needs: [lint, boundaries, typecheck, test, e2e, performance]
+    # A skipped performance job (outside main) must not skip the image; a failed one still blocks it.
+    if: ${{ !cancelled() && !failure() }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
