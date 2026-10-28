@@ -233,4 +233,19 @@ describe("accounts, categories and settings in the SPA (slice 3 of #199, ADR 000
     expect(await screen.findByRole("heading", { name: es.auth.signIn.title })).toBeVisible();
     expect(spa.location()).toBe(`/sign-in?next=${encodeURIComponent("/settings?from=sp-household")}`);
   });
+  it("tries a read the server failed (5xx) once more, as it may pass a moment later", async () => {
+    const { routes } = server();
+    let failures = 1;
+    const spa = renderSpa("/spaces/sp-personal/categories", {
+      ...routes,
+      "GET /api/v1/spaces/{spaceId}/categories": (request, params) =>
+        failures-- > 0
+          ? problemResponse(503, "ServiceUnavailable")
+          : routes["GET /api/v1/spaces/{spaceId}/categories"]!(request, params),
+    });
+    expect(
+      await screen.findByRole("heading", { level: 1, name: es.categories.title }, { timeout: 4_000 }),
+    ).toBeVisible();
+    expect(count(spa.requests, "GET", /\/categories$/)).toBe(2);
+  });
 });

@@ -7,15 +7,19 @@ import { ProblemError } from "./read";
 import { createSpaRouter } from "./router";
 import { appWrites, trackWrites } from "./writes-catalog";
 
+/** A failure that may pass a moment later: the network, or the server itself (5xx), such as during a release. */
+const transient = (error: unknown): boolean =>
+  error instanceof ProblemError ? error.problem.status >= 500 : !isNotFound(error);
+
 /**
- * ADR 0006: TanStack Query owns server state. A read the network failed is tried once more before its screen says so;
- * one the API answered, a 404 or a refusal, would answer the same again, so its screen says so at once.
+ * ADR 0006: TanStack Query owns server state. A read that failed for a passing reason is tried once more before its
+ * screen says so; one the API refused or did not find would answer the same again, so its screen says so at once.
  */
 export const createQueryClient = (): QueryClient =>
   new QueryClient({
     defaultOptions: {
       queries: {
-        retry: (failures, error) => failures < 1 && !isNotFound(error) && !(error instanceof ProblemError),
+        retry: (failures, error) => failures < 1 && transient(error),
       },
     },
   });
