@@ -10,7 +10,6 @@ import { EditAccountForm } from "./edit-account-form";
 
 const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn(), push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router, notFound: vi.fn() }));
-vi.mock("next/headers", () => ({}));
 beforeEach(() => vi.clearAllMocks());
 
 /** A card that chose its own icon and left both switches at the type's defaults. */

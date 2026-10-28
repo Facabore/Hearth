@@ -18,7 +18,6 @@ import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { rememberDropped } from "../copy-notice";
 import { Planner } from "./planner";
 
-vi.mock("next/headers", () => ({}));
 const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router, notFound: vi.fn(), redirect: vi.fn() }));
 beforeEach(() => {

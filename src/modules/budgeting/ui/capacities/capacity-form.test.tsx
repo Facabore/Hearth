@@ -11,7 +11,6 @@ import type { BudgetPlanDto, CapacitySuggestionDto, SpaceDto } from "@/shared/ui
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { CapacityForm } from "./capacity-form";
 
-vi.mock("next/headers", () => ({}));
 const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router, notFound: vi.fn(), redirect: vi.fn() }));
 beforeEach(() => vi.clearAllMocks());

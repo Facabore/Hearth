@@ -8,7 +8,6 @@ import {
   octoberExpense,
   octoberPage,
   rowContext,
-  spaceDto,
   transactionDto,
 } from "../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse } from "../../../../tests/support/ui/fake-api";
@@ -20,19 +19,10 @@ import type { TransactionDetail } from "./detail/transaction-detail";
 import { LoadMore } from "./load-more";
 import { TransactionList } from "./transaction-list";
 
-// The container reads the person and the client from server.ts; the filters navigate with the router.
-const mocks = vi.hoisted(() => ({
-  router: { push: vi.fn(), replace: vi.fn(), refresh: vi.fn() },
-  getMe: vi.fn(),
-  getSpaces: vi.fn(),
-  serverApi: vi.fn(),
-}));
-vi.mock("next/headers", () => ({}));
+// The filters navigate with the router.
+const mocks = vi.hoisted(() => ({ router: { push: vi.fn(), replace: vi.fn(), refresh: vi.fn() } }));
 vi.mock("next/navigation", () => ({ useRouter: () => mocks.router }));
-beforeEach(() => {
-  vi.clearAllMocks();
-  mocks.getSpaces.mockResolvedValue([spaceDto()]);
-});
+beforeEach(() => vi.clearAllMocks());
 
 const norm = (text: string | null) => (text ?? "").replace(/\s/g, " ");
 

@@ -14,7 +14,6 @@ import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { DashOverview } from "./dash-overview";
 
-vi.mock("next/headers", () => ({}));
 vi.mock("next/navigation", () => ({ notFound: vi.fn(), redirect: vi.fn() }));
 
 const overview = {

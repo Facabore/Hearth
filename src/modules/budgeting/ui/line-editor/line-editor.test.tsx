@@ -17,7 +17,6 @@ import type { CategoryGroupDto, PlanLineDto } from "@/shared/ui/api/dto";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { LineEditor } from "./line-editor";
 
-vi.mock("next/headers", () => ({}));
 const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router, notFound: vi.fn(), redirect: vi.fn() }));
 beforeEach(() => vi.clearAllMocks());

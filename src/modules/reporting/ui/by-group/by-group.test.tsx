@@ -11,7 +11,6 @@ import { NavigationTracker } from "@/shared/ui/navigation/navigation-tracker";
 import { SpendingChart } from "./spending-chart";
 import { treeOf, type NodeName } from "./spending-tree";
 
-vi.mock("next/headers", () => ({}));
 // Next syncs `useSearchParams` with the browser's own `pushState` and Back (it patches both), in a transition: the
 // mock does the same, so a level that waits for the URL renders only after the click's own render.
 vi.mock("next/navigation", async () => {
