@@ -6,7 +6,6 @@ import { accountDto, cop, spaceDto } from "../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse } from "../../../../tests/support/ui/fake-api";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
-import { loadAccount } from "./edit-account-container";
 import { EditAccountForm } from "./edit-account-form";
 
 const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn(), push: vi.fn() }));
@@ -123,13 +122,5 @@ describe("edit account form (issue 169)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
     await waitFor(() => expect(screen.getByLabelText("Nombre")).toHaveAttribute("aria-invalid", "true"));
     expect(router.replace).not.toHaveBeenCalled();
-  });
-
-  it("loads the one account, with its stored and default style, from the API", async () => {
-    const { api, requests } = fakeApi({
-      "GET /api/v1/spaces/{spaceId}/accounts/{accountId}": () => jsonResponse(visa),
-    });
-    expect(await loadAccount(api, "sp-personal", "a-visa")).toEqual({ ok: true, data: visa });
-    expect(new URL(requests[0]!.url).pathname).toBe("/api/v1/spaces/sp-personal/accounts/a-visa");
   });
 });

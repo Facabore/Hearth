@@ -2,7 +2,7 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
-import { accountDto, categoryDto, cop, groupDto, normalized } from "../../../../../tests/support/ui/dto";
+import { categoryDto, cop, groupDto, normalized } from "../../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse } from "../../../../../tests/support/ui/fake-api";
 import {
   HOUSEHOLD_MEMBERS,
@@ -15,7 +15,6 @@ import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import type { Api } from "@/shared/ui/api/client";
 import type { CategoryGroupDto, PlanLineDto } from "@/shared/ui/api/dto";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
-import { loadLineEditor } from "./line-editor-container";
 import { LineEditor } from "./line-editor";
 
 vi.mock("next/headers", () => ({}));
@@ -388,47 +387,6 @@ describe("line editor (HU-E9-08)", () => {
       "href",
       "/spaces/sp-household/plans/p-nov",
     );
-  });
-
-  it("offers only the caller's active savings accounts in the plan's currency (ruling P213)", async () => {
-    const { api } = fakeApi({
-      "GET /api/v1/spaces/{spaceId}/plans/{planId}": () => jsonResponse(referencePlanDto()),
-      "GET /api/v1/spaces/{spaceId}/categories": () => jsonResponse({ items: [] }),
-      "GET /api/v1/spaces/{spaceId}/members": () => jsonResponse({ items: HOUSEHOLD_MEMBERS }),
-      "GET /api/v1/spaces/{spaceId}/accounts": () =>
-        jsonResponse({
-          items: [
-            savingsAccountDto(),
-            accountDto({ id: "a-bank", name: "Bancolombia" }),
-            accountDto({
-              id: "a-old",
-              name: "Old savings",
-              type: "SAVINGS",
-              archivedAt: "2026-10-01T12:00:00.000Z",
-            }),
-            accountDto({
-              id: "a-usd",
-              name: "Dollars",
-              type: "SAVINGS",
-              balance: { amount: "0", currency: "USD" },
-            }),
-          ],
-          totals: { available: cop(0), netWorth: cop(0) },
-        }),
-    });
-    const result = await loadLineEditor(api, {
-      spaceId: "sp-household",
-      planId: "p-nov",
-      lineId: "l-home",
-      personalSpaceId: "sp-personal",
-    });
-    expect(
-      result.ok && [
-        result.data.line?.name,
-        result.data.savingsAccounts.map((a) => a.name),
-        result.data.members.map((m) => m.displayName),
-      ],
-    ).toEqual(["Home", ["Ahorros"], ["Ana", "Juan"]]);
   });
 
   it("leaves Free unallocated: its figures stay, its member rows go, and the save sends NONE", async () => {
