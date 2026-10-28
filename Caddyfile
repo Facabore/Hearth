@@ -1,13 +1,13 @@
 {$HEARTH_DOMAIN} {
 	encode zstd gzip
-	# ADR 0006 (#199): the single-page app at /app/ comes from the web service until cut-over.
-	@spa path /app /app/*
-	handle @spa {
-		reverse_proxy web:8080
-	}
-	# Everything else, /api/* included. Caddy replaces client-sent X-Forwarded-For with the real peer address (no
-	# trusted_proxies set), which the auth rate limiter relies on. The app is reachable only through this proxy.
-	handle {
+	# ADR 0006 (#199): the API comes from the app. Caddy replaces client-sent X-Forwarded-For with the real peer address
+	# (no trusted_proxies set), which the auth rate limiter relies on. The app is reachable only through this proxy.
+	@api path /api /api/*
+	handle @api {
 		reverse_proxy app:3000
+	}
+	# Everything else is the single-page app, from the web service (its /app/… bookmarks redirect at the root there).
+	handle {
+		reverse_proxy web:8080
 	}
 }

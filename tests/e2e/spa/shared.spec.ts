@@ -19,7 +19,7 @@ const cop = (pesos: number) => ({ amount: String(pesos * 100), currency: "COP" }
 const todayInBogota = () =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date());
 
-test.describe("shared spaces at /app/ (slice 4 of #199, ADR 0006)", () => {
+test.describe("shared spaces (slice 4 of #199, ADR 0006)", () => {
   test("an invitation joins Juan, a shared expense shows in the balances, and settling up clears it", async ({
     page,
     browser,
@@ -60,11 +60,11 @@ test.describe("shared spaces at /app/ (slice 4 of #199, ADR 0006)", () => {
       headers: { "x-forwarded-for": ip },
     });
     expect(juanSignUp.ok()).toBe(true);
-    await juan.goto(`/app/invitations/${token}`);
-    await expect(juan).toHaveURL(`/app/invitations/${token}`);
+    await juan.goto(`/invitations/${token}`);
+    await expect(juan).toHaveURL(`/invitations/${token}`);
     await scan(juan, "invitation");
     await juan.getByRole("button", { name: "Aceptar y entrar a Household" }).click();
-    await expect(juan).toHaveURL(`/app/spaces/${space.id}?joined=1`);
+    await expect(juan).toHaveURL(`/spaces/${space.id}?joined=1`);
     await juanContext.close();
 
     // Ana's members: Juan is one now.
@@ -73,7 +73,7 @@ test.describe("shared spaces at /app/ (slice 4 of #199, ADR 0006)", () => {
     };
     const anaId = members.find((m) => m.displayName === "Ana")!.id;
     const juanId = members.find((m) => m.displayName === "Juan")!.id;
-    await page.goto(`/app/spaces/${space.id}/members`);
+    await page.goto(`/spaces/${space.id}/members`);
     await expect(page.getByRole("heading", { level: 1, name: es.members.title })).toBeVisible();
     await expect(page.getByText(/Ana/).first()).toBeVisible();
     await scan(page, "members");
@@ -108,7 +108,7 @@ test.describe("shared spaces at /app/ (slice 4 of #199, ADR 0006)", () => {
     );
 
     // The balances suggest Juan pays Ana 50,000; recording it clears the suggestion.
-    await page.goto(`/app/spaces/${space.id}/balances`);
+    await page.goto(`/spaces/${space.id}/balances`);
     const suggestion = page.getByRole("button", { name: /Juan le paga/ });
     await expect(suggestion).toBeVisible();
     await scan(page, "balances");
@@ -119,7 +119,7 @@ test.describe("shared spaces at /app/ (slice 4 of #199, ADR 0006)", () => {
     await expect(suggestion).toHaveCount(0);
 
     // Juan's history in the period.
-    await page.goto(`/app/spaces/${space.id}/members/${juanId}/history`);
+    await page.goto(`/spaces/${space.id}/members/${juanId}/history`);
     await expect(page.getByRole("heading", { name: /Juan/ })).toBeVisible();
     await scan(page, "history");
 

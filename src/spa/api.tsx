@@ -12,7 +12,7 @@ export interface SpaApis {
   readonly sessionApi: Api;
 }
 
-/** `where` is the app's own location (the router's, without the `/app` base) and navigation, as `browserApi` reads it. */
+/** `where` is the app's own location (the router's) and navigation, as `browserApi` reads it. */
 export const spaApis = (where: BrowserLocation): SpaApis => ({
   api: browserApi(where),
   sessionApi: createApi({ baseUrl: where.origin }),

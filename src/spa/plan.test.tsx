@@ -185,9 +185,6 @@ describe("the Plan tab and the planner in the SPA (slice 5 of #199, ADR 0006)", 
       "GET /api/v1/spaces": () => jsonResponse({ items: [spaceDto(), householdDto({ role: "MEMBER" })] }),
     });
     expect(await screen.findByText(es.budgeting.lineEditor.readOnly, {}, { timeout: 5_000 })).toBeVisible();
-    expect(screen.getByRole("link", { name: /Volver/ })).toHaveAttribute(
-      "href",
-      `/app${HOUSEHOLD}/plans/p-nov`,
-    );
+    expect(screen.getByRole("link", { name: /Volver/ })).toHaveAttribute("href", `${HOUSEHOLD}/plans/p-nov`);
   });
 });

@@ -29,9 +29,9 @@ export default defineConfig({
       gracefulShutdown: { signal: "SIGTERM", timeout: 10_000 },
     },
     {
-      // ADR 0006 (#199): the SPA's build (`pnpm spa:build`) at /app/, the rest proxied to the server above, like Caddy.
+      // ADR 0006 (#199): the SPA's build (`pnpm spa:build`) at the root, /api/* proxied to the server above, like Caddy.
       command: "pnpm exec vite preview --config vite.spa.config.ts",
-      url: `${SPA_BASE_URL}/app/`,
+      url: `${SPA_BASE_URL}/`,
       env: { E2E_PORT, E2E_SPA_PORT },
       reuseExistingServer: process.env.E2E_REUSE === "1",
       timeout: 60_000,

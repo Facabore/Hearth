@@ -13,7 +13,7 @@ const scan = async (page: Page, where: string) => {
   ).toEqual([]);
 };
 
-test.describe("accounts, categories and settings at /app/ (slice 3 of #199, ADR 0006)", () => {
+test.describe("accounts, categories and settings (slice 3 of #199, ADR 0006)", () => {
   test("creates an account, sees the categories and changes a format, against the real API", async ({
     page,
   }) => {
@@ -23,34 +23,34 @@ test.describe("accounts, categories and settings at /app/ (slice 3 of #199, ADR 
     const spaceId = await signUp(page, "spa-manage", ip);
 
     // Accounts: the starter accounts, then a new one from the form, which lands on the list.
-    await page.goto(`/app/spaces/${spaceId}/accounts`);
+    await page.goto(`/spaces/${spaceId}/accounts`);
     await expect(page.getByRole("heading", { level: 1, name: es.accounts.title })).toBeVisible();
     await scan(page, "accounts");
-    await page.goto(`/app/spaces/${spaceId}/accounts/new`);
+    await page.goto(`/spaces/${spaceId}/accounts/new`);
     await page.getByRole("radio", { name: "Efectivo" }).click();
     await page.getByLabel("Nombre").fill("Caja menor");
     await page.getByLabel("Saldo inicial").fill("150.000");
     await scan(page, "new account");
     await page.getByRole("button", { name: "Crear cuenta" }).click();
-    await expect(page).toHaveURL(`/app/spaces/${spaceId}/accounts`);
+    await expect(page).toHaveURL(`/spaces/${spaceId}/accounts`);
     await expect(page.getByRole("link", { name: /^Caja menor/ })).toBeVisible();
 
     // Categories: the seeded tree, read-write for the owner.
-    await page.goto(`/app/spaces/${spaceId}/categories`);
+    await page.goto(`/spaces/${spaceId}/categories`);
     await expect(page.getByRole("heading", { level: 1, name: es.categories.title })).toBeVisible();
     await scan(page, "categories");
 
     // Settings: the number format applies to every screen at once, from the profile's answer.
-    await page.goto(`/app/settings?from=${spaceId}`);
+    await page.goto(`/settings?from=${spaceId}`);
     await expect(page.getByRole("heading", { name: es.settings.title })).toBeVisible();
     await scan(page, "settings");
     await page.getByRole("radio", { name: "1,234,567.89" }).click();
     await expect(page.getByRole("radio", { name: "1,234,567.89" })).toBeChecked();
-    await page.goto(`/app/spaces/${spaceId}/accounts`);
+    await page.goto(`/spaces/${spaceId}/accounts`);
     await expect(page.getByText(/150,000/).first()).toBeVisible();
 
     // New space: the form inside the shell of the space it started from (N3).
-    await page.goto(`/app/spaces/new?from=${spaceId}`);
+    await page.goto(`/spaces/new?from=${spaceId}`);
     await expect(page.getByRole("button", { name: "Crear espacio" })).toBeVisible();
     await scan(page, "new space");
 

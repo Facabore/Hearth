@@ -15,7 +15,7 @@ const CACHED_TAP_MS = 300;
 const todayInBogota = () =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date());
 
-test.describe("the ledger flow at /app/ (slice 2 of #199, ADR 0006)", () => {
+test.describe("the ledger flow (slice 2 of #199, ADR 0006)", () => {
   test("a second visit to Movimientos, the sheet and Editar shows content without waiting on the network", async ({
     page,
   }) => {
@@ -48,7 +48,7 @@ test.describe("the ledger flow at /app/ (slice 2 of #199, ADR 0006)", () => {
     const row = page.getByRole("link", { name: /Pan/ });
     const sheet = page.getByRole("dialog", { name: "Pan" });
     const save = page.getByRole("button", { name: es.ledger.edit.save });
-    await page.goto(`/app/spaces/${spaceId}/transactions`);
+    await page.goto(`/spaces/${spaceId}/transactions`);
     await expect(row).toBeVisible();
     await row.click();
     await expect(sheet).toBeVisible();

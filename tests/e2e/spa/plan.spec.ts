@@ -13,7 +13,7 @@ const scan = async (page: Page, where: string) => {
   ).toEqual([]);
 };
 
-test.describe("the Plan tab and the planner at /app/ (slice 5 of #199, ADR 0006)", () => {
+test.describe("the Plan tab and the planner (slice 5 of #199, ADR 0006)", () => {
   test("starts a shared space's plan from its Plan tab, saves the capacities, and opens every view", async ({
     page,
   }) => {
@@ -30,11 +30,11 @@ test.describe("the Plan tab and the planner at /app/ (slice 5 of #199, ADR 0006)
     };
 
     // A period with no plan offers to start one; starting it lands in its planner.
-    await page.goto(`/app/spaces/${space.id}/plan`);
+    await page.goto(`/spaces/${space.id}/plan`);
     await expect(page).toHaveTitle(`${es.reports.title} · Hearth`);
     await scan(page, "plan without a plan");
     await page.getByRole("button", { name: "Crear plan" }).click();
-    await expect(page).toHaveURL(new RegExp(`/app/spaces/${space.id}/plans/[^/]+$`));
+    await expect(page).toHaveURL(new RegExp(`/spaces/${space.id}/plans/[^/]+$`));
     await expect(page).toHaveTitle(`${es.budgeting.planner.metaTitle} · Hearth`);
     await scan(page, "planner");
 
@@ -57,13 +57,13 @@ test.describe("the Plan tab and the planner at /app/ (slice 5 of #199, ADR 0006)
 
     // Every view of the shared space and of the personal one, each from its own report.
     for (const [url, title] of [
-      [`/app/spaces/${space.id}/plan/lines`, es.reports.view.lines],
-      [`/app/spaces/${space.id}/plan/members`, es.reports.view.members],
-      [`/app/spaces/${space.id}/plan/fund`, es.reports.view.fund],
-      [`/app/spaces/${space.id}/plan/groups`, es.reports.view.groups],
-      [`/app/spaces/${personal}/plan`, es.reports.title],
-      [`/app/spaces/${personal}/plan/calendar`, es.reports.calendar.metaTitle],
-      [`/app/spaces/${personal}/plan/trend`, es.reports.view.trend],
+      [`/spaces/${space.id}/plan/lines`, es.reports.view.lines],
+      [`/spaces/${space.id}/plan/members`, es.reports.view.members],
+      [`/spaces/${space.id}/plan/fund`, es.reports.view.fund],
+      [`/spaces/${space.id}/plan/groups`, es.reports.view.groups],
+      [`/spaces/${personal}/plan`, es.reports.title],
+      [`/spaces/${personal}/plan/calendar`, es.reports.calendar.metaTitle],
+      [`/spaces/${personal}/plan/trend`, es.reports.view.trend],
     ] as const) {
       await page.goto(url);
       await expect(page).toHaveTitle(`${title} · Hearth`);

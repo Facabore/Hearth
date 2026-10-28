@@ -48,11 +48,12 @@ const themeBootstrap = (): Plugin => ({
   transformIndexHtml: () => [{ tag: "script", children: THEME_BOOTSTRAP, injectTo: "head-prepend" }],
 });
 
-/** ADR 0006, epic #199: the client-first SPA, served at /app/ next to the Next.js UI until cut-over. */
+/** ADR 0006, epic #199: the client-first SPA, at the root since the cut-over; the API stays on the app. */
 export default defineConfig({
   root: from("./src/spa"),
-  base: "/app/",
-  publicDir: false,
+  base: "/",
+  // The icons the HTML links to, served beside the build as files of their own.
+  publicDir: from("./src/spa/public"),
   plugins: [precompiledCatalogs(), themeBootstrap()],
   resolve: {
     tsconfigPaths: true,
@@ -92,12 +93,12 @@ export default defineConfig({
     },
   },
   preview: {
-    // The e2e front (tests/e2e/spa): /app/ from the build, everything else from the Next.js server, as Caddy routes it.
+    // The e2e front: the build at the root, /api/* from the e2e server, as Caddy routes it in production.
     port: Number(process.env.E2E_SPA_PORT ?? Number(process.env.E2E_PORT ?? 3100) + 100),
     strictPort: true,
     host: "127.0.0.1",
     proxy: {
-      "^/(?!app(?:/|$))": {
+      "^/api(?:/|$)": {
         target: `http://127.0.0.1:${process.env.E2E_PORT ?? "3100"}`,
         // Same origin as in production: Better Auth checks the Origin of a sign-in against its own URL.
         headers: { origin: `http://127.0.0.1:${process.env.E2E_PORT ?? "3100"}` },

@@ -81,7 +81,7 @@ jobs:
       - run: pnpm spa:build
       - name: The single-page app's chunk budgets (ADR 0006)
         run: pnpm spa:budget
-      - name: End-to-end scenarios (standalone server, the SPA at /app/, PostgreSQL through the Docker CLI)
+      - name: End-to-end scenarios (the SPA at the root, the standalone API server, PostgreSQL through the Docker CLI)
         run: pnpm test:e2e
 
   # The slowest gate (Lighthouse five times per route, INP): it validates a release, not every push (ADR 0004,
@@ -147,14 +147,18 @@ jobs:
       - name: Smoke test the web image (ADR 0006)
         run: |
           docker run -d --name web -p 8080:8080 "$WEB_IMAGE:${{ github.sha }}"
-          for i in $(seq 1 30); do curl -fsS -o /dev/null http://localhost:8080/app/ && break; sleep 1; done
-          # A screen's path is the app's page; an asset is served as itself; a missing asset is a 404.
-          curl -fsS http://localhost:8080/app/ | grep -q '<div id="root">'
-          curl -fsS http://localhost:8080/app/spaces/x/transactions | grep -q '<div id="root">'
-          asset=$(curl -fsS http://localhost:8080/app/ | grep -o '/app/assets/index-[^"]*\.js' | head -n1)
+          for i in $(seq 1 30); do curl -fsS -o /dev/null http://localhost:8080/ && break; sleep 1; done
+          # A screen's path is the app's page; an asset or an icon is served as itself; a missing file is a 404 (N1).
+          curl -fsS http://localhost:8080/ | grep -q '<div id="root">'
+          curl -fsS http://localhost:8080/spaces/x/transactions | grep -q '<div id="root">'
+          asset=$(curl -fsS http://localhost:8080/ | grep -o '/assets/index-[^"]*\.js' | head -n1)
           curl -fsS -o /dev/null "http://localhost:8080$asset"
-          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/app/assets/missing.js)" = 404
-          test "$(curl -s -o /dev/null -w '%{redirect_url}' http://localhost:8080/app)" = "http://localhost:8080/app/"
+          curl -fsS -o /dev/null http://localhost:8080/icon.svg
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/assets/missing.js)" = 404
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/missing.png)" = 404
+          # The app's first address, /app/…, lands on the same screen at the root.
+          test "$(curl -s -o /dev/null -w '%{redirect_url}' http://localhost:8080/app)" = "http://localhost:8080/"
+          test "$(curl -s -o /dev/null -w '%{redirect_url}' 'http://localhost:8080/app/spaces/x?tx=1')" = "http://localhost:8080/spaces/x?tx=1"
       - name: Smoke test the images against PostgreSQL
         run: |
           docker network create smoke

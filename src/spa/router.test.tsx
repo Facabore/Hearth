@@ -35,7 +35,7 @@ describe("route guards (HU-E9-01, src/proxy.ts in the SPA)", () => {
       `/sign-in?next=${encodeURIComponent("/spaces/sp-personal/transactions?tx=t1")}`,
     );
     expect(spa.browserHref()).toBe(
-      `/app/sign-in?next=${encodeURIComponent("/spaces/sp-personal/transactions?tx=t1")}`,
+      `/sign-in?next=${encodeURIComponent("/spaces/sp-personal/transactions?tx=t1")}`,
     );
   });
 
@@ -51,7 +51,7 @@ describe("route guards (HU-E9-01, src/proxy.ts in the SPA)", () => {
       "GET /api/v1/auth/sign-up": () => jsonResponse({ signUp: "closed" }),
     });
     await screen.findByRole("heading", { name: "El registro está cerrado" });
-    expect(screen.getByRole("link", { name: "Inicia sesión" })).toHaveAttribute("href", "/app/sign-in");
+    expect(screen.getByRole("link", { name: "Inicia sesión" })).toHaveAttribute("href", "/sign-in");
     expect(spa.location()).toBe("/sign-up");
     expect(screen.queryByLabelText("Contraseña")).toBeNull();
   });
@@ -71,7 +71,7 @@ describe("route guards (HU-E9-01, src/proxy.ts in the SPA)", () => {
   it("gives a space the person is not in, and an unknown address, the app's own not-found screen", async () => {
     renderSpa("/spaces/sp-stranger", signedIn());
     expect(await screen.findByRole("heading", { name: "Esta página no existe" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "Ir al inicio" })).toHaveAttribute("href", "/app/");
+    expect(screen.getByRole("link", { name: "Ir al inicio" })).toHaveAttribute("href", "/");
   });
 
   it("gives an unknown address the not-found screen too", async () => {
@@ -102,7 +102,7 @@ describe("sign-in to the app shell", () => {
     expect(within(nav).getByRole("link", { name: "Inicio" })).toHaveAttribute("aria-current", "page");
     expect(within(nav).getByRole("link", { name: "Movimientos" })).toHaveAttribute(
       "href",
-      "/app/spaces/sp-household/transactions",
+      "/spaces/sp-household/transactions",
     );
     expect(await axeViolations(container)).toEqual([]);
 
@@ -156,7 +156,7 @@ describe("a session that ends while the app is open (ruling P151)", () => {
         return session ? jsonResponse({ items: [spaceDto()] }) : problemResponse(401, "Unauthenticated");
       return jsonResponse({ signUp: "open" });
     });
-    const history = createMemoryHistory({ initialEntries: ["/app/spaces/sp-personal"] });
+    const history = createMemoryHistory({ initialEntries: ["/spaces/sp-personal"] });
     const spa = createSpa({ history });
     render(<spa.Spa />);
     await screen.findByRole("button", { name: /Personal/ });
@@ -166,7 +166,7 @@ describe("a session that ends while the app is open (ruling P151)", () => {
     expect(spa.router.state.location.href).toBe(
       `/sign-in?next=${encodeURIComponent("/spaces/sp-personal")}&expired=1`,
     );
-    expect(history.location.pathname).toBe("/app/sign-in");
+    expect(history.location.pathname).toBe("/sign-in");
   });
 });
 
