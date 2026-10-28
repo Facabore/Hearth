@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import "../app/(web)/globals.css";
+import "./globals.css";
 import { createSpa } from "./app";
 import { catalogQuery, visitorLocale } from "./i18n";
 import { meQuery } from "./queries";

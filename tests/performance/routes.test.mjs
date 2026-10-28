@@ -1,5 +1,5 @@
-import { readdirSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import budgets from "./budgets.json" with { type: "json" };
 import { routeUrl } from "./lighthouse.mjs";
@@ -22,24 +22,12 @@ const CAPS = {
   "/spaces/:id/plan/calendar": 190,
 };
 
-const SPACE = join("src", "app", "(web)", "(app)", "spaces", "[spaceId]");
+const ROUTES = readFileSync(join("src", "spa", "routes.tsx"), "utf8");
 
-/** Every page of the Plan tab and the planner, as a budget route with its space left as `:space`. */
+/** Every page of the Plan tab and the planner the SPA routes, as a budget route with its space left as `:space`. */
 const planPages = () =>
-  ["plan", "plans"].flatMap((root) =>
-    readdirSync(join(SPACE, root), { recursive: true })
-      .map(String)
-      .filter((file) => file === "page.tsx" || file.endsWith(`${sep}page.tsx`))
-      .map((file) =>
-        `/spaces/:space/${relative(SPACE, join(SPACE, root, file))}`
-          .split(sep)
-          .join("/")
-          .replace(/\/?page\.tsx$/, "")
-          // A route group, such as the planner's own `(planner)` beside its subroutes, is not part of the URL.
-          .replace(/\/\([^)]+\)/g, "")
-          .replace("[planId]", ":plan")
-          .replace("[lineId]", ":line"),
-      ),
+  [...ROUTES.matchAll(/path: "(plans?(?:\/[^"]*)?)"/g)].map(([, path]) =>
+    `/spaces/:space/${path}`.replace("$planId", ":plan").replace("$lineId", ":line"),
   );
 
 describe("the Plan routes' budgets (rulings P221, P242)", () => {
@@ -66,6 +54,7 @@ describe("the Plan routes' budgets (rulings P221, P242)", () => {
   it("measures every page of the Plan tab and the planner in a space that serves it", () => {
     const pages = planPages();
     expect(pages.length).toBeGreaterThanOrEqual(11);
+    expect(pages).toContain("/spaces/:space/plans/:plan/lines/:line");
     for (const page of pages)
       expect(
         ["id", "shared"].some((space) => page.replace(":space", `:${space}`) in budgets.scriptKb),

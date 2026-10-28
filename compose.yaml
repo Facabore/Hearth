@@ -41,7 +41,7 @@ services:
       migrate: { condition: service_completed_successfully }
     networks: [internal]
 
-  # ADR 0006 (#199): the single-page app's static files, which Caddy serves at /app/ (the image's Caddyfile.web).
+  # ADR 0006 (#199): the single-page app's static files, served at the root (the image's Caddyfile.web); /api goes to the app.
   web:
     image: ${HEARTH_WEB_IMAGE:?HEARTH_WEB_IMAGE is required}
     restart: unless-stopped
@@ -105,7 +105,7 @@ services:
       - caddy-config:/config
     depends_on:
       app: { condition: service_healthy }
-      # Started, not healthy: a broken SPA image must never keep the API and the Next.js UI offline.
+      # Started, not healthy: a broken SPA image must never keep the API offline.
       web: { condition: service_started }
     networks: [internal]
 

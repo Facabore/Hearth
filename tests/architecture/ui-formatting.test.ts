@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 /** Ruling P121: the calls that format with a locale's defaults, and next-intl's formatter, which does too. */
 const LOCALE_FORMATTING =
   /\b(toLocaleString|toLocaleDateString|toLocaleTimeString|Intl\.(NumberFormat|DateTimeFormat|RelativeTimeFormat|ListFormat)|useFormatter|getFormatter)\b/;
-const ROOTS = ["src/app/(web)", "src/i18n", "src/shared/ui", "src/modules"];
+const ROOTS = ["src/spa", "src/i18n", "src/shared/ui", "src/modules"];
 const ALLOWED = /^src[\\/]shared[\\/]ui[\\/]format[\\/]/;
 
 const files = (dir: string): string[] =>

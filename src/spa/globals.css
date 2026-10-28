@@ -1,6 +1,6 @@
 @import "tailwindcss";
 /* Tailwind scans every file git does not ignore: keep the plans' Markdown out of the CSS (ruling P134's budgets). */
-@source not "../../../docs";
+@source not "../../docs";
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
