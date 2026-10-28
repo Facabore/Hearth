@@ -149,6 +149,10 @@
     "RecurrenceEnded": "Este movimiento recurrente ya terminó y no se puede cambiar.",
     "RecurrenceNotFound": "No encontramos ese movimiento recurrente.",
     "SameAccountTransfer": "Elige cuentas de origen y destino distintas.",
+    "SameTransactionType": "Elige un tipo distinto del que ya tiene.",
+    "TransactionNotConvertible": "Un pago entre miembros no cambia de tipo.",
+    "TransactionNotConverted": "Este movimiento no se cambió de tipo, así que no hay nada que deshacer.",
+    "ConversionSuperseded": "Lo que resultó de este cambio ya cambió de tipo otra vez. Deshaz primero el cambio más reciente.",
     "SavingsAccountAlreadyUsed": "Esa cuenta de ahorro ya está en otra línea del plan.",
     "SavingsAccountRequired": "Una línea de ahorro necesita al menos una cuenta de ahorro.",
     "SavingsLineNotMappable": "Una línea de ahorro no lleva categorías.",
@@ -703,7 +707,7 @@
       "note": {
         "onlyOwner": "Solo {name} puede editarlo, porque el dinero se mueve en su cuenta. Puedes eliminarlo.",
         "SETTLEMENT": "Un pago entre miembros no se edita: elimínalo y regístralo de nuevo desde Saldos.",
-        "CONTRIBUTION": "Un aporte al fondo no se edita: elimínalo y regístralo de nuevo."
+        "CONTRIBUTION": "El aporte de un invitado no se edita: elimínalo y regístralo de nuevo."
       },
       "open": "Ver detalle de {name}"
     },
@@ -712,7 +716,8 @@
       "save": "Guardar cambios",
       "kind": "Tipo: {type}",
       "reload": "Cargar la última versión",
-      "reloadNote": "Se descartarán los cambios que escribiste."
+      "reloadNote": "Se descartarán los cambios que escribiste.",
+      "convertNote": "Al guardar, este movimiento cambia a {type}. Puedes deshacerlo desde el aviso."
     },
     "toast": {
       "saved": {
@@ -723,6 +728,12 @@
       "view": "Ver",
       "edited": "Cambios guardados",
       "undo": "Deshacer",
+      "converted": {
+        "EXPENSE": "Ahora es un gasto",
+        "INCOME": "Ahora es un ingreso",
+        "TRANSFER": "Ahora es una transferencia",
+        "FUND_CONTRIBUTION": "Ahora es un aporte al fondo"
+      },
       "deleted": {
         "EXPENSE": "Gasto eliminado",
         "INCOME": "Ingreso eliminado",

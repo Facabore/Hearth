@@ -5,7 +5,7 @@ import { cache } from "react";
 import { createApi, type Api } from "./client";
 import type { MeDto, SignUpMode, SpaceDto } from "./dto";
 import { problemFrom, type Problem } from "./problem";
-import { PATH_HEADER } from "./server-headers";
+import { DOCUMENT_HEADER, PATH_HEADER } from "./server-headers";
 import { hasSession } from "./session";
 
 /** Ruling P117: Server Components read /api/v1 over loopback, unless the deployment names another origin. */
@@ -33,6 +33,21 @@ export const serverApi = cache(async (): Promise<Api> =>
 export const redirectToSignIn = async (): Promise<never> => {
   const path = (await headers()).get(PATH_HEADER) ?? "/";
   redirect(path === "/" ? "/sign-in" : `/sign-in?next=${encodeURIComponent(path)}`);
+};
+
+/** Issue #196: whether this is the browser's document request, not a client navigation or a prefetch (the proxy says). */
+export const isDocumentRequest = async (): Promise<boolean> => (await headers()).get(DOCUMENT_HEADER) === "1";
+
+/** The query of the page asked for (the proxy's path header), shaped as Next hands it to a page: a repeated name is a list. */
+export const requestSearchParams = async (): Promise<Record<string, string | string[]>> => {
+  const path = (await headers()).get(PATH_HEADER) ?? "";
+  const query = new URLSearchParams(path.includes("?") ? path.slice(path.indexOf("?") + 1) : "");
+  const search: Record<string, string | string[]> = {};
+  for (const [name, value] of query) {
+    const seen = search[name];
+    search[name] = seen === undefined ? value : [...(Array.isArray(seen) ? seen : [seen]), value];
+  }
+  return search;
 };
 
 export type Outcome<T> =

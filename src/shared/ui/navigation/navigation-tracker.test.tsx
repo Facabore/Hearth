@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/react";
+import { fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cameFrom, readTrail, stepsBack, writeTrail, type Trail } from "./history";
 import { NavigationTracker } from "./navigation-tracker";
@@ -156,5 +156,53 @@ describe("navigation tracker: the entries the app makes", () => {
     expect(window.history.replaceState).toBe(replaceState);
     window.history.pushState({}, "", "/settings");
     expect(readTrail()).toEqual(trailOf(["/spaces/s1/transactions"]));
+  });
+});
+
+describe("navigation tracker: a skeleton's Volver (#196)", () => {
+  let go: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    go = vi.spyOn(window.history, "go").mockImplementation(() => undefined);
+  });
+
+  /** A loading screen's way back, server markup with no script of its own, on the screen the person just tapped. */
+  const skeletonBack = (marked = true) => {
+    const link = document.createElement("a");
+    link.href = ".";
+    if (marked) link.dataset.back = "";
+    link.append(document.createElement("svg"));
+    document.body.append(link);
+    return link;
+  };
+
+  it("goes back to the screen she came from, as the loaded header's Volver does", () => {
+    openAt("/spaces/s1/transactions");
+    render(<NavigationTracker />);
+    window.history.pushState({}, "", "/spaces/s1/accounts");
+    const link = skeletonBack();
+    expect(fireEvent.click(link.firstChild!)).toBe(false);
+    expect(go).toHaveBeenCalledExactlyOnceWith(-1);
+    link.remove();
+  });
+
+  it("follows the link's own parent route when nothing came before, and leaves a modified click to the browser", () => {
+    openAt("/spaces/s1/accounts", trailOf(["/spaces/s1/accounts"]));
+    render(<NavigationTracker />);
+    const link = skeletonBack();
+    expect(fireEvent.click(link)).toBe(true);
+    window.history.pushState({}, "", "/spaces/s1/categories");
+    expect(fireEvent.click(link, { ctrlKey: true })).toBe(true);
+    expect(go).not.toHaveBeenCalled();
+    link.remove();
+  });
+
+  it("leaves every other link alone", () => {
+    openAt("/spaces/s1/transactions");
+    render(<NavigationTracker />);
+    window.history.pushState({}, "", "/spaces/s1/accounts");
+    const link = skeletonBack(false);
+    expect(fireEvent.click(link)).toBe(true);
+    expect(go).not.toHaveBeenCalled();
+    link.remove();
   });
 });

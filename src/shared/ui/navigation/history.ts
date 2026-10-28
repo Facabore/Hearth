@@ -75,6 +75,21 @@ export const stepsBack = (trail: Trail, current: string): number | null => {
 };
 
 /**
+ * Volver's click: back in the browser, to the screen the person actually came from, when the trail knows of one; a
+ * modified click (a new tab) is left to the browser. `history.go` is what `router.back()` calls, and it also skips the
+ * screens of a flow in one step. Without a previous screen the link's own href applies.
+ */
+export const goBack = (
+  event: Pick<MouseEvent, "button" | "metaKey" | "ctrlKey" | "shiftKey" | "altKey" | "preventDefault">,
+): void => {
+  if (event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  const steps = stepsBack(readTrail(), window.location.pathname);
+  if (steps === null) return;
+  event.preventDefault();
+  window.history.go(-steps);
+};
+
+/**
  * The entry before the current one, or null when there is none or the trail does not stand on `current` (a stale
  * trail). It tells a sheet opened by a push in this tab (go back to close it) from one opened by a typed URL.
  */

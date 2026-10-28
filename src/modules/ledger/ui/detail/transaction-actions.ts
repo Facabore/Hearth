@@ -21,7 +21,8 @@ const NONE: TransactionActions = { edit: false, delete: false, note: null };
 /**
  * Ruling P190: HU-E4-06's `canModify` (OWNER and ADMIN any, MEMBER their own, VIEWER none) for both actions, and D9 for
  * Editar: only whoever's account the money moves through may change it, so the sheet never offers an edit the API
- * refuses. Settlements and fund contributions are deleted and recorded again (P188).
+ * refuses. Settlements are deleted and recorded again (P188); a fund contribution is its payer's to change, which its
+ * edit screen does by converting it into an expense (issue #195).
  */
 export const actionsFor = (
   tx: TransactionDto,
@@ -31,8 +32,6 @@ export const actionsFor = (
   const { role, userId } = viewer;
   if (!(role === "OWNER" || role === "ADMIN" || (role === "MEMBER" && tx.createdBy === userId))) return NONE;
   if (tx.type === "SETTLEMENT") return { edit: false, delete: true, note: { key: "SETTLEMENT" } };
-  if (tx.type === "TRANSFER" && tx.payerMemberId !== null)
-    return { edit: false, delete: true, note: { key: "CONTRIBUTION" } };
   const byUser = (id: string) => members.find((m) => m.userId === id);
   const byMember = (id: string | null) => members.find((m) => m.id === id);
   const owner =
@@ -40,7 +39,12 @@ export const actionsFor = (
       ? byMember(tx.payments[0]?.memberId ?? null)
       : tx.type === "INCOME"
         ? (byMember(tx.receivingMemberId) ?? byUser(tx.createdBy))
-        : byUser(tx.createdBy);
+        : tx.payerMemberId !== null
+          ? byMember(tx.payerMemberId)
+          : byUser(tx.createdBy);
+  // Issue #195: a guest's contribution has no account to stay a transfer with; it is deleted and recorded again.
+  if (tx.type === "TRANSFER" && tx.payerMemberId !== null && owner?.userId === null)
+    return { edit: false, delete: true, note: { key: "CONTRIBUTION" } };
   // A guest or the fund paid (no user), or the money is the viewer's: theirs to change.
   if (!owner || owner.userId === null || owner.userId === userId)
     return { edit: true, delete: true, note: null };

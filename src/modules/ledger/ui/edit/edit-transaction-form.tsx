@@ -6,7 +6,8 @@ import { useMemo, useState } from "react";
 import { Button } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { AccountDto, CategoryGroupDto, SpaceDto, TransactionDto } from "@/shared/ui/api/dto";
-import { problemFrom } from "@/shared/ui/api/problem";
+import { problemFrom, type Problem } from "@/shared/ui/api/problem";
+import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import type { Formats } from "@/shared/ui/format/formatters";
 import { useToast } from "@/shared/ui/molecules/toast";
 import { RecordForm } from "../record/record-form";
@@ -16,6 +17,33 @@ import type { SharedExpenseContext } from "../split/shared-context";
 import { withTx } from "../detail/tx-href";
 import { initialOf, draftOf } from "./edit-initial";
 import { editBodyOf, ifMatchOf } from "./edit-request";
+
+const contribution = (tx: TransactionDto) => tx.type === "TRANSFER" && tx.payerMemberId !== null;
+
+/**
+ * Issue #195: the kinds the tabs offer. A personal space converts among the three; a shared space with a fund, the
+ * owner's ruling, between an expense and a contribution to the fund (it holds no income or own transfer, D9).
+ */
+const kindsOf = (
+  space: SpaceDto,
+  tx: TransactionDto,
+  shared: SharedExpenseContext | undefined,
+): readonly RecordKind[] | undefined => {
+  if (space.kind === "PERSONAL")
+    return tx.type === "SETTLEMENT" ? undefined : ["EXPENSE", "INCOME", "TRANSFER"];
+  if (!shared || shared.funds.length === 0) return undefined;
+  return tx.type === "EXPENSE" || contribution(tx) ? ["EXPENSE", "TRANSFER"] : undefined;
+};
+
+/** A shared space's transfer is a FUND_CONTRIBUTION: the same fields, with the fund as `fundAccountId`. */
+const conversionBodyOf = (
+  space: SpaceDto,
+  built: { kind: RecordKind; body: Record<string, unknown> },
+): Record<string, unknown> => {
+  if (space.kind === "PERSONAL" || built.kind !== "TRANSFER") return { type: built.kind, ...built.body };
+  const { destinationAccountId, ...rest } = built.body;
+  return { type: "FUND_CONTRIBUTION", ...rest, fundAccountId: destinationAccountId };
+};
 
 /**
  * Rulings P191 and P193: the record form on a transaction. It sends only what changed, with the version it was loaded
@@ -49,6 +77,7 @@ export function EditTransactionForm({
   const t = useTranslations("ledger");
   const router = useRouter();
   const toast = useToast();
+  const messageOf = useProblemMessage();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   // P192: a timed row is read and written in its own zone; an untimed one in the editor's.
   const zone = tx.timeZone ?? profileZone;
@@ -67,13 +96,65 @@ export function EditTransactionForm({
     );
     return built.ok ? built.body : {};
   });
+  const kinds = kindsOf(space, tx, shared);
   // Both ways out lead to the sheet of this transaction, in the place it was opened from.
   const sheet = withTx(origin, tx.id);
+
+  const undoFailed = (failure: Problem) =>
+    toast.show({ tone: "alert", message: t("toast.undoFailed", { message: messageOf(failure).message }) });
+
+  // Issue #195: the undo brings the original back as it was and removes what it became.
+  const undoConversion = async () => {
+    try {
+      const { error, response } = await api.POST(
+        "/api/v1/spaces/{spaceId}/transactions/{transactionId}/convert/undo",
+        { params: { path: { spaceId: space.id, transactionId: tx.id } } },
+      );
+      if (response.ok) {
+        router.replace(sheet);
+        router.refresh();
+        toast.show({ message: t(`toast.restored.${tx.type}`) });
+      } else undoFailed(problemFrom(error, response));
+    } catch (error) {
+      undoFailed(problemFrom(error, undefined));
+    }
+  };
+
+  // Issue #195: another kind is a new movement in place of this one, so the whole request travels, not a diff.
+  const convert = async (built: { kind: RecordKind; body: Record<string, unknown> }) => {
+    try {
+      const { data, error, response } = await api.POST(
+        "/api/v1/spaces/{spaceId}/transactions/{transactionId}/convert",
+        {
+          params: {
+            path: { spaceId: space.id, transactionId: tx.id },
+            header: { "if-match": ifMatchOf(tx.version) },
+          },
+          // Ruling P118: the form builds a plain object; the API is the validator of its shape.
+          body: conversionBodyOf(space, built) as never,
+        },
+      );
+      if (response.ok && data) {
+        const became = conversionBodyOf(space, built).type as RecordKind | "FUND_CONTRIBUTION";
+        router.replace(withTx(origin, data.id));
+        router.refresh();
+        toast.show({
+          message: t(`toast.converted.${became}`),
+          action: { label: t("toast.undo"), onAction: () => void undoConversion() },
+        });
+        return null;
+      }
+      return problemFrom(error, response);
+    } catch (error) {
+      return problemFrom(error, undefined);
+    }
+  };
 
   const onSave = async (
     built: { kind: RecordKind; body: Record<string, unknown> },
     state: { when: When },
   ) => {
+    if (built.kind !== tx.type) return convert(built);
     const whenChanged = JSON.stringify(state.when) !== JSON.stringify(initial.when);
     const body = editBodyOf({ tx, baseline, current: built.body, whenChanged });
     if (Object.keys(body).length === 0) {
@@ -118,6 +199,7 @@ export function EditTransactionForm({
         initial,
         backHref: sheet,
         onSave,
+        ...(kinds ? { kinds } : {}),
         problemAction: (problem) =>
           problem.code === "PreconditionFailed" ? (
             <div className="flex flex-col gap-2">

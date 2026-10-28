@@ -64,6 +64,13 @@ export {
 export { createDeleteTransaction, type DeleteTransaction } from "./delete-transaction";
 export { createRestoreTransaction, type RestoreTransaction } from "./restore-transaction";
 export {
+  createConvertTransaction,
+  type ConversionTarget,
+  type ConvertTransaction,
+  type ConvertTransactionInput,
+} from "./convert-transaction";
+export { createUndoConversion, type UndoConversion } from "./undo-conversion";
+export {
   createEditTransaction,
   type EditChanges,
   type EditTransaction,

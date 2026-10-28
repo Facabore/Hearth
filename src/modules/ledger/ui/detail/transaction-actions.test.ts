@@ -46,7 +46,7 @@ describe("who sees Editar and Eliminar (ruling P190, D9)", () => {
     });
   });
 
-  it("offers only Eliminar on a settlement and a fund contribution, saying why", () => {
+  it("offers only Eliminar on a settlement, saying why, and Editar on a contribution only to its payer (issue #195)", () => {
     const settlement = transactionDto({
       type: "SETTLEMENT",
       payerMemberId: "m-juan",
@@ -62,11 +62,16 @@ describe("who sees Editar and Eliminar (ruling P190, D9)", () => {
       delete: true,
       note: { key: "SETTLEMENT" },
     });
-    expect(actionsFor(contribution, ana, members)).toEqual({
+    expect(actionsFor(contribution, ana, members)).toEqual({ edit: true, delete: true, note: null });
+    expect(actionsFor({ ...contribution, payerMemberId: "m-juan" }, ana, members)).toEqual({
       edit: false,
       delete: true,
-      note: { key: "CONTRIBUTION" },
+      note: { key: "onlyOwner", name: "Juan" },
     });
+    // A guest's contribution has no account to keep it a transfer with, so it is deleted and recorded again.
+    expect(
+      actionsFor({ ...contribution, payerMemberId: "m-pedro", sourceAccountId: null }, ana, members),
+    ).toEqual({ edit: false, delete: true, note: { key: "CONTRIBUTION" } });
   });
 
   it("lets only the receiver edit an income and only the creator edit an own transfer", () => {

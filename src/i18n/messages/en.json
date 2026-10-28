@@ -149,6 +149,10 @@
     "RecurrenceEnded": "This recurring transaction has ended and cannot be changed.",
     "RecurrenceNotFound": "That recurring transaction was not found.",
     "SameAccountTransfer": "Choose different source and destination accounts.",
+    "SameTransactionType": "Choose a type other than the one it has.",
+    "TransactionNotConvertible": "A payment between members cannot change its type.",
+    "TransactionNotConverted": "This movement was not changed to another type, so there is nothing to undo.",
+    "ConversionSuperseded": "What this change became has changed type again. Undo the most recent change first.",
     "SavingsAccountAlreadyUsed": "That savings account is already in another line of the plan.",
     "SavingsAccountRequired": "A savings line needs at least one savings account.",
     "SavingsLineNotMappable": "A savings line does not take categories.",
@@ -703,7 +707,7 @@
       "note": {
         "onlyOwner": "Only {name} can edit it, because the money moves through their account. You can delete it.",
         "SETTLEMENT": "A payment between members is not edited: delete it and record it again from Balances.",
-        "CONTRIBUTION": "A contribution to the fund is not edited: delete it and record it again."
+        "CONTRIBUTION": "A guest's contribution is not edited: delete it and record it again."
       },
       "open": "Open the details of {name}"
     },
@@ -712,7 +716,8 @@
       "save": "Save changes",
       "kind": "Type: {type}",
       "reload": "Load the latest version",
-      "reloadNote": "The changes you typed will be discarded."
+      "reloadNote": "The changes you typed will be discarded.",
+      "convertNote": "Saving changes this movement to {type}. You can undo it from the notice."
     },
     "toast": {
       "saved": {
@@ -723,6 +728,12 @@
       "view": "View",
       "edited": "Changes saved",
       "undo": "Undo",
+      "converted": {
+        "EXPENSE": "Now an expense",
+        "INCOME": "Now an income",
+        "TRANSFER": "Now a transfer",
+        "FUND_CONTRIBUTION": "Now a contribution to the fund"
+      },
       "deleted": {
         "EXPENSE": "Expense deleted",
         "INCOME": "Income deleted",

@@ -2,11 +2,11 @@
 
 Every decision Hearth has made, in one place. There are three kinds, and each lives where it was decided:
 
-- **Design decisions (D1–D24)** are in the [design spec](../specs/2026-10-11-hearth-design.md#6-key-decisions), section 6.
+- **Design decisions (D1–D25)** are in the [design spec](../specs/2026-10-11-hearth-design.md#6-key-decisions), section 6.
 - **ADRs** record a technology choice: [`docs/adr/`](#adrs).
 - **Rulings (P1–P256)** are execution rulings the controller made while a milestone plan was written or run. Each lives in its plan's Self-Review; this page indexes them.
 
-## Design decisions D1–D24
+## Design decisions D1–D25
 
 Rationale and rejected alternatives are in [section 6 of the spec](../specs/2026-10-11-hearth-design.md#6-key-decisions).
 
@@ -36,6 +36,7 @@ Rationale and rejected alternatives are in [section 6 of the spec](../specs/2026
 | D22 | Category groups and categories carry an icon (a fixed symbol or one emoji) and a color from sixteen palette keys, and subcategories derive their parent's. |
 | D23 | Number, time and date formats and the first weekday are four profile preferences, null meaning "follow the installation rule", never derived from the language. |
 | D24 | A language may have regional variants (`es-CO`, `es-MX`, `es-AR`) that replace only vocabulary from a closed glossary over the neutral base; they never change formats or grammar, and Spanish always uses "tú". Proposed 2026-10-23, delivered by HU-E8-19. |
+| D25 | A movement's type changes by conversion, never by edit: the new expense, income or transfer is recorded through its own use case and the original soft-deleted in one transaction, linked both ways in the audit (`convertedTo`, `convertedFrom`), with an atomic undo; settlements never convert; a personal space converts among the three, and a shared space between an expense and a contribution to its fund (the owner's ruling). Issue #195, 2026-10-27. |
 
 ## ADRs
 
@@ -46,6 +47,7 @@ Rationale and rejected alternatives are in [section 6 of the spec](../specs/2026
 | [0003](../adr/0003-web-ui-talks-to-the-api-through-a-generated-client.md) | The web UI talks to `/api/v1` only, through a client generated from the snapshot. | Accepted (2026-10-20) |
 | [0004](../adr/0004-web-ui-testing-and-performance-gates.md) | Test the web UI with Vitest, Playwright and axe, and gate it on Core Web Vitals. | Accepted (2026-10-20) |
 | [0005](../adr/0005-measure-lcp-under-applied-throttling.md) | Time LCP under applied throttling (`devtools`), one run per route; CLS, TBT and script stay on the simulated runs, and every budget stays. Amends 0004. | Accepted (2026-10-26) |
+| [0006](../adr/0006-client-first-single-page-app.md) | The web UI becomes a client-first SPA (Vite, TanStack Router, TanStack Query): screens paint from the query cache, saves update optimistically, the API is unchanged. Supersedes the rendering half of 0003, amends 0004. | Accepted (2026-10-28) |
 
 ## Rulings P1–P256
 
@@ -405,7 +407,7 @@ Plan: [`2026-10-21-m6c-planner-and-dashboards.md`](../plans/2026-10-21-m6c-plann
 | P200 | The Plan tabs row (`reporting/ui/plan-tabs.tsx`) has `scroll-px-4`, so a tab scrolled into view stays clear of the screen edge whether or not its offset is a whole pixel. | Task 15 |
 | P202, P223 | The two rules as built: `recharts-only-in-charts` lets only `src/modules/reporting/ui/charts/*-chart.tsx` import `recharts`, the `lazy-*-chart.tsx` wrappers excepted, and `charts-load-lazily` fails any static import of those chart files, so the lazy wrapper is the one chart-named file a page imports. | Task 14a |
 
-### Post-milestone follow-up rulings (P249–P256)
+### Post-milestone follow-up rulings (P249–P257)
 
 Execution rulings made while closing follow-up issues after their milestone shipped. Each lives in the Self-Review of the plan whose follow-up it resolves, or in the note of the backlog story it amends.
 
@@ -419,6 +421,7 @@ Execution rulings made while closing follow-up issues after their milestone ship
 | P254 | The categories screen as built (issue #72): `/spaces/{spaceId}/categories` from Avatar › Categorías, read-only for every role but OWNER and ADMIN; the "Manage" entry of the expense form's picker is left to HU-E9-12; Gastos and Ingresos tabs as the pickers split groups; every change shows from the API's answer with no client read (P127), and the sheets load on the first tap (budget 168 KiB); delete and archive ask first and `CategoryInUse` offers "Archivar en su lugar"; the archived section lists archived categories and subcategories of live groups, never archived groups; the story's quick symbols win over the artboard's; the emoji library has 64 labelled emoji in eight UI-only sections; `ChoiceGroup` gains the `tiles` and `swatches` layouts. | E9-web-ui.md HU-E9-04, issue #72 |
 | P255 | Shared money is never framed as a debt in the base Spanish (issue #157, amends P173's words). A net reads "te toca poner" or "te toca recibir", or "le toca poner" or "le toca recibir" for a member. A suggestion reads "{payer} le paga {amount} a {receiver}", and the whole space settled reads "Todos están al día" (`balances.allSettled`). The keys `balances.you.settled`, `balances.member.settled` and `balances.suggestions` keep "paz y salvo" until HU-E8-19 (#180) moves them to `es-CO`, so the screen mixes both until then. `OutstandingBalance` explains the zero-balance rule for leaving, removing someone and archiving. "Debes hoy" for a credit card is a real debt and stays. English is unchanged. | Issue #157 |
 | P256 | A heavy form skips its below-the-fold part in the first frame (issue #182): the line editor wraps the sections below the catch-all switch in `content-visibility: auto` with `contain-intrinsic-size: auto 640px`, so the first frame lands before the framework chunks evaluate and Lighthouse (Lantern) stops counting them in the simulated LCP. Rejected: `experimental.inlineCss` (it doubled the document and slowed most routes) and raising a budget. | 2026-10-21-m6c-planner-and-dashboards.md (Self-Review 49), issue #182 |
+| P257 | A route's skeleton never costs its status (issue #196): every screen has its own `loading.tsx` at its leaf, and none wraps another route (a screen with routes below it sits in a route group). Its `layout.tsx` is `documentFirst(Page)`, which renders the screen before the boundary on the browser's document request (the proxy's `x-hearth-document`), so a 404 stays a 404 and a redirect stays a server redirect. The page reuses that render (`routeScreen`, React `cache`). A client navigation shows the prefetched skeleton at once. `LoadingScreen` is server markup only, with a plain link back marked `data-back` that the root layout's `NavigationTracker` sends back where the person was, so it ships no script. On Settings and New space, which draw the shell themselves, the tabs do not prefetch: there the skeleton's prefetch would load the shell's script a second time. Rejected: hand-written checks per layout (they drift) and a layout `<Suspense>` only on navigations (Next.js showed no fallback). | 2026-10-21-m6c-planner-and-dashboards.md (Self-Review 50), issue #196 |
 
 ### Preflight notes and findings
 

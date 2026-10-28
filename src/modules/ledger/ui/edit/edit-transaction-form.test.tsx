@@ -366,3 +366,165 @@ describe("the edit form is the compact record form (#171)", () => {
     expect(screen.getAllByRole("button").at(-1)).toHaveAccessibleName("Guardar cambios");
   });
 });
+
+describe("change a movement's type while editing it (issue #195)", () => {
+  const CONVERT = "POST /api/v1/spaces/{spaceId}/transactions/{transactionId}/convert";
+  const UNDO = "POST /api/v1/spaces/{spaceId}/transactions/{transactionId}/convert/undo";
+  const transfer = transactionDto({ ...tx, id: "t-new", type: "TRANSFER", version: 1 });
+
+  it("switches an expense to a transfer with its amount, description, time and account, and asks for the second account", async () => {
+    const { api, requests } = fakeApi({ [CONVERT]: () => jsonResponse(transfer, 201) });
+    renderForm(api);
+    expect(screen.getByRole("tab", { name: "Gasto" })).toHaveAttribute("aria-selected", "true");
+    await userEvent.click(screen.getByRole("tab", { name: "Transferencia" }));
+    expect(screen.getByText(/este movimiento cambia a Transferencia/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Monto")).toHaveValue("85.000");
+    expect(screen.getByLabelText("Descripción")).toHaveValue("Market");
+    expect(screen.getByRole("button", { name: /Desde/ })).toHaveTextContent("Bancolombia");
+    expect(screen.getByRole("button", { name: /Hacia/ })).toHaveTextContent("Elegir cuenta");
+    await save();
+    expect(requests).toEqual([]);
+    await userEvent.click(screen.getByRole("button", { name: /Hacia/ }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: "Hacia" })).getByRole("radio", { name: /Visa/ }),
+    );
+    await save();
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith(`${LIST}&tx=t-new`));
+    const [request] = requests;
+    expect(new URL(request!.url).pathname).toBe("/api/v1/spaces/s-1/transactions/t-1/convert");
+    expect(request!.headers.get("if-match")).toBe('"2"');
+    expect(await request!.json()).toEqual({
+      type: "TRANSFER",
+      description: "Market",
+      date: "2026-10-31",
+      occurredAt: "2026-10-31T17:30:00.000Z",
+      timeZone: "America/Bogota",
+      amount: { amount: "8500000", currency: "COP" },
+      sourceAccountId: "a-bank",
+      destinationAccountId: "a-visa",
+    });
+    expect(router.refresh).toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Ahora es una transferencia"));
+  });
+
+  it("undoes the conversion from the toast and shows the original's sheet again", async () => {
+    const { api, requests } = fakeApi({
+      [CONVERT]: () => jsonResponse(transfer, 201),
+      [UNDO]: () => jsonResponse({ ...tx, version: 4 }),
+    });
+    renderForm(api);
+    await userEvent.click(screen.getByRole("tab", { name: "Transferencia" }));
+    await userEvent.click(screen.getByRole("button", { name: /Hacia/ }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: "Hacia" })).getByRole("radio", { name: /Visa/ }),
+    );
+    await save();
+    await userEvent.click(await screen.findByRole("button", { name: "Deshacer" }));
+    await waitFor(() => expect(router.replace).toHaveBeenLastCalledWith(SHEET));
+    expect(new URL(requests[1]!.url).pathname).toBe("/api/v1/spaces/s-1/transactions/t-1/convert/undo");
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Gasto restaurado"));
+  });
+
+  it("shows a refused conversion in the form and stays on it", async () => {
+    const { api } = fakeApi({ [CONVERT]: () => problemResponse(409, "AccountArchived") });
+    renderForm(api);
+    await userEvent.click(screen.getByRole("tab", { name: "Transferencia" }));
+    await userEvent.click(screen.getByRole("button", { name: /Hacia/ }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: "Hacia" })).getByRole("radio", { name: /Visa/ }),
+    );
+    await save();
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it("switching back to the movement's own kind edits it as before, with a PATCH", async () => {
+    const { api, requests } = fakeApi({
+      [PATCH]: () => jsonResponse({ ...tx, amount: cop(95_000), version: 3 }),
+    });
+    renderForm(api);
+    await userEvent.click(screen.getByRole("tab", { name: "Ingreso" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Gasto" }));
+    expect(screen.queryByText(/este movimiento cambia a/)).not.toBeInTheDocument();
+    await retype("95000");
+    await save();
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith(SHEET));
+    expect(requests.map((r) => r.method)).toEqual(["PATCH"]);
+  });
+
+  const household = (funds: SharedExpenseContext["funds"]): SharedExpenseContext => ({
+    members: [memberDto({ id: "m-ana", userId: "u-ana" }), memberDto({ id: "m-juan", userId: "u-juan" })],
+    meMemberId: "m-ana",
+    myAccounts: [accountDto({ id: "a-bank", name: "Bancolombia" })],
+    funds,
+  });
+  const fund = accountDto({ id: "a-fund", name: "Household Fund", type: "SHARED_FUND" });
+  const sharedTx = transactionDto({
+    ...tx,
+    shares: [
+      { memberId: "m-ana", amount: cop(42_500), splitMethod: "EQUAL" },
+      { memberId: "m-juan", amount: cop(42_500), splitMethod: "EQUAL" },
+    ],
+  });
+
+  it("in a shared space offers Gasto and Transferencia, a contribution from her account to the fund (the owner's ruling)", async () => {
+    const { api, requests } = fakeApi({ [CONVERT]: () => jsonResponse(transfer, 201) });
+    renderForm(api, LIST, { space: householdSpace(), tx: sharedTx, shared: household([fund]) });
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Gasto", "Transferencia"]);
+    await userEvent.click(screen.getByRole("tab", { name: "Transferencia" }));
+    expect(screen.getByRole("button", { name: /Desde/ })).toHaveTextContent("Bancolombia");
+    await userEvent.click(screen.getByRole("button", { name: /Hacia/ }));
+    const to = screen.getByRole("dialog", { name: "Hacia" });
+    expect(
+      within(to)
+        .getAllByRole("radio")
+        .map((radio) => radio.textContent),
+    ).toEqual([expect.stringContaining("Household Fund")]);
+    await userEvent.click(within(to).getByRole("radio", { name: /Household Fund/ }));
+    await save();
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith(`${LIST}&tx=t-new`));
+    expect(await requests[0]!.json()).toEqual({
+      type: "FUND_CONTRIBUTION",
+      description: "Market",
+      date: "2026-10-31",
+      occurredAt: "2026-10-31T17:30:00.000Z",
+      timeZone: "America/Bogota",
+      amount: { amount: "8500000", currency: "COP" },
+      sourceAccountId: "a-bank",
+      fundAccountId: "a-fund",
+    });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Ahora es un aporte al fondo"));
+  });
+
+  it("turns a contribution back into an expense paid by its payer from the account it came from", async () => {
+    const { api, requests } = fakeApi({ [CONVERT]: () => jsonResponse({ ...sharedTx, id: "t-new" }, 201) });
+    const given = transactionDto({
+      ...tx,
+      type: "TRANSFER",
+      categoryId: null,
+      payerMemberId: "m-ana",
+      sourceAccountId: "a-bank",
+      destinationAccountId: "a-fund",
+      payments: [],
+      shares: [],
+    });
+    renderForm(api, LIST, { space: householdSpace(), tx: given, shared: household([fund]) });
+    expect(screen.getByRole("tab", { name: "Transferencia" })).toHaveAttribute("aria-selected", "true");
+    await userEvent.click(screen.getByRole("tab", { name: "Gasto" }));
+    await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
+    await userEvent.click(screen.getByRole("radio", { name: "Groceries" }));
+    await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
+    await save();
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith(`${LIST}&tx=t-new`));
+    expect(await requests[0]!.json()).toMatchObject({
+      type: "EXPENSE",
+      payments: [{ memberId: "m-ana", accountId: "a-bank", amount: { amount: "8500000", currency: "COP" } }],
+    });
+  });
+
+  it("keeps the type fixed in a shared space without a fund", () => {
+    renderForm(fakeApi({}).api, LIST, { space: householdSpace(), tx: sharedTx, shared: household([]) });
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.getByText("Tipo: Gasto")).toBeInTheDocument();
+  });
+});

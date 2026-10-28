@@ -30,6 +30,9 @@ const WIDE_FONT_CSS = '* { font-family: Verdana, "DejaVu Sans", sans-serif !impo
 /** The addresses the tests open on purpose to see the not-found page: the browser logs their 404 (N1). */
 const MISSING = ["/nope", "/spaces/does-not-exist/accounts"];
 
+/** An id no record has: the screens of #196 opened with it answer 404 on purpose, and the browser logs that. */
+const MISSING_ID = "01a17f29-6bd5-710c-9636-fd9fa33e3b6a";
+
 /** The refusal a test stages on purpose (a plan's close answering 409): the browser logs every failed response. */
 const STAGED_REFUSAL = /\/api\/v1\/spaces\/[^/]+\/plans\/[^/]+\/close$/;
 
@@ -47,7 +50,11 @@ const test = base.extend<{ errors: string[]; wideFont: boolean }>({
       page.on("console", (message) => {
         if (message.type() !== "error") return;
         const { url } = message.location();
-        if (/ 404 /.test(message.text()) && MISSING.some((path) => url.endsWith(path))) return;
+        if (
+          / 404 /.test(message.text()) &&
+          (MISSING.some((path) => url.endsWith(path)) || url.includes(MISSING_ID))
+        )
+          return;
         if (/ 409 /.test(message.text()) && STAGED_REFUSAL.test(url)) return;
         errors.push(`${message.text()} @ ${message.location().url}`);
       });
@@ -1228,7 +1235,10 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       const back = page.getByRole("link", { name: es.common.back, exact: true });
       await expect(back).toHaveAttribute("href", `/spaces/${sharedId}/plan?period=2026-10`);
       await back.click();
-      await expect(page.getByText(LONG_LINE)).toBeVisible();
+      // The dashboard names the line in its table, its list and its members matrix: wait for it, not for a moment
+      // when one of them happens to be the only one on screen (#196: a skeleton now fills that moment).
+      await expect(page).toHaveURL(new RegExp(`/spaces/${sharedId}/plan\\?period=2026-10$`));
+      await expect(page.getByRole("table").getByText(LONG_LINE).first()).toBeVisible();
       await expect(page.getByRole("heading", { level: 2, name: /no tiene plan/i })).toHaveCount(0);
     });
   }
@@ -2476,6 +2486,41 @@ test.describe("the app's own not-found page (N1)", () => {
       }
     });
   }
+
+  test("a document request renders a screen whose container picks another one in place, with no skeleton ahead (#196, ruling P257)", async ({
+    page,
+  }) => {
+    const { spaceId, sharedId } = await session(page, "document-in-place");
+    // The Plan tab's own page and By group pick their container by the space's kind, and so does Trend. Rendered as an
+    // element, the picked one finished after the stream started: a skeleton streamed ahead of it, the browser paid for
+    // the swap in blocking time (Trend over its TBT budget on CI), and a 404 of its own would have lost its status.
+    for (const path of [
+      ...["/plan", "/plan/groups"].flatMap((screen) => [
+        `/spaces/${spaceId}${screen}`,
+        `/spaces/${sharedId}${screen}`,
+      ]),
+      `/spaces/${sharedId}/plan/trend`,
+    ]) {
+      const html = await (await page.request.get(path)).text();
+      expect(html, path).not.toContain('aria-busy="true"');
+      expect(html, path).not.toContain("<!--$?-->");
+    }
+  });
+
+  test("a screen under its own loading boundary still answers 404 on a document request (#196, ruling P257)", async ({
+    page,
+  }) => {
+    const { spaceId } = await session(page, "notfound-boundary");
+    // Each 404 comes from the screen's own read in its container, not from a check copied into a layout.
+    for (const path of [
+      `/spaces/${spaceId}/accounts/${MISSING_ID}/edit`,
+      `/spaces/${spaceId}/plans/${MISSING_ID}`,
+    ]) {
+      const response = await page.goto(path);
+      expect(response?.status(), path).toBe(404);
+      await expect(page.getByRole("heading", { level: 1, name: es.notFound.title })).toBeVisible();
+    }
+  });
 });
 
 test.describe("Settings and New space keep the space they were opened from (N3)", () => {

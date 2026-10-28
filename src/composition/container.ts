@@ -84,8 +84,10 @@ import {
   type GetMemberLineMatrix,
 } from "@/modules/reporting/application";
 import {
+  createConvertTransaction,
   createDeleteTransaction,
   createRestoreTransaction,
+  createUndoConversion,
   createEditTransaction,
   createGetTransaction,
   createListAudit,
@@ -128,6 +130,8 @@ import {
   type ConfirmOccurrence,
   type DeleteTransaction,
   type RestoreTransaction,
+  type ConvertTransaction,
+  type UndoConversion,
   type EditTransaction,
   type GetTransaction,
   type LedgerDeps,
@@ -324,6 +328,9 @@ export interface Container extends RouteDeps {
     readonly editTransaction: EditTransaction;
     readonly deleteTransaction: DeleteTransaction;
     readonly restoreTransaction: RestoreTransaction;
+    /** Issue #195: an expense, income or transfer becomes another of the three, and back. */
+    readonly convertTransaction: ConvertTransaction;
+    readonly undoConversion: UndoConversion;
     readonly listAudit: ListAudit;
     readonly defineRecurrence: DefineRecurrence;
     readonly listRecurrences: ListRecurrences;
@@ -518,6 +525,9 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     tm,
   };
   const recordExpense = createRecordExpense(ledgerDeps);
+  const recordIncome = createRecordIncome(ledgerDeps);
+  const recordTransfer = createRecordTransfer(ledgerDeps);
+  const recordFundContribution = createRecordFundContribution(ledgerDeps);
   // HU-E4-11 … HU-E4-13: recurrences live in the ledger and record through its own use cases (ruling P21).
   const recurrenceRepository = new DrizzleRecurrenceRepository(tm);
   const recurrenceDeps: RecurrenceDeps = {
@@ -805,15 +815,23 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     },
     ledger: {
       recordExpense,
-      recordIncome: createRecordIncome(ledgerDeps),
-      recordTransfer: createRecordTransfer(ledgerDeps),
-      recordFundContribution: createRecordFundContribution(ledgerDeps),
+      recordIncome,
+      recordTransfer,
+      recordFundContribution,
       recordSettlement: createRecordSettlement(ledgerDeps),
       listTransactions: createListTransactions(ledgerDeps),
       getTransaction: createGetTransaction(ledgerDeps),
       editTransaction: createEditTransaction(ledgerDeps),
       deleteTransaction: createDeleteTransaction(ledgerDeps),
       restoreTransaction: createRestoreTransaction(ledgerDeps),
+      // Issue #195: the new movement is recorded through the ledger's own use cases, in the conversion's transaction.
+      convertTransaction: createConvertTransaction(ledgerDeps, {
+        recordExpense,
+        recordIncome,
+        recordTransfer,
+        recordFundContribution,
+      }),
+      undoConversion: createUndoConversion(ledgerDeps),
       listAudit: createListAudit(ledgerDeps),
       defineRecurrence: createDefineRecurrence(recurrenceDeps),
       listRecurrences: createListRecurrences(recurrenceDeps),
