@@ -9,7 +9,10 @@ import { seedPlanRoutes } from "./seed-plan.mjs";
 
 // The mjs lint block declares only process, console, Buffer and URL as globals.
 const { fetch } = globalThis;
-const BASE = `http://127.0.0.1:${process.env.E2E_PORT ?? "3100"}`;
+const E2E_PORT = process.env.E2E_PORT ?? "3100";
+const API = `http://127.0.0.1:${E2E_PORT}`;
+/** ADR 0006: the front a person opens, the SPA's preview proxying /api/* to the server above (tests/e2e/support/base-url.ts). */
+const BASE = `http://127.0.0.1:${process.env.E2E_SPA_PORT ?? Number(E2E_PORT) + 100}`;
 const RUNS = 5;
 const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
 
@@ -125,17 +128,25 @@ const measure = async (port, url, cookie, lcpMs) => {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const budgets = JSON.parse(readFileSync("tests/performance/budgets.json", "utf8"));
   const server = spawn(process.execPath, ["scripts/e2e-server.mjs"], { stdio: "inherit" });
+  // The SPA's build (`pnpm spa:build`), served the way the e2e run serves it (playwright.config.ts).
+  const front = spawn(
+    process.execPath,
+    ["node_modules/vite/bin/vite.js", "preview", "--config", "vite.spa.config.ts"],
+    {
+      stdio: "inherit",
+    },
+  );
   const failures = [];
   try {
+    const up = (url) =>
+      fetch(url).then(
+        (r) => r.ok,
+        () => false,
+      );
     for (let deadline = Date.now() + 180_000; ; await sleep(1000)) {
-      if (
-        await fetch(`${BASE}/api/v1/health`).then(
-          (r) => r.ok,
-          () => false,
-        )
-      )
-        break;
-      if (Date.now() > deadline) throw new Error("The server did not start within 180 s");
+      if ((await up(`${API}/api/v1/health`)) && (await up(`${BASE}/`))) break;
+      if (Date.now() > deadline)
+        throw new Error("The server and the SPA's preview did not start within 180 s");
     }
     // A person with data, so the screens render what a household sees (an account, a category, a few expenses).
     const headers = { "content-type": "application/json", "x-forwarded-for": "10.250.0.1" };
@@ -263,6 +274,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       await browser.close();
     }
   } finally {
+    front.kill("SIGTERM");
     server.kill("SIGTERM");
   }
   for (const failure of failures) console.error(failure);

@@ -27,7 +27,7 @@ const TARGET = 44;
 
 const WIDE_FONT_CSS = '* { font-family: Verdana, "DejaVu Sans", sans-serif !important; }';
 
-/** The addresses the tests open on purpose to see the not-found page: the browser logs their 404 (N1). */
+/** The addresses the tests open on purpose to see the not-found screen: the browser logs the API's 404 under them (N1). */
 const MISSING = ["/nope", "/spaces/does-not-exist/accounts"];
 
 /** An id no record has: the screens of #196 opened with it answer 404 on purpose, and the browser logs that. */
@@ -37,24 +37,32 @@ const MISSING_ID = "01a17f29-6bd5-710c-9636-fd9fa33e3b6a";
 const STAGED_REFUSAL = /\/api\/v1\/spaces\/[^/]+\/plans\/[^/]+\/close$/;
 
 /** Every test fails on a `console.error` or an uncaught page error: nothing may log one on a normal visit. */
-const test = base.extend<{ errors: string[]; wideFont: boolean }>({
+const test = base.extend<{ errors: string[]; missing: RegExp[]; wideFont: boolean }>({
   /**
    * Linux Chromium falls back to DejaVu Sans / Liberation for the `system-ui` stack, which is wider than Segoe UI on
    * Windows. A wide face on every machine catches that class of overflow locally; `LAYOUT_WIDE_FONT=1` forces it for
    * the whole file.
    */
   wideFont: [process.env.LAYOUT_WIDE_FONT === "1", { option: true }],
+  /** The API paths a test reads on purpose for a record that is not there: the browser logs their 404 (ADR 0006). */
+  // eslint-disable-next-line no-empty-pattern -- Playwright reads a fixture's dependencies from this pattern.
+  missing: async ({}, use) => use([]),
   errors: [
-    async ({ page }, use) => {
+    async ({ page, missing: expected }, use) => {
       const errors: string[] = [];
       page.on("console", (message) => {
         if (message.type() !== "error") return;
         const { url } = message.location();
+        const path = url ? new URL(url).pathname : "";
         if (
           / 404 /.test(message.text()) &&
-          (MISSING.some((path) => url.endsWith(path)) || url.includes(MISSING_ID))
+          (MISSING.some((missing) => path.endsWith(missing)) ||
+            path.includes(MISSING_ID) ||
+            expected.some((pattern) => pattern.test(path)))
         )
           return;
+        // ADR 0006: the SPA asks the API who is signed in, and a visitor's answer is a 401 on purpose.
+        if (/ 401 /.test(message.text()) && path === "/api/v1/me") return;
         if (/ 409 /.test(message.text()) && STAGED_REFUSAL.test(url)) return;
         errors.push(`${message.text()} @ ${message.location().url}`);
       });
@@ -1491,14 +1499,19 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
     });
     try {
       await juan.api.post(`/api/v1/invitations/${new URL(url).pathname.split("/").at(-1)}/accept`, {});
-      const sent = await juan.api.html(`/spaces/${sharedId}/plans/${plan.id}/capacities`);
-      // Ana's September income is in neither the text nor the data of Juan's page...
-      expect(sent).not.toContain("1.650.000");
+      // ADR 0006: Juan's capacities screen is built in his browser from these answers, so they are what he is sent.
+      const space = `/api/v1/spaces/${sharedId}`;
+      const sent = JSON.stringify(
+        await Promise.all(
+          [
+            `${space}/plans/${plan.id}`,
+            `${space}/members`,
+            `${space}/plans/${plan.id}/capacity-suggestion`,
+          ].map((path) => juan.api.get(path)),
+        ),
+      );
+      // Ana's September income is in none of them; the screen itself shows only the viewer's own (jsdom, P208).
       expect(sent).not.toContain("165000000");
-      // ...and his own row has no suggestion: he earned nothing, and a suggestion of 0 is dropped (#175).
-      expect(sent).toContain("Capacidad de Juan");
-      // The catalog's "Sugerido {amount}" template travels with the messages; no rendered amount follows it.
-      expect(sent).not.toMatch(/Sugerido \$/);
     } finally {
       await juan.dispose();
     }
@@ -1898,8 +1911,12 @@ test.describe("the transaction detail sheet is addressed by the URL (ruling P189
     await expect(page).toHaveURL(new RegExp(`${accounts}$`));
   });
 
-  test("a deleted or unknown transaction in the address says so inside the sheet", async ({ page }) => {
+  test("a deleted or unknown transaction in the address says so inside the sheet", async ({
+    page,
+    missing,
+  }) => {
     const { spaceId } = await session(page, "detail-missing");
+    missing.push(/\/transactions\/00000000-0000-4000-8000-000000000000$/);
     await page.goto(`/spaces/${spaceId}/transactions?tx=00000000-0000-4000-8000-000000000000`);
     const dialog = page.getByRole("dialog", { name: es.errors.TransactionNotFound });
     await expect(dialog).toBeVisible();
@@ -1984,8 +2001,10 @@ test.describe("deleting from the detail sheet leaves the person on the list and 
 
   test("the address of a transaction just deleted says it no longer exists, with nothing to delete", async ({
     page,
+    missing,
   }) => {
     const { list } = await listFromAccounts(page, "delete-address");
+    missing.push(/\/api\/v1\/spaces\/[^/]+\/transactions\/[^/]+$/);
     await page.getByRole("link", { name: MARKET }).click();
     await expect(sheet(page)).toBeVisible();
     const address = page.url();
@@ -2340,7 +2359,9 @@ test.describe("the app has an icon, so no page asks for a missing one (UX review
   }) => {
     const failed: string[] = [];
     page.on("response", (response) => {
-      if (response.status() >= 400) failed.push(`${response.status()} ${response.url()}`);
+      // Files only: a visitor's 401 from /api/v1/me is the SPA asking who is signed in (ADR 0006).
+      const file = !new URL(response.url()).pathname.startsWith("/api/");
+      if (file && response.status() >= 400) failed.push(`${response.status()} ${response.url()}`);
     });
     await page.goto("/sign-in");
     const icon = page.locator("link[rel='icon'][type='image/svg+xml']");
@@ -2455,24 +2476,24 @@ test.describe("every screen below the navigation has a way back (UX: no dead end
   });
 });
 
-test.describe("the app's own not-found page (N1)", () => {
+test.describe("the app's own not-found screen (N1, ADR 0006)", () => {
   for (const scheme of ["light", "dark"] as const) {
     test.describe(`in ${scheme} mode`, () => {
       test.use({ colorScheme: scheme });
 
       for (const [what, path] of [
-        ["an address that matches no page", "/nope"],
+        ["an address that matches no screen", "/nope"],
         ["a space that does not exist", "/spaces/does-not-exist/accounts"],
       ] as const) {
         test(`${what}: the way out is a full target, the page wears the theme and the way out leads home`, async ({
           page,
         }) => {
           const { spaceId } = await session(page, `notfound-${scheme}-${what.length}`);
+          // The SPA answers every app address with its shell, so the document is a 200; N1's 404 is the API's.
           const response = await page.goto(path);
-          expect(response?.status()).toBe(404);
+          expect(response?.status()).toBe(200);
           await settle(page);
           await expect(page.getByRole("heading", { level: 1, name: es.notFound.title })).toBeVisible();
-          // The theme reached the page, including the one Next renders on the client after a layout's notFound().
           await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
           const background = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
           expect(background).toBe(scheme === "dark" ? "rgb(18, 22, 20)" : "rgb(246, 244, 239)");
@@ -2487,37 +2508,17 @@ test.describe("the app's own not-found page (N1)", () => {
     });
   }
 
-  test("a document request renders a screen whose container picks another one in place, with no skeleton ahead (#196, ruling P257)", async ({
+  test("a record the API does not find opens the not-found screen, and the API's answer is the 404 (#196, ruling P257)", async ({
     page,
   }) => {
-    const { spaceId, sharedId } = await session(page, "document-in-place");
-    // The Plan tab's own page and By group pick their container by the space's kind, and so does Trend. Rendered as an
-    // element, the picked one finished after the stream started: a skeleton streamed ahead of it, the browser paid for
-    // the swap in blocking time (Trend over its TBT budget on CI), and a 404 of its own would have lost its status.
-    for (const path of [
-      ...["/plan", "/plan/groups"].flatMap((screen) => [
-        `/spaces/${spaceId}${screen}`,
-        `/spaces/${sharedId}${screen}`,
-      ]),
-      `/spaces/${sharedId}/plan/trend`,
-    ]) {
-      const html = await (await page.request.get(path)).text();
-      expect(html, path).not.toContain('aria-busy="true"');
-      expect(html, path).not.toContain("<!--$?-->");
-    }
-  });
-
-  test("a screen under its own loading boundary still answers 404 on a document request (#196, ruling P257)", async ({
-    page,
-  }) => {
-    const { spaceId } = await session(page, "notfound-boundary");
-    // Each 404 comes from the screen's own read in its container, not from a check copied into a layout.
-    for (const path of [
-      `/spaces/${spaceId}/accounts/${MISSING_ID}/edit`,
-      `/spaces/${spaceId}/plans/${MISSING_ID}`,
-    ]) {
-      const response = await page.goto(path);
-      expect(response?.status(), path).toBe(404);
+    const { spaceId } = await session(page, "notfound-record");
+    for (const [path, read] of [
+      [`/spaces/${spaceId}/accounts/${MISSING_ID}/edit`, `/api/v1/spaces/${spaceId}/accounts/${MISSING_ID}`],
+      [`/spaces/${spaceId}/plans/${MISSING_ID}`, `/api/v1/spaces/${spaceId}/plans/${MISSING_ID}`],
+    ] as const) {
+      const missing = page.waitForResponse((r) => new URL(r.url()).pathname === read);
+      await page.goto(path);
+      expect((await missing).status(), read).toBe(404);
       await expect(page.getByRole("heading", { level: 1, name: es.notFound.title })).toBeVisible();
     }
   });

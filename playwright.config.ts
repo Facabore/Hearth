@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 import { defineBddConfig } from "playwright-bdd";
-import { BASE_URL, E2E_PORT, E2E_SPA_PORT, SPA_BASE_URL } from "./tests/e2e/support/base-url";
+import { API_URL, BASE_URL, E2E_PORT, E2E_SPA_PORT } from "./tests/e2e/support/base-url";
 
 const bddDir = defineBddConfig({
   features: "tests/e2e/features/*.feature",
@@ -8,7 +8,10 @@ const bddDir = defineBddConfig({
   outputDir: "tests/e2e/.features-gen",
 });
 
-/** HU-E9-*: @e2e scenarios against the standalone build and a disposable PostgreSQL (ruling P132). */
+/**
+ * HU-E9-*: @e2e scenarios against the single-page app's build in front of the standalone API and a disposable
+ * PostgreSQL (ruling P132, ADR 0006).
+ */
 export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 10_000 },
@@ -21,7 +24,7 @@ export default defineConfig({
   webServer: [
     {
       command: "node scripts/e2e-server.mjs",
-      url: `${BASE_URL}/api/v1/health`,
+      url: `${API_URL}/api/v1/health`,
       // A server already on the port may be another worktree's build: reuse it only when asked (E2E_REUSE=1).
       reuseExistingServer: process.env.E2E_REUSE === "1",
       timeout: 180_000,
@@ -31,7 +34,7 @@ export default defineConfig({
     {
       // ADR 0006 (#199): the SPA's build (`pnpm spa:build`) at the root, /api/* proxied to the server above, like Caddy.
       command: "pnpm exec vite preview --config vite.spa.config.ts",
-      url: `${SPA_BASE_URL}/`,
+      url: `${BASE_URL}/`,
       env: { E2E_PORT, E2E_SPA_PORT },
       reuseExistingServer: process.env.E2E_REUSE === "1",
       timeout: 60_000,
@@ -46,6 +49,6 @@ export default defineConfig({
       use: { ...devices["Pixel 7"] },
     },
     { name: "perf", testDir: "tests/e2e/perf", use: { ...devices["Pixel 7"] } },
-    { name: "spa", testDir: "tests/e2e/spa", use: { ...devices["Pixel 7"], baseURL: SPA_BASE_URL } },
+    { name: "spa", testDir: "tests/e2e/spa", use: { ...devices["Pixel 7"] } },
   ],
 });

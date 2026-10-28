@@ -193,10 +193,14 @@ When(
   "{string} steps to the previous period {int} times",
   async ({ page, world }, name: string, times: number) => {
     expect(name).toBe(world.user!.name);
+    const previous = page.getByRole("link", { name: world.t("balances.history.previous") });
     for (let step = 0; step < times; step += 1) {
       const before = page.url();
-      await page.getByRole("link", { name: world.t("balances.history.previous") }).click();
+      const href = await previous.getAttribute("href");
+      await previous.click();
       await expect.poll(() => page.url()).not.toBe(before);
+      // ADR 0006: the address moves before the period's screen does; a step is taken once the screen shows it.
+      await expect(previous).not.toHaveAttribute("href", href!);
     }
   },
 );

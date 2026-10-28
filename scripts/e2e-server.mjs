@@ -87,7 +87,6 @@ server = spawn(process.execPath, [".next/standalone/server.js"], {
     APP_TIMEZONE: "America/Bogota",
     LOG_LEVEL: "error",
     RECURRENCE_JOB_INTERVAL_SECONDS: "0",
-    INTERNAL_API_ORIGIN: `http://127.0.0.1:${PORT}`,
     HEARTH_E2E_FIXED_NOW: process.env.HEARTH_E2E_FIXED_NOW ?? "2026-11-01T04:30:00Z",
   },
 });

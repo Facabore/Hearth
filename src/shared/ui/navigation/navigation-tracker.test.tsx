@@ -46,9 +46,12 @@ describe("navigation tracker: starting", () => {
     loadedBy("navigate");
     openAt("/spaces/s1/transactions");
     const stop = trackNavigation();
-    window.history.pushState({}, "", "/spaces/s1/accounts");
-    expect(readTrail()).toEqual(trailOf(["/spaces/s1/transactions", "/spaces/s1/accounts"]));
-    stop();
+    try {
+      window.history.pushState({}, "", "/spaces/s1/accounts");
+      expect(readTrail()).toEqual(trailOf(["/spaces/s1/transactions", "/spaces/s1/accounts"]));
+    } finally {
+      stop();
+    }
     window.history.pushState({}, "", "/settings");
     expect(readTrail()).toEqual(trailOf(["/spaces/s1/transactions", "/spaces/s1/accounts"]));
   });
