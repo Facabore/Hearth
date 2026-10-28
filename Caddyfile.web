@@ -8,9 +8,11 @@
 :8080 {
 	encode zstd gzip
 
-	# The app's first address, /app/…, until the cut-over: its bookmarks land on the same screen at the root.
+	# The app's first address, /app/…, until the cut-over: its bookmarks land on the same screen at the root. Leading
+	# slashes and backslashes collapse to one, so /app//evil.example never redirects to another host.
 	redir /app / 308
 	handle_path /app/* {
+		uri path_regexp ^[/\x5c]+ /
 		redir * {uri} 308
 	}
 

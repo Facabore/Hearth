@@ -159,6 +159,8 @@ jobs:
           # The app's first address, /app/…, lands on the same screen at the root.
           test "$(curl -s -o /dev/null -w '%{redirect_url}' http://localhost:8080/app)" = "http://localhost:8080/"
           test "$(curl -s -o /dev/null -w '%{redirect_url}' 'http://localhost:8080/app/spaces/x?tx=1')" = "http://localhost:8080/spaces/x?tx=1"
+          # Never to another host: leading slashes after the prefix collapse to one.
+          test "$(curl -s -o /dev/null --path-as-is -w '%header{location}' 'http://localhost:8080/app//evil.example/x')" = "/evil.example/x"
       - name: Smoke test the images against PostgreSQL
         run: |
           docker network create smoke
