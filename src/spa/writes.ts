@@ -64,7 +64,13 @@ export const trackWrites = (
     (method: WriteCall["method"]): Send =>
     async (path, init) => {
       const send = () => (api[method] as unknown as Send)(path, init);
-      const [plans, { runPlanned }] = await Promise.all([planner(), import("./mutations")]);
+      // A new write makes any earlier mark stale: only the refresh() right after a planned save may skip its reads.
+      settled.delete(queryClient);
+      // A plan that cannot load (offline, or a chunk gone after a release) never stops the save: it is sent as it is,
+      // and the components' refresh() reads the screen again.
+      const loaded = await Promise.all([planner(), import("./mutations")]).catch(() => null);
+      if (!loaded) return send();
+      const [plans, { runPlanned }] = loaded;
       const plan = plans({ method, path, params: init?.params?.path ?? {}, body: init?.body }, queryClient);
       return plan ? runPlanned(queryClient, [method, path], plan, send) : send();
     };
