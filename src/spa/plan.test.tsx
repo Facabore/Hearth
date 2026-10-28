@@ -158,6 +158,19 @@ describe("the Plan tab and the planner in the SPA (slice 5 of #199, ADR 0006)", 
     expect(spa.queryClient.getQueryState(["identity", "me"])?.isInvalidated).toBe(false);
   });
 
+  it("shows the capacities without a suggestion the server keeps failing, after one more try (P208)", async () => {
+    const spa = renderSpa(`${HOUSEHOLD}/plans/p-nov/capacities`, {
+      ...server(),
+      "GET /api/v1/spaces/{spaceId}/plans/{planId}/capacity-suggestion": () =>
+        problemResponse(503, "ServiceUnavailable"),
+    });
+    expect(
+      await screen.findByRole("button", { name: "Guardar capacidades" }, { timeout: 5_000 }),
+    ).toBeVisible();
+    expect(count(spa.requests, "GET", /\/capacity-suggestion$/)).toBe(2);
+    expect(problems()).toEqual([]);
+  });
+
   it("edits a plan's line, and a line that is not the plan's is not found", async () => {
     const spa = renderSpa(`${HOUSEHOLD}/plans/p-nov/lines/new`, server());
     await waitFor(() => expect(document.title).toBe(`${es.budgeting.lineEditor.newTitle} · Hearth`), {

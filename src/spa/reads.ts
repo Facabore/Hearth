@@ -199,23 +199,20 @@ export const planQuery = (api: Api, spaceId: string, planId: string) =>
 
 /**
  * Ruling P208: the caller's own capacity suggestion (the endpoint takes no member). One that cannot be read never
- * blocks the screen: it is null. A failure that may pass is thrown instead, so it is tried once more first.
+ * blocks the screen: it is null. A failure that may pass (the network, a 5xx) is tried once more first.
  */
 export const capacitySuggestionQuery = (api: Api, spaceId: string, planId: string) =>
   queryOptions<CapacitySuggestionDto | null>({
     ...LOADER_OWNED,
     queryKey: [...moduleKeys.plan(spaceId, planId), "suggestion"],
-    queryFn: async () => {
-      try {
-        return await read(
+    queryFn: () => {
+      const once = () =>
+        read(
           api.GET("/api/v1/spaces/{spaceId}/plans/{planId}/capacity-suggestion", {
             params: { path: { spaceId, planId } },
           }),
         );
-      } catch (error) {
-        if (isTransient(error)) throw error;
-        return null;
-      }
+      return once().catch((error: unknown) => (isTransient(error) ? once().catch(() => null) : null));
     },
   });
 
