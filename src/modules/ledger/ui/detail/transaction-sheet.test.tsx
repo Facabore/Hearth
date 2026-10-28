@@ -7,7 +7,7 @@ import { cop, guestDto, memberDto, rowContext, transactionDto } from "../../../.
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import { writeTrail } from "@/shared/ui/navigation/history";
 import type { MemberDto, TransactionDto } from "@/shared/ui/api/dto";
-import type { TransactionDetail } from "./detail-loader";
+import type { TransactionDetail } from "./transaction-detail";
 import { TransactionSheet } from "./transaction-sheet";
 
 const mocks = vi.hoisted(() => ({

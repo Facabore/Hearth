@@ -10,7 +10,7 @@ import type { Api } from "@/shared/ui/api/client";
 import type { TransactionDto } from "@/shared/ui/api/dto";
 import { ToastProvider } from "@/shared/ui/molecules/toast-provider";
 import { writeTrail } from "@/shared/ui/navigation/history";
-import type { TransactionDetail } from "./detail-loader";
+import type { TransactionDetail } from "./transaction-detail";
 import { TransactionSheet } from "./transaction-sheet";
 
 const mocks = vi.hoisted(() => ({
