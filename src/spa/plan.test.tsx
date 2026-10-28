@@ -78,6 +78,18 @@ describe("the Plan tab and the planner in the SPA (slice 5 of #199, ADR 0006)", 
     expect(count(spa.requests, "GET", /\/me\/unified-view$/)).toBe(0);
   });
 
+  it("leaves out an overview part that keeps failing, after one more try, and shows the rest (P216)", async () => {
+    const spa = renderSpa(`${HOUSEHOLD}/plan`, {
+      ...server(),
+      "GET /api/v1/spaces/{spaceId}/reports/member-matrix": () => problemResponse(503, "ServiceUnavailable"),
+    });
+    await waitFor(() => expect(count(spa.requests, "GET", /\/reports\/member-matrix$/)).toBe(2), {
+      timeout: 5_000,
+    });
+    await waitFor(() => expect(count(spa.requests, "GET", /\/reports\/fund-contributions$/)).toBe(1));
+    expect(problems()).toEqual([]);
+  });
+
   it("opens the personal space's Plan tab on My spending, the person's own (D11)", async () => {
     const spa = renderSpa(`${PERSONAL}/plan`, server());
     await waitFor(() => expect(count(spa.requests, "GET", /\/me\/unified-view$/)).toBe(1), {

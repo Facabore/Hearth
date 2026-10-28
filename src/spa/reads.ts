@@ -295,30 +295,28 @@ export const cashFlowQuery = (api: Api, personalSpaceId: string, days: 30 | 60) 
 
 /**
  * Ruling P216: a shared space's desktop overview; each part that cannot be read is left out, never the view. A
- * failure that may pass is thrown instead, so the overview is tried once more before any part is left out.
+ * failure that may pass is tried once more first, part by part.
  */
 export const overviewQuery = (api: Api, spaceId: string, period: string) =>
   queryOptions({
     ...LOADER_OWNED,
     queryKey: moduleKeys.report(spaceId, "overview", { period }),
     queryFn: async () => {
-      const part = <T>(call: Promise<{ data?: T; error?: unknown; response: Response }>) =>
-        read(call).catch((error: unknown) => {
-          if (isTransient(error)) throw error;
-          return null;
-        });
+      const part = <T>(call: () => Promise<{ data?: T; error?: unknown; response: Response }>) =>
+        read(call()).catch((error: unknown) => (isTransient(error) ? read(call()).catch(() => null) : null));
       const path = { spaceId };
       const query = { period };
+      const params = { params: { path, query } };
       const [matrix, fund, groups, trend, members] = await Promise.all([
-        part(api.GET("/api/v1/spaces/{spaceId}/reports/member-matrix", { params: { path, query } })),
-        part(api.GET("/api/v1/spaces/{spaceId}/reports/fund-contributions", { params: { path, query } })),
-        part(api.GET("/api/v1/spaces/{spaceId}/reports/spending-by-group", { params: { path, query } })),
-        part(
+        part(() => api.GET("/api/v1/spaces/{spaceId}/reports/member-matrix", params)),
+        part(() => api.GET("/api/v1/spaces/{spaceId}/reports/fund-contributions", params)),
+        part(() => api.GET("/api/v1/spaces/{spaceId}/reports/spending-by-group", params)),
+        part(() =>
           api.GET("/api/v1/spaces/{spaceId}/reports/trend", {
             params: { path, query: { endPeriod: period, periods: 2 } },
           }),
         ),
-        part(api.GET("/api/v1/spaces/{spaceId}/members", { params: { path } })),
+        part(() => api.GET("/api/v1/spaces/{spaceId}/members", { params: { path } })),
       ]);
       return { matrix, fund, groups, trend, members: members?.items ?? [] };
     },
