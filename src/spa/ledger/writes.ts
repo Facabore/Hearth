@@ -95,7 +95,9 @@ const invalidateMovement = (queryClient: QueryClient, spaceId: string): void => 
   ];
   const spaces = queryClient.getQueryData<SpaceDto[]>(queryKeys.spaces) ?? [];
   const personal = spaces.find((space) => space.kind === "PERSONAL");
-  if (personal && personal.id !== spaceId) keys.push(moduleKeys.accounts(personal.id));
+  // From a shared space, the person's own accounts may pay, and My spending counts their share (D11).
+  if (personal && personal.id !== spaceId)
+    keys.push(moduleKeys.accounts(personal.id), moduleKeys.reports(personal.id));
   for (const queryKey of keys) void queryClient.invalidateQueries({ queryKey });
   queryClient.setQueryData<number>(ledgerKeys.writes(spaceId), (written = 0) => written + 1);
 };

@@ -5,7 +5,7 @@ import type { QueryClient } from "@tanstack/react-query";
 
 /** One write as the components send it: the method, the path template and its parameters, and the body. */
 export interface WriteCall {
-  readonly method: "POST" | "PATCH" | "DELETE";
+  readonly method: "POST" | "PUT" | "PATCH" | "DELETE";
   readonly path: string;
   readonly params: Readonly<Record<string, string>>;
   readonly body: unknown;

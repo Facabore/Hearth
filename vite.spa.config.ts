@@ -75,7 +75,12 @@ export default defineConfig({
               // The app shell's libraries in one file: split across the screens that share them, they became a dozen
               // small chunks that each compress on their own, 5 KiB more gzip for the same code (slice 2 of #199).
               name: "framework",
-              test: /[\\/]node_modules[\\/](react|react-dom|scheduler|@tanstack|openapi-fetch|use-intl|@formatjs)[\\/]/,
+              // Only the shell's own: the parts only the screens and the saves use (several queries at once, mutations)
+              // stay with them (slice 5 of #199).
+              test: (id: string) =>
+                /[\\/]node_modules[\\/](react|react-dom|scheduler|@tanstack|openapi-fetch|use-intl|@formatjs)[\\/]/.test(
+                  id,
+                ) && !/[\\/](queriesObserver|useQueries|useSuspenseQueries|mutationObserver)\.js$/.test(id),
             },
           ],
         },

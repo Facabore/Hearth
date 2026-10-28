@@ -5,12 +5,22 @@ import type {
   AccountListDto,
   BalanceHistoryDto,
   BalancesDto,
+  BudgetPlanDto,
+  CapacitySuggestionDto,
+  CashFlowDto,
   CategoryGroupDto,
+  FundTrackingDto,
   InvitationDto,
   LineDashboardDto,
+  LineTrendDto,
   MemberDto,
+  MemberMatrixDto,
   PeriodDto,
+  PersonalSpendingByGroupDto,
+  PersonalTrendDto,
+  SpendingByGroupDto,
   SuggestionDto,
+  UnifiedViewDto,
 } from "@/shared/ui/api/dto";
 import { read } from "./read";
 
@@ -41,6 +51,10 @@ export const moduleKeys = {
   balanceHistory: (spaceId: string, memberId: string, from: string, to: string) =>
     ["balances", spaceId, "history", memberId, { from, to }] as const,
   preview: (kind: "invitation" | "claim", token: string) => ["invitations", kind, token] as const,
+  plans: (spaceId: string) => ["plans", spaceId] as const,
+  plan: (spaceId: string, planId: string) => ["plans", spaceId, planId] as const,
+  report: (spaceId: string, kind: string, query: Record<string, string | number>) =>
+    ["reports", spaceId, kind, query] as const,
   /** `from` undefined: the space's current period. */
   period: (spaceId: string, from: string | undefined) => ["periods", spaceId, from ?? "current"] as const,
   reports: (spaceId: string) => ["reports", spaceId] as const,
@@ -172,4 +186,133 @@ export const balanceHistoryQuery = (api: Api, spaceId: string, memberId: string,
           params: { path: { spaceId, memberId }, query: { from: period.startDate, to: period.endDate } },
         }),
       ),
+  });
+
+/** A plan of the space, its lines and capacities (HU-E9-08); a 404 is not found. */
+export const planQuery = (api: Api, spaceId: string, planId: string) =>
+  queryOptions<BudgetPlanDto>({
+    ...LOADER_OWNED,
+    queryKey: moduleKeys.plan(spaceId, planId),
+    queryFn: () =>
+      read(api.GET("/api/v1/spaces/{spaceId}/plans/{planId}", { params: { path: { spaceId, planId } } })),
+  });
+
+/**
+ * Ruling P208: the caller's own capacity suggestion (the endpoint takes no member). One that cannot be read never
+ * blocks the screen: it is null.
+ */
+export const capacitySuggestionQuery = (api: Api, spaceId: string, planId: string) =>
+  queryOptions<CapacitySuggestionDto | null>({
+    ...LOADER_OWNED,
+    queryKey: [...moduleKeys.plan(spaceId, planId), "suggestion"],
+    queryFn: async () => {
+      try {
+        return await read(
+          api.GET("/api/v1/spaces/{spaceId}/plans/{planId}/capacity-suggestion", {
+            params: { path: { spaceId, planId } },
+          }),
+        );
+      } catch {
+        return null;
+      }
+    },
+  });
+
+/** A space's report for a period (HU-E9-10): the fund's contributions, the member matrix or spending by group. */
+export const spaceReportQuery = <K extends "fund-contributions" | "member-matrix" | "spending-by-group">(
+  api: Api,
+  spaceId: string,
+  kind: K,
+  period: string,
+) =>
+  queryOptions<SpaceReport[K]>({
+    ...LOADER_OWNED,
+    queryKey: moduleKeys.report(spaceId, kind, { period }),
+    queryFn: () =>
+      read(
+        api.GET(
+          `/api/v1/spaces/{spaceId}/reports/${kind}` as "/api/v1/spaces/{spaceId}/reports/member-matrix",
+          {
+            params: { path: { spaceId }, query: { period } },
+          },
+        ),
+      ) as Promise<SpaceReport[K]>,
+  });
+
+interface SpaceReport {
+  readonly "fund-contributions": FundTrackingDto;
+  readonly "member-matrix": MemberMatrixDto;
+  readonly "spending-by-group": SpendingByGroupDto;
+}
+
+/** HU-E9-11: every plan line's trend over the window ending in `period` (P219). */
+export const lineTrendQuery = (api: Api, spaceId: string, period: string, periods: 6 | 12) =>
+  queryOptions<LineTrendDto>({
+    ...LOADER_OWNED,
+    queryKey: moduleKeys.report(spaceId, "trend", { period, periods }),
+    queryFn: () =>
+      read(
+        api.GET("/api/v1/spaces/{spaceId}/reports/trend", {
+          params: { path: { spaceId }, query: { endPeriod: period, periods } },
+        }),
+      ),
+  });
+
+/**
+ * The caller's own reports, across every space of theirs (D11). They are keyed under the personal space, whose Plan tab
+ * shows them, and a movement in any of the person's spaces invalidates them there.
+ */
+export const unifiedViewQuery = (api: Api, personalSpaceId: string, period: string) =>
+  queryOptions<UnifiedViewDto>({
+    ...LOADER_OWNED,
+    queryKey: moduleKeys.report(personalSpaceId, "unified", { period }),
+    queryFn: () => read(api.GET("/api/v1/me/unified-view", { params: { query: { period } } })),
+  });
+
+export const personalGroupsQuery = (api: Api, personalSpaceId: string, period: string) =>
+  queryOptions<PersonalSpendingByGroupDto>({
+    ...LOADER_OWNED,
+    queryKey: moduleKeys.report(personalSpaceId, "my-groups", { period }),
+    queryFn: () => read(api.GET("/api/v1/me/reports/spending-by-group", { params: { query: { period } } })),
+  });
+
+export const personalTrendQuery = (api: Api, personalSpaceId: string, period: string, periods: 6 | 12) =>
+  queryOptions<PersonalTrendDto>({
+    ...LOADER_OWNED,
+    queryKey: moduleKeys.report(personalSpaceId, "my-trend", { period, periods }),
+    queryFn: () => read(api.GET("/api/v1/me/trend", { params: { query: { endPeriod: period, periods } } })),
+  });
+
+/** #150: the caller's cash flow over the next 30 or 60 days (ruling P241 of M6c). */
+export const cashFlowQuery = (api: Api, personalSpaceId: string, days: 30 | 60) =>
+  queryOptions<CashFlowDto>({
+    ...LOADER_OWNED,
+    queryKey: moduleKeys.report(personalSpaceId, "cash-flow", { days }),
+    queryFn: () =>
+      read(api.GET("/api/v1/me/cash-flow", { params: { query: { days: String(days) as "30" | "60" } } })),
+  });
+
+/** Ruling P216: a shared space's desktop overview; each part that cannot be read is left out, never the view. */
+export const overviewQuery = (api: Api, spaceId: string, period: string) =>
+  queryOptions({
+    ...LOADER_OWNED,
+    queryKey: moduleKeys.report(spaceId, "overview", { period }),
+    queryFn: async () => {
+      const part = <T>(call: Promise<{ data?: T; error?: unknown; response: Response }>) =>
+        read(call).catch(() => null);
+      const path = { spaceId };
+      const query = { period };
+      const [matrix, fund, groups, trend, members] = await Promise.all([
+        part(api.GET("/api/v1/spaces/{spaceId}/reports/member-matrix", { params: { path, query } })),
+        part(api.GET("/api/v1/spaces/{spaceId}/reports/fund-contributions", { params: { path, query } })),
+        part(api.GET("/api/v1/spaces/{spaceId}/reports/spending-by-group", { params: { path, query } })),
+        part(
+          api.GET("/api/v1/spaces/{spaceId}/reports/trend", {
+            params: { path, query: { endPeriod: period, periods: 2 } },
+          }),
+        ),
+        part(api.GET("/api/v1/spaces/{spaceId}/members", { params: { path } })),
+      ]);
+      return { matrix, fund, groups, trend, members: members?.items ?? [] };
+    },
   });

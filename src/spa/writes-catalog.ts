@@ -22,7 +22,14 @@ export const appWrites = (): Promise<WritePlanner> =>
     import("./accounts/writes"),
     import("./categories/writes"),
     import("./spaces/writes"),
+    import("./plan/writes"),
     import("./mutations"),
-  ]).then(([ledger, accounts, categories, spaces]) =>
-    combined([ledger.ledgerWrites, accounts.accountWrites, categories.categoryWrites, spaces.spaceWrites]),
+  ]).then(([ledger, accounts, categories, spaces, plan]) =>
+    combined([
+      ledger.ledgerWrites,
+      accounts.accountWrites,
+      categories.categoryWrites,
+      spaces.spaceWrites,
+      plan.planWrites,
+    ]),
   );
