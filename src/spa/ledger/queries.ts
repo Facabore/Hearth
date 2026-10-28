@@ -1,25 +1,23 @@
-import { queryOptions, type QueryClient } from "@tanstack/react-query";
+import { queryOptions } from "@tanstack/react-query";
 import { notFound } from "@tanstack/react-router";
 // Types only: the loaders sit in the app shell, the ledger's components in each screen's own chunk.
 import type { ListFilter } from "@/modules/ledger/ui";
 import { personalSpaceOf } from "@/modules/spaces/ui";
 import { addDays, type LocalDate } from "@/shared/kernel/local-date";
 import type { Api } from "@/shared/ui/api/client";
-import type { MeDto, SpaceDto, TransactionDto, TransactionPageDto } from "@/shared/ui/api/dto";
+import type { TransactionDto, TransactionPageDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { outcomeOf } from "@/shared/ui/api/readers";
 import { nowIn } from "@/shared/ui/time/when";
-import type { RouterContext } from "../guards";
 import {
   accountsQuery,
   categoriesQuery,
   LOADER_OWNED,
   lineReportQuery,
-  meQuery,
   membersQuery,
   periodQuery,
-  spacesQuery,
 } from "../queries";
+import { ensurer, sharedSpace, viewerOf, type Load, type Viewer } from "../load";
 import { read } from "../read";
 
 /** The home's latest rows and the list's page size, as the Next.js containers read them. */
@@ -42,7 +40,22 @@ export const ledgerKeys = {
   pages: (spaceId: string) => ["ledger", spaceId, "transactions"] as const,
   page: (spaceId: string, query: PageQuery) => ["ledger", spaceId, "transactions", query] as const,
   transaction: (spaceId: string, id: string) => ["ledger", spaceId, "transaction", id] as const,
+  /** How many movements of the space the app has written: no read, a counter the writes bump (`writes.ts`). */
+  writes: (spaceId: string) => ["ledger", spaceId, "writes"] as const,
 };
+
+/**
+ * The counter's value; no read, ever. "Cargar más" keeps its rows in its own state, out of the cache, so Movimientos
+ * starts the list afresh after a write rather than leave a row there that the write changed or removed.
+ */
+export const writesQuery = (spaceId: string) =>
+  queryOptions<number>({
+    queryKey: ledgerKeys.writes(spaceId),
+    queryFn: () => 0,
+    enabled: false,
+    initialData: 0,
+    staleTime: Infinity,
+  });
 
 export const pageQuery = (api: Api, spaceId: string, query: PageQuery) =>
   queryOptions<TransactionPageDto>({
@@ -95,43 +108,6 @@ const settled = (read: Promise<unknown>): Promise<void> =>
     () => undefined,
     () => undefined,
   );
-
-export interface Viewer {
-  readonly me: MeDto;
-  readonly spaces: readonly SpaceDto[];
-  readonly space: SpaceDto;
-}
-
-/** The person and the space of the URL; the shell's loader already answered a space they are not in. */
-const viewerOf = async ({ queryClient, apis }: RouterContext, spaceId: string): Promise<Viewer | null> => {
-  const [me, spaces] = await Promise.all([
-    queryClient.ensureQueryData(meQuery(apis.sessionApi)),
-    queryClient.ensureQueryData(spacesQuery(apis.api)),
-  ]);
-  const space = spaces.find((s) => s.id === spaceId);
-  return me && space ? { me, spaces, space } : null;
-};
-
-export const sharedSpace = (space: SpaceDto) => space.kind !== "PERSONAL";
-
-/**
- * A route's loader: its router context, and why it runs. TanStack Router says "enter" for a visit, "preload" for a
- * prefetch on intent, and "stay" when only the address of the screen on display changed (a sheet, a filter).
- */
-export interface Load extends RouterContext {
-  readonly cause: "enter" | "stay" | "preload";
-}
-
-/**
- * ADR 0006's stale-while-revalidate: a read already in the cache resolves at once, and arriving at a screen (a visit,
- * or the prefetch a tap then reuses) refreshes it in the background, so the screen paints from the cache and then
- * shows what changed elsewhere. Staying on the screen reads only what it is missing: opening a sheet or closing it reads
- * the list again for nothing. A read not in the cache is waited for.
- */
-const ensurer =
-  ({ queryClient, cause }: Load): QueryClient["ensureQueryData"] =>
-  (options) =>
-    queryClient.ensureQueryData({ ...options, revalidateIfStale: cause !== "stay" });
 
 /**
  * The detail's reads (ruling P189): the transaction, and in a shared space its members and the viewer's own accounts.

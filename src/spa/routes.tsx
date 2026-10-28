@@ -9,9 +9,9 @@ import { personalSpaceOf } from "@/modules/spaces/ui";
 import { ThemeSync } from "@/shared/ui/theme/theme-sync";
 import { ScreenError } from "./app-error";
 import { guardSession, leaveWhenSignedIn, type RouterContext } from "./guards";
-import { signUpModeQuery, spacesQuery } from "./queries";
+import { ensurer } from "./load";
+import { accountListQuery, accountQuery, categoriesQuery, signUpModeQuery, spacesQuery } from "./queries";
 import { textParam, textsParam } from "./search";
-import { ledgerWrites } from "./writes-catalog";
 import dynamic from "./next/dynamic";
 import { loadShell } from "./shell";
 
@@ -80,14 +80,8 @@ const NavigationTracker = dynamic(() =>
   import("@/shared/ui/navigation/navigation-tracker").then((m) => m.NavigationTracker),
 );
 
-/**
- * The ledger's loaders load beside each screen's own chunk, never with the app shell; a screen that can write also warms
- * the write plans, so its first save waits on no download.
- */
-const ledger = () => {
-  void ledgerWrites();
-  return import("./ledger/queries");
-};
+/** The ledger's loaders load beside each screen's own chunk, never with the app shell. */
+const ledger = () => import("./ledger/queries");
 
 /** The app shell of a space: its header with the space switcher and profile, and the bottom navigation. */
 const spaceRoute = createRoute({
@@ -162,8 +156,90 @@ const editRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/edit-transaction"), "EditTransactionScreen"),
 });
 
+/** HU-E9-03: the accounts of a space, every one, archived ones in their own section. */
+const accountsRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "accounts",
+  validateSearch: (search: Record<string, unknown>) => ({ returnTo: textParam(search.returnTo) }),
+  loader: ({ context, params, cause }) =>
+    ensurer({ ...context, cause })(accountListQuery(context.apis.api, params.spaceId, "all")),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "AccountsPending"),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/accounts"), "AccountsRoute"),
+});
+
+/** HU-E9-03: a new account; `?returnTo=` is where saving lands. */
+const newAccountRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "accounts/new",
+  validateSearch: (search: Record<string, unknown>) => ({ returnTo: textParam(search.returnTo) }),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "NewAccountPending"),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/accounts"), "NewAccountRoute"),
+});
+
+/** Issue 169: an account's edit form; one that is gone is not found. */
+const editAccountRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "accounts/$accountId/edit",
+  loader: ({ context, params, cause }) =>
+    ensurer({ ...context, cause })(accountQuery(context.apis.api, params.spaceId, params.accountId)),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "EditAccountPending"),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/accounts"), "EditAccountRoute"),
+});
+
+/** HU-E9-04: the category tree of a space, archived groups and categories included. */
+const categoriesRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "categories",
+  loader: ({ context, params, cause }) =>
+    ensurer({ ...context, cause })(categoriesQuery(context.apis.api, params.spaceId, "all")),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "CategoriesPending"),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/categories"), "CategoriesRoute"),
+});
+
+/** HU-E9-13: Settings, in the shell of the space `?from=` names when it is one of the person's own (N3). */
+const settingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "settings",
+  validateSearch: (search: Record<string, unknown>) => ({ from: textParam(search.from) }),
+  loaderDeps: ({ search }) => ({ from: search.from }),
+  loader: ({ context, deps }) => loadShell(context, null, deps.from),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "SettingsPending"),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/settings"), "SettingsRoute"),
+});
+
+/** HU-E9-05: a new shared space; `?from=` picks the shell, `?returnTo=` Volver's target. */
+const newSpaceRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "spaces/new",
+  validateSearch: (search: Record<string, unknown>) => ({
+    from: textParam(search.from),
+    returnTo: textParam(search.returnTo),
+  }),
+  loaderDeps: ({ search }) => ({ from: search.from }),
+  loader: ({ context, deps }) => loadShell(context, null, deps.from),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "NewSpacePending"),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/settings"), "NewSpaceRoute"),
+});
+
 export const routeTree = rootRoute.addChildren([
   publicRoute.addChildren([signInRoute, signUpRoute]),
   indexRoute,
-  spaceRoute.addChildren([spaceHomeRoute, transactionsRoute, recordRoute, editRoute]),
+  settingsRoute,
+  newSpaceRoute,
+  spaceRoute.addChildren([
+    spaceHomeRoute,
+    transactionsRoute,
+    recordRoute,
+    editRoute,
+    accountsRoute,
+    newAccountRoute,
+    editAccountRoute,
+    categoriesRoute,
+  ]),
 ]);

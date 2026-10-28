@@ -1,4 +1,4 @@
-import { useQueries, useQuery, useSuspenseQueries, useSuspenseQuery } from "@tanstack/react-query";
+import { useQueries, useQuery, useSuspenseQueries } from "@tanstack/react-query";
 import { notFound } from "@tanstack/react-router";
 import {
   actionsFor,
@@ -14,16 +14,11 @@ import { addDays, type LocalDate } from "@/shared/kernel/local-date";
 import type { CategoryGroupDto, MeDto, MemberDto, TransactionDto } from "@/shared/ui/api/dto";
 import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
-import {
-  accountsQuery,
-  categoriesQuery,
-  lineReportQuery,
-  meQuery,
-  membersQuery,
-  periodQuery,
-  spacesQuery,
-} from "../queries";
-import { HOME_ROWS, listQueryOf, pageQuery, sharedSpace, transactionQuery, type Viewer } from "./queries";
+import { accountsQuery, categoriesQuery, lineReportQuery, membersQuery, periodQuery } from "../queries";
+import { sharedSpace, type Viewer } from "../load";
+
+export { useViewer } from "../viewer";
+import { HOME_ROWS, listQueryOf, pageQuery, transactionQuery } from "./queries";
 
 /**
  * The ledger's screens as query hooks (P127 in the SPA, ADR 0006): each reads what its loader put in the cache and
@@ -32,16 +27,6 @@ import { HOME_ROWS, listQueryOf, pageQuery, sharedSpace, transactionQuery, type 
 
 /** Queries a screen reads only sometimes, as a plain list: hooks are called the same way on every render. */
 const when = <T>(yes: boolean, queries: T[]): T[] => (yes ? queries : []);
-
-/** The person and the URL's space, from the cache the guards and the shell filled. */
-export const useViewer = (spaceId: string): Viewer => {
-  const { api, sessionApi } = useApis();
-  const me = useSuspenseQuery(meQuery(sessionApi)).data;
-  const spaces = useSuspenseQuery(spacesQuery(api)).data;
-  const space = spaces.find((s) => s.id === spaceId);
-  if (!me || !space) throw notFound();
-  return { me, spaces, space };
-};
 
 /** What a row needs to name itself (`RowContext`): the person's formats and zone, categories, accounts, members. */
 export const rowContextOf = (

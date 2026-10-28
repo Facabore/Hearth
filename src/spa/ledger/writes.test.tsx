@@ -280,4 +280,36 @@ describe("the ledger's writes in the SPA (slice 2 of #199, ADR 0006)", () => {
       expect(screen.getAllByRole("link", { name: /Dinner/, hidden: true })).toHaveLength(1),
     );
   });
+  it("starts Movimientos afresh after a delete, so a row that Cargar más brought in never outlives it", async () => {
+    const older: TransactionDto = {
+      ...octoberPage.items[3]!,
+      id: "t-older",
+      description: "Bakery",
+      date: "2026-10-02",
+      occurredAt: null,
+      timeZone: null,
+    };
+    let second = [older];
+    const { routes } = ledgerServer({
+      "GET /api/v1/spaces/{spaceId}/transactions": (request) =>
+        new URL(request.url).searchParams.has("cursor")
+          ? jsonResponse({ ...octoberPage, items: second, nextCursor: null })
+          : jsonResponse({ ...octoberPage, nextCursor: "page-2" }),
+      [`GET ${ONE}`]: (_, { transactionId }) =>
+        jsonResponse([...octoberPage.items, ...second].find((item) => item.id === transactionId)),
+      [`DELETE ${ONE}`]: () => {
+        second = [];
+        return new Response(null, { status: 204 });
+      },
+    });
+    renderSpa(LIST, routes);
+    await userEvent.click(await screen.findByRole("button", { name: es.ledger.list.loadMore }));
+    await userEvent.click(await screen.findByRole("link", { name: /Bakery/ }));
+    const sheet = await screen.findByRole("dialog", { name: "Bakery" });
+
+    await userEvent.click(within(sheet).getByRole("button", { name: es.ledger.detail.delete }));
+
+    await waitFor(() => expect(listRow(/Bakery/)).toBeNull(), SAVE_LANDS);
+    expect(screen.getByRole("button", { name: es.ledger.list.loadMore, hidden: true })).toBeInTheDocument();
+  });
 });

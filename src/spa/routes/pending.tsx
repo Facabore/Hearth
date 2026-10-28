@@ -26,3 +26,42 @@ export function EditPending() {
     />
   );
 }
+
+/** A screen of a space reached from its home or the profile sheet, with its way back home. */
+function SpaceScreenPending({
+  title,
+  back = "",
+  shape,
+}: {
+  readonly title: string;
+  readonly back?: string;
+  readonly shape: "list" | "form";
+}) {
+  const { spaceId } = useParams({ strict: false });
+  return <LoadingScreen header={{ backHref: `/spaces/${spaceId}${back}`, title }} shape={shape} />;
+}
+
+export const AccountsPending = () => (
+  <SpaceScreenPending title={useTranslations("accounts")("title")} shape="list" />
+);
+
+export const NewAccountPending = () => (
+  <SpaceScreenPending title={useTranslations("accounts")("newTitle")} back="/accounts" shape="form" />
+);
+
+export const EditAccountPending = () => (
+  <SpaceScreenPending title={useTranslations("accounts")("edit.title")} back="/accounts" shape="form" />
+);
+
+export const CategoriesPending = () => (
+  <SpaceScreenPending title={useTranslations("categories")("title")} shape="list" />
+);
+
+/** Settings and New space draw the shell themselves; until they can, their skeleton goes back to the app's root. */
+export const SettingsPending = () => (
+  <LoadingScreen header={{ backHref: "/", title: useTranslations("settings")("title") }} shape="form" />
+);
+
+export const NewSpacePending = () => (
+  <LoadingScreen header={{ backHref: "/", title: useTranslations("spaces.new")("title") }} shape="form" />
+);

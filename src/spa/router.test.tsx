@@ -185,13 +185,14 @@ describe("recovering and leaving", () => {
 
   it("signs out to the sign-in screen and keeps none of the person's answers", async () => {
     let session = true;
-    vi.stubGlobal("fetch", async (request: Request) => {
-      if (new URL(request.url).pathname === "/api/v1/auth/sign-out") session = false;
-      return new Response(null, { status: 204 });
-    });
+    // The profile sheet signs out through the app's own client, like every component inside the SPA.
     const spa = renderSpa("/spaces/sp-personal", {
       ...signedIn(),
       "GET /api/v1/me": () => (session ? jsonResponse(meDto()) : problemResponse(401, "Unauthenticated")),
+      "POST /api/v1/auth/sign-out": () => {
+        session = false;
+        return new Response(null, { status: 204 });
+      },
     });
     await userEvent.click(await screen.findByRole("button", { name: "Perfil de Ana" }));
     await userEvent.click(await screen.findByRole("button", { name: "Cerrar sesión" }));

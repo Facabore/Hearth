@@ -2,6 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 import type { Api } from "@/shared/ui/api/client";
 import type {
   AccountDto,
+  AccountListDto,
   CategoryGroupDto,
   LineDashboardDto,
   MeDto,
@@ -67,6 +68,8 @@ export type Archived = "active" | "all";
 export const moduleKeys = {
   accounts: (spaceId: string) => ["accounts", spaceId] as const,
   accountList: (spaceId: string, archived: Archived) => ["accounts", spaceId, archived] as const,
+  account: (spaceId: string, accountId: string) => ["accounts", spaceId, "account", accountId] as const,
+  categoryLists: (spaceId: string) => ["categories", spaceId] as const,
   categories: (spaceId: string, archived: Archived) => ["categories", spaceId, archived] as const,
   members: (spaceId: string) => ["members", spaceId] as const,
   period: (spaceId: string, from: string) => ["periods", spaceId, from] as const,
@@ -76,18 +79,36 @@ export const moduleKeys = {
 
 const archivedQuery = (archived: Archived) => (archived === "all" ? { archived: "true" as const } : {});
 
-export const accountsQuery = (api: Api, spaceId: string, archived: Archived) =>
-  queryOptions<AccountDto[]>({
+/**
+ * A space's accounts with their totals, as the API answers them (computed on read, D7): the accounts screen reads the
+ * whole answer; every other screen selects its items from the same cached read.
+ */
+export const accountListQuery = (api: Api, spaceId: string, archived: Archived) =>
+  queryOptions<AccountListDto>({
     ...LOADER_OWNED,
     queryKey: moduleKeys.accountList(spaceId, archived),
-    queryFn: async () =>
-      (
-        await read(
-          api.GET("/api/v1/spaces/{spaceId}/accounts", {
-            params: { path: { spaceId }, query: archivedQuery(archived) },
-          }),
-        )
-      ).items,
+    queryFn: () =>
+      read(
+        api.GET("/api/v1/spaces/{spaceId}/accounts", {
+          params: { path: { spaceId }, query: archivedQuery(archived) },
+        }),
+      ),
+  });
+
+export const accountsQuery = (api: Api, spaceId: string, archived: Archived) =>
+  queryOptions({ ...accountListQuery(api, spaceId, archived), select: (list: AccountListDto) => list.items });
+
+/** One account with its stored and default style (#120, P253), for its edit form; a 404 is not found. */
+export const accountQuery = (api: Api, spaceId: string, accountId: string) =>
+  queryOptions<AccountDto>({
+    ...LOADER_OWNED,
+    queryKey: moduleKeys.account(spaceId, accountId),
+    queryFn: () =>
+      read(
+        api.GET("/api/v1/spaces/{spaceId}/accounts/{accountId}", {
+          params: { path: { spaceId, accountId } },
+        }),
+      ),
   });
 
 export const categoriesQuery = (api: Api, spaceId: string, archived: Archived) =>

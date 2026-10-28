@@ -5,6 +5,7 @@ import { activeSpaceOf, type AppShellProps } from "@/modules/spaces/ui";
 import { useApis } from "./api";
 import type { RouterContext } from "./guards";
 import { meQuery, spacesQuery } from "./queries";
+import { appWrites } from "./writes-catalog";
 
 export type Shell = Omit<AppShellProps, "children">;
 
@@ -33,6 +34,8 @@ export const loadShell = async (
   spaceId: string | null,
   from?: string,
 ): Promise<void> => {
+  // A signed-in screen can write: its plans load now, so the first save waits on no download.
+  void appWrites();
   const [me, spaces] = await Promise.all([
     queryClient.ensureQueryData(meQuery(apis.sessionApi)),
     queryClient.ensureQueryData(spacesQuery(apis.api)),

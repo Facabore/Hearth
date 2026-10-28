@@ -18,6 +18,14 @@
     "../shared/ui/molecules/sheet-panel.tsx": 18,
     "../shared/ui/molecules/toast-host.ts": 4,
     "../shared/ui/navigation/navigation-tracker.tsx": 3,
+    "routes/accounts.tsx": 24,
+    "routes/categories.tsx": 13,
+    "routes/settings.tsx": 19,
+    "accounts/writes.ts": 2,
+    "categories/writes.ts": 2,
+    "spaces/writes.ts": 2,
+    "../modules/categories/ui/category-sheet.tsx": 16,
+    "../modules/categories/ui/group-sheet.tsx": 14,
     "../i18n/messages/es.json": 18,
     "../i18n/messages/en.json": 17
   }

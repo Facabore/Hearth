@@ -95,6 +95,7 @@ const invalidateMovement = (queryClient: QueryClient, spaceId: string): void => 
   const personal = spaces.find((space) => space.kind === "PERSONAL");
   if (personal && personal.id !== spaceId) keys.push(moduleKeys.accounts(personal.id));
   for (const queryKey of keys) void queryClient.invalidateQueries({ queryKey });
+  queryClient.setQueryData<number>(ledgerKeys.writes(spaceId), (written = 0) => written + 1);
 };
 
 /** A transaction that no longer exists: its cached detail is stale, but no open sheet reads it again at once. */

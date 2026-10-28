@@ -14,6 +14,8 @@ export const NEXT_ADAPTERS = [
   { find: /^next\/navigation$/, replacement: from("./src/spa/next/navigation.ts") },
   { find: /^next\/dynamic$/, replacement: from("./src/spa/next/dynamic.tsx") },
   { find: /^next-intl$/, replacement: from("./src/spa/next/intl.ts") },
+  // A component's default client is the app's own, with its writes planned over the query cache (slice 2 of #199).
+  { find: /^@\/shared\/ui\/api\/client$/, replacement: from("./src/spa/next/api-client.ts") },
 ];
 
 type Catalog = { [key: string]: string | Catalog };

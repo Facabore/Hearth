@@ -60,6 +60,20 @@ The web UI becomes a client-rendered single-page app, and the server leaves the 
 - **Budgets.** The ledger's loaders, its write plans and the mutation runner load beside the screens, not with the shell. So do the tracker and the problem notice with its icons, while the connection error screen stays in the shell and shows offline. The shell's libraries are one chunk (`codeSplitting` group `framework`): split among the new screens they had become a dozen small files, each compressed on its own, 5 KiB more gzip for the same code. The shell measures 116.9 KiB against its 118 KiB budget, unchanged. The home's chunk, a 3 KiB stub in slice 1, now holds the home (12.9 KiB, budget 16); the new chunks have budgets about 3 KiB above their measurement.
 - **Gate.** `tests/e2e/spa/ledger.spec.ts` visits Movimientos, a row's sheet and Editar once. It then holds every `/api/v1` request unanswered until its assertions have run, so the second visit to each can show its content only from the cache. It checks that the screens did ask the API again behind (the background refresh), requires each tap to show its content within 300 ms, under the 240 to 420 ms the server-rendered taps measured, and logs the times. Measured on 2026-10-28: 44 to 68 ms on an idle machine, 158 to 182 ms with the unit suites running beside it.
 
+## Implementation (slice 3, 2026-10-28): accounts, categories and settings
+
+- **Screens.** The accounts list, a new account, an account's edit form, the category tree, Settings and New space compose their existing components, unchanged. Settings and New space draw the shell of the space `?from=` names (N3) through the same `ShellFrame` as a space's screens.
+- **One client for every component.** In the SPA, `browserApi()` called without a location returns the app's own client (`src/spa/next/api-client.ts`, the same alias mechanism as the `next/*` adapters). A component nested deep in a screen, such as an account's Ocultar confirmation or a category's sheet, therefore writes through the same plans as its screen, and a session that ends mid-use returns to the app's own sign-in (P151). No client is handed down through the components. That includes the ledger's "Cargar más".
+- **Plans.** `src/spa/writes-catalog.ts` combines every module's plans. They load with the first signed-in screen, never with the shell.
+  - Accounts: an account write invalidates the space's account lists and reports, and the answer replaces the account's own entry.
+  - Categories: a category or group write invalidates the space's categories and reports. The tree shows the API's answer by itself.
+  - Spaces: a new space joins the person's spaces before the form lands in it, and a rename shows at once.
+  - Profile: a profile change replaces the cached profile with the API's answer, so every screen formats again without a read.
+- **Accounts' totals.** The accounts query caches the API's whole answer: the list and its totals, computed on read (D7). The other screens select its items from the same read.
+- **"Cargar más".** Its rows live in the component's own state, out of the cache. Each ledger write bumps a per-space counter in the cache, and Movimientos starts the list afresh when it changes, so no loaded row outlives a write that changed or removed it.
+- **Budgets.** The shell measures 117.9 KiB against its 118 KiB budget, unchanged: about 1 KiB for six route definitions and the client adapter. Slices 4 and 5 add some twenty routes, so their definitions will need to move out of the shell before then.
+- **Gate.** `tests/e2e/spa/manage.spec.ts` runs against the real API and scans each screen with axe. It creates an account from the form and finds it on the list, opens the category tree, changes the number format in Settings and finds the new format on the accounts screen, and opens New space inside its shell.
+
 ## Consequences
 
 - Moving between screens already in the cache costs no network round trip. A screen seen for the first time costs its own API calls only, about 30 to 130 ms each, with no server render on top. Saving updates the screen at once and rolls back with the API's error message if the save is refused.
