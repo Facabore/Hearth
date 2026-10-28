@@ -11,6 +11,7 @@ import { ProblemNotice } from "@/shared/ui";
 import { serverZone } from "@/shared/ui/time/server-now";
 import { useApis } from "../api";
 import { meQuery } from "../queries";
+import { ProblemError } from "../read";
 import { LOADER_OWNED, moduleKeys } from "../reads";
 import { useTitle } from "../title";
 
@@ -22,7 +23,8 @@ type Preview =
 
 /**
  * Ruling P156: a token's preview needs no session. A missing token is the card's own "invalid" state, never the
- * not-found screen, and a 401 is a problem to show, never a redirect: an open page sends nobody to sign in.
+ * not-found screen, and a 401 is a problem to show, never a redirect: an open page sends nobody to sign in. A failure
+ * that may pass (the network, a 5xx) is thrown instead, so it is tried once more and then shown as such.
  */
 export const previewQuery = (api: Api, kind: Kind, token: string) =>
   queryOptions<Preview>({
@@ -40,8 +42,13 @@ export const previewQuery = (api: Api, kind: Kind, token: string) =>
         );
         if (outcome.kind === "ok") return { kind: "found", preview: outcome.data };
         if (outcome.kind === "missing") return { kind: "missing" };
-        return { kind: "problem", problem: problemFrom(result.error, result.response) };
+        const problem = problemFrom(result.error, result.response);
+        // A failing server may pass a moment later: thrown, the read is tried once more (app.tsx) before it shows.
+        if (problem.status >= 500) throw new ProblemError(problem);
+        return { kind: "problem", problem };
       } catch (error) {
+        // A network failure, likewise, then the connection screen with Reintentar.
+        if (error instanceof ProblemError || error instanceof TypeError) throw error;
         return { kind: "problem", problem: problemFrom(error, undefined) };
       }
     },

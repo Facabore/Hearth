@@ -169,4 +169,17 @@ describe("shared spaces in the SPA (slice 4 of #199, ADR 0006)", () => {
       await screen.findByRole("button", { name: es.shell.space.current.replace("{name}", "Trip") }),
     ).toBeVisible();
   });
+  it("tries an invitation's preview once more when the server fails it (5xx), as it may pass a moment later", async () => {
+    const { routes } = server(false);
+    let failures = 1;
+    renderSpa("/invitations/tok-1", {
+      ...routes,
+      "GET /api/v1/invitations/{token}": (request, params) =>
+        failures-- > 0
+          ? problemResponse(503, "ServiceUnavailable")
+          : routes["GET /api/v1/invitations/{token}"]!(request, params),
+    });
+    expect((await screen.findAllByText(/Trip/, {}, { timeout: 4_000 })).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
 });
