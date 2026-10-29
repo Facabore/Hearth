@@ -4,10 +4,10 @@
  * network each of these reads waited a round trip of its own behind the script. Plain strings, so the build can
  * import them; the app takes the reads over in `early.ts`.
  *
- * The profile is read at once and the spaces once it says someone is signed in, so a visitor's screen asks for
- * nothing the API would refuse.
+ * The profile is read at once; then the spaces when it says someone is signed in, or the sign-up mode the sign-in
+ * screen shows when it says nobody is. A visitor's screen asks for nothing the API would refuse.
  */
-export const EARLY_READS = `(function(){try{var me=fetch("/api/v1/me",{credentials:"same-origin"});window.__hearthEarly={me:me,spaces:me.then(function(r){return r.ok?fetch("/api/v1/spaces",{credentials:"same-origin"}):null}).catch(function(){return null})}}catch(e){}})();`;
+export const EARLY_READS = `(function(){try{var o={credentials:"same-origin"};var me=fetch("/api/v1/me",o);var then=function(when,url){return me.then(function(r){return when(r)?fetch(url,o):null}).catch(function(){return null})};window.__hearthEarly={me:me,spaces:then(function(r){return r.ok},"/api/v1/spaces"),signUp:then(function(r){return r.status===401},"/api/v1/auth/sign-up")}}catch(e){}})();`;
 
 /**
  * Preloads the catalog of the language the app will pick (`visitorLocale`: the visitor cookie, then the browser's
