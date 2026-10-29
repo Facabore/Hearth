@@ -43,7 +43,7 @@ These are the rules the code review (gga) checks staged files against. When a ch
 - Formats never come from the language (D23). Only `src/shared/ui/format/` formats numbers, dates and times, from the person's effective preferences (P121); no other `Intl` or `toLocale*` call.
 - An amount never breaks across lines: a no-break space between the symbol and the digits, and a word joiner (U+2060) after a minus sign.
 - Money direction is never shown by color alone. It always carries a sign or a word.
-- Route script budgets in `tests/performance/budgets.json` are never raised to fit a change. Lazy-load instead.
+- Route script budgets in `tests/performance/budgets.json` are never raised to fit a change. Lazy-load instead. Only the owner changes a budget, recorded in ADR 0004 (as on 2026-10-28 for the SPA's cold load).
 
 ## Tests
 

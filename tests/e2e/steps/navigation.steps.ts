@@ -112,6 +112,9 @@ When("{string} creates the shared space {string}", async ({ page, world }, name:
   expect(name).toBe(world.user!.name);
   await page.getByLabel(world.t("spaces.new.name")).fill(space);
   await page.getByRole("button", { name: world.t("spaces.new.create") }).click();
+  // Creating a space ends on its members screen. A Back pressed before the save answers would be followed by the
+  // save's own move there, which is not what these scenarios walk through.
+  await expect(page).toHaveURL(/\/spaces\/(?!new)[0-9a-f-]{36}\/members$/);
 });
 
 // The product behaviour kept on purpose: creating a space switches to it, whatever screen the flow started from.

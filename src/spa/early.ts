@@ -50,6 +50,7 @@ export const seedEarlyReads = (queryClient: QueryClient, apis: SpaApis, early: E
       void queryClient.prefetchQuery({
         ...spacesQuery(apis.api),
         queryFn: async () => {
+          // Taken before the wait, as the profile's is: a second run during it must not read the same answer.
           const slot = spaces;
           spaces = null;
           const pending = slot ? await slot : null;
