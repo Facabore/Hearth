@@ -35,7 +35,7 @@ describe("dashboard frame (HU-E9-10)", () => {
       "/spaces/sp-household/plans/p-nov",
     );
     const tabs = screen.getByRole("navigation", { name: "Vistas del plan" });
-    expect(within(tabs).getByRole("link", { name: "Líneas" })).toHaveAttribute("aria-current", "page");
+    expect(within(tabs).getByRole("link", { name: "Rubros" })).toHaveAttribute("aria-current", "page");
     expect(await axeViolations(container)).toEqual([]);
   });
 

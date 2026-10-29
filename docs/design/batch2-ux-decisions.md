@@ -1,6 +1,6 @@
 # Batch 2 UX decisions
 
-- **Status:** Decided on 2026-10-23
+- **Status:** Decided on 2026-10-23. Shipped so far: U1 and U2 as UI copy (#210, 2026-10-29), the U4 shortcut on the personal home only (#209), and U12. The [UX audit of 2026-10-28](2026-10-28-ux-audit.md) found the rest unbuilt. U1 left two words as they were, because no decision names them: the rollover modes "Acumula" and "Ajusta", and the allocation rule "Sin asignar" (`NONE`).
 - **Origin:** proposals P1–P10 on the Penpot page "Propuestas UX · antes → después" and findings #14 and #15 of [batch2-ux-critique.md](batch2-ux-critique.md)
 - **How they were decided:** the owner approved P1–P4 one by one, then asked Claude to take the recommended option for the rest without waiting for confirmation. Each decision below records that recommendation and its reason.
 - **What they change:** UI copy and layout only. Code, API codes and the spec keep their names (`capacity`, `line`, `allocation`); [Glossary](#glossary-ui-word--model-term) maps the UI words to the model terms.
@@ -19,6 +19,7 @@
 | U10 | The unified view has one hero figure, "Lo que gastaste tú". "Lo que pagaste" is a secondary line with "¿Por qué es distinto?". The view opens as a stacked screen from the U4 shortcut, with a back button. | Mi consumo | Recommended (P10): two equal heroes competed. The stacked screen matches U4. |
 | U11 | The personal record form gets a row "¿Lo compartiste? Dividir con alguien" under the category, opening "Dividir con alguien" and returning with the split applied. | Registro rápido (Personal) | Recommended (critique #14): the screen existed but had no way in. |
 | U12 | Every save confirms with a toast and shows the changed state, never the unchanged previous screen. | Every form that saves | Recommended (critique #15): found while testing case 8, where saving a payment showed the old debt. |
+| U13 | An expense that leaves its line above 90 % saves at once, and the toast says where the line is left ("Gasto guardado. Home quedó en 94 % de lo planeado y le quedan $ 85.000."). Only an expense that goes over its line asks "¿Guardar de todos modos?", and that question brings its buttons into view above the bottom bar. A line's share is a whole percent, rounded down. Amends rulings P235 and P237 (#142). | Record form | Owner (2026-10-29, #211), from finding F4 of the [UX audit](2026-10-28-ux-audit.md): asking from 90 % stopped the most frequent job late in the month and hid its own button. |
 
 ## Glossary: UI word → model term
 

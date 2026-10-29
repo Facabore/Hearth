@@ -128,9 +128,9 @@ describe("shared spaces in the SPA (slice 4 of #199, ADR 0006)", () => {
     const { routes } = server();
     const spa = renderSpa(`${HOUSEHOLD}/balances`, routes);
     await userEvent.click(
-      await screen.findByRole("button", { name: named("Liquidar: Juan le paga $ 100.000 a Ana") }),
+      await screen.findByRole("button", { name: named("Saldar: Juan le paga $ 100.000 a Ana") }),
     );
-    const dialog = screen.getByRole("dialog", { name: "Registrar pago" });
+    const dialog = screen.getByRole("dialog", { name: "Saldar" });
     const balances = count(spa.requests, "GET", /\/balances$/);
     const me = count(spa.requests, "GET", /\/me$/);
 
@@ -140,7 +140,7 @@ describe("shared spaces in the SPA (slice 4 of #199, ADR 0006)", () => {
     expect(count(spa.requests, "POST", /\/settlements$/)).toBe(1);
     await waitFor(() =>
       expect(
-        screen.queryByRole("button", { name: named("Liquidar: Juan le paga $ 100.000 a Ana") }),
+        screen.queryByRole("button", { name: named("Saldar: Juan le paga $ 100.000 a Ana") }),
       ).not.toBeInTheDocument(),
     );
     expect(count(spa.requests, "GET", /\/me$/)).toBe(me);

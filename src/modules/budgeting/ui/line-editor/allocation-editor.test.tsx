@@ -46,7 +46,7 @@ describe("allocation editor (HU-E9-08)", () => {
     await userEvent.clear(screen.getByLabelText("Valor de Juan"));
     await userEvent.type(screen.getByLabelText("Valor de Juan"), "57");
     const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent("El reparto de esta línea no cuadra.");
+    expect(alert).toHaveTextContent("El reparto de este rubro no cuadra.");
     expect(normalized(alert.textContent)).toContain("Suma: 99,00 %");
     expect(await axeViolations(container)).toEqual([]);
   });
@@ -70,7 +70,7 @@ describe("allocation editor (HU-E9-08)", () => {
     await userEvent.click(screen.getByRole("radio", { name: "Sin asignar" }));
     expect(screen.queryByRole("group", { name: "Ana" })).toBeNull();
     expect(
-      within(screen.getByRole("region", { name: "Quién responde por la línea" })).getByText(
+      within(screen.getByRole("region", { name: "Quién responde por el rubro" })).getByText(
         /sin montos por miembro/,
       ),
     ).toBeInTheDocument();

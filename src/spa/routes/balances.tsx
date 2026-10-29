@@ -13,7 +13,7 @@ const route = getRouteApi("/spaces/$spaceId/balances");
 
 /**
  * HU-E9-07: who owes whom in a shared or direct space, the settle-up suggestions and the settle-up sheet. `?settle=` is
- * a member id (the guest sheet's "Registrar pago"): the sheet opens with that member paying.
+ * a member id (the guest sheet's "Saldar"): the sheet opens with that member paying.
  */
 export function BalancesRoute() {
   useTitle(useTranslations("balances")("title"));

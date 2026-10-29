@@ -113,7 +113,7 @@ test.describe("shared spaces (slice 4 of #199, ADR 0006)", () => {
     await expect(suggestion).toBeVisible();
     await scan(page, "balances");
     await suggestion.click();
-    const dialog = page.getByRole("dialog", { name: "Registrar pago" });
+    const dialog = page.getByRole("dialog", { name: "Saldar" });
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "Guardar pago" }).click();
     await expect(suggestion).toHaveCount(0);

@@ -19,7 +19,7 @@ import { prefillOf, type SettlementDraft } from "./settlement-request";
  * suggestions and the members always use names, so the story's sentences read the same from every seat. Each member
  * row links to a history page that is rarely opened, so the links do not prefetch it (one request per member).
  *
- * Settling up (rulings P174 and P175): "Liquidar" on a suggestion and "Registrar pago" only fill in the settle-up
+ * Settling up (rulings P174 and P175): "Saldar" on a suggestion and "Saldar otro monto" only fill in the settle-up
  * sheet; a payment is recorded when the person saves it. `settle` (the guest sheet's link) opens the sheet for that
  * member. A viewer who cannot record money reads the balances without either control.
  */

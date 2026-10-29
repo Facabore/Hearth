@@ -41,13 +41,13 @@ test.describe("the Plan tab and the planner (slice 5 of #199, ADR 0006)", () => 
     // The capacities: saving returns to the planner.
     const planner = page.url();
     await page.goto(`${planner}/capacities`);
-    await expect(page.getByRole("button", { name: "Guardar capacidades" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Guardar aportes" })).toBeVisible();
     await scan(page, "capacities");
     await page
-      .getByLabel(/^Capacidad de/)
+      .getByLabel(/^Aporte de/)
       .first()
       .fill("2.000.000");
-    await page.getByRole("button", { name: "Guardar capacidades" }).click();
+    await page.getByRole("button", { name: "Guardar aportes" }).click();
     await expect(page).toHaveURL(planner);
 
     // A new line's editor.

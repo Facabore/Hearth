@@ -12,7 +12,9 @@ import {
   spaceDto,
 } from "../../../tests/support/ui/dto";
 import { jsonResponse, problemResponse, type FakeHandler } from "../../../tests/support/ui/fake-api";
+import { e74Unified } from "../../../tests/support/ui/plan-dto";
 import { renderSpa } from "../../../tests/support/ui/spa";
+import { moduleKeys } from "../reads";
 
 /** A request the API never answers: whatever shows meanwhile came from the cache. */
 const never = (): Promise<Response> => new Promise<Response>(() => undefined);
@@ -54,6 +56,13 @@ const calls = (requests: Request[], method: string, pattern: RegExp) =>
 
 const nav = () => screen.getByRole("navigation", { name: es.shell.nav.main });
 
+/** No read in flight and the router idle: whatever a loader started without awaiting has run. */
+const settled = (spa: ReturnType<typeof renderSpa>) =>
+  waitFor(() => {
+    expect(spa.queryClient.isFetching()).toBe(0);
+    expect(spa.router.state.status).toBe("idle");
+  });
+
 beforeEach(() => {
   document.cookie = "hearth.locale=es; path=/";
 });
@@ -67,6 +76,52 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     expect(screen.getByRole("heading", { name: es.home.recent, hidden: true })).toBeInTheDocument();
     expect(calls(spa.requests, "GET", /\/transactions\?limit=3$/)).toHaveLength(1);
     expect(document.title).toBe(`${es.home.title} · Hearth`);
+  });
+
+  it("adds the month across every space to the personal home, from the period it shows (U4, #209)", async () => {
+    const { routes } = ledgerApi({
+      "GET /api/v1/me/unified-view": () => jsonResponse(e74Unified({ period: { ...octoberPage.period } })),
+    });
+    const spa = renderSpa("/spaces/sp-personal", routes);
+    const link = await screen.findByRole("link", { name: /Tu mes en todos tus espacios/ });
+    expect(link).toHaveAttribute("href", "/spaces/sp-personal/plan");
+    expect(link.textContent?.replace(/\s/g, " ")).toContain("$ 1.575.000");
+    expect(calls(spa.requests, "GET", /\/me\/unified-view\?period=2026-10$/)).toHaveLength(1);
+  });
+
+  it("keeps the personal home without the line when the unified month cannot be read", async () => {
+    const { routes } = ledgerApi({
+      "GET /api/v1/me/unified-view": () => problemResponse(500, "InternalError"),
+    });
+    const spa = renderSpa("/spaces/sp-personal", routes);
+    expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
+    // The read has failed for good (after its one retry of a 5xx) before the home is checked.
+    await waitFor(
+      () =>
+        expect(
+          spa.queryClient.getQueryState(moduleKeys.report("sp-personal", "unified", { period: "2026-10" })),
+        ).toMatchObject({ status: "error", fetchStatus: "idle" }),
+      { timeout: 5_000 },
+    );
+    expect(screen.queryByRole("link", { name: /Tu mes en todos tus espacios/ })).not.toBeInTheDocument();
+    // The toast provider's live region is always mounted; a failed optional read leaves it empty.
+    expect(screen.getByRole("alert")).toBeEmptyDOMElement();
+  });
+
+  it("reads no unified month for a person with no other space, nor in a shared space's home", async () => {
+    const alone = ledgerApi({
+      "GET /api/v1/spaces": () => jsonResponse({ items: [spaceDto()] }),
+    });
+    const spa = renderSpa("/spaces/sp-personal", alone.routes);
+    expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
+    // The loader starts the unified read without awaiting it: count only once nothing is loading any more.
+    await settled(spa);
+    spa.unmount();
+    const shared = renderSpa("/spaces/sp-household", ledgerApi().routes);
+    expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
+    await settled(shared);
+    expect(screen.queryByRole("link", { name: /Tu mes en todos tus espacios/ })).not.toBeInTheDocument();
+    expect(calls([...spa.requests, ...shared.requests], "GET", /\/me\/unified-view/)).toHaveLength(0);
   });
 
   it("lists Movimientos by day with the API's totals, under the space's own filters", async () => {
@@ -157,6 +212,33 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     });
     const spa = renderSpa("/spaces/sp-personal/transactions/t-dinner/edit", routes);
     await waitFor(() => expect(spa.location()).toBe("/spaces/sp-personal/transactions?tx=t-dinner"));
+  });
+
+  it("gives a viewer no Registrar button, and her link to the form names her role instead (#207)", async () => {
+    const { routes } = ledgerApi({
+      "GET /api/v1/spaces": () => jsonResponse({ items: [spaceDto(), householdSpace({ role: "VIEWER" })] }),
+    });
+    renderSpa("/spaces/sp-household/new", routes);
+    expect(
+      await screen.findByText(
+        es.ledger.form.readOnly.replace("{space}", "Household").replace("{role}", es.shell.role.VIEWER),
+      ),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: es.ledger.form.save.EXPENSE })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: es.common.back })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household",
+    );
+    expect(within(nav()).queryByRole("link", { name: es.shell.nav.record })).not.toBeInTheDocument();
+  });
+
+  it("keeps the Registrar button for a member who records", async () => {
+    const { routes } = ledgerApi({
+      "GET /api/v1/spaces": () => jsonResponse({ items: [spaceDto(), householdSpace({ role: "MEMBER" })] }),
+    });
+    renderSpa("/spaces/sp-household/new", routes);
+    expect(await screen.findByRole("button", { name: es.ledger.form.save.EXPENSE })).toBeVisible();
+    expect(within(nav()).getByRole("link", { name: es.shell.nav.record })).toBeInTheDocument();
   });
 
   it("shows a read the API refuses as its problem, inside the shell", async () => {

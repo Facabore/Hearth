@@ -29,11 +29,18 @@ describe("the reads the HTML starts before the app's script arrives (ADR 0004, 2
     expect(signedIn.fetch.mock.calls.map(([url]) => url)).toEqual(["/api/v1/me", "/api/v1/spaces"]);
     delete (globalThis as { __hearthEarly?: unknown }).__hearthEarly;
 
-    // A visitor asks for no spaces: the API would only answer 401.
-    const visitor = boot({ "/api/v1/me": json({ code: "Unauthenticated" }, 401) });
+    expect(await signedIn.reads!.signUp).toBeNull();
+    delete (globalThis as { __hearthEarly?: unknown }).__hearthEarly;
+
+    // A visitor asks for no spaces, which the API would refuse, but for the sign-up mode the sign-in screen shows.
+    const visitor = boot({
+      "/api/v1/me": json({ code: "Unauthenticated" }, 401),
+      "/api/v1/auth/sign-up": json({ signUp: "closed" }),
+    });
     expect((await visitor.reads!.me).status).toBe(401);
     expect(await visitor.reads!.spaces).toBeNull();
-    expect(visitor.fetch.mock.calls.map(([url]) => url)).toEqual(["/api/v1/me"]);
+    expect(await (await visitor.reads!.signUp)!.json()).toEqual({ signUp: "closed" });
+    expect(visitor.fetch.mock.calls.map(([url]) => url)).toEqual(["/api/v1/me", "/api/v1/auth/sign-up"]);
   });
 
   it("hands its reads over once: a later screen reads the API itself", () => {
@@ -89,26 +96,54 @@ describe("the reads the HTML starts before the app's script arrives (ADR 0004, 2
       const { queryClient, get } = await seeded({
         me: Promise.resolve(json({ id: "u-ana" })),
         spaces: Promise.resolve(json({ items: [{ id: "sp-personal" }] })),
+        signUp: Promise.resolve(null),
       });
       expect(queryClient.getQueryData(queryKeys.me)).toEqual({ id: "u-ana" });
       expect(queryClient.getQueryData(queryKeys.spaces)).toEqual([{ id: "sp-personal" }]);
       expect(get).not.toHaveBeenCalled();
     });
 
-    it("caches a visitor as nobody and reads no spaces for them", async () => {
+    it("caches a visitor as nobody, with the sign-up mode the HTML read, and reads no spaces for them", async () => {
       const { queryClient, get } = await seeded({
         me: Promise.resolve(json({ code: "Unauthenticated" }, 401)),
         spaces: Promise.resolve(null),
+        signUp: Promise.resolve(json({ signUp: "closed" })),
       });
       expect(queryClient.getQueryData(queryKeys.me)).toBeNull();
+      expect(queryClient.getQueryData(queryKeys.signUpMode)).toBe("closed");
       expect(queryClient.getQueryState(queryKeys.spaces)).toBeUndefined();
       expect(get).not.toHaveBeenCalled();
+    });
+
+    it("asks the API for the sign-up mode when the HTML's read of it failed, and answers open when that fails too", async () => {
+      const visitor = {
+        me: Promise.resolve(json({}, 401)),
+        spaces: Promise.resolve(null),
+        signUp: Promise.resolve(null),
+      };
+      const asked = await seeded(
+        visitor,
+        vi.fn(async () => generated({ signUp: "closed" })),
+      );
+      expect(asked.queryClient.getQueryData(queryKeys.signUpMode)).toBe("closed");
+      expect(asked.get).toHaveBeenCalledWith("/api/v1/auth/sign-up");
+      const failing = await seeded(
+        { ...visitor, me: Promise.resolve(json({}, 401)) },
+        vi.fn(async () => {
+          throw new TypeError("Failed to fetch");
+        }),
+      );
+      expect(failing.queryClient.getQueryData(queryKeys.signUpMode)).toBe("open");
     });
 
     it("asks the API for the spaces when the HTML's read of them failed on the network", async () => {
       const get = vi.fn(async () => generated({ items: [{ id: "sp-personal" }] }));
       const { queryClient } = await seeded(
-        { me: Promise.resolve(json({ id: "u-ana" })), spaces: Promise.resolve(null) },
+        {
+          me: Promise.resolve(json({ id: "u-ana" })),
+          spaces: Promise.resolve(null),
+          signUp: Promise.resolve(null),
+        },
         get,
       );
       expect(queryClient.getQueryData(queryKeys.spaces)).toEqual([{ id: "sp-personal" }]);
@@ -118,7 +153,11 @@ describe("the reads the HTML starts before the app's script arrives (ADR 0004, 2
     it("uses each early answer once: reading the profile again asks the API", async () => {
       const get = vi.fn(async () => generated({ id: "u-ana", name: "Ana" }));
       const { queryClient } = await seeded(
-        { me: Promise.resolve(json({ id: "u-ana" })), spaces: Promise.resolve(json({ items: [] })) },
+        {
+          me: Promise.resolve(json({ id: "u-ana" })),
+          spaces: Promise.resolve(json({ items: [] })),
+          signUp: Promise.resolve(null),
+        },
         get,
       );
       await queryClient.refetchQueries({ queryKey: queryKeys.me, type: "all" });

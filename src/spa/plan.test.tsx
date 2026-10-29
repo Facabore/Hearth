@@ -163,7 +163,7 @@ describe("the Plan tab and the planner in the SPA (slice 5 of #199, ADR 0006)", 
 
   it("saves the capacities through a PUT: the plan and its reports are read again, the ledger is not", async () => {
     const spa = renderSpa(`${HOUSEHOLD}/plans/p-nov/capacities`, server());
-    const save = await screen.findByRole("button", { name: "Guardar capacidades" }, { timeout: 5_000 });
+    const save = await screen.findByRole("button", { name: "Guardar aportes" }, { timeout: 5_000 });
     const plans = count(spa.requests, "GET", /\/plans\/p-nov$/);
     // Household's Lines and My spending, read earlier in the session: the person's share counts in both (D11).
     spa.queryClient.setQueryData(["reports", "sp-household", "lines", "2026-11"], e7Dashboard());
@@ -191,9 +191,7 @@ describe("the Plan tab and the planner in the SPA (slice 5 of #199, ADR 0006)", 
       "GET /api/v1/spaces/{spaceId}/plans/{planId}/capacity-suggestion": () =>
         problemResponse(503, "ServiceUnavailable"),
     });
-    expect(
-      await screen.findByRole("button", { name: "Guardar capacidades" }, { timeout: 5_000 }),
-    ).toBeVisible();
+    expect(await screen.findByRole("button", { name: "Guardar aportes" }, { timeout: 5_000 })).toBeVisible();
     expect(count(spa.requests, "GET", /\/capacity-suggestion$/)).toBe(2);
     expect(problems()).toEqual([]);
   });

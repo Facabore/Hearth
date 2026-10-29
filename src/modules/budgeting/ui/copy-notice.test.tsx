@@ -41,7 +41,7 @@ describe("copy notice (HU-E9-08)", () => {
     });
     renderWithIntl(<CopyNotice plan={plan} groups={groups} />);
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "La línea Car: ninguna de sus cuentas de ahorro sigue disponible",
+      "El rubro Car: ninguna de sus cuentas de ahorro sigue disponible",
     );
   });
 
@@ -63,7 +63,7 @@ describe("copy notice (HU-E9-08)", () => {
     rememberDropped(plan.id, { mappings: [], savingsAccounts: [], lines: [] });
     renderWithIntl(<CopyNotice plan={plan} groups={groups} />);
     const notice = await screen.findByRole("status");
-    expect(notice).toHaveTextContent("Mismas líneas, montos, reglas y capacidades.");
+    expect(notice).toHaveTextContent("Mismos rubros, montos, reglas y aportes.");
     expect(notice).not.toHaveTextContent("Quedó fuera");
     expect(notice.querySelector("ul")).toBeNull();
   });

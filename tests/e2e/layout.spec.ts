@@ -1006,6 +1006,8 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         [`/spaces/${sharedId}/plan/members`, 5],
         [`/spaces/${sharedId}/plan/fund`, 5],
         [`/spaces/${sharedId}/plan/groups`, 5],
+        // #212: Tendencia with one period of history; its table scrolls inside its region, never the page.
+        [`/spaces/${sharedId}/plan/trend`, 5],
         // HU-E9-11: My spending, the personal space's own page, and its Lines view.
         [`/spaces/${spaceId}/plan`, 4],
         [`/spaces/${spaceId}/plan/lines`, 4],
@@ -1296,15 +1298,13 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
 
       // Use suggestion fills Ana's own field and sends nothing: the plan keeps its capacity until Save.
       await page.getByRole("button", { name: es.budgeting.capacity.useSuggestion }).click();
-      await expect(page.getByRole("textbox", { name: "Capacidad de Ana" })).toHaveValue("1.650.000");
+      await expect(page.getByRole("textbox", { name: "Aporte de Ana" })).toHaveValue("1.650.000");
 
       // Save is the last control: scrolled to the end of the page it sits above the bottom navigation.
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
       const save = (await page.getByRole("button", { name: es.budgeting.capacity.save }).boundingBox())!;
       const nav = (await page.getByRole("navigation", { name: es.shell.nav.main }).boundingBox())!;
-      expect(save.y + save.height, "Guardar capacidades ends above the bottom bar").toBeLessThanOrEqual(
-        nav.y,
-      );
+      expect(save.y + save.height, "Guardar aportes ends above the bottom bar").toBeLessThanOrEqual(nav.y);
 
       // The way back is the shared header's link to the planner.
       const back = page.getByRole("link", { name: es.common.back, exact: true });

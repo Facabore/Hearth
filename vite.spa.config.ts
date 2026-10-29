@@ -1,8 +1,10 @@
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import compile from "icu-minify/compile";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, type Plugin, type Rollup } from "vite";
 import { THEME_BOOTSTRAP } from "./src/shared/ui/theme/theme";
 import { catalogPreload, EARLY_READS } from "./src/spa/early-html";
+import { chunkFiles, framePick, routePreload, routeTable } from "./src/spa/route-preload";
 
 const from = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
@@ -58,7 +60,7 @@ const earlyReads = (): Plugin => ({
   name: "hearth:early-reads",
   transformIndexHtml: {
     order: "post",
-    handler: (_html, { bundle }) => {
+    handler: (html, { bundle }) => {
       const catalogs = Object.fromEntries(
         Object.values(bundle ?? {}).flatMap((file) => {
           if (file.type !== "chunk") return [];
@@ -68,15 +70,48 @@ const earlyReads = (): Plugin => ({
           return id ? [[/([a-z]+)\.json$/.exec(id)![1]!, `/${file.fileName}`]] : [];
         }),
       );
-      return [
-        { tag: "script", children: EARLY_READS, injectTo: "head-prepend" },
-        ...(Object.keys(catalogs).length > 0
-          ? [{ tag: "script", children: catalogPreload(catalogs), injectTo: "head-prepend" as const }]
-          : []),
-      ];
+      return {
+        html: bundle ? inlineStylesheet(html, bundle) : html,
+        tags: [
+          { tag: "script", children: framePick(routes()), injectTo: "head-prepend" },
+          { tag: "script", children: EARLY_READS, injectTo: "head-prepend" },
+          ...(Object.keys(catalogs).length > 0
+            ? [{ tag: "script", children: catalogPreload(catalogs), injectTo: "head-prepend" as const }]
+            : []),
+          ...(bundle
+            ? [{ tag: "script", children: firstScreen(bundle), injectTo: "head-prepend" as const }]
+            : []),
+        ],
+      };
     },
   },
 });
+
+/**
+ * The stylesheet goes inside the HTML, so the static frame paints as soon as the HTML arrives instead of after one
+ * more round trip; index.html is read again on each visit anyway (Caddyfile.web), and the file stays for any other use.
+ */
+const inlineStylesheet = (html: string, bundle: Rollup.OutputBundle): string =>
+  html.replace(/<link rel="stylesheet"[^>]*href="\/([^"]+\.css)"[^>]*>/g, (link, fileName: string) => {
+    const asset = bundle[fileName];
+    // A stylesheet never closes a style element, but a stray "</style" in it would end this one early.
+    return asset?.type === "asset"
+      ? `<style>${String(asset.source).replaceAll("</style", "<\\/style")}</style>`
+      : link;
+  });
+
+/** The route table, read off routes.tsx at build time (`src/spa/route-preload.ts`). */
+const routes = () => routeTable(readFileSync(from("./src/spa/routes.tsx"), "utf8"));
+
+/**
+ * The first screen's own chunks, its layout's and its loaders', preloaded beside the app's script
+ * (`src/spa/route-preload.ts`): each module's chunk and the chunks it imports, without those the app's script loads.
+ */
+const firstScreen = (bundle: Rollup.OutputBundle): string =>
+  routePreload(
+    routes(),
+    chunkFiles(Object.values(bundle).filter((file): file is Rollup.OutputChunk => file.type === "chunk")),
+  );
 
 /** ADR 0006, epic #199: the client-first SPA, at the root since the cut-over; the API stays on the app. */
 export default defineConfig({

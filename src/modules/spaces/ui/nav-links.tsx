@@ -11,14 +11,17 @@ import type { SpaceDto } from "@/shared/ui/api/dto";
  * One landmark for both layouts: a bar fixed at the bottom under 1024 px, a 240 px rail from 1024 px (the Desktop
  * artboard). Ruling P160: the Batch 2 order, Inicio, Movimientos, Registrar, Plan, Saldos; Saldos only where balances
  * exist (shared and direct spaces). Plan (HU-E9-10, ruling P200, amending P141) is current on every path under
- * `/plan` and `/plans`.
+ * `/plan` and `/plans`. Registrar only for someone who records in the space (#207): a viewer never meets a form she
+ * cannot save.
  */
 export function NavLinks({
   spaceId,
   spaceKind,
+  canRecord,
 }: {
   readonly spaceId: string;
   readonly spaceKind: SpaceDto["kind"];
+  readonly canRecord: boolean;
 }) {
   const t = useTranslations("shell.nav");
   const pathname = usePathname();
@@ -58,16 +61,18 @@ export function NavLinks({
         <Icon name="list" />
         {t("transactions")}
       </Link>
-      <Link
-        href={record}
-        {...prefetch}
-        aria-label={t("record")}
-        aria-current={current(`${home}/new`)}
-        className="order-none mx-2 flex size-14 items-center justify-center rounded-full bg-accent text-on-accent lg:-order-1 lg:mx-0 lg:h-12 lg:w-auto lg:gap-2 lg:rounded-[14px] lg:font-semibold"
-      >
-        <Icon name="plus" />
-        <span className="hidden lg:inline">{t("recordShort")}</span>
-      </Link>
+      {canRecord ? (
+        <Link
+          href={record}
+          {...prefetch}
+          aria-label={t("record")}
+          aria-current={current(`${home}/new`)}
+          className="order-none mx-2 flex size-14 items-center justify-center rounded-full bg-accent text-on-accent lg:-order-1 lg:mx-0 lg:h-12 lg:w-auto lg:gap-2 lg:rounded-[14px] lg:font-semibold"
+        >
+          <Icon name="plus" />
+          <span className="hidden lg:inline">{t("recordShort")}</span>
+        </Link>
+      ) : null}
       <Link href={plan} {...prefetch} aria-current={underPlan ? "page" : undefined} className={item}>
         <Icon name="chart" />
         {t("plan")}

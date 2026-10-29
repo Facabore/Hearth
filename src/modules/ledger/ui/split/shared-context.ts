@@ -35,9 +35,23 @@ export const sharedContextOf = (input: {
   };
 };
 
-/** The recorder pays from their first account, equally among every current member, until a default or a choice. */
-export const initialSplitDraft = (context: SharedExpenseContext): SplitDraft => ({
-  payer: { kind: "ME", memberId: context.meMemberId, accountId: context.myAccounts[0]?.id ?? null },
+/**
+ * The recorder pays from `payerAccountId` (the record form passes the one paid from last, issue #208), else their
+ * first account that is not a savings account, else their first, equally among every current member, until a default
+ * or a choice. The fallback is spelled here, not taken from `last-account`, so the detail sheet's chunk stays small.
+ */
+export const initialSplitDraft = (
+  context: SharedExpenseContext,
+  payerAccountId: string | null = null,
+): SplitDraft => ({
+  payer: {
+    kind: "ME",
+    memberId: context.meMemberId,
+    accountId:
+      payerAccountId ??
+      (context.myAccounts.find((a) => a.type !== "SAVINGS") ?? context.myAccounts[0])?.id ??
+      null,
+  },
   method: "EQUAL",
   selected: context.members.map((member) => member.id),
   values: {},

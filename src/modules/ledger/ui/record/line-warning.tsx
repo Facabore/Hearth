@@ -31,7 +31,10 @@ export function LineWarningNote({ warning, formats }: NoteProps) {
   );
 }
 
-/** Ruling P235: HIGH and OVER ask once before saving; the person can still save, or go back to the amount. */
+/**
+ * Ruling P235, amended by #211: an expense over its line asks once before saving; the person can still save, or go back
+ * to the amount. Its buttons come into view above the bottom bar, which would otherwise cover them on a phone.
+ */
 export function LineWarningConfirm({
   warning,
   formats,
@@ -40,14 +43,19 @@ export function LineWarningConfirm({
 }: NoteProps & { readonly onConfirm: () => void; readonly onReview: () => void }) {
   const t = useTranslations("ledger.lineWarning");
   const title = useRef<HTMLHeadingElement>(null);
-  useEffect(() => title.current?.focus(), []);
+  const actions = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    title.current?.focus();
+    actions.current?.scrollIntoView?.({ block: "nearest" });
+  }, []);
   return (
     <section aria-labelledby="record-line-confirm" className="flex flex-col gap-3">
       <h2 id="record-line-confirm" ref={title} tabIndex={-1} className="text-lg font-semibold text-ink">
         {t("confirmTitle")}
       </h2>
       <LineWarningNote warning={warning} formats={formats} />
-      <div className="flex flex-wrap gap-3">
+      {/* The scroll margin is the bottom bar (76 px, nav-links.tsx) plus 12 px, so nearest scrolling leaves them above it. */}
+      <div ref={actions} className="flex scroll-mb-[calc(88px+env(safe-area-inset-bottom))] flex-wrap gap-3">
         <Button size="lg" onClick={onConfirm}>
           {t("confirm")}
         </Button>

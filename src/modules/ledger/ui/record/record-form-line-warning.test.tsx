@@ -16,6 +16,7 @@ import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import es from "@/i18n/messages/es.json";
 import type { Api } from "@/shared/ui/api/client";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
+import { ToastProvider } from "@/shared/ui/molecules/toast-provider";
 import { lineWatchOf, type LineWatch } from "./line-watch";
 import { RecordForm } from "./record-form";
 
@@ -51,17 +52,19 @@ const watch = lineWatchOf({
 });
 const form = (api: Api, lineWatch: LineWatch | null) =>
   renderWithIntl(
-    <RecordForm
-      space={spaceDto()}
-      accounts={accounts}
-      groups={groups}
-      formats={BUILT_IN_FORMATS}
-      initialKind="EXPENSE"
-      initialNow="2026-11-01T04:30:00.000Z"
-      timeZone="America/Bogota"
-      api={api}
-      lineWatch={lineWatch}
-    />,
+    <ToastProvider>
+      <RecordForm
+        space={spaceDto()}
+        accounts={accounts}
+        groups={groups}
+        formats={BUILT_IN_FORMATS}
+        initialKind="EXPENSE"
+        initialNow="2026-11-01T04:30:00.000Z"
+        timeZone="America/Bogota"
+        api={api}
+        lineWatch={lineWatch}
+      />
+    </ToastProvider>,
   );
 
 const SAVE = es.ledger.form.save.EXPENSE;
@@ -75,12 +78,12 @@ const typeExpense = async (amount: string) => {
 };
 const expenses = (requests: Request[]) => requests.filter((r) => r.url.endsWith("/expenses"));
 
-describe("the record form warns before a line goes past 90 % (#142, rulings P235–P237 of M6c)", () => {
+describe("the record form warns about a line past 80 % and asks only over the plan (#142, #211)", () => {
   it("notes 80 % in the neutral tone and saves at once", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
     form(api, watch);
     await typeExpense("20000");
-    expect(noteText()).toBe("Con este gasto, Home quedaría en 89,79 % de lo planeado.");
+    expect(noteText()).toBe("Con este gasto, Home quedaría en 89 % de lo planeado.");
     expect(document.getElementById("record-line-warning")).toHaveAttribute("data-level", "NEAR");
     expect(screen.getByRole("button", { name: SAVE })).toHaveAttribute(
       "aria-describedby",
@@ -91,20 +94,44 @@ describe("the record form warns before a line goes past 90 % (#142, rulings P235
     expect(screen.queryByRole("heading", { name: CONFIRM_TITLE })).toBeNull();
   });
 
-  it("asks first above 90 %, and saves once on Guardar de todos modos", async () => {
+  it("saves at once above 90 %, and the toast says where the line is left (#211)", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
     const { container } = form(api, watch);
     await typeExpense("85000");
-    await userEvent.click(screen.getByRole("button", { name: SAVE }));
-    expect(screen.getByRole("heading", { name: CONFIRM_TITLE })).toHaveFocus();
-    expect(normalized(screen.getByRole("region", { name: CONFIRM_TITLE }).textContent)).toContain(
-      "Con este gasto, Home quedaría en 94,21 % de lo planeado y le quedarían $ 85.000.",
-    );
-    expect(screen.queryByRole("button", { name: SAVE })).toBeNull();
-    expect(expenses(requests)).toHaveLength(0);
+    expect(noteText()).toBe("Con este gasto, Home quedaría en 94 % de lo planeado y le quedarían $ 85.000.");
+    expect(document.getElementById("record-line-warning")).toHaveAttribute("data-level", "HIGH");
     expect(await axeViolations(container)).toEqual([]);
-    await userEvent.click(screen.getByRole("button", { name: "Guardar de todos modos" }));
+    await userEvent.click(screen.getByRole("button", { name: SAVE }));
     await waitFor(() => expect(expenses(requests)).toHaveLength(1));
+    expect(screen.queryByRole("heading", { name: CONFIRM_TITLE })).toBeNull();
+    await waitFor(() =>
+      expect(normalized(screen.getByRole("status").textContent)).toContain(
+        "Gasto guardado. Home quedó en 94 % de lo planeado y le quedan $ 85.000.",
+      ),
+    );
+  });
+
+  it("asks over the plan and brings its buttons into view above the bottom bar (#211)", async () => {
+    // jsdom has no scrollIntoView: the test lends one and takes it back, so no later test sees it.
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    try {
+      const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
+      const { container } = form(api, watch);
+      await typeExpense("212300");
+      await userEvent.click(screen.getByRole("button", { name: SAVE }));
+      expect(screen.getByRole("heading", { name: CONFIRM_TITLE })).toHaveFocus();
+      expect(screen.queryByRole("button", { name: SAVE })).toBeNull();
+      expect(expenses(requests)).toHaveLength(0);
+      expect(await axeViolations(container)).toEqual([]);
+      const confirm = screen.getByRole("button", { name: "Guardar de todos modos" });
+      expect(scroll).toHaveBeenCalledWith({ block: "nearest" });
+      expect(scroll.mock.contexts.some((el) => (el as Element).contains(confirm))).toBe(true);
+      await userEvent.click(confirm);
+      await waitFor(() => expect(expenses(requests)).toHaveLength(1));
+    } finally {
+      delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
   });
 
   it("states the overage as an amount, and Revisar el monto goes back to the amount without saving", async () => {

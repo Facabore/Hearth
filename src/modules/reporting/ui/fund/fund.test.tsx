@@ -88,7 +88,7 @@ describe("fund tracking (HU-E9-10)", () => {
     show(e7Fund(), [HOUSEHOLD_MEMBERS[0]!]);
     expect(
       screen.getByText(
-        "Esperado: lo asignado a cada uno en las líneas pagadas con el fondo. Cuentan los aportes fechados en el período.",
+        "Esperado: lo asignado a cada uno en los rubros pagados con el fondo. Cuentan los aportes fechados en el período.",
       ),
     ).toBeInTheDocument();
     expect(card("Miembro anterior")).toContain("Aportado$ 500.000");

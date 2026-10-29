@@ -37,7 +37,7 @@ import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import { safeReturnTo, withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { minorOf, parseDecimal } from "@/shared/ui/format/amount-input";
 import { currencyOf } from "@/shared/ui/format/currencies";
-import { formatMoney, formatNumber, type Formats } from "@/shared/ui/format/formatters";
+import { formatMoney, formatNumber, formatPercent, type Formats } from "@/shared/ui/format/formatters";
 import { browserTimeZone } from "@/shared/ui/format/zones";
 import { nowIn } from "@/shared/ui/time/when";
 import type { Person } from "../direct/counterparts";
@@ -50,6 +50,7 @@ import { AmountField } from "./amount-field";
 import { DateTimeSheet } from "./date-time-sheet";
 import { DescriptionField, FormRow, RowError } from "./form-rows";
 import { LineWarningConfirm, LineWarningNote } from "./line-warning";
+import { preferredAccountId, readLastAccount, rememberLastAccount } from "./last-account";
 import { offeredRecent, parseRecent, rawRecent, rememberRecent, safeStorage } from "./recent-categories";
 import { asksFirst, lineWarningOf, type LineWatch } from "./line-watch";
 import {
@@ -201,7 +202,15 @@ export function RecordForm({
   // Issue #172: the save lands where the form was opened, so the toast offers the movement itself.
   const savedToast = (kind: RecordKind, spaceId: string, transactionId: string | undefined) =>
     toast.show({
-      message: t(`toast.saved.${kind}`),
+      // #211: an expense that leaves its line above 90 % saves at once, and the toast says where the line is left.
+      message:
+        kind === "EXPENSE" && warning?.level === "HIGH"
+          ? t("lineWarning.saved", {
+              line: warning.line,
+              used: warning.used === null ? "" : formatPercent(warning.used, formats),
+              rest: formatMoney(warning.rest, formats),
+            })
+          : t(`toast.saved.${kind}`),
       ...(transactionId
         ? {
             action: {
@@ -263,9 +272,12 @@ export function RecordForm({
         categoryId: category.categoryId,
         subcategoryId: category.subcategoryId ?? null,
       });
+    // Issue #208: the account an expense was paid from is where the next one starts.
+    const paidFrom = sharedExpense ? (split?.payer.kind === "ME" ? split.payer.accountId : null) : accountId;
+    if (kind === "EXPENSE" && paidFrom) rememberLastAccount(paidFrom);
   };
-  const [accountId, setAccountId] = useState<string | null>(
-    edit ? edit.initial.accountId : (accounts[0]?.id ?? null),
+  const [accountId, setAccountId] = useState<string | null>(() =>
+    edit ? edit.initial.accountId : preferredAccountId(accounts, readLastAccount()),
   );
   const [toAccountId, setToAccountId] = useState<string | null>(edit?.initial.toAccountId ?? null);
   const [chosenWhen, setChosenWhen] = useState<When | null>(edit?.initial.when ?? null);
@@ -273,7 +285,9 @@ export function RecordForm({
   const [sheetNow, setSheetNow] = useState<When>(start);
   const [pending, setPending] = useState(false);
   const [split, setSplit] = useState(
-    () => edit?.initial.split ?? (shared ? initialSplitDraft(shared) : null),
+    () =>
+      edit?.initial.split ??
+      (shared ? initialSplitDraft(shared, preferredAccountId(shared.myAccounts, readLastAccount())) : null),
   );
   const [unbuilt, setUnbuilt] = useState<"amount" | "account" | "toAccount" | "payer" | "split" | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);

@@ -42,7 +42,7 @@ describe("desktop overview (HU-E9-10, ruling P216)", () => {
     const change = normalized(screen.getByRole("region", { name: "Contra el período anterior" }).textContent);
     expect(change).toContain("−$ 50.000 (−3,70 %)");
     expect(change).toContain("Nueva");
-    const matrix = screen.getByRole("table", { name: "Miembros por línea" });
+    const matrix = screen.getByRole("table", { name: "Miembros por rubro" });
     expect(within(matrix).getAllByRole("row")).toHaveLength(1 + 6);
     expect(await axeViolations(container)).toEqual([]);
   });

@@ -110,7 +110,7 @@ function MatrixLineSection({
           {t("matrix.kind", { funding: tb(`funding.${line.funding}`), rule: tb(`rule.${line.rule}`) })}
         </p>
       </div>
-      <div role="region" aria-label={caption} tabIndex={0} className="overflow-x-auto">
+      <div role="region" aria-label={caption} tabIndex={0} className="relative overflow-x-auto">
         <table className="block w-full text-sm sm:table">
           <caption className="block pb-1 text-left text-sm text-muted sm:table-caption">{caption}</caption>
           <thead className="sr-only sm:not-sr-only sm:table-header-group">

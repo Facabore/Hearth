@@ -29,15 +29,37 @@ describe("line trend (HU-E9-11)", () => {
         "data-points",
         "6",
       );
-      const table = screen.getByRole("table", { name: "Gastado por línea y período" });
+      const table = screen.getByRole("table", { name: "Gastado por rubro y período" });
       expect(normalized(table.textContent)).toContain("$ 1.350.000");
-      expect(screen.getByRole("region", { name: "Gastado por línea y período" })).toHaveAttribute(
+      expect(screen.getByRole("region", { name: "Gastado por rubro y período" })).toHaveAttribute(
         "tabindex",
         "0",
       );
       expect(await axeViolations(container)).toEqual([]);
     },
   );
+
+  it("says the trend comes from the second period instead of drawing a chart with one period of figures (#212)", () => {
+    const trend = homeTrend();
+    // Only November has figures: October's Home spent is taken out.
+    const oneMonth = {
+      ...trend,
+      lines: trend.lines.map((line) => ({
+        ...line,
+        points: line.points.map((p) =>
+          p.period === "2026-11" ? p : { ...p, spent: null, changeStatus: null },
+        ),
+      })),
+    };
+    renderWithIntl(
+      <LineTrend space={householdDto()} trend={oneMonth} formats={BUILT_IN_FORMATS} periods={6} />,
+    );
+    expect(
+      screen.getByText("La tendencia aparece cuando haya gastos en un segundo período."),
+    ).toBeInTheDocument();
+    expect(document.querySelector("[data-chart-placeholder]")).toBeNull();
+    expect(screen.getByRole("table", { name: "Gastado por rubro y período" })).toBeInTheDocument();
+  });
 
   it("says that a period without a plan has no lines to compare", () => {
     renderWithIntl(
@@ -48,6 +70,6 @@ describe("line trend (HU-E9-11)", () => {
         periods={6}
       />,
     );
-    expect(screen.getByText("Este período no tiene plan: no hay líneas que comparar.")).toBeInTheDocument();
+    expect(screen.getByText("Este período no tiene plan: no hay rubros que comparar.")).toBeInTheDocument();
   });
 });

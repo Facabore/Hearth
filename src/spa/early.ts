@@ -1,13 +1,14 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { MeDto, SpaceDto } from "@/shared/ui/api/dto";
-import { meFrom } from "@/shared/ui/api/readers";
+import { meFrom, signUpModeFrom } from "@/shared/ui/api/readers";
 import type { SpaApis } from "./api";
-import { meQuery, spacesFrom, spacesQuery } from "./queries";
+import { meQuery, signUpModeQuery, spacesFrom, spacesQuery } from "./queries";
 
 /** What the HTML's first script left for the app (`early-html.ts`). */
 export interface EarlyReads {
   readonly me: Promise<Response>;
   readonly spaces: Promise<Response | null>;
+  readonly signUp: Promise<Response | null>;
 }
 
 /** The reads the HTML started, handed over once: the first screen joins them, any later one reads the API itself. */
@@ -28,9 +29,10 @@ export const earlyResult = async <T>(
 };
 
 /**
- * The profile and spaces queries start from the HTML's reads, so the guard and the shell join them instead of reading
- * again. Each answer is used once: a retry, or any later read of the same query, asks the API itself. The spaces are
- * read only for a signed-in person; when the HTML's spaces read failed on the network, the API is asked here.
+ * The profile, spaces and sign-up mode queries start from the HTML's reads, so the guards, the shell and the sign-in
+ * screen join them instead of reading again. Each answer is used once: a retry, or any later read of the same query,
+ * asks the API itself. The spaces are read only for a signed-in person and the sign-up mode only for a visitor; when
+ * the HTML's read of either failed on the network, the API is asked here.
  */
 export const seedEarlyReads = (queryClient: QueryClient, apis: SpaApis, early: EarlyReads): void => {
   let me: Promise<Response> | null = early.me;
@@ -45,6 +47,27 @@ export const seedEarlyReads = (queryClient: QueryClient, apis: SpaApis, early: E
   // A profile read that failed on the network is the guard's to read again; no spaces are read for it here.
   void early.me.then(
     (answer) => {
+      if (answer.status === 401) {
+        let signUp: Promise<Response | null> | null = early.signUp;
+        void queryClient.prefetchQuery({
+          ...signUpModeQuery(apis.sessionApi),
+          queryFn: async () => {
+            const slot = signUp;
+            signUp = null;
+            // Ruling P143, as signUpModeQuery reads it: closed only when the API says so.
+            try {
+              const pending = slot ? await slot : null;
+              return signUpModeFrom(
+                pending
+                  ? await earlyResult<{ signUp: "open" | "closed" }>(Promise.resolve(pending))
+                  : await apis.sessionApi.GET("/api/v1/auth/sign-up"),
+              );
+            } catch {
+              return "open";
+            }
+          },
+        });
+      }
       if (!answer.ok) return;
       let spaces: Promise<Response | null> | null = early.spaces;
       void queryClient.prefetchQuery({

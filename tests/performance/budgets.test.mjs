@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import budgets from "./budgets.json" with { type: "json" };
 import {
   appliedLcp,
+  confirmations,
+  pastDeadline,
   budgetFailures,
   debugPortFor,
   frontContainer,
@@ -143,6 +145,37 @@ describe("performance budgets (ruling P134)", () => {
         ]),
       );
     }
+  });
+
+  it("confirms misses for a few routes only, so a slow build fails the job instead of running past its timeout", async () => {
+    const budget = confirmations(1);
+    const always = (lcp) => {
+      const calls = [];
+      return { calls, sample: async () => (calls.push(lcp), { lcp, lcpElement: null }) };
+    };
+    const first = always(3000);
+    expect((await appliedLcp(first.sample, 2500, budget)).lcp).toBe(3000);
+    expect(first.calls).toHaveLength(3);
+    // The confirmations are spent: the next miss stands on its one run.
+    const second = always(3000);
+    expect((await appliedLcp(second.sample, 2500, budget)).lcp).toBe(3000);
+    expect(second.calls).toHaveLength(1);
+    // A route within its budget never spends one.
+    const fresh = confirmations(1);
+    await appliedLcp(always(2000).sample, 2500, fresh);
+    expect(fresh.left).toBe(1);
+  });
+
+  it("stops measuring before the job's timeout and names the routes it left out", () => {
+    const started = 1_000_000;
+    expect(pastDeadline(started, started + 29 * 60_000)).toBe(false);
+    expect(pastDeadline(started, started + 31 * 60_000)).toBe(true);
+    expect(
+      budgetFailures([{ route: "/spaces/:id", skipped: true }], {
+        metrics: budgets.metrics,
+        scriptKb: { "/spaces/:id": 1 },
+      }),
+    ).toEqual(["/spaces/:id: not measured, the run reached its time limit"]);
   });
 
   it("gives each parallel run its own Chromium debug port, derived from its server port", () => {

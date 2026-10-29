@@ -41,6 +41,21 @@ describe("sharedContextOf (HU-E9-06, ruling P168)", () => {
     });
   });
 
+  it("starts a draft on the account it is given, else never on a savings account while another exists (#208)", () => {
+    const context = {
+      members: MEMBERS,
+      meMemberId: "m-ana",
+      myAccounts: [accountDto({ id: "a-savings", type: "SAVINGS" }), accountDto({ id: "a-bank" })],
+      funds: [],
+    };
+    expect(initialSplitDraft(context).payer).toMatchObject({ accountId: "a-bank" });
+    expect(initialSplitDraft(context, null).payer).toMatchObject({ accountId: "a-bank" });
+    expect(initialSplitDraft(context, "a-savings").payer).toMatchObject({ accountId: "a-savings" });
+    expect(
+      initialSplitDraft({ ...context, myAccounts: [accountDto({ id: "a-only", type: "SAVINGS" })] }).payer,
+    ).toMatchObject({ accountId: "a-only" });
+  });
+
   it("answers null for someone who is not a current member", () => {
     expect(
       sharedContextOf({ meUserId: "u-x", members: MEMBERS, personalAccounts: [], spaceAccounts: [] }),

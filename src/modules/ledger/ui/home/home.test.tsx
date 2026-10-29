@@ -69,6 +69,32 @@ describe("home (HU-E9-01)", () => {
   });
 });
 
+describe("the month across every space (U4, issue #209)", () => {
+  const home = (allSpaces?: ComponentProps<typeof HomeSummary>["allSpaces"]) =>
+    renderWithIntl(
+      <HomeSummary
+        spaceId="sp-personal"
+        policy={{ kind: "MONTHLY", day: 1 }}
+        page={octoberPage}
+        accounts={[accountDto()]}
+        context={rowContext}
+        allSpaces={allSpaces}
+      />,
+    );
+
+  it("adds the person's consumption across her spaces under the summary, one tap from Mi consumo", () => {
+    home({ total: cop(1_383_000), href: "/spaces/sp-personal/plan" });
+    const link = screen.getByRole("link", { name: /Tu mes en todos tus espacios/ });
+    expect(norm(link.textContent)).toContain("Tu mes en todos tus espacios: $ 1.383.000");
+    expect(link).toHaveAttribute("href", "/spaces/sp-personal/plan");
+  });
+
+  it("shows nothing more without it, as in a space of its own", () => {
+    home();
+    expect(screen.queryByRole("link", { name: /Tu mes en todos tus espacios/ })).not.toBeInTheDocument();
+  });
+});
+
 describe("the home's recent rows open their detail (ruling P189)", () => {
   const recent = { ...octoberPage, items: octoberPage.items.slice(0, 3) };
   const summary = (props: Partial<ComponentProps<typeof HomeSummary>> = {}) => (

@@ -26,6 +26,10 @@ export const viewerOf = async (
 
 export const sharedSpace = (space: SpaceDto) => space.kind !== "PERSONAL";
 
+/** U4 (#209): the personal home of someone with other spaces also shows her month across all of them. */
+export const showsUnifiedMonth = ({ space, spaces }: Pick<Viewer, "space" | "spaces">) =>
+  space.kind === "PERSONAL" && spaces.some(sharedSpace);
+
 /**
  * A route's loader: its router context, and why it runs. TanStack Router says "enter" for a visit, "preload" for a
  * prefetch on intent, and "stay" when only the address of the screen on display changed (a sheet, a filter).

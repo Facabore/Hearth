@@ -57,14 +57,14 @@ describe("line editor (HU-E9-08)", () => {
         },
       }),
     );
-    const figures = normalized(screen.getByRole("region", { name: "Cifras de la línea" }).textContent);
+    const figures = normalized(screen.getByRole("region", { name: "Cifras del rubro" }).textContent);
     expect(figures).toContain("Arrastrado+$ 200.000 de octubre 2026");
-    await userEvent.click(screen.getByRole("radio", { name: "Reinicia" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Empieza de cero" }));
     const modes = screen.getByRole("radiogroup", { name: "Al cambiar de período" });
     expect(modes).toHaveAccessibleDescription("Cada período empieza en cero.");
     await userEvent.click(screen.getByRole("radio", { name: "Acumula" }));
     expect(modes).toHaveAccessibleDescription(
-      "Lo que sobra pasa al siguiente período y no cuenta contra la capacidad. Úsalo para ahorrar cada mes para un gasto anual, como el SOAT, el predial o un seguro. Pasa cuando el plan siguiente se crea como copia de este y este se cierra.",
+      "Lo que sobra pasa al siguiente período y no cuenta contra lo aportado. Úsalo para ahorrar cada mes para un gasto anual, como el SOAT, el predial o un seguro. Pasa cuando el plan siguiente se crea como copia de este y este se cierra.",
     );
     await userEvent.click(screen.getByRole("radio", { name: "Ajusta" }));
     expect(modes).toHaveAccessibleDescription(
@@ -84,27 +84,25 @@ describe("line editor (HU-E9-08)", () => {
         },
       }),
     );
-    expect(normalized(screen.getByRole("region", { name: "Cifras de la línea" }).textContent)).toContain(
+    expect(normalized(screen.getByRole("region", { name: "Cifras del rubro" }).textContent)).toContain(
       "ArrastradoSe arrastra de octubre 2026 cuando ese plan se cierre.",
     );
   });
 
   it("shows no carry-over figure when the line carries nothing", () => {
     show(planLineDto());
-    expect(screen.getByRole("region", { name: "Cifras de la línea" }).textContent).not.toContain(
-      "Arrastrado",
-    );
+    expect(screen.getByRole("region", { name: "Cifras del rubro" }).textContent).not.toContain("Arrastrado");
   });
 
   it("adds Rent funded by the shared fund with rollover RESET (@golden)", async () => {
     const { api, requests } = fakeApi({ [ADD]: added });
     const { container } = show(null, api);
-    expect(screen.getByRole("heading", { level: 1, name: "Nueva línea" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Nuevo rubro" })).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Nombre"), "Rent");
     await userEvent.type(screen.getByLabelText("Planeado"), "1.200.000");
-    await userEvent.click(screen.getByRole("radio", { name: "Fondo compartido" }));
-    expect(screen.getByRole("radio", { name: "Reinicia" })).toBeChecked();
-    await userEvent.click(screen.getByRole("button", { name: "Agregar línea" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Sale del fondo común" }));
+    expect(screen.getByRole("radio", { name: "Empieza de cero" })).toBeChecked();
+    await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
     expect(await requests[0]!.json()).toEqual({
       name: "Rent",
       plannedAmount: { amount: "120000000", currency: "COP" },
@@ -131,15 +129,15 @@ describe("line editor (HU-E9-08)", () => {
         api={api}
       />,
     );
-    expect(screen.queryByRole("group", { name: "Quién responde por la línea" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Quién responde por el rubro" })).not.toBeInTheDocument();
     expect(screen.queryByText(/Quién responde/)).not.toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Nombre"), "Mercado");
     await userEvent.type(screen.getByLabelText("Planeado"), "500.000");
-    await userEvent.click(screen.getByRole("radio", { name: "Directo" }));
-    await userEvent.click(screen.getByRole("button", { name: "Agregar línea" }));
-    expect(screen.queryByText(/Nadie tiene capacidad/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("radio", { name: "Cada uno paga" }));
+    await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
+    expect(screen.queryByText(/Nadie aporta en este plan/)).not.toBeInTheDocument();
     // #170: a personal space has no shared fund to offer.
-    expect(screen.queryByRole("radio", { name: "Fondo compartido" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "Sale del fondo común" })).not.toBeInTheDocument();
     expect(requests).toHaveLength(1);
     expect(await requests[0]!.json()).toMatchObject({ name: "Mercado", funding: "DIRECT" });
   });
@@ -151,7 +149,7 @@ describe("line editor (HU-E9-08)", () => {
       referencePlanDto({ lines: [], capacities: [], totalCapacity: cop(0), planned: cop(0) }),
     );
     expect(screen.getByLabelText("Planeado")).toHaveAccessibleDescription(
-      /Nadie tiene capacidad en este plan: asigna por porcentaje o por monto fijo\./,
+      /Nadie aporta en este plan: reparte por porcentaje o por monto fijo\./,
     );
   });
 
@@ -163,8 +161,8 @@ describe("line editor (HU-E9-08)", () => {
     await userEvent.type(screen.getByLabelText("Nombre"), "Rent");
     await userEvent.type(planned, "1200b000");
     expect(planned).toHaveValue("1.200.000");
-    await userEvent.click(screen.getByRole("radio", { name: "Fondo compartido" }));
-    await userEvent.click(screen.getByRole("button", { name: "Agregar línea" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Sale del fondo común" }));
+    await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
     expect(await requests[0]!.json()).toMatchObject({
       name: "Rent",
       plannedAmount: { amount: "120000000", currency: "COP" },
@@ -176,10 +174,10 @@ describe("line editor (HU-E9-08)", () => {
     show(null, api);
     await userEvent.type(screen.getByLabelText("Nombre"), "Savings");
     await userEvent.type(screen.getByLabelText("Planeado"), "600.000");
-    await userEvent.click(screen.getByRole("radio", { name: "Ahorro" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Va al ahorro" }));
     expect(screen.queryByRole("switch", { name: "Todo lo demás" })).toBeNull();
     await userEvent.click(screen.getByRole("checkbox", { name: "Ahorros" }));
-    await userEvent.click(screen.getByRole("button", { name: "Agregar línea" }));
+    await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
     expect(await requests[0]!.json()).toMatchObject({
       funding: "SAVINGS",
       isCatchAll: false,
@@ -193,7 +191,7 @@ describe("line editor (HU-E9-08)", () => {
     await userEvent.type(screen.getByLabelText("Nombre"), "Free");
     await userEvent.type(screen.getByLabelText("Planeado"), "730.000");
     await userEvent.click(screen.getByRole("switch", { name: "Todo lo demás" }));
-    await userEvent.click(screen.getByRole("button", { name: "Agregar línea" }));
+    await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
     expect(await requests[0]!.json()).toMatchObject({ name: "Free", isCatchAll: true });
   });
 
@@ -203,14 +201,14 @@ describe("line editor (HU-E9-08)", () => {
         jsonResponse(referencePlanDto({ version: 8 })),
     });
     show(planLineDto({ spent: cop(1_300_000), available: cop(170_000) }), api);
-    const figures = normalized(screen.getByRole("region", { name: "Cifras de la línea" }).textContent);
+    const figures = normalized(screen.getByRole("region", { name: "Cifras del rubro" }).textContent);
     expect(figures).toContain("Planeado$ 1.470.000");
     expect(figures).toContain("Gastado$ 1.300.000");
     expect(figures).toContain("Disponible$ 170.000");
-    expect(screen.getByText("36,75 % de la capacidad · sin asignar $ 0")).toBeInTheDocument();
+    expect(screen.getByText("36,75 % de lo aportado · por repartir $ 0")).toBeInTheDocument();
     await userEvent.clear(screen.getByLabelText("Planeado"));
     await userEvent.type(screen.getByLabelText("Planeado"), "1.500.000");
-    await userEvent.click(screen.getByRole("button", { name: "Guardar línea" }));
+    await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
     expect(await requests[0]!.json()).toEqual({ plannedAmount: { amount: "150000000", currency: "COP" } });
   });
 
@@ -219,7 +217,7 @@ describe("line editor (HU-E9-08)", () => {
     show(null, api);
     await userEvent.type(screen.getByLabelText("Nombre"), "Home");
     await userEvent.type(screen.getByLabelText("Planeado"), "100.000");
-    await userEvent.click(screen.getByRole("button", { name: "Agregar línea" }));
+    await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
     await waitFor(() => expect(screen.getByLabelText("Nombre")).toHaveAttribute("aria-invalid", "true"));
     expect(router.push).not.toHaveBeenCalled();
   });
@@ -230,7 +228,7 @@ describe("line editor (HU-E9-08)", () => {
         jsonResponse(referencePlanDto({ version: 8 })),
     });
     show(planLineDto({ id: "l-free", name: "Free" }), api);
-    await userEvent.click(screen.getByRole("button", { name: "Quitar línea" }));
+    await userEvent.click(screen.getByRole("button", { name: "Quitar rubro" }));
     const sheet = await screen.findByRole("dialog", { name: "¿Quitar Free?" });
     await userEvent.click(within(sheet).getByRole("button", { name: "Quitar" }));
     await waitFor(() => expect(router.push).toHaveBeenCalledWith("/spaces/sp-household/plans/p-nov"));
@@ -246,7 +244,7 @@ describe("line editor (HU-E9-08)", () => {
     expect(other).toBeChecked();
     await userEvent.click(screen.getByRole("checkbox", { name: "Ahorros" }));
     await userEvent.click(other);
-    await userEvent.click(screen.getByRole("button", { name: "Guardar línea" }));
+    await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
     expect(await requests[0]!.json()).toEqual({ savingsAccountIds: ["a-savings"] });
   });
 
@@ -255,7 +253,7 @@ describe("line editor (HU-E9-08)", () => {
     const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse(referencePlanDto({ version: 8 })) });
     show(planLineDto({ funding: "SAVINGS", savingsAccountIds: ["a-juan"], rolloverMode: "RESET" }), api);
     await userEvent.click(screen.getByRole("radio", { name: "Acumula" }));
-    await userEvent.click(screen.getByRole("button", { name: "Guardar línea" }));
+    await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
     expect(await requests[0]!.json()).toEqual({ rolloverMode: "ROLLOVER" });
   });
 
@@ -263,9 +261,9 @@ describe("line editor (HU-E9-08)", () => {
     const PATCH = "PATCH /api/v1/spaces/{spaceId}/plans/{planId}/lines/{lineId}";
     const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse(referencePlanDto({ version: 8 })) });
     show(planLineDto(), api);
-    expect(screen.getByRole("radio", { name: "Reinicia" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Empieza de cero" })).toBeChecked();
     await userEvent.click(screen.getByRole("radio", { name: "Ajusta" }));
-    await userEvent.click(screen.getByRole("button", { name: "Guardar línea" }));
+    await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
     expect(await requests[0]!.json()).toEqual({ rolloverMode: "ADJUSTED" });
   });
 
@@ -283,7 +281,7 @@ describe("line editor (HU-E9-08)", () => {
         api={api}
       />,
     );
-    await userEvent.click(screen.getByRole("radio", { name: "Ahorro" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Va al ahorro" }));
     expect(screen.getByText("No tienes cuentas de ahorro en COP. Crea una en Cuentas.")).toBeInTheDocument();
   });
 
@@ -292,7 +290,7 @@ describe("line editor (HU-E9-08)", () => {
     show(null, api);
     await userEvent.type(screen.getByLabelText("Nombre"), "Pets");
     await userEvent.type(screen.getByLabelText("Planeado"), "mucho");
-    await userEvent.click(screen.getByRole("button", { name: "Agregar línea" }));
+    await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
     expect(screen.getByText("Escribe un monto como 1.500.000.")).toBeInTheDocument();
     expect(screen.getByLabelText("Planeado")).toHaveAttribute("aria-invalid", "true");
     expect(requests).toHaveLength(0);
@@ -303,7 +301,7 @@ describe("line editor (HU-E9-08)", () => {
     show(null, api);
     await userEvent.type(screen.getByLabelText("Nombre"), "Pets");
     await userEvent.type(screen.getByLabelText("Planeado"), "9.000.000");
-    await userEvent.click(screen.getByRole("button", { name: "Agregar línea" }));
+    await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
     await waitFor(() => expect(screen.getByLabelText("Planeado")).toHaveAttribute("aria-invalid", "true"));
     expect(screen.getByLabelText("Nombre")).not.toHaveAttribute("aria-invalid");
   });
@@ -313,7 +311,7 @@ describe("line editor (HU-E9-08)", () => {
     show(null, api);
     await userEvent.type(screen.getByLabelText("Nombre"), "Pets");
     await userEvent.type(screen.getByLabelText("Planeado"), "100.000");
-    await userEvent.click(screen.getByRole("button", { name: "Agregar línea" }));
+    await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(screen.getByLabelText("Nombre")).not.toHaveAttribute("aria-invalid");
     expect(router.push).not.toHaveBeenCalled();
@@ -328,12 +326,12 @@ describe("line editor (HU-E9-08)", () => {
     show(null, api);
     await userEvent.type(screen.getByLabelText("Nombre"), "Pets");
     await userEvent.type(screen.getByLabelText("Planeado"), "100.000");
-    await userEvent.click(screen.getByRole("button", { name: "Agregar línea" }));
+    await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     await waitFor(() => expect(reread).toHaveBeenCalledTimes(1));
     expect(screen.getByLabelText("Nombre")).toHaveValue("Pets");
     // The next attempt carries the version that was read again.
-    await userEvent.click(screen.getByRole("button", { name: "Agregar línea" }));
+    await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
     const adds = () => requests.filter((request) => request.method === "POST");
     await waitFor(() => expect(adds()).toHaveLength(2));
     expect(adds().map((request) => request.headers.get("if-match"))).toEqual(['"7"', '"9"']);
@@ -351,7 +349,7 @@ describe("line editor (HU-E9-08)", () => {
     show(null, api);
     await userEvent.type(screen.getByLabelText("Nombre"), "Pets");
     await userEvent.type(screen.getByLabelText("Planeado"), "100.000");
-    const button = screen.getByRole("button", { name: "Agregar línea" });
+    const button = screen.getByRole("button", { name: "Agregar rubro" });
     // Two submits before React re-renders: only the guard, not the disabled button, can stop the second.
     act(() => {
       const form = button.closest("form")!;
@@ -370,7 +368,7 @@ describe("line editor (HU-E9-08)", () => {
         problemResponse(409, "PeriodClosed"),
     });
     show(planLineDto({ id: "l-free", name: "Free" }), api);
-    await userEvent.click(screen.getByRole("button", { name: "Quitar línea" }));
+    await userEvent.click(screen.getByRole("button", { name: "Quitar rubro" }));
     const sheet = await screen.findByRole("dialog", { name: "¿Quitar Free?" });
     await userEvent.click(within(sheet).getByRole("button", { name: "Quitar" }));
     expect(await within(sheet).findByRole("alert")).toBeInTheDocument();
@@ -379,9 +377,9 @@ describe("line editor (HU-E9-08)", () => {
 
   it("offers no removal and no figures for a new line", async () => {
     show(null);
-    expect(screen.queryByRole("button", { name: "Quitar línea" })).toBeNull();
-    expect(screen.queryByRole("region", { name: "Cifras de la línea" })).toBeNull();
-    expect(screen.getByText("Sin asignar: $ 4.000.000")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Quitar rubro" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Cifras del rubro" })).toBeNull();
+    expect(screen.getByText("Por repartir: $ 4.000.000")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute(
       "href",
       "/spaces/sp-household/plans/p-nov",
@@ -406,11 +404,11 @@ describe("line editor (HU-E9-08)", () => {
     );
     await userEvent.click(screen.getByRole("radio", { name: "Sin asignar" }));
     expect(screen.queryByRole("group", { name: "Ana" })).toBeNull();
-    const figures = normalized(screen.getByRole("region", { name: "Cifras de la línea" }).textContent);
+    const figures = normalized(screen.getByRole("region", { name: "Cifras del rubro" }).textContent);
     expect(figures).toContain("Planeado$ 730.000");
     expect(figures).toContain("Gastado$ 250.000");
     expect(figures).toContain("Disponible$ 480.000");
-    await userEvent.click(screen.getByRole("button", { name: "Guardar línea" }));
+    await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
     expect(requests.map((r) => new URL(r.url).pathname)).toEqual([
       "/api/v1/spaces/sp-household/plans/p-nov/lines/l-free/allocation",
     ]);
@@ -426,9 +424,9 @@ describe("line editor (HU-E9-08)", () => {
     await userEvent.click(screen.getByRole("radio", { name: "Porcentaje" }));
     await userEvent.type(screen.getByLabelText("Valor de Ana"), "42");
     await userEvent.type(screen.getByLabelText("Valor de Juan"), "57");
-    await userEvent.click(screen.getByRole("button", { name: "Guardar línea" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("El reparto de esta línea no cuadra.");
-    expect(screen.getByRole("region", { name: "Quién responde por la línea" })).toHaveFocus();
+    await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("El reparto de este rubro no cuadra.");
+    expect(screen.getByRole("region", { name: "Quién responde por el rubro" })).toHaveFocus();
     expect(requests).toHaveLength(0);
   });
 
@@ -459,7 +457,7 @@ describe("line editor (HU-E9-08)", () => {
     expect(screen.getByLabelText("Valor de Ana")).toHaveValue("42");
     expect(screen.getByLabelText("Valor de Juan")).toHaveValue("58");
     await userEvent.click(screen.getByRole("radio", { name: "Ajusta" }));
-    await userEvent.click(screen.getByRole("button", { name: "Guardar línea" }));
+    await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
     await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1));
     expect(requests.map((r) => r.method)).toEqual(["PATCH"]);
   });
@@ -492,7 +490,7 @@ describe("line editor (HU-E9-08)", () => {
     await userEvent.type(screen.getByLabelText("Valor de Ana"), "40");
     await userEvent.clear(screen.getByLabelText("Valor de Juan"));
     await userEvent.type(screen.getByLabelText("Valor de Juan"), "60");
-    await userEvent.click(screen.getByRole("button", { name: "Guardar línea" }));
+    await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
     await waitFor(() => expect(requests).toHaveLength(1));
     expect(await requests[0]!.json()).toEqual({
       rule: "PERCENT",
@@ -532,7 +530,7 @@ describe("line editor (HU-E9-08)", () => {
       await userEvent.type(screen.getByLabelText("Planeado"), "100.000");
       await choose("Groceries");
       expect(within(screen.getByRole("list", { name: "Categorías" })).getByText("Groceries")).toBeVisible();
-      await userEvent.click(screen.getByRole("button", { name: "Agregar línea" }));
+      await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
       await waitFor(() => expect(requests).toHaveLength(2));
       expect(requests.map((r) => [r.method, r.headers.get("if-match")])).toEqual([
         ["POST", '"7"'],
@@ -549,7 +547,7 @@ describe("line editor (HU-E9-08)", () => {
       show(planLineDto({ categoryIds: ["c-groceries"] }), api, referencePlanDto(), food);
       expect(within(screen.getByRole("list", { name: "Categorías" })).getByText("Groceries")).toBeVisible();
       await userEvent.click(screen.getByRole("radio", { name: "Ajusta" }));
-      await userEvent.click(screen.getByRole("button", { name: "Guardar línea" }));
+      await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
       await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1));
       expect(requests.map((r) => r.method)).toEqual(["PATCH"]);
     });
@@ -560,7 +558,7 @@ describe("line editor (HU-E9-08)", () => {
       });
       show(planLineDto({ categoryIds: ["c-groceries"] }), api, referencePlanDto(), food);
       await choose("Groceries", "Utilities");
-      await userEvent.click(screen.getByRole("button", { name: "Guardar línea" }));
+      await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
       await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1));
       expect(requests.map((r) => new URL(r.url).pathname)).toEqual([
         "/api/v1/spaces/sp-household/plans/p-nov/lines/l-home/categories",
@@ -574,9 +572,9 @@ describe("line editor (HU-E9-08)", () => {
       await userEvent.type(screen.getByLabelText("Nombre"), "Nest egg");
       await userEvent.type(screen.getByLabelText("Planeado"), "100.000");
       await choose("Groceries");
-      await userEvent.click(screen.getByRole("radio", { name: "Ahorro" }));
+      await userEvent.click(screen.getByRole("radio", { name: "Va al ahorro" }));
       await userEvent.click(screen.getByRole("checkbox", { name: "Ahorros" }));
-      await userEvent.click(screen.getByRole("button", { name: "Agregar línea" }));
+      await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
       await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1));
       expect(requests.map((r) => r.method)).toEqual(["POST"]);
     });
@@ -600,10 +598,10 @@ describe("line editor (HU-E9-08)", () => {
       await userEvent.type(screen.getByLabelText("Nombre"), "Pets");
       await userEvent.type(screen.getByLabelText("Planeado"), "100.000");
       await choose("Groceries");
-      await userEvent.click(screen.getByRole("button", { name: "Agregar línea" }));
-      expect(await screen.findByText("Esa categoría ya está en otra línea del plan.")).toBeVisible();
+      await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
+      expect(await screen.findByText("Esa categoría ya está en otro rubro del plan.")).toBeVisible();
       expect(router.push).not.toHaveBeenCalled();
-      await userEvent.click(screen.getByRole("button", { name: "Agregar línea" }));
+      await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
       await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1));
       expect(requests.map((r) => [r.method, new URL(r.url).pathname.split("/").slice(-2).join("/")])).toEqual(
         [
@@ -622,8 +620,8 @@ describe("line editor (HU-E9-08)", () => {
       });
       show(planLineDto(), api);
       await userEvent.click(screen.getByRole("radio", { name: "Sin asignar" }));
-      await userEvent.click(screen.getByRole("button", { name: "Guardar línea" }));
-      expect(await screen.findByText(/El reparto de esta línea no cuadra/)).toBeVisible();
+      await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
+      expect(await screen.findByText(/El reparto de este rubro no cuadra/)).toBeVisible();
       expect(router.push).not.toHaveBeenCalled();
     });
   });

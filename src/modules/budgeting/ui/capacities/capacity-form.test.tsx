@@ -54,10 +54,10 @@ describe("capacities (HU-E9-08)", () => {
       "Sugerido $ 1.650.000: tus ingresos de octubre 2026 en Personal. Solo tú lo ves.",
     );
     await userEvent.click(within(ana).getByRole("button", { name: "Usar sugerencia" }));
-    expect(screen.getByLabelText("Capacidad de Ana")).toHaveValue("1.650.000");
+    expect(screen.getByLabelText("Aporte de Ana")).toHaveValue("1.650.000");
     expect(requests).toHaveLength(0);
     expect(within(rowOf("Juan")).queryByText(/Sugerido/)).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Guardar capacidades" }));
+    await userEvent.click(screen.getByRole("button", { name: "Guardar aportes" }));
     expect(requests[0]!.headers.get("if-match")).toBe('"7"');
     expect(await requests[0]!.json()).toEqual({
       capacities: [
@@ -92,11 +92,11 @@ describe("capacities (HU-E9-08)", () => {
       [PUT]: () => jsonResponse(referencePlanDto({ version: 8 })),
     });
     show({ viewer: "u-juan", space: householdDto({ role: "MEMBER" }), api });
-    expect(screen.queryByLabelText("Capacidad de Ana")).toBeNull();
+    expect(screen.queryByLabelText("Aporte de Ana")).toBeNull();
     expect(normalized(rowOf("Ana").textContent)).toContain("$ 1.600.000");
-    await userEvent.clear(screen.getByLabelText("Capacidad de Juan"));
-    await userEvent.type(screen.getByLabelText("Capacidad de Juan"), "2.500.000");
-    await userEvent.click(screen.getByRole("button", { name: "Guardar capacidades" }));
+    await userEvent.clear(screen.getByLabelText("Aporte de Juan"));
+    await userEvent.type(screen.getByLabelText("Aporte de Juan"), "2.500.000");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar aportes" }));
     expect(await requests[0]!.json()).toEqual({
       capacities: [{ memberId: "m-juan", amount: { amount: "250000000", currency: "COP" } }],
     });
@@ -107,12 +107,12 @@ describe("capacities (HU-E9-08)", () => {
       [PUT]: () => jsonResponse(referencePlanDto({ version: 8 })),
     });
     show({ viewer: "u-juan", space: householdDto({ role: "MEMBER" }), api });
-    const field = screen.getByLabelText("Capacidad de Juan");
+    const field = screen.getByLabelText("Aporte de Juan");
     await userEvent.clear(field);
     expect(field).toHaveAccessibleDescription("Ej: 1.250,50");
     await userEvent.type(field, "2x500000");
     expect(field).toHaveValue("2.500.000");
-    await userEvent.click(screen.getByRole("button", { name: "Guardar capacidades" }));
+    await userEvent.click(screen.getByRole("button", { name: "Guardar aportes" }));
     expect(await requests[0]!.json()).toEqual({
       capacities: [{ memberId: "m-juan", amount: { amount: "250000000", currency: "COP" } }],
     });
@@ -121,12 +121,12 @@ describe("capacities (HU-E9-08)", () => {
   it("only reads for a VIEWER and for a CLOSED plan, whoever the viewer is", () => {
     const viewer = show({ viewer: "u-juan", space: householdDto({ role: "VIEWER" }) });
     expect(screen.queryByRole("textbox")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Guardar capacidades" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Guardar aportes" })).toBeNull();
     expect(normalized(rowOf("Juan (tú)").textContent)).toContain("$ 2.400.000");
     viewer.unmount();
     show({ viewer: "u-ana", plan: referencePlanDto({ status: "CLOSED" }) });
     expect(screen.queryByRole("textbox")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Guardar capacidades" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Guardar aportes" })).toBeNull();
     expect(normalized(rowOf("Ana (tú)").textContent)).toContain("$ 1.600.000");
   });
 
@@ -136,8 +136,8 @@ describe("capacities (HU-E9-08)", () => {
     expect(summary()).toContain("$ 4.000.000");
     expect(summary()).toContain("Ana $ 1.600.000 · 40,00 %");
     expect(summary()).toContain("Juan $ 2.400.000 · 60,00 %");
-    await userEvent.clear(screen.getByLabelText("Capacidad de Ana"));
-    await userEvent.type(screen.getByLabelText("Capacidad de Ana"), "9.000.000");
+    await userEvent.clear(screen.getByLabelText("Aporte de Ana"));
+    await userEvent.type(screen.getByLabelText("Aporte de Ana"), "9.000.000");
     expect(summary()).toContain("$ 4.000.000");
     expect(summary()).not.toContain("11.400.000");
     expect(summary()).toContain("Ana $ 1.600.000 · 40,00 %");
@@ -146,15 +146,15 @@ describe("capacities (HU-E9-08)", () => {
 
   it("explains the zero rule and who may change what", () => {
     show({ viewer: "u-ana" });
-    expect(screen.getByText("Quien no tiene capacidad cuenta como $ 0.")).toBeInTheDocument();
+    expect(screen.getByText("Quien no aporta cuenta como $ 0.")).toBeInTheDocument();
     expect(
-      screen.getByText("Un Miembro solo cambia la suya; Propietario y Administrador, la de todos."),
+      screen.getByText("Un Miembro solo cambia el suyo; Propietario y Administrador, el de todos."),
     ).toBeInTheDocument();
   });
 
   it("has a way back to the planner and says the period (UI rules)", () => {
     show({ viewer: "u-ana" });
-    expect(screen.getByRole("heading", { level: 1, name: "Capacidades" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Cuánto aporta cada uno" })).toBeInTheDocument();
     expect(screen.getByText("Lo que cada persona pone en noviembre 2026")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute(
       "href",
@@ -168,31 +168,31 @@ describe("capacities (HU-E9-08)", () => {
         problemResponse(422, "ValidationFailed", { errors: [{ path: "capacities.0.amount", message: "x" }] }),
     });
     show({ viewer: "u-ana", api });
-    await userEvent.clear(screen.getByLabelText("Capacidad de Juan"));
+    await userEvent.clear(screen.getByLabelText("Aporte de Juan"));
     // Letters cannot be typed (issue #164); three decimals in COP still cannot be read.
-    await userEvent.type(screen.getByLabelText("Capacidad de Juan"), "1,234");
-    await userEvent.click(screen.getByRole("button", { name: "Guardar capacidades" }));
-    expect(screen.getByLabelText("Capacidad de Juan")).toHaveAttribute("aria-invalid", "true");
+    await userEvent.type(screen.getByLabelText("Aporte de Juan"), "1,234");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar aportes" }));
+    expect(screen.getByLabelText("Aporte de Juan")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByText("Escribe un monto como 1.500.000.")).toBeInTheDocument();
     expect(requests).toHaveLength(0);
-    await userEvent.clear(screen.getByLabelText("Capacidad de Juan"));
-    await userEvent.type(screen.getByLabelText("Capacidad de Juan"), "2.400.000");
-    await userEvent.click(screen.getByRole("button", { name: "Guardar capacidades" }));
+    await userEvent.clear(screen.getByLabelText("Aporte de Juan"));
+    await userEvent.type(screen.getByLabelText("Aporte de Juan"), "2.400.000");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar aportes" }));
     await waitFor(() =>
-      expect(screen.getByLabelText("Capacidad de Ana")).toHaveAttribute("aria-invalid", "true"),
+      expect(screen.getByLabelText("Aporte de Ana")).toHaveAttribute("aria-invalid", "true"),
     );
-    expect(screen.getByLabelText("Capacidad de Juan")).not.toHaveAttribute("aria-invalid");
+    expect(screen.getByLabelText("Aporte de Juan")).not.toHaveAttribute("aria-invalid");
     expect(router.push).not.toHaveBeenCalled();
   });
 
   it("shows a refusal that names no member above the button", async () => {
     const { api } = fakeApi({ [PUT]: () => problemResponse(422, "InvalidCapacity") });
     show({ viewer: "u-ana", api });
-    await userEvent.click(screen.getByRole("button", { name: "Guardar capacidades" }));
+    await userEvent.click(screen.getByRole("button", { name: "Guardar aportes" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "La capacidad de cada miembro debe ser cero o más, y cada miembro va una sola vez.",
+      "Lo que aporta cada miembro debe ser cero o más, y cada miembro va una sola vez.",
     );
-    expect(screen.getByLabelText("Capacidad de Ana")).not.toHaveAttribute("aria-invalid");
+    expect(screen.getByLabelText("Aporte de Ana")).not.toHaveAttribute("aria-invalid");
   });
 
   it("re-reads the plan after a 412, keeps the message and saves the next time with the new version (ruling P206)", async () => {
@@ -212,11 +212,11 @@ describe("capacities (HU-E9-08)", () => {
       [GET_PLAN]: () => jsonResponse(fresh),
     });
     show({ viewer: "u-ana", api });
-    await userEvent.click(screen.getByRole("button", { name: "Guardar capacidades" }));
+    await userEvent.click(screen.getByRole("button", { name: "Guardar aportes" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Alguien cambió esto mientras lo editabas.");
-    await waitFor(() => expect(screen.getByLabelText("Capacidad de Ana")).toHaveValue("1.700.000"));
+    await waitFor(() => expect(screen.getByLabelText("Aporte de Ana")).toHaveValue("1.700.000"));
     expect(screen.getByRole("alert")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Guardar capacidades" }));
+    await userEvent.click(screen.getByRole("button", { name: "Guardar aportes" }));
     await waitFor(() => expect(router.push).toHaveBeenCalled());
     expect(
       requests.filter((request) => request.method === "PUT").map((r) => r.headers.get("if-match")),
@@ -229,7 +229,7 @@ describe("capacities (HU-E9-08)", () => {
       [PUT]: () => new Promise<Response>((resolve) => (release = resolve)),
     });
     show({ viewer: "u-ana", api });
-    const save = screen.getByRole("button", { name: "Guardar capacidades" });
+    const save = screen.getByRole("button", { name: "Guardar aportes" });
     await userEvent.dblClick(save);
     expect(save).toBeDisabled();
     expect(requests.filter((request) => request.method === "PUT")).toHaveLength(1);
@@ -243,7 +243,7 @@ describe("capacities (HU-E9-08)", () => {
       [PUT]: () => new Promise<Response>((resolve) => (release = resolve)),
     });
     show({ viewer: "u-ana", api });
-    const save = screen.getByRole("button", { name: "Guardar capacidades" });
+    const save = screen.getByRole("button", { name: "Guardar aportes" });
     // Both calls run in one batch, before React can disable the button: only the ref stops the second one.
     const key = Object.keys(save).find((name) => name.startsWith("__reactProps$"))!;
     const { onClick } = (save as unknown as Record<string, { onClick: () => void }>)[key]!;
