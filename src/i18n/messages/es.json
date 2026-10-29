@@ -1147,7 +1147,7 @@
       "suggestion": "Sugerido {amount}: tus ingresos de {period} en Personal. Solo tú lo ves.",
       "useSuggestion": "Usar sugerencia",
       "zeroNote": "Quien no aporta cuenta como {zero}.",
-      "rolesNote": "Un Miembro solo cambia la suya; Propietario y Administrador, la de todos.",
+      "rolesNote": "Un Miembro solo cambia el suyo; Propietario y Administrador, el de todos.",
       "total": "Total",
       "save": "Guardar aportes",
       "unreadable": "Escribe un monto como {example}."

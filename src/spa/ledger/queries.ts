@@ -18,7 +18,7 @@ import {
   periodQuery,
   unifiedViewQuery,
 } from "../reads";
-import { ensurer, sharedSpace, viewerOf, type Load, type Viewer } from "../load";
+import { ensurer, sharedSpace, showsUnifiedMonth, viewerOf, type Load, type Viewer } from "../load";
 import { read } from "../read";
 
 /** The home's latest rows and the list's page size, as the Next.js containers read them. */
@@ -136,9 +136,7 @@ export const loadHome = async (load: Load, spaceId: string, transactionId?: stri
   // U4 (#209): a personal home with other spaces refreshes the month across all of them beside it, never holding it.
   void Promise.all([page, viewerOf(load, spaceId)])
     .then(([{ period }, viewer]) =>
-      viewer?.space.kind === "PERSONAL" && viewer.spaces.some(sharedSpace)
-        ? ensure(unifiedViewQuery(api, spaceId, period.label))
-        : undefined,
+      viewer && showsUnifiedMonth(viewer) ? ensure(unifiedViewQuery(api, spaceId, period.label)) : undefined,
     )
     .catch(() => undefined);
   await Promise.all([

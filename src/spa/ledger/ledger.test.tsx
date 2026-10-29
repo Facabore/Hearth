@@ -81,6 +81,18 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     expect(calls(spa.requests, "GET", /\/me\/unified-view\?period=2026-10$/)).toHaveLength(1);
   });
 
+  it("keeps the personal home without the line when the unified month cannot be read", async () => {
+    const { routes } = ledgerApi({
+      "GET /api/v1/me/unified-view": () => problemResponse(500, "InternalError"),
+    });
+    const spa = renderSpa("/spaces/sp-personal", routes);
+    expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
+    await waitFor(() => expect(calls(spa.requests, "GET", /\/me\/unified-view/).length).toBeGreaterThan(0));
+    expect(screen.queryByRole("link", { name: /Tu mes en todos tus espacios/ })).not.toBeInTheDocument();
+    // The toast provider's live region is always mounted; a failed optional read leaves it empty.
+    expect(screen.getByRole("alert")).toBeEmptyDOMElement();
+  });
+
   it("reads no unified month for a person with no other space, nor in a shared space's home", async () => {
     const alone = ledgerApi({
       "GET /api/v1/spaces": () => jsonResponse({ items: [spaceDto()] }),

@@ -148,7 +148,7 @@ describe("capacities (HU-E9-08)", () => {
     show({ viewer: "u-ana" });
     expect(screen.getByText("Quien no aporta cuenta como $ 0.")).toBeInTheDocument();
     expect(
-      screen.getByText("Un Miembro solo cambia la suya; Propietario y Administrador, la de todos."),
+      screen.getByText("Un Miembro solo cambia el suyo; Propietario y Administrador, el de todos."),
     ).toBeInTheDocument();
   });
 

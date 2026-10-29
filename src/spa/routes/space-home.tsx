@@ -4,7 +4,7 @@ import { useTranslations } from "use-intl";
 import { HomeSummary, TransactionSheetHost } from "@/modules/ledger/ui";
 import { useApis } from "../api";
 import { useHome, useTransactionDetail, useViewer } from "../ledger/hooks";
-import { sharedSpace } from "../load";
+import { showsUnifiedMonth } from "../load";
 import { unifiedViewQuery } from "../reads";
 import { useTitle } from "../title";
 
@@ -25,7 +25,7 @@ export function SpaceHome() {
   const { space } = viewer;
   const home = `/spaces/${spaceId}`;
   // U4 (#209): the personal home of someone with other spaces also says what her month costs across all of them.
-  const unified = space.kind === "PERSONAL" && viewer.spaces.some(sharedSpace);
+  const unified = showsUnifiedMonth(viewer);
   const allSpaces = useQuery({
     ...unifiedViewQuery(api, spaceId, page.period.label),
     enabled: unified,
