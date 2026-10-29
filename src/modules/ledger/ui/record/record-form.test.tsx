@@ -203,6 +203,51 @@ describe("recent categories as chips (issue #173)", () => {
   });
 });
 
+describe("the account a new movement starts on (issue #208)", () => {
+  afterEach(() => localStorage.clear());
+  const savings = accountDto({ id: "a-savings", name: "Ahorros", type: "SAVINGS" });
+  const formOn = (api: Api, on: typeof accounts) =>
+    renderWithIntl(
+      <RecordForm
+        space={spaceDto()}
+        accounts={on}
+        groups={groups}
+        formats={BUILT_IN_FORMATS}
+        initialKind="EXPENSE"
+        initialNow="2026-11-01T04:30:00.000Z"
+        timeZone="America/Bogota"
+        api={api}
+      />,
+    );
+
+  it("is the account the last expense was paid from, and a save remembers the one used", async () => {
+    const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
+    const first = formOn(api, accounts);
+    await enterMarket();
+    await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
+    await userEvent.click(screen.getByRole("button", { name: /Cuenta/ }));
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("radio", { name: /Visa/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
+    expect(await requests[0]!.json()).toMatchObject({ accountId: "a-visa" });
+
+    first.unmount();
+    formOn(fakeApi({}).api, accounts);
+    expect(screen.getByRole("button", { name: /Cuenta/ })).toHaveTextContent("Visa");
+  });
+
+  it("is never a savings account while another one exists, when nothing was paid yet", () => {
+    formOn(fakeApi({}).api, [savings, ...accounts]);
+    expect(screen.getByRole("button", { name: /Cuenta/ })).toHaveTextContent("Bancolombia");
+  });
+
+  it("leaves a remembered account the form no longer offers for the first one", () => {
+    localStorage.setItem("hearth.lastAccount", "a-archived");
+    formOn(fakeApi({}).api, accounts);
+    expect(screen.getByRole("button", { name: /Cuenta/ })).toHaveTextContent("Bancolombia");
+  });
+});
+
 describe("the kind tabs (issue #182: native tabs)", () => {
   it("are one tab stop, and the arrow keys move and select the kind, wrapping", async () => {
     form(fakeApi({}).api);

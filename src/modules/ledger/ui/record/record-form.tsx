@@ -50,6 +50,7 @@ import { AmountField } from "./amount-field";
 import { DateTimeSheet } from "./date-time-sheet";
 import { DescriptionField, FormRow, RowError } from "./form-rows";
 import { LineWarningConfirm, LineWarningNote } from "./line-warning";
+import { preferredAccountId, readLastAccount, rememberLastAccount } from "./last-account";
 import { offeredRecent, parseRecent, rawRecent, rememberRecent, safeStorage } from "./recent-categories";
 import { asksFirst, lineWarningOf, type LineWatch } from "./line-watch";
 import {
@@ -263,9 +264,12 @@ export function RecordForm({
         categoryId: category.categoryId,
         subcategoryId: category.subcategoryId ?? null,
       });
+    // Issue #208: the account an expense was paid from is where the next one starts.
+    const paidFrom = sharedExpense ? (split?.payer.kind === "ME" ? split.payer.accountId : null) : accountId;
+    if (kind === "EXPENSE" && paidFrom) rememberLastAccount(safeStorage(), paidFrom);
   };
-  const [accountId, setAccountId] = useState<string | null>(
-    edit ? edit.initial.accountId : (accounts[0]?.id ?? null),
+  const [accountId, setAccountId] = useState<string | null>(() =>
+    edit ? edit.initial.accountId : preferredAccountId(accounts, readLastAccount(safeStorage())),
   );
   const [toAccountId, setToAccountId] = useState<string | null>(edit?.initial.toAccountId ?? null);
   const [chosenWhen, setChosenWhen] = useState<When | null>(edit?.initial.when ?? null);
@@ -273,7 +277,7 @@ export function RecordForm({
   const [sheetNow, setSheetNow] = useState<When>(start);
   const [pending, setPending] = useState(false);
   const [split, setSplit] = useState(
-    () => edit?.initial.split ?? (shared ? initialSplitDraft(shared) : null),
+    () => edit?.initial.split ?? (shared ? initialSplitDraft(shared, readLastAccount(safeStorage())) : null),
   );
   const [unbuilt, setUnbuilt] = useState<"amount" | "account" | "toAccount" | "payer" | "split" | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);

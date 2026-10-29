@@ -8,6 +8,8 @@ import { currencyOf } from "@/shared/ui/format/currencies";
 import { parseDecimal } from "@/shared/ui/format/amount-input";
 import { formatMoney, formatNumber, type Formats } from "@/shared/ui/format/formatters";
 import { exampleOf, type NumberRule } from "@/shared/ui/format/number-input";
+import { preferredAccountId, readLastAccount } from "../record/last-account";
+import { safeStorage } from "../record/recent-categories";
 import { equalPercents, remainingPercent, SPLIT_METHODS, type SplitMethod } from "./split-math";
 import { isUntouched, splitFailureMessage, type SplitFailure } from "./split-failure";
 import { splitCheckOf, type SplitDraft } from "./split-request";
@@ -96,7 +98,10 @@ export function SplitSheet(props: SplitSheetProps) {
         payer: {
           kind: "ME",
           memberId: id,
-          accountId: payer.kind === "ME" ? payer.accountId : (myAccounts[0]?.id ?? null),
+          accountId:
+            payer.kind === "ME"
+              ? payer.accountId
+              : preferredAccountId(myAccounts, readLastAccount(safeStorage())),
         },
       });
   };

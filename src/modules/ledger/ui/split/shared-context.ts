@@ -1,4 +1,5 @@
 import type { AccountDto, MemberDto } from "@/shared/ui/api/dto";
+import { preferredAccountId } from "../record/last-account";
 import type { SplitDraft } from "./split-request";
 
 /** HU-E9-06, ruling P168: what a shared expense's payer and split are chosen from. */
@@ -35,9 +36,19 @@ export const sharedContextOf = (input: {
   };
 };
 
-/** The recorder pays from their first account, equally among every current member, until a default or a choice. */
-export const initialSplitDraft = (context: SharedExpenseContext): SplitDraft => ({
-  payer: { kind: "ME", memberId: context.meMemberId, accountId: context.myAccounts[0]?.id ?? null },
+/**
+ * The recorder pays from the account they paid from last (issue #208), else their first that is not a savings
+ * account, equally among every current member, until a default or a choice.
+ */
+export const initialSplitDraft = (
+  context: SharedExpenseContext,
+  lastAccountId: string | null = null,
+): SplitDraft => ({
+  payer: {
+    kind: "ME",
+    memberId: context.meMemberId,
+    accountId: preferredAccountId(context.myAccounts, lastAccountId),
+  },
   method: "EQUAL",
   selected: context.members.map((member) => member.id),
   values: {},

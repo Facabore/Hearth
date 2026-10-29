@@ -97,6 +97,24 @@ const divisionRow = () => screen.getByRole("button", { name: /División/ });
 // The sheet is a lazily imported chunk: it exists only after the import resolves, so it is awaited, never assumed.
 const splitSheet = () => screen.findByRole("dialog", { name: "Quién pagó y para quién" });
 
+describe("the account a shared expense is paid from (issue #208)", () => {
+  afterEach(() => localStorage.clear());
+  const SAVINGS = accountDto({ id: "a-savings", name: "Ahorros", type: "SAVINGS" });
+  const VISA = accountDto({ id: "a-visa", name: "Visa", type: "CREDIT_CARD" });
+  const payer = () => screen.getByRole("button", { name: /Pagas tú|Pagó/ });
+
+  it("is never a savings account while the recorder has another one, when nothing was paid yet", () => {
+    form(fakeApi({}).api, { ...context(), myAccounts: [SAVINGS, BANK] });
+    expect(payer()).toHaveTextContent("Pagas tú desde Bancolombia (tu cuenta personal)");
+  });
+
+  it("is the account the recorder paid from last", () => {
+    localStorage.setItem("hearth.lastAccount", "a-visa");
+    form(fakeApi({}).api, { ...context(), myAccounts: [SAVINGS, BANK, VISA] });
+    expect(payer()).toHaveTextContent("Pagas tú desde Visa (tu cuenta personal)");
+  });
+});
+
 describe("shared expense (HU-E9-06)", () => {
   it("splits 300,000 COP equally between Ana and Juan, paid from Bancolombia, and records it once", async () => {
     const { api, requests } = fakeApi({
