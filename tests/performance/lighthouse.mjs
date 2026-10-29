@@ -29,9 +29,10 @@ export const lcpLimitFor = (route, metrics) =>
 
 /** Ruling P134: every route and metric over its budget; a route without a budget fails rather than passes. */
 export const budgetFailures = (results, budgets) =>
-  results.flatMap(({ route, lcp, cls, tbt, scriptKb }) => {
+  results.flatMap(({ route, lcp, cls, tbt, scriptKb, skipped }) => {
     const limit = budgets.scriptKb[route];
     if (limit === undefined) return [`${route}: no script budget in tests/performance/budgets.json`];
+    if (skipped) return [`${route}: not measured, the run reached its time limit`];
     const { cls: maxCls, tbtMs } = budgets.metrics;
     const lcpMs = lcpLimitFor(route, budgets.metrics);
     return [
@@ -107,18 +108,32 @@ const run = async (url, flags) => {
 };
 
 /**
- * ADR 0005: one applied run per route, since it varies by about ±50 ms and takes about 20 s on CI. A run over the
- * budget is confirmed by two more and the median of the three counts, so one stall of the runner never fails the gate.
+ * How many routes a job confirms a miss for. Confirming costs two more runs of about 20 s each: a build over budget on
+ * every route would otherwise run past the job's 45 minutes and be cancelled instead of failing (#199).
  */
-export const appliedLcp = async (sample, limitMs) => {
+export const confirmations = (routes = 4) => ({ left: routes });
+
+/**
+ * The routes' own time limit, counted from the first route: with the install, the builds and the seeding before them and
+ * the INP specs after, the job stays short of its 45-minute timeout, so the routes left are reported, not cancelled.
+ */
+export const pastDeadline = (startedAt, now = Date.now()) => now - startedAt > 30 * 60_000;
+
+/**
+ * ADR 0005: one applied run per route, since it varies by about ±50 ms and takes about 20 s on CI. A run over the
+ * budget is confirmed by two more and the median of the three counts, so one stall of the runner never fails the gate;
+ * once the job's confirmations are spent, a miss stands on its one run.
+ */
+export const appliedLcp = async (sample, limitMs, budget = { left: Infinity }) => {
   const first = await sample();
-  if (first.lcp <= limitMs) return first;
+  if (first.lcp <= limitMs || budget.left <= 0) return first;
+  budget.left -= 1;
   const samples = [first, await sample(), await sample()];
   return [...samples].sort((a, b) => a.lcp - b.lcp)[1];
 };
 
 /** One route: the medians of RUNS simulated runs for CLS, TBT and script, and the applied LCP (ADR 0005). */
-const measure = async (port, url, cookie, lcpMs) => {
+const measure = async (port, url, cookie, lcpMs, budget) => {
   const runs = [];
   for (let i = 0; i < RUNS; i += 1) {
     const { lhr, requests } = await run(url, lighthouseFlags(port, cookie));
@@ -139,15 +154,19 @@ const measure = async (port, url, cookie, lcpMs) => {
       ),
     });
   }
-  const applied = await appliedLcp(async () => {
-    const { lhr } = await run(url, lcpFlags(port, cookie));
-    // Issue #182: which element is the LCP, for diagnosis only.
-    const node = lhr.audits["lcp-breakdown-insight"]?.details?.items?.find((item) => item.type === "node");
-    return {
-      lcp: Math.round(lhr.audits["largest-contentful-paint"].numericValue),
-      lcpElement: node?.nodeLabel ?? node?.snippet ?? null,
-    };
-  }, lcpMs);
+  const applied = await appliedLcp(
+    async () => {
+      const { lhr } = await run(url, lcpFlags(port, cookie));
+      // Issue #182: which element is the LCP, for diagnosis only.
+      const node = lhr.audits["lcp-breakdown-insight"]?.details?.items?.find((item) => item.type === "node");
+      return {
+        lcp: Math.round(lhr.audits["largest-contentful-paint"].numericValue),
+        lcpElement: node?.nodeLabel ?? node?.snippet ?? null,
+      };
+    },
+    lcpMs,
+    budget,
+  );
   return {
     ...Object.fromEntries(
       ["cls", "tbt", "scriptKb", "simulatedLcp", "ttfb", "htmlKb"].map((k) => [
@@ -312,7 +331,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     try {
       const routes = Object.keys(budgets.scriptKb);
       const results = [];
+      const startedAt = Date.now();
+      const budget = confirmations();
       for (const route of routes) {
+        if (pastDeadline(startedAt)) {
+          results.push({ route, skipped: true });
+          continue;
+        }
         const url = `${BASE}${routeUrl(route, ids)}`;
         const result = {
           route,
@@ -321,6 +346,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
             url,
             isVisitorRoute(route) ? null : cookie,
             lcpLimitFor(route, budgets.metrics),
+            budget,
           )),
         };
         console.log(JSON.stringify(result));
