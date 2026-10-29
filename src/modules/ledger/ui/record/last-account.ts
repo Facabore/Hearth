@@ -1,4 +1,5 @@
 import type { AccountDto } from "@/shared/ui/api/dto";
+import { safeStorage } from "./recent-categories";
 
 const KEY = "hearth.lastAccount";
 
@@ -6,7 +7,7 @@ const KEY = "hearth.lastAccount";
  * Issue #208: the account this browser last paid an expense from, or null; a blocked storage reads as none. One key for
  * every space, because a shared expense is paid from the recorder's personal accounts too.
  */
-export const readLastAccount = (storage: Storage | undefined): string | null => {
+export const readLastAccount = (storage: Storage | undefined = safeStorage()): string | null => {
   try {
     return storage?.getItem(KEY) ?? null;
   } catch {
@@ -15,7 +16,10 @@ export const readLastAccount = (storage: Storage | undefined): string | null => 
 };
 
 /** Remembers the account an expense was paid from; a full or blocked storage only loses the convenience. */
-export const rememberLastAccount = (storage: Storage | undefined, accountId: string): void => {
+export const rememberLastAccount = (
+  accountId: string,
+  storage: Storage | undefined = safeStorage(),
+): void => {
   try {
     storage?.setItem(KEY, accountId);
   } catch {

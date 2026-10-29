@@ -23,6 +23,7 @@ import { RecordForm } from "./record-form";
 const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn(), push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 beforeEach(() => {
+  localStorage.clear();
   vi.clearAllMocks();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-11-01T04:30:00Z"));
@@ -112,6 +113,35 @@ describe("the account a shared expense is paid from (issue #208)", () => {
     localStorage.setItem("hearth.lastAccount", "a-visa");
     form(fakeApi({}).api, { ...context(), myAccounts: [SAVINGS, BANK, VISA] });
     expect(payer()).toHaveTextContent("Pagas tú desde Visa (tu cuenta personal)");
+  });
+
+  it("is remembered from a shared expense the recorder paid", async () => {
+    const { api } = fakeApi({
+      "GET /api/v1/spaces/{spaceId}/default-split": (r) => equal(amountOf(r)),
+      "POST /api/v1/spaces/{spaceId}/expenses": recordedAt,
+    });
+    form(api);
+    await enter("300000");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
+    expect(localStorage.getItem("hearth.lastAccount")).toBe("a-bank");
+  });
+
+  it("is not remembered from an expense the fund paid", async () => {
+    localStorage.setItem("hearth.lastAccount", "a-visa");
+    const fund = accountDto({ id: "a-fund", name: "Fondo Hogar", type: "SHARED_FUND", ownerUserId: null });
+    const { api } = fakeApi({
+      "GET /api/v1/spaces/{spaceId}/default-split": (r) => equal(amountOf(r)),
+      "POST /api/v1/spaces/{spaceId}/expenses": recordedAt,
+    });
+    form(api, { ...context(MEMBERS, [fund]), myAccounts: [BANK, VISA] });
+    await enter("300000");
+    await userEvent.click(payer());
+    await userEvent.click(await screen.findByRole("radio", { name: "Fondo Hogar" }));
+    await userEvent.click(screen.getByRole("button", { name: "Listo" }));
+    await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
+    expect(localStorage.getItem("hearth.lastAccount")).toBe("a-visa");
   });
 });
 

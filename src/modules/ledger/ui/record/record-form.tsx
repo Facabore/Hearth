@@ -266,10 +266,10 @@ export function RecordForm({
       });
     // Issue #208: the account an expense was paid from is where the next one starts.
     const paidFrom = sharedExpense ? (split?.payer.kind === "ME" ? split.payer.accountId : null) : accountId;
-    if (kind === "EXPENSE" && paidFrom) rememberLastAccount(safeStorage(), paidFrom);
+    if (kind === "EXPENSE" && paidFrom) rememberLastAccount(paidFrom);
   };
   const [accountId, setAccountId] = useState<string | null>(() =>
-    edit ? edit.initial.accountId : preferredAccountId(accounts, readLastAccount(safeStorage())),
+    edit ? edit.initial.accountId : preferredAccountId(accounts, readLastAccount()),
   );
   const [toAccountId, setToAccountId] = useState<string | null>(edit?.initial.toAccountId ?? null);
   const [chosenWhen, setChosenWhen] = useState<When | null>(edit?.initial.when ?? null);
@@ -277,7 +277,7 @@ export function RecordForm({
   const [sheetNow, setSheetNow] = useState<When>(start);
   const [pending, setPending] = useState(false);
   const [split, setSplit] = useState(
-    () => edit?.initial.split ?? (shared ? initialSplitDraft(shared, readLastAccount(safeStorage())) : null),
+    () => edit?.initial.split ?? (shared ? initialSplitDraft(shared, readLastAccount()) : null),
   );
   const [unbuilt, setUnbuilt] = useState<"amount" | "account" | "toAccount" | "payer" | "split" | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
