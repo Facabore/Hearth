@@ -87,7 +87,14 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     });
     const spa = renderSpa("/spaces/sp-personal", routes);
     expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
-    await waitFor(() => expect(calls(spa.requests, "GET", /\/me\/unified-view/).length).toBeGreaterThan(0));
+    // The read has failed for good (after its one retry of a 5xx) before the home is checked.
+    await waitFor(
+      () =>
+        expect(
+          spa.queryClient.getQueryState(["reports", "sp-personal", "unified", { period: "2026-10" }]),
+        ).toMatchObject({ status: "error", fetchStatus: "idle" }),
+      { timeout: 5_000 },
+    );
     expect(screen.queryByRole("link", { name: /Tu mes en todos tus espacios/ })).not.toBeInTheDocument();
     // The toast provider's live region is always mounted; a failed optional read leaves it empty.
     expect(screen.getByRole("alert")).toBeEmptyDOMElement();
