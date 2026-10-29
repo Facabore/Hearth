@@ -152,7 +152,7 @@ Then(/^the form notes "([^"]+)"$/, async ({ page }, note: string) => {
 Then(/^tapping "([^"]+)" saves it without asking$/, async ({ page, world }, button: string) => {
   expect(button).toBe(world.t("ledger.form.save.EXPENSE"));
   await page.getByRole("button", { name: button, exact: true }).click();
-  // Asking would keep the form open on its question; a NEAR note saves on the first tap (ruling P235).
+  // Asking would keep the form open on its question; a NEAR or HIGH note saves on the first tap (#211).
   await expect(page).toHaveURL(/\/transactions/);
   expect(await typedExpenses(world, householdOf(world).spaceId)).toHaveLength(1);
 });

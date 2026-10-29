@@ -37,7 +37,7 @@ import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import { safeReturnTo, withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { minorOf, parseDecimal } from "@/shared/ui/format/amount-input";
 import { currencyOf } from "@/shared/ui/format/currencies";
-import { formatMoney, formatNumber, type Formats } from "@/shared/ui/format/formatters";
+import { formatMoney, formatNumber, formatPercent, type Formats } from "@/shared/ui/format/formatters";
 import { browserTimeZone } from "@/shared/ui/format/zones";
 import { nowIn } from "@/shared/ui/time/when";
 import type { Person } from "../direct/counterparts";
@@ -202,7 +202,15 @@ export function RecordForm({
   // Issue #172: the save lands where the form was opened, so the toast offers the movement itself.
   const savedToast = (kind: RecordKind, spaceId: string, transactionId: string | undefined) =>
     toast.show({
-      message: t(`toast.saved.${kind}`),
+      // #211: an expense that leaves its line above 90 % saves at once, and the toast says where the line is left.
+      message:
+        kind === "EXPENSE" && warning?.level === "HIGH"
+          ? t("lineWarning.saved", {
+              line: warning.line,
+              used: warning.used === null ? "" : formatPercent(warning.used, formats),
+              rest: formatMoney(warning.rest, formats),
+            })
+          : t(`toast.saved.${kind}`),
       ...(transactionId
         ? {
             action: {

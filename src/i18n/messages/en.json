@@ -753,6 +753,7 @@
       "near": "With this expense, {line} would be at {used} of its plan.",
       "high": "With this expense, {line} would be at {used} of its plan, with {rest} left.",
       "over": "With this expense you would go {rest} over on {line}.",
+      "saved": "Expense saved. {line} is at {used} of its plan, with {rest} left.",
       "confirmTitle": "Save anyway?",
       "confirm": "Save anyway",
       "review": "Review the amount"

@@ -19,6 +19,7 @@
 | U10 | The unified view has one hero figure, "Lo que gastaste tú". "Lo que pagaste" is a secondary line with "¿Por qué es distinto?". The view opens as a stacked screen from the U4 shortcut, with a back button. | Mi consumo | Recommended (P10): two equal heroes competed. The stacked screen matches U4. |
 | U11 | The personal record form gets a row "¿Lo compartiste? Dividir con alguien" under the category, opening "Dividir con alguien" and returning with the split applied. | Registro rápido (Personal) | Recommended (critique #14): the screen existed but had no way in. |
 | U12 | Every save confirms with a toast and shows the changed state, never the unchanged previous screen. | Every form that saves | Recommended (critique #15): found while testing case 8, where saving a payment showed the old debt. |
+| U13 | An expense that leaves its line above 90 % saves at once, and the toast says where the line is left ("Gasto guardado. Home quedó en 94 % de lo planeado y le quedan $ 85.000."). Only an expense that goes over its line asks "¿Guardar de todos modos?", and that question brings its buttons into view above the bottom bar. A line's share is a whole percent, rounded down. Amends rulings P235 and P237 (#142). | Record form | Owner (2026-10-29, #211), from finding F4 of the [UX audit](2026-10-28-ux-audit.md): asking from 90 % stopped the most frequent job late in the month and hid its own button. |
 
 ## Glossary: UI word → model term
 

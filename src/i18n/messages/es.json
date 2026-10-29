@@ -753,6 +753,7 @@
       "near": "Con este gasto, {line} quedaría en {used} de lo planeado.",
       "high": "Con este gasto, {line} quedaría en {used} de lo planeado y le quedarían {rest}.",
       "over": "Con este gasto te pasarías por {rest} en {line}.",
+      "saved": "Gasto guardado. {line} quedó en {used} de lo planeado y le quedan {rest}.",
       "confirmTitle": "¿Guardar de todos modos?",
       "confirm": "Guardar de todos modos",
       "review": "Revisar el monto"

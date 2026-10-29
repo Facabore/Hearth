@@ -40,14 +40,14 @@ const warn = (
   });
 
 describe("the line warning (#142, rulings P235 and P236 of M6c)", () => {
-  it("says nothing below 80 %, notes from 80 % through 90 %, and asks above 90 % or over the line", () => {
+  it("says nothing below 80 %, notes from 80 % on in whole percents, and asks only over the line (#211)", () => {
     expect(warn(99_999)).toBeNull();
-    expect(warn(100_000)).toEqual({ level: "NEAR", line: "Home", used: "80.00", rest: cop(200_000) });
-    expect(warn(200_000)).toEqual({ level: "NEAR", line: "Home", used: "90.00", rest: cop(100_000) });
-    expect(warn(200_100)).toEqual({ level: "HIGH", line: "Home", used: "90.01", rest: cop(99_900) });
-    expect(warn(300_000)).toEqual({ level: "HIGH", line: "Home", used: "100.00", rest: cop(0) });
+    expect(warn(100_000)).toEqual({ level: "NEAR", line: "Home", used: "80", rest: cop(200_000) });
+    expect(warn(200_000)).toEqual({ level: "NEAR", line: "Home", used: "90", rest: cop(100_000) });
+    expect(warn(200_100)).toEqual({ level: "HIGH", line: "Home", used: "90", rest: cop(99_900) });
+    expect(warn(300_000)).toEqual({ level: "HIGH", line: "Home", used: "100", rest: cop(0) });
     expect(warn(342_300)).toEqual({ level: "OVER", line: "Home", used: null, rest: cop(42_300) });
-    expect([warn(100_000), warn(200_100), warn(342_300)].map(asksFirst)).toEqual([false, true, true]);
+    expect([warn(100_000), warn(200_100), warn(342_300)].map(asksFirst)).toEqual([false, false, true]);
   });
 
   it("measures the line against planned plus what it carried in (HU-E6-09)", () => {
@@ -57,7 +57,7 @@ describe("the line warning (#142, rulings P235 and P236 of M6c)", () => {
     expect(warn(500_000, {}, carrying)).toEqual({
       level: "NEAR",
       line: "Home",
-      used: "80.00",
+      used: "80",
       rest: cop(300_000),
     });
   });

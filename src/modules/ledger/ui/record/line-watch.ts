@@ -33,22 +33,20 @@ export type LineLevel = Exclude<LineState, "OK">;
 export interface LineWarning {
   readonly level: LineLevel;
   readonly line: string;
-  /** The share of the line's budget used after the expense, as the API writes shares ("94.21"); null when OVER. */
+  /** The whole percent of the line's budget used after the expense, rounded down ("94"); null when OVER (#211). */
   readonly used: string | null;
   /** What would be left (NEAR, HIGH) or how much over (OVER), never negative. */
   readonly rest: MoneyDto;
 }
 
-const shareText = (used: bigint, budget: bigint): string => {
-  const basisPoints = (used * 10_000n) / budget;
-  return `${basisPoints / 100n}.${String(basisPoints % 100n).padStart(2, "0")}`;
-};
+/** #211: whole percents, rounded down, so a line short of its plan never reads 100 %. */
+const shareText = (used: bigint, budget: bigint): string => String((used * 100n) / budget);
 
 /**
  * #142, ruling P235 (M6c): a labelled preview of the state `amountMinor` would leave its line in; the server's
  * dashboard has the last word. The line's budget is planned + carry-over (HU-E6-09), and after the expense
  * available − amount is left. The levels are the API's own `lineStateOf` (ruling P244), so the form and the
- * dashboard cannot disagree. Integer arithmetic in minor units; the share is rounded down to two decimals.
+ * dashboard cannot disagree. Integer arithmetic in minor units; the share is a whole percent, rounded down (#211).
  */
 export const lineWarningOf = (
   watch: LineWatch | null,
@@ -77,6 +75,5 @@ export const lineWarningOf = (
   return { level: state, line: line.name, used: shareText(budget - after, budget), rest: money(after) };
 };
 
-/** Ruling P235: HIGH and OVER ask before saving; NEAR is a note. */
-export const asksFirst = (warning: LineWarning | null): boolean =>
-  warning !== null && warning.level !== "NEAR";
+/** #211 (amends ruling P235): only an expense that goes over its line asks before saving; NEAR and HIGH are notes. */
+export const asksFirst = (warning: LineWarning | null): boolean => warning?.level === "OVER";

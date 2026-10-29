@@ -382,7 +382,7 @@ Plan: [`2026-10-21-m6c-planner-and-dashboards.md`](../plans/2026-10-21-m6c-plann
 | P232 | A sinking fund is a ROLLOVER line whose planned amount is the monthly saving toward a yearly bill; M6c adds no target amount, due date or "on track" figure. | Rulings, 33 |
 | P233 | #142's check runs in the browser over the line dashboard that the record form's container reads on the server, so Save still sends its one request; a preview endpoint and a debounced preview call were rejected. | Rulings, 34 |
 | P234 | `GET …/reports/lines` answers `categoryLines` for every live category, computed by budgeting's own `lineForCategory` and `rolledUpCategory`; a SAVINGS line is never checked. | Rulings, 35 |
-| P235 | The warning's budget is planned + carry-over and its level is the kernel's `lineStateOf` over what would be left: OVER asks and states the overage ("te pasarías por $ 42.300") with no percentage, HIGH (above 90 %) asks, NEAR (80 % through 90 %) is a neutral note, and below 80 % nothing shows. | Rulings, 36 |
+| P235 | The warning's budget is planned + carry-over and its level is the kernel's `lineStateOf` over what would be left: OVER asks and states the overage ("te pasarías por $ 42.300") with no percentage, HIGH (above 90 %) asks, NEAR (80 % through 90 %) is a neutral note, and below 80 % nothing shows. Amended by U13 (#211): HIGH no longer asks, and the share is a whole percent. | Rulings, 36 |
 | P236 | The check applies only to an EXPENSE in the form's own space (not a split or an edit), dated inside the loaded period, whose plan is ACTIVE and whose category feeds a non-SAVINGS line, with an amount above 0; a failed read means no check. | Rulings, 37 |
 | P237 | The warning is part of the form: a note that Save names with `aria-describedby` and a confirmation panel whose heading takes focus, with "Guardar de todos modos" and "Revisar el monto"; a change of amount, category or date asks again. | Rulings, 38 |
 | P238 | `GET /api/v1/me/cash-flow` (`days` 30 or 60) projects each ACTIVE recurrence's dates and every PENDING occurrence through the ledger's `listScheduledMovements` port, across the caller's current spaces, from today in their zone; nothing new is stored. | Rulings, 39 |
@@ -448,7 +448,7 @@ Two follow-up issues changed what M2-C accepted or ruled. They carry no P number
 | O2 (no lock against concurrent money writes, assumption 4) | Issue #89 adds the lock. Leaving, removing a guest and archiving lock the space row `FOR NO KEY UPDATE` right after authorization, and every money write locks it `FOR SHARE` before it reads the membership (the order is always space row first, then member rows), so each race ends as one of its two serial orders. The space row, not the member rows, because `FOR UPDATE` on member rows conflicts with the `FOR KEY SHARE` locks the foreign keys of every insert take. | [HU-E1-08](../backlog/E1-identity-and-spaces.md), `src/modules/spaces/application/space-locks.ts` |
 | O1 (a former member stays settled, Task 4b) | Issue #90 keeps the rule and lifts its dead end: a user who joins again takes back their own member row (`leftAt` cleared, new role, name and `joinedAt`), so what names that member id names a current member and can be corrected. A former member who has not joined again stays settled. | [HU-E1-07](../backlog/E1-identity-and-spaces.md) |
 
-## UI design decisions U1–U12
+## UI design decisions U1–U13
 
 UX decisions on screens, made from the Penpot design reviews. Each row's rationale and the before/after boards are in [batch2-ux-decisions.md](../design/batch2-ux-decisions.md).
 
@@ -466,6 +466,7 @@ UX decisions on screens, made from the Penpot design reviews. Each row's rationa
 | U10 | The unified view has one hero figure. |
 | U11 | The personal record form offers "Dividir con alguien". |
 | U12 | Every save confirms with a toast and shows the changed state. |
+| U13 | An expense above 90 % of its line saves at once and the toast says where the line is left; only one over the line asks; shares are whole percents (#211, amends P235 and P237). |
 
 ## How to add a decision
 
