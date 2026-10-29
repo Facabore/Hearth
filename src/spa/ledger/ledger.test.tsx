@@ -12,6 +12,7 @@ import {
   spaceDto,
 } from "../../../tests/support/ui/dto";
 import { jsonResponse, problemResponse, type FakeHandler } from "../../../tests/support/ui/fake-api";
+import { e74Unified } from "../../../tests/support/ui/plan-dto";
 import { renderSpa } from "../../../tests/support/ui/spa";
 
 /** A request the API never answers: whatever shows meanwhile came from the cache. */
@@ -67,6 +68,30 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     expect(screen.getByRole("heading", { name: es.home.recent, hidden: true })).toBeInTheDocument();
     expect(calls(spa.requests, "GET", /\/transactions\?limit=3$/)).toHaveLength(1);
     expect(document.title).toBe(`${es.home.title} · Hearth`);
+  });
+
+  it("adds the month across every space to the personal home, from the period it shows (U4, #209)", async () => {
+    const { routes } = ledgerApi({
+      "GET /api/v1/me/unified-view": () => jsonResponse(e74Unified({ period: { ...octoberPage.period } })),
+    });
+    const spa = renderSpa("/spaces/sp-personal", routes);
+    const link = await screen.findByRole("link", { name: /Tu mes en todos tus espacios/ });
+    expect(link).toHaveAttribute("href", "/spaces/sp-personal/plan");
+    expect(link.textContent?.replace(/\s/g, " ")).toContain("$ 1.575.000");
+    expect(calls(spa.requests, "GET", /\/me\/unified-view\?period=2026-10$/)).toHaveLength(1);
+  });
+
+  it("reads no unified month for a person with no other space, nor in a shared space's home", async () => {
+    const alone = ledgerApi({
+      "GET /api/v1/spaces": () => jsonResponse({ items: [spaceDto()] }),
+    });
+    const spa = renderSpa("/spaces/sp-personal", alone.routes);
+    expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
+    spa.unmount();
+    const shared = renderSpa("/spaces/sp-household", ledgerApi().routes);
+    expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
+    expect(screen.queryByRole("link", { name: /Tu mes en todos tus espacios/ })).not.toBeInTheDocument();
+    expect(calls([...spa.requests, ...shared.requests], "GET", /\/me\/unified-view/)).toHaveLength(0);
   });
 
   it("lists Movimientos by day with the API's totals, under the space's own filters", async () => {

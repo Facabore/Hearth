@@ -1,8 +1,11 @@
+import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { useTranslations } from "use-intl";
 import { HomeSummary, TransactionSheetHost } from "@/modules/ledger/ui";
 import { useApis } from "../api";
 import { useHome, useTransactionDetail, useViewer } from "../ledger/hooks";
+import { sharedSpace } from "../load";
+import { unifiedViewQuery } from "../reads";
 import { useTitle } from "../title";
 
 const route = getRouteApi("/spaces/$spaceId/");
@@ -21,6 +24,12 @@ export function SpaceHome() {
   const detail = useTransactionDetail(viewer, tx);
   const { space } = viewer;
   const home = `/spaces/${spaceId}`;
+  // U4 (#209): the personal home of someone with other spaces also says what her month costs across all of them.
+  const unified = space.kind === "PERSONAL" && viewer.spaces.some(sharedSpace);
+  const allSpaces = useQuery({
+    ...unifiedViewQuery(api, spaceId, page.period.label),
+    enabled: unified,
+  }).data;
   return (
     <>
       <HomeSummary
@@ -32,6 +41,9 @@ export function SpaceHome() {
         page={page}
         accounts={accounts}
         context={context}
+        allSpaces={
+          unified && allSpaces ? { total: allSpaces.consumption.total, href: `${home}/plan` } : undefined
+        }
       />
       {detail ? (
         <TransactionSheetHost spaceId={spaceId} detail={detail} context={context} origin={home} api={api} />

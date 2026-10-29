@@ -16,6 +16,7 @@ import {
   lineReportQuery,
   membersQuery,
   periodQuery,
+  unifiedViewQuery,
 } from "../reads";
 import { ensurer, sharedSpace, viewerOf, type Load, type Viewer } from "../load";
 import { read } from "../read";
@@ -131,8 +132,17 @@ const loadDetail = async (load: Load, viewer: Viewer, transactionId: string): Pr
 export const loadHome = async (load: Load, spaceId: string, transactionId?: string) => {
   const ensure = ensurer(load);
   const { api } = load.apis;
+  const page = ensure(pageQuery(api, spaceId, { limit: HOME_ROWS }));
+  // U4 (#209): a personal home with other spaces refreshes the month across all of them beside it, never holding it.
+  void Promise.all([page, viewerOf(load, spaceId)])
+    .then(([{ period }, viewer]) =>
+      viewer?.space.kind === "PERSONAL" && viewer.spaces.some(sharedSpace)
+        ? ensure(unifiedViewQuery(api, spaceId, period.label))
+        : undefined,
+    )
+    .catch(() => undefined);
   await Promise.all([
-    ensure(pageQuery(api, spaceId, { limit: HOME_ROWS })),
+    page,
     ensure(accountsQuery(api, spaceId, "active")),
     ensure(categoriesQuery(api, spaceId, "all")),
     transactionId

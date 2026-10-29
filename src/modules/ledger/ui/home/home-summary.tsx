@@ -2,7 +2,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { controlsFor, JoinedNotice } from "@/modules/spaces/ui";
 import { Icon, SymbolIcon } from "@/shared/ui";
-import type { AccountDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
+import type { AccountDto, MoneyDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
 import { formatDate, formatMoney } from "@/shared/ui/format/formatters";
 import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { periodName } from "@/shared/ui/time/period-name";
@@ -25,6 +25,7 @@ export function HomeSummary({
   accounts,
   context,
   detail,
+  allSpaces,
 }: {
   readonly spaceId: string;
   /** N10: a shared or direct space leads to its members; whoever may invite also gets Invitar. */
@@ -38,6 +39,11 @@ export function HomeSummary({
   readonly context: RowContext;
   /** Ruling P189: the transaction behind `?tx=`, shown in a sheet over the home. */
   readonly detail?: TransactionDetail | undefined;
+  /**
+   * U4 (issue #209): on the personal home while the person has other spaces, her consumption in all of them this
+   * period (HU-E7-04), one tap from Mi consumo. The period total above counts this space only.
+   */
+  readonly allSpaces?: { readonly total: MoneyDto; readonly href: string } | undefined;
 }) {
   const t = useTranslations("home");
   const common = useTranslations("common");
@@ -107,6 +113,17 @@ export function HomeSummary({
                 {t("income", { amount: formatMoney(page.totals.income, formats) })}
               </p>
             </section>
+            {allSpaces ? (
+              <Link
+                href={allSpaces.href}
+                className="flex min-h-11 items-center justify-between gap-2 rounded-2xl bg-surface px-3 text-sm font-medium text-ink"
+              >
+                <span className="min-w-0 [overflow-wrap:anywhere]">
+                  {t("allSpaces", { amount: formatMoney(allSpaces.total, formats) })}
+                </span>
+                <Icon name="chevronRight" size={18} />
+              </Link>
+            ) : null}
             {personal ? null : (
               <p className="text-sm text-muted">
                 {kind === "DIRECT" ? accountsNote("directNote") : accountsNote("fundsNote")}

@@ -258,6 +258,7 @@
     "spentIn": "Spent in {month}",
     "spentBetween": "Spent from {start} to {end}",
     "income": "Income +{amount}",
+    "allSpaces": "Your month across all your spaces: {amount}",
     "accounts": "Accounts",
     "allAccounts": "See all accounts",
     "allAccountsShort": "See all",
