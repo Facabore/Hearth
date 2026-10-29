@@ -1,8 +1,10 @@
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import compile from "icu-minify/compile";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, type Plugin, type Rollup } from "vite";
 import { THEME_BOOTSTRAP } from "./src/shared/ui/theme/theme";
 import { catalogPreload, EARLY_READS } from "./src/spa/early-html";
+import { routePreload, routeTable } from "./src/spa/route-preload";
 
 const from = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
@@ -73,10 +75,41 @@ const earlyReads = (): Plugin => ({
         ...(Object.keys(catalogs).length > 0
           ? [{ tag: "script", children: catalogPreload(catalogs), injectTo: "head-prepend" as const }]
           : []),
+        ...(bundle
+          ? [{ tag: "script", children: firstScreen(bundle), injectTo: "head-prepend" as const }]
+          : []),
       ];
     },
   },
 });
+
+/**
+ * The first screen's own chunks, its layout's and its loaders', preloaded beside the app's script
+ * (`src/spa/route-preload.ts`): each module's chunk and the chunks it imports, without those the app's script loads.
+ */
+const firstScreen = (bundle: Rollup.OutputBundle): string => {
+  const chunks = Object.values(bundle).filter((file): file is Rollup.OutputChunk => file.type === "chunk");
+  const byName = new Map(chunks.map((chunk) => [chunk.fileName, chunk]));
+  const closure = (chunk: Rollup.OutputChunk, seen = new Set<string>()): Set<string> => {
+    if (seen.has(chunk.fileName)) return seen;
+    seen.add(chunk.fileName);
+    for (const name of chunk.imports) {
+      const imported = byName.get(name);
+      if (imported) closure(imported, seen);
+    }
+    return seen;
+  };
+  const loaded = new Set(chunks.filter((chunk) => chunk.isEntry).flatMap((chunk) => [...closure(chunk)]));
+  const files = Object.fromEntries(
+    chunks.flatMap((chunk) => {
+      const id = chunk.facadeModuleId?.replaceAll("\\", "/");
+      const module = id ? /\/src\/spa\/(.+)\.tsx?$/.exec(id)?.[1] : undefined;
+      if (!module) return [];
+      return [[module, [...closure(chunk)].filter((name) => !loaded.has(name)).map((name) => `/${name}`)]];
+    }),
+  );
+  return routePreload(routeTable(readFileSync(from("./src/spa/routes.tsx"), "utf8")), files);
+};
 
 /** ADR 0006, epic #199: the client-first SPA, at the root since the cut-over; the API stays on the app. */
 export default defineConfig({
