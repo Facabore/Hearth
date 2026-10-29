@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 import compile from "icu-minify/compile";
 import { defineConfig, type Plugin } from "vite";
 import { THEME_BOOTSTRAP } from "./src/shared/ui/theme/theme";
+import { catalogPreload, EARLY_READS } from "./src/spa/early";
 
 const from = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
@@ -48,13 +49,42 @@ const themeBootstrap = (): Plugin => ({
   transformIndexHtml: () => [{ tag: "script", children: THEME_BOOTSTRAP, injectTo: "head-prepend" }],
 });
 
+/**
+ * The profile and spaces reads start with the HTML, while the app's script downloads (`src/spa/early.ts`), and so does
+ * the catalog every screen needs before it renders: only the likely language's, picked in the browser as the app picks
+ * it (`catalogPreload`). Both scripts come first in the head, since an inline script after the stylesheet waits for it.
+ */
+const earlyReads = (): Plugin => ({
+  name: "hearth:early-reads",
+  transformIndexHtml: {
+    order: "post",
+    handler: (_html, { bundle }) => {
+      const catalogs = Object.fromEntries(
+        Object.values(bundle ?? {}).flatMap((file) => {
+          if (file.type !== "chunk") return [];
+          const id = file.moduleIds.find((one) =>
+            /[\\/]src[\\/]i18n[\\/]messages[\\/][a-z]+\.json$/.test(one),
+          );
+          return id ? [[/([a-z]+)\.json$/.exec(id)![1]!, `/${file.fileName}`]] : [];
+        }),
+      );
+      return [
+        { tag: "script", children: EARLY_READS, injectTo: "head-prepend" },
+        ...(Object.keys(catalogs).length > 0
+          ? [{ tag: "script", children: catalogPreload(catalogs), injectTo: "head-prepend" as const }]
+          : []),
+      ];
+    },
+  },
+});
+
 /** ADR 0006, epic #199: the client-first SPA, at the root since the cut-over; the API stays on the app. */
 export default defineConfig({
   root: from("./src/spa"),
   base: "/",
   // The icons the HTML links to, served beside the build as files of their own.
   publicDir: from("./src/spa/public"),
-  plugins: [precompiledCatalogs(), themeBootstrap()],
+  plugins: [precompiledCatalogs(), themeBootstrap(), earlyReads()],
   resolve: {
     tsconfigPaths: true,
     alias: [

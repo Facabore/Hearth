@@ -35,12 +35,18 @@ export const signUpModeQuery = (api: Api) =>
   });
 
 /** The person's spaces; the shell cannot render without them, so a problem throws to the error screen. */
+export const spacesFrom = (result: {
+  data?: { items: SpaceDto[] };
+  error?: unknown;
+  response: Response;
+}): SpaceDto[] => {
+  const outcome = outcomeOf(result);
+  if (outcome.kind !== "ok") throw new Error(`Listing the spaces failed: ${outcome.kind}`);
+  return outcome.data.items;
+};
+
 export const spacesQuery = (api: Api) =>
   queryOptions<SpaceDto[]>({
     queryKey: queryKeys.spaces,
-    queryFn: async () => {
-      const outcome = outcomeOf(await api.GET("/api/v1/spaces"));
-      if (outcome.kind !== "ok") throw new Error(`Listing the spaces failed: ${outcome.kind}`);
-      return outcome.data.items;
-    },
+    queryFn: async () => spacesFrom(await api.GET("/api/v1/spaces")),
   });
