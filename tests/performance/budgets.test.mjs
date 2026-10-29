@@ -4,7 +4,9 @@ import {
   appliedLcp,
   budgetFailures,
   debugPortFor,
+  frontContainer,
   isVisitorRoute,
+  lcpLimitFor,
   lcpFlags,
   lighthouseFlags,
   routeUrl,
@@ -14,13 +16,13 @@ describe("performance budgets (ruling P134)", () => {
   it("names every route and metric over its budget, and passes the ones within", () => {
     const results = [
       { route: "/sign-in", lcp: 1800, cls: 0, tbt: 90, scriptKb: 120 },
-      { route: "/spaces/:id/new", lcp: 2600, cls: 0.12, tbt: 250, scriptKb: 211 },
+      { route: "/spaces/:id/new", lcp: 6100, cls: 0.12, tbt: 250, scriptKb: 211 },
     ];
     expect(budgetFailures(results, budgets)).toEqual([
-      "/spaces/:id/new: LCP 2600 ms > 2500 ms",
+      "/spaces/:id/new: LCP 6100 ms > 6000 ms",
       "/spaces/:id/new: CLS 0.12 > 0.1",
       "/spaces/:id/new: TBT 250 ms > 200 ms",
-      "/spaces/:id/new: script 211 KiB > 187 KiB",
+      "/spaces/:id/new: script 211 KiB > 208 KiB",
     ]);
   });
 
@@ -49,11 +51,12 @@ describe("performance budgets (ruling P134)", () => {
   });
 
   it("budgets the edit route and the list with an open sheet within the caps of ruling P198", () => {
+    // The edit form and Registrar raised by the owner on 2026-10-28 for the SPA's cold load (ADR 0004): 210 and 205.
     const caps = {
       "/spaces/:id/transactions?tx=:tx": 235,
-      "/spaces/:id/transactions/:tx/edit": 210,
+      "/spaces/:id/transactions/:tx/edit": 215,
       "/spaces/:id/transactions": 205,
-      "/spaces/:id/new": 205,
+      "/spaces/:id/new": 210,
     };
     for (const [route, cap] of Object.entries(caps)) {
       expect(budgets.scriptKb[route], route).toBeDefined();
@@ -101,6 +104,45 @@ describe("performance budgets (ruling P134)", () => {
     expect(stall.calls).toHaveLength(3);
     const slow = sampler([2600, 2700, 2550]);
     expect(await appliedLcp(slow.sample, 2500)).toEqual({ lcp: 2600, lcpElement: "run 1" });
+  });
+
+  it("holds a visitor's screen to its own LCP limit, and a signed-in one to the general one (ADR 0004, 2026-10-28)", () => {
+    const metrics = { lcpMs: 4000, visitorLcpMs: 3500, cls: 0.1, tbtMs: 200 };
+    expect(lcpLimitFor("/sign-in", metrics)).toBe(3500);
+    expect(lcpLimitFor("/invitations/:token", metrics)).toBe(3500);
+    expect(lcpLimitFor("/spaces/:id", metrics)).toBe(4000);
+    expect(lcpLimitFor("/sign-in", { lcpMs: 2500, cls: 0.1, tbtMs: 200 })).toBe(2500);
+    const scriptKb = { "/sign-in": 200, "/spaces/:id": 200 };
+    expect(
+      budgetFailures(
+        [
+          { route: "/sign-in", lcp: 3600, cls: 0, tbt: 0, scriptKb: 1 },
+          { route: "/spaces/:id", lcp: 3600, cls: 0, tbt: 0, scriptKb: 1 },
+        ],
+        { metrics, scriptKb },
+      ),
+    ).toEqual(["/sign-in: LCP 3600 ms > 3500 ms"]);
+  });
+
+  it("serves the measured front from Caddy beside the API: the host's network on Linux, a published port elsewhere", () => {
+    const common = { cwd: "/repo", frontPort: "8443", api: "3100", name: "hearth-perf-front-3100" };
+    const linux = frontContainer({ ...common, platform: "linux" });
+    expect(linux).toEqual(expect.arrayContaining(["--network", "host", "HEARTH_API=127.0.0.1:3100"]));
+    expect(linux).not.toContain("-p");
+    const desktop = frontContainer({ ...common, platform: "win32" });
+    expect(desktop).toEqual(
+      expect.arrayContaining(["-p", "8443:8443", "HEARTH_API=host.docker.internal:3100"]),
+    );
+    for (const args of [linux, desktop]) {
+      expect(args).toEqual(
+        expect.arrayContaining([
+          "/repo/tests/performance/Caddyfile.perf:/etc/caddy/Caddyfile:ro",
+          "/repo/dist/spa:/srv/app:ro",
+          "HEARTH_FRONT_PORT=8443",
+          "caddy:2.11.7-alpine",
+        ]),
+      );
+    }
   });
 
   it("gives each parallel run its own Chromium debug port, derived from its server port", () => {

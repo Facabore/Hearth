@@ -1,24 +1,39 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
-import { chromium } from "@playwright/test";
+import { chromium, request } from "@playwright/test";
 import lighthouse from "lighthouse";
 import { seedPlanRoutes } from "./seed-plan.mjs";
 
 // The mjs lint block declares only process, console, Buffer and URL as globals.
 const { fetch } = globalThis;
-const BASE = `http://127.0.0.1:${process.env.E2E_PORT ?? "3100"}`;
+const E2E_PORT = process.env.E2E_PORT ?? "3100";
+const API = `http://127.0.0.1:${E2E_PORT}`;
+/**
+ * ADR 0004 (amended 2026-10-28): the front a person opens, as production serves it: the SPA's build from Caddy over
+ * HTTPS and HTTP/2, /api/* to the server above (`Caddyfile.perf`). 8443 for the default server port, shifted with it.
+ */
+const FRONT_PORT = String(8443 + (Number(E2E_PORT) - 3100));
+const BASE = `https://localhost:${FRONT_PORT}`;
 const RUNS = 5;
 const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
+
+/**
+ * ADR 0004 (amended 2026-10-28): a visitor's screen (sign-in, sign-up, an invitation or a claim) reads no session data
+ * before it paints, so it keeps a tighter LCP limit than a signed-in one.
+ */
+export const lcpLimitFor = (route, metrics) =>
+  isVisitorRoute(route) ? (metrics.visitorLcpMs ?? metrics.lcpMs) : metrics.lcpMs;
 
 /** Ruling P134: every route and metric over its budget; a route without a budget fails rather than passes. */
 export const budgetFailures = (results, budgets) =>
   results.flatMap(({ route, lcp, cls, tbt, scriptKb }) => {
     const limit = budgets.scriptKb[route];
     if (limit === undefined) return [`${route}: no script budget in tests/performance/budgets.json`];
-    const { lcpMs, cls: maxCls, tbtMs } = budgets.metrics;
+    const { cls: maxCls, tbtMs } = budgets.metrics;
+    const lcpMs = lcpLimitFor(route, budgets.metrics);
     return [
       lcp > lcpMs && `${route}: LCP ${lcp} ms > ${lcpMs} ms`,
       cls > maxCls && `${route}: CLS ${cls} > ${maxCls}`,
@@ -36,6 +51,28 @@ export const routeUrl = (route, ids) =>
 
 /** The pages a visitor opens: measured without the session cookie. */
 export const isVisitorRoute = (route) => /^\/(sign-in|sign-up|invitations|claims)(\/|$)/.test(route);
+
+/**
+ * `docker run` for the measured front (`Caddyfile.perf`). On Linux (CI) Caddy shares the host's network and reaches the
+ * server on 127.0.0.1; Docker Desktop publishes the port and reaches the host as host.docker.internal.
+ */
+export const frontContainer = ({ platform, cwd, frontPort, api, name }) => [
+  "run",
+  "--rm",
+  "--detach",
+  "--name",
+  name,
+  ...(platform === "linux" ? ["--network", "host"] : ["-p", `${frontPort}:${frontPort}`]),
+  "-e",
+  `HEARTH_FRONT_PORT=${frontPort}`,
+  "-e",
+  `HEARTH_API=${platform === "linux" ? "127.0.0.1" : "host.docker.internal"}:${api}`,
+  "-v",
+  `${cwd}/tests/performance/Caddyfile.perf:/etc/caddy/Caddyfile:ro`,
+  "-v",
+  `${cwd}/dist/spa:/srv/app:ro`,
+  "caddy:2.11.7-alpine",
+];
 
 /** The Chromium debug port of a run: 9223 for the default server port, shifted with it so parallel runs never meet. */
 export const debugPortFor = (e2ePort) => 9223 + (Number(e2ePort ?? 3100) - 3100);
@@ -125,21 +162,44 @@ const measure = async (port, url, cookie, lcpMs) => {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const budgets = JSON.parse(readFileSync("tests/performance/budgets.json", "utf8"));
   const server = spawn(process.execPath, ["scripts/e2e-server.mjs"], { stdio: "inherit" });
+  // The SPA's build (`pnpm spa:build`) behind Caddy, as production serves it.
+  const front = `hearth-perf-front-${E2E_PORT}`;
+  const docker = (args) => spawnSync("docker", args, { encoding: "utf8" });
   const failures = [];
+  const probe = await request.newContext({ ignoreHTTPSErrors: true });
   try {
-    for (let deadline = Date.now() + 180_000; ; await sleep(1000)) {
-      if (
-        await fetch(`${BASE}/api/v1/health`).then(
-          (r) => r.ok,
-          () => false,
-        )
-      )
-        break;
+    const up = (url) =>
+      probe.get(url).then(
+        (r) => r.ok(),
+        () => false,
+      );
+    for (let deadline = Date.now() + 180_000; !(await up(`${API}/api/v1/health`)); await sleep(1000))
       if (Date.now() > deadline) throw new Error("The server did not start within 180 s");
-    }
+    docker(["rm", "--force", front]);
+    const started = docker(
+      frontContainer({
+        platform: process.platform,
+        cwd: process.cwd().replaceAll("\\", "/"),
+        frontPort: FRONT_PORT,
+        api: E2E_PORT,
+        name: front,
+      }),
+    );
+    if (started.status !== 0)
+      throw new Error(`The front did not start: ${started.error?.message ?? started.stderr}`);
+    // Both halves of the front: the API behind it, and the SPA's build (an empty dist/spa would serve nothing).
+    const serves = async () =>
+      (await up(`${BASE}/api/v1/health`)) &&
+      (await probe.get(`${BASE}/`).then(
+        async (r) => r.ok() && (await r.text()).includes('id="root"'),
+        () => false,
+      ));
+    for (let deadline = Date.now() + 60_000; !(await serves()); await sleep(1000))
+      if (Date.now() > deadline)
+        throw new Error("The front did not serve the API and the SPA's build over HTTPS within 60 s");
     // A person with data, so the screens render what a household sees (an account, a category, a few expenses).
     const headers = { "content-type": "application/json", "x-forwarded-for": "10.250.0.1" };
-    const signUp = await fetch(`${BASE}/api/v1/auth/sign-up`, {
+    const signUp = await fetch(`${API}/api/v1/auth/sign-up`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -155,7 +215,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       .join("; ");
     // Plan writes carry `If-Match: "<version>"` of the last answer (ruling P206).
     const call = async (who, method, path, body, ifMatch) => {
-      const response = await fetch(`${BASE}${path}`, {
+      const response = await fetch(`${API}${path}`, {
         method,
         headers: {
           ...who.headers,
@@ -204,7 +264,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     });
     const shared = household.id;
     const second = { headers: { ...headers, "x-forwarded-for": "10.250.0.2" } };
-    const secondSignUp = await fetch(`${BASE}/api/v1/auth/sign-up`, {
+    const secondSignUp = await fetch(`${API}/api/v1/auth/sign-up`, {
       method: "POST",
       headers: second.headers,
       body: JSON.stringify({
@@ -245,7 +305,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const plan = await seedPlanRoutes(api, { personal: space.id, shared, bank: account.id });
     const ids = { id: space.id, shared, member: juan, token, claim, tx, ...plan };
     const debugPort = debugPortFor(process.env.E2E_PORT);
-    const browser = await chromium.launch({ args: [`--remote-debugging-port=${debugPort}`] });
+    // The front's certificate comes from Caddy's own local CA, which this Chrome alone is told to accept.
+    const browser = await chromium.launch({
+      args: [`--remote-debugging-port=${debugPort}`, "--ignore-certificate-errors"],
+    });
     try {
       const routes = Object.keys(budgets.scriptKb);
       const results = [];
@@ -253,7 +316,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         const url = `${BASE}${routeUrl(route, ids)}`;
         const result = {
           route,
-          ...(await measure(debugPort, url, isVisitorRoute(route) ? null : cookie, budgets.metrics.lcpMs)),
+          ...(await measure(
+            debugPort,
+            url,
+            isVisitorRoute(route) ? null : cookie,
+            lcpLimitFor(route, budgets.metrics),
+          )),
         };
         console.log(JSON.stringify(result));
         results.push(result);
@@ -263,6 +331,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       await browser.close();
     }
   } finally {
+    await probe.dispose();
+    docker(["rm", "--force", front]);
     server.kill("SIGTERM");
   }
   for (const failure of failures) console.error(failure);

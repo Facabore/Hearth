@@ -6,7 +6,7 @@ Pinned on 2026-10-11 (HU-E0-01). Each entry was the latest stable release that d
 |---|---|---|
 | Node.js | 24.21.0 | Current LTS ("Krypton") in `.nvmrc`, Docker and CI; `engines` accepts `>=24.12.0 <25` for local hosts. Vitest 5 requires Node ≥ 22.12 |
 | pnpm | 12.11.2 | `packageManager` field; settings in `pnpm-workspace.yaml` |
-| Next.js | 16.4.2 | App Router, standalone output; 16.4.2 (2026-10-22, #160) fixes GHSA-2464-fhr4-w9xw (critical, Image Optimization API with SVG) and GHSA-p3m5-59mp-jv5r (high, Server Actions DoS), both affecting 16.0.0 to 16.4.0 |
+| Next.js | 16.4.2 | App Router, standalone output; since #199 (2026-10-28) it serves only the API (`src/app/api/**`), and the screens are the SPA's; 16.4.2 (2026-10-22, #160) fixes GHSA-2464-fhr4-w9xw (critical, Image Optimization API with SVG) and GHSA-p3m5-59mp-jv5r (high, Server Actions DoS), both affecting 16.0.0 to 16.4.0 |
 | React / React DOM | 19.3.0 | |
 | TypeScript | 6.0.3 | 7.0.2 exists (native Go build) but typescript-eslint 8.71.1 supports `<6.1.0` |
 | Zod | 4.6.5 | 4.6.6 was published on the bootstrap day; 4.6.5 kept for soak time |
@@ -23,7 +23,7 @@ Pinned on 2026-10-11 (HU-E0-01). Each entry was the latest stable release that d
 | eslint-config-next | — | Not adopted: its plugins do not support ESLint 10 (ruling P136); eslint-plugin-react-hooks 7.1.1 instead |
 | Prettier | 3.9.10 | |
 | uuid | 14.0.3 | UUIDv7 ids |
-| next-intl | 4.14.9 | M6a (2026-10-02): the `es` and `en` texts (ruling P120) |
+| next-intl | 4.14.9 | M6a (2026-10-02): the `es` and `en` texts (ruling P120). Since #199 the components import it by name and the SPA resolves it to use-intl; the jsdom tests render through its provider |
 | Tailwind CSS / @tailwindcss/postcss | 4.3.3 / 4.3.3 | M6a (2026-07-16) |
 | radix-ui | 1.7.0 | M6a (2026-10-05), exactly two weeks before the pin date: the primitives under the shadcn/ui-style components |
 | class-variance-authority | 0.7.1 | M6a (2024-11-26): component variants |

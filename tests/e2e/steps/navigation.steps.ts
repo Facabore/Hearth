@@ -112,6 +112,9 @@ When("{string} creates the shared space {string}", async ({ page, world }, name:
   expect(name).toBe(world.user!.name);
   await page.getByLabel(world.t("spaces.new.name")).fill(space);
   await page.getByRole("button", { name: world.t("spaces.new.create") }).click();
+  // Creating a space ends on its members screen. A Back pressed before the save answers would be followed by the
+  // save's own move there, which is not what these scenarios walk through.
+  await expect(page).toHaveURL(/\/spaces\/(?!new)[0-9a-f-]{36}\/members$/);
 });
 
 // The product behaviour kept on purpose: creating a space switches to it, whatever screen the flow started from.
@@ -193,10 +196,15 @@ When(
   "{string} steps to the previous period {int} times",
   async ({ page, world }, name: string, times: number) => {
     expect(name).toBe(world.user!.name);
+    const previous = page.getByRole("link", { name: world.t("balances.history.previous") });
     for (let step = 0; step < times; step += 1) {
       const before = page.url();
-      await page.getByRole("link", { name: world.t("balances.history.previous") }).click();
+      const href = await previous.getAttribute("href");
+      expect(href, "the previous period's link").not.toBeNull();
+      await previous.click();
       await expect.poll(() => page.url()).not.toBe(before);
+      // ADR 0006: the address moves before the period's screen does; a step is taken once the screen shows it.
+      await expect(previous).not.toHaveAttribute("href", href!);
     }
   },
 );

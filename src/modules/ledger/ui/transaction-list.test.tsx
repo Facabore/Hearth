@@ -4,15 +4,10 @@ import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
 import {
-  accountDto,
   cop,
-  householdSpace,
-  memberDto,
-  meDto,
   octoberExpense,
   octoberPage,
   rowContext,
-  spaceDto,
   transactionDto,
 } from "../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse } from "../../../../tests/support/ui/fake-api";
@@ -20,36 +15,19 @@ import { renderWithIntl } from "../../../../tests/support/ui/render";
 import es from "@/i18n/messages/es.json";
 import type { Api } from "@/shared/ui/api/client";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
-import type { TransactionDetail } from "./detail/detail-loader";
+import type { TransactionDetail } from "./detail/transaction-detail";
 import { LoadMore } from "./load-more";
 import { TransactionList } from "./transaction-list";
-import { loadTransactionList, TransactionListContainer } from "./transaction-list-container";
 
-// The container reads the person and the client from server.ts; the filters navigate with the router.
-const mocks = vi.hoisted(() => ({
-  router: { push: vi.fn(), replace: vi.fn(), refresh: vi.fn() },
-  getMe: vi.fn(),
-  getSpaces: vi.fn(),
-  serverApi: vi.fn(),
-}));
-vi.mock("next/headers", () => ({}));
+// The filters navigate with the router.
+const mocks = vi.hoisted(() => ({ router: { push: vi.fn(), replace: vi.fn(), refresh: vi.fn() } }));
 vi.mock("next/navigation", () => ({ useRouter: () => mocks.router }));
-vi.mock("@/shared/ui/api/server", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/shared/ui/api/server")>()),
-  getMe: mocks.getMe,
-  getSpaces: mocks.getSpaces,
-  serverApi: mocks.serverApi,
-}));
-beforeEach(() => {
-  vi.clearAllMocks();
-  mocks.getSpaces.mockResolvedValue([spaceDto()]);
-});
+beforeEach(() => vi.clearAllMocks());
 
 const norm = (text: string | null) => (text ?? "").replace(/\s/g, " ");
 
 const page = octoberPage;
 const context = rowContext;
-const groups = rowContext.groups;
 const expense = octoberExpense;
 
 describe("transaction list (HU-E9-03)", () => {
@@ -138,33 +116,6 @@ describe("transaction list (HU-E9-03)", () => {
     expect(pay).toHaveTextContent("Bancolombia → Visa");
     expect(pay).toHaveTextContent("Transferencia");
     expect(pay).not.toHaveTextContent("Groceries");
-  });
-
-  it("asks the API for the chosen category's period and shows its total", async () => {
-    const filtered = {
-      ...page,
-      totals: { expenses: cop(185_000), income: cop(0) },
-      items: page.items.slice(2),
-    };
-    const { api, requests } = fakeApi({
-      "GET /api/v1/spaces/{spaceId}/transactions": () => jsonResponse(filtered),
-      "GET /api/v1/spaces/{spaceId}/categories": () => jsonResponse({ items: groups }),
-      "GET /api/v1/spaces/{spaceId}/accounts": () =>
-        jsonResponse({ items: [], totals: { available: cop(0), netWorth: cop(0) } }),
-      "GET /api/v1/spaces/{spaceId}/periods": () => jsonResponse({ items: [page.period] }),
-    });
-    const result = await loadTransactionList(api, {
-      spaceId: "sp-personal",
-      period: "2026-10",
-      categoryId: "c-groceries",
-    });
-    const query = new URL(requests[0]!.url).searchParams;
-    expect([query.get("period"), query.get("categoryIds"), query.get("limit")]).toEqual([
-      "2026-10",
-      "c-groceries",
-      "50",
-    ]);
-    expect(result.ok && result.data.page.items).toHaveLength(2);
   });
 });
 
@@ -510,264 +461,6 @@ describe("Load more inside the list (HU-E9-03, ruling P130)", () => {
       "12/10/2026",
       "5/10/2026",
     ]);
-  });
-});
-
-describe("what the list loads (HU-E9-03, ruling P130)", () => {
-  const routes = (periods: (request: Request) => Response) => ({
-    "GET /api/v1/spaces/{spaceId}/transactions": () => jsonResponse(page),
-    "GET /api/v1/spaces/{spaceId}/categories": () => jsonResponse({ items: groups }),
-    "GET /api/v1/spaces/{spaceId}/accounts": () =>
-      jsonResponse({ items: [], totals: { available: cop(0), netWorth: cop(0) } }),
-    "GET /api/v1/spaces/{spaceId}/periods": periods,
-  });
-
-  it("names rows with archived categories and accounts, and finds the periods around this one", async () => {
-    const { api, requests } = fakeApi(
-      routes((request) => {
-        const from = new URL(request.url).searchParams.get("from");
-        return jsonResponse({ items: [from === "2026-09-30" ? other : later] });
-      }),
-    );
-    const result = await loadTransactionList(api, {
-      spaceId: "sp-personal",
-      period: "2026-10",
-      shared: false,
-    });
-    expect(requests.some((r) => new URL(r.url).pathname.endsWith("/members"))).toBe(false);
-    expect(result.ok && result.data.memberNames).toEqual({});
-    const queryOf = (path: string) =>
-      requests.filter((r) => new URL(r.url).pathname.endsWith(path)).map((r) => new URL(r.url).searchParams);
-    expect(queryOf("/categories").map((q) => q.get("archived"))).toEqual(["true"]);
-    expect(queryOf("/accounts").map((q) => q.get("archived"))).toEqual(["true"]);
-    expect(queryOf("/periods").map((q) => [q.get("from"), q.get("count")])).toEqual([
-      ["2026-09-30", "1"],
-      ["2026-11-01", "1"],
-    ]);
-    expect(result.ok && [result.data.previous?.label, result.data.next?.label]).toEqual([
-      "2026-09",
-      "2026-11",
-    ]);
-  });
-
-  it("asks the API for one member's payments when the list is filtered by payer (issue #148)", async () => {
-    const { api, requests } = fakeApi(routes(() => jsonResponse({ items: [] })));
-    await loadTransactionList(api, { spaceId: "sp-personal", period: "2026-10", payerMemberId: "m-juan" });
-    const list = requests.find((r) => new URL(r.url).pathname.endsWith("/transactions"))!;
-    expect(new URL(list.url).searchParams.get("payerMemberId")).toBe("m-juan");
-  });
-
-  it("names the members of a shared space for the rows, and fails with the members' problem", async () => {
-    const members = (response: () => Response) =>
-      fakeApi({
-        ...routes(() => jsonResponse({ items: [] })),
-        "GET /api/v1/spaces/{spaceId}/members": response,
-      });
-    const ok = members(() =>
-      jsonResponse({
-        items: [memberDto(), memberDto({ id: "m-juan", userId: "u-juan", displayName: "Juan" })],
-      }),
-    );
-    const result = await loadTransactionList(ok.api, { spaceId: "sp-household", shared: true });
-    expect(ok.requests.some((r) => new URL(r.url).pathname.endsWith("/members"))).toBe(true);
-    expect(result.ok && result.data.memberNames).toEqual({ "m-ana": "Ana", "m-juan": "Juan" });
-    const failing = members(() => problemResponse(409, "SpaceArchived"));
-    expect(await loadTransactionList(failing.api, { spaceId: "sp-household", shared: true })).toMatchObject({
-      ok: false,
-      problem: { code: "SpaceArchived" },
-    });
-  });
-
-  it("has no neighbour where the API knows no period, and fails with the page's problem", async () => {
-    const empty = fakeApi(routes(() => jsonResponse({ items: [] })));
-    const result = await loadTransactionList(empty.api, { spaceId: "sp-personal" });
-    expect(result.ok && [result.data.previous, result.data.next]).toEqual([null, null]);
-    const failing = fakeApi({
-      ...routes(() => jsonResponse({ items: [] })),
-      "GET /api/v1/spaces/{spaceId}/transactions": () => problemResponse(409, "SpaceArchived"),
-    });
-    expect(await loadTransactionList(failing.api, { spaceId: "sp-personal" })).toMatchObject({
-      ok: false,
-      problem: { code: "SpaceArchived" },
-    });
-  });
-});
-
-describe("the list container (HU-E9-03, HU-E9-02)", () => {
-  afterEach(() => vi.unstubAllEnvs());
-
-  it("reads today in the person's zone and every format from their preferences", async () => {
-    vi.stubEnv("HEARTH_E2E_FIXED_NOW", "2026-11-01T04:30:00.000Z");
-    const me = meDto({
-      timezone: "America/Bogota",
-      locale: "en",
-      preferences: {
-        ...meDto().preferences,
-        effective: { numberFormat: "COMMA_DOT", dateFormat: "MDY", timeFormat: "H12", weekStart: "SUNDAY" },
-      },
-    });
-    mocks.getMe.mockResolvedValue(me);
-    const { api } = fakeApi({
-      "GET /api/v1/spaces/{spaceId}/transactions": () => jsonResponse(page),
-      "GET /api/v1/spaces/{spaceId}/categories": () => jsonResponse({ items: groups }),
-      "GET /api/v1/spaces/{spaceId}/accounts": () =>
-        jsonResponse({
-          items: [{ id: "a-old", name: "Old wallet" }],
-          totals: { available: cop(0), netWorth: cop(0) },
-        }),
-      "GET /api/v1/spaces/{spaceId}/periods": () => jsonResponse({ items: [] }),
-    });
-    mocks.serverApi.mockResolvedValue(api);
-    const element = await TransactionListContainer({
-      spaceId: "sp-personal",
-      period: "2026-10",
-      categoryId: "c-dining",
-    });
-    expect((element as unknown as { props: Record<string, unknown> }).props).toMatchObject({
-      spaceId: "sp-personal",
-      today: "2026-10-31",
-      filter: { period: "2026-10", categoryId: "c-dining" },
-      context: {
-        formats: me.preferences.effective,
-        viewerZone: "America/Bogota",
-        accountNames: { "a-old": "Old wallet" },
-      },
-    });
-  });
-
-  const fundRoutes = (balance: number) => ({
-    "GET /api/v1/spaces/{spaceId}/transactions": () => jsonResponse(page),
-    "GET /api/v1/spaces/{spaceId}/categories": () => jsonResponse({ items: groups }),
-    "GET /api/v1/spaces/{spaceId}/accounts": () =>
-      jsonResponse({
-        items: [
-          accountDto({ id: "a-fund", name: "Fondo Hogar", type: "SHARED_FUND", balance: cop(balance) }),
-          accountDto({ id: "a-bank", name: "Bancolombia", balance: cop(1_000_000) }),
-        ],
-        totals: { available: cop(0), netWorth: cop(0) },
-      }),
-    "GET /api/v1/spaces/{spaceId}/members": () =>
-      jsonResponse({
-        items: [memberDto(), memberDto({ id: "m-juan", userId: "u-juan", displayName: "Juan" })],
-      }),
-    "GET /api/v1/spaces/{spaceId}/periods": () => jsonResponse({ items: [] }),
-  });
-  const propsOf = (element: unknown) => (element as { props: Record<string, unknown> }).props;
-
-  it("in a shared space names the members for the rows and reads the fund's balance for the notice", async () => {
-    mocks.getMe.mockResolvedValue(meDto());
-    mocks.getSpaces.mockResolvedValue([householdSpace()]);
-    mocks.serverApi.mockResolvedValue(fakeApi(fundRoutes(-500_000)).api);
-    const element = await TransactionListContainer({
-      spaceId: "sp-household",
-      period: "2026-10",
-      notice: "FundBalanceNegative",
-      noticeAccount: "a-fund",
-    });
-    expect(propsOf(element)).toMatchObject({
-      context: { memberNames: { "m-ana": "Ana", "m-juan": "Juan" } },
-      notice: { accountName: "Fondo Hogar", balance: cop(-500_000) },
-    });
-  });
-
-  it("names a shared or direct space under Movimientos, and a personal one not at all (U7)", async () => {
-    mocks.getMe.mockResolvedValue(meDto());
-    mocks.getSpaces.mockResolvedValue([
-      spaceDto({ id: "sp-direct", name: "Ana & Juan", kind: "DIRECT" }),
-      householdSpace(),
-      spaceDto(),
-    ]);
-    mocks.serverApi.mockResolvedValue(fakeApi(fundRoutes(0)).api);
-    expect(propsOf(await TransactionListContainer({ spaceId: "sp-direct" }))).toMatchObject({
-      spaceName: "Ana & Juan",
-    });
-    expect(propsOf(await TransactionListContainer({ spaceId: "sp-household" }))).toMatchObject({
-      spaceName: "Household",
-    });
-    expect(propsOf(await TransactionListContainer({ spaceId: "sp-personal" })).spaceName).toBeUndefined();
-  });
-
-  it("names the members of a direct space too", async () => {
-    mocks.getMe.mockResolvedValue(meDto());
-    mocks.getSpaces.mockResolvedValue([spaceDto({ id: "sp-direct", name: "Ana & Juan", kind: "DIRECT" })]);
-    mocks.serverApi.mockResolvedValue(fakeApi(fundRoutes(0)).api);
-    const element = await TransactionListContainer({ spaceId: "sp-direct" });
-    expect(propsOf(element)).toMatchObject({
-      context: { memberNames: { "m-ana": "Ana", "m-juan": "Juan" } },
-    });
-  });
-
-  it("shows no notice for a code it does not know, an account it did not load or a personal space", async () => {
-    mocks.getMe.mockResolvedValue(meDto());
-    mocks.getSpaces.mockResolvedValue([householdSpace(), spaceDto()]);
-    const noticeOf = async (spaceId: string, notice: string, noticeAccount: string) => {
-      mocks.serverApi.mockResolvedValue(fakeApi(fundRoutes(-500_000)).api);
-      return propsOf(await TransactionListContainer({ spaceId, notice, noticeAccount })).notice;
-    };
-    expect(await noticeOf("sp-household", "Other", "a-fund")).toBeUndefined();
-    expect(await noticeOf("sp-household", "FundBalanceNegative", "a-elsewhere")).toBeUndefined();
-    mocks.serverApi.mockResolvedValue(fakeApi(fundRoutes(-500_000)).api);
-    const personal = await TransactionListContainer({ spaceId: "sp-personal" });
-    expect(propsOf(personal)).toMatchObject({ context: { memberNames: {} } });
-  });
-
-  it("reads the transaction behind ?tx= with the list, and only then (ruling P189)", async () => {
-    mocks.getMe.mockResolvedValue(meDto());
-    mocks.getSpaces.mockResolvedValue([householdSpace()]);
-    const { api, requests } = fakeApi({
-      ...fundRoutes(0),
-      "GET /api/v1/spaces/{spaceId}/transactions/{transactionId}": () => jsonResponse(octoberPage.items[1]),
-    });
-    mocks.serverApi.mockResolvedValue(api);
-    const element = await TransactionListContainer({
-      spaceId: "sp-household",
-      period: "2026-10",
-      transactionId: "t-dinner",
-    });
-    expect(propsOf(element)).toMatchObject({
-      detail: {
-        tx: { id: "t-dinner" },
-        problem: null,
-        viewer: { userId: "u-ana", role: "OWNER", memberId: "m-ana" },
-      },
-    });
-    expect(requests.map((r) => new URL(r.url).pathname)).toContain(
-      "/api/v1/spaces/sp-household/transactions/t-dinner",
-    );
-    const without = fakeApi(fundRoutes(0));
-    mocks.serverApi.mockResolvedValue(without.api);
-    expect(propsOf(await TransactionListContainer({ spaceId: "sp-household" })).detail).toBeUndefined();
-    expect(without.requests.map((r) => new URL(r.url).pathname)).not.toContain(
-      "/api/v1/spaces/sp-household/transactions/t-dinner",
-    );
-  });
-
-  it("shows the sheet's problem for a ?tx= that is gone, with the list under it", async () => {
-    mocks.getMe.mockResolvedValue(meDto());
-    mocks.getSpaces.mockResolvedValue([spaceDto()]);
-    const { api } = fakeApi({
-      ...fundRoutes(0),
-      "GET /api/v1/spaces/{spaceId}/transactions/{transactionId}": () =>
-        problemResponse(404, "TransactionNotFound"),
-    });
-    mocks.serverApi.mockResolvedValue(api);
-    const element = await TransactionListContainer({ spaceId: "sp-personal", transactionId: "t-gone" });
-    expect(propsOf(element)).toMatchObject({
-      detail: { tx: null, problem: { code: "TransactionNotFound" } },
-    });
-  });
-
-  it("shows the problem's message when the list cannot be read", async () => {
-    mocks.getMe.mockResolvedValue(meDto());
-    const { api } = fakeApi({
-      "GET /api/v1/spaces/{spaceId}/transactions": () => problemResponse(409, "SpaceArchived"),
-      "GET /api/v1/spaces/{spaceId}/categories": () => jsonResponse({ items: groups }),
-      "GET /api/v1/spaces/{spaceId}/accounts": () =>
-        jsonResponse({ items: [], totals: { available: cop(0), netWorth: cop(0) } }),
-    });
-    mocks.serverApi.mockResolvedValue(api);
-    renderWithIntl(await TransactionListContainer({ spaceId: "sp-personal" }));
-    expect(screen.getByRole("alert")).toHaveTextContent(es.errors.SpaceArchived);
   });
 });
 

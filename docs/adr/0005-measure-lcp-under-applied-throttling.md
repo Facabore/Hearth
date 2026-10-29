@@ -1,6 +1,6 @@
 # ADR 0005 — Measure LCP under applied throttling
 
-- Status: Accepted (2026-10-26), amends [ADR 0004](0004-web-ui-testing-and-performance-gates.md)
+- Status: Accepted (2026-10-26), amends [ADR 0004](0004-web-ui-testing-and-performance-gates.md); still applies to the SPA, whose LCP limits ADR 0004's amendment of 2026-10-28 sets
 - Issue: #182 (ruling P256)
 
 ## Context

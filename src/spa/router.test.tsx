@@ -35,7 +35,7 @@ describe("route guards (HU-E9-01, src/proxy.ts in the SPA)", () => {
       `/sign-in?next=${encodeURIComponent("/spaces/sp-personal/transactions?tx=t1")}`,
     );
     expect(spa.browserHref()).toBe(
-      `/app/sign-in?next=${encodeURIComponent("/spaces/sp-personal/transactions?tx=t1")}`,
+      `/sign-in?next=${encodeURIComponent("/spaces/sp-personal/transactions?tx=t1")}`,
     );
   });
 
@@ -51,7 +51,7 @@ describe("route guards (HU-E9-01, src/proxy.ts in the SPA)", () => {
       "GET /api/v1/auth/sign-up": () => jsonResponse({ signUp: "closed" }),
     });
     await screen.findByRole("heading", { name: "El registro está cerrado" });
-    expect(screen.getByRole("link", { name: "Inicia sesión" })).toHaveAttribute("href", "/app/sign-in");
+    expect(screen.getByRole("link", { name: "Inicia sesión" })).toHaveAttribute("href", "/sign-in");
     expect(spa.location()).toBe("/sign-up");
     expect(screen.queryByLabelText("Contraseña")).toBeNull();
   });
@@ -71,7 +71,7 @@ describe("route guards (HU-E9-01, src/proxy.ts in the SPA)", () => {
   it("gives a space the person is not in, and an unknown address, the app's own not-found screen", async () => {
     renderSpa("/spaces/sp-stranger", signedIn());
     expect(await screen.findByRole("heading", { name: "Esta página no existe" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "Ir al inicio" })).toHaveAttribute("href", "/app/");
+    expect(screen.getByRole("link", { name: "Ir al inicio" })).toHaveAttribute("href", "/");
   });
 
   it("gives an unknown address the not-found screen too", async () => {
@@ -102,7 +102,7 @@ describe("sign-in to the app shell", () => {
     expect(within(nav).getByRole("link", { name: "Inicio" })).toHaveAttribute("aria-current", "page");
     expect(within(nav).getByRole("link", { name: "Movimientos" })).toHaveAttribute(
       "href",
-      "/app/spaces/sp-household/transactions",
+      "/spaces/sp-household/transactions",
     );
     expect(await axeViolations(container)).toEqual([]);
 
@@ -156,7 +156,7 @@ describe("a session that ends while the app is open (ruling P151)", () => {
         return session ? jsonResponse({ items: [spaceDto()] }) : problemResponse(401, "Unauthenticated");
       return jsonResponse({ signUp: "open" });
     });
-    const history = createMemoryHistory({ initialEntries: ["/app/spaces/sp-personal"] });
+    const history = createMemoryHistory({ initialEntries: ["/spaces/sp-personal"] });
     const spa = createSpa({ history });
     render(<spa.Spa />);
     await screen.findByRole("button", { name: /Personal/ });
@@ -166,7 +166,7 @@ describe("a session that ends while the app is open (ruling P151)", () => {
     expect(spa.router.state.location.href).toBe(
       `/sign-in?next=${encodeURIComponent("/spaces/sp-personal")}&expired=1`,
     );
-    expect(history.location.pathname).toBe("/app/sign-in");
+    expect(history.location.pathname).toBe("/sign-in");
   });
 });
 
@@ -185,9 +185,19 @@ describe("recovering and leaving", () => {
 
   it("signs out to the sign-in screen and keeps none of the person's answers", async () => {
     let session = true;
+    // Once signed out, every read answers 401, as the API does: none may send the sign-in screen to itself (P151).
+    const reads = Object.fromEntries(
+      Object.entries(signedIn()).map(([route, handle]) => [
+        route,
+        route.includes("/auth/")
+          ? handle
+          : (((...args) =>
+              session ? handle(...args) : problemResponse(401, "Unauthenticated")) as FakeHandler),
+      ]),
+    );
     // The profile sheet signs out through the app's own client, like every component inside the SPA.
     const spa = renderSpa("/spaces/sp-personal", {
-      ...signedIn(),
+      ...reads,
       "GET /api/v1/me": () => (session ? jsonResponse(meDto()) : problemResponse(401, "Unauthenticated")),
       "POST /api/v1/auth/sign-out": () => {
         session = false;
@@ -195,9 +205,14 @@ describe("recovering and leaving", () => {
       },
     });
     await userEvent.click(await screen.findByRole("button", { name: "Perfil de Ana" }));
+    const before = spa.requests.length;
     await userEvent.click(await screen.findByRole("button", { name: "Cerrar sesión" }));
     expect(await screen.findByRole("heading", { name: "Hola de nuevo" })).toBeVisible();
     expect(spa.location()).toBe("/sign-in");
     expect(spa.queryClient.getQueryData(queryKeys.spaces)).toBeUndefined();
+    // The refresh after signing out re-reads none of the space's screens: each would only answer 401. The shell may read
+    // its list of spaces once more as it leaves; that 401 lands on the sign-in screen, which stays put (P151).
+    const after = spa.requests.slice(before).map((r) => new URL(r.url).pathname);
+    expect(after.filter((path) => path.startsWith("/api/v1/spaces/"))).toEqual([]);
   });
 });

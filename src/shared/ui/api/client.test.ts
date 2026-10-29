@@ -34,6 +34,20 @@ describe("browserApi (ruling P151): an expired session in the browser", () => {
     vi.unstubAllGlobals();
   });
 
+  it("never sends the sign-in or sign-up screen to itself when a call left over from the last page answers 401", async () => {
+    answering(401);
+    for (const [pathname, search] of [
+      ["/sign-in", ""],
+      ["/sign-in", "?next=%2Fsettings&expired=1"],
+      ["/sign-up", ""],
+    ] as const) {
+      const location = where(pathname, search);
+      await browserApi(location).GET("/api/v1/spaces");
+      expect(location.assign, `${pathname}${search}`).not.toHaveBeenCalled();
+    }
+    vi.unstubAllGlobals();
+  });
+
   it("leaves other failures and successes alone", async () => {
     const location = where("/settings");
     answering(500);

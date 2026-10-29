@@ -136,6 +136,26 @@ describe("accounts, categories and settings in the SPA (slice 3 of #199, ADR 000
     expect(await screen.findByText("Caja")).toBeInTheDocument();
   });
 
+  it("returns from the record form's Nueva cuenta to the form with the new account chosen", async () => {
+    const { routes, state } = server();
+    state.accounts = [];
+    const form = "/spaces/sp-personal/new";
+    const spa = renderSpa(form, routes);
+    expect(
+      await screen.findByRole("button", { name: /Cuenta\s*Elegir cuenta/ }, { timeout: 5_000 }),
+    ).toBeVisible();
+
+    await spa.router.navigate({ href: `${ACCOUNTS}/new?returnTo=${encodeURIComponent(form)}` });
+    await userEvent.click(await screen.findByRole("radio", { name: "Efectivo" }));
+    await userEvent.type(screen.getByLabelText("Nombre"), "Wallet");
+    await userEvent.type(screen.getByLabelText("Saldo inicial"), "0");
+    await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
+
+    await waitFor(() => expect(spa.location()).toBe(form));
+    // The form picks its account when it opens, as it did on a fresh Next.js page: the new one is there already.
+    expect(await screen.findByRole("button", { name: /Cuenta\s*Wallet/ })).toBeVisible();
+  });
+
   it("hides an account from a confirmation deep inside the list, through the app's own client", async () => {
     const { routes } = server();
     const spa = renderSpa(ACCOUNTS, routes);

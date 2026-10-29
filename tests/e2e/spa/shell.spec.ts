@@ -30,7 +30,7 @@ const scan = async (page: Page, where: string) => {
 };
 
 for (const colorScheme of ["light", "dark"] as const) {
-  test.describe(`the single-page app at /app/ in ${colorScheme} (ADR 0006, slice 1 of #199)`, () => {
+  test.describe(`the single-page app in ${colorScheme} (ADR 0006, slice 1 of #199)`, () => {
     test.use({ colorScheme });
 
     test("a protected screen sends the visitor to sign in, then opens the shell where they were going", async ({
@@ -46,8 +46,8 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page.context().setExtraHTTPHeaders({ "x-forwarded-for": ip });
       const { email, spaceId } = await signUpOverApi(ip);
 
-      await page.goto(`/app/spaces/${spaceId}`);
-      await expect(page).toHaveURL(`/app/sign-in?next=${encodeURIComponent(`/spaces/${spaceId}`)}`);
+      await page.goto(`/spaces/${spaceId}`);
+      await expect(page).toHaveURL(`/sign-in?next=${encodeURIComponent(`/spaces/${spaceId}`)}`);
       await expect(page.getByRole("heading", { name: es.auth.signIn.title })).toBeVisible();
       await expect(page).toHaveTitle(`${es.auth.signIn.title} · Hearth`);
       await scan(page, "sign-in");
@@ -56,7 +56,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page.getByLabel(es.auth.password).fill(PASSWORD);
       await page.getByRole("button", { name: es.auth.signIn.submit }).click();
 
-      await expect(page).toHaveURL(`/app/spaces/${spaceId}`);
+      await expect(page).toHaveURL(`/spaces/${spaceId}`);
       const nav = page.getByRole("navigation", { name: es.shell.nav.main });
       await expect(nav.getByRole("link", { name: es.shell.nav.home })).toHaveAttribute(
         "aria-current",
@@ -64,7 +64,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       );
       await expect(nav.getByRole("link", { name: es.shell.nav.transactions })).toHaveAttribute(
         "href",
-        `/app/spaces/${spaceId}/transactions`,
+        `/spaces/${spaceId}/transactions`,
       );
       await expect(page.getByRole("button", { name: /Personal/ })).toBeVisible();
       await scan(page, "shell");
@@ -73,7 +73,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page.reload();
       await expect(nav.getByRole("link", { name: es.shell.nav.home })).toBeVisible();
       // An unknown address stays inside the app, on its own not-found screen.
-      await page.goto("/app/nowhere");
+      await page.goto("/nowhere");
       await expect(page.getByRole("heading", { name: es.notFound.title })).toBeVisible();
       await scan(page, "not-found");
 

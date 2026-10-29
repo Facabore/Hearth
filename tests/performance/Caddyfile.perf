@@ -1,0 +1,36 @@
+# The performance gate's front (ADR 0004, amended 2026-10-28): the SPA's build over HTTPS and HTTP/2, as production
+# serves it, with /api/* sent to the e2e server. Its handlers are Caddyfile.web's; TLS uses Caddy's own local CA,
+# which the measured Chrome is told to accept. Started by tests/performance/lighthouse.mjs.
+{
+	admin off
+	auto_https disable_redirects
+	skip_install_trust
+}
+
+https://localhost:{$HEARTH_FRONT_PORT} {
+	tls internal
+	encode zstd gzip
+
+	handle /api/* {
+		reverse_proxy {$HEARTH_API}
+	}
+
+	handle /assets/* {
+		root * /srv/app
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
+	@file path_regexp \.[A-Za-z0-9]+$
+	handle @file {
+		root * /srv/app
+		file_server
+	}
+
+	handle {
+		root * /srv/app
+		header Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}

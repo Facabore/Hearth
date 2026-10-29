@@ -16,10 +16,8 @@ import type { Api } from "@/shared/ui/api/client";
 import type { BudgetPlanDto, CategoryGroupDto, SpaceDto } from "@/shared/ui/api/dto";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { rememberDropped } from "../copy-notice";
-import { loadPlanner } from "./planner-container";
 import { Planner } from "./planner";
 
-vi.mock("next/headers", () => ({}));
 const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router, notFound: vi.fn(), redirect: vi.fn() }));
 beforeEach(() => {
@@ -187,36 +185,6 @@ describe("planner (HU-E9-08)", () => {
     );
     expect(screen.queryByRole("link", { name: "Editar Home" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Activar plan" })).toBeNull();
-  });
-
-  it("loads the plan, the space's members and its categories, archived ones included", async () => {
-    const tree = [groupDto({ id: "g-home", name: "Hogar" })];
-    const { api, requests } = fakeApi({
-      "GET /api/v1/spaces/{spaceId}/plans/{planId}": () => jsonResponse(referencePlanDto()),
-      "GET /api/v1/spaces/{spaceId}/members": () => jsonResponse({ items: HOUSEHOLD_MEMBERS }),
-      "GET /api/v1/spaces/{spaceId}/categories": () => jsonResponse({ items: tree }),
-    });
-    const result = await loadPlanner(api, { spaceId: "sp-household", planId: "p-nov" });
-    expect(
-      result.ok && [result.data.plan.id, result.data.members.map((m) => m.displayName), result.data.groups],
-    ).toEqual(["p-nov", ["Ana", "Juan"], tree]);
-    expect(requests.map((r) => new URL(r.url).pathname).sort()).toEqual([
-      "/api/v1/spaces/sp-household/categories",
-      "/api/v1/spaces/sp-household/members",
-      "/api/v1/spaces/sp-household/plans/p-nov",
-    ]);
-    const categories = requests.find((r) => r.url.includes("/categories"))!;
-    expect(new URL(categories.url).searchParams.get("archived")).toBe("true");
-  });
-
-  it("answers the problem of the categories read when it fails", async () => {
-    const { api } = fakeApi({
-      "GET /api/v1/spaces/{spaceId}/plans/{planId}": () => jsonResponse(referencePlanDto()),
-      "GET /api/v1/spaces/{spaceId}/members": () => jsonResponse({ items: HOUSEHOLD_MEMBERS }),
-      "GET /api/v1/spaces/{spaceId}/categories": () => problemResponse(500, "Unknown"),
-    });
-    const result = await loadPlanner(api, { spaceId: "sp-household", planId: "p-nov" });
-    expect(result.ok).toBe(false);
   });
 
   it("shows what the copy left out under the header, once, named from the space's categories", async () => {

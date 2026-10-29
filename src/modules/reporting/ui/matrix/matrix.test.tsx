@@ -1,27 +1,15 @@
 import { screen, within } from "@testing-library/react";
-import { notFound } from "next/navigation";
 import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
-import { cop, meDto, normalized, spaceDto } from "../../../../../tests/support/ui/dto";
-import { fakeApi, jsonResponse } from "../../../../../tests/support/ui/fake-api";
+import { cop, normalized } from "../../../../../tests/support/ui/dto";
 import { e7Matrix, HOUSEHOLD_MEMBERS, householdDto } from "../../../../../tests/support/ui/plan-dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import type { MemberMatrixDto } from "@/shared/ui/api/dto";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { UI_ICONS } from "@/shared/ui/icons/ui-icons";
-import { loadMatrix, MemberMatrixContainer } from "./matrix-container";
 import { MemberMatrix } from "./member-matrix";
 
-const server = vi.hoisted(() => ({ api: undefined as unknown, spaces: [] as unknown[] }));
-
-vi.mock("next/headers", () => ({}));
 vi.mock("next/navigation", () => ({ notFound: vi.fn(), redirect: vi.fn() }));
-vi.mock("@/shared/ui/api/server", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/shared/ui/api/server")>()),
-  getMe: async () => meDto({ timezone: "America/Bogota" }),
-  getSpaces: async () => server.spaces,
-  serverApi: async () => server.api,
-}));
 
 const cellsOf = (table: string, member: string) =>
   within(
@@ -102,56 +90,9 @@ describe("member matrix (HU-E9-10)", () => {
     expect(consumed).toBe("$ 125.000");
     expect(assigned).toContain("Sin asignación por persona: solo se muestra lo consumido.");
   });
-
-  it("loads the period's matrix and the space's members", async () => {
-    const { api, requests } = fakeApi({
-      "GET /api/v1/spaces/{spaceId}/reports/member-matrix": () => jsonResponse(e7Matrix()),
-      "GET /api/v1/spaces/{spaceId}/members": () => jsonResponse({ items: HOUSEHOLD_MEMBERS }),
-      "GET /api/v1/spaces/{spaceId}/periods": () => jsonResponse({ items: [] }),
-    });
-    const result = await loadMatrix(api, { spaceId: "sp-household", period: "2026-11", today: "2026-10-31" });
-    expect(result.ok && result.data.members).toHaveLength(2);
-    const report = requests.find((r) => r.url.includes("member-matrix"))!;
-    expect(new URL(report.url).searchParams.get("period")).toBe("2026-11");
-  });
-
-  it("has no members view in the personal space, and asks for nothing", async () => {
-    server.spaces = [spaceDto(), householdDto()];
-    const { api, requests } = fakeApi({});
-    server.api = api;
-    vi.mocked(notFound).mockImplementationOnce(() => {
-      throw new Error("not found");
-    });
-    await expect(MemberMatrixContainer({ spaceId: "sp-personal" })).rejects.toThrow("not found");
-    expect(requests).toEqual([]);
-  });
 });
 
 describe("member matrix details (ruling P217)", () => {
-  it("opens today's period when none is asked for", async () => {
-    const november = { label: "2026-11", startDate: "2026-11-01", endDate: "2026-11-30" };
-    const { api, requests } = fakeApi({
-      "GET /api/v1/spaces/{spaceId}/reports/member-matrix": () => jsonResponse(e7Matrix()),
-      "GET /api/v1/spaces/{spaceId}/members": () => jsonResponse({ items: HOUSEHOLD_MEMBERS }),
-      "GET /api/v1/spaces/{spaceId}/periods": () => jsonResponse({ items: [november] }),
-    });
-    const result = await loadMatrix(api, { spaceId: "sp-household", today: "2026-11-05" });
-    expect(result.ok && result.data.matrix.period.label).toBe("2026-11");
-    const report = requests.find((r) => r.url.includes("member-matrix"))!;
-    expect(new URL(report.url).searchParams.get("period")).toBe("2026-11");
-  });
-
-  it("stops at the first failed read and hands its problem over", async () => {
-    const { api } = fakeApi({
-      "GET /api/v1/spaces/{spaceId}/reports/member-matrix": () =>
-        jsonResponse({ code: "Forbidden", status: 403, title: "No", requestId: "r1" }, 403),
-      "GET /api/v1/spaces/{spaceId}/members": () => jsonResponse({ items: HOUSEHOLD_MEMBERS }),
-      "GET /api/v1/spaces/{spaceId}/periods": () => jsonResponse({ items: [] }),
-    });
-    const result = await loadMatrix(api, { spaceId: "sp-household", period: "2026-11", today: "2026-10-31" });
-    expect(result.ok).toBe(false);
-  });
-
   it("shows each figure as the API answered it, never a gap of its own", () => {
     const matrix = withLine({
       members: [

@@ -9,10 +9,8 @@ import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import type { Api } from "@/shared/ui/api/client";
 import type { BudgetPlanDto, CapacitySuggestionDto, SpaceDto } from "@/shared/ui/api/dto";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
-import { loadCapacities } from "./capacities-container";
 import { CapacityForm } from "./capacity-form";
 
-vi.mock("next/headers", () => ({}));
 const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router, notFound: vi.fn(), redirect: vi.fn() }));
 beforeEach(() => vi.clearAllMocks());
@@ -256,26 +254,5 @@ describe("capacities (HU-E9-08)", () => {
     expect(requests.filter((request) => request.method === "PUT")).toHaveLength(1);
     release(jsonResponse(referencePlanDto({ version: 8 })));
     await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1));
-  });
-
-  it("loads the plan, the members and the caller's suggestion, and reads on without one", async () => {
-    const routes = {
-      [GET_PLAN]: () => jsonResponse(referencePlanDto()),
-      "GET /api/v1/spaces/{spaceId}/members": () => jsonResponse({ items: HOUSEHOLD_MEMBERS }),
-    };
-    const found = fakeApi({
-      ...routes,
-      "GET /api/v1/spaces/{spaceId}/plans/{planId}/capacity-suggestion": () =>
-        jsonResponse(suggestion("m-ana", 1_650_000)),
-    });
-    const result = await loadCapacities(found.api, { spaceId: "sp-household", planId: "p-nov" });
-    expect(result.ok && result.data.suggestion).toEqual(suggestion("m-ana", 1_650_000));
-    const failing = fakeApi({
-      ...routes,
-      "GET /api/v1/spaces/{spaceId}/plans/{planId}/capacity-suggestion": () =>
-        problemResponse(500, "InternalError"),
-    });
-    const fallback = await loadCapacities(failing.api, { spaceId: "sp-household", planId: "p-nov" });
-    expect(fallback.ok && fallback.data.suggestion).toBeNull();
   });
 });

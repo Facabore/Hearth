@@ -2,13 +2,10 @@ import { screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
 import { accountDto, cop } from "../../../../tests/support/ui/dto";
-import { fakeApi, jsonResponse } from "../../../../tests/support/ui/fake-api";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
-import { loadAccounts } from "./accounts-container";
 import { AccountsScreen } from "./accounts-screen";
 
-vi.mock("next/headers", () => ({}));
 // The rows' archive and restore buttons (Task 13) refresh through the router.
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
@@ -135,12 +132,6 @@ describe("accounts screen (HU-E9-03)", () => {
       "href",
       "/spaces/sp-personal/accounts/new?returnTo=%2Fspaces%2Fsp-personal%2Faccounts",
     );
-  });
-
-  it("loads every account, archived ones included, from the API", async () => {
-    const { api, requests } = fakeApi({ "GET /api/v1/spaces/{spaceId}/accounts": () => jsonResponse(list) });
-    expect(await loadAccounts(api, "sp-personal")).toEqual({ ok: true, data: list });
-    expect(new URL(requests[0]!.url).searchParams.get("archived")).toBe("true");
   });
 });
 

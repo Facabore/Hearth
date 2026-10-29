@@ -103,6 +103,7 @@ The web UI becomes a client-rendered single-page app, and the server leaves the 
 - Saves no longer need `router.refresh()`, and the Back-button staleness that kept it (#196, L4) goes away, because Back reads the same query cache that every mutation invalidates.
 - The route skeletons of #196 and the server containers are dropped at cut-over. Until then the Next.js UI stays live, so nothing regresses mid-migration.
 - Migration is by slices, with the SPA served at `/app/` on hearth-test until it reaches parity. Then Caddy points the root at it and the Next.js pages are deleted. The slices are listed in #199.
+- Cut over on 2026-10-28 (#199 slice 6): Caddy serves the SPA at the root and sends `/api` and `/api/*` to the app; `/app` and `/app/*` answer 308 to the same path at the root, so bookmarks keep working. Next.js serves only `src/app/api/**`: its pages, layouts, loading states, server containers and the proxy's UI redirects are deleted. The e2e, accessibility, layout and performance gates open the SPA through Vite's preview, which proxies `/api` like Caddy; [ADR 0004](0004-web-ui-testing-and-performance-gates.md) records the amended gates.
 - Rejected:
   - Staying on server rendering and tuning it, or reusing prefetched data for 30 s (owner, above).
   - Another server-rendering framework (SvelteKit, Remix, Nuxt). Loading data on the server at every navigation is the cost itself, whatever the framework.

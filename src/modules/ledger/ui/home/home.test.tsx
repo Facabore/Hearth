@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
 import { accountDto, cop, octoberPage, rowContext } from "../../../../../tests/support/ui/dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
-import type { TransactionDetail } from "../detail/detail-loader";
+import type { TransactionDetail } from "../detail/transaction-detail";
 import { HomeSummary } from "./home-summary";
 
 // A row opens the detail sheet, which closes with the router.

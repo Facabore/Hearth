@@ -39,7 +39,7 @@ module.exports = {
       from: { path: "^src/modules/([^/]+)/", pathNot: "\\.schema\\.ts$" },
       to: {
         path: "^src/modules/(?!$1/)[^/]+/",
-        pathNot: ["^src/modules/[^/]+/application/index\\.ts$", "^src/modules/[^/]+/ui/(index|server)\\.ts$"],
+        pathNot: ["^src/modules/[^/]+/application/index\\.ts$", "^src/modules/[^/]+/ui/index\\.ts$"],
       },
     },
     {
@@ -61,16 +61,9 @@ module.exports = {
       name: "ui-talks-only-to-the-api",
       severity: "error",
       comment:
-        "Ruling P119: the web pages, the proxy, i18n and every ui folder reach the backend only over /api/v1 through the generated client: never a module's domain, application, infrastructure or contracts, the composition root, the API routes, the HTTP or infrastructure layers or server-only packages; of the kernel only time-zone.ts, local-date.ts, style.ts and line-state.ts (ruling P244: the record form applies the API's own line levels).",
+        "Ruling P119: the single-page app, i18n and every ui folder reach the backend only over /api/v1 through the generated client: never a module's domain, application, infrastructure or contracts, the composition root, the API routes, the HTTP or infrastructure layers or server-only packages; of the kernel only time-zone.ts, local-date.ts, style.ts and line-state.ts (ruling P244: the record form applies the API's own line levels).",
       from: {
-        path: [
-          "^src/app/\\(web\\)/",
-          "^src/spa/",
-          "^src/i18n/",
-          "^src/proxy\\.ts$",
-          "^src/shared/ui/",
-          "^src/modules/[^/]+/ui/",
-        ],
+        path: ["^src/spa/", "^src/i18n/", "^src/shared/ui/", "^src/modules/[^/]+/ui/"],
       },
       to: {
         path: [
@@ -87,11 +80,11 @@ module.exports = {
       name: "ui-modules-only-through-public-ui-api",
       severity: "error",
       comment:
-        "A module's ui reaches another module's ui only through src/modules/<module>/ui/index.ts (client-safe) or ui/server.ts (server containers), and the web pages reach every module only through them; the single-page app also through ui/screens.ts.",
-      from: { path: ["^src/modules/([^/]+)/ui/", "^src/app/\\(web\\)/", "^src/spa/"] },
+        "A module's ui reaches another module's ui only through src/modules/<module>/ui/index.ts, and the single-page app reaches every module only through it and ui/screens.ts.",
+      from: { path: ["^src/modules/([^/]+)/ui/", "^src/spa/"] },
       to: {
         path: "^src/modules/[^/]+/ui/",
-        pathNot: ["^src/modules/[^/]+/ui/(index|server|screens)\\.ts$", "^src/modules/$1/ui/"],
+        pathNot: ["^src/modules/[^/]+/ui/(index|screens)\\.ts$", "^src/modules/$1/ui/"],
       },
     },
     {
@@ -103,25 +96,13 @@ module.exports = {
       to: { path: "^src/modules/[^/]+/ui/screens\\.ts$" },
     },
     {
-      name: "ui-index-is-client-safe",
-      severity: "error",
-      comment:
-        "Ruling P153: a module's ui/index.ts is imported by client code, so it must never reach the server-only API reader (next/headers); server containers are exported from ui/server.ts.",
-      from: { path: "^src/modules/[^/]+/ui/index\\.ts$" },
-      to: { path: "^src/shared/ui/api/server\\.ts$", reachable: true },
-    },
-    {
       name: "spa-is-client-only",
       severity: "error",
       comment:
-        "ADR 0006: the single-page app runs only in the browser, so it never reaches a server container (ui/server.ts), the server-only API reader or the Next.js server; the components' next/link, next/navigation, next/dynamic and next-intl resolve to its adapters (vite.spa.config.ts).",
+        "ADR 0006: the single-page app runs only in the browser, so it never reaches the Next.js app (src/app, the API's routes); the components' next/link, next/navigation, next/dynamic and next-intl resolve to its adapters (vite.spa.config.ts).",
       from: { path: "^src/spa/" },
       to: {
-        path: [
-          "^src/modules/[^/]+/ui/server\\.ts$",
-          "^src/shared/ui/api/server\\.ts$",
-          "^src/app/(?!\\(web\\)/globals\\.css$)",
-        ],
+        path: "^src/app/",
         reachable: true,
       },
     },

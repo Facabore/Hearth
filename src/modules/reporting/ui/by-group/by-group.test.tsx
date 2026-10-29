@@ -3,17 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
 import { cop, normalized } from "../../../../../tests/support/ui/dto";
-import { fakeApi, jsonResponse } from "../../../../../tests/support/ui/fake-api";
 import { e7Groups } from "../../../../../tests/support/ui/plan-dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { readTrail, stepsBack } from "@/shared/ui/navigation/history";
 import { NavigationTracker } from "@/shared/ui/navigation/navigation-tracker";
-import { loadByGroup } from "./by-group-container";
 import { SpendingChart } from "./spending-chart";
 import { treeOf, type NodeName } from "./spending-tree";
 
-vi.mock("next/headers", () => ({}));
 // Next syncs `useSearchParams` with the browser's own `pushState` and Back (it patches both), in a transition: the
 // mock does the same, so a level that waits for the URL renders only after the click's own render.
 vi.mock("next/navigation", async () => {
@@ -223,14 +220,5 @@ describe("spending by group (HU-E9-10)", () => {
     expect(rows()[0]?.[0]).toBe("No subcategory");
     const trail = screen.getByRole("navigation", { name: "Path" });
     expect(within(trail).getAllByRole("button")[0]).toHaveTextContent("All groups");
-  });
-
-  it("loads the tree with one request", async () => {
-    const { api, requests } = fakeApi({
-      "GET /api/v1/spaces/{spaceId}/reports/spending-by-group": () => jsonResponse(e7Groups()),
-      "GET /api/v1/spaces/{spaceId}/periods": () => jsonResponse({ items: [] }),
-    });
-    await loadByGroup(api, { spaceId: "sp-household", period: "2026-11", today: "2026-10-31" });
-    expect(requests.filter((r) => r.url.includes("spending-by-group"))).toHaveLength(1);
   });
 });

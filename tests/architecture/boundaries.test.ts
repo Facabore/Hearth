@@ -55,7 +55,7 @@ describe("architecture boundaries", () => {
     ["application-imports-infrastructure", "application-must-not-depend-on-adapters"],
     ["shared-imports-module", "shared-must-not-depend-on-modules"],
     ["circular", "no-circular"],
-    ["web-imports-composition", "ui-talks-only-to-the-api"],
+    ["spa-imports-composition", "ui-talks-only-to-the-api"],
     ["ui-imports-application", "ui-talks-only-to-the-api"],
     ["ui-imports-kernel-barrel", "ui-talks-only-to-the-api"],
     ["ui-crosses-module-ui", "ui-modules-only-through-public-ui-api"],

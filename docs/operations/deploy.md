@@ -17,7 +17,8 @@
    - `docker compose exec backup sh /hearth/backup.sh` → a `backup_written` line (see [Backups and restore](backups.md)).
    - `curl -s https://$HEARTH_DOMAIN/api/v1/health` → `{"status":"ok"}` with a valid certificate.
    - `curl -s https://$HEARTH_DOMAIN/api/v1/openapi.json | head -c 40` → `{"openapi":"3.1.0"…`.
-   - `curl -s https://$HEARTH_DOMAIN/app/ | grep -c 'id="root"'` → `1`: the single-page app (see Web UI).
+   - `curl -s https://$HEARTH_DOMAIN/ | grep -c 'id="root"'` → `1`: the single-page app (see Web UI).
+   - `curl -s -o /dev/null -w '%{http_code} %{redirect_url}' https://$HEARTH_DOMAIN/app/sign-in` → `308 https://$HEARTH_DOMAIN/sign-in`: an old `/app/…` bookmark lands on the same screen.
 
 If a required variable is missing, Compose refuses to start and names it; a missing or invalid `BETTER_AUTH_SECRET` makes the `app` container exit with status 1 and the message `Missing or invalid environment variables: BETTER_AUTH_SECRET`.
 
@@ -39,22 +40,24 @@ When the VPS already serves other sites through its own proxy on 80 and 443 (for
 
    Pick any free loopback ports. Never publish the app or the web service on `0.0.0.0`.
 
-2. Add a site to the host proxy. For a host Caddy, append to `/etc/caddy/Caddyfile`, then run `caddy validate --config /etc/caddy/Caddyfile` and `systemctl reload caddy`:
+2. Add a site to the host proxy. For a host Caddy, put this site in `/etc/caddy/sites/hearth.caddy` (with your domain in place of `hearth.example.com`), then run `caddy validate --config /etc/caddy/Caddyfile` and `systemctl reload caddy`:
 
    ```
    hearth.example.com {
    	encode zstd gzip
-   	@spa path /app /app/*
-   	handle @spa {
-   		reverse_proxy 127.0.0.1:5301
+   	@api path /api /api/*
+   	handle @api {
+   		reverse_proxy 127.0.0.1:5300
    	}
    	handle {
-   		reverse_proxy 127.0.0.1:5300
+   		reverse_proxy 127.0.0.1:5301
    	}
    }
    ```
 
-   `/app` and `/app/*` go to the web service (the single-page app, see Web UI); everything else, `/api/*` included, goes to the app. A site added before the web service existed sends `/app/` to the app, which answers with its own not-found page: add the `@spa` block when you update.
+   `/api` and `/api/*` go to the app; everything else goes to the web service, the single-page app (see Web UI), which also redirects the app's old `/app/…` addresses to the same screen at the root.
+
+   A site from before the cut-over (#199) sends `/app` and `/app/*` to 127.0.0.1:5301 and everything else to 127.0.0.1:5300. Replace it with the block above in the same release as the cut-over: the old block would send every screen to the app, which since the cut-over answers only `/api/*`.
 
    Without `trusted_proxies`, the host Caddy also replaces any client-sent `X-Forwarded-For`, so the sign-in throttles keep keying on the real address (see Reverse proxy and client addresses).
 
@@ -89,22 +92,19 @@ The sign-in and sign-up throttles key on the client address from `X-Forwarded-Fo
 
 ## Web UI
 
-Two web UIs run side by side while the single-page app of [ADR 0006](../adr/0006-client-first-single-page-app.md) is built in slices (epic #199):
+The web UI is the single-page app of [ADR 0006](../adr/0006-client-first-single-page-app.md), at the root (`/`, `/sign-in`, `/spaces/…`) since the cut-over of epic #199. Its static files live in the `web` image, whose Caddy serves `index.html` for every screen's path and a 404 for a file that is not there (ruling N1). Its hashed assets are cached for a year and `index.html` is revalidated on every visit, so a release shows at once. It calls `/api/v1` on the same origin with the session cookie and needs no variable of its own. The app's first address, `/app/…`, redirects to the same path at the root, so bookmarks keep working.
 
-- The Next.js UI at the root (`/`, `/sign-in`, `/spaces/…`), served by the `app` container.
-- The single-page app at `/app/` (`/app/sign-in`, `/app/spaces/…`), static files in the `web` image, a Caddy that serves `index.html` for every app path and a 404 for a missing asset. Its hashed assets are cached for a year, `index.html` is revalidated on every visit, so a release shows at once. It calls the same `/api/v1` on the same origin with the same session cookie, so a person signed in on one UI is signed in on the other. It needs no variable of its own.
-
-The Next.js UI's Server Components call `/api/v1` on `INTERNAL_API_ORIGIN` (default `http://127.0.0.1:$PORT`, which the image's `HOSTNAME=0.0.0.0` serves): nothing to set in `.env`. `HEARTH_E2E_FIXED_NOW` fixes the clock for the end-to-end tests only and must never be set in production.
+The `app` container serves the API only (`/api/*`). `HEARTH_E2E_FIXED_NOW` fixes the clock for the end-to-end tests only and must never be set in production.
 
 ## Updating
 
 1. Take a backup: `docker compose exec backup sh /hearth/backup.sh`.
-2. Copy the release's `compose.yaml`, `Caddyfile` and `scripts/` over the old ones, and set `HEARTH_APP_IMAGE`, `HEARTH_MIGRATOR_IMAGE` and `HEARTH_WEB_IMAGE` in `.env` to the new SHA. The first release with the web service adds `HEARTH_WEB_IMAGE` (`ghcr.io/facabore/hearth-web:<sha>`); without it Compose refuses to start and names it. Behind a host proxy, also add the `web` port and the `@spa` block of Behind a reverse proxy the host already runs.
+2. Copy the release's `compose.yaml`, `Caddyfile` and `scripts/` over the old ones, and set `HEARTH_APP_IMAGE`, `HEARTH_MIGRATOR_IMAGE` and `HEARTH_WEB_IMAGE` in `.env` to the new SHA. The first release with the web service adds `HEARTH_WEB_IMAGE` (`ghcr.io/facabore/hearth-web:<sha>`); without it Compose refuses to start and names it. Behind a host proxy, also keep the `web` port and the host site of Behind a reverse proxy the host already runs as they are written there: the release of the cut-over (#199) changes that site.
 3. `docker compose pull && docker compose up -d` — `migrate` runs pending migrations before `app` starts.
 
 ## Rolling back
 
-Set the image tags back to the previous SHA and run `docker compose up -d`. A release from before the web service has no `hearth-web` image: keep `HEARTH_WEB_IMAGE` at the first release that has one (the SPA is independent of the app's version until cut-over), or restore that release's `compose.yaml` and `Caddyfile` too. Migrations are forward-only; a release whose migration is not backward compatible must say so in its PR.
+Set the image tags back to the previous SHA and run `docker compose up -d`. Rolling back past the cut-over (#199) also needs that release's `Caddyfile` and, behind a host proxy, its host site (`/app` and `/app/*` to the web service, everything else to the app): before the cut-over the app served the screens. A release from before the web service has no `hearth-web` image: keep `HEARTH_WEB_IMAGE` at the first release that has one, or restore that release's `compose.yaml` and `Caddyfile` too. Migrations are forward-only; a release whose migration is not backward compatible must say so in its PR.
 
 ## Backups
 

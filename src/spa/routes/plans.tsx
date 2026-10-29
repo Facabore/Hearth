@@ -36,8 +36,11 @@ export function PlannerRoute() {
       categoriesQuery(api, spaceId, "all"),
     ],
   });
+  // The planner keeps the plan it last saved in its own state: a new plan, or a newer version of this one read after a
+  // write, must start it afresh, as each page visit did under Next.js.
   return (
     <Planner
+      key={`${plan.data.id}:${plan.data.version}`}
       space={space}
       plan={plan.data}
       members={list.data}
@@ -66,6 +69,7 @@ export function CapacitiesRoute() {
   });
   return (
     <CapacityForm
+      key={planId}
       space={space}
       plan={plan.data}
       members={list.data}
@@ -117,6 +121,7 @@ function LineEditorScreen({
   }
   return (
     <LineEditor
+      key={`${planId}:${lineId ?? "new"}`}
       space={space}
       plan={plan.data}
       line={line}
