@@ -49,6 +49,7 @@ describe("sharedContextOf (HU-E9-06, ruling P168)", () => {
       funds: [],
     };
     expect(initialSplitDraft(context).payer).toMatchObject({ accountId: "a-bank" });
+    expect(initialSplitDraft(context, null).payer).toMatchObject({ accountId: "a-bank" });
     expect(initialSplitDraft(context, "a-savings").payer).toMatchObject({ accountId: "a-savings" });
     expect(
       initialSplitDraft({ ...context, myAccounts: [accountDto({ id: "a-only", type: "SAVINGS" })] }).payer,

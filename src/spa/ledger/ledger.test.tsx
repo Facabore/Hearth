@@ -14,6 +14,7 @@ import {
 import { jsonResponse, problemResponse, type FakeHandler } from "../../../tests/support/ui/fake-api";
 import { e74Unified } from "../../../tests/support/ui/plan-dto";
 import { renderSpa } from "../../../tests/support/ui/spa";
+import { moduleKeys } from "../reads";
 
 /** A request the API never answers: whatever shows meanwhile came from the cache. */
 const never = (): Promise<Response> => new Promise<Response>(() => undefined);
@@ -98,7 +99,7 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     await waitFor(
       () =>
         expect(
-          spa.queryClient.getQueryState(["reports", "sp-personal", "unified", { period: "2026-10" }]),
+          spa.queryClient.getQueryState(moduleKeys.report("sp-personal", "unified", { period: "2026-10" })),
         ).toMatchObject({ status: "error", fetchStatus: "idle" }),
       { timeout: 5_000 },
     );

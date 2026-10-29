@@ -42,11 +42,16 @@ export const sharedContextOf = (input: {
  */
 export const initialSplitDraft = (
   context: SharedExpenseContext,
-  payerAccountId: string | null = (
-    context.myAccounts.find((a) => a.type !== "SAVINGS") ?? context.myAccounts[0]
-  )?.id ?? null,
+  payerAccountId: string | null = null,
 ): SplitDraft => ({
-  payer: { kind: "ME", memberId: context.meMemberId, accountId: payerAccountId },
+  payer: {
+    kind: "ME",
+    memberId: context.meMemberId,
+    accountId:
+      payerAccountId ??
+      (context.myAccounts.find((a) => a.type !== "SAVINGS") ?? context.myAccounts[0])?.id ??
+      null,
+  },
   method: "EQUAL",
   selected: context.members.map((member) => member.id),
   values: {},
