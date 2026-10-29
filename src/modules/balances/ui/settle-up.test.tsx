@@ -87,13 +87,13 @@ const juanInToasts = (api: Api) =>
       />
     </ToastProvider>,
   );
-const dialog = () => screen.getByRole("dialog", { name: "Registrar pago" });
+const dialog = () => screen.getByRole("dialog", { name: "Saldar" });
 const payerGroup = () => within(dialog()).getByRole("radiogroup", { name: "Quién paga" });
 const save = () => within(dialog()).getByRole("button", { name: "Guardar pago" });
 /** An accessible name whose spaces match the formatters' non-breaking ones. */
 const named = (text: string) => new RegExp(`^${text.replace(/[.()$]/g, "\\$&").replace(/ /g, "\\s")}$`);
-const JUAN_PAYS = named("Liquidar: Juan le paga $ 100.000 a Ana");
-const LUIS_PAYS = named("Liquidar: Luis le paga $ 50.000 a Ana");
+const JUAN_PAYS = named("Saldar: Juan le paga $ 100.000 a Ana");
+const LUIS_PAYS = named("Saldar: Luis le paga $ 50.000 a Ana");
 
 describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
   it("prefills the form from Juan's suggestion and records 100,000 COP from Juan to Ana once", async () => {
@@ -244,7 +244,7 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
   it("hides the source account when the guest Pedro pays, and records the payment without one", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
     screenAs("u-ana", api);
-    await userEvent.click(screen.getByRole("button", { name: "Registrar pago" }));
+    await userEvent.click(screen.getByRole("button", { name: "Saldar otro monto" }));
     await userEvent.click(within(payerGroup()).getByRole("radio", { name: "Pedro (invitado)" }));
     expect(
       within(dialog()).getByText("Pedro es invitado: pagó fuera de la app, así que no hay cuenta de origen."),
@@ -298,7 +298,7 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
   it("refuses a payment to oneself without sending it", async () => {
     const { api, requests } = fakeApi({});
     screenAs("u-ana", api);
-    await userEvent.click(screen.getByRole("button", { name: "Registrar pago" }));
+    await userEvent.click(screen.getByRole("button", { name: "Saldar otro monto" }));
     await userEvent.click(within(payerGroup()).getByRole("radio", { name: "Ana (tú)" }));
     await userEvent.type(within(dialog()).getByLabelText("Monto"), "1.000");
     await userEvent.click(save());
@@ -311,7 +311,7 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
   it("asks who pays, then for a readable amount, before sending anything", async () => {
     const { api, requests } = fakeApi({});
     screenAs("u-ana", api);
-    await userEvent.click(screen.getByRole("button", { name: "Registrar pago" }));
+    await userEvent.click(screen.getByRole("button", { name: "Saldar otro monto" }));
     await userEvent.click(save());
     expect(within(dialog()).getByText("Elige quién paga.")).toBeInTheDocument();
     await userEvent.click(within(payerGroup()).getByRole("radio", { name: "Luis" }));
@@ -379,22 +379,22 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
     expect(within(dialog()).getByLabelText("Monto")).toHaveValue("50.000");
     await userEvent.type(within(dialog()).getByLabelText("Monto"), "1");
     await userEvent.keyboard("{Escape}");
-    await userEvent.click(screen.getByRole("button", { name: "Registrar pago" }));
+    await userEvent.click(screen.getByRole("button", { name: "Saldar otro monto" }));
     expect(within(dialog()).getByLabelText("Monto")).toHaveValue("");
     expect(within(payerGroup()).queryByRole("radio", { checked: true })).toBeNull();
   });
 
   it("gives a viewer the balances without any settle-up control", () => {
     screenAs("u-ana", fakeApi({}).api, "m-luis", { space: { ...TRIP, role: "VIEWER" } });
-    expect(screen.queryByRole("button", { name: /Liquidar/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Registrar pago" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Saldar/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Saldar otro monto" })).toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("reads in English with no accessibility violations", async () => {
     screenAs("u-juan", fakeApi({}).api, undefined, {}, "en");
     await userEvent.click(screen.getByRole("button", { name: named("Settle: Juan pays Ana $ 100.000") }));
-    const sheet = screen.getByRole("dialog", { name: "Record a payment" });
+    const sheet = screen.getByRole("dialog", { name: "Settle" });
     expect(within(sheet).getByRole("radiogroup", { name: "Who pays" })).toBeInTheDocument();
     expect(within(sheet).getByRole("button", { name: "Save payment" })).toBeInTheDocument();
     expect(normalized(within(sheet).getByText(/owes/).textContent)).toBe(

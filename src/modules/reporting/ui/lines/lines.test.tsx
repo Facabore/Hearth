@@ -11,7 +11,7 @@ import { NoPlan } from "./no-plan";
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 
 const tableRows = () =>
-  within(screen.getByRole("table", { name: "Planeado, gastado y disponible por línea" }))
+  within(screen.getByRole("table", { name: "Planeado, gastado y disponible por rubro" }))
     .getAllByRole("row")
     .slice(1)
     .map((row) => [
@@ -102,7 +102,7 @@ describe("line dashboard (HU-E9-10)", () => {
       />,
     );
     expect(screen.queryByText("Sin presupuesto")).toBeNull();
-    expect(screen.queryByText(/no están en ninguna línea/)).toBeNull();
+    expect(screen.queryByText(/no están en ningún rubro/)).toBeNull();
     expect(screen.getByText("−$ 50")).toHaveClass("text-owe");
   });
 

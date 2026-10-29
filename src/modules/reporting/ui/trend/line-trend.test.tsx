@@ -29,9 +29,9 @@ describe("line trend (HU-E9-11)", () => {
         "data-points",
         "6",
       );
-      const table = screen.getByRole("table", { name: "Gastado por línea y período" });
+      const table = screen.getByRole("table", { name: "Gastado por rubro y período" });
       expect(normalized(table.textContent)).toContain("$ 1.350.000");
-      expect(screen.getByRole("region", { name: "Gastado por línea y período" })).toHaveAttribute(
+      expect(screen.getByRole("region", { name: "Gastado por rubro y período" })).toHaveAttribute(
         "tabindex",
         "0",
       );
@@ -48,6 +48,6 @@ describe("line trend (HU-E9-11)", () => {
         periods={6}
       />,
     );
-    expect(screen.getByText("Este período no tiene plan: no hay líneas que comparar.")).toBeInTheDocument();
+    expect(screen.getByText("Este período no tiene plan: no hay rubros que comparar.")).toBeInTheDocument();
   });
 });

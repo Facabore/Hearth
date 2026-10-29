@@ -231,7 +231,7 @@ describe("guests (HU-E9-05, ruling P163)", () => {
       "Para salir del espacio, quitar a alguien o archivar el espacio, los saldos tienen que quedar en cero. Registra los pagos que falten para quedar al día y vuelve a intentarlo.",
     );
     expect(normalized(alert.textContent)).toContain("Saldo pendiente: $ 100.000");
-    expect(within(alert).getByRole("link", { name: "Registrar pago" })).toHaveAttribute(
+    expect(within(alert).getByRole("link", { name: "Saldar" })).toHaveAttribute(
       "href",
       "/spaces/sp-household/balances?settle=m-pedro",
     );

@@ -55,7 +55,7 @@ describe("member matrix (HU-E9-10)", () => {
 
   it("reads TRACKED_AT_FUND_LEVEL in Rent's contributed and gap cells, and under its table", () => {
     show();
-    const reason = "Aportó y diferencia se siguen en el fondo, no por línea.";
+    const reason = "Aportó y diferencia se siguen en el fondo, no por rubro.";
     const [assigned, contributed, consumed, gap] = cellsOf("Rent por miembro", "Ana");
     expect([assigned, consumed]).toEqual(["$ 480.000", "$ 480.000"]);
     expect(contributed).toContain(reason);
@@ -124,7 +124,7 @@ describe("member matrix details (ruling P217)", () => {
     const dash = contributed.querySelector("[aria-hidden='true']");
     expect(dash).toHaveTextContent("—");
     expect(contributed.querySelector(".sr-only")).toHaveTextContent(
-      "Aportó y diferencia se siguen en el fondo, no por línea.",
+      "Aportó y diferencia se siguen en el fondo, no por rubro.",
     );
     // A figure that is set shows no dash.
     expect(container.querySelector("[data-line='l-home'] [aria-hidden='true']:not(svg)")).toBeNull();
@@ -165,7 +165,7 @@ describe("member matrix details (ruling P217)", () => {
         ],
       }),
     );
-    const reason = "La asignación de esta línea no cuadra: nadie tiene un monto asignado.";
+    const reason = "La asignación de este rubro no cuadra: nadie tiene un monto asignado.";
     expect(cellsOf("Home por miembro", "Ana")[0]).toContain(reason);
     expect(screen.getAllByText(reason, { selector: "p" })).toHaveLength(1);
   });
@@ -187,7 +187,7 @@ describe("member matrix details (ruling P217)", () => {
         ],
       }),
     );
-    const note = "Cuenta lo que llegó a las cuentas de ahorro de la línea; no tiene consumo.";
+    const note = "Cuenta lo que llegó a las cuentas de ahorro del rubro; no tiene consumo.";
     expect(cellsOf("Home por miembro", "Ana")[2]).toContain(note);
     expect(screen.getAllByText(note, { selector: "p" })).toHaveLength(1);
   });
@@ -215,7 +215,7 @@ describe("member matrix details (ruling P217)", () => {
     const { container } = show();
     const home = container.querySelector<HTMLElement>("[data-line='l-home']")!;
     expect(home.querySelectorAll("p")).toHaveLength(1);
-    expect(within(home).getByText("Directo · Según capacidad")).toBeInTheDocument();
+    expect(within(home).getByText("Cada uno paga · Según aportes")).toBeInTheDocument();
   });
 
   it("gives every status a badge, so the gap never relies on color alone", () => {
@@ -307,7 +307,7 @@ describe("member matrix details (ruling P217)", () => {
         .getAllByRole("columnheader")
         .map((h) => h.textContent),
     ).toEqual(["Miembro", "Asignado", "Aportó", "Consumió", "Diferencia"]);
-    expect(within(home).getByText("Directo · Según capacidad")).toBeInTheDocument();
+    expect(within(home).getByText("Cada uno paga · Según aportes")).toBeInTheDocument();
     expect(within(home).getByText("Home por miembro", { selector: "caption" })).toBeVisible();
   });
 

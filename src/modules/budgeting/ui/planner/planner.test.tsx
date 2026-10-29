@@ -57,15 +57,17 @@ describe("planner (HU-E9-08)", () => {
     const { container } = show();
     expect(screen.getByRole("heading", { level: 1, name: "Plan de noviembre 2026" })).toBeInTheDocument();
     expect(screen.getByText("Borrador")).toBeInTheDocument();
-    const capacity = normalized(screen.getByRole("region", { name: "Capacidad total" }).textContent);
+    const capacity = normalized(
+      screen.getByRole("region", { name: "Lo que aportan entre todos" }).textContent,
+    );
     expect(capacity).toContain("$ 4.000.000");
-    expect(capacity).toContain("Sin asignar $ 0");
+    expect(capacity).toContain("Por repartir $ 0");
     expect(capacity).toContain("Ana $ 1.600.000 · 40,00 %");
     expect(capacity).toContain("Juan $ 2.400.000 · 60,00 %");
     const home = normalized(screen.getByRole("listitem", { name: "Home" }).textContent);
     expect(home).toContain("$ 1.470.000");
-    expect(home).toContain("36,75 % de la capacidad");
-    expect(home).toContain("Directo · Según capacidad · Reinicia");
+    expect(home).toContain("36,75 % de lo aportado");
+    expect(home).toContain("Cada uno paga · Según aportes · Empieza de cero");
     expect(
       within(screen.getByRole("listitem", { name: "Free" })).getByText("Todo lo demás"),
     ).toBeInTheDocument();
@@ -73,7 +75,7 @@ describe("planner (HU-E9-08)", () => {
       "href",
       "/spaces/sp-household/plans/p-nov/lines/l-home",
     );
-    expect(screen.getByRole("link", { name: "Agregar línea" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Agregar rubro" })).toHaveAttribute(
       "href",
       "/spaces/sp-household/plans/p-nov/lines/new",
     );
@@ -106,7 +108,7 @@ describe("planner (HU-E9-08)", () => {
     ).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Activar plan" }));
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("El reparto de esta línea no cuadra.");
+    expect(alert).toHaveTextContent("El reparto de este rubro no cuadra.");
     expect(alert).toHaveTextContent("No se puede activar: revisa la asignación de Free.");
     await userEvent.click(screen.getByRole("button", { name: "Activar plan" }));
     expect(await screen.findByText("Activo")).toBeInTheDocument();
@@ -115,7 +117,7 @@ describe("planner (HU-E9-08)", () => {
     expect(await screen.findByText("Cerrado")).toBeInTheDocument();
     expect(screen.getByText("Plan cerrado: queda en solo lectura.")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /^Editar/ })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Agregar línea" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Agregar rubro" })).toBeNull();
     expect(screen.queryByRole("button")).toBeNull();
     expect(requests.map((r) => r.headers.get("if-match"))).toEqual(['"7"', '"7"', '"8"']);
     expect(router.refresh).toHaveBeenCalledTimes(2);
@@ -175,11 +177,11 @@ describe("planner (HU-E9-08)", () => {
   it("shows a VIEWER no edit control, and a MEMBER only the way to their own capacity (ruling P207)", () => {
     const viewer = show({ space: householdDto({ role: "VIEWER" }) });
     for (const name of ["Activar plan"]) expect(screen.queryByRole("button", { name })).toBeNull();
-    for (const name of ["Agregar línea", "Editar capacidades", "Editar Home"])
+    for (const name of ["Agregar rubro", "Editar aportes", "Editar Home"])
       expect(screen.queryByRole("link", { name })).toBeNull();
     viewer.unmount();
     show({ space: householdDto({ role: "MEMBER" }) });
-    expect(screen.getByRole("link", { name: "Editar capacidades" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Editar aportes" })).toHaveAttribute(
       "href",
       "/spaces/sp-household/plans/p-nov/capacities",
     );
@@ -231,7 +233,7 @@ describe("planner (HU-E9-08)", () => {
     };
     show({ plan });
     const homeText = normalized(screen.getByRole("listitem", { name: "Home" }).textContent);
-    expect(homeText).toContain("Directo · Según capacidad · Acumula");
+    expect(homeText).toContain("Cada uno paga · Según aportes · Acumula");
     expect(homeText).toContain("+$ 200.000 de octubre 2026");
     expect(normalized(screen.getByRole("listitem", { name: "Free" }).textContent)).toContain(
       "Se arrastra de octubre 2026 cuando ese plan se cierre.",

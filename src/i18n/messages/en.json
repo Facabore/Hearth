@@ -87,7 +87,7 @@
     "InvalidAmount": "The amount must be greater than zero.",
     "InvalidBillingDay": "The cut-off and payment days go from 1 to 31.",
     "InvalidBudgetLineName": "The line name must have 1 to 60 characters.",
-    "InvalidCapacity": "Each member's capacity must be zero or more, and each member appears once.",
+    "InvalidCapacity": "Each member's contribution must be zero or more, and each member appears once.",
     "InvalidCategoryIcon": "That icon is not available. Choose another one.",
     "InvalidCategoryName": "The name must have 1 to 60 characters.",
     "InvalidCredentials": "The email or the password does not match.",
@@ -143,7 +143,7 @@
     "PersonalSpaceNotArchivable": "Your personal space cannot be archived.",
     "PersonalSpaceNotShareable": "Your personal space is yours alone and cannot be shared.",
     "PlanAlreadyExists": "There is already a plan for that period.",
-    "PlanExceedsCapacity": "The plan exceeds the members' capacity.",
+    "PlanExceedsCapacity": "The plan exceeds what the members put in.",
     "PreconditionFailed": "Someone changed this while you were editing it. Reload to see the latest version.",
     "PreferenceLocked": "The installation fixes this setting, so it cannot be changed.",
     "RecurrenceEnded": "This recurring transaction has ended and cannot be changed.",
@@ -954,7 +954,7 @@
     "guestOptions": "Options for {name}",
     "guestSheet": {
       "addTitle": "Add a guest to {space}",
-      "intro": "For someone who does not use Hearth. They can pay, owe, have capacity in the plan and receive payments, only in {space}. They cannot sign in.",
+      "intro": "For someone who does not use Hearth. They can pay, owe, contribute to the plan and receive payments, only in {space}. They cannot sign in.",
       "name": "Name",
       "nameHint": "It shows with \"(guest)\" next to it. It cannot repeat another member's name.",
       "nameHintNamed": "It shows as \"{name}\". It cannot repeat another member's name.",
@@ -972,7 +972,7 @@
       "confirmRemove": "Remove {name} from {space}? Their history is kept.",
       "confirmRemoveAction": "Yes, remove",
       "outstanding": "Outstanding balance: {amount}",
-      "settle": "Record a payment"
+      "settle": "Settle"
     }
   },
   "balances": {
@@ -1008,11 +1008,11 @@
       "paid": "See what {name} paid",
       "note": "On the right, the balance after each movement and, under it, how much it changed."
     },
-    "record": "Record a payment",
+    "record": "Settle another amount",
     "settle": {
       "action": "Settle",
       "suggestion": "Settle: {payer} pays {receiver} {amount}",
-      "title": "Record a payment",
+      "title": "Settle",
       "payer": "Who pays",
       "receiver": "Who receives",
       "amount": "Amount",
@@ -1083,16 +1083,16 @@
       "title": "Plan for {period}",
       "dates": "{space} · {start} – {end}",
       "closedNotice": "Closed plan: it is read-only now.",
-      "capacity": "Total capacity",
-      "unallocated": "Unallocated {amount}",
+      "capacity": "What everyone puts in",
+      "unallocated": "{amount} left to assign",
       "memberShare": "{name} {amount} · {share}",
       "memberAmount": "{name} {amount}",
-      "editCapacities": "Edit capacities",
+      "editCapacities": "Edit contributions",
       "lines": "Lines",
       "addLine": "Add line",
       "empty": "This plan has no lines yet.",
       "meta": "{funding} · {rule} · {rollover}",
-      "ofCapacity": "{share} of capacity",
+      "ofCapacity": "{share} of what is put in",
       "invalidAllocation": "Invalid allocation",
       "editLine": "Edit {name}",
       "activate": "Activate plan",
@@ -1103,18 +1103,18 @@
       "goToSource": "Go to the plan for {period}"
     },
     "funding": {
-      "DIRECT": "Direct",
-      "SHARED_FUND": "Shared fund",
-      "SAVINGS": "Savings"
+      "DIRECT": "Each one pays",
+      "SHARED_FUND": "Paid from the shared fund",
+      "SAVINGS": "Goes to savings"
     },
     "rule": {
-      "PROPORTIONAL": "By capacity",
+      "PROPORTIONAL": "By contribution",
       "PERCENT": "Percentage",
       "FIXED": "Fixed amount",
       "NONE": "Not allocated"
     },
     "rollover": {
-      "RESET": "Resets",
+      "RESET": "Starts from zero",
       "ROLLOVER": "Rolls over",
       "ADJUSTED": "Adjusts",
       "hint": {
@@ -1140,16 +1140,16 @@
       "droppedLine": "The line {name}: none of its savings accounts is still available"
     },
     "capacity": {
-      "title": "Capacities",
+      "title": "What each one puts in",
       "subtitle": "What each person puts in for {period}",
       "you": "{name} (you)",
-      "field": "{name}'s capacity",
+      "field": "{name}'s contribution",
       "suggestion": "Suggested {amount}: your income of {period} in Personal. Only you see it.",
       "useSuggestion": "Use suggestion",
-      "zeroNote": "Anyone without a capacity counts as {zero}.",
+      "zeroNote": "Anyone who puts nothing in counts as {zero}.",
       "rolesNote": "A Member changes only their own; an Owner or an Admin changes everyone's.",
       "total": "Total",
-      "save": "Save capacities",
+      "save": "Save contributions",
       "unreadable": "Type an amount like {example}."
     },
     "lineEditor": {
@@ -1161,8 +1161,8 @@
       "field": {
         "name": "Name",
         "planned": "Planned",
-        "plannedHint": "{share} of capacity · {unallocated} unallocated",
-        "plannedNewHint": "Unallocated: {unallocated}",
+        "plannedHint": "{share} of what is put in · {unallocated} left to assign",
+        "plannedNewHint": "Left to assign: {unallocated}",
         "funding": "Where it comes from",
         "savingsAccounts": "Savings accounts",
         "otherAccount": "Another member's savings account",
@@ -1197,9 +1197,9 @@
       "value": "{name}'s value",
       "sum": "Sum: {sum}",
       "unreadable": "Type a number like {example}.",
-      "noCapacity": "Nobody has capacity in this plan: allocate by percentage or by fixed amount.",
+      "noCapacity": "Nobody puts anything into this plan: allocate by percentage or by fixed amount.",
       "note": {
-        "PROPORTIONAL": "Follows each member's capacity. It is recalculated when capacities change.",
+        "PROPORTIONAL": "Follows what each member puts in. It is recalculated when the contributions change.",
         "PERCENT": "Percentages that add up to 100%.",
         "FIXED": "Amounts that add up to the {planned} planned.",
         "NONE": "Group money with no one answering per person: the line shows planned, spent and available, without amounts per member."

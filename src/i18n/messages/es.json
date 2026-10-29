@@ -55,11 +55,11 @@
     "AccountRequired": "Elige la cuenta con la que se pagó.",
     "AccountTypeImmutable": "El tipo de una cuenta no se puede cambiar.",
     "AlreadyMember": "Esa persona ya es miembro de este espacio.",
-    "BudgetLineNameTaken": "Ya hay una línea con ese nombre en este plan.",
-    "BudgetLineNotFound": "No encontramos esa línea del plan.",
+    "BudgetLineNameTaken": "Ya hay un rubro con ese nombre en este plan.",
+    "BudgetLineNotFound": "No encontramos ese rubro del plan.",
     "BudgetPlanNotFound": "No encontramos ese plan.",
-    "CatchAllLineAlreadySet": "Este plan ya tiene una línea para todo lo demás.",
-    "CategoryAlreadyMapped": "Esa categoría ya está en otra línea del plan.",
+    "CatchAllLineAlreadySet": "Este plan ya tiene un rubro para todo lo demás.",
+    "CategoryAlreadyMapped": "Esa categoría ya está en otro rubro del plan.",
     "CategoryArchived": "Esta categoría está archivada. Elige otra o restáurala.",
     "CategoryDepthExceeded": "Las categorías admiten como máximo tres niveles.",
     "CategoryGroupArchived": "Este grupo de categorías está archivado. Restáuralo primero.",
@@ -83,11 +83,11 @@
     "InsufficientRole": "No tienes permiso para hacer esto en este espacio.",
     "InternalError": "Tuvimos un problema de nuestro lado. Intenta de nuevo en unos minutos.",
     "InvalidAccountName": "El nombre de la cuenta debe tener entre 1 y 60 caracteres.",
-    "InvalidAllocation": "El reparto de esta línea no cuadra. Revisa los porcentajes o los montos.",
+    "InvalidAllocation": "El reparto de este rubro no cuadra. Revisa los porcentajes o los montos.",
     "InvalidAmount": "El monto debe ser mayor que cero.",
     "InvalidBillingDay": "Los días de corte y de pago van del 1 al 31.",
-    "InvalidBudgetLineName": "El nombre de la línea debe tener entre 1 y 60 caracteres.",
-    "InvalidCapacity": "La capacidad de cada miembro debe ser cero o más, y cada miembro va una sola vez.",
+    "InvalidBudgetLineName": "El nombre del rubro debe tener entre 1 y 60 caracteres.",
+    "InvalidCapacity": "Lo que aporta cada miembro debe ser cero o más, y cada miembro va una sola vez.",
     "InvalidCategoryIcon": "Ese ícono no está disponible. Elige otro.",
     "InvalidCategoryName": "El nombre debe tener entre 1 y 60 caracteres.",
     "InvalidCredentials": "El correo o la contraseña no coinciden.",
@@ -143,7 +143,7 @@
     "PersonalSpaceNotArchivable": "Tu espacio personal no se puede archivar.",
     "PersonalSpaceNotShareable": "Tu espacio personal es solo tuyo y no se puede compartir.",
     "PlanAlreadyExists": "Ya hay un plan para ese periodo.",
-    "PlanExceedsCapacity": "Lo planeado supera la capacidad de los miembros.",
+    "PlanExceedsCapacity": "Lo planeado supera lo que aportan los miembros.",
     "PreconditionFailed": "Alguien cambió esto mientras lo editabas. Recarga para ver la última versión.",
     "PreferenceLocked": "La instalación fija este ajuste y no se puede cambiar.",
     "RecurrenceEnded": "Este movimiento recurrente ya terminó y no se puede cambiar.",
@@ -153,9 +153,9 @@
     "TransactionNotConvertible": "Un pago entre miembros no cambia de tipo.",
     "TransactionNotConverted": "Este movimiento no se cambió de tipo, así que no hay nada que deshacer.",
     "ConversionSuperseded": "Lo que resultó de este cambio ya cambió de tipo otra vez. Deshaz primero el cambio más reciente.",
-    "SavingsAccountAlreadyUsed": "Esa cuenta de ahorro ya está en otra línea del plan.",
-    "SavingsAccountRequired": "Una línea de ahorro necesita al menos una cuenta de ahorro.",
-    "SavingsLineNotMappable": "Una línea de ahorro no lleva categorías.",
+    "SavingsAccountAlreadyUsed": "Esa cuenta de ahorro ya está en otro rubro del plan.",
+    "SavingsAccountRequired": "Un rubro de ahorro necesita al menos una cuenta de ahorro.",
+    "SavingsLineNotMappable": "Un rubro de ahorro no lleva categorías.",
     "SettlementHasNoCategory": "Un pago entre personas no lleva categoría.",
     "SharedFundRequiresSharedSpace": "Un fondo compartido solo existe en un espacio compartido.",
     "SharesDoNotMatchAmount": "Los pagos y las partes deben sumar el monto total.",
@@ -818,7 +818,7 @@
         "SHARES": "Partes"
       },
       "note": {
-        "BY_ALLOCATION": "Preseleccionado: la categoría alimenta una línea asignada en el plan activo.",
+        "BY_ALLOCATION": "Preseleccionado: la categoría alimenta un rubro asignado en el plan activo.",
         "EQUAL": "Partes iguales entre las personas marcadas, en pesos enteros.",
         "PERCENT": "Porcentajes que suman 100 %.",
         "EXACT": "Montos exactos que suman el total del gasto.",
@@ -954,7 +954,7 @@
     "guestOptions": "Opciones de {name}",
     "guestSheet": {
       "addTitle": "Agregar invitado a {space}",
-      "intro": "Para alguien que no usa Hearth. Puede pagar, deber, tener capacidad en el plan y recibir pagos, solo en {space}. No inicia sesión.",
+      "intro": "Para alguien que no usa Hearth. Puede pagar, deber, aportar al plan y recibir pagos, solo en {space}. No inicia sesión.",
       "name": "Nombre",
       "nameHint": "Se verá con «(invitado)» al lado. No puede repetir el nombre de otro miembro.",
       "nameHintNamed": "Se verá como «{name}». No puede repetir el nombre de otro miembro.",
@@ -972,7 +972,7 @@
       "confirmRemove": "¿Quitar a {name} de {space}? Su historial se conserva.",
       "confirmRemoveAction": "Sí, quitar",
       "outstanding": "Saldo pendiente: {amount}",
-      "settle": "Registrar pago"
+      "settle": "Saldar"
     }
   },
   "balances": {
@@ -985,7 +985,7 @@
     },
     "suggestions": "Para quedar a paz y salvo",
     "owes": "{payer} le paga {amount} a {receiver}",
-    "suggestionsNote": "Sugerencia con el menor número de pagos. Liquidar solo prellena el formulario.",
+    "suggestionsNote": "Sugerencia con el menor número de pagos. Saldar solo prellena el formulario.",
     "allSettled": "Todos están al día en {space}.",
     "members": "Cada miembro",
     "member": {
@@ -1008,11 +1008,11 @@
       "paid": "Ver lo que pagó {name}",
       "note": "A la derecha, el saldo después de cada movimiento y debajo cuánto cambió."
     },
-    "record": "Registrar pago",
+    "record": "Saldar otro monto",
     "settle": {
-      "action": "Liquidar",
-      "suggestion": "Liquidar: {payer} le paga {amount} a {receiver}",
-      "title": "Registrar pago",
+      "action": "Saldar",
+      "suggestion": "Saldar: {payer} le paga {amount} a {receiver}",
+      "title": "Saldar",
       "payer": "Quién paga",
       "receiver": "Quién recibe",
       "amount": "Monto",
@@ -1083,16 +1083,16 @@
       "title": "Plan de {period}",
       "dates": "{space} · {start} – {end}",
       "closedNotice": "Plan cerrado: queda en solo lectura.",
-      "capacity": "Capacidad total",
-      "unallocated": "Sin asignar {amount}",
+      "capacity": "Lo que aportan entre todos",
+      "unallocated": "Por repartir {amount}",
       "memberShare": "{name} {amount} · {share}",
       "memberAmount": "{name} {amount}",
-      "editCapacities": "Editar capacidades",
-      "lines": "Líneas",
-      "addLine": "Agregar línea",
-      "empty": "Este plan aún no tiene líneas.",
+      "editCapacities": "Editar aportes",
+      "lines": "Rubros",
+      "addLine": "Agregar rubro",
+      "empty": "Este plan aún no tiene rubros.",
       "meta": "{funding} · {rule} · {rollover}",
-      "ofCapacity": "{share} de la capacidad",
+      "ofCapacity": "{share} de lo aportado",
       "invalidAllocation": "Asignación inválida",
       "editLine": "Editar {name}",
       "activate": "Activar plan",
@@ -1103,23 +1103,23 @@
       "goToSource": "Ir al plan de {period}"
     },
     "funding": {
-      "DIRECT": "Directo",
-      "SHARED_FUND": "Fondo compartido",
-      "SAVINGS": "Ahorro"
+      "DIRECT": "Cada uno paga",
+      "SHARED_FUND": "Sale del fondo común",
+      "SAVINGS": "Va al ahorro"
     },
     "rule": {
-      "PROPORTIONAL": "Según capacidad",
+      "PROPORTIONAL": "Según aportes",
       "PERCENT": "Porcentaje",
       "FIXED": "Monto fijo",
       "NONE": "Sin asignar"
     },
     "rollover": {
-      "RESET": "Reinicia",
+      "RESET": "Empieza de cero",
       "ROLLOVER": "Acumula",
       "ADJUSTED": "Ajusta",
       "hint": {
         "RESET": "Cada período empieza en cero.",
-        "ROLLOVER": "Lo que sobra pasa al siguiente período y no cuenta contra la capacidad. Úsalo para ahorrar cada mes para un gasto anual, como el SOAT, el predial o un seguro.",
+        "ROLLOVER": "Lo que sobra pasa al siguiente período y no cuenta contra lo aportado. Úsalo para ahorrar cada mes para un gasto anual, como el SOAT, el predial o un seguro.",
         "ADJUSTED": "Si te pasas, lo que excede se descuenta del siguiente período; lo que sobra no pasa."
       },
       "throughCopy": "Pasa cuando el plan siguiente se crea como copia de este y este se cierra."
@@ -1133,54 +1133,54 @@
     },
     "copy": {
       "title": "Copiado del plan anterior",
-      "body": "Mismas líneas, montos, reglas y capacidades. Quedó fuera lo que ya no se puede usar:",
-      "bodyComplete": "Mismas líneas, montos, reglas y capacidades.",
+      "body": "Mismos rubros, montos, reglas y aportes. Quedó fuera lo que ya no se puede usar:",
+      "bodyComplete": "Mismos rubros, montos, reglas y aportes.",
       "droppedMapping": "{category}, que alimentaba {line}",
       "droppedAccount": "Una cuenta de ahorro de {line} que ya no se puede usar",
-      "droppedLine": "La línea {name}: ninguna de sus cuentas de ahorro sigue disponible"
+      "droppedLine": "El rubro {name}: ninguna de sus cuentas de ahorro sigue disponible"
     },
     "capacity": {
-      "title": "Capacidades",
+      "title": "Cuánto aporta cada uno",
       "subtitle": "Lo que cada persona pone en {period}",
       "you": "{name} (tú)",
-      "field": "Capacidad de {name}",
+      "field": "Aporte de {name}",
       "suggestion": "Sugerido {amount}: tus ingresos de {period} en Personal. Solo tú lo ves.",
       "useSuggestion": "Usar sugerencia",
-      "zeroNote": "Quien no tiene capacidad cuenta como {zero}.",
+      "zeroNote": "Quien no aporta cuenta como {zero}.",
       "rolesNote": "Un Miembro solo cambia la suya; Propietario y Administrador, la de todos.",
       "total": "Total",
-      "save": "Guardar capacidades",
+      "save": "Guardar aportes",
       "unreadable": "Escribe un monto como {example}."
     },
     "lineEditor": {
-      "metaTitle": "Editar línea",
-      "title": "Línea {name}",
-      "newTitle": "Nueva línea",
-      "figures": "Cifras de la línea",
+      "metaTitle": "Editar rubro",
+      "title": "Rubro {name}",
+      "newTitle": "Nuevo rubro",
+      "figures": "Cifras del rubro",
       "carryOver": "Arrastrado",
       "field": {
         "name": "Nombre",
         "planned": "Planeado",
-        "plannedHint": "{share} de la capacidad · sin asignar {unallocated}",
-        "plannedNewHint": "Sin asignar: {unallocated}",
+        "plannedHint": "{share} de lo aportado · por repartir {unallocated}",
+        "plannedNewHint": "Por repartir: {unallocated}",
         "funding": "De dónde sale",
         "savingsAccounts": "Cuentas de ahorro",
         "otherAccount": "Cuenta de ahorro de otro miembro",
         "noSavingsAccounts": "No tienes cuentas de ahorro en {currency}. Crea una en Cuentas.",
         "rollover": "Al cambiar de período",
         "catchAll": "Todo lo demás",
-        "catchAllHint": "Recibe los gastos de categorías que no están en otra línea."
+        "catchAllHint": "Recibe los gastos de categorías que no están en otro rubro."
       },
       "unreadable": "Escribe un monto como {example}.",
-      "save": "Guardar línea",
-      "add": "Agregar línea",
+      "save": "Guardar rubro",
+      "add": "Agregar rubro",
       "remove": {
-        "open": "Quitar línea",
+        "open": "Quitar rubro",
         "title": "¿Quitar {name}?",
-        "explain": "La línea sale del plan y sus gastos pasan a Sin presupuesto o a la línea de todo lo demás.",
+        "explain": "El rubro sale del plan y sus gastos pasan a Sin presupuesto o al rubro de todo lo demás.",
         "confirm": "Quitar"
       },
-      "readOnly": "Solo Propietario y Administrador editan las líneas de un plan abierto."
+      "readOnly": "Solo Propietario y Administrador editan los rubros de un plan abierto."
     },
     "mapping": {
       "label": "Categorías",
@@ -1192,17 +1192,17 @@
       "done": "Listo"
     },
     "allocation": {
-      "title": "Quién responde por la línea",
+      "title": "Quién responde por el rubro",
       "rule": "Regla de asignación",
       "value": "Valor de {name}",
       "sum": "Suma: {sum}",
       "unreadable": "Escribe un número como {example}.",
-      "noCapacity": "Nadie tiene capacidad en este plan: asigna por porcentaje o por monto fijo.",
+      "noCapacity": "Nadie aporta en este plan: reparte por porcentaje o por monto fijo.",
       "note": {
-        "PROPORTIONAL": "Sigue la capacidad de cada miembro. Si cambian las capacidades, se recalcula.",
+        "PROPORTIONAL": "Sigue lo que aporta cada miembro. Si cambian los aportes, se recalcula.",
         "PERCENT": "Porcentajes que suman 100 %.",
         "FIXED": "Montos que suman los {planned} planeados.",
-        "NONE": "Plata del grupo, sin responsable por persona: la línea muestra planeado, gastado y disponible, sin montos por miembro."
+        "NONE": "Plata del grupo, sin responsable por persona: el rubro muestra planeado, gastado y disponible, sin montos por miembro."
       }
     }
   },
@@ -1212,7 +1212,7 @@
       "label": "Vistas del plan"
     },
     "view": {
-      "lines": "Líneas",
+      "lines": "Rubros",
       "members": "Miembros",
       "fund": "Fondo",
       "groups": "Por grupo",
@@ -1239,12 +1239,12 @@
       "period": "Período",
       "consumption": "Consumo",
       "change": "Cambio",
-      "noPlan": "Este período no tiene plan: no hay líneas que comparar.",
-      "linesCaption": "Gastado por línea",
-      "linesTable": "Gastado por línea y período",
+      "noPlan": "Este período no tiene plan: no hay rubros que comparar.",
+      "linesCaption": "Gastado por rubro",
+      "linesTable": "Gastado por rubro y período",
       "spentIn": "Gastado en {period}",
       "noFigure": "Sin dato",
-      "linesNote": "Cada línea se compara con su línea de origen en el plan anterior. Lo gastado sin presupuesto no tiene tendencia."
+      "linesNote": "Cada rubro se compara con su rubro de origen en el plan anterior. Lo gastado sin presupuesto no tiene tendencia."
     },
     "calendar": {
       "metaTitle": "Próximos movimientos",
@@ -1312,14 +1312,14 @@
       "upToDate": "Al día",
       "behind": "Le falta aportar",
       "noPlan": "Sin plan, nadie tiene un aporte esperado.",
-      "note": "Esperado: lo asignado a cada uno en las líneas pagadas con el fondo. Cuentan los aportes fechados en el período."
+      "note": "Esperado: lo asignado a cada uno en los rubros pagados con el fondo. Cuentan los aportes fechados en el período."
     },
     "lines": {
       "summary": "Resumen del plan",
       "totalAvailable": "Disponible",
       "totalSpent": "Gastado {spent} de {planned}",
-      "caption": "Planeado, gastado y disponible por línea",
-      "line": "Línea",
+      "caption": "Planeado, gastado y disponible por rubro",
+      "line": "Rubro",
       "planned": "Planeado",
       "spent": "Gastado",
       "available": "Disponible",
@@ -1330,7 +1330,7 @@
       },
       "overBy": "Te pasaste por {amount}",
       "unbudgeted": "Sin presupuesto",
-      "unbudgetedNote": "Sin presupuesto es lo gastado en categorías que no están en ninguna línea.",
+      "unbudgetedNote": "Sin presupuesto es lo gastado en categorías que no están en ningún rubro.",
       "carryOver": "{amount} de {period}",
       "carryOverPending": "Se arrastra de {period} cuando ese plan se cierre."
     },
@@ -1350,7 +1350,7 @@
       "gap": "Diferencia",
       "formerMember": "Miembro anterior",
       "noFigure": "Sin dato",
-      "savingsNote": "Cuenta lo que llegó a las cuentas de ahorro de la línea; no tiene consumo.",
+      "savingsNote": "Cuenta lo que llegó a las cuentas de ahorro del rubro; no tiene consumo.",
       "toFund": "Ver fondo"
     },
     "overview": {
@@ -1358,13 +1358,13 @@
       "fundSummary": "{actual} de {expected}",
       "againstPrevious": "Contra el período anterior",
       "toTrend": "Ver tendencia de 6 períodos",
-      "matrixTitle": "Miembros por línea",
-      "matrixNote": "Las líneas pagadas con el fondo siguen su aporte en Aportes al fondo; las de ahorro cuentan lo que llegó a sus cuentas."
+      "matrixTitle": "Miembros por rubro",
+      "matrixNote": "Los rubros pagados con el fondo siguen su aporte en Aportes al fondo; los de ahorro cuentan lo que llegó a sus cuentas."
     },
     "reason": {
       "NOT_ALLOCATED": "Sin asignación por persona: solo se muestra lo consumido.",
-      "TRACKED_AT_FUND_LEVEL": "Aportó y diferencia se siguen en el fondo, no por línea.",
-      "INVALID_ALLOCATION": "La asignación de esta línea no cuadra: nadie tiene un monto asignado."
+      "TRACKED_AT_FUND_LEVEL": "Aportó y diferencia se siguen en el fondo, no por rubro.",
+      "INVALID_ALLOCATION": "La asignación de este rubro no cuadra: nadie tiene un monto asignado."
     },
     "status": {
       "OVER_CONTRIBUTED": "de más",
