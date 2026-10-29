@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
 import type { SpaApis } from "./api";
 import { earlyResult, seedEarlyReads, takeEarlyReads, type EarlyReads } from "./early";
-import { catalogPreload, EARLY_READS } from "./early-html";
+import { catalogPreload, EARLY_READS, FRAME_PICK } from "./early-html";
 import { queryKeys } from "./queries";
 
 const json = (body: unknown, status = 200) =>
@@ -77,6 +77,28 @@ describe("the reads the HTML starts before the app's script arrives (ADR 0004, 2
     expect(preloaded("de", [])).toEqual(["/assets/es-1.js"]);
     // A cookie naming no language, even one an object inherits, preloads the browser's or Spanish.
     expect(preloaded("constructor", [])).toEqual(["/assets/es-1.js"]);
+  });
+
+  it("marks the frame the HTML paints before the app runs: the public one on a visitor's screen, else the app's", () => {
+    const frameAt = (pathname: string) => {
+      window.history.replaceState(null, "", pathname);
+      delete document.documentElement.dataset.frame;
+      new Function(FRAME_PICK)();
+      return document.documentElement.dataset.frame;
+    };
+    expect(["/sign-in", "/sign-up?next=%2F", "/invitations/tok", "/claims/clm"].map(frameAt)).toEqual([
+      "public",
+      "public",
+      "public",
+      "public",
+    ]);
+    expect(["/", "/spaces/sp-1/transactions", "/settings", "/sign-in-later"].map(frameAt)).toEqual([
+      "app",
+      "app",
+      "app",
+      "app",
+    ]);
+    window.history.replaceState(null, "", "/");
   });
 
   describe("handing the early reads to the queries", () => {

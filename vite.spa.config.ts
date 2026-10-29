@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import compile from "icu-minify/compile";
 import { defineConfig, type Plugin, type Rollup } from "vite";
 import { THEME_BOOTSTRAP } from "./src/shared/ui/theme/theme";
-import { catalogPreload, EARLY_READS } from "./src/spa/early-html";
+import { catalogPreload, EARLY_READS, FRAME_PICK } from "./src/spa/early-html";
 import { routePreload, routeTable } from "./src/spa/route-preload";
 
 const from = (path: string) => fileURLToPath(new URL(path, import.meta.url));
@@ -60,7 +60,7 @@ const earlyReads = (): Plugin => ({
   name: "hearth:early-reads",
   transformIndexHtml: {
     order: "post",
-    handler: (_html, { bundle }) => {
+    handler: (html, { bundle }) => {
       const catalogs = Object.fromEntries(
         Object.values(bundle ?? {}).flatMap((file) => {
           if (file.type !== "chunk") return [];
@@ -70,18 +70,32 @@ const earlyReads = (): Plugin => ({
           return id ? [[/([a-z]+)\.json$/.exec(id)![1]!, `/${file.fileName}`]] : [];
         }),
       );
-      return [
-        { tag: "script", children: EARLY_READS, injectTo: "head-prepend" },
-        ...(Object.keys(catalogs).length > 0
-          ? [{ tag: "script", children: catalogPreload(catalogs), injectTo: "head-prepend" as const }]
-          : []),
-        ...(bundle
-          ? [{ tag: "script", children: firstScreen(bundle), injectTo: "head-prepend" as const }]
-          : []),
-      ];
+      return {
+        html: bundle ? inlineStylesheet(html, bundle) : html,
+        tags: [
+          { tag: "script", children: FRAME_PICK, injectTo: "head-prepend" },
+          { tag: "script", children: EARLY_READS, injectTo: "head-prepend" },
+          ...(Object.keys(catalogs).length > 0
+            ? [{ tag: "script", children: catalogPreload(catalogs), injectTo: "head-prepend" as const }]
+            : []),
+          ...(bundle
+            ? [{ tag: "script", children: firstScreen(bundle), injectTo: "head-prepend" as const }]
+            : []),
+        ],
+      };
     },
   },
 });
+
+/**
+ * The stylesheet goes inside the HTML, so the static frame paints as soon as the HTML arrives instead of after one
+ * more round trip; index.html is read again on each visit anyway (Caddyfile.web), and the file stays for any other use.
+ */
+const inlineStylesheet = (html: string, bundle: Rollup.OutputBundle): string =>
+  html.replace(/<link rel="stylesheet"[^>]*href="\/([^"]+\.css)"[^>]*>/g, (link, fileName: string) => {
+    const asset = bundle[fileName];
+    return asset?.type === "asset" ? `<style>${String(asset.source)}</style>` : link;
+  });
 
 /**
  * The first screen's own chunks, its layout's and its loaders', preloaded beside the app's script
