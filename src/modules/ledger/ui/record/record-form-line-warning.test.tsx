@@ -112,18 +112,26 @@ describe("the record form warns about a line past 80 % and asks only over the pl
   });
 
   it("asks over the plan and brings its buttons into view above the bottom bar (#211)", async () => {
+    // jsdom has no scrollIntoView: the test lends one and takes it back, so no later test sees it.
     const scroll = vi.fn();
     Element.prototype.scrollIntoView = scroll;
-    const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
-    form(api, watch);
-    await typeExpense("212300");
-    await userEvent.click(screen.getByRole("button", { name: SAVE }));
-    expect(screen.getByRole("heading", { name: CONFIRM_TITLE })).toHaveFocus();
-    const confirm = screen.getByRole("button", { name: "Guardar de todos modos" });
-    expect(scroll).toHaveBeenCalledWith({ block: "nearest" });
-    expect(scroll.mock.contexts.some((el) => (el as Element).contains(confirm))).toBe(true);
-    await userEvent.click(confirm);
-    await waitFor(() => expect(expenses(requests)).toHaveLength(1));
+    try {
+      const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
+      const { container } = form(api, watch);
+      await typeExpense("212300");
+      await userEvent.click(screen.getByRole("button", { name: SAVE }));
+      expect(screen.getByRole("heading", { name: CONFIRM_TITLE })).toHaveFocus();
+      expect(screen.queryByRole("button", { name: SAVE })).toBeNull();
+      expect(expenses(requests)).toHaveLength(0);
+      expect(await axeViolations(container)).toEqual([]);
+      const confirm = screen.getByRole("button", { name: "Guardar de todos modos" });
+      expect(scroll).toHaveBeenCalledWith({ block: "nearest" });
+      expect(scroll.mock.contexts.some((el) => (el as Element).contains(confirm))).toBe(true);
+      await userEvent.click(confirm);
+      await waitFor(() => expect(expenses(requests)).toHaveLength(1));
+    } finally {
+      delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
   });
 
   it("states the overage as an amount, and Revisar el monto goes back to the amount without saving", async () => {

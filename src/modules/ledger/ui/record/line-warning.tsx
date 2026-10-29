@@ -54,6 +54,7 @@ export function LineWarningConfirm({
         {t("confirmTitle")}
       </h2>
       <LineWarningNote warning={warning} formats={formats} />
+      {/* The scroll margin is the bottom bar (76 px, nav-links.tsx) plus 12 px, so nearest scrolling leaves them above it. */}
       <div ref={actions} className="flex scroll-mb-[calc(88px+env(safe-area-inset-bottom))] flex-wrap gap-3">
         <Button size="lg" onClick={onConfirm}>
           {t("confirm")}
