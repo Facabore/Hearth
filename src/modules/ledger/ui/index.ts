@@ -11,6 +11,7 @@ export type { TransactionDetail } from "./detail/transaction-detail";
 export { actionsFor } from "./detail/transaction-actions";
 export { withTx } from "./detail/tx-href";
 export { RecordForm } from "./record/record-form";
+export { RecordNotAllowed } from "./record/record-not-allowed";
 export type { RecordKind } from "./record/record-request";
 export { lineWatchOf } from "./record/line-watch";
 export { peopleOf } from "./direct/counterparts";

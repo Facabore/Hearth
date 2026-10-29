@@ -159,6 +159,33 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     await waitFor(() => expect(spa.location()).toBe("/spaces/sp-personal/transactions?tx=t-dinner"));
   });
 
+  it("gives a viewer no Registrar button, and her link to the form names her role instead (#207)", async () => {
+    const { routes } = ledgerApi({
+      "GET /api/v1/spaces": () => jsonResponse({ items: [spaceDto(), householdSpace({ role: "VIEWER" })] }),
+    });
+    renderSpa("/spaces/sp-household/new", routes);
+    expect(
+      await screen.findByText(
+        es.ledger.form.readOnly.replace("{space}", "Household").replace("{role}", es.shell.role.VIEWER),
+      ),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: es.ledger.form.save.EXPENSE })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: es.common.back })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household",
+    );
+    expect(within(nav()).queryByRole("link", { name: es.shell.nav.record })).not.toBeInTheDocument();
+  });
+
+  it("keeps the Registrar button for a member who records", async () => {
+    const { routes } = ledgerApi({
+      "GET /api/v1/spaces": () => jsonResponse({ items: [spaceDto(), householdSpace({ role: "MEMBER" })] }),
+    });
+    renderSpa("/spaces/sp-household/new", routes);
+    expect(await screen.findByRole("button", { name: es.ledger.form.save.EXPENSE })).toBeVisible();
+    expect(within(nav()).getByRole("link", { name: es.shell.nav.record })).toBeInTheDocument();
+  });
+
   it("shows a read the API refuses as its problem, inside the shell", async () => {
     const { routes } = ledgerApi({
       "GET /api/v1/spaces/{spaceId}/categories": () => problemResponse(500, "InternalError"),

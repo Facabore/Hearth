@@ -775,6 +775,7 @@
     },
     "form": {
       "title": "Registrar movimiento",
+      "readOnly": "Tu rol en {space} es {role}: puedes ver sus movimientos, pero no registrarlos.",
       "kind": "Tipo de movimiento",
       "amount": "Monto",
       "description": "Descripción",

@@ -775,6 +775,7 @@
     },
     "form": {
       "title": "Record a transaction",
+      "readOnly": "Your role in {space} is {role}: you can see its transactions, but not record them.",
       "kind": "Type of transaction",
       "amount": "Amount",
       "description": "Description",

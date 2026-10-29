@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { Locale } from "@/i18n/locale";
 import { ProfileSheet } from "@/modules/identity/ui";
+import { controlsFor } from "./members/space-controls";
 import { NavLinks } from "./nav-links";
 import type { SpaceSummary } from "./space-helpers";
 import { SpaceSwitcher } from "./space-switcher";
@@ -23,7 +24,11 @@ export function AppShell({ me, spaces, activeSpace, children }: AppShellProps) {
         </header>
         <main id="main">{children}</main>
       </div>
-      <NavLinks spaceId={activeSpace.id} spaceKind={activeSpace.kind} />
+      <NavLinks
+        spaceId={activeSpace.id}
+        spaceKind={activeSpace.kind}
+        canRecord={controlsFor(activeSpace.role, activeSpace.kind).recordMoney}
+      />
     </div>
   );
 }

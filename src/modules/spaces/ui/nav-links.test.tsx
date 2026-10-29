@@ -28,7 +28,7 @@ describe("the Registrar button (issue #172)", () => {
   it("carries the screen it is pressed on, with its query, as the form's returnTo", () => {
     where.pathname = "/spaces/sp-household";
     where.search = "period=2026-10";
-    renderWithIntl(<NavLinks spaceId="sp-household" spaceKind="SHARED" />);
+    renderWithIntl(<NavLinks spaceId="sp-household" spaceKind="SHARED" canRecord />);
     expect(screen.getByRole("link", { name: "Registrar movimiento" })).toHaveAttribute(
       "href",
       `/spaces/sp-household/new?returnTo=${encodeURIComponent("/spaces/sp-household?period=2026-10")}`,
@@ -37,7 +37,7 @@ describe("the Registrar button (issue #172)", () => {
 
   it("carries none on the record form itself", () => {
     where.pathname = "/spaces/sp-household/new";
-    renderWithIntl(<NavLinks spaceId="sp-household" spaceKind="SHARED" />);
+    renderWithIntl(<NavLinks spaceId="sp-household" spaceKind="SHARED" canRecord />);
     expect(screen.getByRole("link", { name: "Registrar movimiento" })).toHaveAttribute(
       "href",
       "/spaces/sp-household/new",
@@ -52,7 +52,7 @@ const names = () =>
 
 describe("the Plan tab (ruling P200, amends P141; P160 for the order)", () => {
   it("comes after Registrar and before Saldos, and is current on every plan screen", () => {
-    renderWithIntl(<NavLinks spaceId="sp-household" spaceKind="SHARED" />);
+    renderWithIntl(<NavLinks spaceId="sp-household" spaceKind="SHARED" canRecord />);
     const plan = screen.getByRole("link", { name: "Plan" });
     expect(plan).toHaveAttribute("href", "/spaces/sp-household/plan");
     expect(plan).toHaveAttribute("aria-current", "page");
@@ -60,8 +60,13 @@ describe("the Plan tab (ruling P200, amends P141; P160 for the order)", () => {
   });
 
   it("is the last tab of a personal space, which has no Saldos", () => {
-    renderWithIntl(<NavLinks spaceId="sp-personal" spaceKind="PERSONAL" />);
+    renderWithIntl(<NavLinks spaceId="sp-personal" spaceKind="PERSONAL" canRecord />);
     expect(names()).toEqual(["Inicio", "Movimientos", "Registrar movimiento", "Plan"]);
+  });
+
+  it("leaves Registrar out for someone who cannot record in the space (#207)", () => {
+    renderWithIntl(<NavLinks spaceId="sp-household" spaceKind="SHARED" canRecord={false} />);
+    expect(names()).toEqual(["Inicio", "Movimientos", "Plan", "Saldos"]);
   });
 
   it.each([
@@ -70,14 +75,14 @@ describe("the Plan tab (ruling P200, amends P141; P160 for the order)", () => {
     "/spaces/sp-household/plans/p-nov/lines/new",
   ])("is current on %s", (pathname) => {
     where.pathname = pathname;
-    renderWithIntl(<NavLinks spaceId="sp-household" spaceKind="SHARED" />);
+    renderWithIntl(<NavLinks spaceId="sp-household" spaceKind="SHARED" canRecord />);
     expect(screen.getByRole("link", { name: "Plan" })).toHaveAttribute("aria-current", "page");
   });
 
   it("is not current on the home, nor on a path that only starts with the same letters", () => {
     for (const pathname of ["/spaces/sp-household", "/spaces/sp-household/planning"]) {
       where.pathname = pathname;
-      const { unmount } = renderWithIntl(<NavLinks spaceId="sp-household" spaceKind="SHARED" />);
+      const { unmount } = renderWithIntl(<NavLinks spaceId="sp-household" spaceKind="SHARED" canRecord />);
       expect(screen.getByRole("link", { name: "Plan" })).not.toHaveAttribute("aria-current");
       unmount();
     }
@@ -94,7 +99,7 @@ describe("the navigation's prefetch (#196)", () => {
     "prefetches each tab's skeleton on %s, a screen of the space itself",
     (pathname) => {
       where.pathname = pathname;
-      renderWithIntl(<NavLinks spaceId="sp-household" spaceKind="SHARED" />);
+      renderWithIntl(<NavLinks spaceId="sp-household" spaceKind="SHARED" canRecord />);
       expect(new Set(prefetches())).toEqual(new Set(["auto"]));
     },
   );
@@ -103,7 +108,7 @@ describe("the navigation's prefetch (#196)", () => {
     "prefetches nothing on %s, which draws the shell itself: the space's shell would load its script a second time",
     (pathname) => {
       where.pathname = pathname;
-      renderWithIntl(<NavLinks spaceId="sp-household" spaceKind="SHARED" />);
+      renderWithIntl(<NavLinks spaceId="sp-household" spaceKind="SHARED" canRecord />);
       expect(new Set(prefetches())).toEqual(new Set(["false"]));
     },
   );

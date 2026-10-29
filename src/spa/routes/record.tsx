@@ -1,7 +1,9 @@
 import { getRouteApi } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslations } from "use-intl";
-import { RecordForm } from "@/modules/ledger/ui";
+import { RecordForm, RecordNotAllowed } from "@/modules/ledger/ui";
+import { controlsFor } from "@/modules/spaces/ui";
+import { safeReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { useApis } from "../api";
 import { useRecord, useViewer } from "../ledger/hooks";
 import { useTitle } from "../title";
@@ -12,11 +14,23 @@ const KINDS = { income: "INCOME", transfer: "TRANSFER" } as const;
 
 /**
  * HU-E9-03: record an expense, an income or a transfer (`?type=expense|income|transfer`). Issue #172: `?returnTo=` is
- * the screen it was opened from, where saving lands.
+ * the screen it was opened from, where saving lands. Issue #207: someone who cannot record here reads why instead.
  */
 export function RecordScreen() {
   useTitle(useTranslations("ledger.form")("title"));
   const { spaceId } = route.useParams();
+  const { returnTo } = route.useSearch();
+  const { space } = useViewer(spaceId);
+  if (!controlsFor(space.role, space.kind).recordMoney)
+    return (
+      <div className="mx-auto max-w-[560px]">
+        <RecordNotAllowed space={space} backHref={safeReturnTo(returnTo) ?? `/spaces/${space.id}`} />
+      </div>
+    );
+  return <RecordFormScreen spaceId={spaceId} />;
+}
+
+function RecordFormScreen({ spaceId }: { readonly spaceId: string }) {
   const { type, returnTo } = route.useSearch();
   const { api } = useApis();
   const viewer = useViewer(spaceId);
