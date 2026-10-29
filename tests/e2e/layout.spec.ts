@@ -1006,6 +1006,8 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         [`/spaces/${sharedId}/plan/members`, 5],
         [`/spaces/${sharedId}/plan/fund`, 5],
         [`/spaces/${sharedId}/plan/groups`, 5],
+        // #212: Tendencia with one period of history; its table scrolls inside its region, never the page.
+        [`/spaces/${sharedId}/plan/trend`, 5],
         // HU-E9-11: My spending, the personal space's own page, and its Lines view.
         [`/spaces/${spaceId}/plan`, 4],
         [`/spaces/${spaceId}/plan/lines`, 4],

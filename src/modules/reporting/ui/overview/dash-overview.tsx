@@ -237,7 +237,7 @@ function MatrixPanel({
   const title = t("overview.matrixTitle");
   return (
     <div className={`${PANEL} lg:col-span-full`}>
-      <div role="region" aria-label={title} tabIndex={0} className="overflow-x-auto">
+      <div role="region" aria-label={title} tabIndex={0} className="relative overflow-x-auto">
         <table className="w-full text-sm">
           <caption className="pb-2 text-left text-lg font-semibold text-ink">{title}</caption>
           <thead>

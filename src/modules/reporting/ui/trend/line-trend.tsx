@@ -42,21 +42,29 @@ export function LineTrend({
   const names = trend.periods.map((p) => label(p, space.periodPolicy, formats));
   const end = trend.periods.at(-1)?.label;
   const endName = names.at(-1) ?? end ?? "";
+  // #212: a trend needs two periods with figures; with fewer the chart would be an empty grid with a dot or two.
+  const periodsWithFigures = trend.periods.filter((_, i) =>
+    trend.lines.some((line) => line.points[i]?.spent),
+  ).length;
   return (
     <section className="flex flex-col gap-3">
       <TrendWindow space={space} end={end} periods={periods} />
-      <ChartFrame caption={t("trend.linesCaption")}>
-        <LazyTrendChart
-          data={{
-            periods: names,
-            series: trend.lines.map((line) => ({
-              key: line.lineId,
-              label: line.name,
-              points: line.points.map((p) => pointOf(p.spent, formats)),
-            })),
-          }}
-        />
-      </ChartFrame>
+      {periodsWithFigures < 2 ? (
+        <p className="rounded-2xl bg-surface p-3 text-sm text-muted">{t("trend.onePeriod")}</p>
+      ) : (
+        <ChartFrame caption={t("trend.linesCaption")}>
+          <LazyTrendChart
+            data={{
+              periods: names,
+              series: trend.lines.map((line) => ({
+                key: line.lineId,
+                label: line.name,
+                points: line.points.map((p) => pointOf(p.spent, formats)),
+              })),
+            }}
+          />
+        </ChartFrame>
+      )}
       <ul className="flex flex-col divide-y divide-line">
         {trend.lines.map((line) => {
           const last = line.points.at(-1);
@@ -87,7 +95,7 @@ export function LineTrend({
           );
         })}
       </ul>
-      <div role="region" aria-label={t("trend.linesTable")} tabIndex={0} className="overflow-x-auto">
+      <div role="region" aria-label={t("trend.linesTable")} tabIndex={0} className="relative overflow-x-auto">
         <table className="w-full text-sm">
           <caption>
             <VisuallyHidden>{t("trend.linesTable")}</VisuallyHidden>

@@ -1240,6 +1240,7 @@
       "consumption": "Consumption",
       "change": "Change",
       "noPlan": "This period has no plan: there are no lines to compare.",
+      "onePeriod": "The trend appears once a second period has spending.",
       "linesCaption": "Spent by line",
       "linesTable": "Spent by line and period",
       "spentIn": "Spent in {period}",

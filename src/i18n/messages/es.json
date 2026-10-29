@@ -1240,6 +1240,7 @@
       "consumption": "Consumo",
       "change": "Cambio",
       "noPlan": "Este período no tiene plan: no hay rubros que comparar.",
+      "onePeriod": "La tendencia aparece cuando haya gastos en un segundo período.",
       "linesCaption": "Gastado por rubro",
       "linesTable": "Gastado por rubro y período",
       "spentIn": "Gastado en {period}",
