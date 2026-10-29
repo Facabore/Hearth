@@ -188,7 +188,7 @@
 
 /*
  * ADR 0004 (amended 2026-10-28): index.html's static frames show the one the address needs until React replaces
- * both (`FRAME_PICK` in src/spa/early-html.ts).
+ * both (`framePick` in src/spa/route-preload.ts).
  */
 html[data-frame="public"] .hearth-frame-app,
 html:not([data-frame="public"]) .hearth-frame-public {

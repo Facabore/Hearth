@@ -10,13 +10,6 @@
 export const EARLY_READS = `(function(){try{var o={credentials:"same-origin"};var me=fetch("/api/v1/me",o);var then=function(when,url){return me.then(function(r){return when(r)?fetch(url,o):null}).catch(function(){return null})};window.__hearthEarly={me:me,spaces:then(function(r){return r.ok},"/api/v1/spaces"),signUp:then(function(r){return r.status===401},"/api/v1/auth/sign-up")}}catch(e){}})();`;
 
 /**
- * Marks which static frame `index.html` paints before the app runs: the public one (the logo, as the sign-in screen
- * shows it) on a visitor's screen, the app's (its header and bottom bar) elsewhere. React replaces both when it
- * renders, so nothing on screen moves (CLS counts elements that move, not ones that go away).
- */
-export const FRAME_PICK = `(function(){try{document.documentElement.dataset.frame=/^\\/(?:sign-in|sign-up)$|^\\/(?:invitations|claims)\\/./.test(location.pathname)?"public":"app"}catch(e){}})();`;
-
-/**
  * Preloads the catalog of the language the app will pick (`visitorLocale`: the visitor cookie, then the browser's
  * languages in order, then Spanish), so it downloads beside the app's script; `files` maps each language to its built
  * chunk. A signed-in person's stored language, known only from the profile, may still differ.

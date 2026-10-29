@@ -84,3 +84,49 @@ export const routePreload = (
     .filter(([, list]) => list.length > 0);
   return `(function(){try{var r=${JSON.stringify(routes)};var p=location.pathname;for(var i=0;i<r.length;i++){if(new RegExp(r[i][0]).test(p)){for(var j=0;j<r[i][1].length;j++){var k=document.createElement("link");k.rel="modulepreload";k.crossOrigin="";k.href=r[i][1][j];document.head.appendChild(k)}return}}}catch(e){}})();`;
 };
+
+/** A built chunk, as much of it as following its imports needs. */
+export interface BuiltChunk {
+  readonly fileName: string;
+  readonly isEntry: boolean;
+  readonly facadeModuleId: string | null;
+  readonly imports: readonly string[];
+}
+
+/**
+ * Each module under src/spa with a chunk of its own, as `routePreload` takes them: its chunk and the chunks those
+ * import, without the ones the app's script already loads.
+ */
+export const chunkFiles = (chunks: readonly BuiltChunk[]): Record<string, string[]> => {
+  const byName = new Map(chunks.map((chunk) => [chunk.fileName, chunk]));
+  const closure = (chunk: BuiltChunk, seen = new Set<string>()): Set<string> => {
+    if (seen.has(chunk.fileName)) return seen;
+    seen.add(chunk.fileName);
+    for (const name of chunk.imports) {
+      const imported = byName.get(name);
+      if (imported) closure(imported, seen);
+    }
+    return seen;
+  };
+  const loaded = new Set(chunks.filter((chunk) => chunk.isEntry).flatMap((chunk) => [...closure(chunk)]));
+  return Object.fromEntries(
+    chunks.flatMap((chunk) => {
+      const module = /\/src\/spa\/(.+)\.tsx?$/.exec(chunk.facadeModuleId?.replaceAll("\\", "/") ?? "")?.[1];
+      if (!module || chunk.isEntry) return [];
+      return [[module, [...closure(chunk)].filter((name) => !loaded.has(name)).map((name) => `/${name}`)]];
+    }),
+  );
+};
+
+/**
+ * The inline script that marks which static frame `index.html` paints before the app runs: the public one (the logo,
+ * as the sign-in screen shows it) on the screens the public layout wraps, the app's (its header and bottom bar)
+ * elsewhere. React replaces both when it renders, so nothing on screen moves (CLS counts elements that move, not ones
+ * that go away).
+ */
+export const framePick = (table: readonly RouteChunks[]): string => {
+  const visitor = table
+    .filter((route) => route.modules.includes("routes/public-layout"))
+    .map((route) => `^${route.pattern.replace(/\$\w+/g, "[^/]+")}/?$`);
+  return `(function(){try{var v=${JSON.stringify(visitor)};var p=location.pathname;var f="app";for(var i=0;i<v.length;i++)if(new RegExp(v[i]).test(p))f="public";document.documentElement.dataset.frame=f}catch(e){}})();`;
+};
