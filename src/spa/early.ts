@@ -50,8 +50,9 @@ export const seedEarlyReads = (queryClient: QueryClient, apis: SpaApis, early: E
       void queryClient.prefetchQuery({
         ...spacesQuery(apis.api),
         queryFn: async () => {
-          const pending = spaces ? await spaces : null;
+          const slot = spaces;
           spaces = null;
+          const pending = slot ? await slot : null;
           return spacesFrom(
             pending
               ? await earlyResult<{ items: SpaceDto[] }>(Promise.resolve(pending))
