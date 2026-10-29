@@ -4,22 +4,25 @@ import { describe, expect, it } from "vitest";
 import budgets from "./budgets.json" with { type: "json" };
 import { routeUrl } from "./lighthouse.mjs";
 
-/** Ruling P221 (amended by P242): the caps of the Plan routes; each budget is set from its measurement under them. */
+/**
+ * Ruling P221 (amended by P242): the caps of the Plan routes; each budget is set from its measurement under them. The
+ * owner raised the views' caps (190–195) and the planner's (200) on 2026-10-28 for the SPA's cold load (ADR 0004).
+ */
 const CAPS = {
-  "/spaces/:shared/plan": 195,
-  "/spaces/:shared/plan/members": 190,
-  "/spaces/:shared/plan/fund": 190,
-  "/spaces/:shared/plan/groups": 195,
+  "/spaces/:shared/plan": 200,
+  "/spaces/:shared/plan/members": 200,
+  "/spaces/:shared/plan/fund": 200,
+  "/spaces/:shared/plan/groups": 200,
   "/spaces/:shared/plan/trend": 300,
-  "/spaces/:shared/plans/:plan": 200,
-  "/spaces/:shared/plans/:plan/capacities": 200,
+  "/spaces/:shared/plans/:plan": 210,
+  "/spaces/:shared/plans/:plan/capacities": 210,
   "/spaces/:shared/plans/:plan/lines/new": 215,
   "/spaces/:shared/plans/:plan/lines/:line": 215,
-  "/spaces/:id/plan": 190,
-  "/spaces/:id/plan/lines": 190,
-  "/spaces/:id/plan/groups": 195,
+  "/spaces/:id/plan": 200,
+  "/spaces/:id/plan/lines": 200,
+  "/spaces/:id/plan/groups": 200,
   "/spaces/:id/plan/trend": 300,
-  "/spaces/:id/plan/calendar": 190,
+  "/spaces/:id/plan/calendar": 200,
 };
 
 const ROUTES = readFileSync(join("src", "spa", "routes.tsx"), "utf8");
