@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { catalogPreload, EARLY_READS, earlyResult, takeEarlyReads } from "./early";
+import { QueryClient } from "@tanstack/react-query";
+import type { SpaApis } from "./api";
+import { earlyResult, seedEarlyReads, takeEarlyReads, type EarlyReads } from "./early";
+import { catalogPreload, EARLY_READS } from "./early-html";
+import { queryKeys } from "./queries";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -64,5 +68,62 @@ describe("the reads the HTML starts before the app's script arrives (ADR 0004, 2
     expect(preloaded("", ["es-CO"])).toEqual(["/assets/es-1.js"]);
     expect(preloaded("", ["fr"])).toEqual(["/assets/es-1.js"]);
     expect(preloaded("de", [])).toEqual(["/assets/es-1.js"]);
+    // A cookie naming no language, even one an object inherits, preloads the browser's or Spanish.
+    expect(preloaded("constructor", [])).toEqual(["/assets/es-1.js"]);
+  });
+
+  describe("handing the early reads to the queries", () => {
+    const apisWith = (get: ReturnType<typeof vi.fn>) =>
+      ({ api: { GET: get }, sessionApi: { GET: get } }) as unknown as SpaApis;
+    const generated = (body: unknown) => ({ data: body, response: json(body) });
+    const seeded = async (early: EarlyReads, get = vi.fn()) => {
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      seedEarlyReads(queryClient, apisWith(get), early);
+      await vi.waitFor(() => expect(queryClient.isFetching()).toBe(0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await vi.waitFor(() => expect(queryClient.isFetching()).toBe(0));
+      return { queryClient, get };
+    };
+
+    it("caches the profile and the spaces the HTML read, without asking the API again", async () => {
+      const { queryClient, get } = await seeded({
+        me: Promise.resolve(json({ id: "u-ana" })),
+        spaces: Promise.resolve(json({ items: [{ id: "sp-personal" }] })),
+      });
+      expect(queryClient.getQueryData(queryKeys.me)).toEqual({ id: "u-ana" });
+      expect(queryClient.getQueryData(queryKeys.spaces)).toEqual([{ id: "sp-personal" }]);
+      expect(get).not.toHaveBeenCalled();
+    });
+
+    it("caches a visitor as nobody and reads no spaces for them", async () => {
+      const { queryClient, get } = await seeded({
+        me: Promise.resolve(json({ code: "Unauthenticated" }, 401)),
+        spaces: Promise.resolve(null),
+      });
+      expect(queryClient.getQueryData(queryKeys.me)).toBeNull();
+      expect(queryClient.getQueryState(queryKeys.spaces)).toBeUndefined();
+      expect(get).not.toHaveBeenCalled();
+    });
+
+    it("asks the API for the spaces when the HTML's read of them failed on the network", async () => {
+      const get = vi.fn(async () => generated({ items: [{ id: "sp-personal" }] }));
+      const { queryClient } = await seeded(
+        { me: Promise.resolve(json({ id: "u-ana" })), spaces: Promise.resolve(null) },
+        get,
+      );
+      expect(queryClient.getQueryData(queryKeys.spaces)).toEqual([{ id: "sp-personal" }]);
+      expect(get).toHaveBeenCalledWith("/api/v1/spaces");
+    });
+
+    it("uses each early answer once: reading the profile again asks the API", async () => {
+      const get = vi.fn(async () => generated({ id: "u-ana", name: "Ana" }));
+      const { queryClient } = await seeded(
+        { me: Promise.resolve(json({ id: "u-ana" })), spaces: Promise.resolve(json({ items: [] })) },
+        get,
+      );
+      await queryClient.refetchQueries({ queryKey: queryKeys.me, type: "all" });
+      expect(get).toHaveBeenCalledWith("/api/v1/me");
+      expect(queryClient.getQueryData(queryKeys.me)).toEqual({ id: "u-ana", name: "Ana" });
+    });
   });
 });

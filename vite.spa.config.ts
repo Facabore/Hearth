@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import compile from "icu-minify/compile";
 import { defineConfig, type Plugin } from "vite";
 import { THEME_BOOTSTRAP } from "./src/shared/ui/theme/theme";
-import { catalogPreload, EARLY_READS } from "./src/spa/early";
+import { catalogPreload, EARLY_READS } from "./src/spa/early-html";
 
 const from = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
@@ -50,7 +50,7 @@ const themeBootstrap = (): Plugin => ({
 });
 
 /**
- * The profile and spaces reads start with the HTML, while the app's script downloads (`src/spa/early.ts`), and so does
+ * The profile and spaces reads start with the HTML, while the app's script downloads (`src/spa/early-html.ts`), and so does
  * the catalog every screen needs before it renders: only the likely language's, picked in the browser as the app picks
  * it (`catalogPreload`). Both scripts come first in the head, since an inline script after the stylesheet waits for it.
  */

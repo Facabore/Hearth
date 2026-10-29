@@ -1,20 +1,11 @@
-/**
- * ADR 0004 (amended 2026-10-28): the profile and the spaces are read by a few lines the HTML carries, while the app's
- * script downloads, instead of after it runs. Every screen needs both before it paints, and on a slow network each
- * read waited a round trip of its own behind the script. The spaces are read only once the profile says someone is
- * signed in, so a visitor's screen asks for nothing the API would refuse.
- */
-export const EARLY_READS = `(function(){try{var me=fetch("/api/v1/me",{credentials:"same-origin"});window.__hearthEarly={me:me,spaces:me.then(function(r){return r.ok?fetch("/api/v1/spaces",{credentials:"same-origin"}):null}).catch(function(){return null})}}catch(e){}})();`;
+import type { QueryClient } from "@tanstack/react-query";
+import type { MeDto, SpaceDto } from "@/shared/ui/api/dto";
+import { meFrom } from "@/shared/ui/api/readers";
+import type { SpaApis } from "./api";
+import { meQuery, spacesFrom, spacesQuery } from "./queries";
 
-/**
- * The inline script that preloads the catalog of the language the app will pick (`visitorLocale`: the visitor cookie,
- * then the browser's languages in order, then Spanish), so it downloads beside the app's script; `files` maps each
- * language to its built chunk. A signed-in person's stored language, known only from the profile, may still differ.
- */
-export const catalogPreload = (files: Readonly<Record<string, string>>): string =>
-  `(function(){try{var f=${JSON.stringify(files)};var c=(document.cookie.match(/(?:^|; )hearth\\.locale=([a-z]+)/)||[])[1];var l=f[c]?c:null;var n=navigator.languages||[];for(var i=0;!l&&i<n.length;i++){var p=String(n[i]).toLowerCase().split("-")[0];if(f[p])l=p}var k=document.createElement("link");k.rel="modulepreload";k.crossOrigin="";k.href=f[l||"es"];document.head.appendChild(k)}catch(e){}})();`;
-
-interface EarlyReads {
+/** What the HTML's first script left for the app (`early-html.ts`). */
+export interface EarlyReads {
   readonly me: Promise<Response>;
   readonly spaces: Promise<Response | null>;
 }
@@ -34,4 +25,41 @@ export const earlyResult = async <T>(
   const response = await pending;
   const body: unknown = await response.json().catch(() => undefined);
   return response.ok ? { data: body as T, response } : { error: body, response };
+};
+
+/**
+ * The profile and spaces queries start from the HTML's reads, so the guard and the shell join them instead of reading
+ * again. Each answer is used once: a retry, or any later read of the same query, asks the API itself. The spaces are
+ * read only for a signed-in person; when the HTML's spaces read failed on the network, the API is asked here.
+ */
+export const seedEarlyReads = (queryClient: QueryClient, apis: SpaApis, early: EarlyReads): void => {
+  let me: Promise<Response> | null = early.me;
+  void queryClient.prefetchQuery({
+    ...meQuery(apis.sessionApi),
+    queryFn: async () => {
+      const pending = me;
+      me = null;
+      return meFrom(pending ? await earlyResult<MeDto>(pending) : await apis.sessionApi.GET("/api/v1/me"));
+    },
+  });
+  // A profile read that failed on the network is the guard's to read again; no spaces are read for it here.
+  void early.me.then(
+    (answer) => {
+      if (!answer.ok) return;
+      let spaces: Promise<Response | null> | null = early.spaces;
+      void queryClient.prefetchQuery({
+        ...spacesQuery(apis.api),
+        queryFn: async () => {
+          const pending = spaces ? await spaces : null;
+          spaces = null;
+          return spacesFrom(
+            pending
+              ? await earlyResult<{ items: SpaceDto[] }>(Promise.resolve(pending))
+              : await apis.api.GET("/api/v1/spaces"),
+          );
+        },
+      });
+    },
+    () => undefined,
+  );
 };

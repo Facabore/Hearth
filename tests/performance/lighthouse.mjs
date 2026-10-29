@@ -185,9 +185,18 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         name: front,
       }),
     );
-    if (started.status !== 0) throw new Error(`The front did not start: ${started.stderr}`);
-    for (let deadline = Date.now() + 60_000; !(await up(`${BASE}/api/v1/health`)); await sleep(1000))
-      if (Date.now() > deadline) throw new Error("The front did not answer over HTTPS within 60 s");
+    if (started.status !== 0)
+      throw new Error(`The front did not start: ${started.error?.message ?? started.stderr}`);
+    // Both halves of the front: the API behind it, and the SPA's build (an empty dist/spa would serve nothing).
+    const serves = async () =>
+      (await up(`${BASE}/api/v1/health`)) &&
+      (await probe.get(`${BASE}/`).then(
+        async (r) => r.ok() && (await r.text()).includes('id="root"'),
+        () => false,
+      ));
+    for (let deadline = Date.now() + 60_000; !(await serves()); await sleep(1000))
+      if (Date.now() > deadline)
+        throw new Error("The front did not serve the API and the SPA's build over HTTPS within 60 s");
     // A person with data, so the screens render what a household sees (an account, a category, a few expenses).
     const headers = { "content-type": "application/json", "x-forwarded-for": "10.250.0.1" };
     const signUp = await fetch(`${API}/api/v1/auth/sign-up`, {
