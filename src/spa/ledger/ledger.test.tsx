@@ -55,6 +55,13 @@ const calls = (requests: Request[], method: string, pattern: RegExp) =>
 
 const nav = () => screen.getByRole("navigation", { name: es.shell.nav.main });
 
+/** No read in flight and the router idle: whatever a loader started without awaiting has run. */
+const settled = (spa: ReturnType<typeof renderSpa>) =>
+  waitFor(() => {
+    expect(spa.queryClient.isFetching()).toBe(0);
+    expect(spa.router.state.status).toBe("idle");
+  });
+
 beforeEach(() => {
   document.cookie = "hearth.locale=es; path=/";
 });
@@ -106,9 +113,12 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     });
     const spa = renderSpa("/spaces/sp-personal", alone.routes);
     expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
+    // The loader starts the unified read without awaiting it: count only once nothing is loading any more.
+    await settled(spa);
     spa.unmount();
     const shared = renderSpa("/spaces/sp-household", ledgerApi().routes);
     expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
+    await settled(shared);
     expect(screen.queryByRole("link", { name: /Tu mes en todos tus espacios/ })).not.toBeInTheDocument();
     expect(calls([...spa.requests, ...shared.requests], "GET", /\/me\/unified-view/)).toHaveLength(0);
   });
