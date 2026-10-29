@@ -277,7 +277,9 @@ export function RecordForm({
   const [sheetNow, setSheetNow] = useState<When>(start);
   const [pending, setPending] = useState(false);
   const [split, setSplit] = useState(
-    () => edit?.initial.split ?? (shared ? initialSplitDraft(shared, readLastAccount()) : null),
+    () =>
+      edit?.initial.split ??
+      (shared ? initialSplitDraft(shared, preferredAccountId(shared.myAccounts, readLastAccount())) : null),
   );
   const [unbuilt, setUnbuilt] = useState<"amount" | "account" | "toAccount" | "payer" | "split" | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
