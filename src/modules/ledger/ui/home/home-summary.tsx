@@ -26,8 +26,11 @@ export function HomeSummary({
   context,
   detail,
   allSpaces,
+  today,
 }: {
   readonly spaceId: string;
+  /** Issue #216: the viewer's today, so each recent row says which day it is from. */
+  readonly today: string;
   /** N10: a shared or direct space leads to its members; whoever may invite also gets Invitar. */
   readonly kind?: SpaceDto["kind"];
   readonly role?: SpaceDto["role"];
@@ -187,6 +190,7 @@ export function HomeSummary({
                 tx={tx}
                 context={context}
                 href={withTx(`/spaces/${spaceId}`, tx.id)}
+                today={today}
               />
             ))}
           </ol>

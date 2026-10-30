@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { useTranslations } from "use-intl";
 import { HomeSummary, TransactionSheetHost } from "@/modules/ledger/ui";
+import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
 import { useHome, useTransactionDetail, useViewer } from "../ledger/hooks";
 import { showsUnifiedMonth } from "../load";
@@ -41,6 +42,7 @@ export function SpaceHome() {
         page={page}
         accounts={accounts}
         context={context}
+        today={nowIn(new Date(), viewer.me.timezone).date}
         allSpaces={
           unified && allSpaces ? { total: allSpaces.consumption.total, href: `${home}/plan` } : undefined
         }
