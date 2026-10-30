@@ -6,6 +6,7 @@ import { controlsFor } from "@/modules/spaces/ui";
 import { safeReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { useApis } from "../api";
 import { useRecord, useViewer } from "../ledger/hooks";
+import { useLeaveGuard } from "../ledger/leave-guard";
 import type { Viewer } from "../load";
 import { useTitle } from "../title";
 
@@ -46,6 +47,7 @@ function RecordFormScreen({
   const { api } = useApis();
   const { accounts, groups, shared, people, lineWatch } = useRecord(viewer);
   const [now] = useState(() => new Date().toISOString());
+  const leaveGuard = useLeaveGuard();
   return (
     <div className="mx-auto max-w-[560px]">
       <RecordForm
@@ -61,6 +63,7 @@ function RecordFormScreen({
         {...(people ? { people } : {})}
         lineWatch={lineWatch}
         returnTo={returnTo ?? null}
+        leaveGuard={leaveGuard}
         api={api}
       />
     </div>

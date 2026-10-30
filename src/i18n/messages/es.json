@@ -795,6 +795,15 @@
       "when": "Fecha y hora: {label}. Cambiar",
       "moreOptions": "Más opciones",
       "fewerOptions": "Menos opciones",
+      "discard": {
+        "title": {
+          "EXPENSE": "¿Descartar este gasto?",
+          "INCOME": "¿Descartar este ingreso?",
+          "TRANSFER": "¿Descartar esta transferencia?"
+        },
+        "confirm": "Descartar",
+        "keep": "Seguir editando"
+      },
       "save": {
         "EXPENSE": "Guardar gasto",
         "INCOME": "Guardar ingreso",

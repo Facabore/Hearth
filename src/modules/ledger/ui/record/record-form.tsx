@@ -48,6 +48,7 @@ import { initialSplitDraft, type SharedExpenseContext } from "../split/shared-co
 import { SharedFields } from "../split/shared-fields";
 import { AmountField } from "./amount-field";
 import { DateTimeSheet } from "./date-time-sheet";
+import { DiscardConfirm, type LeaveGuard } from "./discard-confirm";
 import { DescriptionField, FormRow, RowError } from "./form-rows";
 import { LineWarningConfirm, LineWarningNote } from "./line-warning";
 import { preferredAccountId, readLastAccount, rememberLastAccount } from "./last-account";
@@ -176,6 +177,8 @@ export interface RecordFormProps {
   readonly lineWatch?: LineWatch | null;
   /** Issue #172: the screen the form was opened from; saving and the back arrow land there when it is a valid path. */
   readonly returnTo?: string | null;
+  /** Issue #215: leaving with something typed asks first; without it, leaving never asks. */
+  readonly leaveGuard?: LeaveGuard;
 }
 
 /** HU-E9-03, the QuickAdd artboard as a page: amount, description, category, accounts, date and time, Save. */
@@ -194,6 +197,7 @@ export function RecordForm({
   edit,
   lineWatch = null,
   returnTo = null,
+  leaveGuard,
 }: RecordFormProps) {
   const t = useTranslations("ledger");
   const errors = useTranslations("errors");
@@ -295,6 +299,23 @@ export function RecordForm({
   const [directOpened, setDirectOpened] = useState(false);
   const [directOpen, setDirectOpen] = useState(false);
   const [keylessTried, setKeylessTried] = useState(false);
+  // Issue #215: what the person entered or chose, against what the form opened with; leaving asks only while they
+  // differ. The default split may change the method by itself (P167), so only who paid and a chosen split count.
+  const entered = JSON.stringify([
+    amount,
+    description,
+    category,
+    chosenWhen,
+    accountId,
+    toAccountId,
+    direct,
+    split?.payer,
+    split?.chosen,
+  ]);
+  const [pristine] = useState(entered);
+  const dirty = entered !== pristine;
+  const track = leaveGuard?.track;
+  useEffect(() => track?.(dirty), [track, dirty]);
 
   const when = chosenWhen ?? start;
   const draft = { kind, amount, description, category, accountId, toAccountId, when, timeZone: zone };
@@ -797,6 +818,7 @@ export function RecordForm({
           }}
           label={t("form.to")}
         />
+        {leaveGuard ? <DiscardConfirm guard={leaveGuard} kind={kind} /> : null}
         <DateTimeSheet
           open={sheet === "when"}
           onOpenChange={(open) => setSheet(open ? "when" : null)}

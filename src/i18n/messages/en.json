@@ -795,6 +795,15 @@
       "when": "Date and time: {label}. Change",
       "moreOptions": "More options",
       "fewerOptions": "Fewer options",
+      "discard": {
+        "title": {
+          "EXPENSE": "Discard this expense?",
+          "INCOME": "Discard this income?",
+          "TRANSFER": "Discard this transfer?"
+        },
+        "confirm": "Discard",
+        "keep": "Keep editing"
+      },
       "save": {
         "EXPENSE": "Save expense",
         "INCOME": "Save income",
