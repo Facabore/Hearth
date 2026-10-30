@@ -1324,8 +1324,10 @@
       "line": "Line",
       "planned": "Planned",
       "spent": "Spent",
+      "saved": "Saved",
       "available": "Available",
       "overspent": "Overspent",
+      "onPlan": "On plan",
       "state": {
         "NEAR": "Near the limit",
         "HIGH": "At the limit"

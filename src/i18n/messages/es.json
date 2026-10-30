@@ -1324,8 +1324,10 @@
       "line": "Rubro",
       "planned": "Planeado",
       "spent": "Gastado",
+      "saved": "Ahorrado",
       "available": "Disponible",
       "overspent": "Excedida",
+      "onPlan": "Cumplido",
       "state": {
         "NEAR": "Cerca del límite",
         "HIGH": "Al límite"

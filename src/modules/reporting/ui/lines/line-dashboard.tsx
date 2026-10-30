@@ -8,6 +8,10 @@ import { barWidth } from "./bar";
 
 const isNegative = (money: { readonly amount: string }) => money.amount.startsWith("-");
 
+/** #214: a line spent exactly as planned (above 90 % with nothing left) is done, not a warning. */
+const onPlan = (line: Pick<LineDashboardDto["lines"][number], "state" | "available">) =>
+  line.state === "HIGH" && line.available.amount === "0";
+
 // Under 640 px a row is a card (name, then one labelled figure per line), because three amounts side by side do
 // not fit a phone; from 640 px it is a table row. The labels are CSS content, so a cell's text stays its figure.
 const CELL =
@@ -87,7 +91,14 @@ export function LineDashboard({
                       </Badge>
                     ) : null}
                     {line.state === "NEAR" ? <Badge tone="neutral">{t("state.NEAR")}</Badge> : null}
-                    {line.state === "HIGH" ? <Badge tone="owe">{t("state.HIGH")}</Badge> : null}
+                    {line.state === "HIGH" && onPlan(line) ? (
+                      <Badge tone="accent" icon="check">
+                        {t("onPlan")}
+                      </Badge>
+                    ) : null}
+                    {line.state === "HIGH" && !onPlan(line) ? (
+                      <Badge tone="owe">{t("state.HIGH")}</Badge>
+                    ) : null}
                   </span>
                   {line.state === "OVER" && line.overBy ? (
                     <span className="mt-0.5 block text-sm font-normal text-owe-ink">
@@ -110,7 +121,11 @@ export function LineDashboard({
                 <td data-label={t("planned")} className={CELL}>
                   {money(line.planned)}
                 </td>
-                <td data-label={t("spent")} className={CELL}>
+                {/* #214: what reaches a savings line is saved, not spent; on a wide screen the column says "Gastado". */}
+                <td data-label={t(line.funding === "SAVINGS" ? "saved" : "spent")} className={CELL}>
+                  {line.funding === "SAVINGS" ? (
+                    <span className="hidden text-muted sm:inline">{`${t("saved")} `}</span>
+                  ) : null}
                   {money(line.spent)}
                 </td>
                 <td data-label={t("available")} className={CELL + tone(line.available)}>
