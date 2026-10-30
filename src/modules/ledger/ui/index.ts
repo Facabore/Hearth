@@ -1,5 +1,6 @@
 export { TransactionRow, type RowContext } from "./transaction-row";
 export { useIdempotencyKey } from "./record/use-idempotency-key";
+export { preferredAccountId, readLastAccount } from "./record/last-account";
 export { sharedContextOf, type SharedExpenseContext } from "./split/shared-context";
 export { hrefOf as transactionListHref, type ListFilter } from "./list-href";
 // The ledger's screens as the single-page app composes them over its query cache (ADR 0006); server.ts holds the

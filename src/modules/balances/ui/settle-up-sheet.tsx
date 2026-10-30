@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { useIdempotencyKey } from "@/modules/ledger/ui";
+import { preferredAccountId, readLastAccount, useIdempotencyKey } from "@/modules/ledger/ui";
 import { memberLabel } from "@/modules/spaces/ui";
 import { Button, ChoiceGroup, Icon, NumberField, ProblemNotice, Sheet } from "@/shared/ui";
 import { currencyOf } from "@/shared/ui/format/currencies";
@@ -75,7 +75,18 @@ export function SettleUpSheet({
   const router = useRouter();
   const messageOf = useProblemMessage();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
-  const [draft, setDraft] = useState<SettlementDraft>(initial);
+  // Issue #219: a payment of the viewer's leaves from the account they last paid from (the record form's, #208), else
+  // their first that is not a savings account; Ninguna stays a choice and the receiving account starts on none. Every
+  // active account stays offered, a new one at zero too, with the one last paid from first and the rest in order.
+  const [lastAccountId] = useState(() => readLastAccount());
+  const accounts = useMemo(() => {
+    const last = myAccounts.find((account) => account.id === lastAccountId);
+    return last ? [last, ...myAccounts.filter((account) => account !== last)] : myAccounts;
+  }, [myAccounts, lastAccountId]);
+  const [draft, setDraft] = useState<SettlementDraft>(() => ({
+    ...initial,
+    sourceAccountId: initial.sourceAccountId ?? preferredAccountId(myAccounts, lastAccountId),
+  }));
   const [unbuilt, setUnbuilt] = useState<SettlementField | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
   const [pending, setPending] = useState(false);
@@ -165,7 +176,7 @@ export function SettleUpSheet({
         onValueChange={(value) => setDraft({ ...draft, [field]: value === "" ? null : value })}
         options={[
           { value: "", label: wrapped(t("none")) },
-          ...myAccounts.map((account) => ({ value: account.id, label: wrapped(account.name) })),
+          ...accounts.map((account) => ({ value: account.id, label: wrapped(account.name) })),
         ]}
       />
     </div>
