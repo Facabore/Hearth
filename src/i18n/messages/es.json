@@ -287,7 +287,7 @@
     "preview": {
       "label": "Así se verá"
     },
-    "formats": "Formatos",
+    "numbersAndDates": "Números y fechas",
     "field": {
       "numberFormat": "Números",
       "dateFormat": "Fecha",
@@ -305,10 +305,13 @@
       "MONDAY": "Lunes",
       "SUNDAY": "Domingo"
     },
+    "weekStartSummary": {
+      "MONDAY": "Semana desde el lunes",
+      "SUNDAY": "Semana desde el domingo"
+    },
     "default": "Predeterminado",
     "reset": "Restablecer",
     "locked": "Lo define tu instalación",
-    "region": "Región",
     "appearance": "Apariencia e idioma",
     "timezone": {
       "hint": "Define el día y la hora de cada movimiento que registras.",
@@ -321,7 +324,7 @@
       "dark": "Oscuro"
     },
     "language": {
-      "hint": "Solo cambia los textos. Los formatos de arriba no dependen del idioma.",
+      "hint": "Solo cambia los textos. Los formatos de números y fechas no dependen del idioma.",
       "es": "Español",
       "en": "English"
     }
@@ -1190,11 +1193,11 @@
         "planned": "Planeado",
         "plannedHint": "{share} de lo aportado · por repartir {unallocated}",
         "plannedNewHint": "Por repartir: {unallocated}",
-        "funding": "De dónde sale",
+        "funding": "¿De dónde sale?",
         "savingsAccounts": "Cuentas de ahorro",
         "otherAccount": "Cuenta de ahorro de otro miembro",
         "noSavingsAccounts": "No tienes cuentas de ahorro en {currency}. Crea una en Cuentas.",
-        "rollover": "Al cambiar de período",
+        "rollover": "Al cambiar de mes",
         "catchAll": "Todo lo demás",
         "catchAllHint": "Recibe los gastos de categorías que no están en otro rubro."
       },
@@ -1207,7 +1210,16 @@
         "explain": "El rubro sale del plan y sus gastos pasan a Sin presupuesto o al rubro de todo lo demás.",
         "confirm": "Quitar"
       },
-      "readOnly": "Solo Propietario y Administrador editan los rubros de un plan abierto."
+      "readOnly": "Solo Propietario y Administrador editan los rubros de un plan abierto.",
+      "fundingHint": {
+        "DIRECT": "Lo paga quien hace el gasto, desde su propia cuenta.",
+        "SHARED_FUND": "Se paga con la plata que cada uno pone en el fondo común.",
+        "SAVINGS": "Se aparta en una cuenta de ahorro en vez de gastarse."
+      },
+      "more": {
+        "open": "Más opciones",
+        "summary": "{rollover} · {allocation}"
+      }
     },
     "mapping": {
       "label": "Categorías",
@@ -1302,10 +1314,12 @@
     },
     "unified": {
       "consumption": "Consumo",
+      "spent": "Lo que gastaste tú",
       "consumptionHint": "Lo que fue para ti: tus gastos y tu parte de los compartidos.",
-      "cashOut": "Salidas",
-      "cashOutHint": "Lo que salió de tus bolsillos.",
-      "sources": "De dónde salen las salidas",
+      "paid": "Lo que pagaste",
+      "whyDifferent": "¿Por qué es distinto?",
+      "whyDifferentAnswer": "Lo que pagaste es lo que salió de tus bolsillos, aunque fuera para otros o para el fondo común. Lo que gastaste tú es solo lo que fue para ti.",
+      "sources": "En qué se fue lo que pagaste",
       "payments": "Pagos de gastos",
       "fundContributions": "Aportes al fondo",
       "savingsTransfers": "Transferencias a tus ahorros",

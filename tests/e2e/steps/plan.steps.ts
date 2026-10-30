@@ -69,6 +69,10 @@ When(
       if (extra.savings) await page.getByRole("checkbox", { name: "Ahorros" }).check();
       if (extra.catchAll)
         await page.getByRole("switch", { name: world.t("budgeting.lineEditor.field.catchAll") }).click();
+      // U5 (#224): the rollover sits folded under "Más opciones".
+      await page
+        .getByRole("button", { name: world.t("budgeting.lineEditor.more.open"), exact: true })
+        .click();
       await page.getByRole("radio", { name: world.t(`budgeting.rollover.${rollover}`) }).click();
       await page.getByRole("button", { name: world.t("budgeting.lineEditor.add") }).click();
       await expect(page.getByRole("listitem", { name })).toBeVisible();

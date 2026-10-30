@@ -73,10 +73,8 @@ Then(
   async ({ page, world }, consumption: string, cashOut: string) => {
     const region = (key: string) =>
       page.getByRole("main").getByRole("region", { name: world.t(key), exact: true });
-    expect(norm(await region("reports.unified.consumption").textContent())).toContain(
-      norm(shown(consumption)),
-    );
-    expect(norm(await region("reports.unified.cashOut").textContent())).toContain(norm(shown(cashOut)));
+    expect(norm(await region("reports.unified.spent").textContent())).toContain(norm(shown(consumption)));
+    expect(norm(await region("reports.unified.paid").textContent())).toContain(norm(shown(cashOut)));
   },
 );
 

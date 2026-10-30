@@ -1,7 +1,16 @@
 import { useTranslations } from "next-intl";
 import { formatDate, formatNumber, formatTime, type Formats } from "@/shared/ui/format/formatters";
 
-/** HU-E9-13: fixed samples written by the app's own formatters, so the preview never drifts from the screens. */
+/**
+ * HU-E9-13: fixed samples written by the app's own formatters, so the preview never drifts from the screens. Decision
+ * U8 (#224): the "Números y fechas" row writes the same sample, so the row and the preview never disagree.
+ */
+export const formatSample = (formats: Formats): string =>
+  `${formatNumber("1234567.89", formats)} · ${formatDate("2026-10-16", formats)} · ${formatTime(
+    { hour: 14, minute: 30 },
+    formats,
+  )}`;
+
 export function FormatPreview({ formats }: { readonly formats: Formats }) {
   const t = useTranslations("settings");
   return (
@@ -12,10 +21,7 @@ export function FormatPreview({ formats }: { readonly formats: Formats }) {
       className="rounded-2xl bg-accent-soft p-3 text-ink"
     >
       <p className="text-sm text-muted">{t("preview.label")}</p>
-      <p className="mt-1 text-lg font-semibold">
-        {formatNumber("1234567.89", formats)} · {formatDate("2026-10-16", formats)} ·{" "}
-        {formatTime({ hour: 14, minute: 30 }, formats)}
-      </p>
+      <p className="mt-1 text-lg font-semibold">{formatSample(formats)}</p>
     </div>
   );
 }

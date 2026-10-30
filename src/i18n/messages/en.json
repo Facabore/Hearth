@@ -287,7 +287,7 @@
     "preview": {
       "label": "This is how it will look"
     },
-    "formats": "Formats",
+    "numbersAndDates": "Numbers and dates",
     "field": {
       "numberFormat": "Numbers",
       "dateFormat": "Date",
@@ -305,10 +305,13 @@
       "MONDAY": "Monday",
       "SUNDAY": "Sunday"
     },
+    "weekStartSummary": {
+      "MONDAY": "Weeks start on Monday",
+      "SUNDAY": "Weeks start on Sunday"
+    },
     "default": "Default",
     "reset": "Reset",
     "locked": "Set by your installation",
-    "region": "Region",
     "appearance": "Appearance and language",
     "timezone": {
       "hint": "Sets the day and time of every transaction you record.",
@@ -321,7 +324,7 @@
       "dark": "Dark"
     },
     "language": {
-      "hint": "Only the texts change. The formats above do not depend on the language.",
+      "hint": "Only the texts change. The number and date formats do not depend on the language.",
       "es": "Español",
       "en": "English"
     }
@@ -1190,11 +1193,11 @@
         "planned": "Planned",
         "plannedHint": "{share} of what is put in · {unallocated} left to assign",
         "plannedNewHint": "Left to assign: {unallocated}",
-        "funding": "Where it comes from",
+        "funding": "Where does it come from?",
         "savingsAccounts": "Savings accounts",
         "otherAccount": "Another member's savings account",
         "noSavingsAccounts": "You have no savings accounts in {currency}. Create one in Accounts.",
-        "rollover": "When the period changes",
+        "rollover": "When the month changes",
         "catchAll": "Everything else",
         "catchAllHint": "Takes the expenses of categories that are in no other line."
       },
@@ -1207,7 +1210,16 @@
         "explain": "The line leaves the plan, and its expenses go to Unbudgeted or to the everything-else line.",
         "confirm": "Remove"
       },
-      "readOnly": "Only an Owner or an Admin edits the lines of an open plan."
+      "readOnly": "Only an Owner or an Admin edits the lines of an open plan.",
+      "fundingHint": {
+        "DIRECT": "Whoever makes the expense pays it from their own account.",
+        "SHARED_FUND": "Paid with the money each one puts into the shared fund.",
+        "SAVINGS": "Set aside in a savings account instead of being spent."
+      },
+      "more": {
+        "open": "More options",
+        "summary": "{rollover} · {allocation}"
+      }
     },
     "mapping": {
       "label": "Categories",
@@ -1302,10 +1314,12 @@
     },
     "unified": {
       "consumption": "Consumption",
+      "spent": "What you spent",
       "consumptionHint": "What was for you: your expenses and your share of shared ones.",
-      "cashOut": "Cash out",
-      "cashOutHint": "What left your pockets.",
-      "sources": "Where the cash out comes from",
+      "paid": "What you paid",
+      "whyDifferent": "Why is it different?",
+      "whyDifferentAnswer": "What you paid is what left your pockets, even when it was for others or for the shared fund. What you spent is only what was for you.",
+      "sources": "Where what you paid went",
       "payments": "Expense payments",
       "fundContributions": "Fund contributions",
       "savingsTransfers": "Transfers to your savings",

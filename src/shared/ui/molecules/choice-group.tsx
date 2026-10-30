@@ -1,15 +1,18 @@
 "use client";
 
-import { useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useId, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { cn } from "../cn";
 
 export interface ChoiceGroupProps<T extends string> {
   readonly label: string;
+  /** A visible heading's id: the group takes its name from it instead of `label` (#224, F16). */
+  readonly labelledBy?: string;
   readonly value: T;
-  readonly options: readonly { value: T; label: ReactNode; disabled?: boolean }[];
+  /** `description` explains an option on its own line under its label; the "list" layout shows it (#224, U5). */
+  readonly options: readonly { value: T; label: ReactNode; description?: ReactNode; disabled?: boolean }[];
   readonly onValueChange: (value: T) => void;
   readonly disabled?: boolean;
-  readonly layout?: "segmented" | "chips" | "grid" | "tiles" | "swatches";
+  readonly layout?: "segmented" | "chips" | "grid" | "tiles" | "swatches" | "list";
   readonly describedBy?: string;
 }
 
@@ -19,6 +22,7 @@ const ROOT = {
   grid: "grid grid-cols-4 gap-2",
   tiles: "grid grid-cols-6 gap-1",
   swatches: "flex flex-wrap gap-1",
+  list: "flex flex-col gap-2",
 } as const;
 
 const ITEM = {
@@ -32,6 +36,8 @@ const ITEM = {
   // HU-E9-04: a color row's 44 px swatches; the chosen one is ringed.
   swatches:
     "flex size-11 items-center justify-center rounded-full border-2 border-transparent data-[state=checked]:border-accent",
+  // #224 (U5): one option per row, its label over the line that explains it.
+  list: "flex flex-col gap-0.5 rounded-[14px] border border-line px-4 py-2 text-left data-[state=checked]:border-accent data-[state=checked]:bg-accent-soft",
 } as const;
 
 const NEXT = new Set(["ArrowRight", "ArrowDown"]);
@@ -44,6 +50,7 @@ const PREVIOUS = new Set(["ArrowLeft", "ArrowUp"]);
  */
 export function ChoiceGroup<T extends string>({
   label,
+  labelledBy,
   value,
   options,
   onValueChange,
@@ -52,6 +59,7 @@ export function ChoiceGroup<T extends string>({
   describedBy,
 }: ChoiceGroupProps<T>) {
   const items = useRef(new Map<T, HTMLButtonElement>());
+  const ids = useId();
   const enabled = options.filter((option) => !disabled && !option.disabled);
   // The chosen option is the tab stop; with none chosen (or it disabled), the first enabled one.
   const tabStop = enabled.some((option) => option.value === value) ? value : enabled[0]?.value;
@@ -69,7 +77,8 @@ export function ChoiceGroup<T extends string>({
   return (
     <div
       role="radiogroup"
-      aria-label={label}
+      aria-label={labelledBy ? undefined : label}
+      aria-labelledby={labelledBy}
       aria-describedby={describedBy}
       aria-disabled={disabled || undefined}
       onKeyDown={move}
@@ -77,6 +86,7 @@ export function ChoiceGroup<T extends string>({
     >
       {options.map((option) => {
         const checked = option.value === value;
+        const explained = layout === "list" && option.description !== undefined;
         return (
           <button
             key={option.value}
@@ -87,6 +97,8 @@ export function ChoiceGroup<T extends string>({
             type="button"
             role="radio"
             aria-checked={checked}
+            aria-labelledby={explained ? `${ids}-${option.value}` : undefined}
+            aria-describedby={explained ? `${ids}-${option.value}-description` : undefined}
             data-state={checked ? "checked" : "unchecked"}
             value={option.value}
             disabled={disabled || option.disabled}
@@ -99,7 +111,16 @@ export function ChoiceGroup<T extends string>({
               ITEM[layout],
             )}
           >
-            {option.label}
+            {explained ? (
+              <>
+                <span id={`${ids}-${option.value}`}>{option.label}</span>
+                <span id={`${ids}-${option.value}-description`} className="text-sm font-normal text-muted">
+                  {option.description}
+                </span>
+              </>
+            ) : (
+              option.label
+            )}
           </button>
         );
       })}

@@ -43,6 +43,8 @@ const show = (
     />,
   );
 const added = () => jsonResponse(referencePlanDto({ version: 8 }), 201);
+/** U5 (#224): rollover and allocation sit folded under "Más opciones". */
+const more = () => userEvent.click(screen.getByRole("button", { name: "Más opciones" }));
 
 describe("line editor (HU-E9-08)", () => {
   it("shows the carry-over among the figures and explains the chosen rollover mode (#143, rulings P231 and P232)", async () => {
@@ -60,8 +62,9 @@ describe("line editor (HU-E9-08)", () => {
     );
     const figures = normalized(screen.getByRole("region", { name: "Cifras del rubro" }).textContent);
     expect(figures).toContain("Arrastrado+$ 200.000 de octubre 2026");
+    await more();
     await userEvent.click(screen.getByRole("radio", { name: "Empieza de cero" }));
-    const modes = screen.getByRole("radiogroup", { name: "Al cambiar de período" });
+    const modes = screen.getByRole("radiogroup", { name: "Al cambiar de mes" });
     expect(modes).toHaveAccessibleDescription("Cada período empieza en cero.");
     await userEvent.click(screen.getByRole("radio", { name: "Acumula" }));
     expect(modes).toHaveAccessibleDescription(
@@ -72,6 +75,126 @@ describe("line editor (HU-E9-08)", () => {
       "Si te pasas, lo que excede se descuenta del siguiente período; lo que sobra no pasa. Pasa cuando el plan siguiente se crea como copia de este y este se cierra.",
     );
     expect(await axeViolations(container)).toEqual([]);
+  });
+
+  describe("the fold of U5 (#224, F16)", () => {
+    const percent = (memberId: string, value: string) => ({
+      memberId,
+      percent: value,
+      amount: null,
+      assigned: cop(0),
+    });
+    const fixed = (memberId: string, pesos: number) => ({
+      memberId,
+      percent: null,
+      amount: cop(pesos),
+      assigned: cop(pesos),
+    });
+    const split = (...members: ReturnType<typeof percent>[]) => ({
+      rule: "PERCENT" as const,
+      members,
+      error: null,
+    });
+
+    it("shows name, amount, funding with a line per option and categories under visible headings, and folds the rest", async () => {
+      const { container } = show(
+        planLineDto({
+          rolloverMode: "ROLLOVER",
+          allocation: split(percent("m-ana", "42.00"), percent("m-juan", "58.00")),
+        }),
+      );
+      expect(screen.getByLabelText("Nombre")).toBeVisible();
+      expect(screen.getByLabelText("Planeado")).toBeVisible();
+      expect(screen.getByRole("heading", { level: 2, name: "¿De dónde sale?" })).toBeVisible();
+      const funding = screen.getByRole("radiogroup", { name: "¿De dónde sale?" });
+      expect(within(funding).getByRole("radio", { name: "Cada uno paga" })).toHaveAccessibleDescription(
+        "Lo paga quien hace el gasto, desde su propia cuenta.",
+      );
+      expect(
+        within(funding).getByRole("radio", { name: "Sale del fondo común" }),
+      ).toHaveAccessibleDescription("Se paga con la plata que cada uno pone en el fondo común.");
+      expect(within(funding).getByRole("radio", { name: "Va al ahorro" })).toHaveAccessibleDescription(
+        "Se aparta en una cuenta de ahorro en vez de gastarse.",
+      );
+      expect(screen.getByRole("button", { name: "Elegir categorías" })).toBeVisible();
+      // Folded: the controls are out of view, and the summary says their real values, never a default.
+      const toggle = screen.getByRole("button", { name: "Más opciones" });
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      // An amount never breaks: a no-break space before the percent sign.
+      expect(toggle).toHaveAccessibleDescription("Acumula · 42\u00a0% / 58\u00a0%");
+      expect(screen.queryByRole("radiogroup", { name: "Al cambiar de mes" })).toBeNull();
+      expect(screen.queryByRole("region", { name: "Quién responde por el rubro" })).toBeNull();
+      expect(await axeViolations(container)).toEqual([]);
+      await more();
+      expect(toggle).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByRole("heading", { level: 2, name: "Al cambiar de mes" })).toBeVisible();
+      expect(screen.getByRole("radio", { name: "Acumula" })).toBeChecked();
+      expect(screen.getByRole("radio", { name: "Porcentaje" })).toBeChecked();
+      expect(await axeViolations(container)).toEqual([]);
+    });
+
+    it("keeps the summary on the values being edited", async () => {
+      show(null);
+      expect(screen.getByRole("button", { name: "Más opciones" })).toHaveAccessibleDescription(
+        "Empieza de cero · Según aportes",
+      );
+      await more();
+      await userEvent.click(screen.getByRole("radio", { name: "Ajusta" }));
+      await userEvent.click(screen.getByRole("radio", { name: "Sin asignar" }));
+      expect(screen.getByRole("button", { name: "Más opciones" })).toHaveAccessibleDescription(
+        "Ajusta · Sin asignar",
+      );
+    });
+
+    it("sums up a fixed allocation as each member's amount", () => {
+      show(
+        planLineDto({
+          plannedAmount: cop(730_000),
+          allocation: {
+            rule: "FIXED",
+            members: [fixed("m-ana", 300_000), fixed("m-juan", 430_000)],
+            error: null,
+          },
+        }),
+      );
+      expect(screen.getByRole("button", { name: "Más opciones" })).toHaveAccessibleDescription(
+        "Empieza de cero · $\u00a0300.000 / $\u00a0430.000",
+      );
+    });
+
+    it("sums up a personal line by its rollover alone, since nobody shares it", () => {
+      renderWithIntl(
+        <LineEditor
+          space={householdDto({ id: "sp-personal", name: "Personal", kind: "PERSONAL" })}
+          plan={referencePlanDto({ lines: [], capacities: [], totalCapacity: cop(0), planned: cop(0) })}
+          line={null}
+          savingsAccounts={[]}
+          groups={[]}
+          members={[HOUSEHOLD_MEMBERS[0]!]}
+          formats={BUILT_IN_FORMATS}
+        />,
+      );
+      expect(screen.getByRole("button", { name: "Más opciones" })).toHaveAccessibleDescription(
+        "Empieza de cero",
+      );
+    });
+
+    it("opens itself and moves to the allocation when a stored split that does not add up blocks the save", async () => {
+      const { api, requests } = fakeApi({});
+      show(
+        planLineDto({
+          id: "l-free",
+          name: "Free",
+          plannedAmount: cop(730_000),
+          allocation: split(percent("m-ana", "42.00"), percent("m-juan", "57.00")),
+        }),
+        api,
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
+      expect(screen.getByRole("button", { name: "Más opciones" })).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByRole("region", { name: "Quién responde por el rubro" })).toHaveFocus();
+      expect(requests).toHaveLength(0);
+    });
   });
 
   it("names the plan a carry waits for when its source is not closed (ruling P243 of M6c)", () => {
@@ -102,6 +225,7 @@ describe("line editor (HU-E9-08)", () => {
     await userEvent.type(screen.getByLabelText("Nombre"), "Rent");
     await userEvent.type(screen.getByLabelText("Planeado"), "1.200.000");
     await userEvent.click(screen.getByRole("radio", { name: "Sale del fondo común" }));
+    await more();
     expect(screen.getByRole("radio", { name: "Empieza de cero" })).toBeChecked();
     await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
     expect(await requests[0]!.json()).toEqual({
@@ -253,6 +377,7 @@ describe("line editor (HU-E9-08)", () => {
     const PATCH = "PATCH /api/v1/spaces/{spaceId}/plans/{planId}/lines/{lineId}";
     const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse(referencePlanDto({ version: 8 })) });
     show(planLineDto({ funding: "SAVINGS", savingsAccountIds: ["a-juan"], rolloverMode: "RESET" }), api);
+    await more();
     await userEvent.click(screen.getByRole("radio", { name: "Acumula" }));
     await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
     expect(await requests[0]!.json()).toEqual({ rolloverMode: "ROLLOVER" });
@@ -262,6 +387,7 @@ describe("line editor (HU-E9-08)", () => {
     const PATCH = "PATCH /api/v1/spaces/{spaceId}/plans/{planId}/lines/{lineId}";
     const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse(referencePlanDto({ version: 8 })) });
     show(planLineDto(), api);
+    await more();
     expect(screen.getByRole("radio", { name: "Empieza de cero" })).toBeChecked();
     await userEvent.click(screen.getByRole("radio", { name: "Ajusta" }));
     await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
@@ -403,6 +529,7 @@ describe("line editor (HU-E9-08)", () => {
       }),
       api,
     );
+    await more();
     await userEvent.click(screen.getByRole("radio", { name: "Sin asignar" }));
     expect(screen.queryByRole("group", { name: "Ana" })).toBeNull();
     const figures = normalized(screen.getByRole("region", { name: "Cifras del rubro" }).textContent);
@@ -422,6 +549,7 @@ describe("line editor (HU-E9-08)", () => {
     // A changed name would be sent by the line step: nothing at all goes out while the allocation does not hold.
     await userEvent.clear(screen.getByLabelText("Nombre"));
     await userEvent.type(screen.getByLabelText("Nombre"), "Libre");
+    await more();
     await userEvent.click(screen.getByRole("radio", { name: "Porcentaje" }));
     await userEvent.type(screen.getByLabelText("Valor de Ana"), "42");
     await userEvent.type(screen.getByLabelText("Valor de Juan"), "57");
@@ -455,6 +583,7 @@ describe("line editor (HU-E9-08)", () => {
         jsonResponse(referencePlanDto({ version: 9 })),
     });
     show(stored, api);
+    await more();
     expect(screen.getByLabelText("Valor de Ana")).toHaveValue("42");
     expect(screen.getByLabelText("Valor de Juan")).toHaveValue("58");
     await userEvent.click(screen.getByRole("radio", { name: "Ajusta" }));
@@ -487,6 +616,7 @@ describe("line editor (HU-E9-08)", () => {
       }),
       api,
     );
+    await more();
     await userEvent.clear(screen.getByLabelText("Valor de Ana"));
     await userEvent.type(screen.getByLabelText("Valor de Ana"), "40");
     await userEvent.clear(screen.getByLabelText("Valor de Juan"));
@@ -547,6 +677,7 @@ describe("line editor (HU-E9-08)", () => {
       });
       show(planLineDto({ categoryIds: ["c-groceries"] }), api, referencePlanDto(), food);
       expect(within(screen.getByRole("list", { name: "Categorías" })).getByText("Groceries")).toBeVisible();
+      await more();
       await userEvent.click(screen.getByRole("radio", { name: "Ajusta" }));
       await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
       await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1));
@@ -620,6 +751,7 @@ describe("line editor (HU-E9-08)", () => {
           problemResponse(422, "InvalidAllocation"),
       });
       show(planLineDto(), api);
+      await more();
       await userEvent.click(screen.getByRole("radio", { name: "Sin asignar" }));
       await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
       expect(await screen.findByText(/El reparto de este rubro no cuadra/)).toBeVisible();
@@ -665,6 +797,7 @@ describe("viewers in a line's allocation (#217)", () => {
         api={api}
       />,
     );
+    await more();
     expect(screen.queryByLabelText("Valor de Sofi")).toBeNull();
     expect(screen.queryByText("Sofi")).toBeNull();
     expect(screen.getByLabelText("Valor de Tomás")).toHaveValue("10");

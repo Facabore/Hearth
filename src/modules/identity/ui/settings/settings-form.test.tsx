@@ -11,11 +11,47 @@ const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn(), push: vi.
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 beforeEach(() => vi.clearAllMocks());
 
-describe("settings: order and header (issue #176)", () => {
-  it("puts Apariencia e idioma before Formatos, and keeps the header with Volver on screen", () => {
+/** U8 (#224): each summary row opens its own sheet. */
+const open = async (row: RegExp) => {
+  await userEvent.click(screen.getByRole("button", { name: row }));
+  return screen.findByRole("dialog");
+};
+const FORMATS = /^Números y fechas/;
+
+describe("settings: three summary rows (U8, issue #224)", () => {
+  it("shows Apariencia e idioma first, then Números y fechas and Zona horaria, each with its current values", async () => {
+    const { container } = renderWithIntl(
+      <SettingsForm backHref="/spaces/sp-personal" me={meDto()} api={fakeApi({}).api} />,
+    );
+    expect(screen.queryByRole("radio")).toBeNull();
+    const rows = screen.getAllByRole("button", {
+      name: /^(Apariencia e idioma|Números y fechas|Zona horaria)/,
+    });
+    expect(rows.map((row) => normalized(row.textContent))).toEqual([
+      "Apariencia e idiomaSistema · Español",
+      "Números y fechas1.234.567,89 · 16/10/2026 · 14:30 · Semana desde el lunes",
+      "Zona horariaBogota (GMT-5)",
+    ]);
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("writes the row's figures with the same sample as the sheet's preview, and updates both on a choice", async () => {
+    const { api } = fakeApi({
+      "PATCH /api/v1/me": () => jsonResponse(patchedMe({ numberFormat: "COMMA_DOT" })),
+    });
+    renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={meDto()} api={api} />);
+    const sheet = await open(FORMATS);
+    expect(sheet).toHaveAccessibleName("Números y fechas");
+    const preview = within(sheet).getByRole("status", { name: "Así se verá" });
+    const row = () => normalized(screen.getByRole("button", { name: FORMATS, hidden: true }).textContent);
+    expect(row()).toContain(normalized(preview.textContent).replace("Así se verá", ""));
+    await userEvent.click(within(sheet).getByRole("radio", { name: "1,234,567.89" }));
+    await waitFor(() => expect(row()).toContain("1,234,567.89 · 16/10/2026 · 14:30"));
+    expect(normalized(preview.textContent)).toContain("1,234,567.89 · 16/10/2026 · 14:30");
+  });
+
+  it("keeps the header with Volver on screen (issue #176)", () => {
     renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={meDto()} api={fakeApi({}).api} />);
-    const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
-    expect(headings.indexOf("Apariencia e idioma")).toBeLessThan(headings.indexOf("Formatos"));
     const back = screen.getByRole("link", { name: "Volver" });
     expect(back.closest("[data-sticky-header]")).toHaveClass("sticky", "top-0");
   });
@@ -36,6 +72,7 @@ describe("settings: formats (HU-E9-13)", () => {
     const { container } = renderWithIntl(
       <SettingsForm backHref="/spaces/sp-personal" me={meDto()} api={api} />,
     );
+    await open(FORMATS);
     const preview = screen.getByRole("status", { name: "Así se verá" });
     expect(preview).toHaveTextContent("1.234.567,89");
     expect(preview).toHaveTextContent("16/10/2026");
@@ -56,6 +93,7 @@ describe("settings: formats (HU-E9-13)", () => {
     const twelve = patchedMe({ timeFormat: "H12" });
     const { api, requests } = fakeApi({ "PATCH /api/v1/me": () => jsonResponse(meDto()) });
     renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={twelve} api={api} />);
+    await open(FORMATS);
     const date = screen.getByRole("group", { name: "Fecha" });
     expect(within(date).getByText("Predeterminado")).toBeInTheDocument();
     expect(within(date).getByRole("radio", { name: "16/10/2026" })).toBeChecked();
@@ -66,7 +104,7 @@ describe("settings: formats (HU-E9-13)", () => {
     expect(within(time).getByText("Predeterminado")).toBeInTheDocument();
   });
 
-  it("shows a locked field read-only with its effective value and keeps the others editable", () => {
+  it("shows a locked field read-only with its effective value and keeps the others editable", async () => {
     const base = meDto();
     const locked = {
       ...base,
@@ -77,6 +115,7 @@ describe("settings: formats (HU-E9-13)", () => {
       },
     };
     renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={locked} api={fakeApi({}).api} />);
+    await open(FORMATS);
     const date = screen.getByRole("group", { name: "Fecha" });
     expect(within(date).getByText("Lo define tu instalación")).toBeInTheDocument();
     expect(within(date).getByRole("radio", { name: "16/10/2026" })).toBeChecked();
@@ -89,6 +128,7 @@ describe("settings: formats (HU-E9-13)", () => {
   it("rolls a refused choice back and shows its error next to the field", async () => {
     const { api } = fakeApi({ "PATCH /api/v1/me": () => problemResponse(409, "PreferenceLocked") });
     renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={meDto()} api={api} />);
+    await open(FORMATS);
     const numbers = screen.getByRole("group", { name: "Números" });
     await userEvent.click(within(numbers).getByRole("radio", { name: "1,234,567.89" }));
     await waitFor(() => expect(within(numbers).getByRole("radio", { name: "1.234.567,89" })).toBeChecked());
@@ -118,6 +158,7 @@ describe("settings: feedback for every saved preference (U5)", () => {
     const { container } = renderWithIntl(
       <SettingsForm backHref="/spaces/sp-personal" me={meDto()} api={api} />,
     );
+    await open(FORMATS);
     const numbers = screen.getByRole("group", { name: "Números" });
     expect(within(numbers).queryByRole("status")).toBeNull();
     await userEvent.click(within(numbers).getByRole("radio", { name: "1,234,567.89" }));
@@ -135,6 +176,7 @@ describe("settings: feedback for every saved preference (U5)", () => {
   it("starts the two seconds again when the same field is saved again", async () => {
     const { api } = fakeApi({ "PATCH /api/v1/me": () => jsonResponse(patchedMe({ dateFormat: "MDY" })) });
     renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={meDto()} api={api} />);
+    await open(FORMATS);
     const date = screen.getByRole("group", { name: "Fecha" });
     await userEvent.click(within(date).getByRole("radio", { name: "10/16/2026" }));
     await within(date).findByRole("status");
@@ -147,6 +189,7 @@ describe("settings: feedback for every saved preference (U5)", () => {
   it("says nothing when the change was refused", async () => {
     const { api } = fakeApi({ "PATCH /api/v1/me": () => problemResponse(409, "PreferenceLocked") });
     renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={meDto()} api={api} />);
+    await open(FORMATS);
     const numbers = screen.getByRole("group", { name: "Números" });
     await userEvent.click(within(numbers).getByRole("radio", { name: "1,234,567.89" }));
     await within(numbers).findByText("La instalación fija este ajuste y no se puede cambiar.");
@@ -159,8 +202,8 @@ describe("settings: feedback for every saved preference (U5)", () => {
     await userEvent.click(screen.getByRole("button", { name: /Zona horaria/ }));
     await userEvent.type(within(screen.getByRole("dialog")).getByLabelText("Buscar zona horaria"), "madr");
     await userEvent.click(within(screen.getByRole("dialog")).getByRole("radio", { name: /Madrid/ }));
-    const region = screen.getByRole("region", { name: "Región" });
-    expect(await within(region).findByRole("status")).toHaveTextContent("Guardado");
+    expect(await screen.findByRole("status")).toHaveTextContent("Guardado");
+    await open(/^Apariencia e idioma/);
     const theme = screen.getByRole("group", { name: "Tema" });
     await userEvent.click(within(theme).getByRole("radio", { name: "Oscuro" }));
     expect(await within(theme).findByRole("status")).toHaveTextContent("Guardado");
@@ -173,6 +216,7 @@ describe("settings: feedback for every saved preference (U5)", () => {
   it("keeps Predeterminado and Restablecer in the same place: one fixed-size slot for both", async () => {
     const { api } = fakeApi({ "PATCH /api/v1/me": () => jsonResponse(patchedMe({ timeFormat: "H12" })) });
     renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={meDto()} api={api} />);
+    await open(FORMATS);
     const time = screen.getByRole("group", { name: "Hora" });
     const slot = () => within(time).getByTestId("preference-state");
     const before = slot().className;
