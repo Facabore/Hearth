@@ -33,7 +33,7 @@ describe("line dashboard (HU-E9-10)", () => {
     expect(tableRows()).toEqual([
       ["RentCumplido", "$ 1.200.000", "$ 1.200.000", "$ 0"],
       ["HomeCerca del límite", "$ 1.470.000", "$ 1.300.000", "$ 170.000"],
-      ["Savings", "$ 600.000", "Ahorrado $ 0", "$ 600.000"],
+      ["Savings", "$ 600.000", "$ 0", "$ 600.000"],
       ["Free", "$ 730.000", "$ 250.000", "$ 480.000"],
       ["Sin presupuesto", "$ 0", "$ 60.000", "−$ 60.000"],
     ]);
@@ -298,7 +298,7 @@ describe("the plan in the household's words (#214)", () => {
     show(withSaving());
     const [, saved] = within(row(/^Savings/)).getAllByRole("cell");
     expect(saved).toHaveAttribute("data-label", "Ahorrado");
-    expect(normalized(saved!.textContent)).toBe("Ahorrado $ 200.000");
+    expect(normalized(saved!.textContent)).toBe("$ 200.000");
     const [, spent] = within(row(/^Home/)).getAllByRole("cell");
     expect(spent).toHaveAttribute("data-label", "Gastado");
     expect(normalized(spent!.textContent)).toBe("$ 1.300.000");
@@ -309,6 +309,6 @@ describe("the plan in the household's words (#214)", () => {
     expect(within(row(/^Rent/)).getByText("On plan")).toBeInTheDocument();
     const [, saved] = within(row(/^Savings/)).getAllByRole("cell");
     expect(saved).toHaveAttribute("data-label", "Saved");
-    expect(normalized(saved!.textContent)).toBe("Saved $ 200.000");
+    expect(normalized(saved!.textContent)).toBe("$ 200.000");
   });
 });

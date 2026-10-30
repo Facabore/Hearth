@@ -16,6 +16,10 @@ const onPlan = (line: Pick<LineDashboardDto["lines"][number], "state" | "availab
 // not fit a phone; from 640 px it is a table row. The labels are CSS content, so a cell's text stays its figure.
 const CELL =
   "flex justify-between gap-3 py-0.5 text-right tabular-nums before:text-left before:text-muted before:content-[attr(data-label)] sm:table-cell sm:py-3 sm:before:hidden";
+// #214: a savings line keeps its "Ahorrado" label on a wide screen too, where the column header says "Gastado". It is
+// still CSS content, so the cell's text stays its figure.
+const SAVED_CELL =
+  "flex justify-between gap-3 py-0.5 text-right tabular-nums before:text-left before:text-muted before:content-[attr(data-label)] sm:table-cell sm:py-3 sm:before:inline sm:before:pr-1";
 const TRACK = "mt-1.5 block h-1.5 w-full overflow-hidden rounded-full bg-track";
 const NAME_CELL = "pb-1 text-left font-normal sm:table-cell sm:py-3 sm:pr-3";
 
@@ -122,10 +126,10 @@ export function LineDashboard({
                   {money(line.planned)}
                 </td>
                 {/* #214: what reaches a savings line is saved, not spent; on a wide screen the column says "Gastado". */}
-                <td data-label={t(line.funding === "SAVINGS" ? "saved" : "spent")} className={CELL}>
-                  {line.funding === "SAVINGS" ? (
-                    <span className="hidden text-muted sm:inline">{`${t("saved")} `}</span>
-                  ) : null}
+                <td
+                  data-label={t(line.funding === "SAVINGS" ? "saved" : "spent")}
+                  className={line.funding === "SAVINGS" ? SAVED_CELL : CELL}
+                >
                   {money(line.spent)}
                 </td>
                 <td data-label={t("available")} className={CELL + tone(line.available)}>
