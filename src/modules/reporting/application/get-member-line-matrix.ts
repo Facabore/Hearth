@@ -8,7 +8,13 @@ import {
 } from "@/modules/budgeting/application";
 import type { SpaceMember } from "@/modules/spaces/application";
 import { ok, type Period, type Result } from "@/shared/kernel";
-import { matrixRow, type MatrixCell, type MatrixReason } from "../domain/member-matrix";
+import {
+  matrixRow,
+  memberTotals,
+  type MatrixCell,
+  type MatrixReason,
+  type MemberTotal,
+} from "../domain/member-matrix";
 import type { MemberSumsDeps } from "./member-sums";
 import { reportPlanOf, spaceReport, type ReportPlan, type SpaceReportInput } from "./space-report";
 
@@ -29,6 +35,8 @@ export interface MemberLineMatrix {
   readonly plan: ReportPlan | null;
   /** The plan's lines in plan order; none without a plan (ruling P35). */
   readonly lines: readonly MatrixLine[];
+  /** #213 (ruling P262): every current member's total gap over the lines, in join order; none without a plan. */
+  readonly members: readonly MemberTotal[];
 }
 
 export type GetMemberLineMatrix = (input: SpaceReportInput) => Promise<Result<MemberLineMatrix>>;
@@ -80,7 +88,7 @@ export const createGetMemberLineMatrix =
     if (!report.ok) return report;
     const { space, period, view } = report.value;
     const base = { spaceId: space.spaceId, currency: space.currency, period, plan: reportPlanOf(view) };
-    if (view === null) return ok({ ...base, lines: [] });
+    if (view === null) return ok({ ...base, lines: [], members: [] });
     const members = await deps.members.listCurrent(space.spaceId);
     const figures = view.figures.lines;
     const parts = {
@@ -120,5 +128,9 @@ export const createGetMemberLineMatrix =
         return { lineId: line.id, name: line.name, funding: line.funding, rule: allocation.rule, ...row };
       }),
     );
-    return ok({ ...base, lines });
+    const totals = memberTotals(
+      members.map((m) => m.id),
+      lines,
+    );
+    return ok({ ...base, lines, members: totals });
   };

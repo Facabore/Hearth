@@ -43,6 +43,10 @@ export interface LineTotals {
   readonly planned: bigint;
   readonly spent: bigint;
   readonly available: bigint;
+  /** #214 (ruling P262): Σ what reached the SAVINGS lines, which `spent` also counts. */
+  readonly saved: bigint;
+  /** #214 (ruling P262): `planned` and `spent` without the SAVINGS lines, for the "Gastado … de …" headline. */
+  readonly withoutSavings: { readonly planned: bigint; readonly spent: bigint };
 }
 
 export interface LineDashboard {
@@ -68,11 +72,23 @@ const unbudgeted = (spent: bigint): UnbudgetedSpending => ({
   overspent: spent > 0n,
 });
 
-const totalsOf = (lines: readonly DashboardLine[], rest: UnbudgetedSpending | null): LineTotals => ({
-  planned: lines.reduce((sum, line) => sum + line.planned, 0n),
-  spent: lines.reduce((sum, line) => sum + line.spent, 0n) + (rest?.spent ?? 0n),
-  available: lines.reduce((sum, line) => sum + line.available, 0n) + (rest?.available ?? 0n),
-});
+const sumOf = (lines: readonly DashboardLine[], figure: "planned" | "spent" | "available"): bigint =>
+  lines.reduce((sum, line) => sum + line[figure], 0n);
+
+const totalsOf = (lines: readonly DashboardLine[], rest: UnbudgetedSpending | null): LineTotals => {
+  const spending = lines.filter((line) => line.funding !== "SAVINGS");
+  const savings = lines.filter((line) => line.funding === "SAVINGS");
+  return {
+    planned: sumOf(lines, "planned"),
+    spent: sumOf(lines, "spent") + (rest?.spent ?? 0n),
+    available: sumOf(lines, "available") + (rest?.available ?? 0n),
+    saved: sumOf(savings, "spent"),
+    withoutSavings: {
+      planned: sumOf(spending, "planned"),
+      spent: sumOf(spending, "spent") + (rest?.spent ?? 0n),
+    },
+  };
+};
 
 /**
  * HU-E7-01: planned, spent, carry-over and available per line of the period's plan, exactly as the plan reports

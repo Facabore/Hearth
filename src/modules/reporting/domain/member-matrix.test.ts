@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gapStatus, matrixRow, type LineSums } from "./member-matrix";
+import { gapStatus, matrixRow, memberTotals, type LineSums } from "./member-matrix";
 
 const pesos = (n: number) => BigInt(n) * 100n;
 const member = (memberId: string, assigned: number | null, contributed: number, consumed: number) => ({
@@ -118,6 +118,45 @@ describe("member by line matrix (HU-E7-02, spec 5.4)", () => {
       "OVER_CONTRIBUTED",
       "UNDER_CONTRIBUTED",
       "ON_TARGET",
+    ]);
+  });
+});
+
+describe("each member's total gap (#213, D7)", () => {
+  const home = line({
+    members: [member("ana", 588_000, 900_000, 520_000), member("juan", 882_000, 400_000, 780_000)],
+  });
+  const savings = line({
+    funding: "SAVINGS",
+    members: [member("ana", 240_000, 0, 0), member("juan", 360_000, 0, 0)],
+  });
+  const rent = line({
+    funding: "SHARED_FUND",
+    members: [member("ana", 480_000, 0, 480_000), member("juan", 720_000, 0, 720_000)],
+  });
+
+  it("adds a member's gaps over every line that has one, with the sum's sign as its status", () => {
+    const rows = [home, savings, rent].map(matrixRow);
+    expect(memberTotals(["ana", "juan"], rows)).toEqual([
+      { memberId: "ana", gap: pesos(72_000), status: "OVER_CONTRIBUTED" },
+      { memberId: "juan", gap: -pesos(842_000), status: "UNDER_CONTRIBUTED" },
+    ]);
+  });
+
+  it("is on target when the gaps cancel out, and null for a member no line gives a gap", () => {
+    const over = line({ members: [member("ana", 100, 150, 0), member("juan", 100, 100, 0)] });
+    const short = line({ members: [member("ana", 100, 50, 0), member("juan", 100, 100, 0)] });
+    expect(memberTotals(["ana", "juan", "sofi"], [over, short, rent].map(matrixRow))).toEqual([
+      { memberId: "ana", gap: 0n, status: "ON_TARGET" },
+      { memberId: "juan", gap: 0n, status: "ON_TARGET" },
+      { memberId: "sofi", gap: null, status: null },
+    ]);
+  });
+
+  it("gives every member a null total when no line is tracked per member", () => {
+    const free = line({ allocated: false, members: [member("ana", null, 50_000, 25_000)] });
+    expect(memberTotals(["ana"], [free, rent].map(matrixRow))).toEqual([
+      { memberId: "ana", gap: null, status: null },
     ]);
   });
 });

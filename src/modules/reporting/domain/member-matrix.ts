@@ -40,6 +40,14 @@ export interface MatrixRow {
   readonly members: readonly MatrixCell[];
 }
 
+/** #213: one member's gap over the whole plan, and its sign. */
+export interface MemberTotal {
+  readonly memberId: string;
+  /** Σ the member's gaps on the lines that give one; null when no line does. */
+  readonly gap: bigint | null;
+  readonly status: GapStatus | null;
+}
+
 export const gapStatus = (gap: bigint): GapStatus =>
   gap > 0n ? "OVER_CONTRIBUTED" : gap < 0n ? "UNDER_CONTRIBUTED" : "ON_TARGET";
 
@@ -73,3 +81,18 @@ export const matrixRow = (line: LineSums): MatrixRow => {
     }),
   };
 };
+
+/**
+ * #213 (ruling P262): each member's total gap, Σ of their gaps on the lines that give one, computed on read (D7) so a
+ * client never adds the rows up (ruling P201). Lines without a gap (rule NONE, fund level, an invalid allocation, no
+ * amount assigned) add nothing; a member none of them gives a gap has a null total.
+ */
+export const memberTotals = (memberIds: readonly string[], rows: readonly MatrixRow[]): MemberTotal[] =>
+  memberIds.map((memberId) => {
+    const gaps = rows.flatMap((row) =>
+      row.members.flatMap((cell) => (cell.memberId === memberId && cell.gap !== null ? [cell.gap] : [])),
+    );
+    if (gaps.length === 0) return { memberId, gap: null, status: null };
+    const gap = gaps.reduce((sum, value) => sum + value, 0n);
+    return { memberId, gap, status: gapStatus(gap) };
+  });

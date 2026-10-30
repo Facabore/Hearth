@@ -1331,6 +1331,7 @@
       "summary": "Plan summary",
       "totalAvailable": "Available",
       "totalSpent": "Spent {spent} of {planned}",
+      "totalSaved": "Saved {saved}",
       "caption": "Planned, spent and available per line",
       "line": "Line",
       "planned": "Planned",
@@ -1357,7 +1358,17 @@
     "matrix": {
       "noPlan": "This period has no plan: there are no allocations to compare.",
       "kind": "{funding} · {rule}",
-      "caption": "{line} by member",
+      "memberCaption": "{member} by line",
+      "line": "Line",
+      "showDetail": "Show detail by line",
+      "hideDetail": "Hide detail",
+      "detailOf": "for {member}",
+      "total": {
+        "OVER_CONTRIBUTED": "Over by {amount}",
+        "UNDER_CONTRIBUTED": "Short by {amount}",
+        "ON_TARGET": "On target",
+        "none": "No gap to compare"
+      },
       "member": "Member",
       "assigned": "Assigned",
       "contributed": "Contributed",

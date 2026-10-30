@@ -1331,6 +1331,7 @@
       "summary": "Resumen del plan",
       "totalAvailable": "Disponible",
       "totalSpent": "Gastado {spent} de {planned}",
+      "totalSaved": "Ahorrado {saved}",
       "caption": "Planeado, gastado y disponible por rubro",
       "line": "Rubro",
       "planned": "Planeado",
@@ -1357,7 +1358,17 @@
     "matrix": {
       "noPlan": "Este período no tiene plan: no hay asignaciones que comparar.",
       "kind": "{funding} · {rule}",
-      "caption": "{line} por miembro",
+      "memberCaption": "{member} por rubro",
+      "line": "Rubro",
+      "showDetail": "Ver detalle por rubro",
+      "hideDetail": "Ocultar detalle",
+      "detailOf": "de {member}",
+      "total": {
+        "OVER_CONTRIBUTED": "Le sobran {amount}",
+        "UNDER_CONTRIBUTED": "Le faltan {amount}",
+        "ON_TARGET": "Al día",
+        "none": "Sin diferencia que comparar"
+      },
       "member": "Miembro",
       "assigned": "Asignado",
       "contributed": "Aportó",

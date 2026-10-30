@@ -7660,6 +7660,13 @@ export interface operations {
                             planned: components["schemas"]["MoneyOutput"];
                             spent: components["schemas"]["MoneyOutput"];
                             available: components["schemas"]["MoneyOutput"];
+                            /** @description Σ of the SAVINGS lines' spent: what reached the savings accounts. spent still counts it. */
+                            saved?: components["schemas"]["MoneyOutput"];
+                            /** @description planned and spent without the SAVINGS lines (Unbudgeted's spent still counts), so a client shows what was spent apart from what was saved without subtracting. */
+                            withoutSavings?: {
+                                planned: components["schemas"]["MoneyOutput"];
+                                spent: components["schemas"]["MoneyOutput"];
+                            };
                         };
                         /** @description Every live category of the space with the line its expenses consume in the plan: its mapped line, its parent's line for a subcategory, else the catch-all line; null for Unbudgeted. Empty without a plan. */
                         categoryLines: {
@@ -7748,6 +7755,14 @@ export interface operations {
                                 /** @description The sign of gap; null when gap is null. */
                                 status: ("OVER_CONTRIBUTED" | "UNDER_CONTRIBUTED" | "ON_TARGET") | null;
                             }[];
+                        }[];
+                        /** @description Every current member in join order, guests included, with their total gap over the plan's lines, computed on read; empty without a plan. */
+                        members?: {
+                            memberId: string;
+                            /** @description Σ of the member's gap over the lines that give one; positive means the member over-contributed. Null when no line gives the member a gap. */
+                            gap: components["schemas"]["MoneyOutput"] | null;
+                            /** @description The sign of gap; null when gap is null. */
+                            status: ("OVER_CONTRIBUTED" | "UNDER_CONTRIBUTED" | "ON_TARGET") | null;
                         }[];
                     };
                 };

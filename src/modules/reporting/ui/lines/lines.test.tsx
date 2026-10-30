@@ -304,6 +304,55 @@ describe("the plan in the household's words (#214)", () => {
     expect(normalized(spent!.textContent)).toBe("$ 1.300.000");
   });
 
+  /** The API's totals with 200,000 COP saved: spent counts it, withoutSavings does not (ruling P262). */
+  const savedTotals = () => {
+    const dashboard = withSaving();
+    return {
+      ...dashboard,
+      totals: {
+        planned: cop(4_000_000),
+        spent: cop(3_010_000),
+        available: cop(990_000),
+        saved: cop(200_000),
+        withoutSavings: { planned: cop(3_400_000), spent: cop(2_810_000) },
+      },
+    };
+  };
+
+  it("keeps savings out of the Gastado headline, from the API's own figures (ruling P262)", async () => {
+    const { container } = show(savedTotals());
+    const summary = screen.getByRole("region", { name: "Resumen del plan" });
+    expect(normalized(summary.textContent)).toContain("Gastado $ 2.810.000 de $ 3.400.000");
+    expect(normalized(summary.textContent)).toContain("Ahorrado $ 200.000");
+    expect(normalized(summary.textContent)).not.toContain("3.010.000");
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("shows the figures the API answers, never a difference of its own (ruling P201)", () => {
+    const dashboard = savedTotals();
+    show({
+      ...dashboard,
+      totals: { ...dashboard.totals, saved: cop(7), withoutSavings: { planned: cop(5), spent: cop(3) } },
+    });
+    const summary = screen.getByRole("region", { name: "Resumen del plan" });
+    expect(normalized(summary.textContent)).toContain("Gastado $ 3 de $ 5");
+    expect(normalized(summary.textContent)).toContain("Ahorrado $ 7");
+  });
+
+  it("says nothing about savings when the plan has no savings line", () => {
+    const dashboard = savedTotals();
+    show({ ...dashboard, lines: dashboard.lines.filter((l) => l.funding !== "SAVINGS") });
+    const summary = screen.getByRole("region", { name: "Resumen del plan" });
+    expect(normalized(summary.textContent)).not.toContain("Ahorrado");
+  });
+
+  it("keeps the savings apart in English too", () => {
+    show(savedTotals(), "en");
+    const summary = screen.getByRole("region", { name: "Plan summary" });
+    expect(normalized(summary.textContent)).toContain("Spent $ 2.810.000 of $ 3.400.000");
+    expect(normalized(summary.textContent)).toContain("Saved $ 200.000");
+  });
+
   it("reads the same in English", () => {
     show(withSaving(), "en");
     expect(within(row(/^Rent/)).getByText("On plan")).toBeInTheDocument();

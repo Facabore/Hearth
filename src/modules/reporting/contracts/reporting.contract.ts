@@ -95,7 +95,20 @@ export const LineDashboardSchema = z.object({
       "What no line consumes, every expense when the period has no plan; null when the plan has a catch-all line.",
     ),
   totals: z
-    .object({ planned: MoneySchema, spent: MoneySchema, available: MoneySchema })
+    .object({
+      planned: MoneySchema,
+      spent: MoneySchema,
+      available: MoneySchema,
+      saved: MoneySchema.optional().describe(
+        "Σ of the SAVINGS lines' spent: what reached the savings accounts. spent still counts it.",
+      ),
+      withoutSavings: z
+        .object({ planned: MoneySchema, spent: MoneySchema })
+        .optional()
+        .describe(
+          "planned and spent without the SAVINGS lines (Unbudgeted's spent still counts), so a client shows what was spent apart from what was saved without subtracting.",
+        ),
+    })
     .describe(
       "Σ of the lines' figures plus Unbudgeted's spent and available; planned counts the lines only.",
     ),
@@ -145,6 +158,11 @@ export const lineDashboardDto = (dashboard: LineDashboard): z.infer<typeof LineD
     planned: moneyOf(dashboard.totals.planned, dashboard.currency),
     spent: moneyOf(dashboard.totals.spent, dashboard.currency),
     available: moneyOf(dashboard.totals.available, dashboard.currency),
+    saved: moneyOf(dashboard.totals.saved, dashboard.currency),
+    withoutSavings: {
+      planned: moneyOf(dashboard.totals.withoutSavings.planned, dashboard.currency),
+      spent: moneyOf(dashboard.totals.withoutSavings.spent, dashboard.currency),
+    },
   },
   categoryLines: dashboard.categoryLines.map((c) => ({ categoryId: c.categoryId, lineId: c.lineId })),
 });
@@ -187,6 +205,20 @@ export const MemberMatrixSchema = z.object({
       ),
     }),
   ),
+  members: z
+    .array(
+      z.object({
+        memberId: z.string(),
+        gap: MoneySchema.nullable().describe(
+          "Σ of the member's gap over the lines that give one; positive means the member over-contributed. Null when no line gives the member a gap.",
+        ),
+        status: z.enum(GAP_STATUSES).nullable().describe("The sign of gap; null when gap is null."),
+      }),
+    )
+    .optional()
+    .describe(
+      "Every current member in join order, guests included, with their total gap over the plan's lines, computed on read; empty without a plan.",
+    ),
 });
 
 const moneyOrNull = (minor: bigint | null, currency: string): MoneyDto | null =>
@@ -210,6 +242,11 @@ export const memberMatrixDto = (matrix: MemberLineMatrix): z.infer<typeof Member
       gap: moneyOrNull(cell.gap, matrix.currency),
       status: cell.status,
     })),
+  })),
+  members: matrix.members.map((total) => ({
+    memberId: total.memberId,
+    gap: moneyOrNull(total.gap, matrix.currency),
+    status: total.status,
   })),
 });
 

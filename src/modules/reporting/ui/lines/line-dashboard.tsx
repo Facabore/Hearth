@@ -24,7 +24,8 @@ const TRACK = "mt-1.5 block h-1.5 w-full overflow-hidden rounded-full bg-track";
 const NAME_CELL = "pb-1 text-left font-normal sm:table-cell sm:py-3 sm:pr-3";
 
 /**
- * HU-E9-10 (the Lines artboard): the plan's totals as the API answers them (ruling P201), then one table of the
+ * HU-E9-10 (the Lines artboard): the plan's totals as the API answers them (ruling P201), what was spent apart from
+ * what was saved (#214, ruling P262), then one table of the
  * lines' planned, spent and available figures with Unbudgeted last. The bars are CSS widths inside the rows that
  * carry the figures, so the table and the bars are one element (ruling P202).
  */
@@ -41,6 +42,8 @@ export function LineDashboard({
   const t = useTranslations("reports.lines");
   const summary = useId();
   const { totals, unbudgeted } = dashboard;
+  // #214 (ruling P262): the headline is what was spent, savings apart, as the API answers it; never a subtraction.
+  const spending = totals.withoutSavings ?? totals;
   const currency = totals.planned.currency;
   const money = (value: { readonly amount: string; readonly currency: string }) =>
     formatMoney(value, formats);
@@ -61,8 +64,11 @@ export function LineDashboard({
           </span>
         </p>
         <p className="text-sm text-muted">
-          {t("totalSpent", { spent: money(totals.spent), planned: money(totals.planned) })}
+          {t("totalSpent", { spent: money(spending.spent), planned: money(spending.planned) })}
         </p>
+        {totals.saved && dashboard.lines.some((line) => line.funding === "SAVINGS") ? (
+          <p className="text-sm text-muted">{t("totalSaved", { saved: money(totals.saved) })}</p>
+        ) : null}
       </section>
       <div className="rounded-2xl border border-line bg-surface px-3">
         <table className="block w-full text-sm sm:table">

@@ -254,18 +254,26 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect(page.getByRole("dialog")).toBeVisible();
       await scan("line removal sheet");
       await page.keyboard.press("Escape");
-      // HU-E9-10: Ana's gap and Juan's carry a word, an arrow and a sign, not a color alone.
+      // HU-E9-10, #213: one row per member first; each opens its lines, where Ana's gap and Juan's carry a word, an
+      // arrow and a sign, not a color alone.
       await page.goto(`${h}/plan/members`);
-      const market = page.getByRole("table", { name: fill(es.reports.matrix.caption, { line: "Mercado" }) });
-      await expect(market.getByRole("row", { name: /^Ana/ })).toContainText(
+      const detailOf = (member: string) =>
+        page.getByRole("table", { name: fill(es.reports.matrix.memberCaption, { member }) });
+      for (const member of ["Ana", "Juan"]) {
+        await page
+          .getByRole("button", {
+            name: `${es.reports.matrix.showDetail} ${fill(es.reports.matrix.detailOf, { member })}`,
+          })
+          .click();
+      }
+      await scan(`${h}/plan/members with both members open`);
+      await expect(detailOf("Ana").getByRole("row", { name: /^Mercado/ })).toContainText(
         es.reports.status.OVER_CONTRIBUTED,
       );
-      await expect(market.getByRole("row", { name: /^Juan/ })).toContainText(
+      await expect(detailOf("Juan").getByRole("row", { name: /^Mercado/ })).toContainText(
         es.reports.status.UNDER_CONTRIBUTED,
       );
-      await expect(
-        page.getByRole("table", { name: fill(es.reports.matrix.caption, { line: "Ocio" }) }),
-      ).toBeVisible();
+      await expect(detailOf("Ana").getByRole("row", { name: /^Ocio/ })).toBeVisible();
       await page.goto(`${h}/plan/fund`);
       await expect(page.getByText(es.reports.fund.behind).first()).toBeVisible();
       // HU-E9-10: the By group view drilled into its one group is a level of its own, scanned in both color schemes,

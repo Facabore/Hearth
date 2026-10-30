@@ -13,6 +13,7 @@ export {
   type GapStatus,
   type MatrixCell,
   type MatrixReason,
+  type MemberTotal,
 } from "../domain/member-matrix";
 export type { FundContribution } from "../domain/fund-contributions";
 export type { MemberSumsDeps, SpaceMemberSums } from "./member-sums";
