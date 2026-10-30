@@ -24,6 +24,7 @@ export function ListFilters({
   periodPolicy,
   formats,
   memberNames = {},
+  movedMemberIds,
 }: {
   readonly spaceId: string;
   readonly period: PeriodDto;
@@ -36,6 +37,11 @@ export function ListFilters({
   readonly formats: Pick<Formats, "dateFormat">;
   /** Issue #148: a shared space's members, by id; with two or more the list can be filtered by who paid. */
   readonly memberNames?: Readonly<Record<string, string>>;
+  /**
+   * #217 (P263): the members any movement ever touched. The others are left out of the filter, except the one already
+   * chosen; without it every member is offered.
+   */
+  readonly movedMemberIds?: readonly string[] | undefined;
 }) {
   const t = useTranslations("ledger.list");
   const periodText = usePeriodText();
@@ -43,6 +49,9 @@ export function ListFilters({
   const [open, setOpen] = useState(false);
   const chosen = filter.categoryId ? categoryPath(groups, filter.categoryId) : null;
   const step = "flex size-11 items-center justify-center rounded-xl text-ink";
+  const payers = Object.entries(memberNames).filter(
+    ([id]) => movedMemberIds === undefined || movedMemberIds.includes(id) || id === filter.payerMemberId,
+  );
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
@@ -86,9 +95,9 @@ export function ListFilters({
           </Button>
         )}
       </div>
-      {Object.keys(memberNames).length > 1 ? (
+      {payers.length > 1 ? (
         <nav aria-label={t("paidBy")} className="flex flex-wrap gap-2">
-          {[["", t("anyone")] as const, ...Object.entries(memberNames)].map(([id, name]) => {
+          {[["", t("anyone")] as const, ...payers].map(([id, name]) => {
             const current = (filter.payerMemberId ?? "") === id;
             return (
               <Link

@@ -6550,6 +6550,8 @@ export interface operations {
                         members: {
                             memberId: string;
                             net: components["schemas"]["MoneyOutput"];
+                            /** @description #217 (P263): true once a live member-paid expense (as payer or participant) or a live settlement names the member, even when their net is back to 0. Fund-paid expenses, fund contributions and deleted movements do not count. Computed on read; always sent, optional for older clients. */
+                            hasMovements?: boolean;
                         }[];
                     };
                 };

@@ -4,7 +4,7 @@ import {
   type SpaceMemberRepository,
 } from "@/modules/spaces/application";
 import { ok, type Result } from "@/shared/kernel";
-import { netBalances, type MemberBalance, type MemberTotals } from "../domain/balances";
+import { memberStandings, type MemberStanding, type MemberTotals } from "../domain/balances";
 
 /** Per-member totals of one space's live ledger (E5 balance rule); bound to the ledger by the composition root. */
 export interface BalanceSource {
@@ -21,7 +21,7 @@ export interface SpaceBalances {
   readonly spaceId: string;
   readonly currency: string;
   /** Current members in join order, guests included, then former members with a non-zero history; nets sum to zero. */
-  readonly members: readonly MemberBalance[];
+  readonly members: readonly MemberStanding[];
 }
 
 export type GetSpaceBalances = (input: { spaceId: string; userId: string }) => Promise<Result<SpaceBalances>>;
@@ -38,7 +38,7 @@ export const createGetSpaceBalances =
     return ok({
       spaceId: space.spaceId,
       currency: space.currency,
-      members: netBalances(
+      members: memberStandings(
         members.map((m) => m.id),
         totals,
       ),

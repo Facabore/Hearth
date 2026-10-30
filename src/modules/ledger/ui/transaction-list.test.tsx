@@ -497,4 +497,41 @@ describe("the payer filter (issue #148)", () => {
     renderWithIntl(listOf());
     expect(screen.queryByRole("navigation", { name: "Pagó" })).not.toBeInTheDocument();
   });
+
+  describe("members no movement touched (#217, P263)", () => {
+    const household = {
+      ...context,
+      memberNames: { "m-ana": "Ana", "m-juan": "Juan", "m-sofi": "Sofi", "m-pedro": "Pedro (invitado)" },
+    };
+    const payerNames = () =>
+      within(screen.getByRole("navigation", { name: "Pagó" }))
+        .getAllByRole("link")
+        .map((link) => link.textContent);
+
+    it("leaves them out of the filter, and the rows still name everyone", () => {
+      renderWithIntl(listOf({ context: household, movedMemberIds: ["m-ana", "m-juan"] }));
+      expect(payerNames()).toEqual(["Todos", "Ana", "Juan"]);
+    });
+
+    it("keeps the chosen member even when no movement touched them", () => {
+      renderWithIntl(
+        listOf({
+          context: household,
+          movedMemberIds: ["m-ana", "m-juan"],
+          filter: { period: "2026-10", payerMemberId: "m-sofi" },
+        }),
+      );
+      expect(payerNames()).toEqual(["Todos", "Ana", "Juan", "Sofi"]);
+    });
+
+    it("offers no filter when only one member has movements", () => {
+      renderWithIntl(listOf({ context: household, movedMemberIds: ["m-ana"] }));
+      expect(screen.queryByRole("navigation", { name: "Pagó" })).not.toBeInTheDocument();
+    });
+
+    it("offers every member when nobody says who moved", () => {
+      renderWithIntl(listOf({ context: household }));
+      expect(payerNames()).toEqual(["Todos", "Ana", "Juan", "Sofi", "Pedro (invitado)"]);
+    });
+  });
 });

@@ -4,7 +4,7 @@ import { personalSpaceOf } from "@/modules/spaces/ui";
 import { addDays, type LocalDate } from "@/shared/kernel/local-date";
 import type { CategoryGroupDto, MeDto } from "@/shared/ui/api/dto";
 import { useApis } from "../api";
-import { accountsQuery, categoriesQuery, membersQuery, periodQuery } from "../reads";
+import { accountsQuery, categoriesQuery, membersQuery, netBalancesQuery, periodQuery } from "../reads";
 import { sharedSpace, type Viewer } from "../load";
 import { HOME_ROWS, listQueryOf, pageQuery, transactionQuery } from "./queries";
 
@@ -77,6 +77,14 @@ export const useHome = (viewer: Viewer) => {
   };
 };
 
+/** #217 (P263): the members any movement touched, or nothing when the balances do not say (an older API, or none read). */
+export const movedOf = (
+  balances: readonly { readonly memberId: string; readonly hasMovements?: boolean | undefined }[] | undefined,
+): string[] | undefined =>
+  balances?.every((b) => b.hasMovements !== undefined)
+    ? balances.filter((b) => b.hasMovements).map((b) => b.memberId)
+    : undefined;
+
 export const useList = (viewer: Viewer, filter: ListFilter) => {
   const { api } = useApis();
   const spaceId = viewer.space.id;
@@ -91,6 +99,9 @@ export const useList = (viewer: Viewer, filter: ListFilter) => {
   // Hooks are called the same way on every render: the members are an empty list of queries outside a shared space.
   const memberQueries: ReturnType<typeof membersQuery>[] = shared ? [membersQuery(api, spaceId)] : [];
   const members = useSuspenseQueries({ queries: memberQueries });
+  // #217 (P263): the payer filter leaves out members no movement touched. The balances are optional: until they are
+  // read, or when they cannot be, every member is offered.
+  const balances = useQuery({ ...netBalancesQuery(api, spaceId), enabled: shared });
   const { period } = page.data;
   const previous = useQuery(periodQuery(api, spaceId, addDays(period.startDate as LocalDate, -1)));
   const next = useQuery(periodQuery(api, spaceId, addDays(period.endDate as LocalDate, 1)));
@@ -101,5 +112,6 @@ export const useList = (viewer: Viewer, filter: ListFilter) => {
     context: rowContextOf(viewer.me, groups.data, accounts.data, memberNames),
     previous: previous.data ?? null,
     next: next.data ?? null,
+    movedMemberIds: movedOf(balances.data?.members),
   };
 };
