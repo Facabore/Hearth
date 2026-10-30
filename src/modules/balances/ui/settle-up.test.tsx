@@ -24,8 +24,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-31T17:00:00Z"));
+  localStorage.clear();
 });
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  localStorage.clear();
+});
 
 const ANA = memberDto();
 const JUAN = memberDto({ id: "m-juan", userId: "u-juan", displayName: "Juan", role: "MEMBER" });
@@ -132,6 +136,8 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
       amount: { amount: "10000000", currency: "COP" },
       payerMemberId: "m-juan",
       receivingMemberId: "m-ana",
+      // Issue #219: the payment leaves from Juan's only account unless he picks Ninguna.
+      sourceAccountId: "a-davi",
     });
     await waitFor(() => expect(router.refresh).toHaveBeenCalled());
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -239,6 +245,86 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
     await userEvent.click(save());
     await within(dialog()).findByRole("alert");
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  });
+
+  describe("the account the payment leaves from (issue #219)", () => {
+    const SAVINGS = accountDto({ id: "a-savings", name: "Ahorros", type: "SAVINGS", ownerUserId: "u-juan" });
+    const NEQUI = accountDto({ id: "a-nequi", name: "Nequi", type: "WALLET", ownerUserId: "u-juan" });
+    const from = () => within(dialog()).getByRole("radiogroup", { name: "Sale de (opcional)" });
+
+    it("starts on the account Juan last paid from, keeps Ninguna as a choice and sends that account", async () => {
+      localStorage.setItem("hearth.lastAccount", "a-nequi");
+      const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
+      screenAs("u-juan", api, undefined, { myAccounts: [SAVINGS, DAVI, NEQUI] });
+      await userEvent.click(screen.getByRole("button", { name: JUAN_PAYS }));
+      expect(within(from()).getByRole("radio", { name: "Nequi" })).toBeChecked();
+      expect(within(from()).getByRole("radio", { name: "Ninguna" })).not.toBeChecked();
+      await userEvent.click(save());
+      expect(await requests[0]!.json()).toMatchObject({
+        payerMemberId: "m-juan",
+        sourceAccountId: "a-nequi",
+      });
+    });
+
+    it("offers every active account, zero balances too, with the one last paid from first and the rest in order", async () => {
+      localStorage.setItem("hearth.lastAccount", "a-nequi");
+      const EMPTY = accountDto({ id: "a-empty", name: "Efectivo", type: "CASH", ownerUserId: "u-juan" });
+      screenAs("u-juan", fakeApi({}).api, undefined, { myAccounts: [SAVINGS, DAVI, EMPTY, NEQUI] });
+      await userEvent.click(screen.getByRole("button", { name: JUAN_PAYS }));
+      expect(
+        within(from())
+          .getAllByRole("radio")
+          .map((radio) => radio.getAttribute("aria-label") ?? radio.textContent),
+      ).toEqual(["Ninguna", "Nequi", "Ahorros", "Davivienda", "Efectivo"]);
+    });
+
+    it("starts on the first account that is not a savings account when none was paid from yet", async () => {
+      screenAs("u-juan", fakeApi({}).api, undefined, { myAccounts: [SAVINGS, DAVI, NEQUI] });
+      await userEvent.click(screen.getByRole("button", { name: JUAN_PAYS }));
+      expect(within(from()).getByRole("radio", { name: "Davivienda" })).toBeChecked();
+    });
+
+    it("skips an account last paid from that is no longer offered", async () => {
+      localStorage.setItem("hearth.lastAccount", "a-archived");
+      screenAs("u-juan", fakeApi({}).api, undefined, { myAccounts: [SAVINGS, NEQUI] });
+      await userEvent.click(screen.getByRole("button", { name: JUAN_PAYS }));
+      expect(within(from()).getByRole("radio", { name: "Nequi" })).toBeChecked();
+    });
+
+    it("records the payment without an account when Juan picks Ninguna", async () => {
+      localStorage.setItem("hearth.lastAccount", "a-davi");
+      const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
+      screenAs("u-juan", api);
+      await userEvent.click(screen.getByRole("button", { name: JUAN_PAYS }));
+      await userEvent.click(within(from()).getByRole("radio", { name: "Ninguna" }));
+      await userEvent.click(save());
+      expect(await requests[0]!.json()).not.toHaveProperty("sourceAccountId");
+    });
+
+    it("starts the paying account once the viewer becomes the payer of an empty draft", async () => {
+      localStorage.setItem("hearth.lastAccount", "a-bank");
+      const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
+      screenAs("u-ana", api);
+      await userEvent.click(screen.getByRole("button", { name: "Saldar otro monto" }));
+      await userEvent.click(within(payerGroup()).getByRole("radio", { name: "Ana (tú)" }));
+      await userEvent.click(
+        within(within(dialog()).getByRole("radiogroup", { name: "Quién recibe" })).getByRole("radio", {
+          name: "Luis",
+        }),
+      );
+      expect(within(from()).getByRole("radio", { name: "Bancolombia" })).toBeChecked();
+      await userEvent.type(within(dialog()).getByLabelText("Monto"), "20.000");
+      await userEvent.click(save());
+      expect(await requests[0]!.json()).toMatchObject({ payerMemberId: "m-ana", sourceAccountId: "a-bank" });
+    });
+
+    it("never starts the receiving account on one: a payment arrives where the viewer says", async () => {
+      localStorage.setItem("hearth.lastAccount", "a-bank");
+      screenAs("u-ana", fakeApi({}).api);
+      await userEvent.click(screen.getByRole("button", { name: LUIS_PAYS }));
+      const to = within(dialog()).getByRole("radiogroup", { name: "Llega a (opcional)" });
+      expect(within(to).getByRole("radio", { name: "Ninguna" })).toBeChecked();
+    });
   });
 
   it("hides the source account when the guest Pedro pays, and records the payment without one", async () => {
@@ -401,5 +487,26 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
       "Juan owes Ana $ 100.000. You can record a partial payment; paying more turns the debt around.",
     );
     expect(await axeViolations(sheet)).toEqual([]);
+  });
+});
+
+describe("a viewer with nothing to settle (#217)", () => {
+  const SOFI = memberDto({ id: "m-sofi", userId: "u-sofi", displayName: "Sofi", role: "VIEWER" });
+  const TOMAS = memberDto({ id: "m-tomas", userId: "u-tomas", displayName: "Tomás", role: "VIEWER" });
+
+  it("offers neither as payer nor as receiver a viewer whose balance is zero, and keeps one who has a balance", async () => {
+    screenAs("u-juan", fakeApi({}).api, undefined, {
+      members: [...MEMBERS, SOFI, TOMAS],
+      balances: [...TRIP_BALANCES, net("m-sofi", 0), net("m-tomas", 20_000)],
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Saldar otro monto" }));
+    const receivers = within(dialog()).getByRole("radiogroup", { name: "Quién recibe" });
+    for (const group of [payerGroup(), receivers]) {
+      expect(within(group).queryByRole("radio", { name: "Sofi" })).toBeNull();
+      expect(within(group).getByRole("radio", { name: "Tomás" })).toBeInTheDocument();
+      expect(within(group).getByRole("radio", { name: "Pedro (invitado)" })).toBeInTheDocument();
+    }
+    // The balances list still names everyone: only the sheet's choices leave her out.
+    expect(screen.getByRole("link", { name: /Sofi/, hidden: true })).toBeInTheDocument();
   });
 });

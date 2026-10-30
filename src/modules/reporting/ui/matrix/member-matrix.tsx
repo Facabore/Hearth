@@ -7,6 +7,7 @@ import { formatMoney, formatSignedMoney, type Formats } from "@/shared/ui/format
 import type { UiIconName } from "@/shared/ui/icons/ui-icons";
 import { memberName } from "../member-name";
 import { viewHref } from "../views";
+import { withoutIdleMembers } from "./idle-members";
 
 type MatrixLine = MemberMatrixDto["lines"][number];
 type Status = NonNullable<MatrixLine["members"][number]["status"]>;
@@ -45,7 +46,7 @@ export const missingReason = (
  * HU-E9-10 (the Matrix artboard): one table per line of the period's plan, with each member's assigned, contributed
  * and consumed figures and the gap with its status. Every figure is the API's (ruling P201). A missing one is a dash
  * for the eye and its reason in words for assistive technology; the reason is also written once under the table
- * (ruling P217).
+ * (ruling P217). A member with nothing in the period has no row (#213, #217).
  */
 export function MemberMatrix({
   space,
@@ -63,7 +64,7 @@ export function MemberMatrix({
   if (matrix.plan === null) return <p className="text-sm text-muted">{t("matrix.noPlan")}</p>;
   return (
     <>
-      {matrix.lines.map((line) => (
+      {withoutIdleMembers(matrix).lines.map((line) => (
         <MatrixLineSection
           key={line.lineId}
           line={line}

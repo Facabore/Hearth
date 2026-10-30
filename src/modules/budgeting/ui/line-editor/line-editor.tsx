@@ -31,6 +31,7 @@ import { currencyOf } from "@/shared/ui/format/currencies";
 import { formatMoney, formatNumber, formatPercent, type Formats } from "@/shared/ui/format/formatters";
 import { findCategory } from "@/modules/categories/ui";
 import { CarryText } from "../carry-text";
+import { takesPart } from "../plan-access";
 import { rereadPlan } from "../plan-write";
 import { AllocationEditor } from "./allocation-editor";
 import {
@@ -85,7 +86,7 @@ export function LineEditor({
   line,
   savingsAccounts,
   groups,
-  members,
+  members: everyone,
   formats,
   api: injected,
 }: {
@@ -97,7 +98,7 @@ export function LineEditor({
   readonly savingsAccounts: readonly AccountDto[];
   /** The space's live category groups, for the mapping sheet (ruling P212). */
   readonly groups: readonly CategoryGroupDto[];
-  /** The space's members in join order, one allocation row each. */
+  /** The space's members in join order, one allocation row each but a viewer's who holds nothing (#217). */
   readonly members: readonly SpaceMemberDto[];
   readonly formats: Formats;
   readonly api?: Api;
@@ -112,6 +113,11 @@ export function LineEditor({
   const messageOf = useProblemMessage();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   const ids = useId();
+  // #217: a viewer who holds no capacity and no share of this line gets no allocation row, so none is sent for them.
+  const members = useMemo(
+    () => everyone.filter((member) => takesPart(initial, member, line)),
+    [everyone, initial, line],
+  );
   const [plan, setPlan] = useState(initial);
   const [draft, setDraft] = useState<LineDraft>(() => lineDraftOf(line, formats));
   const [categoryIds, setCategoryIds] = useState<readonly string[]>(() => line?.categoryIds ?? []);

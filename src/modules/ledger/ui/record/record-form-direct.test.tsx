@@ -62,14 +62,10 @@ const chooseGroceries = async () => {
   await userEvent.click(screen.getByRole("radio", { name: "Groceries" }));
   await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
 };
-// Issue #171: the split is folded under Más opciones until it is opened; once open it stays open.
-const openMore = async () => {
-  const more = screen.queryByRole("button", { name: "Más opciones" });
-  if (more) await userEvent.click(more);
-};
+// U11 (#222): the split with someone is a row of the details, under the category.
+const SPLIT_ROW = "¿Lo compartiste? Dividir con alguien";
 const openSheet = async () => {
-  await openMore();
-  await userEvent.click(screen.getByRole("button", { name: "Dividir con alguien" }));
+  await userEvent.click(screen.getByRole("button", { name: SPLIT_ROW }));
   // The sheet is imported lazily on first open: wait for it rather than racing the chunk.
   return screen.findByRole("dialog", { name: "Dividir con alguien" });
 };
@@ -79,8 +75,34 @@ const splitWith = async (name: string) => {
   await userEvent.click(screen.getByRole("button", { name: `Seguir con ${name}` }));
 };
 
+describe("the split with someone is a row under the category (U11, #222)", () => {
+  it("shows ¿Lo compartiste? Dividir con alguien in the details, with nothing to unfold first", async () => {
+    const { container } = form(fakeApi({}).api);
+    const rows = within(screen.getByRole("list", { name: "Detalles del movimiento" })).getAllByRole("button");
+    expect(rows[0]).toHaveAccessibleName(/^Categoría/);
+    expect(rows[1]).toHaveAccessibleName("¿Lo compartiste? Dividir con alguien");
+    expect(rows[1]).toBeVisible();
+    expect(rows[1]).toHaveTextContent("¿Lo compartiste?Dividir con alguien");
+    expect(screen.queryByRole("button", { name: /^(Más|Menos) opciones$/ })).not.toBeInTheDocument();
+    expect(await axeViolations(container)).toEqual([]);
+
+    await userEvent.click(rows[1]!);
+    expect(await screen.findByRole("dialog", { name: "Dividir con alguien" })).toBeInTheDocument();
+  });
+
+  it("returns with the split applied, and the row gives way to the chosen person", async () => {
+    form(fakeApi({}).api);
+    await userEvent.type(screen.getByLabelText("Monto"), "120000");
+    await chooseGroceries();
+    await splitWith("Juan");
+    expect(screen.getByText("Con Juan · mitad y mitad")).toBeVisible();
+    expect(screen.queryByRole("button", { name: SPLIT_ROW })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Guardar y dividir" })).toBeInTheDocument();
+  });
+});
+
 describe("split with someone from Personal (HU-E9-06, ruling P172)", () => {
-  it("keeps the chosen person on screen, so Más opciones can never fold a split away (#171)", async () => {
+  it("keeps the chosen person on screen, and removing them brings the row back (#171, #222)", async () => {
     form(fakeApi({}).api);
     await userEvent.type(screen.getByLabelText("Monto"), "120000");
     await chooseGroceries();
@@ -88,7 +110,7 @@ describe("split with someone from Personal (HU-E9-06, ruling P172)", () => {
     expect(screen.getByText("Con Juan · mitad y mitad")).toBeVisible();
     expect(screen.queryByRole("button", { name: /^(Más|Menos) opciones$/ })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Quitar la división con Juan" }));
-    expect(screen.getByRole("button", { name: /^(Más|Menos) opciones$/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: SPLIT_ROW })).toBeVisible();
   });
 
   it("splits a dinner with Juan through their direct space and opens its list", async () => {
@@ -163,7 +185,7 @@ describe("split with someone from Personal (HU-E9-06, ruling P172)", () => {
     expect(requests).toHaveLength(0);
     await userEvent.click(screen.getByRole("button", { name: "Quitar la división con Luis" }));
     expect(screen.getByRole("button", { name: "Guardar gasto" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Dividir con alguien" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: SPLIT_ROW })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Categoría/ })).not.toHaveAccessibleDescription(/Personal/);
   });
 
@@ -242,19 +264,18 @@ describe("split with someone from Personal (HU-E9-06, ruling P172)", () => {
 
   it("offers the split only on an expense", async () => {
     form(fakeApi({}).api);
-    await openMore();
-    expect(screen.getByRole("button", { name: "Dividir con alguien" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: SPLIT_ROW })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("tab", { name: "Ingreso" }));
-    expect(screen.queryByRole("button", { name: "Dividir con alguien" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: SPLIT_ROW })).not.toBeInTheDocument();
   });
 
   it("does not offer it in a shared space even when it is given people", () => {
     form(fakeApi({}).api, { space: householdSpace() });
-    expect(screen.queryByRole("button", { name: "Dividir con alguien" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: SPLIT_ROW })).not.toBeInTheDocument();
   });
 
   it("does not offer it without the list of people", () => {
     form(fakeApi({}).api, { people: undefined });
-    expect(screen.queryByRole("button", { name: "Dividir con alguien" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: SPLIT_ROW })).not.toBeInTheDocument();
   });
 });

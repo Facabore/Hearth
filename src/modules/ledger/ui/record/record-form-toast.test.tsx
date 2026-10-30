@@ -116,8 +116,7 @@ describe("record form save feedback (ruling P196)", () => {
     form(api, "EXPENSE", { people });
     await userEvent.type(screen.getByLabelText("Monto"), "120000");
     await chooseGroceries();
-    await userEvent.click(screen.getByRole("button", { name: "Más opciones" }));
-    await userEvent.click(screen.getByRole("button", { name: "Dividir con alguien" }));
+    await userEvent.click(screen.getByRole("button", { name: "¿Lo compartiste? Dividir con alguien" }));
     await userEvent.click(await screen.findByRole("radio", { name: /Juan/ }));
     await userEvent.click(screen.getByRole("button", { name: "Seguir con Juan" }));
     await userEvent.click(screen.getByRole("button", { name: "Guardar y dividir" }));
@@ -168,8 +167,7 @@ describe("record form save feedback (ruling P196)", () => {
     form(api, "EXPENSE", { people, returnTo: `/spaces/${PERSONAL.id}` });
     await userEvent.type(screen.getByLabelText("Monto"), "120000");
     await chooseGroceries();
-    await userEvent.click(screen.getByRole("button", { name: "Más opciones" }));
-    await userEvent.click(screen.getByRole("button", { name: "Dividir con alguien" }));
+    await userEvent.click(screen.getByRole("button", { name: "¿Lo compartiste? Dividir con alguien" }));
     await userEvent.click(await screen.findByRole("radio", { name: /Juan/ }));
     await userEvent.click(screen.getByRole("button", { name: "Seguir con Juan" }));
     await userEvent.click(screen.getByRole("button", { name: "Guardar y dividir" }));

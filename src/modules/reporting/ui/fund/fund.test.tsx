@@ -2,7 +2,7 @@ import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
 import { cop, normalized } from "../../../../../tests/support/ui/dto";
-import { e7Fund, HOUSEHOLD_MEMBERS } from "../../../../../tests/support/ui/plan-dto";
+import { e7Fund, HOUSEHOLD_MEMBERS, spaceMemberDto } from "../../../../../tests/support/ui/plan-dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { FundTracking } from "./fund-tracking";
@@ -38,7 +38,7 @@ describe("fund tracking (HU-E9-10)", () => {
   it("calls a member who paid more than expected up to date, and reads the sign of their difference", () => {
     const members = [
       { memberId: "m-ana", expected: cop(480_000), actual: cop(530_000), difference: cop(50_000) },
-      { memberId: "m-juan", expected: cop(0), actual: cop(0), difference: cop(0) },
+      { memberId: "m-juan", expected: cop(100_000), actual: cop(100_000), difference: cop(0) },
     ];
     show(e7Fund({ members }));
     expect(card("Ana")).toContain("Diferencia+$ 50.000");
@@ -92,5 +92,22 @@ describe("fund tracking (HU-E9-10)", () => {
       ),
     ).toBeInTheDocument();
     expect(card("Miembro anterior")).toContain("Aportado$ 500.000");
+  });
+
+  it("leaves out a member with nothing expected and nothing paid in, and keeps one who paid in (#217)", () => {
+    const fund = e7Fund();
+    fund.members = [
+      ...fund.members,
+      { memberId: "m-sofi", expected: cop(0), actual: cop(0), difference: cop(0) },
+      { memberId: "m-tomas", expected: cop(0), actual: cop(30_000), difference: cop(30_000) },
+    ];
+    show(fund, [
+      ...HOUSEHOLD_MEMBERS,
+      spaceMemberDto({ id: "m-sofi", userId: "u-sofi", displayName: "Sofi", role: "VIEWER" }),
+      spaceMemberDto({ id: "m-tomas", userId: "u-tomas", displayName: "Tomás", role: "VIEWER" }),
+    ]);
+    expect(screen.queryByRole("listitem", { name: "Sofi" })).toBeNull();
+    expect(card("Tomás")).toContain("Aportado$ 30.000");
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
   });
 });

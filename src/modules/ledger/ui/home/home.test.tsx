@@ -3,7 +3,13 @@ import type { ComponentProps } from "react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
-import { accountDto, cop, octoberPage, rowContext } from "../../../../../tests/support/ui/dto";
+import {
+  accountDto,
+  cop,
+  octoberExpense,
+  octoberPage,
+  rowContext,
+} from "../../../../../tests/support/ui/dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import type { TransactionDetail } from "../detail/transaction-detail";
 import { HomeSummary } from "./home-summary";
@@ -19,6 +25,7 @@ describe("home (HU-E9-01)", () => {
     const { container } = renderWithIntl(
       <HomeSummary
         spaceId="sp-personal"
+        today="2026-10-31"
         policy={{ kind: "MONTHLY", day: 1 }}
         page={{ ...octoberPage, items: octoberPage.items.slice(0, 3) }}
         accounts={[
@@ -54,6 +61,7 @@ describe("home (HU-E9-01)", () => {
     renderWithIntl(
       <HomeSummary
         spaceId="sp-personal"
+        today="2026-10-31"
         policy={{ kind: "MONTHLY", day: 1 }}
         page={{ ...octoberPage, items: [] }}
         accounts={["Efectivo", "Bancolombia", "Nequi", "Visa"].map((name, i) =>
@@ -69,11 +77,73 @@ describe("home (HU-E9-01)", () => {
   });
 });
 
+describe("the home's recent rows say which day they are from (#216, F10)", () => {
+  const rows = () =>
+    within(screen.getByRole("region", { name: /^(Recientes|Recent)$/ }))
+      .getAllByRole("listitem")
+      .map((row) => norm(row.textContent));
+  const page = {
+    ...octoberPage,
+    items: [
+      // 19:32 UTC is 14:32 in Bogotá, the viewer's zone, on October 13.
+      octoberExpense("t-lunch", "Lunch", 30_000, "2026-10-13", "2026-10-13T19:32:00.000Z", "c-dining"),
+      octoberExpense("t-market2", "Market", 100_000, "2026-10-12", "2026-10-12T23:02:00.000Z", "c-veg"),
+      octoberExpense("t-market1", "Market", 85_000, "2026-10-05", "2026-10-05T13:10:00.000Z", "c-groceries"),
+    ],
+  };
+  const home = (language: "es" | "en" = "es") =>
+    renderWithIntl(
+      <HomeSummary
+        spaceId="sp-personal"
+        policy={{ kind: "MONTHLY", day: 1 }}
+        page={page}
+        accounts={[accountDto()]}
+        context={rowContext}
+        today="2026-10-13"
+      />,
+      { locale: language },
+    );
+
+  it("reads Hoy with the time today, Ayer yesterday, and the date before that, in the person's formats", () => {
+    home();
+    const [today, yesterday, lastWeek] = rows();
+    expect(today).toContain("Lunch");
+    expect(today).toContain("Hoy · 14:32 · ");
+    expect(yesterday).toContain("Ayer · ");
+    expect(yesterday).not.toContain("18:02");
+    expect(lastWeek).toContain("5/10/2026 · ");
+    expect(lastWeek).not.toContain("Hoy");
+    expect(lastWeek).not.toContain("Ayer");
+  });
+
+  it("formats the date with the person's date format, never the language's", () => {
+    renderWithIntl(
+      <HomeSummary
+        spaceId="sp-personal"
+        policy={{ kind: "MONTHLY", day: 1 }}
+        page={page}
+        accounts={[accountDto()]}
+        context={{ ...rowContext, formats: { ...rowContext.formats, dateFormat: "YMD" } }}
+        today="2026-10-13"
+      />,
+    );
+    expect(rows()[2]).toContain("2026/10/5 · ");
+  });
+
+  it("speaks English in the English catalog", () => {
+    home("en");
+    const [today, yesterday] = rows();
+    expect(today).toContain("Today · 14:32 · ");
+    expect(yesterday).toContain("Yesterday · ");
+  });
+});
+
 describe("the month across every space (U4, issue #209)", () => {
   const home = (allSpaces?: ComponentProps<typeof HomeSummary>["allSpaces"]) =>
     renderWithIntl(
       <HomeSummary
         spaceId="sp-personal"
+        today="2026-10-31"
         policy={{ kind: "MONTHLY", day: 1 }}
         page={octoberPage}
         accounts={[accountDto()]}
@@ -100,6 +170,7 @@ describe("the home's recent rows open their detail (ruling P189)", () => {
   const summary = (props: Partial<ComponentProps<typeof HomeSummary>> = {}) => (
     <HomeSummary
       spaceId="sp-personal"
+      today="2026-10-31"
       policy={{ kind: "MONTHLY", day: 1 }}
       page={recent}
       accounts={[accountDto({ name: "Bancolombia", balance: cop(1) })]}
@@ -152,6 +223,7 @@ describe("home without transactions (390 px review, S5)", () => {
     renderWithIntl(
       <HomeSummary
         spaceId="sp-shared"
+        today="2026-10-31"
         policy={{ kind: "MONTHLY", day: 1 }}
         page={{ ...octoberPage, items: [] }}
         accounts={[accountDto({ name: "Fondo Hogar", balance: cop(0) })]}
@@ -173,6 +245,7 @@ describe("home without transactions (390 px review, S5)", () => {
     renderWithIntl(
       <HomeSummary
         spaceId="sp-personal"
+        today="2026-10-31"
         policy={{ kind: "MONTHLY", day: 1 }}
         page={{ ...octoberPage, items: octoberPage.items.slice(0, 1) }}
         accounts={[accountDto({ name: "Bancolombia", balance: cop(1) })]}
@@ -188,6 +261,7 @@ describe("home, narrow screens (S2)", () => {
     const { container } = renderWithIntl(
       <HomeSummary
         spaceId="sp-personal"
+        today="2026-10-31"
         policy={{ kind: "MONTHLY", day: 1 }}
         page={{ ...octoberPage, items: octoberPage.items.slice(0, 1) }}
         accounts={[accountDto({ name: "Cuenta de ahorros de la familia", balance: cop(4_455_000) })]}
@@ -203,6 +277,7 @@ describe("home, narrow screens (S2)", () => {
     renderWithIntl(
       <HomeSummary
         spaceId="sp-personal"
+        today="2026-10-31"
         policy={{ kind: "MONTHLY", day: 1 }}
         page={{ ...octoberPage, items: [] }}
         accounts={[accountDto({ name: "Bancolombia", balance: cop(4_455_000) })]}
@@ -222,6 +297,7 @@ describe("home, first use (P148)", () => {
   const homeWith = (accounts: Parameters<typeof HomeSummary>[0]["accounts"]) => (
     <HomeSummary
       spaceId="sp-personal"
+      today="2026-10-31"
       policy={{ kind: "MONTHLY", day: 1 }}
       page={{ ...octoberPage, items: [] }}
       accounts={accounts}
@@ -267,6 +343,7 @@ describe("the home of a shared or direct space leads to its members (N10)", () =
     renderWithIntl(
       <HomeSummary
         spaceId="sp-shared"
+        today="2026-10-31"
         kind={kind}
         role={role}
         policy={{ kind: "MONTHLY", day: 1 }}
@@ -316,6 +393,7 @@ describe("home after accepting an invitation (U6)", () => {
     renderWithIntl(
       <HomeSummary
         spaceId="sp-shared"
+        today="2026-10-31"
         kind="SHARED"
         role="MEMBER"
         joined={joined}
@@ -348,6 +426,7 @@ describe("the home of a shared or direct space explains its funds (U1)", () => {
     renderWithIntl(
       <HomeSummary
         spaceId="sp-shared"
+        today="2026-10-31"
         kind={kind}
         role={role}
         policy={{ kind: "MONTHLY", day: 1 }}

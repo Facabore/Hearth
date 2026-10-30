@@ -107,35 +107,29 @@ describe("the amount takes the phone's own keyboard (#171, S3)", () => {
 });
 
 describe("category, account and date are 48 px rows in one card (#171, S3)", () => {
-  it("lists the three rows in order, each with its label first, and keeps axe clean", async () => {
+  it("lists the rows in order, the split with someone under the category (U11), and keeps axe clean", async () => {
     const { container } = personal(fakeApi({}).api);
     const card = screen.getByRole("list", { name: "Detalles del movimiento" });
     const rows = within(card).getAllByRole("button");
     expect(rows.map((row) => row.firstElementChild?.nextElementSibling?.textContent)).toEqual([
       "Categoría",
+      "¿Lo compartiste?",
       "Cuenta",
       "Fecha",
     ]);
     for (const row of rows) expect(row).toHaveClass("min-h-12");
-    expect(rows[2]).toBe(screen.getByTestId("when-chip"));
-    await userEvent.click(rows[1]!);
+    expect(rows[3]).toBe(screen.getByTestId("when-chip"));
+    await userEvent.click(rows[2]!);
     expect(screen.getByRole("dialog", { name: "Cuenta" })).toBeInTheDocument();
     expect(await axeViolations(container)).toEqual([]);
   });
 });
 
 describe("Más opciones folds the split (#171, S3)", () => {
-  it("starts folded in a personal space and reveals the split with someone when opened", async () => {
+  it("has nothing to fold in a personal space: the split with someone is a row of its own (U11, #222)", () => {
     personal(fakeApi({}).api);
-    expect(more()).toHaveAccessibleName("Más opciones");
-    expect(more()).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByRole("button", { name: "Dividir con alguien" })).not.toBeInTheDocument();
-    await userEvent.click(more());
-    expect(more()).toHaveAccessibleName("Menos opciones");
-    expect(more()).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("button", { name: "Dividir con alguien" })).toBeVisible();
-    await userEvent.click(more());
-    expect(screen.queryByRole("button", { name: "Dividir con alguien" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^(Más|Menos) opciones$/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "¿Lo compartiste? Dividir con alguien" })).toBeVisible();
   });
 
   it("keeps who paid on screen, folds only the division of a shared expense, and keeps Guardar last", async () => {

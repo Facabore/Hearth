@@ -8,10 +8,18 @@ import { barWidth } from "./bar";
 
 const isNegative = (money: { readonly amount: string }) => money.amount.startsWith("-");
 
+/** #214: a line spent exactly as planned (above 90 % with nothing left) is done, not a warning. */
+const onPlan = (line: Pick<LineDashboardDto["lines"][number], "state" | "available">) =>
+  line.state === "HIGH" && line.available.amount === "0";
+
 // Under 640 px a row is a card (name, then one labelled figure per line), because three amounts side by side do
 // not fit a phone; from 640 px it is a table row. The labels are CSS content, so a cell's text stays its figure.
 const CELL =
   "flex justify-between gap-3 py-0.5 text-right tabular-nums before:text-left before:text-muted before:content-[attr(data-label)] sm:table-cell sm:py-3 sm:before:hidden";
+// #214: a savings line keeps its "Ahorrado" label on a wide screen too, where the column header says "Gastado". It is
+// still CSS content, so the cell's text stays its figure.
+const SAVED_CELL =
+  "flex justify-between gap-3 py-0.5 text-right tabular-nums before:text-left before:text-muted before:content-[attr(data-label)] sm:table-cell sm:py-3 sm:before:inline sm:before:pr-1";
 const TRACK = "mt-1.5 block h-1.5 w-full overflow-hidden rounded-full bg-track";
 const NAME_CELL = "pb-1 text-left font-normal sm:table-cell sm:py-3 sm:pr-3";
 
@@ -87,7 +95,14 @@ export function LineDashboard({
                       </Badge>
                     ) : null}
                     {line.state === "NEAR" ? <Badge tone="neutral">{t("state.NEAR")}</Badge> : null}
-                    {line.state === "HIGH" ? <Badge tone="owe">{t("state.HIGH")}</Badge> : null}
+                    {line.state === "HIGH" && onPlan(line) ? (
+                      <Badge tone="accent" icon="check">
+                        {t("onPlan")}
+                      </Badge>
+                    ) : null}
+                    {line.state === "HIGH" && !onPlan(line) ? (
+                      <Badge tone="owe">{t("state.HIGH")}</Badge>
+                    ) : null}
                   </span>
                   {line.state === "OVER" && line.overBy ? (
                     <span className="mt-0.5 block text-sm font-normal text-owe-ink">
@@ -110,7 +125,11 @@ export function LineDashboard({
                 <td data-label={t("planned")} className={CELL}>
                   {money(line.planned)}
                 </td>
-                <td data-label={t("spent")} className={CELL}>
+                {/* #214: what reaches a savings line is saved, not spent; on a wide screen the column says "Gastado". */}
+                <td
+                  data-label={t(line.funding === "SAVINGS" ? "saved" : "spent")}
+                  className={line.funding === "SAVINGS" ? SAVED_CELL : CELL}
+                >
                   {money(line.spent)}
                 </td>
                 <td data-label={t("available")} className={CELL + tone(line.available)}>

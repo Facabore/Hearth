@@ -3,8 +3,9 @@ import { useTranslations } from "next-intl";
 import { categoryPath, CategoryIcon, findCategory } from "@/modules/categories/ui";
 import { paletteVars, SymbolIcon } from "@/shared/ui";
 import type { CategoryGroupDto, TransactionDto } from "@/shared/ui/api/dto";
-import { formatMoney, formatTimeAt, MINUS, type Formats } from "@/shared/ui/format/formatters";
+import { formatDate, formatMoney, formatTimeAt, MINUS, type Formats } from "@/shared/ui/format/formatters";
 import { zoneCity } from "@/shared/ui/format/zones";
+import { relativeDay } from "@/shared/ui/time/when";
 
 /** What every row needs to read a transaction (serializable: the server list and "Load more" share it). */
 export interface RowContext {
@@ -21,11 +22,14 @@ export function TransactionRow({
   tx,
   context,
   href,
+  today,
 }: {
   readonly tx: TransactionDto;
   readonly context: RowContext;
   /** Ruling P189: the row's detail, the same page with `?tx=`. Without it the row opens nothing. */
   readonly href?: string;
+  /** Issue #216: the viewer's today, for a list whose rows are not under a day's heading; the row then names its day. */
+  readonly today?: string;
 }) {
   const t = useTranslations("ledger");
   const { formats, viewerZone, groups, accountNames, memberNames } = context;
@@ -35,7 +39,11 @@ export function TransactionRow({
   const meta: string[] = [];
   // The payer of a shared expense reads on its own line: a long name wraps there instead of being cut (S1).
   let payerLine = "";
-  if (tx.occurredAt && tx.timeZone) {
+  // Issue #216: a list not grouped by day names it: "Hoy · 14:32", "Ayer", then the date; only today keeps its time.
+  const day = today === undefined ? null : relativeDay(tx.date, today);
+  if (today !== undefined)
+    meta.push(day === "today" || day === "yesterday" ? t(`day.${day}`) : formatDate(tx.date, formats));
+  if (tx.occurredAt && tx.timeZone && (today === undefined || day === "today")) {
     const time = formatTimeAt(tx.occurredAt, tx.timeZone, formats);
     meta.push(tx.timeZone === viewerZone ? time : `${time} · ${zoneCity(tx.timeZone)}`);
   }

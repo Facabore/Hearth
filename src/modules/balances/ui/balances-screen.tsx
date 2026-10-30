@@ -63,6 +63,10 @@ export function BalancesScreen({
   const state = netState(mine);
 
   const canSettle = viewer !== undefined && controlsFor(space.role, space.kind).recordMoney;
+  // #217: a VIEWER records nothing, so one whose balance is zero is no one to settle with and is not offered.
+  const settleable = members.filter(
+    (member) => member.role !== "VIEWER" || BigInt(netOf(member.id).amount) !== 0n,
+  );
   const prefill = (suggestion: SuggestionDto | null, payerMemberId?: string): SettlementDraft =>
     prefillOf({
       suggestion,
@@ -199,7 +203,7 @@ export function BalancesScreen({
             if (settle) router.replace(`/spaces/${space.id}/balances`);
           }}
           space={space}
-          members={members}
+          members={settleable}
           meUserId={meUserId}
           myAccounts={myAccounts}
           suggestions={suggestions}

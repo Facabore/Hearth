@@ -4,10 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
 import { cop, normalized } from "../../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse } from "../../../../../tests/support/ui/fake-api";
-import { HOUSEHOLD_MEMBERS, householdDto, referencePlanDto } from "../../../../../tests/support/ui/plan-dto";
+import {
+  HOUSEHOLD_MEMBERS,
+  householdDto,
+  referencePlanDto,
+  spaceMemberDto,
+} from "../../../../../tests/support/ui/plan-dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import type { Api } from "@/shared/ui/api/client";
-import type { BudgetPlanDto, CapacitySuggestionDto, SpaceDto } from "@/shared/ui/api/dto";
+import type { BudgetPlanDto, CapacitySuggestionDto, SpaceDto, SpaceMemberDto } from "@/shared/ui/api/dto";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { CapacityForm } from "./capacity-form";
 
@@ -29,12 +34,13 @@ const show = (options: {
   plan?: BudgetPlanDto;
   suggestion?: CapacitySuggestionDto | null;
   api?: Api;
+  members?: SpaceMemberDto[];
 }) =>
   renderWithIntl(
     <CapacityForm
       space={options.space ?? householdDto()}
       plan={options.plan ?? referencePlanDto()}
-      members={HOUSEHOLD_MEMBERS}
+      members={options.members ?? HOUSEHOLD_MEMBERS}
       viewerUserId={options.viewer}
       suggestion={options.suggestion ?? null}
       formats={BUILT_IN_FORMATS}
@@ -254,5 +260,32 @@ describe("capacities (HU-E9-08)", () => {
     expect(requests.filter((request) => request.method === "PUT")).toHaveLength(1);
     release(jsonResponse(referencePlanDto({ version: 8 })));
     await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe("viewers and capacities (#217)", () => {
+  const SOFI = spaceMemberDto({ id: "m-sofi", userId: "u-sofi", displayName: "Sofi", role: "VIEWER" });
+  const TOMAS = spaceMemberDto({ id: "m-tomas", userId: "u-tomas", displayName: "Tomás", role: "VIEWER" });
+
+  it("leaves out a viewer who holds no capacity, keeps one who does, and saves neither's absence", async () => {
+    const { api, requests } = fakeApi({ [PUT]: () => jsonResponse(referencePlanDto({ version: 8 })) });
+    const plan = referencePlanDto();
+    plan.capacities = [
+      ...plan.capacities,
+      { memberId: "m-sofi", amount: cop(0), share: "0.00" },
+      { memberId: "m-tomas", amount: cop(100_000), share: "2.44" },
+    ];
+    show({ viewer: "u-ana", plan, api, members: [...HOUSEHOLD_MEMBERS, SOFI, TOMAS] });
+    expect(screen.queryByRole("group", { name: "Sofi" })).toBeNull();
+    expect(screen.queryByLabelText("Aporte de Sofi")).toBeNull();
+    expect(screen.getByLabelText("Aporte de Tomás")).toHaveValue("100.000");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar aportes" }));
+    expect(await requests[0]!.json()).toEqual({
+      capacities: [
+        { memberId: "m-ana", amount: { amount: "160000000", currency: "COP" } },
+        { memberId: "m-juan", amount: { amount: "240000000", currency: "COP" } },
+        { memberId: "m-tomas", amount: { amount: "10000000", currency: "COP" } },
+      ],
+    });
   });
 });

@@ -603,8 +603,7 @@ const sheets: {
       await ensureDirectSpace(page, spaceId);
       await page.reload();
       await expect(page.locator("[data-ready='true']")).toBeAttached();
-      await page.getByRole("button", { name: es.ledger.form.moreOptions }).click();
-      await page.getByRole("button", { name: es.ledger.direct.open }).click();
+      await page.getByRole("button", { name: es.ledger.direct.row }).click();
       // Someone picked, so the footer's action is enabled and is the last control to reach.
       await page.getByRole("radio", { name: new RegExp(GUEST_NAME) }).click();
     },

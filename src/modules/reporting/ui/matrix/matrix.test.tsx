@@ -92,6 +92,64 @@ describe("member matrix (HU-E9-10)", () => {
   });
 });
 
+describe("members with nothing in the period (#213, #217)", () => {
+  const SOFI = { id: "m-sofi", displayName: "Sofi" };
+  const withSofi = (free: readonly (number | null)[] = [null, null, 0, null]): MemberMatrixDto => {
+    const matrix = e7Matrix();
+    const money = (pesos: number | null | undefined) =>
+      pesos === null || pesos === undefined ? null : cop(pesos);
+    matrix.lines = matrix.lines.map((line) => ({
+      ...line,
+      members: [
+        ...line.members,
+        line.lineId === "l-free"
+          ? {
+              memberId: SOFI.id,
+              assigned: money(free[0]),
+              contributed: money(free[1]),
+              consumed: money(free[2]),
+              gap: money(free[3]),
+              status: null,
+            }
+          : {
+              memberId: SOFI.id,
+              assigned: cop(0),
+              contributed: line.reason === null ? cop(0) : null,
+              consumed: cop(0),
+              gap: line.reason === null ? cop(0) : null,
+              status: line.reason === null ? ("ON_TARGET" as const) : null,
+            },
+      ],
+    }));
+    return matrix;
+  };
+  const showWith = (matrix: MemberMatrixDto) =>
+    renderWithIntl(
+      <MemberMatrix
+        space={householdDto()}
+        matrix={matrix}
+        members={[...HOUSEHOLD_MEMBERS, SOFI]}
+        formats={BUILT_IN_FORMATS}
+      />,
+    );
+
+  it("leaves out a member whose every figure in the period is zero", async () => {
+    const { container } = showWith(withSofi());
+    for (const table of screen.getAllByRole("table")) {
+      expect(within(table).queryByRole("rowheader", { name: "Sofi" })).toBeNull();
+      expect(within(table).getByRole("rowheader", { name: "Ana" })).toBeInTheDocument();
+    }
+    expect(cellsOf("Home por miembro", "Juan")[3]).toBe("−$ 482.000 de menos");
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("keeps a member with any figure in the period, on every line", () => {
+    showWith(withSofi([null, null, 40_000, null]));
+    expect(cellsOf("Free por miembro", "Sofi")[2]).toBe("$ 40.000");
+    expect(cellsOf("Home por miembro", "Sofi").slice(0, 3)).toEqual(["$ 0", "$ 0", "$ 0"]);
+  });
+});
+
 describe("member matrix details (ruling P217)", () => {
   it("shows each figure as the API answered it, never a gap of its own", () => {
     const matrix = withLine({

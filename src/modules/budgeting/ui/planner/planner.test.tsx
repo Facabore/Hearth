@@ -10,6 +10,7 @@ import {
   HOUSEHOLD_MEMBERS,
   householdDto,
   referencePlanDto,
+  spaceMemberDto,
 } from "../../../../../tests/support/ui/plan-dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import type { Api } from "@/shared/ui/api/client";
@@ -289,5 +290,39 @@ describe("closing a plan whose source is still open (ruling P248)", () => {
       "Close the plan for 2026-10 first: this plan carries a balance from that month.",
     );
     expect(screen.getByRole("link", { name: "Go to the plan for 2026-10" })).toBeInTheDocument();
+  });
+});
+
+describe("a viewer in the capacity summary (#217)", () => {
+  it("leaves out a viewer's zero capacity and keeps a viewer who holds one", () => {
+    const plan = referencePlanDto();
+    plan.capacities = [
+      ...plan.capacities,
+      { memberId: "m-sofi", amount: cop(0), share: "0.00" },
+      { memberId: "m-tomas", amount: cop(100_000), share: "2.44" },
+      { memberId: "m-lia", amount: cop(0), share: "0.00" },
+    ];
+    renderWithIntl(
+      <Planner
+        space={householdDto()}
+        plan={plan}
+        members={[
+          ...HOUSEHOLD_MEMBERS,
+          spaceMemberDto({ id: "m-sofi", userId: "u-sofi", displayName: "Sofi", role: "VIEWER" }),
+          spaceMemberDto({ id: "m-tomas", userId: "u-tomas", displayName: "Tomás", role: "VIEWER" }),
+          spaceMemberDto({ id: "m-lia", userId: "u-lia", displayName: "Lía", role: "MEMBER" }),
+        ]}
+        formats={BUILT_IN_FORMATS}
+        today="2026-10-31"
+        groups={[]}
+      />,
+    );
+    const capacity = normalized(
+      screen.getByRole("region", { name: "Lo que aportan entre todos" }).textContent,
+    );
+    expect(capacity).not.toContain("Sofi");
+    expect(capacity).toContain("Tomás $ 100.000 · 2,44 %");
+    expect(capacity).toContain("Lía $ 0 · 0,00 %");
+    expect(capacity).toContain("Ana $ 1.600.000 · 40,00 %");
   });
 });

@@ -10,6 +10,7 @@ import {
   planLineDto,
   referencePlanDto,
   savingsAccountDto,
+  spaceMemberDto,
 } from "../../../../../tests/support/ui/plan-dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import type { Api } from "@/shared/ui/api/client";
@@ -623,6 +624,63 @@ describe("line editor (HU-E9-08)", () => {
       await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
       expect(await screen.findByText(/El reparto de este rubro no cuadra/)).toBeVisible();
       expect(router.push).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe("viewers in a line's allocation (#217)", () => {
+  const SOFI = spaceMemberDto({ id: "m-sofi", userId: "u-sofi", displayName: "Sofi", role: "VIEWER" });
+  const TOMAS = spaceMemberDto({ id: "m-tomas", userId: "u-tomas", displayName: "Tomás", role: "VIEWER" });
+  const share = (memberId: string, percent: string) => ({
+    memberId,
+    percent,
+    amount: null,
+    assigned: cop(0),
+  });
+
+  it("offers no allocation row to a viewer who holds nothing, keeps one with a stored share, and sends only theirs", async () => {
+    const stored = planLineDto({
+      id: "l-free",
+      name: "Free",
+      plannedAmount: cop(730_000),
+      allocation: {
+        rule: "PERCENT",
+        members: [share("m-ana", "40.00"), share("m-juan", "50.00"), share("m-tomas", "10.00")],
+        error: null,
+      },
+    });
+    const { api, requests } = fakeApi({
+      "PUT /api/v1/spaces/{spaceId}/plans/{planId}/lines/{lineId}/allocation": () =>
+        jsonResponse(referencePlanDto({ version: 8 })),
+    });
+    renderWithIntl(
+      <LineEditor
+        space={householdDto()}
+        plan={referencePlanDto()}
+        line={stored}
+        savingsAccounts={[savingsAccountDto()]}
+        groups={[]}
+        members={[...HOUSEHOLD_MEMBERS, SOFI, TOMAS]}
+        formats={BUILT_IN_FORMATS}
+        api={api}
+      />,
+    );
+    expect(screen.queryByLabelText("Valor de Sofi")).toBeNull();
+    expect(screen.queryByText("Sofi")).toBeNull();
+    expect(screen.getByLabelText("Valor de Tomás")).toHaveValue("10");
+    await userEvent.clear(screen.getByLabelText("Valor de Juan"));
+    await userEvent.type(screen.getByLabelText("Valor de Juan"), "45");
+    await userEvent.clear(screen.getByLabelText("Valor de Tomás"));
+    await userEvent.type(screen.getByLabelText("Valor de Tomás"), "15");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
+    await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1));
+    expect(await requests[0]!.json()).toEqual({
+      rule: "PERCENT",
+      members: [
+        { memberId: "m-ana", percent: "40" },
+        { memberId: "m-juan", percent: "45" },
+        { memberId: "m-tomas", percent: "15" },
+      ],
     });
   });
 });

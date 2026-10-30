@@ -1,32 +1,20 @@
-import { useQueries, useQuery, useSuspenseQueries } from "@tanstack/react-query";
-import { notFound } from "@tanstack/react-router";
-import {
-  actionsFor,
-  lineWatchOf,
-  peopleOf,
-  sharedContextOf,
-  type ListFilter,
-  type SharedExpenseContext,
-  type TransactionDetail,
-} from "@/modules/ledger/ui";
+import { useQuery, useSuspenseQueries } from "@tanstack/react-query";
+import type { ListFilter, TransactionDetail } from "@/modules/ledger/ui";
 import { personalSpaceOf } from "@/modules/spaces/ui";
 import { addDays, type LocalDate } from "@/shared/kernel/local-date";
-import type { CategoryGroupDto, MeDto, MemberDto, TransactionDto } from "@/shared/ui/api/dto";
-import { nowIn } from "@/shared/ui/time/when";
+import type { CategoryGroupDto, MeDto } from "@/shared/ui/api/dto";
 import { useApis } from "../api";
-import { accountsQuery, categoriesQuery, lineReportQuery, membersQuery, periodQuery } from "../reads";
+import { accountsQuery, categoriesQuery, membersQuery, periodQuery } from "../reads";
 import { sharedSpace, type Viewer } from "../load";
+import { HOME_ROWS, listQueryOf, pageQuery, transactionQuery } from "./queries";
 
 export { useViewer } from "../viewer";
-import { HOME_ROWS, listQueryOf, pageQuery, transactionQuery } from "./queries";
 
 /**
  * The ledger's screens as query hooks (P127 in the SPA, ADR 0006): each reads what its loader put in the cache and
- * hands the existing components their props. They load with each screen's own chunk, never with the app shell.
+ * hands the existing components their props. They load with each screen's own chunk, never with the app shell. The
+ * record and edit forms' hooks are in `form-hooks.ts`, so the forms' routes never load the lists' code.
  */
-
-/** Queries a screen reads only sometimes, as a plain list: hooks are called the same way on every render. */
-const when = <T>(yes: boolean, queries: T[]): T[] => (yes ? queries : []);
 
 /** What a row needs to name itself (`RowContext`): the person's formats and zone, categories, accounts, members. */
 export const rowContextOf = (
@@ -100,7 +88,9 @@ export const useList = (viewer: Viewer, filter: ListFilter) => {
       accountsQuery(api, spaceId, "all"),
     ],
   });
-  const members = useSuspenseQueries({ queries: when(shared, [membersQuery(api, spaceId)]) });
+  // Hooks are called the same way on every render: the members are an empty list of queries outside a shared space.
+  const memberQueries: ReturnType<typeof membersQuery>[] = shared ? [membersQuery(api, spaceId)] : [];
+  const members = useSuspenseQueries({ queries: memberQueries });
   const { period } = page.data;
   const previous = useQuery(periodQuery(api, spaceId, addDays(period.startDate as LocalDate, -1)));
   const next = useQuery(periodQuery(api, spaceId, addDays(period.endDate as LocalDate, 1)));
@@ -112,95 +102,4 @@ export const useList = (viewer: Viewer, filter: ListFilter) => {
     previous: previous.data ?? null,
     next: next.data ?? null,
   };
-};
-
-/** HU-E9-06 (P168): who pays and shares in a shared or direct space; the person must still be a member. */
-const useShared = (
-  viewer: Viewer,
-  spaceAccounts: "active" | "all",
-): { shared: SharedExpenseContext | undefined } => {
-  const { api } = useApis();
-  const shared = sharedSpace(viewer.space);
-  const [members] = useSuspenseQueries({ queries: when(shared, [membersQuery(api, viewer.space.id)]) });
-  const [personal, own] = useSuspenseQueries({
-    queries: when(shared, [
-      accountsQuery(api, personalSpaceOf(viewer.spaces).id, "active"),
-      accountsQuery(api, viewer.space.id, spaceAccounts),
-    ]),
-  });
-  if (!members || !personal || !own) return { shared: undefined };
-  const context = sharedContextOf({
-    meUserId: viewer.me.id,
-    members: members.data,
-    spaceAccounts: own.data,
-    personalAccounts: personal.data,
-  });
-  if (!context) throw notFound();
-  return { shared: context };
-};
-
-export const useRecord = (viewer: Viewer) => {
-  const { api } = useApis();
-  const spaceId = viewer.space.id;
-  const [accounts, groups] = useSuspenseQueries({
-    queries: [accountsQuery(api, spaceId, "active"), categoriesQuery(api, spaceId, "active")],
-  });
-  const { shared } = useShared(viewer, "active");
-  const others = sharedSpace(viewer.space) ? [] : viewer.spaces.filter(sharedSpace);
-  const memberReads = useQueries({ queries: others.map((space) => membersQuery(api, space.id)) });
-  const today = nowIn(new Date(), viewer.me.timezone).date;
-  const period = useQuery(periodQuery(api, spaceId, today));
-  const label = period.data?.label;
-  const report = useQuery({ ...lineReportQuery(api, spaceId, label ?? ""), enabled: label !== undefined });
-  const membersBySpace: Record<string, readonly MemberDto[]> = {};
-  others.forEach((space, i) => {
-    const members = memberReads[i]?.data;
-    if (members) membersBySpace[space.id] = members;
-  });
-  return {
-    accounts: accounts.data,
-    groups: groups.data,
-    shared,
-    people: shared ? undefined : peopleOf({ meUserId: viewer.me.id, spaces: others, membersBySpace }),
-    lineWatch: report.data ? lineWatchOf(report.data) : null,
-  };
-};
-
-const accountsOf = (tx: TransactionDto): ReadonlySet<string> =>
-  new Set(
-    [tx.sourceAccountId, tx.destinationAccountId, ...tx.payments.map((payment) => payment.accountId)].filter(
-      (id): id is string => id !== null,
-    ),
-  );
-
-/** Ruling P191: the edit form's data; a transaction that is gone is not found, one the viewer may not edit is not editable. */
-export const useEdit = (viewer: Viewer, transactionId: string) => {
-  const { api } = useApis();
-  const spaceId = viewer.space.id;
-  const [read, accounts, groups] = useSuspenseQueries({
-    queries: [
-      transactionQuery(api, spaceId, transactionId),
-      accountsQuery(api, spaceId, "all"),
-      categoriesQuery(api, spaceId, "all"),
-    ],
-  });
-  const { shared } = useShared(viewer, "all");
-  const { tx, problem, missing } = read.data;
-  // Gone since the loader read it (deleted elsewhere): the not-found screen, as the loader answers (N1).
-  if (missing) return { missing: true, problem: null, tx: null } as const;
-  if (!tx) return { missing: false, problem: problem!, tx: null } as const;
-  const used = accountsOf(tx);
-  return {
-    missing: false,
-    problem: null,
-    tx,
-    accounts: accounts.data.filter((a) => a.archivedAt === null || used.has(a.id)),
-    groups: groups.data,
-    shared,
-    actions: actionsFor(
-      tx,
-      { userId: viewer.me.id, role: viewer.space.role, memberId: shared?.meMemberId ?? null },
-      shared?.members ?? [],
-    ),
-  } as const;
 };

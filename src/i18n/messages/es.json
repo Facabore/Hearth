@@ -795,6 +795,15 @@
       "when": "Fecha y hora: {label}. Cambiar",
       "moreOptions": "Más opciones",
       "fewerOptions": "Menos opciones",
+      "discard": {
+        "title": {
+          "EXPENSE": "¿Descartar este gasto?",
+          "INCOME": "¿Descartar este ingreso?",
+          "TRANSFER": "¿Descartar esta transferencia?"
+        },
+        "confirm": "Descartar",
+        "keep": "Seguir editando"
+      },
       "save": {
         "EXPENSE": "Guardar gasto",
         "INCOME": "Guardar ingreso",
@@ -860,6 +869,8 @@
     },
     "direct": {
       "open": "Dividir con alguien",
+      "shared": "¿Lo compartiste?",
+      "row": "¿Lo compartiste? Dividir con alguien",
       "title": "Dividir con alguien",
       "intro": "El gasto queda en un espacio solo para ustedes dos. Si ya existe, se usa el mismo; si no, se crea en {currency}, la moneda de tu espacio {space}.",
       "people": "Personas con las que compartes un espacio",
@@ -1324,8 +1335,10 @@
       "line": "Rubro",
       "planned": "Planeado",
       "spent": "Gastado",
+      "saved": "Ahorrado",
       "available": "Disponible",
       "overspent": "Excedida",
+      "onPlan": "Cumplido",
       "state": {
         "NEAR": "Cerca del límite",
         "HIGH": "Al límite"

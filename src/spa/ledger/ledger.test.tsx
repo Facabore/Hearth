@@ -1,4 +1,5 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { createBrowserHistory } from "@tanstack/react-router";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import es from "@/i18n/messages/es.json";
@@ -11,9 +12,10 @@ import {
   rowContext,
   spaceDto,
 } from "../../../tests/support/ui/dto";
-import { jsonResponse, problemResponse, type FakeHandler } from "../../../tests/support/ui/fake-api";
+import { fakeApi, jsonResponse, problemResponse, type FakeHandler } from "../../../tests/support/ui/fake-api";
 import { e74Unified } from "../../../tests/support/ui/plan-dto";
 import { renderSpa } from "../../../tests/support/ui/spa";
+import { createSpa } from "../app";
 import { moduleKeys } from "../reads";
 
 /** A request the API never answers: whatever shows meanwhile came from the cache. */
@@ -248,5 +250,107 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     renderSpa("/spaces/sp-personal/transactions", routes);
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(nav()).toBeInTheDocument();
+  });
+});
+
+describe("the record form asks before discarding what was typed (#215, F9)", () => {
+  const FORM = "/spaces/sp-personal/new";
+  const HOME = "/spaces/sp-personal";
+  const discard = es.ledger.form.discard;
+  const openForm = async (spa: ReturnType<typeof renderSpa>) => {
+    // The form's route loads lazily; the first test of the file pays for its import.
+    expect(
+      await screen.findByRole("button", { name: es.ledger.form.save.EXPENSE }, { timeout: 5_000 }),
+    ).toBeVisible();
+    await settled(spa);
+  };
+  const back = () => userEvent.click(screen.getByRole("link", { name: es.common.back }));
+
+  it("closes an untouched form at once, as before", async () => {
+    const { routes } = ledgerApi();
+    const spa = renderSpa(FORM, routes);
+    await openForm(spa);
+    await back();
+    await waitFor(() => expect(spa.location()).toBe(HOME));
+    expect(screen.queryByRole("dialog", { name: discard.title.EXPENSE })).not.toBeInTheDocument();
+  });
+
+  it("asks before Volver discards a typed amount: Seguir editando keeps it, Descartar leaves", async () => {
+    const { routes } = ledgerApi();
+    const spa = renderSpa(FORM, routes);
+    await openForm(spa);
+    await userEvent.type(screen.getByLabelText(es.ledger.form.amount), "55000");
+    await back();
+    const dialog = await screen.findByRole("dialog", { name: discard.title.EXPENSE });
+    expect(spa.location()).toBe(FORM);
+    await userEvent.click(within(dialog).getByRole("button", { name: discard.keep }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: discard.title.EXPENSE })).not.toBeInTheDocument(),
+    );
+    expect(spa.location()).toBe(FORM);
+    expect(screen.getByLabelText(es.ledger.form.amount)).toHaveValue("55.000");
+
+    await back();
+    const again = await screen.findByRole("dialog", { name: discard.title.EXPENSE });
+    await userEvent.click(within(again).getByRole("button", { name: discard.confirm }));
+    await waitFor(() => expect(spa.location()).toBe(HOME));
+  });
+
+  it("asks for an income too, with only a description typed, and names its kind", async () => {
+    const { routes } = ledgerApi();
+    const spa = renderSpa(`${FORM}?type=income`, routes);
+    expect(await screen.findByRole("button", { name: es.ledger.form.save.INCOME })).toBeVisible();
+    await settled(spa);
+    await userEvent.type(screen.getByLabelText(es.ledger.form.description), "Salario");
+    await back();
+    expect(await screen.findByRole("dialog", { name: discard.title.INCOME })).toBeVisible();
+    expect(spa.location()).toBe(`${FORM}?type=income`);
+  });
+
+  it("asks before the system back discards a typed amount, on the browser's own history", async () => {
+    window.history.replaceState(null, "", HOME);
+    const history = createBrowserHistory();
+    const { api } = fakeApi(ledgerApi().routes);
+    const spa = createSpa({ history, apisFor: () => ({ api, sessionApi: api }) });
+    const view = render(<spa.Spa />);
+    try {
+      expect(
+        await screen.findByRole("heading", { name: es.home.recent }, { timeout: 5_000 }),
+      ).toBeInTheDocument();
+      await spa.router.navigate({ href: FORM });
+      expect(
+        await screen.findByRole("button", { name: es.ledger.form.save.EXPENSE }, { timeout: 5_000 }),
+      ).toBeVisible();
+      await userEvent.type(screen.getByLabelText(es.ledger.form.amount), "55000");
+
+      window.history.back();
+      const dialog = await screen.findByRole("dialog", { name: discard.title.EXPENSE });
+      await userEvent.click(within(dialog).getByRole("button", { name: discard.keep }));
+      await waitFor(() => expect(window.location.pathname).toBe(FORM));
+      expect(screen.getByLabelText(es.ledger.form.amount)).toHaveValue("55.000");
+
+      window.history.back();
+      const again = await screen.findByRole("dialog", { name: discard.title.EXPENSE });
+      await userEvent.click(within(again).getByRole("button", { name: discard.confirm }));
+      await waitFor(() => expect(spa.router.state.location.pathname).toBe(HOME));
+      expect(window.location.pathname).toBe(HOME);
+    } finally {
+      view.unmount();
+      history.destroy();
+      window.history.replaceState(null, "", "/");
+    }
+  });
+
+  it("never asks once the movement is saved", async () => {
+    const { routes } = ledgerApi({
+      "POST /api/v1/spaces/{spaceId}/expenses": () =>
+        jsonResponse({ ...octoberPage.items[0]!, id: "t-new", warnings: [] }, 201),
+    });
+    const spa = renderSpa(FORM, routes);
+    await openForm(spa);
+    await userEvent.type(screen.getByLabelText(es.ledger.form.amount), "55000");
+    await userEvent.click(screen.getByRole("button", { name: es.ledger.form.save.EXPENSE }));
+    await waitFor(() => expect(spa.location()).toBe(`${HOME}/transactions`));
+    expect(screen.queryByRole("dialog", { name: discard.title.EXPENSE })).not.toBeInTheDocument();
   });
 });

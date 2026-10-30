@@ -5,7 +5,9 @@ import { RecordForm, RecordNotAllowed } from "@/modules/ledger/ui";
 import { controlsFor } from "@/modules/spaces/ui";
 import { safeReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { useApis } from "../api";
-import { useRecord, useViewer } from "../ledger/hooks";
+import { useRecord } from "../ledger/form-hooks";
+import { useViewer } from "../viewer";
+import { useHoldNavigation } from "../ledger/hold-navigation";
 import type { Viewer } from "../load";
 import { useTitle } from "../title";
 
@@ -46,6 +48,7 @@ function RecordFormScreen({
   const { api } = useApis();
   const { accounts, groups, shared, people, lineWatch } = useRecord(viewer);
   const [now] = useState(() => new Date().toISOString());
+  const holdNavigation = useHoldNavigation();
   return (
     <div className="mx-auto max-w-[560px]">
       <RecordForm
@@ -61,6 +64,7 @@ function RecordFormScreen({
         {...(people ? { people } : {})}
         lineWatch={lineWatch}
         returnTo={returnTo ?? null}
+        holdNavigation={holdNavigation}
         api={api}
       />
     </div>

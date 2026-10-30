@@ -4,6 +4,7 @@ import { Badge } from "@/shared/ui";
 import type { FundTrackingDto, MemberDto, MoneyDto } from "@/shared/ui/api/dto";
 import { formatMoney, formatSignedMoney, type Formats } from "@/shared/ui/format/formatters";
 import { barWidth } from "../lines/bar";
+import { activeFundRows } from "../matrix/idle-members";
 import { memberName } from "../member-name";
 
 const isNegative = (money: MoneyDto) => money.amount.startsWith("-");
@@ -15,7 +16,7 @@ const FIGURE = "text-base font-semibold [overflow-wrap:anywhere]";
  * HU-E9-10 (the Fund artboard): the API's totals of what is expected, contributed and still missing (ruling P201),
  * then a card per member with the same three figures, a badge and a bar. The card is the bar's text, so the chart
  * and the table are one element (ruling P202). An amount still owed carries its sign, its badge and its icon, so
- * the color is never the only signal.
+ * the color is never the only signal. A member expected nothing who paid nothing in has no card (#217).
  */
 export function FundTracking({
   fund,
@@ -66,7 +67,7 @@ export function FundTracking({
           {t("byMember")}
         </h2>
         <ul aria-labelledby={`${base}-members`} className="flex flex-col gap-2">
-          {fund.members.map((row) => {
+          {activeFundRows(fund.members).map((row) => {
             const nameId = `${base}-name-${row.memberId}`;
             const upToDate = !isNegative(row.difference);
             return (

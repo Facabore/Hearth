@@ -31,7 +31,7 @@ describe("line dashboard (HU-E9-10)", () => {
       />,
     );
     expect(tableRows()).toEqual([
-      ["RentAl límite", "$ 1.200.000", "$ 1.200.000", "$ 0"],
+      ["RentCumplido", "$ 1.200.000", "$ 1.200.000", "$ 0"],
       ["HomeCerca del límite", "$ 1.470.000", "$ 1.300.000", "$ 170.000"],
       ["Savings", "$ 600.000", "$ 0", "$ 600.000"],
       ["Free", "$ 730.000", "$ 250.000", "$ 480.000"],
@@ -108,7 +108,12 @@ describe("line dashboard (HU-E9-10)", () => {
 
   it("says when a line nears or passes its plan, the overage in words (#142, ruling P244 of M6c)", async () => {
     const dashboard = e7Dashboard();
-    dashboard.lines[0] = { ...dashboard.lines[0]!, state: "HIGH" };
+    dashboard.lines[0] = {
+      ...dashboard.lines[0]!,
+      spent: cop(1_150_000),
+      available: cop(50_000),
+      state: "HIGH",
+    };
     dashboard.lines[1] = {
       ...dashboard.lines[1]!,
       spent: cop(1_600_000),
@@ -255,5 +260,55 @@ describe("line dashboard (HU-E9-10)", () => {
     });
     expect(screen.getByRole("heading", { level: 2, name: "November 2026 has no plan" })).toBeInTheDocument();
     expect(screen.getByText(/the default split is equal shares/)).toBeInTheDocument();
+  });
+});
+
+describe("the plan in the household's words (#214)", () => {
+  const show = (dashboard = e7Dashboard(), locale: "es" | "en" = "es") =>
+    renderWithIntl(
+      <LineDashboard dashboard={dashboard} policy={householdDto().periodPolicy} formats={BUILT_IN_FORMATS} />,
+      { locale },
+    );
+  const row = (name: RegExp) => screen.getByRole("row", { name });
+  const withSaving = () => {
+    const dashboard = e7Dashboard();
+    dashboard.lines[2] = { ...dashboard.lines[2]!, spent: cop(200_000), available: cop(400_000) };
+    return dashboard;
+  };
+
+  it("reads a line spent exactly as planned as on plan, not as a warning", async () => {
+    const { container } = show();
+    const rent = row(/^Rent/);
+    const badge = within(rent).getByText("Cumplido");
+    expect(badge).toHaveAttribute("data-tone", "accent");
+    expect(badge.querySelector("svg[aria-hidden='true']")).not.toBeNull();
+    expect(within(rent).queryByText("Al límite")).toBeNull();
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("keeps the warning for a line above 90 % that still has money left", () => {
+    const dashboard = e7Dashboard();
+    dashboard.lines[0] = { ...dashboard.lines[0]!, spent: cop(1_150_000), available: cop(50_000) };
+    show(dashboard);
+    expect(within(row(/^Rent/)).getByText("Al límite")).toHaveAttribute("data-tone", "owe");
+    expect(within(row(/^Rent/)).queryByText("Cumplido")).toBeNull();
+  });
+
+  it("says what reached a savings line is saved, not spent", () => {
+    show(withSaving());
+    const [, saved] = within(row(/^Savings/)).getAllByRole("cell");
+    expect(saved).toHaveAttribute("data-label", "Ahorrado");
+    expect(normalized(saved!.textContent)).toBe("$ 200.000");
+    const [, spent] = within(row(/^Home/)).getAllByRole("cell");
+    expect(spent).toHaveAttribute("data-label", "Gastado");
+    expect(normalized(spent!.textContent)).toBe("$ 1.300.000");
+  });
+
+  it("reads the same in English", () => {
+    show(withSaving(), "en");
+    expect(within(row(/^Rent/)).getByText("On plan")).toBeInTheDocument();
+    const [, saved] = within(row(/^Savings/)).getAllByRole("cell");
+    expect(saved).toHaveAttribute("data-label", "Saved");
+    expect(normalized(saved!.textContent)).toBe("$ 200.000");
   });
 });
