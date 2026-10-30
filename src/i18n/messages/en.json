@@ -964,6 +964,7 @@
       "linkReady": "Link ready to share",
       "linkLabel": "Invitation link",
       "linkNote": "Role {role} · expires on {date}. Several people can use it until it expires or you revoke it.",
+      "linkNoteSingle": "Role {role} · expires on {date}. Only one person can use it: it stops working once someone joins.",
       "sent": "We sent the invitation to {email}.",
       "notSent": "Hearth does not send email yet: copy the link and share it with {email}."
     },
@@ -971,6 +972,8 @@
     "pendingEmail": "Email · {role} · expires on {date}",
     "pendingLinkTitle": "Invitation link",
     "pendingLink": "{role} · several people · expires on {date}",
+    "pendingLinkSingle": "{role} · one person only · expires on {date}",
+    "pendingUses": "{count, plural, one {Used by {people} person} other {Used by {people} people}}",
     "revoke": "Revoke",
     "revokeEmail": "Revoke the invitation for {email}",
     "revokeLink": "Revoke the invitation link as {role}",

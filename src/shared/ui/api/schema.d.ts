@@ -1644,6 +1644,8 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             expiresAt: string;
+            singleUse?: boolean;
+            uses?: number;
         };
         InvitationPreview: {
             /** @enum {string} */

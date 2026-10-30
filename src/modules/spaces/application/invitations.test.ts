@@ -36,6 +36,8 @@ describe("CreateInvitation (HU-E1-06)", () => {
         status: "PENDING",
         createdAt: new Date("2026-10-12T12:00:00Z"),
         expiresAt: new Date("2026-10-19T12:00:00Z"),
+        singleUse: true,
+        uses: null,
       },
       url: "https://hearth.test/invitations/token-1",
       emailSent: true,
@@ -46,6 +48,16 @@ describe("CreateInvitation (HU-E1-06)", () => {
     expect(emailSender.sent).toEqual([
       { to: "juan@example.com", spaceName: "Household", url: "https://hearth.test/invitations/token-1" },
     ]);
+  });
+
+  it("says an ADMIN link is single use and a MEMBER or VIEWER link is not (#218, ruling P264)", async () => {
+    const { deps } = invitationsWorld();
+    const create = createCreateInvitation(deps);
+    const link = async (role: "ADMIN" | "MEMBER" | "VIEWER") =>
+      unwrap(await create({ ...as("ana"), role, target: { kind: "LINK" } })).invitation;
+    expect(await link("ADMIN")).toMatchObject({ role: "ADMIN", singleUse: true, uses: 0 });
+    expect(await link("MEMBER")).toMatchObject({ role: "MEMBER", singleUse: false, uses: 0 });
+    expect(await link("VIEWER")).toMatchObject({ role: "VIEWER", singleUse: false, uses: 0 });
   });
 
   it("creates link invitations whose URLs carry only distinct tokens and sends no email", async () => {

@@ -128,6 +128,23 @@ describe("inviting people (HU-E9-05, ruling P162)", () => {
     expect(await axeViolations(document.body)).toEqual([]);
   });
 
+  it("says an ADMIN link serves one person only (#218, ruling P264)", async () => {
+    const { api } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/invitations": () =>
+        created({ kind: "LINK", role: "ADMIN", singleUse: true, uses: 0 } as never),
+    });
+    screenAs("u-ana", "OWNER", api);
+    const sheet = await openInvite();
+    await userEvent.click(within(sheet).getByRole("radio", { name: /Administrador/ }));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Crear enlace" }));
+    expect(
+      await within(sheet).findByText(
+        "Rol Administrador · vence el 19/10/2026. Sirve para una sola persona: deja de funcionar cuando alguien se une.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(sheet).queryByText(/varias personas/)).not.toBeInTheDocument();
+  });
+
   it("sends one request while the first one is still in flight", async () => {
     let release = () => {};
     const gate = new Promise<void>((resolve) => (release = resolve));
@@ -255,6 +272,29 @@ describe("inviting people (HU-E9-05, ruling P162)", () => {
     await userEvent.click(revokeButton);
     expect(new URL(requests[0]!.url).pathname).toBe("/api/v1/spaces/sp-household/invitations/inv-2/revoke");
     await waitFor(() => expect(router.refresh).toHaveBeenCalled());
+  });
+
+  it("shows next to Revocar how many people joined through each link, and an ADMIN link as for one person (#218, ruling P264)", async () => {
+    screenAs("u-ana", "OWNER", fakeApi({}).api, [
+      invitationDto({ id: "inv-a", role: "ADMIN", singleUse: true, uses: 0 }),
+      invitationDto({ id: "inv-v", role: "VIEWER", singleUse: false, uses: 2 }),
+      invitationDto({ id: "inv-m", role: "MEMBER", singleUse: false, uses: 1 }),
+      // A link from before #218 carries neither field: it shows as before, with no count.
+      invitationDto({ id: "inv-old", role: "MEMBER" }),
+    ]);
+    const rows = within(screen.getByRole("region", { name: "Invitaciones pendientes" })).getAllByRole(
+      "listitem",
+    );
+    expect(rows.map((row) => normalized(row.textContent))).toEqual([
+      "Enlace de invitaciónAdministrador · una sola persona · vence el 19/10/2026Revocar",
+      "Enlace de invitaciónLector · varias personas · vence el 19/10/2026Usado por 2 personasRevocar",
+      "Enlace de invitaciónMiembro · varias personas · vence el 19/10/2026Usado por 1 personaRevocar",
+      "Enlace de invitaciónMiembro · varias personas · vence el 19/10/2026Revocar",
+    ]);
+    expect(
+      within(rows[1]!).getByRole("button", { name: "Revocar el enlace de invitación como Lector" }),
+    ).toBeInTheDocument();
+    expect(await axeViolations(document.body)).toEqual([]);
   });
 
   it("disables Revoke while the request is in flight", async () => {

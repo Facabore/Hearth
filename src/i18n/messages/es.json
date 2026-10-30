@@ -964,6 +964,7 @@
       "linkReady": "Enlace listo para compartir",
       "linkLabel": "Enlace de invitación",
       "linkNote": "Rol {role} · vence el {date}. Sirve para varias personas hasta que venza o lo revoques.",
+      "linkNoteSingle": "Rol {role} · vence el {date}. Sirve para una sola persona: deja de funcionar cuando alguien se une.",
       "sent": "Le enviamos la invitación a {email}.",
       "notSent": "Hearth todavía no envía correos: copia el enlace y compártelo con {email}."
     },
@@ -971,6 +972,8 @@
     "pendingEmail": "Correo · {role} · vence el {date}",
     "pendingLinkTitle": "Enlace de invitación",
     "pendingLink": "{role} · varias personas · vence el {date}",
+    "pendingLinkSingle": "{role} · una sola persona · vence el {date}",
+    "pendingUses": "{count, plural, one {Usado por {people} persona} other {Usado por {people} personas}}",
     "revoke": "Revocar",
     "revokeEmail": "Revocar la invitación de {email}",
     "revokeLink": "Revocar el enlace de invitación como {role}",

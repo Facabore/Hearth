@@ -112,6 +112,7 @@ describe("invitations (HU-E1-06)", () => {
       "id",
       "kind",
       "role",
+      "singleUse",
       "spaceId",
       "status",
     ]);
@@ -419,6 +420,81 @@ describe("accept an invitation (HU-E1-07)", () => {
     expect((await accept(juan, token)).status).toBe(200);
     expect((await accept(luis, token)).status).toBe(200);
     expect(await problemOf(await accept(juan, token))).toEqual([409, "AlreadyMember"]);
+  });
+});
+
+describe("single-use ADMIN links and link use counts (#218, ruling P264)", () => {
+  const preview = (token: string) =>
+    call(previewInvitation, "GET", `/api/v1/invitations/${token}`, { params: { token } });
+  const listed = async (user: TestUser, spaceId: string) => {
+    const response = await call(listInvitations, "GET", `/api/v1/spaces/${spaceId}/invitations`, {
+      user,
+      params: { spaceId },
+    });
+    expect(response.status).toBe(200);
+    return ((await response.json()) as { items: Record<string, unknown>[] }).items;
+  };
+
+  it("says when it creates a link whether it is single use: ADMIN links are, MEMBER and VIEWER links are not", async () => {
+    const ana = await registerUser("Ana");
+    const spaceId = await newSharedSpace(ana);
+    const created = async (role: string) =>
+      ((await (await invite(ana, spaceId, { kind: "LINK", role })).json()) as { invitation: unknown })
+        .invitation;
+    expect(await created("ADMIN")).toMatchObject({ kind: "LINK", role: "ADMIN", singleUse: true, uses: 0 });
+    expect(await created("MEMBER")).toMatchObject({
+      kind: "LINK",
+      role: "MEMBER",
+      singleUse: false,
+      uses: 0,
+    });
+    expect(await created("VIEWER")).toMatchObject({
+      kind: "LINK",
+      role: "VIEWER",
+      singleUse: false,
+      uses: 0,
+    });
+  });
+
+  it("lets one person in through an ADMIN link and answers the next with 409 InvitationAlreadyUsed", async () => {
+    const ana = await registerUser("Ana");
+    const juan = await registerUser("Juan");
+    const luis = await registerUser("Luis");
+    const spaceId = await newSharedSpace(ana);
+    const token = await inviteByLink(ana, spaceId, "ADMIN");
+    expect((await accept(juan, token)).status).toBe(200);
+    expect(await problemOf(await accept(luis, token))).toEqual([409, "InvitationAlreadyUsed"]);
+    expect((await membersOf(ana, spaceId)).map((m) => [m.displayName, m.role])).toEqual([
+      ["Ana", "OWNER"],
+      ["Juan", "ADMIN"],
+    ]);
+    // The used link leaves the pending list, and its preview says it was used.
+    expect(await listed(ana, spaceId)).toEqual([]);
+    expect(await (await preview(token)).json()).toMatchObject({ role: "ADMIN", status: "ACCEPTED" });
+    const { rows } = await app.pool.query(
+      "SELECT u.user_id FROM space_invitation_uses u JOIN space_invitations i ON i.id = u.invitation_id WHERE i.space_id = $1",
+      [spaceId],
+    );
+    expect(rows).toEqual([{ user_id: juan.userId }]);
+  });
+
+  it("lists how many people joined through each link, and gives an email invitation no count", async () => {
+    const ana = await registerUser("Ana");
+    const spaceId = await newSharedSpace(ana);
+    await invite(ana, spaceId, { kind: "EMAIL", email: "marta@example.com", role: "MEMBER" });
+    const viewers = await inviteByLink(ana, spaceId, "VIEWER");
+    await inviteByLink(ana, spaceId, "ADMIN");
+    for (const name of ["Juan", "Luis"])
+      expect((await accept(await registerUser(name), viewers)).status).toBe(200);
+    expect(
+      (await listed(ana, spaceId))
+        .map((i) => [i.kind, i.role, i.singleUse, i.uses])
+        .sort((a, b) => String(a[1]).localeCompare(String(b[1]))),
+    ).toEqual([
+      ["LINK", "ADMIN", true, 0],
+      ["EMAIL", "MEMBER", true, undefined],
+      ["LINK", "VIEWER", false, 2],
+    ]);
   });
 });
 
