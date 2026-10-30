@@ -13,17 +13,7 @@ const keyOf = (spaceId: string, kind: "EXPENSE" | "INCOME") => `hearth.recentCat
 const same = (a: RecentCategory, b: RecentCategory) =>
   a.categoryId === b.categoryId && a.subcategoryId === b.subcategoryId;
 
-/**
- * The browser's localStorage, or undefined where there is none or reading the property itself throws (a blocked
- * storage raises a SecurityError on access, before any of its methods runs).
- */
-export const safeStorage = (): Storage | undefined => {
-  try {
-    return globalThis.localStorage;
-  } catch {
-    return undefined;
-  }
-};
+export { safeStorage } from "./safe-storage";
 
 /** Issue #173: the stored text of a space's recents for a kind, or null; a blocked storage reads as none. */
 export const rawRecent = (

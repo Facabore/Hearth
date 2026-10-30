@@ -48,7 +48,7 @@ import { initialSplitDraft, type SharedExpenseContext } from "../split/shared-co
 import { SharedFields } from "../split/shared-fields";
 import { AmountField } from "./amount-field";
 import { DateTimeSheet } from "./date-time-sheet";
-import { DiscardConfirm, type LeaveGuard } from "./discard-confirm";
+import { DiscardConfirm, type HoldNavigation } from "./discard-confirm";
 import { DescriptionField, FormRow, RowError } from "./form-rows";
 import { LineWarningConfirm, LineWarningNote } from "./line-warning";
 import { preferredAccountId, readLastAccount, rememberLastAccount } from "./last-account";
@@ -178,7 +178,7 @@ export interface RecordFormProps {
   /** Issue #172: the screen the form was opened from; saving and the back arrow land there when it is a valid path. */
   readonly returnTo?: string | null;
   /** Issue #215: leaving with something typed asks first; without it, leaving never asks. */
-  readonly leaveGuard?: LeaveGuard;
+  readonly holdNavigation?: HoldNavigation;
 }
 
 /** HU-E9-03, the QuickAdd artboard as a page: amount, description, category, accounts, date and time, Save. */
@@ -197,7 +197,7 @@ export function RecordForm({
   edit,
   lineWatch = null,
   returnTo = null,
-  leaveGuard,
+  holdNavigation,
 }: RecordFormProps) {
   const t = useTranslations("ledger");
   const errors = useTranslations("errors");
@@ -314,8 +314,23 @@ export function RecordForm({
   ]);
   const [pristine] = useState(entered);
   const dirty = entered !== pristine;
-  const track = leaveGuard?.track;
-  useEffect(() => track?.(dirty), [track, dirty]);
+  // Settles the held navigation while the question is shown: true leaves, false stays.
+  const [answer, setAnswer] = useState<((leave: boolean) => void) | null>(null);
+  useEffect(
+    () =>
+      dirty && holdNavigation
+        ? holdNavigation(
+            () =>
+              new Promise((resolve) =>
+                setAnswer(() => (leave: boolean) => {
+                  setAnswer(null);
+                  resolve(!leave);
+                }),
+              ),
+          )
+        : undefined,
+    [holdNavigation, dirty],
+  );
 
   const when = chosenWhen ?? start;
   const draft = { kind, amount, description, category, accountId, toAccountId, when, timeZone: zone };
@@ -801,9 +816,7 @@ export function RecordForm({
             if (id === toAccountId) setToAccountId(null);
             clear("account", "toAccount");
           }}
-          label={t(
-            kind === "TRANSFER" ? "form.from" : kind === "INCOME" ? "form.receivingAccount" : "form.account",
-          )}
+          label={accountLabel}
         />
         <AccountPicker
           open={sheet === "toAccount"}
@@ -817,7 +830,7 @@ export function RecordForm({
           }}
           label={t("form.to")}
         />
-        {leaveGuard ? <DiscardConfirm guard={leaveGuard} kind={kind} /> : null}
+        {answer ? <DiscardConfirm kind={kind} answer={answer} /> : null}
         <DateTimeSheet
           open={sheet === "when"}
           onOpenChange={(open) => setSheet(open ? "when" : null)}

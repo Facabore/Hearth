@@ -1,5 +1,5 @@
 import type { AccountDto } from "@/shared/ui/api/dto";
-import { safeStorage } from "./recent-categories";
+import { safeStorage } from "./safe-storage";
 
 const KEY = "hearth.lastAccount";
 
