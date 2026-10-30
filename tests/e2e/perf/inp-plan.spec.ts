@@ -112,6 +112,8 @@ test("INP stays within budget over the drill-down and the allocation editor on a
   // The allocation editor (ruling P211): Home by percentage, 42 % and 58 %.
   await page.goto(`/spaces/${shared.id}/plans/${plan}/lines/${line}`);
   await page.waitForLoadState("networkidle");
+  // U5 (#224): the allocation sits folded under "Más opciones".
+  await page.getByRole("button", { name: "Más opciones", exact: true }).click();
   await page.getByRole("radio", { name: "Porcentaje" }).click();
   await page.getByLabel("Valor de Inp").pressSequentially("42");
   await page.getByLabel("Valor de Juan").pressSequentially("58");
