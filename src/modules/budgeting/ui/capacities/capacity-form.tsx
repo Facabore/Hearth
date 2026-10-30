@@ -16,7 +16,7 @@ import {
   formatPercent,
   type Formats,
 } from "@/shared/ui/format/formatters";
-import { capacityEditable, isEditable } from "../plan-access";
+import { capacityEditable, isEditable, takesPart } from "../plan-access";
 import { ifMatch, planWrite, rereadPlan } from "../plan-write";
 import { capacityBodyOf, capacityFieldOf, draftsOf } from "./capacity-draft";
 
@@ -27,14 +27,15 @@ type Failure =
 
 /**
  * HU-E9-08, the Capacity artboard (rulings P206 to P208, D17): what each member puts into the plan. Managers edit
- * every row, a MEMBER only their own, a VIEWER and a CLOSED plan read. The viewer's own row may carry their private
+ * every row, a MEMBER only their own, a VIEWER and a CLOSED plan read; a VIEWER member who holds no capacity has no
+ * row (#217). The viewer's own row may carry their private
  * suggestion, which fills the field and saves nothing. The total and the shares are the stored ones until the save
  * answers, never a sum of the fields.
  */
 export function CapacityForm({
   space,
   plan: initial,
-  members,
+  members: everyone,
   viewerUserId,
   suggestion,
   formats,
@@ -55,6 +56,8 @@ export function CapacityForm({
   const messageOf = useProblemMessage();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   const ids = useId();
+  // #217: a viewer who holds no capacity has no row, so a save never writes one for them.
+  const members = useMemo(() => everyone.filter((member) => takesPart(initial, member)), [everyone, initial]);
   const [plan, setPlan] = useState(initial);
   const [drafts, setDrafts] = useState(() => draftsOf(initial, members, formats));
   const [failure, setFailure] = useState<Failure | null>(null);

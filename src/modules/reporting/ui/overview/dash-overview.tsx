@@ -7,6 +7,7 @@ import { formatMoney, formatPercent, formatSignedMoney, type Formats } from "@/s
 import { NodeLabel } from "../by-group/node-label";
 import { treeOf } from "../by-group/spending-tree";
 import { barWidth } from "../lines/bar";
+import { activeFundRows, withoutIdleMembers } from "../matrix/idle-members";
 import { MATRIX_STATUS, missingReason, type MatrixColumn } from "../matrix/member-matrix";
 import { memberName } from "../member-name";
 import { ChangeText } from "../trend/change-text";
@@ -145,7 +146,7 @@ function FundPanel({
           </tr>
         </thead>
         <tbody>
-          {fund.members.map((row) => (
+          {activeFundRows(fund.members).map((row) => (
             <tr key={row.memberId} className="border-b border-line last:border-b-0">
               <th scope="row" className="py-2 text-left font-semibold text-ink [overflow-wrap:anywhere]">
                 {memberName(members, row.memberId, t)}
@@ -255,7 +256,7 @@ function MatrixPanel({
               ))}
             </tr>
           </thead>
-          {matrix.lines.map((line) => (
+          {withoutIdleMembers(matrix).lines.map((line) => (
             <tbody key={line.lineId} data-line={line.lineId} className="border-b border-line last:border-b-0">
               {line.members.map((cell, index) => {
                 const figure = (column: MatrixColumn) => {

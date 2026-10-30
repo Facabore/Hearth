@@ -21,6 +21,23 @@ export const closesFrom = (plan: Pick<BudgetPlanDto, "period">): string =>
 export const canCloseOn = (plan: Pick<BudgetPlanDto, "status" | "period">, today: string): boolean =>
   plan.status === "ACTIVE" && today >= closesFrom(plan);
 
+const holdsCapacity = (plan: Pick<BudgetPlanDto, "capacities">, memberId: string): boolean =>
+  plan.capacities.some((capacity) => capacity.memberId === memberId && BigInt(capacity.amount.amount) !== 0n);
+
+/**
+ * #217: a VIEWER is read-only, so they never hold a capacity or an allocation. One who holds neither in this plan
+ * (no capacity other than zero, and no share of `line` when one is given) is left out of the plan's money rows; one
+ * who still holds a figure keeps their row, so nothing stored goes unseen.
+ */
+export const takesPart = (
+  plan: Pick<BudgetPlanDto, "capacities">,
+  member: Pick<SpaceMemberDto, "id" | "role">,
+  line?: { readonly allocation: { readonly members: readonly { readonly memberId: string }[] } } | null,
+): boolean =>
+  member.role !== "VIEWER" ||
+  holdsCapacity(plan, member.id) ||
+  (line?.allocation.members.some((share) => share.memberId === member.id) ?? false);
+
 /** The viewer's own member row in the space, or null. */
 export const memberOf = (members: readonly SpaceMemberDto[], userId: string): SpaceMemberDto | null =>
   members.find((member) => member.userId === userId) ?? null;

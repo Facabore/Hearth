@@ -1,7 +1,7 @@
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
-import { normalized } from "../../../../../tests/support/ui/dto";
+import { cop, normalized } from "../../../../../tests/support/ui/dto";
 import {
   e7Fund,
   e7Groups,
@@ -9,6 +9,7 @@ import {
   homeTrend,
   HOUSEHOLD_MEMBERS,
   householdDto,
+  spaceMemberDto,
 } from "../../../../../tests/support/ui/plan-dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
@@ -44,6 +45,32 @@ describe("desktop overview (HU-E9-10, ruling P216)", () => {
     expect(change).toContain("Nueva");
     const matrix = screen.getByRole("table", { name: "Miembros por rubro" });
     expect(within(matrix).getAllByRole("row")).toHaveLength(1 + 6);
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("leaves a member with nothing in the period out of the fund and the matrix (#217)", async () => {
+    const zero = cop(0);
+    const matrix = e7Matrix();
+    matrix.lines = matrix.lines.map((line) => ({
+      ...line,
+      members: [
+        ...line.members,
+        { memberId: "m-sofi", assigned: zero, contributed: null, consumed: zero, gap: null, status: null },
+      ],
+    }));
+    const fund = e7Fund();
+    fund.members = [...fund.members, { memberId: "m-sofi", expected: zero, actual: zero, difference: zero }];
+    const sofi = spaceMemberDto({ id: "m-sofi", userId: "u-sofi", displayName: "Sofi", role: "VIEWER" });
+    const { container } = renderWithIntl(
+      <DashOverview
+        space={householdDto()}
+        overview={{ ...overview, matrix, fund, members: [...HOUSEHOLD_MEMBERS, sofi] }}
+        formats={BUILT_IN_FORMATS}
+      />,
+    );
+    expect(screen.queryByRole("rowheader", { name: "Sofi" })).toBeNull();
+    const table = screen.getByRole("table", { name: "Miembros por rubro" });
+    expect(within(table).getAllByRole("row")).toHaveLength(1 + 6);
     expect(await axeViolations(container)).toEqual([]);
   });
 });

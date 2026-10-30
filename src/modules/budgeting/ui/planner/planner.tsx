@@ -12,7 +12,7 @@ import { formatDate, formatMoney, formatPercent, type Formats } from "@/shared/u
 import { CarryText } from "../carry-text";
 import { CopyNotice } from "../copy-notice";
 import { PlanStatusBadge } from "../plan-status-badge";
-import { canCloseOn, canManage, closesFrom, isEditable } from "../plan-access";
+import { canCloseOn, canManage, closesFrom, isEditable, takesPart } from "../plan-access";
 import { ifMatch, planWrite, rereadPlan } from "../plan-write";
 
 interface Failure {
@@ -59,6 +59,11 @@ export function Planner({
   const editable = isEditable(plan);
   const base = `/spaces/${space.id}/plans/${plan.id}`;
   const names = new Map(members.map((member) => [member.id, member.displayName]));
+  // #217: a viewer's zero capacity is no capacity, so it is not listed; a former member's row stays.
+  const listed = ({ memberId }: { readonly memberId: string }) => {
+    const member = members.find((m) => m.id === memberId);
+    return member === undefined || takesPart(plan, member);
+  };
   const money = (value: { readonly amount: string; readonly currency: string }) =>
     formatMoney(value, formats);
 
@@ -137,7 +142,7 @@ export function Planner({
         <p className="text-sm text-muted [overflow-wrap:anywhere]">
           {t("planner.unallocated", { amount: money(plan.unallocated) })}
         </p>
-        {plan.capacities.map((capacity) => {
+        {plan.capacities.filter(listed).map((capacity) => {
           const name = names.get(capacity.memberId) ?? "—";
           return (
             <p key={capacity.memberId} className="text-sm [overflow-wrap:anywhere] text-ink">

@@ -489,3 +489,24 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
     expect(await axeViolations(sheet)).toEqual([]);
   });
 });
+
+describe("a viewer with nothing to settle (#217)", () => {
+  const SOFI = memberDto({ id: "m-sofi", userId: "u-sofi", displayName: "Sofi", role: "VIEWER" });
+  const TOMAS = memberDto({ id: "m-tomas", userId: "u-tomas", displayName: "Tomás", role: "VIEWER" });
+
+  it("offers neither as payer nor as receiver a viewer whose balance is zero, and keeps one who has a balance", async () => {
+    screenAs("u-juan", fakeApi({}).api, undefined, {
+      members: [...MEMBERS, SOFI, TOMAS],
+      balances: [...TRIP_BALANCES, net("m-sofi", 0), net("m-tomas", 20_000)],
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Saldar otro monto" }));
+    const receivers = within(dialog()).getByRole("radiogroup", { name: "Quién recibe" });
+    for (const group of [payerGroup(), receivers]) {
+      expect(within(group).queryByRole("radio", { name: "Sofi" })).toBeNull();
+      expect(within(group).getByRole("radio", { name: "Tomás" })).toBeInTheDocument();
+      expect(within(group).getByRole("radio", { name: "Pedro (invitado)" })).toBeInTheDocument();
+    }
+    // The balances list still names everyone: only the sheet's choices leave her out.
+    expect(screen.getByRole("link", { name: /Sofi/, hidden: true })).toBeInTheDocument();
+  });
+});

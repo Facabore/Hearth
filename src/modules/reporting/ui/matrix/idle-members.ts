@@ -1,15 +1,18 @@
-import type { MemberMatrixDto } from "@/shared/ui/api/dto";
+import type { FundTrackingDto, MemberMatrixDto, MoneyDto } from "@/shared/ui/api/dto";
 
 type Cell = MemberMatrixDto["lines"][number]["members"][number];
+type FundRow = FundTrackingDto["members"][number];
 
 const FIGURES = ["assigned", "contributed", "consumed", "gap"] as const;
 
-/** True when a cell carries an amount other than zero; a null figure is no amount. */
-const hasMoney = (cell: Cell): boolean =>
-  FIGURES.some((figure) => {
-    const value = cell[figure];
-    return value !== null && BigInt(value.amount) !== 0n;
-  });
+/** An amount other than zero; a missing figure is no amount. */
+const isMoney = (value: MoneyDto | null): boolean => value !== null && BigInt(value.amount) !== 0n;
+
+const hasMoney = (cell: Cell): boolean => FIGURES.some((figure) => isMoney(cell[figure]));
+
+/** #217: the fund's rows without a member who was expected nothing and paid nothing in the period. */
+export const activeFundRows = (rows: readonly FundRow[]): FundRow[] =>
+  rows.filter((row) => isMoney(row.expected) || isMoney(row.actual) || isMoney(row.difference));
 
 /**
  * #213, #217: a member whose every figure in the period is zero or missing, on every line, is left out of the
