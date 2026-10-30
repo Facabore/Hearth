@@ -21,7 +21,7 @@ describe("performance budgets (ruling P134)", () => {
       { route: "/spaces/:id/new", lcp: 6100, cls: 0.12, tbt: 250, scriptKb: 211 },
     ];
     expect(budgetFailures(results, budgets)).toEqual([
-      "/spaces/:id/new: LCP 6100 ms > 6000 ms",
+      "/spaces/:id/new: LCP 6100 ms > 5500 ms",
       "/spaces/:id/new: CLS 0.12 > 0.1",
       "/spaces/:id/new: TBT 250 ms > 200 ms",
       "/spaces/:id/new: script 211 KiB > 208 KiB",

@@ -1,10 +1,10 @@
 {
   "metrics": {
-    "lcpMs": 6000,
+    "lcpMs": 5500,
     "cls": 0.1,
     "tbtMs": 200,
     "inpMs": 200,
-    "visitorLcpMs": 4000
+    "visitorLcpMs": 3300
   },
   "scriptKb": {
     "/sign-in": 163,
