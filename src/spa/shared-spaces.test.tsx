@@ -183,6 +183,43 @@ describe("shared spaces in the SPA (slice 4 of #199, ADR 0006)", () => {
     expect(await screen.findByText(es.spaces.joined.title.replace("{space}", "Trip"))).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Algo salió mal" })).toBeNull();
   });
+  describe("Movimientos' payer filter (#217, P263)", () => {
+    const SOFI = memberDto({ id: "m-sofi", userId: "u-sofi", displayName: "Sofi", role: "VIEWER" });
+    const withSofi = (balances: FakeHandler) => ({
+      ...server().routes,
+      "GET /api/v1/spaces/{spaceId}/members": () => jsonResponse({ items: [memberDto(), JUAN, SOFI] }),
+      "GET /api/v1/spaces/{spaceId}/balances": balances,
+    });
+    const payers = async () =>
+      within(await screen.findByRole("navigation", { name: es.ledger.list.paidBy }, { timeout: 5_000 }))
+        .getAllByRole("link")
+        .map((link) => link.textContent);
+
+    it("leaves out a member no movement touched, as the balances say", async () => {
+      renderSpa(
+        `${HOUSEHOLD}/transactions`,
+        withSofi(() =>
+          jsonResponse({
+            members: [
+              { memberId: "m-ana", net: cop(0), hasMovements: true },
+              { memberId: "m-juan", net: cop(0), hasMovements: true },
+              { memberId: "m-sofi", net: cop(0), hasMovements: false },
+            ],
+          }),
+        ),
+      );
+      expect(await payers()).toEqual([es.ledger.list.anyone, "Ana", "Juan"]);
+    });
+
+    it("offers every member when the balances cannot be read", async () => {
+      renderSpa(
+        `${HOUSEHOLD}/transactions`,
+        withSofi(() => problemResponse(500, "InternalError")),
+      );
+      expect(await payers()).toEqual([es.ledger.list.anyone, "Ana", "Juan", "Sofi"]);
+    });
+  });
+
   it("tries an invitation's preview once more when the server fails it (5xx), as it may pass a moment later", async () => {
     const { routes } = server(false);
     let failures = 1;

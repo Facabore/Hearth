@@ -22,7 +22,7 @@ export function TransactionsScreen() {
   const { api } = useApis();
   const viewer = useViewer(spaceId);
   const filter = { period, categoryId: category, payerMemberId: payer };
-  const { page, accounts, context, previous, next } = useList(viewer, filter);
+  const { page, accounts, context, previous, next, movedMemberIds } = useList(viewer, filter);
   const detail = useTransactionDetail(viewer, tx);
   const { me, space } = viewer;
   // A write starts the list afresh, rows "Cargar más" added included: none of them can show what the write changed.
@@ -43,6 +43,7 @@ export function TransactionsScreen() {
         periodPolicy={space.periodPolicy}
         previous={previous}
         next={next}
+        movedMemberIds={movedMemberIds}
       />
       {/* The origin is the list without `tx`: closing never re-shows a dismissed notice. */}
       {detail ? (

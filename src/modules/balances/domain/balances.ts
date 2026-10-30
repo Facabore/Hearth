@@ -34,6 +34,27 @@ export const netBalances = (
   return [...memberIds, ...others].map((memberId) => ({ memberId, net: byMember.get(memberId) ?? 0n }));
 };
 
+/** #217 (P263): a member's balance and whether any live movement that counts for balances ever touched them. */
+export interface MemberStanding extends MemberBalance {
+  /**
+   * True once a live member-paid expense (as payer or participant) or a live settlement names the member, even when
+   * their net is back to 0. Fund-paid expenses, fund contributions and deleted rows never count, as for the net.
+   */
+  readonly hasMovements: boolean;
+}
+
+/** #217 (P263): `netBalances`, each with whether the totals mention the member; computed on read (D7). */
+export const memberStandings = (
+  memberIds: readonly string[],
+  totals: readonly MemberTotals[],
+): MemberStanding[] => {
+  const moved = new Set(totals.map((t) => t.memberId));
+  return netBalances(memberIds, totals).map((balance) => ({
+    ...balance,
+    hasMovements: moved.has(balance.memberId),
+  }));
+};
+
 /** HU-E5-03: one suggested payment; accepting it is a regular settlement (HU-E5-02). */
 export interface SettlementSuggestion {
   readonly payerMemberId: string;

@@ -171,6 +171,38 @@ describe("SetMemberCapacities (HU-E6-02)", () => {
     expect(plans.capacities.get(plan.id)).toContainEqual({ memberId: "member-juan", amount: 240_000_000n });
   });
 
+  it("refuses Sofi the VIEWER a capacity above zero and writes nothing, and takes her zero (#217, ruling P261)", async () => {
+    const { as, plans, plan } = await world();
+    unwrap(await as("u-ana", [["member-ana", 1_600_000]]));
+    const refused = await as("u-ana", [
+      ["member-juan", 2_400_000],
+      ["member-sofi", 100_000],
+    ]);
+    expect(refused).toEqual({
+      ok: false,
+      error: { code: "ViewerCannotHoldCapacity", details: { memberId: "member-sofi" } },
+    });
+    expect(plans.capacities.get(plan.id)).toEqual([{ memberId: "member-ana", amount: 160_000_000n }]);
+    const view = unwrap(await as("u-ana", [["member-sofi", 0]]));
+    expect(view.figures.capacities.map((c) => [c.memberId, c.amount])).toEqual([
+      ["member-ana", 160_000_000n],
+      ["member-juan", 0n],
+      ["member-sofi", 0n],
+      ["member-pedro", 0n],
+    ]);
+  });
+
+  it("keeps a capacity stored before Sofi became a VIEWER until it is set to zero, and the others still save (P261)", async () => {
+    const { as, plans, plan } = await world();
+    // Sofi held 100,000 COP as a MEMBER; a role change never rewrites stored rows.
+    plans.seed(plan.id, { capacities: [{ memberId: "member-sofi", amount: 10_000_000n }] });
+    const others = unwrap(await as("u-ana", [["member-ana", 1_600_000]]));
+    expect(others.figures.totalCapacity).toBe(170_000_000n);
+    expect(codeOf(await as("u-ana", [["member-sofi", 100_000]]))).toBe("ViewerCannotHoldCapacity");
+    const cleared = unwrap(await as("u-ana", [["member-sofi", 0]]));
+    expect(cleared.figures.totalCapacity).toBe(160_000_000n);
+  });
+
   it("lets Luis the ADMIN set anyone's capacity, the guest Pedro's included, and hides the space from Marta", async () => {
     const { as, plans, plan } = await world({
       members: [

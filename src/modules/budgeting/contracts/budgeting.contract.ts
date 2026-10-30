@@ -471,7 +471,8 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
       {
         "404": "SpaceNotFound, BudgetPlanNotFound",
         "409": "SpaceArchived",
-        "422": "ValidationFailed, InvalidCapacity, NotASpaceMember, CurrencyMismatch, UnknownCurrency",
+        "422":
+          "ValidationFailed, InvalidCapacity, ViewerCannotHoldCapacity, NotASpaceMember, CurrencyMismatch, UnknownCurrency",
       },
     ),
   },
@@ -553,7 +554,8 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
       {
         "404": "SpaceNotFound, BudgetPlanNotFound, BudgetLineNotFound",
         "409": "SpaceArchived",
-        "422": "ValidationFailed, InvalidAllocation, NotASpaceMember, CurrencyMismatch, UnknownCurrency",
+        "422":
+          "ValidationFailed, InvalidAllocation, ViewerCannotHoldAllocation, NotASpaceMember, CurrencyMismatch, UnknownCurrency",
       },
     ),
   },

@@ -1,4 +1,4 @@
-export type { MemberBalance, MemberTotals, SettlementSuggestion } from "../domain/balances";
+export type { MemberBalance, MemberStanding, MemberTotals, SettlementSuggestion } from "../domain/balances";
 export {
   createGetSpaceBalances,
   type BalancesDeps,

@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GET as linesRoute } from "@/app/api/v1/spaces/[spaceId]/reports/lines/route";
+import { POST as recordTransfer } from "@/app/api/v1/spaces/[spaceId]/transfers/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
 import { copyPlan, lineNamed, patchLine, planOf, type PlanDto } from "../support/budgeting";
-import { cop, joinHousehold } from "../support/ledger";
+import { cop, joinHousehold, post } from "../support/ledger";
 import { getLineDashboard, reportHousehold, spend, type LineDashboardDto } from "../support/reporting";
 
 let app: Container;
@@ -52,6 +53,8 @@ describe("line dashboard over HTTP (HU-E7-01)", () => {
       planned: cop(4_000_000),
       spent: cop(2_810_000),
       available: cop(1_190_000),
+      saved: cop(0),
+      withoutSavings: { planned: cop(3_400_000), spent: cop(2_810_000) },
     });
     expect(dashboard.categoryLines).toContainEqual({
       categoryId: r.category.groceries,
@@ -131,8 +134,37 @@ describe("line dashboard over HTTP (HU-E7-01)", () => {
     const dashboard = await dashboardOf(r.h.ana, r.h.spaceId, "2027-01");
     expect(dashboard).toMatchObject({ plan: null, lines: [], period: { label: "2027-01" } });
     expect(dashboard.unbudgeted).toEqual({ spent: cop(100_000), available: cop(-100_000), overspent: true });
-    expect(dashboard.totals).toEqual({ planned: cop(0), spent: cop(100_000), available: cop(-100_000) });
+    expect(dashboard.totals).toEqual({
+      planned: cop(0),
+      spent: cop(100_000),
+      available: cop(-100_000),
+      saved: cop(0),
+      withoutSavings: { planned: cop(0), spent: cop(100_000) },
+    });
     expect(dashboard.categoryLines).toEqual([]);
+  });
+
+  it("keeps a 200,000 COP transfer into Ana's Ahorros apart from what was spent (#214, ruling P262)", async () => {
+    const r = await reportHousehold();
+    await novemberExpenses(r);
+    const transfer = await post(recordTransfer, r.h.ana.personal, "transfers", {
+      description: "Ahorro",
+      date: "2026-11-06",
+      amount: cop(200_000),
+      sourceAccountId: r.h.ana.account,
+      destinationAccountId: r.savings,
+    });
+    expect(transfer.status).toBe(201);
+    const dashboard = await dashboardOf(r.h.juan, r.h.spaceId, "2026-11");
+    expect(dashboard.lines.find((l) => l.name === "Savings")?.spent).toEqual(cop(200_000));
+    // spent keeps its meaning for existing clients: the savings are in it, as before.
+    expect(dashboard.totals).toEqual({
+      planned: cop(4_000_000),
+      spent: cop(3_010_000),
+      available: cop(990_000),
+      saved: cop(200_000),
+      withoutSavings: { planned: cop(3_400_000), spent: cop(2_810_000) },
+    });
   });
 
   it("answers 401 without a session, before it looks at the space or the period (issue 131)", async () => {

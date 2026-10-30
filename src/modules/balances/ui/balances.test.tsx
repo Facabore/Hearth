@@ -89,6 +89,54 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
     ).toBeInTheDocument();
   });
 
+  it("leaves out a member no movement touched at zero, and keeps one with history at zero (#217, P263)", () => {
+    const SOFI = memberDto({ id: "m-sofi", userId: "u-sofi", displayName: "Sofi", role: "VIEWER" });
+    view({
+      members: [ANA, JUAN, SOFI, guestDto()],
+      balances: [
+        { ...net("m-ana", 0), hasMovements: true },
+        { ...net("m-juan", 0), hasMovements: true },
+        { ...net("m-sofi", 0), hasMovements: false },
+        { ...net("m-pedro", 0), hasMovements: false },
+      ],
+      suggestions: [],
+    });
+    const members = within(screen.getByRole("region", { name: "Cada miembro" }));
+    expect(members.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
+      "/spaces/sp-household/members/m-ana/history",
+      "/spaces/sp-household/members/m-juan/history",
+    ]);
+    expect(
+      members.getByRole("link", { name: named("Ana: a paz y salvo. Ver historial") }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the viewer's own row and its history before they take part (#217, P263)", () => {
+    view({
+      meUserId: "u-ana",
+      members: [ANA, JUAN],
+      balances: [
+        { ...net("m-ana", 0), hasMovements: false },
+        { ...net("m-juan", 0), hasMovements: false },
+      ],
+      suggestions: [],
+    });
+    const members = within(screen.getByRole("region", { name: "Cada miembro" }));
+    expect(members.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
+      "/spaces/sp-household/members/m-ana/history",
+    ]);
+  });
+
+  it("keeps everyone when the balances do not say who moved, as an older API answers", () => {
+    view({
+      members: [ANA, JUAN, guestDto()],
+      balances: [net("m-ana", 0), net("m-juan", 0)],
+      suggestions: [],
+    });
+    const members = within(screen.getByRole("region", { name: "Cada miembro" }));
+    expect(members.getAllByRole("link")).toHaveLength(3);
+  });
+
   it("says when nobody owes anybody", () => {
     view({ balances: [net("m-ana", 0), net("m-juan", 0)], suggestions: [] });
     expect(normalized(screen.getByRole("region", { name: "Tu saldo en Household" }).textContent)).toContain(

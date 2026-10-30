@@ -241,8 +241,56 @@ describe("member by line matrix (HU-E7-02)", () => {
     }
   });
 
-  it("has no lines for a period without a plan", async () => {
+  it("has no lines and no member totals for a period without a plan", async () => {
     const matrix = unwrap(await read(await world(), "u-ana", "2027-01"));
-    expect(matrix).toMatchObject({ plan: null, lines: [], period: { label: "2027-01" } });
+    expect(matrix).toMatchObject({ plan: null, lines: [], members: [], period: { label: "2027-01" } });
+  });
+});
+
+describe("each member's total gap (#213, ruling P262)", () => {
+  it("adds Home's and Savings' gaps per member, leaving fund-level Rent and unallocated Free out", async () => {
+    const matrix = unwrap(await read(await world()));
+    expect(matrix.members).toEqual([
+      { memberId: "member-ana", gap: pesos(72_000), status: "OVER_CONTRIBUTED" },
+      { memberId: "member-juan", gap: -pesos(842_000), status: "UNDER_CONTRIBUTED" },
+    ]);
+  });
+
+  it("lists every current member in join order, each line's rows unchanged, for VIEWER Sofi", async () => {
+    const w = await world(BUDGET_MEMBERS);
+    const matrix = unwrap(await read(w, "u-sofi"));
+    expect(matrix.members.map((m) => [m.memberId, m.gap, m.status])).toEqual([
+      ["member-ana", pesos(72_000), "OVER_CONTRIBUTED"],
+      ["member-juan", -pesos(842_000), "UNDER_CONTRIBUTED"],
+      ["member-sofi", 0n, "ON_TARGET"],
+      ["member-pedro", 0n, "ON_TARGET"],
+    ]);
+    expect(cells(matrix, "Home")[0]).toEqual([
+      "member-ana",
+      pesos(588_000),
+      pesos(900_000),
+      pesos(520_000),
+      pesos(312_000),
+      "OVER_CONTRIBUTED",
+    ]);
+  });
+
+  it("gives a member a null total while no line has a gap for them: Home's allocation does not hold", async () => {
+    const w = reportingWorld({ members: ANA_AND_JUAN });
+    const base = parts();
+    await w.plan("2026-11", {
+      ...base,
+      lines: base.lines
+        .filter((l) => l.name !== "Savings")
+        .map((l) => (l.name === "Home" ? { ...l, allocationRule: "PERCENT" as const } : l)),
+      allocations: [{ lineId: "line-home", memberId: "member-ana", value: 5_000n }],
+    });
+    w.sums.byCategory[NOVEMBER] = novemberSums();
+    const matrix = unwrap(await read(w));
+    expect(lineOf(matrix, "Home").reason).toBe("INVALID_ALLOCATION");
+    expect(matrix.members).toEqual([
+      { memberId: "member-ana", gap: null, status: null },
+      { memberId: "member-juan", gap: null, status: null },
+    ]);
   });
 });

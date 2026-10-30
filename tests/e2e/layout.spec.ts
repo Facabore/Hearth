@@ -1063,15 +1063,20 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       await expect(page.getByText(es.reports.lines.overspent)).toBeVisible();
       await expect(page.getByText(es.reports.lines.overBy.replace("{amount}", ""))).toBeVisible();
 
-      // The member matrix keeps the long line, the guest's long name and the big figures inside their cards, and
-      // no table needs to scroll: below 640 px a member is a card (P217).
+      // The member matrix keeps the guest's long name, the long line and the big figures inside their cards, and
+      // no table needs to scroll: below 640 px a line is a card (P217). Each member is a row first (#213, P262).
       await page.goto(`/spaces/${sharedId}/plan/members`);
-      await expect(page.getByRole("heading", { level: 2, name: LONG_LINE })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 2, name: HISTORY_GUEST })).toBeVisible();
+      await page
+        .getByRole("button", {
+          name: `${es.reports.matrix.showDetail} ${es.reports.matrix.detailOf.replace("{member}", HISTORY_GUEST)}`,
+        })
+        .click();
       const matrixRegion = page.getByRole("region", {
-        name: es.reports.matrix.caption.replace("{line}", LONG_LINE),
+        name: es.reports.matrix.memberCaption.replace("{member}", HISTORY_GUEST),
       });
-      // The fund-paid line lists the guest too, so the name is looked up inside the long line's own table.
-      await expect(matrixRegion.getByRole("rowheader", { name: HISTORY_GUEST })).toBeVisible();
+      // The fund-paid line lists the guest too, so the long line is looked up inside the guest's own table.
+      await expect(matrixRegion.getByRole("rowheader").filter({ hasText: LONG_LINE })).toBeVisible();
       expect(
         await matrixRegion.evaluate((el) => el.scrollWidth - el.clientWidth),
         "the matrix table does not scroll on a phone",
@@ -1529,9 +1534,17 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
     const path = `/spaces/${sharedId}/plan/members`;
     await page.goto(path);
     await settle(page);
+    // #213: the first member's lines open under their row.
+    await page
+      .getByRole("button", { name: new RegExp(`^${es.reports.matrix.showDetail}`) })
+      .first()
+      .click();
     const { overflow, message } = await overflowReport(page, path);
     expect(overflow, message).toBeLessThanOrEqual(0);
-    const region = page.getByRole("region", { name: es.reports.matrix.caption.replace("{line}", LONG_LINE) });
+    const region = page
+      .getByRole("region", { name: es.reports.matrix.memberCaption.replace("{member}", "") })
+      .first();
+    await expect(region.getByRole("rowheader").filter({ hasText: LONG_LINE })).toBeVisible();
     await region.focus();
     await expect(region, "the scroll region takes the keyboard").toBeFocused();
     await expect(region.getByRole("columnheader")).toHaveCount(5);

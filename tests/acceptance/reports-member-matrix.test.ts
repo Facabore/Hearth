@@ -4,7 +4,7 @@ import { GET as matrixRoute } from "@/app/api/v1/spaces/[spaceId]/reports/member
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
 import { activatePlan, putAllocation } from "../support/budgeting";
-import { cop, inSpace, joinHousehold } from "../support/ledger";
+import { cop, inSpace, joinHousehold, type MoneyDto } from "../support/ledger";
 import {
   getLineDashboard,
   getMemberMatrix,
@@ -149,6 +149,60 @@ describe("member by line matrix over HTTP (HU-E7-02)", () => {
       expect(cellKeys).toEqual(["assigned", "consumed", "contributed", "gap", "memberId", "status"]);
     }
     expect(JSON.stringify(matrix)).not.toMatch(/account/i);
+  });
+
+  it("answers each member's total gap over Home, Savings and Free, fund-level Rent left out (#213, ruling P262)", async () => {
+    const r = await activeHousehold();
+    const sofi = await joinHousehold(r.h, "Sofi", "VIEWER");
+    await spend(r.h.ana, r.category.rent, 1_200_000, "2026-11-01", r.fund);
+    await spend(r.h.ana, r.category.groceries, 900_000, "2026-11-05");
+    await spend(r.h.juan, r.category.utilities, 400_000, "2026-11-10");
+    const matrix = (await matrixOf(sofi, r.h.spaceId)) as MemberMatrixDto & {
+      members: { memberId: string; gap: MoneyDto | null; status: string | null }[];
+    };
+    // Here Free keeps its PROPORTIONAL allocation (730,000 COP, 40 / 60) and nobody paid into it, so it has a gap.
+    const gaps = (name: string) => cells(matrix, name).map(([memberId, , , , gap]) => [memberId, gap]);
+    expect(gaps("Rent")).toEqual([
+      [r.h.ana.memberId, null],
+      [r.h.juan.memberId, null],
+      [sofi.memberId, null],
+    ]);
+    expect([gaps("Home"), gaps("Savings"), gaps("Free")].map((line) => line.slice(0, 2))).toEqual([
+      [
+        [r.h.ana.memberId, cop(312_000)],
+        [r.h.juan.memberId, cop(-482_000)],
+      ],
+      [
+        [r.h.ana.memberId, cop(-240_000)],
+        [r.h.juan.memberId, cop(-360_000)],
+      ],
+      [
+        [r.h.ana.memberId, cop(-292_000)],
+        [r.h.juan.memberId, cop(-438_000)],
+      ],
+    ]);
+    // Ana 312,000 − 240,000 − 292,000; Juan −482,000 − 360,000 − 438,000. Rent's fund-level row adds nothing.
+    expect(matrix.members).toEqual([
+      { memberId: r.h.ana.memberId, gap: cop(-220_000), status: "UNDER_CONTRIBUTED" },
+      { memberId: r.h.juan.memberId, gap: cop(-1_280_000), status: "UNDER_CONTRIBUTED" },
+      { memberId: sofi.memberId, gap: cop(0), status: "ON_TARGET" },
+    ]);
+    // The per-line rows answer what they answered before.
+    expect(cells(matrix, "Home")[0]).toEqual([
+      r.h.ana.memberId,
+      cop(588_000),
+      cop(900_000),
+      cop(520_000),
+      cop(312_000),
+      "OVER_CONTRIBUTED",
+    ]);
+  });
+
+  it("answers no member totals for a period without a plan", async () => {
+    const r = await activeHousehold();
+    const response = await getMemberMatrix(r.h.ana, r.h.spaceId, { period: "2026-12" });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ plan: null, lines: [], members: [] });
   });
 
   it("counts a subcategory's expense on its parent's line and reconciles with the line dashboard (P96)", async () => {

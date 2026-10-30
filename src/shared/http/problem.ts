@@ -39,6 +39,9 @@ const EXPLICIT: ReadonlyMap<string, number> = new Map([
   ["PreferenceLocked", 409],
   // Issue #195: converting to the type it already has is the request's mistake; the default would be 409.
   ["SameTransactionType", 422],
+  // Ruling P261 (#217): a VIEWER never holds a capacity or an allocation; the request names one. The default would be 409.
+  ["ViewerCannotHoldCapacity", 422],
+  ["ViewerCannotHoldAllocation", 422],
   ["IdempotencyKeyConflict", 409],
   ["PreconditionFailed", 412],
   ["TooManyRequests", 429],

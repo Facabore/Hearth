@@ -15,6 +15,7 @@ describe("member capacities (HU-E6-02)", () => {
         ],
         MEMBERS,
         "COP",
+        [],
       ),
     );
     expect(capacities).toEqual([
@@ -33,7 +34,7 @@ describe("member capacities (HU-E6-02)", () => {
   });
 
   it("lets a guest hold capacity like anyone (D15)", () => {
-    const pedro = checkedCapacities([{ memberId: "member-pedro", amount: cop(300_000) }], MEMBERS, "COP");
+    const pedro = checkedCapacities([{ memberId: "member-pedro", amount: cop(300_000) }], MEMBERS, "COP", []);
     expect(unwrap(pedro)).toEqual([{ memberId: "member-pedro", amount: 30_000_000n }]);
   });
 
@@ -46,6 +47,7 @@ describe("member capacities (HU-E6-02)", () => {
         ],
         MEMBERS,
         "COP",
+        [],
       ),
     );
     expect(capacities).toEqual([
@@ -57,7 +59,12 @@ describe("member capacities (HU-E6-02)", () => {
   });
 
   it("rejects a negative capacity", () => {
-    const negative = checkedCapacities([{ memberId: "member-juan", amount: cop(-100_000) }], MEMBERS, "COP");
+    const negative = checkedCapacities(
+      [{ memberId: "member-juan", amount: cop(-100_000) }],
+      MEMBERS,
+      "COP",
+      [],
+    );
     expect(negative).toEqual({
       ok: false,
       error: { code: "InvalidCapacity", details: { reason: "negative" } },
@@ -65,7 +72,7 @@ describe("member capacities (HU-E6-02)", () => {
   });
 
   it("rejects a capacity for Marta, who is neither a registered member nor a guest", () => {
-    const marta = checkedCapacities([{ memberId: "member-marta", amount: cop(100_000) }], MEMBERS, "COP");
+    const marta = checkedCapacities([{ memberId: "member-marta", amount: cop(100_000) }], MEMBERS, "COP", []);
     expect(codeOf(marta)).toBe("NotASpaceMember");
   });
 
@@ -77,6 +84,7 @@ describe("member capacities (HU-E6-02)", () => {
       ],
       MEMBERS,
       "COP",
+      [],
     );
     expect(twice).toEqual({
       ok: false,
@@ -86,8 +94,32 @@ describe("member capacities (HU-E6-02)", () => {
       [{ memberId: "member-ana", amount: money(100n, "USD") }],
       MEMBERS,
       "COP",
+      [],
     );
     expect(codeOf(dollars)).toBe("CurrencyMismatch");
+  });
+
+  it("refuses a capacity above zero for a VIEWER, and accepts their zero (#217, ruling P261)", () => {
+    const sofi = checkedCapacities(
+      [
+        { memberId: "member-ana", amount: cop(1_600_000) },
+        { memberId: "member-sofi", amount: cop(100_000) },
+      ],
+      [...MEMBERS, "member-sofi"],
+      "COP",
+      ["member-sofi"],
+    );
+    expect(sofi).toEqual({
+      ok: false,
+      error: { code: "ViewerCannotHoldCapacity", details: { memberId: "member-sofi" } },
+    });
+    const zero = checkedCapacities(
+      [{ memberId: "member-sofi", amount: cop(0) }],
+      [...MEMBERS, "member-sofi"],
+      "COP",
+      ["member-sofi"],
+    );
+    expect(unwrap(zero)).toEqual([{ memberId: "member-sofi", amount: 0n }]);
   });
 
   it("counts only current members: a member who left no longer adds to the total (Review Focus 2)", () => {

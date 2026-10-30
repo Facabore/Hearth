@@ -47,6 +47,7 @@ const copy = (source: PlanParts, overrides: Partial<CopyInput> = {}) =>
       { id: "cat-utilities", archived: false },
     ],
     usableAccountIds: ["acc-savings"],
+    viewerIds: [],
     ...overrides,
   });
 
@@ -141,6 +142,31 @@ describe("copiedParts (HU-E6-06)", () => {
     ]);
     // The line keeps its PERCENT rule; reading it flags it InvalidAllocation, which is not decided here.
     expect(parts.lines.find((l) => l.originLineId === "line-free")?.allocationRule).toBe("PERCENT");
+    expect(dropped).toEqual({ mappings: [], savingsAccounts: [], lines: [] });
+  });
+
+  it("leaves out Sofi, now a VIEWER: her capacity and her 10 % of Free, as for a member who left (#217, P261)", () => {
+    const SOFI = "member-sofi";
+    const { parts, dropped } = copy(
+      november({
+        capacities: [
+          { memberId: ANA, amount: 160_000_000n },
+          { memberId: JUAN, amount: 240_000_000n },
+          { memberId: SOFI, amount: 50_000_000n },
+        ],
+        allocations: [
+          { lineId: "line-free", memberId: ANA, value: 4200n },
+          { lineId: "line-free", memberId: JUAN, value: 4800n },
+          { lineId: "line-free", memberId: SOFI, value: 1000n },
+        ],
+      }),
+      { memberIds: [ANA, JUAN, SOFI], viewerIds: [SOFI] },
+    );
+    expect(parts.capacities.map((c) => c.memberId)).toEqual([ANA, JUAN]);
+    expect(parts.allocations.map((a) => [a.memberId, a.value])).toEqual([
+      [ANA, 4200n],
+      [JUAN, 4800n],
+    ]);
     expect(dropped).toEqual({ mappings: [], savingsAccounts: [], lines: [] });
   });
 

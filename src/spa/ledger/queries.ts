@@ -15,6 +15,7 @@ import {
   LOADER_OWNED,
   lineReportQuery,
   membersQuery,
+  netBalancesQuery,
   periodQuery,
   unifiedViewQuery,
 } from "../reads";
@@ -149,7 +150,10 @@ export const loadHome = async (load: Load, spaceId: string, transactionId?: stri
   ]);
 };
 
-/** HU-E9-03's list: the page, every category and account, a shared space's members and the neighbouring periods. */
+/**
+ * HU-E9-03's list: the page, every category and account, a shared space's members and the neighbouring periods. A
+ * shared space's balances say who has movements for the payer filter (#217); they never fail the list.
+ */
 export const loadList = async (load: Load, spaceId: string, filter: ListFilter, transactionId?: string) => {
   const ensure = ensurer(load);
   const { api } = load.apis;
@@ -165,6 +169,9 @@ export const loadList = async (load: Load, spaceId: string, filter: ListFilter, 
     ensure(categoriesQuery(api, spaceId, "all")),
     ensure(accountsQuery(api, spaceId, "all")),
     viewer.then((v) => (v && sharedSpace(v.space) ? ensure(membersQuery(api, spaceId)) : undefined)),
+    viewer.then((v) =>
+      v && sharedSpace(v.space) ? settled(ensure(netBalancesQuery(api, spaceId))) : undefined,
+    ),
     transactionId ? viewer.then((v) => v && loadDetail(load, v, transactionId)) : undefined,
   ]);
 };

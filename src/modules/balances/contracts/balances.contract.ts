@@ -8,13 +8,23 @@ import type { MemberBalanceHistoryView, SettlementSuggestions, SpaceBalances } f
  * a non-zero history in the space; positive net means owed money.
  */
 export const SpaceBalancesSchema = z.object({
-  members: z.array(z.object({ memberId: z.string(), net: MoneySchema })),
+  members: z.array(
+    z.object({
+      memberId: z.string(),
+      net: MoneySchema,
+      hasMovements: z.boolean().optional().meta({
+        description:
+          "#217 (P263): true once a live member-paid expense (as payer or participant) or a live settlement names the member, even when their net is back to 0. Fund-paid expenses, fund contributions and deleted movements do not count. Computed on read; always sent, optional for older clients.",
+      }),
+    }),
+  ),
 });
 
 export const spaceBalancesDto = (balances: SpaceBalances): z.infer<typeof SpaceBalancesSchema> => ({
   members: balances.members.map((m) => ({
     memberId: m.memberId,
     net: { amount: m.net.toString(), currency: balances.currency },
+    hasMovements: m.hasMovements,
   })),
 });
 

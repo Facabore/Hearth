@@ -8859,6 +8859,10 @@
                           },
                           "net": {
                             "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "hasMovements": {
+                            "description": "#217 (P263): true once a live member-paid expense (as payer or participant) or a live settlement names the member, even when their net is back to 0. Fund-paid expenses, fund contributions and deleted movements do not count. Computed on read; always sent, optional for older clients.",
+                            "type": "boolean"
                           }
                         },
                         "required": [
@@ -9474,7 +9478,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidCapacity, NotASpaceMember, CurrencyMismatch, UnknownCurrency",
+            "description": "ValidationFailed, InvalidCapacity, ViewerCannotHoldCapacity, NotASpaceMember, CurrencyMismatch, UnknownCurrency",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10361,7 +10365,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAllocation, NotASpaceMember, CurrencyMismatch, UnknownCurrency",
+            "description": "ValidationFailed, InvalidAllocation, ViewerCannotHoldAllocation, NotASpaceMember, CurrencyMismatch, UnknownCurrency",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10960,6 +10964,27 @@
                         },
                         "available": {
                           "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "saved": {
+                          "description": "Σ of the SAVINGS lines' spent: what reached the savings accounts. spent still counts it.",
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "withoutSavings": {
+                          "description": "planned and spent without the SAVINGS lines (Unbudgeted's spent still counts), so a client shows what was spent apart from what was saved without subtracting.",
+                          "type": "object",
+                          "properties": {
+                            "planned": {
+                              "$ref": "#/components/schemas/MoneyOutput"
+                            },
+                            "spent": {
+                              "$ref": "#/components/schemas/MoneyOutput"
+                            }
+                          },
+                          "required": [
+                            "planned",
+                            "spent"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
@@ -11249,6 +11274,51 @@
                           "rule",
                           "reason",
                           "members"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "members": {
+                      "description": "Every current member in join order, guests included, with their total gap over the plan's lines, computed on read; empty without a plan.",
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "memberId": {
+                            "type": "string"
+                          },
+                          "gap": {
+                            "anyOf": [
+                              {
+                                "$ref": "#/components/schemas/MoneyOutput"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Σ of the member's gap over the lines that give one; positive means the member over-contributed. Null when no line gives the member a gap."
+                          },
+                          "status": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "OVER_CONTRIBUTED",
+                                  "UNDER_CONTRIBUTED",
+                                  "ON_TARGET"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The sign of gap; null when gap is null."
+                          }
+                        },
+                        "required": [
+                          "memberId",
+                          "gap",
+                          "status"
                         ],
                         "additionalProperties": false
                       }

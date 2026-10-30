@@ -2,7 +2,7 @@ import { ok, type Result } from "@/shared/kernel";
 import { checkedAllocation, type AllocationInput } from "../domain/allocation";
 import type { BudgetingDeps } from "./deps";
 import { lineOf } from "./line-checks";
-import { planForWrite } from "./plan-access";
+import { planForWrite, viewerIdsOf } from "./plan-access";
 import { loadPlanView, type BudgetPlanView } from "./plan-view";
 import type { AllocationRepository } from "./ports";
 
@@ -35,6 +35,7 @@ export const createAllocateBudgetLine =
         line.value,
         members.map((m) => m.id),
         space.currency,
+        viewerIdsOf(members),
       );
       if (!allocation.ok) return allocation;
       await deps.allocations.setAllocation(
