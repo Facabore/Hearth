@@ -255,6 +255,26 @@ describe("who may allocate a line, and where (HU-E6-05)", () => {
     expect(await planOf(h.ana, h.spaceId, planId)).toEqual(plan);
   });
 
+  it("refuses a percentage or an amount for Vera the VIEWER with 422 ViewerCannotHoldAllocation (#217, ruling P261)", async () => {
+    const { h, planId, lineId } = await referencePlan();
+    const vera = await joinHousehold(h, "Vera", "VIEWER");
+    await refuses(
+      h.ana,
+      { spaceId: h.spaceId, planId, lineId: lineId("Free") },
+      [422, "ViewerCannotHoldAllocation"],
+      {
+        PERCENT: percents(h.ana.memberId, vera.memberId, "90", "10"),
+      },
+    );
+    await refuses(
+      h.ana,
+      { spaceId: h.spaceId, planId, lineId: lineId("Savings") },
+      [422, "ViewerCannotHoldAllocation"],
+      { FIXED: amounts(h.ana.memberId, vera.memberId, 500_000, 100_000) },
+    );
+    expect(await storedAllocation(app, lineId("Free"))).toMatchObject({ total: 0 });
+  });
+
   it("answers 404 to a stranger, a malformed space or plan, another household's plan, and a line that is not the plan's", async () => {
     const { h, planId, lineId } = await referencePlan();
     const marta = await registerUser("Marta");

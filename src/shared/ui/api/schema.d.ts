@@ -6884,7 +6884,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidCapacity, NotASpaceMember, CurrencyMismatch, UnknownCurrency */
+            /** @description ValidationFailed, InvalidCapacity, ViewerCannotHoldCapacity, NotASpaceMember, CurrencyMismatch, UnknownCurrency */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7375,7 +7375,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidAllocation, NotASpaceMember, CurrencyMismatch, UnknownCurrency */
+            /** @description ValidationFailed, InvalidAllocation, ViewerCannotHoldAllocation, NotASpaceMember, CurrencyMismatch, UnknownCurrency */
             422: {
                 headers: {
                     [name: string]: unknown;

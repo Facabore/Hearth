@@ -31,16 +31,29 @@ const WHOLE = 10_000n;
 const invalid = (reason: string): Result<never> => err(domainError("InvalidAllocation", { reason }));
 const sum = (values: readonly bigint[]) => values.reduce((a, b) => a + b, 0n);
 
+/** Ruling P261: the refusal for the first value above zero that names a VIEWER, if any. */
+const viewerIn = (
+  values: readonly AllocationValue[],
+  viewerIds: readonly string[],
+): Result<never> | undefined => {
+  const held = values.find((v) => v.value > 0n && viewerIds.includes(v.memberId));
+  return held === undefined
+    ? undefined
+    : err(domainError("ViewerCannotHoldAllocation", { memberId: held.memberId }));
+};
+
 /**
  * HU-E6-05: the rule and the member values a line stores, in join order. PERCENT values sum to 100 % and FIXED
  * amounts to the planned amount, each positive, for current members (registered or guest, D15); PROPORTIONAL and
- * NONE store no values.
+ * NONE store no values. Ruling P261 (#217): a VIEWER (`viewerIds`) never holds an allocation, and every stored value
+ * is positive, so a value for one is refused (ViewerCannotHoldAllocation).
  */
 export const checkedAllocation = (
   input: AllocationInput,
   line: Pick<BudgetLine, "plannedAmount">,
   memberIds: readonly string[],
   currency: string,
+  viewerIds: readonly string[],
 ): Result<{ rule: AllocationRule; values: AllocationValue[] }> => {
   if (input.rule === "PROPORTIONAL" || input.rule === "NONE") return ok({ rule: input.rule, values: [] });
   const ids = input.members.map((m) => m.memberId);
@@ -53,6 +66,8 @@ export const checkedAllocation = (
       return invalid("percentNotPositive");
     }
     values = input.members.map((m) => ({ memberId: m.memberId, value: BigInt(m.basisPoints) }));
+    const viewer = viewerIn(values, viewerIds);
+    if (viewer !== undefined) return viewer;
     if (sum(values.map((v) => v.value)) !== WHOLE) return invalid("percentNotHundred");
   } else {
     const foreign = input.members.find((m) => m.amount.currency.code !== currency);
@@ -63,6 +78,8 @@ export const checkedAllocation = (
     }
     if (input.members.some((m) => m.amount.minor <= 0n)) return invalid("amountNotPositive");
     values = input.members.map((m) => ({ memberId: m.memberId, value: m.amount.minor }));
+    const viewer = viewerIn(values, viewerIds);
+    if (viewer !== undefined) return viewer;
     if (sum(values.map((v) => v.value)) !== line.plannedAmount) return invalid("fixedNotPlanned");
   }
   const inJoinOrder = [...values].sort(

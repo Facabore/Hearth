@@ -175,6 +175,29 @@ describe("AllocateBudgetLine (HU-E6-05)", () => {
     expect(codeOf(await allocateLine("free", marta))).toBe("NotASpaceMember");
   });
 
+  it("refuses a share for Sofi the VIEWER and writes nothing, and allocates among the others (#217, ruling P261)", async () => {
+    const { allocateLine, read } = await world(BUDGET_MEMBERS);
+    const withSofi: AllocationInput = {
+      rule: "PERCENT",
+      members: [
+        { memberId: "member-ana", basisPoints: 4200 },
+        { memberId: "member-juan", basisPoints: 4800 },
+        { memberId: "member-sofi", basisPoints: 1000 },
+      ],
+    };
+    expect(await allocateLine("free", withSofi)).toEqual({
+      ok: false,
+      error: { code: "ViewerCannotHoldAllocation", details: { memberId: "member-sofi" } },
+    });
+    expect(line(unwrap(await read()), "Free").line.allocationRule).toBe("PROPORTIONAL");
+    expect(assigned(unwrap(await allocateLine("free", percent(4200, 5800))), "Free")).toEqual([
+      ["member-ana", 30_660_000n],
+      ["member-juan", 42_340_000n],
+      ["member-sofi", 0n],
+      ["member-pedro", 0n],
+    ]);
+  });
+
   it("flags Free once Juan, allocated 58 %, has left, until it is allocated again (Review Focus 2)", async () => {
     const { allocateLine, spaces, read } = await world();
     unwrap(await allocateLine("free", percent(4200, 5800)));

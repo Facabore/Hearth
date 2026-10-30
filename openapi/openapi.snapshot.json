@@ -9478,7 +9478,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidCapacity, NotASpaceMember, CurrencyMismatch, UnknownCurrency",
+            "description": "ValidationFailed, InvalidCapacity, ViewerCannotHoldCapacity, NotASpaceMember, CurrencyMismatch, UnknownCurrency",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10365,7 +10365,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAllocation, NotASpaceMember, CurrencyMismatch, UnknownCurrency",
+            "description": "ValidationFailed, InvalidAllocation, ViewerCannotHoldAllocation, NotASpaceMember, CurrencyMismatch, UnknownCurrency",
             "content": {
               "application/problem+json": {
                 "schema": {

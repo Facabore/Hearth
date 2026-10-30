@@ -20,6 +20,10 @@ export const readablePlan = async (
   return plan === null ? err(domainError("BudgetPlanNotFound")) : ok({ space: reader.value, plan });
 };
 
+/** Ruling P261 (#217): the current members who are VIEWERs, who never hold a capacity or an allocation. */
+export const viewerIdsOf = (members: readonly Pick<SpaceMember, "id" | "role">[]): string[] =>
+  members.filter((m) => m.role === "VIEWER").map((m) => m.id);
+
 /** HU-E6-01 … HU-E6-07: writing a plan is the matrix action plan.manage (OWNER, ADMIN). */
 export const managePlan = (membership: SpaceMembership): Result<SpaceMembership> =>
   requirePermission(membership, "plan.manage");

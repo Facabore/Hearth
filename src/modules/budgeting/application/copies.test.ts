@@ -242,6 +242,35 @@ describe("CopyBudgetPlan (HU-E6-06)", () => {
     expect(stored.capacities.map((c) => c.memberId)).toEqual(["member-ana", "member-juan"]);
   });
 
+  it("leaves out Sofi, a VIEWER now, with her stored capacity and 10 % of Free, as for a member who left (#217, P261)", async () => {
+    const sofi = memberOf("Sofi", "VIEWER", 3);
+    const { plans, source, copyInto } = await world({
+      members: [...ANA_AND_JUAN, sofi],
+      parts: {
+        capacities: [
+          { memberId: "member-ana", amount: 160_000_000n },
+          { memberId: "member-juan", amount: 240_000_000n },
+          { memberId: "member-sofi", amount: 50_000_000n },
+        ],
+        allocations: [
+          { lineId: "line-free", memberId: "member-ana", value: 4200n },
+          { lineId: "line-free", memberId: "member-juan", value: 4800n },
+          { lineId: "line-free", memberId: "member-sofi", value: 1000n },
+        ],
+      },
+    });
+    const copy = unwrap(await copyInto("2026-12"));
+    const stored = await plans.contents(copy.view.plan.id);
+    expect(stored.capacities.map((c) => c.memberId)).toEqual(["member-ana", "member-juan"]);
+    expect(stored.allocations.map((a) => a.memberId)).toEqual(["member-ana", "member-juan"]);
+    expect(line(copy, "Free").allocation.invalid).toBe(true);
+    // The source keeps her rows: nothing stored is rewritten.
+    expect((await plans.contents(source.id)).capacities).toContainEqual({
+      memberId: "member-sofi",
+      amount: 50_000_000n,
+    });
+  });
+
   it("keeps the accounts of current members that still qualify and leaves out a line left without one (P10)", async () => {
     // Marta and Luis are not members here: Ana's and Juan's accounts stay, whoever copies; Marta's and Luis's go.
     const { copyInto } = await world({ parts: savingsParts });

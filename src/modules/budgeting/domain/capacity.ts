@@ -9,12 +9,14 @@ export interface MemberCapacity {
 
 /**
  * HU-E6-02: the capacities a request sets, for current members (`memberIds`), in the space currency and never
- * negative. Members it does not list keep theirs; listing a member twice is ambiguous and refused.
+ * negative. Members it does not list keep theirs; listing a member twice is ambiguous and refused. Ruling P261 (#217):
+ * a VIEWER (`viewerIds`) never holds a capacity, so theirs may only be 0 (ViewerCannotHoldCapacity).
  */
 export const checkedCapacities = (
   entries: readonly { readonly memberId: string; readonly amount: Money }[],
   memberIds: readonly string[],
   currency: string,
+  viewerIds: readonly string[],
 ): Result<MemberCapacity[]> => {
   if (new Set(entries.map((e) => e.memberId)).size !== entries.length) {
     return err(domainError("InvalidCapacity", { reason: "duplicateMember" }));
@@ -26,6 +28,9 @@ export const checkedCapacities = (
       return err(domainError("CurrencyMismatch", { expected: currency, actual: entry.amount.currency.code }));
     }
     if (entry.amount.minor < 0n) return err(domainError("InvalidCapacity", { reason: "negative" }));
+    if (entry.amount.minor > 0n && viewerIds.includes(entry.memberId)) {
+      return err(domainError("ViewerCannotHoldCapacity", { memberId: entry.memberId }));
+    }
     checked.push({ memberId: entry.memberId, amount: entry.amount.minor });
   }
   return ok(checked);

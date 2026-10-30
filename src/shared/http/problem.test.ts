@@ -63,6 +63,8 @@ describe("statusForCode", () => {
     ["CatchAllLineAlreadySet", 409],
     ["SavingsLineNotMappable", 409],
     ["InvalidAllocation", 422],
+    ["ViewerCannotHoldCapacity", 422],
+    ["ViewerCannotHoldAllocation", 422],
     ["InvalidPlanTransition", 409],
     ["InvalidRecurrenceTransition", 409],
     ["RecurrenceNotFound", 404],

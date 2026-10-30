@@ -6,6 +6,7 @@ import { DELETE as removeGuestMember } from "@/app/api/v1/spaces/[spaceId]/guest
 import { POST as recordIncome } from "@/app/api/v1/spaces/[spaceId]/incomes/route";
 import { GET as suggestionRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/capacity-suggestion/route";
 import { PUT as putCapacitiesRoute } from "@/app/api/v1/spaces/[spaceId]/plans/[planId]/capacities/route";
+import { PATCH as changeRole } from "@/app/api/v1/spaces/[spaceId]/members/[memberId]/route";
 import { PATCH as updateSpace } from "@/app/api/v1/spaces/[spaceId]/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
@@ -219,6 +220,45 @@ describe("member capacities (HU-E6-02)", () => {
     });
     expect(await problemOf(anonymous)).toEqual([401, "Unauthenticated"]);
     expect((await planOf(h.ana, h.spaceId, planId)).version).toBe(1);
+  });
+
+  it("refuses a VIEWER's capacity above zero with 422 ViewerCannotHoldCapacity, and takes her zero (#217, ruling P261)", async () => {
+    const { h, planId } = await draft();
+    const vera = await joinHousehold(h, "Vera", "VIEWER");
+    const refused = await putCapacities(h.ana, h.spaceId, planId, [
+      [h.ana.memberId, 1_600_000],
+      [vera.memberId, 100_000],
+    ]);
+    expect(await problemOf(refused)).toEqual([422, "ViewerCannotHoldCapacity"]);
+    expect((await planOf(h.ana, h.spaceId, planId)).version).toBe(1);
+    const plan = await setCapacities(h.ana, h.spaceId, planId, [[vera.memberId, 0]]);
+    expect(plan.totalCapacity).toEqual(cop(0));
+  });
+
+  it("keeps Juan's capacity once he becomes a VIEWER, refuses it above zero, and drops it from the total at zero (P261)", async () => {
+    const { h, planId } = await draft();
+    await setCapacities(h.ana, h.spaceId, planId, [
+      [h.ana.memberId, 1_600_000],
+      [h.juan.memberId, 2_400_000],
+    ]);
+    const demoted = await call(
+      changeRole,
+      "PATCH",
+      `/api/v1/spaces/${h.spaceId}/members/${h.juan.memberId}`,
+      {
+        user: h.ana,
+        params: { spaceId: h.spaceId, memberId: h.juan.memberId },
+        body: { role: "VIEWER" },
+      },
+    );
+    expect(demoted.status).toBe(200);
+    // A role change rewrites no stored row: the capacity still counts until someone sets it to zero.
+    const kept = await setCapacities(h.ana, h.spaceId, planId, [[h.ana.memberId, 1_700_000]]);
+    expect(kept.totalCapacity).toEqual(cop(4_100_000));
+    const refused = await putCapacities(h.ana, h.spaceId, planId, [[h.juan.memberId, 2_400_000]]);
+    expect(await problemOf(refused)).toEqual([422, "ViewerCannotHoldCapacity"]);
+    const cleared = await setCapacities(h.ana, h.spaceId, planId, [[h.juan.memberId, 0]]);
+    expect(cleared.totalCapacity).toEqual(cop(1_700_000));
   });
 
   it("answers 404 for a plan the space does not have", async () => {
