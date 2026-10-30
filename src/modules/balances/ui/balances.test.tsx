@@ -111,6 +111,22 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps the viewer's own row and its history before they take part (#217, P263)", () => {
+    view({
+      meUserId: "u-ana",
+      members: [ANA, JUAN],
+      balances: [
+        { ...net("m-ana", 0), hasMovements: false },
+        { ...net("m-juan", 0), hasMovements: false },
+      ],
+      suggestions: [],
+    });
+    const members = within(screen.getByRole("region", { name: "Cada miembro" }));
+    expect(members.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
+      "/spaces/sp-household/members/m-ana/history",
+    ]);
+  });
+
   it("keeps everyone when the balances do not say who moved, as an older API answers", () => {
     view({
       members: [ANA, JUAN, guestDto()],

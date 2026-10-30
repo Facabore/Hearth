@@ -59,8 +59,10 @@ export function BalancesScreen({
       currency: space.currency,
     };
   // #217 (P263): a member no movement ever touched and whose balance is zero is left out of the list. An older API that
-  // does not send `hasMovements` leaves everyone in.
+  // does not send `hasMovements` leaves everyone in. The viewer always keeps their own row, with its way to their
+  // history, even before they take part.
   const listed = members.filter((member) => {
+    if (member.userId === meUserId) return true;
     const balance = balances.find((b) => b.memberId === member.id);
     return balance === undefined || balance.hasMovements !== false || BigInt(balance.net.amount) !== 0n;
   });
