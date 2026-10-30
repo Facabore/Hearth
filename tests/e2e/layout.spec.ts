@@ -1067,6 +1067,32 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
           expect.soft(box.x + box.width, "and ends on screen").toBeLessThanOrEqual(viewport.width);
         }
       }
+      // U3 (#224): every space lists its views in one order.
+      for (const [path, views] of [
+        [`/spaces/${sharedId}/plan`, ["lines", "groups", "members", "fund", "trend"]],
+        [`/spaces/${spaceId}/plan`, ["mine", "lines", "groups", "trend", "calendar"]],
+      ] as const) {
+        await page.goto(path);
+        await expect(
+          page.getByRole("navigation", { name: es.reports.tabs.label }).getByRole("link"),
+          `${path}: the view chips`,
+        ).toHaveText(views.map((view) => es.reports.view[view]));
+      }
+
+      // U10 (#224): Mi consumo has one hero figure; "¿Por qué es distinto?" is a full target and opens in place.
+      await page.goto(`/spaces/${spaceId}/plan`);
+      await expect(page.getByRole("region", { name: es.reports.unified.spent, exact: true })).toBeVisible();
+      const why = page.getByRole("button", { name: es.reports.unified.whyDifferent });
+      const whyBox = (await why.boundingBox())!;
+      expect.soft(whyBox.height, "¿Por qué es distinto? height").toBeGreaterThanOrEqual(TARGET);
+      expect
+        .soft(whyBox.x + whyBox.width, "¿Por qué es distinto? on screen")
+        .toBeLessThanOrEqual(viewport.width);
+      await why.click();
+      await expect(page.getByRole("region", { name: es.reports.unified.sources })).toBeVisible();
+      const unfolded = await overflowReport(page, "Mi consumo with its answer open");
+      expect.soft(unfolded.overflow, unfolded.message).toBeLessThanOrEqual(0);
+
       // The long line wraps inside its row instead of widening the page.
       await page.goto(`/spaces/${sharedId}/plan`);
       // From 1024 px the desktop overview (Task 16) repeats the line; under it those panels are hidden.

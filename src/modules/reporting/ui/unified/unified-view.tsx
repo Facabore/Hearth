@@ -1,5 +1,8 @@
-import { useId } from "react";
+"use client";
+
+import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
+import { Icon } from "@/shared/ui";
 import type { MoneyDto, UnifiedViewDto } from "@/shared/ui/api/dto";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { barWidth } from "../lines/bar";
@@ -9,9 +12,11 @@ const TRACK = "block h-1.5 w-full overflow-hidden rounded-full bg-track";
 
 /**
  * HU-E9-11 (the Unified artboard): the person's consumption and cash out across their spaces, as the API answered
- * them (ruling P201), where the cash out comes from, and the consumption by category. A merged row (a seeded
- * category) wears its name; a custom one wears its space (`reports.spaceScoped`). The bars are CSS widths inside the
- * rows that carry the figures (ruling P202).
+ * them (ruling P201), where the cash out comes from, and the consumption by category. Decision U10 (#224): one hero
+ * figure, "Lo que gastaste tú" (the consumption); "Lo que pagaste" (the cash out) is a secondary line whose
+ * "¿Por qué es distinto?" unfolds the answer and where the payments went. A merged row (a seeded category) wears its
+ * name; a custom one wears its space (`reports.spaceScoped`). The bars are CSS widths inside the rows that carry the
+ * figures (ruling P202).
  */
 export function UnifiedView({
   view,
@@ -23,6 +28,7 @@ export function UnifiedView({
   const t = useTranslations("reports.unified");
   const tr = useTranslations("reports");
   const base = useId();
+  const [why, setWhy] = useState(false);
   const money = (value: MoneyDto) => formatMoney(value, formats);
   const { consumption, cashOut } = view;
   const largest = consumption.categories[0]?.amount;
@@ -33,42 +39,62 @@ export function UnifiedView({
   ] as const;
   return (
     <>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {(
-          [
-            { key: "consumption", total: consumption.total, hint: t("consumptionHint") },
-            { key: "cashOut", total: cashOut.total, hint: t("cashOutHint") },
-          ] as const
-        ).map((card) => (
-          <section key={card.key} aria-labelledby={`${base}-${card.key}`} className={CARD}>
-            <p id={`${base}-${card.key}`} className="text-sm text-muted">
-              {t(card.key)}
-            </p>
-            <p className="text-2xl font-semibold tabular-nums [overflow-wrap:anywhere]">
-              {money(card.total)}
-            </p>
-            <p className="text-sm text-muted">{card.hint}</p>
-          </section>
-        ))}
+      <div className={CARD}>
+        <section aria-labelledby={`${base}-spent`} className="flex flex-col gap-1">
+          <p id={`${base}-spent`} className="text-sm text-muted">
+            {t("spent")}
+          </p>
+          <p className="text-3xl font-semibold tabular-nums [overflow-wrap:anywhere]">
+            {money(consumption.total)}
+          </p>
+          <p className="text-sm text-muted">{t("consumptionHint")}</p>
+        </section>
+        <section aria-labelledby={`${base}-paid`} className="mt-2 flex flex-col border-t border-line pt-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+            <span id={`${base}-paid`} className="text-muted">
+              {t("paid")}
+            </span>
+            <span className="font-semibold tabular-nums [overflow-wrap:anywhere]">
+              {money(cashOut.total)}
+            </span>
+          </div>
+          <button
+            type="button"
+            aria-expanded={why}
+            aria-controls={`${base}-why`}
+            onClick={() => setWhy((open) => !open)}
+            className="-mx-1 flex min-h-11 items-center gap-1 self-start rounded-lg px-1 text-sm font-medium text-accent"
+          >
+            {t("whyDifferent")}
+            <Icon
+              name="chevronDown"
+              size={18}
+              className={why ? "rotate-180 transition-transform" : "transition-transform"}
+            />
+          </button>
+          <div id={`${base}-why`} hidden={!why} className="flex flex-col gap-2">
+            <p className="text-sm text-muted">{t("whyDifferentAnswer")}</p>
+            <section aria-labelledby={`${base}-sources`} className="flex flex-col gap-1">
+              <h2 id={`${base}-sources`} className="text-base font-semibold">
+                {t("sources")}
+              </h2>
+              <dl className="flex flex-col gap-1 tabular-nums">
+                {[
+                  ...sources.map((source) => ({ label: t(source.key), amount: source.amount })),
+                  ...(cashOut.outsideTheApp.amount !== "0"
+                    ? [{ label: tr("outsideTheApp"), amount: cashOut.outsideTheApp }]
+                    : []),
+                ].map((row) => (
+                  <div key={row.label} className="flex justify-between gap-3 py-0.5">
+                    <dt className="min-w-0 text-muted [overflow-wrap:anywhere]">{row.label}</dt>
+                    <dd className="text-right font-semibold [overflow-wrap:anywhere]">{money(row.amount)}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          </div>
+        </section>
       </div>
-      <section aria-labelledby={`${base}-sources`} className={CARD}>
-        <h2 id={`${base}-sources`} className="text-lg font-semibold">
-          {t("sources")}
-        </h2>
-        <dl className="flex flex-col gap-1 tabular-nums">
-          {[
-            ...sources.map((source) => ({ label: t(source.key), amount: source.amount })),
-            ...(cashOut.outsideTheApp.amount !== "0"
-              ? [{ label: tr("outsideTheApp"), amount: cashOut.outsideTheApp }]
-              : []),
-          ].map((row) => (
-            <div key={row.label} className="flex justify-between gap-3 py-0.5">
-              <dt className="min-w-0 text-muted [overflow-wrap:anywhere]">{row.label}</dt>
-              <dd className="text-right font-semibold [overflow-wrap:anywhere]">{money(row.amount)}</dd>
-            </div>
-          ))}
-        </dl>
-      </section>
       <section aria-labelledby={`${base}-categories`} className="flex flex-col gap-2">
         <h2 id={`${base}-categories`} className="text-lg font-semibold">
           {t("byCategory")}
