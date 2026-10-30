@@ -151,7 +151,7 @@ describe("member by line matrix over HTTP (HU-E7-02)", () => {
     expect(JSON.stringify(matrix)).not.toMatch(/account/i);
   });
 
-  it("answers each member's total gap over Home and Savings, fund-level Rent left out (#213, ruling P262)", async () => {
+  it("answers each member's total gap over Home, Savings and Free, fund-level Rent left out (#213, ruling P262)", async () => {
     const r = await activeHousehold();
     const sofi = await joinHousehold(r.h, "Sofi", "VIEWER");
     await spend(r.h.ana, r.category.rent, 1_200_000, "2026-11-01", r.fund);
@@ -160,10 +160,31 @@ describe("member by line matrix over HTTP (HU-E7-02)", () => {
     const matrix = (await matrixOf(sofi, r.h.spaceId)) as MemberMatrixDto & {
       members: { memberId: string; gap: MoneyDto | null; status: string | null }[];
     };
-    // Home +312,000 and Savings −240,000 for Ana; Home −482,000 and Savings −360,000 for Juan.
+    // Here Free keeps its PROPORTIONAL allocation (730,000 COP, 40 / 60) and nobody paid into it, so it has a gap.
+    const gaps = (name: string) => cells(matrix, name).map(([memberId, , , , gap]) => [memberId, gap]);
+    expect(gaps("Rent")).toEqual([
+      [r.h.ana.memberId, null],
+      [r.h.juan.memberId, null],
+      [sofi.memberId, null],
+    ]);
+    expect([gaps("Home"), gaps("Savings"), gaps("Free")].map((line) => line.slice(0, 2))).toEqual([
+      [
+        [r.h.ana.memberId, cop(312_000)],
+        [r.h.juan.memberId, cop(-482_000)],
+      ],
+      [
+        [r.h.ana.memberId, cop(-240_000)],
+        [r.h.juan.memberId, cop(-360_000)],
+      ],
+      [
+        [r.h.ana.memberId, cop(-292_000)],
+        [r.h.juan.memberId, cop(-438_000)],
+      ],
+    ]);
+    // Ana 312,000 − 240,000 − 292,000; Juan −482,000 − 360,000 − 438,000. Rent's fund-level row adds nothing.
     expect(matrix.members).toEqual([
-      { memberId: r.h.ana.memberId, gap: cop(72_000), status: "OVER_CONTRIBUTED" },
-      { memberId: r.h.juan.memberId, gap: cop(-842_000), status: "UNDER_CONTRIBUTED" },
+      { memberId: r.h.ana.memberId, gap: cop(-220_000), status: "UNDER_CONTRIBUTED" },
+      { memberId: r.h.juan.memberId, gap: cop(-1_280_000), status: "UNDER_CONTRIBUTED" },
       { memberId: sofi.memberId, gap: cop(0), status: "ON_TARGET" },
     ]);
     // The per-line rows answer what they answered before.
