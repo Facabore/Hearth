@@ -4,8 +4,8 @@ import { minor } from "../support/money";
 
 /** The feature's English names, as keys of the Spanish screen. */
 const KEYS: Record<string, string> = {
-  Formats: "settings.formats",
-  Region: "settings.region",
+  "Numbers and dates": "settings.numbersAndDates",
+  "Time zone": "settings.field.timezone",
   "Appearance and language": "settings.appearance",
   Space: "spaces.settings.title",
   "12-hour": "settings.timeFormat.H12",
@@ -39,19 +39,27 @@ When("{string} opens the Settings screen", async ({ page, world }, name: string)
 });
 
 Then(
-  /^it shows the sections "([^"]+)", "([^"]+)", "([^"]+)" and "([^"]+)"$/,
-  async ({ page, world }, first: string, second: string, third: string, fourth: string) => {
-    const sections = [first, second, third, fourth];
-    await expect(page.getByRole("heading", { level: 2 })).toHaveText(sections.map((s) => world.t(KEYS[s]!)));
+  /^it shows the rows "([^"]+)", "([^"]+)" and "([^"]+)", then the section "([^"]+)"$/,
+  async ({ page, world }, first: string, second: string, third: string, section: string) => {
+    // U8 (#224): three summary rows, each opening its own sheet, before the space's own section.
+    const rows = [first, second, third].map((row) => world.t(KEYS[row]!));
+    const buttons = page.getByRole("main").getByRole("button", { name: new RegExp(`^(${rows.join("|")})`) });
+    await expect(buttons).toHaveCount(3);
+    for (const [index, row] of rows.entries()) await expect(buttons.nth(index)).toContainText(row);
+    await expect(page.getByRole("heading", { level: 2 })).toHaveText([world.t(KEYS[section]!)]);
   },
 );
 
 Then(
-  /^the preview reads "([^"]+)", "([^"]+)" and "([^"]+)"$/,
-  async ({ page, world }, first: string, second: string, third: string) => {
+  /^the row "([^"]+)" and its preview read "([^"]+)", "([^"]+)" and "([^"]+)"$/,
+  async ({ page, world }, row: string, first: string, second: string, third: string) => {
     const samples = [first, second, third];
-    // Each saved choice also says Guardado in a status of its own (U5): the preview is the one that is named.
-    const preview = page.getByRole("status", { name: world.t("settings.preview.label") });
+    const button = page.getByRole("button", { name: new RegExp(`^${world.t(KEYS[row]!)}`) });
+    for (const sample of samples) await expect(button).toContainText(sample);
+    // The row opens its sheet; each saved choice also says Guardado in a status of its own (U5): the preview is the
+    // one that is named.
+    await button.click();
+    const preview = page.getByRole("dialog").getByRole("status", { name: world.t("settings.preview.label") });
     for (const sample of samples) await expect(preview).toContainText(sample);
   },
 );

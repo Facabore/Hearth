@@ -7,8 +7,8 @@ Feature: Settings screen
   @e2e
   Scenario: Change the formats and see them applied at once
     When "Ana" opens the Settings screen
-    Then it shows the sections "Appearance and language", "Formats", "Region" and "Space"
-    And the preview reads "1.234.567,89", "16/10/2026" and "14:30"
+    Then it shows the rows "Appearance and language", "Numbers and dates" and "Time zone", then the section "Space"
+    And the row "Numbers and dates" and its preview read "1.234.567,89", "16/10/2026" and "14:30"
     When "Ana" chooses the number format "1,234,567.89", the date format "10/16/2026" and the time format "12-hour"
     Then each choice is stored as she makes it and the preview reads "1,234,567.89", "10/16/2026" and "2:30 PM"
     And the transaction list shows her amounts, dates and times in the new formats

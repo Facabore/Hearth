@@ -277,7 +277,7 @@
     "preview": {
       "label": "Así se verá"
     },
-    "formats": "Formatos",
+    "numbersAndDates": "Números y fechas",
     "field": {
       "numberFormat": "Números",
       "dateFormat": "Fecha",
@@ -295,10 +295,13 @@
       "MONDAY": "Lunes",
       "SUNDAY": "Domingo"
     },
+    "weekStartSummary": {
+      "MONDAY": "Semana desde el lunes",
+      "SUNDAY": "Semana desde el domingo"
+    },
     "default": "Predeterminado",
     "reset": "Restablecer",
     "locked": "Lo define tu instalación",
-    "region": "Región",
     "appearance": "Apariencia e idioma",
     "timezone": {
       "hint": "Define el día y la hora de cada movimiento que registras.",
@@ -311,7 +314,7 @@
       "dark": "Oscuro"
     },
     "language": {
-      "hint": "Solo cambia los textos. Los formatos de arriba no dependen del idioma.",
+      "hint": "Solo cambia los textos. Los formatos de números y fechas no dependen del idioma.",
       "es": "Español",
       "en": "English"
     }

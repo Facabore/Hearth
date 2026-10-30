@@ -13,14 +13,26 @@ beforeEach(() => {
   document.cookie = "hearth.locale=; path=/; max-age=0";
 });
 
+/** U8 (#224): theme and language sit in the "Apariencia e idioma" sheet. */
+const openAppearance = async () => {
+  await userEvent.click(screen.getByRole("button", { name: /^Apariencia e idioma/ }));
+  return screen.findByRole("dialog", { name: "Apariencia e idioma" });
+};
+
 describe("settings: region, theme and language (HU-E9-13)", () => {
-  it("shows the three sections, Apariencia e idioma first (issue #176)", () => {
+  it("names the theme and the language on their row, and the row follows a new theme (U8, issue #224)", async () => {
     renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={meDto()} api={fakeApi({}).api} />);
-    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
-      "Apariencia e idioma",
-      "Formatos",
-      "Región",
-    ]);
+    const row = () =>
+      normalized(screen.getByRole("button", { name: /^Apariencia e idioma/, hidden: true }).textContent);
+    expect(row()).toBe("Apariencia e idiomaSistema · Español");
+    const sheet = await openAppearance();
+    expect(
+      within(sheet).getByText(
+        "Solo cambia los textos. Los formatos de números y fechas no dependen del idioma.",
+      ),
+    ).toBeVisible();
+    await userEvent.click(within(sheet).getByRole("radio", { name: "Oscuro" }));
+    expect(row()).toBe("Apariencia e idiomaOscuro · Español");
   });
 
   it("finds a zone by searching and stores it", async () => {
@@ -40,6 +52,7 @@ describe("settings: region, theme and language (HU-E9-13)", () => {
 
   it("keeps the theme on the device", async () => {
     renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={meDto()} api={fakeApi({}).api} />);
+    await openAppearance();
     await userEvent.click(screen.getByRole("radio", { name: "Oscuro" }));
     expect(localStorage.getItem("hearth.theme")).toBe("dark");
     expect(document.documentElement.dataset.theme).toBe("dark");
@@ -50,6 +63,7 @@ describe("settings: region, theme and language (HU-E9-13)", () => {
     const english = { ...custom, locale: "en" };
     const { api, requests } = fakeApi({ "PATCH /api/v1/me": () => jsonResponse(english) });
     const view = renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={custom} api={api} />);
+    await openAppearance();
     await userEvent.click(screen.getByRole("radio", { name: "English" }));
     expect(await requests[0]!.json()).toEqual({ locale: "en" });
     expect(router.refresh).toHaveBeenCalled();
@@ -57,6 +71,10 @@ describe("settings: region, theme and language (HU-E9-13)", () => {
     view.unmount();
     renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={english} api={api} />, { locale: "en" });
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Settings");
+    expect(normalized(screen.getByRole("button", { name: /^Numbers and dates/ }).textContent)).toBe(
+      "Numbers and dates1,234,567.89 · 16/10/2026 · 2:30 PM · Weeks start on Monday",
+    );
+    await userEvent.click(screen.getByRole("button", { name: /^Numbers and dates/ }));
     const preview = screen.getByRole("status", { name: "This is how it will look" });
     expect(normalized(preview.textContent)).toContain("1,234,567.89");
     expect(normalized(preview.textContent)).toContain("2:30 PM");
@@ -65,6 +83,7 @@ describe("settings: region, theme and language (HU-E9-13)", () => {
   it("keeps the visitor cookie when the language change is refused", async () => {
     const { api } = fakeApi({ "PATCH /api/v1/me": () => problemResponse(409, "PreferenceLocked") });
     renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={meDto()} api={api} />);
+    await openAppearance();
     await userEvent.click(screen.getByRole("radio", { name: "English" }));
     expect(await screen.findByRole("radio", { name: "Español", checked: true })).toBeInTheDocument();
     expect(document.cookie).not.toContain("hearth.locale");
@@ -80,7 +99,7 @@ describe("settings: region, theme and language (HU-E9-13)", () => {
     expect(await requests[0]!.json()).toEqual({ timezone: "America/Bogota" });
   });
 
-  it("shows a locked zone and a locked language read-only", () => {
+  it("shows a locked zone and a locked language read-only", async () => {
     const base = meDto();
     const locked = {
       ...base,
@@ -88,6 +107,7 @@ describe("settings: region, theme and language (HU-E9-13)", () => {
     };
     renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={locked} api={fakeApi({}).api} />);
     expect(screen.getByRole("button", { name: /Zona horaria/ })).toBeDisabled();
+    await openAppearance();
     expect(screen.getByRole("radio", { name: "English" })).toBeDisabled();
     expect(screen.getByRole("radio", { name: "Oscuro" })).toBeEnabled();
   });

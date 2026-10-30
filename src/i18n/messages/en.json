@@ -277,7 +277,7 @@
     "preview": {
       "label": "This is how it will look"
     },
-    "formats": "Formats",
+    "numbersAndDates": "Numbers and dates",
     "field": {
       "numberFormat": "Numbers",
       "dateFormat": "Date",
@@ -295,10 +295,13 @@
       "MONDAY": "Monday",
       "SUNDAY": "Sunday"
     },
+    "weekStartSummary": {
+      "MONDAY": "Weeks start on Monday",
+      "SUNDAY": "Weeks start on Sunday"
+    },
     "default": "Default",
     "reset": "Reset",
     "locked": "Set by your installation",
-    "region": "Region",
     "appearance": "Appearance and language",
     "timezone": {
       "hint": "Sets the day and time of every transaction you record.",
@@ -311,7 +314,7 @@
       "dark": "Dark"
     },
     "language": {
-      "hint": "Only the texts change. The formats above do not depend on the language.",
+      "hint": "Only the texts change. The number and date formats do not depend on the language.",
       "es": "Español",
       "en": "English"
     }
