@@ -516,13 +516,12 @@ export function RecordForm({
   const whenError = errorOf("when");
   const directName = direct ? (direct.kind === "MEMBER" ? direct.name : direct.displayName) : "";
 
-  // Issue #171: Más opciones folds how a shared expense is split (who paid stays on screen) and the button that starts
-  // a split with someone; a person already chosen stays on screen. It starts open on an edit that already has a split.
-  // While the division has a problem (the API's, or a chosen split that no longer adds up and disables Save) it is
-  // open and offers no Menos opciones, so the problem cannot be folded away.
+  // Issue #171: Más opciones folds how a shared expense is split (who paid stays on screen). It starts open on an edit
+  // that already has a split. While the division has a problem (the API's, or a chosen split that no longer adds up and
+  // disables Save) it is open and offers no Menos opciones, so the problem cannot be folded away. U11 (#222): the split
+  // with someone is a row of the details instead, never folded; a person already chosen stays on screen.
   const foldsShared = Boolean(sharedExpense && shared && split);
   const foldsDirect = canSplit && !direct;
-  const foldable = foldsShared || foldsDirect;
   const sharedError = errorOf("split") ?? errorOf("payer");
   const divisionNeedsLook =
     foldsShared &&
@@ -592,6 +591,21 @@ export function RecordForm({
                     t("form.chooseCategory"),
                     <SymbolIcon name="tag" size={16} />,
                   )}
+              {/* U11 (#222): under the category, the way to split the expense with someone; a chosen person replaces it. */}
+              {foldsDirect ? (
+                <li>
+                  <FormRow
+                    name={t("direct.shared")}
+                    value={t("direct.open")}
+                    icon={<Icon name="userPlus" size={16} />}
+                    ariaLabel={t("direct.row")}
+                    onClick={() => {
+                      setDirectOpened(true);
+                      setDirectOpen(true);
+                    }}
+                  />
+                </li>
+              ) : null}
               {/* A shared expense names who paid instead of one account, in its own row below (P168). */}
               {foldsShared
                 ? null
@@ -668,10 +682,10 @@ export function RecordForm({
               placeholder={t("form.descriptionPlaceholder")}
               error={errorOf("description")}
             />
-            {foldable ? (
+            {foldsShared ? (
               <div className="flex flex-col gap-3">
                 {/* Who paid stays on screen; only the division row folds (issue #171). Never unmounted (P167). */}
-                {foldsShared && shared && split ? (
+                {shared && split ? (
                   <SharedFields
                     context={shared}
                     draft={split}
@@ -694,7 +708,7 @@ export function RecordForm({
                   <button
                     type="button"
                     aria-expanded={moreOpen}
-                    aria-controls={foldsShared ? "record-more-split" : "record-more"}
+                    aria-controls="record-more-split"
                     onClick={() => setMoreOpen((open) => !open)}
                     className="flex min-h-11 items-center gap-1 self-start rounded-lg px-1 text-sm font-medium text-accent"
                   >
@@ -706,21 +720,6 @@ export function RecordForm({
                     />
                   </button>
                 )}
-                {foldsDirect ? (
-                  <div id="record-more" hidden={!moreOpen} className="flex flex-col gap-3">
-                    <Button
-                      variant="secondary"
-                      className="self-start"
-                      onClick={() => {
-                        setDirectOpened(true);
-                        setDirectOpen(true);
-                      }}
-                    >
-                      <Icon name="userPlus" size={20} />
-                      {t("direct.open")}
-                    </Button>
-                  </div>
-                ) : null}
               </div>
             ) : null}
             {canSplit && direct ? (

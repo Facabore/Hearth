@@ -137,7 +137,6 @@ describe("record form in edit mode (ruling P191)", () => {
         api={api}
       />,
     );
-    await userEvent.click(screen.getByRole("button", { name: "Más opciones" }));
     expect(screen.getByRole("button", { name: /Dividir con alguien/ })).toBeInTheDocument();
     expect(screen.getByRole("tablist")).toBeInTheDocument();
   });

@@ -324,8 +324,7 @@ for (const colorScheme of ["light", "dark"] as const) {
 
       await page.goto(`/spaces/${ids.personal}/new`);
       await expect(page.locator("[data-ready='true']")).toBeAttached();
-      await page.getByRole("button", { name: es.ledger.form.moreOptions }).click();
-      await page.getByRole("button", { name: es.ledger.direct.open }).click();
+      await page.getByRole("button", { name: es.ledger.direct.row }).click();
       await scan("split with someone sheet");
       await page.keyboard.press("Escape");
 

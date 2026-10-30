@@ -869,6 +869,8 @@
     },
     "direct": {
       "open": "Split with someone",
+      "shared": "Did you share it?",
+      "row": "Did you share it? Split with someone",
       "title": "Split with someone",
       "intro": "The expense goes to a space for just the two of you. If it exists it is reused; if not, it is created in {currency}, the currency of your space {space}.",
       "people": "People you share a space with",

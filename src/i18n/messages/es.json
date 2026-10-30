@@ -869,6 +869,8 @@
     },
     "direct": {
       "open": "Dividir con alguien",
+      "shared": "¿Lo compartiste?",
+      "row": "¿Lo compartiste? Dividir con alguien",
       "title": "Dividir con alguien",
       "intro": "El gasto queda en un espacio solo para ustedes dos. Si ya existe, se usa el mismo; si no, se crea en {currency}, la moneda de tu espacio {space}.",
       "people": "Personas con las que compartes un espacio",
