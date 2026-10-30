@@ -52,6 +52,8 @@ describe("CreateGuestClaim (HU-E1-11)", () => {
         status: "PENDING",
         createdAt: created,
         expiresAt: new Date(created.getTime() + 7 * DAY),
+        singleUse: true,
+        uses: null,
       },
       url: "https://hearth.test/claims/token-1",
       emailSent: false,

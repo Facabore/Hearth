@@ -1,5 +1,6 @@
 import {
   effectiveStatus,
+  isSingleUse,
   type InvitableRole,
   type Invitation,
   type InvitationKind,
@@ -17,6 +18,13 @@ export interface InvitationView {
   readonly status: InvitationStatus;
   readonly createdAt: Date;
   readonly expiresAt: Date;
+  /** #218, ruling P264: whether it admits one person only (email invitations, claim links, ADMIN links). */
+  readonly singleUse: boolean;
+  /**
+   * #218, ruling P264: how many people joined through a link invitation, as recorded since #218; null for email
+   * invitations and claim links.
+   */
+  readonly uses: number | null;
 }
 
 export const toInvitationView = (invitation: Invitation, now: Date): InvitationView => ({
@@ -28,4 +36,6 @@ export const toInvitationView = (invitation: Invitation, now: Date): InvitationV
   status: effectiveStatus(invitation, now),
   createdAt: invitation.createdAt,
   expiresAt: invitation.expiresAt,
+  singleUse: isSingleUse(invitation),
+  uses: invitation.kind === "LINK" ? invitation.joins.length : null,
 });

@@ -141,6 +141,13 @@
       "when": 1792466986138,
       "tag": "0019_account_style_vocabulary",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793388973742,
+      "tag": "0020_invitation_uses",
+      "breakpoints": true
     }
   ]
 }

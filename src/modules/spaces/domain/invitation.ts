@@ -13,6 +13,12 @@ export type InvitableRole = Exclude<SpaceRole, "OWNER">;
 /** Who may accept: one email address, or anyone holding the link. */
 export type InvitationTarget = { readonly kind: "EMAIL"; readonly email: string } | { readonly kind: "LINK" };
 
+/** #218, ruling P264: someone who joined a space through an invitation, recorded once per person. */
+export interface InvitationJoin {
+  readonly userId: string;
+  readonly joinedAt: Date;
+}
+
 /** HU-E1-06: invitations expire 7 days after creation. */
 export const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -34,6 +40,11 @@ export interface Invitation {
   readonly acceptedAt: Date | null;
   readonly acceptedByUserId: string | null;
   readonly revokedAt: Date | null;
+  /**
+   * #218, ruling P264: who joined through it, oldest first, one entry per person. Recorded since #218 only, so a
+   * link created before it may have been used by people it does not list.
+   */
+  readonly joins: readonly InvitationJoin[];
 }
 
 /** HU-E1-06: a pending invitation for one address or for a shareable link, valid 7 days. */
@@ -68,6 +79,7 @@ export const issueInvitation = (input: {
     acceptedAt: null,
     acceptedByUserId: null,
     revokedAt: null,
+    joins: [],
   };
   return ok(invitation);
 };
@@ -78,13 +90,25 @@ export const effectiveStatus = (invitation: Invitation, now: Date): InvitationSt
     ? "EXPIRED"
     : invitation.status;
 
-/** HU-E1-07: what keeps `acceptor` from accepting; revocation and use are reported before expiry. */
+/**
+ * HU-E1-07, HU-E1-11, #218 (ruling P264): email invitations, claim links and links granting ADMIN admit one person;
+ * MEMBER and VIEWER links admit anyone holding them until they expire or are revoked.
+ */
+export const isSingleUse = (invitation: Invitation): boolean =>
+  invitation.kind !== "LINK" || invitation.role === "ADMIN";
+
+/**
+ * HU-E1-07: what keeps `acceptor` from accepting; revocation and use are reported before expiry. A single-use
+ * invitation is used once it is ACCEPTED or anyone joined through it (#218, ruling P264).
+ */
 export const ensureAcceptable = (
   invitation: Invitation,
   acceptor: { readonly email: string; readonly now: Date },
 ): Result<void> => {
   if (invitation.status === "REVOKED") return err(domainError("InvitationRevoked"));
-  if (invitation.status === "ACCEPTED") return err(domainError("InvitationAlreadyUsed"));
+  if (invitation.status === "ACCEPTED" || (isSingleUse(invitation) && invitation.joins.length > 0)) {
+    return err(domainError("InvitationAlreadyUsed"));
+  }
   if (effectiveStatus(invitation, acceptor.now) === "EXPIRED") return err(domainError("InvitationExpired"));
   if (invitation.email !== null && invitation.email !== normalizedEmail(acceptor.email)) {
     return err(domainError("InvitationEmailMismatch"));
@@ -93,13 +117,20 @@ export const ensureAcceptable = (
 };
 
 /**
- * HU-E1-07, HU-E1-11: email invitations and claim links are single-use; link invitations stay valid
- * until expiry or revocation.
+ * HU-E1-07, HU-E1-11, #218 (ruling P264): `userId` used the invitation at `now`. Whoever joins a space through an
+ * email invitation or a link is recorded once (a person who left and joins again keeps their first join); a claim
+ * link hands over a guest's place, so nobody joins through it. Single-use invitations are used up: ACCEPTED by
+ * `userId`; MEMBER and VIEWER links stay pending until they expire or are revoked.
  */
-export const markAccepted = (invitation: Invitation, userId: string, now: Date): Invitation =>
-  invitation.kind === "LINK"
-    ? invitation
-    : { ...invitation, status: "ACCEPTED", acceptedAt: now, acceptedByUserId: userId };
+export const markAccepted = (invitation: Invitation, userId: string, now: Date): Invitation => {
+  const joins =
+    isClaim(invitation) || invitation.joins.some((j) => j.userId === userId)
+      ? invitation.joins
+      : [...invitation.joins, { userId, joinedAt: now }];
+  return isSingleUse(invitation)
+    ? { ...invitation, joins, status: "ACCEPTED", acceptedAt: now, acceptedByUserId: userId }
+    : { ...invitation, joins };
+};
 
 /** HU-E1-06: revoke a pending (or expired) invitation; revoking twice changes nothing. */
 export const revokeInvitation = (invitation: Invitation, now: Date): Result<Invitation> => {
@@ -144,6 +175,7 @@ export const issueClaim = (input: {
     acceptedAt: null,
     acceptedByUserId: null,
     revokedAt: null,
+    joins: [],
   };
   return ok(claim);
 };

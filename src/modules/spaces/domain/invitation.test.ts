@@ -6,6 +6,7 @@ import {
   ensureClaimable,
   isClaim,
   issueClaim,
+  isSingleUse,
   issueInvitation,
   markAccepted,
   revokeInvitation,
@@ -36,6 +37,11 @@ const valid = (target: InvitationTarget): Invitation => {
 };
 const toJuan = valid({ kind: "EMAIL", email: " Juan@Example.com " });
 const link = valid({ kind: "LINK" });
+const adminLink = (() => {
+  const result = issue({ kind: "LINK" }, "ADMIN");
+  if (!result.ok) throw new Error(result.error.code);
+  return result.value;
+})();
 const revoked = (invitation: Invitation): Invitation => {
   const result = revokeInvitation(invitation, at(DAY));
   if (!result.ok) throw new Error(result.error.code);
@@ -59,6 +65,7 @@ describe("issuing invitations (HU-E1-06)", () => {
       acceptedAt: null,
       acceptedByUserId: null,
       revokedAt: null,
+      joins: [],
     });
   });
 
@@ -122,12 +129,66 @@ describe("accepting (HU-E1-07)", () => {
     );
   });
 
-  it("keeps a link invitation usable by anyone until it expires", () => {
-    expect(markAccepted(link, "u-juan", at(DAY))).toBe(link);
+  it("keeps a link invitation usable by anyone until it expires, and records each person who joined once", () => {
+    const used = markAccepted(markAccepted(link, "u-juan", at(DAY)), "u-luis", at(2 * DAY));
+    expect(used).toMatchObject({ status: "PENDING", acceptedAt: null, acceptedByUserId: null });
+    expect(used.joins).toEqual([
+      { userId: "u-juan", joinedAt: at(DAY) },
+      { userId: "u-luis", joinedAt: at(2 * DAY) },
+    ]);
+    // Joining again (after leaving) is the same person: the first join stays the only one.
+    expect(markAccepted(used, "u-juan", at(3 * DAY)).joins).toEqual(used.joins);
+    expect(code(ensureAcceptable(used, { email: "anyone@example.com", now: at(DAY) }))).toBe("ok");
     expect(code(ensureAcceptable(link, { email: "anyone@example.com", now: at(DAY) }))).toBe("ok");
     expect(code(ensureAcceptable(link, { email: "anyone@example.com", now: at(7 * DAY) }))).toBe(
       "InvitationExpired",
     );
+  });
+});
+
+describe("ADMIN links are single use (#218, ruling P264)", () => {
+  it("tells single-use invitations apart: email, claim and ADMIN links are; MEMBER and VIEWER links are not", () => {
+    expect(isSingleUse(toJuan)).toBe(true);
+    expect(isSingleUse(adminLink)).toBe(true);
+    expect(isSingleUse(link)).toBe(false);
+    const viewerLink = issue({ kind: "LINK" }, "VIEWER");
+    expect(viewerLink.ok && isSingleUse(viewerLink.value)).toBe(false);
+  });
+
+  it("is used up by its first join: marked ACCEPTED by that person, so a second person is refused", () => {
+    const used = markAccepted(adminLink, "u-juan", at(DAY));
+    expect(used).toMatchObject({
+      status: "ACCEPTED",
+      acceptedAt: at(DAY),
+      acceptedByUserId: "u-juan",
+      joins: [{ userId: "u-juan", joinedAt: at(DAY) }],
+    });
+    expect(code(ensureAcceptable(used, { email: "luis@example.com", now: at(DAY) }))).toBe(
+      "InvitationAlreadyUsed",
+    );
+  });
+
+  it("refuses an ADMIN link with a recorded join even while its stored status is still PENDING", () => {
+    // Whatever wrote the join without the status, a join alone is enough to stop a single-use link.
+    const joined: Invitation = { ...adminLink, joins: [{ userId: "u-juan", joinedAt: at(DAY) }] };
+    expect(code(ensureAcceptable(joined, { email: "luis@example.com", now: at(DAY) }))).toBe(
+      "InvitationAlreadyUsed",
+    );
+  });
+
+  it("still reports a revoked ADMIN link as revoked, and an unused one as acceptable until it expires", () => {
+    expect(code(ensureAcceptable(adminLink, { email: "luis@example.com", now: at(DAY) }))).toBe("ok");
+    expect(code(ensureAcceptable(adminLink, { email: "luis@example.com", now: at(7 * DAY) }))).toBe(
+      "InvitationExpired",
+    );
+    expect(code(ensureAcceptable(revoked(adminLink), { email: "luis@example.com", now: at(DAY) }))).toBe(
+      "InvitationRevoked",
+    );
+  });
+
+  it("records no join on a claim link: it hands over a guest's place, nobody joins through it", () => {
+    const claim: Invitation = { ...link, kind: "CLAIM", guestMemberId: "member-pedro" };
+    expect(markAccepted(claim, "u-pedro", at(DAY))).toMatchObject({ status: "ACCEPTED", joins: [] });
   });
 });
 
@@ -190,6 +251,7 @@ describe("claim links (HU-E1-11)", () => {
       acceptedAt: null,
       acceptedByUserId: null,
       revokedAt: null,
+      joins: [],
     });
   });
 

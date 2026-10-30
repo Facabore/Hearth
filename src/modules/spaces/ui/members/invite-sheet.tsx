@@ -149,7 +149,7 @@ export function InviteSheet({
               id="invite-url"
               label={t("linkLabel")}
               value={result.url}
-              note={t("linkNote", {
+              note={t(result.invitation.singleUse ? "linkNoteSingle" : "linkNote", {
                 role: roles(result.invitation.role),
                 date: formatDate(localDateIn(new Date(result.invitation.expiresAt), viewerZone), formats),
               })}

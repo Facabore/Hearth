@@ -5,11 +5,12 @@ import { SystemClock } from "@/shared/infrastructure/system-clock";
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
 import { FixedClock, type Result } from "@/shared/kernel";
 import { testDatabase } from "../../../../tests/support/database";
+import { bothSettled, heldBy, holder } from "../../../../tests/support/locks";
 import { guestMemberFixture, sharedSpaceFixture, userFixture } from "../../../../tests/support/fixtures";
 import { createAcceptInvitation } from "../application/accept-invitation";
 import { createClaimGuestPlace } from "../application/claim-guest-place";
 import { createInvitationAdmitsSignUp } from "../application/invitation-admits-sign-up";
-import type { ClaimsDeps } from "../application/invitation-ports";
+import type { ClaimsDeps, InvitationsDeps } from "../application/invitation-ports";
 import type { ClaimLinkRepository } from "../application/invitation-repository";
 import { createSpaceAccess } from "../application/space-access";
 import {
@@ -19,7 +20,7 @@ import {
   type InvitationId,
   type InvitationTarget,
 } from "../domain/invitation";
-import type { Space, SpaceMemberId } from "../domain/space";
+import type { Space, SpaceMemberId, SpaceRole } from "../domain/space";
 import { cryptoInvitationTokens } from "./crypto-invitation-tokens";
 import { DrizzleInvitationRepository } from "./drizzle-invitation-repository";
 import { DrizzleSpaceRepository } from "./drizzle-space-repository";
@@ -31,13 +32,19 @@ const repo = new DrizzleInvitationRepository(tm);
 
 const newUser = (name: string) => userFixture(pool, name);
 const household = (ownerId: string) => sharedSpaceFixture(db, ownerId);
-const invite = async (space: Space, createdBy: string, target: InvitationTarget, now = new Date()) => {
+const invite = async (
+  space: Space,
+  createdBy: string,
+  target: InvitationTarget,
+  now = new Date(),
+  role: SpaceRole = "MEMBER",
+) => {
   const { token, hash } = cryptoInvitationTokens.issue();
   const invitation = issueInvitation({
     id: randomUUID() as InvitationId,
     spaceId: space.id,
     target,
-    role: "MEMBER",
+    role,
     tokenHash: hash,
     createdBy,
     now,
@@ -157,6 +164,51 @@ describe("DrizzleInvitationRepository (HU-E1-06, HU-E1-07)", () => {
     expect(await repo.listPending("not-a-uuid", now)).toEqual([]);
   });
 
+  it("records who joined through a link once per person, and reads them back with it from every finder (#218, ruling P264)", async () => {
+    const ana = await newUser("Ana");
+    const juan = await newUser("Juan");
+    const luis = await newUser("Luis");
+    const space = await household(ana.id);
+    const issued = new Date("2026-10-12T12:00:00Z");
+    const { token, invitation } = await invite(space, ana.id, { kind: "LINK" }, issued);
+    const first = markAccepted(invitation, juan.id, new Date("2026-10-12T13:00:00Z"));
+    await repo.save(first);
+    const both = markAccepted(first, luis.id, new Date("2026-10-12T14:00:00Z"));
+    await repo.save(both);
+    // Saving again (a revocation saves the whole invitation) records nobody twice.
+    await repo.save(both);
+    expect(both.joins).toEqual([
+      { userId: juan.id, joinedAt: new Date("2026-10-12T13:00:00Z") },
+      { userId: luis.id, joinedAt: new Date("2026-10-12T14:00:00Z") },
+    ]);
+    const hash = cryptoInvitationTokens.hash(token);
+    expect(await repo.findByTokenHashForUpdate(hash)).toEqual(both);
+    expect(await repo.findByTokenHash(hash)).toEqual(both);
+    expect(await repo.findForUpdate(space.id, invitation.id)).toEqual(both);
+    expect(await repo.listPending(space.id, new Date("2026-10-13T00:00:00Z"))).toEqual([both]);
+    const { rows } = await pool.query(
+      "SELECT user_id, joined_at FROM space_invitation_uses WHERE invitation_id = $1 ORDER BY joined_at",
+      [invitation.id],
+    );
+    expect(rows).toEqual([
+      { user_id: juan.id, joined_at: new Date("2026-10-12T13:00:00Z") },
+      { user_id: luis.id, joined_at: new Date("2026-10-12T14:00:00Z") },
+    ]);
+  });
+
+  it("refuses a recorded use that names no invitation, or the same person twice for one invitation", async () => {
+    const ana = await newUser("Ana");
+    const { invitation } = await invite(await household(ana.id), ana.id, { kind: "LINK" });
+    const use = (invitationId: string) =>
+      pool.query(
+        "INSERT INTO space_invitation_uses (invitation_id, user_id, joined_at) VALUES ($1, $2, now())",
+        [invitationId, ana.id],
+      );
+    await expect(use(randomUUID())).rejects.toThrow(/space_invitation_uses_invitation_id/);
+    await use(invitation.id);
+    await expect(use(invitation.id)).rejects.toThrow(/space_invitation_uses_invitation_id_user_id_pk/);
+  });
+
   it("finds an invitation by token hash without locking it, and names its space (P156)", async () => {
     const ana = await newUser("Ana");
     const space = await household(ana.id);
@@ -236,6 +288,98 @@ describe("AcceptInvitation against PostgreSQL (Review Focus 2)", () => {
     expect(codes([await accept(input)])).toEqual(["DirectSpaceIsFull"]);
     expect(await membershipRows(space.id, juan.id)).toBe(0);
     expect(await repo.findForUpdate(space.id, invitation.id)).toMatchObject({ status: "PENDING" });
+  });
+});
+
+describe("single-use ADMIN links against PostgreSQL (#218, ruling P264)", () => {
+  const issued = new Date("2026-10-14T12:00:00Z");
+  const depsWith = (members: InvitationsDeps["members"]) => ({
+    access: createSpaceAccess(spaces),
+    members,
+    spaces,
+    invitations: repo,
+    tokens: cryptoInvitationTokens,
+    ids: new UuidV7IdGenerator(),
+    // An hour after the link was issued, so it is valid whatever day the suite runs.
+    clock: new FixedClock(new Date("2026-10-14T13:00:00Z")),
+    tm,
+  });
+  const accept = createAcceptInvitation(depsWith(spaces));
+  const asInput = (u: { id: string; email: string; name: string }, token: string) => ({
+    token,
+    userId: u.id,
+    userEmail: u.email,
+    userName: u.name,
+  });
+  const admins = async (spaceId: string) =>
+    (
+      await pool.query(
+        "SELECT user_id FROM space_members WHERE space_id = $1 AND role = 'ADMIN' AND left_at IS NULL",
+        [spaceId],
+      )
+    ).rows.map((r) => r.user_id as string);
+  const usesOf = async (invitationId: string) =>
+    (
+      await pool.query("SELECT user_id FROM space_invitation_uses WHERE invitation_id = $1", [invitationId])
+    ).rows.map((r) => r.user_id as string);
+
+  it("lets one person in, marks the link ACCEPTED by them with their use, and refuses the next", async () => {
+    const ana = await newUser("Ana");
+    const juan = await newUser("Juan");
+    const luis = await newUser("Luis");
+    const space = await household(ana.id);
+    const { token, invitation } = await invite(space, ana.id, { kind: "LINK" }, issued, "ADMIN");
+    expect(codes([await accept(asInput(juan, token))])).toEqual(["ok"]);
+    expect(codes([await accept(asInput(luis, token))])).toEqual(["InvitationAlreadyUsed"]);
+    expect(await admins(space.id)).toEqual([juan.id]);
+    expect(await usesOf(invitation.id)).toEqual([juan.id]);
+    expect(await repo.findForUpdate(space.id, invitation.id)).toMatchObject({
+      status: "ACCEPTED",
+      acceptedByUserId: juan.id,
+    });
+  });
+
+  it("refuses the next person once a use is recorded, even on a link whose stored status is still PENDING", async () => {
+    const ana = await newUser("Ana");
+    const juan = await newUser("Juan");
+    const luis = await newUser("Luis");
+    const space = await household(ana.id);
+    const { token, invitation } = await invite(space, ana.id, { kind: "LINK" }, issued, "ADMIN");
+    // A use row on a link still PENDING: the domain rule, not the stored status, keeps the second person out.
+    await pool.query(
+      "INSERT INTO space_invitation_uses (invitation_id, user_id, joined_at) VALUES ($1, $2, $3)",
+      [invitation.id, juan.id, issued],
+    );
+    expect(codes([await accept(asInput(luis, token))])).toEqual(["InvitationAlreadyUsed"]);
+    expect(await admins(space.id)).toEqual([]);
+    expect((await repo.findForUpdate(space.id, invitation.id))?.status).toBe("PENDING");
+  });
+
+  it("lets exactly one of two people accepting the same ADMIN link at the same time in; the other waits on the link's lock", async () => {
+    const ana = await newUser("Ana");
+    const juan = await newUser("Juan");
+    const luis = await newUser("Luis");
+    const space = await household(ana.id);
+    const { token, invitation } = await invite(space, ana.id, { kind: "LINK" }, issued, "ADMIN");
+    const h = holder(tm, pool);
+    // The first acceptance stops after it read the locked link and the members, until the second queues behind it.
+    const holding: InvitationsDeps["members"] = Object.assign(
+      Object.create(spaces) as DrizzleSpaceRepository,
+      {
+        listCurrent: async (...args: Parameters<DrizzleSpaceRepository["listCurrent"]>) => {
+          const current = await spaces.listCurrent(...args);
+          await h.hold();
+          return current;
+        },
+      },
+    );
+    const first = createAcceptInvitation(depsWith(holding))(asInput(juan, token));
+    await heldBy(h, first);
+    const second = accept(asInput(luis, token)).finally(h.release);
+    const [byJuan, byLuis] = await bothSettled(first, second);
+    expect([codes([byJuan]), codes([byLuis])]).toEqual([["ok"], ["InvitationAlreadyUsed"]]);
+    expect(await admins(space.id)).toEqual([juan.id]);
+    expect(await usesOf(invitation.id)).toEqual([juan.id]);
   });
 });
 

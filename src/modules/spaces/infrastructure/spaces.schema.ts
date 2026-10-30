@@ -1,5 +1,15 @@
 import { sql } from "drizzle-orm";
-import { check, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import {
+  check,
+  index,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { user } from "@/modules/identity/infrastructure/auth.schema";
 import type { PeriodPolicy } from "@/shared/kernel";
 
@@ -102,5 +112,25 @@ export const spaceInvitations = pgTable(
     // HU-E1-11: claim links, and only they, name a guest; they are stored as MEMBER.
     check("space_invitations_claim_guest", sql`(${t.kind} = 'CLAIM') = (${t.guestMemberId} IS NOT NULL)`),
     check("space_invitations_claim_role", sql`${t.kind} <> 'CLAIM' OR ${t.role} = 'MEMBER'`),
+  ],
+);
+
+// #218, ruling P264: who joined a space through an invitation, one row per person; written under the invitation's
+// row lock by AcceptInvitation. A single-use (ADMIN) link with a row admits nobody else. Rows are only ever added.
+export const spaceInvitationUses = pgTable(
+  "space_invitation_uses",
+  {
+    invitationId: uuid("invitation_id")
+      .notNull()
+      .references(() => spaceInvitations.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    joinedAt: tz("joined_at").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.invitationId, t.userId] }),
+    // Foreign key to user: deleting a user finds their uses without a scan.
+    index("space_invitation_uses_user_id_idx").on(t.userId),
   ],
 );
