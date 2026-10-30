@@ -94,4 +94,28 @@ describe("ChoiceGroup", () => {
     await userEvent.click(radio("Pear"));
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it("takes its name from a visible heading and explains each option of a list on its own line (#224, F16)", async () => {
+    render(
+      <>
+        <h3 id="where">¿De dónde sale?</h3>
+        <ChoiceGroup<Fruit>
+          label="Fruit"
+          labelledBy="where"
+          layout="list"
+          value="pear"
+          onValueChange={vi.fn()}
+          options={[
+            { value: "apple", label: "Apple", description: "Crunchy and sweet." },
+            { value: "pear", label: "Pear", description: "Soft and juicy." },
+          ]}
+        />
+      </>,
+    );
+    expect(screen.getByRole("radiogroup", { name: "¿De dónde sale?" })).toBeInTheDocument();
+    expect(radio("Pear")).toBeChecked();
+    expect(radio("Pear")).toHaveAccessibleDescription("Soft and juicy.");
+    expect(radio("Apple")).toHaveAccessibleDescription("Crunchy and sweet.");
+    expect(screen.getByText("Soft and juicy.")).toBeVisible();
+  });
 });

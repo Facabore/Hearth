@@ -1177,11 +1177,11 @@
         "planned": "Planned",
         "plannedHint": "{share} of what is put in · {unallocated} left to assign",
         "plannedNewHint": "Left to assign: {unallocated}",
-        "funding": "Where it comes from",
+        "funding": "Where does it come from?",
         "savingsAccounts": "Savings accounts",
         "otherAccount": "Another member's savings account",
         "noSavingsAccounts": "You have no savings accounts in {currency}. Create one in Accounts.",
-        "rollover": "When the period changes",
+        "rollover": "When the month changes",
         "catchAll": "Everything else",
         "catchAllHint": "Takes the expenses of categories that are in no other line."
       },
@@ -1194,7 +1194,16 @@
         "explain": "The line leaves the plan, and its expenses go to Unbudgeted or to the everything-else line.",
         "confirm": "Remove"
       },
-      "readOnly": "Only an Owner or an Admin edits the lines of an open plan."
+      "readOnly": "Only an Owner or an Admin edits the lines of an open plan.",
+      "fundingHint": {
+        "DIRECT": "Whoever makes the expense pays it from their own account.",
+        "SHARED_FUND": "Paid with the money each one puts into the shared fund.",
+        "SAVINGS": "Set aside in a savings account instead of being spent."
+      },
+      "more": {
+        "open": "More options",
+        "summary": "{rollover} · {allocation}"
+      }
     },
     "mapping": {
       "label": "Categories",

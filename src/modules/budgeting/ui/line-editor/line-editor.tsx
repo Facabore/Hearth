@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Button,
   ChoiceGroup,
@@ -75,10 +75,35 @@ function FieldError({ id, children }: { readonly id: string; readonly children: 
 }
 
 /**
- * HU-E9-08, the LineEditor artboard (rulings P210 to P213): a line's name, planned amount, funding, rollover and
- * catch-all switch, then its categories and who answers for it (the allocation, with its preview). An existing line
- * also shows what was planned, spent and left, and can be removed after a confirmation. Saving sends the steps that
- * have something to send, in order, each with the `If-Match` of the plan the step before answered.
+ * Decision U5 (#224): what "Más opciones" holds, said while it is folded. Each part is the draft's real value, never a
+ * default: the rollover mode, then the allocation rule or each member's value as typed ("Empieza de cero · 42 % / 58 %").
+ * A personal line answers to its one member, so it has no allocation part.
+ */
+function foldSummary(
+  draft: AllocationDraft,
+  members: readonly SpaceMemberDto[],
+  currency: string,
+  formats: Formats,
+): string | null {
+  if (draft.rule !== "PERCENT" && draft.rule !== "FIXED") return null;
+  const exponent = currencyOf(currency).exponent;
+  return members
+    .map((member) => {
+      const decimal = parseDecimal(draft.values[member.id] ?? "", formats.numberFormat);
+      if (decimal === null) return "—";
+      if (draft.rule === "PERCENT") return formatPercent(decimal, formats);
+      const minor = minorOf(decimal, exponent);
+      return minor === null ? "—" : formatMoney({ amount: minor, currency }, formats);
+    })
+    .join(" / ");
+}
+
+/**
+ * HU-E9-08, the LineEditor artboard (rulings P210 to P213): a line's name, planned amount, funding and categories with
+ * the catch-all switch. Decision U5 (#224) folds the rollover and who answers for it (the allocation, with its preview)
+ * under "Más opciones", whose summary shows their current values. An existing line also shows what was planned, spent
+ * and left, and can be removed after a confirmation. Saving sends the steps that have something to send, in order,
+ * each with the `If-Match` of the plan the step before answered.
  */
 export function LineEditor({
   space,
@@ -109,6 +134,7 @@ export function LineEditor({
   const tReports = useTranslations("reports.lines");
   const tMapping = useTranslations("budgeting.mapping");
   const tAllocation = useTranslations("budgeting.allocation");
+  const tRule = useTranslations("budgeting.rule");
   const router = useRouter();
   const messageOf = useProblemMessage();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
@@ -125,6 +151,9 @@ export function LineEditor({
     allocationDraftOf(line, formats),
   );
   const [mapping, setMapping] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  /** A blocked save opens the fold, and the allocation takes focus once it is on screen. */
+  const focusAllocation = useRef(false);
   const [fieldError, setFieldError] = useState<{ field: LineField; text: string } | null>(null);
   const [sectionError, setSectionError] = useState<{ section: LineSection; text: string } | null>(null);
   const [formProblem, setFormProblem] = useState<Problem | null>(null);
@@ -137,6 +166,11 @@ export function LineEditor({
   const [stored, setStored] = useState<PlanLineDto | null>(line);
   const inFlight = useRef(false);
   const allocationSection = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!moreOpen || !focusAllocation.current) return;
+    focusAllocation.current = false;
+    allocationSection.current?.focus();
+  }, [moreOpen]);
 
   const currency = plan.totalCapacity.currency;
   const lineId = stored?.id ?? null;
@@ -204,7 +238,11 @@ export function LineEditor({
       !personal &&
       (preview.kind === "invalid" || preview.kind === "noCapacity" || preview.kind === "unreadable")
     ) {
-      allocationSection.current?.focus();
+      if (moreOpen) allocationSection.current?.focus();
+      else {
+        focusAllocation.current = true;
+        setMoreOpen(true);
+      }
       return;
     }
     const allocation = allocationBodyOf(
@@ -242,9 +280,11 @@ export function LineEditor({
       if (outcome.lineId !== null)
         setStored(outcome.plan.lines.find((other) => other.id === outcome.lineId) ?? stored);
       if (outcome.problem.code === "PreconditionFailed") await conflict(outcome.problem);
-      else if (outcome.section !== "line")
+      else if (outcome.section !== "line") {
         setSectionError({ section: outcome.section, text: messageOf(outcome.problem).message });
-      else {
+        // A refused allocation speaks in its own section, so the fold opens to show it.
+        if (outcome.section === "allocation") setMoreOpen(true);
+      } else {
         const field = lineFieldOf(outcome.problem);
         if (field === "form") setFormProblem(outcome.problem);
         else setFieldError({ field, text: messageOf(outcome.problem).message });
@@ -279,6 +319,13 @@ export function LineEditor({
   });
   const categoriesError = sectionError?.section === "categories" ? sectionError.text : undefined;
   const allocationError = sectionError?.section === "allocation" ? sectionError.text : undefined;
+  const allocationSummary = personal
+    ? null
+    : (foldSummary(allocationDraft, members, currency, formats) ?? tRule(allocationDraft.rule));
+  const summary =
+    allocationSummary === null
+      ? tRollover(draft.rolloverMode)
+      : t("more.summary", { rollover: tRollover(draft.rolloverMode), allocation: allocationSummary });
 
   return (
     <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4 py-4">
@@ -353,16 +400,25 @@ export function LineEditor({
           error={planned}
         />
 
-        <ChoiceGroup
-          label={t("field.funding")}
-          value={draft.funding}
-          // #170: a personal space has no shared fund, so its lines are paid directly or saved.
-          options={FUNDINGS.filter((value) => !personal || value !== "SHARED_FUND").map((value) => ({
-            value,
-            label: tFunding(value),
-          }))}
-          onValueChange={(funding) => change({ funding })}
-        />
+        {/* U5 and F16 (#224): a visible heading names the choice, and each option says what it means. */}
+        <div className="flex flex-col gap-2">
+          <h2 id={`${ids}-funding`} className="text-base font-semibold text-ink">
+            {t("field.funding")}
+          </h2>
+          <ChoiceGroup
+            label={t("field.funding")}
+            labelledBy={`${ids}-funding`}
+            layout="list"
+            value={draft.funding}
+            // #170: a personal space has no shared fund, so its lines are paid directly or saved.
+            options={FUNDINGS.filter((value) => !personal || value !== "SHARED_FUND").map((value) => ({
+              value,
+              label: tFunding(value),
+              description: t(`fundingHint.${value}`),
+            }))}
+            onValueChange={(funding) => change({ funding })}
+          />
+        </div>
 
         {savings ? (
           <fieldset
@@ -399,33 +455,6 @@ export function LineEditor({
           </fieldset>
         ) : null}
 
-        <div className="flex flex-col gap-1.5">
-          <ChoiceGroup
-            label={t("field.rollover")}
-            value={draft.rolloverMode}
-            options={ROLLOVERS.map((value) => ({ value, label: tRollover(value) }))}
-            onValueChange={(rolloverMode) => change({ rolloverMode })}
-            describedBy="line-rollover-hint"
-          />
-          <p id="line-rollover-hint" className="text-sm text-muted">
-            {tRollover(`hint.${draft.rolloverMode}`)}
-            {draft.rolloverMode === "RESET" ? "" : ` ${tRollover("throughCopy")}`}
-          </p>
-        </div>
-
-        {!savings ? (
-          <div className="flex flex-col gap-1">
-            <Switch
-              id={`${ids}-catch-all`}
-              label={t("field.catchAll")}
-              description={t("field.catchAllHint")}
-              checked={draft.isCatchAll}
-              onCheckedChange={(isCatchAll) => change({ isCatchAll }, "catchAll")}
-            />
-            {catchAllError ? <FieldError id={`${ids}-catch-all-error`}>{catchAllError}</FieldError> : null}
-          </div>
-        ) : null}
-
         {/* Issue #182 (P256): what sits below the fold is laid out and painted only when it nears the viewport, so
             the first frame lands before the framework chunks start evaluating and Lighthouse stops counting them. Its
             paint containment clips at the padding box, so `-m-1 p-1` keeps room for the 2 px focus outline and its
@@ -459,22 +488,79 @@ export function LineEditor({
             </div>
           ) : null}
 
-          {personal ? null : (
-            <AllocationEditor
-              ref={allocationSection}
-              draft={allocationDraft}
-              onChange={(next) => {
-                setAllocationDraft(next);
-                setSectionError(null);
-              }}
-              preview={preview}
-              members={members}
-              formats={formats}
-              currency={currency}
-              planned={plannedNow}
-            />
-          )}
-          {allocationError ? <FieldError id={`${ids}-allocation-error`}>{allocationError}</FieldError> : null}
+          {!savings ? (
+            <div className="flex flex-col gap-1">
+              <Switch
+                id={`${ids}-catch-all`}
+                label={t("field.catchAll")}
+                description={t("field.catchAllHint")}
+                checked={draft.isCatchAll}
+                onCheckedChange={(isCatchAll) => change({ isCatchAll }, "catchAll")}
+              />
+              {catchAllError ? <FieldError id={`${ids}-catch-all-error`}>{catchAllError}</FieldError> : null}
+            </div>
+          ) : null}
+
+          {/* Decision U5 (#224): rollover and allocation fold under "Más opciones"; the summary under the button
+              always says their current values, so a folded money setting never hides a custom one. */}
+          <div className="flex flex-col gap-0.5">
+            <button
+              type="button"
+              aria-expanded={moreOpen}
+              aria-controls={`${ids}-more`}
+              aria-describedby={`${ids}-more-summary`}
+              onClick={() => setMoreOpen((open) => !open)}
+              className="flex min-h-11 items-center gap-1 self-start rounded-lg px-1 text-sm font-medium text-accent"
+            >
+              {t("more.open")}
+              <Icon
+                name="chevronDown"
+                size={18}
+                className={moreOpen ? "rotate-180 transition-transform" : "transition-transform"}
+              />
+            </button>
+            <p id={`${ids}-more-summary`} className="px-1 text-sm [overflow-wrap:anywhere] text-muted">
+              {summary}
+            </p>
+          </div>
+          <div id={`${ids}-more`} hidden={!moreOpen} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <h2 id={`${ids}-rollover`} className="text-base font-semibold text-ink">
+                {t("field.rollover")}
+              </h2>
+              <ChoiceGroup
+                label={t("field.rollover")}
+                labelledBy={`${ids}-rollover`}
+                value={draft.rolloverMode}
+                options={ROLLOVERS.map((value) => ({ value, label: tRollover(value) }))}
+                onValueChange={(rolloverMode) => change({ rolloverMode })}
+                describedBy={`${ids}-rollover-hint`}
+              />
+              <p id={`${ids}-rollover-hint`} className="text-sm text-muted">
+                {tRollover(`hint.${draft.rolloverMode}`)}
+                {draft.rolloverMode === "RESET" ? "" : ` ${tRollover("throughCopy")}`}
+              </p>
+            </div>
+
+            {personal ? null : (
+              <AllocationEditor
+                ref={allocationSection}
+                draft={allocationDraft}
+                onChange={(next) => {
+                  setAllocationDraft(next);
+                  setSectionError(null);
+                }}
+                preview={preview}
+                members={members}
+                formats={formats}
+                currency={currency}
+                planned={plannedNow}
+              />
+            )}
+            {allocationError ? (
+              <FieldError id={`${ids}-allocation-error`}>{allocationError}</FieldError>
+            ) : null}
+          </div>
 
           {formProblem !== null && !removing ? <ProblemNotice problem={formProblem} /> : null}
           <Button type="submit" size="lg" disabled={pending}>

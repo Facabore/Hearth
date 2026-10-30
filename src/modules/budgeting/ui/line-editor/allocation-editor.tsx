@@ -63,7 +63,8 @@ export function AllocationEditor({
       </h2>
       <ChoiceGroup
         label={t("rule")}
-        layout="grid"
+        // F16 (#224): one rule per row, so "Según aportes" and "Monto fijo" never break inside a narrow cell.
+        layout="list"
         value={draft.rule}
         options={RULES.map((value) => ({ value, label: tRule(value) }))}
         onValueChange={(rule) => onChange({ rule, values: draft.values })}

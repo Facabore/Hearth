@@ -1177,11 +1177,11 @@
         "planned": "Planeado",
         "plannedHint": "{share} de lo aportado · por repartir {unallocated}",
         "plannedNewHint": "Por repartir: {unallocated}",
-        "funding": "De dónde sale",
+        "funding": "¿De dónde sale?",
         "savingsAccounts": "Cuentas de ahorro",
         "otherAccount": "Cuenta de ahorro de otro miembro",
         "noSavingsAccounts": "No tienes cuentas de ahorro en {currency}. Crea una en Cuentas.",
-        "rollover": "Al cambiar de período",
+        "rollover": "Al cambiar de mes",
         "catchAll": "Todo lo demás",
         "catchAllHint": "Recibe los gastos de categorías que no están en otro rubro."
       },
@@ -1194,7 +1194,16 @@
         "explain": "El rubro sale del plan y sus gastos pasan a Sin presupuesto o al rubro de todo lo demás.",
         "confirm": "Quitar"
       },
-      "readOnly": "Solo Propietario y Administrador editan los rubros de un plan abierto."
+      "readOnly": "Solo Propietario y Administrador editan los rubros de un plan abierto.",
+      "fundingHint": {
+        "DIRECT": "Lo paga quien hace el gasto, desde su propia cuenta.",
+        "SHARED_FUND": "Se paga con la plata que cada uno pone en el fondo común.",
+        "SAVINGS": "Se aparta en una cuenta de ahorro en vez de gastarse."
+      },
+      "more": {
+        "open": "Más opciones",
+        "summary": "{rollover} · {allocation}"
+      }
     },
     "mapping": {
       "label": "Categorías",

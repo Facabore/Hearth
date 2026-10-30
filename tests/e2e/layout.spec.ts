@@ -1373,6 +1373,18 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         await expectFullFields(`${what} as savings`);
         await page.getByRole("radio", { name: es.budgeting.funding.DIRECT }).click();
 
+        // U5 (#224): rollover and allocation are folded under "Más opciones", whose summary says their values.
+        const more = page.getByRole("button", { name: es.budgeting.lineEditor.more.open, exact: true });
+        await expect(more).toHaveAttribute("aria-expanded", "false");
+        await expect(page.getByRole("region", { name: es.budgeting.allocation.title })).toBeHidden();
+        await more.click();
+        await expect(
+          page.getByRole("heading", { name: es.budgeting.lineEditor.field.rollover }),
+        ).toBeVisible();
+        await expectFullFields(`${what} with more options`);
+        const unfolded = await overflowReport(page, `${what} with more options`);
+        expect.soft(unfolded.overflow, unfolded.message).toBeLessThanOrEqual(0);
+
         // The allocation editor: its four rules are full targets, and so is a member's value field by percentage.
         await expect(page.getByRole("region", { name: es.budgeting.allocation.title })).toBeVisible();
         await page.getByRole("radio", { name: es.budgeting.rule.PERCENT }).click();
@@ -1443,6 +1455,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
     await page.getByRole("link", { name: es.budgeting.planner.addLine }).click();
     await page.getByLabel(es.budgeting.lineEditor.field.name).fill("Mascotas");
     await page.getByLabel(es.budgeting.lineEditor.field.planned).fill("100.000");
+    await page.getByRole("button", { name: es.budgeting.lineEditor.more.open, exact: true }).click();
     await page.getByRole("radio", { name: es.budgeting.rollover.ROLLOVER }).click();
     await page.getByRole("button", { name: es.budgeting.lineEditor.add, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`${planner}$`));
@@ -1453,6 +1466,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
     await row
       .getByRole("link", { name: es.budgeting.planner.editLine.replace("{name}", "Mascotas") })
       .click();
+    await page.getByRole("button", { name: es.budgeting.lineEditor.more.open, exact: true }).click();
     await expect(page.getByRole("radio", { name: es.budgeting.rollover.ROLLOVER })).toBeChecked();
     await page.getByLabel(es.budgeting.lineEditor.field.planned).fill("150.000");
     // HU-E9-08: a category and a percentage, which the real API must answer the way the preview said.
