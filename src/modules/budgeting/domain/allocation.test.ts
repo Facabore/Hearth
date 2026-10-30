@@ -19,11 +19,15 @@ const formerMember = { ok: false, error: { code: "InvalidAllocation", details: {
 
 describe("checkedAllocation (HU-E6-05)", () => {
   it("stores no values for PROPORTIONAL and NONE", () => {
-    expect(unwrap(checkedAllocation({ rule: "PROPORTIONAL" }, planned(1_470_000), MEMBERS, "COP"))).toEqual({
+    expect(
+      unwrap(checkedAllocation({ rule: "PROPORTIONAL" }, planned(1_470_000), MEMBERS, "COP", [])),
+    ).toEqual({
       rule: "PROPORTIONAL",
       values: [],
     });
-    expect(unwrap(checkedAllocation({ rule: "NONE" }, planned(730_000), MEMBERS, "COP")).values).toEqual([]);
+    expect(unwrap(checkedAllocation({ rule: "NONE" }, planned(730_000), MEMBERS, "COP", [])).values).toEqual(
+      [],
+    );
   });
 
   it("stores PERCENT 42 % / 58 % as basis points in join order, whatever the request order", () => {
@@ -38,6 +42,7 @@ describe("checkedAllocation (HU-E6-05)", () => {
       planned(730_000),
       MEMBERS,
       "COP",
+      [],
     );
     expect(unwrap(free)).toEqual({
       rule: "PERCENT",
@@ -60,6 +65,7 @@ describe("checkedAllocation (HU-E6-05)", () => {
       planned(600_000),
       MEMBERS,
       "COP",
+      [],
     );
     expect(unwrap(savings).values).toEqual([
       { memberId: "member-ana", value: 20_000_000n },
@@ -93,7 +99,7 @@ describe("checkedAllocation (HU-E6-05)", () => {
       "fixedNotPlanned",
     ],
   ])("refuses %s: the values must add up", (_line, input, pesos, reason) => {
-    expect(checkedAllocation(input, planned(pesos), MEMBERS, "COP")).toEqual({
+    expect(checkedAllocation(input, planned(pesos), MEMBERS, "COP", [])).toEqual({
       ok: false,
       error: { code: "InvalidAllocation", details: { reason } },
     });
@@ -101,7 +107,7 @@ describe("checkedAllocation (HU-E6-05)", () => {
 
   it("refuses non-members, members listed twice, zero values, no members and another currency", () => {
     const percent = (members: { memberId: string; basisPoints: number }[]) =>
-      checkedAllocation({ rule: "PERCENT", members }, planned(730_000), MEMBERS, "COP");
+      checkedAllocation({ rule: "PERCENT", members }, planned(730_000), MEMBERS, "COP", []);
     const reason = (reason: string) => ({
       ok: false,
       error: { code: "InvalidAllocation", details: { reason } },
@@ -131,6 +137,7 @@ describe("checkedAllocation (HU-E6-05)", () => {
       planned(600_000),
       MEMBERS,
       "COP",
+      [],
     );
     expect(fixedZero).toEqual(reason("amountNotPositive"));
     const dollars = checkedAllocation(
@@ -138,8 +145,64 @@ describe("checkedAllocation (HU-E6-05)", () => {
       planned(600_000),
       MEMBERS,
       "COP",
+      [],
     );
     expect(codeOf(dollars)).toBe("CurrencyMismatch");
+  });
+});
+
+describe("a VIEWER on an allocation (#217, ruling P261)", () => {
+  const WITH_SOFI = [...MEMBERS, "member-sofi"];
+  const refused = {
+    ok: false,
+    error: { code: "ViewerCannotHoldAllocation", details: { memberId: "member-sofi" } },
+  };
+
+  it("refuses a PERCENT share or a FIXED amount for a VIEWER", () => {
+    const percent = checkedAllocation(
+      {
+        rule: "PERCENT",
+        members: [
+          { memberId: "member-ana", basisPoints: 9000 },
+          { memberId: "member-sofi", basisPoints: 1000 },
+        ],
+      },
+      planned(730_000),
+      WITH_SOFI,
+      "COP",
+      ["member-sofi"],
+    );
+    expect(percent).toEqual(refused);
+    const fixed = checkedAllocation(
+      {
+        rule: "FIXED",
+        members: [
+          { memberId: "member-ana", amount: cop(500_000) },
+          { memberId: "member-sofi", amount: cop(100_000) },
+        ],
+      },
+      planned(600_000),
+      WITH_SOFI,
+      "COP",
+      ["member-sofi"],
+    );
+    expect(fixed).toEqual(refused);
+  });
+
+  it("allocates among the others, and PROPORTIONAL and NONE whatever the roles", () => {
+    const others = checkedAllocation(
+      { rule: "PERCENT", members: [{ memberId: "member-ana", basisPoints: 10_000 }] },
+      planned(730_000),
+      WITH_SOFI,
+      "COP",
+      ["member-sofi"],
+    );
+    expect(unwrap(others).values).toEqual([{ memberId: "member-ana", value: 10_000n }]);
+    for (const rule of ["PROPORTIONAL", "NONE"] as const) {
+      expect(codeOf(checkedAllocation({ rule }, planned(730_000), WITH_SOFI, "COP", ["member-sofi"]))).toBe(
+        "ok",
+      );
+    }
   });
 });
 

@@ -71,10 +71,40 @@ describe("GetSpaceBalances (HU-E5-01)", () => {
       spaceId: "space-household",
       currency: "COP",
       members: [
-        { memberId: "member-ana", net: pesos(150_000n) },
-        { memberId: "member-juan", net: -pesos(150_000n) },
+        { memberId: "member-ana", net: pesos(150_000n), hasMovements: true },
+        { memberId: "member-juan", net: -pesos(150_000n), hasMovements: true },
       ],
     });
+  });
+
+  it("says whom a live movement ever touched, a settled-up member included (#217, P263)", async () => {
+    const { ledger, getBalances } = world([
+      ANA,
+      JUAN,
+      memberOf("Sofi", "VIEWER", 2),
+      memberOf("Pedro", null, 3),
+    ]);
+    const movedOf = async () =>
+      unwrap(await getBalances({ spaceId: "space-household", userId: "u-ana" })).members.map(
+        (balance) => [balance.memberId, balance.net, balance.hasMovements] as const,
+      );
+    expect(await movedOf()).toEqual([
+      ["member-ana", 0n, false],
+      ["member-juan", 0n, false],
+      ["member-sofi", 0n, false],
+      ["member-pedro", 0n, false],
+    ]);
+    await ledger.add(paid("member-ana", pesos(300_000n), ["member-ana", "member-juan"]));
+    await ledger.add(aSettlement("2026-10-30", pesos(150_000n)));
+    // Pedro's only expense was deleted, and a deleted row is no movement.
+    const deletedAt = new Date("2026-10-06T00:00:00Z");
+    await ledger.add(paid("member-pedro", pesos(90_000n), ["member-pedro"], { deletedAt }));
+    expect(await movedOf()).toEqual([
+      ["member-ana", 0n, true],
+      ["member-juan", 0n, true],
+      ["member-sofi", 0n, false],
+      ["member-pedro", 0n, false],
+    ]);
   });
 
   it("nets debts out across expenses", async () => {

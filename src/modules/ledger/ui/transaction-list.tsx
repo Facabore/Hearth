@@ -24,6 +24,7 @@ export function TransactionList({
   spaceName,
   periodPolicy,
   detail,
+  movedMemberIds,
 }: {
   readonly spaceId: string;
   readonly page: TransactionPageDto;
@@ -40,6 +41,8 @@ export function TransactionList({
   readonly periodPolicy?: SpaceDto["periodPolicy"] | undefined;
   /** Ruling P189: the transaction behind `?tx=`, shown in a sheet over the list. */
   readonly detail?: TransactionDetail | undefined;
+  /** #217 (P263): the members any movement ever touched, from the balances; without it every member is offered. */
+  readonly movedMemberIds?: readonly string[] | undefined;
 }) {
   const t = useTranslations("ledger");
   const days = groupByDay(page.items, today);
@@ -68,6 +71,7 @@ export function TransactionList({
         periodPolicy={periodPolicy}
         formats={context.formats}
         memberNames={context.memberNames}
+        movedMemberIds={movedMemberIds}
       />
       <section aria-label={t("list.totals")} className="rounded-2xl bg-surface p-3 text-ink">
         {t("list.expenses", { amount: formatMoney(page.totals.expenses, context.formats) })} ·{" "}

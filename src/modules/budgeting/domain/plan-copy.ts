@@ -22,6 +22,8 @@ export interface CopyInput {
   readonly lineIds: readonly BudgetLineId[];
   /** The space's current members in join order, registered and guests (D15). */
   readonly memberIds: readonly string[];
+  /** Of those, the VIEWERs: ruling P261 (#217), they never hold a capacity or an allocation. */
+  readonly viewerIds: readonly string[];
   /** The space's live categories, archived ones flagged. */
   readonly categories: readonly { readonly id: string; readonly archived: boolean }[];
   /** Of the accounts the source's SAVINGS lines name, those a copy may keep (P10). */
@@ -32,7 +34,7 @@ export interface CopyInput {
  * HU-E6-06: a deep clone of the source plan's parts with new ids. Each copied line keeps its name, planned amount,
  * funding, rollover mode, catch-all flag and allocation rule, links to its source line (`originLineId`, HU-E6-09)
  * and is created a millisecond after the one before, so readers list the copies in the source's order. Former
- * members' capacities and values, mappings to categories that are archived or gone, and accounts that no longer
+ * members' and VIEWERs' capacities and values (ruling P261), mappings to categories that are archived or gone, and accounts that no longer
  * qualify are left out, and a SAVINGS line left without accounts is not copied. Nothing is checked against
  * capacity: the copy is a DRAFT, and activation checks it (HU-E6-07). A `lineIds` list that is not one id per source
  * line is a programming error, not a domain outcome: it throws.
@@ -42,7 +44,8 @@ export const copiedParts = (input: CopyInput): { parts: PlanParts; dropped: Copy
     throw new Error("copiedParts needs one new line id per source line");
   }
   const live = new Set(input.categories.filter((c) => !c.archived).map((c) => c.id));
-  const current = new Set(input.memberIds);
+  // Ruling P261 (#217): a VIEWER's capacity and values are left out like a former member's.
+  const current = new Set(input.memberIds.filter((id) => !input.viewerIds.includes(id)));
   const lines: BudgetLine[] = [];
   const mappings: CategoryMapping[] = [];
   const allocations: LineAllocation[] = [];

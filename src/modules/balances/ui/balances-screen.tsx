@@ -58,6 +58,12 @@ export function BalancesScreen({
       amount: "0",
       currency: space.currency,
     };
+  // #217 (P263): a member no movement ever touched and whose balance is zero is left out of the list. An older API that
+  // does not send `hasMovements` leaves everyone in.
+  const listed = members.filter((member) => {
+    const balance = balances.find((b) => b.memberId === member.id);
+    return balance === undefined || balance.hasMovements !== false || BigInt(balance.net.amount) !== 0n;
+  });
   const viewer = members.find((member) => member.userId === meUserId);
   const mine = viewer ? netOf(viewer.id) : netOf("");
   const state = netState(mine);
@@ -166,8 +172,8 @@ export function BalancesScreen({
             </Button>
           ) : null}
         </div>
-        <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
-          {members.map((member) => {
+        <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface empty:hidden">
+          {listed.map((member) => {
             const net = netOf(member.id);
             const memberState = netState(net);
             const sentence = memberSentence(net, formats, t);

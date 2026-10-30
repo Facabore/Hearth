@@ -2,7 +2,7 @@ import { requirePermission, type SpaceMembership } from "@/modules/spaces/applic
 import { ok, type Money, type Result } from "@/shared/kernel";
 import { checkedCapacities } from "../domain/capacity";
 import type { BudgetingDeps } from "./deps";
-import { planForWrite } from "./plan-access";
+import { planForWrite, viewerIdsOf } from "./plan-access";
 import { loadPlanView, type BudgetPlanView } from "./plan-view";
 import type { CapacityRepository } from "./ports";
 
@@ -37,6 +37,7 @@ export const createSetMemberCapacities =
         input.capacities,
         members.map((m) => m.id),
         space.currency,
+        viewerIdsOf(members),
       );
       if (!capacities.ok) return capacities;
       await deps.capacities.setCapacities(plan.id, capacities.value, deps.clock.now());

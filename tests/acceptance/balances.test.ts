@@ -145,6 +145,56 @@ describe("balances in a shared space (HU-E5-01)", () => {
     ]);
   });
 
+  it("says whom a live movement ever touched: a settled-up pair yes, a viewer and a deleted expense's guest no (#217, P263)", async () => {
+    const h = await household();
+    const sofi = await joinHousehold(h, "Sofi", "VIEWER");
+    const pedro = await addGuest(h, "Pedro");
+    const moved = async () => {
+      const response = await call(getBalances, "GET", `/api/v1/spaces/${h.spaceId}/balances`, {
+        user: sofi,
+        params: { spaceId: h.spaceId },
+      });
+      expect(response.status).toBe(200);
+      const { members } = (await response.json()) as {
+        members: { memberId: string; net: { amount: string }; hasMovements?: boolean }[];
+      };
+      return members.map((m) => [m.memberId, m.net.amount, m.hasMovements]);
+    };
+    expect(await moved()).toEqual([
+      [h.ana.memberId, "0", false],
+      [h.juan.memberId, "0", false],
+      [sofi.memberId, "0", false],
+      [pedro, "0", false],
+    ]);
+    await pay(h, h.ana, 300_000, [h.ana.memberId, h.juan.memberId]);
+    await pay(h, h.juan, 300_000, [h.ana.memberId, h.juan.memberId]);
+    const taxi = await post(recordExpense, h.ana, "expenses", {
+      description: "Taxi",
+      date: "2026-10-05",
+      categoryId: h.groceries,
+      amount: cop(90_000),
+      payments: [{ memberId: pedro, accountId: null, amount: cop(90_000) }],
+      split: equal(pedro),
+    });
+    const { id } = (await taxi.json()) as TransactionDto;
+    const deleted = await call(
+      deleteTransaction,
+      "DELETE",
+      `/api/v1/spaces/${h.spaceId}/transactions/${id}`,
+      {
+        user: h.ana,
+        params: { spaceId: h.spaceId, transactionId: id },
+      },
+    );
+    expect(deleted.status).toBe(204);
+    expect(await moved()).toEqual([
+      [h.ana.memberId, "0", true],
+      [h.juan.memberId, "0", true],
+      [sofi.memberId, "0", false],
+      [pedro, "0", false],
+    ]);
+  });
+
   it("answers a non-member and a malformed space id with 404 SpaceNotFound, never 500 (Review Focus 2)", async () => {
     const h = await household();
     const marta = await registerUser("Marta");
