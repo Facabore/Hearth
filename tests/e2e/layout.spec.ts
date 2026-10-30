@@ -642,6 +642,17 @@ const sheets: {
     path: "settings",
     open: (page) => page.getByRole("button", { name: new RegExp(es.settings.field.timezone) }).click(),
   },
+  // U8 (#224): each summary row of Settings opens its own sheet.
+  {
+    name: "appearance and language sheet",
+    path: "settings",
+    open: (page) => page.getByRole("button", { name: new RegExp(`^${es.settings.appearance}`) }).click(),
+  },
+  {
+    name: "numbers and dates sheet",
+    path: "settings",
+    open: (page) => page.getByRole("button", { name: new RegExp(`^${es.settings.numbersAndDates}`) }).click(),
+  },
 ];
 
 for (const wideFont of [false, true]) {
@@ -1056,6 +1067,32 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
           expect.soft(box.x + box.width, "and ends on screen").toBeLessThanOrEqual(viewport.width);
         }
       }
+      // U3 (#224): every space lists its views in one order.
+      for (const [path, views] of [
+        [`/spaces/${sharedId}/plan`, ["lines", "groups", "members", "fund", "trend"]],
+        [`/spaces/${spaceId}/plan`, ["mine", "lines", "groups", "trend", "calendar"]],
+      ] as const) {
+        await page.goto(path);
+        await expect(
+          page.getByRole("navigation", { name: es.reports.tabs.label }).getByRole("link"),
+          `${path}: the view chips`,
+        ).toHaveText(views.map((view) => es.reports.view[view]));
+      }
+
+      // U10 (#224): Mi consumo has one hero figure; "¿Por qué es distinto?" is a full target and opens in place.
+      await page.goto(`/spaces/${spaceId}/plan`);
+      await expect(page.getByRole("region", { name: es.reports.unified.spent, exact: true })).toBeVisible();
+      const why = page.getByRole("button", { name: es.reports.unified.whyDifferent });
+      const whyBox = (await why.boundingBox())!;
+      expect.soft(whyBox.height, "¿Por qué es distinto? height").toBeGreaterThanOrEqual(TARGET);
+      expect
+        .soft(whyBox.x + whyBox.width, "¿Por qué es distinto? on screen")
+        .toBeLessThanOrEqual(viewport.width);
+      await why.click();
+      await expect(page.getByRole("region", { name: es.reports.unified.sources })).toBeVisible();
+      const unfolded = await overflowReport(page, "Mi consumo with its answer open");
+      expect.soft(unfolded.overflow, unfolded.message).toBeLessThanOrEqual(0);
+
       // The long line wraps inside its row instead of widening the page.
       await page.goto(`/spaces/${sharedId}/plan`);
       // From 1024 px the desktop overview (Task 16) repeats the line; under it those panels are hidden.
@@ -1373,6 +1410,18 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         await expectFullFields(`${what} as savings`);
         await page.getByRole("radio", { name: es.budgeting.funding.DIRECT }).click();
 
+        // U5 (#224): rollover and allocation are folded under "Más opciones", whose summary says their values.
+        const more = page.getByRole("button", { name: es.budgeting.lineEditor.more.open, exact: true });
+        await expect(more).toHaveAttribute("aria-expanded", "false");
+        await expect(page.getByRole("region", { name: es.budgeting.allocation.title })).toBeHidden();
+        await more.click();
+        await expect(
+          page.getByRole("heading", { name: es.budgeting.lineEditor.field.rollover }),
+        ).toBeVisible();
+        await expectFullFields(`${what} with more options`);
+        const unfolded = await overflowReport(page, `${what} with more options`);
+        expect.soft(unfolded.overflow, unfolded.message).toBeLessThanOrEqual(0);
+
         // The allocation editor: its four rules are full targets, and so is a member's value field by percentage.
         await expect(page.getByRole("region", { name: es.budgeting.allocation.title })).toBeVisible();
         await page.getByRole("radio", { name: es.budgeting.rule.PERCENT }).click();
@@ -1443,6 +1492,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
     await page.getByRole("link", { name: es.budgeting.planner.addLine }).click();
     await page.getByLabel(es.budgeting.lineEditor.field.name).fill("Mascotas");
     await page.getByLabel(es.budgeting.lineEditor.field.planned).fill("100.000");
+    await page.getByRole("button", { name: es.budgeting.lineEditor.more.open, exact: true }).click();
     await page.getByRole("radio", { name: es.budgeting.rollover.ROLLOVER }).click();
     await page.getByRole("button", { name: es.budgeting.lineEditor.add, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`${planner}$`));
@@ -1453,6 +1503,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
     await row
       .getByRole("link", { name: es.budgeting.planner.editLine.replace("{name}", "Mascotas") })
       .click();
+    await page.getByRole("button", { name: es.budgeting.lineEditor.more.open, exact: true }).click();
     await expect(page.getByRole("radio", { name: es.budgeting.rollover.ROLLOVER })).toBeChecked();
     await page.getByLabel(es.budgeting.lineEditor.field.planned).fill("150.000");
     // HU-E9-08: a category and a percentage, which the real API must answer the way the preview said.
@@ -2664,7 +2715,8 @@ test.describe("the theme Sistema follows the system without a reload (U9)", () =
     );
     await page.emulateMedia({ colorScheme: "light" });
     await expect(html).toHaveAttribute("data-theme", "light");
-    // A device that chose Claro keeps it whatever the system does.
+    // A device that chose Claro keeps it whatever the system does. U8 (#224): the theme sits in its row's sheet.
+    await page.getByRole("button", { name: new RegExp(`^${es.settings.appearance}`) }).click();
     await page.getByRole("radio", { name: es.settings.theme.light }).click();
     await page.emulateMedia({ colorScheme: "dark" });
     await page.waitForTimeout(300);
@@ -2673,6 +2725,51 @@ test.describe("the theme Sistema follows the system without a reload (U9)", () =
     await page.getByRole("radio", { name: es.settings.theme.system }).click();
     await expect(html).toHaveAttribute("data-theme", "dark");
   });
+});
+
+test.describe("Settings is three summary rows that fit one view (U8, #224)", () => {
+  for (const viewport of [PHONE, SMALL_PHONE]) {
+    test(`each row is a full target with its values, opens its own sheet and the screen fits ${viewport.width} px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      await session(page, `settings-rows-${viewport.width}`);
+      await page.goto("/settings");
+      await settle(page);
+      const { overflow, message } = await overflowReport(page, "Settings");
+      expect.soft(overflow, message).toBeLessThanOrEqual(0);
+      const rows = [
+        [es.settings.appearance, `${es.settings.theme.system} · ${es.settings.language.es}`],
+        [es.settings.numbersAndDates, es.settings.weekStartSummary.MONDAY],
+        [es.settings.field.timezone, "Bogota"],
+      ] as const;
+      for (const [title, value] of rows) {
+        const row = page.getByRole("button", { name: new RegExp(`^${title}`) });
+        await expect(row).toContainText(value);
+        const box = (await row.boundingBox())!;
+        expect.soft(box.height, `${title}: height`).toBeGreaterThanOrEqual(TARGET);
+        expect.soft(box.x + box.width, `${title}: stays on screen`).toBeLessThanOrEqual(viewport.width);
+      }
+      // On the audit's phone the three rows and the space's name fit one view, the 1,238 px the decision replaced.
+      if (viewport === PHONE) {
+        const height = await page.evaluate(() => document.documentElement.scrollHeight);
+        expect.soft(height, "Settings fits one view").toBeLessThanOrEqual(viewport.height);
+      }
+      for (const [title] of rows) {
+        await page.getByRole("button", { name: new RegExp(`^${title}`) }).click();
+        const sheet = page.getByRole("dialog");
+        await expect(sheet).toBeVisible();
+        const opened = await overflowReport(page, `${title} sheet`);
+        expect.soft(opened.overflow, opened.message).toBeLessThanOrEqual(0);
+        for (const radio of await sheet.getByRole("radio").all()) {
+          const box = (await radio.boundingBox())!;
+          expect.soft(box.height, `${title} sheet: a choice's height`).toBeGreaterThanOrEqual(TARGET);
+        }
+        await page.keyboard.press("Escape");
+        await expect(sheet).toHaveCount(0);
+      }
+    });
+  }
 });
 
 test.describe("Settings says Guardado and keeps Restablecer where it was (U5)", () => {
@@ -2684,11 +2781,13 @@ test.describe("Settings says Guardado and keeps Restablecer where it was (U5)", 
       await session(page, `settings-saved-${viewport.width}`);
       await page.goto("/settings");
       await settle(page);
-      const group = page.getByRole("group", { name: es.settings.field.numberFormat });
+      // U8 (#224): the formats sit in the "Números y fechas" sheet.
+      await page.getByRole("button", { name: new RegExp(`^${es.settings.numbersAndDates}`) }).click();
+      const group = page.getByRole("dialog").getByRole("group", { name: es.settings.field.numberFormat });
       const slot = group.getByTestId("preference-state");
       await expect(slot.getByText(es.settings.default)).toBeVisible();
-      // Since Apariencia e idioma comes first (#176), the group sits near the bottom bar: centring it first keeps the
-      // click from scrolling the page, so a moved box can only mean the layout moved.
+      // Centring the group first keeps the click from scrolling the sheet, so a moved box can only mean the layout
+      // moved.
       await group.evaluate((el) => el.scrollIntoView({ block: "center" }));
       const before = {
         slot: (await slot.boundingBox())!,

@@ -9,16 +9,43 @@ import { PreferenceRow } from "./preference-row";
 import { SavedFlash, useSavedFlash } from "@/shared/ui/molecules/saved-flash";
 
 const THEMES = ["system", "light", "dark"] as const;
-const LOCALES = ["es", "en"] as const;
-type AppLocale = (typeof LOCALES)[number];
+export const APP_LOCALES = ["es", "en"] as const;
+export type AppLocale = (typeof APP_LOCALES)[number];
 
 const subscribe = (onChange: () => void) => {
   addEventListener("storage", onChange);
   return () => removeEventListener("storage", onChange);
 };
 
-/** HU-E9-13: the theme (a device setting, ruling P135) and the language, which reloads only the texts. */
+/**
+ * The device's theme (ruling P135): stored on the device, read after hydration (the server always renders "system"),
+ * and chosen here. Decision U8 (#224): Settings' summary row and its sheet read the same value.
+ */
+export const useDeviceTheme = () => {
+  const stored = useSyncExternalStore(
+    subscribe,
+    () => readTheme(globalThis.localStorage),
+    () => "system" as Theme,
+  );
+  const [chosen, setChosen] = useState<Theme | null>(null);
+  const choose = (theme: Theme) => {
+    saveTheme(theme);
+    setChosen(theme);
+  };
+  return { theme: chosen ?? stored, choose };
+};
+
+/** The language a person reads, as Settings shows it: an unknown one reads as Spanish, the base catalog. */
+export const appLocaleOf = (locale: string): AppLocale =>
+  (APP_LOCALES as readonly string[]).includes(locale) ? (locale as AppLocale) : "es";
+
+/**
+ * HU-E9-13: the theme (a device setting, ruling P135) and the language, which reloads only the texts. Decision U8 (#224):
+ * the content of the "Apariencia e idioma" sheet, which names it.
+ */
 export function AppearanceSection({
+  theme,
+  onTheme,
   locale,
   localeState,
   onLocale,
@@ -26,6 +53,8 @@ export function AppearanceSection({
   problem,
   localeSaved = false,
 }: {
+  readonly theme: Theme;
+  readonly onTheme: (theme: Theme) => void;
   readonly locale: string;
   readonly localeState: "locked" | "default" | "custom";
   readonly onLocale: (locale: AppLocale) => void;
@@ -35,30 +64,19 @@ export function AppearanceSection({
   readonly localeSaved?: boolean;
 }) {
   const t = useTranslations("settings");
-  // The device's stored theme, read after hydration (the server always renders "system").
-  const stored = useSyncExternalStore(
-    subscribe,
-    () => readTheme(globalThis.localStorage),
-    () => "system" as Theme,
-  );
-  const [chosen, setChosen] = useState<Theme | null>(null);
   // The theme is stored on the device at once, so it says so itself (U5).
   const themeSaved = useSavedFlash<"theme">();
   return (
-    <section aria-labelledby="settings-appearance" className="flex flex-col gap-3">
-      <h2 id="settings-appearance" className="text-lg font-semibold text-ink">
-        {t("appearance")}
-      </h2>
+    <div className="flex flex-col gap-3">
       <fieldset className="relative flex flex-col gap-2">
         <legend className="mb-2 text-sm font-medium text-ink">{t("field.theme")}</legend>
         <SavedFlash show={themeSaved.saved === "theme"} className="top-0" />
         <ChoiceGroup
           label={t("field.theme")}
-          value={chosen ?? stored}
+          value={theme}
           options={THEMES.map((v) => ({ value: v, label: t(`theme.${v}`) }))}
-          onValueChange={(theme) => {
-            saveTheme(theme);
-            setChosen(theme);
+          onValueChange={(next) => {
+            onTheme(next);
             themeSaved.flash("theme");
           }}
         />
@@ -67,8 +85,8 @@ export function AppearanceSection({
         <PreferenceRow
           id="settings-locale"
           label={t("field.language")}
-          value={(LOCALES as readonly string[]).includes(locale) ? (locale as AppLocale) : "es"}
-          options={LOCALES.map((v) => ({ value: v, label: t(`language.${v}`) }))}
+          value={appLocaleOf(locale)}
+          options={APP_LOCALES.map((v) => ({ value: v, label: t(`language.${v}`) }))}
           state={localeState}
           onChoose={onLocale}
           onReset={onLocaleReset}
@@ -77,6 +95,6 @@ export function AppearanceSection({
         />
         <p className="text-sm text-muted">{t("language.hint")}</p>
       </div>
-    </section>
+    </div>
   );
 }

@@ -234,6 +234,9 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect(page.getByRole("region", { name: es.budgeting.lineEditor.figures })).toBeVisible();
       await scan("existing line");
       // HU-E9-08: the allocation editor by percentage (with its sum alert, then with the preview), and the category sheet.
+      // U5 (#224): it sits under "Más opciones", scanned folded above and open here.
+      await page.getByRole("button", { name: es.budgeting.lineEditor.more.open, exact: true }).click();
+      await scan("existing line with more options");
       await page.getByRole("radio", { name: es.budgeting.rule.PERCENT }).click();
       // The seed already splits "Mercado" 60/40 (HU-E9-10's member matrix), so a value is changed to break the sum.
       await page.getByLabel(fill(es.budgeting.allocation.value, { name: "Juan" })).fill("50");

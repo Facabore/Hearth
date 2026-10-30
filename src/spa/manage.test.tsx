@@ -206,7 +206,9 @@ describe("accounts, categories and settings in the SPA (slice 3 of #199, ADR 000
     ).toBeVisible();
     const profile = count(spa.requests, "GET", /\/me$/);
 
-    await userEvent.click(screen.getByRole("radio", { name: "1,234,567.89" }));
+    // U8 (#224): the formats sit in the "Números y fechas" sheet.
+    await userEvent.click(screen.getByRole("button", { name: /^Números y fechas/ }));
+    await userEvent.click(await screen.findByRole("radio", { name: "1,234,567.89" }));
     await waitFor(() => expect(count(spa.requests, "PATCH", /\/me$/)).toBe(1));
     await spa.router.navigate({ href: "/spaces/sp-personal/transactions" });
 

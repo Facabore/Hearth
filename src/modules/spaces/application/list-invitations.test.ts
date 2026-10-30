@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
 import { invitationsWorld } from "../../../../tests/support/in-memory-spaces";
 import { createCreateGuestClaim } from "./create-guest-claim";
+import { createAcceptInvitation } from "./accept-invitation";
 import { createCreateInvitation } from "./create-invitation";
 import { createListInvitations } from "./list-invitations";
 import { createRevokeInvitation } from "./revoke-invitation";
@@ -28,6 +29,48 @@ describe("ListInvitations (HU-E9-05, ruling P155)", () => {
       [marta.invitation.id, "EMAIL", "MEMBER", "PENDING"],
     ]);
     expect(listed[1]!.email).toBe("marta@example.com");
+  });
+
+  it("counts the people who joined through each link, and gives an email invitation no count (#218, ruling P264)", async () => {
+    const w = invitationsWorld();
+    const create = createCreateInvitation(w.deps);
+    const accept = createAcceptInvitation(w.deps);
+    const asAna = { spaceId: space, userId: "u-ana" };
+    unwrap(await create({ ...asAna, role: "MEMBER", target: { kind: "EMAIL", email: "marta@example.com" } }));
+    w.clock.set(new Date("2026-10-12T13:00:00Z"));
+    unwrap(await create({ ...asAna, role: "VIEWER", target: { kind: "LINK" } }));
+    w.clock.set(new Date("2026-10-12T14:00:00Z"));
+    unwrap(await create({ ...asAna, role: "ADMIN", target: { kind: "LINK" } }));
+    for (const name of ["Marta", "Pablo"])
+      unwrap(
+        await accept({
+          token: "token-2",
+          userId: `u-${name.toLowerCase()}`,
+          userEmail: `${name.toLowerCase()}@example.com`,
+          userName: name,
+        }),
+      );
+    const listed = unwrap(await createListInvitations(w.deps)(asAna));
+    expect(listed.map((i) => [i.kind, i.role, i.singleUse, i.uses])).toEqual([
+      ["LINK", "ADMIN", true, 0],
+      ["LINK", "VIEWER", false, 2],
+      ["EMAIL", "MEMBER", true, null],
+    ]);
+  });
+
+  it("leaves out an ADMIN link once someone joined through it (#218, ruling P264)", async () => {
+    const w = invitationsWorld();
+    const asAna = { spaceId: space, userId: "u-ana" };
+    unwrap(await createCreateInvitation(w.deps)({ ...asAna, role: "ADMIN", target: { kind: "LINK" } }));
+    unwrap(
+      await createAcceptInvitation(w.deps)({
+        token: "token-1",
+        userId: "u-marta",
+        userEmail: "marta@example.com",
+        userName: "Marta",
+      }),
+    );
+    expect(unwrap(await createListInvitations(w.deps)(asAna))).toEqual([]);
   });
 
   it("leaves out an invitation from the instant it expires", async () => {

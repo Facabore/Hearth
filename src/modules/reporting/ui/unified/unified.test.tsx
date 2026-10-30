@@ -1,4 +1,5 @@
 import { cleanup, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
 import { cop, normalized } from "../../../../../tests/support/ui/dto";
@@ -10,13 +11,41 @@ import { UnifiedView } from "./unified-view";
 vi.mock("next/navigation", () => ({ notFound: vi.fn(), redirect: vi.fn() }));
 
 const textOf = (name: string) => normalized(screen.getByRole("region", { name }).textContent);
+/** U10 (#224): what was paid, and where it went, answer "¿Por qué es distinto?". */
+const why = () => userEvent.click(screen.getByRole("button", { name: "¿Por qué es distinto?" }));
+const SOURCES = "En qué se fue lo que pagaste";
 
 describe("unified personal view (HU-E9-11)", () => {
-  it("shows consumption and cash out, and Groceries of both spaces as one row", async () => {
+  it("has one hero figure, Lo que gastaste tú, and Lo que pagaste as a secondary line (U10, #224)", async () => {
     const { container } = renderWithIntl(<UnifiedView view={e74Unified()} formats={BUILT_IN_FORMATS} />);
-    expect(textOf("Consumo")).toContain("$ 1.575.000");
-    expect(textOf("Salidas")).toContain("$ 2.625.000");
-    const outs = textOf("De dónde salen las salidas");
+    const hero = screen.getByRole("region", { name: "Lo que gastaste tú" });
+    expect(normalized(hero.textContent)).toBe(
+      "Lo que gastaste tú$ 1.575.000Lo que fue para ti: tus gastos y tu parte de los compartidos.",
+    );
+    const paid = screen.getByRole("region", { name: "Lo que pagaste" });
+    expect(normalized(paid.textContent)).toContain("Lo que pagaste$ 2.625.000");
+    // The hero is the only large figure: the paid amount is a line of body text.
+    expect(within(hero).getByText("$ 1.575.000")).toHaveClass("text-3xl");
+    expect(within(paid).getByText("$ 2.625.000")).not.toHaveClass("text-3xl");
+    // Folded, the answer and the breakdown stay out of the way.
+    const button = within(paid).getByRole("button", { name: "¿Por qué es distinto?" });
+    expect(button).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("region", { name: SOURCES })).toBeNull();
+    expect(await axeViolations(container)).toEqual([]);
+    await why();
+    expect(button).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByText(
+        "Lo que pagaste es lo que salió de tus bolsillos, aunque fuera para otros o para el fondo común. Lo que gastaste tú es solo lo que fue para ti.",
+      ),
+    ).toBeVisible();
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("shows where what was paid went, and Groceries of both spaces as one row", async () => {
+    const { container } = renderWithIntl(<UnifiedView view={e74Unified()} formats={BUILT_IN_FORMATS} />);
+    await why();
+    const outs = textOf(SOURCES);
     expect(outs).toContain("Pagos de gastos$ 2.145.000");
     expect(outs).toContain("Aportes al fondo$ 480.000");
     expect(outs).not.toContain("Pagado fuera de la app");
@@ -26,7 +55,7 @@ describe("unified personal view (HU-E9-11)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
-  it("lists what a guest paid as paid outside the app, and names a custom category by its space", () => {
+  it("lists what a guest paid as paid outside the app, and names a custom category by its space", async () => {
     const pedro = e74Unified({
       period: { label: "2026-10", startDate: "2026-10-01", endDate: "2026-10-31" },
       consumption: {
@@ -50,16 +79,18 @@ describe("unified personal view (HU-E9-11)", () => {
       },
     });
     renderWithIntl(<UnifiedView view={pedro} formats={BUILT_IN_FORMATS} />);
-    expect(textOf("De dónde salen las salidas")).toContain("Pagado fuera de la app$ 300.000");
+    await why();
+    expect(textOf(SOURCES)).toContain("Pagado fuera de la app$ 300.000");
     expect(screen.getByRole("listitem", { name: "Household / Vet" })).toBeInTheDocument();
   });
 
-  it("lists the transfers to the person's savings among the sources, with the amount answered", () => {
+  it("lists the transfers to the person's savings among the sources, with the amount answered", async () => {
     const saver = e74Unified({
       cashOut: { ...e74Unified().cashOut, savingsTransfers: cop(150_000) },
     });
     renderWithIntl(<UnifiedView view={saver} formats={BUILT_IN_FORMATS} />);
-    expect(textOf("De dónde salen las salidas")).toContain("Transferencias a tus ahorros$ 150.000");
+    await why();
+    expect(textOf(SOURCES)).toContain("Transferencias a tus ahorros$ 150.000");
   });
 
   it("says which spaces in another currency it leaves out", () => {
@@ -78,10 +109,10 @@ describe("unified personal view (HU-E9-11)", () => {
       cashOut: { ...e74Unified().cashOut, total: cop(9) },
     });
     renderWithIntl(<UnifiedView view={view} formats={BUILT_IN_FORMATS} />);
-    expect(textOf("Consumo")).toContain("$ 7");
-    expect(textOf("Consumo")).not.toContain("1.575.000");
-    expect(textOf("Salidas")).toContain("$ 9");
-    expect(textOf("Salidas")).not.toContain("2.625.000");
+    expect(textOf("Lo que gastaste tú")).toContain("$ 7");
+    expect(textOf("Lo que gastaste tú")).not.toContain("1.575.000");
+    expect(textOf("Lo que pagaste")).toContain("$ 9");
+    expect(textOf("Lo que pagaste")).not.toContain("2.625.000");
   });
 
   it("fills the bar of the largest row and scales the others to it, for nobody's ears", () => {

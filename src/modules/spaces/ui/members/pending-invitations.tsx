@@ -8,11 +8,13 @@ import { Button, ProblemNotice } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { InvitationDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
-import { formatDate, type Formats } from "@/shared/ui/format/formatters";
+import { formatDate, formatNumber, type Formats } from "@/shared/ui/format/formatters";
 
 /**
  * HU-E9-05, ruling P155, the Main artboard's "Invitaciones pendientes": the invitations that can still be accepted,
- * each with Revoke. Never Copy: only the token's hash is stored, so a URL cannot be shown again.
+ * each with Revoke. Never Copy: only the token's hash is stored, so a URL cannot be shown again. #218, ruling P264: a
+ * link says whether it serves one person (ADMIN) or several, and next to Revoke how many people joined through it; a
+ * link with no recorded use (or from before #218, without the count) shows no count.
  */
 export function PendingInvitations({
   spaceId,
@@ -66,22 +68,32 @@ export function PendingInvitations({
           const role = roles(invitation.role);
           const date = formatDate(localDateIn(new Date(invitation.expiresAt), viewerZone), formats);
           const email = invitation.email;
+          const uses = invitation.uses ?? 0;
+          const linkDetail = invitation.singleUse ? "pendingLinkSingle" : "pendingLink";
           return (
             <li key={invitation.id} className="flex min-h-row-lg items-center gap-3 py-1.5">
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate font-medium text-ink">{email ?? t("pendingLinkTitle")}</span>
                 <span className="text-sm text-muted">
-                  {email ? t("pendingEmail", { role, date }) : t("pendingLink", { role, date })}
+                  {email ? t("pendingEmail", { role, date }) : t(linkDetail, { role, date })}
                 </span>
               </span>
-              <Button
-                variant="dangerGhost"
-                disabled={revoking === invitation.id}
-                aria-label={email ? t("revokeEmail", { email }) : t("revokeLink", { role })}
-                onClick={() => void revoke(invitation.id)}
-              >
-                {t("revoke")}
-              </Button>
+              {/* Stacked with Revoke, so the row keeps its room for the role and expiry at 320 px. */}
+              <span className="flex shrink-0 flex-col items-end">
+                {!email && uses > 0 ? (
+                  <span className="text-xs text-muted">
+                    {t("pendingUses", { count: uses, people: formatNumber(String(uses), formats) })}
+                  </span>
+                ) : null}
+                <Button
+                  variant="dangerGhost"
+                  disabled={revoking === invitation.id}
+                  aria-label={email ? t("revokeEmail", { email }) : t("revokeLink", { role })}
+                  onClick={() => void revoke(invitation.id)}
+                >
+                  {t("revoke")}
+                </Button>
+              </span>
             </li>
           );
         })}

@@ -10,6 +10,7 @@ import type { TransactionDetail } from "../detail/transaction-detail";
 import { TransactionSheetHost } from "../detail/transaction-sheet-host";
 import { withTx } from "../detail/tx-href";
 import { TransactionRow, type RowContext } from "../transaction-row";
+import { FirstSteps, type FirstStepsDone } from "./first-steps";
 
 /**
  * HU-E9-01, the Home and Desktop artboards for M6a (the "no plan" variant, ruling P126): the period's spending and
@@ -27,6 +28,7 @@ export function HomeSummary({
   detail,
   allSpaces,
   today,
+  firstSteps,
 }: {
   readonly spaceId: string;
   /** Issue #216: the viewer's today, so each recent row says which day it is from. */
@@ -47,6 +49,8 @@ export function HomeSummary({
    * period (HU-E7-04), one tap from Mi consumo. The period total above counts this space only.
    */
   readonly allSpaces?: { readonly total: MoneyDto; readonly href: string } | undefined;
+  /** Issue #220 (F14): on the personal home, a new person's three first steps, under the period's figure. */
+  readonly firstSteps?: { readonly personId: string; readonly done: FirstStepsDone } | undefined;
 }) {
   const t = useTranslations("home");
   const common = useTranslations("common");
@@ -126,6 +130,9 @@ export function HomeSummary({
                 </span>
                 <Icon name="chevronRight" size={18} />
               </Link>
+            ) : null}
+            {firstSteps ? (
+              <FirstSteps spaceId={spaceId} personId={firstSteps.personId} done={firstSteps.done} />
             ) : null}
             {personal ? null : (
               <p className="text-sm text-muted">

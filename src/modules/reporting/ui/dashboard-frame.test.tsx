@@ -40,6 +40,34 @@ describe("dashboard frame (HU-E9-10)", () => {
   });
 
   it.each([
+    ["SHARED", householdDto(), ["Rubros", "Por grupo", "Miembros", "Fondo", "Tendencia"]],
+    ["PERSONAL", spaceDto(), ["Mi consumo", "Rubros", "Por grupo", "Tendencia", "Próximos"]],
+  ] as const)(
+    "lists a %s space's views in the one order every space shares (decision U3, ruling P266)",
+    (_kind, space, chips) => {
+      renderWithIntl(
+        <DashboardFrame
+          space={space}
+          view="groups"
+          period={{ ...NOVEMBER }}
+          previous={null}
+          next={null}
+          formats={BUILT_IN_FORMATS}
+          plan={null}
+        >
+          <p>Contenido</p>
+        </DashboardFrame>,
+      );
+      const tabs = screen.getByRole("navigation", { name: "Vistas del plan" });
+      expect(
+        within(tabs)
+          .getAllByRole("link")
+          .map((link) => link.textContent),
+      ).toEqual(chips);
+    },
+  );
+
+  it.each([
     ["VIEWER", "Ver plan"],
     ["MEMBER", "Ver plan"],
     ["ADMIN", "Editar plan"],

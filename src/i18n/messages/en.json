@@ -256,6 +256,16 @@
       "body": "Record where your money is to start tracking it.",
       "action": "Go to Accounts"
     },
+    "firstSteps": {
+      "title": "Your first steps",
+      "dismiss": "Hide the first steps",
+      "done": "Done",
+      "step": {
+        "balances": "How much is in your accounts today?",
+        "expense": "Record your first expense",
+        "share": "Share with your household"
+      }
+    },
     "summary": "Period summary",
     "spentIn": "Spent in {month}",
     "spentBetween": "Spent from {start} to {end}",
@@ -277,7 +287,7 @@
     "preview": {
       "label": "This is how it will look"
     },
-    "formats": "Formats",
+    "numbersAndDates": "Numbers and dates",
     "field": {
       "numberFormat": "Numbers",
       "dateFormat": "Date",
@@ -295,10 +305,13 @@
       "MONDAY": "Monday",
       "SUNDAY": "Sunday"
     },
+    "weekStartSummary": {
+      "MONDAY": "Weeks start on Monday",
+      "SUNDAY": "Weeks start on Sunday"
+    },
     "default": "Default",
     "reset": "Reset",
     "locked": "Set by your installation",
-    "region": "Region",
     "appearance": "Appearance and language",
     "timezone": {
       "hint": "Sets the day and time of every transaction you record.",
@@ -311,7 +324,7 @@
       "dark": "Dark"
     },
     "language": {
-      "hint": "Only the texts change. The formats above do not depend on the language.",
+      "hint": "Only the texts change. The number and date formats do not depend on the language.",
       "es": "Español",
       "en": "English"
     }
@@ -954,6 +967,7 @@
       "linkReady": "Link ready to share",
       "linkLabel": "Invitation link",
       "linkNote": "Role {role} · expires on {date}. Several people can use it until it expires or you revoke it.",
+      "linkNoteSingle": "Role {role} · expires on {date}. Only one person can use it: it stops working once someone joins.",
       "sent": "We sent the invitation to {email}.",
       "notSent": "Hearth does not send email yet: copy the link and share it with {email}."
     },
@@ -961,6 +975,8 @@
     "pendingEmail": "Email · {role} · expires on {date}",
     "pendingLinkTitle": "Invitation link",
     "pendingLink": "{role} · several people · expires on {date}",
+    "pendingLinkSingle": "{role} · one person only · expires on {date}",
+    "pendingUses": "{count, plural, one {Used by {people} person} other {Used by {people} people}}",
     "revoke": "Revoke",
     "revokeEmail": "Revoke the invitation for {email}",
     "revokeLink": "Revoke the invitation link as {role}",
@@ -1177,11 +1193,11 @@
         "planned": "Planned",
         "plannedHint": "{share} of what is put in · {unallocated} left to assign",
         "plannedNewHint": "Left to assign: {unallocated}",
-        "funding": "Where it comes from",
+        "funding": "Where does it come from?",
         "savingsAccounts": "Savings accounts",
         "otherAccount": "Another member's savings account",
         "noSavingsAccounts": "You have no savings accounts in {currency}. Create one in Accounts.",
-        "rollover": "When the period changes",
+        "rollover": "When the month changes",
         "catchAll": "Everything else",
         "catchAllHint": "Takes the expenses of categories that are in no other line."
       },
@@ -1194,7 +1210,16 @@
         "explain": "The line leaves the plan, and its expenses go to Unbudgeted or to the everything-else line.",
         "confirm": "Remove"
       },
-      "readOnly": "Only an Owner or an Admin edits the lines of an open plan."
+      "readOnly": "Only an Owner or an Admin edits the lines of an open plan.",
+      "fundingHint": {
+        "DIRECT": "Whoever makes the expense pays it from their own account.",
+        "SHARED_FUND": "Paid with the money each one puts into the shared fund.",
+        "SAVINGS": "Set aside in a savings account instead of being spent."
+      },
+      "more": {
+        "open": "More options",
+        "summary": "{rollover} · {allocation}"
+      }
     },
     "mapping": {
       "label": "Categories",
@@ -1289,10 +1314,12 @@
     },
     "unified": {
       "consumption": "Consumption",
+      "spent": "What you spent",
       "consumptionHint": "What was for you: your expenses and your share of shared ones.",
-      "cashOut": "Cash out",
-      "cashOutHint": "What left your pockets.",
-      "sources": "Where the cash out comes from",
+      "paid": "What you paid",
+      "whyDifferent": "Why is it different?",
+      "whyDifferentAnswer": "What you paid is what left your pockets, even when it was for others or for the shared fund. What you spent is only what was for you.",
+      "sources": "Where what you paid went",
       "payments": "Expense payments",
       "fundContributions": "Fund contributions",
       "savingsTransfers": "Transfers to your savings",

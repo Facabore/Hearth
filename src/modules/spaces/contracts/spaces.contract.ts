@@ -113,6 +113,13 @@ export const InvitationSchema = z.object({
   status: z.enum(["PENDING", "ACCEPTED", "REVOKED", "EXPIRED"]),
   createdAt: z.iso.datetime(),
   expiresAt: z.iso.datetime(),
+  /** #218, ruling P264: whether it admits one person only (email invitations, claim links and ADMIN links). */
+  singleUse: z.boolean().optional(),
+  /**
+   * #218, ruling P264: link invitations only, how many people joined through it. Recorded since #218, so a link
+   * created before it may have been used by more people than it counts.
+   */
+  uses: z.number().int().min(0).optional(),
 });
 export const CreatedInvitationSchema = z.object({
   invitation: InvitationSchema,
@@ -131,6 +138,8 @@ export const invitationDto = (view: InvitationView): z.infer<typeof InvitationSc
   status: view.status,
   createdAt: view.createdAt.toISOString(),
   expiresAt: view.expiresAt.toISOString(),
+  singleUse: view.singleUse,
+  ...(view.uses === null ? {} : { uses: view.uses }),
 });
 
 export const createdInvitationDto = (

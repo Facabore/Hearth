@@ -121,13 +121,38 @@ describe("AcceptInvitation (HU-E1-07)", () => {
       ["Juan", "VIEWER"],
       ["Luis", "VIEWER"],
     ]);
-    expect(w.invitations.rows[0]?.status).toBe("PENDING");
+    expect(w.invitations.rows[0]).toMatchObject({
+      status: "PENDING",
+      joins: [
+        { userId: "u-juan", joinedAt: created },
+        { userId: "u-luis", joinedAt: created },
+      ],
+    });
     expect(codeOf(await w.accept({ token: "token-1", ...juan }))).toBe("AlreadyMember");
     expect(
       codeOf(
         await w.accept({ token: "token-1", userId: "u-ana", userEmail: "ana@example.com", userName: "Ana" }),
       ),
     ).toBe("AlreadyMember");
+  });
+
+  it("lets one person in through an ADMIN link, marks it used by them, and refuses the next person (#218, ruling P264)", async () => {
+    const w = await invited({ kind: "LINK" }, "ADMIN");
+    w.later(DAY);
+    unwrap(await w.accept({ token: "token-1", ...juan }));
+    expect(w.invitations.rows[0]).toMatchObject({
+      status: "ACCEPTED",
+      acceptedAt: new Date(created.getTime() + DAY),
+      acceptedByUserId: "u-juan",
+      joins: [{ userId: "u-juan", joinedAt: new Date(created.getTime() + DAY) }],
+    });
+    expect(codeOf(await w.accept({ token: "token-1", ...luis }))).toBe("InvitationAlreadyUsed");
+    expect(w.store.members(space).map((m) => [m.displayName, m.role])).toEqual([
+      ["Ana", "OWNER"],
+      ["Juan", "ADMIN"],
+    ]);
+    // Read under the same lock as every acceptance, so two people at once cannot both get in.
+    expect(w.invitations.locked).toEqual(["id-1", "id-1"]);
   });
 
   it("gives a member who left their own member row back, with the invited role and the new join time (issue #90)", async () => {

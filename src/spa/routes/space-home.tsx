@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { useTranslations } from "use-intl";
-import { HomeSummary, TransactionSheetHost } from "@/modules/ledger/ui";
+import { firstStepsOf, HomeSummary, TransactionSheetHost } from "@/modules/ledger/ui";
 import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
 import { useHome, useTransactionDetail, useViewer } from "../ledger/hooks";
@@ -45,6 +45,12 @@ export function SpaceHome() {
         today={nowIn(new Date(), viewer.me.timezone).date}
         allSpaces={
           unified && allSpaces ? { total: allSpaces.consumption.total, href: `${home}/plan` } : undefined
+        }
+        // #220 (F14): the personal home proposes a new person's first steps, from what it already read.
+        firstSteps={
+          space.kind === "PERSONAL"
+            ? { personId: viewer.me.id, done: firstStepsOf({ accounts, page, spaces: viewer.spaces }) }
+            : undefined
         }
       />
       {detail ? (

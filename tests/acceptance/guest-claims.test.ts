@@ -91,6 +91,8 @@ describe("claim links (HU-E1-11)", () => {
         status: "PENDING",
         createdAt: expect.any(String),
         expiresAt: expect.any(String),
+        // #218, ruling P264: a claim link admits one person, and counts no uses (nobody joins through it).
+        singleUse: true,
       },
       url: expect.stringMatching(/^http:\/\/localhost:3000\/claims\/[A-Za-z0-9_-]{43}$/),
       emailSent: false,

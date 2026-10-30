@@ -9,11 +9,12 @@ import type { MeDto } from "@/shared/ui/api/dto";
 import type { paths } from "@/shared/ui/api/schema";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { formatDate, formatNumber } from "@/shared/ui/format/formatters";
-import { ScreenHeader } from "@/shared/ui";
-import { AppearanceSection } from "./appearance-section";
-import { FormatPreview } from "./format-preview";
+import { ScreenHeader, Sheet } from "@/shared/ui";
+import { AppearanceSection, appLocaleOf, useDeviceTheme } from "./appearance-section";
+import { FormatPreview, formatSample } from "./format-preview";
 import { PreferenceRow } from "./preference-row";
 import { RegionSection } from "./region-section";
+import { SummaryRow } from "./summary-row";
 import { useSavedFlash } from "@/shared/ui/molecules/saved-flash";
 import {
   choose,
@@ -38,7 +39,11 @@ const rememberLocale = (locale: string) => {
   if ((LOCALES as readonly string[]).includes(locale)) document.cookie = localeCookie(locale as Locale);
 };
 
-/** HU-E9-13, the Settings artboard: no Save button; each choice is stored as it is made (ruling P137). */
+/**
+ * HU-E9-13, the Settings artboard: no Save button; each choice is stored as it is made (ruling P137). Decision U8
+ * (#224): three summary rows, each with its current values, and each opening its own sheet: Apariencia e idioma first
+ * (#176), then Números y fechas, whose row writes the preview's own sample, then the time zone (ruling P266).
+ */
 export function SettingsForm({
   me,
   backHref,
@@ -55,7 +60,13 @@ export function SettingsForm({
   const [current, setCurrent] = useState<MeDto>(me);
   const [problems, setProblems] = useState<Partial<Record<Field, Problem>>>({});
   const { saved, flash } = useSavedFlash<Field>();
+  const [sheet, setSheet] = useState<"appearance" | "formats" | null>(null);
+  const device = useDeviceTheme();
   const preferences = current.preferences;
+  const sheetProps = (which: "appearance" | "formats") => ({
+    open: sheet === which,
+    onOpenChange: (open: boolean) => setSheet(open ? which : null),
+  });
 
   /** Optimistic: the change applies at once and is rolled back, with its error on its row, when refused. */
   const send = async (field: Field, next: MeDto, patch: MePatch) => {
@@ -116,36 +127,16 @@ export function SettingsForm({
         <ScreenHeader backHref={backHref} title={t("title")} prefetch={false} />
       </div>
       {/* Issue #176: theme and language, the most changed, come first. */}
-      <AppearanceSection
-        locale={current.locale}
-        localeState={regionState(current, "locale")}
-        onLocale={(locale) => sendRegion("locale", locale)}
-        onLocaleReset={() => sendRegion("locale", preferences.defaults.locale)}
-        problem={problems.locale ?? null}
-        localeSaved={saved === "locale"}
+      <SummaryRow
+        title={t("appearance")}
+        value={`${t(`theme.${device.theme}`)} · ${t(`language.${appLocaleOf(current.locale)}`)}`}
+        onOpen={() => setSheet("appearance")}
       />
-      <FormatPreview formats={preferences.effective} />
-      <section aria-labelledby="settings-formats" className="flex flex-col gap-3">
-        <h2 id="settings-formats" className="text-lg font-semibold text-ink">
-          {t("formats")}
-        </h2>
-        {row(
-          "numberFormat",
-          NUMBER_FORMATS.map((v) => ({ value: v, label: formatNumber("1234567.89", { numberFormat: v }) })),
-        )}
-        {row(
-          "dateFormat",
-          DATE_FORMATS.map((v) => ({ value: v, label: formatDate("2026-10-16", { dateFormat: v }) })),
-        )}
-        {row(
-          "timeFormat",
-          TIME_FORMATS.map((v) => ({ value: v, label: t(`timeFormat.${v}`) })),
-        )}
-        {row(
-          "weekStart",
-          WEEK_STARTS.map((v) => ({ value: v, label: t(`weekStart.${v}`) })),
-        )}
-      </section>
+      <SummaryRow
+        title={t("numbersAndDates")}
+        value={`${formatSample(preferences.effective)} · ${t(`weekStartSummary.${preferences.effective.weekStart}`)}`}
+        onOpen={() => setSheet("formats")}
+      />
       <RegionSection
         timezone={current.timezone}
         state={regionState(current, "timezone")}
@@ -154,6 +145,39 @@ export function SettingsForm({
         problem={problems.timezone ?? null}
         saved={saved === "timezone"}
       />
+      <Sheet {...sheetProps("appearance")} title={t("appearance")}>
+        <AppearanceSection
+          theme={device.theme}
+          onTheme={device.choose}
+          locale={current.locale}
+          localeState={regionState(current, "locale")}
+          onLocale={(locale) => sendRegion("locale", locale)}
+          onLocaleReset={() => sendRegion("locale", preferences.defaults.locale)}
+          problem={problems.locale ?? null}
+          localeSaved={saved === "locale"}
+        />
+      </Sheet>
+      <Sheet {...sheetProps("formats")} title={t("numbersAndDates")}>
+        <div className="flex flex-col gap-3">
+          <FormatPreview formats={preferences.effective} />
+          {row(
+            "numberFormat",
+            NUMBER_FORMATS.map((v) => ({ value: v, label: formatNumber("1234567.89", { numberFormat: v }) })),
+          )}
+          {row(
+            "dateFormat",
+            DATE_FORMATS.map((v) => ({ value: v, label: formatDate("2026-10-16", { dateFormat: v }) })),
+          )}
+          {row(
+            "timeFormat",
+            TIME_FORMATS.map((v) => ({ value: v, label: t(`timeFormat.${v}`) })),
+          )}
+          {row(
+            "weekStart",
+            WEEK_STARTS.map((v) => ({ value: v, label: t(`weekStart.${v}`) })),
+          )}
+        </div>
+      </Sheet>
     </div>
   );
 }
