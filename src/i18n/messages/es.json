@@ -256,6 +256,16 @@
       "body": "Registra dónde tienes tu dinero para empezar a llevar tus cuentas.",
       "action": "Ir a Cuentas"
     },
+    "firstSteps": {
+      "title": "Tus primeros pasos",
+      "dismiss": "Ocultar los primeros pasos",
+      "done": "Hecho",
+      "step": {
+        "balances": "¿Cuánto tienes hoy en tus cuentas?",
+        "expense": "Registra tu primer gasto",
+        "share": "Comparte con tu hogar"
+      }
+    },
     "summary": "Resumen del período",
     "spentIn": "Gastado en {month}",
     "spentBetween": "Gastado del {start} al {end}",

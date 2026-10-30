@@ -256,6 +256,16 @@
       "body": "Record where your money is to start tracking it.",
       "action": "Go to Accounts"
     },
+    "firstSteps": {
+      "title": "Your first steps",
+      "dismiss": "Hide the first steps",
+      "done": "Done",
+      "step": {
+        "balances": "How much is in your accounts today?",
+        "expense": "Record your first expense",
+        "share": "Share with your household"
+      }
+    },
     "summary": "Period summary",
     "spentIn": "Spent in {month}",
     "spentBetween": "Spent from {start} to {end}",
