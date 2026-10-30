@@ -3,8 +3,17 @@ import type { SpaceDto } from "@/shared/ui/api/dto";
 /** Ruling P200: the views of the Plan tab; the first of a space's list is the tab's own page. */
 export type PlanView = "lines" | "members" | "fund" | "groups" | "trend" | "mine" | "calendar";
 
-const SHARED_VIEWS: readonly PlanView[] = ["lines", "members", "fund", "groups", "trend"];
-const PERSONAL_VIEWS: readonly PlanView[] = ["mine", "calendar", "groups", "trend", "lines"];
+/**
+ * Decision U3 (#224): one order for every space, Rubros · Por grupo · Miembros · Fondo · Tendencia, so a view sits in
+ * the same place wherever the person is. Ruling P266: the personal space keeps My spending first, as its Plan tab's own
+ * page (P200), and Próximos last; each space shows the views of that order it has.
+ */
+const ORDER: readonly PlanView[] = ["mine", "lines", "groups", "members", "fund", "trend", "calendar"];
+const PERSONAL_ONLY: ReadonlySet<PlanView> = new Set(["mine", "calendar"]);
+const SHARED_ONLY: ReadonlySet<PlanView> = new Set(["members", "fund"]);
+
+const SHARED_VIEWS = ORDER.filter((view) => !PERSONAL_ONLY.has(view));
+const PERSONAL_VIEWS = ORDER.filter((view) => !SHARED_ONLY.has(view));
 
 export const viewsFor = (kind: SpaceDto["kind"]): readonly PlanView[] =>
   kind === "PERSONAL" ? PERSONAL_VIEWS : SHARED_VIEWS;
