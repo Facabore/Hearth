@@ -49,7 +49,7 @@ export function HomeSummary({
    * period (HU-E7-04), one tap from Mi consumo. The period total above counts this space only.
    */
   readonly allSpaces?: { readonly total: MoneyDto; readonly href: string } | undefined;
-  /** Issue #220 (F14): on the personal home, a new person's three first steps, under the period's figure. */
+  /** Issues #220 (F14) and #152: on the personal home, a new person's four first steps, under the period's figure. */
   readonly firstSteps?: { readonly personId: string; readonly done: FirstStepsDone } | undefined;
 }) {
   const t = useTranslations("home");

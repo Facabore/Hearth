@@ -6,7 +6,7 @@ import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
 import { useHome, useTransactionDetail, useViewer } from "../ledger/hooks";
 import { showsUnifiedMonth } from "../load";
-import { unifiedViewQuery } from "../reads";
+import { lineReportQuery, unifiedViewQuery } from "../reads";
 import { useTitle } from "../title";
 
 const route = getRouteApi("/spaces/$spaceId/");
@@ -31,6 +31,12 @@ export function SpaceHome() {
     ...unifiedViewQuery(api, spaceId, page.period.label),
     enabled: unified,
   }).data;
+  // #152 (P265): the first steps' plan step reads the period's line dashboard, only where the card can show.
+  const personal = space.kind === "PERSONAL";
+  const plan = useQuery({
+    ...lineReportQuery(api, spaceId, page.period.label),
+    enabled: personal && accounts.length > 0,
+  }).data;
   return (
     <>
       <HomeSummary
@@ -48,8 +54,8 @@ export function SpaceHome() {
         }
         // #220 (F14): the personal home proposes a new person's first steps, from what it already read.
         firstSteps={
-          space.kind === "PERSONAL"
-            ? { personId: viewer.me.id, done: firstStepsOf({ accounts, page, spaces: viewer.spaces }) }
+          personal
+            ? { personId: viewer.me.id, done: firstStepsOf({ accounts, page, spaces: viewer.spaces, plan }) }
             : undefined
         }
       />

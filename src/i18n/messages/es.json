@@ -263,7 +263,8 @@
       "step": {
         "balances": "¿Cuánto tienes hoy en tus cuentas?",
         "expense": "Registra tu primer gasto",
-        "share": "Comparte con tu hogar"
+        "share": "Comparte con tu hogar",
+        "plan": "Arma el plan del mes"
       }
     },
     "summary": "Resumen del período",

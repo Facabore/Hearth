@@ -263,7 +263,8 @@
       "step": {
         "balances": "How much is in your accounts today?",
         "expense": "Record your first expense",
-        "share": "Share with your household"
+        "share": "Share with your household",
+        "plan": "Set up the month's plan"
       }
     },
     "summary": "Period summary",

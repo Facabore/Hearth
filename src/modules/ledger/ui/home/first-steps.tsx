@@ -2,15 +2,16 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useEffect, useId, useState } from "react";
 import { Icon } from "@/shared/ui";
-import type { AccountDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
+import type { AccountDto, LineDashboardDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
 import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { safeStorage } from "../record/safe-storage";
 
-/** Issue #220 (F14): which of a new person's three first steps are already done. */
+/** Issues #220 (F14) and #152: which of a new person's four first steps are already done. */
 export interface FirstStepsDone {
   readonly balances: boolean;
   readonly expense: boolean;
   readonly share: boolean;
+  readonly plan: boolean;
 }
 
 const moved = (account: Pick<AccountDto, "openingBalance" | "balance">) =>
@@ -19,20 +20,26 @@ const moved = (account: Pick<AccountDto, "openingBalance" | "balance">) =>
 /**
  * Derived from what the personal home already reads (P265): an account opened with money or that has moved says the
  * balances are set; a movement this period, or an account that moved in any period, says the first one is recorded;
- * membership of a SHARED space says the person shares with a household (a direct split alone is not a household).
+ * membership of a SHARED space says the person shares with a household (a direct split alone is not a household); a
+ * plan of the period with at least one line, whatever its status, says the month's plan is set up (#152). A plan not
+ * read yet, or that could not be read, counts as not set up.
  */
 export const firstStepsOf = ({
   accounts,
   page,
   spaces,
+  plan,
 }: {
   readonly accounts: readonly Pick<AccountDto, "openingBalance" | "balance">[];
   readonly page: Pick<TransactionPageDto, "items">;
   readonly spaces: readonly Pick<SpaceDto, "kind">[];
+  /** The period's line dashboard (#152). */
+  readonly plan?: { readonly plan: LineDashboardDto["plan"]; readonly lines: readonly unknown[] } | undefined;
 }): FirstStepsDone => ({
   balances: accounts.some((a) => BigInt(a.openingBalance.amount) !== 0n || moved(a)),
   expense: page.items.length > 0 || accounts.some(moved),
   share: spaces.some((s) => s.kind === "SHARED"),
+  plan: plan !== undefined && plan.plan !== null && plan.lines.length > 0,
 });
 
 const keyOf = (personId: string) => `hearth.firstSteps.${personId}`;
@@ -56,9 +63,9 @@ const putAway = (personId: string): void => {
 };
 
 /**
- * Issue #220 (F14): a new person's first home proposes three next steps: set what the accounts hold today, record the
- * first expense, share with the household. Each shows as done once it is done; the card goes away once all three are,
- * or when the person dismisses it, and this browser remembers that per person.
+ * Issue #220 (F14): a new person's first home proposes four next steps: set what the accounts hold today, record the
+ * first expense, share with the household, and set up the month's plan (#152). Each shows as done once it is done; the
+ * card goes away once all four are, or when the person dismisses it, and this browser remembers that per person.
  */
 export function FirstSteps({
   spaceId,
@@ -72,7 +79,7 @@ export function FirstSteps({
   const t = useTranslations("home.firstSteps");
   const titleId = useId();
   const [away, setAway] = useState(() => wasPutAway(personId));
-  const complete = done.balances && done.expense && done.share;
+  const complete = done.balances && done.expense && done.share && done.plan;
   useEffect(() => {
     if (complete) putAway(personId);
   }, [complete, personId]);
@@ -82,6 +89,8 @@ export function FirstSteps({
     { key: "balances", href: withReturnTo(`${home}/accounts`, home) },
     { key: "expense", href: withReturnTo(`${home}/new`, home) },
     { key: "share", href: withReturnTo(`/spaces/new?from=${spaceId}`, home) },
+    // A Plan tab view needs no way back; Rubros is where a period's plan is started.
+    { key: "plan", href: `${home}/plan/lines` },
   ] as const;
   return (
     <section aria-labelledby={titleId} className="flex flex-col rounded-2xl bg-surface px-3 pt-1 pb-2">
