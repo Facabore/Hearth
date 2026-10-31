@@ -4,14 +4,13 @@ import { Then, When } from "../support/fixtures";
 const pesos = (amount: string) => amount.replaceAll(",", "");
 
 /**
- * #167's sibling (owner, 2026-10-22): the personal space's Plan tab opens on My spending, so it must lead to the
- * period's plan itself; its Lines view, the one with the create card, sits off-screen at phone width.
+ * #167's sibling (owner, 2026-10-22): the personal space's Plan tab leads to the period's plan. Since ruling P267 it
+ * opens on Rubros, whose card for a period without a plan creates it.
  */
 When(
   /^"[^"]+" opens the Plan tab of her personal space for (\S+) and starts its plan$/,
   async ({ page, world }, period: string) => {
     await page.goto(`/spaces/${world.user!.spaceId}/plan?period=${period}`);
-    await page.getByRole("link", { name: world.t("reports.frame.startPlan") }).click();
     await page.getByRole("button", { name: world.t("budgeting.start.create") }).click();
     await expect(page).toHaveURL(/\/plans\/[0-9a-f-]{36}$/);
   },
@@ -50,6 +49,6 @@ Then(
       "href",
       /\/plans\/[0-9a-f-]{36}$/,
     );
-    await expect(main.getByRole("link", { name: world.t("reports.frame.startPlan") })).toHaveCount(0);
+    await expect(main.getByRole("button", { name: world.t("budgeting.start.create") })).toHaveCount(0);
   },
 );

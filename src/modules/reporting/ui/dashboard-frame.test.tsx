@@ -41,9 +41,9 @@ describe("dashboard frame (HU-E9-10)", () => {
 
   it.each([
     ["SHARED", householdDto(), ["Rubros", "Por grupo", "Miembros", "Fondo", "Tendencia"]],
-    ["PERSONAL", spaceDto(), ["Mi consumo", "Rubros", "Por grupo", "Tendencia", "Próximos"]],
+    ["PERSONAL", spaceDto(), ["Rubros", "Por grupo", "Tendencia", "Próximos"]],
   ] as const)(
-    "lists a %s space's views in the one order every space shares (decision U3, ruling P266)",
+    "lists a %s space's views in the one order every space shares (decision U3, rulings P266 and P267)",
     (_kind, space, chips) => {
       renderWithIntl(
         <DashboardFrame
@@ -117,82 +117,28 @@ describe("dashboard frame (HU-E9-10)", () => {
     expect(screen.getByRole("navigation", { name: "Vistas del plan" })).toBeInTheDocument();
   });
 
-  it("leads the manager of a personal space from My spending to planning a period without a plan (#167 sibling)", async () => {
+  it("lists the personal space's views in U3's order, without Mi consumo, its own stacked screen (ruling P267)", async () => {
     const { container } = renderWithIntl(
       <DashboardFrame
         space={spaceDto()}
-        view="mine"
+        view="lines"
         period={{ ...NOVEMBER }}
         previous={null}
         next={null}
         formats={BUILT_IN_FORMATS}
         plan={null}
-        offerPlanStart
       >
         <p>Contenido</p>
       </DashboardFrame>,
     );
-    expect(screen.getByRole("link", { name: "Planear este período" })).toHaveAttribute(
-      "href",
-      "/spaces/sp-personal/plan/lines?period=2026-11",
-    );
-    expect(await axeViolations(container)).toEqual([]);
-  });
-
-  it.each(["MEMBER", "VIEWER"] as const)(
-    "never offers a %s to plan a period, since only managers can",
-    (role) => {
-      renderWithIntl(
-        <DashboardFrame
-          space={spaceDto({ role })}
-          view="mine"
-          period={{ ...NOVEMBER }}
-          previous={null}
-          next={null}
-          formats={BUILT_IN_FORMATS}
-          plan={null}
-          offerPlanStart
-        >
-          <p>Contenido</p>
-        </DashboardFrame>,
-      );
-      expect(screen.queryByRole("link", { name: "Planear este período" })).toBeNull();
-    },
-  );
-
-  it("offers no way to plan a period that already has a plan, nor on a view that does not ask for it", () => {
-    renderWithIntl(
-      <>
-        <DashboardFrame
-          space={spaceDto()}
-          view="mine"
-          period={{ ...NOVEMBER }}
-          previous={null}
-          next={null}
-          formats={BUILT_IN_FORMATS}
-          plan={{ id: "p-nov", status: "ACTIVE" }}
-          offerPlanStart
-        >
-          <p>Contenido</p>
-        </DashboardFrame>
-        <DashboardFrame
-          space={spaceDto()}
-          view="groups"
-          period={{ ...NOVEMBER }}
-          previous={null}
-          next={null}
-          formats={BUILT_IN_FORMATS}
-          plan={null}
-        >
-          <p>Contenido</p>
-        </DashboardFrame>
-      </>,
-    );
+    const tabs = within(screen.getByRole("navigation", { name: "Vistas del plan" })).getAllByRole("link");
+    expect(tabs.map((tab) => tab.textContent)).toEqual(["Rubros", "Por grupo", "Tendencia", "Próximos"]);
+    expect(tabs[0]).toHaveAttribute("href", "/spaces/sp-personal/plan?period=2026-11");
+    expect(tabs[0]).toHaveAttribute("aria-current", "page");
+    expect(screen.queryByRole("link", { name: "Mi consumo" })).toBeNull();
+    // Rubros is where a period without a plan is planned (NoPlan), so the frame offers no second way.
     expect(screen.queryByRole("link", { name: "Planear este período" })).toBeNull();
-    expect(screen.getByRole("link", { name: "Editar plan" })).toHaveAttribute(
-      "href",
-      "/spaces/sp-personal/plans/p-nov",
-    );
+    expect(await axeViolations(container)).toEqual([]);
   });
 
   it("names the range of a period that is not a calendar month, in the person's date format", () => {

@@ -15,7 +15,6 @@ import {
   PersonalTrend,
   SpendingChart,
   treeOf,
-  UnifiedView,
 } from "@/modules/reporting/ui/screens";
 import { addDays, type LocalDate } from "@/shared/kernel/local-date";
 import type { PeriodDto, ReportPlanDto } from "@/shared/ui/api/dto";
@@ -33,7 +32,6 @@ import {
   personalGroupsQuery,
   personalTrendQuery,
   spaceReportQuery,
-  unifiedViewQuery,
 } from "../reads";
 import { useTitle } from "../title";
 import { useViewer } from "../viewer";
@@ -73,7 +71,6 @@ function Frame({
   period,
   plan: framePlan,
   wide = false,
-  offerPlanStart = false,
   children,
 }: {
   readonly viewer: Viewer;
@@ -81,7 +78,6 @@ function Frame({
   readonly period: PeriodDto;
   readonly plan: ReportPlanDto | null;
   readonly wide?: boolean;
-  readonly offerPlanStart?: boolean;
   readonly children: ReactNode;
 }) {
   const { previous, next } = useNeighbours(viewer.space.id, period);
@@ -95,31 +91,9 @@ function Frame({
       next={next}
       formats={viewer.me.preferences.effective}
       plan={framePlan}
-      offerPlanStart={offerPlanStart}
     >
       {children}
     </DashboardFrame>
-  );
-}
-
-/** HU-E9-11: My spending, the personal space's Plan tab, which leads to the period's plan (owner, 2026-10-22). */
-function MySpending({ viewer, asked }: { readonly viewer: Viewer; readonly asked: string | undefined }) {
-  const { api } = useApis();
-  const label = useLabel(viewer, asked);
-  const view = useSuspenseQuery(unifiedViewQuery(api, viewer.space.id, label)).data;
-  // The period's plan, as its line dashboard names it; a dashboard that cannot be read never stands in the way.
-  const dashboard = useQuery(lineReportQuery(api, viewer.space.id, label));
-  const periodPlan = dashboard.isError ? undefined : dashboard.data?.plan;
-  return (
-    <Frame
-      viewer={viewer}
-      view="mine"
-      period={view.period}
-      plan={periodPlan ?? null}
-      offerPlanStart={periodPlan === null}
-    >
-      <UnifiedView view={view} formats={viewer.me.preferences.effective} />
-    </Frame>
   );
 }
 
@@ -151,16 +125,11 @@ function Lines({ viewer, asked }: { readonly viewer: Viewer; readonly asked: str
   );
 }
 
-/** Ruling P200: the Plan tab's own page is My spending in the personal space and Lines in a shared one. */
+/** Rulings P200 and P267: the Plan tab's own page is Lines in every space, the personal one included. */
 export function PlanRoute() {
   useTitle(useTranslations("reports")("title"));
   const viewer = useViewer(plan.useParams().spaceId);
-  const { period } = plan.useSearch();
-  return viewer.space.kind === "PERSONAL" ? (
-    <MySpending viewer={viewer} asked={period} />
-  ) : (
-    <Lines viewer={viewer} asked={period} />
-  );
+  return <Lines viewer={viewer} asked={plan.useSearch().period} />;
 }
 
 /** HU-E9-11: the Lines view, the personal space's second view. */

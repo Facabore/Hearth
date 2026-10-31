@@ -1264,8 +1264,7 @@
     },
     "frame": {
       "editPlan": "Edit plan",
-      "viewPlan": "View plan",
-      "startPlan": "Plan this period"
+      "viewPlan": "View plan"
     },
     "spaceScoped": "{space} / {name}",
     "outsideTheApp": "Paid outside the app",
