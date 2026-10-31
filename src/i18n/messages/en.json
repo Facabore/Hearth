@@ -274,6 +274,8 @@
     "accounts": "Accounts",
     "allAccounts": "See all accounts",
     "allAccountsShort": "See all",
+    "allFunds": "See all funds",
+    "allFundsShort": "See all",
     "recent": "Recent",
     "recentEmpty": "No transactions yet. Record the first one with +.",
     "allTransactions": "See all transactions",

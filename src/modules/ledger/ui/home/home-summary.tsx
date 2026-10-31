@@ -155,8 +155,13 @@ export function HomeSummary({
                   <h2 id="home-accounts" className="text-lg font-semibold text-ink">
                     {personal ? t("accounts") : t("funds")}
                   </h2>
-                  <Link href={`/spaces/${spaceId}/accounts`} aria-label={t("allAccounts")} className={link}>
-                    {t("allAccountsShort")}
+                  {/* Issue #178: a shared space's list is of funds, and its link says so. */}
+                  <Link
+                    href={`/spaces/${spaceId}/accounts`}
+                    aria-label={personal ? t("allAccounts") : t("allFunds")}
+                    className={link}
+                  >
+                    {personal ? t("allAccountsShort") : t("allFundsShort")}
                   </Link>
                 </div>
                 {/* It scrolls sideways once the accounts outgrow the screen: the keyboard can reach it to scroll. */}
