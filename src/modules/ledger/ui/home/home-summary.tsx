@@ -49,7 +49,7 @@ export function HomeSummary({
    * period (HU-E7-04), one tap from Mi consumo. The period total above counts this space only.
    */
   readonly allSpaces?: { readonly total: MoneyDto; readonly href: string } | undefined;
-  /** Issue #220 (F14): on the personal home, a new person's three first steps, under the period's figure. */
+  /** Issues #220 (F14) and #152: on the personal home, a new person's four first steps, under the period's figure. */
   readonly firstSteps?: { readonly personId: string; readonly done: FirstStepsDone } | undefined;
 }) {
   const t = useTranslations("home");
@@ -155,8 +155,13 @@ export function HomeSummary({
                   <h2 id="home-accounts" className="text-lg font-semibold text-ink">
                     {personal ? t("accounts") : t("funds")}
                   </h2>
-                  <Link href={`/spaces/${spaceId}/accounts`} aria-label={t("allAccounts")} className={link}>
-                    {t("allAccountsShort")}
+                  {/* Issue #178: a shared space's list is of funds, and its link says so. */}
+                  <Link
+                    href={`/spaces/${spaceId}/accounts`}
+                    aria-label={personal ? t("allAccounts") : t("allFunds")}
+                    className={link}
+                  >
+                    {personal ? t("allAccountsShort") : t("allFundsShort")}
                   </Link>
                 </div>
                 {/* It scrolls sideways once the accounts outgrow the screen: the keyboard can reach it to scroll. */}

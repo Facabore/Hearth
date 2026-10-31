@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calendarHref, viewHref, viewsFor } from "./views";
+import { calendarHref, myConsumptionHref, viewHref, viewsFor } from "./views";
 
 const shared = { id: "sp-household", kind: "SHARED" } as const;
 const personal = { id: "sp-personal", kind: "PERSONAL" } as const;
@@ -7,14 +7,20 @@ const personal = { id: "sp-personal", kind: "PERSONAL" } as const;
 describe("Plan tab views (ruling P200)", () => {
   it("opens a space's first view on the tab's own page and keeps the period", () => {
     expect(viewsFor("SHARED")).toEqual(["lines", "groups", "members", "fund", "trend"]);
-    expect(viewsFor("PERSONAL")).toEqual(["mine", "lines", "groups", "trend", "calendar"]);
+    // Ruling P267 (U3, U10): Mi consumo is a stacked screen of its own, so the personal space opens on Rubros.
+    expect(viewsFor("PERSONAL")).toEqual(["lines", "groups", "trend", "calendar"]);
     expect(viewHref(shared, "lines")).toBe("/spaces/sp-household/plan");
     expect(viewHref(shared, "fund", "2026-11")).toBe("/spaces/sp-household/plan/fund?period=2026-11");
     expect(viewHref(shared, "lines", "2026-11 H1")).toBe("/spaces/sp-household/plan?period=2026-11%20H1");
     expect(viewHref(shared, "members", "2026-11")).toBe("/spaces/sp-household/plan/members?period=2026-11");
-    expect(viewHref({ id: "sp-personal", kind: "PERSONAL" }, "lines")).toBe("/spaces/sp-personal/plan/lines");
-    expect(viewHref({ id: "sp-personal", kind: "PERSONAL" }, "mine", "2026-11")).toBe(
-      "/spaces/sp-personal/plan?period=2026-11",
+    expect(viewHref(personal, "lines", "2026-11")).toBe("/spaces/sp-personal/plan?period=2026-11");
+    expect(viewHref(personal, "groups")).toBe("/spaces/sp-personal/plan/groups");
+  });
+
+  it("links Mi consumo, the stacked screen of ruling P267, and keeps the period", () => {
+    expect(myConsumptionHref(personal)).toBe("/spaces/sp-personal/my-consumption");
+    expect(myConsumptionHref(personal, "2026-11 H1")).toBe(
+      "/spaces/sp-personal/my-consumption?period=2026-11%20H1",
     );
   });
 

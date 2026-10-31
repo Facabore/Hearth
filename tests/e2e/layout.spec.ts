@@ -689,13 +689,15 @@ for (const wideFont of [false, true]) {
           // HU-E9-04: the category tree, managed (personal) and its shared counterpart.
           `/spaces/${spaceId}/categories`,
           `/spaces/${sharedId}/categories`,
-          // HU-E9-10, HU-E9-11: the Plan tab, My spending (personal) and without a plan (shared).
+          // HU-E9-10, HU-E9-11: the Plan tab, Rubros (personal, ruling P267) and without a plan (shared).
           `/spaces/${spaceId}/plan`,
           `/spaces/${spaceId}/plan/lines`,
           `/spaces/${spaceId}/plan/groups`,
           `/spaces/${sharedId}/plan`,
           `/spaces/${sharedId}/plan/fund`,
           `/spaces/${sharedId}/plan/groups`,
+          // U10, U4 (ruling P267): Mi consumo, the stacked screen Inicio's shortcut opens.
+          `/spaces/${spaceId}/my-consumption`,
           history,
           // Ruling P191: the record form on a transaction, which has its own header, line and notice.
           edit,
@@ -1018,7 +1020,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         [`/spaces/${sharedId}/plan/groups`, 5],
         // #212: Tendencia with one period of history; its table scrolls inside its region, never the page.
         [`/spaces/${sharedId}/plan/trend`, 5],
-        // HU-E9-11: My spending, the personal space's own page, and its Lines view.
+        // HU-E9-11: Rubros, the personal space's own page (ruling P267), and its Lines address.
         [`/spaces/${spaceId}/plan`, 4],
         [`/spaces/${spaceId}/plan/lines`, 4],
         // HU-E9-11: By group, the person's own spending merged across their spaces.
@@ -1070,7 +1072,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       // U3 (#224): every space lists its views in one order.
       for (const [path, views] of [
         [`/spaces/${sharedId}/plan`, ["lines", "groups", "members", "fund", "trend"]],
-        [`/spaces/${spaceId}/plan`, ["mine", "lines", "groups", "trend", "calendar"]],
+        [`/spaces/${spaceId}/plan`, ["lines", "groups", "trend", "calendar"]],
       ] as const) {
         await page.goto(path);
         await expect(
@@ -1079,8 +1081,12 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         ).toHaveText(views.map((view) => es.reports.view[view]));
       }
 
-      // U10 (#224): Mi consumo has one hero figure; "¿Por qué es distinto?" is a full target and opens in place.
-      await page.goto(`/spaces/${spaceId}/plan`);
+      // U10 (#224): Mi consumo has one hero figure; "¿Por qué es distinto?" is a full target and opens in place. It is a
+      // stacked screen with a full-size way back (ruling P267).
+      await page.goto(`/spaces/${spaceId}/my-consumption`);
+      const back = (await page.getByRole("link", { name: es.common.back }).boundingBox())!;
+      expect.soft(back.height, "Volver height").toBeGreaterThanOrEqual(TARGET);
+      expect.soft(back.width, "Volver width").toBeGreaterThanOrEqual(TARGET);
       await expect(page.getByRole("region", { name: es.reports.unified.spent, exact: true })).toBeVisible();
       const why = page.getByRole("button", { name: es.reports.unified.whyDifferent });
       const whyBox = (await why.boundingBox())!;

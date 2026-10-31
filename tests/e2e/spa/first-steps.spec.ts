@@ -19,7 +19,7 @@ test("a new person sees the first steps, and recording an expense ticks its step
   await page.goto(`/spaces/${spaceId}`);
   const card = page.getByRole("region", { name: steps.title });
   await expect(card).toBeVisible();
-  await expect(card.getByRole("link")).toHaveCount(3);
+  await expect(card.getByRole("link")).toHaveCount(4);
   await expect(card.getByText(steps.done, { exact: true })).toHaveCount(0);
   // The period's figure stays above the card, whole on the first screen of the audit's phone.
   const figure = page.getByRole("region", { name: es.home.summary });

@@ -13,7 +13,7 @@ import {
   spaceDto,
 } from "../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse, type FakeHandler } from "../../../tests/support/ui/fake-api";
-import { e74Unified } from "../../../tests/support/ui/plan-dto";
+import { e74Unified, e7Dashboard } from "../../../tests/support/ui/plan-dto";
 import { renderSpa } from "../../../tests/support/ui/spa";
 import { createSpa } from "../app";
 import { moduleKeys } from "../reads";
@@ -80,13 +80,13 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     expect(document.title).toBe(`${es.home.title} · Hearth`);
   });
 
-  it("adds the month across every space to the personal home, from the period it shows (U4, #209)", async () => {
+  it("adds the month across every space to the personal home, leading to Mi consumo for that period (U4, #209, P267)", async () => {
     const { routes } = ledgerApi({
       "GET /api/v1/me/unified-view": () => jsonResponse(e74Unified({ period: { ...octoberPage.period } })),
     });
     const spa = renderSpa("/spaces/sp-personal", routes);
     const link = await screen.findByRole("link", { name: /Tu mes en todos tus espacios/ });
-    expect(link).toHaveAttribute("href", "/spaces/sp-personal/plan");
+    expect(link).toHaveAttribute("href", "/spaces/sp-personal/my-consumption?period=2026-10");
     expect(link.textContent?.replace(/\s/g, " ")).toContain("$ 1.575.000");
     expect(calls(spa.requests, "GET", /\/me\/unified-view\?period=2026-10$/)).toHaveLength(1);
   });
@@ -124,6 +124,43 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     await settled(shared);
     expect(screen.queryByRole("link", { name: /Tu mes en todos tus espacios/ })).not.toBeInTheDocument();
     expect(calls([...spa.requests, ...shared.requests], "GET", /\/me\/unified-view/)).toHaveLength(0);
+  });
+
+  it("proposes the month's plan on the personal home until its period's plan has a line (#152)", async () => {
+    const steps = es.home.firstSteps;
+    const step = () =>
+      within(screen.getByRole("region", { name: steps.title }))
+        .getAllByRole("listitem")
+        .find((item) => item.textContent?.includes(steps.step.plan))!;
+    const empty = ledgerApi({
+      "GET /api/v1/spaces/{spaceId}/reports/lines": () =>
+        jsonResponse(
+          e7Dashboard({ spaceId: "sp-personal", period: octoberPage.period, plan: null, lines: [] }),
+        ),
+    });
+    const spa = renderSpa("/spaces/sp-personal", empty.routes);
+    expect(await screen.findByRole("link", { name: steps.step.plan })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/plan/lines",
+    );
+    expect(calls(spa.requests, "GET", /\/spaces\/sp-personal\/reports\/lines\?period=2026-10$/)).toHaveLength(
+      1,
+    );
+    spa.unmount();
+    const planned = ledgerApi({
+      "GET /api/v1/spaces/{spaceId}/reports/lines": () =>
+        jsonResponse(e7Dashboard({ spaceId: "sp-personal", period: octoberPage.period })),
+    });
+    renderSpa("/spaces/sp-personal", planned.routes);
+    await waitFor(() => expect(within(step()).getByText(steps.done)).toBeInTheDocument());
+    expect(within(step()).queryByRole("link")).toBeNull();
+  });
+
+  it("reads no plan for the first steps in a shared space's home (#152)", async () => {
+    const spa = renderSpa("/spaces/sp-household", ledgerApi().routes);
+    expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
+    await settled(spa);
+    expect(calls(spa.requests, "GET", /\/reports\/lines/)).toHaveLength(0);
   });
 
   it("lists Movimientos by day with the API's totals, under the space's own filters", async () => {

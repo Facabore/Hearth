@@ -35,7 +35,7 @@ function SpaceScreenPending({
 }: {
   readonly title: string;
   readonly back?: string;
-  readonly shape: "list" | "form";
+  readonly shape: "list" | "form" | "cards";
 }) {
   const { spaceId } = useParams({ strict: false });
   return <LoadingScreen header={{ backHref: `/spaces/${spaceId}${back}`, title }} shape={shape} />;
@@ -80,6 +80,11 @@ export const BalancesPending = () => <LoadingScreen shape="cards" />;
 
 /** A Plan tab view while its reports are read. */
 export const PlanPending = () => <LoadingScreen shape="cards" />;
+
+/** Ruling P267: Mi consumo is stacked on the personal home, so its skeleton already has the way back there. */
+export const MyConsumptionPending = () => (
+  <SpaceScreenPending title={useTranslations("reports.view")("mine")} shape="cards" />
+);
 
 /** The planner and its forms, with their way back to the Plan tab. */
 export function PlannerPending() {

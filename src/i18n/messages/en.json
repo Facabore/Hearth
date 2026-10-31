@@ -263,7 +263,8 @@
       "step": {
         "balances": "How much is in your accounts today?",
         "expense": "Record your first expense",
-        "share": "Share with your household"
+        "share": "Share with your household",
+        "plan": "Set up the month's plan"
       }
     },
     "summary": "Period summary",
@@ -274,6 +275,8 @@
     "accounts": "Accounts",
     "allAccounts": "See all accounts",
     "allAccountsShort": "See all",
+    "allFunds": "See all funds",
+    "allFundsShort": "See all",
     "recent": "Recent",
     "recentEmpty": "No transactions yet. Record the first one with +.",
     "allTransactions": "See all transactions",
@@ -1261,8 +1264,7 @@
     },
     "frame": {
       "editPlan": "Edit plan",
-      "viewPlan": "View plan",
-      "startPlan": "Plan this period"
+      "viewPlan": "View plan"
     },
     "spaceScoped": "{space} / {name}",
     "outsideTheApp": "Paid outside the app",

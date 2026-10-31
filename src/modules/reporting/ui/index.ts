@@ -1,1 +1,1 @@
-export { calendarHref, viewHref, viewsFor, type PlanView } from "./views";
+export { calendarHref, myConsumptionHref, viewHref, viewsFor, type PlanView } from "./views";

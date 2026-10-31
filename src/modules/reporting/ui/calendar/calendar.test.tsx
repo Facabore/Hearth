@@ -71,7 +71,7 @@ describe("the cash-flow calendar (#150, ruling P241 of M6c)", () => {
     );
     const tabs = screen.getByRole("navigation", { name: "Vistas del plan" });
     expect(within(tabs).getByRole("link", { name: "Próximos" })).toHaveAttribute("aria-current", "page");
-    expect(within(tabs).getByRole("link", { name: "Mi consumo" })).toHaveAttribute(
+    expect(within(tabs).getByRole("link", { name: "Rubros" })).toHaveAttribute(
       "href",
       "/spaces/sp-personal/plan",
     );

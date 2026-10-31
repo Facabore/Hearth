@@ -247,7 +247,7 @@ import { DrizzleInvitationRepository } from "@/modules/spaces/infrastructure/dri
 import { DrizzleSpaceRepository } from "@/modules/spaces/infrastructure/drizzle-space-repository";
 import { createFixedWindowLimiter, leveledLogger, type IdempotencyDeps, type RouteDeps } from "@/shared/http";
 import { createDatabase, type Database } from "@/shared/infrastructure/db/client";
-import { reachableWithin } from "@/shared/infrastructure/db/reachable";
+import { createDatabaseProbe } from "@/shared/infrastructure/db/probe";
 import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { DrizzleIdempotencyStore } from "@/shared/infrastructure/drizzle-idempotency-store";
 import { loadEnv, type Env } from "@/shared/infrastructure/env";
@@ -700,8 +700,9 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     pool,
     tm,
     logger: leveledLogger(env.LOG_LEVEL),
-    // HU-E8-02: the health check's database probe; a failure, or no answer within 2 s, reads as unreachable.
-    databaseReachable: () => reachableWithin(2_000, () => pool.query("SELECT 1")),
+    // HU-E8-02, #190: the health check's database probe, apart from the application's pool; a failure, or no answer
+    // within HEALTH_PROBE_TIMEOUT_MS, reads as unreachable.
+    databaseReachable: createDatabaseProbe(env.DATABASE_URL).reachable,
     sessionResolver: provider,
     idempotency: { tm, store: new DrizzleIdempotencyStore(tm) },
     identity: {

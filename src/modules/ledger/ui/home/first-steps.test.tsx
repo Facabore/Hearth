@@ -11,7 +11,8 @@ import { HomeSummary } from "./home-summary";
 const mocks = vi.hoisted(() => ({ router: { push: vi.fn(), replace: vi.fn(), refresh: vi.fn() } }));
 vi.mock("next/navigation", () => ({ useRouter: () => mocks.router }));
 
-const NONE: FirstStepsDone = { balances: false, expense: false, share: false };
+const NONE: FirstStepsDone = { balances: false, expense: false, share: false, plan: false };
+const ALL: FirstStepsDone = { balances: true, expense: true, share: true, plan: true };
 const KEY = "hearth.firstSteps.u-ana";
 
 const card = () => screen.queryByRole("region", { name: "Tus primeros pasos" });
@@ -35,13 +36,14 @@ afterEach(() => {
 });
 
 describe("a new person's first steps (#220, F14)", () => {
-  it("offers the three steps, each linking to where it is done, and returns to the home", async () => {
+  it("offers the four steps, each linking to where it is done", async () => {
     const { container } = renderWithIntl(<FirstSteps spaceId="sp-1" personId="u-ana" done={NONE} />);
     const links = within(card()!).getAllByRole("link");
     expect(links.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
       ["¿Cuánto tienes hoy en tus cuentas?", "/spaces/sp-1/accounts?returnTo=%2Fspaces%2Fsp-1"],
       ["Registra tu primer gasto", "/spaces/sp-1/new?returnTo=%2Fspaces%2Fsp-1"],
       ["Comparte con tu hogar", "/spaces/new?from=sp-1&returnTo=%2Fspaces%2Fsp-1"],
+      ["Arma el plan del mes", "/spaces/sp-1/plan/lines"],
     ]);
     expect(within(card()!).queryByText("Hecho")).toBeNull();
     expect(await axeViolations(container)).toEqual([]);
@@ -51,18 +53,27 @@ describe("a new person's first steps (#220, F14)", () => {
     ["balances", /cuentas/],
     ["expense", /gasto/],
     ["share", /hogar/],
+    ["plan", /plan del mes/],
   ] as const)("shows the %s step as done, with no link, while the others stay open", (key, name) => {
     renderWithIntl(<FirstSteps spaceId="sp-1" personId="u-ana" done={{ ...NONE, [key]: true }} />);
     expect(within(step(name)).getByText("Hecho")).toBeInTheDocument();
     expect(within(step(name)).queryByRole("link")).toBeNull();
-    expect(within(card()!).getAllByRole("link")).toHaveLength(2);
+    expect(within(card()!).getAllByRole("link")).toHaveLength(3);
     expect(within(card()!).getAllByText("Hecho")).toHaveLength(1);
   });
 
-  it("goes away once all three are done, and stays away for that person", () => {
-    const { unmount } = renderWithIntl(
-      <FirstSteps spaceId="sp-1" personId="u-ana" done={{ balances: true, expense: true, share: true }} />,
-    );
+  it("stays while only the plan is missing (#152)", () => {
+    renderWithIntl(<FirstSteps spaceId="sp-1" personId="u-ana" done={{ ...ALL, plan: false }} />);
+    expect(
+      within(card()!)
+        .getAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual(["Arma el plan del mes"]);
+    expect(localStorage.getItem(KEY)).toBeNull();
+  });
+
+  it("goes away once all four are done, and stays away for that person", () => {
+    const { unmount } = renderWithIntl(<FirstSteps spaceId="sp-1" personId="u-ana" done={ALL} />);
     expect(card()).toBeNull();
     expect(localStorage.getItem(KEY)).toBe("1");
     unmount();
@@ -102,6 +113,7 @@ describe("a new person's first steps (#220, F14)", () => {
     });
     const region = screen.getByRole("region", { name: "Your first steps" });
     expect(within(region).getByText("Done")).toBeInTheDocument();
+    expect(within(region).getByRole("link", { name: "Set up the month's plan" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Hide the first steps" })).toBeInTheDocument();
   });
 });
@@ -133,6 +145,23 @@ describe("which first steps are done (#220)", () => {
       ...NONE,
       expense: true,
     });
+  });
+
+  it("counts the plan once the period's plan has a line, whatever its status (#152)", () => {
+    const plan = { plan: { id: "pl-1", status: "DRAFT" as const }, lines: [{ lineId: "l-1" }] };
+    expect(firstStepsOf({ accounts: [accountDto()], page: empty, spaces: personal, plan })).toEqual({
+      ...NONE,
+      plan: true,
+    });
+  });
+
+  it("does not count the plan without one, with an empty one, or before it is read (#152)", () => {
+    const base = { accounts: [accountDto()], page: empty, spaces: personal };
+    expect(firstStepsOf({ ...base, plan: { plan: null, lines: [] } }).plan).toBe(false);
+    expect(firstStepsOf({ ...base, plan: { plan: { id: "pl-1", status: "ACTIVE" }, lines: [] } }).plan).toBe(
+      false,
+    );
+    expect(firstStepsOf({ ...base, plan: undefined }).plan).toBe(false);
   });
 
   it("counts sharing once the person is in a shared space, not for a direct split alone", () => {

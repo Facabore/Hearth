@@ -381,6 +381,19 @@ const calendarRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/plan"), "CalendarRoute"),
 });
 
+/** Ruling P267 (U10, U4): Mi consumo, a stacked screen of the personal space opened from Inicio, with `?period=`. */
+const myConsumptionRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "my-consumption",
+  validateSearch: (search: Record<string, unknown>) => ({ period: textParam(search.period) }),
+  loaderDeps: ({ search }) => search,
+  loader: async ({ context, params, deps, cause }) =>
+    (await plans()).loadMyConsumption({ ...context, cause }, params.spaceId, deps),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "MyConsumptionPending"),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/plan"), "MyConsumptionRoute"),
+});
+
 /** HU-E9-08: the planner of one plan, its capacities and its lines. */
 const plannerRoute = createRoute({
   getParentRoute: () => spaceRoute,
@@ -447,6 +460,7 @@ export const routeTree = rootRoute.addChildren([
     fundRoute,
     matrixRoute,
     calendarRoute,
+    myConsumptionRoute,
     plannerRoute,
     capacitiesRoute,
     newLineRoute,

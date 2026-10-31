@@ -11,11 +11,11 @@ import {
   LineDashboard,
   LineTrend,
   MemberMatrix,
+  MyConsumptionScreen,
   NoPlan,
   PersonalTrend,
   SpendingChart,
   treeOf,
-  UnifiedView,
 } from "@/modules/reporting/ui/screens";
 import { addDays, type LocalDate } from "@/shared/kernel/local-date";
 import type { PeriodDto, ReportPlanDto } from "@/shared/ui/api/dto";
@@ -45,6 +45,7 @@ const trend = getRouteApi("/spaces/$spaceId/plan/trend");
 const fund = getRouteApi("/spaces/$spaceId/plan/fund");
 const members = getRouteApi("/spaces/$spaceId/plan/members");
 const calendar = getRouteApi("/spaces/$spaceId/plan/calendar");
+const myConsumption = getRouteApi("/spaces/$spaceId/my-consumption");
 
 /** Ruling P205: the period asked for, else the one holding today in the person's zone, read as the loader did. */
 const useLabel = (viewer: Viewer, asked: string | undefined): string => {
@@ -73,7 +74,6 @@ function Frame({
   period,
   plan: framePlan,
   wide = false,
-  offerPlanStart = false,
   children,
 }: {
   readonly viewer: Viewer;
@@ -81,7 +81,6 @@ function Frame({
   readonly period: PeriodDto;
   readonly plan: ReportPlanDto | null;
   readonly wide?: boolean;
-  readonly offerPlanStart?: boolean;
   readonly children: ReactNode;
 }) {
   const { previous, next } = useNeighbours(viewer.space.id, period);
@@ -95,31 +94,9 @@ function Frame({
       next={next}
       formats={viewer.me.preferences.effective}
       plan={framePlan}
-      offerPlanStart={offerPlanStart}
     >
       {children}
     </DashboardFrame>
-  );
-}
-
-/** HU-E9-11: My spending, the personal space's Plan tab, which leads to the period's plan (owner, 2026-10-22). */
-function MySpending({ viewer, asked }: { readonly viewer: Viewer; readonly asked: string | undefined }) {
-  const { api } = useApis();
-  const label = useLabel(viewer, asked);
-  const view = useSuspenseQuery(unifiedViewQuery(api, viewer.space.id, label)).data;
-  // The period's plan, as its line dashboard names it; a dashboard that cannot be read never stands in the way.
-  const dashboard = useQuery(lineReportQuery(api, viewer.space.id, label));
-  const periodPlan = dashboard.isError ? undefined : dashboard.data?.plan;
-  return (
-    <Frame
-      viewer={viewer}
-      view="mine"
-      period={view.period}
-      plan={periodPlan ?? null}
-      offerPlanStart={periodPlan === null}
-    >
-      <UnifiedView view={view} formats={viewer.me.preferences.effective} />
-    </Frame>
   );
 }
 
@@ -151,15 +128,29 @@ function Lines({ viewer, asked }: { readonly viewer: Viewer; readonly asked: str
   );
 }
 
-/** Ruling P200: the Plan tab's own page is My spending in the personal space and Lines in a shared one. */
+/** Rulings P200 and P267: the Plan tab's own page is Lines in every space, the personal one included. */
 export function PlanRoute() {
   useTitle(useTranslations("reports")("title"));
   const viewer = useViewer(plan.useParams().spaceId);
-  const { period } = plan.useSearch();
-  return viewer.space.kind === "PERSONAL" ? (
-    <MySpending viewer={viewer} asked={period} />
-  ) : (
-    <Lines viewer={viewer} asked={period} />
+  return <Lines viewer={viewer} asked={plan.useSearch().period} />;
+}
+
+/** Ruling P267 (U10, U4): Mi consumo, the person's month across every space, as a stacked screen of the personal space. */
+export function MyConsumptionRoute() {
+  useTitle(useTranslations("reports.view")("mine"));
+  const viewer = useViewer(myConsumption.useParams().spaceId);
+  const { api } = useApis();
+  const label = useLabel(viewer, myConsumption.useSearch().period);
+  const view = useSuspenseQuery(unifiedViewQuery(api, viewer.space.id, label)).data;
+  const { previous, next } = useNeighbours(viewer.space.id, view.period);
+  return (
+    <MyConsumptionScreen
+      space={viewer.space}
+      view={view}
+      previous={previous}
+      next={next}
+      formats={viewer.me.preferences.effective}
+    />
   );
 }
 

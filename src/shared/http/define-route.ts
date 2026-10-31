@@ -1,5 +1,6 @@
 import type { ZodType } from "zod";
 import type { AuthUser, Result } from "@/shared/kernel";
+import { failureOf } from "@/shared/kernel/failure";
 import { jsonLogger, type Logger } from "./logger";
 import { nulFieldErrors } from "./nul-guard";
 import {
@@ -52,33 +53,39 @@ const toFieldErrors = (
 const bigintAsString = (_key: string, value: unknown) =>
   typeof value === "bigint" ? value.toString() : value;
 
-const firstLineOf = (message: string): string =>
-  (message.split("\n")[0] ?? "").split(/\bparams:/)[0]?.trim() ?? "";
-
 /**
- * What an unhandled error may write to the log: its name, the first line of its message without any
- * `params:` tail, and the SQLSTATE and constraint of a database cause. Drizzle puts the bound SQL
- * parameters (token hashes, contact emails) in the message, so they are never logged.
+ * What an unhandled error may write to the log (#190): `failureOf`'s name, SQLSTATE and constraint, as every job logs
+ * a failure. Never the message: Drizzle puts the bound parameters there, and a driver message can quote a value. The
+ * one exception is the config loader's `EnvError`, written to be logged: it names the variables, never their values.
  */
 const summaryOf = (error: unknown): Record<string, string> => {
-  if (!(error instanceof Error)) return { name: "NonErrorThrown", message: firstLineOf(String(error)) };
-  const { code, constraint } = (error.cause ?? {}) as { code?: unknown; constraint?: unknown };
+  const { error: name, ...database } = failureOf(error);
   return {
-    name: error.name,
-    message: firstLineOf(error.message),
-    ...(typeof code === "string" ? { code } : {}),
-    ...(typeof constraint === "string" ? { constraint } : {}),
+    name,
+    ...(error instanceof Error && name === "EnvError" ? { message: error.message } : {}),
+    ...database,
   };
 };
 
-/** HU-E8-02: the stack frames of an unhandled error ("at …"), without its first line, which repeats the message. */
-const framesOf = (error: unknown): string[] =>
-  error instanceof Error && error.stack
-    ? error.stack
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line.startsWith("at "))
-    : [];
+/**
+ * HU-E8-02: the stack frames of an unhandled error ("at …"). The stack starts with the message, which may span lines
+ * and carry a query's parameters (P252), so its lines are dropped before the frames are kept, even one that reads
+ * like a frame (#190). The frames are what follows the message, whatever name the header carries (one renamed after
+ * its stack was read keeps "Error"); a stack that does not hold the message (one a library rewrote) logs none.
+ */
+const framesOf = (error: unknown): string[] => {
+  if (!(error instanceof Error) || !error.stack) return [];
+  // Without a message the header is the bare name, with or without its colon; any other first line is text a library
+  // wrote, so nothing is kept.
+  if (!error.message && !/^[\w$.]+:?$/.test(error.stack.split("\n")[0]?.trim() ?? "")) return [];
+  const end = error.stack.indexOf(error.message);
+  if (end < 0) return [];
+  return error.stack
+    .slice(end + error.message.length)
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("at "));
+};
 
 /** A path segment as Next.js passes it to the params; a malformed percent-escape is left as it is. */
 const decodedSegment = (segment: string): string => {

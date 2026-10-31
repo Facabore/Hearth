@@ -67,7 +67,7 @@ const loadNeighbours = (load: Load, spaceId: string, period: PeriodDto) => {
 };
 
 /**
- * HU-E9-10, HU-E9-11: a Plan tab view's reads. The personal space shows the person's own reports (My spending, their
+ * HU-E9-10, HU-E9-11: a Plan tab view's reads. The personal space shows its Lines and the person's own reports (their
  * groups and trend, Próximos); a shared one the space's (Lines with the desktop overview, groups, trend, fund, members).
  * A view a space does not have is not found, as the Next.js containers answer.
  */
@@ -84,13 +84,7 @@ export const loadPlanView = async (load: Load, spaceId: string, view: PlanView, 
     return;
   }
   const label = await reportLabel(load, viewer, search.period);
-  if (view === "home" && personal) {
-    const [unified] = await Promise.all([
-      ensure(unifiedViewQuery(api, spaceId, label)),
-      settled(ensure(lineReportQuery(api, spaceId, label))),
-    ]);
-    await loadNeighbours(load, spaceId, unified.period);
-  } else if (view === "home" || view === "lines") {
+  if (view === "home" || view === "lines") {
     const dashboard = await ensure(lineReportQuery(api, spaceId, label));
     await Promise.all([
       loadNeighbours(load, spaceId, dashboard.period),
@@ -152,4 +146,16 @@ export const loadLineEditor = async (load: Load, spaceId: string, planId: string
     ensure(categoriesQuery(api, spaceId, "active")),
     ensure(membersQuery(api, spaceId)),
   ]);
+};
+
+/**
+ * Ruling P267 (U10, U4): Mi consumo's reads, the person's month across every space and the periods around it. It is
+ * the personal space's screen, so a shared space answers it as not found.
+ */
+export const loadMyConsumption = async (load: Load, spaceId: string, search: Pick<PlanSearch, "period">) => {
+  const viewer = await viewerOf(load, spaceId);
+  if (!viewer || viewer.space.kind !== "PERSONAL") throw notFound();
+  const label = await reportLabel(load, viewer, search.period);
+  const unified = await ensurer(load)(unifiedViewQuery(load.apis.api, spaceId, label));
+  await loadNeighbours(load, spaceId, unified.period);
 };

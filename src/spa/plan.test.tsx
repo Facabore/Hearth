@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import es from "@/i18n/messages/es.json";
@@ -90,13 +90,44 @@ describe("the Plan tab and the planner in the SPA (slice 5 of #199, ADR 0006)", 
     expect(problems()).toEqual([]);
   });
 
-  it("opens the personal space's Plan tab on My spending, the person's own (D11)", async () => {
-    const spa = renderSpa(`${PERSONAL}/plan`, server());
-    await waitFor(() => expect(count(spa.requests, "GET", /\/me\/unified-view$/)).toBe(1), {
-      timeout: 5_000,
-    });
-    expect(await screen.findByRole("link", { name: es.reports.view.calendar })).toBeInTheDocument();
+  it("opens the personal space's Plan tab on Rubros, with its views in U3's order and no Mi consumo (ruling P267)", async () => {
+    const spa = renderSpa(`${PERSONAL}/plan?period=2026-11`, server());
+    const tabs = await screen.findByRole("navigation", { name: es.reports.tabs.label }, { timeout: 5_000 });
+    expect(
+      within(tabs)
+        .getAllByRole("link")
+        .map((tab) => tab.textContent),
+    ).toEqual([
+      es.reports.view.lines,
+      es.reports.view.groups,
+      es.reports.view.trend,
+      es.reports.view.calendar,
+    ]);
+    expect(within(tabs).getByRole("link", { name: es.reports.view.lines })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(count(spa.requests, "GET", /\/reports\/lines$/)).toBeGreaterThanOrEqual(1);
+    expect(count(spa.requests, "GET", /\/me\/unified-view$/)).toBe(0);
+    // The old address stays the Plan tab's own page: nothing redirects, and its period is kept.
+    expect(spa.router.state.location.href).toBe(`${PERSONAL}/plan?period=2026-11`);
     expect(problems()).toEqual([]);
+  });
+
+  it("shows Mi consumo as a stacked screen with its way back home and its period (U10, U4, ruling P267)", async () => {
+    const spa = renderSpa(`${PERSONAL}/my-consumption?period=2026-11`, server());
+    await waitFor(() => expect(document.title).toBe(`${es.reports.view.mine} · Hearth`), { timeout: 5_000 });
+    expect(await screen.findByRole("link", { name: es.common.back })).toHaveAttribute("href", PERSONAL);
+    expect(screen.getByRole("heading", { level: 1, name: es.reports.view.mine })).toBeVisible();
+    expect(screen.getByRole("region", { name: es.reports.unified.spent })).toBeVisible();
+    expect(screen.queryByRole("navigation", { name: es.reports.tabs.label })).toBeNull();
+    expect(count(spa.requests, "GET", /\/me\/unified-view$/)).toBe(1);
+    expect(problems()).toEqual([]);
+  });
+
+  it("answers Mi consumo in a shared space with the not-found screen, since it is the personal space's", async () => {
+    renderSpa(`${HOUSEHOLD}/my-consumption`, server());
+    expect(await screen.findByRole("heading", { name: es.notFound.title }, { timeout: 5_000 })).toBeVisible();
   });
 
   it.each([
@@ -105,6 +136,8 @@ describe("the Plan tab and the planner in the SPA (slice 5 of #199, ADR 0006)", 
     [`${HOUSEHOLD}/plan/trend`, es.reports.view.trend, /\/reports\/trend$/],
     [`${HOUSEHOLD}/plan/fund`, es.reports.view.fund, /\/reports\/fund-contributions$/],
     [`${HOUSEHOLD}/plan/members`, es.reports.view.members, /\/reports\/member-matrix$/],
+    // After another title, so the wait sees this screen's own, not Rubros left by the shared space's.
+    [`${PERSONAL}/plan/lines`, es.reports.view.lines, /\/reports\/lines$/],
     [`${PERSONAL}/plan/groups`, es.reports.view.groups, /\/me\/reports\/spending-by-group$/],
     [`${PERSONAL}/plan/trend`, es.reports.view.trend, /\/me\/trend$/],
     [`${PERSONAL}/plan/calendar`, es.reports.calendar.metaTitle, /\/me\/cash-flow$/],

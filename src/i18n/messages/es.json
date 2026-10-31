@@ -263,7 +263,8 @@
       "step": {
         "balances": "¿Cuánto tienes hoy en tus cuentas?",
         "expense": "Registra tu primer gasto",
-        "share": "Comparte con tu hogar"
+        "share": "Comparte con tu hogar",
+        "plan": "Arma el plan del mes"
       }
     },
     "summary": "Resumen del período",
@@ -274,6 +275,8 @@
     "accounts": "Cuentas",
     "allAccounts": "Ver todas las cuentas",
     "allAccountsShort": "Ver todas",
+    "allFunds": "Ver todos los fondos",
+    "allFundsShort": "Ver todos",
     "recent": "Recientes",
     "recentEmpty": "Aún no hay movimientos. Registra el primero con +.",
     "allTransactions": "Ver todos los movimientos",
@@ -1261,8 +1264,7 @@
     },
     "frame": {
       "editPlan": "Editar plan",
-      "viewPlan": "Ver plan",
-      "startPlan": "Planear este período"
+      "viewPlan": "Ver plan"
     },
     "spaceScoped": "{space} / {name}",
     "outsideTheApp": "Pagado fuera de la app",

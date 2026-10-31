@@ -62,6 +62,7 @@ test.describe("the Plan tab and the planner (slice 5 of #199, ADR 0006)", () => 
       [`/spaces/${space.id}/plan/fund`, es.reports.view.fund],
       [`/spaces/${space.id}/plan/groups`, es.reports.view.groups],
       [`/spaces/${personal}/plan`, es.reports.title],
+      [`/spaces/${personal}/my-consumption`, es.reports.view.mine],
       [`/spaces/${personal}/plan/calendar`, es.reports.calendar.metaTitle],
       [`/spaces/${personal}/plan/trend`, es.reports.view.trend],
     ] as const) {

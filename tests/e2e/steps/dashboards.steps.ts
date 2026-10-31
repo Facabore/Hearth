@@ -65,7 +65,8 @@ Given(
 );
 
 When(/^"[^"]+" opens her unified view for (\S+)$/, async ({ page, world }, period: string) => {
-  await page.goto(`/spaces/${world.user!.spaceId}/plan?period=${period}`);
+  // Ruling P267: Mi consumo, the stacked screen Inicio's shortcut opens.
+  await page.goto(`/spaces/${world.user!.spaceId}/my-consumption?period=${period}`);
 });
 
 Then(

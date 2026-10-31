@@ -464,6 +464,15 @@ describe("the home of a shared or direct space explains its funds (U1)", () => {
     expect(screen.queryByRole("link", { name: "Crear un fondo" })).toBeNull();
   });
 
+  it("links its fund list under the name of a fund list (issue #178)", () => {
+    home("SHARED", "MEMBER", [accountDto({ name: "Fondo Hogar", type: "SHARED_FUND", balance: cop(0) })]);
+    expect(screen.getByRole("link", { name: "Ver todos los fondos" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-shared/accounts",
+    );
+    expect(screen.queryByRole("link", { name: "Ver todas las cuentas" })).toBeNull();
+  });
+
   it("says a direct space holds no accounts, and offers none", () => {
     home("DIRECT", "OWNER");
     expect(screen.queryByText("Agrega tu primera cuenta")).toBeNull();
