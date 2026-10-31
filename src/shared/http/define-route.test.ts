@@ -518,7 +518,26 @@ describe("defineRoute", () => {
       expect(JSON.stringify(data)).not.toContain("secret-hash");
     });
 
-    it("logs no frames from a stack that does not start with the error's own header (#190)", async () => {
+    it("keeps the frames of an error renamed after it was built, as Drizzle's query error is (#190)", async () => {
+      const { error, define } = logged();
+      const failure = new Error("Failed query: select $1\nparams: x\n    at secret-hash");
+      // Reading the stack first fixes its header as "Error: …", as any code that inspects it does.
+      expect(failure.stack).toContain("Error: Failed query");
+      failure.name = "DrizzleQueryError";
+      await call(
+        define({
+          auth: "none",
+          handler: async () => {
+            throw failure;
+          },
+        }),
+      );
+      const [, data] = error.mock.calls[0] as [string, { stack: string[] }];
+      expect(data.stack.length).toBeGreaterThan(0);
+      expect(JSON.stringify(data)).not.toContain("secret-hash");
+    });
+
+    it("logs no frames from a stack that does not hold the error's message (#190)", async () => {
       const { error, define } = logged();
       const failure = new Error("Failed query");
       failure.stack = "rewritten: params\n    at secret-hash";

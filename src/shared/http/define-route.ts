@@ -70,15 +70,16 @@ const summaryOf = (error: unknown): Record<string, string> => {
 /**
  * HU-E8-02: the stack frames of an unhandled error ("at …"). The stack starts with the message, which may span lines
  * and carry a query's parameters (P252), so its lines are dropped before the frames are kept, even one that reads
- * like a frame (#190). A stack that does not start with that header (one a library rewrote) logs no frames at all.
+ * like a frame (#190). The frames are what follows the message, whatever name the header carries (one renamed after
+ * its stack was read keeps "Error"); a stack that does not hold the message (one a library rewrote) logs none.
  */
 const framesOf = (error: unknown): string[] => {
   if (!(error instanceof Error) || !error.stack) return [];
-  const header = String(error);
-  if (!error.stack.startsWith(header)) return [];
+  const end = error.stack.indexOf(error.message);
+  if (end < 0) return [];
   return error.stack
+    .slice(end + error.message.length)
     .split("\n")
-    .slice(header.split("\n").length)
     .map((line) => line.trim())
     .filter((line) => line.startsWith("at "));
 };
