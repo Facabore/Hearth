@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { useTranslations } from "use-intl";
 import { firstStepsOf, HomeSummary, TransactionSheetHost } from "@/modules/ledger/ui";
+import { myConsumptionHref } from "@/modules/reporting/ui";
 import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
 import { useHome, useTransactionDetail, useViewer } from "../ledger/hooks";
@@ -25,7 +26,8 @@ export function SpaceHome() {
   const detail = useTransactionDetail(viewer, tx);
   const { space } = viewer;
   const home = `/spaces/${spaceId}`;
-  // U4 (#209): the personal home of someone with other spaces also says what her month costs across all of them.
+  // U4 (#209): the personal home of someone with other spaces also says what her month costs across all of them, and
+  // opens Mi consumo for that period, a stacked screen (U10, ruling P267).
   const unified = showsUnifiedMonth(viewer);
   const allSpaces = useQuery({
     ...unifiedViewQuery(api, spaceId, page.period.label),
@@ -50,7 +52,9 @@ export function SpaceHome() {
         context={context}
         today={nowIn(new Date(), viewer.me.timezone).date}
         allSpaces={
-          unified && allSpaces ? { total: allSpaces.consumption.total, href: `${home}/plan` } : undefined
+          unified && allSpaces
+            ? { total: allSpaces.consumption.total, href: myConsumptionHref(space, page.period.label) }
+            : undefined
         }
         // #220 (F14): the personal home proposes a new person's first steps, from what it already read.
         firstSteps={

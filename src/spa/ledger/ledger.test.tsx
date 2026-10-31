@@ -80,13 +80,13 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     expect(document.title).toBe(`${es.home.title} · Hearth`);
   });
 
-  it("adds the month across every space to the personal home, from the period it shows (U4, #209)", async () => {
+  it("adds the month across every space to the personal home, leading to Mi consumo for that period (U4, #209, P267)", async () => {
     const { routes } = ledgerApi({
       "GET /api/v1/me/unified-view": () => jsonResponse(e74Unified({ period: { ...octoberPage.period } })),
     });
     const spa = renderSpa("/spaces/sp-personal", routes);
     const link = await screen.findByRole("link", { name: /Tu mes en todos tus espacios/ });
-    expect(link).toHaveAttribute("href", "/spaces/sp-personal/plan");
+    expect(link).toHaveAttribute("href", "/spaces/sp-personal/my-consumption?period=2026-10");
     expect(link.textContent?.replace(/\s/g, " ")).toContain("$ 1.575.000");
     expect(calls(spa.requests, "GET", /\/me\/unified-view\?period=2026-10$/)).toHaveLength(1);
   });

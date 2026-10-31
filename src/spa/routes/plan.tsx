@@ -11,6 +11,7 @@ import {
   LineDashboard,
   LineTrend,
   MemberMatrix,
+  MyConsumptionScreen,
   NoPlan,
   PersonalTrend,
   SpendingChart,
@@ -32,6 +33,7 @@ import {
   personalGroupsQuery,
   personalTrendQuery,
   spaceReportQuery,
+  unifiedViewQuery,
 } from "../reads";
 import { useTitle } from "../title";
 import { useViewer } from "../viewer";
@@ -43,6 +45,7 @@ const trend = getRouteApi("/spaces/$spaceId/plan/trend");
 const fund = getRouteApi("/spaces/$spaceId/plan/fund");
 const members = getRouteApi("/spaces/$spaceId/plan/members");
 const calendar = getRouteApi("/spaces/$spaceId/plan/calendar");
+const myConsumption = getRouteApi("/spaces/$spaceId/my-consumption");
 
 /** Ruling P205: the period asked for, else the one holding today in the person's zone, read as the loader did. */
 const useLabel = (viewer: Viewer, asked: string | undefined): string => {
@@ -130,6 +133,25 @@ export function PlanRoute() {
   useTitle(useTranslations("reports")("title"));
   const viewer = useViewer(plan.useParams().spaceId);
   return <Lines viewer={viewer} asked={plan.useSearch().period} />;
+}
+
+/** Ruling P267 (U10, U4): Mi consumo, the person's month across every space, as a stacked screen of the personal space. */
+export function MyConsumptionRoute() {
+  useTitle(useTranslations("reports.view")("mine"));
+  const viewer = useViewer(myConsumption.useParams().spaceId);
+  const { api } = useApis();
+  const label = useLabel(viewer, myConsumption.useSearch().period);
+  const view = useSuspenseQuery(unifiedViewQuery(api, viewer.space.id, label)).data;
+  const { previous, next } = useNeighbours(viewer.space.id, view.period);
+  return (
+    <MyConsumptionScreen
+      space={viewer.space}
+      view={view}
+      previous={previous}
+      next={next}
+      formats={viewer.me.preferences.effective}
+    />
+  );
 }
 
 /** HU-E9-11: the Lines view, the personal space's second view. */

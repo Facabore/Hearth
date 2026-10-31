@@ -59,10 +59,10 @@ for (const colorScheme of ["light", "dark"] as const) {
         `/spaces/${spaceId}/new`,
         // HU-E9-04: the seeded category tree.
         `/spaces/${spaceId}/categories`,
-        // HU-E9-11: My spending, the personal space's Plan tab, with consumption and cash out.
+        // HU-E9-11, ruling P267: Mi consumo, the stacked screen with consumption and cash out.
+        `/spaces/${spaceId}/my-consumption`,
+        // HU-E9-10: the Plan tab's Rubros, a space with spending and no plan (Unbudgeted alone).
         `/spaces/${spaceId}/plan`,
-        // HU-E9-10: its Lines view, a space with spending and no plan (Unbudgeted alone).
-        `/spaces/${spaceId}/plan/lines`,
         // HU-E9-11: its By group view, the person's own spending merged across spaces.
         `/spaces/${spaceId}/plan/groups`,
         "/settings",

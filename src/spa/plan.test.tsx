@@ -114,6 +114,22 @@ describe("the Plan tab and the planner in the SPA (slice 5 of #199, ADR 0006)", 
     expect(problems()).toEqual([]);
   });
 
+  it("shows Mi consumo as a stacked screen with its way back home and its period (U10, U4, ruling P267)", async () => {
+    const spa = renderSpa(`${PERSONAL}/my-consumption?period=2026-11`, server());
+    await waitFor(() => expect(document.title).toBe(`${es.reports.view.mine} · Hearth`), { timeout: 5_000 });
+    expect(await screen.findByRole("link", { name: es.common.back })).toHaveAttribute("href", PERSONAL);
+    expect(screen.getByRole("heading", { level: 1, name: es.reports.view.mine })).toBeVisible();
+    expect(screen.getByRole("region", { name: es.reports.unified.spent })).toBeVisible();
+    expect(screen.queryByRole("navigation", { name: es.reports.tabs.label })).toBeNull();
+    expect(count(spa.requests, "GET", /\/me\/unified-view$/)).toBe(1);
+    expect(problems()).toEqual([]);
+  });
+
+  it("answers Mi consumo in a shared space with the not-found screen, since it is the personal space's", async () => {
+    renderSpa(`${HOUSEHOLD}/my-consumption`, server());
+    expect(await screen.findByRole("heading", { name: es.notFound.title }, { timeout: 5_000 })).toBeVisible();
+  });
+
   it.each([
     [`${HOUSEHOLD}/plan/lines`, es.reports.view.lines, /\/reports\/lines$/],
     [`${HOUSEHOLD}/plan/groups`, es.reports.view.groups, /\/reports\/spending-by-group$/],

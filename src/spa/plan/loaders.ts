@@ -19,6 +19,7 @@ import {
   personalTrendQuery,
   planQuery,
   spaceReportQuery,
+  unifiedViewQuery,
 } from "../reads";
 
 /** The Plan tab's views (ruling P200), each its own address under `/plan`; "home" is the tab's own page. */
@@ -145,4 +146,16 @@ export const loadLineEditor = async (load: Load, spaceId: string, planId: string
     ensure(categoriesQuery(api, spaceId, "active")),
     ensure(membersQuery(api, spaceId)),
   ]);
+};
+
+/**
+ * Ruling P267 (U10, U4): Mi consumo's reads, the person's month across every space and the periods around it. It is
+ * the personal space's screen, so a shared space answers it as not found.
+ */
+export const loadMyConsumption = async (load: Load, spaceId: string, search: Pick<PlanSearch, "period">) => {
+  const viewer = await viewerOf(load, spaceId);
+  if (!viewer || viewer.space.kind !== "PERSONAL") throw notFound();
+  const label = await reportLabel(load, viewer, search.period);
+  const unified = await ensurer(load)(unifiedViewQuery(load.apis.api, spaceId, label));
+  await loadNeighbours(load, spaceId, unified.period);
 };

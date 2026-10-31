@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calendarHref, viewHref, viewsFor } from "./views";
+import { calendarHref, myConsumptionHref, viewHref, viewsFor } from "./views";
 
 const shared = { id: "sp-household", kind: "SHARED" } as const;
 const personal = { id: "sp-personal", kind: "PERSONAL" } as const;
@@ -15,6 +15,13 @@ describe("Plan tab views (ruling P200)", () => {
     expect(viewHref(shared, "members", "2026-11")).toBe("/spaces/sp-household/plan/members?period=2026-11");
     expect(viewHref(personal, "lines", "2026-11")).toBe("/spaces/sp-personal/plan?period=2026-11");
     expect(viewHref(personal, "groups")).toBe("/spaces/sp-personal/plan/groups");
+  });
+
+  it("links Mi consumo, the stacked screen of ruling P267, and keeps the period", () => {
+    expect(myConsumptionHref(personal)).toBe("/spaces/sp-personal/my-consumption");
+    expect(myConsumptionHref(personal, "2026-11 H1")).toBe(
+      "/spaces/sp-personal/my-consumption?period=2026-11%20H1",
+    );
   });
 
   it("links the calendar without a period, and its windows by days (ruling P241 of M6c)", () => {

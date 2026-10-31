@@ -29,6 +29,12 @@ export const viewHref = (space: Pick<SpaceDto, "id" | "kind">, view: PlanView, p
   return period ? `${path}?period=${encodeURIComponent(period)}` : path;
 };
 
+/** Ruling P267 (U10, U4): Mi consumo, the stacked screen Inicio's shortcut opens; `?period=` kept. */
+export const myConsumptionHref = (space: Pick<SpaceDto, "id">, period?: string): string => {
+  const path = `/spaces/${space.id}/my-consumption`;
+  return period ? `${path}?period=${encodeURIComponent(period)}` : path;
+};
+
 /** Ruling P241 (M6c): the calendar's window links. */
 export const calendarHref = (space: Pick<SpaceDto, "id">, days: 30 | 60): string =>
   `/spaces/${space.id}/plan/calendar${days === 30 ? "" : `?days=${days}`}`;

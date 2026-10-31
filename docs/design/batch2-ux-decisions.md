@@ -1,6 +1,6 @@
 # Batch 2 UX decisions
 
-- **Status:** Decided on 2026-10-23. Shipped so far: U1 and U2 as UI copy (#210, 2026-10-29), the U4 shortcut on the personal home only (#209), and U12. The [UX audit of 2026-10-28](2026-10-28-ux-audit.md) found the rest unbuilt. U1 left two words as they were, because no decision names them: the rollover modes "Acumula" and "Ajusta", and the allocation rule "Sin asignar" (`NONE`).
+- **Status:** Decided on 2026-10-23. Shipped so far: U1 and U2 as UI copy (#210, 2026-10-29), the U4 shortcut on the personal home only (#209), U10 with its stacked screen at `/spaces/{spaceId}/my-consumption` (#224, #229, ruling P267), and U12. The [UX audit of 2026-10-28](2026-10-28-ux-audit.md) found the rest unbuilt. U1 left two words as they were, because no decision names them: the rollover modes "Acumula" and "Ajusta", and the allocation rule "Sin asignar" (`NONE`).
 - **Origin:** proposals P1–P10 on the Penpot page "Propuestas UX · antes → después" and findings #14 and #15 of [batch2-ux-critique.md](batch2-ux-critique.md)
 - **How they were decided:** the owner approved P1–P4 one by one, then asked Claude to take the recommended option for the rest without waiting for confirmation. Each decision below records that recommendation and its reason.
 - **What they change:** UI copy and layout only. Code, API codes and the spec keep their names (`capacity`, `line`, `allocation`); [Glossary](#glossary-ui-word--model-term) maps the UI words to the model terms.
