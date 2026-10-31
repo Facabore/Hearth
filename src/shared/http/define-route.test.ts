@@ -537,6 +537,30 @@ describe("defineRoute", () => {
       expect(JSON.stringify(data)).not.toContain("secret-hash");
     });
 
+    it("keeps the frames of an error without a message, and none from a rewritten stack without one (#190)", async () => {
+      const { error, define } = logged();
+      const plain = new Error("");
+      const rewritten = new Error("");
+      rewritten.stack = "Wrapped params: x\n    at secret-hash";
+      for (const thrown of [plain, rewritten]) {
+        await call(
+          define({
+            auth: "none",
+            handler: async () => {
+              throw thrown;
+            },
+          }),
+        );
+      }
+      const [[, first], [, second]] = error.mock.calls as [
+        [string, { stack: string[] }],
+        [string, { stack: string[] }],
+      ];
+      expect(first.stack.length).toBeGreaterThan(0);
+      expect(second.stack).toEqual([]);
+      expect(JSON.stringify(error.mock.calls)).not.toContain("secret-hash");
+    });
+
     it("logs no frames from a stack that does not hold the error's message (#190)", async () => {
       const { error, define } = logged();
       const failure = new Error("Failed query");

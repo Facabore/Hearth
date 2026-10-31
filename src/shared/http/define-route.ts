@@ -75,6 +75,9 @@ const summaryOf = (error: unknown): Record<string, string> => {
  */
 const framesOf = (error: unknown): string[] => {
   if (!(error instanceof Error) || !error.stack) return [];
+  // Without a message the header is the bare name, with or without its colon; any other first line is text a library
+  // wrote, so nothing is kept.
+  if (!error.message && !/^[\w$.]+:?$/.test(error.stack.split("\n")[0]?.trim() ?? "")) return [];
   const end = error.stack.indexOf(error.message);
   if (end < 0) return [];
   return error.stack
