@@ -29,7 +29,8 @@ When(/^"([^"]+)" opens the (Inicio|Movimientos) tab$/, async ({ page, world }, n
 
 When("{string} opens Accounts from the user menu", async ({ page, world }, name: string) => {
   await page.getByRole("button", { name: world.t("shell.profile.open", { name }) }).click();
-  await page.getByRole("link", { name: world.t("shell.profile.accounts") }).click();
+  // Exact: the first-steps card on the home also links to Cuentas (#152).
+  await page.getByRole("link", { name: world.t("shell.profile.accounts"), exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`${escaped(homePath(world))}/accounts`));
 });
 

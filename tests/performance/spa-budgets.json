@@ -32,6 +32,7 @@
     "manage/loaders.ts": 3,
     "spaces/loaders.ts": 4,
     "routes/plan.tsx": 26,
+    "routes/my-consumption.tsx": 15,
     "routes/plans.tsx": 33,
     "plan/loaders.ts": 6,
     "plan/writes.ts": 3,
