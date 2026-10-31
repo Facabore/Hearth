@@ -40,6 +40,7 @@ COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 USER node
 EXPOSE 3000
+# The app answers within HEALTH_PROBE_TIMEOUT_MS (2 s, src/shared/infrastructure/db/probe.ts), under this 3 s timeout.
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=5 \
   CMD wget -qO- http://127.0.0.1:3000/api/v1/health || exit 1
 CMD ["node", "server.js"]

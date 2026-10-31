@@ -497,5 +497,23 @@ describe("defineRoute", () => {
       expect(data.stack.every((frame) => frame.startsWith("at "))).toBe(true);
       expect(JSON.stringify(data)).not.toContain("secret-hash");
     });
+
+    it("keeps a multi-line message's own lines out of the frames, even one that starts with 'at ' (#190, P252)", async () => {
+      const { error, define } = logged();
+      const failure = new Error("Failed query: select $1\nparams: first\n    at secret-hash\nmore");
+      const response = await call(
+        define({
+          auth: "none",
+          handler: async () => {
+            throw failure;
+          },
+        }),
+      );
+      expect(response.status).toBe(500);
+      const [, data] = error.mock.calls[0] as [string, { stack: string[] }];
+      expect(data.stack.length).toBeGreaterThan(0);
+      expect(data.stack.every((frame) => frame.startsWith("at "))).toBe(true);
+      expect(JSON.stringify(data)).not.toContain("secret-hash");
+    });
   });
 });

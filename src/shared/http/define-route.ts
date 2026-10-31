@@ -71,11 +71,16 @@ const summaryOf = (error: unknown): Record<string, string> => {
   };
 };
 
-/** HU-E8-02: the stack frames of an unhandled error ("at …"), without its first line, which repeats the message. */
+/**
+ * HU-E8-02: the stack frames of an unhandled error ("at …"). The stack starts with the message, which may span lines
+ * and carry a query's parameters (P252), so its lines are dropped before the frames are kept, even one that reads
+ * like a frame (#190).
+ */
 const framesOf = (error: unknown): string[] =>
   error instanceof Error && error.stack
     ? error.stack
         .split("\n")
+        .slice(error.message.split("\n").length)
         .map((line) => line.trim())
         .filter((line) => line.startsWith("at "))
     : [];
