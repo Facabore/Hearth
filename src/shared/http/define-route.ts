@@ -1,5 +1,6 @@
 import type { ZodType } from "zod";
 import type { AuthUser, Result } from "@/shared/kernel";
+import { failureOf } from "@/shared/kernel/failure";
 import { jsonLogger, type Logger } from "./logger";
 import { nulFieldErrors } from "./nul-guard";
 import {
@@ -52,38 +53,35 @@ const toFieldErrors = (
 const bigintAsString = (_key: string, value: unknown) =>
   typeof value === "bigint" ? value.toString() : value;
 
-const firstLineOf = (message: string): string =>
-  (message.split("\n")[0] ?? "").split(/\bparams:/)[0]?.trim() ?? "";
-
 /**
- * What an unhandled error may write to the log: its name, the first line of its message without any
- * `params:` tail, and the SQLSTATE and constraint of a database cause. Drizzle puts the bound SQL
- * parameters (token hashes, contact emails) in the message, so they are never logged.
+ * What an unhandled error may write to the log (#190): `failureOf`'s name, SQLSTATE and constraint, as every job logs
+ * a failure. Never the message: Drizzle puts the bound parameters there, and a driver message can quote a value. The
+ * one exception is the config loader's `EnvError`, written to be logged: it names the variables, never their values.
  */
 const summaryOf = (error: unknown): Record<string, string> => {
-  if (!(error instanceof Error)) return { name: "NonErrorThrown", message: firstLineOf(String(error)) };
-  const { code, constraint } = (error.cause ?? {}) as { code?: unknown; constraint?: unknown };
+  const { error: name, ...database } = failureOf(error);
   return {
-    name: error.name,
-    message: firstLineOf(error.message),
-    ...(typeof code === "string" ? { code } : {}),
-    ...(typeof constraint === "string" ? { constraint } : {}),
+    name,
+    ...(error instanceof Error && name === "EnvError" ? { message: error.message } : {}),
+    ...database,
   };
 };
 
 /**
  * HU-E8-02: the stack frames of an unhandled error ("at …"). The stack starts with the message, which may span lines
  * and carry a query's parameters (P252), so its lines are dropped before the frames are kept, even one that reads
- * like a frame (#190).
+ * like a frame (#190). A stack that does not start with that header (one a library rewrote) logs no frames at all.
  */
-const framesOf = (error: unknown): string[] =>
-  error instanceof Error && error.stack
-    ? error.stack
-        .split("\n")
-        .slice(error.message.split("\n").length)
-        .map((line) => line.trim())
-        .filter((line) => line.startsWith("at "))
-    : [];
+const framesOf = (error: unknown): string[] => {
+  if (!(error instanceof Error) || !error.stack) return [];
+  const header = String(error);
+  if (!error.stack.startsWith(header)) return [];
+  return error.stack
+    .split("\n")
+    .slice(header.split("\n").length)
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("at "));
+};
 
 /** A path segment as Next.js passes it to the params; a malformed percent-escape is left as it is. */
 const decodedSegment = (segment: string): string => {

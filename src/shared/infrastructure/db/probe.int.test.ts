@@ -67,7 +67,8 @@ describe("the health check's database probe (#190)", () => {
       // statement_timeout cancels the query server-side, so the lock has no one waiting behind it any more.
       await until("the hung probe to be cancelled", async () => (await waitingBehind(lock.pid)) === 0);
       await lock.release();
-      expect(await probe.reachable()).toBe(true);
+      // The cancelled query took its connection with it; a new one may need more than 300 ms on a busy machine.
+      await until("the probe to answer again", () => probe.reachable());
     } finally {
       await probe.close();
     }

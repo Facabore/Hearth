@@ -32,6 +32,8 @@ export const createDatabaseProbe = (
     connectionTimeoutMillis: timeoutMs,
     statement_timeout: timeoutMs,
     query_timeout: timeoutMs,
+    // The process lives as long as the application's pool, so an idle probe connection never holds it open on exit.
+    allowExitOnIdle: true,
   });
   // An idle probe connection that drops is reported by the next probe, not as an unhandled error.
   pool.on("error", () => undefined);

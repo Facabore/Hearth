@@ -232,16 +232,17 @@ describe("defineRoute", () => {
     const text = await response.text();
     expect(JSON.parse(text).code).toBe("InternalError");
     expect(text).not.toContain("db down");
+    expect(JSON.stringify(vi.mocked(logger.error).mock.calls)).not.toContain("db down");
     expect(logger.error).toHaveBeenCalledWith(
       "unhandled_route_error",
       expect.objectContaining({
-        error: { name: "Error", message: "db down" },
+        error: { name: "Error" },
         requestId: response.headers.get("x-request-id"),
       }),
     );
   });
 
-  it("logs a database failure as name, first message line, SQLSTATE and constraint, never its SQL parameters", async () => {
+  it("logs a database failure as name, SQLSTATE and constraint, never its message or SQL parameters (#190)", async () => {
     const error = vi.fn();
     const logged = createRouteFactory(() => ({
       sessionResolver: { resolve: async () => null },
@@ -268,7 +269,6 @@ describe("defineRoute", () => {
     expect(error.mock.calls[0]?.[1]).toMatchObject({
       error: {
         name: "DrizzleQueryError",
-        message: 'Failed query: insert into "space_members" ("contact_email") values ($1)',
         code: "23505",
         constraint: "x_uq",
       },
@@ -276,9 +276,10 @@ describe("defineRoute", () => {
     expect(record).not.toContain("secret-hash");
     expect(record).not.toContain("ana@example.com");
     expect(record).not.toContain("params");
+    expect(record).not.toContain("Failed query");
   });
 
-  it("removes a params tail from a single-line message and tolerates thrown non-errors", async () => {
+  it("keeps a single-line message out of the log and tolerates thrown non-errors", async () => {
     const error = vi.fn();
     const logged = createRouteFactory(() => ({
       sessionResolver: { resolve: async () => null },
@@ -295,9 +296,8 @@ describe("defineRoute", () => {
       );
     }
     expect(JSON.stringify(error.mock.calls)).not.toContain("secret-hash");
-    expect(error.mock.calls[0]?.[1]).toMatchObject({
-      error: { name: "Error", message: "Failed query: select 1" },
-    });
+    expect(JSON.stringify(error.mock.calls)).not.toContain("Failed query");
+    expect(error.mock.calls[0]?.[1]).toMatchObject({ error: { name: "Error" } });
     expect(error.mock.calls[1]?.[1]).toMatchObject({ error: { name: "NonErrorThrown" } });
   });
 
@@ -334,13 +334,15 @@ describe("defineRoute", () => {
   it("returns a logged problem+json 500 when the dependencies cannot be built", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
     const broken = createRouteFactory(() => {
-      throw new Error("missing DATABASE_URL");
+      throw Object.assign(new Error("Missing or invalid environment variables: DATABASE_URL"), {
+        name: "EnvError",
+      });
     });
     const response = await call(broken({ auth: "none", handler: async () => ok({ status: 200 }) }));
     expect(response.status).toBe(500);
     expect(response.headers.get("content-type")).toBe("application/problem+json");
     expect((await response.json()).requestId).toBe(response.headers.get("x-request-id"));
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("missing DATABASE_URL"));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("environment variables: DATABASE_URL"));
     log.mockRestore();
   });
 
@@ -513,6 +515,23 @@ describe("defineRoute", () => {
       const [, data] = error.mock.calls[0] as [string, { stack: string[] }];
       expect(data.stack.length).toBeGreaterThan(0);
       expect(data.stack.every((frame) => frame.startsWith("at "))).toBe(true);
+      expect(JSON.stringify(data)).not.toContain("secret-hash");
+    });
+
+    it("logs no frames from a stack that does not start with the error's own header (#190)", async () => {
+      const { error, define } = logged();
+      const failure = new Error("Failed query");
+      failure.stack = "rewritten: params\n    at secret-hash";
+      await call(
+        define({
+          auth: "none",
+          handler: async () => {
+            throw failure;
+          },
+        }),
+      );
+      const [, data] = error.mock.calls[0] as [string, { stack: string[] }];
+      expect(data.stack).toEqual([]);
       expect(JSON.stringify(data)).not.toContain("secret-hash");
     });
   });
