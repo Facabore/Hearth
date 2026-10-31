@@ -391,7 +391,7 @@ const myConsumptionRoute = createRoute({
     (await plans()).loadMyConsumption({ ...context, cause }, params.spaceId, deps),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "MyConsumptionPending"),
   errorComponent: ScreenError,
-  component: lazyRouteComponent(() => import("./routes/plan"), "MyConsumptionRoute"),
+  component: lazyRouteComponent(() => import("./routes/my-consumption"), "MyConsumptionRoute"),
 });
 
 /** HU-E9-08: the planner of one plan, its capacities and its lines. */

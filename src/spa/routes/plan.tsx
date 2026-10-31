@@ -11,15 +11,12 @@ import {
   LineDashboard,
   LineTrend,
   MemberMatrix,
-  MyConsumptionScreen,
   NoPlan,
   PersonalTrend,
   SpendingChart,
   treeOf,
 } from "@/modules/reporting/ui/screens";
-import { addDays, type LocalDate } from "@/shared/kernel/local-date";
 import type { PeriodDto, ReportPlanDto } from "@/shared/ui/api/dto";
-import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
 import type { Viewer } from "../load";
 import { daysOf, noPeriod, windowOf } from "../plan/loaders";
@@ -29,12 +26,11 @@ import {
   lineTrendQuery,
   membersQuery,
   overviewQuery,
-  periodQuery,
   personalGroupsQuery,
   personalTrendQuery,
   spaceReportQuery,
-  unifiedViewQuery,
 } from "../reads";
+import { useLabel, useNeighbours } from "../plan/period";
 import { useTitle } from "../title";
 import { useViewer } from "../viewer";
 
@@ -45,27 +41,6 @@ const trend = getRouteApi("/spaces/$spaceId/plan/trend");
 const fund = getRouteApi("/spaces/$spaceId/plan/fund");
 const members = getRouteApi("/spaces/$spaceId/plan/members");
 const calendar = getRouteApi("/spaces/$spaceId/plan/calendar");
-const myConsumption = getRouteApi("/spaces/$spaceId/my-consumption");
-
-/** Ruling P205: the period asked for, else the one holding today in the person's zone, read as the loader did. */
-const useLabel = (viewer: Viewer, asked: string | undefined): string => {
-  const { api } = useApis();
-  const today = nowIn(new Date(), viewer.me.timezone).date;
-  // Read only when no period is asked for; hooks are called the same way on every render.
-  const queries: ReturnType<typeof periodQuery>[] = asked ? [] : [periodQuery(api, viewer.space.id, today)];
-  const [held] = useSuspenseQueries({ queries });
-  const label = asked ?? held?.data?.label;
-  if (!label) throw noPeriod();
-  return label;
-};
-
-/** The periods before and after the view's (P130); one that fails is just absent. */
-const useNeighbours = (spaceId: string, period: PeriodDto) => {
-  const { api } = useApis();
-  const previous = useQuery(periodQuery(api, spaceId, addDays(period.startDate as LocalDate, -1))).data;
-  const next = useQuery(periodQuery(api, spaceId, addDays(period.endDate as LocalDate, 1))).data;
-  return { previous: previous ?? null, next: next ?? null };
-};
 
 /** The Plan tab's frame around a view: its tabs, its period with the way to the neighbouring ones, and its plan. */
 function Frame({
@@ -133,25 +108,6 @@ export function PlanRoute() {
   useTitle(useTranslations("reports")("title"));
   const viewer = useViewer(plan.useParams().spaceId);
   return <Lines viewer={viewer} asked={plan.useSearch().period} />;
-}
-
-/** Ruling P267 (U10, U4): Mi consumo, the person's month across every space, as a stacked screen of the personal space. */
-export function MyConsumptionRoute() {
-  useTitle(useTranslations("reports.view")("mine"));
-  const viewer = useViewer(myConsumption.useParams().spaceId);
-  const { api } = useApis();
-  const label = useLabel(viewer, myConsumption.useSearch().period);
-  const view = useSuspenseQuery(unifiedViewQuery(api, viewer.space.id, label)).data;
-  const { previous, next } = useNeighbours(viewer.space.id, view.period);
-  return (
-    <MyConsumptionScreen
-      space={viewer.space}
-      view={view}
-      previous={previous}
-      next={next}
-      formats={viewer.me.preferences.effective}
-    />
-  );
 }
 
 /** HU-E9-11: the Lines view, the personal space's second view. */
