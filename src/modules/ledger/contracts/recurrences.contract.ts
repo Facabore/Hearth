@@ -311,6 +311,14 @@ export const UpcomingOccurrencesQuerySchema = z.object({
 });
 export const UpcomingOccurrencesSchema = z.object({ dates: z.array(z.iso.date()) });
 
+/** #77: a schedule to preview before it is defined, with the dates and count rules of a definition. */
+export const PreviewScheduleBodySchema = z.object({
+  schedule: ScheduleInputSchema,
+  startDate: z.iso.date(),
+  endDate: z.iso.date().nullable().optional(),
+  count: z.number().int().min(1).max(24).default(3),
+});
+
 /** A key the definition takes and an edit cannot change: sent, it answers 422 ValidationFailed naming the field. */
 const FIXED_ONCE_DEFINED = z
   .never({ error: "Cannot be changed once the recurrence is defined" })
@@ -518,6 +526,29 @@ export const recurrencesPaths: ZodOpenApiPathsObject = {
       responses: {
         "200": recurrenceResponse("The recurrence"),
         ...problems({ "401": "Unauthenticated", "404": "SpaceNotFound, RecurrenceNotFound" }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/recurrences/preview": {
+    post: {
+      operationId: "previewSchedule",
+      summary:
+        "The dates a schedule would record if a recurrence were defined with it now, without defining one (nothing is stored)",
+      ...securedByUser,
+      requestParams: { path: SpacePath },
+      requestBody: { content: jsonContent(PreviewScheduleBodySchema) },
+      responses: {
+        "200": {
+          description:
+            "The dates it would record, earliest first, from its start date or today when that is later",
+          content: jsonContent(UpcomingOccurrencesSchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "404": "SpaceNotFound",
+          "422":
+            "ValidationFailed (count is not an integer from 1 to 24), InvalidPeriodPolicy, InvalidRecurrence (endsBeforeStart)",
+        }),
       },
     },
   },

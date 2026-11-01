@@ -829,6 +829,23 @@ export interface paths {
         patch: operations["updateRecurrence"];
         trace?: never;
     };
+    "/api/v1/spaces/{spaceId}/recurrences/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** The dates a schedule would record if a recurrence were defined with it now, without defining one (nothing is stored) */
+        post: operations["previewSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/spaces/{spaceId}/recurrences/{recurrenceId}/occurrences": {
         parameters: {
             query?: never;
@@ -6019,6 +6036,77 @@ export interface operations {
                 };
             };
             /** @description ValidationFailed (including the template, type, payer, accounts or start date, which an edit cannot change), InvalidAmount, InvalidDate, InvalidDescription, InvalidPeriodPolicy, InvalidRecurrence (an end date before the start; a category or split its type does not have), CurrencyMismatch, UnknownCurrency, AccountNotOwned (it moves money into or out of its creator's own account: only its creator changes it), AccountNotInSpace, AccountRequired, InvalidFundAccount, NotASpaceMember (a payer or a split participant is not a member, whether they left or never were; with member "creator", the recurrence's creator left), InvalidSplit, ParticipantsRequired */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    previewSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    schedule: {
+                        /** @constant */
+                        kind: "MONTHLY";
+                        day: number;
+                    } | {
+                        /** @constant */
+                        kind: "SEMI_MONTHLY";
+                        day1: number;
+                        day2: number;
+                    };
+                    /** Format: date */
+                    startDate: string;
+                    endDate?: string | null;
+                    /** @default 3 */
+                    count?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description The dates it would record, earliest first, from its start date or today when that is later */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        dates: string[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed (count is not an integer from 1 to 24), InvalidPeriodPolicy, InvalidRecurrence (endsBeforeStart) */
             422: {
                 headers: {
                     [name: string]: unknown;

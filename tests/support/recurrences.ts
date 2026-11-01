@@ -11,6 +11,7 @@ import {
   GET as getRecurrenceRoute,
   PATCH as patchRecurrenceRoute,
 } from "@/app/api/v1/spaces/[spaceId]/recurrences/[recurrenceId]/route";
+import { POST as previewRoute } from "@/app/api/v1/spaces/[spaceId]/recurrences/preview/route";
 import { GET as upcomingRoute } from "@/app/api/v1/spaces/[spaceId]/recurrences/[recurrenceId]/occurrences/route";
 import { POST as endRoute } from "@/app/api/v1/spaces/[spaceId]/recurrences/[recurrenceId]/end/route";
 import { POST as extendRoute } from "@/app/api/v1/spaces/[spaceId]/recurrences/[recurrenceId]/extend/route";
@@ -168,6 +169,10 @@ export const upcoming = (user: TestUser, spaceId: string, recurrenceId: string, 
     recurrencesPath(spaceId, `/${recurrenceId}/occurrences${count === undefined ? "" : `?count=${count}`}`),
     { user, params: { spaceId, recurrenceId } },
   );
+
+/** #77: the dates `body`'s schedule would record, before any recurrence is defined (`POST …/recurrences/preview`). */
+export const previewSchedule = (user: TestUser, spaceId: string, body: unknown) =>
+  call(previewRoute, "POST", recurrencesPath(spaceId, "/preview"), { user, params: { spaceId }, body });
 
 /** HU-E4-11: `user` changes the recurrence; `body` names only what changes. */
 export const patchRecurrence = (user: TestUser, spaceId: string, recurrenceId: string, body: unknown) =>

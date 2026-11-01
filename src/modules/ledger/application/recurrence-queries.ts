@@ -1,6 +1,15 @@
 import { authorizeSpaceAction } from "@/modules/spaces/application";
-import { domainError, err, ok, type LocalDate, type Result } from "@/shared/kernel";
-import { MAX_UPCOMING, upcomingDates } from "../domain/recurrence";
+import {
+  domainError,
+  err,
+  ok,
+  todayIn,
+  type LocalDate,
+  type PeriodPolicy,
+  type Result,
+} from "@/shared/kernel";
+import { MAX_UPCOMING, previewDates, upcomingDates } from "../domain/recurrence";
+import { scheduleOf } from "../domain/recurrence-schedule";
 import type { RecurrenceDeps } from "./recurrence-ports";
 import { viewsOf, type RecurrenceView } from "./recurrence-view";
 
@@ -21,7 +30,19 @@ export type ListUpcomingOccurrences = (input: {
   count: number;
 }) => Promise<Result<LocalDate[]>>;
 
+export type PreviewSchedule = (input: {
+  spaceId: string;
+  userId: string;
+  schedule: PeriodPolicy;
+  startDate: LocalDate;
+  endDate: LocalDate | null;
+  /** An integer from 1 to MAX_UPCOMING (24); InvalidRecurrence otherwise. */
+  count: number;
+}) => Promise<Result<LocalDate[]>>;
+
 type ReadDeps = Pick<RecurrenceDeps, "access" | "recurrences" | "occurrences">;
+
+const countIsValid = (count: number) => Number.isInteger(count) && count >= 1 && count <= MAX_UPCOMING;
 
 /** HU-E4-11: any member reads the space's recurrences (space.read), archived spaces included (HU-E1-09). */
 export const createListRecurrences =
@@ -53,10 +74,36 @@ export const createListUpcomingOccurrences =
   async (input) => {
     const reader = await authorizeSpaceAction(deps.access, input.spaceId, input.userId, "space.read");
     if (!reader.ok) return reader;
-    if (!Number.isInteger(input.count) || input.count < 1 || input.count > MAX_UPCOMING) {
+    if (!countIsValid(input.count)) {
       return err(domainError("InvalidRecurrence", { reason: "invalidCount", max: MAX_UPCOMING }));
     }
     const recurrence = await deps.recurrences.find(reader.value.spaceId, input.recurrenceId);
     if (recurrence === null) return err(domainError("RecurrenceNotFound"));
     return ok(upcomingDates(recurrence, input.count));
+  };
+
+/**
+ * #77 (HU-E9-09) `POST …/recurrences/preview`: the dates a schedule would record before the recurrence is defined, so
+ * the form never does date math on the client. Any member may preview (space.read); the schedule, the dates and the
+ * count are checked as a definition checks them, and nothing is stored.
+ */
+export const createPreviewSchedule =
+  (deps: Pick<RecurrenceDeps, "access" | "clock" | "timeZone">): PreviewSchedule =>
+  async (input) => {
+    const reader = await authorizeSpaceAction(deps.access, input.spaceId, input.userId, "space.read");
+    if (!reader.ok) return reader;
+    const schedule = scheduleOf(input.schedule);
+    if (!schedule.ok) return schedule;
+    if (!countIsValid(input.count)) {
+      return err(domainError("InvalidRecurrence", { reason: "invalidCount", max: MAX_UPCOMING }));
+    }
+    return previewDates(
+      {
+        schedule: schedule.value,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        today: todayIn(deps.clock, deps.timeZone),
+      },
+      input.count,
+    );
   };
