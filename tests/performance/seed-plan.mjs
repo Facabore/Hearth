@@ -1,12 +1,24 @@
+/** Ruling P221: the household's plan chain, May to October 2026, each copied from the one before. */
+export const SEEDED_PERIODS = ["2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10"];
+
+/**
+ * Issue #236 (ruling P283): the period every Plan view is measured on, the chain's ACTIVE plan. Lighthouse's Chrome
+ * keeps the wall clock, so a view opened without `?period=` showed the day's own period, which holds no plan.
+ */
+export const MEASURED_PERIOD = SEEDED_PERIODS.at(-1);
+
 /**
  * Ruling P221: the data the Plan routes are measured on. In the household `shared`, a six-plan chain from 2026-05 to
  * 2026-10 (each copied from the one before, May to September closed, October ACTIVE and the current period under the
  * e2e server's fixed clock), with expenses in every period, so the trends, the dashboards and the planner render what a
- * household sees, and a subcategory of Groceries so By group drills to its third level. In the personal space `personal`, an income and a bill that recur from 2026-11-01 on `bank`, so the
- * cash-flow calendar measures real rows (ruling P242).
+ * household sees, and a subcategory of Groceries so By group drills to its third level. In the personal space
+ * `personal`, an income and a bill that recur from 2026-11-01 on `bank`, so the cash-flow calendar measures real rows
+ * (ruling P242), and an ACTIVE October plan with one line, so its Lines views measure lines, not their no-plan state
+ * (issue #236).
  *
  * `api(method, path, body, ifMatch)` sends one request, with `If-Match: "<ifMatch>"` when given, and answers its JSON;
- * a non-2xx answer must throw. Answers `{ plan, line }`: the October plan's id and its Home line's id.
+ * a non-2xx answer must throw. Answers `{ plan, line, period }`: the October plan's id, its Home line's id and the
+ * period the Plan views are measured on.
  */
 export const seedPlanRoutes = async (api, { personal, shared, bank }) => {
   const cop = (pesos) => ({ amount: String(BigInt(pesos) * 100n), currency: "COP" });
@@ -24,9 +36,8 @@ export const seedPlanRoutes = async (api, { personal, shared, bank }) => {
   const registered = members.filter((m) => m.kind === "USER");
   const keys = await keysOf(shared);
   const plans = `/api/v1/spaces/${shared}/plans`;
-  const periods = ["2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10"];
   let plan;
-  for (const [index, period] of periods.entries()) {
+  for (const [index, period] of SEEDED_PERIODS.entries()) {
     plan = await api("POST", plans, index === 0 ? { period } : { period, copyFrom: "previous" });
     const base = `${plans}/${plan.id}`;
     if (index === 0) {
@@ -71,7 +82,7 @@ export const seedPlanRoutes = async (api, { personal, shared, bank }) => {
     }
     plan = await api("POST", `${base}/activate`, {}, plan.version);
     // Ten expenses in October, three in each earlier period, paid from the recorder's own account.
-    const count = period === "2026-10" ? 10 : 3;
+    const count = period === MEASURED_PERIOD ? 10 : 3;
     for (let i = 0; i < count; i += 1)
       await api("POST", `/api/v1/spaces/${shared}/expenses`, {
         description: `Household ${i}`,
@@ -80,7 +91,7 @@ export const seedPlanRoutes = async (api, { personal, shared, bank }) => {
         amount: cop(40_000 + 10_000 * i + 5_000 * index),
         accountId: bank,
       });
-    if (period !== "2026-10") plan = await api("POST", `${base}/close`, {}, plan.version);
+    if (period !== MEASURED_PERIOD) plan = await api("POST", `${base}/close`, {}, plan.version);
   }
   // A named subcategory under Groceries, the largest row of October, so By group drills three levels (ruling P215).
   const subcategory = await api("POST", `/api/v1/spaces/${shared}/categories`, {
@@ -96,6 +107,29 @@ export const seedPlanRoutes = async (api, { personal, shared, bank }) => {
   });
   const personalKeys = await keysOf(personal);
   const { items: personalMembers } = await api("GET", `/api/v1/spaces/${personal}/members`);
+  // Issue #236: the person's own October plan, 3,000,000 COP of capacity and one Groceries line, ACTIVE.
+  const personalPlans = `/api/v1/spaces/${personal}/plans`;
+  let own = await api("POST", personalPlans, { period: MEASURED_PERIOD });
+  const ownBase = `${personalPlans}/${own.id}`;
+  own = await api(
+    "PUT",
+    `${ownBase}/capacities`,
+    { capacities: [{ memberId: personalMembers[0].id, amount: cop(3_000_000) }] },
+    own.version,
+  );
+  own = await api(
+    "POST",
+    `${ownBase}/lines`,
+    { name: "Mercado", plannedAmount: cop(800_000), funding: "DIRECT", rolloverMode: "RESET" },
+    own.version,
+  );
+  own = await api(
+    "PUT",
+    `${ownBase}/lines/${own.lines[0].id}/categories`,
+    { categoryIds: [personalKeys.groceries] },
+    own.version,
+  );
+  await api("POST", `${ownBase}/activate`, {}, own.version);
   const recurrence = (body) =>
     api("POST", `/api/v1/spaces/${personal}/recurrences`, { mode: "AUTO", startDate: "2026-11-01", ...body });
   await recurrence({
@@ -114,5 +148,5 @@ export const seedPlanRoutes = async (api, { personal, shared, bank }) => {
     },
     schedule: { kind: "MONTHLY", day: 5 },
   });
-  return { plan: plan.id, line: plan.lines.find((l) => l.name === "Home").id };
+  return { plan: plan.id, line: plan.lines.find((l) => l.name === "Home").id, period: MEASURED_PERIOD };
 };

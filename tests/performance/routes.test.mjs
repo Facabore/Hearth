@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import budgets from "./budgets.json" with { type: "json" };
-import { routeUrl } from "./lighthouse.mjs";
+import { emptyStateIn, EMPTY_STATES, measuredUrl, routeUrl } from "./lighthouse.mjs";
+import { MEASURED_PERIOD, SEEDED_PERIODS } from "./seed-plan.mjs";
 
 /**
  * Ruling P221 (amended by P242): the caps of the Plan routes; each budget is set from its measurement under them. The
@@ -64,5 +65,34 @@ describe("the Plan routes' budgets (rulings P221, P242)", () => {
         ["id", "shared"].some((space) => page.replace(":space", `:${space}`) in budgets.scriptKb),
         page,
       ).toBe(true);
+  });
+
+  /**
+   * Issue #236 (ruling P283): Lighthouse's Chrome keeps the wall clock, so a Plan view opened without `?period=` showed
+   * the period of the day it ran, which the seed holds no plan for.
+   */
+  it("measures every Plan view on the seeded ACTIVE period, whatever day the run is", () => {
+    expect(MEASURED_PERIOD).toBe(SEEDED_PERIODS.at(-1));
+    const ids = { id: "sp-p", shared: "sp-h", plan: "p-oct", line: "l-home", period: MEASURED_PERIOD };
+    const views = Object.keys(CAPS).filter(
+      (route) => /\/plan(\/|$)/.test(route) && !route.endsWith("/calendar"),
+    );
+    expect(views).toHaveLength(9);
+    for (const route of views)
+      expect(measuredUrl(route, ids), route).toBe(`${routeUrl(route, ids)}?period=${MEASURED_PERIOD}`);
+    // Próximos counts from the server's own today (its clock is fixed); the planner names its plan by id.
+    for (const route of ["/spaces/:id/plan/calendar", "/spaces/:shared/plans/:plan/lines/:line", "/sign-in"])
+      expect(measuredUrl(route, ids), route).toBe(routeUrl(route, ids));
+  });
+
+  it("names the empty or no-plan state a page shows, so the run fails instead of measuring it", () => {
+    expect(emptyStateIn("Plan\nTendencia\nEste período no tiene plan: no hay rubros que comparar.")).toBe(
+      "reports.trend.noPlan",
+    );
+    expect(emptyStateIn("Plan\noctubre 2026 no tiene plan\nCrear plan")).toBe("reports.noPlan.title");
+    expect(emptyStateIn("Plan\nThis plan has no lines yet.")).toBe("budgeting.planner.empty");
+    expect(emptyStateIn("Nothing is scheduled in the next 30 days.")).toBe("reports.calendar.empty");
+    expect(emptyStateIn("Plan\nOctubre 2026\nMercado\nGastado $ 120.000 de $ 1.470.000")).toBeNull();
+    expect(EMPTY_STATES.length).toBeGreaterThanOrEqual(6);
   });
 });
