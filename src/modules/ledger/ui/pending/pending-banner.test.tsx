@@ -17,6 +17,13 @@ describe("the Movimientos banner of what waits for confirmation (HU-E9-09, P270)
     );
   });
 
+  it("draws board E9-09 01: the count on one 15 px line, what waits under it in muted 13 px", () => {
+    renderWithIntl(<PendingBanner spaceId="sp-household" count={2} names={["Internet", "Energía"]} />);
+    expect(screen.getByText("2 movimientos por confirmar")).toHaveClass("text-[15px]", "font-semibold");
+    expect(screen.getByText("Internet y Energía")).toHaveClass("text-[13px]", "text-muted");
+    expect(screen.getByRole("link", { name: "Revisar" })).toHaveClass("min-h-11", "text-[15px]");
+  });
+
   it("names them in English with its own words", () => {
     renderWithIntl(
       <PendingBanner spaceId="sp-household" count={3} names={["Internet", "Energía", "Agua"]} />,

@@ -31,14 +31,15 @@ export function PendingBanner({
       aria-label={t("title")}
       className="flex items-center gap-3 rounded-2xl bg-accent-soft p-3 text-accent"
     >
-      <Icon name="check" />
+      <Icon name="check" size={20} className="shrink-0" />
+      {/* Board E9-09 01: the count fits one line at 390 px, what waits under it in a smaller muted line. */}
       <p className="flex min-w-0 flex-1 flex-col [overflow-wrap:anywhere]">
-        <span className="font-semibold">{t("banner", { count })}</span>
-        {line ? <span className="text-sm text-ink">{line}</span> : null}
+        <span className="text-[15px] leading-snug font-semibold">{t("banner", { count })}</span>
+        {line ? <span className="text-[13px] text-muted">{line}</span> : null}
       </p>
       <Link
         href={`/spaces/${spaceId}/pending-occurrences`}
-        className="flex min-h-11 shrink-0 items-center rounded-full bg-accent px-4 text-sm font-semibold text-on-accent"
+        className="flex min-h-11 shrink-0 items-center rounded-full bg-accent px-4 text-[15px] font-semibold text-on-accent"
       >
         {t("review")}
       </Link>

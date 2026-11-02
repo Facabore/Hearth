@@ -74,6 +74,19 @@ describe("Por confirmar (HU-E9-09, ruling P270)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("draws board 07's real amount: one large field with its symbol inside, the difference under it", async () => {
+    show();
+    const field = within(card("Energía")).getByRole("textbox", { name: "Monto real de Energía" });
+    // The symbol sits in the field's own box, at the figure's 24 px semibold, never a small separate prefix.
+    const box = field.parentElement!;
+    expect(box).toHaveTextContent("$");
+    expect(within(box).getByText("$")).toHaveClass("text-2xl", "font-semibold");
+    expect(field).toHaveClass("text-2xl", "font-semibold");
+    await userEvent.clear(field);
+    await userEvent.type(field, "205300");
+    expect(field).toHaveAccessibleDescription(/25\.300 más que lo sugerido$/);
+  });
+
   it("says the difference from the suggestion in words, above and below it", async () => {
     show();
     const field = within(card("Energía")).getByRole("textbox", { name: "Monto real de Energía" });

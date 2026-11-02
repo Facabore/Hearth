@@ -67,7 +67,7 @@ export function TransactionList({
         {/* P270: the space's recurring movements, two taps from the bottom bar, in every space. */}
         <Link
           href={`/spaces/${spaceId}/recurrences`}
-          className="flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-line bg-surface px-4 text-sm font-semibold text-ink"
+          className="flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-line bg-surface px-4 text-[15px] font-semibold text-ink"
         >
           <Icon name="calendar" size={18} />
           {recurring("pill")}

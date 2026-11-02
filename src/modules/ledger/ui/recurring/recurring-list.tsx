@@ -23,7 +23,10 @@ export interface RecurringListProps extends RecurrenceNames {
   readonly timeZone?: string;
 }
 
-/** A recurrence's category icon, or the type's symbol for one without a category (a transfer, a contribution). */
+/**
+ * A recurrence's category icon, or the type's symbol for one without a category (a transfer, a contribution). Board 01
+ * draws a paused or ended one, which records nothing, on a neutral tile; its name and badge still say which it is.
+ */
 export function RecurrenceIcon({
   recurrence,
   groups,
@@ -33,7 +36,11 @@ export function RecurrenceIcon({
 }) {
   const found = recurrence.categoryId ? findCategory([...groups], recurrence.categoryId) : null;
   return found ? (
-    <CategoryIcon icon={found.category.icon} color={found.category.color} size={40} />
+    <CategoryIcon
+      icon={found.category.icon}
+      color={recurrence.status === "ACTIVE" ? found.category.color : "GRAPHITE"}
+      size={40}
+    />
   ) : (
     <span
       aria-hidden="true"
@@ -45,9 +52,19 @@ export function RecurrenceIcon({
   );
 }
 
-/** The status and mode badges: "Activa" carries its check, so it is never told by color alone. */
-export function RecurrenceBadges({ recurrence }: { readonly recurrence: RecurrenceDto }) {
+/**
+ * The status and mode badges: "Activa" carries its check, so it is never told by color alone. The list's board 01
+ * gives a paused or ended row its status alone (`listed`); the detail's board 06 keeps a paused one's mode.
+ */
+export function RecurrenceBadges({
+  recurrence,
+  listed = false,
+}: {
+  readonly recurrence: RecurrenceDto;
+  readonly listed?: boolean;
+}) {
   const t = useTranslations("recurrences");
+  const mode = listed ? recurrence.status === "ACTIVE" : recurrence.status !== "ENDED";
   return (
     <span className="flex flex-wrap gap-1.5">
       {recurrence.status === "ACTIVE" ? (
@@ -57,7 +74,7 @@ export function RecurrenceBadges({ recurrence }: { readonly recurrence: Recurren
       ) : (
         <Badge>{t(`status.${recurrence.status}`)}</Badge>
       )}
-      {recurrence.status === "ENDED" ? null : <Badge>{t(`mode.${recurrence.mode}`)}</Badge>}
+      {mode ? <Badge>{t(`mode.${recurrence.mode}`)}</Badge> : null}
     </span>
   );
 }
@@ -131,7 +148,7 @@ function RecurrenceRow({
           <span className="text-sm break-words text-muted">{meta.join(" · ")}</span>
           {when ? <span className="text-sm text-ink">{when}</span> : null}
           <span className="mt-1">
-            <RecurrenceBadges recurrence={recurrence} />
+            <RecurrenceBadges recurrence={recurrence} listed />
           </span>
         </span>
       </Link>
