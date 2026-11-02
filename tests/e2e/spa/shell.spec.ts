@@ -1,6 +1,7 @@
 import { randomInt } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
-import { expect, request, test, type Page } from "@playwright/test";
+import { expect, request, type Page } from "@playwright/test";
+import { test } from "../support/clock";
 import es from "../../../src/i18n/messages/es.json" with { type: "json" };
 import { BASE_URL } from "../support/base-url";
 

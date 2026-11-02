@@ -1,5 +1,6 @@
 import { randomInt } from "node:crypto";
-import { expect, test, type Locator, type Route } from "@playwright/test";
+import { expect, type Locator, type Route } from "@playwright/test";
+import { test, todayInBogota } from "../support/clock";
 import es from "../../../src/i18n/messages/es.json" with { type: "json" };
 import { get, post, signUp } from "../support/seed";
 
@@ -10,10 +11,6 @@ import { get, post, signUp } from "../support/seed";
  * cached one must stay under that.
  */
 const CACHED_TAP_MS = 300;
-
-/** Today in Bogotá, the person's zone: the movement must sit in the period Movimientos opens on. */
-const todayInBogota = () =>
-  new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date());
 
 test.describe("the ledger flow (slice 2 of #199, ADR 0006)", () => {
   test("a second visit to Movimientos, the sheet and Editar shows content without waiting on the network", async ({

@@ -1,5 +1,6 @@
 import { createRequire } from "node:module";
-import { expect, test, type APIRequestContext } from "@playwright/test";
+import { expect, type APIRequestContext } from "@playwright/test";
+import { test } from "../support/clock";
 import budgets from "../../performance/budgets.json" with { type: "json" };
 import { seedPlanRoutes } from "../../performance/seed-plan.mjs";
 import { BASE_URL } from "../support/base-url";

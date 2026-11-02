@@ -1,10 +1,12 @@
 import { createBdd, test as base } from "playwright-bdd";
+import { serverClock } from "./clock";
 import { World } from "./world";
 
 let tests = 0;
 
 /** Each test is one visitor with its own address, so the sign-up and sign-in throttles never meet (ruling P133). */
-export const test = base.extend<{ world: World }>({
+export const test = base.extend<{ world: World; serverClock: void }>({
+  serverClock,
   world: async ({ page, playwright }, use, testInfo) => {
     tests += 1;
     const ip = `10.${testInfo.workerIndex % 250}.${Math.floor(tests / 250) % 250}.${(tests % 250) + 1}`;
