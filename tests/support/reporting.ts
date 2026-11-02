@@ -185,6 +185,7 @@ export interface UnifiedViewDto {
       space: { id: string; name: string } | null;
       category: { id: string; name: string } | null;
       amount: MoneyDto;
+      spaces?: { id: string; name: string }[];
     }[];
   };
   cashOut: {
@@ -275,6 +276,7 @@ export interface PersonalSpendingByGroupDto {
   total: MoneyDto;
   groups: (SpendingNodeDto & {
     space: SpaceRefDto | null;
+    spaces?: SpaceRefDto[];
     categories: (SpendingNodeDto & {
       space: SpaceRefDto | null;
       subcategories: (SubcategorySpendingDto & { space: SpaceRefDto | null })[];

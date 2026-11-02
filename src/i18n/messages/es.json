@@ -1624,6 +1624,11 @@
       "OVER_CONTRIBUTED": "de más",
       "UNDER_CONTRIBUTED": "de menos",
       "ON_TARGET": "al día"
+    },
+    "origin": {
+      "and": "{list} y {last}",
+      "yourShare": "{space} · tu parte",
+      "createdIn": "Grupo creado en {space}"
     }
   },
   "toast": {

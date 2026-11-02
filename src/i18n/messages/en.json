@@ -1624,6 +1624,11 @@
       "OVER_CONTRIBUTED": "over-contributed",
       "UNDER_CONTRIBUTED": "under-contributed",
       "ON_TARGET": "on target"
+    },
+    "origin": {
+      "and": "{list} and {last}",
+      "yourShare": "{space} · your share",
+      "createdIn": "Group created in {space}"
     }
   },
   "toast": {

@@ -291,4 +291,36 @@ describe("the Plan views' origins (#240, ruling P272)", () => {
       ),
     ).toBeVisible();
   });
+
+  it("says where each row of Mi consumo came from, the personal space's own part apart (board E9-11 01)", async () => {
+    const personal = { id: "sp-personal", name: "Personal" };
+    const home = { id: "sp-household", name: "Hogar" };
+    const view = e74Unified();
+    const [groceries, rent] = view.consumption.categories;
+    view.consumption.categories = [
+      { ...groceries!, spaces: [personal, home] },
+      { ...rent!, spaces: [home] },
+    ];
+    renderSpa(`${PERSONAL}/my-consumption?period=2026-11`, {
+      ...server(),
+      "GET /api/v1/me/unified-view": () => jsonResponse(view),
+    });
+    expect(await screen.findByText("Personal y Hogar", {}, { timeout: 5_000 })).toBeVisible();
+    expect(screen.getByText("Hogar · tu parte")).toBeVisible();
+  });
+
+  it("says which spaces each of the person's groups came from (board E9-11 02)", async () => {
+    const household = { id: "sp-household", name: "Household" };
+    const data = e74Groups();
+    data.groups = data.groups.map((group) => ({
+      ...group,
+      spaces: group.space ? [group.space] : [{ id: "sp-personal", name: "Personal" }, household],
+    }));
+    renderSpa(`${PERSONAL}/plan/groups?period=2026-11`, {
+      ...server(),
+      "GET /api/v1/me/reports/spending-by-group": () => jsonResponse(data),
+    });
+    expect(await screen.findAllByText("Personal y Household", {}, { timeout: 5_000 })).toHaveLength(2);
+    expect(screen.getByText("Grupo creado en Household")).toBeVisible();
+  });
 });

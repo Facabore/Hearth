@@ -11810,6 +11810,26 @@
                               },
                               "amount": {
                                 "$ref": "#/components/schemas/MoneyOutput"
+                              },
+                              "spaces": {
+                                "description": "Every space the row's amount came from: the caller's personal space first, then by space name, then id.",
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "name"
+                                  ],
+                                  "additionalProperties": false
+                                }
                               }
                             },
                             "required": [
@@ -12860,6 +12880,26 @@
                               }
                             ],
                             "description": "Null for a seeded group merged across spaces by key."
+                          },
+                          "spaces": {
+                            "description": "Every space the row's amount came from: the caller's personal space first, then by space name, then id.",
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name"
+                              ],
+                              "additionalProperties": false
+                            }
                           },
                           "categories": {
                             "type": "array",

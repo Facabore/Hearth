@@ -42,9 +42,30 @@ describe("unified personal view (HU-E7-04, D11)", () => {
       { spaceId: "space-household", categoryId: "cat-rent", amount: pesos(480_000) },
     ];
     expect(consumptionGroups(rows, CATEGORIES, NAMING)).toEqual([
-      { key: "groceries", name: "Groceries", spaceId: null, categoryId: null, amount: pesos(1_035_000) },
-      { key: "rent", name: "Arriendo", spaceId: null, categoryId: null, amount: pesos(480_000) },
-      { key: "restaurants", name: "Restaurants", spaceId: null, categoryId: null, amount: pesos(60_000) },
+      {
+        key: "groceries",
+        name: "Groceries",
+        spaceId: null,
+        categoryId: null,
+        amount: pesos(1_035_000),
+        spaceIds: ["space-ana", "space-household"],
+      },
+      {
+        key: "rent",
+        name: "Arriendo",
+        spaceId: null,
+        categoryId: null,
+        amount: pesos(480_000),
+        spaceIds: ["space-household"],
+      },
+      {
+        key: "restaurants",
+        name: "Restaurants",
+        spaceId: null,
+        categoryId: null,
+        amount: pesos(60_000),
+        spaceIds: ["space-ana"],
+      },
     ]);
   });
 
@@ -54,8 +75,22 @@ describe("unified personal view (HU-E7-04, D11)", () => {
       { spaceId: "space-household", categoryId: "cat-pets", amount: pesos(30_000) },
     ];
     expect(consumptionGroups(rows, CATEGORIES, NAMING)).toEqual([
-      { key: null, name: "Pets", spaceId: "space-ana", categoryId: "cat-ana-pets", amount: pesos(30_000) },
-      { key: null, name: "Pets", spaceId: "space-household", categoryId: "cat-pets", amount: pesos(30_000) },
+      {
+        key: null,
+        name: "Pets",
+        spaceId: "space-ana",
+        categoryId: "cat-ana-pets",
+        amount: pesos(30_000),
+        spaceIds: ["space-ana"],
+      },
+      {
+        key: null,
+        name: "Pets",
+        spaceId: "space-household",
+        categoryId: "cat-pets",
+        amount: pesos(30_000),
+        spaceIds: ["space-household"],
+      },
     ]);
   });
 
@@ -67,8 +102,22 @@ describe("unified personal view (HU-E7-04, D11)", () => {
       { spaceId: "space-household", categoryId: "cat-pets", amount: pesos(5_000) },
     ];
     expect(consumptionGroups(rows, CATEGORIES, NAMING)).toEqual([
-      { key: "groceries", name: "Groceries", spaceId: null, categoryId: null, amount: pesos(120_000) },
-      { key: null, name: "Pets", spaceId: "space-household", categoryId: "cat-pets", amount: pesos(30_000) },
+      {
+        key: "groceries",
+        name: "Groceries",
+        spaceId: null,
+        categoryId: null,
+        amount: pesos(120_000),
+        spaceIds: ["space-ana", "space-household"],
+      },
+      {
+        key: null,
+        name: "Pets",
+        spaceId: "space-household",
+        categoryId: "cat-pets",
+        amount: pesos(30_000),
+        spaceIds: ["space-household"],
+      },
     ]);
   });
 
@@ -93,8 +142,35 @@ describe("unified personal view (HU-E7-04, D11)", () => {
     ];
     expect(consumptionGroups(rows, CATEGORIES, NAMING)).toEqual([
       // The personal Rent is a subcategory of Groceries: it neither adds to nor names the `rent` group.
-      { key: "rent", name: "Cabin", spaceId: null, categoryId: null, amount: pesos(400_000) },
-      { key: "groceries", name: "Groceries", spaceId: null, categoryId: null, amount: pesos(140_000) },
+      {
+        key: "rent",
+        name: "Cabin",
+        spaceId: null,
+        categoryId: null,
+        amount: pesos(400_000),
+        spaceIds: ["space-household", "space-trip"],
+      },
+      {
+        key: "groceries",
+        name: "Groceries",
+        spaceId: null,
+        categoryId: null,
+        amount: pesos(140_000),
+        spaceIds: ["space-ana", "space-household"],
+      },
+    ]);
+  });
+
+  it("lists the spaces a row came from: the personal space first, then by space name (#240, board E9-11 01)", () => {
+    const rows = [
+      { spaceId: "space-trip", categoryId: "cat-trip-rent", amount: pesos(300_000) },
+      { spaceId: "space-household", categoryId: "cat-rent", amount: pesos(100_000) },
+      { spaceId: "space-household", categoryId: "cat-groceries", amount: pesos(900_000) },
+      { spaceId: "space-ana", categoryId: "cat-ana-groceries", amount: pesos(10_000) },
+    ];
+    expect(consumptionGroups(rows, CATEGORIES, NAMING).map((g) => [g.key, g.spaceIds])).toEqual([
+      ["groceries", ["space-ana", "space-household"]],
+      ["rent", ["space-household", "space-trip"]],
     ]);
   });
 

@@ -1,5 +1,5 @@
 import { placeIn, treeById, type TreeCategory, type TreeGroup } from "./category-tree";
-import { compareText, namingPart, type CategoryConsumption } from "./unified-view";
+import { compareText, namingPart, originOrder, type CategoryConsumption } from "./unified-view";
 
 /** A space a personal row keeps apart, so the web UI writes "space / group" (HU-E9-11). */
 export interface SpaceRef {
@@ -40,6 +40,8 @@ export interface GroupSpending extends SpendingNode {
   readonly key: string | null;
   readonly name: string;
   readonly categories: readonly CategorySpending[];
+  /** #240 (board E9-11 02): in the personal breakdown, every space the group's spending came from, in `originOrder`. */
+  readonly spaces?: readonly SpaceRef[];
 }
 
 export interface SpendingTree {
@@ -219,6 +221,14 @@ export const spendingTree = (
         key: group.key,
         name: nameOf(group, groupNames),
         ...node(group, total),
+        ...(personal === null
+          ? {}
+          : {
+              spaces: originOrder(group.parts.keys(), personal.personalSpaceId, spaceName).map((id) => ({
+                id,
+                name: spaceName(id),
+              })),
+            }),
         categories: ordered(
           [...group.children.values()].map((category) => ({
             id: category.id,

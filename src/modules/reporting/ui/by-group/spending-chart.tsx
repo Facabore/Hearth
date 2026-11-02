@@ -7,6 +7,7 @@ import { Badge, Icon } from "@/shared/ui";
 import type { MoneyDto } from "@/shared/ui/api/dto";
 import { formatMoney, formatPercent, type Formats } from "@/shared/ui/format/formatters";
 import { DrillBreadcrumb } from "./drill-breadcrumb";
+import { useOriginText } from "../origin";
 import { NodeLabel, useNodeText } from "./node-label";
 import { levelAt, type SpendingNode } from "./spending-tree";
 
@@ -43,6 +44,7 @@ export function SpendingChart({
 }) {
   const t = useTranslations("reports.byGroup");
   const nodeText = useNodeText();
+  const originText = useOriginText();
   const params = useSearchParams();
   const [path, showPath] = useOptimistic<readonly string[]>(params.getAll(DRILL));
   const { node, rows, trail } = levelAt(tree, path);
@@ -98,6 +100,12 @@ export function SpendingChart({
                     <NodeLabel name={row.name} />
                   </span>
                   {row.archived ? <Badge>{t("archived")}</Badge> : null}
+                  {/* #240 (board E9-11 02): where a personal group came from, on its own line under the name. */}
+                  {row.origin ? (
+                    <span data-origin className="basis-full text-sm text-muted [overflow-wrap:anywhere]">
+                      {originText(row.origin)}
+                    </span>
+                  ) : null}
                 </span>
                 <span className="ml-auto flex shrink-0 items-center gap-2">
                   <span data-cell className="text-base font-semibold">

@@ -236,6 +236,31 @@ describe("spending by category group (HU-E7-06)", () => {
     ]);
   });
 
+  it("lists the spaces each personal group came from, the personal space first (#240, board E9-11 02)", () => {
+    const spending = [
+      inHousehold("cat-groceries", 950_000),
+      atHome("cat-ana-groceries", 85_000),
+      inHousehold("cat-rent", 480_000),
+      inHousehold("cat-vet", 25_000),
+    ];
+    const personal = spendingTree(spending, [...ANA_TREE, ...HOUSEHOLD_TREE], PERSONAL);
+    expect(personal.groups.map((g) => [g.name, g.spaces])).toEqual([
+      [
+        "Food",
+        [
+          { id: "space-ana", name: "Personal" },
+          { id: "space-household", name: "Household" },
+        ],
+      ],
+      ["Housing", [{ id: "space-household", name: "Household" }]],
+      ["Pets", [{ id: "space-household", name: "Household" }]],
+    ]);
+    // A space's own breakdown has one space: it names none.
+    expect(spendingTree(november(), HOUSEHOLD_TREE, SPACE).groups.every((g) => g.spaces === undefined)).toBe(
+      true,
+    );
+  });
+
   it("names a merged row as the personal space does, even without spending there, else as the space spending most", () => {
     // Household renamed its seeded Food and Housing and their Groceries and Rent; only Household and Trip hold Leisure.
     const household = HOUSEHOLD_TREE.map((n) =>

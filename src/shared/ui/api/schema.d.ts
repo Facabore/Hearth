@@ -7991,6 +7991,11 @@ export interface operations {
                                     name: string;
                                 } | null;
                                 amount: components["schemas"]["MoneyOutput"];
+                                /** @description Every space the row's amount came from: the caller's personal space first, then by space name, then id. */
+                                spaces?: {
+                                    id: string;
+                                    name: string;
+                                }[];
                             }[];
                         };
                         cashOut: {
@@ -8365,6 +8370,11 @@ export interface operations {
                                 id: string;
                                 name: string;
                             } | null;
+                            /** @description Every space the row's amount came from: the caller's personal space first, then by space name, then id. */
+                            spaces?: {
+                                id: string;
+                                name: string;
+                            }[];
                             categories: {
                                 /** @description Null for a seeded category merged inside a merged seeded group; a custom category keeps its id. */
                                 id: string | null;

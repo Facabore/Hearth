@@ -10,6 +10,8 @@ export interface UnifiedGroup {
   readonly space: { readonly id: string; readonly name: string } | null;
   readonly category: { readonly id: string; readonly name: string } | null;
   readonly amount: bigint;
+  /** #240 (board E9-11 01): the spaces the row's consumption came from, the personal space first. */
+  readonly spaces: readonly { readonly id: string; readonly name: string }[];
 }
 
 export interface UnifiedPersonalView {
@@ -72,6 +74,7 @@ export const createGetUnifiedPersonalView =
             space: g.spaceId === null ? null : { id: g.spaceId, name: spaceNames.get(g.spaceId) ?? "" },
             category: g.categoryId === null ? null : { id: g.categoryId, name: g.name },
             amount: g.amount,
+            spaces: g.spaceIds.map((id) => ({ id, name: spaceNames.get(id) ?? "" })),
           }),
         ),
       },
