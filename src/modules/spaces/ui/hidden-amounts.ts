@@ -6,7 +6,7 @@ import { useSyncExternalStore } from "react";
  */
 export const HEADER_SLOT_ID = "shell-actions";
 
-/** What an amount shows while the person hides them (ruling P277). */
+/** What an amount shows while the person hides them (ruling P278). */
 export const MASKED_AMOUNT = "••••••";
 
 const keyOf = (personId: string) => `hearth.hideAmounts.${personId}`;
@@ -22,7 +22,7 @@ const stored = (personId: string): boolean => {
   }
 };
 
-/** Inicio's eye (B1 · 03, ruling P277): hides or shows the person's amounts, remembered by this browser per person. */
+/** Inicio's eye (B1 · 03, ruling P278): hides or shows the person's amounts, remembered by this browser per person. */
 export const setAmountsHidden = (personId: string, hidden: boolean): void => {
   chosen.set(personId, hidden);
   try {

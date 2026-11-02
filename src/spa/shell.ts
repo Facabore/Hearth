@@ -16,13 +16,13 @@ import { meQuery, spacesQuery } from "./queries";
 export type Shell = Pick<AppShellProps, "me" | "spaces" | "activeSpace">;
 
 /**
- * Ruling P277: the switcher's cards with the person's standing ride in Inicio's chunk, which holds the amount formats;
+ * Ruling P278: the switcher's cards with the person's standing ride in Inicio's chunk, which holds the amount formats;
  * `space-home.tsx` fills this slot when that chunk loads.
  */
 export const spaceStandingSlot: { current?: SpaceStandingView } = {};
 
 /**
- * Ruling P277: the person's standing in each shared and direct space, read by Inicio and by the switcher when it opens.
+ * Ruling P278: the person's standing in each shared and direct space, read by Inicio and by the switcher when it opens.
  * An optional read: it never retries, and a screen without it draws as before.
  */
 export const myBalancesQuery = (api: Api) =>

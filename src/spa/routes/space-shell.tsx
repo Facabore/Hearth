@@ -22,7 +22,7 @@ type Router = ReturnType<typeof useRouter>;
  * A component another route's chunk fills `slot` with, loaded through the router's own split point for that route the
  * first time it shows: every tab's shell stays as light as it was, and no second import of the chunk (with its own
  * list of files to preload) is written here. The switcher's flows ride in New space's chunk; its cards with the
- * person's standing (ruling P277) in Inicio's, which holds the amount formats.
+ * person's standing (ruling P278) in Inicio's, which holds the amount formats.
  */
 const useSlot = <P extends object>(
   route: (router: Router) => Parameters<Router["loadRouteChunk"]>[0],
@@ -59,7 +59,7 @@ export function ShellFrame({
   const pendingCount = usePendingCount(shell?.activeSpace ?? null);
   const spaceFlows = useSlot((router) => router.routesByPath["/spaces/new"], spaceFlowsSlot);
   const spaceStanding = useSlot((router) => router.routesById["/spaces/$spaceId/"], spaceStandingSlot);
-  // Ruling P277: the switcher reads the person's balances once it opens (Inicio may have read them already), and only
+  // Ruling P278: the switcher reads the person's balances once it opens (Inicio may have read them already), and only
   // for someone with a shared or direct space.
   const { api } = useApis();
   const [switcherOpened, setSwitcherOpened] = useState(false);

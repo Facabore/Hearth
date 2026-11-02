@@ -56,7 +56,7 @@ export function SpaceSwitcher({
   readonly flows?: SpaceFlows | undefined;
   readonly personId: string;
   readonly formats?: Pick<Formats, "numberFormat"> | undefined;
-  /** Ruling P277: the person's standing in each shared space, once read (the app reads it when the sheet opens). */
+  /** Ruling P278: the person's standing in each shared space, once read (the app reads it when the sheet opens). */
   readonly balances?: readonly MyBalanceDto[] | undefined;
   /** The card text of a shared space with its standing, loaded on demand by the app. */
   readonly standing?: SpaceStandingView | undefined;

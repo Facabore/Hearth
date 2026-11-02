@@ -5,7 +5,7 @@ import { HEADER_SLOT_ID, setAmountsHidden, useAmountsHidden } from "@/modules/sp
 import { Icon } from "@/shared/ui";
 
 /**
- * Inicio's eye (board B1 · 03, ruling P277): it hides every amount on Inicio and in the space switcher, and this
+ * Inicio's eye (board B1 · 03, ruling P278): it hides every amount on Inicio and in the space switcher, and this
  * browser remembers it per person. It sits in the shell's header, beside the profile; outside the shell, over the page.
  */
 export function AmountsEye({ personId }: { readonly personId: string }) {

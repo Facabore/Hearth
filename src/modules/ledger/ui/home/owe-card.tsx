@@ -3,7 +3,7 @@ import { useTranslations } from "next-intl";
 import { useId } from "react";
 import type { MoneyDto } from "@/shared/ui/api/dto";
 
-/** Ruling P277: a shared space where it is the person's turn to put money in, and to whom she pays first. */
+/** Ruling P278: a shared space where it is the person's turn to put money in, and to whom she pays first. */
 export interface Owe {
   readonly spaceId: string;
   /** The space's name. */

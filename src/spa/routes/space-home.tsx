@@ -13,13 +13,13 @@ import { lineReportQuery, unifiedViewQuery } from "../reads";
 import { myBalancesQuery, spaceStandingSlot } from "../shell";
 import { useTitle } from "../title";
 
-// Ruling P277: the switcher's cards with the person's standing ride in this chunk, which already holds the formats.
+// Ruling P278: the switcher's cards with the person's standing ride in this chunk, which already holds the formats.
 spaceStandingSlot.current = SpaceStanding;
 
 const route = getRouteApi("/spaces/$spaceId/");
 
 /**
- * Board B1 · 03 (ruling P277): each space where it is the person's turn to put money in, and whom she pays first:
+ * Board B1 · 03 (ruling P278): each space where it is the person's turn to put money in, and whom she pays first:
  * every shared one on the personal home, this one on a shared home.
  */
 const owesOf = (balances: readonly MyBalanceDto[], spaces: readonly SpaceDto[], space: SpaceDto) =>
@@ -67,7 +67,7 @@ export function SpaceHome() {
     ...lineReportQuery(api, spaceId, page.period.label),
     enabled: personal && accounts.length > 0,
   }).data;
-  // Ruling P277: the card "Te toca poner", for someone with a shared or direct space.
+  // Ruling P278: the card "Te toca poner", for someone with a shared or direct space.
   const shared = viewer.spaces.some((s) => s.kind !== "PERSONAL");
   const balances = useQuery({ ...myBalancesQuery(api), enabled: shared }).data;
   return (

@@ -28,7 +28,7 @@ export interface AppShellProps {
   readonly stacked?: boolean;
   /** The switcher's "Crear un espacio compartido" and "Unirme con un enlace" sheets, loaded on demand by the app. */
   readonly spaceFlows?: SpaceFlows;
-  /** Ruling P277: the person's standing in each shared space, and the cards that draw it, once the app has them. */
+  /** Ruling P278: the person's standing in each shared space, and the cards that draw it, once the app has them. */
   readonly myBalances?: readonly MyBalanceDto[] | undefined;
   readonly spaceStanding?: SpaceStandingView | undefined;
   /** The switcher opened: the app reads the balances then, not with every tab. */

@@ -54,7 +54,7 @@ export const settlementSuggestionsDto = (
 });
 
 /**
- * #240 (ruling P277): the viewer's standing in each of her active shared and direct spaces, computed on read (D7) like
+ * #240 (ruling P278): the viewer's standing in each of her active shared and direct spaces, computed on read (D7) like
  * `GET /api/v1/spaces/{spaceId}/balances`; the personal space has no balances and is not listed.
  */
 export const MyBalancesSchema = z.object({

@@ -487,7 +487,7 @@ describe("the home of a shared or direct space explains its funds (U1)", () => {
   });
 });
 
-describe("Inicio's turn to put money in and its eye (board B1 · 03, ruling P277)", () => {
+describe("Inicio's turn to put money in and its eye (board B1 · 03, ruling P278)", () => {
   const owe = {
     spaceId: "sp-household",
     space: "Household",

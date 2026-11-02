@@ -4,7 +4,7 @@ import type { paths } from "@/shared/ui/api/schema";
 import { BUILT_IN_FORMATS, formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { MASKED_AMOUNT, useAmountsHidden } from "./hidden-amounts";
 
-/** The person's standing in one shared or direct space (`GET /api/v1/me/balances`, ruling P277). */
+/** The person's standing in one shared or direct space (`GET /api/v1/me/balances`, ruling P278). */
 export type MyBalanceDto =
   paths["/api/v1/me/balances"]["get"]["responses"][200]["content"]["application/json"]["items"][number];
 
@@ -16,7 +16,7 @@ export interface SpaceStandingProps {
   readonly formats?: Pick<Formats, "numberFormat"> | undefined;
 }
 
-/** The component that draws a shared space's card text; the app loads it with Inicio's chunk (ruling P277). */
+/** The component that draws a shared space's card text; the app loads it with Inicio's chunk (ruling P278). */
 export type SpaceStandingView = ComponentType<SpaceStandingProps>;
 
 /** The amount as the person sees it: masked while she hides her amounts (Inicio's eye). */

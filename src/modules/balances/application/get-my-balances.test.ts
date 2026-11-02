@@ -45,7 +45,7 @@ const juanPaysForAnaAndLuis = () =>
     ],
   });
 
-describe("GetMyBalances (#240, P277)", () => {
+describe("GetMyBalances (#240, P278)", () => {
   it("gives the viewer's net in each space with balances, her payments and the members by name; never the personal space", async () => {
     const { ledger, getMyBalances } = world();
     await ledger.add(juanPaysForAnaAndLuis());

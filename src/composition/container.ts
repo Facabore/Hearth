@@ -874,7 +874,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         members: spaceRepository,
         source: ledgerQueries,
       }),
-      // #240 (P277): the viewer's standing in each of her spaces, from the same balances (D7).
+      // #240 (P278): the viewer's standing in each of her spaces, from the same balances (D7).
       getMyBalances: createGetMyBalances({
         access,
         members: spaceRepository,

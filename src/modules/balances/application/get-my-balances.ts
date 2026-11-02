@@ -3,7 +3,7 @@ import { ok, type Result } from "@/shared/kernel";
 import { simplifyDebts } from "../domain/balances";
 import { createGetSpaceBalances, type BalancesDeps } from "./get-space-balances";
 
-/** One space with balances, as its viewer stands in it (#240, ruling P277). */
+/** One space with balances, as its viewer stands in it (#240, ruling P278). */
 export interface MyBalance {
   readonly spaceId: string;
   readonly currency: string;
@@ -24,7 +24,7 @@ export interface MyBalancesDeps extends BalancesDeps {
 }
 
 /**
- * #240 (ruling P277): the viewer's standing in each of her active shared and direct spaces, for the space switcher
+ * #240 (ruling P278): the viewer's standing in each of her active shared and direct spaces, for the space switcher
  * and Inicio. Computed on read (D7) through GetSpaceBalances, so it authorizes as Saldos does; the personal space has
  * no balances and is left out.
  */

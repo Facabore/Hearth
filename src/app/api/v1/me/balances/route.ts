@@ -5,7 +5,7 @@ import { ok } from "@/shared/kernel";
 
 export const runtime = "nodejs";
 
-/** #240 (ruling P277): the signed-in person's standing in each of her shared and direct spaces. */
+/** #240 (ruling P278): the signed-in person's standing in each of her shared and direct spaces. */
 export const GET = defineRoute({
   auth: "required",
   handler: async ({ user }) => {

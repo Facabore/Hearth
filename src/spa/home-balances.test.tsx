@@ -15,7 +15,7 @@ import {
 import { jsonResponse, type FakeHandler } from "../../tests/support/ui/fake-api";
 import { renderSpa } from "../../tests/support/ui/spa";
 
-/** Ana's standing in Household: her turn to put 120,000 COP in, to Juan (ruling P277). */
+/** Ana's standing in Household: her turn to put 120,000 COP in, to Juan (ruling P278). */
 const anaOwesJuan = {
   spaceId: "sp-household",
   memberId: "m-ana",
@@ -51,7 +51,7 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-describe("Inicio and the space switcher read the person's balances (#240, ruling P277)", () => {
+describe("Inicio and the space switcher read the person's balances (#240, ruling P278)", () => {
   it("shows the personal home her turn to put money in Household, with Saldar opening its settle sheet", async () => {
     renderSpa("/spaces/sp-personal", api());
     const card = await screen.findByRole("region", { name: /Te toca poner/ }, { timeout: 15_000 });

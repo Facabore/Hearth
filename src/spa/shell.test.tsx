@@ -30,7 +30,7 @@ describe("useShell", () => {
     const { result, requests } = renderShell("sp-household");
     await waitFor(() => expect(result.current).not.toBeNull());
     expect(result.current).toEqual({
-      // Ruling P277: the person's id (Inicio's eye is remembered per person) and her formats (the switcher's amounts).
+      // Ruling P278: the person's id (Inicio's eye is remembered per person) and her formats (the switcher's amounts).
       me: {
         id: "u-ana",
         name: "Ana",

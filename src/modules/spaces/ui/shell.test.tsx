@@ -250,7 +250,7 @@ describe("app shell (HU-E9-01)", () => {
     expect(pill).toHaveClass("rounded-full", "border", "min-h-11");
   });
 
-  describe("the space sheet's cards (B1 · 04, ruling P277)", () => {
+  describe("the space sheet's cards (B1 · 04, ruling P278)", () => {
     const balances = [
       {
         spaceId: "sp-household",

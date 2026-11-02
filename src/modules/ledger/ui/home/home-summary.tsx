@@ -55,9 +55,9 @@ export function HomeSummary({
   readonly allSpaces?: { readonly total: MoneyDto; readonly href: string } | undefined;
   /** Issues #220 (F14) and #152: on the personal home, a new person's four first steps, under the period's figure. */
   readonly firstSteps?: { readonly personId: string; readonly done: FirstStepsDone } | undefined;
-  /** Ruling P277: the person, for Inicio's eye, which hides every amount and is remembered per person. */
+  /** Ruling P278: the person, for Inicio's eye, which hides every amount and is remembered per person. */
   readonly personId?: string | undefined;
-  /** Ruling P277 (board B1 · 03): each shared space where it is the person's turn to put money in. */
+  /** Ruling P278 (board B1 · 03): each shared space where it is the person's turn to put money in. */
   readonly owes?: readonly Owe[] | undefined;
 }) {
   const t = useTranslations("home");
