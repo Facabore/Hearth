@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { Icon } from "@/shared/ui";
 import type { MoneyDto, PeriodDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
 import { formatDate, formatMoney } from "@/shared/ui/format/formatters";
 import { groupByDay } from "./day-groups";
@@ -45,14 +47,25 @@ export function TransactionList({
   readonly movedMemberIds?: readonly string[] | undefined;
 }) {
   const t = useTranslations("ledger");
+  const recurring = useTranslations("recurrences");
   const days = groupByDay(page.items, today);
   const listHref = hrefOf(spaceId, filter);
   return (
     <div className="flex flex-col gap-3 py-3">
-      <header className="flex flex-col gap-0.5">
-        <h1 className="text-[17px] leading-tight font-semibold text-ink">{t("list.title")}</h1>
-        {spaceName ? <p className="text-sm text-muted [overflow-wrap:anywhere]">{spaceName}</p> : null}
-      </header>
+      <div className="flex items-start justify-between gap-3">
+        <header className="flex min-w-0 flex-col gap-0.5">
+          <h1 className="text-[17px] leading-tight font-semibold text-ink">{t("list.title")}</h1>
+          {spaceName ? <p className="text-sm text-muted [overflow-wrap:anywhere]">{spaceName}</p> : null}
+        </header>
+        {/* P270: the space's recurring movements, two taps from the bottom bar, in every space. */}
+        <Link
+          href={`/spaces/${spaceId}/recurrences`}
+          className="flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-line bg-surface px-4 text-sm font-semibold text-ink"
+        >
+          <Icon name="calendar" size={18} />
+          {recurring("pill")}
+        </Link>
+      </div>
       {notice ? (
         <SavedNotice
           accountName={notice.accountName}

@@ -905,6 +905,108 @@
       "noKey": "This category belongs only to your space {space}. Choose a default category to split the expense."
     }
   },
+  "recurrences": {
+    "title": "Recurring",
+    "pill": "Recurring",
+    "new": "New",
+    "next": "Next: {date}",
+    "type": {
+      "EXPENSE": "Expense",
+      "INCOME": "Income",
+      "TRANSFER": "Transfer",
+      "FUND_CONTRIBUTION": "Fund contribution"
+    },
+    "status": {
+      "ACTIVE": "Active",
+      "PAUSED": "Paused",
+      "ENDED": "Ended"
+    },
+    "mode": {
+      "AUTO": "Automatic",
+      "CONFIRM": "To confirm"
+    },
+    "schedule": {
+      "MONTHLY": "Every month, on day {day}",
+      "SEMI_MONTHLY": "Twice a month, on days {day1} and {day2}"
+    },
+    "list": {
+      "active": "Active · {count}",
+      "inactive": "Paused and ended",
+      "paused": "Paused",
+      "endedOn": "Ended on {date}",
+      "empty": "There are no recurring transactions in this space yet.",
+      "add": "Add a recurring transaction"
+    },
+    "form": {
+      "title": "New recurring transaction",
+      "editTitle": "Edit recurring",
+      "type": "Type",
+      "descriptionPlaceholder": "Description, such as Rent",
+      "fund": "Fund",
+      "chooseFund": "Choose a fund",
+      "repeats": "Repeats",
+      "monthly": "Every month",
+      "semiMonthly": "Twice a month",
+      "day": "On day",
+      "firstDay": "First day",
+      "secondDay": "Second day",
+      "dayDown": "{label}: one day earlier",
+      "dayUp": "{label}: one day later",
+      "shortMonth": "If the month is shorter, its last day is used.",
+      "starts": "Starts",
+      "ends": "Ends (optional)",
+      "noEnd": "No end date",
+      "how": "How it is recorded",
+      "autoHint": "It records itself on each date, with this amount.",
+      "confirmHint": "On each date we ask you for the real amount before recording it.",
+      "preview": "Next dates: {dates}",
+      "previewNone": "Nothing would be recorded with these dates.",
+      "previewLoading": "Finding the next dates…",
+      "exactSplit": "A recurring transaction is not split by exact amounts: choose equal parts, percentages or shares.",
+      "save": "Save recurring",
+      "saveEdit": "Save changes",
+      "saved": "Recurring saved",
+      "edited": "Changes saved",
+      "fixedType": "Type: {type}. To change it, end this one and create another.",
+      "chooseDate": "Choose {label}",
+      "previousMonth": "Previous month",
+      "nextMonth": "Next month",
+      "apply": "Done"
+    },
+    "detail": {
+      "from": "Paid from",
+      "to": "Goes to",
+      "receives": "Received in",
+      "category": "Category",
+      "starts": "Starts",
+      "started": "Started",
+      "ends": "Ends",
+      "noEnd": "No end date",
+      "next": "Next dates",
+      "none": "There are no next dates.",
+      "paused": "Paused: nothing is recorded until you resume it.",
+      "ended": "Ended: nothing more is recorded until you extend it.",
+      "edit": "Edit {name}",
+      "pause": "Pause",
+      "resume": "Resume",
+      "extend": "Extend",
+      "end": "End",
+      "endTitle": "End {name}?",
+      "endBody": "Nothing more is recorded. What was already recorded stays.",
+      "endConfirm": "End",
+      "endKeep": "No, keep it",
+      "extendTitle": "Extend {name}",
+      "extendNoEnd": "No end date",
+      "extendUntil": "Extend until {date}",
+      "donePaused": "{name} is paused.",
+      "doneResumed": "{name} goes on from today.",
+      "doneEnded": "{name} has ended.",
+      "doneExtended": "{name} was extended."
+    },
+    "viewer": {
+      "list": "Your role in {space} is {role}: you can see the recurring transactions and their dates, but not create or change them."
+    }
+  },
   "spaces": {
     "settings": {
       "title": "Space",
