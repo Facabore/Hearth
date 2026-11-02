@@ -104,9 +104,11 @@ import {
   createGetRecurrence,
   createListRecurrences,
   createListUpcomingOccurrences,
+  createPreviewSchedule,
   type GetRecurrence,
   type ListRecurrences,
   type ListUpcomingOccurrences,
+  type PreviewSchedule,
   createUpdateRecurrence,
   type UpdateRecurrence,
   createEndRecurrence,
@@ -336,6 +338,7 @@ export interface Container extends RouteDeps {
     readonly listRecurrences: ListRecurrences;
     readonly getRecurrence: GetRecurrence;
     readonly listUpcomingOccurrences: ListUpcomingOccurrences;
+    readonly previewSchedule: PreviewSchedule;
     readonly updateRecurrence: UpdateRecurrence;
     readonly pauseRecurrence: PauseRecurrence;
     readonly resumeRecurrence: ResumeRecurrence;
@@ -838,6 +841,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       listRecurrences: createListRecurrences(recurrenceDeps),
       getRecurrence: createGetRecurrence(recurrenceDeps),
       listUpcomingOccurrences: createListUpcomingOccurrences(recurrenceDeps),
+      previewSchedule: createPreviewSchedule(recurrenceDeps),
       updateRecurrence: createUpdateRecurrence(recurrenceDeps),
       pauseRecurrence: createPauseRecurrence(recurrenceDeps),
       resumeRecurrence: createResumeRecurrence(recurrenceDeps),

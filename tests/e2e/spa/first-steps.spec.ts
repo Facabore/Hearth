@@ -1,5 +1,6 @@
 import { randomInt } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect } from "@playwright/test";
+import { test } from "../support/clock";
 import es from "../../../src/i18n/messages/es.json" with { type: "json" };
 import { signUp } from "../support/seed";
 

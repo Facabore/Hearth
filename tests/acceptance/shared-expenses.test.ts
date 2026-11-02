@@ -9,6 +9,7 @@ import {
   PATCH as editTransaction,
 } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/route";
 import { setContainerForTests, type Container } from "@/composition/container";
+import { FixedClock } from "@/shared/kernel";
 import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
 import { actingIn } from "../support/spaces";
 import {
@@ -30,7 +31,9 @@ import {
 
 let app: Container;
 beforeAll(() => {
-  app = startTestApp();
+  // The movements are dated in October 2026, and a list with no period reads the current one: today is fixed inside it,
+  // never the wall clock (AGENTS.md).
+  app = startTestApp({ clock: new FixedClock(new Date("2026-10-31T17:00:00Z")) });
 });
 afterAll(async () => {
   setContainerForTests(undefined);

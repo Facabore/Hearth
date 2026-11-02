@@ -18,13 +18,13 @@ describe("performance budgets (ruling P134)", () => {
   it("names every route and metric over its budget, and passes the ones within", () => {
     const results = [
       { route: "/sign-in", lcp: 1800, cls: 0, tbt: 90, scriptKb: 120 },
-      { route: "/spaces/:id/new", lcp: 6100, cls: 0.12, tbt: 250, scriptKb: 211 },
+      { route: "/spaces/:id/new", lcp: 6100, cls: 0.12, tbt: 250, scriptKb: 216 },
     ];
     expect(budgetFailures(results, budgets)).toEqual([
       "/spaces/:id/new: LCP 6100 ms > 5500 ms",
       "/spaces/:id/new: CLS 0.12 > 0.1",
       "/spaces/:id/new: TBT 250 ms > 200 ms",
-      "/spaces/:id/new: script 211 KiB > 208 KiB",
+      "/spaces/:id/new: script 216 KiB > 213 KiB",
     ]);
   });
 
@@ -54,11 +54,12 @@ describe("performance budgets (ruling P134)", () => {
 
   it("budgets the edit route and the list with an open sheet within the caps of ruling P198", () => {
     // The edit form and Registrar raised by the owner on 2026-10-28 for the SPA's cold load (ADR 0004): 210 and 205.
+    // Registrar raised again by the owner on 2026-11-02 for #77's recurring screens (ADR 0004): 215.
     const caps = {
       "/spaces/:id/transactions?tx=:tx": 235,
       "/spaces/:id/transactions/:tx/edit": 215,
       "/spaces/:id/transactions": 205,
-      "/spaces/:id/new": 210,
+      "/spaces/:id/new": 215,
     };
     for (const [route, cap] of Object.entries(caps)) {
       expect(budgets.scriptKb[route], route).toBeDefined();

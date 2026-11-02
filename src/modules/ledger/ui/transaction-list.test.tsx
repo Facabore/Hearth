@@ -46,6 +46,14 @@ describe("transaction list (HU-E9-03)", () => {
     expect(title.nextElementSibling).toHaveTextContent("Ana & Juan");
   });
 
+  it("offers the space's recurring movements beside the title, in every space (P270)", () => {
+    renderWithIntl(
+      <TransactionList spaceId="sp-personal" page={page} context={context} today="2026-10-31" filter={{}} />,
+    );
+    const pill = screen.getByRole("link", { name: "Recurrentes" });
+    expect(pill).toHaveAttribute("href", "/spaces/sp-personal/recurrences");
+  });
+
   it("shows no space name in a personal space", () => {
     renderWithIntl(
       <TransactionList spaceId="sp-personal" page={page} context={context} today="2026-10-31" filter={{}} />,

@@ -10,11 +10,13 @@ export interface AppShellProps {
   readonly me: { readonly name: string; readonly email: string; readonly locale: Locale };
   readonly spaces: readonly SpaceSummary[];
   readonly activeSpace: SpaceSummary;
+  /** HU-E9-09 (ruling P270): the active space's pending occurrences, for the Movimientos badge. */
+  readonly pendingCount?: number;
   readonly children: ReactNode;
 }
 
 /** HU-E9-01, the Home and Desktop artboards: the header, the navigation of the active space and the page. */
-export function AppShell({ me, spaces, activeSpace, children }: AppShellProps) {
+export function AppShell({ me, spaces, activeSpace, pendingCount, children }: AppShellProps) {
   return (
     <div className="min-h-dvh pb-[calc(76px+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-[240px]">
       <div className="mx-auto max-w-[1200px] px-4 max-[359px]:px-3">
@@ -28,6 +30,7 @@ export function AppShell({ me, spaces, activeSpace, children }: AppShellProps) {
         spaceId={activeSpace.id}
         spaceKind={activeSpace.kind}
         canRecord={controlsFor(activeSpace.role, activeSpace.kind).recordMoney}
+        {...(pendingCount === undefined ? {} : { pendingCount })}
       />
     </div>
   );

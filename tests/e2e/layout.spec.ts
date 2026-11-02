@@ -1,5 +1,6 @@
 import { randomInt } from "node:crypto";
-import { expect, request, test as base, type Browser, type Locator, type Page } from "@playwright/test";
+import { expect, request, type Browser, type Locator, type Page } from "@playwright/test";
+import { test as base } from "./support/clock";
 import en from "../../src/i18n/messages/en.json" with { type: "json" };
 import es from "../../src/i18n/messages/es.json" with { type: "json" };
 import { BASE_URL } from "./support/base-url";

@@ -1,6 +1,7 @@
 import { randomInt } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
+import { test, todayInBogota } from "../support/clock";
 import es from "../../../src/i18n/messages/es.json" with { type: "json" };
 import { get, post, signUp } from "../support/seed";
 
@@ -14,10 +15,6 @@ const scan = async (page: Page, where: string) => {
 };
 
 const cop = (pesos: number) => ({ amount: String(pesos * 100), currency: "COP" });
-
-/** Today in Bogotá, the people's zone: the expense must sit in the period the balances read. */
-const todayInBogota = () =>
-  new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date());
 
 test.describe("shared spaces (slice 4 of #199, ADR 0006)", () => {
   test("an invitation joins Juan, a shared expense shows in the balances, and settling up clears it", async ({

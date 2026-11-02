@@ -829,6 +829,23 @@ export interface paths {
         patch: operations["updateRecurrence"];
         trace?: never;
     };
+    "/api/v1/spaces/{spaceId}/recurrences/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** The dates a schedule would record if a recurrence were defined with it now, without defining one (nothing is stored) */
+        post: operations["previewSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/spaces/{spaceId}/recurrences/{recurrenceId}/occurrences": {
         parameters: {
             query?: never;
@@ -921,7 +938,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Occurrences of CONFIRM recurrences waiting for the real amount; listed for members who record money */
+        /** Occurrences of CONFIRM recurrences waiting for the real amount; listed to every member (P271), confirmed or skipped only by members who record money */
         get: operations["listPendingOccurrences"];
         put?: never;
         post?: never;
@@ -6029,6 +6046,77 @@ export interface operations {
             };
         };
     };
+    previewSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    schedule: {
+                        /** @constant */
+                        kind: "MONTHLY";
+                        day: number;
+                    } | {
+                        /** @constant */
+                        kind: "SEMI_MONTHLY";
+                        day1: number;
+                        day2: number;
+                    };
+                    /** Format: date */
+                    startDate: string;
+                    endDate?: string | null;
+                    /** @default 3 */
+                    count?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description The dates it would record, earliest first, from its start date or today when that is later */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        dates: string[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed (count is not an integer from 1 to 24), InvalidPeriodPolicy, InvalidRecurrence (endsBeforeStart) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     listUpcomingOccurrences: {
         parameters: {
             query?: {
@@ -6367,15 +6455,6 @@ export interface operations {
             };
             /** @description Unauthenticated */
             401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description InsufficientRole */
-            403: {
                 headers: {
                     [name: string]: unknown;
                 };

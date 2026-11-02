@@ -1,4 +1,4 @@
-import { requirePermission, type SpaceMembership } from "@/modules/spaces/application";
+import { authorizeSpaceAction, type SpaceMembership } from "@/modules/spaces/application";
 import {
   domainError,
   err,
@@ -49,15 +49,14 @@ export type SkipOccurrence = (input: {
 }) => Promise<Result<PendingOccurrenceView>>;
 
 /**
- * HU-E4-13: pending occurrences are listed for members who record money (MEMBER or above), whatever the state of their
- * recurrence; an archived space still lists them (HU-E1-09). They are not transactions and never count as spent.
+ * HU-E4-13: pending occurrences are listed to every member, whatever the state of their recurrence; an archived space
+ * still lists them (HU-E1-09). Ruling P271: a VIEWER reads them too, as she reads the recurrences and the transactions,
+ * while confirming and skipping stay with members who record money. They are not transactions and never count as spent.
  */
 export const createListPendingOccurrences =
   (deps: Pick<RecurrenceDeps, "access" | "recurrences" | "occurrences">): ListPendingOccurrences =>
   async (input) => {
-    const membership = await deps.access(input.spaceId, input.userId, { readOnly: true });
-    if (!membership.ok) return membership;
-    const reader = requirePermission(membership.value, "money.record");
+    const reader = await authorizeSpaceAction(deps.access, input.spaceId, input.userId, "space.read");
     if (!reader.ok) return reader;
     const spaceId = reader.value.spaceId;
     const recurrences = new Map((await deps.recurrences.list(spaceId)).map((r) => [r.id as string, r]));

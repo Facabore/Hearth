@@ -136,6 +136,21 @@ export const defineRecurrence = (input: NewRecurrence): Result<Recurrence> => {
   });
 };
 
+/**
+ * #77: the dates a recurrence not defined yet would record, at most `count`, by the rule a definition follows: due from
+ * its start date, or from today when it starts earlier (ruling P24), through its end date. An end before the start is
+ * refused as a definition refuses it.
+ */
+export const previewDates = (
+  draft: { schedule: Schedule; startDate: LocalDate; endDate: LocalDate | null; today: LocalDate },
+  count: number,
+): Result<LocalDate[]> => {
+  const dates = endsOnOrAfter(draft.startDate, draft.endDate);
+  if (!dates.ok) return dates;
+  const dueFrom = draft.startDate > draft.today ? draft.startDate : draft.today;
+  return ok(datesLeft({ schedule: draft.schedule, dueFrom, endDate: draft.endDate }, count));
+};
+
 /** HU-E4-11: the next `count` dates it will record, from the first not considered yet; none while paused or ended. */
 export const upcomingDates = (recurrence: Recurrence, count: number): LocalDate[] =>
   recurrence.pausedAt !== null || recurrence.endedAt !== null ? [] : datesLeft(recurrence, count);

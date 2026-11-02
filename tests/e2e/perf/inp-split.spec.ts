@@ -1,5 +1,6 @@
 import { createRequire } from "node:module";
-import { expect, test } from "@playwright/test";
+import { expect } from "@playwright/test";
+import { test } from "../support/clock";
 import budgets from "../../performance/budgets.json" with { type: "json" };
 import { BASE_URL } from "../support/base-url";
 

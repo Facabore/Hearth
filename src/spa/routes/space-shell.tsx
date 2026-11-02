@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { AppShell } from "@/modules/spaces/ui";
 import { NotFoundScreen } from "@/shared/ui";
 import { ToastProvider } from "@/shared/ui/molecules/toast-provider";
+import { usePendingCount } from "../recurring-pending/queries";
 import { useShell } from "../shell";
 
 const route = getRouteApi("/spaces/$spaceId");
@@ -22,11 +23,15 @@ export function ShellFrame({
   readonly children: ReactNode;
 }) {
   const shell = useShell(spaceId, from);
+  // HU-E9-09 (ruling P270): the Movimientos badge counts the active space's pending occurrences.
+  const pendingCount = usePendingCount(shell?.activeSpace ?? null);
   // The loader already refused a space the person is not in; this covers leaving it while the screen is open.
   if (!shell) return <NotFoundScreen />;
   return (
     <ToastProvider>
-      <AppShell {...shell}>{children}</AppShell>
+      <AppShell {...shell} pendingCount={pendingCount}>
+        {children}
+      </AppShell>
     </ToastProvider>
   );
 }

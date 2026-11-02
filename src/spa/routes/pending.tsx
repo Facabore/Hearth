@@ -91,3 +91,25 @@ export function PlannerPending() {
   const { spaceId } = useParams({ strict: false });
   return <LoadingScreen header={{ backHref: `/spaces/${spaceId}/plan` }} shape="form" />;
 }
+
+/** HU-E9-09 (P270): the recurring screens' skeletons, each with its way back. */
+export function RecurrencesPending() {
+  const { spaceId } = useParams({ strict: false });
+  const t = useTranslations("recurrences");
+  return (
+    <LoadingScreen header={{ backHref: `/spaces/${spaceId}/transactions`, title: t("title") }} shape="list" />
+  );
+}
+
+export function RecurrenceFormPending() {
+  const { spaceId } = useParams({ strict: false });
+  const t = useTranslations("recurrences.form");
+  return (
+    <LoadingScreen header={{ backHref: `/spaces/${spaceId}/recurrences`, title: t("title") }} shape="form" />
+  );
+}
+
+export function RecurrencePending() {
+  const { spaceId } = useParams({ strict: false });
+  return <LoadingScreen header={{ backHref: `/spaces/${spaceId}/recurrences` }} shape="cards" />;
+}
