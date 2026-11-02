@@ -64,7 +64,7 @@ const internet = recurrence({
   payerMemberId: "m-juan",
   sourceAccountId: null,
 });
-const pendingEnergy = occurrence();
+const pendingEnergy = occurrence({ categoryId: "c-groceries" });
 const pendingInternet = occurrence({
   id: "o-internet",
   recurrenceId: "r-internet",
@@ -141,6 +141,11 @@ describe("Por confirmar in the SPA (HU-E9-09, ruling P270)", () => {
     expect(normalized(card("Energía").textContent)).toContain("Sugerido: $ 180.000 · Ana · Bancolombia");
     expect(normalized(card("Internet").textContent)).toContain("Sugerido: $ 95.000 · Juan");
     expect(document.title).toBe("Por confirmar · Hearth");
+    // P270: a card carries its category's icon once the categories are read; one without a category has none.
+    await waitFor(() =>
+      expect(card("Energía").querySelector("span[aria-hidden='true'].rounded-xl")).not.toBeNull(),
+    );
+    expect(card("Internet").querySelector("span[aria-hidden='true'].rounded-xl")).toBeNull();
   });
 
   it("confirms Energía with 205.300 COP in minor units, then the item leaves and the movements are read again (S4)", async () => {

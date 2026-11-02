@@ -155,3 +155,14 @@ describe("Por confirmar (HU-E9-09, ruling P270)", () => {
     expect(screen.getByText("No tienes nada por confirmar.")).toBeInTheDocument();
   });
 });
+
+describe("Por confirmar's cards carry their category's icon (P270)", () => {
+  it("shows the occurrence's category icon beside its name, and a card without one stays as it is", () => {
+    show({
+      items: [{ ...energy, category: { icon: { kind: "SYMBOL", name: "bolt" }, color: "AMBER" } }, internet],
+    });
+    const [withIcon, without] = screen.getAllByRole("article");
+    expect(withIcon!.querySelector("span[aria-hidden='true'].rounded-xl")).not.toBeNull();
+    expect(without!.querySelector("span[aria-hidden='true'].rounded-xl")).toBeNull();
+  });
+});

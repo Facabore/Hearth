@@ -1,8 +1,9 @@
 "use client";
 
+import { CategoryIcon } from "@/modules/categories/ui";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { Badge, Button, Icon, NumberField, ProblemNotice, ScreenHeader } from "@/shared/ui";
 import type { MoneyDto, SpaceDto } from "@/shared/ui/api/dto";
 import type { Problem } from "@/shared/ui/api/problem";
@@ -30,6 +31,8 @@ export interface PendingItem {
   readonly suggested: MoneyDto;
   /** Who pays and from which account, when the screen knows their names. */
   readonly details: readonly string[];
+  /** Its category's icon and color (P270's board), when it has a category the screen knows. */
+  readonly category?: Pick<ComponentProps<typeof CategoryIcon>, "icon" | "color">;
 }
 
 export type ConfirmOutcome =
@@ -184,7 +187,10 @@ function PendingCard({
       aria-labelledby={titleId}
       className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-3"
     >
-      <div className="flex items-start gap-2">
+      <div className="flex items-start gap-3">
+        {item.category ? (
+          <CategoryIcon icon={item.category.icon} color={item.category.color} size={40} />
+        ) : null}
         <div className="flex min-w-0 flex-1 flex-col">
           <h2 id={titleId} className="font-semibold [overflow-wrap:anywhere] text-ink">
             {item.name}
