@@ -6,12 +6,23 @@ import { useCallback, useMemo, useState, type FormEvent, type ReactNode } from "
 import { AccountPicker } from "@/modules/accounts/ui";
 import {
   activeTree,
+  CategoryIcon,
   CategoryPicker,
   categoryPath,
+  findCategory,
   groupsForKind,
   type CategoryChoice,
 } from "@/modules/categories/ui";
-import { Button, ChoiceGroup, Icon, ProblemNotice, ScreenHeader, SymbolIcon } from "@/shared/ui";
+import {
+  Button,
+  ChoiceGroup,
+  Icon,
+  NumberField,
+  ProblemNotice,
+  ScreenHeader,
+  SymbolIcon,
+  TextField,
+} from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { AccountDto, CategoryGroupDto, SpaceDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
@@ -26,14 +37,13 @@ import {
   type Formats,
 } from "@/shared/ui/format/formatters";
 import { useToast } from "@/shared/ui/molecules/toast";
-import { AmountField } from "../record/amount-field";
-import { DescriptionField, FormRow, RowError } from "../record/form-rows";
+import { RowError } from "../record/form-rows";
 import { preferredAccountId, readLastAccount } from "../record/last-account";
 import { useIdempotencyKey } from "../record/use-idempotency-key";
 import { initialSplitDraft, type SharedExpenseContext } from "../split/shared-context";
-import { SharedFields } from "../split/shared-fields";
 import type { SplitDraft } from "../split/split-request";
 import { DateSheet } from "./date-sheet";
+import { CardRow, RadioCard, Tile } from "./form-parts";
 import {
   changesOf,
   definitionOf,
@@ -48,6 +58,7 @@ import {
   type RecurrenceType,
   type ScheduleDraft,
 } from "./recurrence-request";
+import { useRecurrenceSplit } from "./recurrence-split";
 import { useSchedulePreview } from "./use-schedule-preview";
 
 export interface RecurrenceFormProps {
@@ -312,26 +323,43 @@ export function RecurrenceForm({
     field: RecurrenceField,
     name: string,
     value: string | null,
-    open: Sheet,
+    open: () => void,
     placeholder: string,
     icon: ReactNode,
   ) => {
     const error = errorOf(field);
     return (
       <li>
-        <FormRow
+        <CardRow
           name={name}
           value={value ?? placeholder}
           icon={icon}
-          onClick={() => setSheet(open)}
+          onClick={open}
           errorId={error ? `recurrence-${field}-error` : undefined}
         />
         {error ? <RowError id={`recurrence-${field}-error`}>{error}</RowError> : null}
       </li>
     );
   };
-  const accountIcon = <SymbolIcon name="wallet" size={16} />;
-  const calendarIcon = <Icon name="calendar" size={16} />;
+  // Board 02: the chosen category's own tile; an account, a fund or who paid on a blue one; the dates on a neutral one.
+  const chosen = categoryId ? findCategory([...groups], categoryId) : null;
+  const categoryIcon = chosen ? (
+    <CategoryIcon icon={chosen.category.icon} color={chosen.category.color} size={40} />
+  ) : (
+    <Tile palette="PINE">
+      <SymbolIcon name="tag" size={20} />
+    </Tile>
+  );
+  const accountIcon = (
+    <Tile palette="SKY">
+      <SymbolIcon name="bank" size={20} />
+    </Tile>
+  );
+  const calendarIcon = (
+    <Tile palette="GRAPHITE">
+      <Icon name="calendar" size={20} />
+    </Tile>
+  );
   const types: RecurrenceType[] = [
     "EXPENSE",
     "INCOME",
@@ -340,7 +368,6 @@ export function RecurrenceForm({
   ];
   const datesError =
     errorOf("dates") ?? (preview.status === "failed" ? messageOf(preview.problem).message : undefined);
-  const sharedError = errorOf("split") ?? errorOf("payer");
   const sharedTitle = [
     draft.description.trim() || (categoryId ? categoryPath(groups, categoryId) : null),
     positiveMinor ? formatMoney({ amount: positiveMinor, currency: space.currency }, formats) : null,
@@ -348,6 +375,21 @@ export function RecurrenceForm({
   ]
     .filter(Boolean)
     .join(" · ");
+  const splitView = useRecurrenceSplit({
+    enabled: sharedExpense !== undefined,
+    context: shared,
+    draft: split,
+    onChange: changeSplit,
+    amount: positiveMinor,
+    currency: space.currency,
+    formats,
+    title: sharedTitle,
+    spaceId: space.id,
+    categoryId,
+    date: draft.startDate,
+    api,
+  });
+  const splitError = errorOf("split");
 
   return (
     <div className="mx-auto flex max-w-[560px] flex-col gap-3 py-3">
@@ -370,38 +412,60 @@ export function RecurrenceForm({
               layout="chips"
               value={type}
               onValueChange={changeType}
-              options={types.map((value) => ({ value, label: t(`type.${value}`) }))}
+              // Board 02: the chosen type carries a check, so it is never told by its tint alone.
+              options={types.map((value) => ({
+                value,
+                label:
+                  value === type ? (
+                    <span className="flex items-center gap-1">
+                      <Icon name="check" size={16} />
+                      {t(`type.${value}`)}
+                    </span>
+                  ) : (
+                    t(`type.${value}`)
+                  ),
+              }))}
             />
           </div>
         )}
-        <AmountField
+        {/* Board 02: Monto and Descripción each labelled above their field, the amount as the large figure with its
+            symbol inside, with no example under it. The design system's own labelled fields draw both. */}
+        <NumberField
+          id="recurrence-amount"
+          label={ledger("form.amount")}
+          kind="money"
+          numberFormat={formats.numberFormat}
+          decimals={currencyOf(space.currency).exponent}
+          symbol={currencyOf(space.currency).symbol}
+          example={false}
+          large
           value={draft.amount}
           onChange={(amount) => change({ amount }, "amount")}
-          symbol={currencyOf(space.currency).symbol}
-          numberFormat={formats.numberFormat}
-          exponent={currencyOf(space.currency).exponent}
           error={errorOf("amount")}
+          // A new definition opens on its amount, so the keyboard comes up with it; an edit never takes the focus.
           autoFocus={!edit}
         />
-        <DescriptionField
-          value={draft.description}
-          onChange={(description) => change({ description }, "description")}
+        <TextField
+          id="recurrence-description"
           label={ledger("form.description")}
+          autoComplete="off"
+          value={draft.description}
           placeholder={t("form.descriptionPlaceholder")}
+          onChange={(event) => change({ description: event.target.value }, "description")}
           error={errorOf("description")}
         />
         <ul
           aria-label={ledger("form.details")}
-          className="divide-y divide-line overflow-hidden rounded-2xl bg-surface"
+          className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface"
         >
           {type === "EXPENSE" || type === "INCOME"
             ? row(
                 "category",
                 ledger("form.category"),
                 categoryId ? categoryPath(groups, categoryId) : null,
-                "category",
+                () => setSheet("category"),
                 ledger("form.chooseCategory"),
-                <SymbolIcon name="tag" size={16} />,
+                categoryIcon,
               )
             : null}
           {type === "FUND_CONTRIBUTION" && !edit
@@ -409,12 +473,16 @@ export function RecurrenceForm({
                 "fund",
                 t("form.fund"),
                 nameOf(shared?.funds ?? [], draft.fundId),
-                "fund",
+                () => setSheet("fund"),
                 t("form.chooseFund"),
                 accountIcon,
               )
             : null}
-          {/* A shared expense names who pays in its own rows below (P168); an edit keeps who pays (PATCH). */}
+          {/* Board 02: a shared expense's "Pagó" is the card's second row, opening the record form's split editor
+              (P168); an edit keeps who pays (PATCH). */}
+          {splitView
+            ? row("payer", ledger("split.payer"), splitView.payer, splitView.open, "", accountIcon)
+            : null}
           {edit || sharedExpense
             ? null
             : row(
@@ -427,7 +495,7 @@ export function RecurrenceForm({
                       : "form.account",
                 ),
                 nameOf(fromAccounts, draft.accountId),
-                "account",
+                () => setSheet("account"),
                 ledger("form.chooseAccount"),
                 accountIcon,
               )}
@@ -436,31 +504,15 @@ export function RecurrenceForm({
                 "toAccount",
                 ledger("form.to"),
                 nameOf(accounts, draft.toAccountId),
-                "toAccount",
+                () => setSheet("toAccount"),
                 ledger("form.chooseAccount"),
                 accountIcon,
               )
             : null}
         </ul>
-        {sharedExpense && shared && split ? (
-          <div className="flex flex-col gap-3">
-            {/* Who pays stays on screen; only the division folds (issue #171), with the record form's editor. */}
-            <SharedFields
-              context={shared}
-              draft={split}
-              onChange={changeSplit}
-              amount={positiveMinor}
-              currency={space.currency}
-              formats={formats}
-              title={sharedTitle}
-              spaceId={space.id}
-              categoryId={categoryId}
-              date={draft.startDate}
-              api={api}
-              error={sharedError}
-              splitHidden={!moreOpen}
-              splitId="recurrence-more-split"
-            />
+        {splitView ? (
+          <div className="flex flex-col gap-1">
+            {/* Who pays stays in the card; only the division folds (issue #171), summed up under the toggle. */}
             <button
               type="button"
               aria-expanded={moreOpen}
@@ -475,6 +527,28 @@ export function RecurrenceForm({
                 className={moreOpen ? "rotate-180 transition-transform" : "transition-transform"}
               />
             </button>
+            {moreOpen ? null : (
+              <p data-testid="recurrence-split-summary" className="px-1 text-[13px] text-muted">
+                {t("form.splitSummary", { parts: splitView.parts })}
+              </p>
+            )}
+            <div id="recurrence-more-split" hidden={!moreOpen} className="flex flex-col gap-1">
+              <div className="overflow-hidden rounded-2xl border border-line bg-surface">
+                <CardRow
+                  name={ledger("split.split")}
+                  value={splitView.parts}
+                  icon={
+                    <Tile palette="PINE">
+                      <SymbolIcon name="users" size={20} />
+                    </Tile>
+                  }
+                  onClick={splitView.open}
+                  errorId={splitError ? "recurrence-split-error" : undefined}
+                />
+                {splitError ? <RowError id="recurrence-split-error">{splitError}</RowError> : null}
+              </div>
+            </div>
+            {splitView.sheet}
           </div>
         ) : null}
         <div className="flex flex-col gap-3">
@@ -517,37 +591,22 @@ export function RecurrenceForm({
           <p className="text-sm text-muted">{t("form.shortMonth")}</p>
         </div>
         <div className="flex flex-col gap-1">
+          {/* Board 03: Empieza and Termina as two rows of one card, each label above its date. */}
           <ul
-            aria-label={t("form.repeats")}
-            className="divide-y divide-line overflow-hidden rounded-2xl bg-surface"
+            aria-label={t("form.dates")}
+            className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface"
           >
             <li>
-              {edit ? (
-                <div className="flex min-h-12 items-center gap-3 px-3 py-1">
-                  <span
-                    aria-hidden="true"
-                    className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent"
-                  >
-                    {calendarIcon}
-                  </span>
-                  <span className="w-[72px] shrink-0 text-[13px] leading-tight text-muted">
-                    {t("form.starts")}
-                  </span>
-                  <span className="min-w-0 flex-1 text-[15px] font-medium text-ink">
-                    {formatDate(draft.startDate, formats)}
-                  </span>
-                </div>
-              ) : (
-                <FormRow
-                  name={t("form.starts")}
-                  value={formatDate(draft.startDate, formats)}
-                  icon={calendarIcon}
-                  onClick={() => setSheet("start")}
-                />
-              )}
+              <CardRow
+                name={t("form.starts")}
+                value={formatDate(draft.startDate, formats)}
+                icon={calendarIcon}
+                // An edit keeps its start (PATCH): the same row, with nothing to open.
+                onClick={edit ? undefined : () => setSheet("start")}
+              />
             </li>
             <li>
-              <FormRow
+              <CardRow
                 name={t("form.ends")}
                 value={draft.endDate ? formatDate(draft.endDate, formats) : t("form.noEnd")}
                 icon={calendarIcon}
@@ -567,12 +626,11 @@ export function RecurrenceForm({
           <h2 id="recurrence-mode" className="text-sm font-semibold text-ink">
             {t("form.how")}
           </h2>
-          <ChoiceGroup<RecurrenceMode>
-            label={t("form.how")}
+          <RadioCard<RecurrenceMode>
             labelledBy="recurrence-mode"
-            layout="list"
+            name="recurrence-mode"
             value={draft.mode}
-            onValueChange={(mode) => change({ mode })}
+            onChange={(mode) => change({ mode })}
             options={[
               { value: "AUTO", label: t("mode.AUTO"), description: t("form.autoHint") },
               { value: "CONFIRM", label: t("mode.CONFIRM"), description: t("form.confirmHint") },
@@ -598,8 +656,9 @@ export function RecurrenceForm({
           </span>
         </p>
         {problem && found === "form" ? <ProblemNotice problem={problem} /> : null}
-        {/* P270: pinned at the bottom of its stacked screen (P272, no bottom bar), so saving never needs a scroll. */}
-        <div className="sticky bottom-[env(safe-area-inset-bottom)] bg-bg py-3 lg:bottom-0">
+        {/* P270: pinned at the bottom of its stacked screen (P272, no bottom bar), so saving never needs a scroll.
+            Board 02 draws it as a white bar across the screen, a line above it. */}
+        <div className="sticky bottom-[env(safe-area-inset-bottom)] -mx-4 border-t border-line bg-surface px-4 py-3 max-[359px]:-mx-3 max-[359px]:px-3 lg:bottom-0">
           <Button type="submit" size="lg" disabled={pending}>
             {edit ? t("form.saveEdit") : t("form.save")}
           </Button>
