@@ -419,7 +419,7 @@ const claimRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/invitation"), "ClaimRoute"),
 });
 
-/** Issue #86, ruling P283: the link of a verification email, `?token=`, confirmed through the API. */
+/** Issue #86, ruling P286: the link of a verification email, `?token=`, confirmed through the API. */
 const verifyEmailRoute = createRoute({
   getParentRoute: () => openRoute,
   path: "verify-email",

@@ -19,7 +19,7 @@ const MISSING_TOKEN: Outcome = {
 };
 
 /**
- * Issue #86, ruling P283: the link of a verification email confirms its token once per screen; confirming twice is ok,
+ * Issue #86, ruling P286: the link of a verification email confirms its token once per screen; confirming twice is ok,
  * so a reload changes nothing. A failure that may pass (the network, a 5xx) is thrown, so it is tried once more and
  * then shown as such; a refused token is the screen's own state.
  */

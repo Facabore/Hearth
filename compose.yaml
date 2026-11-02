@@ -37,6 +37,9 @@ services:
       RECURRENCE_JOB_INTERVAL_SECONDS: ${RECURRENCE_JOB_INTERVAL_SECONDS:-300}
       # Ruling P143: "closed" makes sign-up invite-only (docs/operations/deploy.md, Closing sign-up).
       HEARTH_SIGN_UP: ${HEARTH_SIGN_UP:-open}
+      # Issue #85 (ADR 0007): invitation and confirmation emails; unset sends none (docs/deploy/email.md).
+      SMTP_URL: ${SMTP_URL:-}
+      SMTP_FROM: ${SMTP_FROM:-}
     depends_on:
       migrate: { condition: service_completed_successfully }
     networks: [internal]

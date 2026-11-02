@@ -18,7 +18,7 @@ Leave `SMTP_URL` unset, or blank, to send nothing. The app refuses to start, nam
 ## What changes when SMTP is on
 
 - **Invitations by email** are sent to the invited address. The response still carries the link, and `emailSent` says whether the message went out.
-- **Addresses are confirmed** (issue #86, rulings P282 and P283). A new account is sent a link, valid 7 days, that confirms its address. An invitation by email then admits only an account whose address is confirmed: until then, accepting it answers `403 EmailNotVerified` and sends a fresh link. Accounts created before you turned SMTP on get theirs the same way, the first time they accept an invitation by email. Link invitations and claim links never ask for a confirmed address, and signing in never does.
+- **Addresses are confirmed** (issue #86, rulings P282 and P286). A new account is sent a link, valid 7 days, that confirms its address. An invitation by email then admits only an account whose address is confirmed: until then, accepting it answers `403 EmailNotVerified` and sends a fresh link. Accounts created before you turned SMTP on get theirs the same way, the first time they accept an invitation by email. Link invitations and claim links never ask for a confirmed address, and signing in never does.
 
 An installation without SMTP cannot confirm anyone's address, so it does not ask for one: turning SMTP off turns the check off too.
 

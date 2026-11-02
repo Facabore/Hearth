@@ -27,6 +27,7 @@ describe("statusForCode", () => {
     ["AccountNotOwned", 422],
     ["AccountNotInSpace", 422],
     ["InvitationEmailMismatch", 403],
+    ["EmailNotVerified", 403],
     ["InvitationNotFound", 404],
     ["MemberNotFound", 404],
     ["InvalidInvitationRole", 422],

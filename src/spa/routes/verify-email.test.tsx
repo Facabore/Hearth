@@ -15,7 +15,7 @@ beforeEach(() => {
   document.cookie = "hearth.locale=es; path=/";
 });
 
-describe("the email verification screen (issue #86, ruling P283)", () => {
+describe("the email verification screen (issue #86, ruling P286)", () => {
   it("sends the link's token to the API once and says the address is confirmed, with a way back", async () => {
     const tokens: unknown[] = [];
     const spa = renderSpa(
