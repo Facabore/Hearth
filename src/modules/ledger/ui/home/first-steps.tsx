@@ -125,7 +125,8 @@ export function FirstSteps({
                 <span className="shrink-0 text-xs font-medium">{t("done")}</span>
               </p>
             ) : (
-              <Link href={href} className="flex min-h-11 items-center gap-3 text-sm font-medium text-ink">
+              // Board B1 · 06: the step labels are regular weight.
+              <Link href={href} className="flex min-h-11 items-center gap-3 text-sm text-ink">
                 <span aria-hidden="true" className="size-6 shrink-0 rounded-full border-2 border-line" />
                 <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{t(`step.${key}`)}</span>
                 <span aria-hidden="true" className="shrink-0 text-muted">

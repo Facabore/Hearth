@@ -245,7 +245,10 @@
       "title": "Spaces",
       "onlyYou": "Only you",
       "create": "Create a shared space",
-      "join": "Join with an invitation link"
+      "join": "Join with an invitation link",
+      "members": "{others} and {last}",
+      "owes": "You owe",
+      "owed": "You are owed"
     },
     "role": {
       "OWNER": "Owner",
@@ -299,7 +302,14 @@
     "allTransactionsShort": "See all",
     "members": "Members",
     "invite": "Invite",
-    "funds": "Funds"
+    "funds": "Funds",
+    "hideAmounts": "Hide amounts",
+    "owe": {
+      "in": "In {space}",
+      "to": "to {name}",
+      "settle": "Settle up",
+      "settleWith": "Settle up with {name} in {space}"
+    }
   },
   "settings": {
     "title": "Settings"

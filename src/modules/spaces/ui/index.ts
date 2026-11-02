@@ -7,3 +7,11 @@ export type { SpaceFlow, SpaceFlows } from "./space-switcher";
 export { SpaceNameSection } from "./space-name-section";
 export { controlsFor, type MemberControls } from "./members/space-controls";
 export { memberLabel, type MemberLabelT } from "./members/member-label";
+export { HEADER_SLOT_ID, MASKED_AMOUNT, setAmountsHidden, useAmountsHidden } from "./hidden-amounts";
+export {
+  SpaceStanding,
+  shownAmount,
+  type MyBalanceDto,
+  type SpaceStandingProps,
+  type SpaceStandingView,
+} from "./space-standing";

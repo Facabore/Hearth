@@ -3,14 +3,42 @@ import { getRouteApi } from "@tanstack/react-router";
 import { useTranslations } from "use-intl";
 import { firstStepsOf, HomeSummary, TransactionSheetHost } from "@/modules/ledger/ui";
 import { myConsumptionHref } from "@/modules/reporting/ui";
+import { SpaceStanding, type MyBalanceDto } from "@/modules/spaces/ui";
+import type { SpaceDto } from "@/shared/ui/api/dto";
 import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
 import { useHome, useTransactionDetail, useViewer } from "../ledger/hooks";
 import { showsUnifiedMonth } from "../load";
 import { lineReportQuery, unifiedViewQuery } from "../reads";
+import { myBalancesQuery, spaceStandingSlot } from "../shell";
 import { useTitle } from "../title";
 
+// Ruling P277: the switcher's cards with the person's standing ride in this chunk, which already holds the formats.
+spaceStandingSlot.current = SpaceStanding;
+
 const route = getRouteApi("/spaces/$spaceId/");
+
+/**
+ * Board B1 · 03 (ruling P277): each space where it is the person's turn to put money in, and whom she pays first:
+ * every shared one on the personal home, this one on a shared home.
+ */
+const owesOf = (balances: readonly MyBalanceDto[], spaces: readonly SpaceDto[], space: SpaceDto) =>
+  balances
+    .filter((b) => BigInt(b.net.amount) < 0n && (space.kind === "PERSONAL" || b.spaceId === space.id))
+    .flatMap((b) => {
+      const named = spaces.find((s) => s.id === b.spaceId);
+      if (!named) return [];
+      const first = b.payments[0];
+      return [
+        {
+          spaceId: b.spaceId,
+          space: named.name,
+          memberId: b.memberId,
+          amount: { amount: (-BigInt(b.net.amount)).toString(), currency: b.net.currency },
+          to: b.members.find((m) => m.memberId === first?.receivingMemberId)?.name,
+        },
+      ];
+    });
 
 /**
  * HU-E9-01: the home of a space from the query cache (ADR 0006). `?joined=1` (U6) welcomes a person who has just
@@ -39,6 +67,9 @@ export function SpaceHome() {
     ...lineReportQuery(api, spaceId, page.period.label),
     enabled: personal && accounts.length > 0,
   }).data;
+  // Ruling P277: the card "Te toca poner", for someone with a shared or direct space.
+  const shared = viewer.spaces.some((s) => s.kind !== "PERSONAL");
+  const balances = useQuery({ ...myBalancesQuery(api), enabled: shared }).data;
   return (
     <>
       <HomeSummary
@@ -62,6 +93,8 @@ export function SpaceHome() {
             ? { personId: viewer.me.id, done: firstStepsOf({ accounts, page, spaces: viewer.spaces, plan }) }
             : undefined
         }
+        personId={viewer.me.id}
+        owes={balances ? owesOf(balances, viewer.spaces, space) : undefined}
       />
       {detail ? (
         <TransactionSheetHost spaceId={spaceId} detail={detail} context={context} origin={home} api={api} />

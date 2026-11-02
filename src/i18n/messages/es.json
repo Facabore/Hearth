@@ -245,7 +245,10 @@
       "title": "Espacios",
       "onlyYou": "Solo tú",
       "create": "Crear un espacio compartido",
-      "join": "Unirme con un enlace de invitación"
+      "join": "Unirme con un enlace de invitación",
+      "members": "{others} y {last}",
+      "owes": "Te toca poner",
+      "owed": "Te toca recibir"
     },
     "role": {
       "OWNER": "Propietario",
@@ -299,7 +302,14 @@
     "allTransactionsShort": "Ver todo",
     "members": "Miembros",
     "invite": "Invitar",
-    "funds": "Fondos"
+    "funds": "Fondos",
+    "hideAmounts": "Ocultar montos",
+    "owe": {
+      "in": "En {space}",
+      "to": "a {name}",
+      "settle": "Saldar",
+      "settleWith": "Saldar con {name} en {space}"
+    }
   },
   "settings": {
     "title": "Ajustes"

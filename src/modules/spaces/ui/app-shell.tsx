@@ -1,13 +1,22 @@
 import type { ReactNode } from "react";
 import type { Locale } from "@/i18n/locale";
 import { ProfileSheet } from "@/modules/identity/ui";
+import type { Formats } from "@/shared/ui/format/formatters";
 import { controlsFor } from "./members/space-controls";
 import { NavLinks } from "./nav-links";
 import type { SpaceSummary } from "./space-helpers";
+import type { MyBalanceDto, SpaceStandingView } from "./space-standing";
 import { SpaceSwitcher, type SpaceFlows } from "./space-switcher";
 
 export interface AppShellProps {
-  readonly me: { readonly name: string; readonly email: string; readonly locale: Locale };
+  readonly me: {
+    readonly id: string;
+    readonly name: string;
+    readonly email: string;
+    readonly locale: Locale;
+    /** The person's effective formats (P121), for the amounts the switcher shows. */
+    readonly formats?: Pick<Formats, "numberFormat">;
+  };
   readonly spaces: readonly SpaceSummary[];
   readonly activeSpace: SpaceSummary;
   /** HU-E9-09 (ruling P270): the active space's pending occurrences, for the Movimientos badge. */
@@ -19,6 +28,11 @@ export interface AppShellProps {
   readonly stacked?: boolean;
   /** The switcher's "Crear un espacio compartido" and "Unirme con un enlace" sheets, loaded on demand by the app. */
   readonly spaceFlows?: SpaceFlows;
+  /** Ruling P277: the person's standing in each shared space, and the cards that draw it, once the app has them. */
+  readonly myBalances?: readonly MyBalanceDto[] | undefined;
+  readonly spaceStanding?: SpaceStandingView | undefined;
+  /** The switcher opened: the app reads the balances then, not with every tab. */
+  readonly onSwitcherOpen?: () => void;
   readonly children: ReactNode;
 }
 
@@ -30,6 +44,9 @@ export function AppShell({
   pendingCount,
   stacked = false,
   spaceFlows,
+  myBalances,
+  spaceStanding,
+  onSwitcherOpen,
   children,
 }: AppShellProps) {
   if (stacked) {
@@ -44,9 +61,22 @@ export function AppShell({
   return (
     <div className="min-h-dvh pb-[calc(76px+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-[240px]">
       <div className="mx-auto max-w-[1200px] px-4 max-[359px]:px-3">
-        <header className="flex h-12 items-center justify-between">
-          <SpaceSwitcher spaces={spaces} activeSpace={activeSpace} flows={spaceFlows} />
-          <ProfileSheet me={me} spaceId={activeSpace.id} spaceKind={activeSpace.kind} />
+        <header className="flex h-14 items-center justify-between gap-2">
+          <SpaceSwitcher
+            spaces={spaces}
+            activeSpace={activeSpace}
+            flows={spaceFlows}
+            personId={me.id}
+            formats={me.formats}
+            balances={myBalances}
+            standing={spaceStanding}
+            onOpen={onSwitcherOpen}
+          />
+          <div className="flex shrink-0 items-center gap-1">
+            {/* Inicio's eye sits in the header (board B1 · 03): the screen portals it here (HEADER_SLOT_ID). */}
+            <div id="shell-actions" className="contents" />
+            <ProfileSheet me={me} spaceId={activeSpace.id} spaceKind={activeSpace.kind} />
+          </div>
         </header>
         <main id="main">{children}</main>
       </div>

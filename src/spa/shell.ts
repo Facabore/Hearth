@@ -1,12 +1,36 @@
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { notFound, useMatches } from "@tanstack/react-router";
 import { resolveLocale } from "@/i18n/locale";
-import { activeSpaceOf, type AppShellProps } from "@/modules/spaces/ui";
+import {
+  activeSpaceOf,
+  type AppShellProps,
+  type MyBalanceDto,
+  type SpaceStandingView,
+} from "@/modules/spaces/ui";
+import type { Api } from "@/shared/ui/api/client";
 import { useApis } from "./api";
 import type { RouterContext } from "./guards";
+import { read } from "./read";
 import { meQuery, spacesQuery } from "./queries";
 
-export type Shell = Omit<AppShellProps, "children" | "stacked">;
+export type Shell = Pick<AppShellProps, "me" | "spaces" | "activeSpace">;
+
+/**
+ * Ruling P277: the switcher's cards with the person's standing ride in Inicio's chunk, which holds the amount formats;
+ * `space-home.tsx` fills this slot when that chunk loads.
+ */
+export const spaceStandingSlot: { current?: SpaceStandingView } = {};
+
+/**
+ * Ruling P277: the person's standing in each shared and direct space, read by Inicio and by the switcher when it opens.
+ * An optional read: it never retries, and a screen without it draws as before.
+ */
+export const myBalancesQuery = (api: Api) =>
+  queryOptions<readonly MyBalanceDto[]>({
+    queryKey: ["balances", "mine"],
+    queryFn: async () => (await read(api.GET("/api/v1/me/balances"))).items,
+    retry: false,
+  });
 
 declare module "@tanstack/react-router" {
   interface StaticDataRouteOption {
@@ -34,7 +58,13 @@ export const useShell = (spaceId: string | null, from?: string): Shell | null =>
   const activeSpace = me ? activeSpaceOf(spaces, spaceId, from) : null;
   return me && activeSpace
     ? {
-        me: { name: me.name, email: me.email, locale: resolveLocale({ userLocale: me.locale }) },
+        me: {
+          id: me.id,
+          name: me.name,
+          email: me.email,
+          locale: resolveLocale({ userLocale: me.locale }),
+          formats: me.preferences.effective,
+        },
         spaces,
         activeSpace,
       }

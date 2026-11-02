@@ -486,3 +486,86 @@ describe("the home of a shared or direct space explains its funds (U1)", () => {
     expect(screen.queryByText(NOTE)).toBeNull();
   });
 });
+
+describe("Inicio's turn to put money in and its eye (board B1 · 03, ruling P277)", () => {
+  const owe = {
+    spaceId: "sp-household",
+    space: "Household",
+    memberId: "m-ana",
+    amount: cop(120_000),
+    to: "Juan",
+  };
+  const home = (props: Partial<ComponentProps<typeof HomeSummary>> = {}) => (
+    <HomeSummary
+      spaceId="sp-personal"
+      today="2026-10-31"
+      policy={{ kind: "MONTHLY", day: 1 }}
+      page={{ ...octoberPage, items: octoberPage.items.slice(0, 3) }}
+      accounts={[accountDto({ name: "Bancolombia", balance: cop(4_455_000) })]}
+      context={rowContext}
+      {...props}
+    />
+  );
+
+  it("says it is the person's turn to put money in a shared space, and Saldar opens Saldos' settle sheet", async () => {
+    const { container } = renderWithIntl(home({ owes: [owe] }));
+    const card = screen.getByRole("region", { name: /Te toca poner/ });
+    expect(norm(card.textContent)).toContain("Te toca poner $ 120.000 a Juan");
+    expect(card).toHaveTextContent("En Household");
+    const settle = within(card).getByRole("link", { name: "Saldar con Juan en Household" });
+    expect(settle).toHaveTextContent("Saldar");
+    expect(settle).toHaveAttribute("href", "/spaces/sp-household/balances?settle=m-ana");
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("shows no such card when the person owes nothing", () => {
+    renderWithIntl(home({ owes: [] }));
+    expect(screen.queryByRole("region", { name: /Te toca poner/ })).not.toBeInTheDocument();
+  });
+
+  it("hides every amount with the eye, and this browser remembers it for the person", async () => {
+    localStorage.clear();
+    const { unmount } = renderWithIntl(home({ personId: "u-eye", owes: [owe] }));
+    const eye = screen.getByRole("button", { name: "Ocultar montos" });
+    expect(eye).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(eye);
+    expect(eye).toHaveAttribute("aria-pressed", "true");
+    const summary = screen.getByRole("region", { name: "Resumen del período" });
+    expect(summary).not.toHaveTextContent("245.000");
+    expect(summary).not.toHaveTextContent("3.200.000");
+    expect(summary).toHaveTextContent("••••••");
+    expect(screen.getByRole("region", { name: "Cuentas" })).not.toHaveTextContent("4.455.000");
+    expect(screen.getByRole("region", { name: /Te toca poner/ })).not.toHaveTextContent("120.000");
+    expect(within(screen.getByRole("region", { name: "Recientes" })).getByRole("list")).toHaveAttribute(
+      "data-amounts",
+      "hidden",
+    );
+    expect(localStorage.getItem("hearth.hideAmounts.u-eye")).toBe("1");
+    unmount();
+    renderWithIntl(home({ personId: "u-eye", owes: [owe] }));
+    expect(screen.getByRole("button", { name: "Ocultar montos" })).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(screen.getByRole("button", { name: "Ocultar montos" }));
+    expect(screen.getByRole("region", { name: "Resumen del período" })).toHaveTextContent("$ 245.000");
+    expect(localStorage.getItem("hearth.hideAmounts.u-eye")).toBeNull();
+  });
+
+  it("keeps the choice for the visit when the browser blocks its storage", async () => {
+    const blocked = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("blocked", "SecurityError");
+    });
+    try {
+      renderWithIntl(home({ personId: "u-blocked" }));
+      await userEvent.click(screen.getByRole("button", { name: "Ocultar montos" }));
+      expect(screen.getByRole("region", { name: "Resumen del período" })).not.toHaveTextContent("245.000");
+    } finally {
+      blocked.mockRestore();
+    }
+  });
+
+  it("draws Recientes as plain rows on the page, not in a card (B1 · 03)", () => {
+    renderWithIntl(home());
+    const list = within(screen.getByRole("region", { name: "Recientes" })).getByRole("list");
+    expect(list).not.toHaveClass("bg-surface");
+    expect(list).toHaveClass("divide-y");
+  });
+});
