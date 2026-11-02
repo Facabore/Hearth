@@ -522,6 +522,27 @@ describe("change a movement's type while editing it (issue #195)", () => {
     });
   });
 
+  it("shows a contribution's Desde and Hacia without a picker, since its accounts never change (issue #198, P188)", async () => {
+    const { api } = fakeApi({});
+    const given = transactionDto({
+      ...tx,
+      type: "TRANSFER",
+      categoryId: null,
+      payerMemberId: "m-ana",
+      sourceAccountId: "a-bank",
+      destinationAccountId: "a-fund",
+      payments: [],
+      shares: [],
+    });
+    renderForm(api, LIST, { space: householdSpace(), tx: given, shared: household([fund]) });
+    expect(screen.queryByRole("button", { name: /Desde/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Hacia/ })).not.toBeInTheDocument();
+    expect(screen.getByText("Desde").parentElement).toHaveTextContent("Bancolombia");
+    // Turned into an expense, it no longer shows the transfer's fixed accounts.
+    await userEvent.click(screen.getByRole("tab", { name: "Gasto" }));
+    expect(screen.queryByText("Desde")).not.toBeInTheDocument();
+  });
+
   it("lands on the list's fund notice when the expense it became left the fund below zero, and still offers Deshacer (issue #198)", async () => {
     const warning = { code: "FundBalanceNegative", accountId: "a-fund", balance: cop(-15_000) };
     const { api } = fakeApi({

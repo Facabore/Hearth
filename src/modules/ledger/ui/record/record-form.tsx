@@ -152,6 +152,8 @@ export interface RecordEdit {
    * space a transfer is a contribution from the recorder's account to the fund (the owner's ruling).
    */
   readonly kinds?: readonly RecordKind[];
+  /** Issue #198 (P188): a contribution's accounts never change, so while it stays a transfer its rows only show them. */
+  readonly fixedAccounts?: boolean;
 }
 
 export interface RecordFormProps {
@@ -509,6 +511,7 @@ export function RecordForm({
     open: Sheet,
     placeholder: string,
     icon: ReactNode,
+    fixed = false,
   ): ReactNode => {
     const error = errorOf(field);
     return (
@@ -517,7 +520,7 @@ export function RecordForm({
           name={name}
           value={value ?? placeholder}
           icon={icon}
-          onClick={() => setSheet(open)}
+          onClick={fixed ? undefined : () => setSheet(open)}
           errorId={error ? `record-${field}-error` : undefined}
         />
         {error ? <RowError id={`record-${field}-error`}>{error}</RowError> : null}
@@ -528,6 +531,7 @@ export function RecordForm({
     kind === "TRANSFER" ? "form.from" : kind === "INCOME" ? "form.receivingAccount" : "form.account",
   );
   const accountIcon = <SymbolIcon name="wallet" size={16} />;
+  const fixedAccounts = kind === "TRANSFER" && edit?.fixedAccounts === true;
   const whenError = errorOf("when");
   const directName = direct ? (direct.kind === "MEMBER" ? direct.name : direct.displayName) : "";
 
@@ -631,6 +635,7 @@ export function RecordForm({
                     "account",
                     t("form.chooseAccount"),
                     accountIcon,
+                    fixedAccounts,
                   )}
               {kind === "TRANSFER"
                 ? row(
@@ -640,6 +645,7 @@ export function RecordForm({
                     "toAccount",
                     t("form.chooseAccount"),
                     accountIcon,
+                    fixedAccounts,
                   )
                 : null}
               <li>

@@ -204,6 +204,7 @@ export function EditTransactionForm({
         backHref: sheet,
         onSave,
         ...(kinds ? { kinds } : {}),
+        ...(contribution(tx) ? { fixedAccounts: true } : {}),
         problemAction: (problem) =>
           problem.code === "PreconditionFailed" ? (
             <div className="flex flex-col gap-2">
