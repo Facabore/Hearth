@@ -199,7 +199,7 @@ describe("the role selector (Pantallas nuevas · 02; P164 overridden by P272)", 
 });
 
 describe("the guest sheet (E9-05 · 06)", () => {
-  it("says up front that Pedro, who has a balance, cannot be removed, and offers Registrar pago", async () => {
+  it("says up front that Pedro, who has a balance, cannot be removed, and offers Saldar", async () => {
     const { api, requests } = fakeApi({});
     screenAs("u-ana", "OWNER", { api, balances: { "m-pedro": cop(-100_000) } });
     await userEvent.click(screen.getByRole("button", { name: "Opciones de Pedro (invitado)" }));
@@ -213,11 +213,11 @@ describe("the guest sheet (E9-05 · 06)", () => {
     expect(normalized(blocked.textContent)).toContain(
       "No puedes quitar a Pedro: tiene un saldo pendiente de $ 100.000. Primero registren el pago.",
     );
-    expect(within(blocked).getByRole("link", { name: "Registrar pago" })).toHaveAttribute(
+    expect(within(blocked).getByRole("link", { name: "Saldar" })).toHaveAttribute(
       "href",
       "/spaces/sp-household/balances?settle=m-pedro",
     );
-    expect(within(blocked).getByRole("link", { name: "Registrar pago" })).toHaveClass("min-h-11");
+    expect(within(blocked).getByRole("link", { name: "Saldar" })).toHaveClass("min-h-11");
     expect(within(sheet).getByRole("button", { name: "Quitar de Household" })).toBeDisabled();
     expect(requests).toHaveLength(0);
     expect(await axeViolations(document.body)).toEqual([]);
@@ -261,7 +261,7 @@ describe("the add-guest sheet (E9-05 · 05)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Agregar invitado" }));
     const sheet = screen.getByRole("dialog", { name: "Agregar invitado a Household" });
     expect(sheet).toHaveAccessibleDescription(
-      "Para alguien que no usa Hearth. Puede pagar, deber, tener capacidad en el plan y recibir pagos, solo en Household. No inicia sesión.",
+      "Para alguien que no usa Hearth. Puede pagar, poner su parte, aportar al plan y recibir pagos, solo en Household. No inicia sesión.",
     );
     expect(within(sheet).getByLabelText("Correo (opcional)")).toHaveAttribute(
       "placeholder",

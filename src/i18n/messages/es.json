@@ -1164,7 +1164,7 @@
     "guestOptions": "Opciones de {name}",
     "guestSheet": {
       "addTitle": "Agregar invitado a {space}",
-      "intro": "Para alguien que no usa Hearth. Puede pagar, deber, tener capacidad en el plan y recibir pagos, solo en {space}. No inicia sesión.",
+      "intro": "Para alguien que no usa Hearth. Puede pagar, poner su parte, aportar al plan y recibir pagos, solo en {space}. No inicia sesión.",
       "name": "Nombre",
       "nameHint": "Se verá con «(invitado)» al lado. No puede repetir el nombre de otro miembro.",
       "nameHintNamed": "Se verá como «{name}». No puede repetir el nombre de otro miembro.",
@@ -1181,7 +1181,7 @@
       "claimLabel": "Enlace para reclamar",
       "claimNote": "Un solo uso · vence el {date}",
       "remove": "Quitar de {space}",
-      "settle": "Registrar pago",
+      "settle": "Saldar",
       "blocked": "No puedes quitar a {name}: tiene un saldo pendiente de {amount}. Primero registren el pago.",
       "confirmTitle": "¿Quitar a {name} de {space}?",
       "confirmBody": "Su saldo está en {amount}. Su historial queda en los movimientos con su nombre."

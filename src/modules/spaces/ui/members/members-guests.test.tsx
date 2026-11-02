@@ -231,7 +231,7 @@ describe("guests (HU-E9-05, ruling P163)", () => {
     expect(normalized(note.textContent)).toContain(
       "No puedes quitar a Pedro: tiene un saldo pendiente de $ 100.000. Primero registren el pago.",
     );
-    expect(within(note).getByRole("link", { name: "Registrar pago" })).toHaveAttribute(
+    expect(within(note).getByRole("link", { name: "Saldar" })).toHaveAttribute(
       "href",
       "/spaces/sp-household/balances?settle=m-pedro",
     );
