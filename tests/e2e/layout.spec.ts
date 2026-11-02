@@ -1107,8 +1107,8 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       await expect(page.getByText(es.reports.lines.overspent)).toBeVisible();
       await expect(page.getByText(es.reports.lines.overBy.replace("{amount}", ""))).toBeVisible();
 
-      // The member matrix keeps the guest's long name, the long line and the big figures inside their cards, and
-      // no table needs to scroll: below 640 px a line is a card (P217). Each member is a row first (#213, P262).
+      // The member matrix keeps the guest's long name, the long line and the big figures inside its one card, each
+      // line an item with one caption (board E9-10 03, P272). Each member is a row first (#213, P262).
       await page.goto(`/spaces/${sharedId}/plan/members`);
       await expect(page.getByRole("heading", { level: 2, name: HISTORY_GUEST })).toBeVisible();
       await page
@@ -1116,16 +1116,16 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
           name: `${es.reports.matrix.showDetail} ${es.reports.matrix.detailOf.replace("{member}", HISTORY_GUEST)}`,
         })
         .click();
-      const matrixRegion = page.getByRole("region", {
+      const matrixRegion = page.getByRole("list", {
         name: es.reports.matrix.memberCaption.replace("{member}", HISTORY_GUEST),
       });
-      // The fund-paid line lists the guest too, so the long line is looked up inside the guest's own table.
-      await expect(matrixRegion.getByRole("rowheader").filter({ hasText: LONG_LINE })).toBeVisible();
+      // The fund-paid line lists the guest too, so the long line is looked up inside the guest's own list.
+      await expect(matrixRegion.getByRole("listitem").filter({ hasText: LONG_LINE })).toBeVisible();
       expect(
         await matrixRegion.evaluate((el) => el.scrollWidth - el.clientWidth),
-        "the matrix table does not scroll on a phone",
+        "the matrix list does not scroll on a phone",
       ).toBeLessThanOrEqual(0);
-      for (const cell of await matrixRegion.getByRole("cell").all()) {
+      for (const cell of await matrixRegion.locator("[data-caption], [data-gap]").all()) {
         const box = (await cell.boundingBox())!;
         expect.soft(box.x, "a figure starts on screen").toBeGreaterThanOrEqual(0);
         expect.soft(box.x + box.width, "and ends on screen").toBeLessThanOrEqual(viewport.width);
@@ -1595,7 +1595,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
     await expect(page.getByText(/Sugerido \$\s1\.650\.000:/)).toBeVisible();
   });
 
-  test("from 640 px the member matrix scrolls inside its own focusable region, never the page", async ({
+  test("at 640 px the member matrix keeps its lines inside its card, never widening the page", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 640, height: 900 });
@@ -1611,13 +1611,12 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       .click();
     const { overflow, message } = await overflowReport(page, path);
     expect(overflow, message).toBeLessThanOrEqual(0);
-    const region = page
-      .getByRole("region", { name: es.reports.matrix.memberCaption.replace("{member}", "") })
+    // Board E9-10 03 (ruling P272): a list of lines with one caption each, no table, so nothing scrolls sideways.
+    const list = page
+      .getByRole("list", { name: new RegExp(es.reports.matrix.memberCaption.replace("{member}", "")) })
       .first();
-    await expect(region.getByRole("rowheader").filter({ hasText: LONG_LINE })).toBeVisible();
-    await region.focus();
-    await expect(region, "the scroll region takes the keyboard").toBeFocused();
-    await expect(region.getByRole("columnheader")).toHaveCount(5);
+    await expect(list.getByRole("listitem").filter({ hasText: LONG_LINE })).toBeVisible();
+    expect(await list.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
   });
 });
 
