@@ -78,9 +78,9 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
     expect(normalized(screen.getByRole("region", { name: "Tu saldo en Household" }).textContent)).toContain(
       "Te toca recibir $ 150.000",
     );
-    const suggestions = within(
-      screen.getByRole("region", { name: "Para quedar al día" }),
-    ).getAllByRole("listitem");
+    const suggestions = within(screen.getByRole("region", { name: "Para quedar al día" })).getAllByRole(
+      "listitem",
+    );
     expect(suggestions).toHaveLength(2);
     expect(normalized(suggestions[0]!.textContent)).toContain("Juan le paga $ 100.000 a Ana");
     expect(normalized(suggestions[1]!.textContent)).toContain("Luis le paga $ 50.000 a Ana");
@@ -106,9 +106,7 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
       "/spaces/sp-household/members/m-ana/history",
       "/spaces/sp-household/members/m-juan/history",
     ]);
-    expect(
-      members.getByRole("link", { name: named("Ana: al día. Ver historial") }),
-    ).toBeInTheDocument();
+    expect(members.getByRole("link", { name: named("Ana: al día. Ver historial") })).toBeInTheDocument();
   });
 
   it("keeps the viewer's own row and its history before they take part (#217, P263)", () => {
