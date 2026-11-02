@@ -200,10 +200,11 @@ describe("accounts, categories and settings in the SPA (slice 3 of #199, ADR 000
   it("changes a format in Settings and every screen formats with it, without reading the profile again", async () => {
     const { routes } = server();
     const spa = renderSpa("/settings?from=sp-household", routes);
-    // N3: the shell is the space the person came from.
-    expect(
-      await screen.findByRole("button", { name: es.shell.space.current.replace("{name}", "Household") }),
-    ).toBeVisible();
+    // N3: Volver returns to the space the person came from; Settings is a stacked screen, without the switcher (P272).
+    expect(await screen.findByRole("link", { name: es.common.back })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household",
+    );
     const profile = count(spa.requests, "GET", /\/me$/);
 
     // U8 (#224): the formats sit in the "Números y fechas" sheet.
@@ -216,13 +217,16 @@ describe("accounts, categories and settings in the SPA (slice 3 of #199, ADR 000
     expect(count(spa.requests, "GET", /\/me$/)).toBe(profile);
   });
 
-  it("renames the space in Settings and the shell shows the new name at once", async () => {
+  it("renames the space in Settings and the shell of a tab shows the new name at once", async () => {
     const { routes } = server();
-    renderSpa("/settings", routes);
+    const spa = renderSpa("/settings", routes);
     const field = await screen.findByLabelText("Nombre del espacio");
     await userEvent.clear(field);
     await userEvent.type(field, "Mis finanzas");
     await userEvent.tab();
+    await waitFor(() => expect(count(spa.requests, "PATCH", /\/spaces\/sp-personal$/)).toBe(1));
+    // Settings is a stacked screen without the switcher (ruling P272): a tab's shell names the renamed space.
+    await spa.router.navigate({ href: "/spaces/sp-personal/transactions" });
 
     expect(
       await screen.findByRole("button", { name: es.shell.space.current.replace("{name}", "Mis finanzas") }),

@@ -12,11 +12,32 @@ export interface AppShellProps {
   readonly activeSpace: SpaceSummary;
   /** HU-E9-09 (ruling P270): the active space's pending occurrences, for the Movimientos badge. */
   readonly pendingCount?: number;
+  /**
+   * Ruling P272: a stacked screen (its board draws only its own back header) shows no space switcher, profile or
+   * navigation; its `ScreenHeader` is the way back. The tab destinations keep them.
+   */
+  readonly stacked?: boolean;
   readonly children: ReactNode;
 }
 
 /** HU-E9-01, the Home and Desktop artboards: the header, the navigation of the active space and the page. */
-export function AppShell({ me, spaces, activeSpace, pendingCount, children }: AppShellProps) {
+export function AppShell({
+  me,
+  spaces,
+  activeSpace,
+  pendingCount,
+  stacked = false,
+  children,
+}: AppShellProps) {
+  if (stacked) {
+    return (
+      <div className="min-h-dvh pb-[env(safe-area-inset-bottom)]">
+        <div className="mx-auto max-w-[1200px] px-4 max-[359px]:px-3">
+          <main id="main">{children}</main>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="min-h-dvh pb-[calc(76px+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-[240px]">
       <div className="mx-auto max-w-[1200px] px-4 max-[359px]:px-3">
