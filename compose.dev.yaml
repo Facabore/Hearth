@@ -48,6 +48,9 @@ services:
       <<: *node-env
       BETTER_AUTH_SECRET: dev-only-secret-0123456789abcdef0123
       BETTER_AUTH_URL: http://localhost:3000
+      # ADR 0007: invitation and verification emails land in Mailpit, read at http://localhost:8025.
+      SMTP_URL: smtp://mailpit:1025
+      SMTP_FROM: Hearth <hearth@localhost>
       WATCHPACK_POLLING: "true"
     ports: ["127.0.0.1:3000:3000"]
     volumes:
@@ -56,6 +59,12 @@ services:
       - next-cache:/workspace/.next
     depends_on:
       migrate: { condition: service_completed_successfully }
+      mailpit: { condition: service_started }
+
+  # ADR 0007: an SMTP sink with a web inbox; nothing it receives leaves the machine.
+  mailpit:
+    image: axllent/mailpit:v1.31.6
+    ports: ["127.0.0.1:8025:8025"]
 
   # `docker compose -f compose.dev.yaml --profile test run --rm test`
   test-db:

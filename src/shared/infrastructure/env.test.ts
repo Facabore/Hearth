@@ -75,4 +75,41 @@ describe("loadEnv", () => {
     expect(() => loadEnv({ ...valid, HEARTH_SIGN_UP: "maybe" })).toThrow(/HEARTH_SIGN_UP/);
     expect(() => loadEnv({ ...valid, HEARTH_SIGN_UP: "" })).toThrow(/HEARTH_SIGN_UP/);
   });
+
+  describe("SMTP (issue #85, ADR 0007)", () => {
+    const smtp = {
+      SMTP_URL: "smtp://hearth:s3cret-pass@mail.example.com:587",
+      SMTP_FROM: "Hearth <hearth@example.com>",
+    };
+
+    it("reads SMTP_URL and SMTP_FROM together", () => {
+      expect(loadEnv({ ...valid, ...smtp })).toMatchObject(smtp);
+      expect(loadEnv({ ...valid, ...smtp, SMTP_URL: "smtps://mail.example.com" }).SMTP_URL).toBe(
+        "smtps://mail.example.com",
+      );
+    });
+
+    it("leaves both unset without SMTP_URL, a blank one included, so nothing is sent", () => {
+      for (const unset of [{}, { SMTP_URL: "" }, { SMTP_URL: "", SMTP_FROM: "" }]) {
+        const env = loadEnv({ ...valid, ...unset });
+        expect(env.SMTP_URL).toBeUndefined();
+        expect(env.SMTP_FROM).toBeUndefined();
+      }
+    });
+
+    it("needs SMTP_FROM once SMTP_URL is set, and never echoes the URL's password", () => {
+      for (const from of [undefined, "", "no address"]) {
+        const load = () => loadEnv({ ...valid, ...smtp, SMTP_FROM: from });
+        expect(load).toThrow(new EnvError("Missing or invalid environment variables: SMTP_FROM"));
+        expect(load).not.toThrow(/s3cret-pass/);
+      }
+    });
+
+    it("refuses an SMTP_URL that is not an smtp or smtps URL", () => {
+      for (const url of ["http://mail.example.com", "mail.example.com:587", "smtp://"])
+        expect(() => loadEnv({ ...valid, ...smtp, SMTP_URL: url })).toThrow(
+          new EnvError("Missing or invalid environment variables: SMTP_URL"),
+        );
+    });
+  });
 });
