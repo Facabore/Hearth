@@ -43,7 +43,21 @@
       "SUNDAY": "S"
     },
     "toStart": "Go to the start page",
-    "saved": "Saved"
+    "saved": "Saved",
+    "monthShort": {
+      "1": "Jan",
+      "2": "Feb",
+      "3": "Mar",
+      "4": "Apr",
+      "5": "May",
+      "6": "Jun",
+      "7": "Jul",
+      "8": "Aug",
+      "9": "Sep",
+      "10": "Oct",
+      "11": "Nov",
+      "12": "Dec"
+    }
   },
   "errors": {
     "AccountArchived": "This account is hidden. Show it again to record transactions in it.",
@@ -1432,12 +1446,11 @@
       "consumption": "Consumption",
       "change": "Change",
       "noPlan": "This period has no plan: there are no lines to compare.",
-      "onePeriod": "The trend appears once a second period has spending.",
       "linesCaption": "Spent by line",
-      "linesTable": "Spent by line and period",
       "spentIn": "Spent in {period}",
       "noFigure": "No figure",
-      "linesNote": "Each line is compared with the line it was copied from in the previous plan. Unbudgeted spending has no trend."
+      "linesNote": "Each line is compared with the line it was copied from in the previous plan. Unbudgeted spending has no trend.",
+      "hint": "Hover or drag over a point to see its value."
     },
     "calendar": {
       "metaTitle": "Upcoming movements",
@@ -1507,9 +1520,10 @@
       "difference": "Difference",
       "byMember": "By member",
       "upToDate": "Up to date",
-      "behind": "Still to pay in",
       "noPlan": "Without a plan, nobody has an expected contribution.",
-      "note": "Expected: what each one is assigned on the lines paid from the fund. Contributions dated in the period count."
+      "note": "Expected: what each one is assigned on the lines paid from the fund. Contributions dated in the period count.",
+      "missing": "Missing",
+      "behindBy": "Short by {amount}"
     },
     "lines": {
       "summary": "Plan summary",

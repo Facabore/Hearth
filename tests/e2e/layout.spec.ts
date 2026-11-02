@@ -1019,7 +1019,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         [`/spaces/${sharedId}/plan/members`, 5],
         [`/spaces/${sharedId}/plan/fund`, 5],
         [`/spaces/${sharedId}/plan/groups`, 5],
-        // #212: Tendencia with one period of history; its table scrolls inside its region, never the page.
+        // Tendencia: a card per line against the previous period (board E9-11 04), never wider than the page.
         [`/spaces/${sharedId}/plan/trend`, 5],
         // HU-E9-11: Rubros, the personal space's own page (ruling P267), and its Lines address.
         [`/spaces/${spaceId}/plan`, 4],
@@ -1134,7 +1134,9 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       // The fund cards keep their billion-peso figures and their badges on screen (the loop above measured the
       // overflow). The person and the guest both still have to pay in.
       await page.goto(`/spaces/${sharedId}/plan/fund`);
-      await expect(page.getByText(es.reports.fund.behind).first()).toBeVisible();
+      await expect(
+        page.getByText(new RegExp(`^${es.reports.fund.behindBy.replace("{amount}", "")}`)).first(),
+      ).toBeVisible();
       await expect(page.getByText(es.reports.fund.note)).toBeVisible();
     });
   }

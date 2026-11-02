@@ -279,7 +279,9 @@ for (const colorScheme of ["light", "dark"] as const) {
       );
       await expect(detailOf("Ana").getByRole("listitem", { name: /^Ocio/ })).toBeVisible();
       await page.goto(`${h}/plan/fund`);
-      await expect(page.getByText(es.reports.fund.behind).first()).toBeVisible();
+      await expect(
+        page.getByText(new RegExp(`^${es.reports.fund.behindBy.replace("{amount}", "")}`)).first(),
+      ).toBeVisible();
       // HU-E9-10: the By group view drilled into its one group is a level of its own, scanned in both color schemes,
       // and the browser's Back returns to the groups.
       await page.goto(`${h}/plan/groups`);

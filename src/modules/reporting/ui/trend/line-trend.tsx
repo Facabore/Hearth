@@ -1,13 +1,14 @@
 import { useId } from "react";
 import { useTranslations } from "next-intl";
-import { usePeriodText, VisuallyHidden } from "@/shared/ui";
-import type { LineTrendDto, SpaceDto } from "@/shared/ui/api/dto";
+import { VisuallyHidden } from "@/shared/ui";
+import type { LineTrendDto, MoneyDto, SpaceDto } from "@/shared/ui/api/dto";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
-import { ChartFrame } from "../charts/chart-frame";
-import { LazyTrendChart } from "../charts/lazy-trend-chart";
-import { pointOf } from "../charts/trend-series";
-import { ChangeText } from "./change-text";
-import { TrendWindow } from "./trend-window";
+import { barWidth } from "../lines/bar";
+import { ChangeBadge, changeFigure } from "./change-text";
+import { useShortPeriod } from "./short-period";
+
+type TrendLine = LineTrendDto["lines"][number];
+type TrendPoint = TrendLine["points"][number];
 
 /** A period where a line has no figure: a dash on screen, its name for a screen reader. */
 function NoFigure({ text }: { readonly text: string }) {
@@ -19,127 +20,125 @@ function NoFigure({ text }: { readonly text: string }) {
   );
 }
 
+/** The larger of two amounts, to scale both bars of a comparison against it; presentation only (ruling P202). */
+const larger = (a: MoneyDto, b: MoneyDto): MoneyDto => (BigInt(a.amount) >= BigInt(b.amount) ? a : b);
+
 /**
- * HU-E9-11 (the LineTrend artboard): every line of the end period's plan over the window, as one chart series per line
- * and a table of the same figures (ruling P220: the table is the accessible source), with each line's end-period spent
- * and its change. Every figure is the API's (ruling P201); the chart is the page's only client island (ruling P202).
+ * HU-E9-11 (board E9-11 04 under ruling P272): each line of the end period's plan against the period before, one card
+ * per line with where it went as a badge, what it spent and its change, and for a line that went up or down the two
+ * periods as bars. Every figure is the API's (ruling P201); the bars are CSS widths, so the page loads no chart.
  */
 export function LineTrend({
   space,
   trend,
   formats,
-  periods,
 }: {
   readonly space: SpaceDto;
   readonly trend: LineTrendDto;
   readonly formats: Pick<Formats, "numberFormat" | "dateFormat">;
-  readonly periods: 6 | 12;
 }) {
   const t = useTranslations("reports");
-  const label = usePeriodText();
+  const short = useShortPeriod();
   const ids = useId();
   if (trend.plan === null) return <p className="text-sm text-muted">{t("trend.noPlan")}</p>;
-  const names = trend.periods.map((p) => label(p, space.periodPolicy, formats));
-  const end = trend.periods.at(-1)?.label;
-  const endName = names.at(-1) ?? end ?? "";
-  // #212: a trend needs two periods with figures; with fewer the chart would be an empty grid with a dot or two.
-  const periodsWithFigures = trend.periods.filter((_, i) =>
-    trend.lines.some((line) => line.points[i]?.spent),
-  ).length;
+  const [before, end] = trend.periods.slice(-2).map((p) => short(p, space.periodPolicy, formats).month);
+  const money = (value: MoneyDto | null) =>
+    value ? formatMoney(value, formats) : <NoFigure text={t("trend.noFigure")} />;
   return (
     <section className="flex flex-col gap-3">
-      <TrendWindow space={space} end={end} periods={periods} />
-      {periodsWithFigures < 2 ? (
-        <p className="rounded-2xl bg-surface p-3 text-sm text-muted">{t("trend.onePeriod")}</p>
-      ) : (
-        <ChartFrame caption={t("trend.linesCaption")}>
-          <LazyTrendChart
-            data={{
-              periods: names,
-              series: trend.lines.map((line) => ({
-                key: line.lineId,
-                label: line.name,
-                points: line.points.map((p) => pointOf(p.spent, formats)),
-              })),
-            }}
-          />
-        </ChartFrame>
-      )}
-      <ul className="flex flex-col divide-y divide-line">
+      <ul aria-label={t("trend.linesCaption")} className="flex flex-col gap-2">
         {trend.lines.map((line) => {
           const last = line.points.at(-1);
+          const previous = line.points.at(-2);
           const nameId = `${ids}-${line.lineId}`;
           return (
-            <li key={line.lineId} aria-labelledby={nameId} className="flex flex-col gap-1 py-3">
-              <span id={nameId} className="font-medium text-ink">
-                {line.name}
-              </span>
-              <span className="text-sm text-muted">
-                {t("trend.spentIn", { period: endName })}{" "}
-                <span className="text-ink tabular-nums">
-                  {last?.spent ? formatMoney(last.spent, formats) : <NoFigure text={t("trend.noFigure")} />}
+            <li
+              key={line.lineId}
+              data-line={line.lineId}
+              aria-labelledby={nameId}
+              className="flex flex-col gap-2 rounded-2xl border border-line bg-surface p-3.5"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span id={nameId} className="min-w-0 font-semibold text-ink [overflow-wrap:anywhere]">
+                  {line.name}
                 </span>
-              </span>
-              {last ? (
-                <span className="text-sm text-ink">
-                  <ChangeText
-                    change={last.change}
-                    changePercent={last.changePercent}
-                    changeStatus={last.changeStatus}
-                    formats={formats}
-                    increaseIsBad
-                  />
+                {last?.changeStatus ? (
+                  <span data-status className="shrink-0">
+                    <ChangeBadge changeStatus={last.changeStatus} />
+                  </span>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
+                <span className="text-muted">
+                  {t("trend.spentIn", { period: end ?? "" })}{" "}
+                  <span className="font-semibold text-ink tabular-nums">{money(last?.spent ?? null)}</span>
                 </span>
+                {last?.changeStatus === "NEW" ? (
+                  <span className="font-semibold text-ink">{t("trend.noPrevious")}</span>
+                ) : last?.changeStatus ? (
+                  <span data-change className="font-semibold text-ink tabular-nums">
+                    {changeFigure(last.change, last.changePercent, formats)}
+                  </span>
+                ) : null}
+              </div>
+              {last && previous ? (
+                <Compare
+                  previous={previous}
+                  last={last}
+                  names={[before ?? "", end ?? ""]}
+                  formats={formats}
+                />
               ) : null}
             </li>
           );
         })}
       </ul>
-      <div role="region" aria-label={t("trend.linesTable")} tabIndex={0} className="relative overflow-x-auto">
-        <table className="w-full text-sm">
-          <caption>
-            <VisuallyHidden>{t("trend.linesTable")}</VisuallyHidden>
-          </caption>
-          <thead>
-            <tr className="border-b border-line">
-              <th scope="col" className="py-2 text-left font-medium text-muted">
-                {t("lines.line")}
-              </th>
-              {trend.periods.map((period, index) => (
-                <th
-                  key={period.label}
-                  scope="col"
-                  className="py-2 pl-3 text-right font-medium whitespace-nowrap text-muted"
-                >
-                  {names[index]}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {trend.lines.map((line) => (
-              <tr key={line.lineId} className="border-b border-line last:border-b-0">
-                <th scope="row" className="py-2 text-left font-normal text-ink">
-                  {line.name}
-                </th>
-                {line.points.map((point) => (
-                  <td
-                    key={point.period}
-                    className="py-2 pl-3 text-right whitespace-nowrap text-ink tabular-nums"
-                  >
-                    {point.spent ? (
-                      formatMoney(point.spent, formats)
-                    ) : (
-                      <NoFigure text={t("trend.noFigure")} />
-                    )}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
       <p className="text-xs text-muted">{t("trend.linesNote")}</p>
     </section>
+  );
+}
+
+/**
+ * Board E9-11 04: a line that went up or down draws its previous and its end period as two bars against the larger.
+ * The previous figure is read too, never only drawn; an unchanged or new line draws none.
+ */
+function Compare({
+  previous,
+  last,
+  names,
+  formats,
+}: {
+  readonly previous: TrendPoint;
+  readonly last: TrendPoint;
+  readonly names: readonly [string, string];
+  readonly formats: Pick<Formats, "numberFormat">;
+}) {
+  const t = useTranslations("reports.trend");
+  if (last.changeStatus !== "INCREASED" && last.changeStatus !== "DECREASED") return null;
+  if (!previous.spent || !last.spent) return null;
+  const scale = larger(previous.spent, last.spent);
+  return (
+    <div data-compare className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1.5 text-xs text-muted">
+      {(
+        [
+          [names[0], previous.spent, "bg-accent opacity-40"],
+          [names[1], last.spent, "bg-accent"],
+        ] as const
+      ).map(([name, spent, fill]) => (
+        <div key={name} className="contents">
+          <span data-period aria-hidden="true">
+            {name}
+          </span>
+          <span aria-hidden="true" className="block h-1.5 w-full overflow-hidden rounded-full bg-track">
+            <span
+              data-bar
+              className={`block h-full rounded-full ${fill}`}
+              style={{ width: `${barWidth(spent, scale)}%` }}
+            />
+          </span>
+        </div>
+      ))}
+      <VisuallyHidden>{`${t("spentIn", { period: names[0] })} ${formatMoney(previous.spent, formats)}`}</VisuallyHidden>
+    </div>
   );
 }

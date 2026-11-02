@@ -43,7 +43,21 @@
       "SUNDAY": "D"
     },
     "toStart": "Ir al inicio",
-    "saved": "Guardado"
+    "saved": "Guardado",
+    "monthShort": {
+      "1": "ene",
+      "2": "feb",
+      "3": "mar",
+      "4": "abr",
+      "5": "may",
+      "6": "jun",
+      "7": "jul",
+      "8": "ago",
+      "9": "sep",
+      "10": "oct",
+      "11": "nov",
+      "12": "dic"
+    }
   },
   "errors": {
     "AccountArchived": "Esta cuenta está oculta. Muéstrala de nuevo para registrar movimientos en ella.",
@@ -1432,12 +1446,11 @@
       "consumption": "Consumo",
       "change": "Cambio",
       "noPlan": "Este período no tiene plan: no hay rubros que comparar.",
-      "onePeriod": "La tendencia aparece cuando haya gastos en un segundo período.",
       "linesCaption": "Gastado por rubro",
-      "linesTable": "Gastado por rubro y período",
       "spentIn": "Gastado en {period}",
       "noFigure": "Sin dato",
-      "linesNote": "Cada rubro se compara con su rubro de origen en el plan anterior. Lo gastado sin presupuesto no tiene tendencia."
+      "linesNote": "Cada rubro se compara con su rubro de origen en el plan anterior. Lo gastado sin presupuesto no tiene tendencia.",
+      "hint": "Pasa el dedo o el cursor por un punto para ver su valor."
     },
     "calendar": {
       "metaTitle": "Próximos movimientos",
@@ -1507,9 +1520,10 @@
       "difference": "Diferencia",
       "byMember": "Por miembro",
       "upToDate": "Al día",
-      "behind": "Le falta aportar",
       "noPlan": "Sin plan, nadie tiene un aporte esperado.",
-      "note": "Esperado: lo asignado a cada uno en los rubros pagados con el fondo. Cuentan los aportes fechados en el período."
+      "note": "Esperado: lo asignado a cada uno en los rubros pagados con el fondo. Cuentan los aportes fechados en el período.",
+      "missing": "Falta",
+      "behindBy": "Le faltan {amount}"
     },
     "lines": {
       "summary": "Resumen del plan",
