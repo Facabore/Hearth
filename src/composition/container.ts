@@ -886,7 +886,16 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     reporting: {
       getLineDashboard: createGetLineDashboard(reportingDeps),
       getMemberLineMatrix: createGetMemberLineMatrix(reportingDeps),
-      getFundContributions: createGetFundContributions(reportingDeps),
+      // #240: the fund accounts every member reads in the space's accounts name the fund it tracks.
+      getFundContributions: createGetFundContributions({
+        ...reportingDeps,
+        funds: {
+          fundsOf: async (spaceId) =>
+            (await accountsDeps.accounts.listBySpace(spaceId))
+              .filter((account) => account.type === "SHARED_FUND" && account.archivedAt === null)
+              .map((account) => ({ id: account.id, name: account.name })),
+        },
+      }),
       getUnifiedPersonalView: createGetUnifiedPersonalView(reportingDeps),
       getLineTrend: createGetLineTrend(reportingDeps),
       getPersonalTrend: createGetPersonalTrend(reportingDeps),

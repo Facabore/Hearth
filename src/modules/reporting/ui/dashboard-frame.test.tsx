@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { cleanup, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
 import { normalized, spaceDto } from "../../../../tests/support/ui/dto";
@@ -183,6 +183,30 @@ describe("dashboard frame (HU-E9-10)", () => {
         expect(screen.queryByRole("link", { name: /plan$/ })).toBeNull();
       },
     );
+
+    it("names the fund the Fondo view tracks after the space, as board E9-10 04 does (#240)", () => {
+      const fund = (fundNames: readonly string[]) =>
+        renderWithIntl(
+          <DashboardFrame
+            space={householdDto({ name: "Hogar" })}
+            view="fund"
+            period={{ ...NOVEMBER }}
+            previous={null}
+            next={null}
+            formats={BUILT_IN_FORMATS}
+            plan={{ id: "p-nov", status: "ACTIVE" }}
+            fundNames={fundNames}
+          >
+            <p>Contenido</p>
+          </DashboardFrame>,
+        );
+      expect(subtitle(fund(["Fondo Hogar"]).container)).toBe("Hogar · Fondo Hogar");
+      cleanup();
+      expect(subtitle(fund(["Fondo Hogar", "Paseo"]).container)).toBe("Hogar · Fondo Hogar y Paseo");
+      cleanup();
+      // A space without a fund account, or an older API, keeps the space alone.
+      expect(subtitle(fund([]).container)).toBe("Hogar");
+    });
 
     it("reads a shared space's line trend up to its period", () => {
       frame("trend");

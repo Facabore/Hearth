@@ -281,6 +281,12 @@ export const FundContributionsSchema = z.object({
   totals: z
     .object({ expected: MoneySchema, actual: MoneySchema, difference: MoneySchema })
     .describe("Σ over the listed members of expected, actual and difference."),
+  funds: z
+    .array(z.object({ id: z.string(), name: z.string() }))
+    .optional()
+    .describe(
+      "The space's live fund accounts (SHARED_FUND) by name, as every member reads them in the space's accounts.",
+    ),
 });
 
 export const fundContributionsDto = (
@@ -300,6 +306,7 @@ export const fundContributionsDto = (
     actual: moneyOf(report.totals.actual, report.currency),
     difference: moneyOf(report.totals.difference, report.currency),
   },
+  funds: report.funds.map((fund) => ({ ...fund })),
 });
 
 /** #240 (boards E9-11 01 and 02): the spaces a personal row came from, so a client writes "Personal y Hogar". */

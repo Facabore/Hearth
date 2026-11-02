@@ -11653,6 +11653,26 @@
                       ],
                       "additionalProperties": false,
                       "description": "Σ over the listed members of expected, actual and difference."
+                    },
+                    "funds": {
+                      "description": "The space's live fund accounts (SHARED_FUND) by name, as every member reads them in the space's accounts.",
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name"
+                        ],
+                        "additionalProperties": false
+                      }
                     }
                   },
                   "required": [

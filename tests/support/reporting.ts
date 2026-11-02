@@ -157,6 +157,7 @@ export interface FundContributionsDto {
   plan: ReportPlanDto | null;
   members: { memberId: string; expected: MoneyDto; actual: MoneyDto; difference: MoneyDto }[];
   totals: { expected: MoneyDto; actual: MoneyDto; difference: MoneyDto };
+  funds?: { id: string; name: string }[];
 }
 
 /** HU-E7-03: `user` reads the fund contribution tracking of `spaceId`. */

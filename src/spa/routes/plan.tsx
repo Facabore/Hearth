@@ -51,6 +51,7 @@ function Frame({
   period,
   plan: framePlan,
   wide = false,
+  fundNames,
   children,
 }: {
   readonly viewer: Viewer;
@@ -58,6 +59,7 @@ function Frame({
   readonly period: PeriodDto;
   readonly plan: ReportPlanDto | null;
   readonly wide?: boolean;
+  readonly fundNames?: readonly string[];
   readonly children: ReactNode;
 }) {
   const { previous, next } = useNeighbours(viewer.space.id, period);
@@ -71,6 +73,7 @@ function Frame({
       next={next}
       formats={viewer.me.preferences.effective}
       plan={framePlan}
+      fundNames={fundNames}
     >
       {children}
     </DashboardFrame>
@@ -256,7 +259,13 @@ export function FundRoute() {
     ],
   });
   return (
-    <Frame viewer={viewer} view="fund" period={report.data.period} plan={report.data.plan}>
+    <Frame
+      viewer={viewer}
+      view="fund"
+      period={report.data.period}
+      plan={report.data.plan}
+      fundNames={report.data.funds?.map((account) => account.name)}
+    >
       <FundTracking fund={report.data} members={list.data} formats={viewer.me.preferences.effective} />
     </Frame>
   );

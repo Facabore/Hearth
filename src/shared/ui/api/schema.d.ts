@@ -7922,6 +7922,11 @@ export interface operations {
                             actual: components["schemas"]["MoneyOutput"];
                             difference: components["schemas"]["MoneyOutput"];
                         };
+                        /** @description The space's live fund accounts (SHARED_FUND) by name, as every member reads them in the space's accounts. */
+                        funds?: {
+                            id: string;
+                            name: string;
+                        }[];
                     };
                 };
             };

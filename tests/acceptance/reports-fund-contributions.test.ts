@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { POST as archiveAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/archive/route";
 import { GET as fundRoute } from "@/app/api/v1/spaces/[spaceId]/reports/fund-contributions/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
 import { newPlan } from "../support/budgeting";
-import { cop } from "../support/ledger";
+import { cop, inSpace, newAccount } from "../support/ledger";
 import {
   contribute,
   getFundContributions,
@@ -50,6 +51,23 @@ describe("fund contribution tracking over HTTP (HU-E7-03)", () => {
       actual: cop(980_000),
       difference: cop(-220_000),
     });
+  });
+
+  it("names the space's live fund accounts for every member, an archived one left out (#240, board E9-10 04)", async () => {
+    const { h, fund } = await reportHousehold();
+    const old = await newAccount(h.ana, "Arriendo viejo", 0, "SHARED_FUND");
+    const archived = await call(archiveAccount, "POST", inSpace(h.ana, `accounts/${old}/archive`), {
+      user: h.ana,
+      params: { spaceId: h.spaceId, accountId: old },
+    });
+    expect(archived.status).toBe(200);
+    expect((await fundTrackingOf(h.ana, h.spaceId, "2026-11")).funds).toEqual([
+      { id: fund, name: "Household Fund" },
+    ]);
+    // A MEMBER reads the same names, in a period without a plan too.
+    expect((await fundTrackingOf(h.juan, h.spaceId, "2027-01")).funds).toEqual([
+      { id: fund, name: "Household Fund" },
+    ]);
   });
 
   it("expects what the matrix assigns on the plan's SHARED_FUND lines", async () => {

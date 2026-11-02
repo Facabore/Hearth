@@ -11,7 +11,7 @@ const capacities = [
   { memberId: "member-juan", amount: pesos(2_400_000) },
 ];
 const read = (w: ReturnType<typeof reportingWorld>, period: string, userId = "u-ana") =>
-  createGetFundContributions(w.memberDeps)({ spaceId: HOUSEHOLD, userId, period });
+  createGetFundContributions(w.fundDeps)({ spaceId: HOUSEHOLD, userId, period });
 const rows = async (w: ReturnType<typeof reportingWorld>, period: string) =>
   unwrap(await read(w, period)).members.map((m) => [m.memberId, m.expected, m.actual, m.difference]);
 
@@ -52,6 +52,25 @@ describe("fund contribution tracking (HU-E7-03)", () => {
       ["member-ana", 0n, 0n, 0n],
       ["member-juan", 0n, pesos(100_000), pesos(100_000)],
     ]);
+  });
+
+  it("names the space's fund accounts by name, so the screen says whose fund it tracks (#240, board E9-10 04)", async () => {
+    const w = reportingWorld({ members: BUDGET_MEMBERS.slice(0, 2) });
+    await w.plan("2026-11", { capacities, lines: referenceLines() });
+    w.funds.bySpace[HOUSEHOLD] = [
+      { id: "acc-trip-fund", name: "Paseo" },
+      { id: "acc-home-fund", name: "Fondo Hogar" },
+    ];
+    expect(unwrap(await read(w, "2026-11")).funds).toEqual([
+      { id: "acc-home-fund", name: "Fondo Hogar" },
+      { id: "acc-trip-fund", name: "Paseo" },
+    ]);
+    expect(unwrap(await read(w, "2027-01")).funds).toHaveLength(2);
+  });
+
+  it("names no fund for a space without a fund account", async () => {
+    const w = reportingWorld({ members: BUDGET_MEMBERS.slice(0, 2) });
+    expect(unwrap(await read(w, "2026-11")).funds).toEqual([]);
   });
 
   it("expects nothing in a period without a plan", async () => {

@@ -5,7 +5,7 @@ import type {
   PlanSpending,
   PlanStatus,
 } from "@/modules/budgeting/application";
-import type { ReportingDeps, SpaceMemberSums } from "@/modules/reporting/application";
+import type { ReportingDeps, SpaceFunds, SpaceMemberSums } from "@/modules/reporting/application";
 import type { SpaceMember } from "@/modules/spaces/application";
 import { periodByLabel, type LocalDate, type PeriodPolicy } from "@/shared/kernel";
 import { budgetingWorld, HOUSEHOLD, NOW, savingsAccounts } from "./budgeting-world";
@@ -25,6 +25,15 @@ export class MemberSumsByPeriod implements SpaceMemberSums {
 
   async fundContributionsByMember(_spaceId: string, from: LocalDate) {
     return [...(this.contributions[from] ?? [])];
+  }
+}
+
+/** #240: each space's live fund accounts, as the accounts module lists them. */
+export class FundsBySpace implements SpaceFunds {
+  readonly bySpace: Record<string, { id: string; name: string }[]> = {};
+
+  async fundsOf(spaceId: string) {
+    return [...(this.bySpace[spaceId] ?? [])];
   }
 }
 
@@ -88,5 +97,15 @@ export const reportingWorld = (
     return stored;
   };
   const sums = new MemberSumsByPeriod();
-  return { ...w, spending, sums, deps, memberDeps: { ...deps, sums }, plan };
+  const funds = new FundsBySpace();
+  return {
+    ...w,
+    spending,
+    sums,
+    funds,
+    deps,
+    memberDeps: { ...deps, sums },
+    fundDeps: { ...deps, sums, funds },
+    plan,
+  };
 };

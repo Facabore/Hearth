@@ -323,4 +323,17 @@ describe("the Plan views' origins (#240, ruling P272)", () => {
     expect(await screen.findAllByText("Personal y Household", {}, { timeout: 5_000 })).toHaveLength(2);
     expect(screen.getByText("Grupo creado en Household")).toBeVisible();
   });
+
+  it("names the fund the Fondo view tracks after the space (board E9-10 04)", async () => {
+    const { container } = renderSpa(`${HOUSEHOLD}/plan/fund?period=2026-11`, {
+      ...server(),
+      "GET /api/v1/spaces/{spaceId}/reports/fund-contributions": () =>
+        jsonResponse({ ...e7Fund(), funds: [{ id: "acc-fund", name: "Fondo Hogar" }] }),
+    });
+    await waitFor(
+      () =>
+        expect(container.querySelector("[data-frame-subtitle]")?.textContent).toBe("Household · Fondo Hogar"),
+      { timeout: 5_000 },
+    );
+  });
 });
