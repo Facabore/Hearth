@@ -1,6 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
-import es from "@/i18n/messages/es.json";
+import { es } from "@/i18n/messages/full";
 import { cop, meDto, octoberPage, spaceDto } from "../../tests/support/ui/dto";
 import { jsonResponse, type FakeHandler } from "../../tests/support/ui/fake-api";
 import {

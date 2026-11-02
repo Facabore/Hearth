@@ -21,6 +21,12 @@ export const NEXT_ADAPTERS = [
   { find: /^@\/shared\/ui\/api\/client$/, replacement: from("./src/spa/next/api-client.ts") },
 ];
 
+/** Every catalog the app loads: each language's core one and each area's (ruling P276), all compiled at build time. */
+export const CATALOG_FILE = /[\\/]src[\\/]i18n[\\/]messages[\\/](?:areas[\\/][a-z]+\.)?[a-z]+\.json$/;
+
+/** The core catalogs alone: the HTML preloads the likely language's core, never an area's (`catalogPreload`). */
+export const CORE_CATALOG_FILE = /[\\/]src[\\/]i18n[\\/]messages[\\/][a-z]+\.json$/;
+
 type Catalog = { [key: string]: string | Catalog };
 const precompiled = (catalog: Catalog): unknown =>
   Object.fromEntries(
@@ -38,7 +44,7 @@ const precompiledCatalogs = (): Plugin => ({
   name: "hearth:precompiled-catalogs",
   enforce: "pre",
   transform(source, id) {
-    if (!/[\\/]src[\\/]i18n[\\/]messages[\\/][a-z]+\.json$/.test(id)) return null;
+    if (!CATALOG_FILE.test(id)) return null;
     const catalog = JSON.parse(source) as Catalog;
     // Still JSON: Vite turns it into a module afterwards, as it does any catalog.
     return { code: JSON.stringify(precompiled(catalog)), map: null };
@@ -64,9 +70,7 @@ const earlyReads = (): Plugin => ({
       const catalogs = Object.fromEntries(
         Object.values(bundle ?? {}).flatMap((file) => {
           if (file.type !== "chunk") return [];
-          const id = file.moduleIds.find((one) =>
-            /[\\/]src[\\/]i18n[\\/]messages[\\/][a-z]+\.json$/.test(one),
-          );
+          const id = file.moduleIds.find((one) => CORE_CATALOG_FILE.test(one));
           return id ? [[/([a-z]+)\.json$/.exec(id)![1]!, `/${file.fileName}`]] : [];
         }),
       );

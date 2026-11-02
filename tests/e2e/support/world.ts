@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { APIRequest, Page } from "@playwright/test";
-import es from "../../../src/i18n/messages/es.json" with { type: "json" };
+import { es } from "../../../src/i18n/messages/full";
 import { STARTER_ACCOUNTS } from "../../../src/modules/accounts/domain/starter-accounts";
 import { SeedApi } from "./api";
 import { minor } from "./money";

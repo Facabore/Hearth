@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
-import es from "@/i18n/messages/es.json";
+import { es } from "@/i18n/messages/full";
 import type { TransactionDto } from "@/shared/ui/api/dto";
 import {
   accountDto,

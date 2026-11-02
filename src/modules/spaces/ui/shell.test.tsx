@@ -1,8 +1,7 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import en from "@/i18n/messages/en.json";
-import es from "@/i18n/messages/es.json";
+import { en, es } from "@/i18n/messages/full";
 import { axeViolations } from "../../../../tests/support/ui/axe";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { AppShell } from "./app-shell";

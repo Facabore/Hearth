@@ -1,6 +1,6 @@
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import es from "@/i18n/messages/es.json";
+import { es } from "@/i18n/messages/full";
 import { BUILT_IN_FORMATS, formatDate } from "@/shared/ui/format/formatters";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
 import {

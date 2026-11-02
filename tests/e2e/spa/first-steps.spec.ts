@@ -1,7 +1,7 @@
 import { randomInt } from "node:crypto";
 import { expect } from "@playwright/test";
 import { test } from "../support/clock";
-import es from "../../../src/i18n/messages/es.json" with { type: "json" };
+import { es } from "../../../src/i18n/messages/full";
 import { signUp } from "../support/seed";
 
 const steps = es.home.firstSteps;

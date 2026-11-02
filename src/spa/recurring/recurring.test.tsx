@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { en, es } from "@/i18n/messages/full";
 import type { RecurrenceDto } from "@/modules/ledger/ui/screens";
 import {
   accountDto,
@@ -15,7 +16,7 @@ import {
 } from "../../../tests/support/ui/dto";
 import { jsonResponse, problemResponse, type FakeHandler } from "../../../tests/support/ui/fake-api";
 import { recurrenceDto } from "../../../tests/support/ui/recurrence-dto";
-import { renderSpa } from "../../../tests/support/ui/spa";
+import { loadedAreas, renderSpa, speak, watchMissingMessages } from "../../../tests/support/ui/spa";
 
 const groups = [
   groupDto({ id: "g-home", name: "Hogar", categories: [categoryDto({ id: "c-rent", name: "Arriendo" })] }),
@@ -182,5 +183,21 @@ describe("recurring movements in the SPA (HU-E9-09, P270)", () => {
     expect(
       within(form.closest("div")!.parentElement!).queryByRole("button", { name: "Guardar recurrente" }),
     ).toBeNull();
+  });
+});
+
+describe("the recurrences area's copy (ruling P276)", () => {
+  it("shows Recurrentes' own copy after a cold load, and in English after a language change", async () => {
+    const missing = watchMissingMessages();
+    const spa = renderSpa("/spaces/sp-personal/recurrences", server([recurrenceDto()]).routes);
+    expect(
+      await screen.findByText(es.recurrences.list.active.replace("{count}", "1"), {}, { timeout: 5_000 }),
+    ).toBeVisible();
+    expect(loadedAreas(spa)).toEqual(["es:recurrences"]);
+
+    speak(spa, "en");
+    expect(await screen.findByText(en.recurrences.list.active.replace("{count}", "1"))).toBeVisible();
+    expect(loadedAreas(spa)).toEqual(["en:recurrences", "es:recurrences"]);
+    expect(missing()).toEqual([]);
   });
 });

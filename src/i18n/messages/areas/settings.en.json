@@ -1,0 +1,48 @@
+{
+  "settings": {
+    "preview": {
+      "label": "This is how it will look"
+    },
+    "numbersAndDates": "Numbers and dates",
+    "field": {
+      "numberFormat": "Numbers",
+      "dateFormat": "Date",
+      "timeFormat": "Time",
+      "weekStart": "The week starts on",
+      "timezone": "Time zone",
+      "theme": "Theme",
+      "language": "Language"
+    },
+    "timeFormat": {
+      "H24": "24-hour",
+      "H12": "12-hour"
+    },
+    "weekStart": {
+      "MONDAY": "Monday",
+      "SUNDAY": "Sunday"
+    },
+    "weekStartSummary": {
+      "MONDAY": "Weeks start on Monday",
+      "SUNDAY": "Weeks start on Sunday"
+    },
+    "default": "Default",
+    "reset": "Reset",
+    "locked": "Set by your installation",
+    "appearance": "Appearance and language",
+    "timezone": {
+      "hint": "Sets the day and time of every transaction you record.",
+      "search": "Search time zone",
+      "none": "No time zone matches “{query}”."
+    },
+    "theme": {
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "language": {
+      "hint": "Only the texts change. The number and date formats do not depend on the language.",
+      "es": "Español",
+      "en": "English"
+    }
+  }
+}

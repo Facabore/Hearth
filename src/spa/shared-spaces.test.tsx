@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
-import es from "@/i18n/messages/es.json";
+import { en, es } from "@/i18n/messages/full";
 import type { InvitationDto, SpaceDto } from "@/shared/ui/api/dto";
 import {
   accountDto,
@@ -15,7 +15,7 @@ import {
   transactionDto,
 } from "../../tests/support/ui/dto";
 import { jsonResponse, problemResponse, type FakeHandler } from "../../tests/support/ui/fake-api";
-import { renderSpa } from "../../tests/support/ui/spa";
+import { loadedAreas, renderSpa, speak, watchMissingMessages } from "../../tests/support/ui/spa";
 
 const HOUSEHOLD = "/spaces/sp-household";
 const JUAN = memberDto({ id: "m-juan", userId: "u-juan", displayName: "Juan", role: "MEMBER" });
@@ -252,5 +252,39 @@ describe("shared spaces in the SPA (slice 4 of #199, ADR 0006)", () => {
     });
     expect((await screen.findAllByText(/Trip/, {}, { timeout: 4_000 })).length).toBeGreaterThan(0);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
+describe("the members and invitation areas' copy (ruling P276)", () => {
+  it("shows Miembros' own copy after a cold load, and in English after a language change", async () => {
+    const missing = watchMissingMessages();
+    const spa = renderSpa(`${HOUSEHOLD}/members`, server().routes);
+    expect(await screen.findByText(es.members.created, {}, { timeout: 5_000 })).toBeVisible();
+    expect(loadedAreas(spa)).toEqual(["es:members"]);
+
+    speak(spa, "en");
+    expect(await screen.findByText(en.members.created)).toBeVisible();
+    expect(loadedAreas(spa)).toEqual(["en:members", "es:members"]);
+    expect(missing()).toEqual([]);
+  });
+
+  it("shows an invitation's own copy after a cold load, and in English after a language change", async () => {
+    const missing = watchMissingMessages();
+    const spa = renderSpa("/invitations/tok-1", server().routes);
+    expect(
+      await screen.findByRole(
+        "button",
+        { name: es.invitation.accept.replace("{space}", "Trip") },
+        { timeout: 5_000 },
+      ),
+    ).toBeVisible();
+    expect(loadedAreas(spa)).toEqual(["es:invitation"]);
+
+    speak(spa, "en");
+    expect(
+      await screen.findByRole("button", { name: en.invitation.accept.replace("{space}", "Trip") }),
+    ).toBeVisible();
+    expect(loadedAreas(spa)).toEqual(["en:invitation", "es:invitation"]);
+    expect(missing()).toEqual([]);
   });
 });

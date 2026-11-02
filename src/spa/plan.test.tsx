@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
-import es from "@/i18n/messages/es.json";
+import { en, es } from "@/i18n/messages/full";
 import { categoryDto, cop, groupDto, meDto, octoberPage, spaceDto } from "../../tests/support/ui/dto";
 import { jsonResponse, problemResponse, type FakeHandler } from "../../tests/support/ui/fake-api";
 import {
@@ -20,7 +20,7 @@ import {
   savingsAccountDto,
   sixMonthsTrend,
 } from "../../tests/support/ui/plan-dto";
-import { renderSpa } from "../../tests/support/ui/spa";
+import { loadedAreas, renderSpa, speak, watchMissingMessages } from "../../tests/support/ui/spa";
 
 const HOUSEHOLD = "/spaces/sp-household";
 const PERSONAL = "/spaces/sp-personal";
@@ -335,5 +335,21 @@ describe("the Plan views' origins (#240, ruling P272)", () => {
         expect(container.querySelector("[data-frame-subtitle]")?.textContent).toBe("Household · Fondo Hogar"),
       { timeout: 5_000 },
     );
+  });
+});
+
+describe("the Plan tab's copy, the plan area (ruling P276)", () => {
+  it("shows the Plan tab's own copy after a cold load, and in English after a language change", async () => {
+    const missing = watchMissingMessages();
+    const spa = renderSpa(`${PERSONAL}/plan?period=2026-11`, server());
+    expect(
+      await screen.findByRole("navigation", { name: es.reports.tabs.label }, { timeout: 5_000 }),
+    ).toBeVisible();
+    expect(loadedAreas(spa)).toEqual(["es:plan"]);
+
+    speak(spa, "en");
+    expect(await screen.findByRole("navigation", { name: en.reports.tabs.label })).toBeVisible();
+    expect(loadedAreas(spa)).toEqual(["en:plan", "es:plan"]);
+    expect(missing()).toEqual([]);
   });
 });

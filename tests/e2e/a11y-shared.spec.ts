@@ -2,7 +2,7 @@ import { randomInt } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type APIRequest, type Page } from "@playwright/test";
 import { test } from "./support/clock";
-import es from "../../src/i18n/messages/es.json" with { type: "json" };
+import { es } from "../../src/i18n/messages/full";
 import { BASE_URL as BASE } from "./support/base-url";
 import { Person } from "./support/people";
 import { get, post, put, signUp } from "./support/seed";

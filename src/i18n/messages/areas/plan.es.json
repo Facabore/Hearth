@@ -1,0 +1,362 @@
+{
+  "budgeting": {
+    "status": {
+      "DRAFT": "Borrador",
+      "ACTIVE": "Activo",
+      "CLOSED": "Cerrado"
+    },
+    "planner": {
+      "metaTitle": "Planeador",
+      "title": "Plan de {period}",
+      "dates": "{space} · {start} – {end}",
+      "closedNotice": "Plan cerrado: queda en solo lectura, igual que los gastos fechados en {period}.",
+      "capacity": "Lo que aportan entre todos",
+      "unallocated": "Por repartir {amount}",
+      "memberShare": "{name} {amount} · {share}",
+      "memberAmount": "{name} {amount}",
+      "editCapacities": "Editar aportes",
+      "lines": "Rubros",
+      "addLine": "Agregar rubro",
+      "empty": "Este plan aún no tiene rubros.",
+      "meta": "{funding} · {rule} · {rollover}",
+      "ofCapacity": "{share} de lo aportado",
+      "invalidAllocation": "Asignación inválida",
+      "editLine": "Editar {name}",
+      "activate": "Activar plan",
+      "activateHint": "En borrador el plan no cambia la división de los gastos. Al activarlo, «Según el plan» pasa a ser la división por defecto.",
+      "close": "Cerrar plan",
+      "closeHint": "Se puede cerrar cuando termine el período, desde el {date}.",
+      "invalidLines": "No se puede activar: revisa la asignación de {lines}.",
+      "goToSource": "Ir al plan de {period}",
+      "percentRule": "Porcentaje {ratio}",
+      "invalidAllocationSum": "Asignación inválida: suma {sum}",
+      "confirmActivate": {
+        "title": "¿Activar el plan de {period}?",
+        "splitDefault": "«Según el plan» pasa a ser la división por defecto",
+        "countsAgainst": "Los gastos de {period} se cuentan contra los rubros",
+        "stillEditable": "Puedes seguir editándolo mientras esté activo"
+      },
+      "confirmClose": {
+        "title": "¿Cerrar el plan de {period}?",
+        "readOnly": "Queda en solo lectura, igual que los gastos fechados en {period}",
+        "leftover": "Lo que sobra se pasa según la regla de cada rubro"
+      }
+    },
+    "funding": {
+      "DIRECT": "Cada uno paga",
+      "SHARED_FUND": "Sale del fondo común",
+      "SAVINGS": "Va al ahorro"
+    },
+    "rule": {
+      "PROPORTIONAL": "Según aportes",
+      "PERCENT": "Porcentaje",
+      "FIXED": "Monto fijo",
+      "NONE": "Sin asignar"
+    },
+    "rollover": {
+      "RESET": "Empieza de cero",
+      "ROLLOVER": "Acumula",
+      "ADJUSTED": "Ajusta",
+      "hint": {
+        "RESET": "Cada período empieza en cero.",
+        "ROLLOVER": "Lo que sobra pasa al siguiente período y no cuenta contra lo aportado. Úsalo para ahorrar cada mes para un gasto anual, como el SOAT, el predial o un seguro.",
+        "ADJUSTED": "Si te pasas, lo que excede se descuenta del siguiente período; lo que sobra no pasa."
+      },
+      "throughCopy": "Pasa cuando el plan siguiente se crea como copia de este y este se cierra."
+    },
+    "line": {
+      "catchAll": "Todo lo demás"
+    },
+    "start": {
+      "create": "Crear plan",
+      "copy": "Copiar plan anterior"
+    },
+    "copy": {
+      "title": "Copiado del plan anterior",
+      "body": "Mismos rubros, montos, reglas y aportes. Quedó fuera lo que ya no se puede usar:",
+      "bodyComplete": "Mismos rubros, montos, reglas y aportes.",
+      "droppedMapping": "{category}, que alimentaba {line}",
+      "droppedAccount": "Una cuenta de ahorro de {line} que ya no se puede usar",
+      "droppedLine": "El rubro {name}: ninguna de sus cuentas de ahorro sigue disponible"
+    },
+    "capacity": {
+      "title": "Cuánto aporta cada uno",
+      "subtitle": "Lo que cada persona pone en {period}",
+      "you": "{name} (tú)",
+      "field": "Aporte de {name}",
+      "suggestion": "Sugerido {amount}: tus ingresos de {period} en Personal. Solo tú lo ves.",
+      "useSuggestion": "Usar sugerencia",
+      "zeroNote": "Quien no aporta cuenta como {zero}.",
+      "rolesNote": "Un Miembro solo cambia el suyo; Propietario y Administrador, el de todos.",
+      "total": "Total",
+      "save": "Guardar aportes",
+      "unreadable": "Escribe un monto como {example}.",
+      "memberShare": "{name} {share}"
+    },
+    "lineEditor": {
+      "metaTitle": "Editar rubro",
+      "title": "Rubro {name}",
+      "newTitle": "Nuevo rubro",
+      "figures": "Cifras del rubro",
+      "carryOver": "Arrastrado",
+      "field": {
+        "name": "Nombre",
+        "planned": "Planeado",
+        "plannedHint": "{share} de lo aportado · por repartir {unallocated}",
+        "plannedNewHint": "Por repartir: {unallocated}",
+        "funding": "¿De dónde sale?",
+        "savingsAccounts": "Cuentas de ahorro",
+        "otherAccount": "Cuenta de ahorro de otro miembro",
+        "noSavingsAccounts": "No tienes cuentas de ahorro en {currency}. Crea una en Cuentas.",
+        "rollover": "Al cambiar de mes",
+        "catchAll": "Todo lo demás",
+        "catchAllHint": "Recibe los gastos de categorías que no están en otro rubro."
+      },
+      "unreadable": "Escribe un monto como {example}.",
+      "save": "Guardar rubro",
+      "add": "Agregar rubro",
+      "remove": {
+        "open": "Quitar rubro",
+        "title": "¿Quitar {name}?",
+        "explain": "El rubro sale del plan y sus gastos pasan a Sin presupuesto o al rubro de todo lo demás.",
+        "confirm": "Quitar"
+      },
+      "readOnly": "Solo Propietario y Administrador editan los rubros de un plan abierto.",
+      "fundingHint": {
+        "DIRECT": "Lo paga quien hace el gasto, desde su propia cuenta.",
+        "SHARED_FUND": "Se paga con la plata que cada uno pone en el fondo común.",
+        "SAVINGS": "Se aparta en una cuenta de ahorro en vez de gastarse."
+      },
+      "more": {
+        "open": "Más opciones",
+        "summary": "{rollover} · {allocation}"
+      }
+    },
+    "mapping": {
+      "label": "Categorías",
+      "choose": "Elegir categorías",
+      "none": "Ninguna categoría todavía",
+      "title": "Categorías de {line}",
+      "search": "Buscar categoría",
+      "inOtherLine": "En {line}",
+      "done": "Listo",
+      "chooseShort": "Elegir",
+      "chosen": "{count, plural, one {# elegida} other {# elegidas}}"
+    },
+    "allocation": {
+      "title": "Quién responde por el rubro",
+      "rule": "Regla de asignación",
+      "value": "Valor de {name}",
+      "sum": "Suma: {sum}",
+      "unreadable": "Escribe un número como {example}.",
+      "noCapacity": "Nadie aporta en este plan: reparte por porcentaje o por monto fijo.",
+      "note": {
+        "PROPORTIONAL": "Sigue lo que aporta cada miembro. Si cambian los aportes, se recalcula.",
+        "PERCENT": "Porcentajes que suman 100 %.",
+        "FIXED": "Montos que suman los {planned} planeados.",
+        "NONE": "Plata del grupo, sin responsable por persona: el rubro muestra planeado, gastado y disponible, sin montos por miembro."
+      }
+    }
+  },
+  "reports": {
+    "title": "Plan",
+    "tabs": {
+      "label": "Vistas del plan"
+    },
+    "view": {
+      "lines": "Rubros",
+      "members": "Miembros",
+      "fund": "Fondo",
+      "groups": "Por grupo",
+      "trend": "Tendencia",
+      "calendar": "Próximos"
+    },
+    "frame": {
+      "editPlan": "Editar plan",
+      "viewPlan": "Ver plan",
+      "subtitle": "{space} · {detail}",
+      "plan": {
+        "DRAFT": "plan en borrador",
+        "ACTIVE": "plan activo",
+        "CLOSED": "plan cerrado"
+      },
+      "againstPrevious": "contra el período anterior",
+      "upTo": "Hasta {period}"
+    },
+    "spaceScoped": "{space} / {name}",
+    "outsideTheApp": "Pagado fuera de la app",
+    "trend": {
+      "new": "Nueva",
+      "noPrevious": "Sin período anterior",
+      "increased": "Subió",
+      "decreased": "Bajó",
+      "unchanged": "Igual",
+      "window": "{count} períodos",
+      "personalCaption": "Mi consumo por período",
+      "personalTable": "Consumo por período",
+      "period": "Período",
+      "consumption": "Consumo",
+      "change": "Cambio",
+      "noPlan": "Este período no tiene plan: no hay rubros que comparar.",
+      "linesCaption": "Gastado por rubro",
+      "spentIn": "Gastado en {period}",
+      "noFigure": "Sin dato",
+      "linesNote": "Cada rubro se compara con su rubro de origen en el plan anterior. Lo gastado sin presupuesto no tiene tendencia.",
+      "hint": "Pasa el dedo o el cursor por un punto para ver su valor."
+    },
+    "calendar": {
+      "metaTitle": "Próximos movimientos",
+      "title": "Próximos {days} días",
+      "window": "Ventana",
+      "days": "{days} días",
+      "explain": "Los movimientos recurrentes de tus cuentas en todos tus espacios, con el saldo que te quedaría después de cada día.",
+      "summary": "Resumen de lo que viene",
+      "opening": "Disponible hoy",
+      "incoming": "Entra",
+      "outgoing": "Sale",
+      "closing": "Al final",
+      "lowest": "Lo más bajo: {balance} el {date}",
+      "listLabel": "Movimientos por día",
+      "balanceAfter": "Saldo proyectado {balance}",
+      "pending": "Pendiente desde el {date}",
+      "estimated": "Estimado",
+      "noEffect": "No cambia tu disponible",
+      "type": {
+        "EXPENSE": "Gasto",
+        "INCOME": "Ingreso",
+        "TRANSFER": "Transferencia",
+        "FUND_CONTRIBUTION": "Aporte al fondo"
+      },
+      "empty": "No hay movimientos programados en los próximos {days} días.",
+      "otherCurrency": "{space} usa {currency}: sus movimientos no se suman aquí.",
+      "emptyHint": "Programa tu arriendo, tus servicios o tu salario y aquí verás cómo queda tu saldo.",
+      "add": "Agregar un movimiento recurrente"
+    },
+    "unified": {
+      "consumption": "Consumo",
+      "spent": "Lo que gastaste tú",
+      "consumptionHint": "Lo que fue para ti: tus gastos y tu parte de los compartidos.",
+      "paid": "Lo que pagaste",
+      "whyDifferent": "¿Por qué es distinto?",
+      "whyDifferentAnswer": "Lo que pagaste es lo que salió de tus bolsillos, aunque fuera para otros o para el fondo común. Lo que gastaste tú es solo lo que fue para ti.",
+      "sources": "En qué se fue lo que pagaste",
+      "payments": "Pagos de gastos",
+      "fundContributions": "Aportes al fondo",
+      "savingsTransfers": "Transferencias a tus ahorros",
+      "byCategory": "Consumo por categoría",
+      "empty": "No consumiste nada en este período.",
+      "otherCurrency": "{name} está en {currency} y no se suma aquí."
+    },
+    "byGroup": {
+      "trail": "Ruta",
+      "all": "Todos los grupos",
+      "total": "Gasto total",
+      "totalOf": "Total de {name}",
+      "hint": {
+        "groups": "Toca un grupo",
+        "categories": "Toca una categoría",
+        "subcategories": "Subcategorías"
+      },
+      "groups": "Grupos",
+      "categoriesOf": "Categorías de {name}",
+      "subcategoriesOf": "Subcategorías de {name}",
+      "noSubcategory": "Sin subcategoría",
+      "archived": "Archivada",
+      "spaceNote": "Todos los gastos del espacio, pague quien pague. Ingresos, transferencias, aportes al fondo y pagos entre miembros no cuentan.",
+      "personalNote": "Tus gastos y tu parte de los compartidos, en todos tus espacios. Los grupos que trae Hearth se unen; los que creó un espacio llevan su nombre.",
+      "yourTotal": "Tu consumo"
+    },
+    "fund": {
+      "title": "Aportes al fondo",
+      "expected": "Esperado",
+      "actual": "Aportado",
+      "difference": "Diferencia",
+      "byMember": "Por miembro",
+      "upToDate": "Al día",
+      "noPlan": "Sin plan, nadie tiene un aporte esperado.",
+      "note": "Esperado: lo asignado a cada uno en los rubros pagados con el fondo. Cuentan los aportes fechados en el período.",
+      "missing": "Falta",
+      "behindBy": "Le faltan {amount}"
+    },
+    "lines": {
+      "summary": "Resumen del plan",
+      "totalAvailable": "Disponible",
+      "totalSpent": "Gastado {spent} de {planned}",
+      "totalSaved": "Ahorrado {saved}",
+      "caption": "Planeado, gastado y disponible por rubro",
+      "line": "Rubro",
+      "planned": "Planeado",
+      "spent": "Gastado",
+      "saved": "Ahorrado",
+      "available": "Disponible",
+      "overspent": "Excedida",
+      "onPlan": "Cumplido",
+      "state": {
+        "HIGH": "Al límite"
+      },
+      "overBy": "Te pasaste por {amount}",
+      "unbudgeted": "Sin presupuesto",
+      "carryOver": "{amount} de {period}",
+      "carryOverPending": "Se arrastra de {period} cuando ese plan se cierre.",
+      "lineSpent": "Gastado {spent} de {planned}",
+      "lineSaved": "Ahorrado {spent} de {planned}",
+      "unbudgetedCaption": "Gastado {spent} en categorías sin rubro",
+      "unbudgetedCaptionIn": "Gastado {spent} en categorías sin rubro · {categories}"
+    },
+    "noPlan": {
+      "title": "{period} no tiene plan",
+      "body": "Sin plan, todo lo que se gaste en {period} aparece como Sin presupuesto y la división por defecto es en partes iguales.",
+      "managersOnly": "Solo Propietario y Administrador pueden crear el plan.",
+      "thisPeriod": "este período",
+      "managersSee": "Solo Propietario y Administrador ven estas acciones.",
+      "spentIn": "Gastado {spent} en {period}"
+    },
+    "matrix": {
+      "noPlan": "Este período no tiene plan: no hay asignaciones que comparar.",
+      "kind": "{funding} · {rule}",
+      "memberCaption": "{member} por rubro",
+      "line": "Rubro",
+      "showDetail": "Ver detalle por rubro",
+      "hideDetail": "Ocultar detalle",
+      "detailOf": "de {member}",
+      "total": {
+        "OVER_CONTRIBUTED": "Le sobran {amount}",
+        "UNDER_CONTRIBUTED": "Le faltan {amount}",
+        "ON_TARGET": "Al día",
+        "none": "Sin diferencia que comparar"
+      },
+      "member": "Miembro",
+      "assigned": "Asignado",
+      "contributed": "Aportó",
+      "consumed": "Consumió",
+      "gap": "Diferencia",
+      "formerMember": "Miembro anterior",
+      "noFigure": "Sin dato",
+      "savingsNote": "Cuenta lo que llegó a las cuentas de ahorro del rubro; no tiene consumo.",
+      "toFund": "Ver fondo"
+    },
+    "overview": {
+      "toGroups": "Ver por grupo",
+      "fundSummary": "{actual} de {expected}",
+      "againstPrevious": "Contra el período anterior",
+      "toTrend": "Ver tendencia de 6 períodos",
+      "matrixTitle": "Miembros por rubro",
+      "matrixNote": "Los rubros pagados con el fondo siguen su aporte en Aportes al fondo; los de ahorro cuentan lo que llegó a sus cuentas."
+    },
+    "reason": {
+      "NOT_ALLOCATED": "Sin asignación por persona: solo se muestra lo consumido.",
+      "TRACKED_AT_FUND_LEVEL": "Aportó y diferencia se siguen en el fondo, no por rubro.",
+      "INVALID_ALLOCATION": "La asignación de este rubro no cuadra: nadie tiene un monto asignado."
+    },
+    "status": {
+      "OVER_CONTRIBUTED": "de más",
+      "UNDER_CONTRIBUTED": "de menos",
+      "ON_TARGET": "al día"
+    },
+    "origin": {
+      "and": "{list} y {last}",
+      "yourShare": "{space} · tu parte",
+      "createdIn": "Grupo creado en {space}"
+    }
+  }
+}

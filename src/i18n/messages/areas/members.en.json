@@ -1,0 +1,142 @@
+{
+  "members": {
+    "subtitle": "{space} · {currency} · {policy}",
+    "count": "{count, plural, one {# member} other {# members}}",
+    "joined": "Joined on {date}",
+    "created": "Created the space",
+    "guestDetail": "No account · cannot sign in",
+    "role": "{name}'s role: {role}. Change",
+    "readOnlyNote": "Your role in {space} is {role}: you can see members, balances and dashboards, but not invite or add guests.",
+    "directNote": "{space} is a space for two: it takes no other members.",
+    "roleSheet": {
+      "title": "{name}'s role in {space}",
+      "label": "Role",
+      "current": "Current",
+      "lock": "Only the Owner changes roles. Owner is not assigned here.",
+      "save": "Save role"
+    },
+    "roleDetail": {
+      "ADMIN": "Invites, runs the plan and edits everyone's entries",
+      "MEMBER": "Records expenses and payments, adds guests",
+      "VIEWER": "Only sees transactions, balances and dashboards"
+    },
+    "invite": "Invite",
+    "inviteSheet": {
+      "title": "Invite to {space}",
+      "how": "How to invite",
+      "link": "Link",
+      "email": "Their email",
+      "emailTab": "Email",
+      "role": "Role when they join",
+      "ownerNote": "Nobody joins as Owner: that role is changed from Members.",
+      "createLink": "Create link",
+      "send": "Send invitation",
+      "emailHint": "Only that account can accept it, once, within 7 days.",
+      "linkReady": "Link ready to share",
+      "linkLabel": "Invitation link",
+      "linkNote": "Role {role} · expires on {date}. Several people can use it until it expires or you revoke it.",
+      "linkNoteSingle": "Role {role} · expires on {date}. Only one person can use it: it stops working once someone joins.",
+      "sent": "We sent the invitation to {email}.",
+      "notSent": "Hearth does not send email yet: copy the link and share it with {email}."
+    },
+    "pending": "Pending invitations",
+    "pendingEmail": "Email · {role} · expires on {date}",
+    "pendingLinkTitle": "Invitation link",
+    "pendingLink": "{role} · several people · expires on {date}",
+    "pendingLinkSingle": "{role} · one person only · expires on {date}",
+    "pendingUses": "{count, plural, one {Used by {people} person} other {Used by {people} people}}",
+    "revoke": "Revoke",
+    "revokeEmail": "Revoke the invitation for {email}",
+    "revokeLink": "Revoke the invitation link as {role}",
+    "revoked": "Invitation revoked",
+    "undo": "Undo",
+    "addGuest": "Add guest",
+    "guestOptions": "Options for {name}",
+    "guestSheet": {
+      "addTitle": "Add a guest to {space}",
+      "intro": "For someone who does not use Hearth. They can pay, owe, have capacity in the plan and receive payments, only in {space}. They cannot sign in.",
+      "name": "Name",
+      "nameHint": "It shows with \"(guest)\" next to it. It cannot repeat another member's name.",
+      "nameHintNamed": "It shows as \"{name}\". It cannot repeat another member's name.",
+      "email": "Email (optional)",
+      "emailPlaceholder": "To remember it; nothing is sent",
+      "claimNote": "If they sign up later, you send them a link to claim this place and they keep all its history.",
+      "claimNoteNamed": "If {name} signs up later, you send them a link to claim this place and they keep all its history."
+    },
+    "guest": {
+      "balance": "In {space} · {sentence}",
+      "claimTitle": "A link for {name} to claim their place",
+      "claimBody": "Signing up or signing in with this link moves their guest place, with all its history in {space}, to their account, as a Member.",
+      "createClaim": "Create a claim link",
+      "claimLabel": "Claim link",
+      "claimNote": "Single use · expires on {date}",
+      "remove": "Remove from {space}",
+      "settle": "Record payment",
+      "blocked": "You can't remove {name}: they have an outstanding balance of {amount}. Record the payment first.",
+      "confirmTitle": "Remove {name} from {space}?",
+      "confirmBody": "Their balance is {amount}. Their history stays in the transactions under their name."
+    }
+  },
+  "balances": {
+    "title": "Balances",
+    "yours": "Your balance in {space}",
+    "you": {
+      "owes": "You owe {amount}",
+      "owed": "You are owed {amount}",
+      "settled": "You are settled up"
+    },
+    "suggestions": "To settle up",
+    "owes": "{payer} owes {receiver} {amount}",
+    "suggestionsNote": "The fewest payments that settle everyone. Settle only fills in the form.",
+    "allSettled": "Nobody owes anybody in {space}.",
+    "members": "Each member",
+    "member": {
+      "owes": "owes {amount}",
+      "owed": "is owed {amount}",
+      "settled": "settled up",
+      "link": "{name}: {sentence}. See history."
+    },
+    "history": {
+      "pageTitle": "Balance history",
+      "title": "{name}'s history",
+      "previous": "Previous period",
+      "next": "Next period",
+      "range": "{start} – {end}",
+      "summary": "Balance at the start and at the end",
+      "opening": "At the start",
+      "closing": "At the end",
+      "entries": "Movements that changed their balance",
+      "empty": "Nothing changed their balance in this period.",
+      "state": {
+        "owes": "owes",
+        "owed": "is owed",
+        "settled": "settled up"
+      },
+      "note": "On the right, the balance after each movement and, under it, how much it changed."
+    },
+    "record": "Settle another amount",
+    "settle": {
+      "action": "Settle",
+      "suggestion": "Settle: {payer} pays {receiver} {amount}",
+      "title": "Settle",
+      "prefilled": "{space} · filled in from the suggestion",
+      "payer": "Who pays",
+      "receiver": "To",
+      "amount": "Amount",
+      "debt": "{payer} owes {receiver} {amount}. You can record a partial payment; paying more turns the debt around.",
+      "noDebt": "{payer} owes {receiver} nothing.",
+      "guestNote": "{name} is a guest: they paid outside the app, so there is no source account.",
+      "from": "Paid from (optional)",
+      "to": "Received in (optional)",
+      "fromName": "Paid from",
+      "toName": "Received in",
+      "optional": "(optional)",
+      "none": "None",
+      "payerRequired": "Choose who pays.",
+      "save": "Save payment"
+    },
+    "toast": {
+      "settled": "Payment recorded"
+    }
+  }
+}

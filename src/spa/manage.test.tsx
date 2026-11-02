@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
-import es from "@/i18n/messages/es.json";
+import { en, es } from "@/i18n/messages/full";
 import type { AccountDto, CategoryGroupDto, MeDto, SpaceDto } from "@/shared/ui/api/dto";
 import {
   accountDto,
@@ -15,7 +15,7 @@ import {
   spaceDto,
 } from "../../tests/support/ui/dto";
 import { jsonResponse, problemResponse, type FakeHandler } from "../../tests/support/ui/fake-api";
-import { renderSpa } from "../../tests/support/ui/spa";
+import { loadedAreas, renderSpa, speak, watchMissingMessages } from "../../tests/support/ui/spa";
 
 const ACCOUNTS = "/spaces/sp-personal/accounts";
 
@@ -341,5 +341,43 @@ describe("accounts, categories and settings in the SPA (slice 3 of #199, ADR 000
       await screen.findByRole("heading", { level: 1, name: es.categories.title }, { timeout: 4_000 }),
     ).toBeVisible();
     expect(count(spa.requests, "GET", /\/categories$/)).toBe(2);
+  });
+});
+
+describe("the accounts, categories and settings areas' copy (ruling P276)", () => {
+  it("shows the accounts' own copy after a cold load, and in English after a language change", async () => {
+    const missing = watchMissingMessages();
+    const spa = renderSpa(ACCOUNTS, server().routes);
+    expect(await screen.findByText(es.accounts.section.everyday, {}, { timeout: 5_000 })).toBeVisible();
+    expect(loadedAreas(spa)).toEqual(["es:accounts"]);
+
+    speak(spa, "en");
+    expect(await screen.findByText(en.accounts.section.everyday)).toBeVisible();
+    expect(loadedAreas(spa)).toEqual(["en:accounts", "es:accounts"]);
+    expect(missing()).toEqual([]);
+  });
+
+  it("shows the categories' own copy after a cold load, and in English after a language change", async () => {
+    const missing = watchMissingMessages();
+    const spa = renderSpa("/spaces/sp-personal/categories", server().routes);
+    expect(await screen.findByText(es.categories.subtitle, {}, { timeout: 5_000 })).toBeVisible();
+    expect(loadedAreas(spa)).toEqual(["es:categories"]);
+
+    speak(spa, "en");
+    expect(await screen.findByText(en.categories.subtitle)).toBeVisible();
+    expect(loadedAreas(spa)).toEqual(["en:categories", "es:categories"]);
+    expect(missing()).toEqual([]);
+  });
+
+  it("shows Settings' own copy after a cold load, and in English after a language change", async () => {
+    const missing = watchMissingMessages();
+    const spa = renderSpa("/settings", server().routes);
+    expect(await screen.findByText(es.settings.numbersAndDates, {}, { timeout: 5_000 })).toBeVisible();
+    expect(loadedAreas(spa)).toEqual(["es:settings"]);
+
+    speak(spa, "en");
+    expect(await screen.findByText(en.settings.numbersAndDates)).toBeVisible();
+    expect(loadedAreas(spa)).toEqual(["en:settings", "es:settings"]);
+    expect(missing()).toEqual([]);
   });
 });
