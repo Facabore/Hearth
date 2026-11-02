@@ -7,15 +7,21 @@ import { Button, ProblemNotice, ScreenHeader, TextField } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import { fieldOf, problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
+import {
+  DEFAULT_PERIOD_DRAFT,
+  PeriodPolicyFields,
+  periodPolicyOf,
+  type PeriodDraft,
+} from "./period-policy-fields";
 
 export const SPACE_CURRENCIES = ["COP", "USD", "EUR"] as const;
 type SpaceCurrency = (typeof SPACE_CURRENCIES)[number];
 
 /**
- * HU-E9-05, the board "Crear espacio compartido desde el selector" without its period controls: a name and a currency.
- * `POST /api/v1/spaces` takes no period policy yet, so "Período del presupuesto", "Día de corte" and the period preview
- * wait for it (#240). On its own route the form draws its page header (`backHref`); inside the switcher's sheet it does
- * not, and `onCreated` closes the sheet once the space exists.
+ * HU-E9-05, the board "Crear espacio compartido desde el selector": a name, a currency and, since #240, the budget
+ * period ("Período del presupuesto", "Día de corte" and the line under them, `PeriodPolicyFields`), which
+ * `POST /api/v1/spaces` takes as `periodPolicy`. On its own route the form draws its page header (`backHref`); inside
+ * the switcher's sheet it does not, and `onCreated` closes the sheet once the space exists.
  */
 export function NewSpaceForm({
   backHref,
@@ -33,11 +39,16 @@ export function NewSpaceForm({
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState<SpaceCurrency>("COP");
+  const [period, setPeriod] = useState<PeriodDraft>(DEFAULT_PERIOD_DRAFT);
   const [pending, setPending] = useState(false);
   const [problem, setProblem] = useState<Problem | null>(null);
 
   const where = problem
-    ? fieldOf(problem, { InvalidSpaceName: "name", UnknownCurrency: "currency" }, ["name", "currency"])
+    ? fieldOf(
+        problem,
+        { InvalidSpaceName: "name", UnknownCurrency: "currency", InvalidPeriodPolicy: "periodPolicy" },
+        ["name", "currency", "periodPolicy"],
+      )
     : null;
   const typedName = name.trim();
 
@@ -47,7 +58,7 @@ export function NewSpaceForm({
     setPending(true);
     try {
       const { data, error, response } = await api.POST("/api/v1/spaces", {
-        body: { kind: "SHARED", name: typedName, currency },
+        body: { kind: "SHARED", name: typedName, currency, periodPolicy: periodPolicyOf(period) },
       });
       if (response.ok && data) {
         const members = `/spaces/${data.id}/members`;
@@ -104,10 +115,15 @@ export function NewSpaceForm({
             {t("new.currencyHint")}
           </p>
         </div>
+        <PeriodPolicyFields
+          draft={period}
+          onChange={setPeriod}
+          error={where === "periodPolicy" && problem ? messageOf(problem).message : undefined}
+        />
         <p className="text-sm text-muted">
           {typedName ? t("new.noteNamed", { space: typedName }) : t("new.note")}
         </p>
-        {problem && where !== "name" ? <ProblemNotice problem={problem} /> : null}
+        {problem && where !== "name" && where !== "periodPolicy" ? <ProblemNotice problem={problem} /> : null}
         <Button type="submit" size="lg" disabled={pending}>
           {t("new.create")}
         </Button>

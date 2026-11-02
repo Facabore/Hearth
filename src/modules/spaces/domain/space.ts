@@ -74,7 +74,10 @@ export const createPersonalSpace = (input: {
   createdAt: input.now,
 });
 
-/** HU-E1-04: a shared space starts with its creator as the only OWNER, MONTHLY(1) and a supported currency. */
+/**
+ * HU-E1-04: a shared space starts with its creator as the only OWNER and a supported currency. #240: its period policy
+ * is the one asked for, checked as a settings change checks it (HU-E1-03), or MONTHLY(1) when none is.
+ */
 export const createSharedSpace = (input: {
   id: SpaceId;
   memberId: SpaceMemberId;
@@ -82,18 +85,22 @@ export const createSharedSpace = (input: {
   ownerName: string;
   name: string;
   currency: string;
+  periodPolicy?: PeriodPolicy;
   now: Date;
 }): Result<Space> => {
   const name = spaceName(input.name);
   if (!name.ok) return name;
   const currency = currencyOf(input.currency);
   if (!currency.ok) return currency;
+  const periodPolicy =
+    input.periodPolicy === undefined ? ok(DEFAULT_PERIOD_POLICY) : checkedPeriodPolicy(input.periodPolicy);
+  if (!periodPolicy.ok) return periodPolicy;
   const space: Space = {
     id: input.id,
     name: name.value,
     kind: "SHARED",
     currency: currency.value.code,
-    periodPolicy: DEFAULT_PERIOD_POLICY,
+    periodPolicy: periodPolicy.value,
     personalOwnerUserId: null,
     members: [founder(input)],
     createdAt: input.now,

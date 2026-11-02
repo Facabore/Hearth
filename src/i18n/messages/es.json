@@ -987,7 +987,6 @@
       "saved": "Recurrente guardado",
       "edited": "Cambios guardados",
       "fixedType": "Tipo: {type}. Para cambiarlo, termina este y crea otro.",
-      "chooseDate": "Elegir {label}",
       "previousMonth": "Mes anterior",
       "nextMonth": "Mes siguiente",
       "apply": "Listo"
@@ -1017,7 +1016,6 @@
       "endKeep": "No, seguir",
       "extendTitle": "Extender {name}",
       "extendNoEnd": "Sin fecha final",
-      "extendUntil": "Extender hasta el {date}",
       "donePaused": "{name} quedó en pausa.",
       "doneResumed": "{name} sigue desde hoy.",
       "doneEnded": "{name} terminó.",
@@ -1075,6 +1073,15 @@
       "name": "Nombre",
       "currency": "Moneda",
       "currencyHint": "Una sola moneda por espacio. Deja de poder cambiarse cuando el espacio tiene movimientos.",
+      "period": "Período del presupuesto",
+      "periodKind": {
+        "MONTHLY": "Mensual",
+        "SEMI_MONTHLY": "Quincenal"
+      },
+      "cutDay": {
+        "day1": "Primer corte",
+        "day2": "Segundo corte"
+      },
       "note": "Quedarás como Propietario y el espacio pasará a ser tu espacio activo. Después invitas a los demás desde Miembros.",
       "create": "Crear espacio",
       "noteNamed": "Quedarás como Propietario y {space} pasará a ser tu espacio activo. Después invitas a los demás desde Miembros."

@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
@@ -18,7 +18,12 @@ describe("new shared space (HU-E9-05, ruling P161)", () => {
     expect(screen.getByRole("combobox", { name: "Moneda" })).toHaveValue("COP");
     await userEvent.type(screen.getByLabelText("Nombre"), " Household ");
     await userEvent.click(screen.getByRole("button", { name: "Crear espacio" }));
-    expect(await requests[0]!.json()).toEqual({ kind: "SHARED", name: "Household", currency: "COP" });
+    expect(await requests[0]!.json()).toEqual({
+      kind: "SHARED",
+      name: "Household",
+      currency: "COP",
+      periodPolicy: { kind: "MONTHLY", day: 1 },
+    });
     expect(router.replace).toHaveBeenCalledWith("/spaces/sp-household/members");
     expect(router.refresh).toHaveBeenCalled();
     expect(await axeViolations(container)).toEqual([]);
@@ -82,6 +87,56 @@ describe("new shared space as its board (E9-05 · 07, ruling P272)", () => {
     await waitFor(() => expect(onCreated).toHaveBeenCalled());
     // The screen under the sheet stays in the history: Volver and Back return to it.
     expect(router.push).toHaveBeenCalledWith("/spaces/sp-household/members");
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+});
+
+describe("new shared space with its budget period (#240, board Crear espacio compartido)", () => {
+  it("draws Período del presupuesto as Mensual or Quincenal, the cut-off day beside its label, and the line under them", async () => {
+    const { container } = renderWithIntl(
+      <NewSpaceForm backHref="/spaces/sp-personal" api={fakeApi({}).api} />,
+    );
+    const period = screen.getByRole("group", { name: "Período del presupuesto" });
+    expect(within(period).getByRole("radio", { name: "Mensual" })).toBeChecked();
+    expect(within(period).getByRole("radio", { name: "Quincenal" })).not.toBeChecked();
+    const day = within(period).getByRole("textbox", { name: "Día de corte" });
+    expect(day).toHaveValue("1");
+    expect(day).toHaveAttribute("inputmode", "numeric");
+    // The policy as Miembros names it, capitalized by the line's style ("Mensual, corte el 1").
+    expect(day).toHaveAccessibleDescription("mensual, corte el 1");
+    await userEvent.clear(day);
+    await userEvent.type(day, "25x7");
+    expect(day).toHaveValue("25");
+    expect(screen.getByText("mensual, corte el 25")).toHaveClass("first-letter:uppercase");
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("sends the policy picked: twice a month on the days typed", async () => {
+    const { api, requests } = fakeApi({ "POST /api/v1/spaces": () => jsonResponse(householdSpace(), 201) });
+    renderWithIntl(<NewSpaceForm backHref="/spaces/sp-personal" api={api} />);
+    await userEvent.type(screen.getByLabelText("Nombre"), "Household");
+    await userEvent.click(screen.getByRole("radio", { name: "Quincenal" }));
+    expect(screen.queryByRole("textbox", { name: "Día de corte" })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Primer corte" })).toHaveValue("1");
+    const second = screen.getByRole("textbox", { name: "Segundo corte" });
+    await userEvent.clear(second);
+    await userEvent.type(second, "20");
+    expect(screen.getByText("quincenal, días 1 y 20")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Crear espacio" }));
+    expect(await requests[0]!.json()).toMatchObject({
+      periodPolicy: { kind: "SEMI_MONTHLY", day1: 1, day2: 20 },
+    });
+  });
+
+  it("puts InvalidPeriodPolicy under the period and keeps the person on the form", async () => {
+    const { api } = fakeApi({ "POST /api/v1/spaces": () => problemResponse(422, "InvalidPeriodPolicy") });
+    renderWithIntl(<NewSpaceForm backHref="/spaces/sp-personal" api={api} />);
+    await userEvent.type(screen.getByLabelText("Nombre"), "Household");
+    await userEvent.clear(screen.getByRole("textbox", { name: "Día de corte" }));
+    await userEvent.click(screen.getByRole("button", { name: "Crear espacio" }));
+    const day = screen.getByRole("textbox", { name: "Día de corte" });
+    await waitFor(() => expect(day).toBeInvalid());
+    expect(day).toHaveAccessibleDescription("La forma de contar los periodos no es válida.");
     expect(router.replace).not.toHaveBeenCalled();
   });
 });

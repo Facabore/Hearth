@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GET as listCategories } from "@/app/api/v1/spaces/[spaceId]/categories/route";
 import { GET as listMembers } from "@/app/api/v1/spaces/[spaceId]/members/route";
+import { GET as listPeriods } from "@/app/api/v1/spaces/[spaceId]/periods/route";
 import { GET as listSpaces, POST as createSpace } from "@/app/api/v1/spaces/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
@@ -91,5 +92,49 @@ describe("create a shared space (HU-E1-04)", () => {
     for (const spaceId of [space.id, "not-a-uuid"]) {
       expect(await problemOf(await members(marta, spaceId))).toEqual([404, "SpaceNotFound"]);
     }
+  });
+});
+
+describe("create a shared space with its budget period (#240)", () => {
+  it("creates the space twice a month on the 5th and 20th, and its periods follow that policy", async () => {
+    const ana = await registerUser("Ana");
+    const response = await create(ana, {
+      kind: "SHARED",
+      name: "Household",
+      currency: "COP",
+      periodPolicy: { kind: "SEMI_MONTHLY", day1: 5, day2: 20 },
+    });
+    expect(response.status).toBe(201);
+    const space = await response.json();
+    expect(space.periodPolicy).toEqual({ kind: "SEMI_MONTHLY", day1: 5, day2: 20 });
+    const periods = await call(
+      listPeriods,
+      "GET",
+      `/api/v1/spaces/${space.id}/periods?from=2026-11-03&count=2`,
+      {
+        user: ana,
+        params: { spaceId: space.id },
+      },
+    );
+    expect((await periods.json()).items).toEqual([
+      { label: "2026-10 H2", startDate: "2026-10-20", endDate: "2026-11-04" },
+      { label: "2026-11 H1", startDate: "2026-11-05", endDate: "2026-11-19" },
+    ]);
+  });
+
+  it.each([
+    [{ kind: "MONTHLY", day: 0 }, 422, "InvalidPeriodPolicy"],
+    [{ kind: "SEMI_MONTHLY", day1: 20, day2: 5 }, 422, "InvalidPeriodPolicy"],
+    [{ kind: "MONTHLY", day: "1" }, 422, "ValidationFailed"],
+    [{ kind: "WEEKLY", day: 1 }, 422, "ValidationFailed"],
+  ])("answers the policy %o with %i %s and creates nothing", async (periodPolicy, status, code) => {
+    const ana = await registerUser("Ana");
+    expect(
+      await problemOf(
+        await create(ana, { kind: "SHARED", name: "Household", currency: "COP", periodPolicy }),
+      ),
+    ).toEqual([status, code]);
+    const listed = await (await call(listSpaces, "GET", "/api/v1/spaces", { user: ana })).json();
+    expect(listed.items.map((s: { kind: string }) => s.kind)).toEqual(["PERSONAL"]);
   });
 });

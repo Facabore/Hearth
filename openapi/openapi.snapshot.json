@@ -1111,6 +1111,53 @@
                         "default": "COP",
                         "type": "string",
                         "pattern": "^[A-Z]{3}$"
+                      },
+                      "periodPolicy": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "MONTHLY"
+                              },
+                              "day": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "day"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "SEMI_MONTHLY"
+                              },
+                              "day1": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "day2": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "day1",
+                              "day2"
+                            ]
+                          }
+                        ],
+                        "type": "object"
                       }
                     },
                     "required": [
@@ -1156,7 +1203,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidSpaceName, UnknownCurrency",
+            "description": "ValidationFailed, InvalidSpaceName, InvalidPeriodPolicy, UnknownCurrency",
             "content": {
               "application/problem+json": {
                 "schema": {

@@ -2460,6 +2460,16 @@ export interface operations {
                     name: string;
                     /** @default COP */
                     currency?: string;
+                    periodPolicy?: {
+                        /** @constant */
+                        kind: "MONTHLY";
+                        day: number;
+                    } | {
+                        /** @constant */
+                        kind: "SEMI_MONTHLY";
+                        day1: number;
+                        day2: number;
+                    };
                 };
             };
         };
@@ -2491,7 +2501,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidSpaceName, UnknownCurrency */
+            /** @description ValidationFailed, InvalidSpaceName, InvalidPeriodPolicy, UnknownCurrency */
             422: {
                 headers: {
                     [name: string]: unknown;

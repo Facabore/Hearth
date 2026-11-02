@@ -22,7 +22,13 @@ export const POST = defineRoute({
     const creator = { userId: user!.id, userName: user!.name, locale: user!.locale };
     const result = await getContainer().spaces.createSpace(
       body.kind === "SHARED"
-        ? { ...creator, kind: "SHARED", name: body.name, currency: body.currency }
+        ? {
+            ...creator,
+            kind: "SHARED",
+            name: body.name,
+            currency: body.currency,
+            ...(body.periodPolicy ? { periodPolicy: body.periodPolicy } : {}),
+          }
         : { ...creator, kind: "PERSONAL" },
     );
     return result.ok ? ok({ status: 201, body: result.value }) : result;

@@ -107,3 +107,38 @@ describe("CreateSpace (HU-E1-04)", () => {
     );
   });
 });
+
+describe("CreateSpace with its budget period (#240, board Crear espacio compartido)", () => {
+  const household = { ...ana, kind: "SHARED" as const, name: "Household", currency: "COP" };
+
+  it("creates the space with the period policy asked for, monthly or twice a month", async () => {
+    const { create, spaces } = setup();
+    const monthly = unwrap(await create({ ...household, periodPolicy: { kind: "MONTHLY", day: 15 } }));
+    expect(monthly.periodPolicy).toEqual({ kind: "MONTHLY", day: 15 });
+    const twice = unwrap(
+      await create({ ...household, name: "Trip", periodPolicy: { kind: "SEMI_MONTHLY", day1: 1, day2: 16 } }),
+    );
+    expect(twice.periodPolicy).toEqual({ kind: "SEMI_MONTHLY", day1: 1, day2: 16 });
+    expect((await spaces.listForUser("u-ana")).map((s) => s.periodPolicy)).toEqual([
+      { kind: "MONTHLY", day: 15 },
+      { kind: "SEMI_MONTHLY", day1: 1, day2: 16 },
+    ]);
+  });
+
+  it("keeps MONTHLY(1) when no period policy is asked for", async () => {
+    const { create } = setup();
+    expect(unwrap(await create(household)).periodPolicy).toEqual({ kind: "MONTHLY", day: 1 });
+  });
+
+  it("refuses a policy the settings would refuse, and creates nothing", async () => {
+    const { create, spaces } = setup();
+    for (const periodPolicy of [
+      { kind: "MONTHLY", day: 0 },
+      { kind: "MONTHLY", day: 32 },
+      { kind: "SEMI_MONTHLY", day1: 16, day2: 1 },
+      { kind: "SEMI_MONTHLY", day1: 10, day2: 10 },
+    ] as const)
+      expect(codeOf(await create({ ...household, periodPolicy }))).toBe("InvalidPeriodPolicy");
+    expect(spaces.spaces).toEqual([]);
+  });
+});

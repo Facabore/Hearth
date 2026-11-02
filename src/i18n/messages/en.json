@@ -987,7 +987,6 @@
       "saved": "Recurring saved",
       "edited": "Changes saved",
       "fixedType": "Type: {type}. To change it, end this one and create another.",
-      "chooseDate": "Choose {label}",
       "previousMonth": "Previous month",
       "nextMonth": "Next month",
       "apply": "Done"
@@ -1017,7 +1016,6 @@
       "endKeep": "No, keep it",
       "extendTitle": "Extend {name}",
       "extendNoEnd": "No end date",
-      "extendUntil": "Extend until {date}",
       "donePaused": "{name} is paused.",
       "doneResumed": "{name} goes on from today.",
       "doneEnded": "{name} has ended.",
@@ -1075,6 +1073,15 @@
       "name": "Name",
       "currency": "Currency",
       "currencyHint": "One currency per space. It can no longer change once the space has transactions.",
+      "period": "Budget period",
+      "periodKind": {
+        "MONTHLY": "Monthly",
+        "SEMI_MONTHLY": "Twice a month"
+      },
+      "cutDay": {
+        "day1": "First cut-off",
+        "day2": "Second cut-off"
+      },
       "note": "You will be its Owner and it becomes your active space. Then invite the others from Members.",
       "create": "Create space",
       "noteNamed": "You will be its Owner and {space} becomes your active space. Then invite the others from Members."

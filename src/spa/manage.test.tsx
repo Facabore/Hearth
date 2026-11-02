@@ -56,8 +56,8 @@ const server = () => {
     },
     "GET /api/v1/spaces": () => jsonResponse({ items: state.spaces }),
     "POST /api/v1/spaces": async (request) => {
-      const { name } = (await request.json()) as { name: string };
-      const created = householdSpace({ id: "sp-new", name });
+      const { name, periodPolicy } = (await request.json()) as Pick<SpaceDto, "name" | "periodPolicy">;
+      const created = householdSpace({ id: "sp-new", name, periodPolicy });
       state.spaces = [...state.spaces, created];
       return jsonResponse(created, 201);
     },
@@ -243,6 +243,28 @@ describe("accounts, categories and settings in the SPA (slice 3 of #199, ADR 000
     expect(
       (spa.queryClient.getQueryData<SpaceDto[]>(["spaces", "list"]) ?? []).map((space) => space.name),
     ).toContain("Casa");
+  });
+
+  it("creates a shared space counted twice a month, as the sheet's period controls set it (#240)", async () => {
+    const { routes } = server();
+    const spa = renderSpa("/spaces/new", routes);
+    await userEvent.type(await screen.findByLabelText("Nombre"), "Casa");
+    await userEvent.click(screen.getByRole("radio", { name: es.spaces.new.periodKind.SEMI_MONTHLY }));
+    const first = screen.getByRole("textbox", { name: es.spaces.new.cutDay.day1 });
+    const second = screen.getByRole("textbox", { name: es.spaces.new.cutDay.day2 });
+    await userEvent.clear(first);
+    await userEvent.type(first, "5");
+    await userEvent.clear(second);
+    await userEvent.type(second, "20");
+    await userEvent.click(screen.getByRole("button", { name: "Crear espacio" }));
+
+    await waitFor(() => expect(spa.location()).toBe("/spaces/sp-new/members"));
+    // The fake API creates the space with the policy the request carried, and the person's spaces hold it.
+    expect(
+      (spa.queryClient.getQueryData<SpaceDto[]>(["spaces", "list"]) ?? []).find(
+        (space) => space.id === "sp-new",
+      )?.periodPolicy,
+    ).toEqual({ kind: "SEMI_MONTHLY", day1: 5, day2: 20 });
   });
 
   it("creates a shared space from the switcher's own sheet and lands in it with the sheet closed (E9-05 · 07)", async () => {
