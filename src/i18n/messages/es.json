@@ -1152,9 +1152,9 @@
     "you": {
       "owes": "Te toca poner {amount}",
       "owed": "Te toca recibir {amount}",
-      "settled": "Estás a paz y salvo"
+      "settled": "Estás al día"
     },
-    "suggestions": "Para quedar a paz y salvo",
+    "suggestions": "Para quedar al día",
     "owes": "{payer} le paga {amount} a {receiver}",
     "suggestionsNote": "Sugerencia con el menor número de pagos. Saldar solo prellena el formulario.",
     "allSettled": "Todos están al día en {space}.",
@@ -1162,7 +1162,7 @@
     "member": {
       "owes": "le toca poner {amount}",
       "owed": "le toca recibir {amount}",
-      "settled": "a paz y salvo",
+      "settled": "al día",
       "link": "{name}: {sentence}. Ver historial"
     },
     "history": {

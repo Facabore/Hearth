@@ -182,7 +182,7 @@ describe("guests (HU-E9-05, ruling P163)", () => {
     screenAs("u-ana", "OWNER", api);
     await userEvent.click(screen.getByRole("button", { name: "Opciones de Pedro (invitado)" }));
     const sheet = screen.getByRole("dialog", { name: "Pedro (invitado)" });
-    expect(within(sheet).getByText("En Household · a paz y salvo")).toBeInTheDocument();
+    expect(within(sheet).getByText("En Household · al día")).toBeInTheDocument();
     await userEvent.click(within(sheet).getByRole("button", { name: "Crear enlace para reclamar" }));
     expect(await within(sheet).findByLabelText("Enlace para reclamar")).toHaveValue(
       "https://hearth.example/claims/XyZ",
