@@ -97,6 +97,27 @@ describe("the recurring list (HU-E9-09, P270)", () => {
     expect(normalized(rows[1]!.textContent)).toContain("Terminó el 15/10/2026");
   });
 
+  it("draws board 01's inactive rows: only their status badge, a neutral icon tile, and an ended one's name muted", () => {
+    renderList();
+    const active = within(screen.getByRole("region", { name: "Activos · 1" })).getByRole("link");
+    const [paused, ended] = within(
+      screen.getByRole("region", { name: "En pausa y terminados" }),
+    ).getAllByRole("link");
+    const tile = (row: HTMLElement) =>
+      row.querySelector("span[aria-hidden='true']")?.getAttribute("style") ?? "";
+    // Paused: "Pausada" alone, with no mode badge; the active row keeps its mode.
+    expect(within(paused!).queryByText("Automático")).toBeNull();
+    expect(within(active).getByText("Automático")).toBeInTheDocument();
+    expect(within(ended!).queryByText("Automático")).toBeNull();
+    // The category's own icon, on a neutral tile while it records nothing.
+    expect(tile(paused!)).toContain("graphite");
+    expect(tile(ended!)).toContain("graphite");
+    expect(tile(active)).toContain("sage");
+    // An ended one's name and amount are muted; a paused one's stay in ink.
+    expect(within(ended!).getByText("Seguro del carro")).toHaveClass("text-muted");
+    expect(within(paused!).getByText("Netflix")).toHaveClass("text-ink");
+  });
+
   it("names a shared expense's payer and account, and a fund that pays", () => {
     renderList(householdSpace(), [
       recurrenceDto({ payerMemberId: null, sourceAccountId: "a-fund" }),

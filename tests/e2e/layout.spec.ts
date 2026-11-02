@@ -1019,7 +1019,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         [`/spaces/${sharedId}/plan/members`, 5],
         [`/spaces/${sharedId}/plan/fund`, 5],
         [`/spaces/${sharedId}/plan/groups`, 5],
-        // #212: Tendencia with one period of history; its table scrolls inside its region, never the page.
+        // Tendencia: a card per line against the previous period (board E9-11 04), never wider than the page.
         [`/spaces/${sharedId}/plan/trend`, 5],
         // HU-E9-11: Rubros, the personal space's own page (ruling P267), and its Lines address.
         [`/spaces/${spaceId}/plan`, 4],
@@ -1107,8 +1107,8 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       await expect(page.getByText(es.reports.lines.overspent)).toBeVisible();
       await expect(page.getByText(es.reports.lines.overBy.replace("{amount}", ""))).toBeVisible();
 
-      // The member matrix keeps the guest's long name, the long line and the big figures inside their cards, and
-      // no table needs to scroll: below 640 px a line is a card (P217). Each member is a row first (#213, P262).
+      // The member matrix keeps the guest's long name, the long line and the big figures inside its one card, each
+      // line an item with one caption (board E9-10 03, P272). Each member is a row first (#213, P262).
       await page.goto(`/spaces/${sharedId}/plan/members`);
       await expect(page.getByRole("heading", { level: 2, name: HISTORY_GUEST })).toBeVisible();
       await page
@@ -1116,16 +1116,16 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
           name: `${es.reports.matrix.showDetail} ${es.reports.matrix.detailOf.replace("{member}", HISTORY_GUEST)}`,
         })
         .click();
-      const matrixRegion = page.getByRole("region", {
+      const matrixRegion = page.getByRole("list", {
         name: es.reports.matrix.memberCaption.replace("{member}", HISTORY_GUEST),
       });
-      // The fund-paid line lists the guest too, so the long line is looked up inside the guest's own table.
-      await expect(matrixRegion.getByRole("rowheader").filter({ hasText: LONG_LINE })).toBeVisible();
+      // The fund-paid line lists the guest too, so the long line is looked up inside the guest's own list.
+      await expect(matrixRegion.getByRole("listitem").filter({ hasText: LONG_LINE })).toBeVisible();
       expect(
         await matrixRegion.evaluate((el) => el.scrollWidth - el.clientWidth),
-        "the matrix table does not scroll on a phone",
+        "the matrix list does not scroll on a phone",
       ).toBeLessThanOrEqual(0);
-      for (const cell of await matrixRegion.getByRole("cell").all()) {
+      for (const cell of await matrixRegion.locator("[data-caption], [data-gap]").all()) {
         const box = (await cell.boundingBox())!;
         expect.soft(box.x, "a figure starts on screen").toBeGreaterThanOrEqual(0);
         expect.soft(box.x + box.width, "and ends on screen").toBeLessThanOrEqual(viewport.width);
@@ -1134,7 +1134,9 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       // The fund cards keep their billion-peso figures and their badges on screen (the loop above measured the
       // overflow). The person and the guest both still have to pay in.
       await page.goto(`/spaces/${sharedId}/plan/fund`);
-      await expect(page.getByText(es.reports.fund.behind).first()).toBeVisible();
+      await expect(
+        page.getByText(new RegExp(`^${es.reports.fund.behindBy.replace("{amount}", "")}`)).first(),
+      ).toBeVisible();
       await expect(page.getByText(es.reports.fund.note)).toBeVisible();
     });
   }
@@ -1154,7 +1156,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
   };
 
   for (const viewport of [PHONE, SMALL_PHONE]) {
-    test(`the planner keeps a long line and big figures on screen, its last action above the bottom bar, and has a way back at ${viewport.width} px (HU-E9-08)`, async ({
+    test(`the planner keeps a long line and big figures on screen, its last action on screen, and has a way back at ${viewport.width} px (HU-E9-08)`, async ({
       page,
     }) => {
       await page.setViewportSize(viewport);
@@ -1168,14 +1170,18 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       expect.soft(overflow, message).toBeLessThanOrEqual(0);
       await expectFullTargets(page, "the planner", viewport.width);
 
-      // Activate is the last control: scrolled to the end of the page it sits above the bottom navigation.
+      // Activate is the last control: scrolled to the end of the page it ends on screen. The planner is a stacked
+      // screen (ruling P272), so no bottom bar covers it.
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
       const activate = (await page
         .getByRole("button", { name: es.budgeting.planner.activate })
         .boundingBox())!;
-      const nav = (await page.getByRole("navigation", { name: es.shell.nav.main }).boundingBox())!;
-      expect(activate.y + activate.height, "Activar plan ends above the bottom bar").toBeLessThanOrEqual(
-        nav.y,
+      await expect(
+        page.getByRole("navigation", { name: es.shell.nav.main }),
+        "a stacked screen has no bottom bar (P272)",
+      ).toHaveCount(0);
+      expect(activate.y + activate.height, "Activar plan ends on screen").toBeLessThanOrEqual(
+        viewport.height,
       );
 
       // The way back is the shared header's link to the dashboard of the plan's period.
@@ -1294,10 +1300,12 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       const back = page.getByRole("link", { name: es.common.back, exact: true });
       await expect(back).toHaveAttribute("href", `/spaces/${sharedId}/plan?period=2026-10`);
       await back.click();
-      // The dashboard names the line in its table, its list and its members matrix: wait for it, not for a moment
+      // The dashboard names the line in its list of lines and its members matrix: wait for it, not for a moment
       // when one of them happens to be the only one on screen (#196: a skeleton now fills that moment).
       await expect(page).toHaveURL(new RegExp(`/spaces/${sharedId}/plan\\?period=2026-10$`));
-      await expect(page.getByRole("table").getByText(LONG_LINE).first()).toBeVisible();
+      await expect(
+        page.getByRole("list", { name: es.reports.lines.caption }).getByText(LONG_LINE).first(),
+      ).toBeVisible();
       await expect(page.getByRole("heading", { level: 2, name: /no tiene plan/i })).toHaveCount(0);
     });
   }
@@ -1325,7 +1333,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
   };
 
   for (const viewport of [PHONE, SMALL_PHONE]) {
-    test(`the capacities screen keeps its figures and the private suggestion on screen, its last action above the bottom bar, and has a way back at ${viewport.width} px (HU-E9-08, ruling P208)`, async ({
+    test(`the capacities screen keeps its figures and the private suggestion on screen, its last action on screen, and has a way back at ${viewport.width} px (HU-E9-08, ruling P208)`, async ({
       page,
     }) => {
       await page.setViewportSize(viewport);
@@ -1348,11 +1356,14 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       await page.getByRole("button", { name: es.budgeting.capacity.useSuggestion }).click();
       await expect(page.getByRole("textbox", { name: "Aporte de Ana" })).toHaveValue("1.650.000");
 
-      // Save is the last control: scrolled to the end of the page it sits above the bottom navigation.
+      // Save is the last control: scrolled to the end of the page it ends on screen, with no bottom bar (P272).
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
       const save = (await page.getByRole("button", { name: es.budgeting.capacity.save }).boundingBox())!;
-      const nav = (await page.getByRole("navigation", { name: es.shell.nav.main }).boundingBox())!;
-      expect(save.y + save.height, "Guardar aportes ends above the bottom bar").toBeLessThanOrEqual(nav.y);
+      await expect(
+        page.getByRole("navigation", { name: es.shell.nav.main }),
+        "a stacked screen has no bottom bar (P272)",
+      ).toHaveCount(0);
+      expect(save.y + save.height, "Guardar aportes ends on screen").toBeLessThanOrEqual(viewport.height);
 
       // The way back is the shared header's link to the planner.
       const back = page.getByRole("link", { name: es.common.back, exact: true });
@@ -1366,7 +1377,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
   }
 
   for (const viewport of [PHONE, SMALL_PHONE]) {
-    test(`the line editor keeps a long line and big figures on screen, every control a full target, its last action above the bottom bar, and has a way back at ${viewport.width} px (HU-E9-08)`, async ({
+    test(`the line editor keeps a long line and big figures on screen, every control a full target, its last action on screen, and has a way back at ${viewport.width} px (HU-E9-08)`, async ({
       page,
     }) => {
       await page.setViewportSize(viewport);
@@ -1439,12 +1450,15 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         const byPercentage = await overflowReport(page, `${what} by percentage`);
         expect.soft(byPercentage.overflow, byPercentage.message).toBeLessThanOrEqual(0);
 
-        // The last control sits above the bottom bar once the page is scrolled to its end.
+        // The last control ends on screen once the page is scrolled to its end; no bottom bar covers it (P272).
         await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
         const bottom = (await page.getByRole("button", { name: last, exact: true }).boundingBox())!;
-        const nav = (await page.getByRole("navigation", { name: es.shell.nav.main }).boundingBox())!;
-        expect(bottom.y + bottom.height, `${what}: "${last}" ends above the bottom bar`).toBeLessThanOrEqual(
-          nav.y,
+        await expect(
+          page.getByRole("navigation", { name: es.shell.nav.main }),
+          "a stacked screen has no bottom bar (P272)",
+        ).toHaveCount(0);
+        expect(bottom.y + bottom.height, `${what}: "${last}" ends on screen`).toBeLessThanOrEqual(
+          viewport.height,
         );
 
         // The way back is the shared header's link to the planner.
@@ -1583,7 +1597,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
     await expect(page.getByText(/Sugerido \$\s1\.650\.000:/)).toBeVisible();
   });
 
-  test("from 640 px the member matrix scrolls inside its own focusable region, never the page", async ({
+  test("at 640 px the member matrix keeps its lines inside its card, never widening the page", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 640, height: 900 });
@@ -1599,13 +1613,12 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       .click();
     const { overflow, message } = await overflowReport(page, path);
     expect(overflow, message).toBeLessThanOrEqual(0);
-    const region = page
-      .getByRole("region", { name: es.reports.matrix.memberCaption.replace("{member}", "") })
+    // Board E9-10 03 (ruling P272): a list of lines with one caption each, no table, so nothing scrolls sideways.
+    const list = page
+      .getByRole("list", { name: new RegExp(es.reports.matrix.memberCaption.replace("{member}", "")) })
       .first();
-    await expect(region.getByRole("rowheader").filter({ hasText: LONG_LINE })).toBeVisible();
-    await region.focus();
-    await expect(region, "the scroll region takes the keyboard").toBeFocused();
-    await expect(region.getByRole("columnheader")).toHaveCount(5);
+    await expect(list.getByRole("listitem").filter({ hasText: LONG_LINE })).toBeVisible();
+    expect(await list.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
   });
 });
 
@@ -1896,11 +1909,14 @@ test.describe("sheets fit the screen and only their body scrolls", () => {
 const MARKET = /Mercado semanal/;
 const sheet = (page: Page) => page.getByRole("dialog", { name: MARKET });
 
-/** Movimientos reached from Cuentas through the bottom navigation, so there is somewhere to go back to. */
-const listFromAccounts = async (page: Page, tag: string) => {
+/**
+ * Movimientos reached from Inicio through the bottom navigation, so there is somewhere to go back to. Inicio, not
+ * Cuentas: Cuentas is a stacked screen without the bar (ruling P272).
+ */
+const listFromHome = async (page: Page, tag: string) => {
   const { spaceId } = await session(page, tag);
   const list = `/spaces/${spaceId}/transactions`;
-  await page.goto(`/spaces/${spaceId}/accounts`);
+  await page.goto(`/spaces/${spaceId}`);
   await settle(page);
   await page
     .getByRole("navigation", { name: es.shell.nav.main })
@@ -1908,12 +1924,12 @@ const listFromAccounts = async (page: Page, tag: string) => {
     .click();
   await expect(page).toHaveURL(new RegExp(`${list}$`));
   await settle(page);
-  return { spaceId, list, accounts: `/spaces/${spaceId}/accounts` };
+  return { spaceId, list, home: `/spaces/${spaceId}` };
 };
 
 test.describe("the transaction detail sheet is addressed by the URL (ruling P189)", () => {
   test("a row opens it with a new entry, Back closes it and Forward opens it again", async ({ page }) => {
-    const { list } = await listFromAccounts(page, "detail-sheet");
+    const { list } = await listFromHome(page, "detail-sheet");
     const entries = () => page.evaluate(() => window.history.length);
     const before = await entries();
 
@@ -1933,10 +1949,7 @@ test.describe("the transaction detail sheet is addressed by the URL (ruling P189
     test(`closing with ${how} goes back, so Back then leaves the list for where the person was`, async ({
       page,
     }) => {
-      const { list, accounts } = await listFromAccounts(
-        page,
-        `detail-close-${how === "Escape" ? "esc" : "x"}`,
-      );
+      const { list, home } = await listFromHome(page, `detail-close-${how === "Escape" ? "esc" : "x"}`);
       await page.getByRole("link", { name: MARKET }).click();
       await expect(sheet(page)).toBeVisible();
       if (how === "Escape") await page.keyboard.press("Escape");
@@ -1945,12 +1958,12 @@ test.describe("the transaction detail sheet is addressed by the URL (ruling P189
       await expect(page).toHaveURL(new RegExp(`${list}$`));
 
       await page.goBack();
-      await expect(page).toHaveURL(new RegExp(`${accounts}$`));
+      await expect(page).toHaveURL(new RegExp(`${home}$`));
     });
   }
 
   test("a reload keeps the sheet and closing it still goes back to the list", async ({ page }) => {
-    const { list, accounts } = await listFromAccounts(page, "detail-reload");
+    const { list, home } = await listFromHome(page, "detail-reload");
     await page.getByRole("link", { name: MARKET }).click();
     await expect(sheet(page)).toBeVisible();
     await page.reload();
@@ -1959,15 +1972,15 @@ test.describe("the transaction detail sheet is addressed by the URL (ruling P189
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page).toHaveURL(new RegExp(`${list}$`));
     await page.goBack();
-    await expect(page).toHaveURL(new RegExp(`${accounts}$`));
+    await expect(page).toHaveURL(new RegExp(`${home}$`));
   });
 
   test("a deep link has no entry before it, so closing replaces it and adds none", async ({ page }) => {
-    const { list, accounts } = await listFromAccounts(page, "detail-deep");
+    const { list, home } = await listFromHome(page, "detail-deep");
     await page.getByRole("link", { name: MARKET }).click();
     await expect(sheet(page)).toBeVisible();
     const deep = page.url();
-    await page.goto(accounts);
+    await page.goto(home);
     await settle(page);
     await page.goto(deep);
     await expect(sheet(page)).toBeVisible();
@@ -1979,7 +1992,7 @@ test.describe("the transaction detail sheet is addressed by the URL (ruling P189
     expect(await page.evaluate(() => window.history.length), "closing replaces the entry").toBe(entries);
 
     await page.goBack();
-    await expect(page).toHaveURL(new RegExp(`${accounts}$`));
+    await expect(page).toHaveURL(new RegExp(`${home}$`));
   });
 
   test("a deleted or unknown transaction in the address says so inside the sheet", async ({
@@ -2022,7 +2035,7 @@ test.describe("deleting from the detail sheet leaves the person on the list and 
       page,
     }) => {
       await page.setViewportSize(viewport);
-      const { list, accounts } = await listFromAccounts(page, `delete-back-${viewport.width}`);
+      const { list, home } = await listFromHome(page, `delete-back-${viewport.width}`);
       await page.getByRole("link", { name: MARKET }).click();
       await expect(sheet(page)).toBeVisible();
       const opened = await entries(page);
@@ -2042,18 +2055,18 @@ test.describe("deleting from the detail sheet leaves the person on the list and 
       expect(await entries(page), "undoing adds no history entry").toBe(opened);
 
       await page.goBack();
-      await expect(page).toHaveURL(new RegExp(`${accounts}$`));
+      await expect(page).toHaveURL(new RegExp(`${home}$`));
     });
   }
 
   test("from a deep link: the entry is replaced by the list, and Deshacer brings the row back", async ({
     page,
   }) => {
-    const { list, accounts } = await listFromAccounts(page, "delete-deep");
+    const { list, home } = await listFromHome(page, "delete-deep");
     await page.getByRole("link", { name: MARKET }).click();
     await expect(sheet(page)).toBeVisible();
     const deep = page.url();
-    await page.goto(accounts);
+    await page.goto(home);
     await settle(page);
     await page.goto(deep);
     await expect(sheet(page)).toBeVisible();
@@ -2074,7 +2087,7 @@ test.describe("deleting from the detail sheet leaves the person on the list and 
     page,
     missing,
   }) => {
-    const { list } = await listFromAccounts(page, "delete-address");
+    const { list } = await listFromHome(page, "delete-address");
     await page.getByRole("link", { name: MARKET }).click();
     await expect(sheet(page)).toBeVisible();
     const address = page.url();
@@ -2264,6 +2277,8 @@ test.describe("the last control of a scrolling screen ends above the bottom bar 
     readonly at: (ids: Ids, page: Page) => string | Promise<string>;
     readonly prepare: (page: Page) => Promise<void>;
     readonly submit: string;
+    /** Ruling P272: a stacked screen has no bottom bar, only the safe area under its last control. */
+    readonly stacked?: boolean;
   }[] = [
     {
       name: "record form",
@@ -2292,6 +2307,7 @@ test.describe("the last control of a scrolling screen ends above the bottom bar 
     },
     {
       name: "new account",
+      stacked: true,
       at: ({ spaceId }: Ids) => `/spaces/${spaceId}/accounts/new`,
       // A credit card asks for the most attributes, so the form is the longest it gets.
       prepare: async (page: Page) => {
@@ -2340,7 +2356,7 @@ test.describe("the last control of a scrolling screen ends above the bottom bar 
             top: r.top,
             barTop: bar ? bar.top : window.innerHeight,
             barHeight: bar ? bar.height : 0,
-            barInset: parseFloat(getComputedStyle(document.querySelector("nav")!).paddingBottom),
+            barInset: bar ? parseFloat(getComputedStyle(document.querySelector("nav")!).paddingBottom) : 0,
             // How far the document extends below the button: the room the page keeps for the bar.
             below: document.documentElement.scrollHeight - (r.bottom + window.scrollY),
             viewport: window.innerHeight,
@@ -2354,15 +2370,22 @@ test.describe("the last control of a scrolling screen ends above the bottom bar 
             ],
           };
         });
-        expect(seen.barInset, "the emulated safe area reaches the bar").toBe(34);
-        expect(seen.barHeight, "the bar keeps its 76 px of room above the safe area").toBeGreaterThanOrEqual(
-          76 + 34,
-        );
-        expect(seen.below, "the page keeps room for the bar and the safe area").toBeGreaterThanOrEqual(
-          seen.barHeight,
-        );
+        if (screen.stacked) {
+          expect(seen.barHeight, "a stacked screen has no bottom bar").toBe(0);
+          expect(seen.below, "the page keeps room for the safe area").toBeGreaterThanOrEqual(34);
+          expect(seen.bottom, "the button ends above the safe area").toBeLessThanOrEqual(seen.viewport - 34);
+        } else {
+          expect(seen.barInset, "the emulated safe area reaches the bar").toBe(34);
+          expect(
+            seen.barHeight,
+            "the bar keeps its 76 px of room above the safe area",
+          ).toBeGreaterThanOrEqual(76 + 34);
+          expect(seen.below, "the page keeps room for the bar and the safe area").toBeGreaterThanOrEqual(
+            seen.barHeight,
+          );
+          expect(seen.bottom, "the button ends above the bottom bar").toBeLessThanOrEqual(seen.barTop);
+        }
         expect(seen.top, "the button starts on screen").toBeGreaterThanOrEqual(0);
-        expect(seen.bottom, "the button ends above the bottom bar").toBeLessThanOrEqual(seen.barTop);
         expect(
           seen.probes,
           "the top and bottom edges and the center of the button are painted by it",
@@ -2596,33 +2619,24 @@ test.describe("the app's own not-found screen (N1, ADR 0006)", () => {
 });
 
 test.describe("Settings and New space keep the space they were opened from (N3)", () => {
-  test("the header names it, the navigation points to it and Inicio stays in it", async ({ page }) => {
+  test("Volver returns to it, and as stacked screens they draw no switcher and no bottom bar (P272)", async ({
+    page,
+  }) => {
     const { spaceId, sharedId } = await session(page, "shell-from");
     const nav = page.getByRole("navigation", { name: es.shell.nav.main });
+    const switcher = page.getByRole("button", { name: /Cambiar de espacio/ });
+    const back = page.getByRole("link", { name: es.common.back, exact: true });
     for (const path of [`/settings?from=${sharedId}`, `/spaces/new?from=${sharedId}`]) {
       await page.goto(path);
       await settle(page);
-      await expect(
-        page.getByRole("button", { name: es.shell.space.current.replace("{name}", "Casa") }),
-        path,
-      ).toBeVisible();
-      await expect(nav.getByRole("link", { name: es.shell.nav.home, exact: true }), path).toHaveAttribute(
-        "href",
-        `/spaces/${sharedId}`,
-      );
-      await expect(nav.getByRole("link", { name: es.shell.nav.balances }), `${path}: Saldos`).toBeVisible();
+      await expect(back, path).toHaveAttribute("href", `/spaces/${sharedId}`);
+      await expect(switcher, `${path}: no space switcher`).toHaveCount(0);
+      await expect(nav, `${path}: no bottom bar`).toHaveCount(0);
     }
-    // A space that is not hers, or none, keeps the personal shell.
+    // A space that is not hers, or none, returns to the personal one.
     for (const path of ["/settings", "/settings?from=00000000-0000-0000-0000-000000000000"]) {
       await page.goto(path);
-      await expect(
-        page.getByRole("button", { name: es.shell.space.current.replace("{name}", "Personal") }),
-        path,
-      ).toBeVisible();
-      await expect(nav.getByRole("link", { name: es.shell.nav.home, exact: true }), path).toHaveAttribute(
-        "href",
-        `/spaces/${spaceId}`,
-      );
+      await expect(back, path).toHaveAttribute("href", `/spaces/${spaceId}`);
     }
   });
 });

@@ -6,7 +6,7 @@ Feature: Space dashboards
   @e2e @golden
   Scenario: Line dashboard shows planned, spent and available
     When "Ana" opens the dashboard of "Household" for 2026-11
-    Then the bars and table show:
+    Then the line cards show:
       | line       | planned       | spent         | available   |
       | Rent       | 1,200,000 COP | 1,200,000 COP | 0 COP       |
       | Home       | 1,470,000 COP | 1,300,000 COP | 170,000 COP |

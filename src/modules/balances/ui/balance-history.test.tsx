@@ -72,15 +72,15 @@ describe("balance history (HU-E9-07, ruling P176)", () => {
     );
     expect(screen.queryByRole("link", { name: "Período siguiente" })).not.toBeInTheDocument();
     const summary = screen.getByRole("region", { name: "Saldo al inicio y al final" });
-    expect(normalized(summary.textContent)).toContain("Al empezara paz y salvo");
-    expect(normalized(summary.textContent)).toContain("Al terminara paz y salvo");
+    expect(normalized(summary.textContent)).toContain("Al empezaral día");
+    expect(normalized(summary.textContent)).toContain("Al terminaral día");
     const rows = within(
       screen.getByRole("region", { name: "Movimientos que cambian su saldo" }),
     ).getAllByRole("listitem");
     expect(rows.map((r) => normalized(r.textContent))).toEqual([
       "3/10/2026Mercadole toca poner $ 150.000−$ 150.000",
       "10/10/2026Cenale toca poner $ 100.000+$ 50.000",
-      "30/10/2026Pago entre miembrosa paz y salvo+$ 100.000",
+      "30/10/2026Pago entre miembrosal día+$ 100.000",
     ]);
     expect(await axeViolations(container)).toEqual([]);
   });

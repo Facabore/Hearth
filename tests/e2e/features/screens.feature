@@ -24,25 +24,25 @@ Feature: Moving between screens: every address and every flow leads somewhere
     And the page background is the dark one
 
   @e2e
-  Scenario: Settings opened from a shared space keeps that space's header and navigation
+  Scenario: Settings opened from a shared space returns to that space
     Given "Ana" owns the shared space "Household"
     When "Ana" opens the home page of "Household" by its URL
     And "Ana" opens Ajustes from the user menu
-    Then the shell of the screen is the one of "Household"
-    When "Ana" taps Inicio in the navigation
+    Then the screen is a stacked one whose way back is the home of "Household"
+    When "Ana" chooses Volver
     Then the home page of "Household" is shown
 
   @e2e
-  Scenario: New space opened from a shared space keeps that space's header and navigation
+  Scenario: New space opened from a shared space returns to that space
     Given "Ana" owns the shared space "Household"
     When "Ana" opens the home page of "Household" by its URL
     And "Ana" opens the create-space link of the space switcher of "Household"
-    Then the shell of the screen is the one of "Household"
+    Then the screen is a stacked one whose way back is the home of "Household"
 
   @e2e
-  Scenario: A settings link that names a space that is not hers shows her personal shell
+  Scenario: A settings link that names a space that is not hers returns to her personal space
     When "Ana" opens the address "/settings?from=00000000-0000-0000-0000-000000000000"
-    Then the shell of the screen is the one of "Personal"
+    Then the screen is a stacked one whose way back is the home of "Personal"
 
   @e2e
   Scenario: A signed-in person who follows a sign-in link goes where next says

@@ -52,6 +52,9 @@ describe("transaction list (HU-E9-03)", () => {
     );
     const pill = screen.getByRole("link", { name: "Recurrentes" });
     expect(pill).toHaveAttribute("href", "/spaces/sp-personal/recurrences");
+    // Board E9-09 01: a 44 px white pill with a border, its calendar icon and a 15 px label.
+    expect(pill).toHaveClass("min-h-11", "rounded-full", "border", "bg-surface", "text-[15px]");
+    expect(pill.querySelector("svg")).not.toBeNull();
   });
 
   it("shows no space name in a personal space", () => {

@@ -43,7 +43,21 @@
       "SUNDAY": "S"
     },
     "toStart": "Go to the start page",
-    "saved": "Saved"
+    "saved": "Saved",
+    "monthShort": {
+      "1": "Jan",
+      "2": "Feb",
+      "3": "Mar",
+      "4": "Apr",
+      "5": "May",
+      "6": "Jun",
+      "7": "Jul",
+      "8": "Aug",
+      "9": "Sep",
+      "10": "Oct",
+      "11": "Nov",
+      "12": "Dec"
+    }
   },
   "errors": {
     "AccountArchived": "This account is hidden. Show it again to record transactions in it.",
@@ -942,7 +956,9 @@
       "title": "New recurring transaction",
       "editTitle": "Edit recurring",
       "type": "Type",
-      "descriptionPlaceholder": "Description, such as Rent",
+      "descriptionPlaceholder": "For example, Rent",
+      "dates": "Dates",
+      "splitSummary": "Split: {parts}",
       "fund": "Fund",
       "chooseFund": "Choose a fund",
       "repeats": "Repeats",
@@ -1039,7 +1055,10 @@
       "skippedLast": "{name} skipped.",
       "banner": "{count, plural, one {# movement to confirm} other {# movements to confirm}}",
       "review": "Review",
-      "names": { "two": "{first} and {second}", "more": "{first}, {second} and {rest} more" },
+      "names": {
+        "two": "{first} and {second}",
+        "more": "{first}, {second} and {rest} more"
+      },
       "badge": "{count} to confirm"
     }
   },
@@ -1402,7 +1421,15 @@
     },
     "frame": {
       "editPlan": "Edit plan",
-      "viewPlan": "View plan"
+      "viewPlan": "View plan",
+      "subtitle": "{space} · {detail}",
+      "plan": {
+        "DRAFT": "draft plan",
+        "ACTIVE": "active plan",
+        "CLOSED": "closed plan"
+      },
+      "againstPrevious": "against the previous period",
+      "upTo": "Up to {period}"
     },
     "spaceScoped": "{space} / {name}",
     "outsideTheApp": "Paid outside the app",
@@ -1419,12 +1446,11 @@
       "consumption": "Consumption",
       "change": "Change",
       "noPlan": "This period has no plan: there are no lines to compare.",
-      "onePeriod": "The trend appears once a second period has spending.",
       "linesCaption": "Spent by line",
-      "linesTable": "Spent by line and period",
       "spentIn": "Spent in {period}",
       "noFigure": "No figure",
-      "linesNote": "Each line is compared with the line it was copied from in the previous plan. Unbudgeted spending has no trend."
+      "linesNote": "Each line is compared with the line it was copied from in the previous plan. Unbudgeted spending has no trend.",
+      "hint": "Hover or drag over a point to see its value."
     },
     "calendar": {
       "metaTitle": "Upcoming movements",
@@ -1475,8 +1501,8 @@
       "total": "Total spending",
       "totalOf": "Total of {name}",
       "hint": {
-        "groups": "Tap a group to see its categories.",
-        "categories": "Tap a category to see its subcategories.",
+        "groups": "Tap a group",
+        "categories": "Tap a category",
         "subcategories": "Subcategories"
       },
       "groups": "Groups",
@@ -1485,7 +1511,8 @@
       "noSubcategory": "No subcategory",
       "archived": "Archived",
       "spaceNote": "Every expense of the space, whoever paid. Income, transfers, fund contributions and settlements do not count.",
-      "personalNote": "Your expenses and your share of shared ones, across all your spaces. Hearth's own groups are merged; groups a space created carry its name."
+      "personalNote": "Your expenses and your share of shared ones, across all your spaces. Hearth's own groups are merged; groups a space created carry its name.",
+      "yourTotal": "Your consumption"
     },
     "fund": {
       "title": "Fund contributions",
@@ -1494,9 +1521,10 @@
       "difference": "Difference",
       "byMember": "By member",
       "upToDate": "Up to date",
-      "behind": "Still to pay in",
       "noPlan": "Without a plan, nobody has an expected contribution.",
-      "note": "Expected: what each one is assigned on the lines paid from the fund. Contributions dated in the period count."
+      "note": "Expected: what each one is assigned on the lines paid from the fund. Contributions dated in the period count.",
+      "missing": "Missing",
+      "behindBy": "Short by {amount}"
     },
     "lines": {
       "summary": "Plan summary",
@@ -1512,19 +1540,23 @@
       "overspent": "Overspent",
       "onPlan": "On plan",
       "state": {
-        "NEAR": "Near the limit",
         "HIGH": "At the limit"
       },
       "overBy": "{amount} over plan",
       "unbudgeted": "Unbudgeted",
-      "unbudgetedNote": "Unbudgeted is what was spent in categories that are in no line.",
       "carryOver": "{amount} from {period}",
-      "carryOverPending": "Carries over from {period} once that plan is closed."
+      "carryOverPending": "Carries over from {period} once that plan is closed.",
+      "lineSpent": "Spent {spent} of {planned}",
+      "lineSaved": "Saved {spent} of {planned}",
+      "unbudgetedCaption": "Spent {spent} in categories with no line"
     },
     "noPlan": {
       "title": "{period} has no plan",
-      "body": "Without a plan, everything spent in this period shows as Unbudgeted and the default split is equal shares.",
-      "managersOnly": "Only an Owner or an Admin can create the plan."
+      "body": "Without a plan, everything spent in {period} shows as Unbudgeted and the default split is equal shares.",
+      "managersOnly": "Only an Owner or an Admin can create the plan.",
+      "thisPeriod": "this period",
+      "managersSee": "Only an Owner or an Admin sees these actions.",
+      "spentIn": "Spent {spent} in {period}"
     },
     "matrix": {
       "noPlan": "This period has no plan: there are no allocations to compare.",

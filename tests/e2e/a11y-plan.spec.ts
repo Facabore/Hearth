@@ -168,11 +168,15 @@ for (const colorScheme of ["light", "dark"] as const) {
           .first()
           .click();
         await scan("spending by group, one level down");
-        for (const path of [`${hh}/plan/trend?period=2026-12`, `${me}/plan/trend?period=2026-11`]) {
-          await page.goto(path);
-          await expect(page.getByTestId("trend-chart")).toBeVisible();
-          await scan(path);
-        }
+        // Board E9-11 04 (ruling P272): the household's trend is a card per line against the previous period, with no
+        // chart; the personal one keeps its chart.
+        await page.goto(`${hh}/plan/trend?period=2026-12`);
+        await expect(page.getByRole("list", { name: es.reports.trend.linesCaption })).toBeVisible();
+        await expect(page.getByTestId("trend-chart")).toHaveCount(0);
+        await scan(`${hh}/plan/trend?period=2026-12`);
+        await page.goto(`${me}/plan/trend?period=2026-11`);
+        await expect(page.getByTestId("trend-chart")).toBeVisible();
+        await scan(`${me}/plan/trend?period=2026-11`);
         // The personal chart draws one dot per period of its window (HU-E9-11 "6 points"), in a real browser.
         await expect(page.locator("[data-testid='trend-chart'] .recharts-line-dot")).toHaveCount(6);
         await page.goto(`${hh}/plans/${planId}/lines/${lineIds.Home}`);

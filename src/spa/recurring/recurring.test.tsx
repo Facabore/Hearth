@@ -113,6 +113,40 @@ describe("recurring movements in the SPA (HU-E9-09, P270)", () => {
     expect(define?.headers.get("idempotency-key")).toMatch(/.+/);
   });
 
+  it("draws board 02's form: Monto and Descripción labelled above, Categoría and Cuenta in one card, the dates in another", async () => {
+    const { routes } = server();
+    renderSpa("/spaces/sp-personal/recurrences/new", routes);
+    const amount = await screen.findByLabelText("Monto", {}, { timeout: 5_000 });
+    expect(amount.parentElement).toHaveTextContent("$");
+    expect(screen.getByText("Descripción", { selector: "label" })).not.toHaveClass("sr-only");
+    const details = screen.getByRole("list", { name: "Detalles del movimiento" });
+    expect(
+      within(details)
+        .getAllByRole("button")
+        .map((b) => normalized(b.textContent)),
+    ).toEqual(["Categoría Elegir categoría", "Cuenta Bancolombia"]);
+    const dates = screen.getByRole("list", { name: "Fechas" });
+    expect(within(dates).getAllByRole("button")).toHaveLength(2);
+    expect(
+      within(screen.getByRole("radiogroup", { name: "Cómo se registra" })).getByRole("radio", {
+        name: "Automático",
+      }),
+    ).toBeChecked();
+  });
+
+  it("draws board 09 for a viewer: a paused row with its status alone, an active one with its mode", async () => {
+    const { routes } = server([
+      recurrenceDto(),
+      recurrenceDto({ id: "r-tv", description: "Netflix", status: "PAUSED", nextOccurrence: null }),
+    ]);
+    renderSpa("/spaces/sp-household/recurrences", routes);
+    const paused = await screen.findByRole("link", { name: /Netflix/ }, { timeout: 5_000 });
+    expect(within(paused).getByText("Pausada")).toBeInTheDocument();
+    expect(within(paused).queryByText("Automático")).toBeNull();
+    const active = screen.getByRole("link", { name: /Arriendo/ });
+    expect(within(active).getByText("Automático")).toBeInTheDocument();
+  });
+
   it("pauses and resumes from the detail through their endpoints, and the screen reads the change", async () => {
     const { routes } = server([recurrenceDto()]);
     const spa = renderSpa("/spaces/sp-personal/recurrences/r-rent", routes);

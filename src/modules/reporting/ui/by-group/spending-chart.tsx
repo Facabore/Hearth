@@ -32,11 +32,14 @@ export function SpendingChart({
   total,
   formats,
   note,
+  personal = false,
 }: {
   readonly tree: readonly SpendingNode[];
   readonly total: MoneyDto;
   readonly formats: Pick<Formats, "numberFormat">;
   readonly note: string;
+  /** The person's own spending across their spaces (P215): its total is "Tu consumo" (board E9-11 02). */
+  readonly personal?: boolean;
 }) {
   const t = useTranslations("reports.byGroup");
   const nodeText = useNodeText();
@@ -72,15 +75,18 @@ export function SpendingChart({
   return (
     <>
       <DrillBreadcrumb trail={trail} onGo={(kept) => go(ids.slice(0, kept))} />
+      {/* Boards E9-10 05 and 06, E9-11 02 (ruling P272): the hint is short, at the right of the total's label. */}
       <p ref={heading} tabIndex={-1} className="flex flex-col gap-0.5 tabular-nums">
-        <span className="text-sm text-muted">
-          {node ? t("totalOf", { name: nodeText(node.name) }) : t("total")}
+        <span className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm text-muted">
+          <span>
+            {node ? t("totalOf", { name: nodeText(node.name) }) : t(personal ? "yourTotal" : "total")}
+          </span>
+          <span>{t(`hint.${HINTS[Math.min(trail.length, HINTS.length - 1)]!}`)}</span>
         </span>
         <span className="text-3xl font-semibold [overflow-wrap:anywhere]">
           {formatMoney(node?.total ?? total, formats)}
         </span>
       </p>
-      <p className="text-sm text-muted">{t(`hint.${HINTS[Math.min(trail.length, HINTS.length - 1)]!}`)}</p>
       <ul aria-label={label} className="overflow-hidden rounded-2xl border border-line bg-surface">
         {rows.map((row) => {
           const opens = row.children.length > 0;

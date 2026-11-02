@@ -91,6 +91,19 @@ describe("a recurrence's detail (HU-E9-09, P270)", () => {
     ).toBeInTheDocument();
   });
 
+  it("draws board 06 while paused: its status and mode badges, and the pause told with an info icon", () => {
+    detail(recurrenceDto({ status: "PAUSED", nextOccurrence: null }));
+    expect(screen.getByText("Pausada")).toBeInTheDocument();
+    expect(screen.getByText("Automático")).toBeInTheDocument();
+    const notice = screen.getByText("En pausa: no se registra nada hasta que lo reanudes.").closest("p")!;
+    expect(notice.querySelector("svg")).toHaveClass("rotate-180");
+  });
+
+  it("draws board 05's Terminar at the buttons' size, its text inset from the edge", () => {
+    detail();
+    expect(screen.getByRole("button", { name: "Terminar" })).toHaveClass("h-12", "px-5", "text-base");
+  });
+
   it("offers Reanudar in their place while paused, and resumes through its endpoint", async () => {
     const { calls } = detail(recurrenceDto({ status: "PAUSED", nextOccurrence: null }));
     expect(screen.queryByRole("button", { name: "Pausar" })).toBeNull();

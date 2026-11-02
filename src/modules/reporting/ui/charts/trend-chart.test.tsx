@@ -2,7 +2,7 @@ import { act, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { cop } from "../../../../../tests/support/ui/dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
-import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
+import { BUILT_IN_FORMATS, NBSP } from "@/shared/ui/format/formatters";
 import { TrendChart } from "./trend-chart";
 import { pointOf } from "./trend-series";
 
@@ -39,5 +39,27 @@ describe("trend chart (issue #192)", { timeout: 60_000 }, () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("labels each period by its short tick, the current one in bold, and opens on its value (board E9-11 03)", async () => {
+    const one = {
+      periods: ["sep 2026", "oct 2026", "nov 2026"],
+      ticks: ["sep", "oct", "nov"],
+      series: [
+        {
+          key: "me",
+          label: "Consumo",
+          points: [1, 2, 3].map((v) => pointOf(cop(100_000 * v), BUILT_IN_FORMATS)),
+        },
+      ],
+    };
+    renderWithIntl(<TrendChart data={one} />);
+    const chart = await screen.findByTestId("trend-chart");
+    const ticks = [...chart.querySelectorAll(".recharts-cartesian-axis-tick-label text")];
+    expect(ticks.map((tick) => tick.textContent)).toEqual(["sep", "oct", "nov"]);
+    expect(ticks.map((tick) => tick.getAttribute("font-weight"))).toEqual(["400", "400", "700"]);
+    const tooltip = chart.querySelector("[data-tooltip]");
+    expect(tooltip?.querySelector("[data-period]")?.textContent).toBe("nov 2026");
+    expect(tooltip?.querySelector("[data-value]")?.textContent).toBe(`$${NBSP}300.000`);
   });
 });

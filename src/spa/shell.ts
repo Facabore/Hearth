@@ -1,12 +1,26 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { notFound } from "@tanstack/react-router";
+import { notFound, useMatches } from "@tanstack/react-router";
 import { resolveLocale } from "@/i18n/locale";
 import { activeSpaceOf, type AppShellProps } from "@/modules/spaces/ui";
 import { useApis } from "./api";
 import type { RouterContext } from "./guards";
 import { meQuery, spacesQuery } from "./queries";
 
-export type Shell = Omit<AppShellProps, "children">;
+export type Shell = Omit<AppShellProps, "children" | "stacked">;
+
+declare module "@tanstack/react-router" {
+  interface StaticDataRouteOption {
+    /**
+     * Ruling P272: a stacked screen, whose board draws only its own back header (`ScreenHeader`): the shell around it
+     * shows no space switcher, profile or bottom navigation. The tab destinations leave it out.
+     */
+    readonly stacked?: boolean;
+  }
+}
+
+/** Whether the screen on show is a stacked one (ruling P272), read from its route's `staticData`, never its path. */
+export const useStacked = (): boolean =>
+  useMatches({ select: (matches) => matches.some((match) => match.staticData.stacked === true) });
 
 /**
  * The app shell's data (P127 in the SPA: a query hook plus the existing `AppShell`). The URL's space, or for a screen

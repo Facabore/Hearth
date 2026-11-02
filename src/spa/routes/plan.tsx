@@ -150,6 +150,7 @@ function GroupsChart({
         total={report.total}
         formats={viewer.me.preferences.effective}
         note={note}
+        personal={viewer.space.kind === "PERSONAL"}
       />
     </Frame>
   );
@@ -223,12 +224,8 @@ function LineTrendView({
   if (!last) throw noPeriod();
   return (
     <Frame viewer={viewer} view="trend" period={last} plan={data.plan}>
-      <LineTrend
-        space={viewer.space}
-        trend={data}
-        formats={viewer.me.preferences.effective}
-        periods={periods}
-      />
+      {/* Board E9-11 04 (ruling P272): each line against the previous period, so it offers no window of its own. */}
+      <LineTrend space={viewer.space} trend={data} formats={viewer.me.preferences.effective} />
     </Frame>
   );
 }

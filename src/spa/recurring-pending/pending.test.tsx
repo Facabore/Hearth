@@ -148,6 +148,13 @@ describe("Por confirmar in the SPA (HU-E9-09, ruling P270)", () => {
     expect(card("Internet").querySelector("span[aria-hidden='true'].rounded-xl")).toBeNull();
   });
 
+  it("draws board 07's real amount as one large field with its symbol inside", async () => {
+    renderSpa("/spaces/sp-household/pending-occurrences", pendingApi());
+    const field = await screen.findByRole("textbox", { name: "Monto real de Energía" });
+    expect(field).toHaveClass("text-2xl", "font-semibold");
+    expect(within(field.parentElement!).getByText("$")).toHaveClass("text-2xl", "font-semibold");
+  });
+
   it("confirms Energía with 205.300 COP in minor units, then the item leaves and the movements are read again (S4)", async () => {
     const spa = renderSpa("/spaces/sp-household/pending-occurrences", pendingApi());
     const field = await screen.findByRole("textbox", { name: "Monto real de Energía" });
@@ -159,7 +166,11 @@ describe("Por confirmar in the SPA (HU-E9-09, ruling P270)", () => {
     const [sent] = calls(spa.requests, "POST", /\/pending-occurrences\/o-energy\/confirm$/);
     expect(await sent!.json()).toEqual({ amount: { amount: "20530000", currency: "COP" } });
     expect(sent!.headers.get("idempotency-key")).toMatch(/.+/);
-    expect(await screen.findByText("Gasto guardado")).toBeInTheDocument();
+    // Board 08: the toast says what was saved, with "Ver" to open it.
+    const saved = await screen.findByText("Gasto guardado");
+    expect(
+      within(saved.closest("[data-toast]") as HTMLElement).getByRole("button", { name: "Ver" }),
+    ).toBeInTheDocument();
     // The home's and the list's pages hold the new movement and are read again; so is the badge's count.
     const home = ledgerKeys.page("sp-household", { limit: 3 });
     expect(spa.queryClient.getQueryData<typeof octoberPage>(home)?.items.map((tx) => tx.id)).toContain(
@@ -214,8 +225,9 @@ describe("the ways into Por confirmar (HU-E9-09, ruling P270)", () => {
     renderSpa("/spaces/sp-household/transactions", pendingApi());
     const review = await screen.findByRole("link", { name: "Revisar" });
     expect(review).toHaveAttribute("href", "/spaces/sp-household/pending-occurrences");
-    expect(screen.getByText("2 movimientos por confirmar")).toBeInTheDocument();
-    expect(screen.getByText("Internet y Energía")).toBeInTheDocument();
+    // Board E9-09 01: the count on one line, what waits under it in a smaller muted line.
+    expect(screen.getByText("2 movimientos por confirmar")).toHaveClass("text-[15px]");
+    expect(screen.getByText("Internet y Energía")).toHaveClass("text-[13px]", "text-muted");
   });
 
   it("shows a VIEWER no badge and no banner, and never asks the API for the count (S7)", async () => {

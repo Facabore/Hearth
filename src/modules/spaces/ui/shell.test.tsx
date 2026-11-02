@@ -198,6 +198,26 @@ describe("app shell (HU-E9-01)", () => {
     );
   });
 
+  it("draws a stacked screen with only its own header: no switcher, profile or navigation (ruling P272)", async () => {
+    const { container } = renderWithIntl(
+      <AppShell
+        me={{ name: "Ana", email: "ana@example.com", locale: "es" }}
+        spaces={spaces}
+        activeSpace={spaces[1]}
+        stacked
+      >
+        <a href="/spaces/sp-household">Volver</a>
+        <h1>Miembros</h1>
+      </AppShell>,
+    );
+    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute("href", "/spaces/sp-household");
+    expect(screen.getByRole("main")).toContainElement(screen.getByRole("heading", { name: "Miembros" }));
+    expect(screen.queryByRole("button", { name: /Cambiar de espacio/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Perfil de Ana" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Principal" })).not.toBeInTheDocument();
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
   it("makes the chosen space the active one in the shell", () => {
     renderWithIntl(
       <AppShell

@@ -115,11 +115,21 @@ describe("unified personal view (HU-E9-11)", () => {
     expect(textOf("Lo que pagaste")).not.toContain("2.625.000");
   });
 
-  it("fills the bar of the largest row and scales the others to it, for nobody's ears", () => {
+  it("lists the categories as plain rows under a small label, with no bars (board E9-11 01, ruling P272)", () => {
     const { container } = renderWithIntl(<UnifiedView view={e74Unified()} formats={BUILT_IN_FORMATS} />);
-    const bars = [...container.querySelectorAll("[data-bar]")] as HTMLElement[];
-    expect(bars.map((bar) => bar.style.width)).toEqual(["100%", "46%", "5%"]);
-    for (const bar of bars) expect(bar.parentElement).toHaveAttribute("aria-hidden", "true");
+    expect(container.querySelector("[data-bar]")).toBeNull();
+    const label = screen.getByRole("heading", { level: 2, name: "Consumo por categoría" });
+    expect(label).toHaveClass("text-sm", "text-muted");
+    expect(label).not.toHaveClass("text-lg");
+  });
+
+  it("puts where the payments went in an inset card with a divider between rows (board E9-11 05)", async () => {
+    renderWithIntl(<UnifiedView view={e74Unified()} formats={BUILT_IN_FORMATS} />);
+    await why();
+    const breakdown = screen.getByRole("region", { name: SOURCES }).querySelector("dl")!;
+    expect(breakdown).toHaveClass("rounded-xl", "bg-bg", "divide-y");
+    // Ruling P218 still holds: paid outside the app is listed only when it is not zero.
+    expect(normalized(breakdown.textContent)).not.toContain("Pagado fuera de la app");
   });
 
   it("keeps the API's order of rows, and says so when nothing was consumed", () => {

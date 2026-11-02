@@ -1,33 +1,27 @@
 import { useId } from "react";
 import { useTranslations } from "next-intl";
 import { CarryText } from "@/modules/budgeting/ui";
-import { Badge } from "@/shared/ui";
-import type { LineDashboardDto, SpaceDto } from "@/shared/ui/api/dto";
+import { Badge, VisuallyHidden } from "@/shared/ui";
+import type { LineDashboardDto, MoneyDto, SpaceDto } from "@/shared/ui/api/dto";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { barWidth } from "./bar";
+
+type Line = LineDashboardDto["lines"][number];
 
 const isNegative = (money: { readonly amount: string }) => money.amount.startsWith("-");
 
 /** #214: a line spent exactly as planned (above 90 % with nothing left) is done, not a warning. */
-const onPlan = (line: Pick<LineDashboardDto["lines"][number], "state" | "available">) =>
+const onPlan = (line: Pick<Line, "state" | "available">) =>
   line.state === "HIGH" && line.available.amount === "0";
 
-// Under 640 px a row is a card (name, then one labelled figure per line), because three amounts side by side do
-// not fit a phone; from 640 px it is a table row. The labels are CSS content, so a cell's text stays its figure.
-const CELL =
-  "flex justify-between gap-3 py-0.5 text-right tabular-nums before:text-left before:text-muted before:content-[attr(data-label)] sm:table-cell sm:py-3 sm:before:hidden";
-// #214: a savings line keeps its "Ahorrado" label on a wide screen too, where the column header says "Gastado". It is
-// still CSS content, so the cell's text stays its figure.
-const SAVED_CELL =
-  "flex justify-between gap-3 py-0.5 text-right tabular-nums before:text-left before:text-muted before:content-[attr(data-label)] sm:table-cell sm:py-3 sm:before:inline sm:before:pr-1";
-const TRACK = "mt-1.5 block h-1.5 w-full overflow-hidden rounded-full bg-track";
-const NAME_CELL = "pb-1 text-left font-normal sm:table-cell sm:py-3 sm:pr-3";
+const TRACK = "block h-1.5 w-full overflow-hidden rounded-full bg-track";
+// The owe ink for a negative figure: the plain owe color fails AA contrast below 18.66 px. Its sign says it too.
+const FIGURE = "shrink-0 text-right font-semibold tabular-nums [overflow-wrap:anywhere]";
+const tone = (value: { readonly amount: string }) => (isNegative(value) ? " text-owe-ink" : " text-ink");
 
 /**
  * HU-E9-10 (the Lines artboard): the plan's totals as the API answers them (ruling P201), what was spent apart from
- * what was saved (#214, ruling P262), then one table of the
- * lines' planned, spent and available figures with Unbudgeted last. The bars are CSS widths inside the rows that
- * carry the figures, so the table and the bars are one element (ruling P202).
+ * what was saved (#214, ruling P262), then the lines with Unbudgeted last.
  */
 export function LineDashboard({
   dashboard,
@@ -41,14 +35,10 @@ export function LineDashboard({
 }) {
   const t = useTranslations("reports.lines");
   const summary = useId();
-  const { totals, unbudgeted } = dashboard;
+  const { totals } = dashboard;
   // #214 (ruling P262): the headline is what was spent, savings apart, as the API answers it; never a subtraction.
   const spending = totals.withoutSavings ?? totals;
-  const currency = totals.planned.currency;
-  const money = (value: { readonly amount: string; readonly currency: string }) =>
-    formatMoney(value, formats);
-  // The owe ink for the table's small figures: the plain owe color fails AA contrast below 18.66 px.
-  const tone = (value: { readonly amount: string }) => (isNegative(value) ? " text-owe-ink" : "");
+  const money = (value: MoneyDto) => formatMoney(value, formats);
   return (
     <>
       <section aria-labelledby={summary} className="flex flex-col gap-1 tabular-nums">
@@ -70,106 +60,130 @@ export function LineDashboard({
           <p className="text-sm text-muted">{t("totalSaved", { saved: money(totals.saved) })}</p>
         ) : null}
       </section>
-      <div className="rounded-2xl border border-line bg-surface px-3">
-        <table className="block w-full text-sm sm:table">
-          <caption className="sr-only">{t("caption")}</caption>
-          <thead className="sr-only sm:not-sr-only sm:table-header-group">
-            <tr className="sm:border-b sm:border-line">
-              <th scope="col" className="py-2 text-left font-medium text-muted">
-                {t("line")}
-              </th>
-              {(["planned", "spent", "available"] as const).map((column) => (
-                <th key={column} scope="col" className="py-2 text-right font-medium text-muted">
-                  {t(column)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="block sm:table-row-group [&>tr:last-child]:border-b-0">
-            {dashboard.lines.map((line) => (
-              <tr
-                key={line.lineId}
-                data-line={line.lineId}
-                className="flex flex-col border-b border-line py-3 sm:table-row sm:py-0"
-              >
-                <th scope="row" className={NAME_CELL}>
-                  <span className="flex flex-wrap items-center gap-2 font-semibold text-ink [overflow-wrap:anywhere]">
-                    {line.name}
-                    {line.overspent ? (
-                      <Badge tone="owe" icon="alert">
-                        {t("overspent")}
-                      </Badge>
-                    ) : null}
-                    {line.state === "NEAR" ? <Badge tone="neutral">{t("state.NEAR")}</Badge> : null}
-                    {line.state === "HIGH" && onPlan(line) ? (
-                      <Badge tone="accent" icon="check">
-                        {t("onPlan")}
-                      </Badge>
-                    ) : null}
-                    {line.state === "HIGH" && !onPlan(line) ? (
-                      <Badge tone="owe">{t("state.HIGH")}</Badge>
-                    ) : null}
-                  </span>
-                  {line.state === "OVER" && line.overBy ? (
-                    <span className="mt-0.5 block text-sm font-normal text-owe-ink">
-                      {t("overBy", { amount: money(line.overBy) })}
-                    </span>
-                  ) : null}
-                  {line.carryOverFrom ? (
-                    <span className="mt-0.5 block">
-                      <CarryText line={line} policy={policy} formats={formats} />
-                    </span>
-                  ) : null}
-                  <span aria-hidden="true" className={TRACK}>
-                    <span
-                      data-bar
-                      className={`block h-full rounded-full ${line.overspent ? "bg-owe" : "bg-accent"}`}
-                      style={{ width: `${barWidth(line.spent, line.planned, line.carryOver)}%` }}
-                    />
-                  </span>
-                </th>
-                <td data-label={t("planned")} className={CELL}>
-                  {money(line.planned)}
-                </td>
-                {/* #214: what reaches a savings line is saved, not spent; on a wide screen the column says "Gastado". */}
-                <td
-                  data-label={t(line.funding === "SAVINGS" ? "saved" : "spent")}
-                  className={line.funding === "SAVINGS" ? SAVED_CELL : CELL}
-                >
-                  {money(line.spent)}
-                </td>
-                <td data-label={t("available")} className={CELL + tone(line.available)}>
-                  {money(line.available)}
-                </td>
-              </tr>
-            ))}
-            {unbudgeted ? (
-              <tr data-line="unbudgeted" className="flex flex-col py-3 sm:table-row sm:py-0">
-                <th scope="row" className={NAME_CELL}>
-                  <span className="font-semibold text-ink [overflow-wrap:anywhere]">{t("unbudgeted")}</span>
-                  <span aria-hidden="true" className={TRACK}>
-                    <span
-                      data-bar
-                      className="block h-full rounded-full bg-muted"
-                      style={{ width: `${barWidth(unbudgeted.spent, { amount: "0", currency })}%` }}
-                    />
-                  </span>
-                </th>
-                <td data-label={t("planned")} className={CELL}>
-                  {money({ amount: "0", currency })}
-                </td>
-                <td data-label={t("spent")} className={CELL}>
-                  {money(unbudgeted.spent)}
-                </td>
-                <td data-label={t("available")} className={CELL + tone(unbudgeted.available)}>
-                  {money(unbudgeted.available)}
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
-      {unbudgeted ? <p className="text-sm text-muted">{t("unbudgetedNote")}</p> : null}
+      <LineList
+        dashboard={dashboard}
+        policy={policy}
+        formats={formats}
+        unbudgetedCaption={(spent) => t("unbudgetedCaption", { spent })}
+      />
     </>
+  );
+}
+
+/**
+ * Board E9-10 01 (ruling P272): one compact card of lines, each its name with what is still available at the right
+ * (or "Cumplido" for a line spent as planned), its bar, and one caption with what was spent, or saved (#214), of what
+ * was planned. A line near its limit wears no chip: its bar says it. The bars are CSS widths inside the items that
+ * carry the figures, so the list and the bars are one element (ruling P202).
+ */
+export function LineList({
+  dashboard,
+  policy,
+  formats,
+  unbudgetedCaption,
+}: {
+  readonly dashboard: Pick<LineDashboardDto, "lines" | "unbudgeted" | "totals">;
+  readonly policy: SpaceDto["periodPolicy"];
+  readonly formats: Pick<Formats, "numberFormat" | "dateFormat">;
+  /** What Unbudgeted's caption says about its spent amount: where it went, or in which period without a plan. */
+  readonly unbudgetedCaption: (spent: string) => string;
+}) {
+  const t = useTranslations("reports.lines");
+  const base = useId();
+  const { unbudgeted } = dashboard;
+  const currency = dashboard.totals.planned.currency;
+  const money = (value: MoneyDto) => formatMoney(value, formats);
+  const available = (value: MoneyDto) => (
+    <>
+      <VisuallyHidden>{`${t("available")} `}</VisuallyHidden>
+      {money(value)}
+    </>
+  );
+  if (dashboard.lines.length === 0 && !unbudgeted) return null;
+  return (
+    <ul
+      aria-label={t("caption")}
+      className="flex flex-col divide-y divide-line rounded-2xl border border-line bg-surface px-3.5"
+    >
+      {dashboard.lines.map((line) => {
+        const nameId = `${base}-${line.lineId}`;
+        const done = onPlan(line);
+        const saves = line.funding === "SAVINGS";
+        return (
+          <li
+            key={line.lineId}
+            data-line={line.lineId}
+            aria-labelledby={nameId}
+            className="flex flex-col gap-1.5 py-3"
+          >
+            <div className="flex items-baseline justify-between gap-3">
+              <span id={nameId} data-name className="min-w-0 font-semibold text-ink [overflow-wrap:anywhere]">
+                {line.name}
+              </span>
+              <span data-figure className={FIGURE + (done ? " text-ink" : tone(line.available))}>
+                {done ? t("onPlan") : available(line.available)}
+              </span>
+            </div>
+            {line.overspent || (line.state === "HIGH" && !done) ? (
+              <span className="flex flex-wrap gap-2">
+                {line.overspent ? (
+                  <Badge tone="owe" icon="alert">
+                    {t("overspent")}
+                  </Badge>
+                ) : null}
+                {line.state === "HIGH" && !done ? <Badge tone="owe">{t("state.HIGH")}</Badge> : null}
+              </span>
+            ) : null}
+            {line.state === "OVER" && line.overBy ? (
+              <span className="text-sm text-owe-ink">{t("overBy", { amount: money(line.overBy) })}</span>
+            ) : null}
+            {line.carryOverFrom ? <CarryText line={line} policy={policy} formats={formats} /> : null}
+            <span aria-hidden="true" className={TRACK}>
+              <span
+                data-bar
+                className={`block h-full rounded-full ${line.overspent ? "bg-owe" : "bg-accent"}`}
+                style={{ width: `${barWidth(line.spent, line.planned, line.carryOver)}%` }}
+              />
+            </span>
+            <span data-caption className="text-sm text-muted tabular-nums">
+              {t(saves ? "lineSaved" : "lineSpent", {
+                spent: money(line.spent),
+                planned: money(line.planned),
+              })}
+            </span>
+          </li>
+        );
+      })}
+      {unbudgeted ? (
+        <li
+          data-line="unbudgeted"
+          aria-labelledby={`${base}-unbudgeted`}
+          className="flex flex-col gap-1.5 py-3"
+        >
+          <div className="flex items-baseline justify-between gap-3">
+            <span
+              id={`${base}-unbudgeted`}
+              data-name
+              className="min-w-0 font-semibold text-ink [overflow-wrap:anywhere]"
+            >
+              {t("unbudgeted")}
+            </span>
+            <span data-figure className={FIGURE + tone(unbudgeted.available)}>
+              {available(unbudgeted.available)}
+            </span>
+          </div>
+          <span aria-hidden="true" className={TRACK}>
+            <span
+              data-bar
+              className="block h-full rounded-full bg-muted"
+              style={{ width: `${barWidth(unbudgeted.spent, { amount: "0", currency })}%` }}
+            />
+          </span>
+          <span data-caption className="text-sm text-muted tabular-nums">
+            {unbudgetedCaption(money(unbudgeted.spent))}
+          </span>
+        </li>
+      ) : null}
+    </ul>
   );
 }

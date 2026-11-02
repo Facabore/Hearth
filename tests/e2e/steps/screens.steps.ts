@@ -52,33 +52,22 @@ When(
   },
 );
 
-/** The header's space switcher and the navigation's links name the space the shell belongs to. */
-Then("the shell of the screen is the one of {string}", async ({ page, world }, space: string) => {
-  await expect(
-    page.getByRole("button", { name: world.t("shell.space.current", { name: space }) }),
-  ).toBeVisible();
-  const id = space === "Personal" ? world.user!.spaceId : spaceId(world, space);
-  const nav = page.getByRole("navigation", { name: world.t("shell.nav.main") });
-  await expect(nav.getByRole("link", { name: world.t("shell.nav.home"), exact: true })).toHaveAttribute(
-    "href",
-    `/spaces/${id}`,
-  );
-  // Issue #172: the record form comes back to the screen it was opened from.
-  const here = new URL(page.url());
-  const search = here.searchParams.toString();
-  await expect(nav.getByRole("link", { name: world.t("shell.nav.record") })).toHaveAttribute(
-    "href",
-    `/spaces/${id}/new?returnTo=${encodeURIComponent(`${here.pathname}${search ? `?${search}` : ""}`)}`,
-  );
-});
-
-When("{string} taps Inicio in the navigation", async ({ page, world }, name: string) => {
-  expect(name).toBe(world.user!.name);
-  await page
-    .getByRole("navigation", { name: world.t("shell.nav.main") })
-    .getByRole("link", { name: world.t("shell.nav.home"), exact: true })
-    .click();
-});
+/**
+ * Ruling P272: a stacked screen draws only its own header, no space switcher and no bottom navigation, and its way
+ * back is the home of the space it was opened from (N3).
+ */
+Then(
+  "the screen is a stacked one whose way back is the home of {string}",
+  async ({ page, world }, space: string) => {
+    const id = space === "Personal" ? world.user!.spaceId : spaceId(world, space);
+    await expect(page.getByRole("link", { name: world.t("common.back"), exact: true })).toHaveAttribute(
+      "href",
+      `/spaces/${id}`,
+    );
+    await expect(page.getByRole("button", { name: /Cambiar de espacio/ })).toHaveCount(0);
+    await expect(page.getByRole("navigation", { name: world.t("shell.nav.main") })).toHaveCount(0);
+  },
+);
 
 When(
   "{string} follows the sign-in link that leads to the members screen of {string}",

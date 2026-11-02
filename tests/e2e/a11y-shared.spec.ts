@@ -262,7 +262,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       // arrow and a sign, not a color alone.
       await page.goto(`${h}/plan/members`);
       const detailOf = (member: string) =>
-        page.getByRole("table", { name: fill(es.reports.matrix.memberCaption, { member }) });
+        page.getByRole("list", { name: fill(es.reports.matrix.memberCaption, { member }) });
       for (const member of ["Ana", "Juan"]) {
         await page
           .getByRole("button", {
@@ -271,15 +271,17 @@ for (const colorScheme of ["light", "dark"] as const) {
           .click();
       }
       await scan(`${h}/plan/members with both members open`);
-      await expect(detailOf("Ana").getByRole("row", { name: /^Mercado/ })).toContainText(
+      await expect(detailOf("Ana").getByRole("listitem", { name: /^Mercado/ })).toContainText(
         es.reports.status.OVER_CONTRIBUTED,
       );
-      await expect(detailOf("Juan").getByRole("row", { name: /^Mercado/ })).toContainText(
+      await expect(detailOf("Juan").getByRole("listitem", { name: /^Mercado/ })).toContainText(
         es.reports.status.UNDER_CONTRIBUTED,
       );
-      await expect(detailOf("Ana").getByRole("row", { name: /^Ocio/ })).toBeVisible();
+      await expect(detailOf("Ana").getByRole("listitem", { name: /^Ocio/ })).toBeVisible();
       await page.goto(`${h}/plan/fund`);
-      await expect(page.getByText(es.reports.fund.behind).first()).toBeVisible();
+      await expect(
+        page.getByText(new RegExp(`^${es.reports.fund.behindBy.replace("{amount}", "")}`)).first(),
+      ).toBeVisible();
       // HU-E9-10: the By group view drilled into its one group is a level of its own, scanned in both color schemes,
       // and the browser's Back returns to the groups.
       await page.goto(`${h}/plan/groups`);

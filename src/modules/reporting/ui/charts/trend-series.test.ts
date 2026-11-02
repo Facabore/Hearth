@@ -29,9 +29,11 @@ describe("trend series (ruling P202)", () => {
       ],
     };
     expect(chartRows(data)).toEqual([
-      { period: "octubre 2026", "l-home": 1_350_000, "l-pets": null },
-      { period: "noviembre 2026", "l-home": 1_300_000, "l-pets": 80_000 },
+      { period: "octubre 2026", tick: "octubre 2026", "l-home": 1_350_000, "l-pets": null },
+      { period: "noviembre 2026", tick: "noviembre 2026", "l-home": 1_300_000, "l-pets": 80_000 },
     ]);
+    // Board E9-11 03 (ruling P272): a short label under the axis when the caller gives one.
+    expect(chartRows({ ...data, ticks: ["oct", "nov"] }).map((row) => row.tick)).toEqual(["oct", "nov"]);
     expect(textAt(data, "l-pets", "noviembre 2026")).toBe(`$${NBSP}80.000`);
     expect(textAt(data, "l-pets", "octubre 2026")).toBeNull();
   });

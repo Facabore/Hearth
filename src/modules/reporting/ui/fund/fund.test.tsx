@@ -20,7 +20,7 @@ describe("fund tracking (HU-E9-10)", () => {
     expect(juan).toContain("Esperado$ 720.000");
     expect(juan).toContain("Aportado$ 500.000");
     expect(juan).toContain("Diferencia−$ 220.000");
-    expect(juan).toContain("Le falta aportar");
+    expect(juan).toContain("Le faltan $ 220.000");
     expect(card("Ana")).toContain("Al día");
     expect(screen.queryByText("Sin plan, nadie tiene un aporte esperado.")).not.toBeInTheDocument();
     expect(await axeViolations(container)).toEqual([]);
@@ -45,7 +45,27 @@ describe("fund tracking (HU-E9-10)", () => {
     expect(card("Ana")).toContain("Al día");
     expect(card("Juan")).toContain("Diferencia$ 0");
     expect(card("Juan")).toContain("Al día");
-    expect(card("Juan")).not.toContain("Le falta aportar");
+    expect(card("Juan")).not.toContain("Le faltan");
+  });
+
+  it("draws the summary as three tiles, the one still missing tinted and named Falta (board E9-10 04, ruling P272)", () => {
+    show();
+    const summary = screen.getByRole("region", { name: "Aportes al fondo" });
+    const tiles = [...summary.querySelectorAll("dl > div")];
+    expect(tiles.map((tile) => normalized(tile.textContent))).toEqual([
+      "Esperado$ 1.200.000",
+      "Aportado$ 980.000",
+      "Falta$ 220.000",
+    ]);
+    expect(tiles[2]).toHaveClass("bg-owe-soft");
+    expect(tiles[0]).not.toHaveClass("bg-owe-soft");
+  });
+
+  it("puts a member's expected, contributed and difference on one row of three, the difference at the right", () => {
+    show();
+    const figures = screen.getByRole("listitem", { name: "Juan" }).querySelector("dl")!;
+    expect(figures).toHaveClass("grid-cols-3");
+    expect(figures.querySelector("[data-field='difference']")!.parentElement).toHaveClass("text-right");
   });
 
   it("fills each member's bar with what they contributed of what was expected, and draws it for nobody's ears", () => {

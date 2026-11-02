@@ -141,6 +141,88 @@ describe("dashboard frame (HU-E9-10)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  describe("as the E9-10 boards draw it (ruling P272)", () => {
+    const frame = (view: "lines" | "members" | "fund" | "groups" | "trend", space = householdDto()) =>
+      renderWithIntl(
+        <DashboardFrame
+          space={space}
+          view={view}
+          period={{ ...NOVEMBER }}
+          previous={null}
+          next={null}
+          formats={BUILT_IN_FORMATS}
+          plan={{ id: "p-nov", status: "ACTIVE" }}
+        >
+          <p>Contenido</p>
+        </DashboardFrame>,
+      );
+    const subtitle = (container: HTMLElement) =>
+      container.querySelector("[data-frame-subtitle]")?.textContent ?? null;
+
+    it("puts Rubros' status beside the period and Editar plan above it, with no line naming the space", () => {
+      const { container } = frame("lines");
+      const heading = screen.getByRole("heading", { level: 1, name: "noviembre 2026" });
+      expect(heading.parentElement).toContainElement(screen.getByText("Activo"));
+      const edit = screen.getByRole("link", { name: "Editar plan" });
+      expect(edit.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(screen.queryByText("Household")).toBeNull();
+      expect(subtitle(container)).toBeNull();
+    });
+
+    it.each([
+      ["members", "Household · plan activo"],
+      ["fund", "Household"],
+      ["groups", "Household"],
+      ["trend", "Household · contra el período anterior"],
+    ] as const)(
+      "writes the %s view's context under the period, without the status or the planner link",
+      (view, text) => {
+        const { container } = frame(view);
+        expect(subtitle(container)).toBe(text);
+        expect(screen.queryByText("Activo")).toBeNull();
+        expect(screen.queryByRole("link", { name: /plan$/ })).toBeNull();
+      },
+    );
+
+    it("reads a shared space's line trend up to its period", () => {
+      frame("trend");
+      expect(screen.getByRole("heading", { level: 1, name: "Hasta noviembre 2026" })).toBeInTheDocument();
+    });
+
+    it("writes no context under the period in the personal space", () => {
+      const { container } = frame("groups", spaceDto());
+      expect(subtitle(container)).toBeNull();
+      expect(screen.getByRole("heading", { level: 1, name: "noviembre 2026" })).toBeInTheDocument();
+    });
+
+    it("fills the chosen tab with ink and outlines the others", () => {
+      frame("members");
+      const tabs = screen.getByRole("navigation", { name: "Vistas del plan" });
+      expect(within(tabs).getByRole("link", { name: "Miembros" })).toHaveClass("bg-ink", "text-surface");
+      expect(within(tabs).getByRole("link", { name: "Rubros" })).toHaveClass("border", "bg-surface");
+      expect(within(tabs).getByRole("link", { name: "Rubros" })).not.toHaveClass("bg-ink");
+    });
+
+    it("says the same in English", () => {
+      renderWithIntl(
+        <DashboardFrame
+          space={householdDto()}
+          view="trend"
+          period={{ ...NOVEMBER }}
+          previous={null}
+          next={null}
+          formats={BUILT_IN_FORMATS}
+          plan={null}
+        >
+          <p>Contenido</p>
+        </DashboardFrame>,
+        { locale: "en" },
+      );
+      expect(screen.getByRole("heading", { level: 1, name: "Up to November 2026" })).toBeInTheDocument();
+      expect(screen.getByText("Household · against the previous period")).toBeInTheDocument();
+    });
+  });
+
   it("names the range of a period that is not a calendar month, in the person's date format", () => {
     renderWithIntl(
       <DashboardFrame

@@ -3,9 +3,16 @@ import { useTranslations } from "next-intl";
 import type { SpaceDto } from "@/shared/ui/api/dto";
 import { viewHref, viewsFor, type PlanView } from "./views";
 
+/** Ruling P272 (X4 of the E9 boards): the chosen chip is filled with ink, the others are outlined. */
+export const chipClass = (selected: boolean): string =>
+  `flex min-h-11 shrink-0 items-center rounded-full px-3.5 text-sm font-medium ${
+    selected ? "bg-ink text-surface" : "border border-line bg-surface text-ink"
+  }`;
+
 /**
  * Ruling P200: the views of the Plan tab as a row of links. Issue #174 (decision U3): the row wraps to a second line
- * instead of scrolling, so every view, the current one included, is on screen at 320 px.
+ * instead of scrolling, so every view, the current one included, is on screen at 320 px; the boards (P272) fit the
+ * personal space's four on one row at 390 px.
  */
 export function PlanTabs({
   space,
@@ -25,9 +32,7 @@ export function PlanTabs({
           key={item}
           href={viewHref(space, item, period)}
           aria-current={item === view ? "page" : undefined}
-          className={`flex min-h-11 shrink-0 items-center rounded-full px-4 text-sm font-medium ${
-            item === view ? "bg-accent-soft text-accent" : "border border-line bg-surface text-ink"
-          }`}
+          className={chipClass(item === view)}
         >
           {t(`view.${item}`)}
         </Link>

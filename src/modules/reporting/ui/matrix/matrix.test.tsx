@@ -48,13 +48,17 @@ const memberSection = (name: string) => screen.getByRole("region", { name });
 const totalOf = (name: string) => normalized(memberSection(name).querySelector("h2 + p")!.textContent).trim();
 const open = (member: string, label = "Ver detalle por rubro de") =>
   fireEvent.click(screen.getByRole("button", { name: `${label} ${member}` }));
-/** The figures of `line` in `member`'s detail, opened first. */
-const cellsOf = (member: string, line: string, caption = `${member} por rubro`) =>
-  within(
-    within(screen.getByRole("table", { name: caption })).getByRole("row", { name: new RegExp(`^${line}`) }),
-  )
-    .getAllByRole("cell")
-    .map((c) => normalized(c.textContent).trim());
+/** Board E9-10 03 (ruling P272): `line` in `member`'s opened detail, as its gap and its one caption. */
+const lineOf = (member: string, line: string, label = `${member} por rubro`) => {
+  const item = within(screen.getByRole("list", { name: label })).getByRole("listitem", {
+    name: new RegExp(`^${line}`),
+  });
+  return {
+    item,
+    gap: normalized(item.querySelector("[data-gap]")?.textContent ?? null).trim(),
+    caption: normalized(item.querySelector("[data-caption]")?.textContent).trim(),
+  };
+};
 
 describe("one row per member first (#213, ruling P262)", () => {
   it("shows each member's total gap in words, and no per-line figure until it is opened", async () => {
@@ -62,8 +66,25 @@ describe("one row per member first (#213, ruling P262)", () => {
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual(["Ana", "Juan"]);
     expect(totalOf("Ana")).toBe("Le sobran $ 312.000");
     expect(totalOf("Juan")).toBe("Le faltan $ 482.000");
-    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByRole("list", { name: /por rubro$/ })).toBeNull();
     expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("puts every member in one card, each with the initial of their name (board E9-10 03)", () => {
+    const { container } = show();
+    const card = container.querySelector("[data-members]")!;
+    expect(card).toContainElement(memberSection("Ana"));
+    expect(card).toContainElement(memberSection("Juan"));
+    expect(card).toHaveClass("divide-y");
+    const initial = (name: string) => memberSection(name).querySelector("[data-initial]");
+    expect(initial("Ana")).toHaveTextContent("A");
+    expect(initial("Ana")).toHaveAttribute("aria-hidden", "true");
+    expect(initial("Juan")).toHaveTextContent("J");
+    // The status sits under the name, and the link to the detail under the status.
+    const heading = within(memberSection("Ana")).getByRole("heading", { level: 2 });
+    const button = within(memberSection("Ana")).getByRole("button");
+    expect(heading.nextElementSibling).toHaveAttribute("data-total");
+    expect(heading.nextElementSibling!.nextElementSibling).toBe(button);
   });
 
   it("opens a member's per-line detail under their row on tap, and closes it again", async () => {
@@ -73,13 +94,15 @@ describe("one row per member first (#213, ruling P262)", () => {
     open("Juan");
     expect(button).toHaveAttribute("aria-expanded", "true");
     expect(button).toHaveAccessibleName("Ocultar detalle de Juan");
-    expect(memberSection("Juan")).toContainElement(screen.getByRole("table", { name: "Juan por rubro" }));
-    expect(cellsOf("Juan", "Home")).toEqual(["$ 882.000", "$ 400.000", "$ 780.000", "−$ 482.000 de menos"]);
+    expect(memberSection("Juan")).toContainElement(screen.getByRole("list", { name: "Juan por rubro" }));
+    const home = lineOf("Juan", "Home");
+    expect(home.gap).toBe("−$ 482.000 de menos");
+    expect(home.caption).toBe("Asignado $ 882.000 · Aportó $ 400.000 · Consumió $ 780.000");
     // Ana's stays closed.
-    expect(screen.queryByRole("table", { name: "Ana por rubro" })).toBeNull();
+    expect(screen.queryByRole("list", { name: "Ana por rubro" })).toBeNull();
     expect(await axeViolations(container)).toEqual([]);
     fireEvent.click(button);
-    expect(screen.queryByRole("table", { name: "Juan por rubro" })).toBeNull();
+    expect(screen.queryByRole("list", { name: "Juan por rubro" })).toBeNull();
   });
 
   it("writes the total the API answers, never a sum of the lines (ruling P201)", () => {
@@ -101,6 +124,8 @@ describe("one row per member first (#213, ruling P262)", () => {
     expect(juan.querySelector("svg[aria-hidden='true'] path")).toHaveAttribute("d", UI_ICONS.arrowDown);
     expect(juan).toHaveClass("text-owe-ink");
     expect(juan).toHaveTextContent("Le faltan");
+    expect(ana).toHaveClass("text-accent");
+    expect(ana).toHaveTextContent("Le sobran");
   });
 
   it("says when no line gives a member a gap, and when the API sends no totals", () => {
@@ -134,20 +159,12 @@ describe("one row per member first (#213, ruling P262)", () => {
     expect(totalOf("Ana")).toBe("Over by $ 312.000");
     expect(totalOf("Juan")).toBe("Short by $ 482.000");
     open("Ana", "Show detail by line for");
-    expect(cellsOf("Ana", "Home", "Ana by line")).toEqual([
-      "$ 588.000",
-      "$ 900.000",
-      "$ 520.000",
-      "+$ 312.000 over-contributed",
-    ]);
-    expect(
-      within(memberSection("Ana")).getAllByText(
-        "Contributions and gaps are tracked at the fund, not per line.",
-        {
-          selector: "p",
-        },
-      ),
-    ).toHaveLength(1);
+    const home = lineOf("Ana", "Home", "Ana by line");
+    expect(home.gap).toBe("+$ 312.000 over-contributed");
+    expect(home.caption).toBe("Assigned $ 588.000 · Contributed $ 900.000 · Consumed $ 520.000");
+    expect(lineOf("Ana", "Rent", "Ana by line").caption).toContain(
+      "Contributions and gaps are tracked at the fund, not per line.",
+    );
     expect(screen.getByRole("link", { name: "See the fund" })).toHaveAttribute(
       "href",
       "/spaces/sp-household/plan/fund?period=2026-11",
@@ -156,56 +173,42 @@ describe("one row per member first (#213, ruling P262)", () => {
   });
 });
 
-describe("a member's per-line detail (HU-E9-10)", () => {
-  it("shows Ana's Home figures with her over-contributed gap", () => {
+describe("a member's per-line detail (HU-E9-10, board E9-10 03)", () => {
+  it("shows Ana's Home with her gap at the right and one caption of her figures", () => {
     show();
     open("Ana");
-    expect(cellsOf("Ana", "Home")).toEqual(["$ 588.000", "$ 900.000", "$ 520.000", "+$ 312.000 de más"]);
+    const home = lineOf("Ana", "Home");
+    expect(home.gap).toBe("+$ 312.000 de más");
+    expect(home.caption).toBe("Asignado $ 588.000 · Aportó $ 900.000 · Consumió $ 520.000");
   });
 
-  it("reads TRACKED_AT_FUND_LEVEL in Rent's contributed and gap cells, and once under the table", () => {
+  it("writes TRACKED_AT_FUND_LEVEL inside Rent's own caption, with the link to the fund in that line", () => {
     show();
     open("Ana");
-    const reason = "Aportó y diferencia se siguen en el fondo, no por rubro.";
-    const [assigned, contributed, consumed, gap] = cellsOf("Ana", "Rent");
-    expect([assigned, consumed]).toEqual(["$ 480.000", "$ 480.000"]);
-    expect(contributed).toContain(reason);
-    expect(gap).toContain(reason);
-    expect(within(memberSection("Ana")).getAllByText(reason, { selector: "p" })).toHaveLength(1);
-  });
-
-  it("links a member's detail with a fund-level line to the fund view of the same period", () => {
-    show();
-    open("Ana");
-    const link = screen.getByRole("link", { name: "Ver fondo" });
+    const rent = lineOf("Ana", "Rent");
+    expect(rent.gap).toBe("");
+    expect(rent.caption).toBe(
+      "Asignado $ 480.000 · Consumió $ 480.000 · Aportó y diferencia se siguen en el fondo, no por rubro.",
+    );
+    const link = within(rent.item).getByRole("link", { name: "Ver fondo" });
     expect(link).toHaveAttribute("href", "/spaces/sp-household/plan/fund?period=2026-11");
-    expect(memberSection("Ana")).toContainElement(link);
     expect(screen.getAllByRole("link")).toHaveLength(1);
   });
 
   it("shows only what a line without allocation consumed, with its reason", () => {
     show();
     open("Ana");
-    const [assigned, , consumed] = cellsOf("Ana", "Free");
-    expect(consumed).toBe("$ 125.000");
-    expect(assigned).toContain("Sin asignación por persona: solo se muestra lo consumido.");
+    expect(lineOf("Ana", "Free").caption).toBe(
+      "Consumió $ 125.000 · Sin asignación por persona: solo se muestra lo consumido.",
+    );
   });
 
-  it("writes a null figure as a dash for the eye and its reason for a screen reader", () => {
+  it("leaves a missing figure out of the caption and says why in words, never a lone dash", () => {
     show();
     open("Ana");
-    const row = within(screen.getByRole("table", { name: "Ana por rubro" })).getByRole("row", {
-      name: /^Rent/,
-    });
-    const contributed = within(row).getAllByRole("cell")[1]!;
-    expect(contributed.querySelector("[aria-hidden='true']")).toHaveTextContent("—");
-    expect(contributed.querySelector(".sr-only")).toHaveTextContent(
-      "Aportó y diferencia se siguen en el fondo, no por rubro.",
-    );
-    const home = within(screen.getByRole("table", { name: "Ana por rubro" })).getByRole("row", {
-      name: /^Home/,
-    });
-    expect(home.querySelector("[aria-hidden='true']:not(svg)")).toBeNull();
+    const rent = lineOf("Ana", "Rent").item;
+    expect(rent.textContent).not.toContain("—");
+    expect(rent.querySelector(".sr-only")).toBeNull();
   });
 
   it("says 'Sin dato' for a missing figure whose line gives no reason", () => {
@@ -233,10 +236,10 @@ describe("a member's per-line detail (HU-E9-10)", () => {
       }),
     );
     open("Ana");
-    expect(cellsOf("Ana", "Home")).toEqual(["$ 1", "—Sin dato", "$ 2", "—Sin dato"]);
+    expect(lineOf("Ana", "Home").caption).toBe("Asignado $ 1 · Consumió $ 2 · Sin dato");
   });
 
-  it("explains a savings line's missing consumption in the cell and once under the table", () => {
+  it("writes a savings line's note inline in its caption", () => {
     show(
       withLine({
         funding: "SAVINGS",
@@ -244,11 +247,11 @@ describe("a member's per-line detail (HU-E9-10)", () => {
         members: [
           {
             memberId: "m-ana",
-            assigned: cop(600_000),
-            contributed: cop(600_000),
+            assigned: cop(240_000),
+            contributed: cop(0),
             consumed: null,
-            gap: cop(0),
-            status: "ON_TARGET",
+            gap: cop(-240_000),
+            status: "UNDER_CONTRIBUTED",
           },
           {
             memberId: "m-juan",
@@ -262,47 +265,28 @@ describe("a member's per-line detail (HU-E9-10)", () => {
       }),
     );
     open("Ana");
-    const note = "Cuenta lo que llegó a las cuentas de ahorro del rubro; no tiene consumo.";
-    expect(cellsOf("Ana", "Home")[2]).toContain(note);
-    expect(within(memberSection("Ana")).getAllByText(note, { selector: "p" })).toHaveLength(1);
+    const home = lineOf("Ana", "Home");
+    expect(home.gap).toBe("−$ 240.000 de menos");
+    expect(home.caption).toBe(
+      "Asignado $ 240.000 · Aportó $ 0 · Cuenta lo que llegó a las cuentas de ahorro del rubro; no tiene consumo.",
+    );
   });
 
-  it("writes no note when no line has a reason nor a savings fund", () => {
-    const matrix = withTotals();
-    show({ ...matrix, lines: [matrix.lines[1]!] });
+  it("writes no note under the lines: each reason lives in its own line", () => {
+    show();
     open("Ana");
-    const detail = screen.getByRole("table", { name: "Ana por rubro" }).closest("[hidden], div[id]")!;
-    expect(detail.querySelectorAll("p")).toHaveLength(0);
+    const list = screen.getByRole("list", { name: "Ana por rubro" });
+    expect(list.parentElement!.querySelectorAll(":scope > p")).toHaveLength(0);
+    expect(screen.queryByText("Ana por rubro")).toBeNull();
+    expect(screen.queryByText(/Cada uno paga|Según aportes/)).toBeNull();
   });
 
-  it("gives every line's gap a badge, so it never relies on color alone", () => {
+  it("gives every line's gap its sign and a word, so it never relies on color alone", () => {
     show();
     open("Ana");
     open("Juan");
-    const tone = (table: string, text: string) =>
-      within(screen.getByRole("table", { name: table }))
-        .getByText(text)
-        .closest("[data-tone]")
-        ?.getAttribute("data-tone");
-    expect(tone("Ana por rubro", "de más")).toBe("accent");
-    expect(tone("Juan por rubro", "de menos")).toBe("owe");
-  });
-
-  it("labels the columns, names each line with how it is paid, and scrolls inside a focusable region", () => {
-    show();
-    open("Ana");
-    const table = screen.getByRole("table", { name: "Ana por rubro" });
-    expect(
-      within(table)
-        .getAllByRole("columnheader")
-        .map((h) => h.textContent),
-    ).toEqual(["Rubro", "Asignado", "Aportó", "Consumió", "Diferencia"]);
-    expect(within(table).getByRole("rowheader", { name: /^Home/ })).toHaveTextContent(
-      "HomeCada uno paga · Según aportes",
-    );
-    const scroller = screen.getByRole("region", { name: "Ana por rubro" });
-    expect(scroller).toHaveAttribute("tabindex", "0");
-    expect(scroller).toHaveClass("relative", "overflow-x-auto");
+    expect(lineOf("Ana", "Home").gap).toMatch(/^\+\$ .* de más$/);
+    expect(lineOf("Juan", "Home").gap).toMatch(/^−\$ .* de menos$/);
   });
 
   it("says a period without a plan has nothing to compare", async () => {
@@ -363,7 +347,7 @@ describe("members with nothing in the period (#213, #217)", () => {
     const { container } = showWith(withSofi());
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual(["Ana", "Juan"]);
     open("Ana");
-    expect(screen.queryByRole("table", { name: "Sofi por rubro" })).toBeNull();
+    expect(screen.queryByRole("list", { name: "Sofi por rubro" })).toBeNull();
     expect(await axeViolations(container)).toEqual([]);
   });
 
@@ -371,7 +355,7 @@ describe("members with nothing in the period (#213, #217)", () => {
     showWith(withSofi([null, null, 40_000, null]));
     expect(totalOf("Sofi")).toBe("Al día");
     open("Sofi");
-    expect(cellsOf("Sofi", "Free")[2]).toBe("$ 40.000");
-    expect(cellsOf("Sofi", "Home").slice(0, 3)).toEqual(["$ 0", "$ 0", "$ 0"]);
+    expect(lineOf("Sofi", "Free").caption).toContain("Consumió $ 40.000");
+    expect(lineOf("Sofi", "Home").caption).toBe("Asignado $ 0 · Aportó $ 0 · Consumió $ 0");
   });
 });

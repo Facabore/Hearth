@@ -100,6 +100,21 @@ describe("personal spending by group (HU-E9-11)", () => {
     expect(new URL(window.location.href).searchParams.get("period")).toBe("2026-11");
   });
 
+  it("names the personal total as the person's own consumption (board E9-11 02, ruling P272)", () => {
+    const data = e74Groups();
+    renderWithIntl(
+      <SpendingChart
+        tree={treeOf(data.groups)}
+        total={data.total}
+        formats={BUILT_IN_FORMATS}
+        note="Nota"
+        personal
+      />,
+    );
+    expect(screen.getByText("Tu consumo").closest("p")).toBeInTheDocument();
+    expect(screen.queryByText("Gasto total")).toBeNull();
+  });
+
   it("shows the API's merged total, shares and bars without computing any (ruling P201)", () => {
     const data = e74Groups();
     // None of these add up: a sum, or a share the UI recomputes, would show a different figure.

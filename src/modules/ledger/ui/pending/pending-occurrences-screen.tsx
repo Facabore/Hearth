@@ -204,6 +204,7 @@ function PendingCard({
       </p>
       {canAct ? (
         <>
+          {/* Board 07: the real amount as the figure the card is about, its symbol inside the field. */}
           <NumberField
             id={`pending-amount-${item.id}`}
             label={t("realAmount", { name: item.name })}
@@ -212,6 +213,7 @@ function PendingCard({
             decimals={exponent}
             symbol={symbol}
             example={false}
+            large
             value={amount}
             onChange={(value) => {
               setAmount(value);

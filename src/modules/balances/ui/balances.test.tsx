@@ -35,7 +35,7 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
     expect(normalized(screen.getByRole("region", { name: "Tu saldo en Household" }).textContent)).toContain(
       "Te toca poner $ 150.000",
     );
-    const suggestions = screen.getByRole("region", { name: "Para quedar a paz y salvo" });
+    const suggestions = screen.getByRole("region", { name: "Para quedar al día" });
     expect(normalized(suggestions.textContent)).toContain("Juan le paga $ 150.000 a Ana");
     const members = screen.getByRole("region", { name: "Cada miembro" });
     expect(
@@ -78,14 +78,14 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
     expect(normalized(screen.getByRole("region", { name: "Tu saldo en Household" }).textContent)).toContain(
       "Te toca recibir $ 150.000",
     );
-    const suggestions = within(
-      screen.getByRole("region", { name: "Para quedar a paz y salvo" }),
-    ).getAllByRole("listitem");
+    const suggestions = within(screen.getByRole("region", { name: "Para quedar al día" })).getAllByRole(
+      "listitem",
+    );
     expect(suggestions).toHaveLength(2);
     expect(normalized(suggestions[0]!.textContent)).toContain("Juan le paga $ 100.000 a Ana");
     expect(normalized(suggestions[1]!.textContent)).toContain("Luis le paga $ 50.000 a Ana");
     expect(
-      screen.getByRole("link", { name: named("Pedro (invitado): a paz y salvo. Ver historial") }),
+      screen.getByRole("link", { name: named("Pedro (invitado): al día. Ver historial") }),
     ).toBeInTheDocument();
   });
 
@@ -106,9 +106,7 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
       "/spaces/sp-household/members/m-ana/history",
       "/spaces/sp-household/members/m-juan/history",
     ]);
-    expect(
-      members.getByRole("link", { name: named("Ana: a paz y salvo. Ver historial") }),
-    ).toBeInTheDocument();
+    expect(members.getByRole("link", { name: named("Ana: al día. Ver historial") })).toBeInTheDocument();
   });
 
   it("keeps the viewer's own row and its history before they take part (#217, P263)", () => {
@@ -140,10 +138,10 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
   it("says when nobody owes anybody", () => {
     view({ balances: [net("m-ana", 0), net("m-juan", 0)], suggestions: [] });
     expect(normalized(screen.getByRole("region", { name: "Tu saldo en Household" }).textContent)).toContain(
-      "Estás a paz y salvo",
+      "Estás al día",
     );
     expect(screen.getByText("Todos están al día en Household.")).toBeInTheDocument();
-    const suggestions = screen.getByRole("region", { name: "Para quedar a paz y salvo" });
+    const suggestions = screen.getByRole("region", { name: "Para quedar al día" });
     expect(within(suggestions).queryAllByRole("listitem")).toHaveLength(0);
     expect(within(suggestions).queryByText(/prellena el formulario/)).toBeNull();
   });

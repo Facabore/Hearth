@@ -134,7 +134,7 @@ describe("the recurrence form (HU-E9-09, P270)", () => {
     await chooseRent();
     await userEvent.click(screen.getByRole("button", { name: /Cuenta/ }));
     await userEvent.click(await screen.findByRole("radio", { name: /Bancolombia/ }));
-    expect(screen.getByRole("radio", { name: /Automático/ })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "Automático" })).toBeChecked();
     await userEvent.click(screen.getByRole("button", { name: "Guardar recurrente" }));
 
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/recurrences"));
@@ -206,6 +206,72 @@ describe("the recurrence form (HU-E9-09, P270)", () => {
       payer: { memberId: "m-ana", accountId: "a-bank" },
     });
     expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("draws board 02: Monto and Descripción labelled above their fields, a check on the chosen type (S4)", () => {
+    form({});
+    const amount = screen.getByLabelText("Monto");
+    // One field with its symbol inside, as the large figure; no example line under it.
+    expect(amount.parentElement).toHaveTextContent("$");
+    expect(within(amount.parentElement!).getByText("$")).toHaveClass("text-2xl");
+    expect(amount).toHaveClass("text-2xl", "font-semibold");
+    expect(screen.queryByText(/Ej:/)).toBeNull();
+    expect(screen.getByText("Monto", { selector: "label" })).not.toHaveClass("sr-only");
+    const description = screen.getByText("Descripción", { selector: "label" });
+    expect(description).not.toHaveClass("sr-only");
+    expect(description).toHaveAttribute("for", screen.getByLabelText("Descripción").id);
+    expect(screen.getByRole("radio", { name: "Gasto" }).querySelector("svg")).not.toBeNull();
+    expect(screen.getByRole("radio", { name: "Ingreso" }).querySelector("svg")).toBeNull();
+  });
+
+  it("draws board 02's details: category and who paid as two rows of one card, the split summed up under Más opciones (S4)", async () => {
+    const { container } = form(
+      {
+        "GET /api/v1/spaces/{spaceId}/default-split": () =>
+          jsonResponse({
+            method: "BY_ALLOCATION",
+            availableMethods: ["BY_ALLOCATION", "EQUAL"],
+            lineId: "l-home",
+            shares: [
+              { memberId: "m-ana", amount: { amount: "14000000", currency: "COP" } },
+              { memberId: "m-juan", amount: { amount: "21000000", currency: "COP" } },
+            ],
+          }),
+      },
+      { space: householdSpace({ name: "Hogar" }), shared, accounts: [fund] },
+    );
+    await userEvent.type(screen.getByLabelText("Monto"), "350000");
+    await chooseRent();
+    const details = screen.getByRole("list", { name: "Detalles del movimiento" });
+    expect(within(details).getByRole("button", { name: /^Categoría/ })).toHaveTextContent("Arriendo");
+    const paid = within(details).getByRole("button", { name: "Pagó Ana · Bancolombia" });
+    // The summary stays on screen while Más opciones is folded.
+    expect(screen.getByRole("button", { name: "Más opciones" })).toHaveAttribute("aria-expanded", "false");
+    await waitFor(() =>
+      expect(normalized(screen.getByTestId("recurrence-split-summary").textContent)).toBe(
+        "División: Según el plan · Ana 40 % / Juan 60 %",
+      ),
+    );
+    expect(await axeViolations(container)).toEqual([]);
+    // Who paid opens the record form's split editor.
+    await userEvent.click(paid);
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("draws board 03: the dates as one card, and how it records as one radio list", async () => {
+    form({});
+    const dates = screen.getByRole("list", { name: "Fechas" });
+    expect(within(dates).getByRole("button", { name: "Empieza 1/12/2026" })).toBeInTheDocument();
+    expect(
+      within(dates).getByRole("button", { name: "Termina (opcional) Sin fecha final" }),
+    ).toBeInTheDocument();
+    const how = screen.getByRole("radiogroup", { name: "Cómo se registra" });
+    const auto = within(how).getByRole("radio", { name: "Automático" });
+    expect(auto).toBeChecked();
+    expect(auto).toHaveAccessibleDescription("Se registra solo en cada fecha, con este monto.");
+    await userEvent.click(within(how).getByText("Para confirmar"));
+    expect(within(how).getByRole("radio", { name: "Para confirmar" })).toBeChecked();
+    expect(auto).not.toBeChecked();
   });
 
   it("edits a recurrence through PATCH: what an edit may change, and back to its detail", async () => {

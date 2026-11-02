@@ -187,7 +187,8 @@ export function RecurrenceDetail({
           </ul>
         ) : (
           <p className="flex items-start gap-2 rounded-2xl bg-track p-3 text-sm text-ink">
-            <Icon name="alert" size={18} className="mt-0.5 shrink-0" />
+            {/* Board 06 tells it with an "i": the alert's circled "!" turned over, a note rather than a warning. */}
+            <Icon name="alert" size={18} className="mt-0.5 shrink-0 rotate-180" />
             {status === "PAUSED"
               ? recurrence.pausedAt && timeZone
                 ? t("detail.pausedSince", {
@@ -222,9 +223,10 @@ export function RecurrenceDetail({
             </Button>
           )}
           {ended ? null : (
+            // Board 05: the buttons' 48 px and 16 px text, its label inset as theirs is.
             <Button
               variant="dangerGhost"
-              size="compact"
+              size="md"
               className="self-start"
               disabled={pending}
               onClick={() => setSheet("end")}

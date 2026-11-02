@@ -7,7 +7,7 @@ const t = (key: string, values: { amount: string }) =>
   ({
     "member.owes": `debe ${values.amount}`,
     "member.owed": `le deben ${values.amount}`,
-    "member.settled": "a paz y salvo",
+    "member.settled": "al día",
   })[key]!;
 const norm = (text: string) => text.replace(/\s/g, " ");
 
@@ -21,6 +21,6 @@ describe("net balances as sentences (HU-E9-07, ruling P173)", () => {
     expect(absolute(cop(-100_000))).toEqual(cop(100_000));
     expect(norm(memberSentence(cop(-100_000), BUILT_IN_FORMATS, t))).toBe("debe $ 100.000");
     expect(norm(memberSentence(cop(150_000), BUILT_IN_FORMATS, t))).toBe("le deben $ 150.000");
-    expect(memberSentence(cop(0), BUILT_IN_FORMATS, t)).toBe("a paz y salvo");
+    expect(memberSentence(cop(0), BUILT_IN_FORMATS, t)).toBe("al día");
   });
 });

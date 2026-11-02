@@ -13,7 +13,10 @@ export interface TrendSeries {
   readonly points: readonly TrendPoint[];
 }
 export interface TrendChartData {
+  /** Each period's name, as the tooltip writes it ("nov 2026"). */
   readonly periods: readonly string[];
+  /** Board E9-11 03 (ruling P272): each period's short label under the axis ("nov"); the names when absent. */
+  readonly ticks?: readonly string[];
   readonly series: readonly TrendSeries[];
 }
 
@@ -29,6 +32,7 @@ export const pointOf = (money: MoneyDto | null, formats: Pick<Formats, "numberFo
 export const chartRows = (data: TrendChartData): Record<string, string | number | null>[] =>
   data.periods.map((period, index) => ({
     period,
+    tick: data.ticks?.[index] ?? period,
     ...Object.fromEntries(data.series.map((series) => [series.key, series.points[index]?.value ?? null])),
   }));
 

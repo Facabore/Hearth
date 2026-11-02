@@ -122,9 +122,8 @@ When("{string} creates the shared space {string}", async ({ page, world }, name:
 Then("the members screen of the new space {string} is shown", async ({ page, world }, space: string) => {
   await expect(page).toHaveURL(/\/spaces\/(?!new)[0-9a-f-]{36}\/members$/);
   expect(page.url()).not.toContain(world.user!.spaceId);
-  await expect(
-    page.getByRole("button", { name: world.t("shell.space.current", { name: space }) }),
-  ).toBeVisible();
+  // Miembros is a stacked screen (ruling P272): its own header names the space, under its title.
+  await expect(page.getByRole("main").getByText(new RegExp(`^${space} · `))).toBeVisible();
 });
 
 When("{string} goes back in the browser", async ({ page, world }, name: string) => {
