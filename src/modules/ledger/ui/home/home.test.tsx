@@ -536,10 +536,10 @@ describe("Inicio's turn to put money in and its eye (board B1 · 03, ruling P278
     expect(summary).toHaveTextContent("••••••");
     expect(screen.getByRole("region", { name: "Cuentas" })).not.toHaveTextContent("4.455.000");
     expect(screen.getByRole("region", { name: /Te toca poner/ })).not.toHaveTextContent("120.000");
-    expect(within(screen.getByRole("region", { name: "Recientes" })).getByRole("list")).toHaveAttribute(
-      "data-amounts",
-      "hidden",
-    );
+    // Masked in the text itself, so a screen reader does not read them out either.
+    const recent = screen.getByRole("region", { name: "Recientes" });
+    expect(recent).toHaveTextContent("••••••");
+    expect(recent).not.toHaveTextContent(/\$\s?\d/);
     expect(localStorage.getItem("hearth.hideAmounts.u-eye")).toBe("1");
     unmount();
     renderWithIntl(home({ personId: "u-eye", owes: [owe] }));

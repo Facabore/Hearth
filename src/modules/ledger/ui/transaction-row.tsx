@@ -24,6 +24,7 @@ export function TransactionRow({
   href,
   today,
   card = false,
+  maskedAmount,
 }: {
   readonly tx: TransactionDto;
   readonly context: RowContext;
@@ -36,6 +37,8 @@ export function TransactionRow({
    * the account shows whole, and an income in green beside its plus sign.
    */
   readonly card?: boolean;
+  /** Ruling P278: what Inicio shows instead of the amount while its eye hides them, in the text a screen reader reads. */
+  readonly maskedAmount?: string;
 }) {
   const t = useTranslations("ledger");
   const { formats, viewerZone, groups, accountNames, memberNames } = context;
@@ -103,7 +106,7 @@ export function TransactionRow({
         ) : null}
         {payerLine ? <span className="text-sm break-words text-muted">{payerLine}</span> : null}
       </span>
-      <span className={`shrink-0 font-semibold whitespace-nowrap ${tone}`}>{amount}</span>
+      <span className={`shrink-0 font-semibold whitespace-nowrap ${tone}`}>{maskedAmount ?? amount}</span>
     </>
   );
   const box = card ? "rounded-2xl bg-surface px-3" : "";

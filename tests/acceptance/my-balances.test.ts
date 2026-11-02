@@ -29,7 +29,7 @@ const myBalancesOf = async (user: TestUser): Promise<MyBalanceDto[]> => {
   return ((await response.json()) as { items: MyBalanceDto[] }).items;
 };
 
-describe("GET /api/v1/me/balances (#240, P277)", () => {
+describe("GET /api/v1/me/balances (#240, P278)", () => {
   it("gives Ana her turn to put 100,000 COP to Juan in the household, with its members by name", async () => {
     const h = await household();
     const luis = await joinHousehold(h, "Luis", "MEMBER");

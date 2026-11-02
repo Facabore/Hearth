@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { controlsFor, JoinedNotice, shownAmount, useAmountsHidden } from "@/modules/spaces/ui";
+import { controlsFor, JoinedNotice, MASKED_AMOUNT, shownAmount, useAmountsHidden } from "@/modules/spaces/ui";
 import { Icon, SymbolIcon } from "@/shared/ui";
 import type { AccountDto, MoneyDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
 import { formatDate } from "@/shared/ui/format/formatters";
@@ -208,10 +208,7 @@ export function HomeSummary({
           <p className="rounded-2xl bg-surface p-3 text-sm text-muted">{t("recentEmpty")}</p>
         ) : (
           // Board B1 · 03: plain rows on the page, with dividers; while the eye hides amounts, each row's is masked.
-          <ol
-            data-amounts={hidden ? "hidden" : undefined}
-            className="divide-y divide-line data-[amounts=hidden]:[&_li>*>span:last-child]:text-[0px] data-[amounts=hidden]:[&_li>*>span:last-child]:after:text-base data-[amounts=hidden]:[&_li>*>span:last-child]:after:content-['••••••']"
-          >
+          <ol className="divide-y divide-line">
             {page.items.map((tx) => (
               <TransactionRow
                 key={tx.id}
@@ -219,6 +216,7 @@ export function HomeSummary({
                 context={context}
                 href={withTx(`/spaces/${spaceId}`, tx.id)}
                 today={today}
+                maskedAmount={hidden ? MASKED_AMOUNT : undefined}
               />
             ))}
           </ol>
