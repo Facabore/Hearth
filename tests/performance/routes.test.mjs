@@ -6,23 +6,24 @@ import { routeUrl } from "./lighthouse.mjs";
 
 /**
  * Ruling P221 (amended by P242): the caps of the Plan routes; each budget is set from its measurement under them. The
- * owner raised the views' caps (190–195) and the planner's (200) on 2026-10-28 for the SPA's cold load (ADR 0004).
+ * owner raised the views' caps (190–195) and the planner's (200) on 2026-10-28 for the SPA's cold load (ADR 0004), and
+ * the views' (205) and the trends' (305) on 2026-11-02 for #77's recurring screens (ADR 0004).
  */
 const CAPS = {
-  "/spaces/:shared/plan": 200,
-  "/spaces/:shared/plan/members": 200,
-  "/spaces/:shared/plan/fund": 200,
-  "/spaces/:shared/plan/groups": 200,
-  "/spaces/:shared/plan/trend": 300,
+  "/spaces/:shared/plan": 205,
+  "/spaces/:shared/plan/members": 205,
+  "/spaces/:shared/plan/fund": 205,
+  "/spaces/:shared/plan/groups": 205,
+  "/spaces/:shared/plan/trend": 305,
   "/spaces/:shared/plans/:plan": 210,
   "/spaces/:shared/plans/:plan/capacities": 210,
   "/spaces/:shared/plans/:plan/lines/new": 215,
   "/spaces/:shared/plans/:plan/lines/:line": 215,
-  "/spaces/:id/plan": 200,
-  "/spaces/:id/plan/lines": 200,
-  "/spaces/:id/plan/groups": 200,
-  "/spaces/:id/plan/trend": 300,
-  "/spaces/:id/plan/calendar": 200,
+  "/spaces/:id/plan": 205,
+  "/spaces/:id/plan/lines": 205,
+  "/spaces/:id/plan/groups": 205,
+  "/spaces/:id/plan/trend": 305,
+  "/spaces/:id/plan/calendar": 205,
 };
 
 const ROUTES = readFileSync(join("src", "spa", "routes.tsx"), "utf8");
