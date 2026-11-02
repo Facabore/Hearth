@@ -74,6 +74,8 @@ describe("home (HU-E9-01)", () => {
     await userEvent.tab();
     await userEvent.tab();
     expect(strip).toHaveFocus();
+    // #223: it still scrolls sideways, without drawing a scrollbar on a phone (scrollbar-width, and WebKit's own).
+    expect(strip).toHaveClass("overflow-x-auto", "[scrollbar-width:none]", "[&::-webkit-scrollbar]:hidden");
   });
 });
 

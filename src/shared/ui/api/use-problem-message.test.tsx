@@ -48,6 +48,17 @@ describe("useProblemMessage (HU-E9-02)", () => {
     );
   });
 
+  it("says how long the auth throttle lasts: 15 minutes to sign in, an hour to sign up (#223)", () => {
+    const es = renderHook(() => useProblemMessage(), { wrapper: IntlWrapper("es") }).result.current;
+    expect(es({ ...problem("TooManyRequests"), status: 429 }).message).toBe(
+      "Demasiados intentos. Espera 15 minutos para volver a entrar, o una hora para crear una cuenta.",
+    );
+    const en = renderHook(() => useProblemMessage(), { wrapper: IntlWrapper("en") }).result.current;
+    expect(en({ ...problem("TooManyRequests"), status: 429 }).message).toBe(
+      "Too many attempts. Wait 15 minutes to sign in again, or an hour to create an account.",
+    );
+  });
+
   it("shows errors.Unknown with the request id for a code without a key", () => {
     const es = renderHook(() => useProblemMessage(), { wrapper: IntlWrapper("es") }).result.current;
     expect(es(problem("NoSuchCode"))).toEqual({

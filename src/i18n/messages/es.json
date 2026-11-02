@@ -182,7 +182,7 @@
     "SpaceNotFound": "No encontramos ese espacio, o ya no eres miembro.",
     "SubcategoryNotMappable": "Las subcategorías no se asignan al plan: asigna su categoría.",
     "TimeRequired": "La hora no se puede quitar. Elige otra si quieres cambiarla.",
-    "TooManyRequests": "Demasiados intentos. Espera unos minutos e intenta de nuevo.",
+    "TooManyRequests": "Demasiados intentos. Espera 15 minutos para volver a entrar, o una hora para crear una cuenta.",
     "TransactionNotFound": "No encontramos ese movimiento.",
     "TransferHasNoCategory": "Una transferencia no lleva categoría.",
     "Unauthenticated": "Tu sesión terminó. Inicia sesión de nuevo.",
@@ -374,7 +374,8 @@
       "EXPENSE": "Gasto",
       "INCOME": "Ingreso",
       "TRANSFER": "Transferencia",
-      "SETTLEMENT": "Pago entre miembros"
+      "SETTLEMENT": "Pago entre miembros",
+      "FUND_CONTRIBUTION": "Aporte al fondo"
     },
     "transfer": "{from} → {to}",
     "settlement": "{from} → {to}",

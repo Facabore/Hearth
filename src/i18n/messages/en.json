@@ -182,7 +182,7 @@
     "SpaceNotFound": "That space was not found, or you are no longer a member.",
     "SubcategoryNotMappable": "Subcategories are not mapped to the plan: map their category.",
     "TimeRequired": "The time cannot be removed. Choose another one to change it.",
-    "TooManyRequests": "Too many attempts. Wait a few minutes and try again.",
+    "TooManyRequests": "Too many attempts. Wait 15 minutes to sign in again, or an hour to create an account.",
     "TransactionNotFound": "That transaction was not found.",
     "TransferHasNoCategory": "A transfer has no category.",
     "Unauthenticated": "Your session has ended. Sign in again.",
@@ -374,7 +374,8 @@
       "EXPENSE": "Expense",
       "INCOME": "Income",
       "TRANSFER": "Transfer",
-      "SETTLEMENT": "Settlement"
+      "SETTLEMENT": "Settlement",
+      "FUND_CONTRIBUTION": "Fund contribution"
     },
     "transfer": "{from} → {to}",
     "settlement": "{from} → {to}",

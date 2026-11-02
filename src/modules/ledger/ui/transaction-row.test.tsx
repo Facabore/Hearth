@@ -144,6 +144,23 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
     expect(rowText()).toBe("TransferenciaBancolombia → Visa$ 200.000");
   });
 
+  it("names a deposit into the shared fund a contribution, never a transfer (#223)", () => {
+    // HU-E4-09: the API answers a contribution as a TRANSFER that names its contributor in payerMemberId.
+    renderRow(
+      transactionDto({
+        id: "t-fund",
+        type: "TRANSFER",
+        description: "",
+        amount: cop(500_000),
+        sourceAccountId: "a-bank",
+        destinationAccountId: "a-fund",
+        payerMemberId: "m-ana",
+      }),
+      { ...context, accountNames: { ...context.accountNames, "a-fund": "Fondo Hogar" } },
+    );
+    expect(rowText()).toBe("Aporte al fondoBancolombia → Fondo Hogar$ 500.000");
+  });
+
   it("keeps a row whose category is unknown, with no category in its line", () => {
     renderRow({ ...dinner, categoryId: "c-gone" });
     expect(rowText()).toContain("20:45 · Bancolombia");
