@@ -37,21 +37,29 @@ When(/^"[^"]+" opens the dashboard of "[^"]+" for (\S+)$/, async ({ page, world 
   await page.goto(`/spaces/${householdOf(world).spaceId}/plan?period=${period}`);
 });
 
-Then("the bars and table show:", async ({ page, world }, table: DataTable) => {
-  const grid = page.getByRole("main").getByRole("table", { name: world.t("reports.lines.caption") });
-  await expect(grid).toBeVisible();
+/** Board E9-10 01 (ruling P272): each line a compact item, its available at the right and "spent of planned" below. */
+Then("the line cards show:", async ({ page, world }, table: DataTable) => {
+  const list = page.getByRole("main").getByRole("list", { name: world.t("reports.lines.caption") });
+  await expect(list).toBeVisible();
+  const money = (amount: string) => norm(shown(amount.replace(" COP", "")));
   for (const row of table.hashes()) {
-    const name = LINE_NAMES[row.line!] ? world.t(LINE_NAMES[row.line!]!) : row.line!;
-    const tr = grid
-      .getByRole("row")
-      .filter({ has: page.getByRole("rowheader", { name: new RegExp(`^${escaped(name)}`) }) });
-    await expect(tr).toHaveCount(1);
+    const unbudgeted = Boolean(LINE_NAMES[row.line!]);
+    const name = unbudgeted ? world.t(LINE_NAMES[row.line!]!) : row.line!;
+    const item = list.getByRole("listitem", { name: new RegExp(`^${escaped(name)}`) });
+    await expect(item).toHaveCount(1);
     // The bar is presentation: its width follows spent over planned, never a figure of its own.
-    await expect(tr.locator("[data-bar]")).toHaveCount(1);
-    const cells = (await tr.getByRole("cell").allTextContents()).map(norm);
-    expect(cells).toEqual(
-      [row.planned!, row.spent!, row.available!].map((amount) => norm(shown(amount.replace(" COP", "")))),
+    await expect(item.locator("[data-bar]")).toHaveCount(1);
+    const figure = norm(await item.locator("[data-figure]").textContent());
+    const caption = norm(await item.locator("[data-caption]").textContent());
+    // A line spent exactly as planned says so in words instead of its zero (#214).
+    const onPlan = !unbudgeted && row.available === "0 COP" && row.spent === row.planned;
+    expect(figure).toBe(
+      onPlan
+        ? world.t("reports.lines.onPlan")
+        : `${world.t("reports.lines.available")} ${money(row.available!)}`,
     );
+    expect(caption).toContain(money(row.spent!));
+    if (!unbudgeted) expect(caption).toContain(money(row.planned!));
   }
 });
 

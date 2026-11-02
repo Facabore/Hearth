@@ -10,19 +10,20 @@ import { NoPlan } from "./no-plan";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 
-const tableRows = () =>
-  within(screen.getByRole("table", { name: "Planeado, gastado y disponible por rubro" }))
-    .getAllByRole("row")
-    .slice(1)
-    .map((row) => [
-      normalized(within(row).getByRole("rowheader").textContent).trim(),
-      ...within(row)
-        .getAllByRole("cell")
-        .map((cell) => normalized(cell.textContent)),
+/** Board E9-10 01 (ruling P272): each line as its name, its right figure and its one caption. */
+const lineRows = () =>
+  within(screen.getByRole("list", { name: "Planeado, gastado y disponible por rubro" }))
+    .getAllByRole("listitem")
+    .map((item) => [
+      normalized(item.querySelector("[data-name]")?.textContent),
+      normalized(item.querySelector("[data-figure]")?.textContent),
+      normalized(item.querySelector("[data-caption]")?.textContent),
     ]);
+const figureOf = (name: RegExp) =>
+  screen.getByRole("listitem", { name }).querySelector("[data-figure]") as HTMLElement;
 
 describe("line dashboard (HU-E9-10)", () => {
-  it("shows the bars and table of planned, spent and available, with Unbudgeted last (@golden)", async () => {
+  it("shows each line compact, its available or Cumplido and one caption, with Unbudgeted last (@golden)", async () => {
     const { container } = renderWithIntl(
       <LineDashboard
         dashboard={e7Dashboard()}
@@ -30,13 +31,16 @@ describe("line dashboard (HU-E9-10)", () => {
         formats={BUILT_IN_FORMATS}
       />,
     );
-    expect(tableRows()).toEqual([
-      ["RentCumplido", "$ 1.200.000", "$ 1.200.000", "$ 0"],
-      ["HomeCerca del límite", "$ 1.470.000", "$ 1.300.000", "$ 170.000"],
-      ["Savings", "$ 600.000", "$ 0", "$ 600.000"],
-      ["Free", "$ 730.000", "$ 250.000", "$ 480.000"],
-      ["Sin presupuesto", "$ 0", "$ 60.000", "−$ 60.000"],
+    expect(lineRows()).toEqual([
+      ["Rent", "Cumplido", "Gastado $ 1.200.000 de $ 1.200.000"],
+      ["Home", "Disponible $ 170.000", "Gastado $ 1.300.000 de $ 1.470.000"],
+      ["Savings", "Disponible $ 600.000", "Ahorrado $ 0 de $ 600.000"],
+      ["Free", "Disponible $ 480.000", "Gastado $ 250.000 de $ 730.000"],
+      ["Sin presupuesto", "Disponible −$ 60.000", "Gastado $ 60.000 en categorías sin rubro"],
     ]);
+    // A line near its limit wears no chip on the board; its bar and figure say it.
+    expect(screen.queryByText("Cerca del límite")).toBeNull();
+    expect(screen.queryByText(/no están en ningún rubro/)).toBeNull();
     const summary = screen.getByRole("region", { name: "Resumen del plan" });
     expect(normalized(summary.textContent)).toContain("Disponible$ 1.190.000");
     expect(normalized(summary.textContent)).toContain("Gastado $ 2.810.000 de $ 4.000.000");
@@ -55,10 +59,10 @@ describe("line dashboard (HU-E9-10)", () => {
     renderWithIntl(
       <LineDashboard dashboard={dashboard} policy={householdDto().periodPolicy} formats={BUILT_IN_FORMATS} />,
     );
-    const home = screen.getByRole("row", { name: /^Home/ });
+    const home = screen.getByRole("listitem", { name: /^Home/ });
     expect(within(home).getByText("Excedida")).toBeInTheDocument();
     expect(normalized(home.textContent)).toContain("−$ 130.000");
-    expect(within(screen.getByRole("row", { name: /^Rent/ })).queryByText("Excedida")).toBeNull();
+    expect(within(screen.getByRole("listitem", { name: /^Rent/ })).queryByText("Excedida")).toBeNull();
   });
 
   it("writes a small negative available figure in the owe ink, never the owe color that fails AA below 18.66 px", () => {
@@ -67,15 +71,13 @@ describe("line dashboard (HU-E9-10)", () => {
     renderWithIntl(
       <LineDashboard dashboard={dashboard} policy={householdDto().periodPolicy} formats={BUILT_IN_FORMATS} />,
     );
-    const available = (row: RegExp) =>
-      within(screen.getByRole("row", { name: row }))
-        .getAllByRole("cell")
-        .at(-1) as HTMLElement;
     for (const row of [/^Home/, /^Sin presupuesto/]) {
-      expect(available(row)).toHaveClass("text-owe-ink");
-      expect(available(row)).not.toHaveClass("text-owe");
+      expect(figureOf(row)).toHaveClass("text-owe-ink");
+      expect(figureOf(row)).not.toHaveClass("text-owe");
+      // The sign says it too, never the color alone.
+      expect(normalized(figureOf(row).textContent)).toMatch(/−\$/);
     }
-    expect(available(/^Rent/)).not.toHaveClass("text-owe-ink");
+    expect(figureOf(/^Rent/)).not.toHaveClass("text-owe-ink");
   });
 
   it("shows the API's totals, never a sum of the rows (ruling P201)", () => {
@@ -102,7 +104,7 @@ describe("line dashboard (HU-E9-10)", () => {
       />,
     );
     expect(screen.queryByText("Sin presupuesto")).toBeNull();
-    expect(screen.queryByText(/no están en ningún rubro/)).toBeNull();
+    expect(screen.queryByText(/categorías sin rubro/)).toBeNull();
     expect(screen.getByText("−$ 50")).toHaveClass("text-owe");
   });
 
@@ -126,8 +128,8 @@ describe("line dashboard (HU-E9-10)", () => {
     const { container } = renderWithIntl(
       <LineDashboard dashboard={dashboard} policy={householdDto().periodPolicy} formats={BUILT_IN_FORMATS} />,
     );
-    const row = (name: RegExp) => screen.getByRole("row", { name });
-    expect(within(row(/^Free/)).getByText("Cerca del límite")).toHaveAttribute("data-tone", "neutral");
+    const row = (name: RegExp) => screen.getByRole("listitem", { name });
+    expect(within(row(/^Free/)).queryByText("Cerca del límite")).toBeNull();
     expect(within(row(/^Rent/)).getByText("Al límite")).toHaveAttribute("data-tone", "owe");
     const home = normalized(row(/^Home/).textContent);
     expect(home).toContain("Excedida");
@@ -150,7 +152,7 @@ describe("line dashboard (HU-E9-10)", () => {
     renderWithIntl(
       <LineDashboard dashboard={dashboard} policy={householdDto().periodPolicy} formats={BUILT_IN_FORMATS} />,
     );
-    expect(normalized(screen.getByRole("row", { name: /^Home/ }).textContent)).toContain(
+    expect(normalized(screen.getByRole("listitem", { name: /^Home/ }).textContent)).toContain(
       "Te pasaste por $ 5",
     );
   });
@@ -167,10 +169,19 @@ describe("line dashboard (HU-E9-10)", () => {
     const owner = renderWithIntl(
       <NoPlan space={householdDto()} dashboard={dashboard} formats={BUILT_IN_FORMATS} />,
     );
-    expect(screen.getByRole("heading", { level: 2, name: "enero 2027 no tiene plan" })).toBeInTheDocument();
+    const title = screen.getByRole("heading", { level: 2, name: "enero 2027 no tiene plan" });
+    expect(title).toHaveClass("first-letter:uppercase");
+    expect(
+      screen.getByText(
+        "Sin plan, todo lo que se gaste en enero aparece como Sin presupuesto y la división por defecto es en partes iguales.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Crear plan" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Copiar plan anterior" })).toBeInTheDocument();
-    expect(tableRows()).toEqual([["Sin presupuesto", "$ 0", "$ 100.000", "−$ 100.000"]]);
+    expect(screen.getByText("Solo Propietario y Administrador ven estas acciones.")).toBeInTheDocument();
+    // Board E9-10 02: no totals, and Unbudgeted as one compact card that names the month.
+    expect(screen.queryByRole("region", { name: "Resumen del plan" })).toBeNull();
+    expect(lineRows()).toEqual([["Sin presupuesto", "Disponible −$ 100.000", "Gastado $ 100.000 en enero"]]);
     expect(await axeViolations(owner.container)).toEqual([]);
     owner.unmount();
     renderWithIntl(
@@ -179,6 +190,26 @@ describe("line dashboard (HU-E9-10)", () => {
     expect(screen.queryByRole("button", { name: "Crear plan" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Copiar plan anterior" })).toBeNull();
     expect(screen.getByText("Solo Propietario y Administrador pueden crear el plan.")).toBeInTheDocument();
+    expect(screen.queryByText("Solo Propietario y Administrador ven estas acciones.")).toBeNull();
+  });
+
+  it("names a period that is not a calendar month as this period (ruling P205)", () => {
+    const dashboard = e7Dashboard({
+      plan: null,
+      lines: [],
+      unbudgeted: { spent: cop(100_000), available: cop(-100_000), overspent: true },
+    });
+    renderWithIntl(
+      <NoPlan
+        space={householdDto({ periodPolicy: { kind: "MONTHLY", day: 15 } })}
+        dashboard={dashboard}
+        formats={BUILT_IN_FORMATS}
+      />,
+    );
+    expect(screen.getByText(/todo lo que se gaste en este período aparece/)).toBeInTheDocument();
+    expect(lineRows()).toEqual([
+      ["Sin presupuesto", "Disponible −$ 100.000", "Gastado $ 100.000 en este período"],
+    ]);
   });
 
   it("offers a VIEWER nothing to create, and an ADMIN the same actions as the owner", () => {
@@ -216,16 +247,16 @@ describe("line dashboard (HU-E9-10)", () => {
     const { container } = renderWithIntl(
       <LineDashboard dashboard={dashboard} policy={householdDto().periodPolicy} formats={BUILT_IN_FORMATS} />,
     );
-    const home = normalized(screen.getByRole("row", { name: /^Home/ }).textContent);
+    const home = normalized(screen.getByRole("listitem", { name: /^Home/ }).textContent);
     expect(home).toContain("+$ 200.000 de octubre 2026");
     expect(home).toContain("$ 370.000");
-    expect(normalized(screen.getByRole("row", { name: /^Free/ }).textContent)).toContain(
+    expect(normalized(screen.getByRole("listitem", { name: /^Free/ }).textContent)).toContain(
       "−$ 130.000 de octubre 2026",
     );
-    expect(normalized(screen.getByRole("row", { name: /^Savings/ }).textContent)).toContain(
+    expect(normalized(screen.getByRole("listitem", { name: /^Savings/ }).textContent)).toContain(
       "Se arrastra de octubre 2026 cuando ese plan se cierre.",
     );
-    expect(screen.getByRole("row", { name: /^Rent/ }).textContent).not.toMatch(/octubre|arrastra/);
+    expect(screen.getByRole("listitem", { name: /^Rent/ }).textContent).not.toMatch(/octubre|arrastra/);
     expect(container.querySelector("[data-line='l-home'] [data-bar]")).toHaveStyle({ width: "77%" });
   });
 
@@ -245,10 +276,10 @@ describe("line dashboard (HU-E9-10)", () => {
       <LineDashboard dashboard={dashboard} policy={householdDto().periodPolicy} formats={BUILT_IN_FORMATS} />,
       { locale: "en" },
     );
-    expect(normalized(screen.getByRole("row", { name: /^Home/ }).textContent)).toContain(
+    expect(normalized(screen.getByRole("listitem", { name: /^Home/ }).textContent)).toContain(
       "+$ 200.000 from October 2026",
     );
-    expect(normalized(screen.getByRole("row", { name: /^Free/ }).textContent)).toContain(
+    expect(normalized(screen.getByRole("listitem", { name: /^Free/ }).textContent)).toContain(
       "Carries over from October 2026 once that plan is closed.",
     );
   });
@@ -259,6 +290,7 @@ describe("line dashboard (HU-E9-10)", () => {
       locale: "en",
     });
     expect(screen.getByRole("heading", { level: 2, name: "November 2026 has no plan" })).toBeInTheDocument();
+    expect(screen.getByText(/everything spent in November shows as Unbudgeted/)).toBeInTheDocument();
     expect(screen.getByText(/the default split is equal shares/)).toBeInTheDocument();
   });
 });
@@ -269,7 +301,7 @@ describe("the plan in the household's words (#214)", () => {
       <LineDashboard dashboard={dashboard} policy={householdDto().periodPolicy} formats={BUILT_IN_FORMATS} />,
       { locale },
     );
-  const row = (name: RegExp) => screen.getByRole("row", { name });
+  const row = (name: RegExp) => screen.getByRole("listitem", { name });
   const withSaving = () => {
     const dashboard = e7Dashboard();
     dashboard.lines[2] = { ...dashboard.lines[2]!, spent: cop(200_000), available: cop(400_000) };
@@ -279,9 +311,8 @@ describe("the plan in the household's words (#214)", () => {
   it("reads a line spent exactly as planned as on plan, not as a warning", async () => {
     const { container } = show();
     const rent = row(/^Rent/);
-    const badge = within(rent).getByText("Cumplido");
-    expect(badge).toHaveAttribute("data-tone", "accent");
-    expect(badge.querySelector("svg[aria-hidden='true']")).not.toBeNull();
+    // Board E9-10 01: "Cumplido" is the line's right figure, in words, where an amount would be.
+    expect(normalized(rent.querySelector("[data-figure]")?.textContent)).toBe("Cumplido");
     expect(within(rent).queryByText("Al límite")).toBeNull();
     expect(await axeViolations(container)).toEqual([]);
   });
@@ -294,14 +325,12 @@ describe("the plan in the household's words (#214)", () => {
     expect(within(row(/^Rent/)).queryByText("Cumplido")).toBeNull();
   });
 
+  const caption = (name: RegExp) => normalized(row(name).querySelector("[data-caption]")?.textContent);
+
   it("says what reached a savings line is saved, not spent", () => {
     show(withSaving());
-    const [, saved] = within(row(/^Savings/)).getAllByRole("cell");
-    expect(saved).toHaveAttribute("data-label", "Ahorrado");
-    expect(normalized(saved!.textContent)).toBe("$ 200.000");
-    const [, spent] = within(row(/^Home/)).getAllByRole("cell");
-    expect(spent).toHaveAttribute("data-label", "Gastado");
-    expect(normalized(spent!.textContent)).toBe("$ 1.300.000");
+    expect(caption(/^Savings/)).toBe("Ahorrado $ 200.000 de $ 600.000");
+    expect(caption(/^Home/)).toBe("Gastado $ 1.300.000 de $ 1.470.000");
   });
 
   /** The API's totals with 200,000 COP saved: spent counts it, withoutSavings does not (ruling P262). */
@@ -356,8 +385,7 @@ describe("the plan in the household's words (#214)", () => {
   it("reads the same in English", () => {
     show(withSaving(), "en");
     expect(within(row(/^Rent/)).getByText("On plan")).toBeInTheDocument();
-    const [, saved] = within(row(/^Savings/)).getAllByRole("cell");
-    expect(saved).toHaveAttribute("data-label", "Saved");
-    expect(normalized(saved!.textContent)).toBe("$ 200.000");
+    expect(caption(/^Savings/)).toBe("Saved $ 200.000 of $ 600.000");
+    expect(caption(/^Home/)).toBe("Spent $ 1.300.000 of $ 1.470.000");
   });
 });

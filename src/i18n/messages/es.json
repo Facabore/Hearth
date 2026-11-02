@@ -1525,19 +1525,23 @@
       "overspent": "Excedida",
       "onPlan": "Cumplido",
       "state": {
-        "NEAR": "Cerca del límite",
         "HIGH": "Al límite"
       },
       "overBy": "Te pasaste por {amount}",
       "unbudgeted": "Sin presupuesto",
-      "unbudgetedNote": "Sin presupuesto es lo gastado en categorías que no están en ningún rubro.",
       "carryOver": "{amount} de {period}",
-      "carryOverPending": "Se arrastra de {period} cuando ese plan se cierre."
+      "carryOverPending": "Se arrastra de {period} cuando ese plan se cierre.",
+      "lineSpent": "Gastado {spent} de {planned}",
+      "lineSaved": "Ahorrado {spent} de {planned}",
+      "unbudgetedCaption": "Gastado {spent} en categorías sin rubro"
     },
     "noPlan": {
       "title": "{period} no tiene plan",
-      "body": "Sin plan, todo lo que se gaste en este período aparece como Sin presupuesto y la división por defecto es en partes iguales.",
-      "managersOnly": "Solo Propietario y Administrador pueden crear el plan."
+      "body": "Sin plan, todo lo que se gaste en {period} aparece como Sin presupuesto y la división por defecto es en partes iguales.",
+      "managersOnly": "Solo Propietario y Administrador pueden crear el plan.",
+      "thisPeriod": "este período",
+      "managersSee": "Solo Propietario y Administrador ven estas acciones.",
+      "spentIn": "Gastado {spent} en {period}"
     },
     "matrix": {
       "noPlan": "Este período no tiene plan: no hay asignaciones que comparar.",

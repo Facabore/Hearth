@@ -1525,19 +1525,23 @@
       "overspent": "Overspent",
       "onPlan": "On plan",
       "state": {
-        "NEAR": "Near the limit",
         "HIGH": "At the limit"
       },
       "overBy": "{amount} over plan",
       "unbudgeted": "Unbudgeted",
-      "unbudgetedNote": "Unbudgeted is what was spent in categories that are in no line.",
       "carryOver": "{amount} from {period}",
-      "carryOverPending": "Carries over from {period} once that plan is closed."
+      "carryOverPending": "Carries over from {period} once that plan is closed.",
+      "lineSpent": "Spent {spent} of {planned}",
+      "lineSaved": "Saved {spent} of {planned}",
+      "unbudgetedCaption": "Spent {spent} in categories with no line"
     },
     "noPlan": {
       "title": "{period} has no plan",
-      "body": "Without a plan, everything spent in this period shows as Unbudgeted and the default split is equal shares.",
-      "managersOnly": "Only an Owner or an Admin can create the plan."
+      "body": "Without a plan, everything spent in {period} shows as Unbudgeted and the default split is equal shares.",
+      "managersOnly": "Only an Owner or an Admin can create the plan.",
+      "thisPeriod": "this period",
+      "managersSee": "Only an Owner or an Admin sees these actions.",
+      "spentIn": "Spent {spent} in {period}"
     },
     "matrix": {
       "noPlan": "This period has no plan: there are no allocations to compare.",

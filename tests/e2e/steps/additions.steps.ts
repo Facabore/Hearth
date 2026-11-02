@@ -45,13 +45,16 @@ const typedExpenses = async (world: World, spaceId: string) => {
   return items.filter((t) => t.type === "EXPENSE" && t.amount.amount === typedOf.get(world));
 };
 
-/** The line dashboard's row whose header starts with `line`. */
+/** The line dashboard's card item whose name starts with `line` (board E9-10 01, ruling P272). */
 const lineRow = (page: Page, world: World, line: string) =>
   page
     .getByRole("main")
-    .getByRole("table", { name: world.t("reports.lines.caption") })
-    .getByRole("row")
-    .filter({ has: page.getByRole("rowheader", { name: new RegExp(`^${escaped(line)}`) }) });
+    .getByRole("list", { name: world.t("reports.lines.caption") })
+    .getByRole("listitem", { name: new RegExp(`^${escaped(line)}`) });
+
+/** The figure at the item's right: what is still available, named for assistive technology. */
+const availableOf = async (row: ReturnType<typeof lineRow>) =>
+  norm(await row.locator("[data-figure]").textContent());
 
 Given(
   /^"([^"]+)" has the household "([^"]+)" with "([^"]+)" as "(ADMIN|MEMBER|VIEWER)"$/,
@@ -140,8 +143,8 @@ Then(
     await page.goto(`/spaces/${householdOf(world).spaceId}/plan?period=${period}`);
     const row = lineRow(page, world, line);
     await expect(row).toHaveCount(1);
-    await expect(row.getByRole("rowheader")).toContainText(badge);
-    expect(norm((await row.getByRole("cell").allTextContents()).at(-1)!)).toBe(norm(available));
+    await expect(row).toContainText(badge);
+    expect(await availableOf(row)).toBe(norm(`${world.t("reports.lines.available")} ${available}`));
   },
 );
 
@@ -172,8 +175,8 @@ Then(
   async ({ page, world }, line: string, carry: string, available: string) => {
     const row = lineRow(page, world, line);
     await expect(row).toHaveCount(1);
-    await expect(row.getByRole("rowheader")).toContainText(carry);
-    expect(norm((await row.getByRole("cell").allTextContents()).at(-1)!)).toBe(norm(available));
+    await expect(row).toContainText(carry);
+    expect(await availableOf(row)).toBe(norm(`${world.t("reports.lines.available")} ${available}`));
   },
 );
 
