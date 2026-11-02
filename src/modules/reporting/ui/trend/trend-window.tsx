@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { SpaceDto } from "@/shared/ui/api/dto";
+import { chipClass } from "../plan-tabs";
 import { viewHref } from "../views";
 
 const WINDOWS = [6, 12] as const;
@@ -23,9 +24,7 @@ export function TrendWindow({
           key={count}
           href={`${viewHref(space, "trend", end)}${end ? "&" : "?"}periods=${count}`}
           aria-current={count === periods ? "page" : undefined}
-          className={`flex min-h-11 items-center rounded-full px-4 text-sm font-medium ${
-            count === periods ? "bg-accent-soft text-accent" : "border border-line bg-surface text-ink"
-          }`}
+          className={chipClass(count === periods)}
         >
           {t("window", { count })}
         </Link>

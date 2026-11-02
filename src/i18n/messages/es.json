@@ -1041,7 +1041,10 @@
       "skippedLast": "{name} omitida.",
       "banner": "{count, plural, one {# movimiento por confirmar} other {# movimientos por confirmar}}",
       "review": "Revisar",
-      "names": { "two": "{first} y {second}", "more": "{first}, {second} y {rest} más" },
+      "names": {
+        "two": "{first} y {second}",
+        "more": "{first}, {second} y {rest} más"
+      },
       "badge": "{count} por confirmar"
     }
   },
@@ -1404,7 +1407,15 @@
     },
     "frame": {
       "editPlan": "Editar plan",
-      "viewPlan": "Ver plan"
+      "viewPlan": "Ver plan",
+      "subtitle": "{space} · {detail}",
+      "plan": {
+        "DRAFT": "plan en borrador",
+        "ACTIVE": "plan activo",
+        "CLOSED": "plan cerrado"
+      },
+      "againstPrevious": "contra el período anterior",
+      "upTo": "Hasta {period}"
     },
     "spaceScoped": "{space} / {name}",
     "outsideTheApp": "Pagado fuera de la app",

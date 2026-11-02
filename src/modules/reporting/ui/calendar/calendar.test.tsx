@@ -102,6 +102,31 @@ describe("the cash-flow calendar (#150, ruling P241 of M6c)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("shows no zero summary when nothing is scheduled, only the empty card (board 11, ruling P272)", () => {
+    show(cashFlowDto({ dates: [] }));
+    expect(screen.queryByRole("region", { name: "Resumen de lo que viene" })).toBeNull();
+    expect(screen.queryByText(/Disponible hoy|Lo más bajo/)).toBeNull();
+  });
+
+  it("orders the view as its board: the tabs, the title, what it lists, then the window (ruling P272)", () => {
+    show(cashFlowDto({ dates: [] }));
+    const tabs = screen.getByRole("navigation", { name: "Vistas del plan" });
+    const title = screen.getByRole("heading", { level: 1, name: "Próximos 30 días" });
+    const explain = screen.getByText(/Los movimientos recurrentes de tus cuentas/);
+    const window = screen.getByRole("navigation", { name: "Ventana" });
+    const follows = (a: Node, b: Node) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect([follows(tabs, title), follows(title, explain), follows(explain, window)]).toEqual([
+      true,
+      true,
+      true,
+    ]);
+    // No line with the space's name above the title.
+    expect(screen.queryByText(personal.name)).toBeNull();
+    expect(within(window).getByRole("link", { name: "30 días" })).toHaveClass("bg-ink");
+    expect(within(window).getByRole("link", { name: "60 días" })).not.toHaveClass("bg-ink");
+  });
+
   it("offers no link to add one while something is scheduled", () => {
     show();
     expect(screen.queryByRole("link", { name: "Agregar un movimiento recurrente" })).not.toBeInTheDocument();

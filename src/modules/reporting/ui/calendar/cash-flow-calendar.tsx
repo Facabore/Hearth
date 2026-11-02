@@ -3,7 +3,7 @@ import { useTranslations } from "next-intl";
 import { Badge, Icon, VisuallyHidden } from "@/shared/ui";
 import type { CashFlowDto, SpaceDto } from "@/shared/ui/api/dto";
 import { formatDate, formatMoney, formatSignedMoney, type Formats } from "@/shared/ui/format/formatters";
-import { PlanTabs } from "../plan-tabs";
+import { chipClass, PlanTabs } from "../plan-tabs";
 import { calendarHref } from "../views";
 
 const WINDOWS = [30, 60] as const;
@@ -33,56 +33,29 @@ export function CashFlowCalendar({
   const money = (value: Money) => formatMoney(value, formats);
   return (
     <div className="mx-auto flex w-full max-w-[720px] min-w-0 flex-col gap-3 py-3">
+      {/* Board E9-09 12 (ruling P272): the Plan views first, then this view's title, what it lists, and its window. */}
+      <PlanTabs space={space} view="calendar" />
       <header className="flex flex-col gap-1">
-        <p className="text-sm break-words text-muted">{space.name}</p>
         <h1 className="text-[17px] leading-tight font-semibold">
           {t("calendar.title", { days: flow.days })}
         </h1>
+        <p className="text-sm text-muted">{t("calendar.explain")}</p>
       </header>
-      {/* The Plan views under the header, as in every Plan view; this view's own window comes after them. */}
-      <PlanTabs space={space} view="calendar" />
       <nav aria-label={t("calendar.window")} className="flex gap-2">
         {WINDOWS.map((days) => (
           <Link
             key={days}
             href={calendarHref(space, days)}
             aria-current={days === flow.days ? "page" : undefined}
-            className={`flex min-h-11 items-center rounded-full px-4 text-sm font-medium ${
-              days === flow.days ? "bg-accent-soft text-accent" : "border border-line bg-surface text-ink"
-            }`}
+            className={chipClass(days === flow.days)}
           >
             {t("calendar.days", { days })}
           </Link>
         ))}
       </nav>
-      <p className="text-sm text-muted">{t("calendar.explain")}</p>
 
-      <section aria-labelledby="flow-summary" className="rounded-xl border border-line bg-surface p-3">
-        <h2 id="flow-summary">
-          <VisuallyHidden>{t("calendar.summary")}</VisuallyHidden>
-        </h2>
-        <dl className="grid grid-cols-2 gap-3">
-          {(
-            [
-              ["opening", flow.opening],
-              ["incoming", flow.totals.incoming],
-              ["outgoing", flow.totals.outgoing],
-              ["closing", flow.totals.closing],
-            ] as const
-          ).map(([key, value]) => (
-            <div key={key} className="flex min-w-0 flex-col">
-              <dt className="text-sm text-muted">{t(`calendar.${key}`)}</dt>
-              <dd className="font-semibold tabular-nums [overflow-wrap:anywhere]">{money(value)}</dd>
-            </div>
-          ))}
-        </dl>
-        <p className={`mt-3 text-sm ${negative(flow.lowest.balance) ? "text-owe-ink" : "text-muted"}`}>
-          {t("calendar.lowest", {
-            balance: money(flow.lowest.balance),
-            date: formatDate(flow.lowest.date, formats),
-          })}
-        </p>
-      </section>
+      {/* Board 11 (ruling P272, #77): with nothing scheduled there is no summary, only the empty card. */}
+      {flow.dates.length === 0 ? null : <FlowSummary flow={flow} formats={formats} />}
 
       {flow.otherCurrencySpaces.map((other) => (
         <p key={other.spaceId} className="text-sm break-words text-muted">
@@ -135,6 +108,43 @@ export function CashFlowCalendar({
         </ol>
       )}
     </div>
+  );
+}
+
+/** What the window adds up to: today's available, what comes in and goes out, the end balance and the lowest one. */
+function FlowSummary({
+  flow,
+  formats,
+}: {
+  readonly flow: CashFlowDto;
+  readonly formats: Pick<Formats, "numberFormat" | "dateFormat">;
+}) {
+  const t = useTranslations("reports.calendar");
+  const money = (value: Money) => formatMoney(value, formats);
+  return (
+    <section aria-labelledby="flow-summary" className="rounded-xl border border-line bg-surface p-3">
+      <h2 id="flow-summary">
+        <VisuallyHidden>{t("summary")}</VisuallyHidden>
+      </h2>
+      <dl className="grid grid-cols-2 gap-3">
+        {(
+          [
+            ["opening", flow.opening],
+            ["incoming", flow.totals.incoming],
+            ["outgoing", flow.totals.outgoing],
+            ["closing", flow.totals.closing],
+          ] as const
+        ).map(([key, value]) => (
+          <div key={key} className="flex min-w-0 flex-col">
+            <dt className="text-sm text-muted">{t(key)}</dt>
+            <dd className="font-semibold tabular-nums [overflow-wrap:anywhere]">{money(value)}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className={`mt-3 text-sm ${negative(flow.lowest.balance) ? "text-owe-ink" : "text-muted"}`}>
+        {t("lowest", { balance: money(flow.lowest.balance), date: formatDate(flow.lowest.date, formats) })}
+      </p>
+    </section>
   );
 }
 

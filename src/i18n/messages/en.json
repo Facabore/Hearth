@@ -1041,7 +1041,10 @@
       "skippedLast": "{name} skipped.",
       "banner": "{count, plural, one {# movement to confirm} other {# movements to confirm}}",
       "review": "Review",
-      "names": { "two": "{first} and {second}", "more": "{first}, {second} and {rest} more" },
+      "names": {
+        "two": "{first} and {second}",
+        "more": "{first}, {second} and {rest} more"
+      },
       "badge": "{count} to confirm"
     }
   },
@@ -1404,7 +1407,15 @@
     },
     "frame": {
       "editPlan": "Edit plan",
-      "viewPlan": "View plan"
+      "viewPlan": "View plan",
+      "subtitle": "{space} · {detail}",
+      "plan": {
+        "DRAFT": "draft plan",
+        "ACTIVE": "active plan",
+        "CLOSED": "closed plan"
+      },
+      "againstPrevious": "against the previous period",
+      "upTo": "Up to {period}"
     },
     "spaceScoped": "{space} / {name}",
     "outsideTheApp": "Paid outside the app",
