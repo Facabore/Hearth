@@ -271,6 +271,20 @@ describe("the search (board B1 06, ruling P277)", () => {
     );
   });
 
+  it("keeps what the person typed after a search when that search's answer arrives late", async () => {
+    const { rerender } = renderWithIntl(listOf({ filter: { period: "2026-10" } }));
+    const field = screen.getByRole("searchbox", { name: "Buscar" });
+    await userEvent.type(field, "din{Enter}");
+    await userEvent.type(field, "n");
+    // The list for "din" arrives while the field already holds "dinn".
+    rerender(listOf({ filter: { period: "2026-10", search: "din" } }));
+    expect(field).toHaveValue("dinn");
+    await userEvent.type(field, "{Enter}");
+    expect(mocks.router.replace).toHaveBeenLastCalledWith(
+      "/spaces/sp-personal/transactions?period=2026-10&q=dinn",
+    );
+  });
+
   it("shows the address's search in the field, and an emptied field lists everything again", async () => {
     renderWithIntl(listOf({ filter: { period: "2026-10", search: "taxi" } }));
     const field = screen.getByRole("searchbox", { name: "Buscar" });
