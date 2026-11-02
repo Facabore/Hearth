@@ -12,6 +12,7 @@ const MEMBERS = new Set([
   `POST ${SPACE}/guests/{memberId}/claim-links`,
   `POST ${SPACE}/invitations`,
   `POST ${SPACE}/invitations/{invitationId}/revoke`,
+  `POST ${SPACE}/invitations/{invitationId}/restore`,
   `PATCH ${SPACE}/members/{memberId}`,
 ]);
 const ACCEPTS = new Set(["/api/v1/invitations/{token}/accept", "/api/v1/claims/{token}/accept"]);

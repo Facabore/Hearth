@@ -1,8 +1,7 @@
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import es from "@/i18n/messages/es.json";
-import { TOAST_ACTION_MS } from "@/shared/ui/molecules/toast-timing";
 import type { InvitationDto, SpaceDto } from "@/shared/ui/api/dto";
 import {
   accountDto,
@@ -54,7 +53,11 @@ const server = (signedIn = true) => {
     "GET /api/v1/spaces/{spaceId}/invitations": () => jsonResponse({ items: state.invitations }),
     "POST /api/v1/spaces/{spaceId}/invitations/{invitationId}/revoke": () => {
       state.invitations = [];
-      return new Response(null, { status: 204 });
+      return jsonResponse(invitationDto({ status: "REVOKED" }));
+    },
+    "POST /api/v1/spaces/{spaceId}/invitations/{invitationId}/restore": () => {
+      state.invitations = [invitationDto()];
+      return jsonResponse(invitationDto());
     },
     "GET /api/v1/spaces/{spaceId}/accounts": (_, { spaceId }) =>
       jsonResponse({
@@ -99,7 +102,6 @@ const named = (text: string) => new RegExp(`^${text.replace(/[.()$]/g, "\\$&").r
 beforeEach(() => {
   document.cookie = "hearth.locale=es; path=/";
 });
-afterEach(() => vi.useRealTimers());
 
 describe("shared spaces in the SPA (slice 4 of #199, ADR 0006)", () => {
   it("lists the members and, for someone who may invite, the pending invitations; revoking one reads only the members again", async () => {
@@ -112,17 +114,28 @@ describe("shared spaces in the SPA (slice 4 of #199, ADR 0006)", () => {
     const ledger = count(spa.requests, "GET", /\/transactions$/);
     const me = count(spa.requests, "GET", /\/me$/);
 
-    vi.useFakeTimers({ shouldAdvanceTime: true });
     await userEvent.click(screen.getByRole("button", { name: /^Revocar/ }));
-    // Ruling P272: the invitation hides at once and its revoke waits for the toast's Deshacer to run out.
+    // Ruling P274: the invitation hides and its revoke is sent at once, with no timer in between.
     expect(screen.queryByRole("button", { name: /^Revocar/ })).not.toBeInTheDocument();
-    expect(count(spa.requests, "POST", /\/revoke$/)).toBe(0);
-    await act(async () => vi.advanceTimersByTime(TOAST_ACTION_MS));
+    await waitFor(() => expect(count(spa.requests, "POST", /\/revoke$/)).toBe(1));
 
     await waitFor(() => expect(count(spa.requests, "GET", /\/invitations$/)).toBeGreaterThan(1));
-    expect(count(spa.requests, "POST", /\/revoke$/)).toBe(1);
     expect(count(spa.requests, "GET", /\/transactions$/)).toBe(ledger);
     expect(count(spa.requests, "GET", /\/me$/)).toBe(me);
+  });
+
+  it("brings a revoked invitation back with Deshacer, which restores it on the server (ruling P274)", async () => {
+    const { routes, state } = server();
+    const spa = renderSpa(`${HOUSEHOLD}/members`, routes);
+    await userEvent.click(await screen.findByRole("button", { name: /^Revocar/ }, { timeout: 5_000 }));
+    await waitFor(() => expect(count(spa.requests, "POST", /\/revoke$/)).toBe(1));
+    const reads = count(spa.requests, "GET", /\/invitations$/);
+    await userEvent.click(await screen.findByRole("button", { name: es.members.undo }));
+
+    await waitFor(() => expect(count(spa.requests, "POST", /\/restore$/)).toBe(1));
+    expect(state.invitations).toHaveLength(1);
+    expect(await screen.findByRole("button", { name: /^Revocar/ })).toBeVisible();
+    expect(count(spa.requests, "GET", /\/invitations$/)).toBeGreaterThan(reads);
   });
 
   it("answers a personal space's members, balances and history with the not-found screen (P159)", async () => {

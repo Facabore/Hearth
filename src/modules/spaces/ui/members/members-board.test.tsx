@@ -18,7 +18,6 @@ import type { Api } from "@/shared/ui/api/client";
 import type { InvitationDto, MemberDto, MoneyDto, SpaceDto } from "@/shared/ui/api/dto";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import type { ToastInput } from "@/shared/ui/molecules/toast";
-import { TOAST_ACTION_MS } from "@/shared/ui/molecules/toast-timing";
 import { MembersScreen } from "./members-screen";
 
 const mocks = vi.hoisted(() => ({
@@ -295,67 +294,82 @@ describe("the invite sheet (E9-05 · 04)", () => {
   });
 });
 
-describe("revoking an invitation with undo (Pantallas nuevas · 03)", () => {
-  it("hides the invitation at once, offers Deshacer, and revokes it only when the toast's time is up", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    const { api, requests } = fakeApi({
-      "POST /api/v1/spaces/{spaceId}/invitations/{invitationId}/revoke": () =>
-        new Response(null, { status: 204 }),
-    });
+describe("revoking an invitation with undo (Pantallas nuevas · 03, ruling P274)", () => {
+  const REVOKE = "POST /api/v1/spaces/{spaceId}/invitations/{invitationId}/revoke";
+  const RESTORE = "POST /api/v1/spaces/{spaceId}/invitations/{invitationId}/restore";
+  const revokeButton = () =>
+    screen.getByRole("button", { name: "Revocar el enlace de invitación como Lector" });
+  const paths = (requests: Request[]) => requests.map((request) => new URL(request.url).pathname);
+
+  it("hides the invitation, revokes it at once and offers Deshacer", async () => {
+    const { api, requests } = fakeApi({ [REVOKE]: () => jsonResponse({ ...PENDING[0], status: "REVOKED" }) });
     screenAs("u-ana", "OWNER", { api, invitations: PENDING });
-    await userEvent.click(
-      screen.getByRole("button", { name: "Revocar el enlace de invitación como Lector" }),
-    );
+    await userEvent.click(revokeButton());
     expect(screen.queryByRole("region", { name: "Invitaciones pendientes" })).not.toBeInTheDocument();
     expect(shown).toHaveLength(1);
     expect(shown[0]!.message).toBe("Invitación revocada");
     expect(shown[0]!.action?.label).toBe("Deshacer");
-    expect(requests).toHaveLength(0);
-    await act(async () => vi.advanceTimersByTime(TOAST_ACTION_MS));
-    await waitFor(() => expect(requests).toHaveLength(1));
-    expect(new URL(requests[0]!.url).pathname).toBe("/api/v1/spaces/sp-household/invitations/inv-1/revoke");
+    // No timer stands between the revoke and the API: the link stops working as the toast appears.
+    await waitFor(() =>
+      expect(paths(requests)).toEqual(["/api/v1/spaces/sp-household/invitations/inv-1/revoke"]),
+    );
     await waitFor(() => expect(router.refresh).toHaveBeenCalled());
   });
 
-  it("brings the invitation back with Deshacer and never revokes it", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    const { api, requests } = fakeApi({});
+  it("restores the invitation on the server with Deshacer and shows it again", async () => {
+    const { api, requests } = fakeApi({
+      [REVOKE]: () => jsonResponse({ ...PENDING[0], status: "REVOKED" }),
+      [RESTORE]: () => jsonResponse(PENDING[0]),
+    });
     screenAs("u-ana", "OWNER", { api, invitations: PENDING });
-    await userEvent.click(
-      screen.getByRole("button", { name: "Revocar el enlace de invitación como Lector" }),
+    await userEvent.click(revokeButton());
+    await act(async () => shown[0]!.action!.onAction());
+    await waitFor(() =>
+      expect(paths(requests)).toEqual([
+        "/api/v1/spaces/sp-household/invitations/inv-1/revoke",
+        "/api/v1/spaces/sp-household/invitations/inv-1/restore",
+      ]),
     );
-    act(() => shown[0]!.action!.onAction());
-    expect(screen.getByRole("button", { name: "Revocar el enlace de invitación como Lector" })).toBeVisible();
-    await act(async () => vi.advanceTimersByTime(TOAST_ACTION_MS * 2));
-    expect(requests).toHaveLength(0);
+    expect(
+      await screen.findByRole("button", { name: "Revocar el enlace de invitación como Lector" }),
+    ).toBeVisible();
   });
 
-  it("revokes at once what is still waiting when the screen closes", async () => {
+  it("sends the restore only after the revoke it undoes has answered", async () => {
+    let answer: (response: Response) => void = () => undefined;
     const { api, requests } = fakeApi({
-      "POST /api/v1/spaces/{spaceId}/invitations/{invitationId}/revoke": () =>
-        new Response(null, { status: 204 }),
+      [REVOKE]: () => new Promise<Response>((resolve) => (answer = resolve)),
+      [RESTORE]: () => jsonResponse(PENDING[0]),
     });
-    const { unmount } = screenAs("u-ana", "OWNER", { api, invitations: PENDING });
-    await userEvent.click(
-      screen.getByRole("button", { name: "Revocar el enlace de invitación como Lector" }),
-    );
-    unmount();
+    screenAs("u-ana", "OWNER", { api, invitations: PENDING });
+    await userEvent.click(revokeButton());
+    act(() => shown[0]!.action!.onAction());
     await waitFor(() => expect(requests).toHaveLength(1));
+    expect(paths(requests)).toEqual(["/api/v1/spaces/sp-household/invitations/inv-1/revoke"]);
+    await act(async () => answer(jsonResponse({ ...PENDING[0], status: "REVOKED" })));
+    await waitFor(() => expect(requests).toHaveLength(2));
+    expect(paths(requests)[1]).toBe("/api/v1/spaces/sp-household/invitations/inv-1/restore");
+  });
+
+  it("says the invitation stays revoked when the API no longer restores it", async () => {
+    const { api } = fakeApi({
+      [REVOKE]: () => jsonResponse({ ...PENDING[0], status: "REVOKED" }),
+      [RESTORE]: () => problemResponse(409, "InvitationNotRestorable"),
+    });
+    screenAs("u-ana", "OWNER", { api, invitations: PENDING });
+    await userEvent.click(revokeButton());
+    await act(async () => shown[0]!.action!.onAction());
+    await waitFor(() => expect(shown).toHaveLength(2));
+    expect(shown[1]).toMatchObject({ tone: "alert", message: es.errors.InvitationNotRestorable });
+    expect(screen.queryByRole("region", { name: "Invitaciones pendientes" })).not.toBeInTheDocument();
   });
 
   it("shows the invitation again with the problem when the revoke is refused", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    const { api } = fakeApi({
-      "POST /api/v1/spaces/{spaceId}/invitations/{invitationId}/revoke": () =>
-        problemResponse(404, "InvitationNotFound"),
-    });
+    const { api } = fakeApi({ [REVOKE]: () => problemResponse(404, "InvitationNotFound") });
     screenAs("u-ana", "OWNER", { api, invitations: PENDING });
-    await userEvent.click(
-      screen.getByRole("button", { name: "Revocar el enlace de invitación como Lector" }),
-    );
-    await act(async () => vi.advanceTimersByTime(TOAST_ACTION_MS));
+    await userEvent.click(revokeButton());
     expect(await screen.findByRole("alert")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Revocar el enlace de invitación como Lector" })).toBeVisible();
+    expect(revokeButton()).toBeVisible();
     expect(router.refresh).not.toHaveBeenCalled();
   });
 });

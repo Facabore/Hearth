@@ -2,15 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { localDateIn } from "@/shared/kernel/time-zone";
 import { Button, ProblemNotice } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { InvitationDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
+import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import { formatDate, formatNumber, type Formats } from "@/shared/ui/format/formatters";
 import { useToast } from "@/shared/ui/molecules/toast";
-import { TOAST_ACTION_MS } from "@/shared/ui/molecules/toast-timing";
 
 /**
  * HU-E9-05, ruling P155, the Main artboard's "Invitaciones pendientes": the invitations that can still be accepted,
@@ -18,9 +18,9 @@ import { TOAST_ACTION_MS } from "@/shared/ui/molecules/toast-timing";
  * link says whether it serves one person (ADMIN) or several, and next to Revoke how many people joined through it; a
  * link with no recorded use (or from before #218, without the count) shows no count.
  *
- * The board "Invitación revocada con deshacer" (ruling P272): Revoke hides the invitation at once and the toast offers
- * Deshacer. The API has no way back from a revoke, so the revoke is sent when the toast's time is up, or at once when
- * the screen closes or the page is hidden; Deshacer before that keeps the invitation as it was.
+ * The board "Invitación revocada con deshacer" (ruling P272): Revoke hides the invitation and the toast offers
+ * Deshacer. Ruling P274: the revoke is sent at once, so an invitation the person saw revoked is never usable after it;
+ * Deshacer asks the API to restore it (within 30 seconds of the revoke), and it comes back into the list.
  */
 export function PendingInvitations({
   spaceId,
@@ -39,78 +39,73 @@ export function PendingInvitations({
   const roles = useTranslations("shell.role");
   const router = useRouter();
   const toast = useToast();
+  const messageOf = useProblemMessage();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set());
   const [problem, setProblem] = useState<Problem | null>(null);
-  const waiting = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  // Each revoke Deshacer may still undo, by invitation: whether the API accepted it, once it answers.
+  const revoking = useRef(new Map<string, Promise<boolean>>());
 
   const show = (invitationId: string) =>
     setHidden((current) => new Set([...current].filter((id) => id !== invitationId)));
 
-  const send = async (invitationId: string, keepalive = false) => {
+  const send = async (invitationId: string): Promise<boolean> => {
     try {
       const { error, response } = await api.POST(
         "/api/v1/spaces/{spaceId}/invitations/{invitationId}/revoke",
-        { params: { path: { spaceId, invitationId } }, ...(keepalive ? { keepalive } : {}) },
+        { params: { path: { spaceId, invitationId } } },
       );
       if (response.ok) {
         router.refresh();
-        return;
+        return true;
       }
       setProblem(problemFrom(error, response));
     } catch (error) {
       setProblem(problemFrom(error, undefined));
     }
+    revoking.current.delete(invitationId);
     show(invitationId);
+    return false;
   };
-  // The latest `send` for the timers and the flush, which outlive the render that started them.
-  const sendRef = useRef(send);
-  useEffect(() => {
-    sendRef.current = send;
-  });
 
-  useEffect(() => {
-    const timers = waiting.current;
-    const flush = () => {
-      for (const [invitationId, timer] of timers) {
-        clearTimeout(timer);
-        void sendRef.current(invitationId, true);
+  const restore = async (invitationId: string) => {
+    try {
+      const { error, response } = await api.POST(
+        "/api/v1/spaces/{spaceId}/invitations/{invitationId}/restore",
+        { params: { path: { spaceId, invitationId } } },
+      );
+      if (response.ok) {
+        revoking.current.delete(invitationId);
+        show(invitationId);
+        router.refresh();
+        return;
       }
-      timers.clear();
-    };
-    const onHidden = () => {
-      if (document.visibilityState === "hidden") flush();
-    };
-    document.addEventListener("visibilitychange", onHidden);
-    return () => {
-      document.removeEventListener("visibilitychange", onHidden);
-      flush();
-    };
-  }, []);
-
-  const undo = (invitationId: string) => {
-    const timer = waiting.current.get(invitationId);
-    if (timer === undefined) {
-      toast.show({ tone: "alert", message: t("undoLate") });
-      return;
+      const refused = problemFrom(error, response);
+      // Too late, or used meanwhile: the invitation stays revoked, and the toast says so where Deshacer was.
+      if (refused.code === "InvitationNotRestorable")
+        toast.show({ tone: "alert", message: messageOf(refused).message });
+      else setProblem(refused);
+    } catch (error) {
+      setProblem(problemFrom(error, undefined));
     }
-    clearTimeout(timer);
-    waiting.current.delete(invitationId);
-    show(invitationId);
+  };
+
+  // The restore waits for the revoke's answer, so it never reaches the API before the revoke it undoes.
+  const undo = async (invitationId: string) => {
+    const revoked = revoking.current.get(invitationId);
+    if (revoked === undefined || !(await revoked)) return;
+    await restore(invitationId);
   };
 
   const revoke = (invitationId: string) => {
-    if (waiting.current.has(invitationId)) return;
+    if (revoking.current.has(invitationId)) return;
     setProblem(null);
     setHidden((current) => new Set([...current, invitationId]));
-    waiting.current.set(
-      invitationId,
-      setTimeout(() => {
-        waiting.current.delete(invitationId);
-        void sendRef.current(invitationId);
-      }, TOAST_ACTION_MS),
-    );
-    toast.show({ message: t("revoked"), action: { label: t("undo"), onAction: () => undo(invitationId) } });
+    revoking.current.set(invitationId, send(invitationId));
+    toast.show({
+      message: t("revoked"),
+      action: { label: t("undo"), onAction: () => void undo(invitationId) },
+    });
   };
 
   const visible = invitations.filter((invitation) => !hidden.has(invitation.id));

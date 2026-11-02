@@ -135,6 +135,7 @@
     "InvitationEmailMismatch": "This invitation is for another email address.",
     "InvitationExpired": "This invitation has expired. Ask for a new one.",
     "InvitationNotFound": "This invitation was not found.",
+    "InvitationNotRestorable": "This invitation can't be restored.",
     "InvitationRevoked": "This invitation was revoked.",
     "LastOwnerRequired": "The space needs at least one owner. Name another one first.",
     "MemberNameTaken": "There is already a member with that name in this space.",
@@ -1152,7 +1153,6 @@
     "revokeLink": "Revoke the invitation link as {role}",
     "revoked": "Invitation revoked",
     "undo": "Undo",
-    "undoLate": "The invitation was already revoked: create a new one if needed.",
     "addGuest": "Add guest",
     "guestOptions": "Options for {name}",
     "guestSheet": {

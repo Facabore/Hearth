@@ -203,6 +203,7 @@ import {
   createListMembers,
   createListMySpaces,
   createListSpacePeriods,
+  createRestoreInvitation,
   createRevokeInvitation,
   createSpaceAccess,
   createUpdateSpaceSettings,
@@ -234,6 +235,7 @@ import {
   type MembersDeps,
   type PreviewClaim,
   type PreviewInvitation,
+  type RestoreInvitation,
   type RevokeInvitation,
   type SpaceCreatedListener,
   type StoredPeriodSource,
@@ -285,6 +287,7 @@ export interface Container extends RouteDeps {
     readonly listMembers: ListMembers;
     readonly createInvitation: CreateInvitation;
     readonly revokeInvitation: RevokeInvitation;
+    readonly restoreInvitation: RestoreInvitation;
     readonly listInvitations: ListInvitations;
     readonly acceptInvitation: AcceptInvitation;
     readonly previewInvitation: PreviewInvitation;
@@ -761,6 +764,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       listMembers: createListMembers(membersDeps),
       createInvitation: createCreateInvitation(invitationsDeps),
       revokeInvitation: createRevokeInvitation(invitationsDeps),
+      restoreInvitation: createRestoreInvitation(invitationsDeps),
       listInvitations: createListInvitations(invitationsDeps),
       acceptInvitation: createAcceptInvitation(invitationsDeps),
       previewInvitation: createPreviewInvitation(invitationsDeps),

@@ -140,6 +140,25 @@ export const revokeInvitation = (invitation: Invitation, now: Date): Result<Invi
   return ok(revoked);
 };
 
+/** Ruling P274: how long after a revocation Deshacer can still bring an invitation back. */
+export const RESTORE_WINDOW_MS = 30_000;
+
+/**
+ * Ruling P274: Deshacer undoes a revocation made in the last 30 seconds, so the invitation is pending again. Only an
+ * email invitation or a link comes back (a claim link dies with its guest's place), and only while it has not expired
+ * and nobody used it up. Restoring a pending invitation changes nothing; anything else is InvitationNotRestorable.
+ */
+export const restoreInvitation = (invitation: Invitation, now: Date): Result<Invitation> => {
+  const refused = err(domainError("InvitationNotRestorable"));
+  if (isClaim(invitation)) return refused;
+  if (effectiveStatus(invitation, now) === "PENDING") return ok(invitation);
+  if (invitation.status !== "REVOKED" || invitation.revokedAt === null) return refused;
+  if (now.getTime() - invitation.revokedAt.getTime() > RESTORE_WINDOW_MS) return refused;
+  if (now.getTime() >= invitation.expiresAt.getTime()) return refused;
+  if (isSingleUse(invitation) && invitation.joins.length > 0) return refused;
+  return ok({ ...invitation, status: "PENDING", revokedAt: null });
+};
+
 /** HU-E1-11: claim links hand over a guest's place; they never add a member. */
 export const isClaim = (invitation: Invitation): boolean => invitation.kind === "CLAIM";
 

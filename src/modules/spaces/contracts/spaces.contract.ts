@@ -338,6 +338,25 @@ export const spacesPaths: ZodOpenApiPathsObject = {
       },
     },
   },
+  "/api/v1/spaces/{spaceId}/invitations/{invitationId}/restore": {
+    post: {
+      operationId: "restoreInvitation",
+      summary:
+        "Undo a revoke made in the last 30 seconds (ruling P274): the invitation is pending again; restoring twice changes nothing",
+      ...securedByUser,
+      requestParams: { path: InvitationPath },
+      responses: {
+        "200": { description: "The pending invitation", content: jsonContent(InvitationSchema) },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound, InvitationNotFound",
+          "409":
+            "InvitationNotRestorable (revoked more than 30 seconds ago, expired, used, or a claim link), SpaceArchived",
+        }),
+      },
+    },
+  },
   "/api/v1/invitations/{token}": {
     get: {
       operationId: "previewInvitation",

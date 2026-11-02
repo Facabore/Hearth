@@ -73,6 +73,7 @@ export {
   type PreviewClaim,
   type PreviewInvitation,
 } from "./preview-invitation";
+export { createRestoreInvitation, type RestoreInvitation } from "./restore-invitation";
 export { createRevokeInvitation, type RevokeInvitation } from "./revoke-invitation";
 export {
   createAcceptInvitation,
