@@ -91,14 +91,6 @@ Feature: Moving between screens: every address and every flow leads somewhere
     Then the invite sheet of "Household" is open on the members screen
 
   @e2e
-  Scenario: Saldos of a shared space leads to its members
-    Given "Ana" owns the shared space "Household"
-    When "Ana" opens the home page of "Household" by its URL
-    And "Ana" opens the Saldos tab
-    And "Ana" chooses "Miembros" on the Saldos screen
-    Then the members screen of "Household" is shown
-
-  @e2e
   Scenario: Signing out keeps the language the person reads in, even in a browser that asks for English
     Given the browser asks for English
     When "Ana" chooses "Sign out" in the user menu

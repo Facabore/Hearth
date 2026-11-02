@@ -2642,12 +2642,10 @@ test.describe("Settings and New space keep the space they were opened from (N3)"
 });
 
 test.describe("the members entry of a shared space is findable (N10)", () => {
-  test("the home and Saldos lead to the members with full targets", async ({ page }) => {
+  // P272: the Saldos board has no Miembros button; the home and the profile sheet lead there.
+  test("the home leads to the members with full targets", async ({ page }) => {
     const { sharedId } = await session(page, "members-entry");
-    for (const [path, names] of [
-      [`/spaces/${sharedId}`, [es.home.members, es.home.invite]],
-      [`/spaces/${sharedId}/balances`, [es.home.members]],
-    ] as const) {
+    for (const [path, names] of [[`/spaces/${sharedId}`, [es.home.members, es.home.invite]]] as const) {
       await page.goto(path);
       await settle(page);
       for (const name of names) {

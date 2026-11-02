@@ -94,6 +94,12 @@ const juanInToasts = (api: Api) =>
 const dialog = () => screen.getByRole("dialog", { name: "Saldar" });
 const payerGroup = () => within(dialog()).getByRole("radiogroup", { name: "Quién paga" });
 const save = () => within(dialog()).getByRole("button", { name: "Guardar pago" });
+const radioNames = (group: HTMLElement) =>
+  within(group)
+    .getAllByRole("radio")
+    .map((radio) => normalized(radio.textContent));
+/** Board 02: the receiver is a fixed row, "A Ana (tú)", not a choice. */
+const receiverRow = () => within(dialog()).getByTestId("settle-receiver");
 /** An accessible name whose spaces match the formatters' non-breaking ones. */
 const named = (text: string) => new RegExp(`^${text.replace(/[.()$]/g, "\\$&").replace(/ /g, "\\s")}$`);
 const JUAN_PAYS = named("Saldar: Juan le paga $ 100.000 a Ana");
@@ -112,13 +118,15 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
     });
     screenAs("u-juan", api);
     await userEvent.click(screen.getByRole("button", { name: JUAN_PAYS }));
+    // Board 02: the sheet says it was prefilled, offers as payer only who owes Ana, and fixes Ana as the receiver.
+    expect(within(dialog()).getByText("Viaje 2026 · prellenado desde la sugerencia")).toBeInTheDocument();
     expect(within(payerGroup()).getByRole("radio", { name: "Juan (tú)" })).toBeChecked();
-    expect(
-      within(within(dialog()).getByRole("radiogroup", { name: "Quién recibe" })).getByRole("radio", {
-        name: "Ana",
-      }),
-    ).toBeChecked();
+    expect(radioNames(payerGroup())).toEqual(["Juan (tú)", "Luis"]);
+    expect(within(dialog()).queryByRole("radiogroup", { name: "Quién recibe" })).toBeNull();
+    expect(normalized(receiverRow().textContent)).toBe("A Ana");
     expect(within(dialog()).getByLabelText("Monto")).toHaveValue("100.000");
+    // A prefilled amount needs no example of how to write one.
+    expect(within(dialog()).getByLabelText("Monto")).not.toHaveAccessibleDescription(/Ej:/);
     expect(normalized(within(dialog()).getByText(/le paga/).textContent)).toContain(
       "Para quedar al día, Juan le paga $ 100.000 a Ana. Puedes registrar un pago parcial; si pagas de más, el saldo cambia de lado.",
     );
@@ -301,21 +309,14 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
       expect(await requests[0]!.json()).not.toHaveProperty("sourceAccountId");
     });
 
-    it("starts the paying account once the viewer becomes the payer of an empty draft", async () => {
-      localStorage.setItem("hearth.lastAccount", "a-bank");
-      const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
-      screenAs("u-ana", api);
-      await userEvent.click(screen.getByRole("button", { name: "Saldar otro monto" }));
-      await userEvent.click(within(payerGroup()).getByRole("radio", { name: "Ana (tú)" }));
-      await userEvent.click(
-        within(within(dialog()).getByRole("radiogroup", { name: "Quién recibe" })).getByRole("radio", {
-          name: "Luis",
-        }),
-      );
-      expect(within(from()).getByRole("radio", { name: "Bancolombia" })).toBeChecked();
-      await userEvent.type(within(dialog()).getByLabelText("Monto"), "20.000");
-      await userEvent.click(save());
-      expect(await requests[0]!.json()).toMatchObject({ payerMemberId: "m-ana", sourceAccountId: "a-bank" });
+    it("draws each account with its wallet icon and the optional mark lighter than the label (board 02)", async () => {
+      screenAs("u-juan", fakeApi({}).api, undefined, { myAccounts: [DAVI, NEQUI] });
+      await userEvent.click(screen.getByRole("button", { name: JUAN_PAYS }));
+      for (const radio of within(from()).getAllByRole("radio").slice(1))
+        expect(radio.querySelector("svg")).not.toBeNull();
+      expect(within(dialog()).getByText("Sale de")).toHaveClass("font-semibold");
+      const optional = within(dialog()).getByText("(opcional)");
+      expect(optional).toHaveClass("font-normal", "text-muted");
     });
 
     it("never starts the receiving account on one: a payment arrives where the viewer says", async () => {
@@ -381,11 +382,21 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
     expect(within(dialog()).getByRole("radiogroup", { name: "Sale de (opcional)" })).toBeInTheDocument();
   });
 
+  it("opens Saldar otro monto with the viewer as the fixed receiver and everyone else as a payer (board 03)", async () => {
+    screenAs("u-ana", fakeApi({}).api);
+    await userEvent.click(screen.getByRole("button", { name: "Saldar otro monto" }));
+    expect(within(dialog()).getByText("Viaje 2026")).toBeInTheDocument();
+    expect(within(dialog()).queryByText(/prellenado/)).toBeNull();
+    expect(radioNames(payerGroup())).toEqual(["Juan", "Luis", "Pedro (invitado)"]);
+    expect(within(payerGroup()).queryByRole("radio", { checked: true })).toBeNull();
+    expect(normalized(receiverRow().textContent)).toBe("A Ana (tú)");
+    expect(within(dialog()).getByLabelText("Monto")).toHaveAccessibleDescription("Ej: 1.250,50");
+  });
+
   it("refuses a payment to oneself without sending it", async () => {
     const { api, requests } = fakeApi({});
-    screenAs("u-ana", api);
-    await userEvent.click(screen.getByRole("button", { name: "Saldar otro monto" }));
-    await userEvent.click(within(payerGroup()).getByRole("radio", { name: "Ana (tú)" }));
+    // Only an address can name the receiver as payer: the sheet never offers the receiver as a payer.
+    screenAs("u-ana", api, "m-ana");
     await userEvent.type(within(dialog()).getByLabelText("Monto"), "1.000");
     await userEvent.click(save());
     expect(
@@ -500,12 +511,9 @@ describe("a viewer with nothing to settle (#217)", () => {
       balances: [...TRIP_BALANCES, net("m-sofi", 0), net("m-tomas", 20_000)],
     });
     await userEvent.click(screen.getByRole("button", { name: "Saldar otro monto" }));
-    const receivers = within(dialog()).getByRole("radiogroup", { name: "Quién recibe" });
-    for (const group of [payerGroup(), receivers]) {
-      expect(within(group).queryByRole("radio", { name: "Sofi" })).toBeNull();
-      expect(within(group).getByRole("radio", { name: "Tomás" })).toBeInTheDocument();
-      expect(within(group).getByRole("radio", { name: "Pedro (invitado)" })).toBeInTheDocument();
-    }
+    expect(within(payerGroup()).queryByRole("radio", { name: "Sofi" })).toBeNull();
+    expect(within(payerGroup()).getByRole("radio", { name: "Tomás" })).toBeInTheDocument();
+    expect(within(payerGroup()).getByRole("radio", { name: "Pedro (invitado)" })).toBeInTheDocument();
     // The balances list still names everyone: only the sheet's choices leave her out.
     expect(screen.getByRole("link", { name: /Sofi/, hidden: true })).toBeInTheDocument();
   });

@@ -1195,7 +1195,11 @@
       "closing": "At the end",
       "entries": "Movements that changed their balance",
       "empty": "Nothing changed their balance in this period.",
-      "paid": "See what {name} paid",
+      "state": {
+        "owes": "owes",
+        "owed": "is owed",
+        "settled": "settled up"
+      },
       "note": "On the right, the balance after each movement and, under it, how much it changed."
     },
     "record": "Settle another amount",
@@ -1203,14 +1207,18 @@
       "action": "Settle",
       "suggestion": "Settle: {payer} pays {receiver} {amount}",
       "title": "Settle",
+      "prefilled": "{space} · filled in from the suggestion",
       "payer": "Who pays",
-      "receiver": "Who receives",
+      "receiver": "To",
       "amount": "Amount",
       "debt": "{payer} owes {receiver} {amount}. You can record a partial payment; paying more turns the debt around.",
       "noDebt": "{payer} owes {receiver} nothing.",
       "guestNote": "{name} is a guest: they paid outside the app, so there is no source account.",
       "from": "Paid from (optional)",
       "to": "Received in (optional)",
+      "fromName": "Paid from",
+      "toName": "Received in",
+      "optional": "(optional)",
       "none": "None",
       "payerRequired": "Choose who pays.",
       "save": "Save payment"

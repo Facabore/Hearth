@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { preferredAccountId, readLastAccount, useIdempotencyKey } from "@/modules/ledger/ui";
 import { memberLabel } from "@/modules/spaces/ui";
-import { Button, ChoiceGroup, Icon, NumberField, ProblemNotice, Sheet } from "@/shared/ui";
+import { Button, ChoiceGroup, Icon, NumberField, ProblemNotice, Sheet, SymbolIcon } from "@/shared/ui";
 import { currencyOf } from "@/shared/ui/format/currencies";
 import { useToast } from "@/shared/ui/molecules/toast";
 import { browserApi, type Api } from "@/shared/ui/api/client";
@@ -42,6 +42,8 @@ export interface SettleUpSheetProps {
   readonly suggestions: readonly SuggestionDto[];
   /** The draft the sheet starts from; the screen mounts the sheet only while it is open, so each opening is new. */
   readonly initial: SettlementDraft;
+  /** A suggestion filled the draft in: the sheet says so, and offers as payer only who owes the receiver (board 02). */
+  readonly suggested?: boolean;
   readonly formats: Formats;
   /** The zone the payment is dated in; by default the browser's. */
   readonly timeZone?: string;
@@ -52,6 +54,10 @@ export interface SettleUpSheetProps {
  * HU-E9-07, the SettleUp artboard (rulings P174 and P175): who pays whom and how much, prefilled from a suggestion or
  * empty. It records a payment now, in the browser's zone, with one `Idempotency-Key` per draft; a guest pays outside
  * the app, so no account is offered on their side.
+ *
+ * Ruling P272 (boards 02 and 03): the receiver the opening chose (the suggestion's, else the viewer, P175) is a fixed
+ * row, "A Ana (tú)", and the payer is chosen among the others. Each account carries its wallet icon, and "(opcional)"
+ * is lighter than its label.
  */
 export function SettleUpSheet({
   open,
@@ -62,6 +68,7 @@ export function SettleUpSheet({
   myAccounts,
   suggestions,
   initial,
+  suggested = false,
   formats,
   timeZone,
   api: injected,
@@ -162,13 +169,25 @@ export function SettleUpSheet({
     setPending(false);
   };
 
-  const memberChoices = members.map((member) => ({
-    value: member.id,
-    label: wrapped(memberLabel(member, meUserId, names)),
-  }));
-  const accountsOf = (field: "sourceAccountId" | "destinationAccountId", label: string) => (
+  // Boards 02 and 03: the receiver is fixed and never offered as payer. From a suggestion, the payers are who owe that
+  // receiver; otherwise anyone else may pay them (a partial or a larger payment is fine, P174).
+  const owesReceiver = new Set(
+    suggestions
+      .filter((suggestion) => suggestion.receivingMemberId === draft.receivingMemberId)
+      .map((suggestion) => suggestion.payerMemberId),
+  );
+  const payerChoices = members
+    .filter(
+      (member) =>
+        member.id !== draft.receivingMemberId &&
+        (!suggested || owesReceiver.has(member.id) || member.id === draft.payerMemberId),
+    )
+    .map((member) => ({ value: member.id, label: wrapped(memberLabel(member, meUserId, names)) }));
+  const accountsOf = (field: "sourceAccountId" | "destinationAccountId", label: string, visible: string) => (
     <div className="flex flex-col gap-2">
-      <FieldLabel>{label}</FieldLabel>
+      <FieldLabel>
+        {visible} <span className="font-normal text-muted">{t("optional")}</span>
+      </FieldLabel>
       <ChoiceGroup
         label={label}
         layout="chips"
@@ -176,7 +195,15 @@ export function SettleUpSheet({
         onValueChange={(value) => setDraft({ ...draft, [field]: value === "" ? null : value })}
         options={[
           { value: "", label: wrapped(t("none")) },
-          ...accounts.map((account) => ({ value: account.id, label: wrapped(account.name) })),
+          ...accounts.map((account) => ({
+            value: account.id,
+            label: (
+              <span className="flex max-w-full items-center gap-2 py-2.5 text-left [overflow-wrap:anywhere]">
+                <SymbolIcon name="wallet" size={16} className="shrink-0" />
+                <span className="min-w-0">{account.name}</span>
+              </span>
+            ),
+          })),
         ]}
       />
     </div>
@@ -187,7 +214,7 @@ export function SettleUpSheet({
       open={open}
       onOpenChange={onOpenChange}
       title={t("title")}
-      description={space.name}
+      description={suggested ? t("prefilled", { space: space.name }) : space.name}
       footer={
         <Button type="submit" form="settle-up-form" size="lg" disabled={pending}>
           {t("save")}
@@ -207,23 +234,28 @@ export function SettleUpSheet({
             layout="chips"
             value={draft.payerMemberId ?? ""}
             onValueChange={(value) => setDraft({ ...draft, payerMemberId: value })}
-            options={memberChoices}
+            options={payerChoices}
             describedBy={errorOf("payer") ? "settle-payer-error" : undefined}
           />
           <FieldError id="settle-payer-error" message={errorOf("payer")} />
         </div>
-        <div className="flex flex-col gap-2">
-          <FieldLabel>{t("receiver")}</FieldLabel>
-          <ChoiceGroup
-            label={t("receiver")}
-            layout="chips"
-            value={draft.receivingMemberId ?? ""}
-            onValueChange={(value) => setDraft({ ...draft, receivingMemberId: value })}
-            options={memberChoices}
-            describedBy={errorOf("receiver") ? "settle-receiver-error" : undefined}
-          />
+        {receiver ? (
+          <div className="flex flex-col gap-2">
+            <p
+              data-testid="settle-receiver"
+              aria-describedby={errorOf("receiver") ? "settle-receiver-error" : undefined}
+              className="flex min-h-12 items-center gap-3 rounded-2xl bg-track px-4 py-2.5 text-ink"
+            >
+              <span className="text-muted">{t("receiver")}</span>{" "}
+              <span className="min-w-0 font-semibold [overflow-wrap:anywhere]">
+                {memberLabel(receiver, meUserId, names)}
+              </span>
+            </p>
+            <FieldError id="settle-receiver-error" message={errorOf("receiver")} />
+          </div>
+        ) : (
           <FieldError id="settle-receiver-error" message={errorOf("receiver")} />
-        </div>
+        )}
         <div className="flex flex-col gap-1.5">
           <NumberField
             id="settle-amount"
@@ -233,6 +265,8 @@ export function SettleUpSheet({
             decimals={currency.exponent}
             symbol={currency.symbol}
             value={draft.amount}
+            // Board 02: a prefilled amount needs no example; an empty one shows how to write one (#164).
+            example={draft.amount === "" ? undefined : false}
             error={errorOf("amount")}
             onChange={(amount) => setDraft({ ...draft, amount })}
             large
@@ -257,9 +291,11 @@ export function SettleUpSheet({
             </span>
           </p>
         ) : null}
-        {payer?.id === meMemberId && myAccounts.length > 0 ? accountsOf("sourceAccountId", t("from")) : null}
+        {payer?.id === meMemberId && myAccounts.length > 0
+          ? accountsOf("sourceAccountId", t("from"), t("fromName"))
+          : null}
         {receiver?.id === meMemberId && myAccounts.length > 0
-          ? accountsOf("destinationAccountId", t("to"))
+          ? accountsOf("destinationAccountId", t("to"), t("toName"))
           : null}
         {problem && found === "form" ? <ProblemNotice problem={problem} /> : null}
       </form>

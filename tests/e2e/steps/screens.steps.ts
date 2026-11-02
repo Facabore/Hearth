@@ -196,15 +196,6 @@ Then("the invite sheet of {string} is open on the members screen", async ({ page
   await expect(page).toHaveURL(new RegExp(`/spaces/${spaceId(world, space)}/members\\?invite=1$`));
 });
 
-When(
-  "{string} chooses {string} on the Saldos screen",
-  async ({ page, world }, name: string, action: string) => {
-    expect(name).toBe(world.user!.name);
-    expect(action).toBe(world.t("home.members"));
-    await page.getByRole("link", { name: action, exact: true }).click();
-  },
-);
-
 Given("the browser asks for English", async ({ page, world }) => {
   await page.context().setExtraHTTPHeaders(world.headers({ "accept-language": "en-US,en;q=0.9" }));
 });

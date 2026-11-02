@@ -49,7 +49,8 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
 
   it("colors who owes and who is owed, never by the sign alone", () => {
     view();
-    expect(screen.getByText(/^Te toca poner/)).toHaveClass("text-owe");
+    // P272 (board 01): the headline is ink whatever the direction; its words say who puts and who receives.
+    expect(screen.getByText(/^Te toca poner/)).toHaveClass("text-ink");
     const members = screen.getByRole("region", { name: "Cada miembro" });
     expect(within(members).getByText(/^le toca poner\s/)).toHaveClass("text-owe");
     expect(within(members).getByText(/^le toca recibir\s/)).toHaveClass("text-accent");
@@ -152,12 +153,41 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
     expect(screen.getByText(`Tu saldo en ${name}`)).toHaveClass("[overflow-wrap:anywhere]");
   });
 
-  it("links to the members from its header area, with a full target (N10)", () => {
-    view();
-    const link = screen.getByRole("link", { name: "Miembros" });
-    expect(link).toHaveAttribute("href", "/spaces/sp-household/members");
-    expect(link).toHaveClass("min-h-11");
+  it("draws its board: one card per suggestion with a filled Saldar, a text Saldar otro monto, no Miembros button (P272)", () => {
+    view({
+      members: [ANA, JUAN, LUIS],
+      meUserId: "u-ana",
+      balances: [net("m-ana", 150_000), net("m-juan", -100_000), net("m-luis", -50_000)],
+      suggestions: [
+        { payerMemberId: "m-juan", receivingMemberId: "m-ana", amount: cop(100_000) },
+        { payerMemberId: "m-luis", receivingMemberId: "m-ana", amount: cop(50_000) },
+      ],
+    });
+    const headline = screen.getByText(/^Te toca recibir/);
+    expect(headline).toHaveClass("text-ink");
+    expect(headline).not.toHaveClass("text-accent");
+    const cards = within(screen.getByRole("region", { name: "Para quedar al día" })).getAllByRole("listitem");
+    expect(cards).toHaveLength(2);
+    for (const card of cards) {
+      expect(card).toHaveClass("rounded-2xl", "border", "bg-surface");
+      expect(within(card).getByRole("button", { name: /^Saldar:/ })).toHaveClass(
+        "bg-accent",
+        "text-on-accent",
+      );
+    }
+    const other = screen.getByRole("button", { name: "Saldar otro monto" });
+    expect(other).toHaveClass("text-accent");
+    expect(other).not.toHaveClass("border");
+    // The members stay one tap away in the profile sheet and on Inicio; the board's Saldos has no Miembros button.
+    expect(screen.queryByRole("link", { name: "Miembros" })).toBeNull();
     expect(screen.getByRole("heading", { name: "Cada miembro" })).toBeInTheDocument();
+  });
+
+  it("marks each member row with a chevron, as each one opens that member's history", () => {
+    view();
+    const links = within(screen.getByRole("region", { name: "Cada miembro" })).getAllByRole("link");
+    expect(links).toHaveLength(2);
+    for (const link of links) expect(link.querySelector("svg")).not.toBeNull();
   });
 
   it("is a bottom-navigation destination, so it has no back link", () => {

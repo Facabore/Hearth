@@ -1195,7 +1195,11 @@
       "closing": "Al terminar",
       "entries": "Movimientos que cambian su saldo",
       "empty": "Nada cambió su saldo en este período.",
-      "paid": "Ver lo que pagó {name}",
+      "state": {
+        "owes": "le toca poner",
+        "owed": "le toca recibir",
+        "settled": "al día"
+      },
       "note": "A la derecha, el saldo después de cada movimiento y debajo cuánto cambió."
     },
     "record": "Saldar otro monto",
@@ -1203,14 +1207,18 @@
       "action": "Saldar",
       "suggestion": "Saldar: {payer} le paga {amount} a {receiver}",
       "title": "Saldar",
+      "prefilled": "{space} · prellenado desde la sugerencia",
       "payer": "Quién paga",
-      "receiver": "Quién recibe",
+      "receiver": "A",
       "amount": "Monto",
       "debt": "Para quedar al día, {payer} le paga {amount} a {receiver}. Puedes registrar un pago parcial; si pagas de más, el saldo cambia de lado.",
       "noDebt": "{payer} ya está al día con {receiver}.",
       "guestNote": "{name} es invitado: pagó fuera de la app, así que no hay cuenta de origen.",
       "from": "Sale de (opcional)",
       "to": "Llega a (opcional)",
+      "fromName": "Sale de",
+      "toName": "Llega a",
+      "optional": "(opcional)",
       "none": "Ninguna",
       "payerRequired": "Elige quién paga.",
       "save": "Guardar pago"

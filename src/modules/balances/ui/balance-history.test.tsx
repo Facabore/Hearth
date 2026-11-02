@@ -65,23 +65,31 @@ describe("balance history (HU-E9-07, ruling P176)", () => {
   it("shows Juan's running balances of -150,000, -100,000 and 0 COP", async () => {
     const { container } = view();
     expect(screen.getByRole("heading", { level: 1, name: "Historial de Juan" })).toBeInTheDocument();
-    expect(screen.getByText("1/10/2026 – 31/10/2026")).toBeInTheDocument();
+    // Board 04: the period is a chip with a calendar icon.
+    const chip = screen.getByText("1/10/2026 – 31/10/2026").closest("[data-period-chip]");
+    expect(chip).not.toBeNull();
+    expect(chip!.querySelector("svg")).not.toBeNull();
     expect(screen.getByRole("link", { name: "Período anterior" })).toHaveAttribute(
       "href",
       "/spaces/sp-household/members/m-juan/history?from=2026-09-01",
     );
     expect(screen.queryByRole("link", { name: "Período siguiente" })).not.toBeInTheDocument();
     const summary = screen.getByRole("region", { name: "Saldo al inicio y al final" });
-    expect(normalized(summary.textContent)).toContain("Al empezaral día");
-    expect(normalized(summary.textContent)).toContain("Al terminaral día");
+    // Board 04: a large neutral amount, then its state in words; a start at zero is the bare amount.
+    expect(normalized(summary.textContent)).toBe("Al empezar$ 0Al terminar$ 0al día");
+    expect(within(summary).getAllByText("$ 0")[0]).toHaveClass("text-ink");
     const rows = within(
       screen.getByRole("region", { name: "Movimientos que cambian su saldo" }),
     ).getAllByRole("listitem");
+    // Board 04: a date column, the day over the short month.
     expect(rows.map((r) => normalized(r.textContent))).toEqual([
-      "3/10/2026Mercadole toca poner $ 150.000−$ 150.000",
-      "10/10/2026Cenale toca poner $ 100.000+$ 50.000",
-      "30/10/2026Pago entre miembrosal día+$ 100.000",
+      "3octMercadole toca poner $ 150.000−$ 150.000",
+      "10octCenale toca poner $ 100.000+$ 50.000",
+      "30octPago entre miembrosal día+$ 100.000",
     ]);
+    expect(within(rows[0]!).getByText("3")).toHaveClass("text-lg");
+    // No extra row between the summary and the movements: the board has none (P272).
+    expect(screen.queryByRole("link", { name: /Ver lo que pagó/ })).toBeNull();
     expect(await axeViolations(container)).toEqual([]);
   });
 
@@ -101,22 +109,19 @@ describe("balance history (HU-E9-07, ruling P176)", () => {
       "/spaces/sp-household/members/m-juan/history?from=2026-11-01",
     );
     const summary = screen.getByRole("region", { name: "Balance at the start and at the end" });
-    expect(normalized(summary.textContent)).toContain("At the startowes $ 150.000");
-    expect(normalized(summary.textContent)).toContain("At the endis owed $ 20.000");
+    expect(normalized(summary.textContent)).toBe("At the start$ 150.000owesAt the end$ 20.000is owed");
     expect(screen.getByRole("link", { name: "Back" })).toBeInTheDocument();
+    expect(normalized(screen.getAllByRole("listitem")[0]!.textContent)).toMatch(/^3Oct/);
   });
 
-  it("links to what Juan paid in the same period in Movimientos, in Spanish and English (issue #148)", () => {
-    view();
-    expect(screen.getByRole("link", { name: "Ver lo que pagó Juan" })).toHaveAttribute(
-      "href",
-      "/spaces/sp-household/transactions?period=2026-10&payer=m-juan",
+  it("says a balance's direction in words beside its neutral amount, never by color alone", () => {
+    view({ history: { ...HISTORY, opening: cop(-150_000), closing: cop(20_000) } });
+    const summary = screen.getByRole("region", { name: "Saldo al inicio y al final" });
+    expect(normalized(summary.textContent)).toBe(
+      "Al empezar$ 150.000le toca ponerAl terminar$ 20.000le toca recibir",
     );
-    view({}, "en");
-    expect(screen.getByRole("link", { name: "See what Juan paid" })).toHaveAttribute(
-      "href",
-      "/spaces/sp-household/transactions?period=2026-10&payer=m-juan",
-    );
+    expect(within(summary).getByText("le toca poner")).toHaveClass("text-owe");
+    expect(within(summary).getByText("le toca recibir")).toHaveClass("text-accent");
   });
 
   it("says when nothing changed the balance in the period", () => {
