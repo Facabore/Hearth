@@ -201,6 +201,7 @@ const recurrencesRoute = createRoute({
 const newRecurrenceRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "recurrences/new",
+  staticData: stackedScreen,
   loader: async ({ context, params, cause }) =>
     (await recurring()).loadRecurrenceForm({ ...context, cause }, params.spaceId),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "RecurrenceFormPending"),
@@ -223,6 +224,7 @@ const recurrenceRoute = createRoute({
 const editRecurrenceRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "recurrences/$recurrenceId/edit",
+  staticData: stackedScreen,
   loader: async ({ context, params, cause }) =>
     (await recurring()).loadRecurrenceEdit({ ...context, cause }, params.spaceId, params.recurrenceId),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "RecurrenceFormPending"),

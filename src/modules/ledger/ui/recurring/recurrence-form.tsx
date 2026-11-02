@@ -598,8 +598,8 @@ export function RecurrenceForm({
           </span>
         </p>
         {problem && found === "form" ? <ProblemNotice problem={problem} /> : null}
-        {/* P270: pinned above the bottom bar, so saving never needs a scroll to the end. */}
-        <div className="sticky bottom-[calc(76px+env(safe-area-inset-bottom))] bg-bg py-3 lg:bottom-0">
+        {/* P270: pinned at the bottom of its stacked screen (P272, no bottom bar), so saving never needs a scroll. */}
+        <div className="sticky bottom-[env(safe-area-inset-bottom)] bg-bg py-3 lg:bottom-0">
           <Button type="submit" size="lg" disabled={pending}>
             {edit ? t("form.saveEdit") : t("form.save")}
           </Button>

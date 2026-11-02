@@ -34,6 +34,7 @@ const server = (): Record<string, FakeHandler> => ({
   "GET /api/v1/spaces/{spaceId}/accounts": () =>
     jsonResponse({ items: [savingsAccountDto()], totals: { available: cop(0), netWorth: cop(0) } }),
   "GET /api/v1/spaces/{spaceId}/transactions": () => jsonResponse(octoberPage),
+  "POST /api/v1/spaces/{spaceId}/recurrences/preview": () => jsonResponse({ dates: [] }),
 });
 
 const switcher = () => screen.queryByRole("button", { name: /Cambiar de espacio/ });
@@ -48,6 +49,8 @@ describe("stacked screens and tabs in the space shell (ruling P272)", () => {
     ["Cuentas", `${PERSONAL}/accounts`],
     ["Mi consumo", `${PERSONAL}/my-consumption?period=2026-11`],
     ["Ajustes", "/settings"],
+    // P270's board 02: the recurrence form is a full screen, its save pinned at the bottom.
+    ["Nuevo recurrente", `${PERSONAL}/recurrences/new`],
   ])("draws %s with only its way back: no space switcher and no bottom bar", async (_, url) => {
     renderSpa(url, server());
     expect(await screen.findByRole("link", { name: es.common.back }, { timeout: 5_000 })).toBeVisible();
