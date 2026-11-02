@@ -9,6 +9,7 @@ import { controlsFor } from "@/modules/spaces/ui";
 import { Button, Icon, ProblemNotice, ScreenHeader, Sheet } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { CategoryGroupDto, SpaceDto } from "@/shared/ui/api/dto";
+import { localDateIn } from "@/shared/kernel/time-zone";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { formatDate, type Formats } from "@/shared/ui/format/formatters";
 import { useToast } from "@/shared/ui/molecules/toast";
@@ -25,6 +26,8 @@ export interface RecurrenceDetailProps extends RecurrenceNames {
   readonly groups: readonly CategoryGroupDto[];
   readonly formats: Formats;
   readonly today: string;
+  /** The person's zone, which names the day a recurrence was paused. */
+  readonly timeZone?: string;
   readonly api?: Api;
 }
 
@@ -46,6 +49,7 @@ export function RecurrenceDetail({
   memberNames,
   formats,
   today,
+  timeZone,
   api: injected,
 }: RecurrenceDetailProps) {
   const t = useTranslations("recurrences");
@@ -184,7 +188,15 @@ export function RecurrenceDetail({
         ) : (
           <p className="flex items-start gap-2 rounded-2xl bg-track p-3 text-sm text-ink">
             <Icon name="alert" size={18} className="mt-0.5 shrink-0" />
-            {status === "PAUSED" ? t("detail.paused") : ended ? t("detail.ended") : t("detail.none")}
+            {status === "PAUSED"
+              ? recurrence.pausedAt && timeZone
+                ? t("detail.pausedSince", {
+                    date: formatDate(localDateIn(new Date(recurrence.pausedAt), timeZone), formats),
+                  })
+                : t("detail.paused")
+              : ended
+                ? t("detail.ended")
+                : t("detail.none")}
           </p>
         )}
       </section>

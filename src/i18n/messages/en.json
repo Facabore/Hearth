@@ -985,6 +985,7 @@
       "next": "Next dates",
       "none": "There are no next dates.",
       "paused": "Paused: nothing is recorded until you resume it.",
+      "pausedSince": "Paused since {date}: nothing is recorded until you resume it.",
       "ended": "Ended: nothing more is recorded until you extend it.",
       "edit": "Edit {name}",
       "pause": "Pause",

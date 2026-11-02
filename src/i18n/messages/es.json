@@ -985,6 +985,7 @@
       "next": "Próximas fechas",
       "none": "No hay próximas fechas.",
       "paused": "En pausa: no se registra nada hasta que lo reanudes.",
+      "pausedSince": "En pausa desde el {date}: no se registra nada hasta que lo reanudes.",
       "ended": "Terminado: no se registra nada más hasta que lo extiendas.",
       "edit": "Editar {name}",
       "pause": "Pausar",

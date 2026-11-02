@@ -82,6 +82,7 @@ export function RecurrenceRoute() {
       memberNames={memberNames}
       formats={viewer.me.preferences.effective}
       today={today}
+      timeZone={viewer.me.timezone}
       api={api}
     />
   );
