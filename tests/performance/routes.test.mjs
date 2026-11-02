@@ -16,7 +16,7 @@ const CAPS = {
   "/spaces/:shared/plan/groups": 205,
   "/spaces/:shared/plan/trend": 305,
   "/spaces/:shared/plans/:plan": 210,
-  "/spaces/:shared/plans/:plan/capacities": 210,
+  "/spaces/:shared/plans/:plan/capacities": 215,
   "/spaces/:shared/plans/:plan/lines/new": 215,
   "/spaces/:shared/plans/:plan/lines/:line": 215,
   "/spaces/:id/plan": 205,

@@ -31,7 +31,7 @@
     "/spaces/:shared/plan/groups": 203,
     "/spaces/:shared/plan/trend": 298,
     "/spaces/:shared/plans/:plan": 210,
-    "/spaces/:shared/plans/:plan/capacities": 210,
+    "/spaces/:shared/plans/:plan/capacities": 213,
     "/spaces/:shared/plans/:plan/lines/new": 210,
     "/spaces/:shared/plans/:plan/lines/:line": 210,
     "/spaces/:shared/members/:member/history": 198,
