@@ -999,6 +999,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/balances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in person's net in each of her shared and direct spaces, with her settle-up payments
+         * @description Computed on read, as each space's balances are. Archived spaces and the personal space are not listed; a space with nothing moved answers a net of 0 and no payments.
+         */
+        get: operations["getMyBalances"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/spaces/{spaceId}/balances": {
         parameters: {
             query?: never;
@@ -6690,6 +6710,53 @@ export interface operations {
             };
             /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidOccurrenceDate, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, AccountNotOwned, AccountNotInSpace, AccountRequired, InvalidFundAccount, NotASpaceMember, InvalidSplit, ParticipantsRequired */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getMyBalances: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One entry per active shared or direct space */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            spaceId: string;
+                            /** @description The viewer's member id in the space */
+                            memberId: string;
+                            /** @description The viewer's net; negative when it is her turn to put money in */
+                            net: components["schemas"]["MoneyOutput"];
+                            /** @description The current members in join order, guests included */
+                            members: {
+                                memberId: string;
+                                name: string;
+                            }[];
+                            /** @description The settle-up suggestions in which the viewer pays, the largest first */
+                            payments: {
+                                receivingMemberId: string;
+                                amount: components["schemas"]["MoneyOutput"];
+                            }[];
+                        }[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
