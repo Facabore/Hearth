@@ -1,16 +1,18 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { controlsFor, JoinedNotice } from "@/modules/spaces/ui";
+import { controlsFor, JoinedNotice, MASKED_AMOUNT, shownAmount, useAmountsHidden } from "@/modules/spaces/ui";
 import { Icon, SymbolIcon } from "@/shared/ui";
 import type { AccountDto, MoneyDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
-import { formatDate, formatMoney } from "@/shared/ui/format/formatters";
+import { formatDate } from "@/shared/ui/format/formatters";
 import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { periodName } from "@/shared/ui/time/period-name";
 import type { TransactionDetail } from "../detail/transaction-detail";
 import { TransactionSheetHost } from "../detail/transaction-sheet-host";
 import { withTx } from "../detail/tx-href";
 import { TransactionRow, type RowContext } from "../transaction-row";
+import { AmountsEye } from "./amounts-eye";
 import { FirstSteps, type FirstStepsDone } from "./first-steps";
+import { OweCard, type Owe } from "./owe-card";
 
 /**
  * HU-E9-01, the Home and Desktop artboards for M6a (the "no plan" variant, ruling P126): the period's spending and
@@ -29,6 +31,8 @@ export function HomeSummary({
   allSpaces,
   today,
   firstSteps,
+  personId,
+  owes,
 }: {
   readonly spaceId: string;
   /** Issue #216: the viewer's today, so each recent row says which day it is from. */
@@ -51,6 +55,10 @@ export function HomeSummary({
   readonly allSpaces?: { readonly total: MoneyDto; readonly href: string } | undefined;
   /** Issues #220 (F14) and #152: on the personal home, a new person's four first steps, under the period's figure. */
   readonly firstSteps?: { readonly personId: string; readonly done: FirstStepsDone } | undefined;
+  /** Ruling P278: the person, for Inicio's eye, which hides every amount and is remembered per person. */
+  readonly personId?: string | undefined;
+  /** Ruling P278 (board B1 · 03): each shared space where it is the person's turn to put money in. */
+  readonly owes?: readonly Owe[] | undefined;
 }) {
   const t = useTranslations("home");
   const common = useTranslations("common");
@@ -63,9 +71,12 @@ export function HomeSummary({
   const canInvite = controls.invite;
   const accountsNote = useTranslations("accounts");
   const personal = kind === "PERSONAL";
+  const hidden = useAmountsHidden(personId ?? "") && personId !== undefined;
+  const money = (amount: MoneyDto) => shownAmount(amount, hidden, formats);
   return (
     <div className="grid grid-cols-1 gap-3 py-3 lg:grid-cols-2">
       <h1 className="sr-only">{t("title")}</h1>
+      {personId ? <AmountsEye personId={personId} /> : null}
       {joined ? (
         <div className="lg:col-span-2">
           <JoinedNotice space={joined.space} dismissHref={joined.dismissHref} />
@@ -114,11 +125,9 @@ export function HomeSummary({
                     })}
               </p>
               <p className="text-[clamp(1.75rem,8.5vw,2rem)] leading-tight font-semibold [overflow-wrap:anywhere] text-ink">
-                {formatMoney(page.totals.expenses, formats)}
+                {money(page.totals.expenses)}
               </p>
-              <p className="text-sm text-muted">
-                {t("income", { amount: formatMoney(page.totals.income, formats) })}
-              </p>
+              <p className="text-sm text-muted">{t("income", { amount: money(page.totals.income) })}</p>
             </section>
             {allSpaces ? (
               <Link
@@ -126,11 +135,14 @@ export function HomeSummary({
                 className="flex min-h-11 items-center justify-between gap-2 rounded-2xl bg-surface px-3 text-sm font-medium text-ink"
               >
                 <span className="min-w-0 [overflow-wrap:anywhere]">
-                  {t("allSpaces", { amount: formatMoney(allSpaces.total, formats) })}
+                  {t("allSpaces", { amount: money(allSpaces.total) })}
                 </span>
                 <Icon name="chevronRight" size={18} />
               </Link>
             ) : null}
+            {owes?.map((owe) => (
+              <OweCard key={owe.spaceId} owe={owe} amount={money(owe.amount)} />
+            ))}
             {firstSteps ? (
               <FirstSteps spaceId={spaceId} personId={firstSteps.personId} done={firstSteps.done} />
             ) : null}
@@ -173,7 +185,7 @@ export function HomeSummary({
                     >
                       <span className="text-sm [overflow-wrap:anywhere] text-muted">{account.name}</span>
                       <span className="font-semibold [overflow-wrap:anywhere] text-ink">
-                        {formatMoney(account.balance, formats)}
+                        {money(account.balance)}
                       </span>
                     </li>
                   ))}
@@ -195,7 +207,8 @@ export function HomeSummary({
         {page.items.length === 0 ? (
           <p className="rounded-2xl bg-surface p-3 text-sm text-muted">{t("recentEmpty")}</p>
         ) : (
-          <ol className="divide-y divide-line rounded-2xl bg-surface px-3">
+          // Board B1 · 03: plain rows on the page, with dividers; while the eye hides amounts, each row's is masked.
+          <ol className="divide-y divide-line">
             {page.items.map((tx) => (
               <TransactionRow
                 key={tx.id}
@@ -203,6 +216,7 @@ export function HomeSummary({
                 context={context}
                 href={withTx(`/spaces/${spaceId}`, tx.id)}
                 today={today}
+                maskedAmount={hidden ? MASKED_AMOUNT : undefined}
               />
             ))}
           </ol>

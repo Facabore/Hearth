@@ -25,7 +25,9 @@ import {
   createGetSettlementSuggestions,
   createGetSpaceBalances,
   createGetMemberBalanceHistory,
+  createGetMyBalances,
   type GetMemberBalanceHistory,
+  type GetMyBalances,
   type GetSettlementSuggestions,
   type GetSpaceBalances,
 } from "@/modules/balances/application";
@@ -356,6 +358,7 @@ export interface Container extends RouteDeps {
     readonly getSpaceBalances: GetSpaceBalances;
     readonly getSettlementSuggestions: GetSettlementSuggestions;
     readonly getMemberBalanceHistory: GetMemberBalanceHistory;
+    readonly getMyBalances: GetMyBalances;
   };
   readonly budgeting: {
     readonly createPlan: CreateBudgetPlan;
@@ -869,6 +872,13 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       getSettlementSuggestions: createGetSettlementSuggestions({
         access,
         members: spaceRepository,
+        source: ledgerQueries,
+      }),
+      // #240 (P278): the viewer's standing in each of her spaces, from the same balances (D7).
+      getMyBalances: createGetMyBalances({
+        access,
+        members: spaceRepository,
+        spaces: spaceRepository,
         source: ledgerQueries,
       }),
     },

@@ -275,9 +275,17 @@ export class InMemoryTransactions implements TransactionRepository, TransactionQ
           f.participantMemberId === undefined ||
           (t.type === "EXPENSE" && t.shares.some((s) => s.memberId === f.participantMemberId)),
       )
+      .filter((t) => f.accountId === undefined || touches(t, f.accountId))
+      .filter((t) => f.search === undefined || t.description.toLowerCase().includes(f.search.toLowerCase()))
       .sort(listOrder);
   }
 }
+
+/** Ruling P277: the account paid the transaction, received it or moved it, as the PostgreSQL query reads it. */
+const touches = (t: Transaction, accountId: string): boolean =>
+  t.type === "EXPENSE"
+    ? t.payments.some((p) => p.accountId === accountId)
+    : t.destinationAccountId === accountId || ("sourceAccountId" in t && t.sourceAccountId === accountId);
 
 export class InMemoryAudit implements AuditLog {
   readonly entries: AuditEntry[] = [];

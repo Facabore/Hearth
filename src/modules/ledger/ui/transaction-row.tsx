@@ -23,6 +23,8 @@ export function TransactionRow({
   context,
   href,
   today,
+  card = false,
+  maskedAmount,
 }: {
   readonly tx: TransactionDto;
   readonly context: RowContext;
@@ -30,6 +32,13 @@ export function TransactionRow({
   readonly href?: string;
   /** Issue #216: the viewer's today, for a list whose rows are not under a day's heading; the row then names its day. */
   readonly today?: string;
+  /**
+   * Ruling P277 (board B1 06): Movimientos draws each row as a card of its own, with a round icon, a line that wraps so
+   * the account shows whole, and an income in green beside its plus sign.
+   */
+  readonly card?: boolean;
+  /** Ruling P278: what Inicio shows instead of the amount while its eye hides them, in the text a screen reader reads. */
+  readonly maskedAmount?: string;
 }) {
   const t = useTranslations("ledger");
   const { formats, viewerZone, groups, accountNames, memberNames } = context;
@@ -66,43 +75,50 @@ export function TransactionRow({
   }
   const money = formatMoney(tx.amount, formats);
   const amount = tx.type === "EXPENSE" ? `${MINUS}${money}` : tx.type === "INCOME" ? `+${money}` : money;
+  const icon = found ? (
+    <CategoryIcon icon={found.category.icon} color={found.category.color} size={40} />
+  ) : (
+    <span
+      aria-hidden="true"
+      style={paletteVars("GRAPHITE")}
+      className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--tint)] text-[var(--ink)]"
+    >
+      <SymbolIcon name={tx.type === "TRANSFER" ? "cash" : "dots"} size={22} />
+    </span>
+  );
+  const tone =
+    card && tx.type === "INCOME"
+      ? "text-accent"
+      : tx.type === "EXPENSE" || tx.type === "INCOME"
+        ? "text-ink"
+        : "text-muted";
   const content = (
     <>
-      {found ? (
-        <CategoryIcon icon={found.category.icon} color={found.category.color} size={40} />
-      ) : (
-        <span
-          aria-hidden="true"
-          style={paletteVars("GRAPHITE")}
-          className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--tint)] text-[var(--ink)]"
-        >
-          <SymbolIcon name={tx.type === "TRANSFER" ? "cash" : "dots"} size={22} />
-        </span>
-      )}
+      {card ? <span className="shrink-0 overflow-hidden rounded-full">{icon}</span> : icon}
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate font-medium text-ink">{tx.description || t(`type.${tx.type}`)}</span>
-        {meta.length > 0 ? <span className="truncate text-sm text-muted">{meta.join(" · ")}</span> : null}
+        <span className={card ? "font-medium break-words text-ink" : "truncate font-medium text-ink"}>
+          {tx.description || t(`type.${tx.type}`)}
+        </span>
+        {meta.length > 0 ? (
+          <span className={card ? "text-sm break-words text-muted" : "truncate text-sm text-muted"}>
+            {meta.join(" · ")}
+          </span>
+        ) : null}
         {payerLine ? <span className="text-sm break-words text-muted">{payerLine}</span> : null}
       </span>
-      <span
-        className={
-          tx.type === "EXPENSE" || tx.type === "INCOME"
-            ? "shrink-0 font-semibold whitespace-nowrap text-ink"
-            : "shrink-0 font-semibold whitespace-nowrap text-muted"
-        }
-      >
-        {amount}
-      </span>
+      <span className={`shrink-0 font-semibold whitespace-nowrap ${tone}`}>{maskedAmount ?? amount}</span>
     </>
   );
+  const box = card ? "rounded-2xl bg-surface px-3" : "";
+  const pad = card ? "py-3" : "py-1.5";
   // The link wraps the row's whole text, so its name holds the visible label (WCAG 2.5.3) and the target is the row.
   return href ? (
-    <li>
-      <Link href={href} scroll={false} className="flex min-h-row-lg items-center gap-3 rounded-xl py-1.5">
+    <li className={box || undefined}>
+      <Link href={href} scroll={false} className={`flex min-h-row-lg items-center gap-3 rounded-xl ${pad}`}>
         {content}
       </Link>
     </li>
   ) : (
-    <li className="flex min-h-row-lg items-center gap-3 py-1.5">{content}</li>
+    <li className={`flex min-h-row-lg items-center gap-3 ${pad} ${box}`.trim()}>{content}</li>
   );
 }

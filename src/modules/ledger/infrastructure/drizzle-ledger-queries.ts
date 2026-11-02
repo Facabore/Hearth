@@ -5,11 +5,13 @@ import {
   desc,
   eq,
   exists,
+  ilike,
   inArray,
   isNotNull,
   isNull,
   lte,
   notExists,
+  or,
   sql,
   type AnyColumn,
 } from "drizzle-orm";
@@ -38,6 +40,9 @@ const negatedSumAsText = (column: AnyColumn) => sql<string>`(-sum(${column}))::t
 // HU-E4-14, ruling P43: untimed rows sort as the earliest time of their day, so they come last in DESC order.
 // The cursor round-trips only because writers store millisecond instants: never write occurred_at with now(), defaultNow() or SQL.
 const listTime = sql`coalesce(${transactions.occurredAt}, '-infinity'::timestamptz)`;
+
+/** Ruling P277: `%`, `_` and the escape character itself match only themselves in a LIKE pattern. */
+const literalLike = (text: string) => text.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 /** Read side of the ledger, computed on read (D7): the monthly list, totals, account movements and references. */
 export class DrizzleLedgerQueries implements TransactionQuery {
@@ -567,6 +572,20 @@ export class DrizzleLedgerQueries implements TransactionQuery {
                 and(eq(shares.transactionId, transactions.id), eq(shares.memberId, f.participantMemberId)),
               ),
           ),
+      // Ruling P277: an income's or a transfer's accounts are on the row, an expense's on its payments.
+      f.accountId === undefined
+        ? undefined
+        : or(
+            eq(transactions.sourceAccountId, f.accountId),
+            eq(transactions.destinationAccountId, f.accountId),
+            exists(
+              db
+                .select({ one: sql`1` })
+                .from(payments)
+                .where(and(eq(payments.transactionId, transactions.id), eq(payments.accountId, f.accountId))),
+            ),
+          ),
+      f.search === undefined ? undefined : ilike(transactions.description, `%${literalLike(f.search)}%`),
     );
   }
 }

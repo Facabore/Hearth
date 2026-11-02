@@ -1,19 +1,19 @@
 import { useQuery, useSuspenseQueries } from "@tanstack/react-query";
-import type { ListFilter, TransactionDetail } from "@/modules/ledger/ui";
+import type { TransactionDetail } from "@/modules/ledger/ui";
 import { personalSpaceOf } from "@/modules/spaces/ui";
-import { addDays, type LocalDate } from "@/shared/kernel/local-date";
 import type { CategoryGroupDto, MeDto } from "@/shared/ui/api/dto";
 import { useApis } from "../api";
-import { accountsQuery, categoriesQuery, membersQuery, netBalancesQuery, periodQuery } from "../reads";
+import { accountsQuery, categoriesQuery, membersQuery } from "../reads";
 import { sharedSpace, type Viewer } from "../load";
-import { HOME_ROWS, listQueryOf, pageQuery, transactionQuery } from "./queries";
+import { HOME_ROWS, pageQuery, transactionQuery } from "./queries";
 
 export { useViewer } from "../viewer";
 
 /**
  * The ledger's screens as query hooks (P127 in the SPA, ADR 0006): each reads what its loader put in the cache and
  * hands the existing components their props. They load with each screen's own chunk, never with the app shell. The
- * record and edit forms' hooks are in `form-hooks.ts`, so the forms' routes never load the lists' code.
+ * record and edit forms' hooks are in `form-hooks.ts`, so the forms' routes never load the lists' code, and
+ * Movimientos' list in `list-hooks.ts`, so Inicio never loads its filters' reads.
  */
 
 /** What a row needs to name itself (`RowContext`): the person's formats and zone, categories, accounts, members. */
@@ -84,34 +84,3 @@ export const movedOf = (
   balances?.every((b) => b.hasMovements !== undefined)
     ? balances.filter((b) => b.hasMovements).map((b) => b.memberId)
     : undefined;
-
-export const useList = (viewer: Viewer, filter: ListFilter) => {
-  const { api } = useApis();
-  const spaceId = viewer.space.id;
-  const shared = sharedSpace(viewer.space);
-  const [page, groups, accounts] = useSuspenseQueries({
-    queries: [
-      pageQuery(api, spaceId, listQueryOf(filter)),
-      categoriesQuery(api, spaceId, "all"),
-      accountsQuery(api, spaceId, "all"),
-    ],
-  });
-  // Hooks are called the same way on every render: the members are an empty list of queries outside a shared space.
-  const memberQueries: ReturnType<typeof membersQuery>[] = shared ? [membersQuery(api, spaceId)] : [];
-  const members = useSuspenseQueries({ queries: memberQueries });
-  // #217 (P263): the payer filter leaves out members no movement touched. The balances are optional: until they are
-  // read, or when they cannot be, every member is offered.
-  const balances = useQuery({ ...netBalancesQuery(api, spaceId), enabled: shared });
-  const { period } = page.data;
-  const previous = useQuery(periodQuery(api, spaceId, addDays(period.startDate as LocalDate, -1)));
-  const next = useQuery(periodQuery(api, spaceId, addDays(period.endDate as LocalDate, 1)));
-  const memberNames = Object.fromEntries((members[0]?.data ?? []).map((m) => [m.id, m.displayName]));
-  return {
-    page: page.data,
-    accounts: accounts.data,
-    context: rowContextOf(viewer.me, groups.data, accounts.data, memberNames),
-    previous: previous.data ?? null,
-    next: next.data ?? null,
-    movedMemberIds: movedOf(balances.data?.members),
-  };
-};

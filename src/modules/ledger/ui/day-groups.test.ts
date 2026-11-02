@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { transactionDto } from "../../../../tests/support/ui/dto";
-import { groupByDay } from "./day-groups";
+import { cop, transactionDto } from "../../../../tests/support/ui/dto";
+import { dayNet, groupByDay } from "./day-groups";
 
 describe("groupByDay (HU-E9-03, ruling P130)", () => {
   it("keeps the API's order and names today and yesterday only", () => {
@@ -38,5 +38,25 @@ describe("groupByDay (HU-E9-03, ruling P130)", () => {
     expect(groupByDay(items, "2026-11-01")[0]?.relative).toBe("yesterday");
     expect(groupByDay(items, "2026-10-31")[0]?.relative).toBe("today");
     expect(groupByDay(items, "2026-11-02")[0]?.relative).toBeNull();
+  });
+});
+
+describe("a day's total (board B1 06, ruling P277)", () => {
+  const of = (type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT", pesos: number) =>
+    transactionDto({ type, amount: cop(pesos) });
+
+  it("is what came in less what was spent, in exact minor units", () => {
+    expect(dayNet([of("EXPENSE", 18_000), of("EXPENSE", 100_000)])).toEqual(cop(-118_000));
+    expect(dayNet([of("INCOME", 3_200_000), of("EXPENSE", 200_000)])).toEqual(cop(3_000_000));
+    // 0.1 + 0.2 in a float is 0.30000000000000004: minor units in bigint never drift.
+    const cents = (amount: string) =>
+      transactionDto({ type: "EXPENSE", amount: { amount, currency: "USD" } });
+    expect(dayNet([cents("10"), cents("20")])).toEqual({ amount: "-30", currency: "USD" });
+  });
+
+  it("leaves transfers and payments between members out, and is none for a day without spending or income", () => {
+    expect(dayNet([of("TRANSFER", 500_000), of("EXPENSE", 60_000)])).toEqual(cop(-60_000));
+    expect(dayNet([of("TRANSFER", 500_000), of("SETTLEMENT", 20_000)])).toBeNull();
+    expect(dayNet([])).toBeNull();
   });
 });

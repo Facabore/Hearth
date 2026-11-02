@@ -299,3 +299,46 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
     expect(detail).not.toHaveTextContent("pagó");
   });
 });
+
+describe("a row of Movimientos (board B1 06, ruling P277)", () => {
+  const cardRow = (tx: TransactionDto) =>
+    renderWithIntl(
+      <ol>
+        <TransactionRow tx={tx} context={context} card />
+      </ol>,
+    );
+
+  it("is a card of its own with a round icon, and its line wraps so the account shows whole", async () => {
+    const { container } = cardRow(dinner);
+    const item = screen.getByRole("listitem");
+    expect(item).toHaveClass("rounded-2xl", "bg-surface");
+    const line = screen.getByText("20:45 · Restaurants · Bancolombia");
+    expect(line).not.toHaveClass("truncate");
+    expect(line).toHaveClass("break-words");
+    expect(
+      item.querySelector(".rounded-full [aria-hidden='true'], .rounded-full[aria-hidden='true']"),
+    ).not.toBeNull();
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("shows an income in green, with its plus sign", () => {
+    cardRow(
+      transactionDto({
+        id: "t-salary",
+        type: "INCOME",
+        description: "Salary",
+        amount: cop(3_200_000),
+        categoryId: "c-salary",
+        destinationAccountId: "a-bank",
+      }),
+    );
+    expect(screen.getByText(/3\.200\.000/)).toHaveTextContent("+$");
+    expect(screen.getByText(/3\.200\.000/)).toHaveClass("text-accent");
+  });
+
+  it("keeps the home's rows as they were: one list, truncated", () => {
+    renderRow(dinner);
+    expect(screen.getByRole("listitem")).not.toHaveClass("bg-surface");
+    expect(screen.getByText("20:45 · Restaurants · Bancolombia")).toHaveClass("truncate");
+  });
+});

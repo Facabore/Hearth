@@ -5971,6 +5971,23 @@
                 "SETTLEMENT"
               ]
             }
+          },
+          {
+            "in": "query",
+            "name": "accountId",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
           }
         ],
         "responses": {
@@ -9094,6 +9111,116 @@
           },
           "422": {
             "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidOccurrenceDate, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, AccountNotOwned, AccountNotInSpace, AccountRequired, InvalidFundAccount, NotASpaceMember, InvalidSplit, ParticipantsRequired",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/balances": {
+      "get": {
+        "operationId": "getMyBalances",
+        "summary": "The signed-in person's net in each of her shared and direct spaces, with her settle-up payments",
+        "description": "Computed on read, as each space's balances are. Archived spaces and the personal space are not listed; a space with nothing moved answers a net of 0 and no payments.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One entry per active shared or direct space",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "spaceId": {
+                            "type": "string"
+                          },
+                          "memberId": {
+                            "type": "string",
+                            "description": "The viewer's member id in the space"
+                          },
+                          "net": {
+                            "description": "The viewer's net; negative when it is her turn to put money in",
+                            "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "members": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "memberId": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "memberId",
+                                "name"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "description": "The current members in join order, guests included"
+                          },
+                          "payments": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "receivingMemberId": {
+                                  "type": "string"
+                                },
+                                "amount": {
+                                  "$ref": "#/components/schemas/MoneyOutput"
+                                }
+                              },
+                              "required": [
+                                "receivingMemberId",
+                                "amount"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "description": "The settle-up suggestions in which the viewer pays, the largest first"
+                          }
+                        },
+                        "required": [
+                          "spaceId",
+                          "memberId",
+                          "net",
+                          "members",
+                          "payments"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
             "content": {
               "application/problem+json": {
                 "schema": {

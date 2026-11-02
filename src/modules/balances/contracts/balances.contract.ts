@@ -1,7 +1,12 @@
 import { z } from "zod";
 import type { ZodOpenApiPathsObject } from "zod-openapi";
 import { jsonContent, MoneySchema, problems, securedByUser } from "@/shared/http/contracts";
-import type { MemberBalanceHistoryView, SettlementSuggestions, SpaceBalances } from "../application";
+import type {
+  MemberBalanceHistoryView,
+  MyBalance,
+  SettlementSuggestions,
+  SpaceBalances,
+} from "../application";
 
 /**
  * HU-E5-01: one entry per current member in join order, guests included, then every former member with
@@ -46,6 +51,41 @@ export const settlementSuggestionsDto = (
     receivingMemberId: suggestion.receivingMemberId,
     amount: { amount: suggestion.amount.toString(), currency: s.currency },
   })),
+});
+
+/**
+ * #240 (ruling P278): the viewer's standing in each of her active shared and direct spaces, computed on read (D7) like
+ * `GET /api/v1/spaces/{spaceId}/balances`; the personal space has no balances and is not listed.
+ */
+export const MyBalancesSchema = z.object({
+  items: z.array(
+    z.object({
+      spaceId: z.string(),
+      memberId: z.string().meta({ description: "The viewer's member id in the space" }),
+      net: MoneySchema.meta({
+        description: "The viewer's net; negative when it is her turn to put money in",
+      }),
+      members: z.array(z.object({ memberId: z.string(), name: z.string() })).meta({
+        description: "The current members in join order, guests included",
+      }),
+      payments: z
+        .array(z.object({ receivingMemberId: z.string(), amount: MoneySchema }))
+        .meta({ description: "The settle-up suggestions in which the viewer pays, the largest first" }),
+    }),
+  ),
+});
+
+export const myBalancesDto = (balances: readonly MyBalance[]): z.infer<typeof MyBalancesSchema> => ({
+  items: balances.map((b) => {
+    const money = (minor: bigint) => ({ amount: minor.toString(), currency: b.currency });
+    return {
+      spaceId: b.spaceId,
+      memberId: b.memberId,
+      net: money(b.net),
+      members: b.members.map((m) => ({ memberId: m.memberId, name: m.name })),
+      payments: b.payments.map((p) => ({ receivingMemberId: p.receivingMemberId, amount: money(p.amount) })),
+    };
+  }),
 });
 
 /** HU-E5-04: an optional span of dates; `from` must not be after `to`. */
@@ -104,6 +144,23 @@ const SpacePath = z.object({ spaceId: z.string() });
 const MemberPath = SpacePath.extend({ memberId: z.string() });
 
 export const balancesPaths: ZodOpenApiPathsObject = {
+  "/api/v1/me/balances": {
+    get: {
+      operationId: "getMyBalances",
+      summary:
+        "The signed-in person's net in each of her shared and direct spaces, with her settle-up payments",
+      description:
+        "Computed on read, as each space's balances are. Archived spaces and the personal space are not listed; a space with nothing moved answers a net of 0 and no payments.",
+      ...securedByUser,
+      responses: {
+        "200": {
+          description: "One entry per active shared or direct space",
+          content: jsonContent(MyBalancesSchema),
+        },
+        ...problems({ "401": "Unauthenticated" }),
+      },
+    },
+  },
   "/api/v1/spaces/{spaceId}/balances": {
     get: {
       operationId: "getSpaceBalances",

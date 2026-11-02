@@ -13,6 +13,10 @@ export interface ListTransactionsInput {
   readonly payerMemberId?: string;
   readonly participantMemberId?: string;
   readonly type?: TransactionType;
+  /** Ruling P277: only what this account paid, received or moved. */
+  readonly accountId?: string;
+  /** Ruling P277: a piece of the description; blank means no search. */
+  readonly search?: string;
   readonly after: TransactionPosition | null;
   readonly limit: number;
 }
@@ -64,6 +68,8 @@ export const createListTransactions =
       payerMemberId: input.payerMemberId,
       participantMemberId: input.participantMemberId,
       type: input.type,
+      accountId: input.accountId,
+      search: input.search?.trim() || undefined,
     };
     // One extra row tells whether another page exists.
     const rows = await deps.query.list(filter, input.after, input.limit + 1);

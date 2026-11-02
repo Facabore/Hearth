@@ -1,20 +1,25 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Icon } from "@/shared/ui";
-import type { MoneyDto, PeriodDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
-import { formatDate, formatMoney } from "@/shared/ui/format/formatters";
-import { groupByDay } from "./day-groups";
+import type { ReactNode } from "react";
+import { Button, Icon, ProblemNotice, VisuallyHidden } from "@/shared/ui";
+import type { Api } from "@/shared/ui/api/client";
+import type { AccountDto, MoneyDto, PeriodDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
+import { formatDate, formatMoney, formatSignedMoney } from "@/shared/ui/format/formatters";
+import { dayNet, groupByDay } from "./day-groups";
 import type { TransactionDetail } from "./detail/transaction-detail";
 import { TransactionSheetHost } from "./detail/transaction-sheet-host";
 import { withTx } from "./detail/tx-href";
 import { ListFilters } from "./list-filters";
-import { hrefOf, type ListFilter } from "./list-href";
-import { LoadMore } from "./load-more";
+import { hrefOf, listQueryOf, type ListFilter } from "./list-href";
+import { useLoadMore } from "./load-more";
 import { PendingBanner } from "./pending/pending-banner";
 import { SavedNotice } from "./saved-notice";
 import { TransactionRow, type RowContext } from "./transaction-row";
 
-/** HU-E9-03, the Activity artboard: the period's rows by day with the API's totals; no per-day totals (P130). */
+/**
+ * HU-E9-03, board B1 06 "Movimientos por día y hora" (ruling P277): the search, the period chip and the filters, the
+ * API's totals, then the period's rows by day, each day with its date and its total.
+ */
 export function TransactionList({
   spaceId,
   page,
@@ -23,6 +28,8 @@ export function TransactionList({
   filter,
   previous = null,
   next = null,
+  periods,
+  accounts = [],
   notice,
   spaceName,
   periodPolicy,
@@ -30,6 +37,7 @@ export function TransactionList({
   movedMemberIds,
   pendingCount = 0,
   pendingNames,
+  api,
 }: {
   readonly spaceId: string;
   readonly page: TransactionPageDto;
@@ -38,6 +46,10 @@ export function TransactionList({
   readonly filter: ListFilter;
   readonly previous?: PeriodDto | null;
   readonly next?: PeriodDto | null;
+  /** Ruling P277: the space's recent periods, for the period chip's sheet; its neighbours stand in until they are read. */
+  readonly periods?: readonly PeriodDto[] | undefined;
+  /** Ruling P277: the space's accounts, for the account filter. */
+  readonly accounts?: readonly AccountDto[];
   /** A saved expense that left a shared fund negative (ruling P170). */
   readonly notice?: { readonly accountName: string; readonly balance: MoneyDto };
   /** U7: the name of a shared or direct space, under the title; a personal space shows none. */
@@ -52,16 +64,24 @@ export function TransactionList({
   readonly pendingCount?: number;
   /** What waits, by name, for the banner's second line. */
   readonly pendingNames?: readonly string[];
+  /** For tests: the client "Cargar más" calls; the browser's own by default. */
+  readonly api?: Api;
 }) {
   const t = useTranslations("ledger");
   const recurring = useTranslations("recurrences");
-  const days = groupByDay(page.items, today);
   const listHref = hrefOf(spaceId, filter);
+  const more = useLoadMore({ spaceId, query: listQueryOf(filter), cursor: page.nextCursor, api });
+  const days = groupByDay([...page.items, ...more.rows], today);
+  const figure = (money: MoneyDto, positive: boolean) => (chunks: ReactNode) => (
+    <strong className={positive && BigInt(money.amount) > 0n ? "font-semibold text-accent" : "font-semibold"}>
+      {chunks}
+    </strong>
+  );
   return (
     <div className="flex flex-col gap-3 py-3">
       <div className="flex items-start justify-between gap-3">
         <header className="flex min-w-0 flex-col gap-0.5">
-          <h1 className="text-[17px] leading-tight font-semibold text-ink">{t("list.title")}</h1>
+          <h1 className="text-[26px] leading-tight font-bold tracking-tight text-ink">{t("list.title")}</h1>
           {spaceName ? <p className="text-sm text-muted [overflow-wrap:anywhere]">{spaceName}</p> : null}
         </header>
         {/* P270: the space's recurring movements, two taps from the bottom bar, in every space. */}
@@ -89,44 +109,62 @@ export function TransactionList({
         period={page.period}
         previous={previous}
         next={next}
+        periods={periods}
+        today={today}
         filter={filter}
         groups={context.groups}
+        accounts={accounts}
+        accountNames={context.accountNames}
         periodPolicy={periodPolicy}
         formats={context.formats}
         memberNames={context.memberNames}
         movedMemberIds={movedMemberIds}
       />
-      <section aria-label={t("list.totals")} className="rounded-2xl bg-surface p-3 text-ink">
-        {t("list.expenses", { amount: formatMoney(page.totals.expenses, context.formats) })} ·{" "}
-        {t("list.income", { amount: formatMoney(page.totals.income, context.formats) })}
+      <section aria-label={t("list.totals")} className="text-sm text-ink">
+        {t.rich("list.expenses", {
+          amount: formatMoney(page.totals.expenses, context.formats),
+          b: figure(page.totals.expenses, false),
+        })}{" "}
+        ·{" "}
+        {t.rich("list.income", {
+          amount: formatSignedMoney(page.totals.income, context.formats),
+          b: figure(page.totals.income, true),
+        })}
       </section>
       {days.length === 0 ? <p className="text-muted">{t("list.empty")}</p> : null}
-      {days.map((day) => (
-        <section key={day.date} aria-labelledby={`day-${day.date}`}>
-          <h2 id={`day-${day.date}`} className="mb-1 text-sm font-semibold text-muted">
-            {day.relative ? t(`day.${day.relative}`) : formatDate(day.date, context.formats)}
-          </h2>
-          <ol className="divide-y divide-line rounded-2xl bg-surface px-3">
-            {day.items.map((tx) => (
-              <TransactionRow key={tx.id} tx={tx} context={context} href={withTx(listHref, tx.id)} />
-            ))}
-          </ol>
-        </section>
-      ))}
-      {page.nextCursor ? (
-        <LoadMore
-          spaceId={spaceId}
-          query={{
-            period: page.period.label,
-            categoryIds: filter.categoryId,
-            payerMemberId: filter.payerMemberId,
-          }}
-          cursor={page.nextCursor}
-          lastDate={days.at(-1)?.date ?? ""}
-          today={today}
-          context={context}
-          listHref={listHref}
-        />
+      {days.map((day, index) => {
+        // A day's total waits for its last row: the last day loaded may go on in the next page.
+        const total = more.next !== null && index === days.length - 1 ? null : dayNet(day.items);
+        const date = formatDate(day.date, context.formats);
+        return (
+          <section key={day.date} aria-labelledby={`day-${day.date}`} className="flex flex-col gap-2">
+            <header className="flex items-baseline justify-between gap-3 px-1 pt-1">
+              <h2
+                id={`day-${day.date}`}
+                className="text-[13px] font-semibold tracking-wide text-muted uppercase"
+              >
+                {day.relative ? `${t(`day.${day.relative}`)} · ${date}` : date}
+              </h2>
+              {total ? (
+                <p className="text-[13px] font-semibold whitespace-nowrap text-muted">
+                  <VisuallyHidden>{t("list.dayTotal")}</VisuallyHidden>
+                  {formatSignedMoney(total, context.formats)}
+                </p>
+              ) : null}
+            </header>
+            <ol className="flex flex-col gap-2">
+              {day.items.map((tx) => (
+                <TransactionRow key={tx.id} tx={tx} context={context} href={withTx(listHref, tx.id)} card />
+              ))}
+            </ol>
+          </section>
+        );
+      })}
+      {more.problem ? <ProblemNotice problem={more.problem} /> : null}
+      {more.next ? (
+        <Button variant="secondary" disabled={more.pending} onClick={() => void more.more()}>
+          {t("list.loadMore")}
+        </Button>
       ) : null}
       {/* The origin is the list without `tx`: closing never re-shows a dismissed notice. */}
       {detail ? (

@@ -1,5 +1,6 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { en, es } from "@/i18n/messages/full";
 import { axeViolations } from "../../../../tests/support/ui/axe";
@@ -7,6 +8,7 @@ import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { AppShell } from "./app-shell";
 import { JoinByLinkForm } from "./join-by-link-form";
 import { NewSpaceForm } from "./new-space-form";
+import { SpaceStanding } from "./space-standing";
 import type { SpaceFlows } from "./space-switcher";
 
 /** The switcher's flows as the app passes them (the SPA loads them on demand; here they are at hand). */
@@ -36,7 +38,7 @@ describe("app shell (HU-E9-01)", () => {
   it("shows the active space, the user menu and the navigation of the space", async () => {
     const { container } = renderWithIntl(
       <AppShell
-        me={{ name: "Ana", email: "ana@example.com", locale: "es" }}
+        me={{ id: "u-ana", name: "Ana", email: "ana@example.com", locale: "es" }}
         spaces={spaces}
         activeSpace={spaces[0]}
       >
@@ -65,7 +67,7 @@ describe("app shell (HU-E9-01)", () => {
   it("shows Plan, then Saldos in a shared space, after Movimientos and Registrar, and no Saldos in the personal one (rulings P160, P200)", () => {
     const { unmount } = renderWithIntl(
       <AppShell
-        me={{ name: "Ana", email: "ana@example.com", locale: "es" }}
+        me={{ id: "u-ana", name: "Ana", email: "ana@example.com", locale: "es" }}
         spaces={spaces}
         activeSpace={spaces[1]}
       >
@@ -88,7 +90,7 @@ describe("app shell (HU-E9-01)", () => {
     unmount();
     renderWithIntl(
       <AppShell
-        me={{ name: "Ana", email: "ana@example.com", locale: "es" }}
+        me={{ id: "u-ana", name: "Ana", email: "ana@example.com", locale: "es" }}
         spaces={spaces}
         activeSpace={spaces[0]}
       >
@@ -101,7 +103,7 @@ describe("app shell (HU-E9-01)", () => {
   const openSwitcher = async () => {
     renderWithIntl(
       <AppShell
-        me={{ name: "Ana", email: "ana@example.com", locale: "es" }}
+        me={{ id: "u-ana", name: "Ana", email: "ana@example.com", locale: "es" }}
         spaces={spaces}
         activeSpace={spaces[0]}
         spaceFlows={Flows}
@@ -191,7 +193,7 @@ describe("app shell (HU-E9-01)", () => {
   it("lists every current space in the switcher and links to the chosen one", async () => {
     renderWithIntl(
       <AppShell
-        me={{ name: "Ana", email: "ana@example.com", locale: "es" }}
+        me={{ id: "u-ana", name: "Ana", email: "ana@example.com", locale: "es" }}
         spaces={spaces}
         activeSpace={spaces[0]}
       >
@@ -204,7 +206,8 @@ describe("app shell (HU-E9-01)", () => {
     const sheet = screen.getByRole("dialog", { name: "Espacios" });
     expect(within(sheet).getByRole("link", { name: /Personal/ })).toHaveAttribute("aria-current", "true");
     expect(within(sheet).getByRole("link", { name: /Personal/ })).toHaveTextContent("Solo tú");
-    expect(within(sheet).getByRole("link", { name: /Household/ })).toHaveTextContent("Miembro");
+    // Board B1 · 04: a shared space names its members once they are read, never the role.
+    expect(within(sheet).getByRole("link", { name: /Household/ })).not.toHaveTextContent("Miembro");
     expect(within(sheet).getByRole("link", { name: /Household/ })).not.toHaveAttribute("aria-current");
     expect(within(sheet).getByRole("link", { name: /Household/ })).toHaveAttribute(
       "href",
@@ -215,7 +218,7 @@ describe("app shell (HU-E9-01)", () => {
   it("draws a stacked screen with only its own header: no switcher, profile or navigation (ruling P272)", async () => {
     const { container } = renderWithIntl(
       <AppShell
-        me={{ name: "Ana", email: "ana@example.com", locale: "es" }}
+        me={{ id: "u-ana", name: "Ana", email: "ana@example.com", locale: "es" }}
         spaces={spaces}
         activeSpace={spaces[1]}
         stacked
@@ -232,10 +235,132 @@ describe("app shell (HU-E9-01)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("draws the switcher as a pill with the space's initial (B1 · 03)", () => {
+    renderWithIntl(
+      <AppShell
+        me={{ id: "u-ana", name: "Ana", email: "ana@example.com", locale: "es" }}
+        spaces={spaces}
+        activeSpace={spaces[0]}
+      >
+        <h1>Inicio</h1>
+      </AppShell>,
+    );
+    const pill = screen.getByRole("button", { name: "Espacio actual: Personal. Cambiar de espacio" });
+    expect(pill).toHaveTextContent(/^PPersonal$/);
+    expect(pill).toHaveClass("rounded-full", "border", "min-h-11");
+  });
+
+  describe("the space sheet's cards (B1 · 04, ruling P278)", () => {
+    const balances = [
+      {
+        spaceId: "sp-household",
+        memberId: "m-ana",
+        net: { amount: "-12000000", currency: "COP" },
+        members: [
+          { memberId: "m-ana", name: "Ana" },
+          { memberId: "m-juan", name: "Juan" },
+          { memberId: "m-sofi", name: "Sofi" },
+          { memberId: "m-pedro", name: "Pedro" },
+        ],
+        payments: [{ receivingMemberId: "m-juan", amount: { amount: "12000000", currency: "COP" } }],
+      },
+    ];
+    const open = async (props: Partial<React.ComponentProps<typeof AppShell>> = {}) => {
+      renderWithIntl(
+        <AppShell
+          me={{ id: "u-ana", name: "Ana", email: "ana@example.com", locale: "es" }}
+          spaces={spaces}
+          activeSpace={spaces[0]}
+          spaceStanding={SpaceStanding}
+          {...props}
+        >
+          <h1>Inicio</h1>
+        </AppShell>,
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "Espacio actual: Personal. Cambiar de espacio" }),
+      );
+      return screen.getByRole("dialog", { name: "Espacios" });
+    };
+    beforeEach(() => localStorage.clear());
+
+    it("reads the person's balances when the sheet opens, not before", async () => {
+      const onSwitcherOpen = vi.fn();
+      renderWithIntl(
+        <AppShell
+          me={{ id: "u-ana", name: "Ana", email: "ana@example.com", locale: "es" }}
+          spaces={spaces}
+          activeSpace={spaces[0]}
+          onSwitcherOpen={onSwitcherOpen}
+        >
+          <h1>Inicio</h1>
+        </AppShell>,
+      );
+      expect(onSwitcherOpen).not.toHaveBeenCalled();
+      await userEvent.click(
+        screen.getByRole("button", { name: "Espacio actual: Personal. Cambiar de espacio" }),
+      );
+      expect(onSwitcherOpen).toHaveBeenCalledTimes(1);
+    });
+
+    it("names a shared space's members and says what the person puts in there, in words", async () => {
+      const sheet = await open({ myBalances: balances });
+      const household = within(sheet).getByRole("link", { name: /Household/ });
+      expect(household).toHaveTextContent("Ana, Juan, Sofi y Pedro");
+      expect(household.textContent?.replace(/\s/g, " ")).toContain("Te toca poner$ 120.000");
+      expect(household).not.toHaveTextContent("Miembro");
+    });
+
+    it("says what the person is owed there", async () => {
+      const owed = [{ ...balances[0]!, net: { amount: "5000000", currency: "COP" }, payments: [] }];
+      const sheet = await open({ myBalances: owed });
+      expect(
+        within(sheet)
+          .getByRole("link", { name: /Household/ })
+          .textContent?.replace(/\s/g, " "),
+      ).toContain("Te toca recibir$ 50.000");
+    });
+
+    it("says nothing about money for a space where the person is al día", async () => {
+      const settled = [{ ...balances[0]!, net: { amount: "0", currency: "COP" }, payments: [] }];
+      const sheet = await open({ myBalances: settled });
+      const household = within(sheet).getByRole("link", { name: /Household/ });
+      expect(household).toHaveTextContent("Ana, Juan, Sofi y Pedro");
+      expect(household).not.toHaveTextContent(/Te toca/);
+    });
+
+    it("marks the current space with a check on its card", async () => {
+      const sheet = await open({ myBalances: balances });
+      const current = within(sheet).getByRole("link", { name: /Personal/ });
+      expect(current).toHaveAttribute("aria-current", "true");
+      expect(current).toHaveClass("border-accent");
+      expect(current.querySelectorAll("svg")).toHaveLength(1);
+      expect(
+        within(sheet)
+          .getByRole("link", { name: /Household/ })
+          .querySelector("svg"),
+      ).toBeNull();
+    });
+
+    it("hides the balance while the person hides her amounts (the Inicio eye)", async () => {
+      localStorage.setItem("hearth.hideAmounts.u-ana", "1");
+      const sheet = await open({ myBalances: balances });
+      const household = within(sheet).getByRole("link", { name: /Household/ });
+      expect(household).toHaveTextContent("Te toca poner");
+      expect(household).toHaveTextContent("••••••");
+      expect(household).not.toHaveTextContent("120.000");
+    });
+
+    it("joins the names in English with and", () => {
+      expect(en.shell.space.members).toBe("{others} and {last}");
+      expect(es.shell.space.members).toBe("{others} y {last}");
+    });
+  });
+
   it("makes the chosen space the active one in the shell", () => {
     renderWithIntl(
       <AppShell
-        me={{ name: "Ana", email: "ana@example.com", locale: "es" }}
+        me={{ id: "u-ana", name: "Ana", email: "ana@example.com", locale: "es" }}
         spaces={spaces}
         activeSpace={spaces[1]}
       >

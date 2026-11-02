@@ -31,6 +31,9 @@ export interface PageQuery {
   readonly period?: string | undefined;
   readonly categoryIds?: string | undefined;
   readonly payerMemberId?: string | undefined;
+  readonly accountId?: string | undefined;
+  readonly type?: ListFilter["type"];
+  readonly search?: string | undefined;
   readonly limit: number;
 }
 
@@ -71,6 +74,9 @@ export const listQueryOf = (filter: ListFilter): PageQuery => ({
   period: filter.period,
   categoryIds: filter.categoryId,
   payerMemberId: filter.payerMemberId,
+  accountId: filter.accountId,
+  type: filter.type,
+  search: filter.search,
   limit: PAGE_SIZE,
 });
 
