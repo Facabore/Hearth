@@ -276,9 +276,7 @@ export class InMemoryTransactions implements TransactionRepository, TransactionQ
           (t.type === "EXPENSE" && t.shares.some((s) => s.memberId === f.participantMemberId)),
       )
       .filter((t) => f.accountId === undefined || touches(t, f.accountId))
-      .filter(
-        (t) => f.search === undefined || t.description.toLowerCase().includes(f.search.toLowerCase()),
-      )
+      .filter((t) => f.search === undefined || t.description.toLowerCase().includes(f.search.toLowerCase()))
       .sort(listOrder);
   }
 }
