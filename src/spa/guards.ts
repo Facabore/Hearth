@@ -33,12 +33,18 @@ const freshMe = async ({ queryClient, apis }: RouterContext): Promise<MeDto | nu
 };
 
 /**
- * Navigation never pays a round trip for a session it already knows lets the person through; a redirect is decided
- * only on a fresh answer, so a sign-in or a sign-out that just happened is never undone by a stale one.
+ * Whether the person is signed in. Navigation never pays a round trip for a session it already knows lets the person
+ * through: a cached answer is taken as it is only when it is the one `passingWhen` names, the one that lets the guard
+ * pass. The other answer leads to a redirect, which is decided only on a fresh read, so a sign-in or a sign-out that
+ * just happened is never undone by a stale one.
  */
-const signedIn = async (context: RouterContext, passes: boolean): Promise<boolean> => {
+const isSignedIn = async (
+  context: RouterContext,
+  { passingWhen }: { readonly passingWhen: "signed-in" | "signed-out" },
+): Promise<boolean> => {
   const cached = context.queryClient.getQueryData(meQuery(context.apis.sessionApi).queryKey);
-  if (cached !== undefined && (cached !== null) === passes) return passes;
+  if (cached !== undefined && (cached === null ? "signed-out" : "signed-in") === passingWhen)
+    return cached !== null;
   return (await freshMe(context)) !== null;
 };
 
@@ -49,7 +55,8 @@ const signedIn = async (context: RouterContext, passes: boolean): Promise<boolea
  */
 export const guardSession = async (context: RouterContext, where: Where): Promise<void> => {
   const target = redirectFor({ pathname: where.pathname, search: where.searchStr, hasSession: false });
-  if (target !== null && !(await signedIn(context, true))) throw redirect({ href: target });
+  if (target !== null && !(await isSignedIn(context, { passingWhen: "signed-in" })))
+    throw redirect({ href: target });
 };
 
 /**
@@ -57,6 +64,6 @@ export const guardSession = async (context: RouterContext, where: Where): Promis
  * of the form.
  */
 export const leaveWhenSignedIn = async (context: RouterContext, where: Where): Promise<void> => {
-  if (await signedIn(context, false))
+  if (await isSignedIn(context, { passingWhen: "signed-out" }))
     throw redirect({ href: nextFromPath(`${where.pathname}${where.searchStr}`), replace: true });
 };
