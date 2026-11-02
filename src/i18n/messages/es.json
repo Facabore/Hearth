@@ -933,6 +933,7 @@
       "active": "Activos · {count}",
       "inactive": "En pausa y terminados",
       "paused": "En pausa",
+      "pausedSince": "En pausa desde el {date}",
       "endedOn": "Terminó el {date}",
       "empty": "Todavía no hay movimientos recurrentes en este espacio.",
       "add": "Agregar un movimiento recurrente"

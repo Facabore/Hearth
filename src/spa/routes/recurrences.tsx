@@ -31,6 +31,7 @@ export function RecurrencesRoute() {
       accountNames={accountNames}
       memberNames={memberNames}
       formats={viewer.me.preferences.effective}
+      timeZone={viewer.me.timezone}
     />
   );
 }

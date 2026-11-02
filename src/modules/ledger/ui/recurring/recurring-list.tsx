@@ -6,6 +6,7 @@ import { CategoryIcon, findCategory } from "@/modules/categories/ui";
 import { controlsFor } from "@/modules/spaces/ui";
 import { Badge, Icon, paletteVars, ScreenHeader, SymbolIcon } from "@/shared/ui";
 import type { CategoryGroupDto, SpaceDto } from "@/shared/ui/api/dto";
+import { localDateIn } from "@/shared/kernel/time-zone";
 import { formatDate, type Formats } from "@/shared/ui/format/formatters";
 import type { RecurrenceDto } from "./recurrence-request";
 import { partyOf, scheduleText, signedAmountOf, type RecurrenceNames } from "./recurrence-text";
@@ -18,6 +19,8 @@ export interface RecurringListProps extends RecurrenceNames {
   readonly recurrences: readonly RecurrenceDto[];
   readonly groups: readonly CategoryGroupDto[];
   readonly formats: Formats;
+  /** The person's zone, which names the day a paused recurrence was paused. */
+  readonly timeZone?: string;
 }
 
 /** A recurrence's category icon, or the type's symbol for one without a category (a transfer, a contribution). */
@@ -65,12 +68,14 @@ function RecurrenceRow({
   groups,
   names,
   formats,
+  timeZone,
 }: {
   readonly recurrence: RecurrenceDto;
   readonly space: SpaceDto;
   readonly groups: readonly CategoryGroupDto[];
   readonly names: RecurrenceNames;
   readonly formats: Formats;
+  readonly timeZone?: string | undefined;
 }) {
   const t = useTranslations("recurrences");
   const ledger = useTranslations("ledger");
@@ -81,7 +86,11 @@ function RecurrenceRow({
   const meta = [t(`type.${recurrence.type}`), scheduleText(recurrence.schedule, t), party].filter(Boolean);
   const when =
     recurrence.status === "PAUSED"
-      ? t("list.paused")
+      ? recurrence.pausedAt && timeZone
+        ? t("list.pausedSince", {
+            date: formatDate(localDateIn(new Date(recurrence.pausedAt), timeZone), formats),
+          })
+        : t("list.paused")
       : recurrence.status === "ENDED"
         ? recurrence.endDate
           ? t("list.endedOn", { date: formatDate(recurrence.endDate, formats) })
@@ -168,6 +177,7 @@ export function RecurringList({
   accountNames,
   memberNames,
   formats,
+  timeZone,
 }: RecurringListProps) {
   const t = useTranslations("recurrences");
   const canManage = controlsFor(space.role, space.kind).recordMoney;
@@ -190,6 +200,7 @@ export function RecurringList({
               groups={groups}
               names={names}
               formats={formats}
+              timeZone={timeZone}
             />
           ))}
         </ol>

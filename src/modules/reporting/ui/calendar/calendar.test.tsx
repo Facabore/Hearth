@@ -75,6 +75,8 @@ describe("the cash-flow calendar (#150, ruling P241 of M6c)", () => {
       "href",
       "/spaces/sp-personal/plan",
     );
+    // As every Plan view (P270's board): the views under the header, then this view's own window.
+    expect(tabs.compareDocumentPosition(window) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("says when nothing is scheduled, and names a space in another currency once", () => {

@@ -39,6 +39,8 @@ export function CashFlowCalendar({
           {t("calendar.title", { days: flow.days })}
         </h1>
       </header>
+      {/* The Plan views under the header, as in every Plan view; this view's own window comes after them. */}
+      <PlanTabs space={space} view="calendar" />
       <nav aria-label={t("calendar.window")} className="flex gap-2">
         {WINDOWS.map((days) => (
           <Link
@@ -53,7 +55,6 @@ export function CashFlowCalendar({
           </Link>
         ))}
       </nav>
-      <PlanTabs space={space} view="calendar" />
       <p className="text-sm text-muted">{t("calendar.explain")}</p>
 
       <section aria-labelledby="flow-summary" className="rounded-xl border border-line bg-surface p-3">

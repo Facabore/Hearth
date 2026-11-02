@@ -933,6 +933,7 @@
       "active": "Active · {count}",
       "inactive": "Paused and ended",
       "paused": "Paused",
+      "pausedSince": "Paused since {date}",
       "endedOn": "Ended on {date}",
       "empty": "There are no recurring transactions in this space yet.",
       "add": "Add a recurring transaction"
