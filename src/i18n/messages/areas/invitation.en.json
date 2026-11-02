@@ -31,6 +31,13 @@
       "signUp": "Create an account and claim",
       "note": "Single use. After creating the account you come back here.",
       "accept": "Claim my place in {space}"
+    },
+    "verify": {
+      "pageTitle": "Confirm your email",
+      "verified": "Your email is confirmed",
+      "verifiedBody": "You can now accept the invitations sent to this email. Open the invitation again to join.",
+      "failed": "We couldn't confirm your email",
+      "continue": "Go to Hearth"
     }
   }
 }

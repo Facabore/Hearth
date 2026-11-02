@@ -31,6 +31,13 @@
       "signUp": "Crear cuenta y reclamar",
       "note": "Un solo uso. Después de crear la cuenta vuelves aquí.",
       "accept": "Reclamar mi lugar en {space}"
+    },
+    "verify": {
+      "pageTitle": "Confirmar tu correo",
+      "verified": "Tu correo quedó confirmado",
+      "verifiedBody": "Ya puedes aceptar las invitaciones que te enviaron a este correo. Abre otra vez la invitación para unirte.",
+      "failed": "No pudimos confirmar tu correo",
+      "continue": "Ir a Hearth"
     }
   }
 }
