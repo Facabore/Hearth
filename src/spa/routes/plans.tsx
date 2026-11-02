@@ -52,31 +52,43 @@ export function PlannerRoute() {
 }
 
 /**
- * HU-E9-08: the capacities of one plan. Only the viewer's own suggestion goes on to the form, so another member's is
- * never shown (ruling P208).
+ * HU-E9-08: the capacities of one plan, as board 04 draws them: a sheet over the planner, which the sheet's ✕ returns
+ * to. Only the viewer's own suggestion goes on to the form, so another member's is never shown (ruling P208).
  */
 export function CapacitiesRoute() {
   useTitle(useTranslations("budgeting.capacity")("title"));
   const { spaceId, planId } = capacities.useParams();
   const { api } = useApis();
   const { me, space } = useViewer(spaceId);
-  const [plan, list, suggestion] = useSuspenseQueries({
+  const [plan, list, groups, suggestion] = useSuspenseQueries({
     queries: [
       planQuery(api, spaceId, planId),
       membersQuery(api, spaceId),
+      categoriesQuery(api, spaceId, "all"),
       capacitySuggestionQuery(api, spaceId, planId),
     ],
   });
   return (
-    <CapacityForm
-      key={planId}
-      space={space}
-      plan={plan.data}
-      members={list.data}
-      viewerUserId={me.id}
-      suggestion={ownSuggestion(suggestion.data, memberOf(list.data, me.id))}
-      formats={me.preferences.effective}
-    />
+    <>
+      <Planner
+        key={`${plan.data.id}:${plan.data.version}`}
+        space={space}
+        plan={plan.data}
+        members={list.data}
+        groups={groups.data}
+        formats={me.preferences.effective}
+        today={nowIn(new Date(), me.timezone).date}
+      />
+      <CapacityForm
+        key={planId}
+        space={space}
+        plan={plan.data}
+        members={list.data}
+        viewerUserId={me.id}
+        suggestion={ownSuggestion(suggestion.data, memberOf(list.data, me.id))}
+        formats={me.preferences.effective}
+      />
+    </>
   );
 }
 

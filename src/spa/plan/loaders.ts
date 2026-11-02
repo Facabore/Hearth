@@ -123,13 +123,15 @@ export const loadPlanner = async (load: Load, spaceId: string, planId: string) =
   ]);
 };
 
-/** HU-E9-08: the plan, the members and the caller's own suggestion, which never blocks the screen (P208). */
+/**
+ * HU-E9-08: the planner the sheet opens over (board 04), and the caller's own suggestion, which never blocks the
+ * screen (P208).
+ */
 export const loadCapacities = async (load: Load, spaceId: string, planId: string) => {
   const ensure = ensurer(load);
   const { api } = load.apis;
   await Promise.all([
-    ensure(planQuery(api, spaceId, planId)),
-    ensure(membersQuery(api, spaceId)),
+    loadPlanner(load, spaceId, planId),
     ensure(capacitySuggestionQuery(api, spaceId, planId)),
   ]);
 };

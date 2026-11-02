@@ -218,6 +218,22 @@ describe("the Plan tab and the planner in the SPA (slice 5 of #199, ADR 0006)", 
     expect(spa.queryClient.getQueryState(["identity", "me"])?.isInvalidated).toBe(false);
   });
 
+  it("opens the capacities as a sheet over the planner, and its ✕ goes back to the planner (board 04)", async () => {
+    const spa = renderSpa(`${HOUSEHOLD}/plans/p-nov/capacities`, server());
+    const sheet = await screen.findByRole(
+      "dialog",
+      { name: es.budgeting.capacity.title },
+      { timeout: 5_000 },
+    );
+    // The planner stays drawn under the sheet, out of reach while the sheet is open.
+    expect(
+      screen.getByRole("heading", { level: 1, name: /Plan de noviembre 2026/i, hidden: true }),
+    ).toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole("button", { name: es.common.close }));
+    await waitFor(() => expect(spa.location()).toBe(`${HOUSEHOLD}/plans/p-nov`));
+    expect(await screen.findByRole("heading", { level: 1, name: /Plan de noviembre 2026/i })).toBeVisible();
+  });
+
   it("shows the capacities without a suggestion the server keeps failing, after one more try (P208)", async () => {
     const spa = renderSpa(`${HOUSEHOLD}/plans/p-nov/capacities`, {
       ...server(),

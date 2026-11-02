@@ -1344,7 +1344,9 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       await seedIncome(page, spaceId);
       await page.goto(`/spaces/${sharedId}/plans/${plan.id}/capacities`);
       await settle(page);
-      await expect(page.getByRole("heading", { level: 1, name: es.budgeting.capacity.title })).toBeVisible();
+      // Board 04: the capacities are a sheet over the planner.
+      const sheet = page.getByRole("dialog", { name: es.budgeting.capacity.title });
+      await expect(sheet).toBeVisible();
       await expect(
         page.getByText(
           /^Sugerido \$\s1\.650\.000: tus ingresos de septiembre 2026 en Personal\. Solo tú lo ves\.$/,
@@ -1358,18 +1360,12 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       await page.getByRole("button", { name: es.budgeting.capacity.useSuggestion }).click();
       await expect(page.getByRole("textbox", { name: "Aporte de Ana" })).toHaveValue("1.650.000");
 
-      // Save is the last control: scrolled to the end of the page it ends on screen, with no bottom bar (P272).
-      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-      const save = (await page.getByRole("button", { name: es.budgeting.capacity.save }).boundingBox())!;
-      await expect(
-        page.getByRole("navigation", { name: es.shell.nav.main }),
-        "a stacked screen has no bottom bar (P272)",
-      ).toHaveCount(0);
+      // Save is the sheet's footer: it stays on screen while the sheet's body scrolls.
+      const save = (await sheet.getByRole("button", { name: es.budgeting.capacity.save }).boundingBox())!;
       expect(save.y + save.height, "Guardar aportes ends on screen").toBeLessThanOrEqual(viewport.height);
 
-      // The way back is the shared header's link to the planner.
-      const back = page.getByRole("link", { name: es.common.back, exact: true });
-      await expect(back).toHaveAttribute("href", `/spaces/${sharedId}/plans/${plan.id}`);
+      // The way back is the sheet's ✕, which returns to the planner under it.
+      const back = sheet.getByRole("button", { name: es.common.close, exact: true });
       const box = (await back.boundingBox())!;
       expect(box.width).toBeGreaterThanOrEqual(TARGET);
       expect(box.height).toBeGreaterThanOrEqual(TARGET);
