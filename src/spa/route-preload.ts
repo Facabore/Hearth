@@ -8,15 +8,18 @@ export interface RouteChunks {
   readonly pattern: string;
   /** Modules under src/spa, without extension: the layouts' chunks, the loaders' and the screen's own. */
   readonly modules: readonly string[];
+  /** Ruling P276: the catalog areas its routes declare in `staticData.areas`, which its loaders wait for. */
+  readonly areas: readonly string[];
 }
 
 interface Declared {
   readonly parent: string | null;
   readonly path: string | null;
   readonly modules: readonly string[];
+  readonly areas: readonly string[];
 }
 
-/** The routes `routes.tsx` declares: their parent, path, component chunk and loader chunks. */
+/** The routes `routes.tsx` declares: their parent, path, component chunk, loader chunks and catalog areas. */
 export const routeTable = (source: string): RouteChunks[] => {
   const helpers = new Map(
     [...source.matchAll(/const (\w+) = \(\) => import\("\.\/([\w/-]+)"\);/g)].map(([, name, module]) => [
@@ -30,6 +33,8 @@ export const routeTable = (source: string): RouteChunks[] => {
       body!,
     )?.[1];
     const loaders = [...body!.matchAll(/\(await (\w+)\(\)\)/g)].map(([, helper]) => helpers.get(helper!));
+    const staticData = /\n {2}staticData: \{([^}]*)\}/.exec(body!)?.[1] ?? "";
+    const areas = /\bareas: \[([^\]]*)\]/.exec(staticData)?.[1] ?? "";
     declared.set(name!, {
       parent: /getParentRoute: \(\) => (\w+)/.exec(body!)?.[1] ?? null,
       path: /\n {2}path: "([^"]*)"/.exec(body!)?.[1] ?? null,
@@ -37,6 +42,7 @@ export const routeTable = (source: string): RouteChunks[] => {
         ...loaders.filter((module): module is string => module !== undefined),
         ...(component ? [component] : []),
       ],
+      areas: [...areas.matchAll(/"(\w+)"/g)].map(([, area]) => area!),
     });
   }
   const chain = (name: string | null): Declared[] => {
@@ -53,7 +59,11 @@ export const routeTable = (source: string): RouteChunks[] => {
         .map((route) => route.path)
         .filter((path) => path !== null && path !== "/")
         .join("/")}`;
-      return { pattern, modules: [...new Set(routes.flatMap((route) => route.modules))] };
+      return {
+        pattern,
+        modules: [...new Set(routes.flatMap((route) => route.modules))],
+        areas: [...new Set(routes.flatMap((route) => route.areas))],
+      };
     })
     .filter((route) => route.modules.length > 0);
 };
@@ -61,6 +71,17 @@ export const routeTable = (source: string): RouteChunks[] => {
 /** A pattern's static segments before its parameters, as the router ranks them: `/spaces/new` before `/spaces/$id`. */
 const specificity = (pattern: string) =>
   pattern.split("/").map((segment) => (segment.startsWith("$") ? 0 : 1));
+
+/** The table in the router's order, each route with the regular expression of the paths it matches. */
+const ranked = (table: readonly RouteChunks[]): [string, RouteChunks][] =>
+  [...table]
+    .sort((a, b) => {
+      const [x, y] = [specificity(a.pattern), specificity(b.pattern)];
+      for (let i = 0; i < Math.max(x.length, y.length); i += 1)
+        if ((x[i] ?? -1) !== (y[i] ?? -1)) return (y[i] ?? -1) - (x[i] ?? -1);
+      return 0;
+    })
+    .map((route) => [`^${route.pattern.replace(/\$\w+/g, "[^/]+")}/?$`, route]);
 
 /**
  * The inline script that preloads the built files of the screen `location.pathname` names; `files` maps each module
@@ -70,20 +91,22 @@ export const routePreload = (
   table: readonly RouteChunks[],
   files: Readonly<Record<string, readonly string[]>>,
 ) => {
-  const routes = [...table]
-    .sort((a, b) => {
-      const [x, y] = [specificity(a.pattern), specificity(b.pattern)];
-      for (let i = 0; i < Math.max(x.length, y.length); i += 1)
-        if ((x[i] ?? -1) !== (y[i] ?? -1)) return (y[i] ?? -1) - (x[i] ?? -1);
-      return 0;
-    })
-    .map((route): [string, string[]] => [
-      `^${route.pattern.replace(/\$\w+/g, "[^/]+")}/?$`,
+  const routes = ranked(table)
+    .map(([pattern, route]): [string, string[]] => [
+      pattern,
       [...new Set(route.modules.flatMap((module) => files[module] ?? []))],
     ])
     .filter(([, list]) => list.length > 0);
   return `(function(){try{var r=${JSON.stringify(routes)};var p=location.pathname;for(var i=0;i<r.length;i++){if(new RegExp(r[i][0]).test(p)){for(var j=0;j<r[i][1].length;j++){var k=document.createElement("link");k.rel="modulepreload";k.crossOrigin="";k.href=r[i][1][j];document.head.appendChild(k)}return}}}catch(e){}})();`;
 };
+
+/**
+ * Ruling P276: each screen's catalog areas, as `catalogPreload` takes them, in the router's order: the first pattern
+ * that matches the address is its screen, whose areas the HTML preloads in the language it preloads the core's. A
+ * screen with no areas stays in the list, so a less specific pattern never answers for it.
+ */
+export const routeAreas = (table: readonly RouteChunks[]): [string, string[]][] =>
+  ranked(table).map(([pattern, route]) => [pattern, [...route.areas]]);
 
 /** A built chunk, as much of it as following its imports needs. */
 export interface BuiltChunk {

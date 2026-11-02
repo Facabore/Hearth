@@ -4,7 +4,7 @@ import compile from "icu-minify/compile";
 import { defineConfig, type Plugin, type Rollup } from "vite";
 import { THEME_BOOTSTRAP } from "./src/shared/ui/theme/theme";
 import { catalogPreload, EARLY_READS } from "./src/spa/early-html";
-import { chunkFiles, framePick, routePreload, routeTable } from "./src/spa/route-preload";
+import { chunkFiles, framePick, routeAreas, routePreload, routeTable } from "./src/spa/route-preload";
 
 const from = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
@@ -24,8 +24,11 @@ export const NEXT_ADAPTERS = [
 /** Every catalog the app loads: each language's core one and each area's (ruling P276), all compiled at build time. */
 export const CATALOG_FILE = /[\\/]src[\\/]i18n[\\/]messages[\\/](?:areas[\\/][a-z]+\.)?[a-z]+\.json$/;
 
-/** The core catalogs alone: the HTML preloads the likely language's core, never an area's (`catalogPreload`). */
+/** The core catalogs alone: the HTML preloads the likely language's core on every screen (`catalogPreload`). */
 export const CORE_CATALOG_FILE = /[\\/]src[\\/]i18n[\\/]messages[\\/][a-z]+\.json$/;
+
+/** An area's catalog in one language, `areas/<area>.<language>.json`: the HTML preloads the first screen's areas. */
+export const AREA_CATALOG_FILE = /[\\/]src[\\/]i18n[\\/]messages[\\/]areas[\\/]([a-z]+)\.([a-z]+)\.json$/;
 
 type Catalog = { [key: string]: string | Catalog };
 const precompiled = (catalog: Catalog): unknown =>
@@ -60,7 +63,9 @@ const themeBootstrap = (): Plugin => ({
 /**
  * The profile and spaces reads start with the HTML, while the app's script downloads (`src/spa/early-html.ts`), and so does
  * the catalog every screen needs before it renders: only the likely language's, picked in the browser as the app picks
- * it (`catalogPreload`). Both scripts come first in the head, since an inline script after the stylesheet waits for it.
+ * it (`catalogPreload`), with the area catalogs the first screen's loader waits for (ruling P276), so they are no
+ * round trip of their own after the core's. Both scripts come first in the head, since an inline script after the
+ * stylesheet waits for it.
  */
 const earlyReads = (): Plugin => ({
   name: "hearth:early-reads",
@@ -74,13 +79,27 @@ const earlyReads = (): Plugin => ({
           return id ? [[/([a-z]+)\.json$/.exec(id)![1]!, `/${file.fileName}`]] : [];
         }),
       );
+      const areaFiles: Record<string, Record<string, string>> = {};
+      for (const file of Object.values(bundle ?? {})) {
+        if (file.type !== "chunk") continue;
+        for (const id of file.moduleIds) {
+          const [, area, language] = AREA_CATALOG_FILE.exec(id) ?? [];
+          if (area && language) (areaFiles[area] ??= {})[language] = `/${file.fileName}`;
+        }
+      }
       return {
         html: bundle ? inlineStylesheet(html, bundle) : html,
         tags: [
           { tag: "script", children: framePick(routes()), injectTo: "head-prepend" },
           { tag: "script", children: EARLY_READS, injectTo: "head-prepend" },
           ...(Object.keys(catalogs).length > 0
-            ? [{ tag: "script", children: catalogPreload(catalogs), injectTo: "head-prepend" as const }]
+            ? [
+                {
+                  tag: "script",
+                  children: catalogPreload(catalogs, { files: areaFiles, routes: routeAreas(routes()) }),
+                  injectTo: "head-prepend" as const,
+                },
+              ]
             : []),
           ...(bundle
             ? [{ tag: "script", children: firstScreen(bundle), injectTo: "head-prepend" as const }]

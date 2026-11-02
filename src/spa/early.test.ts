@@ -79,6 +79,57 @@ describe("the reads the HTML starts before the app's script arrives (ADR 0004, 2
     expect(preloaded("constructor", [])).toEqual(["/assets/es-1.js"]);
   });
 
+  it("preloads the first screen's area catalogs in the language it preloads the core's (ruling P276)", () => {
+    const files = { es: "/assets/es-1.js", en: "/assets/en-1.js" };
+    const areas = {
+      files: {
+        invitation: { es: "/assets/invitation.es-1.js", en: "/assets/invitation.en-1.js" },
+        plan: { es: "/assets/plan.es-1.js", en: "/assets/plan.en-1.js" },
+      },
+      // Ranked as the router ranks the paths: the first that matches is the screen.
+      routes: [
+        ["^/spaces/new/?$", []],
+        ["^/invitations/[^/]+/?$", ["invitation"]],
+        ["^/spaces/[^/]+/plans/[^/]+/?$", ["plan", "members"]],
+        ["^/spaces/[^/]+/?$", ["invitation"]],
+      ] as [string, string[]][],
+    };
+    const preloaded = (pathname: string, cookie: string, languages: string[]) => {
+      document.head.querySelectorAll("link[rel=modulepreload]").forEach((link) => link.remove());
+      document.cookie = `hearth.locale=; max-age=0; path=/`;
+      if (cookie) document.cookie = `hearth.locale=${cookie}; path=/`;
+      vi.spyOn(navigator, "languages", "get").mockReturnValue(languages);
+      window.history.replaceState(null, "", pathname);
+      new Function(catalogPreload(files, areas))();
+      return [...document.head.querySelectorAll("link[rel=modulepreload]")].map((link) =>
+        link.getAttribute("href"),
+      );
+    };
+    try {
+      expect(preloaded("/invitations/tok", "", ["es-CO"])).toEqual([
+        "/assets/es-1.js",
+        "/assets/invitation.es-1.js",
+      ]);
+      expect(preloaded("/invitations/tok", "en", ["es-CO"])).toEqual([
+        "/assets/en-1.js",
+        "/assets/invitation.en-1.js",
+      ]);
+      expect(preloaded("/invitations/tok", "", ["fr"])).toEqual([
+        "/assets/es-1.js",
+        "/assets/invitation.es-1.js",
+      ]);
+      // An area with no built file is skipped; the first route that matches decides, even with no areas.
+      expect(preloaded("/spaces/sp-1/plans/pl-1", "", ["en-US"])).toEqual([
+        "/assets/en-1.js",
+        "/assets/plan.en-1.js",
+      ]);
+      expect(preloaded("/spaces/new", "", ["es"])).toEqual(["/assets/es-1.js"]);
+      expect(preloaded("/nope/deeper", "", ["es"])).toEqual(["/assets/es-1.js"]);
+    } finally {
+      window.history.replaceState(null, "", "/");
+    }
+  });
+
   describe("handing the early reads to the queries", () => {
     const apisWith = (get: ReturnType<typeof vi.fn>) =>
       ({ api: { GET: get }, sessionApi: { GET: get } }) as unknown as SpaApis;

@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
-import { chunkFiles, framePick, routePreload, routeTable } from "./route-preload";
+import { chunkFiles, framePick, routeAreas, routePreload, routeTable } from "./route-preload";
 
 const table = routeTable(readFileSync("src/spa/routes.tsx", "utf8"));
 const modulesOf = (pattern: string) => table.find((route) => route.pattern === pattern)?.modules;
+const areasOf = (pattern: string) => table.find((route) => route.pattern === pattern)?.areas;
 
 /** Runs the inline script at `pathname` and answers what it preloaded. */
 const preloadedAt = (pathname: string, files: Record<string, readonly string[]>) => {
@@ -94,6 +95,23 @@ describe("the first screen's chunks, preloaded by the HTML (ADR 0004, 2026-10-28
     ).toEqual({
       "routes/transactions": ["/assets/transactions.js", "/assets/list-row.js", "/assets/icon.js"],
     });
+  });
+
+  it("reads each screen's catalog areas from its route, and ranks them as the router ranks the paths (ruling P276)", () => {
+    expect(areasOf("/invitations/$token")).toEqual(["invitation"]);
+    expect(areasOf("/claims/$token")).toEqual(["invitation"]);
+    expect(areasOf("/spaces/$spaceId/plans/$planId/capacities")).toEqual(["plan"]);
+    expect(areasOf("/spaces/$spaceId/members")).toEqual(["members"]);
+    expect(areasOf("/spaces/$spaceId")).toEqual([]);
+    expect(areasOf("/sign-in")).toEqual([]);
+    const ranked = routeAreas(table);
+    const first = (pathname: string) => ranked.find(([pattern]) => new RegExp(pattern).test(pathname))?.[1];
+    expect(first("/invitations/tok")).toEqual(["invitation"]);
+    expect(first("/spaces/sp-1/plans/pl-1/capacities")).toEqual(["plan"]);
+    // A static segment before a parameter: New space is not the home of a space called "new".
+    expect(first("/spaces/new")).toEqual(areasOf("/spaces/new"));
+    expect(first("/spaces/sp-1")).toEqual([]);
+    expect(first("/nope/deeper")).toBeUndefined();
   });
 
   it("marks the public frame on the screens the public layout wraps, and the app's elsewhere", () => {
