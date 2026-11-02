@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Badge, VisuallyHidden } from "@/shared/ui";
+import { Badge, Icon, VisuallyHidden } from "@/shared/ui";
 import type { CashFlowDto, SpaceDto } from "@/shared/ui/api/dto";
 import { formatDate, formatMoney, formatSignedMoney, type Formats } from "@/shared/ui/format/formatters";
 import { PlanTabs } from "../plan-tabs";
@@ -17,7 +17,8 @@ const negative = (money: Money): boolean => BigInt(money.amount) < 0n;
  * #150 (ruling P241 of M6c): the personal space's Próximos view. What comes into and goes out of the caller's own
  * accounts over the next 30 or 60 days, date by date, with the balance after each. Every figure is the API's (ruling
  * P201), only known items are listed (P245), every date is formatted from its `YYYY-MM-DD` text (P246), and it records
- * nothing, so it offers no action (P247). A Server Component: no client island, no chart.
+ * nothing, so it offers no action (P247). With nothing scheduled, it links to the recurring form instead (ruling P270,
+ * #178 item 4). A Server Component: no client island, no chart.
  */
 export function CashFlowCalendar({
   space,
@@ -89,7 +90,19 @@ export function CashFlowCalendar({
       ))}
 
       {flow.dates.length === 0 ? (
-        <p className="text-muted">{t("calendar.empty", { days: flow.days })}</p>
+        <section className="flex flex-col items-center gap-3 rounded-xl border border-line bg-surface p-4 text-center">
+          <span className="flex size-12 items-center justify-center rounded-full bg-track text-ink">
+            <Icon name="calendar" />
+          </span>
+          <p className="text-ink">{t("calendar.empty", { days: flow.days })}</p>
+          <p className="text-sm text-muted">{t("calendar.emptyHint")}</p>
+          <Link
+            href={`/spaces/${space.id}/recurrences/new`}
+            className="flex min-h-11 w-full items-center justify-center rounded-[14px] bg-accent px-4 text-center font-semibold text-on-accent"
+          >
+            {t("calendar.add")}
+          </Link>
+        </section>
       ) : (
         <ol aria-label={t("calendar.listLabel")} className="flex flex-col gap-3">
           {flow.dates.map((date) => (

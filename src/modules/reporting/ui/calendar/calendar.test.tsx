@@ -88,6 +88,23 @@ describe("the cash-flow calendar (#150, ruling P241 of M6c)", () => {
     expect(screen.getByText("Viaje usa USD: sus movimientos no se suman aquí.")).toBeInTheDocument();
   });
 
+  it("offers to add a recurring movement when nothing is scheduled (HU-E9-09, ruling P270, #178 item 4)", async () => {
+    const { container } = show(cashFlowDto({ dates: [] }));
+    expect(
+      screen.getByText("Programa tu arriendo, tus servicios o tu salario y aquí verás cómo queda tu saldo."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Agregar un movimiento recurrente" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/recurrences/new",
+    );
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("offers no link to add one while something is scheduled", () => {
+    show();
+    expect(screen.queryByRole("link", { name: "Agregar un movimiento recurrente" })).not.toBeInTheDocument();
+  });
+
   it("places a movement by its local date, never shifted by a time zone (ruling P246 of M6c)", () => {
     const flow = cashFlowDto();
     show({ ...flow, dates: [{ ...flow.dates[3]!, date: "2027-03-15" }] });
