@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GET as getMyBalances } from "@/app/api/v1/me/balances/route";
+import { POST as archiveSpace } from "@/app/api/v1/spaces/[spaceId]/archive/route";
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, registerUser, startTestApp, type TestUser } from "../support/app";
@@ -63,6 +64,17 @@ describe("GET /api/v1/me/balances (#240, P277)", () => {
     ]);
     const [juans] = await myBalancesOf(h.juan);
     expect(juans).toMatchObject({ memberId: h.juan.memberId, net: cop(150_000), payments: [] });
+  });
+
+  it("leaves out an archived space", async () => {
+    const h = await household();
+    expect(await myBalancesOf(h.ana)).toHaveLength(1);
+    const archived = await call(archiveSpace, "POST", `/api/v1/spaces/${h.spaceId}/archive`, {
+      user: h.ana,
+      params: { spaceId: h.spaceId },
+    });
+    expect(archived.status).toBe(204);
+    expect(await myBalancesOf(h.ana)).toEqual([]);
   });
 
   it("answers an empty list to someone with only her personal space", async () => {
