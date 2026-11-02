@@ -1,12 +1,35 @@
-import { getRouteApi, Outlet } from "@tanstack/react-router";
-import type { ReactNode } from "react";
-import { AppShell } from "@/modules/spaces/ui";
+import { getRouteApi, Outlet, useRouter } from "@tanstack/react-router";
+import { lazy, useState, type ReactNode } from "react";
+import { AppShell, type SpaceFlows } from "@/modules/spaces/ui";
 import { NotFoundScreen } from "@/shared/ui";
 import { ToastProvider } from "@/shared/ui/molecules/toast-provider";
 import { usePendingCount } from "../recurring-pending/queries";
 import { useShell, useStacked } from "../shell";
 
 const route = getRouteApi("/spaces/$spaceId");
+
+/**
+ * Ruling P272: the switcher's "Crear un espacio compartido" and "Unirme con un enlace" sheets ride in the chunk of the
+ * New space route, which already holds the create form; `settings.tsx` fills this slot when that chunk loads.
+ */
+export const spaceFlowsSlot: { current?: SpaceFlows } = {};
+
+/**
+ * The flows, loaded through the router's own split point for that route the first time one opens: every tab's shell
+ * stays as light as it was, and no second import of the chunk (with its own list of files to preload) is written here.
+ */
+const useSpaceFlows = (): SpaceFlows => {
+  const router = useRouter();
+  const [flows] = useState(() =>
+    lazy(async () => {
+      await router.loadRouteChunk(router.routesByPath["/spaces/new"]);
+      if (!spaceFlowsSlot.current)
+        throw new Error("The New space chunk did not provide the switcher's flows");
+      return { default: spaceFlowsSlot.current };
+    }),
+  );
+  return flows;
+};
 
 /**
  * The app shell around a screen; ruling P195's toast provider sits above it, as in the Next.js layout. A screen without
@@ -26,11 +49,12 @@ export function ShellFrame({
   const stacked = useStacked();
   // HU-E9-09 (ruling P270): the Movimientos badge counts the active space's pending occurrences.
   const pendingCount = usePendingCount(shell?.activeSpace ?? null);
+  const spaceFlows = useSpaceFlows();
   // The loader already refused a space the person is not in; this covers leaving it while the screen is open.
   if (!shell) return <NotFoundScreen />;
   return (
     <ToastProvider stacked={stacked}>
-      <AppShell {...shell} pendingCount={pendingCount} stacked={stacked}>
+      <AppShell {...shell} pendingCount={pendingCount} stacked={stacked} spaceFlows={spaceFlows}>
         {children}
       </AppShell>
     </ToastProvider>

@@ -4,7 +4,7 @@ import { ProfileSheet } from "@/modules/identity/ui";
 import { controlsFor } from "./members/space-controls";
 import { NavLinks } from "./nav-links";
 import type { SpaceSummary } from "./space-helpers";
-import { SpaceSwitcher } from "./space-switcher";
+import { SpaceSwitcher, type SpaceFlows } from "./space-switcher";
 
 export interface AppShellProps {
   readonly me: { readonly name: string; readonly email: string; readonly locale: Locale };
@@ -17,6 +17,8 @@ export interface AppShellProps {
    * navigation; its `ScreenHeader` is the way back. The tab destinations keep them.
    */
   readonly stacked?: boolean;
+  /** The switcher's "Crear un espacio compartido" and "Unirme con un enlace" sheets, loaded on demand by the app. */
+  readonly spaceFlows?: SpaceFlows;
   readonly children: ReactNode;
 }
 
@@ -27,6 +29,7 @@ export function AppShell({
   activeSpace,
   pendingCount,
   stacked = false,
+  spaceFlows,
   children,
 }: AppShellProps) {
   if (stacked) {
@@ -42,7 +45,7 @@ export function AppShell({
     <div className="min-h-dvh pb-[calc(76px+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-[240px]">
       <div className="mx-auto max-w-[1200px] px-4 max-[359px]:px-3">
         <header className="flex h-12 items-center justify-between">
-          <SpaceSwitcher spaces={spaces} activeSpace={activeSpace} />
+          <SpaceSwitcher spaces={spaces} activeSpace={activeSpace} flows={spaceFlows} />
           <ProfileSheet me={me} spaceId={activeSpace.id} spaceKind={activeSpace.kind} />
         </header>
         <main id="main">{children}</main>

@@ -4,16 +4,18 @@ import { useTranslations } from "use-intl";
 import { SettingsForm } from "@/modules/identity/ui";
 import {
   activeSpaceOf,
+  JoinByLinkForm,
   newSpaceBackHref,
   NewSpaceForm,
   spaceHomeHref,
   SpaceNameSection,
+  type SpaceFlow,
 } from "@/modules/spaces/ui";
 import { NotFoundScreen } from "@/shared/ui";
 import { useApis } from "../api";
 import { meQuery, spacesQuery } from "../queries";
 import { useTitle } from "../title";
-import { ShellFrame } from "./space-shell";
+import { ShellFrame, spaceFlowsSlot } from "./space-shell";
 
 const settings = getRouteApi("/settings");
 const newSpace = getRouteApi("/spaces/new");
@@ -41,6 +43,16 @@ export function SettingsRoute() {
     </ShellFrame>
   );
 }
+
+/**
+ * Ruling P272 (boards E9-05 · 07 and Pantallas nuevas · 11): the space switcher's own sheets, "Crear un espacio
+ * compartido" and "Unirme con un enlace de invitación". They ride in this chunk, which already holds the create form,
+ * and the shell loads it through the New space route only when the person opens one (`space-shell.tsx`).
+ */
+export function SpaceFlows({ flow, onDone }: { readonly flow: SpaceFlow; readonly onDone: () => void }) {
+  return flow === "create" ? <NewSpaceForm onCreated={onDone} /> : <JoinByLinkForm onOpened={onDone} />;
+}
+spaceFlowsSlot.current = SpaceFlows;
 
 /**
  * HU-E9-05: create a shared space (a name and a currency). Volver returns to the screen the create link started from

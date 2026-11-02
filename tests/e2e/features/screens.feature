@@ -35,8 +35,7 @@ Feature: Moving between screens: every address and every flow leads somewhere
   @e2e
   Scenario: New space opened from a shared space returns to that space
     Given "Ana" owns the shared space "Household"
-    When "Ana" opens the home page of "Household" by its URL
-    And "Ana" opens the create-space link of the space switcher of "Household"
+    When "Ana" opens the create-space screen from "Household" by its URL
     Then the screen is a stacked one whose way back is the home of "Household"
 
   @e2e

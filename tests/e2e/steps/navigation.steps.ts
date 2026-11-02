@@ -102,11 +102,30 @@ Then("the accounts screen lists {string}", async ({ page }, account: string) => 
   await expect(page.getByRole("listitem", { name: account })).toBeVisible();
 });
 
-When("{string} opens the create-space link of the space switcher", async ({ page, world }, name: string) => {
+// Ruling P272 (board E9-05 · 07): Crear un espacio compartido is a sheet over the switcher, on the screen it opened from.
+When(
+  "{string} opens Crear un espacio compartido from the space switcher",
+  async ({ page, world }, name: string) => {
+    expect(name).toBe(world.user!.name);
+    const before = page.url();
+    await page.getByRole("button", { name: world.t("shell.space.current", { name: "Personal" }) }).click();
+    await page.getByRole("button", { name: world.t("shell.space.create") }).click();
+    await expect(page.getByRole("dialog", { name: world.t("spaces.new.title") })).toBeVisible();
+    expect(page.url()).toBe(before);
+  },
+);
+
+When("{string} goes back to the spaces in the sheet", async ({ page, world }, name: string) => {
   expect(name).toBe(world.user!.name);
-  await page.getByRole("button", { name: world.t("shell.space.current", { name: "Personal" }) }).click();
-  await page.getByRole("link", { name: world.t("shell.space.create") }).click();
-  await expect(page).toHaveURL(/\/spaces\/new\?/);
+  await page
+    .getByRole("dialog", { name: world.t("spaces.new.title") })
+    .getByRole("button", { name: world.t("common.back") })
+    .click();
+});
+
+Then("the space switcher lists her spaces", async ({ page, world }) => {
+  const sheet = page.getByRole("dialog", { name: world.t("shell.space.title") });
+  await expect(sheet.getByRole("link", { name: /Personal/ })).toBeVisible();
 });
 
 When("{string} creates the shared space {string}", async ({ page, world }, name: string, space: string) => {

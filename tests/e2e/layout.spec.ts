@@ -2552,7 +2552,7 @@ test.describe("every screen below the navigation has a way back (UX: no dead end
     await page.waitForURL(`**/spaces/${sharedId}`);
   });
 
-  test("the profile sheet's Ajustes and the space switcher's create link carry the space to return to", async ({
+  test("the profile sheet's Ajustes carries the space to return to, and the switcher creates a space over it", async ({
     page,
   }) => {
     const { sharedId } = await session(page, "from");
@@ -2564,10 +2564,13 @@ test.describe("every screen below the navigation has a way back (UX: no dead end
     await back(page).click();
     await page.waitForURL(`**/spaces/${sharedId}`);
     await page.getByRole("button", { name: es.shell.space.current.replace("{name}", "Casa") }).click();
-    await page.getByRole("link", { name: es.shell.space.create }).click();
-    await page.waitForURL("**/spaces/new?from=*");
-    await back(page).click();
-    await page.waitForURL(`**/spaces/${sharedId}`);
+    await page.getByRole("button", { name: es.shell.space.create }).click();
+    // Ruling P272 (board E9-05 · 07): a sheet over the switcher, on the screen it opened from.
+    const sheet = page.getByRole("dialog", { name: es.spaces.new.title });
+    await expect(sheet.getByRole("combobox", { name: es.spaces.new.currency })).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe(`/spaces/${sharedId}`);
+    await sheet.getByRole("button", { name: es.common.back }).click();
+    await expect(page.getByRole("dialog", { name: es.shell.space.title })).toBeVisible();
   });
 });
 

@@ -7,7 +7,7 @@ import { fakeApi, jsonResponse, problemResponse } from "../../../../tests/suppor
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { NewSpaceForm } from "./new-space-form";
 
-const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn() }));
+const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn(), push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 beforeEach(() => vi.clearAllMocks());
 
@@ -15,7 +15,7 @@ describe("new shared space (HU-E9-05, ruling P161)", () => {
   it("creates Household in COP and opens its members screen", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/spaces": () => jsonResponse(householdSpace(), 201) });
     const { container } = renderWithIntl(<NewSpaceForm backHref="/spaces/sp-personal" api={api} />);
-    expect(screen.getByRole("radio", { name: "COP · Peso colombiano" })).toBeChecked();
+    expect(screen.getByRole("combobox", { name: "Moneda" })).toHaveValue("COP");
     await userEvent.type(screen.getByLabelText("Nombre"), " Household ");
     await userEvent.click(screen.getByRole("button", { name: "Crear espacio" }));
     expect(await requests[0]!.json()).toEqual({ kind: "SHARED", name: "Household", currency: "COP" });
@@ -29,17 +29,59 @@ describe("new shared space (HU-E9-05, ruling P161)", () => {
       "POST /api/v1/spaces": () => problemResponse(422, "InvalidSpaceName"),
     });
     renderWithIntl(<NewSpaceForm backHref="/spaces/sp-personal" api={api} />);
-    await userEvent.click(screen.getByRole("radio", { name: "USD · Dólar estadounidense" }));
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Moneda" }), "USD");
     await userEvent.click(screen.getByRole("button", { name: "Crear espacio" }));
     await waitFor(() =>
       expect(screen.getByLabelText("Nombre")).toHaveAccessibleDescription(
         "El nombre del espacio debe tener entre 1 y 80 caracteres.",
       ),
     );
-    expect(screen.getByRole("radiogroup", { name: "Moneda" })).toHaveAccessibleDescription(
+    expect(await requests[0]!.json()).toMatchObject({ currency: "USD" });
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+});
+
+describe("new shared space as its board (E9-05 · 07, ruling P272)", () => {
+  it("labels the currency Moneda, a select of the three currencies, with its hint", () => {
+    renderWithIntl(<NewSpaceForm backHref="/spaces/sp-personal" api={fakeApi({}).api} />);
+    const currency = screen.getByRole("combobox", { name: "Moneda" });
+    expect(Array.from(currency.querySelectorAll("option")).map((option) => option.textContent)).toEqual([
+      "COP · Peso colombiano",
+      "USD · Dólar estadounidense",
+      "EUR · Euro",
+    ]);
+    expect(currency).toHaveAccessibleDescription(
       "Una sola moneda por espacio. Deja de poder cambiarse cuando el espacio tiene movimientos.",
     );
-    expect(await requests[0]!.json()).toMatchObject({ currency: "USD" });
+    expect(currency).toHaveClass("h-[52px]");
+  });
+
+  it("names the space being created in the owner note, live", async () => {
+    renderWithIntl(<NewSpaceForm backHref="/spaces/sp-personal" api={fakeApi({}).api} />);
+    expect(
+      screen.getByText(
+        "Quedarás como Propietario y el espacio pasará a ser tu espacio activo. Después invitas a los demás desde Miembros.",
+      ),
+    ).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Nombre"), " Hogar ");
+    expect(
+      screen.getByText(
+        "Quedarás como Propietario y Hogar pasará a ser tu espacio activo. Después invitas a los demás desde Miembros.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("draws no page header inside the switcher's sheet, and tells the sheet once the space exists", async () => {
+    const onCreated = vi.fn();
+    const { api } = fakeApi({ "POST /api/v1/spaces": () => jsonResponse(householdSpace(), 201) });
+    renderWithIntl(<NewSpaceForm api={api} onCreated={onCreated} />);
+    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Volver" })).not.toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Nombre"), "Household");
+    await userEvent.click(screen.getByRole("button", { name: "Crear espacio" }));
+    await waitFor(() => expect(onCreated).toHaveBeenCalled());
+    // The screen under the sheet stays in the history: Volver and Back return to it.
+    expect(router.push).toHaveBeenCalledWith("/spaces/sp-household/members");
     expect(router.replace).not.toHaveBeenCalled();
   });
 });

@@ -42,13 +42,14 @@ When("{string} opens Ajustes from the user menu", async ({ page, world }, name: 
   await expect(page).toHaveURL(/\/settings\?from=/);
 });
 
+// The switcher opens Crear un espacio compartido as a sheet (ruling P272); the screen is still reached by a link that
+// names the space it came from, such as the home's first steps.
 When(
-  "{string} opens the create-space link of the space switcher of {string}",
+  "{string} opens the create-space screen from {string} by its URL",
   async ({ page, world }, name: string, space: string) => {
     expect(name).toBe(world.user!.name);
-    await page.getByRole("button", { name: world.t("shell.space.current", { name: space }) }).click();
-    await page.getByRole("link", { name: world.t("shell.space.create") }).click();
-    await expect(page).toHaveURL(/\/spaces\/new\?/);
+    await page.goto(`/spaces/new?from=${spaceId(world, space)}`);
+    await expect(page.getByRole("heading", { level: 1, name: world.t("spaces.new.title") })).toBeVisible();
   },
 );
 

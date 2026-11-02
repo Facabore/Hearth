@@ -244,6 +244,51 @@ describe("accounts, categories and settings in the SPA (slice 3 of #199, ADR 000
       (spa.queryClient.getQueryData<SpaceDto[]>(["spaces", "list"]) ?? []).map((space) => space.name),
     ).toContain("Casa");
   });
+
+  it("creates a shared space from the switcher's own sheet and lands in it with the sheet closed (E9-05 · 07)", async () => {
+    const { routes } = server();
+    const spa = renderSpa("/spaces/sp-personal/transactions", routes);
+    await userEvent.click(
+      await screen.findByRole(
+        "button",
+        { name: es.shell.space.current.replace("{name}", "Personal") },
+        { timeout: 5_000 },
+      ),
+    );
+    await userEvent.click(screen.getByRole("button", { name: es.shell.space.create }));
+    const sheet = screen.getByRole("dialog", { name: es.spaces.new.title });
+    await userEvent.type(await within(sheet).findByLabelText("Nombre"), "Casa");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Crear espacio" }));
+
+    await waitFor(() => expect(spa.location()).toBe("/spaces/sp-new/members"));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    // The screen the sheet opened over stays in the history, under the new space.
+    spa.router.history.back();
+    await waitFor(() => expect(spa.location()).toBe("/spaces/sp-personal/transactions"));
+  });
+
+  it("opens a pasted invitation link from the switcher's Unirme con un enlace (Pantallas nuevas · 11)", async () => {
+    const { routes } = server();
+    const spa = renderSpa("/spaces/sp-personal/transactions", routes);
+    await userEvent.click(
+      await screen.findByRole(
+        "button",
+        { name: es.shell.space.current.replace("{name}", "Personal") },
+        { timeout: 5_000 },
+      ),
+    );
+    await userEvent.click(screen.getByRole("button", { name: es.shell.space.join }));
+    const sheet = screen.getByRole("dialog", { name: es.spaces.join.title });
+    await userEvent.type(
+      await within(sheet).findByLabelText(es.spaces.join.link),
+      "https://hearth.example/invitations/AbC123",
+    );
+    await userEvent.click(within(sheet).getByRole("button", { name: es.spaces.join.submit }));
+
+    await waitFor(() => expect(spa.location()).toBe("/invitations/AbC123"));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("answers an account that does not exist with the not-found screen, after one read: a 404 is never retried", async () => {
     const { routes } = server();
     const spa = renderSpa(`${ACCOUNTS}/a-gone/edit`, routes);

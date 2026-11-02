@@ -243,7 +243,7 @@
       "current": "Espacio actual: {name}. Cambiar de espacio",
       "title": "Espacios",
       "onlyYou": "Solo tú",
-      "create": "Crear espacio compartido",
+      "create": "Crear un espacio compartido",
       "join": "Unirme con un enlace de invitación"
     },
     "role": {
