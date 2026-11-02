@@ -285,6 +285,21 @@ describe("the search (board B1 06, ruling P277)", () => {
     );
   });
 
+  it("shows an earlier search again when the person goes back to it", async () => {
+    const { rerender } = renderWithIntl(listOf({ filter: { period: "2026-10" } }));
+    const field = screen.getByRole("searchbox", { name: "Buscar" });
+    await userEvent.type(field, "taxi{Enter}");
+    rerender(listOf({ filter: { period: "2026-10", search: "taxi" } }));
+    await userEvent.clear(field);
+    await userEvent.type(field, "din{Enter}");
+    rerender(listOf({ filter: { period: "2026-10", search: "din" } }));
+    // Back, to the earlier search and then to the list without one.
+    rerender(listOf({ filter: { period: "2026-10", search: "taxi" } }));
+    expect(field).toHaveValue("taxi");
+    rerender(listOf({ filter: { period: "2026-10" } }));
+    expect(field).toHaveValue("");
+  });
+
   it("shows the address's search in the field, and an emptied field lists everything again", async () => {
     renderWithIntl(listOf({ filter: { period: "2026-10", search: "taxi" } }));
     const field = screen.getByRole("searchbox", { name: "Buscar" });

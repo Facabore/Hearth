@@ -198,25 +198,29 @@ function SearchField({
 }) {
   const [text, setText] = useState(value);
   const [shown, setShown] = useState(value);
-  // The searches the field asked for itself: an answer to one of them, even one that arrives after the person typed on,
-  // never overwrites the field.
-  const [own, setOwn] = useState<readonly string[]>([value]);
+  // The searches the field asked for that have not answered yet, in order: an answer to one of them, even one that
+  // arrives after the person typed on, never overwrites the field.
+  const [pending, setPending] = useState<readonly string[]>([]);
   // What was last asked for, so a pause after Enter, or the answer's own address, asks nothing again.
   const asked = useRef(value);
   const latest = useRef(onSearch);
   const wanted = text.trim();
-  // An address the field did not write (back, a link) shows its own search.
   if (shown !== value) {
     setShown(value);
-    if (!own.includes(value) && value !== wanted) {
-      setOwn([value]);
-      setText(value);
+    const answered = pending.indexOf(value);
+    if (answered >= 0) {
+      // The field's own search answered, and so did every one asked before it.
+      setPending(pending.slice(answered + 1));
+    } else {
+      // An address the field did not write (back, a link) shows its own search.
+      setPending([]);
+      if (value !== wanted) setText(value);
     }
   }
   const ask = useCallback((search: string) => {
     if (search === asked.current) return;
     asked.current = search;
-    setOwn((before) => [...before.slice(-9), search]);
+    setPending((before) => [...before, search]);
     latest.current(search);
   }, []);
   useEffect(() => {
