@@ -1280,7 +1280,7 @@
       "metaTitle": "Planner",
       "title": "Plan for {period}",
       "dates": "{space} · {start} – {end}",
-      "closedNotice": "Closed plan: it is read-only now.",
+      "closedNotice": "Closed plan: it is read-only now, like the expenses dated in {period}.",
       "capacity": "What everyone puts in",
       "unallocated": "{amount} left to assign",
       "memberShare": "{name} {amount} · {share}",
@@ -1298,7 +1298,20 @@
       "close": "Close plan",
       "closeHint": "It can be closed once the period is over, from {date}.",
       "invalidLines": "It cannot be activated: check the allocation of {lines}.",
-      "goToSource": "Go to the plan for {period}"
+      "goToSource": "Go to the plan for {period}",
+      "percentRule": "Percentage {ratio}",
+      "invalidAllocationSum": "Invalid allocation: it adds up to {sum}",
+      "confirmActivate": {
+        "title": "Activate the plan for {period}?",
+        "splitDefault": "“By the plan” becomes the default split",
+        "countsAgainst": "Expenses in {period} count against the lines",
+        "stillEditable": "You can keep editing it while it is active"
+      },
+      "confirmClose": {
+        "title": "Close the plan for {period}?",
+        "readOnly": "It becomes read-only, like the expenses dated in {period}",
+        "leftover": "What is left over moves on by each line's rule"
+      }
     },
     "funding": {
       "DIRECT": "Each one pays",
@@ -1348,7 +1361,8 @@
       "rolesNote": "A Member changes only their own; an Owner or an Admin changes everyone's.",
       "total": "Total",
       "save": "Save contributions",
-      "unreadable": "Type an amount like {example}."
+      "unreadable": "Type an amount like {example}.",
+      "memberShare": "{name} {share}"
     },
     "lineEditor": {
       "metaTitle": "Edit line",
@@ -1396,7 +1410,9 @@
       "title": "Categories of {line}",
       "search": "Search category",
       "inOtherLine": "In {line}",
-      "done": "Done"
+      "done": "Done",
+      "chooseShort": "Choose",
+      "chosen": "{count, plural, one {# chosen} other {# chosen}}"
     },
     "allocation": {
       "title": "Who answers for the line",

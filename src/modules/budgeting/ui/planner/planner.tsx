@@ -6,26 +6,57 @@ import { useTranslations } from "next-intl";
 import { useId, useMemo, useRef, useState } from "react";
 import { Badge, Button, Icon, ProblemNotice, ScreenHeader, usePeriodText } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
-import type { BudgetPlanDto, CategoryGroupDto, SpaceDto, SpaceMemberDto } from "@/shared/ui/api/dto";
+import type {
+  BudgetPlanDto,
+  CategoryGroupDto,
+  PlanLineDto,
+  SpaceDto,
+  SpaceMemberDto,
+} from "@/shared/ui/api/dto";
 import type { Problem } from "@/shared/ui/api/problem";
-import { formatDate, formatMoney, formatPercent, type Formats } from "@/shared/ui/format/formatters";
+import {
+  formatDate,
+  formatMoney,
+  formatNumber,
+  formatPercent,
+  type Formats,
+} from "@/shared/ui/format/formatters";
 import { CarryText } from "../carry-text";
 import { CopyNotice } from "../copy-notice";
+import { allocationDraftOf, previewOf } from "../line-editor/allocation";
+import { usePeriodWord } from "../period-word";
 import { PlanStatusBadge } from "../plan-status-badge";
 import { canCloseOn, canManage, closesFrom, isEditable, takesPart } from "../plan-access";
 import { ifMatch, planWrite, rereadPlan } from "../plan-write";
+import { CapacityCard } from "./capacity-card";
+import { LifecycleConfirm, type LifecycleAction } from "./lifecycle-confirm";
 
 interface Failure {
   readonly problem: Problem;
   readonly lineIds: readonly string[];
 }
 
+/** Board 02: what a stored allocation that does not hold adds up to, from the line's own values. */
+const invalidSum = (line: PlanLineDto, formats: Formats): string | null => {
+  const preview = previewOf(allocationDraftOf(line, formats), {
+    planned: line.plannedAmount.amount,
+    currency: line.plannedAmount.currency,
+    members: line.allocation.members.map((member) => ({ memberId: member.memberId, capacity: "0" })),
+    numberFormat: formats.numberFormat,
+  });
+  if (preview.kind !== "invalid") return null;
+  return preview.unit === "percent"
+    ? formatPercent(preview.sum, formats)
+    : formatMoney({ amount: preview.sum, currency: line.plannedAmount.currency }, formats);
+};
+
 /**
- * HU-E9-08, the Planner artboard (rulings P206 and P207): the plan's period and status, the capacity summary and the
- * lines, with the lifecycle of the plan (activate, then close from the day after its period). It keeps the plan each
- * write answers and sends the version it shows. Managers edit; a MEMBER reaches only their own capacity; a VIEWER and
- * every CLOSED plan read. A close refused with SourcePlanOpen (ruling P248) names the period to close first and links
- * to that plan, which this plan was copied from.
+ * HU-E9-08, the Planner artboard (rulings P206 and P207): the plan's period and status, the capacity card and the
+ * lines, with the lifecycle of the plan (activate, then close from the day after its period), each confirmed first
+ * (boards 08 and 09). It keeps the plan each write answers and sends the version it shows. Managers edit, and each
+ * line's whole row leads to its editor; a MEMBER reaches only their own capacity; a VIEWER and every CLOSED plan read.
+ * A close refused with SourcePlanOpen (ruling P248) names the period to close first and links to that plan, which
+ * this plan was copied from.
  */
 export function Planner({
   space,
@@ -48,11 +79,13 @@ export function Planner({
   const t = useTranslations("budgeting");
   const router = useRouter();
   const periodText = usePeriodText();
+  const periodWord = usePeriodWord();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   const ids = useId();
   const [plan, setPlan] = useState(initial);
   const [failure, setFailure] = useState<Failure | null>(null);
   const [pending, setPending] = useState(false);
+  const [confirming, setConfirming] = useState<LifecycleAction | null>(null);
   const inFlight = useRef(false);
 
   const manager = canManage(space.role);
@@ -66,8 +99,9 @@ export function Planner({
   };
   const money = (value: { readonly amount: string; readonly currency: string }) =>
     formatMoney(value, formats);
+  const word = periodWord(plan.period, space.periodPolicy, formats);
 
-  const lifecycle = async (action: "activate" | "close") => {
+  const lifecycle = async (action: LifecycleAction) => {
     // A second click can arrive before the re-render that disables the button.
     if (inFlight.current) return;
     inFlight.current = true;
@@ -78,6 +112,7 @@ export function Planner({
         ? api.POST("/api/v1/spaces/{spaceId}/plans/{planId}/activate", call)
         : api.POST("/api/v1/spaces/{spaceId}/plans/{planId}/close", call),
     );
+    setConfirming(null);
     if (result.ok) {
       setPlan(result.plan);
       setFailure(null);
@@ -111,9 +146,20 @@ export function Planner({
     return undefined;
   };
 
+  /** Board 01: a percentage split says its ratio ("Porcentaje 42 / 58"); every other rule says its name. */
+  const ruleOf = (line: PlanLineDto) => {
+    const { rule, members: shares } = line.allocation;
+    const percents = shares.flatMap((share) => (share.percent === null ? [] : [share.percent]));
+    return rule === "PERCENT" && percents.length > 0
+      ? t("planner.percentRule", {
+          ratio: percents.map((percent) => formatNumber(percent, formats)).join(" / "),
+        })
+      : t(`rule.${rule}`);
+  };
+
   const heading = (key: string) => `${ids}-${key}`;
   return (
-    <div className="mx-auto flex w-full max-w-[720px] flex-col gap-3 py-3">
+    <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4 py-3">
       <ScreenHeader
         backHref={`/spaces/${space.id}/plan?period=${plan.period.label}`}
         title={t("planner.title", { period: periodText(plan.period, space.periodPolicy, formats) })}
@@ -126,55 +172,44 @@ export function Planner({
       />
       <CopyNotice plan={plan} groups={groups} />
       {!editable ? (
-        <p role="status" className="text-sm text-muted">
-          {t("planner.closedNotice")}
+        <p role="status" className="rounded-xl bg-track px-4 py-3 text-sm [overflow-wrap:anywhere] text-ink">
+          {t("planner.closedNotice", { period: word })}
         </p>
       ) : null}
       {failure !== null ? <ProblemNotice problem={failure.problem} detail={detail()} /> : null}
 
-      <section aria-labelledby={heading("capacity")} className="flex flex-col gap-1 tabular-nums">
-        <h2 id={heading("capacity")} className="text-base font-semibold text-ink">
-          {t("planner.capacity")}
-        </h2>
-        <p className="text-2xl font-semibold [overflow-wrap:anywhere] text-ink">
-          {money(plan.totalCapacity)}
-        </p>
-        <p className="text-sm text-muted [overflow-wrap:anywhere]">
-          {t("planner.unallocated", { amount: money(plan.unallocated) })}
-        </p>
-        {plan.capacities.filter(listed).map((capacity) => {
-          const name = names.get(capacity.memberId) ?? "—";
-          return (
-            <p key={capacity.memberId} className="text-sm [overflow-wrap:anywhere] text-ink">
-              {capacity.share === null
-                ? t("planner.memberAmount", { name, amount: money(capacity.amount) })
-                : t("planner.memberShare", {
-                    name,
-                    amount: money(capacity.amount),
-                    share: formatPercent(capacity.share, formats),
-                  })}
-            </p>
-          );
-        })}
-        {editable && (manager || space.role === "MEMBER") ? (
-          <Button asChild variant="secondary" size="compact" className="mt-2 self-start">
-            <Link href={`${base}/capacities`}>
-              <Icon name="pencil" size={16} />
-              {t("planner.editCapacities")}
-            </Link>
-          </Button>
-        ) : null}
-      </section>
+      <CapacityCard
+        headingId={heading("capacity")}
+        total={plan.totalCapacity}
+        unallocated={plan.unallocated}
+        rows={plan.capacities.filter(listed).map((capacity) => ({
+          memberId: capacity.memberId,
+          name: names.get(capacity.memberId) ?? "—",
+          amount: capacity.amount,
+          share: capacity.share,
+        }))}
+        formats={formats}
+        action={
+          editable && (manager || space.role === "MEMBER") ? (
+            <Button asChild variant="ghost" size="compact" className="-mx-2 self-start font-medium">
+              <Link href={`${base}/capacities`}>
+                {t("planner.editCapacities")}
+                <Icon name="chevronRight" size={18} />
+              </Link>
+            </Button>
+          ) : null
+        }
+      />
 
       <section aria-labelledby={heading("lines")} className="flex flex-col gap-2">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex min-h-11 items-center justify-between gap-2">
           <h2 id={heading("lines")} className="text-base font-semibold text-ink">
             {t("planner.lines")}
           </h2>
           {manager && editable ? (
-            <Button asChild variant="secondary" size="compact">
+            <Button asChild variant="ghost" size="compact" className="-mr-2 font-medium">
               <Link href={`${base}/lines/new`}>
-                <Icon name="plus" size={16} />
+                <Icon name="plus" size={18} />
                 {t("planner.addLine")}
               </Link>
             </Button>
@@ -184,61 +219,72 @@ export function Planner({
           <p className="text-sm text-muted">{t("planner.empty")}</p>
         ) : (
           <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
-            {plan.lines.map((line) => (
-              <li key={line.id} aria-labelledby={heading(line.id)} className="flex items-start gap-2 p-3">
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span id={heading(line.id)} className="font-medium [overflow-wrap:anywhere] text-ink">
-                      {line.name}
-                    </span>
-                    {line.isCatchAll ? <Badge>{t("line.catchAll")}</Badge> : null}
+            {plan.lines.map((line) => {
+              const sum = line.allocation.error === null ? null : invalidSum(line, formats);
+              const name = (
+                <span id={heading(line.id)} className="[overflow-wrap:anywhere]">
+                  {line.name}
+                </span>
+              );
+              return (
+                <li
+                  key={line.id}
+                  aria-labelledby={heading(line.id)}
+                  className="relative flex items-start gap-3 px-4 py-3 has-[a:focus-visible]:bg-accent-soft"
+                >
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold text-ink">
+                      {manager && editable ? (
+                        <Link
+                          href={`${base}/lines/${line.id}`}
+                          aria-label={t("planner.editLine", { name: line.name })}
+                          className="after:absolute after:inset-0 after:content-['']"
+                        >
+                          {name}
+                        </Link>
+                      ) : (
+                        name
+                      )}
+                      {line.isCatchAll ? <Badge>{t("line.catchAll")}</Badge> : null}
+                    </div>
+                    <p className="text-sm text-muted">
+                      {t("planner.meta", {
+                        funding: t(`funding.${line.funding}`),
+                        rule: ruleOf(line),
+                        rollover: t(`rollover.${line.rolloverMode}`),
+                      })}
+                    </p>
+                    <CarryText line={line} policy={space.periodPolicy} formats={formats} />
                     {line.allocation.error !== null ? (
-                      <Badge tone="owe" icon="alert">
-                        {t("planner.invalidAllocation")}
-                      </Badge>
+                      <p className="flex items-center gap-1 text-sm font-semibold text-danger">
+                        <Icon name="alert" size={16} />
+                        {sum === null
+                          ? t("planner.invalidAllocation")
+                          : t("planner.invalidAllocationSum", { sum })}
+                      </p>
                     ) : null}
                   </div>
-                  <p className="text-sm text-muted">
-                    {t("planner.meta", {
-                      funding: t(`funding.${line.funding}`),
-                      rule: t(`rule.${line.allocation.rule}`),
-                      rollover: t(`rollover.${line.rolloverMode}`),
-                    })}
-                  </p>
-                  <p className="flex flex-wrap items-baseline gap-x-2 tabular-nums">
-                    <span className="font-semibold [overflow-wrap:anywhere] text-ink">
-                      {money(line.plannedAmount)}
-                    </span>
+                  <div className="flex shrink-0 flex-col items-end gap-1 text-right tabular-nums">
+                    <p className="text-lg font-semibold text-ink">{money(line.plannedAmount)}</p>
                     {line.capacityShare !== null ? (
-                      <span className="text-sm text-muted">
+                      <p className="text-sm text-muted">
                         {t("planner.ofCapacity", { share: formatPercent(line.capacityShare, formats) })}
-                      </span>
+                      </p>
                     ) : null}
-                    <CarryText line={line} policy={space.periodPolicy} formats={formats} />
-                  </p>
-                </div>
-                {manager && editable ? (
-                  <Button asChild variant="ghost" size="iconCompact" className="-mt-1 -mr-1 shrink-0">
-                    <Link
-                      href={`${base}/lines/${line.id}`}
-                      aria-label={t("planner.editLine", { name: line.name })}
-                    >
-                      <Icon name="pencil" size={18} />
-                    </Link>
-                  </Button>
-                ) : null}
-              </li>
-            ))}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
 
       {manager && plan.status === "DRAFT" ? (
         <div className="flex flex-col gap-2">
-          <Button size="lg" disabled={pending} onClick={() => void lifecycle("activate")}>
+          <Button size="lg" disabled={pending} onClick={() => setConfirming("activate")}>
             {t("planner.activate")}
           </Button>
-          <p className="text-sm text-muted">{t("planner.activateHint")}</p>
+          <p className="text-center text-sm text-muted">{t("planner.activateHint")}</p>
         </div>
       ) : null}
       {manager && plan.status === "ACTIVE" ? (
@@ -247,15 +293,24 @@ export function Planner({
             size="lg"
             variant="secondary"
             disabled={pending || !canCloseOn(plan, today)}
-            onClick={() => void lifecycle("close")}
+            onClick={() => setConfirming("close")}
           >
             {t("planner.close")}
           </Button>
-          <p className="text-sm text-muted">
+          <p className="text-center text-sm text-muted">
             {t("planner.closeHint", { date: formatDate(closesFrom(plan), formats) })}
           </p>
         </div>
       ) : null}
+      <LifecycleConfirm
+        action={confirming}
+        period={word}
+        pending={pending}
+        onConfirm={(action) => void lifecycle(action)}
+        onOpenChange={(open) => {
+          if (!open && !inFlight.current) setConfirming(null);
+        }}
+      />
     </div>
   );
 }

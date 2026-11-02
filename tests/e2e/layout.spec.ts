@@ -1227,7 +1227,9 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       );
       await page.goto(`/spaces/${sharedId}/plans/${september.id}`);
       await settle(page);
+      // Board 09 of Pantallas nuevas: closing is confirmed in a sheet first.
       await page.getByRole("button", { name: es.budgeting.planner.close }).click();
+      await page.getByRole("dialog").getByRole("button", { name: es.budgeting.planner.close }).click();
       const alert = page.locator("main").getByRole("alert");
       await expect(alert).toContainText(es.errors.SourcePlanOpen.replace("{period}", "2026-08"));
       const { overflow, message } = await overflowReport(page, "the refusal");

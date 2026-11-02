@@ -36,6 +36,11 @@ When(
 
 When("she activates the plan", async ({ page, world }) => {
   await page.getByRole("button", { name: world.t("budgeting.planner.activate") }).click();
+  // Board 08 of Pantallas nuevas: activating is confirmed in a sheet first.
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: world.t("budgeting.planner.activate") })
+    .click();
   await expect(page.getByText(world.t("budgeting.status.ACTIVE"), { exact: true })).toBeVisible();
 });
 
