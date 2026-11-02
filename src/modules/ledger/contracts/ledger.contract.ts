@@ -788,7 +788,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     post: {
       operationId: "restoreTransaction",
       summary:
-        "Undo a deletion: the transaction returns to lists, balances and totals; restoring a live one changes nothing",
+        "Undo a deletion: the transaction returns to lists, balances and totals; restoring a live one changes nothing; a converted one returns only through the conversion's undo",
       ...securedByUser,
       requestParams: { path: TransactionPath },
       responses: {
@@ -800,7 +800,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
           "401": "Unauthenticated",
           "403": "InsufficientRole",
           "404": "SpaceNotFound, TransactionNotFound",
-          "409": "PeriodClosed, SpaceArchived",
+          "409": "ConversionSuperseded, PeriodClosed, SpaceArchived",
           "412": "PreconditionFailed",
           "422": "NotASpaceMember",
         }),

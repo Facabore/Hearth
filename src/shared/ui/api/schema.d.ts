@@ -751,7 +751,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Undo a deletion: the transaction returns to lists, balances and totals; restoring a live one changes nothing */
+        /** Undo a deletion: the transaction returns to lists, balances and totals; restoring a live one changes nothing; a converted one returns only through the conversion's undo */
         post: operations["restoreTransaction"];
         delete?: never;
         options?: never;
@@ -5516,7 +5516,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description PeriodClosed, SpaceArchived */
+            /** @description ConversionSuperseded, PeriodClosed, SpaceArchived */
             409: {
                 headers: {
                     [name: string]: unknown;

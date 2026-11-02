@@ -6708,7 +6708,7 @@
     "/api/v1/spaces/{spaceId}/transactions/{transactionId}/restore": {
       "post": {
         "operationId": "restoreTransaction",
-        "summary": "Undo a deletion: the transaction returns to lists, balances and totals; restoring a live one changes nothing",
+        "summary": "Undo a deletion: the transaction returns to lists, balances and totals; restoring a live one changes nothing; a converted one returns only through the conversion's undo",
         "security": [
           {
             "cookieAuth": []
@@ -6777,7 +6777,7 @@
             }
           },
           "409": {
-            "description": "PeriodClosed, SpaceArchived",
+            "description": "ConversionSuperseded, PeriodClosed, SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {

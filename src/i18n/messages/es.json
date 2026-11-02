@@ -167,7 +167,7 @@
     "SameTransactionType": "Elige un tipo distinto del que ya tiene.",
     "TransactionNotConvertible": "Un pago entre miembros no cambia de tipo.",
     "TransactionNotConverted": "Este movimiento no se cambió de tipo, así que no hay nada que deshacer.",
-    "ConversionSuperseded": "Lo que resultó de este cambio ya cambió de tipo otra vez. Deshaz primero el cambio más reciente.",
+    "ConversionSuperseded": "Este movimiento cambió de tipo y lo que resultó de ese cambio sigue vigente. Deshaz primero el cambio más reciente.",
     "SavingsAccountAlreadyUsed": "Esa cuenta de ahorro ya está en otro rubro del plan.",
     "SavingsAccountRequired": "Un rubro de ahorro necesita al menos una cuenta de ahorro.",
     "SavingsLineNotMappable": "Un rubro de ahorro no lleva categorías.",

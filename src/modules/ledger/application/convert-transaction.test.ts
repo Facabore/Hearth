@@ -19,6 +19,7 @@ import { createRecordExpense } from "./record-expense";
 import { createRecordFundContribution } from "./record-fund-contribution";
 import { createRecordIncome } from "./record-income";
 import { createRecordTransfer } from "./record-transfer";
+import { createRestoreTransaction } from "./restore-transaction";
 import { createUndoConversion } from "./undo-conversion";
 import type { LedgerDeps } from "./deps";
 
@@ -336,5 +337,76 @@ describe("UndoConversion (issue #195)", () => {
     state.closed.add(date);
     expect(codeOf(await undo({ ...asAna, transactionId: market.id }))).toBe("PeriodClosed");
     expect(store.rows).toEqual(rows);
+  });
+});
+
+describe("RestoreTransaction after a conversion (issue #198)", () => {
+  it("refuses to restore an original whose conversion is live, so the money is never counted twice", async () => {
+    const { convert, store, market, deps } = setup();
+    const income = unwrap(
+      await convert({ ...asAna, transactionId: market.id, expectedVersion: 1, to: asIncome }),
+    );
+    const rows = structuredClone(store.rows);
+    const restore = createRestoreTransaction(deps);
+    expect(codeOf(await restore({ ...asAna, transactionId: market.id }))).toBe("ConversionSuperseded");
+    expect(store.rows).toEqual(rows);
+    expect(store.rows.filter((t) => t.deletedAt === null).map((t) => t.id)).toEqual([income.id]);
+  });
+
+  it("refuses it too when what it became was converted again", async () => {
+    const { convert, store, market, deps } = setup();
+    const income = unwrap(
+      await convert({ ...asAna, transactionId: market.id, expectedVersion: 1, to: asIncome }),
+    );
+    unwrap(
+      await convert({
+        ...asAna,
+        transactionId: income.id,
+        expectedVersion: 1,
+        to: {
+          type: "TRANSFER",
+          date,
+          amount: money(8_500_000n),
+          sourceAccountId: ACCOUNTS.bancolombia.id,
+          destinationAccountId: ACCOUNTS.nequi.id,
+        },
+      }),
+    );
+    const rows = structuredClone(store.rows);
+    const restore = createRestoreTransaction(deps);
+    expect(codeOf(await restore({ ...asAna, transactionId: market.id }))).toBe("ConversionSuperseded");
+    expect(store.rows).toEqual(rows);
+  });
+
+  it("restores an original whose conversion was undone and deleted again, or whose result was deleted on its own", async () => {
+    const { convert, undo, store, market, deps } = setup();
+    const restore = createRestoreTransaction(deps);
+    const income = unwrap(
+      await convert({ ...asAna, transactionId: market.id, expectedVersion: 1, to: asIncome }),
+    );
+    unwrap(await createDeleteTransaction(deps)({ ...asAna, transactionId: income.id }));
+    expect(unwrap(await restore({ ...asAna, transactionId: market.id })).deletedAt).toBeNull();
+    expect(store.rows.filter((t) => t.deletedAt === null).map((t) => t.id)).toEqual([market.id]);
+
+    const salary = anIncome(date, 300_000_000n);
+    store.rows.push(salary);
+    const expense = unwrap(
+      await convert({
+        ...asAna,
+        transactionId: salary.id,
+        expectedVersion: 1,
+        to: {
+          type: "EXPENSE",
+          date,
+          categoryId: CATEGORIES.groceries.id,
+          amount: money(300_000_000n),
+          accountId: ACCOUNTS.bancolombia.id,
+        },
+      }),
+    );
+    unwrap(await undo({ ...asAna, transactionId: salary.id }));
+    unwrap(await createDeleteTransaction(deps)({ ...asAna, transactionId: salary.id }));
+    expect(unwrap(await restore({ ...asAna, transactionId: salary.id })).deletedAt).toBeNull();
+    expect(store.rows.find((t) => t.id === expense.id)?.deletedAt).not.toBeNull();
   });
 });

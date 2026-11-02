@@ -28,6 +28,21 @@ const convertedIdOf = async (
 };
 
 /**
+ * Issue #198: whether what a deleted movement was converted into still counts its money: it is live, or it was
+ * converted again (its own result is live). Bringing the original back beside it would count the money twice.
+ */
+export const conversionStands = async (
+  deps: Pick<LedgerDeps, "audit" | "transactions">,
+  spaceId: string,
+  transactionId: string,
+): Promise<boolean> => {
+  const convertedId = await convertedIdOf(deps, transactionId);
+  if (convertedId === null) return false;
+  if (await deps.transactions.findById(spaceId, convertedId)) return true;
+  return (await convertedIdOf(deps, convertedId)) !== null;
+};
+
+/**
  * Issue #195: the undo of a conversion, in one transaction. The original comes back as it was (ruling P185) and what it
  * became is soft-deleted, each under the rules of a restore and a deletion; an original that is live is answered
  * unchanged, so a repeated undo changes nothing.
