@@ -27,6 +27,7 @@ import {
 import type {
   AuditEntry,
   ConversionTarget,
+  ConvertedTransaction,
   EditChanges,
   LedgerWarning,
   PaymentInput,
@@ -390,6 +391,18 @@ export const warningsDto = (
 export const recordedExpenseDto = (recorded: RecordedExpense): z.infer<typeof RecordedExpenseSchema> => ({
   ...transactionDto(recorded.expense),
   warnings: warningsDto(recorded.warnings, recorded.expense.currency),
+});
+
+/** Issue #198: a conversion's answer, the new movement plus the warnings an expense gives (optional, added later). */
+export const ConvertedTransactionSchema = TransactionSchema.extend({
+  warnings: z.array(WarningSchema).optional(),
+});
+
+export const convertedTransactionDto = (
+  converted: ConvertedTransaction,
+): z.infer<typeof ConvertedTransactionSchema> => ({
+  ...transactionDto(converted.transaction),
+  warnings: warningsDto(converted.warnings, converted.transaction.currency),
 });
 
 const UUID = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
@@ -817,8 +830,9 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
       requestBody: { content: jsonContent(ConvertTransactionBodySchema) },
       responses: {
         "201": {
-          description: "The new movement; ETag carries its version",
-          content: jsonContent(TransactionSchema),
+          description:
+            "The new movement, with the warnings recording it gives (a fund left negative); ETag carries its version",
+          content: jsonContent(ConvertedTransactionSchema),
         },
         ...problems({
           "401": "Unauthenticated",

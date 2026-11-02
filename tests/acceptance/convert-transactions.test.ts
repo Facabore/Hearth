@@ -318,6 +318,35 @@ describe("convert a movement's type in a shared space (issue #195, the owner's r
     expect(await spentIn(h.ana, h.spaceId)).toEqual(cop(100_000));
   });
 
+  it("answers the fund's warning when the expense it becomes leaves the fund below zero (issue #198, HU-E4-10)", async () => {
+    const h = await household();
+    const fund = await newAccount(h.ana, "Household Fund", 0, "SHARED_FUND");
+    const shared = await paysEqually(h.ana, 100_000, [h.ana.memberId, h.juan.memberId], h.groceries);
+    const toContribution = await convert(h.ana, shared.id, {
+      type: "FUND_CONTRIBUTION",
+      amount: cop(100_000),
+      date,
+      fundAccountId: fund,
+      sourceAccountId: h.ana.account,
+    });
+    const contribution = (await toContribution.json()) as TransactionDto & { warnings: unknown[] };
+    expect(contribution.warnings).toEqual([]);
+    const paidByFund = await convert(h.ana, contribution.id, {
+      type: "EXPENSE",
+      amount: cop(100_000),
+      date,
+      categoryId: h.groceries,
+      payments: [{ memberId: null, accountId: fund, amount: cop(100_000) }],
+      split: { method: "EQUAL", participants: [{ memberId: h.ana.memberId }, { memberId: h.juan.memberId }] },
+    });
+    expect(paidByFund.status).toBe(201);
+    const body = (await paidByFund.json()) as TransactionDto & { warnings: unknown[] };
+    expect(body.type).toBe("EXPENSE");
+    // The contribution that filled the fund left with the conversion, so the fund is 100,000 short.
+    expect(body.warnings).toEqual([{ code: "FundBalanceNegative", accountId: fund, balance: cop(-100_000) }]);
+    expect(await balanceOf(h.ana, fund)).toEqual(cop(-100_000));
+  });
+
   it("refuses a MEMBER who did not record it, and an income, which a shared space cannot hold (D9)", async () => {
     const h = await household();
     const fund = await newAccount(h.ana, "Household Fund", 0, "SHARED_FUND");

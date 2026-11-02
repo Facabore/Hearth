@@ -5641,13 +5641,51 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The new movement; ETag carries its version */
+            /** @description The new movement, with the warnings recording it gives (a fund left negative); ETag carries its version */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Transaction"];
+                    "application/json": {
+                        id: string;
+                        /** @enum {string} */
+                        type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
+                        description: string;
+                        /** Format: date */
+                        date: string;
+                        occurredAt: string | null;
+                        timeZone: string | null;
+                        amount: components["schemas"]["MoneyOutput"];
+                        categoryId: string | null;
+                        payments: {
+                            memberId: string | null;
+                            accountId: string | null;
+                            amount: components["schemas"]["MoneyOutput"];
+                        }[];
+                        shares: {
+                            memberId: string;
+                            amount: components["schemas"]["MoneyOutput"];
+                            /** @enum {string} */
+                            splitMethod: "EQUAL" | "PERCENT" | "EXACT" | "SHARES" | "BY_ALLOCATION";
+                        }[];
+                        sourceAccountId: string | null;
+                        destinationAccountId: string | null;
+                        receivingMemberId: string | null;
+                        payerMemberId: string | null;
+                        createdBy: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        updatedAt: string;
+                        version: number;
+                        warnings?: {
+                            /** @enum {string} */
+                            code: "FundBalanceNegative";
+                            accountId: string;
+                            balance: components["schemas"]["MoneyOutput"];
+                        }[];
+                    };
                 };
             };
             /** @description Unauthenticated */

@@ -54,7 +54,7 @@ const defaultSplit = async (
 };
 
 /** HU-E4-10: the fund may go negative; the expense is recorded and the response warns. */
-const fundWarnings = async (
+export const fundWarnings = async (
   deps: Pick<LedgerDeps, "accountBalances">,
   space: SpaceMembership,
   userId: string,

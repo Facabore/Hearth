@@ -66,6 +66,7 @@ export { createRestoreTransaction, type RestoreTransaction } from "./restore-tra
 export {
   createConvertTransaction,
   type ConversionTarget,
+  type ConvertedTransaction,
   type ConvertTransaction,
   type ConvertTransactionInput,
 } from "./convert-transaction";

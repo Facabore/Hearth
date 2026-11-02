@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { LocalDate } from "@/shared/kernel";
+import { map, type LocalDate } from "@/shared/kernel";
 import { codeOf, money, unwrap } from "../../../../tests/support/fakes";
 import {
   ACCOUNTS,
@@ -26,13 +26,19 @@ import type { LedgerDeps } from "./deps";
 const asAna = { spaceId: "space-ana", userId: "u-ana" };
 const date = "2026-10-20" as LocalDate;
 
-const converterOf = (deps: LedgerDeps) =>
+const conversionOf = (deps: LedgerDeps) =>
   createConvertTransaction(deps, {
     recordExpense: createRecordExpense(deps),
     recordIncome: createRecordIncome(deps),
     recordTransfer: createRecordTransfer(deps),
     recordFundContribution: createRecordFundContribution(deps),
   });
+
+/** Most cases read only the new movement; the warnings have their own case. */
+const converterOf =
+  (deps: LedgerDeps) =>
+  async (...input: Parameters<ReturnType<typeof conversionOf>>) =>
+    map(await conversionOf(deps)(...input), (converted) => converted.transaction);
 
 const setup = (overrides: Partial<LedgerDeps> = {}) => {
   const state = { closed: new Set<string>() };
@@ -232,6 +238,49 @@ describe("ConvertTransaction (issue #195)", () => {
     );
     expect(expense).toMatchObject({ type: "EXPENSE", amount: 6_000_000n });
     expect(store.rows.filter((t) => t.deletedAt === null).map((t) => t.id)).toEqual([expense.id]);
+  });
+
+  it("carries the fund's warning when the expense it becomes takes the fund below zero (issue #198, HU-E4-10)", async () => {
+    const { deps, store } = householdLedger();
+    const asAnaHere = { spaceId: "space-household", userId: "u-ana" };
+    const contribution = unwrap(
+      await createRecordFundContribution(deps)({
+        ...asAnaHere,
+        date,
+        amount: money(10_000_000n),
+        fundAccountId: ACCOUNTS.householdFund.id,
+        sourceAccountId: ACCOUNTS.bancolombia.id,
+      }),
+    );
+    const toFundExpense = (amount: bigint) => ({
+      type: "EXPENSE" as const,
+      date,
+      categoryId: CATEGORIES.household.id,
+      amount: money(amount),
+      payments: [{ memberId: null, accountId: ACCOUNTS.householdFund.id, amount: money(amount) }],
+    });
+    const converted = unwrap(
+      await conversionOf(deps)({
+        ...asAnaHere,
+        transactionId: contribution.id,
+        expectedVersion: 1,
+        to: toFundExpense(155_000_000n),
+      }),
+    );
+    expect(converted.transaction).toMatchObject({ type: "EXPENSE", amount: 155_000_000n });
+    // 1,500,000 COP + the 100,000 contribution covers 1,550,000; the contribution leaves with the conversion, so it is short.
+    expect(converted.warnings).toEqual([
+      { code: "FundBalanceNegative", accountId: ACCOUNTS.householdFund.id, balance: -5_000_000n },
+    ]);
+    expect(store.netOf(ACCOUNTS.householdFund.id)).toBe(-155_000_000n);
+  });
+
+  it("carries no warning when the new movement is not an expense, or the fund stays positive", async () => {
+    const { deps, market } = setup();
+    const converted = unwrap(
+      await conversionOf(deps)({ ...asAna, transactionId: market.id, expectedVersion: 1, to: asIncome }),
+    );
+    expect(converted.warnings).toEqual([]);
   });
 
   it("applies the edit role rules in a shared space: a MEMBER converts only their own, a VIEWER none", async () => {

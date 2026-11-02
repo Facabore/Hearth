@@ -2,8 +2,8 @@ import { getContainer } from "@/composition/container";
 import { defineRoute } from "@/composition/route";
 import {
   conversionFromBody,
+  convertedTransactionDto,
   ConvertTransactionBodySchema,
-  transactionDto,
   transactionHeaders,
 } from "@/modules/ledger/contracts/ledger.contract";
 import { ifMatchVersion } from "@/shared/http";
@@ -32,7 +32,11 @@ export const POST = defineRoute({
       to: to.value,
     });
     return result.ok
-      ? ok({ status: 201, body: transactionDto(result.value), headers: transactionHeaders(result.value) })
+      ? ok({
+          status: 201,
+          body: convertedTransactionDto(result.value),
+          headers: transactionHeaders(result.value.transaction),
+        })
       : result;
   },
 });

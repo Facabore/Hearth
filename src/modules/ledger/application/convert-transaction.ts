@@ -2,7 +2,12 @@ import { domainError, err, map, ok, type Result } from "@/shared/kernel";
 import { canModify, deletionChanges, softDelete, type Transaction } from "../domain/transaction";
 import { ensureCurrentParties, openPeriod } from "./checks";
 import type { LedgerDeps } from "./deps";
-import type { RecordExpense, RecordExpenseInput } from "./record-expense";
+import {
+  fundWarnings,
+  type LedgerWarning,
+  type RecordExpense,
+  type RecordExpenseInput,
+} from "./record-expense";
 import type { RecordFundContribution, RecordFundContributionInput } from "./record-fund-contribution";
 import type { RecordIncome, RecordIncomeInput } from "./record-income";
 import type { RecordTransfer, RecordTransferInput } from "./record-transfer";
@@ -28,7 +33,13 @@ export interface ConvertTransactionInput {
   readonly to: ConversionTarget;
 }
 
-export type ConvertTransaction = (input: ConvertTransactionInput) => Promise<Result<Transaction>>;
+/** Issue #198: the new movement, and the warnings recording it would have given (HU-E4-10), read after the conversion. */
+export interface ConvertedTransaction {
+  readonly transaction: Transaction;
+  readonly warnings: readonly LedgerWarning[];
+}
+
+export type ConvertTransaction = (input: ConvertTransactionInput) => Promise<Result<ConvertedTransaction>>;
 
 export interface Recorders {
   readonly recordExpense: RecordExpense;
@@ -110,5 +121,10 @@ export const createConvertTransaction =
         at: now,
         changes: { [CONVERTED_FROM]: { from: null, to: current.id } },
       });
-      return ok(recorded.value);
+      // Issue #198: the fund is read once the original has left, so the warning names the balance the space now has.
+      const warnings =
+        recorded.value.type === "EXPENSE"
+          ? await fundWarnings(deps, membership.value, input.userId, recorded.value.payments)
+          : [];
+      return ok({ transaction: recorded.value, warnings });
     });
