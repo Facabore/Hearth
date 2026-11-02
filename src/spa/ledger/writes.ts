@@ -177,7 +177,8 @@ export const ledgerWrites: WritePlanner = (call): WritePlan | null => {
   if (call.method === "POST" && call.path === `${ONE}/convert`)
     return {
       accepted: (queryClient, data) => {
-        const became = data as TransactionDto;
+        // Issue #198: the answer carries its warnings beside the movement; the cache keeps the movement.
+        const became = movementOf(data);
         conversions(queryClient).set(transactionId, became.id);
         editPages(queryClient, spaceId, (page) => withoutRow(page, transactionId));
         forget(queryClient, spaceId, transactionId);

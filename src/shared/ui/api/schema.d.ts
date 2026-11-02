@@ -1684,6 +1684,45 @@ export interface components {
             expiresAt: string;
             invitedBy: string | null;
         };
+        ConvertedTransaction: {
+            id: string;
+            /** @enum {string} */
+            type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
+            description: string;
+            /** Format: date */
+            date: string;
+            occurredAt: string | null;
+            timeZone: string | null;
+            amount: components["schemas"]["MoneyOutput"];
+            categoryId: string | null;
+            payments: {
+                memberId: string | null;
+                accountId: string | null;
+                amount: components["schemas"]["MoneyOutput"];
+            }[];
+            shares: {
+                memberId: string;
+                amount: components["schemas"]["MoneyOutput"];
+                /** @enum {string} */
+                splitMethod: "EQUAL" | "PERCENT" | "EXACT" | "SHARES" | "BY_ALLOCATION";
+            }[];
+            sourceAccountId: string | null;
+            destinationAccountId: string | null;
+            receivingMemberId: string | null;
+            payerMemberId: string | null;
+            createdBy: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            version: number;
+            warnings?: {
+                /** @enum {string} */
+                code: "FundBalanceNegative";
+                accountId: string;
+                balance: components["schemas"]["MoneyOutput"];
+            }[];
+        };
         Invitation: {
             id: string;
             spaceId: string;
@@ -5647,45 +5686,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        id: string;
-                        /** @enum {string} */
-                        type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
-                        description: string;
-                        /** Format: date */
-                        date: string;
-                        occurredAt: string | null;
-                        timeZone: string | null;
-                        amount: components["schemas"]["MoneyOutput"];
-                        categoryId: string | null;
-                        payments: {
-                            memberId: string | null;
-                            accountId: string | null;
-                            amount: components["schemas"]["MoneyOutput"];
-                        }[];
-                        shares: {
-                            memberId: string;
-                            amount: components["schemas"]["MoneyOutput"];
-                            /** @enum {string} */
-                            splitMethod: "EQUAL" | "PERCENT" | "EXACT" | "SHARES" | "BY_ALLOCATION";
-                        }[];
-                        sourceAccountId: string | null;
-                        destinationAccountId: string | null;
-                        receivingMemberId: string | null;
-                        payerMemberId: string | null;
-                        createdBy: string;
-                        /** Format: date-time */
-                        createdAt: string;
-                        /** Format: date-time */
-                        updatedAt: string;
-                        version: number;
-                        warnings?: {
-                            /** @enum {string} */
-                            code: "FundBalanceNegative";
-                            accountId: string;
-                            balance: components["schemas"]["MoneyOutput"];
-                        }[];
-                    };
+                    "application/json": components["schemas"]["ConvertedTransaction"];
                 };
             };
             /** @description Unauthenticated */
