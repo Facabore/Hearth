@@ -1,6 +1,6 @@
 {
   "scriptKb": {
-    "shell": 119,
+    "shell": 120,
     "routes/public-layout.tsx": 3,
     "routes/sign-in.tsx": 9,
     "routes/sign-up.tsx": 9,
