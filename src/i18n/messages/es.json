@@ -243,7 +243,8 @@
       "current": "Espacio actual: {name}. Cambiar de espacio",
       "title": "Espacios",
       "onlyYou": "Solo tú",
-      "create": "Crear espacio compartido"
+      "create": "Crear espacio compartido",
+      "join": "Unirme con un enlace de invitación"
     },
     "role": {
       "OWNER": "Propietario",
@@ -1074,7 +1075,15 @@
       "currency": "Moneda",
       "currencyHint": "Una sola moneda por espacio. Deja de poder cambiarse cuando el espacio tiene movimientos.",
       "note": "Quedarás como Propietario y el espacio pasará a ser tu espacio activo. Después invitas a los demás desde Miembros.",
-      "create": "Crear espacio"
+      "create": "Crear espacio",
+      "noteNamed": "Quedarás como Propietario y {space} pasará a ser tu espacio activo. Después invitas a los demás desde Miembros."
+    },
+    "join": {
+      "title": "Unirme a un espacio",
+      "link": "Pega el enlace",
+      "hint": "También puedes abrir el enlace directamente desde el chat.",
+      "submit": "Ver invitación",
+      "invalid": "Ese enlace no es una invitación de Hearth. Revisa que esté completo."
     },
     "currency": {
       "COP": "COP · Peso colombiano",
@@ -1096,18 +1105,19 @@
     "you": "{name} (tú)",
     "guestSuffix": "(invitado)",
     "joined": "Se unió el {date}",
+    "created": "Creó el espacio",
     "guestDetail": "Sin cuenta · no inicia sesión",
-    "noRole": "Sin rol",
     "role": "Rol de {name}: {role}. Cambiar",
-    "readOnlyNote": "Tu rol en {space} es {role}: puedes ver miembros y saldos, pero no invitar ni agregar invitados.",
+    "readOnlyNote": "Tu rol en {space} es {role}: puedes ver miembros, saldos y tableros, pero no invitar ni agregar invitados.",
     "directNote": "{space} es un espacio solo para dos: no admite más miembros.",
     "roleSheet": {
-      "title": "Rol de {name}",
+      "title": "Rol de {name} en {space}",
       "label": "Rol",
+      "current": "Actual",
+      "lock": "Solo el Propietario cambia roles. Propietario no se asigna aquí.",
       "save": "Guardar rol"
     },
     "roleDetail": {
-      "OWNER": "Todo, incluido cambiar roles y archivar el espacio",
       "ADMIN": "Invita, maneja el plan y edita lo de todos",
       "MEMBER": "Registra gastos y pagos, agrega invitados",
       "VIEWER": "Solo ve movimientos, saldos y tableros"
@@ -1140,16 +1150,21 @@
     "revoke": "Revocar",
     "revokeEmail": "Revocar la invitación de {email}",
     "revokeLink": "Revocar el enlace de invitación como {role}",
+    "revoked": "Invitación revocada",
+    "undo": "Deshacer",
+    "undoLate": "La invitación ya se revocó: si hace falta, crea una nueva.",
     "addGuest": "Agregar invitado",
     "guestOptions": "Opciones de {name}",
     "guestSheet": {
       "addTitle": "Agregar invitado a {space}",
-      "intro": "Para alguien que no usa Hearth. Puede pagar, deber, aportar al plan y recibir pagos, solo en {space}. No inicia sesión.",
+      "intro": "Para alguien que no usa Hearth. Puede pagar, deber, tener capacidad en el plan y recibir pagos, solo en {space}. No inicia sesión.",
       "name": "Nombre",
       "nameHint": "Se verá con «(invitado)» al lado. No puede repetir el nombre de otro miembro.",
       "nameHintNamed": "Se verá como «{name}». No puede repetir el nombre de otro miembro.",
       "email": "Correo (opcional)",
-      "emailHint": "Si se registra después, le envías un enlace para reclamar este lugar y se lleva todo su historial."
+      "emailPlaceholder": "Para recordarlo; no recibe nada",
+      "claimNote": "Si se registra después, le envías un enlace para reclamar este lugar y se lleva todo su historial.",
+      "claimNoteNamed": "Si {name} se registra después, le envías un enlace para reclamar este lugar y se lleva todo su historial."
     },
     "guest": {
       "balance": "En {space} · {sentence}",
@@ -1159,10 +1174,10 @@
       "claimLabel": "Enlace para reclamar",
       "claimNote": "Un solo uso · vence el {date}",
       "remove": "Quitar de {space}",
-      "confirmRemove": "¿Quitar a {name} de {space}? Su historial se conserva.",
-      "confirmRemoveAction": "Sí, quitar",
-      "outstanding": "Saldo pendiente: {amount}",
-      "settle": "Saldar"
+      "settle": "Registrar pago",
+      "blocked": "No puedes quitar a {name}: tiene un saldo pendiente de {amount}. Primero registren el pago.",
+      "confirmTitle": "¿Quitar a {name} de {space}?",
+      "confirmBody": "Su saldo está en {amount}. Su historial queda en los movimientos con su nombre."
     }
   },
   "balances": {

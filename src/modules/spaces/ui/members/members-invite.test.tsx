@@ -1,6 +1,7 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { TOAST_ACTION_MS } from "@/shared/ui/molecules/toast-timing";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
 import {
   guestDto,
@@ -19,6 +20,7 @@ import { MembersScreen } from "./members-screen";
 const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 beforeEach(() => vi.clearAllMocks());
+afterEach(() => vi.useRealTimers());
 
 const MEMBERS = [
   memberDto(),
@@ -269,7 +271,11 @@ describe("inviting people (HU-E9-05, ruling P162)", () => {
     const revokeButton = within(pending).getByRole("button", {
       name: "Revocar la invitación de marta@example.com",
     });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     await userEvent.click(revokeButton);
+    // Ruling P272: the revoke waits for the toast's Deshacer to run out.
+    await act(async () => vi.advanceTimersByTime(TOAST_ACTION_MS));
+    await waitFor(() => expect(requests).toHaveLength(1));
     expect(new URL(requests[0]!.url).pathname).toBe("/api/v1/spaces/sp-household/invitations/inv-2/revoke");
     await waitFor(() => expect(router.refresh).toHaveBeenCalled());
   });
@@ -297,31 +303,29 @@ describe("inviting people (HU-E9-05, ruling P162)", () => {
     expect(await axeViolations(document.body)).toEqual([]);
   });
 
-  it("disables Revoke while the request is in flight", async () => {
-    let release = () => {};
-    const gate = new Promise<void>((resolve) => (release = resolve));
+  it("sends one revoke however often Revocar is pressed", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const { api, requests } = fakeApi({
-      "POST /api/v1/spaces/{spaceId}/invitations/{invitationId}/revoke": async () => {
-        await gate;
-        return jsonResponse({ ...PENDING[0], status: "REVOKED" });
-      },
+      "POST /api/v1/spaces/{spaceId}/invitations/{invitationId}/revoke": () =>
+        jsonResponse({ ...PENDING[0], status: "REVOKED" }),
     });
     screenAs("u-ana", "OWNER", api, PENDING);
     const button = screen.getByRole("button", { name: "Revocar la invitación de marta@example.com" });
     await userEvent.dblClick(button);
-    expect(button).toBeDisabled();
-    expect(requests).toHaveLength(1);
-    release();
-    await waitFor(() => expect(button).toBeEnabled());
+    expect(button).not.toBeInTheDocument();
+    await act(async () => vi.advanceTimersByTime(TOAST_ACTION_MS));
+    await waitFor(() => expect(requests).toHaveLength(1));
   });
 
   it("shows a problem above the list when revoking fails, and renders nothing without invitations", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const { api } = fakeApi({
       "POST /api/v1/spaces/{spaceId}/invitations/{invitationId}/revoke": () =>
         problemResponse(404, "InvitationNotFound"),
     });
     const { unmount } = screenAs("u-ana", "OWNER", api, PENDING);
     await userEvent.click(screen.getByRole("button", { name: "Revocar la invitación de marta@example.com" }));
+    await act(async () => vi.advanceTimersByTime(TOAST_ACTION_MS));
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(router.refresh).not.toHaveBeenCalled();
     unmount();

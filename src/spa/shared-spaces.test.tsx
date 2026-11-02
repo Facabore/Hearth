@@ -1,7 +1,8 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import es from "@/i18n/messages/es.json";
+import { TOAST_ACTION_MS } from "@/shared/ui/molecules/toast-timing";
 import type { InvitationDto, SpaceDto } from "@/shared/ui/api/dto";
 import {
   accountDto,
@@ -98,6 +99,7 @@ const named = (text: string) => new RegExp(`^${text.replace(/[.()$]/g, "\\$&").r
 beforeEach(() => {
   document.cookie = "hearth.locale=es; path=/";
 });
+afterEach(() => vi.useRealTimers());
 
 describe("shared spaces in the SPA (slice 4 of #199, ADR 0006)", () => {
   it("lists the members and, for someone who may invite, the pending invitations; revoking one reads only the members again", async () => {
@@ -110,10 +112,15 @@ describe("shared spaces in the SPA (slice 4 of #199, ADR 0006)", () => {
     const ledger = count(spa.requests, "GET", /\/transactions$/);
     const me = count(spa.requests, "GET", /\/me$/);
 
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     await userEvent.click(screen.getByRole("button", { name: /^Revocar/ }));
+    // Ruling P272: the invitation hides at once and its revoke waits for the toast's Deshacer to run out.
+    expect(screen.queryByRole("button", { name: /^Revocar/ })).not.toBeInTheDocument();
+    expect(count(spa.requests, "POST", /\/revoke$/)).toBe(0);
+    await act(async () => vi.advanceTimersByTime(TOAST_ACTION_MS));
 
-    await waitFor(() => expect(screen.queryByRole("button", { name: /^Revocar/ })).not.toBeInTheDocument());
-    expect(count(spa.requests, "GET", /\/invitations$/)).toBeGreaterThan(1);
+    await waitFor(() => expect(count(spa.requests, "GET", /\/invitations$/)).toBeGreaterThan(1));
+    expect(count(spa.requests, "POST", /\/revoke$/)).toBe(1);
     expect(count(spa.requests, "GET", /\/transactions$/)).toBe(ledger);
     expect(count(spa.requests, "GET", /\/me$/)).toBe(me);
   });

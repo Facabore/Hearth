@@ -243,7 +243,8 @@
       "current": "Current space: {name}. Switch space",
       "title": "Spaces",
       "onlyYou": "Only you",
-      "create": "Create a shared space"
+      "create": "Create a shared space",
+      "join": "Join with an invitation link"
     },
     "role": {
       "OWNER": "Owner",
@@ -1074,7 +1075,15 @@
       "currency": "Currency",
       "currencyHint": "One currency per space. It can no longer change once the space has transactions.",
       "note": "You will be its Owner and it becomes your active space. Then invite the others from Members.",
-      "create": "Create space"
+      "create": "Create space",
+      "noteNamed": "You will be its Owner and {space} becomes your active space. Then invite the others from Members."
+    },
+    "join": {
+      "title": "Join a space",
+      "link": "Paste the link",
+      "hint": "You can also open the link straight from the chat.",
+      "submit": "See invitation",
+      "invalid": "That link is not a Hearth invitation. Check that it is complete."
     },
     "currency": {
       "COP": "COP · Colombian peso",
@@ -1096,18 +1105,19 @@
     "you": "{name} (you)",
     "guestSuffix": "(guest)",
     "joined": "Joined on {date}",
+    "created": "Created the space",
     "guestDetail": "No account · cannot sign in",
-    "noRole": "No role",
     "role": "{name}'s role: {role}. Change",
-    "readOnlyNote": "Your role in {space} is {role}: you can see members and balances, but not invite or add guests.",
+    "readOnlyNote": "Your role in {space} is {role}: you can see members, balances and dashboards, but not invite or add guests.",
     "directNote": "{space} is a space for two: it takes no other members.",
     "roleSheet": {
-      "title": "{name}'s role",
+      "title": "{name}'s role in {space}",
       "label": "Role",
+      "current": "Current",
+      "lock": "Only the Owner changes roles. Owner is not assigned here.",
       "save": "Save role"
     },
     "roleDetail": {
-      "OWNER": "Everything, including changing roles and archiving the space",
       "ADMIN": "Invites, runs the plan and edits everyone's entries",
       "MEMBER": "Records expenses and payments, adds guests",
       "VIEWER": "Only sees transactions, balances and dashboards"
@@ -1140,16 +1150,21 @@
     "revoke": "Revoke",
     "revokeEmail": "Revoke the invitation for {email}",
     "revokeLink": "Revoke the invitation link as {role}",
+    "revoked": "Invitation revoked",
+    "undo": "Undo",
+    "undoLate": "The invitation was already revoked: create a new one if needed.",
     "addGuest": "Add guest",
     "guestOptions": "Options for {name}",
     "guestSheet": {
       "addTitle": "Add a guest to {space}",
-      "intro": "For someone who does not use Hearth. They can pay, owe, contribute to the plan and receive payments, only in {space}. They cannot sign in.",
+      "intro": "For someone who does not use Hearth. They can pay, owe, have capacity in the plan and receive payments, only in {space}. They cannot sign in.",
       "name": "Name",
       "nameHint": "It shows with \"(guest)\" next to it. It cannot repeat another member's name.",
       "nameHintNamed": "It shows as \"{name}\". It cannot repeat another member's name.",
       "email": "Email (optional)",
-      "emailHint": "If they sign up later, you send them a link to claim this place and they keep all its history."
+      "emailPlaceholder": "To remember it; nothing is sent",
+      "claimNote": "If they sign up later, you send them a link to claim this place and they keep all its history.",
+      "claimNoteNamed": "If {name} signs up later, you send them a link to claim this place and they keep all its history."
     },
     "guest": {
       "balance": "In {space} · {sentence}",
@@ -1159,10 +1174,10 @@
       "claimLabel": "Claim link",
       "claimNote": "Single use · expires on {date}",
       "remove": "Remove from {space}",
-      "confirmRemove": "Remove {name} from {space}? Their history is kept.",
-      "confirmRemoveAction": "Yes, remove",
-      "outstanding": "Outstanding balance: {amount}",
-      "settle": "Settle"
+      "settle": "Record payment",
+      "blocked": "You can't remove {name}: they have an outstanding balance of {amount}. Record the payment first.",
+      "confirmTitle": "Remove {name} from {space}?",
+      "confirmBody": "Their balance is {amount}. Their history stays in the transactions under their name."
     }
   },
   "balances": {

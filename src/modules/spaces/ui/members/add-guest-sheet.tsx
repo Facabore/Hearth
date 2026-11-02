@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
-import { Button, ProblemNotice, Sheet, TextField } from "@/shared/ui";
+import { Button, Icon, ProblemNotice, Sheet, TextField } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { SpaceDto } from "@/shared/ui/api/dto";
 import { fieldOf, problemFrom, type Problem } from "@/shared/ui/api/problem";
@@ -97,11 +97,16 @@ export function AddGuestSheet({
           type="email"
           autoComplete="off"
           label={t("guestSheet.email")}
-          hint={t("guestSheet.emailHint")}
+          placeholder={t("guestSheet.emailPlaceholder")}
           value={email}
           error={errorFor("contactEmail")}
           onChange={(event) => setEmail(event.target.value)}
         />
+        {/* The board's info callout, naming the guest once a name is typed. */}
+        <p role="note" className="flex items-start gap-3 rounded-2xl bg-track p-3 text-sm text-ink">
+          <Icon name="alert" size={20} className="mt-0.5 shrink-0 text-muted" />
+          {typedName ? t("guestSheet.claimNoteNamed", { name: typedName }) : t("guestSheet.claimNote")}
+        </p>
         {problem && where === "form" ? <ProblemNotice problem={problem} /> : null}
       </div>
     </Sheet>
