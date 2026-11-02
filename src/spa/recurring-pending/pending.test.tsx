@@ -210,6 +210,7 @@ describe("the ways into Por confirmar (HU-E9-09, ruling P270)", () => {
     const review = await screen.findByRole("link", { name: "Revisar" });
     expect(review).toHaveAttribute("href", "/spaces/sp-household/pending-occurrences");
     expect(screen.getByText("2 movimientos por confirmar")).toBeInTheDocument();
+    expect(screen.getByText("Internet y Energía")).toBeInTheDocument();
   });
 
   it("shows a VIEWER no badge and no banner, and never asks the API for the count (S7)", async () => {

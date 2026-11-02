@@ -29,6 +29,7 @@ export function TransactionList({
   detail,
   movedMemberIds,
   pendingCount = 0,
+  pendingNames,
 }: {
   readonly spaceId: string;
   readonly page: TransactionPageDto;
@@ -49,6 +50,8 @@ export function TransactionList({
   readonly movedMemberIds?: readonly string[] | undefined;
   /** HU-E9-09 (ruling P270): the space's pending occurrences, for a member who records money; the banner shows above 0. */
   readonly pendingCount?: number;
+  /** What waits, by name, for the banner's second line. */
+  readonly pendingNames?: readonly string[];
 }) {
   const t = useTranslations("ledger");
   const recurring = useTranslations("recurrences");
@@ -70,7 +73,9 @@ export function TransactionList({
           {recurring("pill")}
         </Link>
       </div>
-      {pendingCount > 0 ? <PendingBanner spaceId={spaceId} count={pendingCount} /> : null}
+      {pendingCount > 0 ? (
+        <PendingBanner spaceId={spaceId} count={pendingCount} names={pendingNames} />
+      ) : null}
       {notice ? (
         <SavedNotice
           accountName={notice.accountName}

@@ -1038,6 +1038,7 @@
       "skippedLast": "{name} omitida.",
       "banner": "{count, plural, one {# movimiento por confirmar} other {# movimientos por confirmar}}",
       "review": "Revisar",
+      "names": { "two": "{first} y {second}", "more": "{first}, {second} y {rest} más" },
       "badge": "{count} por confirmar"
     }
   },

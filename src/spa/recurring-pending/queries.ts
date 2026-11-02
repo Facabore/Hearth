@@ -27,14 +27,17 @@ export const pendingOccurrencesQuery = (api: Api, spaceId: string) =>
  * The count of the space's pending occurrences for someone who records money there (MEMBER and above), else 0: a
  * VIEWER is never asked for it. A read that fails shows no count; it never fails the screen around it.
  */
-export const usePendingCount = (space: Pick<SpaceDto, "id" | "kind" | "role"> | null): number => {
+export const usePendingCount = (space: Pick<SpaceDto, "id" | "kind" | "role"> | null): number =>
+  usePending(space).length;
+
+/** What waits, by name, earliest first, for the Movimientos banner; the same read as the count, so no request more. */
+export const usePendingNames = (space: Pick<SpaceDto, "id" | "kind" | "role"> | null): readonly string[] =>
+  usePending(space).map((occurrence) => occurrence.description);
+
+const NONE: readonly OccurrenceDto[] = [];
+
+const usePending = (space: Pick<SpaceDto, "id" | "kind" | "role"> | null): readonly OccurrenceDto[] => {
   const { api } = useApis();
   const records = space !== null && controlsFor(space.role, space.kind).recordMoney;
-  return (
-    useQuery({
-      ...pendingOccurrencesQuery(api, space?.id ?? ""),
-      enabled: records,
-      select: (items) => items.length,
-    }).data ?? 0
-  );
+  return useQuery({ ...pendingOccurrencesQuery(api, space?.id ?? ""), enabled: records }).data ?? NONE;
 };

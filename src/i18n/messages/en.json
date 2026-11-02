@@ -1038,6 +1038,7 @@
       "skippedLast": "{name} skipped.",
       "banner": "{count, plural, one {# movement to confirm} other {# movements to confirm}}",
       "review": "Review",
+      "names": { "two": "{first} and {second}", "more": "{first}, {second} and {rest} more" },
       "badge": "{count} to confirm"
     }
   },
