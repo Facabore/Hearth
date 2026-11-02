@@ -14,9 +14,8 @@ const modified = (event: MouseEvent) => event.metaKey || event.ctrlKey || event.
 /**
  * Next.js's `Link` over TanStack Router (ADR 0006): a plain anchor whose `href` carries the app's base, a client
  * navigation on a plain click, and the target's code and data loaded on intent (hover, focus or touch), never ahead.
+ * TanStack Router puts a new screen at the top, as Next.js does; `scroll={false}` keeps the place (`resetScroll`).
  */
-// `scroll` stays off the anchor: TanStack Router scrolls a new screen to the top by itself.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function Link({ href, replace, scroll, prefetch, onClick, ref, ...rest }: LinkProps) {
   const router = useRouter();
   const preload = () => {
@@ -34,7 +33,7 @@ export default function Link({ href, replace, scroll, prefetch, onClick, ref, ..
         onClick?.(event);
         if (event.defaultPrevented || event.button !== 0 || modified(event) || rest.target) return;
         event.preventDefault();
-        void router.navigate({ href, replace });
+        void router.navigate({ href, replace, resetScroll: scroll });
       }}
     />
   );

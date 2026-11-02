@@ -28,8 +28,9 @@ export function useRouter(): AppRouterInstance {
   const queryClient = useQueryClient();
   return useMemo(
     () => ({
-      push: (href) => void router.navigate({ href }),
-      replace: (href) => void router.navigate({ href, replace: true }),
+      // `scroll: false` keeps the place, as in Next.js; TanStack Router goes to the top otherwise.
+      push: (href, options) => void router.navigate({ href, resetScroll: options?.scroll }),
+      replace: (href, options) => void router.navigate({ href, replace: true, resetScroll: options?.scroll }),
       back: () => router.history.back(),
       forward: () => router.history.forward(),
       refresh: () => {
