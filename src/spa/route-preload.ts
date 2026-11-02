@@ -113,12 +113,15 @@ export interface BuiltChunk {
   readonly fileName: string;
   readonly isEntry: boolean;
   readonly facadeModuleId: string | null;
+  /** Every module whose code the chunk holds. */
+  readonly moduleIds: readonly string[];
   readonly imports: readonly string[];
 }
 
 /**
- * Each module under src/spa with a chunk of its own, as `routePreload` takes them: its chunk and the chunks those
- * import, without the ones the app's script already loads.
+ * Each module under src/spa outside the app's script, as `routePreload` takes them: the chunk that holds its code and
+ * the chunks those import, without the ones the app's script already loads. A module a screen imports too (the Plan
+ * tab's loaders) shares a chunk with no facade of its own, and is still found there.
  */
 export const chunkFiles = (chunks: readonly BuiltChunk[]): Record<string, string[]> => {
   const byName = new Map(chunks.map((chunk) => [chunk.fileName, chunk]));
@@ -134,9 +137,12 @@ export const chunkFiles = (chunks: readonly BuiltChunk[]): Record<string, string
   const loaded = new Set(chunks.filter((chunk) => chunk.isEntry).flatMap((chunk) => [...closure(chunk)]));
   return Object.fromEntries(
     chunks.flatMap((chunk) => {
-      const module = /\/src\/spa\/(.+)\.tsx?$/.exec(chunk.facadeModuleId?.replaceAll("\\", "/") ?? "")?.[1];
-      if (!module || chunk.isEntry) return [];
-      return [[module, [...closure(chunk)].filter((name) => !loaded.has(name)).map((name) => `/${name}`)]];
+      if (chunk.isEntry) return [];
+      const files = [...closure(chunk)].filter((name) => !loaded.has(name)).map((name) => `/${name}`);
+      return [...new Set([chunk.facadeModuleId, ...chunk.moduleIds])].flatMap((id) => {
+        const module = /\/src\/spa\/(.+)\.tsx?$/.exec(id?.replaceAll("\\", "/") ?? "")?.[1];
+        return module ? [[module, files]] : [];
+      });
     }),
   );
 };

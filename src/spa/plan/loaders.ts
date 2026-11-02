@@ -2,6 +2,7 @@ import { notFound } from "@tanstack/react-router";
 import { personalSpaceOf } from "@/modules/spaces/ui";
 import { addDays, type LocalDate } from "@/shared/kernel/local-date";
 import type { PeriodDto } from "@/shared/ui/api/dto";
+import { preloadSheet } from "@/shared/ui/molecules/sheet";
 import { nowIn } from "@/shared/ui/time/when";
 import { ensurer, viewerOf, type Load, type Viewer } from "../load";
 import { ProblemError } from "../read";
@@ -129,7 +130,9 @@ export const loadPlanner = async (load: Load, spaceId: string, planId: string) =
 
 /**
  * HU-E9-08: the planner the sheet opens over (board 04), and the caller's own suggestion, which never blocks the
- * screen (P208).
+ * screen (P208). The sheet's own code (Radix's dialog, loaded only when a sheet opens) downloads beside those reads:
+ * waited for after the screen rendered, it was one more round trip before the sheet, the screen's largest text, painted.
+ * Its failure is the sheet's to meet, as before, and never fails the screen.
  */
 export const loadCapacities = async (load: Load, spaceId: string, planId: string) => {
   const ensure = ensurer(load);
@@ -137,6 +140,7 @@ export const loadCapacities = async (load: Load, spaceId: string, planId: string
   await Promise.all([
     loadPlanner(load, spaceId, planId),
     ensure(capacitySuggestionQuery(api, spaceId, planId)),
+    settled(preloadSheet()),
   ]);
 };
 

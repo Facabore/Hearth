@@ -77,23 +77,35 @@ describe("the first screen's chunks, preloaded by the HTML (ADR 0004, 2026-10-28
   });
 
   it("maps each module to its chunk and what that imports, beyond the chunks the app's script loads", () => {
-    const chunk = (fileName: string, module: string | null, imports: string[], isEntry = false) => ({
+    // Windows separators, as the build reports them there.
+    const id = (module: string) => `C:\\repo\\src\\spa\\${module.replaceAll("/", "\\")}.tsx`;
+    const chunk = (
+      fileName: string,
+      module: string | null,
+      imports: string[],
+      isEntry = false,
+      others: string[] = [],
+    ) => ({
       fileName,
-      // Windows separators, as the build reports them there.
-      facadeModuleId: module === null ? null : `C:\\repo\\src\\spa\\${module.replaceAll("/", "\\")}.tsx`,
+      facadeModuleId: module === null ? null : id(module),
+      moduleIds: [...(module === null ? [] : [id(module)]), ...others.map(id)],
       imports,
       isEntry,
     });
     expect(
       chunkFiles([
-        chunk("assets/index.js", "main", ["assets/framework.js"], true),
+        chunk("assets/index.js", "main", ["assets/framework.js"], true, ["routes"]),
         chunk("assets/framework.js", null, []),
         chunk("assets/transactions.js", "routes/transactions", ["assets/framework.js", "assets/list-row.js"]),
         chunk("assets/list-row.js", null, ["assets/icon.js"]),
         chunk("assets/icon.js", null, []),
+        // A loader a screen also imports lives in a chunk the two share, with no facade of its own: still the loader's.
+        chunk("assets/loaders.js", null, ["assets/icon.js"], false, ["plan/loaders", "plan/period"]),
       ]),
     ).toEqual({
       "routes/transactions": ["/assets/transactions.js", "/assets/list-row.js", "/assets/icon.js"],
+      "plan/loaders": ["/assets/loaders.js", "/assets/icon.js"],
+      "plan/period": ["/assets/loaders.js", "/assets/icon.js"],
     });
   });
 
