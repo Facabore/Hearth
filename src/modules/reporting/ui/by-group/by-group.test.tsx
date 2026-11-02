@@ -201,11 +201,14 @@ describe("spending by group (HU-E9-10)", () => {
     };
     show(data, tree);
     expect(screen.getByRole("list", { name: "Grupos" })).toBeInTheDocument();
-    expect(screen.getByText("Toca un grupo para ver sus categorías.")).toBeInTheDocument();
+    // Boards E9-10 05 and 06 (ruling P272): the hint is short, at the right of the total's label.
+    const hint = screen.getByText("Toca un grupo");
+    expect(hint.parentElement).toContainElement(screen.getByText("Gasto total"));
+    expect(hint.parentElement).toHaveClass("justify-between");
     await userEvent.click(screen.getByRole("button", { name: /^Food/ }));
     expect(rows().map((r) => r[0])).toEqual(["Hogar / Mercado", "Hogar / Mercado"]);
     expect(screen.getByRole("list", { name: "Categorías de Food" })).toBeInTheDocument();
-    expect(screen.getByText("Toca una categoría para ver sus subcategorías.")).toBeInTheDocument();
+    expect(screen.getByText("Toca una categoría")).toBeInTheDocument();
   });
 
   it("speaks English with the same figures", async () => {
@@ -214,7 +217,7 @@ describe("spending by group (HU-E9-10)", () => {
       <SpendingChart tree={treeOf(data.groups)} total={data.total} formats={BUILT_IN_FORMATS} note="Note" />,
       { locale: "en" },
     );
-    expect(screen.getByText("Tap a group to see its categories.")).toBeInTheDocument();
+    expect(screen.getByText("Tap a group")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /^Food/ }));
     await userEvent.click(screen.getByRole("button", { name: /^Groceries/ }));
     expect(rows()[0]?.[0]).toBe("No subcategory");

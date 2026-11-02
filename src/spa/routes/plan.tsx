@@ -150,6 +150,7 @@ function GroupsChart({
         total={report.total}
         formats={viewer.me.preferences.effective}
         note={note}
+        personal={viewer.space.kind === "PERSONAL"}
       />
     </Frame>
   );
