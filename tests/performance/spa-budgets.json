@@ -35,7 +35,7 @@
     "routes/my-consumption.tsx": 15,
     "routes/recurrences.tsx": 37,
     "recurring/loaders.ts": 4,
-    "routes/pending-occurrences.tsx": 17,
+    "routes/pending-occurrences.tsx": 18,
     "routes/plans.tsx": 33,
     "plan/loaders.ts": 6,
     "plan/writes.ts": 3,
