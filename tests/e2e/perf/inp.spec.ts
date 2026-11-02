@@ -1,6 +1,5 @@
 import { createRequire } from "node:module";
-import { expect } from "@playwright/test";
-import { test } from "../support/clock";
+import { expect, test } from "@playwright/test";
 import budgets from "../../performance/budgets.json" with { type: "json" };
 
 const WEB_VITALS = createRequire(import.meta.url).resolve("web-vitals"); // dist/web-vitals.umd.cjs: window.webVitals

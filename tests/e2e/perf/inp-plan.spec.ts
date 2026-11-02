@@ -1,6 +1,5 @@
 import { createRequire } from "node:module";
-import { expect, type APIRequestContext } from "@playwright/test";
-import { test } from "../support/clock";
+import { expect, test, type APIRequestContext } from "@playwright/test";
 import budgets from "../../performance/budgets.json" with { type: "json" };
 import { seedPlanRoutes } from "../../performance/seed-plan.mjs";
 import { BASE_URL } from "../support/base-url";
@@ -96,7 +95,9 @@ test("INP stays within budget over the drill-down and the allocation editor on a
   };
 
   // The drill-down (ruling P215): a group, its first category, then back to every group.
-  await page.goto(`/spaces/${shared.id}/plan/groups`);
+  // INP needs the browser's own clock (Playwright's fake clock also fakes performance.now), so the period is named: the
+  // seed's plans are 2026-10's, the e2e server's current period (#236).
+  await page.goto(`/spaces/${shared.id}/plan/groups?period=2026-10`);
   await page.waitForLoadState("networkidle");
   await page.getByRole("list", { name: "Grupos" }).getByRole("button").first().click();
   await page
