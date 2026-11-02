@@ -3,3 +3,9 @@ export { RecurringList, RecurringNotAllowed } from "./recurring/recurring-list";
 export { RecurrenceForm } from "./recurring/recurrence-form";
 export { RecurrenceDetail } from "./recurring/recurrence-detail";
 export type { RecurrenceDto } from "./recurring/recurrence-request";
+export {
+  PendingOccurrencesScreen,
+  type ConfirmOutcome,
+  type PendingItem,
+  type SkipOutcome,
+} from "./pending/pending-occurrences-screen";

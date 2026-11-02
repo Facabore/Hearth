@@ -1414,7 +1414,9 @@
         "FUND_CONTRIBUTION": "Fund contribution"
       },
       "empty": "Nothing is scheduled in the next {days} days.",
-      "otherCurrency": "{space} uses {currency}: its movements are not added here."
+      "otherCurrency": "{space} uses {currency}: its movements are not added here.",
+      "emptyHint": "Schedule your rent, your bills or your salary and see here how your balance turns out.",
+      "add": "Add a recurring movement"
     },
     "unified": {
       "consumption": "Consumption",
@@ -1529,6 +1531,43 @@
       "OVER_CONTRIBUTED": "over-contributed",
       "UNDER_CONTRIBUTED": "under-contributed",
       "ON_TARGET": "on target"
+    }
+  },
+  "recurrences": {
+    "pending": {
+      "title": "To confirm",
+      "subtitle": "{space} · {count} pending",
+      "since": "Pending since {date}",
+      "suggested": "Suggested: {amount}",
+      "realAmount": "Actual amount of {name}",
+      "more": "{amount} more than suggested",
+      "less": "{amount} less than suggested",
+      "skip": "Skip",
+      "confirm": "Confirm",
+      "note": "Confirming records the expense with the actual amount. Skipping skips only this date; the next ones stay scheduled.",
+      "empty": "You have nothing to confirm.",
+      "invalidAmount": "Type an amount greater than zero.",
+      "type": {
+        "EXPENSE": "Expense",
+        "INCOME": "Income",
+        "TRANSFER": "Transfer",
+        "FUND_CONTRIBUTION": "Fund contribution"
+      },
+      "saved": {
+        "EXPENSE": "Expense saved",
+        "INCOME": "Income saved",
+        "TRANSFER": "Transfer saved",
+        "FUND_CONTRIBUTION": "Contribution saved"
+      },
+      "view": "View",
+      "skipped": "{name} skipped. Next on {date}.",
+      "skippedLast": "{name} skipped.",
+      "banner": "{count, plural, one {# movement to confirm} other {# movements to confirm}}",
+      "review": "Review",
+      "badge": "{count} to confirm"
+    },
+    "viewer": {
+      "pending": "Your role in {space} is Viewer: you can see what is waiting to be confirmed, but not confirm or skip it."
     }
   },
   "toast": {

@@ -1414,7 +1414,9 @@
         "FUND_CONTRIBUTION": "Aporte al fondo"
       },
       "empty": "No hay movimientos programados en los próximos {days} días.",
-      "otherCurrency": "{space} usa {currency}: sus movimientos no se suman aquí."
+      "otherCurrency": "{space} usa {currency}: sus movimientos no se suman aquí.",
+      "emptyHint": "Programa tu arriendo, tus servicios o tu salario y aquí verás cómo queda tu saldo.",
+      "add": "Agregar un movimiento recurrente"
     },
     "unified": {
       "consumption": "Consumo",
@@ -1529,6 +1531,43 @@
       "OVER_CONTRIBUTED": "de más",
       "UNDER_CONTRIBUTED": "de menos",
       "ON_TARGET": "al día"
+    }
+  },
+  "recurrences": {
+    "pending": {
+      "title": "Por confirmar",
+      "subtitle": "{space} · {count, plural, one {# pendiente} other {# pendientes}}",
+      "since": "Pendiente desde el {date}",
+      "suggested": "Sugerido: {amount}",
+      "realAmount": "Monto real de {name}",
+      "more": "{amount} más que lo sugerido",
+      "less": "{amount} menos que lo sugerido",
+      "skip": "Omitir",
+      "confirm": "Confirmar",
+      "note": "Confirmar registra el gasto con el monto real. Omitir salta solo esta fecha; las siguientes siguen programadas.",
+      "empty": "No tienes nada por confirmar.",
+      "invalidAmount": "Escribe un monto mayor que cero.",
+      "type": {
+        "EXPENSE": "Gasto",
+        "INCOME": "Ingreso",
+        "TRANSFER": "Transferencia",
+        "FUND_CONTRIBUTION": "Aporte al fondo"
+      },
+      "saved": {
+        "EXPENSE": "Gasto guardado",
+        "INCOME": "Ingreso guardado",
+        "TRANSFER": "Transferencia guardada",
+        "FUND_CONTRIBUTION": "Aporte guardado"
+      },
+      "view": "Ver",
+      "skipped": "{name} omitida. Sigue el {date}.",
+      "skippedLast": "{name} omitida.",
+      "banner": "{count, plural, one {# movimiento por confirmar} other {# movimientos por confirmar}}",
+      "review": "Revisar",
+      "badge": "{count} por confirmar"
+    },
+    "viewer": {
+      "pending": "Tu rol en {space} es Lector: puedes ver lo que está por confirmar, pero no confirmarlo ni omitirlo."
     }
   },
   "toast": {

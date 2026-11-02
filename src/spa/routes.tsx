@@ -155,6 +155,20 @@ const recordRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/record"), "RecordScreen"),
 });
 
+/** HU-E9-09's loaders, likewise. */
+const recurringPending = () => import("./recurring-pending/loaders");
+
+/** Ruling P270: "Por confirmar", the space's pending occurrences, opened from the Movimientos banner. */
+const pendingOccurrencesRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "pending-occurrences",
+  loader: async ({ context, params, cause }) =>
+    (await recurringPending()).loadPendingOccurrences({ ...context, cause }, params.spaceId),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "ListPending"),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/pending-occurrences"), "PendingOccurrencesRoute"),
+});
+
 /** Ruling P191: the edit form, `?returnTo=` the screen its sheet was opened on. */
 const editRoute = createRoute({
   getParentRoute: () => spaceRoute,
@@ -490,6 +504,7 @@ export const routeTree = rootRoute.addChildren([
     spaceHomeRoute,
     transactionsRoute,
     recordRoute,
+    pendingOccurrencesRoute,
     editRoute,
     recurrencesRoute,
     newRecurrenceRoute,
