@@ -232,7 +232,13 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page.getByRole("radio", { name: es.budgeting.funding.SAVINGS }).click();
       await scan("new savings line");
       await page.goto(`${h}/plans/${ids.plan}/lines/${marketLine.id}`);
-      await expect(page.getByRole("region", { name: es.budgeting.lineEditor.figures })).toBeVisible();
+      // Board 05: the October plan is a draft, so the line shows no figures yet.
+      await expect(
+        page.getByRole("heading", {
+          level: 1,
+          name: es.budgeting.lineEditor.title.replace("{name}", "Mercado"),
+        }),
+      ).toBeVisible();
       await scan("existing line");
       // HU-E9-08: the allocation editor by percentage (with its sum alert, then with the preview), and the category sheet.
       // U5 (#224): it sits under "Más opciones", scanned folded above and open here.

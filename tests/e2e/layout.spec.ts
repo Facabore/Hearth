@@ -1410,7 +1410,8 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
           "an existing line",
           `${planner}/lines/${line.id}`,
           es.budgeting.lineEditor.title.replace("{name}", LONG_LINE),
-          es.budgeting.lineEditor.remove.open,
+          // Board 05: "Quitar rubro" waits inside the fold, so saving is the last control.
+          es.budgeting.lineEditor.save,
         ],
       ] as const) {
         await page.goto(path);
@@ -1549,6 +1550,8 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       .getByRole("listitem", { name: "Mascotas" })
       .getByRole("link", { name: es.budgeting.planner.editLine.replace("{name}", "Mascotas") })
       .click();
+    // Board 05: "Quitar rubro" waits inside "Más opciones".
+    await page.getByRole("button", { name: es.budgeting.lineEditor.more.open, exact: true }).click();
     await page.getByRole("button", { name: es.budgeting.lineEditor.remove.open }).click();
     await page
       .getByRole("dialog")

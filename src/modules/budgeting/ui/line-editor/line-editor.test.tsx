@@ -24,6 +24,8 @@ beforeEach(() => vi.clearAllMocks());
 
 const ADD = "POST /api/v1/spaces/{spaceId}/plans/{planId}/lines";
 const empty = referencePlanDto({ lines: [], planned: cop(0), unallocated: cop(4_000_000) });
+/** A plan that counts expenses: its lines' figures are shown (a draft's are not, board 05). */
+const active = () => referencePlanDto({ status: "ACTIVE" });
 const show = (
   line: PlanLineDto | null,
   api?: Api,
@@ -59,6 +61,8 @@ describe("line editor (HU-E9-08)", () => {
           closed: true,
         },
       }),
+      undefined,
+      active(),
     );
     const figures = normalized(screen.getByRole("region", { name: "Cifras del rubro" }).textContent);
     expect(figures).toContain("Arrastrado+$ 200.000 de octubre 2026");
@@ -207,6 +211,8 @@ describe("line editor (HU-E9-08)", () => {
           closed: false,
         },
       }),
+      undefined,
+      active(),
     );
     expect(normalized(screen.getByRole("region", { name: "Cifras del rubro" }).textContent)).toContain(
       "ArrastradoSe arrastra de octubre 2026 cuando ese plan se cierre.",
@@ -214,8 +220,49 @@ describe("line editor (HU-E9-08)", () => {
   });
 
   it("shows no carry-over figure when the line carries nothing", () => {
-    show(planLineDto());
+    show(planLineDto(), undefined, active());
     expect(screen.getByRole("region", { name: "Cifras del rubro" }).textContent).not.toContain("Arrastrado");
+  });
+
+  it("shows no figures while the plan is a draft, which counts no expenses yet (board 05)", () => {
+    show(planLineDto());
+    expect(screen.getByRole("heading", { level: 1, name: "Rubro Home" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Cifras del rubro" })).toBeNull();
+  });
+
+  it("lays out the board: Nombre beside Planeado, the funding as radios in one card, the categories card (board 05)", async () => {
+    show(
+      planLineDto({ id: "l-free", name: "Free", isCatchAll: true, categoryIds: ["c-fun"] }),
+      undefined,
+      undefined,
+      [groupDto({ id: "g-ocio", name: "Ocio", categories: [categoryDto({ id: "c-fun", name: "Fun" })] })],
+    );
+    // Nombre and Planeado share one row; Planeado says its share and what is left, with no example.
+    const name = screen.getByLabelText("Nombre");
+    const planned = screen.getByLabelText("Planeado");
+    const row = name.closest(".grid")!;
+    expect(row).toHaveClass("grid-cols-2");
+    expect(row).toContainElement(planned);
+    expect(planned).toHaveAccessibleDescription("36,75 % de lo aportado · por repartir $ 0");
+    // The funding is a list of radios in one card.
+    const funding = screen.getByRole("radiogroup", { name: "¿De dónde sale?" });
+    expect(funding).toHaveClass("rounded-2xl", "border");
+    const direct = within(funding).getByRole("radio", { name: "Cada uno paga" });
+    expect(direct).toHaveAttribute("type", "radio");
+    expect(direct).toBeChecked();
+    // The categories card: its heading, "Elegir" on the right, the chosen chips and the catch-all checkbox.
+    const card = screen.getByRole("group", { name: "Categorías" });
+    const choose = within(card).getByRole("button", { name: "Elegir categorías" });
+    expect(choose).toHaveTextContent(/^Elegir$/);
+    expect(within(card).getByRole("listitem")).toHaveTextContent("Fun");
+    expect(within(card).getByRole("checkbox", { name: "Todo lo demás" })).toBeChecked();
+    expect(within(card).getByRole("checkbox", { name: "Todo lo demás" })).toHaveAccessibleDescription(
+      "Recibe los gastos de categorías que no están en otro rubro.",
+    );
+    // "Quitar rubro" waits in the fold, after the settings it holds.
+    expect(screen.queryByRole("button", { name: "Quitar rubro" })).toBeNull();
+    await more();
+    expect(screen.getByRole("button", { name: "Quitar rubro" })).toBeVisible();
   });
 
   it("adds Rent funded by the shared fund with rollover RESET (@golden)", async () => {
@@ -278,11 +325,11 @@ describe("line editor (HU-E9-08)", () => {
     );
   });
 
-  it("shows the planned amount's format after its hint, drops a letter and still adds the line (#164)", async () => {
+  it("says what is left to assign under Planeado, drops a letter and still adds the line (#164, board 05)", async () => {
     const { api, requests } = fakeApi({ [ADD]: added });
     show(null, api);
     const planned = screen.getByLabelText("Planeado");
-    expect(planned).toHaveAccessibleDescription(/Ej: 1\.250,50$/);
+    expect(planned).toHaveAccessibleDescription("Por repartir: $ 4.000.000");
     await userEvent.type(screen.getByLabelText("Nombre"), "Rent");
     await userEvent.type(planned, "1200b000");
     expect(planned).toHaveValue("1.200.000");
@@ -300,7 +347,7 @@ describe("line editor (HU-E9-08)", () => {
     await userEvent.type(screen.getByLabelText("Nombre"), "Savings");
     await userEvent.type(screen.getByLabelText("Planeado"), "600.000");
     await userEvent.click(screen.getByRole("radio", { name: "Va al ahorro" }));
-    expect(screen.queryByRole("switch", { name: "Todo lo demás" })).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: "Todo lo demás" })).toBeNull();
     await userEvent.click(screen.getByRole("checkbox", { name: "Ahorros" }));
     await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
     expect(await requests[0]!.json()).toMatchObject({
@@ -315,7 +362,7 @@ describe("line editor (HU-E9-08)", () => {
     show(null, api);
     await userEvent.type(screen.getByLabelText("Nombre"), "Free");
     await userEvent.type(screen.getByLabelText("Planeado"), "730.000");
-    await userEvent.click(screen.getByRole("switch", { name: "Todo lo demás" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Todo lo demás" }));
     await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
     expect(await requests[0]!.json()).toMatchObject({ name: "Free", isCatchAll: true });
   });
@@ -325,7 +372,7 @@ describe("line editor (HU-E9-08)", () => {
       "PATCH /api/v1/spaces/{spaceId}/plans/{planId}/lines/{lineId}": () =>
         jsonResponse(referencePlanDto({ version: 8 })),
     });
-    show(planLineDto({ spent: cop(1_300_000), available: cop(170_000) }), api);
+    show(planLineDto({ spent: cop(1_300_000), available: cop(170_000) }), api, active());
     const figures = normalized(screen.getByRole("region", { name: "Cifras del rubro" }).textContent);
     expect(figures).toContain("Planeado$ 1.470.000");
     expect(figures).toContain("Gastado$ 1.300.000");
@@ -353,6 +400,7 @@ describe("line editor (HU-E9-08)", () => {
         jsonResponse(referencePlanDto({ version: 8 })),
     });
     show(planLineDto({ id: "l-free", name: "Free" }), api);
+    await more();
     await userEvent.click(screen.getByRole("button", { name: "Quitar rubro" }));
     const sheet = await screen.findByRole("dialog", { name: "¿Quitar Free?" });
     await userEvent.click(within(sheet).getByRole("button", { name: "Quitar" }));
@@ -495,6 +543,7 @@ describe("line editor (HU-E9-08)", () => {
         problemResponse(409, "PeriodClosed"),
     });
     show(planLineDto({ id: "l-free", name: "Free" }), api);
+    await more();
     await userEvent.click(screen.getByRole("button", { name: "Quitar rubro" }));
     const sheet = await screen.findByRole("dialog", { name: "¿Quitar Free?" });
     await userEvent.click(within(sheet).getByRole("button", { name: "Quitar" }));
@@ -503,10 +552,11 @@ describe("line editor (HU-E9-08)", () => {
   });
 
   it("offers no removal and no figures for a new line", async () => {
-    show(null);
+    show(null, undefined, referencePlanDto({ status: "ACTIVE", lines: [] }));
+    await more();
     expect(screen.queryByRole("button", { name: "Quitar rubro" })).toBeNull();
     expect(screen.queryByRole("region", { name: "Cifras del rubro" })).toBeNull();
-    expect(screen.getByText("Por repartir: $ 4.000.000")).toBeInTheDocument();
+    expect(screen.getByText("Por repartir: $ 0")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute(
       "href",
       "/spaces/sp-household/plans/p-nov",
@@ -528,6 +578,7 @@ describe("line editor (HU-E9-08)", () => {
         capacityShare: "18.25",
       }),
       api,
+      active(),
     );
     await more();
     await userEvent.click(screen.getByRole("radio", { name: "Sin asignar" }));
