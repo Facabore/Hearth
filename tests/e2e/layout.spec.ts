@@ -1925,6 +1925,10 @@ const sheet = (page: Page) => page.getByRole("dialog", { name: MARKET });
 /**
  * Movimientos reached from Inicio through the bottom navigation, so there is somewhere to go back to. Inicio, not
  * Cuentas: Cuentas is a stacked screen without the bar (ruling P272).
+ *
+ * The router changes the address before Movimientos' loader resolves and keeps Inicio on screen until it does (ADR
+ * 0006), and Inicio's Recientes lists the same row: waiting for the address alone let a test open that row's sheet
+ * over Inicio, which closes back to Inicio (P189). So it waits for Movimientos itself.
  */
 const listFromHome = async (page: Page, tag: string) => {
   const { spaceId } = await session(page, tag);
@@ -1936,11 +1940,26 @@ const listFromHome = async (page: Page, tag: string) => {
     .getByRole("link", { name: es.shell.nav.transactions })
     .click();
   await expect(page).toHaveURL(new RegExp(`${list}$`));
+  await expect(page.getByRole("heading", { level: 1, name: es.ledger.list.title })).toBeVisible();
   await settle(page);
   return { spaceId, list, home: `/spaces/${spaceId}` };
 };
 
 test.describe("the transaction detail sheet is addressed by the URL (ruling P189)", () => {
+  test("a row opened right after reaching Movimientos from Inicio is the list's, even while the list's read is slow", async ({
+    page,
+  }) => {
+    // Inicio stays on screen, with the same row in Recientes, until Movimientos' read arrives: hold it back.
+    await page.route(/\/api\/v1\/spaces\/[^/]+\/transactions\?limit=50/, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await route.continue();
+    });
+    const { list } = await listFromHome(page, "detail-slow");
+    await page.getByRole("link", { name: MARKET }).click();
+    await expect(sheet(page)).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`${list}\\?tx=[^&]+$`));
+  });
+
   test("a row opens it with a new entry, Back closes it and Forward opens it again", async ({ page }) => {
     const { list } = await listFromHome(page, "detail-sheet");
     const entries = () => page.evaluate(() => window.history.length);
