@@ -2,9 +2,9 @@
 
 import { useTranslations } from "next-intl";
 import { useId, useState } from "react";
-import { Button, Sheet, TextField } from "@/shared/ui";
+import { Button, Icon, Sheet } from "@/shared/ui";
 import type { BudgetPlanDto, CategoryGroupDto } from "@/shared/ui/api/dto";
-import { activeTree, CategoryIcon, matches } from "@/modules/categories/ui";
+import { activeTree, matches } from "@/modules/categories/ui";
 
 /**
  * HU-E9-08, ruling P212: a sheet of checkboxes over the live parent categories of the space. A subcategory follows
@@ -59,8 +59,9 @@ export function CategoryMappingSheet({
       else next.delete(categoryId);
       return next;
     });
+  const chosen = tree.flatMap((group) => group.categories.filter((c) => selected.has(c.id)).map((c) => c.id));
   const done = () => {
-    onChange(tree.flatMap((group) => group.categories.filter((c) => selected.has(c.id)).map((c) => c.id)));
+    onChange(chosen);
     onOpenChange(false);
   };
 
@@ -70,53 +71,70 @@ export function CategoryMappingSheet({
       onOpenChange={onOpenChange}
       title={t("title", { line: lineName })}
       footer={
-        <Button size="lg" onClick={done}>
-          {t("done")}
-        </Button>
+        // Board 06: how many are chosen, beside Listo.
+        <div className="flex items-center justify-between gap-3">
+          <p aria-live="polite" className="text-base font-semibold text-ink">
+            {t("chosen", { count: chosen.length })}
+          </p>
+          <Button size="md" className="min-w-40" onClick={done}>
+            {t("done")}
+          </Button>
+        </div>
       }
     >
       <div className="flex flex-col gap-3 pb-1">
-        <TextField
-          id={`${ids}-search`}
-          label={t("search")}
-          type="search"
-          autoComplete="off"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
+        <div className="relative">
+          <Icon
+            name="search"
+            size={20}
+            className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-muted"
+          />
+          <input
+            id={`${ids}-search`}
+            type="search"
+            aria-label={t("search")}
+            placeholder={t("search")}
+            autoComplete="off"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            className="h-12 w-full rounded-xl border border-field bg-bg pr-4 pl-11 text-base text-ink placeholder:text-muted"
+          />
+        </div>
+        {/* Board 06: each group's name over a card of rows, a checkbox and the category's name. */}
         {shown.map((group) => (
-          <fieldset key={group.id} className="flex flex-col">
-            <legend className="mb-1 text-sm font-medium [overflow-wrap:anywhere] text-muted">
+          <fieldset key={group.id} className="flex flex-col gap-1.5">
+            <legend className="mb-1.5 text-sm font-medium [overflow-wrap:anywhere] text-muted">
               {group.name}
             </legend>
-            {group.categories.map((category) => {
-              const other = lineOf(category.id);
-              const noteId = `${ids}-${category.id}-in`;
-              return (
-                <div key={category.id} className="flex min-h-11 items-center gap-3">
-                  <label className="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-base text-ink">
-                    <input
-                      type="checkbox"
-                      className="size-5 shrink-0 accent-accent"
-                      checked={selected.has(category.id)}
-                      disabled={other !== undefined}
-                      aria-describedby={other !== undefined ? noteId : undefined}
-                      onChange={(event) => toggle(category.id, event.target.checked)}
-                    />
-                    <CategoryIcon icon={category.icon} color={category.color} size={32} />
-                    <span className="min-w-0 [overflow-wrap:anywhere]">{category.name}</span>
-                  </label>
-                  {other !== undefined ? (
-                    <span
-                      id={noteId}
-                      className="max-w-[40%] shrink-0 text-sm text-muted [overflow-wrap:anywhere]"
-                    >
-                      {t("inOtherLine", { line: other.name })}
-                    </span>
-                  ) : null}
-                </div>
-              );
-            })}
+            <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
+              {group.categories.map((category) => {
+                const other = lineOf(category.id);
+                const noteId = `${ids}-${category.id}-in`;
+                return (
+                  <li key={category.id} className="flex min-h-12 items-center gap-3 px-4">
+                    <label className="flex min-h-12 min-w-0 flex-1 cursor-pointer items-center gap-3 text-base font-medium text-ink has-[:disabled]:cursor-default has-[:disabled]:font-normal has-[:disabled]:text-muted">
+                      <input
+                        type="checkbox"
+                        className="size-5 shrink-0 accent-accent"
+                        checked={selected.has(category.id)}
+                        disabled={other !== undefined}
+                        aria-describedby={other !== undefined ? noteId : undefined}
+                        onChange={(event) => toggle(category.id, event.target.checked)}
+                      />
+                      <span className="min-w-0 [overflow-wrap:anywhere]">{category.name}</span>
+                    </label>
+                    {other !== undefined ? (
+                      <span
+                        id={noteId}
+                        className="max-w-[40%] shrink-0 text-sm text-muted [overflow-wrap:anywhere]"
+                      >
+                        {t("inOtherLine", { line: other.name })}
+                      </span>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
           </fieldset>
         ))}
       </div>
