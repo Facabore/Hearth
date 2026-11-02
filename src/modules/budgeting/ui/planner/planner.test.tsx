@@ -341,9 +341,20 @@ describe("planner (HU-E9-08)", () => {
   });
 });
 
+const PERIODS = "GET /api/v1/spaces/{spaceId}/periods";
+const OCTOBER = { label: "2026-10", startDate: "2026-10-01", endDate: "2026-10-31" };
+const DECEMBER = { label: "2026-12", startDate: "2026-12-01", endDate: "2026-12-31" };
+
 describe("closing a plan whose source is still open (ruling P248)", () => {
+  /** Issue #232: the refusal carries only the label; the planner reads the period before this plan's to name it. */
   const refusing = () =>
-    fakeApi({ [CLOSE]: () => problemResponse(409, "SourcePlanOpen", { sourcePeriod: "2026-10" }) });
+    fakeApi({
+      [CLOSE]: () => problemResponse(409, "SourcePlanOpen", { sourcePeriod: "2026-10" }),
+      [PERIODS]: (request) =>
+        new URL(request.url).searchParams.get("from") === "2026-10-31"
+          ? jsonResponse({ items: [OCTOBER] })
+          : jsonResponse({ items: [] }),
+    });
   const closable = (createdFrom: string | null) =>
     referencePlanDto({ status: "ACTIVE", createdFrom, version: 8 });
 
@@ -353,19 +364,38 @@ describe("closing a plan whose source is still open (ruling P248)", () => {
     await confirm("Cerrar plan");
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(
-      "Primero cierra el plan de 2026-10: este plan arrastra saldo de ese mes.",
+      "Primero cierra el plan de octubre 2026: este plan arrastra saldo de ese mes.",
     );
-    const source = within(alert).getByRole("link", { name: "Ir al plan de 2026-10" });
+    expect(alert).not.toHaveTextContent("2026-10");
+    const source = within(alert).getByRole("link", { name: "Ir al plan de octubre 2026" });
     expect(source).toHaveAttribute("href", "/spaces/sp-household/plans/p-oct");
     expect(screen.getByRole("button", { name: "Cerrar plan" })).toBeEnabled();
-    expect(requests).toHaveLength(1);
+    expect(requests.map((request) => request.method)).toEqual(["POST", "GET"]);
   });
 
   it("still says it when the plan does not know where it came from, with no link to follow", async () => {
     show({ plan: closable(null), api: refusing().api, today: "2026-12-01" });
     await confirm("Cerrar plan");
-    expect(await screen.findByRole("alert")).toHaveTextContent("Primero cierra el plan de 2026-10");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Primero cierra el plan de octubre 2026");
     expect(screen.queryByRole("link", { name: /^Ir al plan/ })).toBeNull();
+  });
+
+  it("names a period that is not a calendar month by its dates, in the person's format (D23)", async () => {
+    const { api } = fakeApi({
+      [CLOSE]: () => problemResponse(409, "SourcePlanOpen", { sourcePeriod: "2026-10 H2" }),
+      [PERIODS]: () =>
+        jsonResponse({ items: [{ label: "2026-10 H2", startDate: "2026-10-16", endDate: "2026-10-31" }] }),
+    });
+    show({
+      plan: closable("p-oct"),
+      space: householdDto({ periodPolicy: { kind: "SEMI_MONTHLY", day1: 1, day2: 16 } }),
+      api,
+      today: "2026-12-01",
+    });
+    await confirm("Cerrar plan");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Primero cierra el plan de 16/10/2026 – 31/10/2026");
+    expect(within(alert).getByRole("link", { name: "Ir al plan de 16/10/2026 – 31/10/2026" })).toBeVisible();
   });
 
   it("speaks English when the person does", async () => {
@@ -383,9 +413,28 @@ describe("closing a plan whose source is still open (ruling P248)", () => {
     );
     await confirm("Close plan");
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Close the plan for 2026-10 first: this plan carries a balance from that month.",
+      "Close the plan for October 2026 first: this plan carries a balance from that month.",
     );
-    expect(screen.getByRole("link", { name: "Go to the plan for 2026-10" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Go to the plan for October 2026" })).toBeInTheDocument();
+  });
+});
+
+describe("activating a plan whose closed copy carries from it (issue #158)", () => {
+  it("names the copy's period, read after this plan's period ends (issue #232)", async () => {
+    const { api } = fakeApi({
+      [ACTIVATE]: () => problemResponse(409, "CopyAlreadyClosed", { copyPeriod: "2026-12" }),
+      [PERIODS]: (request) =>
+        new URL(request.url).searchParams.get("from") === "2026-12-01"
+          ? jsonResponse({ items: [DECEMBER] })
+          : jsonResponse({ items: [] }),
+    });
+    show({ plan: referencePlanDto({ status: "DRAFT" }), api });
+    await confirm("Activar plan");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "No puedes activar este plan: el plan de diciembre 2026, copiado de este, ya está cerrado",
+    );
+    expect(alert).not.toHaveTextContent("2026-12");
   });
 });
 

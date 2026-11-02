@@ -1,7 +1,8 @@
 import { renderHook } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 import { IntlWrapper } from "../../../../tests/support/ui/render";
-import { useProblemMessage } from "./use-problem-message";
+import { ProblemPeriod, useProblemMessage } from "./use-problem-message";
 
 const problem = (code: string, requestId: string | null = "req-9") => ({
   code,
@@ -31,6 +32,19 @@ describe("useProblemMessage (HU-E9-02)", () => {
     const es = renderHook(() => useProblemMessage(), { wrapper: IntlWrapper("es") }).result.current;
     expect(es({ ...problem("CopyAlreadyClosed"), status: 409, copyPeriod: "2026-12" }).message).toBe(
       "No puedes activar este plan: el plan de 2026-12, copiado de este, ya está cerrado y arrastra saldo de este mes.",
+    );
+  });
+
+  it("fills the period the screen named in words, never the bare label (issue #232)", () => {
+    const Intl = IntlWrapper("es");
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <Intl>
+        <ProblemPeriod.Provider value="diciembre 2026">{children}</ProblemPeriod.Provider>
+      </Intl>
+    );
+    const es = renderHook(() => useProblemMessage(), { wrapper }).result.current;
+    expect(es({ ...problem("CopyAlreadyClosed"), status: 409, copyPeriod: "2026-12" }).message).toBe(
+      "No puedes activar este plan: el plan de diciembre 2026, copiado de este, ya está cerrado y arrastra saldo de este mes.",
     );
   });
 
