@@ -285,6 +285,18 @@ describe("the search (board B1 06, ruling P277)", () => {
     );
   });
 
+  it("offers its own clear button, a full target, which lists everything again and keeps the focus", async () => {
+    renderWithIntl(listOf({ filter: { period: "2026-10", search: "taxi" } }));
+    const field = screen.getByRole("searchbox", { name: "Buscar" });
+    const clear = screen.getByRole("button", { name: "Borrar la búsqueda" });
+    expect(clear).toHaveClass("size-11");
+    await userEvent.click(clear);
+    expect(field).toHaveValue("");
+    expect(field).toHaveFocus();
+    expect(mocks.router.replace).toHaveBeenLastCalledWith("/spaces/sp-personal/transactions?period=2026-10");
+    expect(screen.queryByRole("button", { name: "Borrar la búsqueda" })).not.toBeInTheDocument();
+  });
+
   it("shows an earlier search again when the person goes back to it", async () => {
     const { rerender } = renderWithIntl(listOf({ filter: { period: "2026-10" } }));
     const field = screen.getByRole("searchbox", { name: "Buscar" });

@@ -121,6 +121,7 @@ export function ListFilters({
     <div className="flex flex-col gap-3">
       <SearchField
         label={t("list.search")}
+        clearLabel={t("list.clearSearch")}
         value={filter.search ?? ""}
         onSearch={(search) => narrow({ search: search || undefined })}
       />
@@ -189,13 +190,16 @@ export function ListFilters({
 /** Ruling P277: asks once the person pauses typing, or at once on Enter; blank asks for everything again. */
 function SearchField({
   label,
+  clearLabel,
   value,
   onSearch,
 }: {
   readonly label: string;
+  readonly clearLabel: string;
   readonly value: string;
   readonly onSearch: (search: string) => void;
 }) {
+  const input = useRef<HTMLInputElement>(null);
   const [text, setText] = useState(value);
   const [shown, setShown] = useState(value);
   // The searches the field asked for that have not answered yet, in order: an answer to one of them, even one that
@@ -249,9 +253,25 @@ function SearchField({
         aria-label={label}
         placeholder={label}
         value={text}
+        ref={input}
         onChange={(event) => setText(event.target.value)}
-        className="min-w-0 flex-1 bg-transparent py-3 text-base text-ink outline-none placeholder:text-muted"
+        // The browser's own clear button is small and off the palette: the field draws a full one instead.
+        className="min-w-0 flex-1 bg-transparent py-3 text-base text-ink outline-none placeholder:text-muted [&::-webkit-search-cancel-button]:appearance-none"
       />
+      {text !== "" ? (
+        <button
+          type="button"
+          aria-label={clearLabel}
+          onClick={() => {
+            setText("");
+            ask("");
+            input.current?.focus();
+          }}
+          className="-mr-3 inline-flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:text-ink"
+        >
+          <Icon name="close" size={20} />
+        </button>
+      ) : null}
     </form>
   );
 }

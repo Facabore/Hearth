@@ -351,6 +351,7 @@
       "period": "Period {label}",
       "periods": "Choose a period",
       "search": "Search",
+      "clearSearch": "Clear the search",
       "dayTotal": "Day total",
       "filterCategory": "Category",
       "filterTitle": "Filter by category",

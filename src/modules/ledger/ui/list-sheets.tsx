@@ -51,9 +51,10 @@ export function ListSheets({
                 href={p.href}
                 aria-current={p.current ? "page" : undefined}
                 onClick={() => onSheet(null)}
-                className="flex min-h-12 items-center justify-between gap-3 rounded-xl px-2 text-ink first-letter:uppercase"
+                className="flex min-h-12 items-center justify-between gap-3 rounded-xl px-2 text-ink"
               >
-                {p.name}
+                {/* A flex item: its first letter is styled in a box of its own, as the period chip does. */}
+                <span className="inline-block first-letter:uppercase">{p.name}</span>
                 {p.current ? <Icon name="check" className="text-accent" /> : null}
               </Link>
             </li>
