@@ -126,6 +126,10 @@ export const materializeRecurrence = (
         await deps.recurrences.save({ ...recurrence, dueFrom, updatedAt: now });
       return nothingDue();
     }
+    // Issue #149 (ruling P283): the space lock before the members, as every money write takes it (#89), so a leave in
+    // progress is waited for and its result is what the blocker sees: PayerLeft, not the ledger's refusal of the date.
+    // The order stays the recurrence's row, then the space's, as the occurrence's own record takes them.
+    await deps.spaceLocks.lockForMoneyWrite(recurrence.spaceId);
     const blocker = blockerOf(recurrence, await deps.members.listCurrent(recurrence.spaceId as SpaceId));
     const through = recurrence.endDate !== null && recurrence.endDate < today ? recurrence.endDate : today;
     const dates = scheduleDates(recurrence.schedule, { from: recurrence.dueFrom, through }, CATCH_UP_LIMIT);

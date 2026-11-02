@@ -247,7 +247,7 @@ const formerMembersWithBalance = async (spaceId: string): Promise<string[]> => {
  * transaction, holding its locks and uncommitted rows, until the other queues behind a lock it holds (`holder`).
  */
 describe("an AUTO recurrence's run against its payer's leave (#89, #149)", () => {
-  it("skips the date and pauses, recording nothing, when the leave is in progress", async () => {
+  it("skips the date as PayerLeft and pauses, recording nothing, when the leave is in progress", async () => {
     const w = await world();
     const internet = await brunosInternet(w);
     const h = holder(tm, pool);
@@ -256,9 +256,13 @@ describe("an AUTO recurrence's run against its payer's leave (#89, #149)", () =>
     const running = run(schedulerDeps(internet.id)).finally(h.release);
     const [left, report] = await bothSettled(leaving, running);
     expect(codeOf(left)).toBe("ok");
-    expect(report.occurrences.map((o) => `${o.date} ${o.status}`)).toEqual(["2026-11-01 SKIPPED"]);
-    expect(report.paused).toHaveLength(1);
-    expect(report.failures).toEqual([]);
+    // Ruling P283: the run waits for the leave before it reads who is current, so it pauses for the reason the
+    // recurrence can no longer record (PayerLeft, P26), never for the ledger's refusal of a creator who is gone.
+    expect(summary(report)).toEqual({
+      occurrences: ["2026-11-01 SKIPPED PayerLeft"],
+      paused: ["PayerLeft"],
+      failures: [],
+    });
     expect(await transactionsOf(w.household.spaceId)).toBe(0);
     expect(await formerMembersWithBalance(w.household.spaceId)).toEqual([]);
   });
