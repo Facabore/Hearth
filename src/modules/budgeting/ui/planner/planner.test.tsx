@@ -146,7 +146,7 @@ describe("planner (HU-E9-08)", () => {
         .map((item) => normalized(item.textContent)),
     ).toEqual([
       "«Según el plan» pasa a ser la división por defecto",
-      "Los gastos de noviembre se cuentan contra las líneas",
+      "Los gastos de noviembre se cuentan contra los rubros",
       "Puedes seguir editándolo mientras esté activo",
     ]);
     const [notNow, activate] = within(sheet).getAllByRole("button").slice(-2);
@@ -167,7 +167,7 @@ describe("planner (HU-E9-08)", () => {
         .map((item) => normalized(item.textContent)),
     ).toEqual([
       "Queda en solo lectura, igual que los gastos fechados en noviembre",
-      "Lo que sobra se pasa según la regla de cada línea",
+      "Lo que sobra se pasa según la regla de cada rubro",
     ]);
     expect(within(sheet).getByRole("button", { name: "Ahora no" })).toBeEnabled();
     expect(within(sheet).getByRole("button", { name: "Cerrar plan" })).toBeEnabled();

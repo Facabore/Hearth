@@ -1304,13 +1304,13 @@
       "confirmActivate": {
         "title": "¿Activar el plan de {period}?",
         "splitDefault": "«Según el plan» pasa a ser la división por defecto",
-        "countsAgainst": "Los gastos de {period} se cuentan contra las líneas",
+        "countsAgainst": "Los gastos de {period} se cuentan contra los rubros",
         "stillEditable": "Puedes seguir editándolo mientras esté activo"
       },
       "confirmClose": {
         "title": "¿Cerrar el plan de {period}?",
         "readOnly": "Queda en solo lectura, igual que los gastos fechados en {period}",
-        "leftover": "Lo que sobra se pasa según la regla de cada línea"
+        "leftover": "Lo que sobra se pasa según la regla de cada rubro"
       }
     },
     "funding": {
