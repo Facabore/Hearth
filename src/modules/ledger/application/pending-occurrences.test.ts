@@ -221,13 +221,13 @@ describe("pending occurrences (HU-E4-13)", () => {
     expect([read.nextOccurrence, read.lastOccurrence?.status]).toEqual(["2027-01-10", "SKIPPED"]);
   });
 
-  it("refuses VIEWERs: Sofi can neither confirm, skip nor list", async () => {
+  it("lets VIEWERs read the pending list but neither confirm nor skip (P271)", async () => {
     const { confirm, skip, list, ref, store, recurrences } = await pendingElectricity();
     expect([
       codeOf(await confirm({ ...ref("u-sofi"), amount: cop(205_300n) })),
       codeOf(await skip(ref("u-sofi"))),
-      codeOf(await list({ spaceId: "space-household", userId: "u-sofi" })),
-    ]).toEqual(["InsufficientRole", "InsufficientRole", "InsufficientRole"]);
+      unwrap(await list({ spaceId: "space-household", userId: "u-sofi" })).length,
+    ]).toEqual(["InsufficientRole", "InsufficientRole", 1]);
     expect([store.rows, recurrences.occurrenceRows[0]!.status]).toEqual([[], "PENDING"]);
   });
 

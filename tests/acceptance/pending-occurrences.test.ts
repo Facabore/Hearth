@@ -131,15 +131,15 @@ describe("pending occurrences (HU-E4-13)", () => {
     ]);
   });
 
-  it("refuses VIEWERs: Sofi gets 403 InsufficientRole on the list and on a skip", async () => {
+  it("lets VIEWERs read the pending list but not act on it: Sofi gets 403 InsufficientRole on a skip (P271)", async () => {
     const { h, pending } = await pendingElectricity();
     const sofi = await joinHousehold(h, "Sofi", "VIEWER");
-    expect([
-      await problemOf(await pendingIn(sofi, h.spaceId)),
-      await problemOf(await skipOccurrence(sofi, h.spaceId, pending.id)),
-    ]).toEqual([
-      [403, "InsufficientRole"],
-      [403, "InsufficientRole"],
+    expect((await pendingOf(sofi, h.spaceId)).map((o) => [o.id, o.status])).toEqual([
+      [pending.id, "PENDING"],
+    ]);
+    expect(await problemOf(await skipOccurrence(sofi, h.spaceId, pending.id))).toEqual([
+      403,
+      "InsufficientRole",
     ]);
     expect((await pendingOf(h.ana, h.spaceId)).map((o) => [o.id, o.status])).toEqual([
       [pending.id, "PENDING"],

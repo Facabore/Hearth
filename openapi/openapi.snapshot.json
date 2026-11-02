@@ -8701,7 +8701,7 @@
     "/api/v1/spaces/{spaceId}/pending-occurrences": {
       "get": {
         "operationId": "listPendingOccurrences",
-        "summary": "Occurrences of CONFIRM recurrences waiting for the real amount; listed for members who record money",
+        "summary": "Occurrences of CONFIRM recurrences waiting for the real amount; listed to every member (P271), confirmed or skipped only by members who record money",
         "security": [
           {
             "cookieAuth": []
@@ -8745,16 +8745,6 @@
           },
           "401": {
             "description": "Unauthenticated",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "InsufficientRole",
             "content": {
               "application/problem+json": {
                 "schema": {

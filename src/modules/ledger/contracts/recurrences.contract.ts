@@ -613,7 +613,7 @@ export const recurrencesPaths: ZodOpenApiPathsObject = {
     get: {
       operationId: "listPendingOccurrences",
       summary:
-        "Occurrences of CONFIRM recurrences waiting for the real amount; listed for members who record money",
+        "Occurrences of CONFIRM recurrences waiting for the real amount; listed to every member (P271), confirmed or skipped only by members who record money",
       ...securedByUser,
       requestParams: { path: SpacePath },
       responses: {
@@ -621,7 +621,7 @@ export const recurrencesPaths: ZodOpenApiPathsObject = {
           description: "Pending occurrences, earliest first",
           content: jsonContent(PendingOccurrenceListSchema),
         },
-        ...problems({ "401": "Unauthenticated", "403": "InsufficientRole", "404": "SpaceNotFound" }),
+        ...problems({ "401": "Unauthenticated", "404": "SpaceNotFound" }),
       },
     },
   },

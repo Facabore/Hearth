@@ -938,7 +938,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Occurrences of CONFIRM recurrences waiting for the real amount; listed for members who record money */
+        /** Occurrences of CONFIRM recurrences waiting for the real amount; listed to every member (P271), confirmed or skipped only by members who record money */
         get: operations["listPendingOccurrences"];
         put?: never;
         post?: never;
@@ -6455,15 +6455,6 @@ export interface operations {
             };
             /** @description Unauthenticated */
             401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["Problem"];
-                };
-            };
-            /** @description InsufficientRole */
-            403: {
                 headers: {
                     [name: string]: unknown;
                 };
