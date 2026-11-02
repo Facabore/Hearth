@@ -225,14 +225,41 @@ export const categoryLinesOf = (
   view: BudgetPlanView,
   categories: readonly CategoryParent[],
 ): CategoryLine[] => {
-  const parts = {
-    lines: view.figures.lines.map((figure) => figure.line),
-    mappings: view.figures.lines.flatMap((figure) =>
-      figure.categoryIds.map((categoryId) => ({ lineId: figure.line.id, categoryId })),
-    ),
-  };
+  const parts = partsOf(view);
   return categories.map((category) => ({
     categoryId: category.id,
     lineId: lineForCategory(rolledUpCategory(category.id, categories), parts),
   }));
+};
+
+/** The lines and the mappings the figures counted, as `lineForCategory` reads them. */
+const partsOf = (view: BudgetPlanView) => ({
+  lines: view.figures.lines.map((figure) => figure.line),
+  mappings: view.figures.lines.flatMap((figure) =>
+    figure.categoryIds.map((categoryId) => ({ lineId: figure.line.id, categoryId })),
+  ),
+});
+
+const ordinal = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
+/**
+ * #240 (board E9-10 01): the categories whose spending reached Unbudgeted, by the rule the figures use: each expense
+ * counts in its rolled-up category (HU-E3-04), which no line consumes in `view`'s plan; every category without a
+ * plan (ruling P33). The most spent first, ties by id; a category with nothing spent is left out.
+ */
+export const unbudgetedCategoriesOf = (
+  view: BudgetPlanView | null,
+  categories: readonly CategoryParent[],
+  spending: readonly { readonly categoryId: string; readonly amount: bigint }[],
+): string[] => {
+  const parts = view === null ? null : partsOf(view);
+  return rolledUpSpending(spending, categories)
+    .filter(
+      ({ categoryId, amount }) =>
+        amount !== 0n && (parts === null || lineForCategory(categoryId, parts) === null),
+    )
+    .sort((a, b) =>
+      a.amount !== b.amount ? (a.amount > b.amount ? -1 : 1) : ordinal(a.categoryId, b.categoryId),
+    )
+    .map(({ categoryId }) => categoryId);
 };

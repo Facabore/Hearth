@@ -1,12 +1,13 @@
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
-import { cop, normalized } from "../../../../../tests/support/ui/dto";
+import { categoryDto, cop, groupDto, normalized } from "../../../../../tests/support/ui/dto";
 import { e7Dashboard, householdDto } from "../../../../../tests/support/ui/plan-dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { LineDashboard } from "./line-dashboard";
 import { NoPlan } from "./no-plan";
+import { unbudgetedNamesOf } from "./unbudgeted-names";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 
@@ -46,6 +47,37 @@ describe("line dashboard (HU-E9-10)", () => {
     expect(normalized(summary.textContent)).toContain("Gastado $ 2.810.000 de $ 4.000.000");
     expect(container.querySelector("[data-line='l-home'] [data-bar]")).toHaveStyle({ width: "88%" });
     expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("names the categories Unbudgeted's spending fell into, as board E9-10 01 does (#240)", () => {
+    renderWithIntl(
+      <LineDashboard
+        dashboard={e7Dashboard()}
+        policy={householdDto().periodPolicy}
+        formats={BUILT_IN_FORMATS}
+        unbudgetedNames={["Restaurantes", "Taxis"]}
+      />,
+    );
+    expect(lineRows().at(-1)).toEqual([
+      "Sin presupuesto",
+      "Disponible −$ 60.000",
+      "Gastado $ 60.000 en categorías sin rubro · Restaurantes, Taxis",
+    ]);
+  });
+
+  it("names Unbudgeted's categories from the space's categories, in the API's order, archived ones too", () => {
+    const groups = [
+      groupDto({
+        categories: [
+          categoryDto({ id: "c-market", name: "Mercado" }),
+          categoryDto({ id: "c-food-out", name: "Restaurantes", archivedAt: "2026-10-01T00:00:00.000Z" }),
+        ],
+      }),
+      groupDto({ id: "g-move", categories: [categoryDto({ id: "c-taxi", name: "Taxis" })] }),
+    ];
+    expect(unbudgetedNamesOf(["c-taxi", "c-food-out", "c-gone"], groups)).toEqual(["Taxis", "Restaurantes"]);
+    expect(unbudgetedNamesOf(undefined, groups)).toEqual([]);
+    expect(unbudgetedNamesOf(["c-taxi"], undefined)).toEqual([]);
   });
 
   it("highlights an overspent line with its badge and its negative available amount", () => {

@@ -89,7 +89,17 @@ export const LineDashboardSchema = z.object({
     }),
   ),
   unbudgeted: z
-    .object({ spent: MoneySchema, available: MoneySchema, overspent: z.boolean() })
+    .object({
+      spent: MoneySchema,
+      available: MoneySchema,
+      overspent: z.boolean(),
+      categoryIds: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "The categories its spending fell into, a subcategory's counted in its parent, the most spent first; a client names them from the space's categories.",
+        ),
+    })
     .nullable()
     .describe(
       "What no line consumes, every expense when the period has no plan; null when the plan has a catch-all line.",
@@ -126,6 +136,7 @@ const unbudgetedDto = (unbudgeted: UnbudgetedSpending | null, currency: string) 
         spent: moneyOf(unbudgeted.spent, currency),
         available: moneyOf(unbudgeted.available, currency),
         overspent: unbudgeted.overspent,
+        categoryIds: [...unbudgeted.categoryIds],
       };
 
 export const lineDashboardDto = (dashboard: LineDashboard): z.infer<typeof LineDashboardSchema> => ({

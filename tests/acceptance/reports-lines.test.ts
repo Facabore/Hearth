@@ -4,7 +4,7 @@ import { POST as recordTransfer } from "@/app/api/v1/spaces/[spaceId]/transfers/
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
 import { copyPlan, lineNamed, patchLine, planOf, type PlanDto } from "../support/budgeting";
-import { cop, joinHousehold, post } from "../support/ledger";
+import { categoryWithKey, cop, joinHousehold, post } from "../support/ledger";
 import { getLineDashboard, reportHousehold, spend, type LineDashboardDto } from "../support/reporting";
 
 let app: Container;
@@ -48,7 +48,12 @@ describe("line dashboard over HTTP (HU-E7-01)", () => {
       ["Savings", cop(600_000), cop(0), cop(600_000), false],
       ["Free", cop(730_000), cop(250_000), cop(480_000), false],
     ]);
-    expect(dashboard.unbudgeted).toEqual({ spent: cop(60_000), available: cop(-60_000), overspent: true });
+    expect(dashboard.unbudgeted).toEqual({
+      spent: cop(60_000),
+      available: cop(-60_000),
+      overspent: true,
+      categoryIds: [r.category.restaurants],
+    });
     expect(dashboard.totals).toEqual({
       planned: cop(4_000_000),
       spent: cop(2_810_000),
@@ -120,6 +125,16 @@ describe("line dashboard over HTTP (HU-E7-01)", () => {
     expect(await problemOf(response)).toEqual([404, "SpaceNotFound"]);
   });
 
+  it("names the categories Unbudgeted's spending fell into, the most spent first (#240, board E9-10 01)", async () => {
+    const r = await reportHousehold();
+    await novemberExpenses(r);
+    const fuel = await categoryWithKey(r.h.ana, "fuel");
+    await spend(r.h.juan, fuel, 90_000, "2026-11-12");
+    const dashboard = await dashboardOf(r.h.juan, r.h.spaceId, "2026-11");
+    expect(dashboard.unbudgeted?.categoryIds).toEqual([fuel, r.category.restaurants]);
+    expect(dashboard.unbudgeted?.spent).toEqual(cop(150_000));
+  });
+
   it("flags Home as overspent after a 300,000 COP Groceries expense on 2026-11-20", async () => {
     const r = await reportHousehold();
     await novemberExpenses(r);
@@ -133,7 +148,12 @@ describe("line dashboard over HTTP (HU-E7-01)", () => {
     await spend(r.h.ana, r.category.groceries, 100_000, "2027-01-10");
     const dashboard = await dashboardOf(r.h.ana, r.h.spaceId, "2027-01");
     expect(dashboard).toMatchObject({ plan: null, lines: [], period: { label: "2027-01" } });
-    expect(dashboard.unbudgeted).toEqual({ spent: cop(100_000), available: cop(-100_000), overspent: true });
+    expect(dashboard.unbudgeted).toEqual({
+      spent: cop(100_000),
+      available: cop(-100_000),
+      overspent: true,
+      categoryIds: [r.category.groceries],
+    });
     expect(dashboard.totals).toEqual({
       planned: cop(0),
       spent: cop(100_000),

@@ -7738,6 +7738,8 @@ export interface operations {
                             spent: components["schemas"]["MoneyOutput"];
                             available: components["schemas"]["MoneyOutput"];
                             overspent: boolean;
+                            /** @description The categories its spending fell into, a subcategory's counted in its parent, the most spent first; a client names them from the space's categories. */
+                            categoryIds?: string[];
                         } | null;
                         /** @description Σ of the lines' figures plus Unbudgeted's spent and available; planned counts the lines only. */
                         totals: {

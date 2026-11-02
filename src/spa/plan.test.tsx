@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import es from "@/i18n/messages/es.json";
-import { cop, meDto, octoberPage, spaceDto } from "../../tests/support/ui/dto";
+import { categoryDto, cop, groupDto, meDto, octoberPage, spaceDto } from "../../tests/support/ui/dto";
 import { jsonResponse, problemResponse, type FakeHandler } from "../../tests/support/ui/fake-api";
 import {
   cashFlowDto,
@@ -260,5 +260,35 @@ describe("the Plan tab and the planner in the SPA (slice 5 of #199, ADR 0006)", 
     });
     expect(await screen.findByText(es.budgeting.lineEditor.readOnly, {}, { timeout: 5_000 })).toBeVisible();
     expect(screen.getByRole("link", { name: /Volver/ })).toHaveAttribute("href", `${HOUSEHOLD}/plans/p-nov`);
+  });
+});
+
+describe("the Plan views' origins (#240, ruling P272)", () => {
+  it("names the categories of Sin presupuesto from the space's categories (board E9-10 01)", async () => {
+    renderSpa(`${HOUSEHOLD}/plan/lines?period=2026-11`, {
+      ...server(),
+      "GET /api/v1/spaces/{spaceId}/reports/lines": () =>
+        jsonResponse(
+          e7Dashboard({
+            unbudgeted: {
+              spent: cop(60_000),
+              available: cop(-60_000),
+              overspent: true,
+              categoryIds: ["c-restaurants"],
+            },
+          }),
+        ),
+      "GET /api/v1/spaces/{spaceId}/categories": () =>
+        jsonResponse({
+          items: [groupDto({ categories: [categoryDto({ id: "c-restaurants", name: "Restaurantes" })] })],
+        }),
+    });
+    expect(
+      await screen.findByText(
+        "Gastado $ 60.000 en categorías sin rubro · Restaurantes",
+        {},
+        { timeout: 5_000 },
+      ),
+    ).toBeVisible();
   });
 });

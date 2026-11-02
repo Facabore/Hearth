@@ -11093,6 +11093,13 @@
                             },
                             "overspent": {
                               "type": "boolean"
+                            },
+                            "categoryIds": {
+                              "description": "The categories its spending fell into, a subcategory's counted in its parent, the most spent first; a client names them from the space's categories.",
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
                             }
                           },
                           "required": [

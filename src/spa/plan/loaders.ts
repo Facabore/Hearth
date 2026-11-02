@@ -89,6 +89,10 @@ export const loadPlanView = async (load: Load, spaceId: string, view: PlanView, 
     await Promise.all([
       loadNeighbours(load, spaceId, dashboard.period),
       !personal && dashboard.plan !== null ? settled(ensure(overviewQuery(api, spaceId, label))) : undefined,
+      // #240: the categories that name Unbudgeted's, which never block the screen.
+      dashboard.plan !== null && (dashboard.unbudgeted?.categoryIds?.length ?? 0) > 0
+        ? settled(ensure(categoriesQuery(api, spaceId, "all")))
+        : undefined,
     ]);
   } else if (view === "groups") {
     const report = personal

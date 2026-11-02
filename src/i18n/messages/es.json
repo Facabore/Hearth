@@ -1572,7 +1572,8 @@
       "carryOverPending": "Se arrastra de {period} cuando ese plan se cierre.",
       "lineSpent": "Gastado {spent} de {planned}",
       "lineSaved": "Ahorrado {spent} de {planned}",
-      "unbudgetedCaption": "Gastado {spent} en categorías sin rubro"
+      "unbudgetedCaption": "Gastado {spent} en categorías sin rubro",
+      "unbudgetedCaptionIn": "Gastado {spent} en categorías sin rubro · {categories}"
     },
     "noPlan": {
       "title": "{period} no tiene plan",

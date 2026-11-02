@@ -55,7 +55,7 @@ export interface LineDashboardDto {
   period: ReportPeriodDto;
   plan: ReportPlanDto | null;
   lines: DashboardLineDto[];
-  unbudgeted: { spent: MoneyDto; available: MoneyDto; overspent: boolean } | null;
+  unbudgeted: { spent: MoneyDto; available: MoneyDto; overspent: boolean; categoryIds?: string[] } | null;
   totals: { planned: MoneyDto; spent: MoneyDto; available: MoneyDto };
   categoryLines: { categoryId: string; lineId: string | null }[];
 }
