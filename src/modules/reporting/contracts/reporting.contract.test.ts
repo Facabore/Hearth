@@ -8,6 +8,7 @@ import {
   LineDashboardSchema,
   LineTrendSchema,
   MemberMatrixSchema,
+  PersonalSpendingByGroupSchema,
   signedPercent,
   SpendingByGroupSchema,
   spendingByGroupDto,
@@ -228,5 +229,23 @@ describe("nullable fields of the reports (final review M1, M2)", () => {
   it("never answers a null name for a unified view's custom category: it is always the group's name", () => {
     expect(unifiedRow.category.safeParse({ id: "c", name: "Mascotas" }).success).toBe(true);
     expect(unifiedRow.category.safeParse({ id: "c", name: null }).success).toBe(false);
+  });
+});
+
+describe("the board fields of #240 are optional, so a body without them still parses (ruling P273)", () => {
+  const space = { id: "s", name: "Hogar" };
+  it.each([
+    ["unbudgeted categoryIds", LineDashboardSchema.shape.unbudgeted.unwrap().shape.categoryIds, ["c"]],
+    [
+      "unified row spaces",
+      UnifiedViewSchema.shape.consumption.shape.categories.element.shape.spaces,
+      [space],
+    ],
+    ["personal group spaces", PersonalSpendingByGroupSchema.shape.groups.element.shape.spaces, [space]],
+    ["fund names", FundContributionsSchema.shape.funds, [space]],
+  ] as const)("documents the %s, and accepts it absent", (_, schema, value) => {
+    expect(schema.safeParse(undefined).success).toBe(true);
+    expect(schema.safeParse(value).success).toBe(true);
+    expect(schema.description).toBeTruthy();
   });
 });

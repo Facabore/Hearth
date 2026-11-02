@@ -32,7 +32,16 @@ export const ListSpacesQuerySchema = z.object({ archived: z.enum(["true", "false
 
 export const ListSpacesResponseSchema = z.object({ items: z.array(SpaceSummarySchema) });
 
-/** HU-E1-04: shared spaces are created here; PERSONAL answers PersonalSpaceAlreadyExists (HU-E1-02); DIRECT never (D16). */
+/** Request shape: any integer days, so the domain answers InvalidPeriodPolicy (HU-E1-03) instead of ValidationFailed. */
+export const PeriodPolicyInputSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("MONTHLY"), day: z.number().int() }),
+  z.object({ kind: z.literal("SEMI_MONTHLY"), day1: z.number().int(), day2: z.number().int() }),
+]);
+
+/**
+ * HU-E1-04: shared spaces are created here; PERSONAL answers PersonalSpaceAlreadyExists (HU-E1-02); DIRECT never (D16).
+ * #240: `periodPolicy` is optional, checked as PATCH checks it; without it the space is MONTHLY(1).
+ */
 export const CreateSpaceBodySchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("PERSONAL") }),
   z.object({
@@ -42,6 +51,7 @@ export const CreateSpaceBodySchema = z.discriminatedUnion("kind", [
       .string()
       .regex(/^[A-Z]{3}$/, { error: "Currency must be an ISO 4217 code" })
       .default("COP"),
+    periodPolicy: PeriodPolicyInputSchema.optional(),
   }),
 ]);
 
@@ -75,12 +85,6 @@ export const memberDto = (member: SpaceMember): z.infer<typeof SpaceMemberSchema
   contactEmail: member.contactEmail,
   joinedAt: member.joinedAt.toISOString(),
 });
-
-/** Request shape: any integer days, so the domain answers InvalidPeriodPolicy (HU-E1-03) instead of ValidationFailed. */
-export const PeriodPolicyInputSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("MONTHLY"), day: z.number().int() }),
-  z.object({ kind: z.literal("SEMI_MONTHLY"), day1: z.number().int(), day2: z.number().int() }),
-]);
 
 export const UpdateSpaceBodySchema = z.object({
   name: z.string().max(200).optional(),
@@ -217,7 +221,7 @@ export const spacesPaths: ZodOpenApiPathsObject = {
         ...problems({
           "401": "Unauthenticated",
           "409": "PersonalSpaceAlreadyExists",
-          "422": "ValidationFailed, InvalidSpaceName, UnknownCurrency",
+          "422": "ValidationFailed, InvalidSpaceName, InvalidPeriodPolicy, UnknownCurrency",
         }),
       },
     },
@@ -334,6 +338,25 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           "403": "InsufficientRole",
           "404": "SpaceNotFound, InvitationNotFound",
           "409": "InvitationAlreadyUsed, SpaceArchived",
+        }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/invitations/{invitationId}/restore": {
+    post: {
+      operationId: "restoreInvitation",
+      summary:
+        "Undo a revoke made in the last 30 seconds (ruling P274): the invitation is pending again; restoring twice changes nothing",
+      ...securedByUser,
+      requestParams: { path: InvitationPath },
+      responses: {
+        "200": { description: "The pending invitation", content: jsonContent(InvitationSchema) },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound, InvitationNotFound",
+          "409":
+            "InvitationNotRestorable (revoked more than 30 seconds ago, expired, used, or a claim link), SpaceArchived",
         }),
       },
     },

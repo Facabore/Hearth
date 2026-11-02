@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
 import {
-  cop,
   guestDto,
   householdSpace,
   invitationDto,
@@ -188,7 +187,10 @@ describe("guests (HU-E9-05, ruling P163)", () => {
       "https://hearth.example/claims/XyZ",
     );
     expect(within(sheet).getByText("Un solo uso · vence el 19/10/2026")).toBeInTheDocument();
-    expect(within(sheet).getByRole("button", { name: "Crear enlace para reclamar" })).toBeDisabled();
+    // The board: once the link exists, its field and Copiar replace the button.
+    expect(
+      within(sheet).queryByRole("button", { name: "Crear enlace para reclamar" }),
+    ).not.toBeInTheDocument();
     expect(new URL(requests[0]!.url).pathname).toBe("/api/v1/spaces/sp-household/guests/m-pedro/claim-links");
     expect(await axeViolations(document.body)).toEqual([]);
   });
@@ -211,30 +213,29 @@ describe("guests (HU-E9-05, ruling P163)", () => {
     expect(requests).toHaveLength(1);
   });
 
-  it("refuses to remove Pedro while he owes 100,000 COP, showing the amount, and keeps him listed", async () => {
+  it("shows the balance the API answered when it refuses the removal, and keeps Pedro listed", async () => {
+    // The balances on screen said settled; the API knows better (a payment recorded meanwhile).
     const { api } = fakeApi({
       "DELETE /api/v1/spaces/{spaceId}/guests/{memberId}": () =>
         problemResponse(409, "OutstandingBalance", {
           outstanding: { amount: "10000000", currency: "COP" },
         }),
     });
-    screenAs("u-ana", "OWNER", api, { "m-pedro": cop(-100_000) });
+    screenAs("u-ana", "OWNER", api);
     await userEvent.click(screen.getByRole("button", { name: "Opciones de Pedro (invitado)" }));
     const sheet = screen.getByRole("dialog", { name: "Pedro (invitado)" });
-    expect(normalized(within(sheet).getByText(/En Household/).textContent)).toBe(
-      "En Household · le toca poner $ 100.000",
-    );
+    expect(normalized(within(sheet).getByText(/En Household/).textContent)).toBe("En Household · al día");
     await userEvent.click(within(sheet).getByRole("button", { name: "Quitar de Household" }));
-    await userEvent.click(within(sheet).getByRole("button", { name: "Sí, quitar" }));
-    const alert = await within(sheet).findByRole("alert");
-    expect(alert).toHaveTextContent(
-      "Para salir del espacio, quitar a alguien o archivar el espacio, los saldos tienen que quedar en cero. Registra los pagos que falten para quedar al día y vuelve a intentarlo.",
+    await userEvent.click(within(sheet).getByRole("button", { name: "Quitar de Household" }));
+    const note = await within(sheet).findByRole("note");
+    expect(normalized(note.textContent)).toContain(
+      "No puedes quitar a Pedro: tiene un saldo pendiente de $ 100.000. Primero registren el pago.",
     );
-    expect(normalized(alert.textContent)).toContain("Saldo pendiente: $ 100.000");
-    expect(within(alert).getByRole("link", { name: "Saldar" })).toHaveAttribute(
+    expect(within(note).getByRole("link", { name: "Saldar" })).toHaveAttribute(
       "href",
       "/spaces/sp-household/balances?settle=m-pedro",
     );
+    expect(within(sheet).getByRole("button", { name: "Quitar de Household" })).toBeDisabled();
     expect(router.refresh).not.toHaveBeenCalled();
     // The open sheet hides the page from the accessibility tree, so the list is queried with `hidden`.
     expect(screen.getByRole("listitem", { name: "Pedro (invitado)", hidden: true })).toBeInTheDocument();
@@ -248,10 +249,8 @@ describe("guests (HU-E9-05, ruling P163)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Opciones de Pedro (invitado)" }));
     const sheet = screen.getByRole("dialog", { name: "Pedro (invitado)" });
     await userEvent.click(within(sheet).getByRole("button", { name: "Quitar de Household" }));
-    expect(
-      within(sheet).getByText("¿Quitar a Pedro de Household? Su historial se conserva."),
-    ).toBeInTheDocument();
-    await userEvent.click(within(sheet).getByRole("button", { name: "Sí, quitar" }));
+    expect(sheet).toHaveAccessibleName("¿Quitar a Pedro (invitado) de Household?");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Quitar de Household" }));
     await waitFor(() => expect(router.refresh).toHaveBeenCalled());
     expect(requests[0]!.method).toBe("DELETE");
     expect(new URL(requests[0]!.url).pathname).toBe("/api/v1/spaces/sp-household/guests/m-pedro");

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import {
   createRootRouteWithContext,
   createRoute,
@@ -9,6 +10,7 @@ import { personalSpaceOf } from "@/modules/spaces/ui";
 import { ThemeSync } from "@/shared/ui/theme/theme-sync";
 import { ScreenError } from "./app-error";
 import { guardSession, leaveWhenSignedIn, type RouterContext } from "./guards";
+import { AreaMessages, loadAreas, withAreas } from "./i18n";
 import { signUpModeQuery, spacesQuery } from "./queries";
 import { textParam, textsParam } from "./search";
 import { loadShell } from "./shell";
@@ -22,7 +24,12 @@ const rootRoute = createRootRouteWithContext<RouterContext>()({
   component: function Root() {
     return (
       <>
-        <Outlet />
+        {/* Ruling P276: each screen's area catalogs, merged into the texts; only a missing one waits, never a key. */}
+        <Suspense fallback={null}>
+          <AreaMessages>
+            <Outlet />
+          </AreaMessages>
+        </Suspense>
         <ThemeSync />
       </>
     );
@@ -166,9 +173,12 @@ const recordRoute = createRoute({
 const pendingOccurrencesRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "pending-occurrences",
-  staticData: stackedScreen,
-  loader: async ({ context, params, cause }) =>
-    (await recurring()).loadPendingOccurrences({ ...context, cause }, params.spaceId),
+  staticData: { ...stackedScreen, areas: ["recurrences"] },
+  loader: async ({ context, params, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await recurring()).loadPendingOccurrences({ ...context, cause }, params.spaceId),
+    ),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "ListPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/pending-occurrences"), "PendingOccurrencesRoute"),
@@ -190,9 +200,12 @@ const editRoute = createRoute({
 const recurrencesRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "recurrences",
-  staticData: stackedScreen,
-  loader: async ({ context, params, cause }) =>
-    (await recurring()).loadRecurrences({ ...context, cause }, params.spaceId),
+  staticData: { ...stackedScreen, areas: ["recurrences"] },
+  loader: async ({ context, params, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await recurring()).loadRecurrences({ ...context, cause }, params.spaceId),
+    ),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "RecurrencesPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/recurrences"), "RecurrencesRoute"),
@@ -201,9 +214,12 @@ const recurrencesRoute = createRoute({
 const newRecurrenceRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "recurrences/new",
-  staticData: stackedScreen,
-  loader: async ({ context, params, cause }) =>
-    (await recurring()).loadRecurrenceForm({ ...context, cause }, params.spaceId),
+  staticData: { ...stackedScreen, areas: ["recurrences"] },
+  loader: async ({ context, params, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await recurring()).loadRecurrenceForm({ ...context, cause }, params.spaceId),
+    ),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "RecurrenceFormPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/recurrences"), "NewRecurrenceRoute"),
@@ -213,9 +229,12 @@ const newRecurrenceRoute = createRoute({
 const recurrenceRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "recurrences/$recurrenceId",
-  staticData: stackedScreen,
-  loader: async ({ context, params, cause }) =>
-    (await recurring()).loadRecurrence({ ...context, cause }, params.spaceId, params.recurrenceId),
+  staticData: { ...stackedScreen, areas: ["recurrences"] },
+  loader: async ({ context, params, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await recurring()).loadRecurrence({ ...context, cause }, params.spaceId, params.recurrenceId),
+    ),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "RecurrencePending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/recurrences"), "RecurrenceRoute"),
@@ -224,9 +243,12 @@ const recurrenceRoute = createRoute({
 const editRecurrenceRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "recurrences/$recurrenceId/edit",
-  staticData: stackedScreen,
-  loader: async ({ context, params, cause }) =>
-    (await recurring()).loadRecurrenceEdit({ ...context, cause }, params.spaceId, params.recurrenceId),
+  staticData: { ...stackedScreen, areas: ["recurrences"] },
+  loader: async ({ context, params, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await recurring()).loadRecurrenceEdit({ ...context, cause }, params.spaceId, params.recurrenceId),
+    ),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "RecurrenceFormPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/recurrences"), "EditRecurrenceRoute"),
@@ -236,10 +258,13 @@ const editRecurrenceRoute = createRoute({
 const accountsRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "accounts",
-  staticData: stackedScreen,
+  staticData: { ...stackedScreen, areas: ["accounts"] },
   validateSearch: (search: Record<string, unknown>) => ({ returnTo: textParam(search.returnTo) }),
-  loader: async ({ context, params, cause }) =>
-    (await manage()).loadAccounts({ ...context, cause }, params.spaceId),
+  loader: async ({ context, params, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await manage()).loadAccounts({ ...context, cause }, params.spaceId),
+    ),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "AccountsPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/accounts"), "AccountsRoute"),
@@ -249,8 +274,9 @@ const accountsRoute = createRoute({
 const newAccountRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "accounts/new",
-  staticData: stackedScreen,
+  staticData: { ...stackedScreen, areas: ["accounts"] },
   validateSearch: (search: Record<string, unknown>) => ({ returnTo: textParam(search.returnTo) }),
+  loader: ({ context, route }) => loadAreas(context, route),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "NewAccountPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/accounts"), "NewAccountRoute"),
@@ -260,9 +286,12 @@ const newAccountRoute = createRoute({
 const editAccountRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "accounts/$accountId/edit",
-  staticData: stackedScreen,
-  loader: async ({ context, params, cause }) =>
-    (await manage()).loadAccount({ ...context, cause }, params.spaceId, params.accountId),
+  staticData: { ...stackedScreen, areas: ["accounts"] },
+  loader: async ({ context, params, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await manage()).loadAccount({ ...context, cause }, params.spaceId, params.accountId),
+    ),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "EditAccountPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/accounts"), "EditAccountRoute"),
@@ -272,9 +301,12 @@ const editAccountRoute = createRoute({
 const categoriesRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "categories",
-  staticData: stackedScreen,
-  loader: async ({ context, params, cause }) =>
-    (await manage()).loadCategories({ ...context, cause }, params.spaceId),
+  staticData: { ...stackedScreen, areas: ["categories"] },
+  loader: async ({ context, params, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await manage()).loadCategories({ ...context, cause }, params.spaceId),
+    ),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "CategoriesPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/categories"), "CategoriesRoute"),
@@ -284,10 +316,11 @@ const categoriesRoute = createRoute({
 const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "settings",
-  staticData: stackedScreen,
+  staticData: { ...stackedScreen, areas: ["settings"] },
   validateSearch: (search: Record<string, unknown>) => ({ from: textParam(search.from) }),
   loaderDeps: ({ search }) => ({ from: search.from }),
-  loader: ({ context, deps }) => loadShell(context, null, deps.from),
+  loader: ({ context, deps, route }) =>
+    withAreas(loadAreas(context, route), loadShell(context, null, deps.from)),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "SettingsPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/settings"), "SettingsRoute"),
@@ -306,17 +339,20 @@ const newSpaceRoute = createRoute({
   loader: ({ context, deps }) => loadShell(context, null, deps.from),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "NewSpacePending"),
   errorComponent: ScreenError,
-  component: lazyRouteComponent(() => import("./routes/settings"), "NewSpaceRoute"),
+  component: lazyRouteComponent(() => import("./routes/new-space"), "NewSpaceRoute"),
 });
 
 /** HU-E9-05: the members of a shared or direct space; `?invite=1` opens the invite sheet (N10). */
 const membersRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "members",
-  staticData: stackedScreen,
+  staticData: { ...stackedScreen, areas: ["members"] },
   validateSearch: (search: Record<string, unknown>) => ({ invite: textParam(search.invite) }),
-  loader: async ({ context, params, cause }) =>
-    (await sharedSpaces()).loadMembers({ ...context, cause }, params.spaceId),
+  loader: async ({ context, params, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await sharedSpaces()).loadMembers({ ...context, cause }, params.spaceId),
+    ),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "MembersPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/members"), "MembersRoute"),
@@ -326,11 +362,14 @@ const membersRoute = createRoute({
 const historyRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "members/$memberId/history",
-  staticData: stackedScreen,
+  staticData: { ...stackedScreen, areas: ["members"] },
   validateSearch: (search: Record<string, unknown>) => ({ from: textParam(search.from) }),
   loaderDeps: ({ search }) => ({ from: search.from }),
-  loader: async ({ context, params, deps, cause }) =>
-    (await sharedSpaces()).loadHistory({ ...context, cause }, params.spaceId, params.memberId, deps.from),
+  loader: async ({ context, params, deps, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await sharedSpaces()).loadHistory({ ...context, cause }, params.spaceId, params.memberId, deps.from),
+    ),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "HistoryPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/members"), "HistoryRoute"),
@@ -340,9 +379,13 @@ const historyRoute = createRoute({
 const balancesRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "balances",
+  staticData: { areas: ["members"] },
   validateSearch: (search: Record<string, unknown>) => ({ settle: textParam(search.settle) }),
-  loader: async ({ context, params, cause }) =>
-    (await sharedSpaces()).loadBalances({ ...context, cause }, params.spaceId),
+  loader: async ({ context, params, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await sharedSpaces()).loadBalances({ ...context, cause }, params.spaceId),
+    ),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "BalancesPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/balances"), "BalancesRoute"),
@@ -361,6 +404,8 @@ const openRoute = createRoute({
 const invitationRoute = createRoute({
   getParentRoute: () => openRoute,
   path: "invitations/$token",
+  staticData: { areas: ["invitation"] },
+  loader: ({ context, route }) => loadAreas(context, route),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/invitation"), "InvitationRoute"),
 });
@@ -368,6 +413,8 @@ const invitationRoute = createRoute({
 const claimRoute = createRoute({
   getParentRoute: () => openRoute,
   path: "claims/$token",
+  staticData: { areas: ["invitation"] },
+  loader: ({ context, route }) => loadAreas(context, route),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/invitation"), "ClaimRoute"),
 });
@@ -376,10 +423,14 @@ const claimRoute = createRoute({
 const planRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "plan",
+  staticData: { areas: ["plan"] },
   validateSearch: planSearch,
   loaderDeps: ({ search }) => search,
-  loader: async ({ context, params, deps, cause }) =>
-    (await plans()).loadPlanView({ ...context, cause }, params.spaceId, "home", deps),
+  loader: async ({ context, params, deps, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await plans()).loadPlanView({ ...context, cause }, params.spaceId, "home", deps),
+    ),
   pendingComponent: planPending,
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/plan"), "PlanRoute"),
@@ -388,10 +439,14 @@ const planRoute = createRoute({
 const linesRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "plan/lines",
+  staticData: { areas: ["plan"] },
   validateSearch: planSearch,
   loaderDeps: ({ search }) => search,
-  loader: async ({ context, params, deps, cause }) =>
-    (await plans()).loadPlanView({ ...context, cause }, params.spaceId, "lines", deps),
+  loader: async ({ context, params, deps, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await plans()).loadPlanView({ ...context, cause }, params.spaceId, "lines", deps),
+    ),
   pendingComponent: planPending,
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/plan"), "LinesRoute"),
@@ -400,10 +455,14 @@ const linesRoute = createRoute({
 const groupsRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "plan/groups",
+  staticData: { areas: ["plan"] },
   validateSearch: planSearch,
   loaderDeps: ({ search }) => search,
-  loader: async ({ context, params, deps, cause }) =>
-    (await plans()).loadPlanView({ ...context, cause }, params.spaceId, "groups", deps),
+  loader: async ({ context, params, deps, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await plans()).loadPlanView({ ...context, cause }, params.spaceId, "groups", deps),
+    ),
   pendingComponent: planPending,
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/plan"), "GroupsRoute"),
@@ -412,10 +471,14 @@ const groupsRoute = createRoute({
 const trendRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "plan/trend",
+  staticData: { areas: ["plan"] },
   validateSearch: planSearch,
   loaderDeps: ({ search }) => search,
-  loader: async ({ context, params, deps, cause }) =>
-    (await plans()).loadPlanView({ ...context, cause }, params.spaceId, "trend", deps),
+  loader: async ({ context, params, deps, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await plans()).loadPlanView({ ...context, cause }, params.spaceId, "trend", deps),
+    ),
   pendingComponent: planPending,
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/plan"), "TrendRoute"),
@@ -424,10 +487,14 @@ const trendRoute = createRoute({
 const fundRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "plan/fund",
+  staticData: { areas: ["plan"] },
   validateSearch: planSearch,
   loaderDeps: ({ search }) => search,
-  loader: async ({ context, params, deps, cause }) =>
-    (await plans()).loadPlanView({ ...context, cause }, params.spaceId, "fund", deps),
+  loader: async ({ context, params, deps, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await plans()).loadPlanView({ ...context, cause }, params.spaceId, "fund", deps),
+    ),
   pendingComponent: planPending,
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/plan"), "FundRoute"),
@@ -436,10 +503,14 @@ const fundRoute = createRoute({
 const matrixRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "plan/members",
+  staticData: { areas: ["plan"] },
   validateSearch: planSearch,
   loaderDeps: ({ search }) => search,
-  loader: async ({ context, params, deps, cause }) =>
-    (await plans()).loadPlanView({ ...context, cause }, params.spaceId, "members", deps),
+  loader: async ({ context, params, deps, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await plans()).loadPlanView({ ...context, cause }, params.spaceId, "members", deps),
+    ),
   pendingComponent: planPending,
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/plan"), "MembersMatrixRoute"),
@@ -448,10 +519,14 @@ const matrixRoute = createRoute({
 const calendarRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "plan/calendar",
+  staticData: { areas: ["plan"] },
   validateSearch: planSearch,
   loaderDeps: ({ search }) => search,
-  loader: async ({ context, params, deps, cause }) =>
-    (await plans()).loadPlanView({ ...context, cause }, params.spaceId, "calendar", deps),
+  loader: async ({ context, params, deps, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await plans()).loadPlanView({ ...context, cause }, params.spaceId, "calendar", deps),
+    ),
   pendingComponent: planPending,
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/plan"), "CalendarRoute"),
@@ -461,11 +536,14 @@ const calendarRoute = createRoute({
 const myConsumptionRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "my-consumption",
-  staticData: stackedScreen,
+  staticData: { ...stackedScreen, areas: ["plan"] },
   validateSearch: (search: Record<string, unknown>) => ({ period: textParam(search.period) }),
   loaderDeps: ({ search }) => search,
-  loader: async ({ context, params, deps, cause }) =>
-    (await plans()).loadMyConsumption({ ...context, cause }, params.spaceId, deps),
+  loader: async ({ context, params, deps, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await plans()).loadMyConsumption({ ...context, cause }, params.spaceId, deps),
+    ),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "MyConsumptionPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/my-consumption"), "MyConsumptionRoute"),
@@ -475,9 +553,12 @@ const myConsumptionRoute = createRoute({
 const plannerRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "plans/$planId",
-  staticData: stackedScreen,
-  loader: async ({ context, params, cause }) =>
-    (await plans()).loadPlanner({ ...context, cause }, params.spaceId, params.planId),
+  staticData: { ...stackedScreen, areas: ["plan"] },
+  loader: async ({ context, params, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await plans()).loadPlanner({ ...context, cause }, params.spaceId, params.planId),
+    ),
   pendingComponent: plannerPending,
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/plans"), "PlannerRoute"),
@@ -486,9 +567,12 @@ const plannerRoute = createRoute({
 const capacitiesRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "plans/$planId/capacities",
-  staticData: stackedScreen,
-  loader: async ({ context, params, cause }) =>
-    (await plans()).loadCapacities({ ...context, cause }, params.spaceId, params.planId),
+  staticData: { ...stackedScreen, areas: ["plan"] },
+  loader: async ({ context, params, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await plans()).loadCapacities({ ...context, cause }, params.spaceId, params.planId),
+    ),
   pendingComponent: plannerPending,
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/plans"), "CapacitiesRoute"),
@@ -497,9 +581,12 @@ const capacitiesRoute = createRoute({
 const newLineRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "plans/$planId/lines/new",
-  staticData: stackedScreen,
-  loader: async ({ context, params, cause }) =>
-    (await plans()).loadLineEditor({ ...context, cause }, params.spaceId, params.planId),
+  staticData: { ...stackedScreen, areas: ["plan"] },
+  loader: async ({ context, params, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await plans()).loadLineEditor({ ...context, cause }, params.spaceId, params.planId),
+    ),
   pendingComponent: plannerPending,
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/plans"), "NewLineRoute"),
@@ -508,9 +595,12 @@ const newLineRoute = createRoute({
 const editLineRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "plans/$planId/lines/$lineId",
-  staticData: stackedScreen,
-  loader: async ({ context, params, cause }) =>
-    (await plans()).loadLineEditor({ ...context, cause }, params.spaceId, params.planId),
+  staticData: { ...stackedScreen, areas: ["plan"] },
+  loader: async ({ context, params, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await plans()).loadLineEditor({ ...context, cause }, params.spaceId, params.planId),
+    ),
   pendingComponent: plannerPending,
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/plans"), "EditLineRoute"),

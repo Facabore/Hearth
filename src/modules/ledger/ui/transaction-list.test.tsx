@@ -12,7 +12,7 @@ import {
 } from "../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse } from "../../../../tests/support/ui/fake-api";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
-import es from "@/i18n/messages/es.json";
+import { es } from "@/i18n/messages/full";
 import type { Api } from "@/shared/ui/api/client";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import type { TransactionDetail } from "./detail/transaction-detail";

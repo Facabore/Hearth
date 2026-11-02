@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { accountDto } from "../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse } from "../../../../tests/support/ui/fake-api";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
-import es from "@/i18n/messages/es.json";
+import { es } from "@/i18n/messages/full";
 import { ArchiveAccountButton, RestoreAccountButton, StarterAccountsButton } from "./account-actions";
 
 const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn(), push: vi.fn() }));

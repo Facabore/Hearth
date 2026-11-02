@@ -1,4 +1,12 @@
-import { map, ok, type Clock, type IdGenerator, type Result, type TransactionManager } from "@/shared/kernel";
+import {
+  map,
+  ok,
+  type Clock,
+  type IdGenerator,
+  type PeriodPolicy,
+  type Result,
+  type TransactionManager,
+} from "@/shared/kernel";
 import { createSharedSpace, type Space } from "../domain/space";
 import type { CreatePersonalSpace, SpaceCreatedListener } from "./create-personal-space";
 import type { SpaceRepository, SpaceSummary } from "./space-repository";
@@ -20,7 +28,13 @@ interface Creator {
 
 export type CreateSpaceInput =
   | (Creator & { readonly kind: "PERSONAL" })
-  | (Creator & { readonly kind: "SHARED"; readonly name: string; readonly currency: string });
+  | (Creator & {
+      readonly kind: "SHARED";
+      readonly name: string;
+      readonly currency: string;
+      /** #240: the budget period; MONTHLY(1) when absent. */
+      readonly periodPolicy?: PeriodPolicy;
+    });
 
 export type CreateSpace = (input: CreateSpaceInput) => Promise<Result<SpaceSummary>>;
 
@@ -52,6 +66,7 @@ export const createCreateSpace =
         ownerName: input.userName,
         name: input.name,
         currency: input.currency,
+        periodPolicy: input.periodPolicy,
         now: deps.clock.now(),
       });
       if (!space.ok) return space;

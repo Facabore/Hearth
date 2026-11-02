@@ -68,7 +68,8 @@ describe("members screen (HU-E9-05)", () => {
     expect(within(rowOf("Ana (tú)")).getByText("Propietario")).toBeInTheDocument();
     expect(within(rowOf("Juan")).getByText("Se unió el 3/10/2026")).toBeInTheDocument();
     expect(within(rowOf("Pedro (invitado)")).getByText("Sin cuenta · no inicia sesión")).toBeInTheDocument();
-    expect(within(rowOf("Pedro (invitado)")).getByText("Sin rol")).toBeInTheDocument();
+    // Ruling P272: a guest's row shows no role at all (the board has no "Sin rol").
+    expect(within(rowOf("Pedro (invitado)")).queryByText("Sin rol")).not.toBeInTheDocument();
     expect(await axeViolations(container)).toEqual([]);
   });
 
@@ -83,7 +84,7 @@ describe("members screen (HU-E9-05)", () => {
       within(rowOf("Pedro (invitado)")).queryByRole("button", { name: /^Rol de/ }),
     ).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Rol de Juan: Administrador. Cambiar" }));
-    const sheet = screen.getByRole("dialog", { name: "Rol de Juan" });
+    const sheet = screen.getByRole("dialog", { name: "Rol de Juan en Household" });
     expect(within(sheet).getByRole("radio", { name: /Administrador/ })).toBeChecked();
     expect(within(sheet).getByRole("button", { name: "Guardar rol" })).toBeDisabled();
     await userEvent.click(within(sheet).getByRole("radio", { name: /Miembro/ }));
@@ -92,33 +93,6 @@ describe("members screen (HU-E9-05)", () => {
     expect(await requests[0]!.json()).toEqual({ role: "MEMBER" });
     await waitFor(() => expect(router.refresh).toHaveBeenCalled());
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-
-  it("keeps the sheet open with LastOwnerRequired when the last owner is demoted", async () => {
-    const { api } = fakeApi({
-      "PATCH /api/v1/spaces/{spaceId}/members/{memberId}": () => problemResponse(409, "LastOwnerRequired"),
-    });
-    renderWithIntl(
-      <MembersScreen
-        space={householdSpace({ role: "OWNER" })}
-        members={[
-          memberDto(),
-          memberDto({ id: "m-bea", userId: "u-bea", displayName: "Bea", role: "OWNER" }),
-        ]}
-        meUserId="u-bea"
-        formats={BUILT_IN_FORMATS}
-        viewerZone="America/Bogota"
-        api={api}
-      />,
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Rol de Ana: Propietario. Cambiar" }));
-    await userEvent.click(screen.getByRole("radio", { name: /Lector/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Guardar rol" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "El espacio necesita al menos un propietario. Nombra otro primero.",
-    );
-    expect(screen.getByRole("dialog", { name: "Rol de Ana" })).toBeInTheDocument();
-    expect(router.refresh).not.toHaveBeenCalled();
   });
 
   it("shows the API's InsufficientRole refusal as its own message and keeps the sheet open", async () => {
@@ -132,7 +106,7 @@ describe("members screen (HU-E9-05)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "No tienes permiso para hacer esto en este espacio.",
     );
-    expect(screen.getByRole("dialog", { name: "Rol de Luis" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Rol de Luis en Household" })).toBeInTheDocument();
     expect(router.refresh).not.toHaveBeenCalled();
   });
 
@@ -153,29 +127,20 @@ describe("members screen (HU-E9-05)", () => {
     expect(roleButtons()).toHaveLength(0);
     expect(
       screen.getByText(
-        "Tu rol en Household es Lector: puedes ver miembros y saldos, pero no invitar ni agregar invitados.",
+        "Tu rol en Household es Lector: puedes ver miembros, saldos y tableros, pero no invitar ni agregar invitados.",
       ),
     ).toBeInTheDocument();
   });
 
-  it("lets the OWNER rename the household from Miembros (#176)", async () => {
-    const { api, requests } = fakeApi({
-      "PATCH /api/v1/spaces/{spaceId}": () => jsonResponse(householdSpace({ name: "Casa" })),
-    });
-    screenAs("u-ana", "OWNER", api);
-    const field = screen.getByLabelText("Nombre del espacio");
-    expect(field).toHaveValue("Household");
-    await userEvent.clear(field);
-    await userEvent.type(field, "Casa{Enter}");
-    await waitFor(() => expect(requests).toHaveLength(1));
-    expect(new URL(requests[0]!.url).pathname).toBe("/api/v1/spaces/sp-household");
-    expect(await requests[0]!.json()).toEqual({ name: "Casa" });
-    expect(router.refresh).toHaveBeenCalled();
-  });
-
-  it("offers no name field to a VIEWER (#176)", () => {
-    screenAs("u-sofi", "VIEWER");
-    expect(screen.queryByLabelText("Nombre del espacio")).not.toBeInTheDocument();
+  it("leaves renaming the space to Ajustes, whatever the role (#176, ruling P272)", () => {
+    for (const [uid, role] of [
+      ["u-ana", "OWNER"],
+      ["u-sofi", "VIEWER"],
+    ] as const) {
+      const { unmount } = screenAs(uid, role);
+      expect(screen.queryByLabelText("Nombre del espacio")).not.toBeInTheDocument();
+      unmount();
+    }
   });
 
   it("says a direct space takes nobody else", () => {

@@ -5,6 +5,7 @@ import { canManage, PlanStatusBadge } from "@/modules/budgeting/ui";
 import { Button, Icon, usePeriodText, VisuallyHidden } from "@/shared/ui";
 import type { PeriodDto, ReportPlanDto, SpaceDto } from "@/shared/ui/api/dto";
 import type { Formats } from "@/shared/ui/format/formatters";
+import { useNamesText } from "./origin";
 import { PlanTabs } from "./plan-tabs";
 import { viewHref, type PlanView } from "./views";
 
@@ -12,16 +13,25 @@ const BOX = "flex size-11 shrink-0 items-center justify-center rounded-full text
 
 /**
  * Ruling P272 (the E9-10 boards): what the line under the period says. A shared space's views name the space, the
- * Members view with the plan's status and the line trend with what it compares against; Rubros wears the status as a
- * badge beside the period instead, and the personal space's views say nothing more.
+ * Members view with the plan's status, the line trend with what it compares against and the Fondo view with the fund
+ * it tracks (#240, board E9-10 04); Rubros wears the status as a badge beside the period instead, and the personal
+ * space's views say nothing more.
  */
 const useSubtitle = () => {
   const t = useTranslations("reports.frame");
-  return (space: SpaceDto, view: PlanView, plan: ReportPlanDto | null): string | null => {
+  const namesText = useNamesText();
+  return (
+    space: SpaceDto,
+    view: PlanView,
+    plan: ReportPlanDto | null,
+    fundNames: readonly string[],
+  ): string | null => {
     if (space.kind === "PERSONAL" || view === "lines") return null;
     if (view === "members" && plan)
       return t("subtitle", { space: space.name, detail: t(`plan.${plan.status}`) });
     if (view === "trend") return t("subtitle", { space: space.name, detail: t("againstPrevious") });
+    if (view === "fund" && fundNames.length > 0)
+      return t("subtitle", { space: space.name, detail: namesText(fundNames) });
     return space.name;
   };
 };
@@ -41,6 +51,7 @@ export function DashboardFrame({
   formats,
   plan,
   wide = false,
+  fundNames = [],
   children,
 }: {
   readonly space: SpaceDto;
@@ -52,12 +63,14 @@ export function DashboardFrame({
   readonly plan: ReportPlanDto | null;
   /** From 1024 px the frame takes the DashDesktop artboard's width, for the desktop overview's two columns (P216). */
   readonly wide?: boolean;
+  /** #240: the fund accounts the Fondo view tracks, named after the space; none from an older API. */
+  readonly fundNames?: readonly string[];
   readonly children: ReactNode;
 }) {
   const t = useTranslations("reports");
   const tc = useTranslations("common");
   const periodText = usePeriodText();
-  const subtitle = useSubtitle()(space, view, plan);
+  const subtitle = useSubtitle()(space, view, plan, fundNames);
   const name = periodText(period, space.periodPolicy, formats);
   const title = view === "trend" && space.kind !== "PERSONAL" ? t("frame.upTo", { period: name }) : name;
   const lines = view === "lines" ? plan : null;

@@ -33,7 +33,7 @@ export function MyConsumptionScreen({
         previousHref={previous ? myConsumptionHref(space, previous.label) : null}
         nextHref={next ? myConsumptionHref(space, next.label) : null}
       />
-      <UnifiedView view={view} formats={formats} />
+      <UnifiedView view={view} formats={formats} personalSpaceId={space.id} />
     </div>
   );
 }

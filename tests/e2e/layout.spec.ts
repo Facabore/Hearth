@@ -1,8 +1,7 @@
 import { randomInt } from "node:crypto";
 import { expect, request, type Browser, type Locator, type Page } from "@playwright/test";
 import { test as base } from "./support/clock";
-import en from "../../src/i18n/messages/en.json" with { type: "json" };
-import es from "../../src/i18n/messages/es.json" with { type: "json" };
+import { en, es } from "../../src/i18n/messages/full";
 import { BASE_URL } from "./support/base-url";
 import { Person } from "./support/people";
 import { categoryIdsByKey, clientOf, seedHome, seedHousehold, seedRecurrence } from "./support/plan-seed";
@@ -1142,8 +1141,14 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
   }
 
   /** Every link and button of the screen's main area is a full target that ends on screen. */
-  const expectFullTargets = async (page: Page, what: string, width: number) => {
-    const controls = page.locator("main").getByRole("link").or(page.locator("main").getByRole("button"));
+  /** Every link and button of the screen, or of the sheet over it when one is given, is a full target on screen. */
+  const expectFullTargets = async (
+    page: Page,
+    what: string,
+    width: number,
+    within: Locator = page.locator("main"),
+  ) => {
+    const controls = within.getByRole("link").or(within.getByRole("button"));
     expect.soft(await controls.count(), `${what}: has controls`).toBeGreaterThan(0);
     for (const control of await controls.all()) {
       // Issue #174 (U3): the view tabs wrap instead of scrolling, so no control waits beyond the edge.
@@ -1227,7 +1232,9 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       );
       await page.goto(`/spaces/${sharedId}/plans/${september.id}`);
       await settle(page);
+      // Board 09 of Pantallas nuevas: closing is confirmed in a sheet first.
       await page.getByRole("button", { name: es.budgeting.planner.close }).click();
+      await page.getByRole("dialog").getByRole("button", { name: es.budgeting.planner.close }).click();
       const alert = page.locator("main").getByRole("alert");
       await expect(alert).toContainText(es.errors.SourcePlanOpen.replace("{period}", "2026-08"));
       const { overflow, message } = await overflowReport(page, "the refusal");
@@ -1342,7 +1349,9 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       await seedIncome(page, spaceId);
       await page.goto(`/spaces/${sharedId}/plans/${plan.id}/capacities`);
       await settle(page);
-      await expect(page.getByRole("heading", { level: 1, name: es.budgeting.capacity.title })).toBeVisible();
+      // Board 04: the capacities are a sheet over the planner.
+      const sheet = page.getByRole("dialog", { name: es.budgeting.capacity.title });
+      await expect(sheet).toBeVisible();
       await expect(
         page.getByText(
           /^Sugerido \$\s1\.650\.000: tus ingresos de septiembre 2026 en Personal\. Solo tú lo ves\.$/,
@@ -1350,24 +1359,19 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       ).toBeVisible();
       const { overflow, message } = await overflowReport(page, "the capacities screen");
       expect.soft(overflow, message).toBeLessThanOrEqual(0);
-      await expectFullTargets(page, "the capacities screen", viewport.width);
+      // Phase 3c: the modal sheet hides the planner under it, so its own controls are the ones measured.
+      await expectFullTargets(page, "the capacities screen", viewport.width, sheet);
 
       // Use suggestion fills Ana's own field and sends nothing: the plan keeps its capacity until Save.
       await page.getByRole("button", { name: es.budgeting.capacity.useSuggestion }).click();
       await expect(page.getByRole("textbox", { name: "Aporte de Ana" })).toHaveValue("1.650.000");
 
-      // Save is the last control: scrolled to the end of the page it ends on screen, with no bottom bar (P272).
-      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-      const save = (await page.getByRole("button", { name: es.budgeting.capacity.save }).boundingBox())!;
-      await expect(
-        page.getByRole("navigation", { name: es.shell.nav.main }),
-        "a stacked screen has no bottom bar (P272)",
-      ).toHaveCount(0);
+      // Save is the sheet's footer: it stays on screen while the sheet's body scrolls.
+      const save = (await sheet.getByRole("button", { name: es.budgeting.capacity.save }).boundingBox())!;
       expect(save.y + save.height, "Guardar aportes ends on screen").toBeLessThanOrEqual(viewport.height);
 
-      // The way back is the shared header's link to the planner.
-      const back = page.getByRole("link", { name: es.common.back, exact: true });
-      await expect(back).toHaveAttribute("href", `/spaces/${sharedId}/plans/${plan.id}`);
+      // The way back is the sheet's ✕, which returns to the planner under it.
+      const back = sheet.getByRole("button", { name: es.common.close, exact: true });
       const box = (await back.boundingBox())!;
       expect(box.width).toBeGreaterThanOrEqual(TARGET);
       expect(box.height).toBeGreaterThanOrEqual(TARGET);
@@ -1386,14 +1390,20 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       const line: { id: string } = (await get(page, `/api/v1/spaces/${sharedId}/plans/${plan.id}`)).lines[0];
       const planner = `/spaces/${sharedId}/plans/${plan.id}`;
 
-      /** Inputs, choices, switches and the label of a checkbox are full targets that end on screen. */
+      /**
+       * Inputs, choices, switches and the label of a native checkbox or radio are full targets that end on screen.
+       * Board 05 (phase 3c): the funding is a card of native radios whose whole row, the label, is the target, and the
+       * catch-all is a checkbox inside the categories card.
+       */
       const expectFullFields = async (what: string) => {
         const fields = page
           .locator("main")
           .getByRole("textbox")
-          .or(page.locator("main").getByRole("radio"))
+          // The choices drawn as buttons; a native radio is measured by its label below.
+          .or(page.locator("main").getByRole("radio").and(page.locator("[role='radio']")))
           .or(page.locator("main").getByRole("switch"))
-          .or(page.locator("main label:has(input[type='checkbox'])"));
+          .or(page.locator("main label:has(input[type='checkbox'])"))
+          .or(page.locator("main label:has(input[type='radio'])"));
         expect.soft(await fields.count(), `${what}: has fields`).toBeGreaterThan(0);
         for (const field of await fields.all()) {
           const box = (await field.boundingBox())!;
@@ -1412,7 +1422,8 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
           "an existing line",
           `${planner}/lines/${line.id}`,
           es.budgeting.lineEditor.title.replace("{name}", LONG_LINE),
-          es.budgeting.lineEditor.remove.open,
+          // Board 05: "Quitar rubro" waits inside the fold, so saving is the last control.
+          es.budgeting.lineEditor.save,
         ],
       ] as const) {
         await page.goto(path);
@@ -1551,6 +1562,8 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       .getByRole("listitem", { name: "Mascotas" })
       .getByRole("link", { name: es.budgeting.planner.editLine.replace("{name}", "Mascotas") })
       .click();
+    // Board 05: "Quitar rubro" waits inside "Más opciones".
+    await page.getByRole("button", { name: es.budgeting.lineEditor.more.open, exact: true }).click();
     await page.getByRole("button", { name: es.budgeting.lineEditor.remove.open }).click();
     await page
       .getByRole("dialog")
@@ -2551,7 +2564,7 @@ test.describe("every screen below the navigation has a way back (UX: no dead end
     await page.waitForURL(`**/spaces/${sharedId}`);
   });
 
-  test("the profile sheet's Ajustes and the space switcher's create link carry the space to return to", async ({
+  test("the profile sheet's Ajustes carries the space to return to, and the switcher creates a space over it", async ({
     page,
   }) => {
     const { sharedId } = await session(page, "from");
@@ -2563,10 +2576,13 @@ test.describe("every screen below the navigation has a way back (UX: no dead end
     await back(page).click();
     await page.waitForURL(`**/spaces/${sharedId}`);
     await page.getByRole("button", { name: es.shell.space.current.replace("{name}", "Casa") }).click();
-    await page.getByRole("link", { name: es.shell.space.create }).click();
-    await page.waitForURL("**/spaces/new?from=*");
-    await back(page).click();
-    await page.waitForURL(`**/spaces/${sharedId}`);
+    await page.getByRole("button", { name: es.shell.space.create }).click();
+    // Ruling P272 (board E9-05 · 07): a sheet over the switcher, on the screen it opened from.
+    const sheet = page.getByRole("dialog", { name: es.spaces.new.title });
+    await expect(sheet.getByRole("combobox", { name: es.spaces.new.currency })).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe(`/spaces/${sharedId}`);
+    await sheet.getByRole("button", { name: es.common.back }).click();
+    await expect(page.getByRole("dialog", { name: es.shell.space.title })).toBeVisible();
   });
 });
 
@@ -2642,12 +2658,10 @@ test.describe("Settings and New space keep the space they were opened from (N3)"
 });
 
 test.describe("the members entry of a shared space is findable (N10)", () => {
-  test("the home and Saldos lead to the members with full targets", async ({ page }) => {
+  // P272: the Saldos board has no Miembros button; the home and the profile sheet lead there.
+  test("the home leads to the members with full targets", async ({ page }) => {
     const { sharedId } = await session(page, "members-entry");
-    for (const [path, names] of [
-      [`/spaces/${sharedId}`, [es.home.members, es.home.invite]],
-      [`/spaces/${sharedId}/balances`, [es.home.members]],
-    ] as const) {
+    for (const [path, names] of [[`/spaces/${sharedId}`, [es.home.members, es.home.invite]]] as const) {
       await page.goto(path);
       await settle(page);
       for (const name of names) {

@@ -270,6 +270,8 @@ describe("inviting people (HU-E9-05, ruling P162)", () => {
       name: "Revocar la invitación de marta@example.com",
     });
     await userEvent.click(revokeButton);
+    // Ruling P274: the revoke is sent at once; Deshacer restores it on the server.
+    await waitFor(() => expect(requests).toHaveLength(1));
     expect(new URL(requests[0]!.url).pathname).toBe("/api/v1/spaces/sp-household/invitations/inv-2/revoke");
     await waitFor(() => expect(router.refresh).toHaveBeenCalled());
   });
@@ -297,22 +299,16 @@ describe("inviting people (HU-E9-05, ruling P162)", () => {
     expect(await axeViolations(document.body)).toEqual([]);
   });
 
-  it("disables Revoke while the request is in flight", async () => {
-    let release = () => {};
-    const gate = new Promise<void>((resolve) => (release = resolve));
+  it("sends one revoke however often Revocar is pressed", async () => {
     const { api, requests } = fakeApi({
-      "POST /api/v1/spaces/{spaceId}/invitations/{invitationId}/revoke": async () => {
-        await gate;
-        return jsonResponse({ ...PENDING[0], status: "REVOKED" });
-      },
+      "POST /api/v1/spaces/{spaceId}/invitations/{invitationId}/revoke": () =>
+        jsonResponse({ ...PENDING[0], status: "REVOKED" }),
     });
     screenAs("u-ana", "OWNER", api, PENDING);
     const button = screen.getByRole("button", { name: "Revocar la invitación de marta@example.com" });
     await userEvent.dblClick(button);
-    expect(button).toBeDisabled();
-    expect(requests).toHaveLength(1);
-    release();
-    await waitFor(() => expect(button).toBeEnabled());
+    expect(button).not.toBeInTheDocument();
+    await waitFor(() => expect(requests).toHaveLength(1));
   });
 
   it("shows a problem above the list when revoking fails, and renders nothing without invitations", async () => {

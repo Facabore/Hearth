@@ -1111,6 +1111,53 @@
                         "default": "COP",
                         "type": "string",
                         "pattern": "^[A-Z]{3}$"
+                      },
+                      "periodPolicy": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "MONTHLY"
+                              },
+                              "day": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "day"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "SEMI_MONTHLY"
+                              },
+                              "day1": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "day2": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "day1",
+                              "day2"
+                            ]
+                          }
+                        ],
+                        "type": "object"
                       }
                     },
                     "required": [
@@ -1156,7 +1203,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidSpaceName, UnknownCurrency",
+            "description": "ValidationFailed, InvalidSpaceName, InvalidPeriodPolicy, UnknownCurrency",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1863,6 +1910,90 @@
           },
           "409": {
             "description": "InvitationAlreadyUsed, SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/invitations/{invitationId}/restore": {
+      "post": {
+        "operationId": "restoreInvitation",
+        "summary": "Undo a revoke made in the last 30 seconds (ruling P274): the invitation is pending again; restoring twice changes nothing",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "invitationId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pending invitation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invitation"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "InsufficientRole",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound, InvitationNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "InvitationNotRestorable (revoked more than 30 seconds ago, expired, used, or a claim link), SpaceArchived",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11093,6 +11224,13 @@
                             },
                             "overspent": {
                               "type": "boolean"
+                            },
+                            "categoryIds": {
+                              "description": "The categories its spending fell into, a subcategory's counted in its parent, the most spent first; a client names them from the space's categories.",
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
                             }
                           },
                           "required": [
@@ -11646,6 +11784,26 @@
                       ],
                       "additionalProperties": false,
                       "description": "Σ over the listed members of expected, actual and difference."
+                    },
+                    "funds": {
+                      "description": "The space's live fund accounts (SHARED_FUND) by name, as every member reads them in the space's accounts.",
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name"
+                        ],
+                        "additionalProperties": false
+                      }
                     }
                   },
                   "required": [
@@ -11803,6 +11961,26 @@
                               },
                               "amount": {
                                 "$ref": "#/components/schemas/MoneyOutput"
+                              },
+                              "spaces": {
+                                "description": "Every space the row's amount came from: the caller's personal space first, then by space name, then id.",
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "name"
+                                  ],
+                                  "additionalProperties": false
+                                }
                               }
                             },
                             "required": [
@@ -12853,6 +13031,26 @@
                               }
                             ],
                             "description": "Null for a seeded group merged across spaces by key."
+                          },
+                          "spaces": {
+                            "description": "Every space the row's amount came from: the caller's personal space first, then by space name, then id.",
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name"
+                              ],
+                              "additionalProperties": false
+                            }
                           },
                           "categories": {
                             "type": "array",

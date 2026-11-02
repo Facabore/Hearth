@@ -15,6 +15,7 @@ import {
   PersonalTrend,
   SpendingChart,
   treeOf,
+  unbudgetedNamesOf,
 } from "@/modules/reporting/ui/screens";
 import type { PeriodDto, ReportPlanDto } from "@/shared/ui/api/dto";
 import { useApis } from "../api";
@@ -22,6 +23,7 @@ import type { Viewer } from "../load";
 import { daysOf, noPeriod, windowOf } from "../plan/loaders";
 import {
   cashFlowQuery,
+  categoriesQuery,
   lineReportQuery,
   lineTrendQuery,
   membersQuery,
@@ -49,6 +51,7 @@ function Frame({
   period,
   plan: framePlan,
   wide = false,
+  fundNames,
   children,
 }: {
   readonly viewer: Viewer;
@@ -56,6 +59,7 @@ function Frame({
   readonly period: PeriodDto;
   readonly plan: ReportPlanDto | null;
   readonly wide?: boolean;
+  readonly fundNames?: readonly string[];
   readonly children: ReactNode;
 }) {
   const { previous, next } = useNeighbours(viewer.space.id, period);
@@ -69,6 +73,7 @@ function Frame({
       next={next}
       formats={viewer.me.preferences.effective}
       plan={framePlan}
+      fundNames={fundNames}
     >
       {children}
     </DashboardFrame>
@@ -82,6 +87,12 @@ function Lines({ viewer, asked }: { readonly viewer: Viewer; readonly asked: str
   const dashboard = useSuspenseQuery(lineReportQuery(api, viewer.space.id, label)).data;
   const withOverview = viewer.space.kind !== "PERSONAL" && dashboard.plan !== null;
   const overview = useQuery({ ...overviewQuery(api, viewer.space.id, label), enabled: withOverview }).data;
+  // #240: the space's categories name Unbudgeted's; the caption waits for nothing and an older API names none.
+  const unbudgetedIds = dashboard.unbudgeted?.categoryIds;
+  const categories = useQuery({
+    ...categoriesQuery(api, viewer.space.id, "all"),
+    enabled: dashboard.plan !== null && (unbudgetedIds?.length ?? 0) > 0,
+  }).data;
   const formats = viewer.me.preferences.effective;
   return (
     <Frame
@@ -94,7 +105,12 @@ function Lines({ viewer, asked }: { readonly viewer: Viewer; readonly asked: str
       {dashboard.plan === null ? (
         <NoPlan space={viewer.space} dashboard={dashboard} formats={formats} />
       ) : (
-        <LineDashboard dashboard={dashboard} policy={viewer.space.periodPolicy} formats={formats} />
+        <LineDashboard
+          dashboard={dashboard}
+          policy={viewer.space.periodPolicy}
+          formats={formats}
+          unbudgetedNames={unbudgetedNamesOf(unbudgetedIds, categories)}
+        />
       )}
       {withOverview && overview ? (
         <DashOverview space={viewer.space} overview={overview} formats={formats} />
@@ -243,7 +259,13 @@ export function FundRoute() {
     ],
   });
   return (
-    <Frame viewer={viewer} view="fund" period={report.data.period} plan={report.data.plan}>
+    <Frame
+      viewer={viewer}
+      view="fund"
+      period={report.data.period}
+      plan={report.data.plan}
+      fundNames={report.data.funds?.map((account) => account.name)}
+    >
       <FundTracking fund={report.data} members={list.data} formats={viewer.me.preferences.effective} />
     </Frame>
   );

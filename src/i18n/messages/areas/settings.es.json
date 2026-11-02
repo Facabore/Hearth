@@ -1,0 +1,48 @@
+{
+  "settings": {
+    "preview": {
+      "label": "Así se verá"
+    },
+    "numbersAndDates": "Números y fechas",
+    "field": {
+      "numberFormat": "Números",
+      "dateFormat": "Fecha",
+      "timeFormat": "Hora",
+      "weekStart": "La semana empieza",
+      "timezone": "Zona horaria",
+      "theme": "Tema",
+      "language": "Idioma"
+    },
+    "timeFormat": {
+      "H24": "24 horas",
+      "H12": "12 horas"
+    },
+    "weekStart": {
+      "MONDAY": "Lunes",
+      "SUNDAY": "Domingo"
+    },
+    "weekStartSummary": {
+      "MONDAY": "Semana desde el lunes",
+      "SUNDAY": "Semana desde el domingo"
+    },
+    "default": "Predeterminado",
+    "reset": "Restablecer",
+    "locked": "Lo define tu instalación",
+    "appearance": "Apariencia e idioma",
+    "timezone": {
+      "hint": "Define el día y la hora de cada movimiento que registras.",
+      "search": "Buscar zona horaria",
+      "none": "Ninguna zona coincide con «{query}»."
+    },
+    "theme": {
+      "system": "Sistema",
+      "light": "Claro",
+      "dark": "Oscuro"
+    },
+    "language": {
+      "hint": "Solo cambia los textos. Los formatos de números y fechas no dependen del idioma.",
+      "es": "Español",
+      "en": "English"
+    }
+  }
+}

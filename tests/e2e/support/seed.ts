@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import es from "../../../src/i18n/messages/es.json" with { type: "json" };
+import { es } from "../../../src/i18n/messages/full";
 import { STARTER_ACCOUNTS } from "../../../src/modules/accounts/domain/starter-accounts";
 
 /** Shared by the a11y and layout specs: a fresh person with a personal space, and the same seeded ledger. */

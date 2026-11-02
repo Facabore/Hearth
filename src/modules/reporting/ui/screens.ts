@@ -9,6 +9,7 @@ export { FundTracking } from "./fund/fund-tracking";
 export { MemberMatrix } from "./matrix/member-matrix";
 export { SpendingChart } from "./by-group/spending-chart";
 export { treeOf } from "./by-group/spending-tree";
+export { unbudgetedNamesOf } from "./lines/unbudgeted-names";
 export { LineTrend } from "./trend/line-trend";
 export { PersonalTrend } from "./trend/personal-trend";
 export { CashFlowCalendar } from "./calendar/cash-flow-calendar";

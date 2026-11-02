@@ -28,7 +28,7 @@ When(
     await page.getByRole("link", { name: world.t("budgeting.planner.addLine") }).click();
     await page.getByLabel(world.t("budgeting.lineEditor.field.name")).fill(line);
     await page.getByLabel(world.t("budgeting.lineEditor.field.planned")).fill(pesos(planned));
-    await page.getByRole("switch", { name: world.t("budgeting.lineEditor.field.catchAll") }).click();
+    await page.getByRole("checkbox", { name: world.t("budgeting.lineEditor.field.catchAll") }).click();
     await page.getByRole("button", { name: world.t("budgeting.lineEditor.add") }).click();
     await expect(page.getByRole("listitem", { name: line })).toBeVisible();
   },
@@ -36,6 +36,11 @@ When(
 
 When("she activates the plan", async ({ page, world }) => {
   await page.getByRole("button", { name: world.t("budgeting.planner.activate") }).click();
+  // Board 08 of Pantallas nuevas: activating is confirmed in a sheet first.
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: world.t("budgeting.planner.activate") })
+    .click();
   await expect(page.getByText(world.t("budgeting.status.ACTIVE"), { exact: true })).toBeVisible();
 });
 

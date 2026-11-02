@@ -1,0 +1,142 @@
+{
+  "members": {
+    "subtitle": "{space} · {currency} · {policy}",
+    "count": "{count, plural, one {# miembro} other {# miembros}}",
+    "joined": "Se unió el {date}",
+    "created": "Creó el espacio",
+    "guestDetail": "Sin cuenta · no inicia sesión",
+    "role": "Rol de {name}: {role}. Cambiar",
+    "readOnlyNote": "Tu rol en {space} es {role}: puedes ver miembros, saldos y tableros, pero no invitar ni agregar invitados.",
+    "directNote": "{space} es un espacio solo para dos: no admite más miembros.",
+    "roleSheet": {
+      "title": "Rol de {name} en {space}",
+      "label": "Rol",
+      "current": "Actual",
+      "lock": "Solo el Propietario cambia roles. Propietario no se asigna aquí.",
+      "save": "Guardar rol"
+    },
+    "roleDetail": {
+      "ADMIN": "Invita, maneja el plan y edita lo de todos",
+      "MEMBER": "Registra gastos y pagos, agrega invitados",
+      "VIEWER": "Solo ve movimientos, saldos y tableros"
+    },
+    "invite": "Invitar",
+    "inviteSheet": {
+      "title": "Invitar a {space}",
+      "how": "Cómo invitar",
+      "link": "Enlace",
+      "email": "Correo de la persona",
+      "emailTab": "Correo",
+      "role": "Rol al unirse",
+      "ownerNote": "Nadie se une como Propietario: ese rol se cambia desde Miembros.",
+      "createLink": "Crear enlace",
+      "send": "Enviar invitación",
+      "emailHint": "Solo esa cuenta podrá aceptarla, una vez, durante 7 días.",
+      "linkReady": "Enlace listo para compartir",
+      "linkLabel": "Enlace de invitación",
+      "linkNote": "Rol {role} · vence el {date}. Sirve para varias personas hasta que venza o lo revoques.",
+      "linkNoteSingle": "Rol {role} · vence el {date}. Sirve para una sola persona: deja de funcionar cuando alguien se une.",
+      "sent": "Le enviamos la invitación a {email}.",
+      "notSent": "Hearth todavía no envía correos: copia el enlace y compártelo con {email}."
+    },
+    "pending": "Invitaciones pendientes",
+    "pendingEmail": "Correo · {role} · vence el {date}",
+    "pendingLinkTitle": "Enlace de invitación",
+    "pendingLink": "{role} · varias personas · vence el {date}",
+    "pendingLinkSingle": "{role} · una sola persona · vence el {date}",
+    "pendingUses": "{count, plural, one {Usado por {people} persona} other {Usado por {people} personas}}",
+    "revoke": "Revocar",
+    "revokeEmail": "Revocar la invitación de {email}",
+    "revokeLink": "Revocar el enlace de invitación como {role}",
+    "revoked": "Invitación revocada",
+    "undo": "Deshacer",
+    "addGuest": "Agregar invitado",
+    "guestOptions": "Opciones de {name}",
+    "guestSheet": {
+      "addTitle": "Agregar invitado a {space}",
+      "intro": "Para alguien que no usa Hearth. Puede pagar, poner su parte, aportar al plan y recibir pagos, solo en {space}. No inicia sesión.",
+      "name": "Nombre",
+      "nameHint": "Se verá con «(invitado)» al lado. No puede repetir el nombre de otro miembro.",
+      "nameHintNamed": "Se verá como «{name}». No puede repetir el nombre de otro miembro.",
+      "email": "Correo (opcional)",
+      "emailPlaceholder": "Para recordarlo; no recibe nada",
+      "claimNote": "Si se registra después, le envías un enlace para reclamar este lugar y se lleva todo su historial.",
+      "claimNoteNamed": "Si {name} se registra después, le envías un enlace para reclamar este lugar y se lleva todo su historial."
+    },
+    "guest": {
+      "balance": "En {space} · {sentence}",
+      "claimTitle": "Enlace para que {name} reclame su lugar",
+      "claimBody": "Al registrarse o iniciar sesión con este enlace, su lugar de invitado pasa a su cuenta con todo su historial en {space}, como Miembro.",
+      "createClaim": "Crear enlace para reclamar",
+      "claimLabel": "Enlace para reclamar",
+      "claimNote": "Un solo uso · vence el {date}",
+      "remove": "Quitar de {space}",
+      "settle": "Saldar",
+      "blocked": "No puedes quitar a {name}: tiene un saldo pendiente de {amount}. Primero registren el pago.",
+      "confirmTitle": "¿Quitar a {name} de {space}?",
+      "confirmBody": "Su saldo está en {amount}. Su historial queda en los movimientos con su nombre."
+    }
+  },
+  "balances": {
+    "title": "Saldos",
+    "yours": "Tu saldo en {space}",
+    "you": {
+      "owes": "Te toca poner {amount}",
+      "owed": "Te toca recibir {amount}",
+      "settled": "Estás al día"
+    },
+    "suggestions": "Para quedar al día",
+    "owes": "{payer} le paga {amount} a {receiver}",
+    "suggestionsNote": "Sugerencia con el menor número de pagos. Saldar solo prellena el formulario.",
+    "allSettled": "Todos están al día en {space}.",
+    "members": "Cada miembro",
+    "member": {
+      "owes": "le toca poner {amount}",
+      "owed": "le toca recibir {amount}",
+      "settled": "al día",
+      "link": "{name}: {sentence}. Ver historial"
+    },
+    "history": {
+      "pageTitle": "Historial de saldo",
+      "title": "Historial de {name}",
+      "previous": "Período anterior",
+      "next": "Período siguiente",
+      "range": "{start} – {end}",
+      "summary": "Saldo al inicio y al final",
+      "opening": "Al empezar",
+      "closing": "Al terminar",
+      "entries": "Movimientos que cambian su saldo",
+      "empty": "Nada cambió su saldo en este período.",
+      "state": {
+        "owes": "le toca poner",
+        "owed": "le toca recibir",
+        "settled": "al día"
+      },
+      "note": "A la derecha, el saldo después de cada movimiento y debajo cuánto cambió."
+    },
+    "record": "Saldar otro monto",
+    "settle": {
+      "action": "Saldar",
+      "suggestion": "Saldar: {payer} le paga {amount} a {receiver}",
+      "title": "Saldar",
+      "prefilled": "{space} · prellenado desde la sugerencia",
+      "payer": "Quién paga",
+      "receiver": "A",
+      "amount": "Monto",
+      "debt": "Para quedar al día, {payer} le paga {amount} a {receiver}. Puedes registrar un pago parcial; si pagas de más, el saldo cambia de lado.",
+      "noDebt": "{payer} ya está al día con {receiver}.",
+      "guestNote": "{name} es invitado: pagó fuera de la app, así que no hay cuenta de origen.",
+      "from": "Sale de (opcional)",
+      "to": "Llega a (opcional)",
+      "fromName": "Sale de",
+      "toName": "Llega a",
+      "optional": "(opcional)",
+      "none": "Ninguna",
+      "payerRequired": "Elige quién paga.",
+      "save": "Guardar pago"
+    },
+    "toast": {
+      "settled": "Pago registrado"
+    }
+  }
+}

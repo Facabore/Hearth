@@ -84,6 +84,41 @@ describe("category mapping (HU-E9-08, ruling P212)", () => {
     expect(onChange).toHaveBeenCalledWith(["c-groceries", "c-utilities"]);
   });
 
+  it("lays out board 06: a search with its icon, each group's rows in one card, and a footer that counts the chosen", async () => {
+    renderWithIntl(
+      <CategoryMappingSheet
+        open
+        onOpenChange={() => undefined}
+        groups={groups}
+        plan={plan}
+        lineId="l-home"
+        lineName="Home"
+        value={["c-groceries"]}
+        onChange={() => undefined}
+      />,
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Categorías de Home" });
+    const search = within(sheet).getByRole("searchbox", { name: "Buscar categoría" });
+    expect(search).toHaveAttribute("placeholder", "Buscar categoría");
+    expect(search.parentElement!.querySelector("svg")).not.toBeNull();
+    // A group is a heading over a card of rows: a checkbox and the name, no icon.
+    const home = within(sheet).getByRole("group", { name: "Hogar" });
+    const card = home.querySelector(".rounded-2xl")!;
+    expect(card).toHaveClass("divide-y", "border");
+    expect(
+      within(home).getByRole("checkbox", { name: "Groceries" }).closest("label")!.querySelector("svg"),
+    ).toBeNull();
+    // Another line's category is disabled and names that line on the right.
+    const rent = within(home).getByRole("checkbox", { name: "Rent" });
+    expect(rent).toBeDisabled();
+    expect(rent.closest("li")!.lastElementChild).toHaveTextContent("En Rent");
+    // The footer: how many are chosen, beside Listo.
+    const done = within(sheet).getByRole("button", { name: "Listo" });
+    expect(done.parentElement).toHaveTextContent(/^1 elegidaListo$/);
+    await userEvent.click(within(home).getByRole("checkbox", { name: "Utilities" }));
+    expect(done.parentElement).toHaveTextContent(/^2 elegidasListo$/);
+  });
+
   it("starts from the line's categories and an empty search each time it opens", async () => {
     function Reopen() {
       const [open, setOpen] = useState(true);

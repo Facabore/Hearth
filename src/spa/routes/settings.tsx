@@ -2,13 +2,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { useTranslations } from "use-intl";
 import { SettingsForm } from "@/modules/identity/ui";
-import {
-  activeSpaceOf,
-  newSpaceBackHref,
-  NewSpaceForm,
-  spaceHomeHref,
-  SpaceNameSection,
-} from "@/modules/spaces/ui";
+import { activeSpaceOf, spaceHomeHref, SpaceNameSection } from "@/modules/spaces/ui";
 import { NotFoundScreen } from "@/shared/ui";
 import { useApis } from "../api";
 import { meQuery, spacesQuery } from "../queries";
@@ -16,7 +10,6 @@ import { useTitle } from "../title";
 import { ShellFrame } from "./space-shell";
 
 const settings = getRouteApi("/settings");
-const newSpace = getRouteApi("/spaces/new");
 
 /**
  * HU-E9-13: the Settings screen (the form renders its own heading). `?from=` is the space the person came from: Volver
@@ -37,24 +30,6 @@ export function SettingsRoute() {
         <SettingsForm me={me} backHref={spaceHomeHref(spaces, from)} />
         {/* Keyed by the space: another `?from=` starts the field afresh, its own rename's refresh does not. */}
         <SpaceNameSection key={space.id} space={space} />
-      </div>
-    </ShellFrame>
-  );
-}
-
-/**
- * HU-E9-05: create a shared space (a name and a currency). Volver returns to the screen the create link started from
- * (`returnTo`); saving lands in the new space.
- */
-export function NewSpaceRoute() {
-  useTitle(useTranslations("spaces.new")("title"));
-  const { from, returnTo } = newSpace.useSearch();
-  const { api } = useApis();
-  const spaces = useSuspenseQuery(spacesQuery(api)).data;
-  return (
-    <ShellFrame spaceId={null} from={from}>
-      <div className="mx-auto max-w-[560px]">
-        <NewSpaceForm backHref={newSpaceBackHref(spaces, from, returnTo)} />
       </div>
     </ShellFrame>
   );

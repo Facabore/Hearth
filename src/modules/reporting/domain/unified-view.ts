@@ -25,6 +25,8 @@ export interface ConsumptionGroup {
   readonly spaceId: string | null;
   readonly categoryId: string | null;
   readonly amount: bigint;
+  /** #240 (board E9-11 01): every space the group's consumption came from, in `originOrder`. */
+  readonly spaceIds: readonly string[];
 }
 
 /** Who names a merged group: the caller's personal space, else the space spending most in it (ruling P76). */
@@ -47,6 +49,22 @@ const ordinal = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 /** Case ignored, accents not, as `ListCategories` sorts names (ruling P82). */
 export const compareText = (a: string, b: string): number =>
   a.localeCompare(b, "es", { sensitivity: "accent" });
+
+/**
+ * #240 (boards E9-11 01 and 02): the spaces a personal row came from as the boards list them ("Personal y Hogar"):
+ * the caller's personal space first, then by space name (`compareText`), then space id.
+ */
+export const originOrder = (
+  spaceIds: Iterable<string>,
+  personalSpaceId: string,
+  spaceName: (spaceId: string) => string,
+): string[] =>
+  [...spaceIds].sort(
+    (a, b) =>
+      (a === personalSpaceId ? 0 : 1) - (b === personalSpaceId ? 0 : 1) ||
+      compareText(spaceName(a), spaceName(b)) ||
+      ordinal(a, b),
+  );
 
 /**
  * Rulings P76, P106: the space part that names a merged row the personal space does not name: the most spending,
@@ -118,6 +136,7 @@ export const consumptionGroups = (
       spaceId: group.spaceId,
       categoryId: group.categoryId,
       amount: group.amount,
+      spaceIds: originOrder(group.parts.keys(), naming.personalSpaceId, spaceName),
     }));
 };
 

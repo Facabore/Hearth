@@ -5,13 +5,19 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { controlsFor, memberLabel } from "@/modules/spaces/ui";
-import { Avatar, Button, SymbolIcon } from "@/shared/ui";
+import { Avatar, Button, Icon } from "@/shared/ui";
 import type { Api } from "@/shared/ui/api/client";
 import type { AccountDto, BalancesDto, MemberDto, SpaceDto, SuggestionDto } from "@/shared/ui/api/dto";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { absolute, memberSentence, netState } from "./net-state";
 import { SettleUpSheet } from "./settle-up-sheet";
 import { prefillOf, type SettlementDraft } from "./settlement-request";
+
+/** An open settle-up sheet: its draft, and whether a suggestion filled it in. */
+interface Settling {
+  readonly draft: SettlementDraft;
+  readonly suggested: boolean;
+}
 
 /**
  * HU-E9-07, the Balances artboard as `/spaces/{spaceId}/balances` (the Saldos tab, ruling P173): the viewer's own
@@ -22,6 +28,10 @@ import { prefillOf, type SettlementDraft } from "./settlement-request";
  * Settling up (rulings P174 and P175): "Saldar" on a suggestion and "Saldar otro monto" only fill in the settle-up
  * sheet; a payment is recorded when the person saves it. `settle` (the guest sheet's link) opens the sheet for that
  * member. A viewer who cannot record money reads the balances without either control.
+ *
+ * Ruling P272 (board 01): each suggestion is its own card with a filled "Saldar", "Saldar otro monto" is a text link,
+ * and each member row ends in a chevron. The board's strip with the viewer's balance in another space is not drawn:
+ * the API answers balances one space at a time.
  */
 export function BalancesScreen({
   space,
@@ -51,7 +61,6 @@ export function BalancesScreen({
   const t = useTranslations("balances");
   const router = useRouter();
   const tMembers = useTranslations("members");
-  const tHome = useTranslations("home");
   const names = new Map(members.map((member) => [member.id, member.displayName]));
   const netOf = (memberId: string) =>
     balances.find((balance) => balance.memberId === memberId)?.net ?? {
@@ -75,16 +84,19 @@ export function BalancesScreen({
   const settleable = members.filter(
     (member) => member.role !== "VIEWER" || BigInt(netOf(member.id).amount) !== 0n,
   );
-  const prefill = (suggestion: SuggestionDto | null, payerMemberId?: string): SettlementDraft =>
-    prefillOf({
+  // Board 02: an opening from a suggestion says so under the sheet's title.
+  const prefill = (suggestion: SuggestionDto | null, payerMemberId?: string): Settling => ({
+    draft: prefillOf({
       suggestion,
       payerMemberId,
       meMemberId: viewer?.id ?? "",
       currency: space.currency,
       numberFormat: formats.numberFormat,
-    });
+    }),
+    suggested: suggestion !== null,
+  });
   // The sheet is mounted only while it is open, so each opening starts from its own prefill and forgets the last attempt.
-  const [settling, setSettling] = useState<SettlementDraft | null>(() =>
+  const [settling, setSettling] = useState<Settling | null>(() =>
     canSettle && settle && members.some((member) => member.id === settle)
       ? prefill(suggestions.find((s) => s.payerMemberId === settle) ?? null, settle)
       : null,
@@ -93,23 +105,13 @@ export function BalancesScreen({
   return (
     <div className="flex flex-col gap-3 pb-3">
       <h1 className="sr-only">{t("title")}</h1>
-      <section aria-label={t("yours", { space: space.name })} className="flex flex-col gap-1.5 pt-1">
-        <div className="flex items-start justify-between gap-3">
-          <span className="min-w-0 pt-3 text-[15px] text-muted [overflow-wrap:anywhere]">
-            {t("yours", { space: space.name })}
-          </span>
-          {/* N10: the members are one tap from the balances, not only in the profile sheet. */}
-          <Link
-            href={`/spaces/${space.id}/members`}
-            className="flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-line bg-surface px-4 text-sm font-semibold text-ink"
-          >
-            <SymbolIcon name="users" size={18} />
-            {tHome("members")}
-          </Link>
-        </div>
-        <span
-          className={`text-4xl font-semibold tabular-nums ${state === "owes" ? "text-owe" : state === "owed" ? "text-accent" : "text-ink"}`}
-        >
+      {/* Board 01 (P272): the viewer's net in ink, its words saying the direction. The members are one tap away in the
+          profile sheet and on Inicio, so Saldos has no Miembros button of its own. */}
+      <section aria-label={t("yours", { space: space.name })} className="flex flex-col gap-1 pt-1">
+        <span className="min-w-0 text-[15px] text-muted [overflow-wrap:anywhere]">
+          {t("yours", { space: space.name })}
+        </span>
+        <span className="text-[30px] leading-tight font-semibold tabular-nums text-ink">
           {t(`you.${state}`, { amount: formatMoney(absolute(mine), formats) })}
         </span>
       </section>
@@ -123,7 +125,7 @@ export function BalancesScreen({
           </p>
         ) : (
           <>
-            <ol className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
+            <ol className="flex flex-col gap-2">
               {suggestions.map((suggestion) => {
                 const payer = names.get(suggestion.payerMemberId) ?? "";
                 const receiver = names.get(suggestion.receivingMemberId) ?? "";
@@ -135,15 +137,15 @@ export function BalancesScreen({
                 return (
                   <li
                     key={`${suggestion.payerMemberId}-${suggestion.receivingMemberId}`}
-                    className="flex min-h-row-lg items-center gap-3 px-3 py-1.5"
+                    className="flex min-h-row-lg items-center gap-3 rounded-2xl border border-line bg-surface px-3 py-2.5"
                   >
                     <Avatar name={payer} />
-                    <span className="min-w-0 flex-1 text-base tabular-nums [overflow-wrap:anywhere]">
+                    <span className="min-w-0 flex-1 text-[15px] text-ink tabular-nums [overflow-wrap:anywhere]">
                       {sentence}
                     </span>
                     {canSettle ? (
                       <Button
-                        variant="ghost"
+                        size="chip"
                         className="shrink-0"
                         aria-label={t("settle.suggestion", {
                           payer,
@@ -169,7 +171,12 @@ export function BalancesScreen({
             {t("members")}
           </h2>
           {canSettle ? (
-            <Button variant="secondary" className="shrink-0" onClick={() => setSettling(prefill(null))}>
+            <Button
+              variant="ghost"
+              size="compact"
+              className="shrink-0"
+              onClick={() => setSettling(prefill(null))}
+            >
               {t("record")}
             </Button>
           ) : null}
@@ -186,7 +193,7 @@ export function BalancesScreen({
                   href={`/spaces/${space.id}/members/${member.id}/history`}
                   aria-label={t("member.link", { name, sentence })}
                   prefetch={false}
-                  className="flex min-h-12 items-center gap-3 px-3 py-1.5"
+                  className="flex min-h-row-lg items-center gap-2 py-1.5 pr-2.5 pl-3.5"
                 >
                   <span className="min-w-0 flex-1 font-medium [overflow-wrap:anywhere] text-ink">{name}</span>
                   <span
@@ -194,6 +201,8 @@ export function BalancesScreen({
                   >
                     {sentence}
                   </span>
+                  {/* Board 01: the chevron says the row opens the member's history. */}
+                  <Icon name="chevronRight" size={20} className="shrink-0 text-muted" />
                 </Link>
               </li>
             );
@@ -215,7 +224,8 @@ export function BalancesScreen({
           meUserId={meUserId}
           myAccounts={myAccounts}
           suggestions={suggestions}
-          initial={settling}
+          initial={settling.draft}
+          suggested={settling.suggested}
           formats={formats}
           timeZone={timeZone}
           api={api}

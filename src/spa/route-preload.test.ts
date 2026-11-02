@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
-import { chunkFiles, framePick, routePreload, routeTable } from "./route-preload";
+import { chunkFiles, framePick, routeAreas, routePreload, routeTable } from "./route-preload";
 
 const table = routeTable(readFileSync("src/spa/routes.tsx", "utf8"));
 const modulesOf = (pattern: string) => table.find((route) => route.pattern === pattern)?.modules;
+const areasOf = (pattern: string) => table.find((route) => route.pattern === pattern)?.areas;
 
 /** Runs the inline script at `pathname` and answers what it preloaded. */
 const preloadedAt = (pathname: string, files: Record<string, readonly string[]>) => {
@@ -38,6 +39,8 @@ describe("the first screen's chunks, preloaded by the HTML (ADR 0004, 2026-10-28
     expect(modulesOf("/sign-in")).toEqual(["routes/public-layout", "routes/sign-in"]);
     expect(modulesOf("/invitations/$token")).toEqual(["routes/public-layout", "routes/invitation"]);
     expect(modulesOf("/settings")).toEqual(["routes/settings"]);
+    // Ruling P276: New space has a chunk of its own, without the Settings form and its copy.
+    expect(modulesOf("/spaces/new")).toEqual(["routes/new-space"]);
     // Every screen with an address of its own: all the routes with a path but "/", a redirect, and the space's shell.
     const paths = readFileSync("src/spa/routes.tsx", "utf8").match(/\n {2}path: "/g)!.length;
     expect(table).toHaveLength(paths - 2);
@@ -50,6 +53,7 @@ describe("the first screen's chunks, preloaded by the HTML (ADR 0004, 2026-10-28
       "routes/space-home": ["/assets/home.js"],
       "routes/transactions": ["/assets/list.js"],
       "routes/settings": ["/assets/settings.js", "/assets/shared.js"],
+      "routes/new-space": ["/assets/new-space.js", "/assets/shared.js"],
       "routes/public-layout": ["/assets/public.js"],
       "routes/sign-in": ["/assets/sign-in.js"],
     };
@@ -63,7 +67,7 @@ describe("the first screen's chunks, preloaded by the HTML (ADR 0004, 2026-10-28
       "/assets/ledger.js",
       "/assets/home.js",
     ]);
-    expect(preloadedAt("/spaces/new", files)).toEqual(["/assets/settings.js", "/assets/shared.js"]);
+    expect(preloadedAt("/spaces/new", files)).toEqual(["/assets/new-space.js", "/assets/shared.js"]);
     expect(preloadedAt("/sign-in", files)).toEqual(["/assets/public.js", "/assets/sign-in.js"]);
     // An address no screen has adds nothing, and a file two modules share is preloaded once.
     expect(preloadedAt("/nope/deeper", files)).toEqual([]);
@@ -73,24 +77,53 @@ describe("the first screen's chunks, preloaded by the HTML (ADR 0004, 2026-10-28
   });
 
   it("maps each module to its chunk and what that imports, beyond the chunks the app's script loads", () => {
-    const chunk = (fileName: string, module: string | null, imports: string[], isEntry = false) => ({
+    // Windows separators, as the build reports them there.
+    const id = (module: string) => `C:\\repo\\src\\spa\\${module.replaceAll("/", "\\")}.tsx`;
+    const chunk = (
+      fileName: string,
+      module: string | null,
+      imports: string[],
+      isEntry = false,
+      others: string[] = [],
+    ) => ({
       fileName,
-      // Windows separators, as the build reports them there.
-      facadeModuleId: module === null ? null : `C:\\repo\\src\\spa\\${module.replaceAll("/", "\\")}.tsx`,
+      facadeModuleId: module === null ? null : id(module),
+      moduleIds: [...(module === null ? [] : [id(module)]), ...others.map(id)],
       imports,
       isEntry,
     });
     expect(
       chunkFiles([
-        chunk("assets/index.js", "main", ["assets/framework.js"], true),
+        chunk("assets/index.js", "main", ["assets/framework.js"], true, ["routes"]),
         chunk("assets/framework.js", null, []),
         chunk("assets/transactions.js", "routes/transactions", ["assets/framework.js", "assets/list-row.js"]),
         chunk("assets/list-row.js", null, ["assets/icon.js"]),
         chunk("assets/icon.js", null, []),
+        // A loader a screen also imports lives in a chunk the two share, with no facade of its own: still the loader's.
+        chunk("assets/loaders.js", null, ["assets/icon.js"], false, ["plan/loaders", "plan/period"]),
       ]),
     ).toEqual({
       "routes/transactions": ["/assets/transactions.js", "/assets/list-row.js", "/assets/icon.js"],
+      "plan/loaders": ["/assets/loaders.js", "/assets/icon.js"],
+      "plan/period": ["/assets/loaders.js", "/assets/icon.js"],
     });
+  });
+
+  it("reads each screen's catalog areas from its route, and ranks them as the router ranks the paths (ruling P276)", () => {
+    expect(areasOf("/invitations/$token")).toEqual(["invitation"]);
+    expect(areasOf("/claims/$token")).toEqual(["invitation"]);
+    expect(areasOf("/spaces/$spaceId/plans/$planId/capacities")).toEqual(["plan"]);
+    expect(areasOf("/spaces/$spaceId/members")).toEqual(["members"]);
+    expect(areasOf("/spaces/$spaceId")).toEqual([]);
+    expect(areasOf("/sign-in")).toEqual([]);
+    const ranked = routeAreas(table);
+    const first = (pathname: string) => ranked.find(([pattern]) => new RegExp(pattern).test(pathname))?.[1];
+    expect(first("/invitations/tok")).toEqual(["invitation"]);
+    expect(first("/spaces/sp-1/plans/pl-1/capacities")).toEqual(["plan"]);
+    // A static segment before a parameter: New space is not the home of a space called "new".
+    expect(first("/spaces/new")).toEqual(areasOf("/spaces/new"));
+    expect(first("/spaces/sp-1")).toEqual([]);
+    expect(first("/nope/deeper")).toBeUndefined();
   });
 
   it("marks the public frame on the screens the public layout wraps, and the app's elsewhere", () => {

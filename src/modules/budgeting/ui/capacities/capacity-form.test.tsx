@@ -108,14 +108,13 @@ describe("capacities (HU-E9-08)", () => {
     });
   });
 
-  it("shows the amount's format, drops a letter and still saves the capacity (#164)", async () => {
+  it("groups the amount as it is typed, drops a letter and still saves the capacity (#164, board 04)", async () => {
     const { api, requests } = fakeApi({
       [PUT]: () => jsonResponse(referencePlanDto({ version: 8 })),
     });
     show({ viewer: "u-juan", space: householdDto({ role: "MEMBER" }), api });
     const field = screen.getByLabelText("Aporte de Juan");
     await userEvent.clear(field);
-    expect(field).toHaveAccessibleDescription("Ej: 1.250,50");
     await userEvent.type(field, "2x500000");
     expect(field).toHaveValue("2.500.000");
     await userEvent.click(screen.getByRole("button", { name: "Guardar aportes" }));
@@ -138,34 +137,44 @@ describe("capacities (HU-E9-08)", () => {
 
   it("shows the stored total and shares until the save answers, never a sum of the fields (ruling P208)", async () => {
     show({ viewer: "u-ana" });
-    const summary = () => normalized(screen.getByText("Total").closest("div")!.textContent);
-    expect(summary()).toContain("$ 4.000.000");
-    expect(summary()).toContain("Ana $ 1.600.000 · 40,00 %");
-    expect(summary()).toContain("Juan $ 2.400.000 · 60,00 %");
+    // Board 04: one tinted bar, the total on the left and the shares on the right.
+    const bar = () => screen.getByText("Total").closest("div")!;
+    const summary = () => normalized(bar().textContent);
+    expect(bar()).toHaveClass("bg-track", "rounded-xl");
+    expect(summary()).toBe("Total $ 4.000.000Ana 40,00 % · Juan 60,00 %");
     await userEvent.clear(screen.getByLabelText("Aporte de Ana"));
     await userEvent.type(screen.getByLabelText("Aporte de Ana"), "9.000.000");
-    expect(summary()).toContain("$ 4.000.000");
+    expect(summary()).toBe("Total $ 4.000.000Ana 40,00 % · Juan 60,00 %");
     expect(summary()).not.toContain("11.400.000");
-    expect(summary()).toContain("Ana $ 1.600.000 · 40,00 %");
-    expect(summary()).toContain("Juan $ 2.400.000 · 60,00 %");
   });
 
-  it("explains the zero rule and who may change what", () => {
+  it("explains the zero rule and who may change what, in one paragraph", () => {
     show({ viewer: "u-ana" });
-    expect(screen.getByText("Quien no aporta cuenta como $ 0.")).toBeInTheDocument();
-    expect(
-      screen.getByText("Un Miembro solo cambia el suyo; Propietario y Administrador, el de todos."),
-    ).toBeInTheDocument();
-  });
-
-  it("has a way back to the planner and says the period (UI rules)", () => {
-    show({ viewer: "u-ana" });
-    expect(screen.getByRole("heading", { level: 1, name: "Cuánto aporta cada uno" })).toBeInTheDocument();
-    expect(screen.getByText("Lo que cada persona pone en noviembre 2026")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute(
-      "href",
-      "/spaces/sp-household/plans/p-nov",
+    const zero = screen.getByText("Quien no aporta cuenta como $ 0.");
+    const roles = screen.getByText(
+      "Un Miembro solo cambia el suyo; Propietario y Administrador, el de todos.",
     );
+    expect(zero.parentElement).toBe(roles.parentElement);
+    expect(zero.parentElement!.tagName).toBe("P");
+  });
+
+  it("names each member over one large field, with no example under it (board 04)", () => {
+    show({ viewer: "u-ana" });
+    const ana = rowOf("Ana (tú)");
+    expect(ana).not.toHaveClass("border");
+    const field = within(ana).getByLabelText("Aporte de Ana");
+    expect(field).toHaveClass("text-2xl");
+    expect(field).not.toHaveAccessibleDescription();
+    expect(within(ana).queryByText(/^Ej:/)).toBeNull();
+  });
+
+  it("opens as a sheet over the planner whose ✕ goes back to it, and says the period (board 04)", async () => {
+    show({ viewer: "u-ana" });
+    const sheet = await screen.findByRole("dialog", { name: "Cuánto aporta cada uno" });
+    expect(sheet).toHaveAccessibleDescription("Lo que cada persona pone en noviembre 2026");
+    expect(within(sheet).getByRole("button", { name: "Guardar aportes" })).toBeVisible();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Cerrar" }));
+    expect(router.push).toHaveBeenCalledWith("/spaces/sp-household/plans/p-nov");
   });
 
   it("shows a refused amount next to its member's field, and an unreadable one before any call", async () => {

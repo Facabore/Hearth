@@ -56,6 +56,7 @@ describe("line dashboard (HU-E7-01)", () => {
       spent: pesos(60_000),
       available: -pesos(60_000),
       overspent: true,
+      categoryIds: ["cat-restaurants"],
     });
   });
 
@@ -156,6 +157,7 @@ describe("line dashboard (HU-E7-01)", () => {
       spent: pesos(60_000),
       available: -pesos(60_000),
       overspent: true,
+      categoryIds: ["cat-restaurants"],
     });
   });
 
@@ -294,7 +296,32 @@ describe("line dashboard (HU-E7-01)", () => {
       spent: pesos(160_000),
       available: -pesos(160_000),
       overspent: true,
+      categoryIds: ["cat-groceries", "cat-restaurants"],
     });
+  });
+
+  it("names the categories Unbudgeted's spending fell into, the largest first (#240, board E9-10 01)", async () => {
+    const w = reportingWorld();
+    await w.plan("2026-11", referenceParts());
+    w.spending.expenses[NOVEMBER] = [
+      ...novemberSpending(),
+      { categoryId: "cat-outings", amount: pesos(90_000) },
+    ];
+    expect(unwrap(await read(w)).unbudgeted?.categoryIds).toEqual(["cat-outings", "cat-restaurants"]);
+  });
+
+  it("names a subcategory's spending by its parent in a period without a plan, largest first (#240)", async () => {
+    const w = reportingWorld();
+    await w.plan("2026-11", referenceParts());
+    w.spending.expenses["2027-01-01"] = [
+      { categoryId: "cat-restaurants", amount: pesos(60_000) },
+      { categoryId: "cat-vegetables", amount: pesos(50_000) },
+      { categoryId: "cat-meat", amount: pesos(20_000) },
+    ];
+    expect(unwrap(await read(w, "u-ana", "2027-01")).unbudgeted?.categoryIds).toEqual([
+      "cat-groceries",
+      "cat-restaurants",
+    ]);
   });
 
   it("has no Unbudgeted entry when the plan has a catch-all line, which consumes the unmapped spending", async () => {

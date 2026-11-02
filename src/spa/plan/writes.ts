@@ -1,4 +1,4 @@
-import type { SpaceDto } from "@/shared/ui/api/dto";
+import type { BudgetPlanDto, SpaceDto } from "@/shared/ui/api/dto";
 import { queryKeys } from "../queries";
 import { moduleKeys } from "../reads";
 import type { WritePlanner } from "../write-plan";
@@ -15,7 +15,13 @@ export const planWrites: WritePlanner = (call) => {
   if (!PLANS.test(call.path)) return null;
   const { spaceId = "" } = call.params;
   return {
-    accepted: (queryClient) => {
+    accepted: (queryClient, data) => {
+      // Every plan write answers the plan with its new version (ruling P206). Kept at once, so a write that follows
+      // before the plan is read again (a line added right after saving the capacities) sends that version, not the
+      // one this write made stale, and no conflict is reported that nobody else caused.
+      const plan = data as Partial<BudgetPlanDto> | undefined;
+      if (typeof plan?.id === "string" && typeof plan.version === "number")
+        queryClient.setQueryData(moduleKeys.plan(spaceId, plan.id), plan);
       void queryClient.invalidateQueries({ queryKey: moduleKeys.plans(spaceId) });
       void queryClient.invalidateQueries({ queryKey: moduleKeys.reports(spaceId) });
       const spaces = queryClient.getQueryData<SpaceDto[]>(queryKeys.spaces) ?? [];

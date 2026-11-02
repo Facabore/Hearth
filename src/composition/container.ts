@@ -203,6 +203,7 @@ import {
   createListMembers,
   createListMySpaces,
   createListSpacePeriods,
+  createRestoreInvitation,
   createRevokeInvitation,
   createSpaceAccess,
   createUpdateSpaceSettings,
@@ -234,6 +235,7 @@ import {
   type MembersDeps,
   type PreviewClaim,
   type PreviewInvitation,
+  type RestoreInvitation,
   type RevokeInvitation,
   type SpaceCreatedListener,
   type StoredPeriodSource,
@@ -285,6 +287,7 @@ export interface Container extends RouteDeps {
     readonly listMembers: ListMembers;
     readonly createInvitation: CreateInvitation;
     readonly revokeInvitation: RevokeInvitation;
+    readonly restoreInvitation: RestoreInvitation;
     readonly listInvitations: ListInvitations;
     readonly acceptInvitation: AcceptInvitation;
     readonly previewInvitation: PreviewInvitation;
@@ -761,6 +764,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       listMembers: createListMembers(membersDeps),
       createInvitation: createCreateInvitation(invitationsDeps),
       revokeInvitation: createRevokeInvitation(invitationsDeps),
+      restoreInvitation: createRestoreInvitation(invitationsDeps),
       listInvitations: createListInvitations(invitationsDeps),
       acceptInvitation: createAcceptInvitation(invitationsDeps),
       previewInvitation: createPreviewInvitation(invitationsDeps),
@@ -886,7 +890,16 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     reporting: {
       getLineDashboard: createGetLineDashboard(reportingDeps),
       getMemberLineMatrix: createGetMemberLineMatrix(reportingDeps),
-      getFundContributions: createGetFundContributions(reportingDeps),
+      // #240: the fund accounts every member reads in the space's accounts name the fund it tracks.
+      getFundContributions: createGetFundContributions({
+        ...reportingDeps,
+        funds: {
+          fundsOf: async (spaceId) =>
+            (await accountsDeps.accounts.listBySpace(spaceId))
+              .filter((account) => account.type === "SHARED_FUND" && account.archivedAt === null)
+              .map((account) => ({ id: account.id, name: account.name })),
+        },
+      }),
       getUnifiedPersonalView: createGetUnifiedPersonalView(reportingDeps),
       getLineTrend: createGetLineTrend(reportingDeps),
       getPersonalTrend: createGetPersonalTrend(reportingDeps),

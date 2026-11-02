@@ -12,7 +12,6 @@ import {
   ProblemNotice,
   ScreenHeader,
   Sheet,
-  Switch,
   TextField,
 } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
@@ -53,6 +52,7 @@ import {
   type RolloverMode,
 } from "./line-draft";
 import { removeLine, saveLine, type LineSection } from "./line-save";
+import { RadioCard } from "./radio-card";
 
 // Issue #182: the mapping sheet's code loads only when someone opens it, so the editor's first view carries less
 // script and its LCP stays under the budget (the pattern of P177).
@@ -99,11 +99,12 @@ function foldSummary(
 }
 
 /**
- * HU-E9-08, the LineEditor artboard (rulings P210 to P213): a line's name, planned amount, funding and categories with
- * the catch-all switch. Decision U5 (#224) folds the rollover and who answers for it (the allocation, with its preview)
- * under "Más opciones", whose summary shows their current values. An existing line also shows what was planned, spent
- * and left, and can be removed after a confirmation. Saving sends the steps that have something to send, in order,
- * each with the `If-Match` of the plan the step before answered.
+ * HU-E9-08, the LineEditor artboard (rulings P210 to P213, board 05): a line's name beside its planned amount, its
+ * funding as radios in a card, and a categories card with the catch-all checkbox. Decision U5 (#224) folds the
+ * rollover and who answers for it (the allocation, with its preview) under "Más opciones", whose summary shows their
+ * current values; an existing line's removal waits at the end of the fold, behind a confirmation. An existing line of
+ * a plan past its draft also shows what was planned, spent and left. Saving sends the steps that have something to
+ * send, in order, each with the `If-Match` of the plan the step before answered.
  */
 export function LineEditor({
   space,
@@ -331,7 +332,8 @@ export function LineEditor({
     <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4 py-4">
       <ScreenHeader backHref={back} title={line === null ? t("newTitle") : t("title", { name: line.name })} />
 
-      {line !== null ? (
+      {/* Board 05: a draft counts no expenses yet, so its line has no figures to show. */}
+      {line !== null && plan.status !== "DRAFT" ? (
         <section aria-labelledby={`${ids}-figures`} className="rounded-xl border border-line bg-surface p-3">
           <h2 id={`${ids}-figures`} className="sr-only">
             {t("figures")}
@@ -369,46 +371,56 @@ export function LineEditor({
           void save();
         }}
       >
-        <TextField
-          id={`${ids}-name`}
-          label={t("field.name")}
-          autoComplete="off"
-          value={draft.name}
-          onChange={(event) => change({ name: event.target.value }, "name")}
-          error={name}
-        />
-        <NumberField
-          id={`${ids}-planned`}
-          label={t("field.planned")}
-          kind="money"
-          numberFormat={formats.numberFormat}
-          decimals={currencyOf(currency).exponent}
-          symbol={currencyOf(currency).symbol}
-          value={draft.planned}
-          onChange={(planned) => change({ planned }, "planned")}
-          hint={
-            // Issue #175: in a shared plan the capacity check speaks here too, not only at the form's end.
-            !personal && preview.kind === "noCapacity"
-              ? tAllocation("noCapacity")
-              : line?.capacityShare != null
-                ? t("field.plannedHint", {
-                    share: formatPercent(line.capacityShare, formats),
-                    unallocated: money(plan.unallocated),
-                  })
-                : t("field.plannedNewHint", { unallocated: money(plan.unallocated) })
-          }
-          error={planned}
-        />
+        {/* Board 05: Nombre and Planeado share a row; what Planeado leaves to assign is said under both. */}
+        <div className="flex flex-col gap-1.5">
+          <div className="grid grid-cols-2 items-start gap-3">
+            <TextField
+              id={`${ids}-name`}
+              label={t("field.name")}
+              autoComplete="off"
+              value={draft.name}
+              onChange={(event) => change({ name: event.target.value }, "name")}
+              error={name}
+            />
+            <NumberField
+              id={`${ids}-planned`}
+              label={t("field.planned")}
+              kind="money"
+              numberFormat={formats.numberFormat}
+              decimals={currencyOf(currency).exponent}
+              symbol={currencyOf(currency).symbol}
+              example={false}
+              className="font-semibold"
+              aria-describedby={[`${ids}-planned-note`, planned ? `${ids}-planned-error` : null]
+                .filter(Boolean)
+                .join(" ")}
+              value={draft.planned}
+              onChange={(planned) => change({ planned }, "planned")}
+              error={planned}
+            />
+          </div>
+          <p id={`${ids}-planned-note`} className="text-sm [overflow-wrap:anywhere] text-muted">
+            {
+              // Issue #175: in a shared plan the capacity check speaks here too, not only at the form's end.
+              !personal && preview.kind === "noCapacity"
+                ? tAllocation("noCapacity")
+                : line?.capacityShare != null
+                  ? t("field.plannedHint", {
+                      share: formatPercent(line.capacityShare, formats),
+                      unallocated: money(plan.unallocated),
+                    })
+                  : t("field.plannedNewHint", { unallocated: money(plan.unallocated) })
+            }
+          </p>
+        </div>
 
-        {/* U5 and F16 (#224): a visible heading names the choice, and each option says what it means. */}
+        {/* U5 and F16 (#224): a visible heading names the choice; board 05 lists its options as radios in a card. */}
         <div className="flex flex-col gap-2">
           <h2 id={`${ids}-funding`} className="text-base font-semibold text-ink">
             {t("field.funding")}
           </h2>
-          <ChoiceGroup
-            label={t("field.funding")}
+          <RadioCard
             labelledBy={`${ids}-funding`}
-            layout="list"
             value={draft.funding}
             // #170: a personal space has no shared fund, so its lines are paid directly or saved.
             options={FUNDINGS.filter((value) => !personal || value !== "SHARED_FUND").map((value) => ({
@@ -460,17 +472,33 @@ export function LineEditor({
             paint containment clips at the padding box, so `-m-1 p-1` keeps room for the 2 px focus outline and its
             2 px offset. */}
         <div className="-m-1 flex flex-col gap-4 p-1 [contain-intrinsic-size:auto_640px] [content-visibility:auto]">
+          {/* Board 05: the categories are a card, with "Elegir" beside its heading and the catch-all inside it. */}
           {!savings ? (
-            <div className="flex flex-col gap-2">
-              <p id={`${ids}-categories`} className="text-sm font-medium text-ink">
-                {tMapping("label")}
-              </p>
+            <div
+              role="group"
+              aria-labelledby={`${ids}-categories`}
+              className="flex flex-col gap-3 rounded-2xl border border-line bg-surface px-4 py-3"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <h2 id={`${ids}-categories`} className="text-base font-semibold text-ink">
+                  {tMapping("label")}
+                </h2>
+                <Button
+                  variant="ghost"
+                  size="compact"
+                  className="-mr-2 font-medium"
+                  aria-label={tMapping("choose")}
+                  onClick={() => setMapping(true)}
+                >
+                  {tMapping("chooseShort")}
+                </Button>
+              </div>
               {chosen.length > 0 ? (
                 <ul aria-labelledby={`${ids}-categories`} className="flex flex-wrap gap-2">
                   {chosen.map((category) => (
                     <li
                       key={category.id}
-                      className="rounded-full border border-line px-3 py-1 text-sm [overflow-wrap:anywhere] text-ink"
+                      className="rounded-full border border-accent px-3 py-1 text-sm [overflow-wrap:anywhere] text-ink"
                     >
                       {category.name}
                     </li>
@@ -482,22 +510,38 @@ export function LineEditor({
               {categoriesError ? (
                 <FieldError id={`${ids}-categories-error`}>{categoriesError}</FieldError>
               ) : null}
-              <Button variant="secondary" onClick={() => setMapping(true)}>
-                {tMapping("choose")}
-              </Button>
-            </div>
-          ) : null}
-
-          {!savings ? (
-            <div className="flex flex-col gap-1">
-              <Switch
-                id={`${ids}-catch-all`}
-                label={t("field.catchAll")}
-                description={t("field.catchAllHint")}
-                checked={draft.isCatchAll}
-                onCheckedChange={(isCatchAll) => change({ isCatchAll }, "catchAll")}
-              />
-              {catchAllError ? <FieldError id={`${ids}-catch-all-error`}>{catchAllError}</FieldError> : null}
+              <div className="flex flex-col gap-1 border-t border-line pt-3">
+                <label
+                  htmlFor={`${ids}-catch-all`}
+                  className="flex min-h-11 cursor-pointer items-start gap-3"
+                >
+                  <input
+                    id={`${ids}-catch-all`}
+                    type="checkbox"
+                    className="mt-0.5 size-5 shrink-0 accent-accent"
+                    checked={draft.isCatchAll}
+                    onChange={(event) => change({ isCatchAll: event.target.checked }, "catchAll")}
+                    aria-labelledby={`${ids}-catch-all-label`}
+                    aria-describedby={[
+                      `${ids}-catch-all-hint`,
+                      catchAllError ? `${ids}-catch-all-error` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  />
+                  <span className="flex min-w-0 flex-col gap-0.5">
+                    <span id={`${ids}-catch-all-label`} className="font-semibold text-ink">
+                      {t("field.catchAll")}
+                    </span>
+                    <span id={`${ids}-catch-all-hint`} className="text-sm text-muted">
+                      {t("field.catchAllHint")}
+                    </span>
+                  </span>
+                </label>
+                {catchAllError ? (
+                  <FieldError id={`${ids}-catch-all-error`}>{catchAllError}</FieldError>
+                ) : null}
+              </div>
             </div>
           ) : null}
 
@@ -560,6 +604,22 @@ export function LineEditor({
             {allocationError ? (
               <FieldError id={`${ids}-allocation-error`}>{allocationError}</FieldError>
             ) : null}
+            {/* Board 05 shows no removal: it waits at the end of the fold, behind its confirmation. */}
+            {line !== null ? (
+              <Button
+                variant="dangerGhost"
+                size="compact"
+                className="-ml-2 self-start"
+                disabled={pending}
+                onClick={() => {
+                  setFormProblem(null);
+                  setRemoving(true);
+                }}
+              >
+                <Icon name="trash" size={18} />
+                {t("remove.open")}
+              </Button>
+            ) : null}
           </div>
 
           {formProblem !== null && !removing ? <ProblemNotice problem={formProblem} /> : null}
@@ -587,17 +647,6 @@ export function LineEditor({
 
       {line !== null ? (
         <>
-          <Button
-            variant="danger"
-            size="lg"
-            disabled={pending}
-            onClick={() => {
-              setFormProblem(null);
-              setRemoving(true);
-            }}
-          >
-            {t("remove.open")}
-          </Button>
           <Sheet
             open={removing}
             onOpenChange={setRemoving}

@@ -16,7 +16,18 @@ import { MemberRow } from "./member-row";
 import { PendingInvitations } from "./pending-invitations";
 import { RoleSheet } from "./role-sheet";
 import { controlsFor, type SpaceRole } from "./space-controls";
-import { SpaceNameSection } from "../space-name-section";
+
+/**
+ * The member who created the space: its earliest member, while an OWNER. The API does not say who created a space, and
+ * the creator's membership starts with the space, so this is the board's "Creó el espacio" (ruling P272).
+ */
+const creatorOf = (members: readonly MemberDto[]): string | null => {
+  const first = members.reduce<MemberDto | null>(
+    (earliest, member) => (earliest === null || member.joinedAt < earliest.joinedAt ? member : earliest),
+    null,
+  );
+  return first?.role === "OWNER" ? first.id : null;
+};
 
 /** HU-E9-05, the Main artboard as `/spaces/{spaceId}/members`: the members, and the controls the viewer's role allows. */
 export function MembersScreen({
@@ -49,8 +60,11 @@ export function MembersScreen({
   const [inviting, setInviting] = useState(() => openInvite && controlsFor(space.role, space.kind).invite);
   const [addingGuest, setAddingGuest] = useState(false);
   const [guest, setGuest] = useState<MemberDto | null>(null);
-  const [editing, setEditing] = useState<(MemberDto & { role: SpaceRole }) | null>(null);
+  const [editing, setEditing] = useState<(MemberDto & { role: Exclude<SpaceRole, "OWNER"> }) | null>(null);
   const controls = controlsFor(space.role, space.kind);
+  const creator = creatorOf(members);
+  const joinedOn = (member: Pick<MemberDto, "joinedAt">) =>
+    t("joined", { date: formatDate(localDateIn(new Date(member.joinedAt), viewerZone), formats) });
   const policy =
     space.periodPolicy.kind === "MONTHLY"
       ? t("policy.MONTHLY", { day: space.periodPolicy.day })
@@ -65,15 +79,16 @@ export function MembersScreen({
           subtitle={t("subtitle", { space: space.name, currency: space.currency, policy })}
         />
         {controls.invite || controls.addGuest ? (
-          <div className="mt-3 flex flex-wrap gap-2">
+          // The board's two equal buttons; a role with only one of them gets it at full width.
+          <div className={controls.invite && controls.addGuest ? "mt-3 grid grid-cols-2 gap-2" : "mt-3 flex"}>
             {controls.invite ? (
-              <Button onClick={() => setInviting(true)}>
+              <Button className="w-full" onClick={() => setInviting(true)}>
                 <Icon name="link" size={20} />
                 {t("invite")}
               </Button>
             ) : null}
             {controls.addGuest ? (
-              <Button variant="secondary" onClick={() => setAddingGuest(true)}>
+              <Button variant="secondary" className="w-full" onClick={() => setAddingGuest(true)}>
                 <Icon name="userPlus" size={20} />
                 {t("addGuest")}
               </Button>
@@ -88,16 +103,16 @@ export function MembersScreen({
           {t("readOnlyNote", { space: space.name, role: space.role ? roles(space.role) : "" })}
         </p>
       ) : null}
-      {/* #176: an OWNER or ADMIN renames the space here too, not only in Ajustes; the section hides itself otherwise. */}
-      <SpaceNameSection key={space.id} space={space} api={api} />
       <section aria-labelledby="members-count" className="flex flex-col gap-1.5">
         <h2 id="members-count" className="text-sm font-semibold text-muted">
           {t("count", { count: members.length })}
         </h2>
-        <ul className="divide-y divide-line rounded-2xl bg-surface px-3">
+        <ul className="divide-y divide-line rounded-2xl border border-line bg-surface px-3">
           {members.map((member) => {
             const role = member.role;
-            const editable = controls.changeRoles && role !== null && member.userId !== meUserId;
+            // Ruling P272 (P164 overridden): an owner's role is neither changed nor assigned from this list.
+            const editable =
+              controls.changeRoles && role !== null && role !== "OWNER" && member.userId !== meUserId;
             return (
               <MemberRow
                 key={member.id}
@@ -106,11 +121,11 @@ export function MembersScreen({
                 detail={
                   member.kind === "GUEST"
                     ? t("guestDetail")
-                    : t("joined", {
-                        date: formatDate(localDateIn(new Date(member.joinedAt), viewerZone), formats),
-                      })
+                    : member.id === creator
+                      ? t("created")
+                      : joinedOn(member)
                 }
-                roleText={role === null ? t("noRole") : roles(role)}
+                roleText={role === null ? null : roles(role)}
                 onRole={editable ? () => setEditing({ ...member, role }) : undefined}
                 onOptions={
                   member.kind === "GUEST" && (controls.claimLinks || controls.removeGuests)
@@ -169,8 +184,9 @@ export function MembersScreen({
           onOpenChange={(open) => {
             if (!open) setEditing(null);
           }}
-          spaceId={space.id}
+          space={space}
           member={editing}
+          joined={joinedOn(editing)}
           api={api}
         />
       ) : null}

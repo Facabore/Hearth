@@ -27,11 +27,14 @@ export function LineDashboard({
   dashboard,
   policy,
   formats,
+  unbudgetedNames = [],
 }: {
   readonly dashboard: LineDashboardDto;
   /** The space's period policy, which names the period a carry-over comes from (ruling P231 of M6c). */
   readonly policy: SpaceDto["periodPolicy"];
   readonly formats: Pick<Formats, "numberFormat" | "dateFormat">;
+  /** #240 (board E9-10 01): the categories Unbudgeted's spending fell into; none from an older API. */
+  readonly unbudgetedNames?: readonly string[];
 }) {
   const t = useTranslations("reports.lines");
   const summary = useId();
@@ -64,7 +67,11 @@ export function LineDashboard({
         dashboard={dashboard}
         policy={policy}
         formats={formats}
-        unbudgetedCaption={(spent) => t("unbudgetedCaption", { spent })}
+        unbudgetedCaption={(spent) =>
+          unbudgetedNames.length > 0
+            ? t("unbudgetedCaptionIn", { spent, categories: unbudgetedNames.join(", ") })
+            : t("unbudgetedCaption", { spent })
+        }
       />
     </>
   );

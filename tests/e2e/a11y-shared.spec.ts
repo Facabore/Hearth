@@ -2,7 +2,7 @@ import { randomInt } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type APIRequest, type Page } from "@playwright/test";
 import { test } from "./support/clock";
-import es from "../../src/i18n/messages/es.json" with { type: "json" };
+import { es } from "../../src/i18n/messages/full";
 import { BASE_URL as BASE } from "./support/base-url";
 import { Person } from "./support/people";
 import { get, post, put, signUp } from "./support/seed";
@@ -232,7 +232,13 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page.getByRole("radio", { name: es.budgeting.funding.SAVINGS }).click();
       await scan("new savings line");
       await page.goto(`${h}/plans/${ids.plan}/lines/${marketLine.id}`);
-      await expect(page.getByRole("region", { name: es.budgeting.lineEditor.figures })).toBeVisible();
+      // Board 05: the October plan is a draft, so the line shows no figures yet.
+      await expect(
+        page.getByRole("heading", {
+          level: 1,
+          name: es.budgeting.lineEditor.title.replace("{name}", "Mercado"),
+        }),
+      ).toBeVisible();
       await scan("existing line");
       // HU-E9-08: the allocation editor by percentage (with its sum alert, then with the preview), and the category sheet.
       // U5 (#224): it sits under "Más opciones", scanned folded above and open here.
@@ -318,8 +324,33 @@ for (const colorScheme of ["light", "dark"] as const) {
       await scan("guest sheet");
       await page.getByRole("button", { name: es.members.guest.createClaim }).click();
       await scan("guest sheet with its claim link");
-      await page.getByRole("button", { name: fill(es.members.guest.remove, { space: "Household" }) }).click();
-      await scan("guest sheet asking to remove the guest");
+      // Phase 3a (ruling P272): Pedro owes his share of the market, so the sheet says up front that he cannot be removed
+      // yet, offers Saldar, and keeps its removal disabled.
+      const removeGuest = page.getByRole("button", {
+        name: fill(es.members.guest.remove, { space: "Household" }),
+      });
+      await expect(page.getByRole("dialog").getByRole("note")).toContainText(es.members.guest.settle);
+      await expect(removeGuest).toBeDisabled();
+      await scan("guest sheet with a balance, its removal blocked");
+      await page.keyboard.press("Escape");
+      // A guest who never shared an expense has no balance, so her removal asks for a confirmation of its own.
+      await post(page, `/api/v1/spaces/${ids.household}/guests`, { displayName: "Lucía" });
+      await page.reload();
+      await page
+        .getByRole("button", {
+          name: fill(es.members.guestOptions, { name: `Lucía ${es.members.guestSuffix}` }),
+        })
+        .click();
+      await removeGuest.click();
+      await expect(
+        page.getByRole("dialog", {
+          name: fill(es.members.guest.confirmTitle, {
+            name: `Lucía ${es.members.guestSuffix}`,
+            space: "Household",
+          }),
+        }),
+      ).toBeVisible();
+      await scan("guest sheet asking to remove a guest without a balance");
       await page.keyboard.press("Escape");
       await page
         .getByRole("button", { name: fill(es.members.role, { name: "Juan", role: es.shell.role.MEMBER }) })

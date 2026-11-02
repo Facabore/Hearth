@@ -2,7 +2,7 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
-import { categoryDto, cop, groupDto, normalized } from "../../../../../tests/support/ui/dto";
+import { categoryDto, cop, groupDto, normalized, spaceDto } from "../../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse } from "../../../../../tests/support/ui/fake-api";
 import {
   copiedPlanDto,
@@ -28,6 +28,12 @@ beforeEach(() => {
 
 const ACTIVATE = "POST /api/v1/spaces/{spaceId}/plans/{planId}/activate";
 const CLOSE = "POST /api/v1/spaces/{spaceId}/plans/{planId}/close";
+/** Boards 08 and 09 of Pantallas nuevas: the lifecycle button opens a confirmation, whose own button acts. */
+const confirm = async (action: "Activar plan" | "Cerrar plan" | "Activate plan" | "Close plan") => {
+  await userEvent.click(screen.getByRole("button", { name: action }));
+  const sheet = await screen.findByRole("dialog");
+  await userEvent.click(within(sheet).getByRole("button", { name: action }));
+};
 const show = ({
   plan = referencePlanDto(),
   space = householdDto(),
@@ -83,6 +89,90 @@ describe("planner (HU-E9-08)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("draws the capacity as a card: the total, Por repartir beside its heading and a two-tone bar of the shares (board 01)", () => {
+    show();
+    const card = screen.getByRole("region", { name: "Lo que aportan entre todos" });
+    expect(card).toHaveClass("rounded-2xl", "border", "bg-surface");
+    const heading = within(card).getByRole("heading", { name: "Lo que aportan entre todos" });
+    expect(normalized(heading.parentElement!.textContent)).toBe("Lo que aportan entre todosPor repartir $ 0");
+    const bar = card.querySelector("[data-share-bar]")!;
+    expect(bar).toHaveAttribute("aria-hidden", "true");
+    const parts = [...bar.children] as HTMLElement[];
+    expect(parts.map((part) => part.style.flexBasis)).toEqual(["40%", "60%"]);
+    expect(parts[0]!.className).not.toBe(parts[1]!.className);
+    // The shares sit on one line, each percentage in bold: the bar is never the only way to read them.
+    const shares = within(card).getByText(/^Ana/).parentElement!;
+    expect(normalized(shares.textContent)).toBe("Ana $ 1.600.000 · 40,00 %Juan $ 2.400.000 · 60,00 %");
+    expect(within(shares).getByText("40,00 %").tagName).toBe("STRONG");
+  });
+
+  it("offers Editar aportes and Agregar rubro as text links, and makes each line row its own link (board 01)", () => {
+    show();
+    for (const name of ["Editar aportes", "Agregar rubro"]) {
+      const link = screen.getByRole("link", { name });
+      expect(link.className).not.toMatch(/\bborder\b/);
+    }
+    const home = screen.getByRole("listitem", { name: "Home" });
+    const edit = within(home).getByRole("link", { name: "Editar Home" });
+    // No pencil: the link's area covers the row, and its text is the line's name.
+    expect(edit.querySelector("svg")).toBeNull();
+    expect(edit).toHaveTextContent("Home");
+    expect(edit.className).toContain("after:inset-0");
+    // The amount and its share are the row's right column.
+    const figures = home.lastElementChild as HTMLElement;
+    expect(figures).toHaveClass("text-right");
+    expect(normalized(figures.textContent)).toBe("$ 1.470.00036,75 % de lo aportado");
+  });
+
+  it("writes a percentage split with its ratio, and names the sum of one that does not hold (boards 01 and 02)", () => {
+    show({ plan: freeAt99() });
+    const free = within(screen.getByRole("listitem", { name: "Free" }));
+    expect(normalized(free.getByText(/^Cada uno paga/).textContent)).toBe(
+      "Cada uno paga · Porcentaje 42 / 57 · Empieza de cero",
+    );
+    expect(normalized(free.getByText(/^Asignación inválida/).textContent)).toBe(
+      "Asignación inválida: suma 99,00 %",
+    );
+  });
+
+  it("asks before activating, and Ahora no sends nothing (Pantallas nuevas 08)", async () => {
+    const { api, requests } = fakeApi({});
+    show({ api });
+    await userEvent.click(screen.getByRole("button", { name: "Activar plan" }));
+    const sheet = await screen.findByRole("dialog", { name: "¿Activar el plan de noviembre?" });
+    expect(
+      within(sheet)
+        .getAllByRole("listitem")
+        .map((item) => normalized(item.textContent)),
+    ).toEqual([
+      "«Según el plan» pasa a ser la división por defecto",
+      "Los gastos de noviembre se cuentan contra los rubros",
+      "Puedes seguir editándolo mientras esté activo",
+    ]);
+    const [notNow, activate] = within(sheet).getAllByRole("button").slice(-2);
+    expect(notNow).toHaveTextContent("Ahora no");
+    expect(activate).toHaveTextContent("Activar plan");
+    await userEvent.click(notNow!);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(requests).toHaveLength(0);
+  });
+
+  it("asks before closing, saying it stays read-only and the leftover moves on (Pantallas nuevas 09)", async () => {
+    show({ plan: referencePlanDto({ status: "ACTIVE" }), today: "2026-12-01" });
+    await userEvent.click(screen.getByRole("button", { name: "Cerrar plan" }));
+    const sheet = await screen.findByRole("dialog", { name: "¿Cerrar el plan de noviembre?" });
+    expect(
+      within(sheet)
+        .getAllByRole("listitem")
+        .map((item) => normalized(item.textContent)),
+    ).toEqual([
+      "Queda en solo lectura, igual que los gastos fechados en noviembre",
+      "Lo que sobra se pasa según la regla de cada rubro",
+    ]);
+    expect(within(sheet).getByRole("button", { name: "Ahora no" })).toBeEnabled();
+    expect(within(sheet).getByRole("button", { name: "Cerrar plan" })).toBeEnabled();
+  });
+
   it("has a way back to the dashboard of the plan's period, and says the dates (UI rules)", () => {
     show();
     expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute(
@@ -105,18 +195,22 @@ describe("planner (HU-E9-08)", () => {
     });
     show({ plan: freeAt99(), api, today: "2026-12-01" });
     expect(
-      within(screen.getByRole("listitem", { name: "Free" })).getByText("Asignación inválida"),
+      within(screen.getByRole("listitem", { name: "Free" })).getByText(/^Asignación inválida/),
     ).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Activar plan" }));
+    await confirm("Activar plan");
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("El reparto de este rubro no cuadra.");
     expect(alert).toHaveTextContent("No se puede activar: revisa la asignación de Free.");
-    await userEvent.click(screen.getByRole("button", { name: "Activar plan" }));
+    await confirm("Activar plan");
     expect(await screen.findByText("Activo")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Cerrar plan" }));
+    await confirm("Cerrar plan");
     expect(await screen.findByText("Cerrado")).toBeInTheDocument();
-    expect(screen.getByText("Plan cerrado: queda en solo lectura.")).toBeInTheDocument();
+    // Board 03: the read-only note is a tinted box that names the period.
+    const closed = screen.getByText(
+      "Plan cerrado: queda en solo lectura, igual que los gastos fechados en noviembre.",
+    );
+    expect(closed).toHaveClass("rounded-xl", "bg-track");
     expect(screen.queryByRole("link", { name: /^Editar/ })).toBeNull();
     expect(screen.queryByRole("link", { name: "Agregar rubro" })).toBeNull();
     expect(screen.queryByRole("button")).toBeNull();
@@ -139,7 +233,7 @@ describe("planner (HU-E9-08)", () => {
       "GET /api/v1/spaces/{spaceId}/plans/{planId}": () => jsonResponse(fresh),
     });
     show({ api });
-    await userEvent.click(screen.getByRole("button", { name: "Activar plan" }));
+    await confirm("Activar plan");
     expect(await screen.findByRole("alert")).toHaveTextContent("Alguien cambió esto mientras lo editabas.");
     await waitFor(() => expect(screen.queryByRole("listitem", { name: "Free" })).toBeNull());
   });
@@ -150,7 +244,8 @@ describe("planner (HU-E9-08)", () => {
       [ACTIVATE]: () => new Promise<Response>((resolve) => (release = resolve)),
     });
     show({ api });
-    const activate = screen.getByRole("button", { name: "Activar plan" });
+    await userEvent.click(screen.getByRole("button", { name: "Activar plan" }));
+    const activate = within(await screen.findByRole("dialog")).getByRole("button", { name: "Activar plan" });
     await userEvent.dblClick(activate);
     expect(activate).toBeDisabled();
     release(jsonResponse(referencePlanDto({ status: "ACTIVE", version: 8 })));
@@ -164,7 +259,8 @@ describe("planner (HU-E9-08)", () => {
       [ACTIVATE]: () => new Promise<Response>((resolve) => (release = resolve)),
     });
     show({ api });
-    const activate = screen.getByRole("button", { name: "Activar plan" });
+    await userEvent.click(screen.getByRole("button", { name: "Activar plan" }));
+    const activate = within(await screen.findByRole("dialog")).getByRole("button", { name: "Activar plan" });
     // Both clicks run inside one batch: React has not re-rendered the disabled button between them.
     act(() => {
       activate.click();
@@ -254,7 +350,7 @@ describe("closing a plan whose source is still open (ruling P248)", () => {
   it("names the period to close first and links to its plan, then lets the person try again", async () => {
     const { api, requests } = refusing();
     show({ plan: closable("p-oct"), api, today: "2026-12-01" });
-    await userEvent.click(screen.getByRole("button", { name: "Cerrar plan" }));
+    await confirm("Cerrar plan");
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(
       "Primero cierra el plan de 2026-10: este plan arrastra saldo de ese mes.",
@@ -267,7 +363,7 @@ describe("closing a plan whose source is still open (ruling P248)", () => {
 
   it("still says it when the plan does not know where it came from, with no link to follow", async () => {
     show({ plan: closable(null), api: refusing().api, today: "2026-12-01" });
-    await userEvent.click(screen.getByRole("button", { name: "Cerrar plan" }));
+    await confirm("Cerrar plan");
     expect(await screen.findByRole("alert")).toHaveTextContent("Primero cierra el plan de 2026-10");
     expect(screen.queryByRole("link", { name: /^Ir al plan/ })).toBeNull();
   });
@@ -285,11 +381,41 @@ describe("closing a plan whose source is still open (ruling P248)", () => {
       />,
       { locale: "en" },
     );
-    await userEvent.click(screen.getByRole("button", { name: "Close plan" }));
+    await confirm("Close plan");
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Close the plan for 2026-10 first: this plan carries a balance from that month.",
     );
     expect(screen.getByRole("link", { name: "Go to the plan for 2026-10" })).toBeInTheDocument();
+  });
+});
+
+describe("the planner of a personal space", () => {
+  it("fills the bar with its one member and keeps the card's layout (board 01 in Personal)", () => {
+    const plan = referencePlanDto({
+      spaceId: "sp-personal",
+      capacities: [{ memberId: "m-ana", amount: cop(3_200_000), share: "100.00" }],
+      totalCapacity: cop(3_200_000),
+      unallocated: cop(1_900_000),
+    });
+    renderWithIntl(
+      <Planner
+        space={spaceDto()}
+        plan={plan}
+        members={HOUSEHOLD_MEMBERS.slice(0, 1)}
+        formats={BUILT_IN_FORMATS}
+        today="2026-10-31"
+        groups={[]}
+      />,
+    );
+    const card = screen.getByRole("region", { name: "Lo que aportan entre todos" });
+    expect(normalized(card.textContent)).toContain("Por repartir $ 1.900.000");
+    const parts = [...card.querySelector("[data-share-bar]")!.children] as HTMLElement[];
+    expect(parts.map((part) => part.style.flexBasis)).toEqual(["100%"]);
+    expect(within(card).getByText("100,00 %").tagName).toBe("STRONG");
+    expect(screen.getByRole("link", { name: "Agregar rubro" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/plans/p-nov/lines/new",
+    );
   });
 });
 

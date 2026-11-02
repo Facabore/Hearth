@@ -209,6 +209,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/spaces/{spaceId}/invitations/{invitationId}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Undo a revoke made in the last 30 seconds (ruling P274): the invitation is pending again; restoring twice changes nothing */
+        post: operations["restoreInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/invitations/{token}": {
         parameters: {
             query?: never;
@@ -2443,6 +2460,16 @@ export interface operations {
                     name: string;
                     /** @default COP */
                     currency?: string;
+                    periodPolicy?: {
+                        /** @constant */
+                        kind: "MONTHLY";
+                        day: number;
+                    } | {
+                        /** @constant */
+                        kind: "SEMI_MONTHLY";
+                        day1: number;
+                        day2: number;
+                    };
                 };
             };
         };
@@ -2474,7 +2501,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidSpaceName, UnknownCurrency */
+            /** @description ValidationFailed, InvalidSpaceName, InvalidPeriodPolicy, UnknownCurrency */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2901,6 +2928,65 @@ export interface operations {
                 };
             };
             /** @description InvitationAlreadyUsed, SpaceArchived */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    restoreInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+                invitationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The pending invitation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invitation"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description InsufficientRole */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound, InvitationNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description InvitationNotRestorable (revoked more than 30 seconds ago, expired, used, or a claim link), SpaceArchived */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7738,6 +7824,8 @@ export interface operations {
                             spent: components["schemas"]["MoneyOutput"];
                             available: components["schemas"]["MoneyOutput"];
                             overspent: boolean;
+                            /** @description The categories its spending fell into, a subcategory's counted in its parent, the most spent first; a client names them from the space's categories. */
+                            categoryIds?: string[];
                         } | null;
                         /** @description Σ of the lines' figures plus Unbudgeted's spent and available; planned counts the lines only. */
                         totals: {
@@ -7920,6 +8008,11 @@ export interface operations {
                             actual: components["schemas"]["MoneyOutput"];
                             difference: components["schemas"]["MoneyOutput"];
                         };
+                        /** @description The space's live fund accounts (SHARED_FUND) by name, as every member reads them in the space's accounts. */
+                        funds?: {
+                            id: string;
+                            name: string;
+                        }[];
                     };
                 };
             };
@@ -7989,6 +8082,11 @@ export interface operations {
                                     name: string;
                                 } | null;
                                 amount: components["schemas"]["MoneyOutput"];
+                                /** @description Every space the row's amount came from: the caller's personal space first, then by space name, then id. */
+                                spaces?: {
+                                    id: string;
+                                    name: string;
+                                }[];
                             }[];
                         };
                         cashOut: {
@@ -8363,6 +8461,11 @@ export interface operations {
                                 id: string;
                                 name: string;
                             } | null;
+                            /** @description Every space the row's amount came from: the caller's personal space first, then by space name, then id. */
+                            spaces?: {
+                                id: string;
+                                name: string;
+                            }[];
                             categories: {
                                 /** @description Null for a seeded category merged inside a merged seeded group; a custom category keeps its id. */
                                 id: string | null;

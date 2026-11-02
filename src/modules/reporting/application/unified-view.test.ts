@@ -34,9 +34,33 @@ describe("unified personal view (HU-E7-04)", () => {
     expect(view.consumption.total).toBe(pesos(1_575_000));
     // Ruling P76: Household's "Mercado" takes the name Ana's personal space gives the key.
     expect(view.consumption.groups).toEqual([
-      { key: "groceries", name: "Groceries", space: null, category: null, amount: pesos(1_035_000) },
-      { key: "rent", name: "Rent", space: null, category: null, amount: pesos(480_000) },
-      { key: "restaurants", name: "Restaurants", space: null, category: null, amount: pesos(60_000) },
+      {
+        key: "groceries",
+        name: "Groceries",
+        space: null,
+        category: null,
+        amount: pesos(1_035_000),
+        spaces: [
+          { id: "space-ana", name: "Personal" },
+          { id: "space-household", name: "Household" },
+        ],
+      },
+      {
+        key: "rent",
+        name: "Rent",
+        space: null,
+        category: null,
+        amount: pesos(480_000),
+        spaces: [{ id: "space-household", name: "Household" }],
+      },
+      {
+        key: "restaurants",
+        name: "Restaurants",
+        space: null,
+        category: null,
+        amount: pesos(60_000),
+        spaces: [{ id: "space-ana", name: "Personal" }],
+      },
     ]);
   });
 
@@ -116,6 +140,7 @@ describe("unified personal view (HU-E7-04)", () => {
         space: { id: "space-ana", name: "Personal" },
         category: { id: "cat-ana-pets", name: "Pets" },
         amount: pesos(40_000),
+        spaces: [{ id: "space-ana", name: "Personal" }],
       },
       {
         key: null,
@@ -123,6 +148,7 @@ describe("unified personal view (HU-E7-04)", () => {
         space: { id: "space-household", name: "Household" },
         category: { id: "cat-pets", name: "Pets" },
         amount: pesos(30_000),
+        spaces: [{ id: "space-household", name: "Household" }],
       },
     ]);
   });

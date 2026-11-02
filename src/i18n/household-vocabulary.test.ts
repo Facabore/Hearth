@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import es from "./messages/es.json" with { type: "json" };
+import { es } from "./messages/full";
 
 type Catalog = { [key: string]: string | Catalog };
 const strings = (catalog: Catalog, prefix = ""): [string, string][] =>

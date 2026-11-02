@@ -2,7 +2,7 @@ import { randomInt } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, request, type Page } from "@playwright/test";
 import { test } from "../support/clock";
-import es from "../../../src/i18n/messages/es.json" with { type: "json" };
+import { es } from "../../../src/i18n/messages/full";
 import { BASE_URL } from "../support/base-url";
 
 const WCAG = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];

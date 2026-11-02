@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useId, useMemo, useRef, useState } from "react";
-import { Button, NumberField, ProblemNotice, ScreenHeader, usePeriodText } from "@/shared/ui";
+import { Button, NumberField, ProblemNotice, Sheet, usePeriodText } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { BudgetPlanDto, CapacitySuggestionDto, SpaceDto, SpaceMemberDto } from "@/shared/ui/api/dto";
 import type { Problem } from "@/shared/ui/api/problem";
@@ -123,14 +123,22 @@ export function CapacityForm({
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-[720px] flex-col gap-3 py-3">
-      <ScreenHeader
-        backHref={`/spaces/${space.id}/plans/${plan.id}`}
-        title={t("capacity.title")}
-        subtitle={t("capacity.subtitle", { period: periodText(plan.period, space.periodPolicy, formats) })}
-      />
-
-      <div className="flex flex-col gap-3">
+    <Sheet
+      open
+      onOpenChange={(open) => {
+        if (!open) router.push(`/spaces/${space.id}/plans/${plan.id}`);
+      }}
+      title={t("capacity.title")}
+      description={t("capacity.subtitle", { period: periodText(plan.period, space.periodPolicy, formats) })}
+      footer={
+        editableIds.length > 0 ? (
+          <Button size="lg" disabled={pending} onClick={() => void save()}>
+            {t("capacity.save")}
+          </Button>
+        ) : undefined
+      }
+    >
+      <div className="flex flex-col gap-4 pt-2 pb-1">
         {members.map((member) => {
           const mine = member.userId === viewerUserId;
           const editable = mayEdit(member);
@@ -141,38 +149,39 @@ export function CapacityForm({
               ? suggestion.suggested
               : null;
           return (
-            <div
-              key={member.id}
-              role="group"
-              aria-labelledby={labelId}
-              className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-3"
-            >
-              <p id={labelId} className="font-medium [overflow-wrap:anywhere] text-ink">
+            <div key={member.id} role="group" aria-labelledby={labelId} className="flex flex-col gap-2">
+              <p id={labelId} className="font-semibold [overflow-wrap:anywhere] text-ink">
                 {mine ? t("capacity.you", { name: member.displayName }) : member.displayName}
               </p>
               {editable ? (
-                <NumberField
-                  id={`${ids}-field-${member.id}`}
-                  label={t("capacity.field", { name: member.displayName })}
-                  kind="money"
-                  numberFormat={formats.numberFormat}
-                  decimals={exponent}
-                  symbol={currencyOf(currency).symbol}
-                  value={drafts[member.id] ?? ""}
-                  onChange={(next) => {
-                    setDrafts((current) => ({ ...current, [member.id]: next }));
-                    if (failure?.field === member.id) setFailure(null);
-                  }}
-                  error={errorOf(member)}
-                />
+                // Board 04: the member's name above is the field's visible label; "Aporte de Ana" names it to
+                // assistive technology, and the large field carries no example.
+                <div className="[&_label]:sr-only">
+                  <NumberField
+                    id={`${ids}-field-${member.id}`}
+                    label={t("capacity.field", { name: member.displayName })}
+                    kind="money"
+                    numberFormat={formats.numberFormat}
+                    decimals={exponent}
+                    symbol={currencyOf(currency).symbol}
+                    example={false}
+                    large
+                    value={drafts[member.id] ?? ""}
+                    onChange={(next) => {
+                      setDrafts((current) => ({ ...current, [member.id]: next }));
+                      if (failure?.field === member.id) setFailure(null);
+                    }}
+                    error={errorOf(member)}
+                  />
+                </div>
               ) : (
-                <p className="text-lg font-semibold tabular-nums [overflow-wrap:anywhere] text-ink">
+                <p className="text-2xl font-semibold tabular-nums [overflow-wrap:anywhere] text-ink">
                   {money(stored?.amount ?? zero)}
                 </p>
               )}
               {suggested !== null ? (
-                <div className="flex flex-col items-start gap-2 text-sm text-muted">
-                  <p className="[overflow-wrap:anywhere]">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-accent-soft p-3 text-sm text-ink">
+                  <p className="min-w-0 flex-1 basis-40 [overflow-wrap:anywhere]">
                     {t("capacity.suggestion", {
                       amount: money(suggested),
                       period: periodText(suggestion!.period, space.periodPolicy, formats),
@@ -180,8 +189,9 @@ export function CapacityForm({
                   </p>
                   {editable ? (
                     <Button
-                      variant="secondary"
+                      variant="primary"
                       size="compact"
+                      className="px-4"
                       onClick={() => {
                         setDrafts((current) => ({
                           ...current,
@@ -198,40 +208,30 @@ export function CapacityForm({
             </div>
           );
         })}
-      </div>
 
-      <p className="text-sm text-muted">{t("capacity.zeroNote", { zero: money(zero) })}</p>
-      <p className="text-sm text-muted">{t("capacity.rolesNote")}</p>
-
-      <div className="flex flex-col gap-1 tabular-nums">
-        <p className="flex flex-wrap items-baseline justify-between gap-x-2">
-          <span className="text-base font-semibold text-ink">{t("capacity.total")}</span>
-          <span className="text-2xl font-semibold [overflow-wrap:anywhere] text-ink">
-            {money(plan.totalCapacity)}
-          </span>
+        <p className="text-sm text-muted">
+          <span>{t("capacity.zeroNote", { zero: money(zero) })}</span> <span>{t("capacity.rolesNote")}</span>
         </p>
-        {plan.capacities.map((capacity) => {
-          const name = names.get(capacity.memberId) ?? "—";
-          return (
-            <p key={capacity.memberId} className="text-sm [overflow-wrap:anywhere] text-ink">
-              {capacity.share === null
-                ? t("planner.memberAmount", { name, amount: money(capacity.amount) })
-                : t("planner.memberShare", {
-                    name,
-                    amount: money(capacity.amount),
-                    share: formatPercent(capacity.share, formats),
-                  })}
-            </p>
-          );
-        })}
-      </div>
 
-      {formProblem !== null ? <ProblemNotice problem={formProblem} /> : null}
-      {editableIds.length > 0 ? (
-        <Button size="lg" disabled={pending} onClick={() => void save()}>
-          {t("capacity.save")}
-        </Button>
-      ) : null}
-    </div>
+        {/* Board 04: one tinted bar, the stored total on the left and each member's stored share on the right. */}
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded-xl bg-track px-4 py-3 text-sm text-ink tabular-nums">
+          <p className="[overflow-wrap:anywhere]">
+            {t("capacity.total")} <strong className="font-semibold">{money(plan.totalCapacity)}</strong>
+          </p>
+          <p className="[overflow-wrap:anywhere] text-muted">
+            {plan.capacities
+              .map((capacity) => {
+                const name = names.get(capacity.memberId) ?? "—";
+                return capacity.share === null
+                  ? t("planner.memberAmount", { name, amount: money(capacity.amount) })
+                  : t("capacity.memberShare", { name, share: formatPercent(capacity.share, formats) });
+              })
+              .join(" · ")}
+          </p>
+        </div>
+
+        {formProblem !== null ? <ProblemNotice problem={formProblem} /> : null}
+      </div>
+    </Sheet>
   );
 }

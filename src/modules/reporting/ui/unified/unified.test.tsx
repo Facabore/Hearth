@@ -115,6 +115,45 @@ describe("unified personal view (HU-E9-11)", () => {
     expect(textOf("Lo que pagaste")).not.toContain("2.625.000");
   });
 
+  it("says under each row where it came from, as board E9-11 01 does (#240)", async () => {
+    const personal = { id: "sp-personal", name: "Personal" };
+    const home = { id: "sp-household", name: "Hogar" };
+    const trip = { id: "sp-trip", name: "Viaje" };
+    const view = e74Unified();
+    const [groceries, rent, restaurants] = view.consumption.categories;
+    view.consumption.categories = [
+      { ...groceries!, spaces: [personal, home] },
+      { ...rent!, spaces: [home] },
+      { ...restaurants!, spaces: [personal] },
+      { ...restaurants!, key: "travel", name: "Travel", spaces: [personal, home, trip] },
+    ];
+    const { container } = renderWithIntl(
+      <UnifiedView view={view} formats={BUILT_IN_FORMATS} personalSpaceId="sp-personal" />,
+    );
+    expect([...container.querySelectorAll("[data-origin]")].map((o) => o.textContent)).toEqual([
+      "Personal y Hogar",
+      "Hogar · tu parte",
+      "Personal",
+      "Personal, Hogar y Viaje",
+    ]);
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("says where a row came from in English, and keeps the old rows when an older API names no space", () => {
+    const view = e74Unified();
+    view.consumption.categories = [
+      { ...view.consumption.categories[1]!, spaces: [{ id: "sp-household", name: "Household" }] },
+    ];
+    const { container } = renderWithIntl(
+      <UnifiedView view={view} formats={BUILT_IN_FORMATS} personalSpaceId="sp-personal" />,
+      { locale: "en" },
+    );
+    expect(container.querySelector("[data-origin]")?.textContent).toBe("Household · your share");
+    cleanup();
+    const old = renderWithIntl(<UnifiedView view={e74Unified()} formats={BUILT_IN_FORMATS} />);
+    expect(old.container.querySelector("[data-origin]")).toBeNull();
+  });
+
   it("lists the categories as plain rows under a small label, with no bars (board E9-11 01, ruling P272)", () => {
     const { container } = renderWithIntl(<UnifiedView view={e74Unified()} formats={BUILT_IN_FORMATS} />);
     expect(container.querySelector("[data-bar]")).toBeNull();

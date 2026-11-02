@@ -1,5 +1,6 @@
 import { ok, type Period, type Result } from "@/shared/kernel";
 import { fundContributions, type FundContribution } from "../domain/fund-contributions";
+import { compareText } from "../domain/unified-view";
 import type { MemberSumsDeps } from "./member-sums";
 import { reportPlanOf, spaceReport, type ReportPlan, type SpaceReportInput } from "./space-report";
 
@@ -10,6 +11,15 @@ export interface FundTotals {
   readonly difference: bigint;
 }
 
+/** #240: a space's live fund accounts (SHARED_FUND, HU-E2-02), which every member reads in its accounts. */
+export interface SpaceFunds {
+  fundsOf(spaceId: string): Promise<readonly { readonly id: string; readonly name: string }[]>;
+}
+
+export interface FundDeps extends MemberSumsDeps {
+  readonly funds: SpaceFunds;
+}
+
 export interface FundContributionReport {
   readonly spaceId: string;
   readonly currency: string;
@@ -18,6 +28,8 @@ export interface FundContributionReport {
   /** Every current member in join order (ruling P7). */
   readonly members: readonly FundContribution[];
   readonly totals: FundTotals;
+  /** #240 (board E9-10 04): the space's live fund accounts by name, so a screen says whose fund it tracks. */
+  readonly funds: readonly { readonly id: string; readonly name: string }[];
 }
 
 export type GetFundContributions = (input: SpaceReportInput) => Promise<Result<FundContributionReport>>;
@@ -27,7 +39,7 @@ export type GetFundContributions = (input: SpaceReportInput) => Promise<Result<F
  * SHARED_FUND lines) against what they paid into the space's funds in the period (ruling P36), computed on read (D7).
  */
 export const createGetFundContributions =
-  (deps: MemberSumsDeps): GetFundContributions =>
+  (deps: FundDeps): GetFundContributions =>
   async (input) => {
     const report = await spaceReport(deps, input);
     if (!report.ok) return report;
@@ -42,6 +54,9 @@ export const createGetFundContributions =
       fundLines,
       actual,
     );
+    const funds = [...(await deps.funds.fundsOf(space.spaceId))]
+      .sort((a, b) => compareText(a.name, b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+      .map(({ id, name }) => ({ id, name }));
     const sum = (pick: (row: FundContribution) => bigint) =>
       rows.reduce((total, row) => total + pick(row), 0n);
     return ok({
@@ -55,5 +70,6 @@ export const createGetFundContributions =
         actual: sum((r) => r.actual),
         difference: sum((r) => r.difference),
       },
+      funds,
     });
   };

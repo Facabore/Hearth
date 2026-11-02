@@ -55,7 +55,7 @@ export interface LineDashboardDto {
   period: ReportPeriodDto;
   plan: ReportPlanDto | null;
   lines: DashboardLineDto[];
-  unbudgeted: { spent: MoneyDto; available: MoneyDto; overspent: boolean } | null;
+  unbudgeted: { spent: MoneyDto; available: MoneyDto; overspent: boolean; categoryIds?: string[] } | null;
   totals: { planned: MoneyDto; spent: MoneyDto; available: MoneyDto };
   categoryLines: { categoryId: string; lineId: string | null }[];
 }
@@ -157,6 +157,7 @@ export interface FundContributionsDto {
   plan: ReportPlanDto | null;
   members: { memberId: string; expected: MoneyDto; actual: MoneyDto; difference: MoneyDto }[];
   totals: { expected: MoneyDto; actual: MoneyDto; difference: MoneyDto };
+  funds?: { id: string; name: string }[];
 }
 
 /** HU-E7-03: `user` reads the fund contribution tracking of `spaceId`. */
@@ -185,6 +186,7 @@ export interface UnifiedViewDto {
       space: { id: string; name: string } | null;
       category: { id: string; name: string } | null;
       amount: MoneyDto;
+      spaces?: { id: string; name: string }[];
     }[];
   };
   cashOut: {
@@ -275,6 +277,7 @@ export interface PersonalSpendingByGroupDto {
   total: MoneyDto;
   groups: (SpendingNodeDto & {
     space: SpaceRefDto | null;
+    spaces?: SpaceRefDto[];
     categories: (SpendingNodeDto & {
       space: SpaceRefDto | null;
       subcategories: (SubcategorySpendingDto & { space: SpaceRefDto | null })[];

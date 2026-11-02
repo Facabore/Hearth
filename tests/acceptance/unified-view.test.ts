@@ -100,11 +100,34 @@ describe("unified personal view over HTTP (HU-E7-04)", () => {
     const { h } = await background();
     const view = await viewOf(h.ana);
     expect(view.consumption.total).toEqual(cop(1_575_000));
+    const personal = { id: h.ana.personal.spaceId, name: "Personal" };
+    const household = { id: h.spaceId, name: "Household" };
     expect(view.consumption.categories).toEqual([
       // Named as Ana's personal space names each key (ruling P76), seeded in Spanish.
-      { key: "groceries", name: "Mercado", space: null, category: null, amount: cop(1_035_000) },
-      { key: "rent", name: "Arriendo", space: null, category: null, amount: cop(480_000) },
-      { key: "restaurants", name: "Restaurantes", space: null, category: null, amount: cop(60_000) },
+      {
+        key: "groceries",
+        name: "Mercado",
+        space: null,
+        category: null,
+        amount: cop(1_035_000),
+        spaces: [personal, household],
+      },
+      {
+        key: "rent",
+        name: "Arriendo",
+        space: null,
+        category: null,
+        amount: cop(480_000),
+        spaces: [household],
+      },
+      {
+        key: "restaurants",
+        name: "Restaurantes",
+        space: null,
+        category: null,
+        amount: cop(60_000),
+        spaces: [personal],
+      },
     ]);
   });
 
@@ -339,6 +362,15 @@ describe("personal spending by group over HTTP (HU-E7-06)", () => {
     // Groceries of both spaces is one row under its catalog key.
     expect(breakdown.groups[0]!.categories.filter((c) => c.key === "groceries")).toMatchObject([
       { id: null, space: null, total: cop(1_035_000) },
+    ]);
+    // #240 (board E9-11 02): each group names the spaces it came from, Ana's personal space first.
+    const personal = { id: h.ana.personal.spaceId, name: "Personal" };
+    const household = { id: h.spaceId, name: "Household" };
+    expect(breakdown.groups.map((g) => g.spaces)).toEqual([
+      [personal, household],
+      [household],
+      [personal],
+      [household],
     ]);
   });
 

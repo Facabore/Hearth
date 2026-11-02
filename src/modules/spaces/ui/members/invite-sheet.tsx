@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import { localDateIn } from "@/shared/kernel/time-zone";
-import { Button, ChoiceGroup, CopyField, ProblemNotice, Sheet, TextField } from "@/shared/ui";
+import { Button, ChoiceGroup, CopyField, Icon, ProblemNotice, Sheet, TextField } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { CreatedInvitationDto, SpaceDto } from "@/shared/ui/api/dto";
 import { fieldOf, problemFrom, type Problem } from "@/shared/ui/api/problem";
@@ -101,9 +101,14 @@ export function InviteSheet({
           ]}
         />
         <div className="flex flex-col gap-2">
+          <h3 id="invite-role" className="text-sm font-semibold text-ink">
+            {t("role")}
+          </h3>
+          {/* The board's full-width role cards; the chosen one is outlined, tinted and checked. */}
           <ChoiceGroup
             label={t("role")}
-            layout="chips"
+            labelledBy="invite-role"
+            layout="list"
             value={role}
             onValueChange={(next) => {
               setRole(next);
@@ -112,11 +117,12 @@ export function InviteSheet({
             options={ROLES.map((value) => ({
               value,
               label: (
-                <span className="flex flex-col items-start py-1 text-left">
-                  <span>{roles(value)}</span>
-                  <span className="text-xs font-normal text-muted">{details(value)}</span>
+                <span className="flex items-center justify-between gap-2 text-base font-semibold">
+                  {roles(value)}
+                  {value === role ? <Icon name="check" size={20} className="shrink-0 text-accent" /> : null}
                 </span>
               ),
+              description: details(value),
             }))}
           />
           <p className="text-sm text-muted">{t("ownerNote")}</p>

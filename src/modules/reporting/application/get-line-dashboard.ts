@@ -1,8 +1,10 @@
 import {
   categoryLinesOf,
+  type BudgetPlanView,
   type CategoryLine,
   type Funding,
   type LineFigure,
+  unbudgetedCategoriesOf,
 } from "@/modules/budgeting/application";
 import { ok, type Period, type Result } from "@/shared/kernel";
 import { lineStateOf, type LineState } from "@/shared/kernel/line-state";
@@ -33,6 +35,8 @@ export interface UnbudgetedSpending {
   readonly spent: bigint;
   readonly available: bigint;
   readonly overspent: boolean;
+  /** #240 (board E9-10 01): the categories its spending fell into, rolled up (HU-E3-04), the most spent first. */
+  readonly categoryIds: readonly string[];
 }
 
 /**
@@ -66,10 +70,11 @@ export interface LineDashboard {
 
 export type GetLineDashboard = (input: SpaceReportInput) => Promise<Result<LineDashboard>>;
 
-const unbudgeted = (spent: bigint): UnbudgetedSpending => ({
+const unbudgeted = (spent: bigint, categoryIds: readonly string[]): UnbudgetedSpending => ({
   spent,
   available: -spent,
   overspent: spent > 0n,
+  categoryIds,
 });
 
 const sumOf = (lines: readonly DashboardLine[], figure: "planned" | "spent" | "available"): bigint =>
@@ -90,6 +95,18 @@ const totalsOf = (lines: readonly DashboardLine[], rest: UnbudgetedSpending | nu
   };
 };
 
+/** #240: Unbudgeted's categories within the plan's stored dates, which its figures count; none to name when it is 0. */
+const unbudgetedIn = async (
+  deps: ReportingDeps,
+  view: BudgetPlanView,
+  categories: Awaited<ReturnType<ReportingDeps["categories"]["list"]>>,
+): Promise<readonly string[]> => {
+  if (view.figures.unbudgeted?.spent === 0n) return [];
+  const { spaceId, period } = view.plan;
+  const spending = await deps.spending.expensesByCategory(spaceId, period.start, period.end);
+  return unbudgetedCategoriesOf(view, categories, spending);
+};
+
 /**
  * HU-E7-01: planned, spent, carry-over and available per line of the period's plan, exactly as the plan reports
  * them (`loadPlanView`, spec 5.4, ruling P32), computed on read (D7).
@@ -101,9 +118,13 @@ export const createGetLineDashboard =
     if (!report.ok) return report;
     const { space, period, view } = report.value;
     const base = { spaceId: space.spaceId, currency: space.currency, period, plan: reportPlanOf(view) };
+    const categories = await deps.categories.list(space.spaceId);
     if (view === null) {
       const spending = await deps.spending.expensesByCategory(space.spaceId, period.start, period.end);
-      const rest = unbudgeted(spending.reduce((sum, c) => sum + c.amount, 0n));
+      const rest = unbudgeted(
+        spending.reduce((sum, c) => sum + c.amount, 0n),
+        unbudgetedCategoriesOf(null, categories, spending),
+      );
       return ok({ ...base, lines: [], unbudgeted: rest, totals: totalsOf([], rest), categoryLines: [] });
     }
     const { figures } = view;
@@ -123,7 +144,10 @@ export const createGetLineDashboard =
         f.line.funding === "SAVINGS" ? "OK" : lineStateOf(f.line.plannedAmount + f.carryOver, f.available),
       overBy: f.line.funding !== "SAVINGS" && f.available < 0n ? -f.available : null,
     }));
-    const rest = figures.unbudgeted === null ? null : unbudgeted(figures.unbudgeted.spent);
-    const categoryLines = categoryLinesOf(view, await deps.categories.list(space.spaceId));
+    const rest =
+      figures.unbudgeted === null
+        ? null
+        : unbudgeted(figures.unbudgeted.spent, await unbudgetedIn(deps, view, categories));
+    const categoryLines = categoryLinesOf(view, categories);
     return ok({ ...base, lines, unbudgeted: rest, totals: totalsOf(lines, rest), categoryLines });
   };

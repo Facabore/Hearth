@@ -1,4 +1,5 @@
 import type { MoneyDto, PersonalSpendingByGroupDto, SpendingByGroupDto } from "@/shared/ui/api/dto";
+import type { Origin } from "../origin";
 
 /** How a node is named: as stored, scoped to its space ("Household / Pets", HU-E9-11), or the "no subcategory" entry. */
 export type NodeName =
@@ -12,11 +13,21 @@ export interface SpendingNode {
   readonly total: MoneyDto;
   readonly share: string;
   readonly archived: boolean;
+  /** #240 (board E9-11 02): a personal group's spaces, or the space that created it; absent from an older API. */
+  readonly origin?: Origin;
   readonly children: readonly SpendingNode[];
 }
 
 type Groups = SpendingByGroupDto["groups"] | PersonalSpendingByGroupDto["groups"];
 type Scoped = { readonly space?: { readonly name: string } | null };
+
+/** #240: a personal group from one space's own tree was created there; a merged one names every space it came from. */
+const originOf = (group: Groups[number]): { readonly origin?: Origin } => {
+  if (!("spaces" in group) || !group.spaces?.length) return {};
+  return group.space
+    ? { origin: { kind: "createdIn", space: group.space.name } }
+    : { origin: { kind: "spaces", names: group.spaces.map((space) => space.name) } };
+};
 
 const nameOf = (node: Scoped & { readonly name: string }): NodeName =>
   node.space
@@ -34,6 +45,7 @@ export const treeOf = (groups: Groups): SpendingNode[] =>
     total: g.total,
     share: g.share,
     archived: g.archived,
+    ...originOf(g),
     children: g.categories.map((c) => ({
       id: `c:${c.id ?? `key:${c.key ?? c.name}`}`,
       name: nameOf(c),

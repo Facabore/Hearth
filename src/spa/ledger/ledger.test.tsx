@@ -2,7 +2,7 @@ import { createBrowserHistory } from "@tanstack/react-router";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
-import es from "@/i18n/messages/es.json";
+import { es } from "@/i18n/messages/full";
 import {
   accountDto,
   householdSpace,

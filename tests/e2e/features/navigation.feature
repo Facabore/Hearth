@@ -51,28 +51,29 @@ Feature: Volver returns to where the person was, and a flow returns to where it 
     Then the transactions page is shown
 
   @e2e
-  Scenario: Volver from New space returns to Movimientos
+  Scenario: Crear un espacio compartido opens over Movimientos and its way back is the spaces
     When "Ana" opens the Movimientos tab
-    And "Ana" opens the create-space link of the space switcher
-    And "Ana" chooses Volver
-    Then the transactions page is shown
+    And "Ana" opens Crear un espacio compartido from the space switcher
+    Then the Crear espacio sheet is open over the transactions page
+    When "Ana" goes back to the spaces in the sheet
+    Then the space switcher lists her spaces
 
   @e2e
   Scenario: Creating a shared space from Movimientos lands in the new space
     When "Ana" opens the Movimientos tab
-    And "Ana" opens the create-space link of the space switcher
+    And "Ana" opens Crear un espacio compartido from the space switcher
     And "Ana" creates the shared space "Household"
     Then the members screen of the new space "Household" is shown
 
   @e2e
-  Scenario: The form that created a space is not in the history Volver or Back returns to
+  Scenario: Volver or Back from the new space returns to the screen the sheet opened over
     When "Ana" opens the Movimientos tab
-    And "Ana" opens the create-space link of the space switcher
+    And "Ana" opens Crear un espacio compartido from the space switcher
     And "Ana" creates the shared space "Household"
     Then the members screen of the new space "Household" is shown
     When "Ana" chooses Volver
     Then the transactions page is shown
-    When "Ana" opens the create-space link of the space switcher
+    When "Ana" opens Crear un espacio compartido from the space switcher
     And "Ana" creates the shared space "Club"
     And "Ana" goes back in the browser
     Then the transactions page is shown

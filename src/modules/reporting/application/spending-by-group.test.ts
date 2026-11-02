@@ -135,6 +135,16 @@ describe("personal spending by group (HU-E7-06)", () => {
     expect(t.asked).toEqual([["space-ana", "space-household"]]);
   });
 
+  it("names the spaces each of her groups came from, by their names as she sees them (#240, board E9-11 02)", async () => {
+    const w = personalWorld();
+    w.sums.consumption[NOVEMBER] = background();
+    const breakdown = unwrap(await read(w, treesOf().trees));
+    expect(breakdown.groups.map((g) => [g.key, g.spaces?.map((s) => s.name)])).toEqual([
+      ["food", ["Personal", "Household"]],
+      ["housing", ["Household"]],
+    ]);
+  });
+
   it("names a merged row from her personal space's tree even when nothing was spent in that space (ruling P76)", async () => {
     const w = personalWorld();
     w.sums.consumption[NOVEMBER] = [spent("space-household", "cat-groceries", 950_000)];

@@ -89,7 +89,17 @@ export const LineDashboardSchema = z.object({
     }),
   ),
   unbudgeted: z
-    .object({ spent: MoneySchema, available: MoneySchema, overspent: z.boolean() })
+    .object({
+      spent: MoneySchema,
+      available: MoneySchema,
+      overspent: z.boolean(),
+      categoryIds: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "The categories its spending fell into, a subcategory's counted in its parent, the most spent first; a client names them from the space's categories.",
+        ),
+    })
     .nullable()
     .describe(
       "What no line consumes, every expense when the period has no plan; null when the plan has a catch-all line.",
@@ -126,6 +136,7 @@ const unbudgetedDto = (unbudgeted: UnbudgetedSpending | null, currency: string) 
         spent: moneyOf(unbudgeted.spent, currency),
         available: moneyOf(unbudgeted.available, currency),
         overspent: unbudgeted.overspent,
+        categoryIds: [...unbudgeted.categoryIds],
       };
 
 export const lineDashboardDto = (dashboard: LineDashboard): z.infer<typeof LineDashboardSchema> => ({
@@ -270,6 +281,12 @@ export const FundContributionsSchema = z.object({
   totals: z
     .object({ expected: MoneySchema, actual: MoneySchema, difference: MoneySchema })
     .describe("Σ over the listed members of expected, actual and difference."),
+  funds: z
+    .array(z.object({ id: z.string(), name: z.string() }))
+    .optional()
+    .describe(
+      "The space's live fund accounts (SHARED_FUND) by name, as every member reads them in the space's accounts.",
+    ),
 });
 
 export const fundContributionsDto = (
@@ -289,7 +306,16 @@ export const fundContributionsDto = (
     actual: moneyOf(report.totals.actual, report.currency),
     difference: moneyOf(report.totals.difference, report.currency),
   },
+  funds: report.funds.map((fund) => ({ ...fund })),
 });
+
+/** #240 (boards E9-11 01 and 02): the spaces a personal row came from, so a client writes "Personal y Hogar". */
+const OriginSpacesSchema = z
+  .array(z.object({ id: z.string(), name: z.string() }))
+  .optional()
+  .describe(
+    "Every space the row's amount came from: the caller's personal space first, then by space name, then id.",
+  );
 
 /** HU-E7-04: the caller's consumption and cash out in their personal period (spec 5.4, D11, ruling P37). */
 export const UnifiedViewSchema = z.object({
@@ -317,6 +343,7 @@ export const UnifiedViewSchema = z.object({
           .nullable()
           .describe("The custom category, named as the row; null for a row merged by catalog key."),
         amount: MoneySchema,
+        spaces: OriginSpacesSchema,
       }),
     ),
   }),
@@ -346,6 +373,7 @@ export const unifiedViewDto = (view: UnifiedPersonalView): z.infer<typeof Unifie
         space: g.space,
         category: g.category,
         amount: money(g.amount),
+        spaces: g.spaces.map((s) => ({ ...s })),
       })),
     },
     cashOut: {
@@ -657,6 +685,7 @@ export const PersonalSpendingByGroupSchema = z.object({
       ...spendingNode,
       id: z.string().nullable().describe("Null for a seeded group merged across spaces by key."),
       space: groupSpace,
+      spaces: OriginSpacesSchema,
       categories: z.array(
         z.object({
           ...spendingNode,
@@ -684,6 +713,7 @@ export const personalSpendingByGroupDto = (
   groups: report.groups.map((group) => ({
     ...spendingNodeDto(group, report.currency),
     space: group.space,
+    ...(group.spaces === undefined ? {} : { spaces: group.spaces.map((s) => ({ ...s })) }),
     categories: group.categories.map((category) => ({
       ...spendingNodeDto(category, report.currency),
       space: category.space,

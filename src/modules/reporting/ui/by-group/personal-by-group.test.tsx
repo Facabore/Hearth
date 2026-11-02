@@ -5,8 +5,7 @@ import { axeViolations } from "../../../../../tests/support/ui/axe";
 import { cop, normalized } from "../../../../../tests/support/ui/dto";
 import { e74Groups } from "../../../../../tests/support/ui/plan-dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
-import en from "@/i18n/messages/en.json";
-import es from "@/i18n/messages/es.json";
+import { en, es } from "@/i18n/messages/full";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { SpendingChart } from "./spending-chart";
 import { treeOf } from "./spending-tree";
@@ -70,6 +69,49 @@ describe("personal spending by group (HU-E9-11)", () => {
       ["Groceries", "$ 1.035.000", "94,52 %"],
       ["Restaurants", "$ 60.000", "5,48 %"],
     ]);
+  });
+
+  it("says which spaces each group came from, and where a custom one was created (#240, board E9-11 02)", async () => {
+    const personal = { id: "sp-personal", name: "Personal" };
+    const household = { id: "sp-household", name: "Household" };
+    const data = e74Groups();
+    const [food, housing, pets] = data.groups;
+    data.groups = [
+      { ...food!, spaces: [personal, household] },
+      { ...housing!, spaces: [household] },
+      { ...pets!, spaces: [household] },
+    ];
+    const { container } = renderWithIntl(
+      <SpendingChart
+        tree={treeOf(data.groups)}
+        total={data.total}
+        formats={BUILT_IN_FORMATS}
+        note="Nota"
+        personal
+      />,
+    );
+    const origins = () => [...container.querySelectorAll("[data-origin]")].map((o) => o.textContent);
+    expect(origins()).toEqual(["Personal y Household", "Household", "Grupo creado en Household"]);
+    // The figures stay where they were; the origin is a line under the name.
+    expect(rows()[0]).toEqual(["Food", "$ 1.095.000", "68,44 %"]);
+    expect(await axeViolations(container)).toEqual([]);
+    // A category level says nothing more.
+    await userEvent.click(screen.getByRole("button", { name: /^Food/ }));
+    expect(origins()).toEqual([]);
+  });
+
+  it("keeps the old rows when an older API names no space for the groups", () => {
+    const data = e74Groups();
+    const { container } = renderWithIntl(
+      <SpendingChart
+        tree={treeOf(data.groups)}
+        total={data.total}
+        formats={BUILT_IN_FORMATS}
+        note="Nota"
+        personal
+      />,
+    );
+    expect(container.querySelector("[data-origin]")).toBeNull();
   });
 
   it("names a custom category and its group by their space at every level, and a merged one plainly", async () => {

@@ -1,8 +1,8 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
-import es from "@/i18n/messages/es.json";
-import { cop, meDto, octoberPage, spaceDto } from "../../tests/support/ui/dto";
+import { en, es } from "@/i18n/messages/full";
+import { categoryDto, cop, groupDto, meDto, octoberPage, spaceDto } from "../../tests/support/ui/dto";
 import { jsonResponse, problemResponse, type FakeHandler } from "../../tests/support/ui/fake-api";
 import {
   cashFlowDto,
@@ -20,7 +20,7 @@ import {
   savingsAccountDto,
   sixMonthsTrend,
 } from "../../tests/support/ui/plan-dto";
-import { renderSpa } from "../../tests/support/ui/spa";
+import { loadedAreas, renderSpa, speak, watchMissingMessages } from "../../tests/support/ui/spa";
 
 const HOUSEHOLD = "/spaces/sp-household";
 const PERSONAL = "/spaces/sp-personal";
@@ -218,6 +218,22 @@ describe("the Plan tab and the planner in the SPA (slice 5 of #199, ADR 0006)", 
     expect(spa.queryClient.getQueryState(["identity", "me"])?.isInvalidated).toBe(false);
   });
 
+  it("opens the capacities as a sheet over the planner, and its ✕ goes back to the planner (board 04)", async () => {
+    const spa = renderSpa(`${HOUSEHOLD}/plans/p-nov/capacities`, server());
+    const sheet = await screen.findByRole(
+      "dialog",
+      { name: es.budgeting.capacity.title },
+      { timeout: 5_000 },
+    );
+    // The planner stays drawn under the sheet, out of reach while the sheet is open.
+    expect(
+      screen.getByRole("heading", { level: 1, name: /Plan de noviembre 2026/i, hidden: true }),
+    ).toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole("button", { name: es.common.close }));
+    await waitFor(() => expect(spa.location()).toBe(`${HOUSEHOLD}/plans/p-nov`));
+    expect(await screen.findByRole("heading", { level: 1, name: /Plan de noviembre 2026/i })).toBeVisible();
+  });
+
   it("shows the capacities without a suggestion the server keeps failing, after one more try (P208)", async () => {
     const spa = renderSpa(`${HOUSEHOLD}/plans/p-nov/capacities`, {
       ...server(),
@@ -244,5 +260,96 @@ describe("the Plan tab and the planner in the SPA (slice 5 of #199, ADR 0006)", 
     });
     expect(await screen.findByText(es.budgeting.lineEditor.readOnly, {}, { timeout: 5_000 })).toBeVisible();
     expect(screen.getByRole("link", { name: /Volver/ })).toHaveAttribute("href", `${HOUSEHOLD}/plans/p-nov`);
+  });
+});
+
+describe("the Plan views' origins (#240, ruling P272)", () => {
+  it("names the categories of Sin presupuesto from the space's categories (board E9-10 01)", async () => {
+    renderSpa(`${HOUSEHOLD}/plan/lines?period=2026-11`, {
+      ...server(),
+      "GET /api/v1/spaces/{spaceId}/reports/lines": () =>
+        jsonResponse(
+          e7Dashboard({
+            unbudgeted: {
+              spent: cop(60_000),
+              available: cop(-60_000),
+              overspent: true,
+              categoryIds: ["c-restaurants"],
+            },
+          }),
+        ),
+      "GET /api/v1/spaces/{spaceId}/categories": () =>
+        jsonResponse({
+          items: [groupDto({ categories: [categoryDto({ id: "c-restaurants", name: "Restaurantes" })] })],
+        }),
+    });
+    expect(
+      await screen.findByText(
+        "Gastado $ 60.000 en categorías sin rubro · Restaurantes",
+        {},
+        { timeout: 5_000 },
+      ),
+    ).toBeVisible();
+  });
+
+  it("says where each row of Mi consumo came from, the personal space's own part apart (board E9-11 01)", async () => {
+    const personal = { id: "sp-personal", name: "Personal" };
+    const home = { id: "sp-household", name: "Hogar" };
+    const view = e74Unified();
+    const [groceries, rent] = view.consumption.categories;
+    view.consumption.categories = [
+      { ...groceries!, spaces: [personal, home] },
+      { ...rent!, spaces: [home] },
+    ];
+    renderSpa(`${PERSONAL}/my-consumption?period=2026-11`, {
+      ...server(),
+      "GET /api/v1/me/unified-view": () => jsonResponse(view),
+    });
+    expect(await screen.findByText("Personal y Hogar", {}, { timeout: 5_000 })).toBeVisible();
+    expect(screen.getByText("Hogar · tu parte")).toBeVisible();
+  });
+
+  it("says which spaces each of the person's groups came from (board E9-11 02)", async () => {
+    const household = { id: "sp-household", name: "Household" };
+    const data = e74Groups();
+    data.groups = data.groups.map((group) => ({
+      ...group,
+      spaces: group.space ? [group.space] : [{ id: "sp-personal", name: "Personal" }, household],
+    }));
+    renderSpa(`${PERSONAL}/plan/groups?period=2026-11`, {
+      ...server(),
+      "GET /api/v1/me/reports/spending-by-group": () => jsonResponse(data),
+    });
+    expect(await screen.findAllByText("Personal y Household", {}, { timeout: 5_000 })).toHaveLength(2);
+    expect(screen.getByText("Grupo creado en Household")).toBeVisible();
+  });
+
+  it("names the fund the Fondo view tracks after the space (board E9-10 04)", async () => {
+    const { container } = renderSpa(`${HOUSEHOLD}/plan/fund?period=2026-11`, {
+      ...server(),
+      "GET /api/v1/spaces/{spaceId}/reports/fund-contributions": () =>
+        jsonResponse({ ...e7Fund(), funds: [{ id: "acc-fund", name: "Fondo Hogar" }] }),
+    });
+    await waitFor(
+      () =>
+        expect(container.querySelector("[data-frame-subtitle]")?.textContent).toBe("Household · Fondo Hogar"),
+      { timeout: 5_000 },
+    );
+  });
+});
+
+describe("the Plan tab's copy, the plan area (ruling P276)", () => {
+  it("shows the Plan tab's own copy after a cold load, and in English after a language change", async () => {
+    const missing = watchMissingMessages();
+    const spa = renderSpa(`${PERSONAL}/plan?period=2026-11`, server());
+    expect(
+      await screen.findByRole("navigation", { name: es.reports.tabs.label }, { timeout: 5_000 }),
+    ).toBeVisible();
+    expect(loadedAreas(spa)).toEqual(["es:plan"]);
+
+    speak(spa, "en");
+    expect(await screen.findByRole("navigation", { name: en.reports.tabs.label })).toBeVisible();
+    expect(loadedAreas(spa)).toEqual(["en:plan", "es:plan"]);
+    expect(missing()).toEqual([]);
   });
 });

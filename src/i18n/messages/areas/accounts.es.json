@@ -1,0 +1,109 @@
+{
+  "accounts": {
+    "totals": "Totales",
+    "available": "Disponible",
+    "netWorth": "Patrimonio neto",
+    "section": {
+      "everyday": "Bancos, billeteras y efectivo",
+      "cards": "Tarjetas de crédito",
+      "savings": "Ahorros e inversiones",
+      "debts": "Deudas",
+      "other": "Otras",
+      "funds": "Fondos compartidos"
+    },
+    "archived": "Ocultas",
+    "outsideAvailable": "fuera del disponible",
+    "card": {
+      "limit": "Cupo {amount}",
+      "available": "Disponible {amount}",
+      "payBy": "Paga antes del {date}"
+    },
+    "savings": {
+      "rate": "{rate} % E.A.",
+      "maturity": "Vence {date}"
+    },
+    "loan": {
+      "principal": "Crédito {amount}",
+      "months": "{months} meses"
+    },
+    "create": "Crear cuenta",
+    "field": {
+      "type": "Tipo de cuenta",
+      "icon": "Ícono",
+      "name": "Nombre",
+      "opening": "Saldo inicial",
+      "owed": "Debes hoy",
+      "institution": "Entidad",
+      "lastFour": "Últimos 4",
+      "lastFourHint": "Opcional: los últimos 4 dígitos, para distinguir dos cuentas del mismo banco",
+      "creditLimit": "Cupo",
+      "paymentDay": "Día de pago",
+      "monthlyRate": "Interés M.V.",
+      "annualRate": "Tasa E.A.",
+      "termDays": "Plazo en días",
+      "maturityDate": "Vencimiento",
+      "principal": "Monto del crédito",
+      "termMonths": "Plazo en meses"
+    },
+    "type": {
+      "BANK": "Banco",
+      "WALLET": "Billetera",
+      "CASH": "Efectivo",
+      "CREDIT_CARD": "Tarjeta de crédito",
+      "SAVINGS": "Ahorro o CDT",
+      "INVESTMENT": "Inversión",
+      "LOAN": "Préstamo o deuda",
+      "OTHER": "Otra",
+      "SHARED_FUND": "Fondo compartido"
+    },
+    "switch": {
+      "available": "Contar en el disponible",
+      "availableHint": "Lo que tiene esta cuenta se suma a tu dinero disponible.",
+      "netWorth": "Contar en el patrimonio",
+      "netWorthHint": "Su saldo se suma a tu patrimonio neto."
+    },
+    "currency": "Moneda: {currency}",
+    "amountUnreadable": "Escribe un monto como {example}.",
+    "numberUnreadable": "Escribe un número como {example}.",
+    "archive": {
+      "open": "Ocultar {name}",
+      "title": "¿Ocultar {name}?",
+      "explain": "Sale de las listas y de los selectores, y conserva su historial. Puedes volver a mostrarla cuando quieras.",
+      "confirm": "Ocultar"
+    },
+    "restore": "Mostrar {name}",
+    "edit": {
+      "action": "Editar",
+      "type": "Tipo: {type}",
+      "save": "Guardar cambios"
+    },
+    "icon": {
+      "cash": "Efectivo",
+      "bank": "Banco",
+      "wallet": "Billetera",
+      "card": "Tarjeta",
+      "piggy": "Alcancía",
+      "trend": "Gráfica al alza",
+      "coins": "Monedas",
+      "dots": "Puntos",
+      "users": "Personas",
+      "briefcase": "Maletín",
+      "car": "Carro",
+      "star": "Estrella",
+      "gift": "Regalo",
+      "home": "Casa",
+      "plane": "Avión",
+      "phone": "Teléfono"
+    },
+    "newFund": "Nuevo fondo",
+    "empty": {
+      "title": "Aún no tienes cuentas",
+      "noActiveTitle": "No tienes cuentas activas",
+      "body": "Agrega dónde tienes tu dinero para empezar a llevar tus cuentas.",
+      "starter": "Crear cuentas base",
+      "starterBody": "Efectivo, cuenta bancaria, billetera digital, tarjeta de crédito y ahorros, en cero.",
+      "fundsTitle": "Este espacio aún no tiene fondos",
+      "directTitle": "Este espacio no tiene cuentas"
+    }
+  }
+}

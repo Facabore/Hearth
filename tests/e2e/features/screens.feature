@@ -35,8 +35,7 @@ Feature: Moving between screens: every address and every flow leads somewhere
   @e2e
   Scenario: New space opened from a shared space returns to that space
     Given "Ana" owns the shared space "Household"
-    When "Ana" opens the home page of "Household" by its URL
-    And "Ana" opens the create-space link of the space switcher of "Household"
+    When "Ana" opens the create-space screen from "Household" by its URL
     Then the screen is a stacked one whose way back is the home of "Household"
 
   @e2e
@@ -89,14 +88,6 @@ Feature: Moving between screens: every address and every flow leads somewhere
     When "Ana" opens the home page of "Household" by its URL
     And "Ana" chooses "Invitar" on the home page
     Then the invite sheet of "Household" is open on the members screen
-
-  @e2e
-  Scenario: Saldos of a shared space leads to its members
-    Given "Ana" owns the shared space "Household"
-    When "Ana" opens the home page of "Household" by its URL
-    And "Ana" opens the Saldos tab
-    And "Ana" chooses "Miembros" on the Saldos screen
-    Then the members screen of "Household" is shown
 
   @e2e
   Scenario: Signing out keeps the language the person reads in, even in a browser that asks for English

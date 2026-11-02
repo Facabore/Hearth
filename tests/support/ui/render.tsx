@@ -2,8 +2,7 @@ import { render, type RenderResult } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { ReactElement, ReactNode } from "react";
 import type { Locale } from "@/i18n/locale";
-import en from "@/i18n/messages/en.json";
-import es from "@/i18n/messages/es.json";
+import { en, es } from "@/i18n/messages/full";
 
 const CATALOGS = { es, en } as const;
 

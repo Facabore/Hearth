@@ -1,0 +1,132 @@
+{
+  "recurrences": {
+    "new": "Nuevo",
+    "next": "Próxima: {date}",
+    "type": {
+      "EXPENSE": "Gasto",
+      "INCOME": "Ingreso",
+      "TRANSFER": "Transferencia",
+      "FUND_CONTRIBUTION": "Aporte al fondo"
+    },
+    "status": {
+      "ACTIVE": "Activa",
+      "PAUSED": "Pausada",
+      "ENDED": "Terminada"
+    },
+    "mode": {
+      "AUTO": "Automático",
+      "CONFIRM": "Para confirmar"
+    },
+    "schedule": {
+      "MONTHLY": "Cada mes, el día {day}",
+      "SEMI_MONTHLY": "Dos veces al mes, los días {day1} y {day2}"
+    },
+    "list": {
+      "active": "Activos · {count}",
+      "inactive": "En pausa y terminados",
+      "paused": "En pausa",
+      "pausedSince": "En pausa desde el {date}",
+      "endedOn": "Terminó el {date}",
+      "empty": "Todavía no hay movimientos recurrentes en este espacio.",
+      "add": "Agregar un movimiento recurrente"
+    },
+    "form": {
+      "editTitle": "Editar recurrente",
+      "type": "Tipo",
+      "descriptionPlaceholder": "Por ejemplo, Arriendo",
+      "dates": "Fechas",
+      "splitSummary": "División: {parts}",
+      "fund": "Fondo",
+      "chooseFund": "Elegir fondo",
+      "repeats": "Se repite",
+      "monthly": "Cada mes",
+      "semiMonthly": "Dos veces al mes",
+      "day": "El día",
+      "firstDay": "Primer día",
+      "secondDay": "Segundo día",
+      "dayDown": "{label}: un día antes",
+      "dayUp": "{label}: un día después",
+      "shortMonth": "Si el mes es más corto, se usa su último día.",
+      "starts": "Empieza",
+      "ends": "Termina (opcional)",
+      "noEnd": "Sin fecha final",
+      "how": "Cómo se registra",
+      "autoHint": "Se registra solo en cada fecha, con este monto.",
+      "confirmHint": "En cada fecha te pedimos el monto real antes de registrarlo.",
+      "preview": "Próximas fechas: {dates}",
+      "previewNone": "Con estas fechas no se registraría nada.",
+      "previewLoading": "Buscando las próximas fechas…",
+      "exactSplit": "Un recurrente no se divide por montos exactos: elige partes iguales, porcentajes o partes.",
+      "save": "Guardar recurrente",
+      "saveEdit": "Guardar cambios",
+      "saved": "Recurrente guardado",
+      "edited": "Cambios guardados",
+      "fixedType": "Tipo: {type}. Para cambiarlo, termina este y crea otro.",
+      "previousMonth": "Mes anterior",
+      "nextMonth": "Mes siguiente",
+      "apply": "Listo"
+    },
+    "detail": {
+      "from": "Sale de",
+      "to": "Llega a",
+      "receives": "Recibe en",
+      "category": "Categoría",
+      "starts": "Empieza",
+      "started": "Empezó",
+      "ends": "Termina",
+      "noEnd": "Sin fecha final",
+      "next": "Próximas fechas",
+      "none": "No hay próximas fechas.",
+      "paused": "En pausa: no se registra nada hasta que lo reanudes.",
+      "pausedSince": "En pausa desde el {date}: no se registra nada hasta que lo reanudes.",
+      "ended": "Terminado: no se registra nada más hasta que lo extiendas.",
+      "edit": "Editar {name}",
+      "pause": "Pausar",
+      "resume": "Reanudar",
+      "extend": "Extender",
+      "end": "Terminar",
+      "endTitle": "¿Terminar {name}?",
+      "endBody": "No se registra nada más. Lo que ya se registró se queda.",
+      "endConfirm": "Terminar",
+      "endKeep": "No, seguir",
+      "extendTitle": "Extender {name}",
+      "extendNoEnd": "Sin fecha final",
+      "donePaused": "{name} quedó en pausa.",
+      "doneResumed": "{name} sigue desde hoy.",
+      "doneEnded": "{name} terminó.",
+      "doneExtended": "{name} se extendió."
+    },
+    "viewer": {
+      "list": "Tu rol en {space} es {role}: puedes ver los recurrentes y sus fechas, pero no crearlos ni cambiarlos.",
+      "pending": "Tu rol en {space} es Lector: puedes ver lo que está por confirmar, pero no confirmarlo ni omitirlo."
+    },
+    "pending": {
+      "subtitle": "{space} · {count, plural, one {# pendiente} other {# pendientes}}",
+      "since": "Pendiente desde el {date}",
+      "suggested": "Sugerido: {amount}",
+      "realAmount": "Monto real de {name}",
+      "more": "{amount} más que lo sugerido",
+      "less": "{amount} menos que lo sugerido",
+      "skip": "Omitir",
+      "confirm": "Confirmar",
+      "note": "Confirmar registra el gasto con el monto real. Omitir salta solo esta fecha; las siguientes siguen programadas.",
+      "empty": "No tienes nada por confirmar.",
+      "invalidAmount": "Escribe un monto mayor que cero.",
+      "type": {
+        "EXPENSE": "Gasto",
+        "INCOME": "Ingreso",
+        "TRANSFER": "Transferencia",
+        "FUND_CONTRIBUTION": "Aporte al fondo"
+      },
+      "saved": {
+        "EXPENSE": "Gasto guardado",
+        "INCOME": "Ingreso guardado",
+        "TRANSFER": "Transferencia guardada",
+        "FUND_CONTRIBUTION": "Aporte guardado"
+      },
+      "view": "Ver",
+      "skipped": "{name} omitida. Sigue el {date}.",
+      "skippedLast": "{name} omitida."
+    }
+  }
+}

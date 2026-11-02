@@ -26,7 +26,9 @@ export {
 export {
   createGetFundContributions,
   type FundContributionReport,
+  type FundDeps,
   type GetFundContributions,
+  type SpaceFunds,
 } from "./get-fund-contributions";
 export type { CashOut, ConsumptionGroup } from "../domain/unified-view";
 export type {

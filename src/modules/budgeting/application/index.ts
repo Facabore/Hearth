@@ -31,6 +31,7 @@ export type { BudgetingDeps } from "./deps";
 export {
   categoryLinesOf,
   loadPlanView,
+  unbudgetedCategoriesOf,
   planViewCache,
   type BudgetPlanView,
   type CategoryLine,
