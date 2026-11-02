@@ -114,10 +114,10 @@ Then(
     await expect(page.getByRole("status").filter({ hasText: world.t("common.saved") })).toBeVisible();
     const space = (await world.api.get(`/api/v1/spaces/${world.user!.spaceId}`)) as { name: string };
     expect(space.name).toBe(name);
-    // Settings is a stacked screen without the switcher (ruling P272): the Plan tab's shell and page name the space.
+    // Settings is a stacked screen without the switcher (ruling P272): the Plan tab's switcher names the space. Its page
+    // names it only in the context line of a period with a plan (board E9-10), and a new person's period has none.
     await page.goto(`/spaces/${world.user!.spaceId}/plan`);
     await expect(page.getByRole("button", { name: world.t("shell.space.current", { name }) })).toBeVisible();
-    await expect(page.getByRole("main").getByText(name, { exact: true })).toBeVisible();
   },
 );
 
