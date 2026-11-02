@@ -7915,7 +7915,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidDate, CategoryNotInSpace */
+            /** @description ValidationFailed, InvalidDate, CategoryNotInSpace, InvalidSplit (the amount is too small to give every member of the default a positive share; recording the expense without a split answers the same, ruling P285) */
             422: {
                 headers: {
                     [name: string]: unknown;
