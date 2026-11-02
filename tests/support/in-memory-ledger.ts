@@ -265,11 +265,7 @@ export class InMemoryTransactions implements TransactionRepository, TransactionQ
       .filter(
         (t) => !f.categoryIds?.length || (t.categoryId !== null && f.categoryIds.includes(t.categoryId)),
       )
-      .filter(
-        (t) =>
-          f.payerMemberId === undefined ||
-          (t.type === "EXPENSE" && t.payments.some((p) => p.memberId === f.payerMemberId)),
-      )
+      .filter((t) => f.payerMemberId === undefined || paidBy(t, f.payerMemberId))
       .filter(
         (t) =>
           f.participantMemberId === undefined ||
@@ -280,6 +276,12 @@ export class InMemoryTransactions implements TransactionRepository, TransactionQ
       .sort(listOrder);
   }
 }
+
+/** Issue #246: an expense's payments, a settlement's payer or a fund contributor, as the PostgreSQL query reads it. */
+const paidBy = (t: Transaction, memberId: string): boolean =>
+  t.type === "EXPENSE"
+    ? t.payments.some((p) => p.memberId === memberId)
+    : "payerMemberId" in t && t.payerMemberId === memberId;
 
 /** Ruling P277: the account paid the transaction, received it or moved it, as the PostgreSQL query reads it. */
 const touches = (t: Transaction, accountId: string): boolean =>

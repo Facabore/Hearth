@@ -246,4 +246,22 @@ describe("settlements (HU-E5-02)", () => {
     expect((await query("&type=SETTLEMENT")).items.map((t) => t.id)).toEqual([tx.id]);
     expect((await query("")).totals.expenses).toEqual(cop(2_400_000));
   });
+
+  it("finds Juan's settlement by its payer, and not by the member it paid (#246)", async () => {
+    const h = await juanOwesAna();
+    const tx = await settled(await settle(h.juan, juanToAna(h, 1_200_000)));
+    const paidBy = async (memberId: string) => {
+      const response = await call(
+        listTransactions,
+        "GET",
+        `/api/v1/spaces/${h.spaceId}/transactions?period=2026-10&payerMemberId=${memberId}`,
+        { user: h.ana, params: { spaceId: h.spaceId } },
+      );
+      expect(response.status).toBe(200);
+      return ((await response.json()) as { items: TransactionDto[] }).items.map((t) => [t.type, t.id]);
+    };
+    expect(await paidBy(h.juan.memberId)).toEqual([["SETTLEMENT", tx.id]]);
+    // Ana paid the rent; the settlement she received is not hers.
+    expect((await paidBy(h.ana.memberId)).map(([type]) => type)).toEqual(["EXPENSE"]);
+  });
 });
