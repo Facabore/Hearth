@@ -1141,8 +1141,14 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
   }
 
   /** Every link and button of the screen's main area is a full target that ends on screen. */
-  const expectFullTargets = async (page: Page, what: string, width: number) => {
-    const controls = page.locator("main").getByRole("link").or(page.locator("main").getByRole("button"));
+  /** Every link and button of the screen, or of the sheet over it when one is given, is a full target on screen. */
+  const expectFullTargets = async (
+    page: Page,
+    what: string,
+    width: number,
+    within: Locator = page.locator("main"),
+  ) => {
+    const controls = within.getByRole("link").or(within.getByRole("button"));
     expect.soft(await controls.count(), `${what}: has controls`).toBeGreaterThan(0);
     for (const control of await controls.all()) {
       // Issue #174 (U3): the view tabs wrap instead of scrolling, so no control waits beyond the edge.
@@ -1353,7 +1359,8 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       ).toBeVisible();
       const { overflow, message } = await overflowReport(page, "the capacities screen");
       expect.soft(overflow, message).toBeLessThanOrEqual(0);
-      await expectFullTargets(page, "the capacities screen", viewport.width);
+      // Phase 3c: the modal sheet hides the planner under it, so its own controls are the ones measured.
+      await expectFullTargets(page, "the capacities screen", viewport.width, sheet);
 
       // Use suggestion fills Ana's own field and sends nothing: the plan keeps its capacity until Save.
       await page.getByRole("button", { name: es.budgeting.capacity.useSuggestion }).click();
@@ -1383,14 +1390,20 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       const line: { id: string } = (await get(page, `/api/v1/spaces/${sharedId}/plans/${plan.id}`)).lines[0];
       const planner = `/spaces/${sharedId}/plans/${plan.id}`;
 
-      /** Inputs, choices, switches and the label of a checkbox are full targets that end on screen. */
+      /**
+       * Inputs, choices, switches and the label of a native checkbox or radio are full targets that end on screen.
+       * Board 05 (phase 3c): the funding is a card of native radios whose whole row, the label, is the target, and the
+       * catch-all is a checkbox inside the categories card.
+       */
       const expectFullFields = async (what: string) => {
         const fields = page
           .locator("main")
           .getByRole("textbox")
-          .or(page.locator("main").getByRole("radio"))
+          // The choices drawn as buttons; a native radio is measured by its label below.
+          .or(page.locator("main").getByRole("radio").and(page.locator("[role='radio']")))
           .or(page.locator("main").getByRole("switch"))
-          .or(page.locator("main label:has(input[type='checkbox'])"));
+          .or(page.locator("main label:has(input[type='checkbox'])"))
+          .or(page.locator("main label:has(input[type='radio'])"));
         expect.soft(await fields.count(), `${what}: has fields`).toBeGreaterThan(0);
         for (const field of await fields.all()) {
           const box = (await field.boundingBox())!;

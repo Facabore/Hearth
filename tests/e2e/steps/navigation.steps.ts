@@ -115,6 +115,17 @@ When(
   },
 );
 
+// Phase 3a (ruling P272): Crear espacio is a sheet over the space switcher. The screen under it keeps its URL, while
+// the modal sheet hides the rest of the page, the bottom bar included, from the accessibility tree.
+Then("the Crear espacio sheet is open over the transactions page", async ({ page, world }) => {
+  await expect(page).toHaveURL(new RegExp(`${escaped(homePath(world))}/transactions$`));
+  const sheet = page.getByRole("dialog", { name: world.t("spaces.new.title") });
+  await expect(sheet.getByLabel(world.t("spaces.new.name"))).toBeVisible();
+  await expect(page.getByRole("link", { name: world.t("shell.nav.transactions"), exact: true })).toHaveCount(
+    0,
+  );
+});
+
 When("{string} goes back to the spaces in the sheet", async ({ page, world }, name: string) => {
   expect(name).toBe(world.user!.name);
   await page

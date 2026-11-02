@@ -324,8 +324,33 @@ for (const colorScheme of ["light", "dark"] as const) {
       await scan("guest sheet");
       await page.getByRole("button", { name: es.members.guest.createClaim }).click();
       await scan("guest sheet with its claim link");
-      await page.getByRole("button", { name: fill(es.members.guest.remove, { space: "Household" }) }).click();
-      await scan("guest sheet asking to remove the guest");
+      // Phase 3a (ruling P272): Pedro owes his share of the market, so the sheet says up front that he cannot be removed
+      // yet, offers Saldar, and keeps its removal disabled.
+      const removeGuest = page.getByRole("button", {
+        name: fill(es.members.guest.remove, { space: "Household" }),
+      });
+      await expect(page.getByRole("dialog").getByRole("note")).toContainText(es.members.guest.settle);
+      await expect(removeGuest).toBeDisabled();
+      await scan("guest sheet with a balance, its removal blocked");
+      await page.keyboard.press("Escape");
+      // A guest who never shared an expense has no balance, so her removal asks for a confirmation of its own.
+      await post(page, `/api/v1/spaces/${ids.household}/guests`, { displayName: "Lucía" });
+      await page.reload();
+      await page
+        .getByRole("button", {
+          name: fill(es.members.guestOptions, { name: `Lucía ${es.members.guestSuffix}` }),
+        })
+        .click();
+      await removeGuest.click();
+      await expect(
+        page.getByRole("dialog", {
+          name: fill(es.members.guest.confirmTitle, {
+            name: `Lucía ${es.members.guestSuffix}`,
+            space: "Household",
+          }),
+        }),
+      ).toBeVisible();
+      await scan("guest sheet asking to remove a guest without a balance");
       await page.keyboard.press("Escape");
       await page
         .getByRole("button", { name: fill(es.members.role, { name: "Juan", role: es.shell.role.MEMBER }) })

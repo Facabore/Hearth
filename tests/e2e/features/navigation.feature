@@ -54,7 +54,7 @@ Feature: Volver returns to where the person was, and a flow returns to where it 
   Scenario: Crear un espacio compartido opens over Movimientos and its way back is the spaces
     When "Ana" opens the Movimientos tab
     And "Ana" opens Crear un espacio compartido from the space switcher
-    Then the transactions page is shown
+    Then the Crear espacio sheet is open over the transactions page
     When "Ana" goes back to the spaces in the sheet
     Then the space switcher lists her spaces
 
