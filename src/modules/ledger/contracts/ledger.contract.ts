@@ -405,6 +405,10 @@ export const ListTransactionsQuerySchema = PaginationQuerySchema.extend({
   payerMemberId: z.uuid().optional(),
   participantMemberId: z.uuid().optional(),
   type: z.enum(["EXPENSE", "INCOME", "TRANSFER", "SETTLEMENT"]).optional(),
+  /** Ruling P277: only what this account paid, received or moved. */
+  accountId: z.uuid().optional(),
+  /** Ruling P277: a case-insensitive piece of the description, taken literally; blank means no search. */
+  search: z.string().max(100).optional(),
 });
 
 export const ListTransactionsResponseSchema = z.object({

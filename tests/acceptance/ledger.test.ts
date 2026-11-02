@@ -221,6 +221,55 @@ describe("monthly transaction list (HU-E4-04, HU-E4-05)", () => {
     expect(rest.nextCursor).toBeNull();
   });
 
+  it("filters by an account and searches the descriptions, totals included (P277)", async () => {
+    const ana = await ledgerUser("Ana");
+    await post(recordExpense, ana, "expenses", market(ana, 85_000, "2026-10-05"));
+    await post(recordExpense, ana, "expenses", {
+      ...market(ana, 18_000, "2026-10-06"),
+      description: "Taxi a casa",
+      accountId: ana.nequi,
+    });
+    await post(recordExpense, ana, "expenses", {
+      ...market(ana, 10_000, "2026-10-07"),
+      description: "Descuento 50% off",
+    });
+    await post(recordExpense, ana, "expenses", {
+      ...market(ana, 20_000, "2026-10-08"),
+      description: "Descuento 50 pesos",
+    });
+    await post(recordTransfer, ana, "transfers", {
+      description: "A Nequi",
+      amount: cop(500_000),
+      date: "2026-10-09",
+      sourceAccountId: ana.bancolombia,
+      destinationAccountId: ana.nequi,
+    });
+    await post(recordIncome, ana, "incomes", {
+      description: "Salary",
+      amount: cop(3_200_000),
+      date: "2026-10-25",
+      categoryId: ana.salary,
+      accountId: ana.nequi,
+    });
+
+    const { body: nequi } = await listOf(ana, `?period=2026-10&accountId=${ana.nequi}`);
+    expect(nequi.items.map((t) => t.description)).toEqual(["Salary", "A Nequi", "Taxi a casa"]);
+    expect(nequi.totals).toEqual({ expenses: cop(18_000), income: cop(3_200_000) });
+
+    const { body: found } = await listOf(ana, "?period=2026-10&search=%20mARKet%20");
+    expect(found.items.map((t) => t.description)).toEqual(["Market"]);
+    expect(found.totals).toEqual({ expenses: cop(85_000), income: cop(0) });
+
+    // `%` and `_` are characters to find, never wildcards.
+    const { body: percent } = await listOf(ana, "?period=2026-10&search=50%25");
+    expect(percent.items.map((t) => t.description)).toEqual(["Descuento 50% off"]);
+    const { body: underscore } = await listOf(ana, "?period=2026-10&search=o_o");
+    expect(underscore.items).toEqual([]);
+
+    const { body: both } = await listOf(ana, `?period=2026-10&accountId=${ana.bancolombia}&search=descuento`);
+    expect(both.items.map((t) => t.description)).toEqual(["Descuento 50 pesos", "Descuento 50% off"]);
+  });
+
   it("resolves URL-encoded semi-monthly labels", async () => {
     const ana = await ledgerUser("Ana");
     await call(updateSpace, "PATCH", `/api/v1/spaces/${ana.spaceId}`, {
@@ -258,6 +307,8 @@ describe("monthly transaction list (HU-E4-04, HU-E4-05)", () => {
       ["?period=2026-13", "InvalidPeriodLabel"],
       ["?categoryIds=nope", "ValidationFailed"],
       ["?limit=201", "ValidationFailed"],
+      ["?accountId=nope", "ValidationFailed"],
+      [`?search=${"a".repeat(101)}`, "ValidationFailed"],
     ];
     for (const [query, code] of cases) {
       expect(await listOf(ana, query)).toMatchObject({ status: 422, body: { code } });

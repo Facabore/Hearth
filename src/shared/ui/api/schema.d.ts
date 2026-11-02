@@ -5101,6 +5101,8 @@ export interface operations {
                 payerMemberId?: string;
                 participantMemberId?: string;
                 type?: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
+                accountId?: string;
+                search?: string;
             };
             header?: never;
             path: {

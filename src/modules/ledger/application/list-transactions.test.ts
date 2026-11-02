@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PeriodPolicy } from "@/shared/kernel";
 import { codeOf, fakeSpaceAccess, membership, unwrap } from "../../../../tests/support/fakes";
 import {
+  ACCOUNTS,
   aTransfer,
   anExpense,
   anIncome,
@@ -87,6 +88,34 @@ describe("ListTransactions (HU-E4-05)", () => {
       unwrap(await list(deps, { period: "2026-10", ...extra })).items.map((t) => t.id);
     expect(await ids({ payerMemberId: "member-juan" })).toEqual([juanPays.id]);
     expect(await ids({ participantMemberId: "member-juan" })).toEqual([juanPays.id]);
+  });
+
+  it("filters by an account: what it paid, received or moved, totals included (P277)", async () => {
+    const { deps, store } = ledgerFixture();
+    const fromNequi = anExpense("2026-10-05", 2_000_000n, {
+      payments: [{ memberId: "member-ana", accountId: ACCOUNTS.nequi.id, amount: 2_000_000n }],
+    });
+    const fromBank = anExpense("2026-10-06", 3_000_000n);
+    const intoNequi = anIncome("2026-10-07", 50_000_000n, { destinationAccountId: ACCOUNTS.nequi.id });
+    const bankToNequi = aTransfer("2026-10-08", 10_000_000n);
+    const nequiToBank = aTransfer("2026-10-09", 1_000_000n, {
+      sourceAccountId: ACCOUNTS.nequi.id,
+      destinationAccountId: ACCOUNTS.bancolombia.id,
+    });
+    store.rows.push(fromNequi, fromBank, intoNequi, bankToNequi, nequiToBank);
+    const page = unwrap(await list(deps, { period: "2026-10", accountId: ACCOUNTS.nequi.id }));
+    expect(page.items.map((t) => t.id)).toEqual([nequiToBank.id, bankToNequi.id, intoNequi.id, fromNequi.id]);
+    expect(page.totals).toEqual({ expenses: 2_000_000n, income: 50_000_000n });
+  });
+
+  it("searches the descriptions without minding case or the spaces around the words (P277)", async () => {
+    const { deps, store } = ledgerFixture();
+    store.rows.push(...october());
+    const page = unwrap(await list(deps, { period: "2026-10", search: "  mARKet " }));
+    expect(page.items.map((t) => t.description)).toEqual(["Market", "Market"]);
+    expect(page.totals).toEqual({ expenses: 18_500_000n, income: 0n });
+    const blank = unwrap(await list(deps, { period: "2026-10", search: "   " }));
+    expect(blank.items).toHaveLength(4);
   });
 
   it("never counts income or transfers as spending (HU-E4-02, HU-E4-03)", async () => {

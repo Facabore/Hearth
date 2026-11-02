@@ -23,6 +23,8 @@ export const GET = defineRoute({
       payerMemberId: query.payerMemberId,
       participantMemberId: query.participantMemberId,
       type: query.type,
+      accountId: query.accountId,
+      search: query.search,
       after: after.value,
       limit: query.limit,
     });

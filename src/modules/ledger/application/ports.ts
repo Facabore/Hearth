@@ -99,6 +99,10 @@ export interface TransactionFilter {
   readonly payerMemberId?: string;
   readonly participantMemberId?: string;
   readonly type?: TransactionType;
+  /** Ruling P277: what this account paid (an expense's payment), received (an income) or moved (a transfer). */
+  readonly accountId?: string;
+  /** Ruling P277: a case-insensitive piece of the description, taken literally (no wildcards); never blank. */
+  readonly search?: string;
 }
 
 /** Keyset position in the list order (ruling P43): date, time with untimed rows last, creation, id, all descending. */
