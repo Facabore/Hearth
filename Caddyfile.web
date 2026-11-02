@@ -8,6 +8,16 @@
 :8080 {
 	encode zstd gzip
 
+	# Ruling P280 (#201): on every response. The Content-Security-Policy names the build's own inline scripts by their
+	# hashes, so the build writes it (vite.spa.config.ts) and the Dockerfile puts it next to this file.
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+	}
+	import /etc/caddy/csp.caddy
+
 	# The app's first address, /app/…, until the cut-over: its bookmarks land on the same screen at the root, with their
 	# query ({?query} is "?" and the query, or nothing). Leading slashes and backslashes collapse to one, so
 	# /app//evil.example never redirects to another host.
