@@ -81,6 +81,9 @@ const sharedSpaces = () => import("./spaces/loaders");
 /** The Plan tab's and the planner's loaders, likewise. */
 const plans = () => import("./plan/loaders");
 
+/** HU-E9-09's loaders, likewise. */
+const recurring = () => import("./recurring/loaders");
+
 /** A Plan tab view's query string (ruling P200): the period, the trend's window and the calendar's days. */
 const planSearch = (search: Record<string, unknown>) => ({
   period: textParam(search.period),
@@ -162,6 +165,48 @@ const editRoute = createRoute({
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "EditPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/edit-transaction"), "EditTransactionScreen"),
+});
+
+/** HU-E9-09 (P270): the space's recurring movements, opened from the Recurrentes pill of Movimientos. */
+const recurrencesRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "recurrences",
+  loader: async ({ context, params, cause }) =>
+    (await recurring()).loadRecurrences({ ...context, cause }, params.spaceId),
+  pendingComponent: lazyRouteComponent(() => import("./routes/recurrences"), "RecurrencesPending"),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/recurrences"), "RecurrencesRoute"),
+});
+
+const newRecurrenceRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "recurrences/new",
+  loader: async ({ context, params, cause }) =>
+    (await recurring()).loadRecurrenceForm({ ...context, cause }, params.spaceId),
+  pendingComponent: lazyRouteComponent(() => import("./routes/recurrences"), "RecurrenceFormPending"),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/recurrences"), "NewRecurrenceRoute"),
+});
+
+/** One recurrence: its next dates, pause, resume, extend and end; one that is gone is not found. */
+const recurrenceRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "recurrences/$recurrenceId",
+  loader: async ({ context, params, cause }) =>
+    (await recurring()).loadRecurrence({ ...context, cause }, params.spaceId, params.recurrenceId),
+  pendingComponent: lazyRouteComponent(() => import("./routes/recurrences"), "RecurrencePending"),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/recurrences"), "RecurrenceRoute"),
+});
+
+const editRecurrenceRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "recurrences/$recurrenceId/edit",
+  loader: async ({ context, params, cause }) =>
+    (await recurring()).loadRecurrenceEdit({ ...context, cause }, params.spaceId, params.recurrenceId),
+  pendingComponent: lazyRouteComponent(() => import("./routes/recurrences"), "RecurrenceFormPending"),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/recurrences"), "EditRecurrenceRoute"),
 });
 
 /** HU-E9-03: the accounts of a space, every one, archived ones in their own section. */
@@ -446,6 +491,10 @@ export const routeTree = rootRoute.addChildren([
     transactionsRoute,
     recordRoute,
     editRoute,
+    recurrencesRoute,
+    newRecurrenceRoute,
+    recurrenceRoute,
+    editRecurrenceRoute,
     accountsRoute,
     newAccountRoute,
     editAccountRoute,

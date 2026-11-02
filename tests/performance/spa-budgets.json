@@ -33,6 +33,8 @@
     "spaces/loaders.ts": 4,
     "routes/plan.tsx": 26,
     "routes/my-consumption.tsx": 15,
+    "routes/recurrences.tsx": 34,
+    "recurring/loaders.ts": 3,
     "routes/plans.tsx": 33,
     "plan/loaders.ts": 6,
     "plan/writes.ts": 3,
