@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import compile from "icu-minify/compile";
 import { defineConfig, type Plugin, type Rollup } from "vite";
 import { THEME_BOOTSTRAP } from "./src/shared/ui/theme/theme";
+import { API_URL, E2E_SPA_PORT } from "./tests/e2e/support/base-url";
 import { catalogPreload, EARLY_READS } from "./src/spa/early-html";
 import { chunkFiles, framePick, routeAreas, routePreload, routeTable } from "./src/spa/route-preload";
 
@@ -181,15 +182,16 @@ export default defineConfig({
     },
   },
   preview: {
-    // The e2e front: the build at the root, /api/* from the e2e server, as Caddy routes it in production.
-    port: Number(process.env.E2E_SPA_PORT ?? Number(process.env.E2E_PORT ?? 3100) + 100),
+    // The e2e front: the build at the root, /api/* from the e2e server, as Caddy routes it in production. Both ports
+    // are the e2e's own rule (tests/e2e/support/base-url.ts), so the specs and this server never disagree.
+    port: Number(E2E_SPA_PORT),
     strictPort: true,
     host: "127.0.0.1",
     proxy: {
       "^/api(?:/|$)": {
-        target: `http://127.0.0.1:${process.env.E2E_PORT ?? "3100"}`,
+        target: API_URL,
         // Same origin as in production: Better Auth checks the Origin of a sign-in against its own URL.
-        headers: { origin: `http://127.0.0.1:${process.env.E2E_PORT ?? "3100"}` },
+        headers: { origin: API_URL },
       },
     },
   },

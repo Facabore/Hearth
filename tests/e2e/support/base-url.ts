@@ -8,6 +8,7 @@ export const API_URL = `http://127.0.0.1:${E2E_PORT}`;
 /**
  * ADR 0006 (#199): the front every spec opens, Vite's preview of the single-page app's build. It serves the app at the
  * root and proxies /api/* to the e2e server, as Caddy routes it in production; 100 above `E2E_PORT` unless named.
+ * This is the one place the rule lives: `vite.spa.config.ts` reads its preview port and proxy target from here.
  */
 export const E2E_SPA_PORT = process.env.E2E_SPA_PORT ?? String(Number(E2E_PORT) + 100);
 export const BASE_URL = `http://127.0.0.1:${E2E_SPA_PORT}`;
