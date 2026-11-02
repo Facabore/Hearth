@@ -38,6 +38,8 @@ describe("the first screen's chunks, preloaded by the HTML (ADR 0004, 2026-10-28
     expect(modulesOf("/sign-in")).toEqual(["routes/public-layout", "routes/sign-in"]);
     expect(modulesOf("/invitations/$token")).toEqual(["routes/public-layout", "routes/invitation"]);
     expect(modulesOf("/settings")).toEqual(["routes/settings"]);
+    // Ruling P276: New space has a chunk of its own, without the Settings form and its copy.
+    expect(modulesOf("/spaces/new")).toEqual(["routes/new-space"]);
     // Every screen with an address of its own: all the routes with a path but "/", a redirect, and the space's shell.
     const paths = readFileSync("src/spa/routes.tsx", "utf8").match(/\n {2}path: "/g)!.length;
     expect(table).toHaveLength(paths - 2);
@@ -50,6 +52,7 @@ describe("the first screen's chunks, preloaded by the HTML (ADR 0004, 2026-10-28
       "routes/space-home": ["/assets/home.js"],
       "routes/transactions": ["/assets/list.js"],
       "routes/settings": ["/assets/settings.js", "/assets/shared.js"],
+      "routes/new-space": ["/assets/new-space.js", "/assets/shared.js"],
       "routes/public-layout": ["/assets/public.js"],
       "routes/sign-in": ["/assets/sign-in.js"],
     };
@@ -63,7 +66,7 @@ describe("the first screen's chunks, preloaded by the HTML (ADR 0004, 2026-10-28
       "/assets/ledger.js",
       "/assets/home.js",
     ]);
-    expect(preloadedAt("/spaces/new", files)).toEqual(["/assets/settings.js", "/assets/shared.js"]);
+    expect(preloadedAt("/spaces/new", files)).toEqual(["/assets/new-space.js", "/assets/shared.js"]);
     expect(preloadedAt("/sign-in", files)).toEqual(["/assets/public.js", "/assets/sign-in.js"]);
     // An address no screen has adds nothing, and a file two modules share is preloaded once.
     expect(preloadedAt("/nope/deeper", files)).toEqual([]);

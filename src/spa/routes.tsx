@@ -306,7 +306,7 @@ const newSpaceRoute = createRoute({
   loader: ({ context, deps }) => loadShell(context, null, deps.from),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "NewSpacePending"),
   errorComponent: ScreenError,
-  component: lazyRouteComponent(() => import("./routes/settings"), "NewSpaceRoute"),
+  component: lazyRouteComponent(() => import("./routes/new-space"), "NewSpaceRoute"),
 });
 
 /** HU-E9-05: the members of a shared or direct space; `?invite=1` opens the invite sheet (N10). */
