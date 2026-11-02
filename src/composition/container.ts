@@ -182,12 +182,14 @@ import {
   createSignOut,
   createSignUp,
   createUpdateProfile,
+  createVerifyEmail,
   type GetProfile,
   type InstallationRulesReader,
   type SignIn,
   type SignOut,
   type SignUp,
   type UpdateProfile,
+  type VerifyEmail,
 } from "@/modules/identity/application";
 import { createAuth } from "@/modules/identity/infrastructure/better-auth";
 import { BetterAuthProvider } from "@/modules/identity/infrastructure/better-auth-provider";
@@ -257,7 +259,7 @@ import { createDatabase, type Database } from "@/shared/infrastructure/db/client
 import { createDatabaseProbe } from "@/shared/infrastructure/db/probe";
 import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { DrizzleIdempotencyStore } from "@/shared/infrastructure/drizzle-idempotency-store";
-import { createSmtpMailer } from "@/shared/infrastructure/email/smtp-mailer";
+import { createSmtpMailer, type Mailer } from "@/shared/infrastructure/email/smtp-mailer";
 import { loadEnv, type Env } from "@/shared/infrastructure/env";
 import { clockFrom } from "@/shared/infrastructure/system-clock";
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
@@ -278,6 +280,8 @@ export interface Container extends RouteDeps {
     readonly signUpMode: "open" | "closed";
     readonly signIn: SignIn;
     readonly signOut: SignOut;
+    /** Issue #86: confirms an address from its verification link's token. */
+    readonly verifyEmail: VerifyEmail;
     readonly updateProfile: UpdateProfile;
     readonly getProfile: GetProfile;
   };
@@ -416,6 +420,8 @@ export interface ContainerOptions {
   readonly authLimits?: AuthLimits;
   /** Test seam: delivers invitation emails instead of SMTP (ADR 0007), which is off without SMTP_URL. */
   readonly emailSender?: EmailSender;
+  /** Test seam: stands for a configured SMTP server (ADR 0007), which also turns email verification on (P282). */
+  readonly mailer?: Mailer;
   /** Test seam: replaces the system clock, so a test decides what "today" is (a plan closes only after its period). */
   readonly clock?: Clock;
   /** Test seam: the installation's defaults and locks (HU-E1-15); the built-in es-CO rules until HU-E8-18. */
@@ -429,16 +435,19 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   const clock = options.clock ?? clockFrom(env.HEARTH_E2E_FIXED_NOW);
   const logger = leveledLogger(env.LOG_LEVEL);
   // Issue #85, ADR 0007: email goes out only when SMTP_URL is set; without it the inviter shares the link (HU-E1-06).
+  // Ruling P282: the same condition turns email verification on (#86).
   const mailer =
-    env.SMTP_URL !== undefined && env.SMTP_FROM !== undefined
+    options.mailer ??
+    (env.SMTP_URL !== undefined && env.SMTP_FROM !== undefined
       ? createSmtpMailer({ url: env.SMTP_URL, from: env.SMTP_FROM, log: logger })
-      : null;
+      : null);
   const provider = new BetterAuthProvider(
     createAuth({
       db,
       secret: env.BETTER_AUTH_SECRET,
       baseURL: env.BETTER_AUTH_URL,
       defaultTimeZone: env.APP_TIMEZONE,
+      mailer,
     }),
     db,
     env.APP_TIMEZONE,
@@ -684,6 +693,15 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     tokens: cryptoInvitationTokens,
     // The response always carries the URL; emailSent is false when nothing went out (no SMTP_URL, or a failed send).
     emailSender: options.emailSender ?? (mailer ? mailedInvitations(mailer) : { send: async () => false }),
+    // Issue #86, ruling P282: email invitations admit only confirmed addresses, once SMTP can send the confirmation.
+    ...(mailer
+      ? {
+          verifiedEmails: {
+            isVerified: (userId: string) => provider.isEmailVerified(userId),
+            requestVerification: (email: string) => provider.requestVerification(email),
+          },
+        }
+      : {}),
     // HU-E1-06: refusing to invite current members needs the identity module's users.
     users: { idByEmail: (email) => provider.findUserIdByEmail(email) },
     // The web page that accepts an invitation (HU-E9-05); the URL carries only the token.
@@ -733,6 +751,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         signUpGate: { mode: env.HEARTH_SIGN_UP, admits: createInvitationAdmitsSignUp(invitationsDeps) },
       }),
       signUpMode: env.HEARTH_SIGN_UP,
+      verifyEmail: createVerifyEmail(provider),
       updateProfile: createUpdateProfile({ profiles, rules: installationRules }),
       // HU-E9-13, ruling P124: the installation's zone and, until HU-E8-18 stores one, its built-in language.
       getProfile: createGetProfile({

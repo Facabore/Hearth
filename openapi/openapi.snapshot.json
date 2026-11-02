@@ -969,6 +969,46 @@
         }
       }
     },
+    "/api/v1/auth/verify-email": {
+      "post": {
+        "operationId": "verifyEmail",
+        "summary": "Confirm an account's email address with the token of the link it was sent; links are sent only when SMTP is configured (ruling P282)",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "The address is confirmed, now or before"
+          },
+          "422": {
+            "description": "ValidationFailed, InvalidVerificationLink (malformed, expired, forged, or naming no account)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/sign-out": {
       "post": {
         "operationId": "signOut",
@@ -2047,6 +2087,7 @@
       "post": {
         "operationId": "acceptInvitation",
         "summary": "Join the invitation's space as the signed-in user, with the invited role",
+        "description": "An email invitation admits only the account registered with its address. When the installation has SMTP configured, that account must also have confirmed its address through the link it was sent: until then the answer is 403 EmailNotVerified, and a fresh link is sent. Without SMTP nobody can confirm an address, so it is not asked for: whoever signs up first with the invited address, holding the token, can accept.",
         "security": [
           {
             "cookieAuth": []
@@ -2087,7 +2128,7 @@
             }
           },
           "403": {
-            "description": "InvitationEmailMismatch",
+            "description": "InvitationEmailMismatch, EmailNotVerified",
             "content": {
               "application/problem+json": {
                 "schema": {

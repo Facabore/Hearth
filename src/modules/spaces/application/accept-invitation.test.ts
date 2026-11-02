@@ -264,3 +264,58 @@ describe("AcceptInvitation into a space that cannot gain members (HU-E1-13, D16)
     expect(w.store.members("space-ana")).toHaveLength(1);
   });
 });
+
+describe("AcceptInvitation with email verification on (issue #86, ruling P282)", () => {
+  /** Ana invited the target; Juan's account confirmed its address when `verified`. */
+  const withVerification = async (target: InvitationTarget, verified: boolean) => {
+    const w = await invited(target);
+    const requested: string[] = [];
+    const verifiedEmails = {
+      isVerified: async (userId: string) => verified && userId === "u-juan",
+      requestVerification: async (email: string) => {
+        requested.push(email);
+      },
+    };
+    return { ...w, requested, accept: createAcceptInvitation({ ...w.deps, verifiedEmails }) };
+  };
+
+  it("refuses an email invitation with EmailNotVerified while the address is unconfirmed, and asks for a fresh link", async () => {
+    const w = await withVerification(toJuan, false);
+    expect(codeOf(await w.accept({ token: "token-1", ...juan }))).toBe("EmailNotVerified");
+    expect(juanRows(w.store.members(space))).toEqual([]);
+    expect(w.invitations.rows[0]?.status).toBe("PENDING");
+    expect(w.requested).toEqual(["juan@example.com"]);
+  });
+
+  it("admits a confirmed address and asks for nothing", async () => {
+    const w = await withVerification(toJuan, true);
+    expect(codeOf(await w.accept({ token: "token-1", ...juan }))).toBe("ok");
+    expect(w.requested).toEqual([]);
+  });
+
+  it("asks nothing of a link invitation", async () => {
+    const w = await withVerification({ kind: "LINK" }, false);
+    expect(codeOf(await w.accept({ token: "token-1", ...juan }))).toBe("ok");
+    expect(w.requested).toEqual([]);
+  });
+
+  it("answers another address's invitation with InvitationEmailMismatch, never EmailNotVerified", async () => {
+    const w = await withVerification(toJuan, false);
+    expect(codeOf(await w.accept({ token: "token-1", ...luis }))).toBe("InvitationEmailMismatch");
+    expect(w.requested).toEqual([]);
+  });
+
+  it("still answers EmailNotVerified when asking for a fresh link fails", async () => {
+    const w = await invited();
+    const accept = createAcceptInvitation({
+      ...w.deps,
+      verifiedEmails: {
+        isVerified: async () => false,
+        requestVerification: async () => {
+          throw new Error("mail server down");
+        },
+      },
+    });
+    expect(codeOf(await accept({ token: "token-1", ...juan }))).toBe("EmailNotVerified");
+  });
+});

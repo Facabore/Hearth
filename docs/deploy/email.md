@@ -1,6 +1,6 @@
 # Email (SMTP)
 
-Hearth can send invitations by email (HU-E1-06, issue #85). They go out over SMTP, to a server you already have: your provider's relay, a transactional service's SMTP endpoint, or your own. See [ADR 0007](../adr/0007-smtp-email-with-nodemailer.md) for why.
+Hearth can send two kinds of email: invitations (HU-E1-06, issue #85) and the link that confirms an account's address (issue #86). Both go out over SMTP, to a server you already have: your provider's relay, a transactional service's SMTP endpoint, or your own. See [ADR 0007](../adr/0007-smtp-email-with-nodemailer.md) for why.
 
 Email is optional. Without it, Hearth works as before: an invitation answers with its link, and you send the link to the person yourself.
 
@@ -18,10 +18,13 @@ Leave `SMTP_URL` unset, or blank, to send nothing. The app refuses to start, nam
 ## What changes when SMTP is on
 
 - **Invitations by email** are sent to the invited address. The response still carries the link, and `emailSent` says whether the message went out.
+- **Addresses are confirmed** (issue #86, rulings P282 and P283). A new account is sent a link, valid 7 days, that confirms its address. An invitation by email then admits only an account whose address is confirmed: until then, accepting it answers `403 EmailNotVerified` and sends a fresh link. Accounts created before you turned SMTP on get theirs the same way, the first time they accept an invitation by email. Link invitations and claim links never ask for a confirmed address, and signing in never does.
+
+An installation without SMTP cannot confirm anyone's address, so it does not ask for one: turning SMTP off turns the check off too.
 
 ## When the mail server fails
 
-A message that fails, or takes longer than 5 seconds, is given up and logged as `email.send_failed`, with the failure's name and code and the recipient's domain only. The request that sent it still succeeds. There is no queue and no retry: the inviter still has the link.
+A message that fails, or takes longer than 5 seconds, is given up and logged as `email.send_failed`, with the failure's name and code and the recipient's domain only. The request that sent it still succeeds. There is no queue and no retry: the inviter still has the link, and a person waiting for a confirmation link gets a new one by accepting the invitation again.
 
 ## Trying it locally
 

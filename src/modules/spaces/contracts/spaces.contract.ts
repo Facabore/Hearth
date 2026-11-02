@@ -377,13 +377,19 @@ export const spacesPaths: ZodOpenApiPathsObject = {
     post: {
       operationId: "acceptInvitation",
       summary: "Join the invitation's space as the signed-in user, with the invited role",
+      // Issue #86, ruling P282: the email binding is only as strong as the address behind the account.
+      description:
+        "An email invitation admits only the account registered with its address. When the installation has SMTP " +
+        "configured, that account must also have confirmed its address through the link it was sent: until then the " +
+        "answer is 403 EmailNotVerified, and a fresh link is sent. Without SMTP nobody can confirm an address, so it is " +
+        "not asked for: whoever signs up first with the invited address, holding the token, can accept.",
       ...securedByUser,
       requestParams: { path: z.object({ token: z.string() }) },
       responses: {
         "200": { description: "The joined space", content: jsonContent(SpaceSummarySchema) },
         ...problems({
           "401": "Unauthenticated",
-          "403": "InvitationEmailMismatch",
+          "403": "InvitationEmailMismatch, EmailNotVerified",
           "404": "InvitationNotFound, SpaceNotFound",
           "409":
             "InvitationExpired, InvitationRevoked, InvitationAlreadyUsed, AlreadyMember, MemberNameTaken, SpaceArchived",

@@ -11,6 +11,7 @@ import {
   type Result,
 } from "@/shared/kernel";
 import type { AuthProvider, AuthSession } from "../application/auth-provider";
+import type { EmailVerifier } from "../application/verify-email";
 import { normalizeEmail } from "../application/sign-up";
 import { user } from "./auth.schema";
 import type { Auth } from "./better-auth";
@@ -40,7 +41,7 @@ const toDomainError = async (response: Response): Promise<DomainError> => {
 };
 
 /** Adapts Better Auth to the identity port and resolves sessions (cookie or Bearer) for routes. */
-export class BetterAuthProvider implements AuthProvider, SessionResolver {
+export class BetterAuthProvider implements AuthProvider, EmailVerifier, SessionResolver {
   constructor(
     private readonly auth: Auth,
     private readonly db: Database,
@@ -81,6 +82,33 @@ export class BetterAuthProvider implements AuthProvider, SessionResolver {
       .where(eq(user.email, normalizeEmail(email)))
       .limit(1);
     return row?.id ?? null;
+  }
+
+  /** Issue #86: whether the account confirmed its address through the link it was sent. */
+  async isEmailVerified(userId: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ verified: user.emailVerified })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+    return row?.verified === true;
+  }
+
+  /**
+   * Issue #86: sends the account registered with `email` a fresh verification link, unless its address is confirmed
+   * already. Better Auth answers alike whether or not such an account exists; a failed send is the mailer's to log.
+   */
+  async requestVerification(email: string): Promise<void> {
+    await this.auth.api.sendVerificationEmail({ body: { email }, asResponse: true });
+  }
+
+  /**
+   * Issue #86: confirms the address the link's token names. A token that is malformed, expired, forged or names no
+   * account is InvalidVerificationLink; a confirmed address confirmed again is ok.
+   */
+  async verifyEmail(token: string): Promise<Result<void>> {
+    const response = await this.auth.api.verifyEmail({ query: { token }, asResponse: true });
+    return response.ok ? ok(undefined) : err(domainError("InvalidVerificationLink"));
   }
 
   async resolve(headers: Headers): Promise<AuthUser | null> {

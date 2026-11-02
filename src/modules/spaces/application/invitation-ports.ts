@@ -27,6 +27,16 @@ export interface EmailSender {
   send(email: InvitationEmail): Promise<boolean>;
 }
 
+/**
+ * Issue #86: whether an account confirmed its address, and a fresh link for one that did not; bound to the identity
+ * module by the composition root. Ruling P282: present only when SMTP is configured, since nobody could confirm otherwise.
+ */
+export interface VerifiedEmails {
+  isVerified(userId: string): Promise<boolean>;
+  /** Sends the account registered with `email` a fresh confirmation link. */
+  requestVerification(email: string): Promise<void>;
+}
+
 /** Registered users by email; bound to the identity module by the composition root. */
 export interface RegisteredUsers {
   idByEmail(email: string): Promise<string | null>;
@@ -42,6 +52,8 @@ export interface InvitationsDeps {
   readonly spaceLocks: Pick<SpaceLocks, "lockForLifecycle">;
   readonly tokens: InvitationTokens;
   readonly emailSender: EmailSender;
+  /** Ruling P282: absent without SMTP, and then an email invitation admits its address unconfirmed, as before #86. */
+  readonly verifiedEmails?: VerifiedEmails;
   readonly users: RegisteredUsers;
   /** The web URL that carries only the token (HU-E1-06), e.g. https://hearth.example/invitations/<token>. */
   readonly invitationUrl: (token: string) => string;

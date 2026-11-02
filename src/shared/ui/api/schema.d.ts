@@ -87,6 +87,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/verify-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm an account's email address with the token of the link it was sent; links are sent only when SMTP is configured (ruling P282) */
+        post: operations["verifyEmail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/sign-out": {
         parameters: {
             query?: never;
@@ -252,7 +269,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Join the invitation's space as the signed-in user, with the invited role */
+        /**
+         * Join the invitation's space as the signed-in user, with the invited role
+         * @description An email invitation admits only the account registered with its address. When the installation has SMTP configured, that account must also have confirmed its address through the link it was sent: until then the answer is 403 EmailNotVerified, and a fresh link is sent. Without SMTP nobody can confirm an address, so it is not asked for: whoever signs up first with the invited address, holding the token, can accept.
+         */
         post: operations["acceptInvitation"];
         delete?: never;
         options?: never;
@@ -2432,6 +2452,39 @@ export interface operations {
             };
         };
     };
+    verifyEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    token: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The address is confirmed, now or before */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description ValidationFailed, InvalidVerificationLink (malformed, expired, forged, or naming no account) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     signOut: {
         parameters: {
             query?: never;
@@ -3116,7 +3169,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description InvitationEmailMismatch */
+            /** @description InvitationEmailMismatch, EmailNotVerified */
             403: {
                 headers: {
                     [name: string]: unknown;

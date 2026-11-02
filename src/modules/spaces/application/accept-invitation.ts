@@ -21,14 +21,39 @@ export type AcceptInvitation = (input: AcceptInvitationInput) => Promise<Result<
 /** Concurrent joins may take the computed display name; re-read and retry this many times in total. */
 const MAX_JOIN_ATTEMPTS = 3;
 
-/** HU-E1-07: a signed-in user joins the invitation's space with the invited role. */
-export const createAcceptInvitation =
-  (
-    deps: Pick<
-      InvitationsDeps,
-      "access" | "members" | "spaces" | "invitations" | "spaceLocks" | "tokens" | "ids" | "clock" | "tm"
-    >,
-  ): AcceptInvitation =>
+type AcceptDeps = Pick<
+  InvitationsDeps,
+  | "access"
+  | "members"
+  | "spaces"
+  | "invitations"
+  | "spaceLocks"
+  | "verifiedEmails"
+  | "tokens"
+  | "ids"
+  | "clock"
+  | "tm"
+>;
+
+/**
+ * HU-E1-07: a signed-in user joins the invitation's space with the invited role. Issue #86: an email invitation refused
+ * with EmailNotVerified sends the account a fresh confirmation link, after the transaction (a slow mail server never
+ * holds its locks), so an account made before SMTP was configured can still confirm. A failed send changes nothing.
+ */
+export const createAcceptInvitation = (deps: AcceptDeps): AcceptInvitation => {
+  const join = joinInvitation(deps);
+  return async (input) => {
+    const joined = await join(input);
+    if (!joined.ok && joined.error.code === "EmailNotVerified")
+      await Promise.resolve()
+        .then(() => deps.verifiedEmails?.requestVerification(input.userEmail))
+        .catch(() => undefined);
+    return joined;
+  };
+};
+
+const joinInvitation =
+  (deps: AcceptDeps): AcceptInvitation =>
   (input) =>
     deps.tm.run(async () => {
       const tokenHash = deps.tokens.hash(input.token);
@@ -45,6 +70,14 @@ export const createAcceptInvitation =
       const now = deps.clock.now();
       const acceptable = ensureAcceptable(invitation, { email: input.userEmail, now });
       if (!acceptable.ok) return acceptable;
+      // Issue #86, ruling P282: with SMTP configured, an email invitation admits its address only once the account
+      // confirmed it, so a forwarded token is not enough to sign up with someone else's address and join.
+      if (
+        invitation.email !== null &&
+        deps.verifiedEmails &&
+        !(await deps.verifiedEmails.isVerified(input.userId))
+      )
+        return err(domainError("EmailNotVerified"));
       // D16, HU-E1-02: CreateInvitation never issues one for a personal or direct space, but joining either
       // is refused here too, so no path leaves them with another member.
       const joinable = ensureCanAddMember({ kind: await deps.spaces.spaceKindOf(invitation.spaceId) });
