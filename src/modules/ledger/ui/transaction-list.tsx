@@ -10,6 +10,7 @@ import { withTx } from "./detail/tx-href";
 import { ListFilters } from "./list-filters";
 import { hrefOf, type ListFilter } from "./list-href";
 import { LoadMore } from "./load-more";
+import { PendingBanner } from "./pending/pending-banner";
 import { SavedNotice } from "./saved-notice";
 import { TransactionRow, type RowContext } from "./transaction-row";
 
@@ -27,6 +28,7 @@ export function TransactionList({
   periodPolicy,
   detail,
   movedMemberIds,
+  pendingCount = 0,
 }: {
   readonly spaceId: string;
   readonly page: TransactionPageDto;
@@ -45,6 +47,8 @@ export function TransactionList({
   readonly detail?: TransactionDetail | undefined;
   /** #217 (P263): the members any movement ever touched, from the balances; without it every member is offered. */
   readonly movedMemberIds?: readonly string[] | undefined;
+  /** HU-E9-09 (ruling P270): the space's pending occurrences, for a member who records money; the banner shows above 0. */
+  readonly pendingCount?: number;
 }) {
   const t = useTranslations("ledger");
   const recurring = useTranslations("recurrences");
@@ -66,6 +70,7 @@ export function TransactionList({
           {recurring("pill")}
         </Link>
       </div>
+      {pendingCount > 0 ? <PendingBanner spaceId={spaceId} count={pendingCount} /> : null}
       {notice ? (
         <SavedNotice
           accountName={notice.accountName}

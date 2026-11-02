@@ -113,3 +113,22 @@ describe("the navigation's prefetch (#196)", () => {
     },
   );
 });
+
+describe("the pending-occurrence badge on Movimientos (HU-E9-09, ruling P270)", () => {
+  it("shows the count on the tab, and names it in the link", () => {
+    renderWithIntl(<NavLinks spaceId="sp-household" spaceKind="SHARED" canRecord pendingCount={2} />);
+    const link = screen.getByRole("link", { name: "Movimientos, 2 por confirmar" });
+    expect(link).toHaveAttribute("href", "/spaces/sp-household/transactions");
+    expect(within(link).getByText("2")).toBeInTheDocument();
+  });
+
+  it("shows nothing at zero or without a count", () => {
+    const { unmount } = renderWithIntl(
+      <NavLinks spaceId="sp-household" spaceKind="SHARED" canRecord pendingCount={0} />,
+    );
+    expect(screen.getByRole("link", { name: "Movimientos" })).toBeInTheDocument();
+    unmount();
+    renderWithIntl(<NavLinks spaceId="sp-household" spaceKind="SHARED" canRecord={false} />);
+    expect(screen.getByRole("link", { name: "Movimientos" })).toBeInTheDocument();
+  });
+});

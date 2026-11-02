@@ -9,6 +9,7 @@ import {
   memberDto,
   normalized,
   octoberPage,
+  rowContext,
   spaceDto,
   transactionDto,
 } from "../../../tests/support/ui/dto";
@@ -95,6 +96,10 @@ const pendingApi = (role: "OWNER" | "VIEWER" = "OWNER", overrides: Record<string
       }),
     "GET /api/v1/spaces/{spaceId}/accounts": () =>
       jsonResponse({ items: [accountDto({ id: "a-bank", name: "Bancolombia" })] }),
+    "GET /api/v1/spaces/{spaceId}/transactions": () => jsonResponse(octoberPage),
+    "GET /api/v1/spaces/{spaceId}/categories": () => jsonResponse({ items: rowContext.groups }),
+    "GET /api/v1/spaces/{spaceId}/periods": () => jsonResponse({ items: [] }),
+    "GET /api/v1/spaces/{spaceId}/balances": () => problemResponse(403, "InsufficientRole"),
     "POST /api/v1/spaces/{spaceId}/pending-occurrences/{occurrenceId}/confirm": (_, { occurrenceId }) => {
       pending = pending.filter((o) => o.id !== occurrenceId);
       return jsonResponse(
@@ -188,5 +193,46 @@ describe("Por confirmar in the SPA (HU-E9-09, ruling P270)", () => {
     expect(screen.queryByRole("button", { name: "Confirmar" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Omitir" })).not.toBeInTheDocument();
     expect(calls(spa.requests, "GET", /\/pending-occurrences$/)).toHaveLength(0);
+  });
+});
+
+describe("the ways into Por confirmar (HU-E9-09, ruling P270)", () => {
+  const movements = () =>
+    within(screen.getByRole("navigation", { name: "Principal" })).getByRole("link", { name: /^Movimientos/ });
+
+  it("counts the space's pending occurrences on the Movimientos tab for a member who records money (S7)", async () => {
+    renderSpa("/spaces/sp-household/transactions", pendingApi());
+    await waitFor(() => expect(movements()).toHaveAccessibleName("Movimientos, 2 por confirmar"));
+  });
+
+  it("puts a banner under Movimientos' title that leads to them", async () => {
+    renderSpa("/spaces/sp-household/transactions", pendingApi());
+    const review = await screen.findByRole("link", { name: "Revisar" });
+    expect(review).toHaveAttribute("href", "/spaces/sp-household/pending-occurrences");
+    expect(screen.getByText("2 movimientos por confirmar")).toBeInTheDocument();
+  });
+
+  it("shows a VIEWER no badge and no banner, and never asks the API for the count (S7)", async () => {
+    const spa = renderSpa("/spaces/sp-household/transactions", pendingApi("VIEWER"));
+    expect(await screen.findByRole("heading", { level: 1, name: "Movimientos" })).toBeInTheDocument();
+    expect(movements()).toHaveAccessibleName("Movimientos");
+    expect(screen.queryByRole("link", { name: "Revisar" })).not.toBeInTheDocument();
+    expect(calls(spa.requests, "GET", /\/pending-occurrences$/)).toHaveLength(0);
+  });
+
+  it("shows nothing when nothing waits (S7)", async () => {
+    const spa = renderSpa(
+      "/spaces/sp-household/transactions",
+      pendingApi("OWNER", {
+        "GET /api/v1/spaces/{spaceId}/pending-occurrences": () => jsonResponse({ items: [] }),
+      }),
+    );
+    expect(await screen.findByRole("heading", { level: 1, name: "Movimientos" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(calls(spa.requests, "GET", /\/pending-occurrences$/).length).toBeGreaterThan(0),
+    );
+    await waitFor(() => expect(spa.queryClient.isFetching()).toBe(0));
+    expect(movements()).toHaveAccessibleName("Movimientos");
+    expect(screen.queryByRole("link", { name: "Revisar" })).not.toBeInTheDocument();
   });
 });

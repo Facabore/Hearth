@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Icon, Logo } from "@/shared/ui";
+import { Icon, Logo, VisuallyHidden } from "@/shared/ui";
 import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import type { SpaceDto } from "@/shared/ui/api/dto";
 
@@ -12,18 +12,22 @@ import type { SpaceDto } from "@/shared/ui/api/dto";
  * artboard). Ruling P160: the Batch 2 order, Inicio, Movimientos, Registrar, Plan, Saldos; Saldos only where balances
  * exist (shared and direct spaces). Plan (HU-E9-10, ruling P200, amending P141) is current on every path under
  * `/plan` and `/plans`. Registrar only for someone who records in the space (#207): a viewer never meets a form she
- * cannot save.
+ * cannot save. The Movimientos tab carries the space's pending occurrences as a badge (HU-E9-09, ruling P270); the shell
+ * passes their count only to someone who records money, so a viewer never sees it, and nothing shows at zero.
  */
 export function NavLinks({
   spaceId,
   spaceKind,
   canRecord,
+  pendingCount = 0,
 }: {
   readonly spaceId: string;
   readonly spaceKind: SpaceDto["kind"];
   readonly canRecord: boolean;
+  readonly pendingCount?: number;
 }) {
   const t = useTranslations("shell.nav");
+  const pending = useTranslations("recurrences.pending");
   const pathname = usePathname();
   const search = useSearchParams().toString();
   const home = `/spaces/${spaceId}`;
@@ -58,8 +62,21 @@ export function NavLinks({
         {t("home")}
       </Link>
       <Link href={transactions} {...prefetch} aria-current={current(transactions)} className={item}>
-        <Icon name="list" />
+        <span className="relative">
+          <Icon name="list" />
+          {pendingCount > 0 ? (
+            <span
+              aria-hidden="true"
+              className="absolute -top-1.5 -right-2.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-ink px-1 text-[11px] leading-none font-semibold text-surface"
+            >
+              {pendingCount}
+            </span>
+          ) : null}
+        </span>
         {t("transactions")}
+        {pendingCount > 0 ? (
+          <VisuallyHidden>, {pending("badge", { count: pendingCount })}</VisuallyHidden>
+        ) : null}
       </Link>
       {canRecord ? (
         <Link

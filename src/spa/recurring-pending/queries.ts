@@ -1,6 +1,9 @@
-import { queryOptions } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
+import { controlsFor } from "@/modules/spaces/ui";
 import type { Api } from "@/shared/ui/api/client";
+import type { SpaceDto } from "@/shared/ui/api/dto";
 import type { components } from "@/shared/ui/api/schema";
+import { useApis } from "../api";
 import { read } from "../read";
 
 export type OccurrenceDto = components["schemas"]["Occurrence"];
@@ -27,3 +30,19 @@ export const pendingOccurrencesQuery = (api: Api, spaceId: string) =>
       (await read(api.GET("/api/v1/spaces/{spaceId}/pending-occurrences", { params: { path: { spaceId } } })))
         .items,
   });
+
+/**
+ * The count of the space's pending occurrences for someone who records money there (MEMBER and above), else 0: a
+ * VIEWER is never asked for it. A read that fails shows no count; it never fails the screen around it.
+ */
+export const usePendingCount = (space: Pick<SpaceDto, "id" | "kind" | "role"> | null): number => {
+  const { api } = useApis();
+  const records = space !== null && controlsFor(space.role, space.kind).recordMoney;
+  return (
+    useQuery({
+      ...pendingOccurrencesQuery(api, space?.id ?? ""),
+      enabled: records,
+      select: (items) => items.length,
+    }).data ?? 0
+  );
+};
