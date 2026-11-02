@@ -1,4 +1,4 @@
-import { getRouteApi, useParams } from "@tanstack/react-router";
+import { getRouteApi } from "@tanstack/react-router";
 import { useTranslations } from "use-intl";
 import {
   RecurrenceDetail,
@@ -7,7 +7,6 @@ import {
   RecurringNotAllowed,
 } from "@/modules/ledger/ui/screens";
 import { controlsFor } from "@/modules/spaces/ui";
-import { LoadingScreen } from "@/shared/ui/molecules/loading-screen";
 import { useApis } from "../api";
 import { useRecurrence, useRecurrenceEdit, useRecurrenceForm, useRecurrences } from "../recurring/hooks";
 import { useTitle } from "../title";
@@ -120,26 +119,4 @@ function EditRecurrence({
       edit={recurrence}
     />
   );
-}
-
-/** Issue #196's skeletons for these stacked screens, each with its way back. */
-export function RecurrencesPending() {
-  const { spaceId } = useParams({ strict: false });
-  const t = useTranslations("recurrences");
-  return (
-    <LoadingScreen header={{ backHref: `/spaces/${spaceId}/transactions`, title: t("title") }} shape="list" />
-  );
-}
-
-export function RecurrenceFormPending() {
-  const { spaceId } = useParams({ strict: false });
-  const t = useTranslations("recurrences.form");
-  return (
-    <LoadingScreen header={{ backHref: `/spaces/${spaceId}/recurrences`, title: t("title") }} shape="form" />
-  );
-}
-
-export function RecurrencePending() {
-  const { spaceId } = useParams({ strict: false });
-  return <LoadingScreen header={{ backHref: `/spaces/${spaceId}/recurrences` }} shape="cards" />;
 }

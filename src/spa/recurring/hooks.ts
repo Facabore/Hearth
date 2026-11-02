@@ -1,10 +1,10 @@
 import { useSuspenseQueries } from "@tanstack/react-query";
 import { notFound } from "@tanstack/react-router";
-import { sharedContextOf } from "@/modules/ledger/ui";
 import { personalSpaceOf } from "@/modules/spaces/ui";
 import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
 import { sharedSpace, type Viewer } from "../load";
+import { useShared } from "../ledger/form-hooks";
 import { accountsQuery, categoriesQuery, membersQuery, type Archived } from "../reads";
 import { recurrenceQuery, recurrencesQuery, upcomingQuery } from "./queries";
 
@@ -68,18 +68,12 @@ export const useRecurrence = (viewer: Viewer, recurrenceId: string) => {
 
 /** The form's props: what it offers, the person's member id, and a shared space's payers and split (HU-E9-06). */
 export const useRecurrenceForm = (viewer: Viewer) => {
-  const { accounts, groups, members, personal } = useNames(viewer, "active");
+  const { accounts, groups, members } = useNames(viewer, "active");
   const me = members.find((member) => member.userId === viewer.me.id);
   // A space the person no longer belongs to: the not-found screen, as the record form answers.
   if (!me) throw notFound();
-  const shared = sharedSpace(viewer.space)
-    ? (sharedContextOf({
-        meUserId: viewer.me.id,
-        members,
-        spaceAccounts: accounts,
-        personalAccounts: personal,
-      }) ?? undefined)
-    : undefined;
+  // The record form's own payers and split (HU-E9-06), never a second reading of them.
+  const { shared } = useShared(viewer, "active");
   return {
     accounts,
     groups,

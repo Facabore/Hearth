@@ -1004,7 +1004,40 @@
       "doneExtended": "{name} was extended."
     },
     "viewer": {
-      "list": "Your role in {space} is {role}: you can see the recurring transactions and their dates, but not create or change them."
+      "list": "Your role in {space} is {role}: you can see the recurring transactions and their dates, but not create or change them.",
+      "pending": "Your role in {space} is Viewer: you can see what is waiting to be confirmed, but not confirm or skip it."
+    },
+    "pending": {
+      "title": "To confirm",
+      "subtitle": "{space} · {count} pending",
+      "since": "Pending since {date}",
+      "suggested": "Suggested: {amount}",
+      "realAmount": "Actual amount of {name}",
+      "more": "{amount} more than suggested",
+      "less": "{amount} less than suggested",
+      "skip": "Skip",
+      "confirm": "Confirm",
+      "note": "Confirming records the expense with the actual amount. Skipping skips only this date; the next ones stay scheduled.",
+      "empty": "You have nothing to confirm.",
+      "invalidAmount": "Type an amount greater than zero.",
+      "type": {
+        "EXPENSE": "Expense",
+        "INCOME": "Income",
+        "TRANSFER": "Transfer",
+        "FUND_CONTRIBUTION": "Fund contribution"
+      },
+      "saved": {
+        "EXPENSE": "Expense saved",
+        "INCOME": "Income saved",
+        "TRANSFER": "Transfer saved",
+        "FUND_CONTRIBUTION": "Contribution saved"
+      },
+      "view": "View",
+      "skipped": "{name} skipped. Next on {date}.",
+      "skippedLast": "{name} skipped.",
+      "banner": "{count, plural, one {# movement to confirm} other {# movements to confirm}}",
+      "review": "Review",
+      "badge": "{count} to confirm"
     }
   },
   "spaces": {
@@ -1531,43 +1564,6 @@
       "OVER_CONTRIBUTED": "over-contributed",
       "UNDER_CONTRIBUTED": "under-contributed",
       "ON_TARGET": "on target"
-    }
-  },
-  "recurrences": {
-    "pending": {
-      "title": "To confirm",
-      "subtitle": "{space} · {count} pending",
-      "since": "Pending since {date}",
-      "suggested": "Suggested: {amount}",
-      "realAmount": "Actual amount of {name}",
-      "more": "{amount} more than suggested",
-      "less": "{amount} less than suggested",
-      "skip": "Skip",
-      "confirm": "Confirm",
-      "note": "Confirming records the expense with the actual amount. Skipping skips only this date; the next ones stay scheduled.",
-      "empty": "You have nothing to confirm.",
-      "invalidAmount": "Type an amount greater than zero.",
-      "type": {
-        "EXPENSE": "Expense",
-        "INCOME": "Income",
-        "TRANSFER": "Transfer",
-        "FUND_CONTRIBUTION": "Fund contribution"
-      },
-      "saved": {
-        "EXPENSE": "Expense saved",
-        "INCOME": "Income saved",
-        "TRANSFER": "Transfer saved",
-        "FUND_CONTRIBUTION": "Contribution saved"
-      },
-      "view": "View",
-      "skipped": "{name} skipped. Next on {date}.",
-      "skippedLast": "{name} skipped.",
-      "banner": "{count, plural, one {# movement to confirm} other {# movements to confirm}}",
-      "review": "Review",
-      "badge": "{count} to confirm"
-    },
-    "viewer": {
-      "pending": "Your role in {space} is Viewer: you can see what is waiting to be confirmed, but not confirm or skip it."
     }
   },
   "toast": {

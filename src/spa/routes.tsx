@@ -155,15 +155,12 @@ const recordRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/record"), "RecordScreen"),
 });
 
-/** HU-E9-09's loaders, likewise. */
-const recurringPending = () => import("./recurring-pending/loaders");
-
 /** Ruling P270: "Por confirmar", the space's pending occurrences, opened from the Movimientos banner. */
 const pendingOccurrencesRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "pending-occurrences",
   loader: async ({ context, params, cause }) =>
-    (await recurringPending()).loadPendingOccurrences({ ...context, cause }, params.spaceId),
+    (await recurring()).loadPendingOccurrences({ ...context, cause }, params.spaceId),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "ListPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/pending-occurrences"), "PendingOccurrencesRoute"),
@@ -187,7 +184,7 @@ const recurrencesRoute = createRoute({
   path: "recurrences",
   loader: async ({ context, params, cause }) =>
     (await recurring()).loadRecurrences({ ...context, cause }, params.spaceId),
-  pendingComponent: lazyRouteComponent(() => import("./routes/recurrences"), "RecurrencesPending"),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "RecurrencesPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/recurrences"), "RecurrencesRoute"),
 });
@@ -197,7 +194,7 @@ const newRecurrenceRoute = createRoute({
   path: "recurrences/new",
   loader: async ({ context, params, cause }) =>
     (await recurring()).loadRecurrenceForm({ ...context, cause }, params.spaceId),
-  pendingComponent: lazyRouteComponent(() => import("./routes/recurrences"), "RecurrenceFormPending"),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "RecurrenceFormPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/recurrences"), "NewRecurrenceRoute"),
 });
@@ -208,7 +205,7 @@ const recurrenceRoute = createRoute({
   path: "recurrences/$recurrenceId",
   loader: async ({ context, params, cause }) =>
     (await recurring()).loadRecurrence({ ...context, cause }, params.spaceId, params.recurrenceId),
-  pendingComponent: lazyRouteComponent(() => import("./routes/recurrences"), "RecurrencePending"),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "RecurrencePending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/recurrences"), "RecurrenceRoute"),
 });
@@ -218,7 +215,7 @@ const editRecurrenceRoute = createRoute({
   path: "recurrences/$recurrenceId/edit",
   loader: async ({ context, params, cause }) =>
     (await recurring()).loadRecurrenceEdit({ ...context, cause }, params.spaceId, params.recurrenceId),
-  pendingComponent: lazyRouteComponent(() => import("./routes/recurrences"), "RecurrenceFormPending"),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "RecurrenceFormPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/recurrences"), "EditRecurrenceRoute"),
 });

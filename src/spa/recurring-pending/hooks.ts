@@ -7,22 +7,8 @@ import { outcomeOf } from "@/shared/ui/api/readers";
 import { useApis } from "../api";
 import { sharedSpace, type Viewer } from "../load";
 import { accountsQuery, membersQuery } from "../reads";
-import { recurrencesQuery } from "./loaders";
-import { pendingOccurrencesQuery, recurrenceKeys, type OccurrenceDto, type RecurrenceDto } from "./queries";
-
-/** What a pending occurrence is waiting on: its date, amount and recurrence, from either read. */
-type Pending = Pick<OccurrenceDto, "id" | "recurrenceId" | "date" | "amount">;
-
-/**
- * The API lists pending occurrences only to members who record money (HU-E4-13). A VIEWER reads them, without acting
- * (ruling P270), from what she can read: each recurrence's latest occurrence while it is still pending.
- */
-const pendingOfViewer = (recurrences: readonly RecurrenceDto[]): Pending[] =>
-  recurrences
-    .flatMap((r) =>
-      r.lastOccurrence?.status === "PENDING" ? [{ ...r.lastOccurrence, recurrenceId: r.id }] : [],
-    )
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+import { recurrencesQuery } from "../recurring/queries";
+import { pendingOccurrencesQuery, recurrenceKeys, type RecurrenceDto } from "./queries";
 
 /** "Por confirmar" as a query hook (P127 in the SPA): the items, named from the cache the loader filled. */
 export const usePendingItems = (viewer: Viewer): { items: PendingItem[]; canAct: boolean } => {
@@ -31,7 +17,7 @@ export const usePendingItems = (viewer: Viewer): { items: PendingItem[]; canAct:
   const canAct = controlsFor(space.role, space.kind).recordMoney;
   const shared = sharedSpace(space);
   const recurrences = useSuspenseQuery(recurrencesQuery(api, space.id)).data;
-  const pending = useQuery({ ...pendingOccurrencesQuery(api, space.id), enabled: canAct });
+  const pending = useSuspenseQuery(pendingOccurrencesQuery(api, space.id)).data;
   const members = useQuery({ ...membersQuery(api, space.id), enabled: shared }).data ?? [];
   const accounts = useQuery(accountsQuery(api, space.id, "all")).data ?? [];
   const own = useQuery({
@@ -43,8 +29,7 @@ export const usePendingItems = (viewer: Viewer): { items: PendingItem[]; canAct:
     ...[...accounts, ...(own.data ?? [])].map((a): [string, string] => [a.id, a.name]),
   ]);
   const byId = new Map(recurrences.map((r) => [r.id, r]));
-  const occurrences = canAct ? (pending.data ?? []) : pendingOfViewer(recurrences);
-  const items = occurrences.flatMap((occurrence): PendingItem[] => {
+  const items = pending.flatMap((occurrence): PendingItem[] => {
     const recurrence = byId.get(occurrence.recurrenceId);
     if (!recurrence) return [];
     const details = [recurrence.payerMemberId, recurrence.sourceAccountId].flatMap((id) => {
@@ -76,7 +61,7 @@ export const usePendingWrites = (spaceId: string) => {
   const { api } = useApis();
   const queryClient = useQueryClient();
   const refreshRecurrences = () =>
-    void queryClient.invalidateQueries({ queryKey: recurrenceKeys.all(spaceId) });
+    void queryClient.invalidateQueries({ queryKey: recurrenceKeys.space(spaceId) });
 
   const confirm = async (item: PendingItem, amount: MoneyDto, key: string): Promise<ConfirmOutcome> => {
     const result = await api.POST("/api/v1/spaces/{spaceId}/pending-occurrences/{occurrenceId}/confirm", {

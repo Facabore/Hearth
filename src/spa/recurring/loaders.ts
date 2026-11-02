@@ -1,6 +1,7 @@
-import { personalSpaceOf } from "@/modules/spaces/ui";
+import { controlsFor, personalSpaceOf } from "@/modules/spaces/ui";
 import { ensurer, sharedSpace, viewerOf, type Load } from "../load";
 import { accountsQuery, categoriesQuery, membersQuery, type Archived } from "../reads";
+import { pendingOccurrencesQuery } from "../recurring-pending/queries";
 import { recurrenceQuery, recurrencesQuery, upcomingQuery } from "./queries";
 
 // HU-E9-09's loaders (ADR 0006): they load beside their screens, never with the app shell.
@@ -53,5 +54,34 @@ export const loadRecurrenceEdit = async (load: Load, spaceId: string, recurrence
     ensure(recurrenceQuery(load.apis.api, spaceId, recurrenceId)),
     ensure(categoriesQuery(load.apis.api, spaceId, "all")),
     loadNames(load, spaceId, "active"),
+  ]);
+};
+
+/** Names only: a read that fails leaves its labels out, never the screen. */
+const settled = (promise: Promise<unknown>): Promise<void> =>
+  promise.then(
+    () => undefined,
+    () => undefined,
+  );
+
+/**
+ * "Por confirmar" (ruling P270): the pending occurrences, which every member reads (P271), and the recurrences, which
+ * name each occurrence's payer and account. A shared space's members and the accounts name the payer and the account;
+ * neither ever fails the screen.
+ */
+export const loadPendingOccurrences = async (load: Load, spaceId: string): Promise<void> => {
+  const ensure = ensurer(load);
+  const { api } = load.apis;
+  const viewer = await viewerOf(load, spaceId);
+  if (!viewer) return;
+  const records = controlsFor(viewer.space.role, viewer.space.kind).recordMoney;
+  await Promise.all([
+    ensure(recurrencesQuery(api, spaceId)),
+    ensure(pendingOccurrencesQuery(api, spaceId)),
+    sharedSpace(viewer.space) ? settled(ensure(membersQuery(api, spaceId))) : undefined,
+    settled(ensure(accountsQuery(api, spaceId, "all"))),
+    records && sharedSpace(viewer.space)
+      ? settled(ensure(accountsQuery(api, personalSpaceOf(viewer.spaces).id, "all")))
+      : undefined,
   ]);
 };

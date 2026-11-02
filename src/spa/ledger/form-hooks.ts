@@ -24,8 +24,11 @@ import { transactionQuery } from "./queries";
 /** Queries a screen reads only sometimes, as a plain list: hooks are called the same way on every render. */
 const when = <T>(yes: boolean, queries: T[]): T[] => (yes ? queries : []);
 
-/** HU-E9-06 (P168): who pays and shares in a shared or direct space; the person must still be a member. */
-const useShared = (
+/**
+ * HU-E9-06 (P168): who pays and shares in a shared or direct space; the person must still be a member. The recurrence
+ * form (#77) reads it too, so both forms offer the same payers and split.
+ */
+export const useShared = (
   viewer: Viewer,
   spaceAccounts: "active" | "all",
 ): { shared: SharedExpenseContext | undefined } => {

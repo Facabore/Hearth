@@ -5,23 +5,15 @@ import type { SpaceDto } from "@/shared/ui/api/dto";
 import type { components } from "@/shared/ui/api/schema";
 import { useApis } from "../api";
 import { read } from "../read";
+import { recurrenceKeys } from "../recurring/keys";
 
 export type OccurrenceDto = components["schemas"]["Occurrence"];
 export type RecurrenceDto = components["schemas"]["Recurrence"];
+export { recurrenceKeys };
 
 /**
- * HU-E9-09 (ruling P270): a space's recurrences and its pending occurrences, keyed by module and space first, so a
- * confirmation or a skip invalidates both at once.
- */
-export const recurrenceKeys = {
-  all: (spaceId: string) => ["recurrences", spaceId] as const,
-  list: (spaceId: string) => ["recurrences", spaceId, "list"] as const,
-  pending: (spaceId: string) => ["recurrences", spaceId, "pending"] as const,
-};
-
-/**
- * HU-E4-13: the space's pending occurrences, earliest first, for members who record money (a VIEWER is refused). The
- * shell's badge and the Movimientos banner select their count from this same read; the screen lists them.
+ * HU-E4-13: the space's pending occurrences, earliest first, which every member reads (P271). The shell's badge and the
+ * Movimientos banner select their count from this same read, for members who record money; the screen lists them.
  */
 export const pendingOccurrencesQuery = (api: Api, spaceId: string) =>
   queryOptions<OccurrenceDto[]>({

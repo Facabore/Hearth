@@ -80,8 +80,8 @@ const pendingApi = (role: "OWNER" | "VIEWER" = "OWNER", overrides: Record<string
     "GET /api/v1/me": () => jsonResponse(meDto()),
     "GET /api/v1/spaces": () =>
       jsonResponse({ items: [spaceDto(), householdSpace({ name: "Hogar", role })] }),
-    "GET /api/v1/spaces/{spaceId}/pending-occurrences": () =>
-      role === "VIEWER" ? problemResponse(403, "InsufficientRole") : jsonResponse({ items: pending }),
+    // P271: every member reads the pending list; only members who record money confirm or skip.
+    "GET /api/v1/spaces/{spaceId}/pending-occurrences": () => jsonResponse({ items: pending }),
     "GET /api/v1/spaces/{spaceId}/recurrences": () =>
       jsonResponse({
         items: [
@@ -179,7 +179,7 @@ describe("Por confirmar in the SPA (HU-E9-09, ruling P270)", () => {
     expect(calls(spa.requests, "GET", /\/recurrences\/r-energy$/)).toHaveLength(1);
   });
 
-  it("shows a VIEWER what waits, with the role note and no confirm or skip, without asking the API for it (S6)", async () => {
+  it("shows a VIEWER what waits, read from the API, with the role note and no confirm or skip (S6, P271)", async () => {
     const spa = renderSpa("/spaces/sp-household/pending-occurrences", pendingApi("VIEWER"));
     expect(
       await screen.findByText(
@@ -192,7 +192,7 @@ describe("Por confirmar in the SPA (HU-E9-09, ruling P270)", () => {
     ]);
     expect(screen.queryByRole("button", { name: "Confirmar" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Omitir" })).not.toBeInTheDocument();
-    expect(calls(spa.requests, "GET", /\/pending-occurrences$/)).toHaveLength(0);
+    expect(calls(spa.requests, "GET", /\/pending-occurrences$/)).toHaveLength(1);
   });
 });
 

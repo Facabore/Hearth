@@ -4,21 +4,12 @@ import type { RecurrenceDto } from "@/modules/ledger/ui/screens";
 import type { Api } from "@/shared/ui/api/client";
 import { read } from "../read";
 import { LOADER_OWNED } from "../reads";
+import { recurrenceKeys } from "./keys";
+
+export { recurrenceKeys };
 
 /** How many next dates a recurrence's detail shows (P270), as the form's preview does (P269). */
 export const UPCOMING = 3;
-
-/**
- * HU-E9-09's reads (ADR 0006), keyed by module and space first, so a write can invalidate every recurrence of a space
- * at once.
- */
-export const recurrenceKeys = {
-  space: (spaceId: string) => ["recurrences", spaceId] as const,
-  list: (spaceId: string) => ["recurrences", spaceId, "list"] as const,
-  one: (spaceId: string, recurrenceId: string) => ["recurrences", spaceId, "one", recurrenceId] as const,
-  upcoming: (spaceId: string, recurrenceId: string) =>
-    ["recurrences", spaceId, "upcoming", recurrenceId] as const,
-};
 
 /** The space's recurrences in the order they were defined, with their status and next occurrence. */
 export const recurrencesQuery = (api: Api, spaceId: string) =>
