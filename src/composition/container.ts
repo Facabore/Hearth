@@ -672,6 +672,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     members: spaceRepository,
     spaces: spaceRepository,
     invitations: invitationRepository,
+    spaceLocks: spaceRepository,
     tokens: cryptoInvitationTokens,
     // No SMTP adapter in v1 (no new dependencies): the response carries the URL and emailSent is false.
     emailSender: options.emailSender ?? { send: async () => false },

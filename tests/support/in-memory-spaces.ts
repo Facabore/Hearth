@@ -409,6 +409,7 @@ export const invitationsWorld = (
     members: store,
     spaces: store,
     invitations,
+    spaceLocks: store,
     tokens,
     emailSender,
     users: registeredUsers(options.users ?? {}),

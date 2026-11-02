@@ -26,13 +26,20 @@ export const createAcceptInvitation =
   (
     deps: Pick<
       InvitationsDeps,
-      "access" | "members" | "spaces" | "invitations" | "tokens" | "ids" | "clock" | "tm"
+      "access" | "members" | "spaces" | "invitations" | "spaceLocks" | "tokens" | "ids" | "clock" | "tm"
     >,
   ): AcceptInvitation =>
   (input) =>
     deps.tm.run(async () => {
+      const tokenHash = deps.tokens.hash(input.token);
+      // Issue #149: the space's row is locked first, as every lifecycle change and money write locks it (#89), so a
+      // leave, an archive or a money write in progress finishes before the join reads the members, and the ones that
+      // come later see the new member. The unlocked read only finds the space to lock; the locked read below decides.
+      const named = await deps.invitations.findByTokenHash(tokenHash);
+      if (!named || isClaim(named)) return err(domainError("InvitationNotFound"));
+      await deps.spaceLocks.lockForLifecycle(named.spaceId);
       // Locked: concurrent acceptances of one invitation run one at a time (single-use email invitations).
-      const invitation = await deps.invitations.findByTokenHashForUpdate(deps.tokens.hash(input.token));
+      const invitation = await deps.invitations.findByTokenHashForUpdate(tokenHash);
       // HU-E1-11: a claim link hands over a guest's place (ClaimGuestPlace); it never adds a member.
       if (!invitation || isClaim(invitation)) return err(domainError("InvitationNotFound"));
       const now = deps.clock.now();

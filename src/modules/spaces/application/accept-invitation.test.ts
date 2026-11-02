@@ -155,6 +155,19 @@ describe("AcceptInvitation (HU-E1-07)", () => {
     expect(w.invitations.locked).toEqual(["id-1", "id-1"]);
   });
 
+  it("holds the space's lifecycle lock while it joins, so a leave, an archive or a money write never interleaves (issue #149)", async () => {
+    const w = await invited();
+    unwrap(await w.accept({ token: "token-1", ...juan }));
+    expect(w.store.locks.lifecycle).toEqual([space]);
+    expect(w.invitations.locked).toEqual(["id-1"]);
+  });
+
+  it("takes no space lock for a token that names no invitation (issue #149)", async () => {
+    const w = await invited();
+    expect(codeOf(await w.accept({ token: "token-unknown", ...juan }))).toBe("InvitationNotFound");
+    expect(w.store.locks.lifecycle).toEqual([]);
+  });
+
   it("gives a member who left their own member row back, with the invited role and the new join time (issue #90)", async () => {
     const w = await invited({ kind: "LINK" }, "MEMBER");
     unwrap(await w.accept({ token: "token-1", ...juan }));

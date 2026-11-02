@@ -240,6 +240,7 @@ describe("AcceptInvitation against PostgreSQL (Review Focus 2)", () => {
     members: spaces,
     spaces,
     invitations: repo,
+    spaceLocks: spaces,
     tokens: cryptoInvitationTokens,
     ids: new UuidV7IdGenerator(),
     clock: new SystemClock(),
@@ -298,6 +299,7 @@ describe("single-use ADMIN links against PostgreSQL (#218, ruling P264)", () => 
     members,
     spaces,
     invitations: repo,
+    spaceLocks: spaces,
     tokens: cryptoInvitationTokens,
     ids: new UuidV7IdGenerator(),
     // An hour after the link was issued, so it is valid whatever day the suite runs.
@@ -355,7 +357,7 @@ describe("single-use ADMIN links against PostgreSQL (#218, ruling P264)", () => 
     expect((await repo.findForUpdate(space.id, invitation.id))?.status).toBe("PENDING");
   });
 
-  it("lets exactly one of two people accepting the same ADMIN link at the same time in; the other waits on the link's lock", async () => {
+  it("lets exactly one of two people accepting the same ADMIN link at the same time in; the other waits behind the first", async () => {
     const ana = await newUser("Ana");
     const juan = await newUser("Juan");
     const luis = await newUser("Luis");

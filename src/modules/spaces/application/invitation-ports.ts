@@ -1,6 +1,7 @@
 import type { Clock, IdGenerator, TransactionManager } from "@/shared/kernel";
 import type { InvitationRepository } from "./invitation-repository";
 import type { SpaceAccess } from "./space-access";
+import type { SpaceLocks } from "./space-locks";
 import type { GuestClaimRepository, SpaceMemberRepository } from "./space-member-repository";
 
 /** A bearer token and the hash that is stored instead of it (HU-E1-06). */
@@ -37,6 +38,8 @@ export interface InvitationsDeps {
   /** AcceptInvitation refuses spaces that cannot gain members (their kind); previews show their name (P156). */
   readonly spaces: Pick<GuestClaimRepository, "spaceKindOf" | "spaceNameOf">;
   readonly invitations: InvitationRepository;
+  /** Issue #149: AcceptInvitation joins under the space's lifecycle lock, like a leave, a removal or an archive. */
+  readonly spaceLocks: Pick<SpaceLocks, "lockForLifecycle">;
   readonly tokens: InvitationTokens;
   readonly emailSender: EmailSender;
   readonly users: RegisteredUsers;
