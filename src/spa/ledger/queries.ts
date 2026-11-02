@@ -5,7 +5,7 @@ import type { ListFilter } from "@/modules/ledger/ui";
 import { personalSpaceOf } from "@/modules/spaces/ui";
 import { addDays, type LocalDate } from "@/shared/kernel/local-date";
 import type { Api } from "@/shared/ui/api/client";
-import type { TransactionDto, TransactionPageDto } from "@/shared/ui/api/dto";
+import type { PeriodDto, TransactionDto, TransactionPageDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { outcomeOf } from "@/shared/ui/api/readers";
 import { nowIn } from "@/shared/ui/time/when";
@@ -31,6 +31,9 @@ export interface PageQuery {
   readonly period?: string | undefined;
   readonly categoryIds?: string | undefined;
   readonly payerMemberId?: string | undefined;
+  readonly accountId?: string | undefined;
+  readonly type?: ListFilter["type"];
+  readonly search?: string | undefined;
   readonly limit: number;
 }
 
@@ -71,8 +74,36 @@ export const listQueryOf = (filter: ListFilter): PageQuery => ({
   period: filter.period,
   categoryIds: filter.categoryId,
   payerMemberId: filter.payerMemberId,
+  accountId: filter.accountId,
+  type: filter.type,
+  search: filter.search,
   limit: PAGE_SIZE,
 });
+
+/** Ruling P277: the period chip's sheet reads 24 periods from about eleven months before today. */
+const RECENT_PERIODS = 24;
+const RECENT_DAYS = 330;
+
+/**
+ * Ruling P277: the space's periods from about a year back, for Movimientos' period chip: a monthly space's last twelve
+ * and the coming ones, a semi-monthly one's last 22 halves and the coming ones; the sheet keeps those up to today.
+ */
+export const recentPeriodsQuery = (api: Api, spaceId: string, today: string) =>
+  queryOptions<readonly PeriodDto[]>({
+    ...LOADER_OWNED,
+    queryKey: ["ledger", spaceId, "periods", today] as const,
+    queryFn: async () =>
+      (
+        await read(
+          api.GET("/api/v1/spaces/{spaceId}/periods", {
+            params: {
+              path: { spaceId },
+              query: { from: addDays(today as LocalDate, -RECENT_DAYS), count: RECENT_PERIODS },
+            },
+          }),
+        )
+      ).items,
+  });
 
 /** The transaction behind `?tx=` or an edit, or what the API said instead: the sheet shows a missing one (P189). */
 export interface TransactionRead {

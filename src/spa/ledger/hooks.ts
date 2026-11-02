@@ -3,10 +3,11 @@ import type { ListFilter, TransactionDetail } from "@/modules/ledger/ui";
 import { personalSpaceOf } from "@/modules/spaces/ui";
 import { addDays, type LocalDate } from "@/shared/kernel/local-date";
 import type { CategoryGroupDto, MeDto } from "@/shared/ui/api/dto";
+import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
 import { accountsQuery, categoriesQuery, membersQuery, netBalancesQuery, periodQuery } from "../reads";
 import { sharedSpace, type Viewer } from "../load";
-import { HOME_ROWS, listQueryOf, pageQuery, transactionQuery } from "./queries";
+import { HOME_ROWS, listQueryOf, pageQuery, recentPeriodsQuery, transactionQuery } from "./queries";
 
 export { useViewer } from "../viewer";
 
@@ -105,6 +106,8 @@ export const useList = (viewer: Viewer, filter: ListFilter) => {
   const { period } = page.data;
   const previous = useQuery(periodQuery(api, spaceId, addDays(period.startDate as LocalDate, -1)));
   const next = useQuery(periodQuery(api, spaceId, addDays(period.endDate as LocalDate, 1)));
+  // Ruling P277: the period chip's choices; its sheet offers the neighbours until they are read, or when they cannot be.
+  const periods = useQuery(recentPeriodsQuery(api, spaceId, nowIn(new Date(), viewer.me.timezone).date));
   const memberNames = Object.fromEntries((members[0]?.data ?? []).map((m) => [m.id, m.displayName]));
   return {
     page: page.data,
@@ -112,6 +115,7 @@ export const useList = (viewer: Viewer, filter: ListFilter) => {
     context: rowContextOf(viewer.me, groups.data, accounts.data, memberNames),
     previous: previous.data ?? null,
     next: next.data ?? null,
+    periods: periods.data,
     movedMemberIds: movedOf(balances.data?.members),
   };
 };

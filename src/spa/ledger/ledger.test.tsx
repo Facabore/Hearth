@@ -176,6 +176,57 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     expect(document.title).toBe(`${es.ledger.list.title} · Hearth`);
   });
 
+  it("asks the API for the address's account, type and search (board B1 06, P277)", async () => {
+    const { routes } = ledgerApi();
+    const spa = renderSpa(
+      "/spaces/sp-personal/transactions?period=2026-10&acct=a-bank&type=EXPENSE&q=%20dinner%20",
+      routes,
+    );
+    expect(await screen.findByRole("searchbox", { name: es.ledger.list.search })).toHaveValue("dinner");
+    await waitFor(() =>
+      expect(
+        calls(
+          spa.requests,
+          "GET",
+          /\/transactions\?period=2026-10&accountId=a-bank&type=EXPENSE&search=dinner&limit=50$/,
+        ),
+      ).toHaveLength(1),
+    );
+    expect(screen.getByRole("button", { name: "Quitar el filtro Bancolombia" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Quitar el filtro Gasto" })).toBeInTheDocument();
+  });
+
+  it("searches as the person types and keeps the field in place while the list answers (P277)", async () => {
+    const { routes } = ledgerApi();
+    const spa = renderSpa("/spaces/sp-personal/transactions?period=2026-10", routes);
+    const field = await screen.findByRole("searchbox", { name: es.ledger.list.search });
+    await userEvent.type(field, "din{Enter}");
+    await waitFor(() => expect(spa.location()).toBe("/spaces/sp-personal/transactions?period=2026-10&q=din"));
+    await waitFor(() =>
+      expect(calls(spa.requests, "GET", /\/transactions\?period=2026-10&search=din&limit=50$/)).toHaveLength(
+        1,
+      ),
+    );
+    expect(screen.getByRole("searchbox", { name: es.ledger.list.search })).toBe(field);
+    expect(field).toHaveFocus();
+  });
+
+  it("reads the space's recent periods for the period chip, and moves to the one chosen (P277)", async () => {
+    const september = { label: "2026-09", startDate: "2026-09-01", endDate: "2026-09-30" };
+    const { routes } = ledgerApi({
+      "GET /api/v1/spaces/{spaceId}/periods": () => jsonResponse({ items: [september, octoberPage.period] }),
+    });
+    const spa = renderSpa("/spaces/sp-personal/transactions?period=2026-10", routes);
+    await screen.findByText("Salary");
+    await waitFor(() =>
+      expect(calls(spa.requests, "GET", /\/periods\?from=\d{4}-\d{2}-\d{2}&count=24$/)).toHaveLength(1),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "octubre 2026" }));
+    const sheet = await screen.findByRole("dialog", { name: es.ledger.list.periods });
+    await userEvent.click(within(sheet).getByRole("link", { name: "septiembre 2026" }));
+    await waitFor(() => expect(spa.location()).toBe("/spaces/sp-personal/transactions?period=2026-09"));
+  });
+
   it("paints a second visit to Movimientos from the cache at once, and revalidates it in the background", async () => {
     const { routes, hold } = ledgerApi();
     const spa = renderSpa("/spaces/sp-personal/transactions", routes);
