@@ -48,6 +48,7 @@ Rationale and rejected alternatives are in [section 6 of the spec](../specs/2026
 | [0004](../adr/0004-web-ui-testing-and-performance-gates.md) | Test the web UI with Vitest, Playwright and axe, and gate it on Core Web Vitals. | Accepted (2026-10-20) |
 | [0005](../adr/0005-measure-lcp-under-applied-throttling.md) | Time LCP under applied throttling (`devtools`), one run per route; CLS, TBT and script stay on the simulated runs, and every budget stays. Amends 0004. | Accepted (2026-10-26) |
 | [0006](../adr/0006-client-first-single-page-app.md) | The web UI becomes a client-first SPA (Vite, TanStack Router, TanStack Query): screens paint from the query cache, saves update optimistically, the API is unchanged. Supersedes the rendering half of 0003, amends 0004. | Accepted (2026-10-28) |
+| [0007](../adr/0007-smtp-email-with-nodemailer.md) | Send email over SMTP with nodemailer, configured by `SMTP_URL` and `SMTP_FROM`; without `SMTP_URL` nothing is sent. A send never fails the request and gives up after 5 seconds. | Accepted (2026-11-02) |
 
 ## Rulings P1–P256
 
