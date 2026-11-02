@@ -31,6 +31,7 @@ export function RecurrencesRoute() {
       accountNames={accountNames}
       memberNames={memberNames}
       formats={viewer.me.preferences.effective}
+      timeZone={viewer.me.timezone}
     />
   );
 }
@@ -82,6 +83,7 @@ export function RecurrenceRoute() {
       memberNames={memberNames}
       formats={viewer.me.preferences.effective}
       today={today}
+      timeZone={viewer.me.timezone}
       api={api}
     />
   );

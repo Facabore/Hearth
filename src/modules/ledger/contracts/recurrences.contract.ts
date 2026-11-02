@@ -195,6 +195,8 @@ export const RecurrenceSchema = z.object({
   status: z.enum(["ACTIVE", "PAUSED", "ENDED"]),
   /** PAUSED only: null when a member paused it, else PayerLeft, CreatorLeft or the code that refused an occurrence. */
   pauseReason: z.string().nullable(),
+  /** PAUSED only: when it was paused (#77, the detail says since when); null otherwise. Optional for older clients. */
+  pausedAt: z.iso.datetime().nullable().optional(),
   /** The next date it will record; null while paused or once ended. */
   nextOccurrence: z.iso.date().nullable(),
   categoryId: z.string().nullable(),
@@ -284,6 +286,7 @@ export const recurrenceDto = (view: RecurrenceView): z.infer<typeof RecurrenceSc
     endDate: recurrence.endDate,
     status: view.status,
     pauseReason: view.status === "PAUSED" ? recurrence.pauseReason : null,
+    pausedAt: view.status === "PAUSED" && recurrence.pausedAt ? recurrence.pausedAt.toISOString() : null,
     nextOccurrence: view.nextOccurrence,
     ...references(recurrence.template),
     lastOccurrence:

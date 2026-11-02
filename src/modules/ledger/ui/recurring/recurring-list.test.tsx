@@ -54,10 +54,24 @@ const renderList = (space = spaceDto(), recurrences = [recurrenceDto(), netflix,
       groups={groups}
       {...names}
       formats={BUILT_IN_FORMATS}
+      timeZone="America/Bogota"
     />,
   );
 
 describe("the recurring list (HU-E9-09, P270)", () => {
+  it("says since when a paused one is paused, as a day in the person's zone", () => {
+    renderList(spaceDto(), [
+      recurrenceDto({
+        id: "r-tv",
+        description: "TV",
+        status: "PAUSED",
+        nextOccurrence: null,
+        pausedAt: "2026-11-03T04:00:00.000Z",
+      }),
+    ]);
+    expect(screen.getByText("En pausa desde el 2/11/2026")).toBeInTheDocument();
+  });
+
   it("lists a defined recurrence with its signed amount, schedule, next date and badges (S2)", () => {
     renderList();
     const active = screen.getByRole("region", { name: "Activos · 1" });

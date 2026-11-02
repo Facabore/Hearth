@@ -933,6 +933,7 @@
       "active": "Activos · {count}",
       "inactive": "En pausa y terminados",
       "paused": "En pausa",
+      "pausedSince": "En pausa desde el {date}",
       "endedOn": "Terminó el {date}",
       "empty": "Todavía no hay movimientos recurrentes en este espacio.",
       "add": "Agregar un movimiento recurrente"
@@ -985,6 +986,7 @@
       "next": "Próximas fechas",
       "none": "No hay próximas fechas.",
       "paused": "En pausa: no se registra nada hasta que lo reanudes.",
+      "pausedSince": "En pausa desde el {date}: no se registra nada hasta que lo reanudes.",
       "ended": "Terminado: no se registra nada más hasta que lo extiendas.",
       "edit": "Editar {name}",
       "pause": "Pausar",
@@ -1037,6 +1039,7 @@
       "skippedLast": "{name} omitida.",
       "banner": "{count, plural, one {# movimiento por confirmar} other {# movimientos por confirmar}}",
       "review": "Revisar",
+      "names": { "two": "{first} y {second}", "more": "{first}, {second} y {rest} más" },
       "badge": "{count} por confirmar"
     }
   },

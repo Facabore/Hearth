@@ -6,7 +6,7 @@ import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
 import { useList, useTransactionDetail, useViewer } from "../ledger/hooks";
 import { writesQuery } from "../ledger/queries";
-import { usePendingCount } from "../recurring-pending/queries";
+import { usePendingNames } from "../recurring-pending/queries";
 import { useTitle } from "../title";
 
 const route = getRouteApi("/spaces/$spaceId/transactions");
@@ -29,7 +29,7 @@ export function TransactionsScreen() {
   // A write starts the list afresh, rows "Cargar más" added included: none of them can show what the write changed.
   const written = useQuery(writesQuery(spaceId)).data;
   // HU-E9-09 (ruling P270): the banner to "Por confirmar", from the read the shell's badge already holds.
-  const pendingCount = usePendingCount(space);
+  const pendingNames = usePendingNames(space);
   // The balance is the fund's balance now, read with the list: no amount ever travels in the address (P170).
   const fund = notice === "FundBalanceNegative" ? accounts.find((a) => a.id === account) : undefined;
   return (
@@ -47,7 +47,8 @@ export function TransactionsScreen() {
         previous={previous}
         next={next}
         movedMemberIds={movedMemberIds}
-        pendingCount={pendingCount}
+        pendingCount={pendingNames.length}
+        pendingNames={pendingNames}
       />
       {/* The origin is the list without `tx`: closing never re-shows a dismissed notice. */}
       {detail ? (

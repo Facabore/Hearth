@@ -45,6 +45,7 @@ const detail = (recurrence: RecurrenceDto = recurrenceDto(), space: SpaceDto = s
         memberNames={{ "m-ana": "Ana" }}
         formats={BUILT_IN_FORMATS}
         today="2026-11-20"
+        timeZone="America/Bogota"
         api={api as Api}
       />
     </ToastProvider>,
@@ -80,6 +81,14 @@ describe("a recurrence's detail (HU-E9-09, P270)", () => {
       expect(calls("POST")).toEqual(["/api/v1/spaces/sp-personal/recurrences/r-rent/pause"]),
     );
     expect(router.refresh).toHaveBeenCalled();
+  });
+
+  it("says since when it is paused, as a day in the person's zone (P270)", () => {
+    // 03:00 UTC on 2 December is still 1 December in Bogotá.
+    detail(recurrenceDto({ status: "PAUSED", nextOccurrence: null, pausedAt: "2026-12-02T03:00:00.000Z" }));
+    expect(
+      screen.getByText("En pausa desde el 1/12/2026: no se registra nada hasta que lo reanudes."),
+    ).toBeInTheDocument();
   });
 
   it("offers Reanudar in their place while paused, and resumes through its endpoint", async () => {

@@ -1,14 +1,21 @@
 import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import type { ConfirmOutcome, PendingItem, SkipOutcome } from "@/modules/ledger/ui/screens";
+import { findCategory } from "@/modules/categories/ui";
 import { controlsFor, personalSpaceOf } from "@/modules/spaces/ui";
 import type { MoneyDto } from "@/shared/ui/api/dto";
 import { problemFrom } from "@/shared/ui/api/problem";
 import { outcomeOf } from "@/shared/ui/api/readers";
 import { useApis } from "../api";
 import { sharedSpace, type Viewer } from "../load";
-import { accountsQuery, membersQuery } from "../reads";
+import { accountsQuery, categoriesQuery, membersQuery } from "../reads";
 import { recurrencesQuery } from "../recurring/queries";
 import { pendingOccurrencesQuery, recurrenceKeys, type RecurrenceDto } from "./queries";
+
+/** The occurrence's category icon and color, when the space still has its category. */
+const categoryOf = (groups: Parameters<typeof findCategory>[0], categoryId: string | null) => {
+  const found = categoryId === null ? null : findCategory(groups, categoryId);
+  return found ? { category: { icon: found.category.icon, color: found.category.color } } : {};
+};
 
 /** "Por confirmar" as a query hook (P127 in the SPA): the items, named from the cache the loader filled. */
 export const usePendingItems = (viewer: Viewer): { items: PendingItem[]; canAct: boolean } => {
@@ -20,6 +27,8 @@ export const usePendingItems = (viewer: Viewer): { items: PendingItem[]; canAct:
   const pending = useSuspenseQuery(pendingOccurrencesQuery(api, space.id)).data;
   const members = useQuery({ ...membersQuery(api, space.id), enabled: shared }).data ?? [];
   const accounts = useQuery(accountsQuery(api, space.id, "all")).data ?? [];
+  // P270's cards carry the category's icon; a read that fails leaves the icon out, never the card.
+  const groups = useQuery(categoriesQuery(api, space.id, "all")).data ?? [];
   const own = useQuery({
     ...accountsQuery(api, personalSpaceOf(spaces).id, "all"),
     enabled: canAct && shared,
@@ -45,6 +54,7 @@ export const usePendingItems = (viewer: Viewer): { items: PendingItem[]; canAct:
         date: occurrence.date,
         suggested: occurrence.amount,
         details,
+        ...categoryOf(groups, occurrence.categoryId),
       },
     ];
   });

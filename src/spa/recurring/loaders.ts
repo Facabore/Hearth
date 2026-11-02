@@ -80,6 +80,7 @@ export const loadPendingOccurrences = async (load: Load, spaceId: string): Promi
     ensure(pendingOccurrencesQuery(api, spaceId)),
     sharedSpace(viewer.space) ? settled(ensure(membersQuery(api, spaceId))) : undefined,
     settled(ensure(accountsQuery(api, spaceId, "all"))),
+    settled(ensure(categoriesQuery(api, spaceId, "all"))),
     records && sharedSpace(viewer.space)
       ? settled(ensure(accountsQuery(api, personalSpaceOf(viewer.spaces).id, "all")))
       : undefined,

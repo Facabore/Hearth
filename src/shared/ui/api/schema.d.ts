@@ -1785,6 +1785,7 @@ export interface components {
             /** @enum {string} */
             status: "ACTIVE" | "PAUSED" | "ENDED";
             pauseReason: string | null;
+            pausedAt?: string | null;
             nextOccurrence: string | null;
             categoryId: string | null;
             payerMemberId: string | null;
