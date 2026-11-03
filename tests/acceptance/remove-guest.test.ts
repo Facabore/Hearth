@@ -123,6 +123,14 @@ describe("remove a guest (HU-E1-12)", () => {
     expect(await problemOf(claimed)).toEqual([409, "InvitationRevoked"]);
   });
 
+  it("answers 404 MemberNotFound for a guest of another space, who stays where he is", async () => {
+    const { h } = await background();
+    const other = await background();
+    expect(await problemOf(await remove(h.ana, h.spaceId, other.pedro))).toEqual([404, "MemberNotFound"]);
+    expect(await memberRow(other.pedro)).toEqual({ kind: "GUEST", display_name: "Pedro", left_at: null });
+    expect(await currentIds(other.h.ana, other.h.spaceId)).toContain(other.pedro);
+  });
+
   it("answers 404 for unknown and malformed members and for non-members", async () => {
     const { h, pedro } = await background();
     for (const memberId of ["0190a0b0-0000-7000-8000-000000000000", "not-a-uuid"]) {

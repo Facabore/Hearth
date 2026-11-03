@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { POST as createAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/route";
 import { GET as listCategories } from "@/app/api/v1/spaces/[spaceId]/categories/route";
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
@@ -135,8 +135,9 @@ const setRole = (t: Team, user: TestUser, memberId: string, role: string) =>
   });
 
 describe("permissions per role (HU-E1-05)", () => {
+  // Each case gets its own household, so no case depends on what an earlier one recorded, invited or added.
   let t: Team;
-  beforeAll(async () => {
+  beforeEach(async () => {
     t = await team();
   });
 
@@ -191,6 +192,21 @@ describe("permissions per role (HU-E1-05)", () => {
       422,
       "ValidationFailed",
     ]);
+  });
+
+  it("answers a malformed space id and another space's member with 404, and changes no role", async () => {
+    const other = await team();
+    const otherLuis = (await members(other, other.ana)).find((m) => m.displayName === "Luis")!.id;
+    expect(await outcome(setRole(t, t.ana, otherLuis, "ADMIN"))).toEqual([404, "MemberNotFound"]);
+    const luis = await memberIdOf(t, "Luis");
+    const malformed = call(changeRole, "PATCH", `/api/v1/spaces/not-a-uuid/members/${luis}`, {
+      user: t.ana,
+      params: { spaceId: "not-a-uuid", memberId: luis },
+      body: { role: "ADMIN" },
+    });
+    expect(await outcome(malformed)).toEqual([404, "SpaceNotFound"]);
+    expect((await members(other, other.ana)).find((m) => m.id === otherLuis)!.role).toBe("MEMBER");
+    expect((await members(t, t.ana)).find((m) => m.id === luis)!.role).toBe("MEMBER");
   });
 
   it("refuses to demote the only OWNER", async () => {
