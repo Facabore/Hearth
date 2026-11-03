@@ -8,10 +8,21 @@ import {
   type Result,
   type SymbolName,
 } from "@/shared/kernel";
-import type { AccountType } from "./account-type";
+import {
+  ACCOUNT_PRODUCT_TYPES,
+  productTypesOf,
+  type AccountProductType,
+  type AccountType,
+} from "./account-type";
 import { NO_TERMS, revisedTerms, type AccountTerms, type TermsChange } from "./account-terms";
 
-export { ACCOUNT_TYPES, type AccountType } from "./account-type";
+export {
+  ACCOUNT_PRODUCT_TYPES,
+  ACCOUNT_TYPES,
+  productTypesOf,
+  type AccountProductType,
+  type AccountType,
+} from "./account-type";
 
 export type AccountId = Id<"Account">;
 
@@ -64,6 +75,11 @@ export interface AccountAttributes {
    * `accounts_last_four` check in PostgreSQL.
    */
   readonly lastFour: string | null;
+  /**
+   * Ruling P295: one of `productTypesOf(type)`, so only a BANK account has one: refused by the HTTP contract, by the
+   * domain and by the `accounts_product_type` checks in PostgreSQL. Null says nothing about the product.
+   */
+  readonly productType: AccountProductType | null;
   /** One of `ACCOUNT_COLORS`: refused by the HTTP contract and by the domain (issue 124); PostgreSQL does not check it. */
   readonly color: AccountColor | null;
   /**
@@ -80,6 +96,7 @@ export interface AccountAttributes {
 export const NO_ATTRIBUTES: AccountAttributes & { readonly terms: AccountTerms } = {
   institution: null,
   lastFour: null,
+  productType: null,
   color: null,
   icon: null,
   includeInAvailable: null,
@@ -106,6 +123,16 @@ const colorOf = (color: AccountColor): Result<AccountColor> =>
 const iconNamed = (icon: AccountIcon): Result<AccountIcon> =>
   ACCOUNT_ICONS.includes(icon) ? ok(icon) : err(domainError("InvalidAccountIcon"));
 
+/** Ruling P295: a value of the list, on a type that takes one (AccountAttributeNotAllowed names it, as for terms). */
+const productTypeFor =
+  (type: AccountType) =>
+  (productType: AccountProductType): Result<AccountProductType> => {
+    if (!ACCOUNT_PRODUCT_TYPES.includes(productType)) return err(domainError("InvalidAccountProductType"));
+    return productTypesOf(type).includes(productType)
+      ? ok(productType)
+      : err(domainError("AccountAttributeNotAllowed", { attribute: "productType" }));
+  };
+
 /** Undefined keeps `current`, null clears it, a value is checked before it is kept. */
 const changed = <T>(
   current: T | null,
@@ -115,12 +142,18 @@ const changed = <T>(
 
 /**
  * The attributes after `change`. The domain refuses what the HTTP contract refuses (issue 124), so a writer that skips
- * HTTP, such as an import, cannot store a value the API would not: institution, color and icon are checked here;
- * `lastFour` is PostgreSQL's check.
+ * HTTP, such as an import, cannot store a value the API would not: institution, product type, color and icon are
+ * checked here; `lastFour` is PostgreSQL's check.
  */
-const withChanges = (current: AccountAttributes, change: AttributeChanges): Result<AccountAttributes> => {
+const withChanges = (
+  type: AccountType,
+  current: AccountAttributes,
+  change: AttributeChanges,
+): Result<AccountAttributes> => {
   const institution = changed(current.institution, change.institution, institutionOf);
   if (!institution.ok) return institution;
+  const productType = changed(current.productType, change.productType, productTypeFor(type));
+  if (!productType.ok) return productType;
   const color = changed(current.color, change.color, colorOf);
   if (!color.ok) return color;
   const icon = changed(current.icon, change.icon, iconNamed);
@@ -128,6 +161,7 @@ const withChanges = (current: AccountAttributes, change: AttributeChanges): Resu
   return ok({
     institution: institution.value,
     lastFour: change.lastFour === undefined ? current.lastFour : change.lastFour,
+    productType: productType.value,
     color: color.value,
     icon: icon.value,
     includeInAvailable:
@@ -194,7 +228,7 @@ export const openAccount = (input: {
     return err(domainError("PersonalAccountRequiresPersonalSpace"));
   }
   if (nameTaken(input.siblings, name.value)) return err(domainError("AccountNameTaken"));
-  const attributes = withChanges(NO_ATTRIBUTES, input.attributes ?? {});
+  const attributes = withChanges(input.type, NO_ATTRIBUTES, input.attributes ?? {});
   if (!attributes.ok) return attributes;
   const terms = revisedTerms(input.type, NO_TERMS, input.terms ?? {});
   if (!terms.ok) return terms;
@@ -232,7 +266,7 @@ export const reviseAccount = (
   const name = change.name === undefined ? ok(account.name) : nameOf(change.name);
   if (!name.ok) return name;
   if (nameTaken(siblings, name.value, account.id)) return err(domainError("AccountNameTaken"));
-  const attributes = withChanges(account, change.attributes ?? {});
+  const attributes = withChanges(account.type, account, change.attributes ?? {});
   if (!attributes.ok) return attributes;
   const terms = revisedTerms(account.type, account.terms, change.terms ?? {});
   if (!terms.ok) return terms;

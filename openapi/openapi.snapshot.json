@@ -4075,6 +4075,13 @@
                     "type": "string",
                     "pattern": "^\\d{4}$"
                   },
+                  "productType": {
+                    "type": "string",
+                    "enum": [
+                      "SAVINGS_ACCOUNT",
+                      "CHECKING_ACCOUNT"
+                    ]
+                  },
                   "color": {
                     "type": "string",
                     "enum": [
@@ -4549,6 +4556,20 @@
                       {
                         "type": "string",
                         "pattern": "^\\d{4}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "productType": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "SAVINGS_ACCOUNT",
+                          "CHECKING_ACCOUNT"
+                        ]
                       },
                       {
                         "type": "null"
@@ -13462,6 +13483,20 @@
             "type": [
               "string",
               "null"
+            ]
+          },
+          "productType": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "SAVINGS_ACCOUNT",
+                  "CHECKING_ACCOUNT"
+                ]
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "color": {

@@ -188,6 +188,84 @@ describe("account types and common attributes (HU-E2-05)", () => {
   });
 });
 
+describe("a bank account's product type (#240, ruling P295)", () => {
+  it("creates a BANK account as savings, lists it so, and answers null for an account without one", async () => {
+    const ana = await registerUser("Ana");
+    const bank = await created(ana, {
+      name: "Bancolombia",
+      type: "BANK",
+      openingBalance: cop(0),
+      lastFour: "1203",
+      productType: "SAVINGS_ACCOUNT",
+    });
+    expect(bank).toMatchObject({ productType: "SAVINGS_ACCOUNT", lastFour: "1203" });
+    await created(ana, { name: "Davivienda", type: "BANK", openingBalance: cop(0) });
+
+    expect(
+      (await listOf(ana))
+        .map((account) => [account.name, account.productType])
+        .sort(([a], [b]) => String(a).localeCompare(String(b))),
+    ).toEqual([
+      ["Bancolombia", "SAVINGS_ACCOUNT"],
+      ["Davivienda", null],
+    ]);
+  });
+
+  it("changes it, keeps it when a PATCH leaves it out, and clears it with null", async () => {
+    const ana = await registerUser("Ana");
+    const bank = await created(ana, { name: "Bancolombia", type: "BANK", openingBalance: cop(0) });
+
+    expect(await (await patch(ana, bank.id, { productType: "CHECKING_ACCOUNT" })).json()).toMatchObject({
+      productType: "CHECKING_ACCOUNT",
+    });
+    expect(await (await patch(ana, bank.id, { name: "Bancolombia nómina" })).json()).toMatchObject({
+      productType: "CHECKING_ACCOUNT",
+    });
+    expect(await (await patch(ana, bank.id, { productType: null })).json()).toMatchObject({
+      productType: null,
+    });
+    expect((await listOf(ana))[0]).toMatchObject({ name: "Bancolombia nómina", productType: null });
+  });
+
+  it("refuses one on any other type with 409, naming the field, and stores nothing", async () => {
+    const ana = await registerUser("Ana");
+    const response = await create(ana, {
+      name: "Nequi",
+      type: "WALLET",
+      openingBalance: cop(0),
+      productType: "SAVINGS_ACCOUNT",
+    });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      code: "AccountAttributeNotAllowed",
+      field: "productType",
+    });
+    expect(await listOf(ana)).toEqual([]);
+
+    const nequi = await created(ana, { name: "Nequi", type: "WALLET", openingBalance: cop(0) });
+    expect(await problemOf(await patch(ana, nequi.id, { productType: "CHECKING_ACCOUNT" }))).toEqual([
+      409,
+      "AccountAttributeNotAllowed",
+    ]);
+    expect((await listOf(ana))[0]).toMatchObject({ productType: null });
+  });
+
+  it("refuses a value outside the list with 422 ValidationFailed on the field", async () => {
+    const ana = await registerUser("Ana");
+    const response = await create(ana, {
+      name: "Bancolombia",
+      type: "BANK",
+      openingBalance: cop(0),
+      productType: "PAYROLL",
+    });
+    expect(response.status).toBe(422);
+    const problem = (await response.json()) as { code: string; errors: { path: string }[] };
+    expect(problem.code).toBe("ValidationFailed");
+    expect(problem.errors.map((e) => e.path)).toEqual(["productType"]);
+    expect(await listOf(ana)).toEqual([]);
+  });
+});
+
 describe("type-specific account attributes (HU-E2-06)", () => {
   it("creates a card with its terms, available credit and effective annual rate", async () => {
     const ana = await registerUser("Ana");

@@ -1485,6 +1485,7 @@ export interface components {
             archivedAt: string | null;
             institution: string | null;
             lastFour: string | null;
+            productType?: ("SAVINGS_ACCOUNT" | "CHECKING_ACCOUNT") | null;
             color: ("PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE") | null;
             /** @enum {string} */
             icon: "cash" | "bank" | "wallet" | "card" | "piggy" | "trend" | "coins" | "dots" | "users" | "briefcase" | "car" | "star" | "gift" | "home" | "plane" | "phone";
@@ -4338,6 +4339,8 @@ export interface operations {
                     institution?: string;
                     lastFour?: string;
                     /** @enum {string} */
+                    productType?: "SAVINGS_ACCOUNT" | "CHECKING_ACCOUNT";
+                    /** @enum {string} */
                     color?: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
                     /** @enum {string} */
                     icon?: "cash" | "bank" | "wallet" | "card" | "piggy" | "trend" | "coins" | "dots" | "users" | "briefcase" | "car" | "star" | "gift" | "home" | "plane" | "phone";
@@ -4545,6 +4548,7 @@ export interface operations {
                     openingBalance?: components["schemas"]["Money"];
                     institution?: string | null;
                     lastFour?: string | null;
+                    productType?: ("SAVINGS_ACCOUNT" | "CHECKING_ACCOUNT") | null;
                     color?: ("PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE") | null;
                     icon?: ("cash" | "bank" | "wallet" | "card" | "piggy" | "trend" | "coins" | "dots" | "users" | "briefcase" | "car" | "star" | "gift" | "home" | "plane" | "phone") | null;
                     includeInAvailable?: boolean | null;

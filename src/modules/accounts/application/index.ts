@@ -4,12 +4,14 @@ export type {
   AccountColor,
   AccountIcon,
   AccountId,
+  AccountProductType,
   AccountType,
   AttributeChanges,
 } from "../domain/account";
 export {
   ACCOUNT_COLORS,
   ACCOUNT_ICONS,
+  ACCOUNT_PRODUCT_TYPES,
   ACCOUNT_TYPES,
   defaultsOf,
   holdsMoney,

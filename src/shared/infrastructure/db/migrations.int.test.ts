@@ -410,3 +410,55 @@ describe.each(Object.entries(guarded))("migration %s on existing rows (#249)", (
     }
   });
 });
+
+/** A database with the #249 world, left just before `tag`; `check` runs once `tag` has applied over it. */
+const overWorld = async (tag: string, check: (client: pg.Client, w: World) => Promise<void>) => {
+  const index = journal.entries.findIndex((entry) => entry.tag === tag);
+  const url = await emptyDatabase();
+  await runMigrations(url, migrationsThrough(journal.entries[index - 1]!.tag));
+  const client = new pg.Client({ connectionString: url });
+  await client.connect();
+  try {
+    const w = await seed(client);
+    await runMigrations(url, migrationsThrough(tag));
+    expect(await appliedCount(client)).toBe(index + 1);
+    await check(client, w);
+  } finally {
+    await client.end();
+  }
+};
+
+/** The CHECK or unique constraint a statement broke, or null when it passed. */
+const brokenConstraint = async (client: pg.Client, statement: Statement): Promise<string | null> => {
+  await client.query("SAVEPOINT probe");
+  try {
+    await exec(client, statement);
+    await client.query("RELEASE SAVEPOINT probe");
+    return null;
+  } catch (error) {
+    await client.query("ROLLBACK TO SAVEPOINT probe");
+    return (error as { constraint?: string }).constraint ?? (error as Error).message;
+  }
+};
+
+describe("migration 0026_account_product_type (#240, ruling P295)", () => {
+  it("leaves every existing account without a product type, and lets only a bank account take one of the list", async () => {
+    await overWorld("0026_account_product_type", async (client, w) => {
+      expect((await client.query("SELECT product_type FROM accounts WHERE id = $1", [w.bank])).rows).toEqual([
+        { product_type: null },
+      ]);
+      await client.query("BEGIN");
+      const set = (value: string, type: string): Statement => [
+        "UPDATE accounts SET type = $3, product_type = $2 WHERE id = $1",
+        [w.bank, value, type],
+      ];
+      expect(await brokenConstraint(client, set("SAVINGS_ACCOUNT", "BANK"))).toBeNull();
+      expect(await brokenConstraint(client, set("CHECKING_ACCOUNT", "BANK"))).toBeNull();
+      expect(await brokenConstraint(client, set("PAYROLL", "BANK"))).toBe("accounts_product_type");
+      expect(await brokenConstraint(client, set("SAVINGS_ACCOUNT", "WALLET"))).toBe(
+        "accounts_product_type_bank",
+      );
+      await client.query("ROLLBACK");
+    });
+  });
+});

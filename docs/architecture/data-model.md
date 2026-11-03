@@ -211,6 +211,7 @@ erDiagram
         timestamptz created_at
         text institution
         text last_four "four digits only"
+        text product_type "BANK only: SAVINGS_ACCOUNT, CHECKING_ACCOUNT"
         text color "palette key"
         text icon "allow-listed name, null is the type default"
         bigint credit_limit "CREDIT_CARD, minor units"
@@ -302,6 +303,8 @@ erDiagram
 - Check `accounts_type`: `type` is one of the domain's `ACCOUNT_TYPES`: `CASH`, `BANK`, `WALLET`, `CREDIT_CARD`, `SAVINGS`, `INVESTMENT`, `LOAN`, `OTHER` or `SHARED_FUND` (#249).
 - Check `accounts_shared_fund_owner`: `(type = 'SHARED_FUND') = (owner_user_id IS NULL)`.
 - Check `accounts_last_four`: `last_four ~ '^[0-9]{4}$'` (null passes).
+- Check `accounts_product_type`: `product_type` is one of the domain's `ACCOUNT_PRODUCT_TYPES`, `SAVINGS_ACCOUNT` or `CHECKING_ACCOUNT` (null passes; P295).
+- Check `accounts_product_type_bank`: `product_type IS NULL OR type = 'BANK'` (P295).
 - Check `accounts_card_terms`: `type = 'CREDIT_CARD'` or `credit_limit`, `cut_off_day`, `payment_day` and `monthly_rate_ppm` are all null.
 - Check `accounts_annual_rate`: `annual_rate_ppm IS NULL OR type IN ('SAVINGS', 'LOAN')`.
 - Check `accounts_loan_terms`: `type = 'LOAN'` or `principal` and `term_months` are both null.
@@ -449,6 +452,7 @@ erDiagram
         timestamptz created_at
         text institution
         text last_four "four digits only"
+        text product_type "BANK only: SAVINGS_ACCOUNT, CHECKING_ACCOUNT"
         text color "palette key"
         text icon "allow-listed name, null is the type default"
         bigint credit_limit "CREDIT_CARD, minor units"
@@ -833,5 +837,6 @@ One line per migration, from the file in [`drizzle/`](https://github.com/Facabor
 | [`0023_line_category_plan.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0023_line_category_plan.sql) | The unique key `(id, plan_id)` of `budget_lines`; a category mapping points at it with its `plan_id`, so that plan is its line's. | Issue #249, M3A-3 |
 | [`0024_claim_guest_space.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0024_claim_guest_space.sql) | The unique key `(id, space_id)` of `space_members`; a claim link points at it with its `space_id`, so its guest is a member of its space. | Issue #249, M2C-D3 |
 | [`0025_transaction_space_keys.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0025_transaction_space_keys.sql) | The unique key `(id, space_id)` of `categories`; a transaction's category, receiving member and payer member point at it and at that of `space_members` with its `space_id` (ruling P288). | Issue #249, M1-8 |
+| [`0026_account_product_type.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0026_account_product_type.sql) | `accounts.product_type`, null on every existing account, with the checks `accounts_product_type` and `accounts_product_type_bank` (ruling P295). | Issue #240 |
 
 Migrations are forward-only (see [Rolling back](../operations/deploy.md#rolling-back)). A migration that changes tables updates this page in the same pull request.
