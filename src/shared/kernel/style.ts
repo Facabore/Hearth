@@ -90,3 +90,6 @@ export const SYMBOLS = [
   "wrench",
 ] as const;
 export type SymbolName = (typeof SYMBOLS)[number];
+
+// A module of its own, so only the screens that read it load it (the record route's budget, ADR 0004).
+export { CUSTOM_GROUP_STYLE } from "./group-style";

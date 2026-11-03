@@ -15,7 +15,7 @@ export function AppError({ error, reset }: ErrorComponentProps) {
     void router.invalidate();
   };
   return (
-    <main className="mx-auto max-w-[420px] px-4 max-[359px]:px-3">
+    <main className="mx-auto max-w-[420px] px-gutter">
       <ErrorScreen onRetry={retry} variant={error instanceof TypeError ? "connection" : "unexpected"} />
     </main>
   );

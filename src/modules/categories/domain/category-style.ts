@@ -1,4 +1,5 @@
 import {
+  CUSTOM_GROUP_STYLE as KERNEL_GROUP_STYLE,
   domainError,
   err,
   ok,
@@ -100,8 +101,11 @@ export interface StyleChange {
   readonly color?: CategoryColor;
 }
 
-/** HU-E3-05: the style of a group created without one, and of the custom groups that existed before 0017. */
-export const CUSTOM_GROUP_STYLE: CategoryStyle = { icon: { kind: "SYMBOL", name: "tag" }, color: "GRAPHITE" };
+/**
+ * HU-E3-05: the style of a group created without one, and of the custom groups that existed before 0017. The kernel
+ * holds it, so the group sheet preselects the same one.
+ */
+export const CUSTOM_GROUP_STYLE: CategoryStyle = KERNEL_GROUP_STYLE;
 
 // The longest RGI emoji sequences (a kiss with two skin tones, a subdivision flag) take 15 UTF-16 code units.
 const MAX_EMOJI_LENGTH = 32;

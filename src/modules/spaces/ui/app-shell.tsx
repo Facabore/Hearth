@@ -52,7 +52,7 @@ export function AppShell({
   if (stacked) {
     return (
       <div className="min-h-dvh pb-[env(safe-area-inset-bottom)]">
-        <div className="mx-auto max-w-[1200px] px-4 max-[359px]:px-3">
+        <div className="mx-auto max-w-[1200px] px-gutter">
           <main id="main">{children}</main>
         </div>
       </div>
@@ -60,7 +60,7 @@ export function AppShell({
   }
   return (
     <div className="min-h-dvh pb-[calc(76px+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-[240px]">
-      <div className="mx-auto max-w-[1200px] px-4 max-[359px]:px-3">
+      <div className="mx-auto max-w-[1200px] px-gutter">
         <header className="flex h-14 items-center justify-between gap-2">
           <SpaceSwitcher
             spaces={spaces}

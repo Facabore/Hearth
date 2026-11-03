@@ -225,7 +225,7 @@ const CATALOG_FAILED: Record<Locale, { title: string; body: string; retry: strin
 function CatalogFailed({ locale, onRetry }: { readonly locale: Locale; readonly onRetry: () => void }) {
   const copy = CATALOG_FAILED[locale];
   return (
-    <main lang={locale} className="mx-auto flex max-w-[420px] flex-col gap-3 px-4 py-6 max-[359px]:px-3">
+    <main lang={locale} className="mx-auto flex max-w-[420px] flex-col gap-3 px-gutter py-6">
       <h1 className="text-2xl font-semibold text-ink">{copy.title}</h1>
       <p className="text-muted">{copy.body}</p>
       <button

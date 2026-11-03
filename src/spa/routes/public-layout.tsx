@@ -8,7 +8,7 @@ import { Logo } from "@/shared/ui";
 export function PublicLayout() {
   const locale = useLocale() as Locale;
   return (
-    <main className="mx-auto max-w-[420px] px-4 pt-3 pb-4 max-[359px]:px-3">
+    <main className="mx-auto max-w-[420px] px-gutter pt-3 pb-4">
       <div className="mb-8 flex items-center justify-between">
         <Logo />
         <LanguageToggle locale={locale} />
