@@ -164,6 +164,7 @@ import {
   createCreateCategoryGroup,
   createDeleteCategory,
   createListCategories,
+  createMoveCategoryGroup,
   createRenameCategoryGroup,
   createRestoreCategory,
   createSeedDefaultCategories,
@@ -177,6 +178,7 @@ import {
   type CreateCategoryGroup,
   type DeleteCategory,
   type ListCategories,
+  type MoveCategoryGroup,
   type RenameCategoryGroup,
   type RestoreCategory,
   type UpdateCategory,
@@ -324,6 +326,7 @@ export interface Container extends RouteDeps {
     readonly listCategories: ListCategories;
     readonly createCategoryGroup: CreateCategoryGroup;
     readonly renameCategoryGroup: RenameCategoryGroup;
+    readonly moveCategoryGroup: MoveCategoryGroup;
     readonly createCategory: CreateCategory;
     readonly updateCategory: UpdateCategory;
     readonly deleteCategory: DeleteCategory;
@@ -935,6 +938,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       listCategories: createListCategories(categoriesDeps),
       createCategoryGroup: createCreateCategoryGroup(categoriesDeps),
       renameCategoryGroup: createRenameCategoryGroup(categoriesDeps),
+      moveCategoryGroup: createMoveCategoryGroup(categoriesDeps),
       createCategory: createCreateCategory(categoriesDeps),
       updateCategory: createUpdateCategory(categoriesDeps),
       deleteCategory: createDeleteCategory({

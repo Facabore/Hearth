@@ -411,8 +411,15 @@ describe.each(Object.entries(guarded))("migration %s on existing rows (#249)", (
   });
 });
 
-/** A database with the #249 world, left just before `tag`; `check` runs once `tag` has applied over it. */
-const overWorld = async (tag: string, check: (client: pg.Client, w: World) => Promise<void>) => {
+/**
+ * A database with the #249 world (and what `prepare` adds to it), left just before `tag`; `check` runs once `tag` has
+ * applied over it.
+ */
+const overWorld = async (
+  tag: string,
+  check: (client: pg.Client, w: World) => Promise<void>,
+  prepare?: (client: pg.Client, w: World) => Promise<void>,
+) => {
   const index = journal.entries.findIndex((entry) => entry.tag === tag);
   const url = await emptyDatabase();
   await runMigrations(url, migrationsThrough(journal.entries[index - 1]!.tag));
@@ -420,6 +427,7 @@ const overWorld = async (tag: string, check: (client: pg.Client, w: World) => Pr
   await client.connect();
   try {
     const w = await seed(client);
+    await prepare?.(client, w);
     await runMigrations(url, migrationsThrough(tag));
     expect(await appliedCount(client)).toBe(index + 1);
     await check(client, w);
@@ -458,6 +466,52 @@ describe("migration 0026_account_product_type (#240, ruling P295)", () => {
       expect(await brokenConstraint(client, set("SAVINGS_ACCOUNT", "WALLET"))).toBe(
         "accounts_product_type_bank",
       );
+      await client.query("ROLLBACK");
+    });
+  });
+});
+
+describe("migration 0027_category_group_position (#240, ruling P296)", () => {
+  it("numbers every space's groups from 0 in the order the list showed them, archived ones included", async () => {
+    // "zeta" is archived; accents, ñ and case sort as the Spanish list did.
+    const names = ["Vivienda", "Ócio", "Árbol", "Ahorro", "zeta", "Ñame", "Nube"];
+    const addGroups = async (client: pg.Client, w: World) => {
+      for (const name of names)
+        await client.query(
+          "INSERT INTO category_groups (id, space_id, name, archived_at, created_at) VALUES ($1, $2, $3, $4, now())",
+          [randomUUID(), w.personal, name, name === "zeta" ? new Date() : null],
+        );
+    };
+    await overWorld(
+      "0027_category_group_position",
+      async (client, w) => {
+        const rows = async (space: string) =>
+          (
+            await client.query(
+              "SELECT name, position FROM category_groups WHERE space_id = $1 ORDER BY position",
+              [space],
+            )
+          ).rows;
+        // Until P296 the list sorted the groups by name with localeCompare in Spanish.
+        const expected = ["Home", ...names].sort((a, b) => a.localeCompare(b, "es"));
+        expect(await rows(w.personal)).toEqual(expected.map((name, position) => ({ name, position })));
+        expect(await rows(w.household)).toEqual([{ name: "Home", position: 0 }]);
+      },
+      addGroups,
+    );
+  });
+
+  it("then keeps one group per place, never below 0, and requires a place", async () => {
+    await overWorld("0027_category_group_position", async (client, w) => {
+      await client.query("BEGIN");
+      const insert = (position: number | null): Statement => [
+        "INSERT INTO category_groups (id, space_id, name, position, created_at) VALUES ($1, $2, $3, $4, now())",
+        [randomUUID(), w.personal, `G ${randomUUID()}`, position],
+      ];
+      expect(await brokenConstraint(client, insert(0))).toBe("category_groups_space_position_uq");
+      expect(await brokenConstraint(client, insert(-1))).toBe("category_groups_position_non_negative");
+      expect(await brokenConstraint(client, insert(null))).toMatch(/null value in column "position"/);
+      expect(await brokenConstraint(client, insert(1))).toBeNull();
       await client.query("ROLLBACK");
     });
   });

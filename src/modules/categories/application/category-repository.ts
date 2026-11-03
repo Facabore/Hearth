@@ -16,8 +16,10 @@ export interface CategoryRepository {
   hasAny(spaceId: string): Promise<boolean>;
   addGroups(groups: readonly CategoryGroup[]): Promise<void>;
   addCategories(categories: readonly Category[]): Promise<void>;
-  /** Every group of the space, archived ones included. */
+  /** Every group of the space, archived ones included, by position (ruling P296). */
   listGroups(spaceId: string): Promise<CategoryGroup[]>;
+  /** Ruling P296: the new positions of `groups`, all of the space; together they keep the positions dense and unique. */
+  saveGroupPositions(spaceId: string, groups: readonly CategoryGroup[]): Promise<void>;
   /** Every category of the space that is not deleted (D8), archived ones included. */
   listCategories(spaceId: string): Promise<Category[]>;
   /** Persists name, style and archive state. */

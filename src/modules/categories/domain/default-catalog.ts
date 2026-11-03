@@ -97,13 +97,15 @@ export const seedTree = (input: {
   const language = catalogLanguage(input.locale);
   const groups: CategoryGroup[] = [];
   const categories: Category[] = [];
-  for (const entry of DEFAULT_CATALOG) {
+  for (const [position, entry] of DEFAULT_CATALOG.entries()) {
     const group: CategoryGroup = {
       id: input.ids.next<"CategoryGroup">(),
       spaceId: input.spaceId,
       name: entry.names[language],
       key: entry.key,
       style: { icon: { kind: "SYMBOL", name: entry.icon }, color: entry.color },
+      // Ruling P296: the catalog's order, board Categorías 01's (Vivienda, Alimentación, Transporte, Salud, …).
+      position,
       archivedAt: null,
       createdAt: input.now,
     };

@@ -79,10 +79,32 @@ export class DrizzleCategoryRepository implements CategoryRepository {
           key: g.key,
           ...iconColumns(g.style.icon),
           color: g.style.color,
+          position: g.position,
           archivedAt: g.archivedAt,
           createdAt: g.createdAt,
         })),
       );
+  }
+
+  /**
+   * Ruling P296: the positions of `groups`, all of `spaceId`. The unique place cannot be deferred, so the rows first
+   * park past every position the space uses (dense from 0, so `position + count` is free), then each takes its own.
+   */
+  async saveGroupPositions(spaceId: string, groups: readonly CategoryGroup[]): Promise<void> {
+    if (groups.length === 0) return;
+    const db = this.tm.executor();
+    const ids = groups.map((g) => g.id);
+    await db
+      .update(categoryGroups)
+      .set({
+        position: sql`${categoryGroups.position} + (SELECT count(*)::integer FROM ${categoryGroups} WHERE ${categoryGroups.spaceId} = ${spaceId})`,
+      })
+      .where(and(eq(categoryGroups.spaceId, spaceId), inArray(categoryGroups.id, ids)));
+    for (const g of groups)
+      await db
+        .update(categoryGroups)
+        .set({ position: g.position })
+        .where(and(eq(categoryGroups.spaceId, spaceId), eq(categoryGroups.id, g.id)));
   }
 
   async addCategories(rows: readonly Category[]): Promise<void> {
@@ -110,7 +132,8 @@ export class DrizzleCategoryRepository implements CategoryRepository {
       .executor()
       .select()
       .from(categoryGroups)
-      .where(eq(categoryGroups.spaceId, spaceId));
+      .where(eq(categoryGroups.spaceId, spaceId))
+      .orderBy(asc(categoryGroups.position));
     return rows.map(({ iconKind, iconValue, color, ...row }) => ({
       ...row,
       id: row.id as CategoryGroupId,

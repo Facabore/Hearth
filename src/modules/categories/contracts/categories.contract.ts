@@ -6,6 +6,7 @@ import {
   type CategoryGroup,
   type CategoryGroupView,
   type CategoryView,
+  type GroupAnchor,
 } from "../application";
 
 /** HU-E3-05: a symbol of the fixed set or exactly one emoji, judged by the domain (InvalidCategoryIcon). */
@@ -38,6 +39,11 @@ export const CategoryGroupSummarySchema = z.object({
   /** HU-E3-05: the group's icon and color. */
   icon: IconSchema,
   color: ColorSchema,
+  /**
+   * Ruling P296: the group's place in its space's list, from 0, dense over every group (archived ones included); lists
+   * come in this order. Read-only: `POST …/move` changes it. Added after M6, so optional.
+   */
+  position: z.number().int().optional(),
 });
 export const CategoryGroupSchema = CategoryGroupSummarySchema.extend({
   /** HU-E3-04: the group's categories, each with its subcategories. */
@@ -55,6 +61,17 @@ const Style = { icon: IconSchema.optional(), color: ColorSchema.optional() };
 export const CategoryGroupBodySchema = z.object({ name: Name, ...Style });
 /** HU-E3-05, ruling P61: rename and/or restyle; a group can change its style alone. */
 export const UpdateCategoryGroupBodySchema = z.object({ name: Name.optional(), ...Style });
+/** Ruling P296: the group goes right before or right after another group of the space; exactly one. */
+export const MoveCategoryGroupBodySchema = z
+  .object({ before: ParentId.optional(), after: ParentId.optional() })
+  .refine((body) => (body.before === undefined) !== (body.after === undefined), {
+    error: "Send exactly one of before and after",
+    path: ["before"],
+  });
+export const CategoryGroupOrderResponseSchema = z.object({
+  /** Every group of the space, archived ones included, in its new order. */
+  items: z.array(CategoryGroupSummarySchema),
+});
 /** HU-E3-04: a category of `groupId`, or a subcategory of `parentCategoryId`; exactly one. */
 export const CreateCategoryBodySchema = z
   .object({ groupId: ParentId.optional(), parentCategoryId: ParentId.optional(), name: Name, ...Style })
@@ -95,7 +112,12 @@ export const categoryGroupDto = (g: CategoryGroup): z.infer<typeof CategoryGroup
   archivedAt: isoOrNull(g.archivedAt),
   icon: g.style.icon,
   color: g.style.color,
+  position: g.position,
 });
+
+/** Ruling P296: the body's anchor as the use case takes it (the schema leaves exactly one). */
+export const anchorOf = (body: z.infer<typeof MoveCategoryGroupBodySchema>): GroupAnchor =>
+  body.before !== undefined ? { before: body.before } : { after: body.after! };
 
 export const categoryTreeDto = (g: CategoryGroupView): z.infer<typeof CategoryGroupSchema> => ({
   ...categoryGroupDto(g),
@@ -121,7 +143,8 @@ export const categoriesPaths: ZodOpenApiPathsObject = {
       requestParams: { path: SpacePath, query: ListCategoriesQuerySchema },
       responses: {
         "200": {
-          description: "Groups with their categories and each category's subcategories, sorted by name",
+          description:
+            "Groups in their own order (position), each with its categories and each category's subcategories sorted by name",
           content: jsonContent(ListCategoriesResponseSchema),
         },
         ...problems({ "401": "Unauthenticated", "404": "SpaceNotFound", "422": "ValidationFailed" }),
@@ -240,6 +263,28 @@ export const categoriesPaths: ZodOpenApiPathsObject = {
           ...managed,
           "404": "SpaceNotFound, CategoryNotFound",
           "409": "CategoryGroupArchived, SpaceArchived, ParentCategoryArchived",
+        }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/category-groups/{groupId}/move": {
+    post: {
+      operationId: "moveCategoryGroup",
+      summary:
+        "Place a group right before or right after another group of the space (one place up or down on the screen); the groups between shift one place",
+      ...securedByUser,
+      requestParams: { path: GroupPath },
+      requestBody: { content: jsonContent(MoveCategoryGroupBodySchema) },
+      responses: {
+        "200": {
+          description: "Every group of the space, archived ones included, in its new order",
+          content: jsonContent(CategoryGroupOrderResponseSchema),
+        },
+        ...problems({
+          ...managed,
+          "404": "SpaceNotFound, CategoryGroupNotFound",
+          "409": "CategoryGroupArchived, SpaceArchived",
+          "422": "ValidationFailed",
         }),
       },
     },

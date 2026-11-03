@@ -18,6 +18,12 @@ export interface CategoryGroup {
   readonly key: string | null;
   /** HU-E3-05: the group's icon and color. */
   readonly style: CategoryStyle;
+  /**
+   * Ruling P296: where the group sits in its space's list, from 0. Over every group of the space, archived ones
+   * included, the positions are dense and unique (`category_groups_space_position_uq`); only `placeGroup` and a new
+   * group, which goes last, set one.
+   */
+  readonly position: number;
   readonly archivedAt: Date | null;
   readonly createdAt: Date;
 }
@@ -92,9 +98,36 @@ export const newGroup = (input: {
     name: name.value,
     key: null,
     style: restyled(CUSTOM_GROUP_STYLE, input.style ?? {}),
+    // Ruling P296: a new group goes last.
+    position: Math.max(-1, ...input.groups.map((g) => g.position)) + 1,
     archivedAt: null,
     createdAt: input.now,
   });
+};
+
+/** Ruling P296: where a group goes, right before or right after another group of the space. */
+export type GroupAnchor = { readonly before: string } | { readonly after: string };
+
+/**
+ * Ruling P296: `groupId` right before or after the anchor, the groups between shifting one place; answers only the
+ * groups whose position changed, renumbered densely from 0 over every group of the space (archived ones keep a place).
+ * A group placed beside itself, or where it already sits, changes nothing. Archived groups are never placed nor anchors.
+ */
+export const placeGroup = (
+  groups: readonly CategoryGroup[],
+  groupId: string,
+  anchor: GroupAnchor,
+): Result<CategoryGroup[]> => {
+  const ordered = [...groups].sort((a, b) => a.position - b.position);
+  const moving = ordered.find((g) => g.id === groupId);
+  const target = ordered.find((g) => g.id === ("before" in anchor ? anchor.before : anchor.after));
+  if (!moving || !target) return err(domainError("CategoryGroupNotFound"));
+  if (moving.archivedAt !== null || target.archivedAt !== null)
+    return err(domainError("CategoryGroupArchived"));
+  if (moving.id === target.id) return ok([]);
+  const rest = ordered.filter((g) => g.id !== moving.id);
+  rest.splice(rest.indexOf(target) + ("after" in anchor ? 1 : 0), 0, moving);
+  return ok(rest.flatMap((g, position) => (g.position === position ? [] : [{ ...g, position }])));
 };
 
 /** HU-E3-05: a new icon and/or color for a group; its categories keep theirs (each copied its own at creation). */

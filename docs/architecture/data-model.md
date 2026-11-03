@@ -236,6 +236,7 @@ erDiagram
         text icon_kind "SYMBOL, EMOJI"
         text icon_value
         text color "palette key"
+        integer position "place in the space's list, from 0"
     }
     categories {
         uuid id PK
@@ -321,6 +322,8 @@ erDiagram
 **`category_groups`**
 - Unique index `category_groups_space_name_uq`: `(space_id, lower(name))`.
 - Unique index `category_groups_space_key_uq`: `(space_id, key)`; null keys never collide.
+- Unique `category_groups_space_position_uq`: `(space_id, position)`, one group per place, archived ones included (P296). Not deferrable: a move parks its rows past the space's places before writing them.
+- Check `category_groups_position_non_negative`: `position >= 0` (P296).
 
 **`categories`**
 - Unique index `categories_parent_name_uq`: `(coalesce(parent_category_id, group_id), lower(name))` where `deleted_at IS NULL` (names are unique among siblings).
@@ -838,5 +841,6 @@ One line per migration, from the file in [`drizzle/`](https://github.com/Facabor
 | [`0024_claim_guest_space.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0024_claim_guest_space.sql) | The unique key `(id, space_id)` of `space_members`; a claim link points at it with its `space_id`, so its guest is a member of its space. | Issue #249, M2C-D3 |
 | [`0025_transaction_space_keys.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0025_transaction_space_keys.sql) | The unique key `(id, space_id)` of `categories`; a transaction's category, receiving member and payer member point at it and at that of `space_members` with its `space_id` (ruling P288). | Issue #249, M1-8 |
 | [`0026_account_product_type.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0026_account_product_type.sql) | `accounts.product_type`, null on every existing account, with the checks `accounts_product_type` and `accounts_product_type_bank` (ruling P295). | Issue #240 |
+| [`0027_category_group_position.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0027_category_group_position.sql) | `category_groups.position`, numbered per space from the order the list used (by name, Spanish collation), then NOT NULL with `category_groups_space_position_uq` and `category_groups_position_non_negative` (ruling P296). | Issue #240 |
 
 Migrations are forward-only (see [Rolling back](../operations/deploy.md#rolling-back)). A migration that changes tables updates this page in the same pull request.

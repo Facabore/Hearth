@@ -4,7 +4,10 @@ import type { CategoryGroup } from "../domain/category";
 import { viewOf, type CategoryView } from "./category-view";
 import type { CategoriesDeps } from "./deps";
 
-/** HU-E3-04, HU-E3-05: a category with its subcategories, each sorted by name; each shows its style. */
+/**
+ * HU-E3-04, HU-E3-05: a category with its subcategories, each sorted by name; each shows its style. The groups come in
+ * their own order (ruling P296).
+ */
 export interface CategoryNode extends CategoryView {
   readonly subcategories: readonly CategoryView[];
 }
@@ -33,7 +36,7 @@ export const createListCategories =
     const categories = await deps.categories.listCategories(spaceId);
     return ok(
       visible(groups)
-        .sort(byName)
+        .sort((a, b) => a.position - b.position)
         .map((group) => ({
           ...group,
           categories: visible(categories.filter((c) => c.groupId === group.id && c.parentCategoryId === null))

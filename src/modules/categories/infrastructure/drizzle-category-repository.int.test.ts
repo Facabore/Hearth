@@ -128,6 +128,7 @@ const subcategoryWorld = async () => {
       name: "Food",
       key: null,
       style: CUSTOM_GROUP_STYLE,
+      position: (await repo.listGroups(space)).length,
       archivedAt: null,
       createdAt: new Date(),
     },
@@ -240,13 +241,13 @@ describe("category styles (HU-E3-05)", () => {
     ]);
     expect(groups.find((g) => g.id === food.id)).toMatchObject({ name: "Comida", key: "food" });
     // category_groups_space_key_uq: a second group of the space cannot take a held key; groups without one never collide.
-    const pets = { ...food, id: ids.next<"CategoryGroup">(), name: "Mascotas" };
+    const pets = { ...food, id: ids.next<"CategoryGroup">(), name: "Mascotas", position: 6 };
     await expect(repo.addGroups([{ ...pets, key: "food" }])).rejects.toMatchObject({
       cause: { constraint: "category_groups_space_key_uq" },
     });
     await repo.addGroups([
       { ...pets, key: null },
-      { ...pets, id: ids.next<"CategoryGroup">(), name: "Viajes", key: null },
+      { ...pets, id: ids.next<"CategoryGroup">(), name: "Viajes", key: null, position: 7 },
     ]);
     // Another space seeds the same six keys.
     await seeded();

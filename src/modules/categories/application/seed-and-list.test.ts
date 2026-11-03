@@ -61,19 +61,19 @@ describe("SeedDefaultCategories (HU-E3-01)", () => {
 });
 
 describe("ListCategories", () => {
-  it("returns the active tree sorted by name, with catalog keys", async () => {
+  it("returns the active tree, groups in their own order (P296) and categories by name, with catalog keys", async () => {
     const { seed, list } = setup();
     unwrap(await seed({ spaceId: "space-ana", locale: "es" }));
     const tree = unwrap(await list({ ...asAna, includeArchived: false }));
     expect(tree.map((g) => g.name)).toEqual([
-      "Alimentación",
-      "Ingresos",
-      "Ocio",
-      "Salud",
-      "Transporte",
       "Vivienda",
+      "Alimentación",
+      "Transporte",
+      "Salud",
+      "Ocio",
+      "Ingresos",
     ]);
-    expect(tree[0]?.categories.map((c) => [c.name, c.key])).toEqual([
+    expect(tree[1]?.categories.map((c) => [c.name, c.key])).toEqual([
       ["Mercado", "groceries"],
       ["Restaurantes", "restaurants"],
     ]);

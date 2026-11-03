@@ -520,6 +520,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/spaces/{spaceId}/category-groups/{groupId}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Place a group right before or right after another group of the space (one place up or down on the screen); the groups between shift one place */
+        post: operations["moveCategoryGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/spaces/{spaceId}/category-groups/{groupId}/archive": {
         parameters: {
             query?: never;
@@ -1620,6 +1637,7 @@ export interface components {
             };
             /** @enum {string} */
             color: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
+            position?: number;
             categories: {
                 id: string;
                 groupId: string;
@@ -1657,6 +1675,7 @@ export interface components {
             };
             /** @enum {string} */
             color: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
+            position?: number;
         };
         CategoryOutput: {
             id: string;
@@ -3646,7 +3665,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Groups with their categories and each category's subcategories, sorted by name */
+            /** @description Groups in their own order (position), each with its categories and each category's subcategories sorted by name */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4194,6 +4213,83 @@ export interface operations {
             };
             /** @description CategoryGroupArchived, SpaceArchived, ParentCategoryArchived */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    moveCategoryGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+                groupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    before?: string;
+                    after?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Every group of the space, archived ones included, in its new order */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["CategoryGroupSummary"][];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description InsufficientRole */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound, CategoryGroupNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CategoryGroupArchived, SpaceArchived */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

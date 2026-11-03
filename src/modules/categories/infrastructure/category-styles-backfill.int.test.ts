@@ -66,8 +66,17 @@ function inSpace(client: pg.Client, space: string) {
     /** A group as it existed before HU-E3-05: a name and a creation day of January 2026 (the oldest breaks ties). */
     group: async (name: string, day: number): Promise<string> => {
       const id = randomUUID();
+      // From 0027 on (ruling P296), a group also takes the next place of its space.
+      const placed = (
+        await client.query(
+          "SELECT 1 FROM information_schema.columns WHERE table_name = 'category_groups' AND column_name = 'position'",
+        )
+      ).rowCount;
       await client.query(
-        `INSERT INTO category_groups (id, space_id, name, created_at) VALUES ($1, $2, $3, $4)`,
+        placed
+          ? `INSERT INTO category_groups (id, space_id, name, created_at, position)
+             VALUES ($1, $2, $3, $4, (SELECT count(*) FROM category_groups WHERE space_id = $2))`
+          : `INSERT INTO category_groups (id, space_id, name, created_at) VALUES ($1, $2, $3, $4)`,
         [id, space, name, new Date(Date.UTC(2026, 0, day))],
       );
       return id;

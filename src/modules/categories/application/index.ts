@@ -1,4 +1,4 @@
-export type { Category, CategoryGroup, CategoryGroupId, CategoryId } from "../domain/category";
+export type { Category, CategoryGroup, CategoryGroupId, CategoryId, GroupAnchor } from "../domain/category";
 export {
   CATEGORY_COLORS,
   CATEGORY_SYMBOLS,
@@ -22,6 +22,7 @@ export { createSeedDefaultCategories, type SeedDefaultCategories } from "./seed-
 export { createCreateCategory, type CreateCategory } from "./create-category";
 export { createCreateCategoryGroup, type CreateCategoryGroup } from "./create-category-group";
 export { createRenameCategoryGroup, type RenameCategoryGroup } from "./rename-category-group";
+export { createMoveCategoryGroup, type MoveCategoryGroup } from "./move-category-group";
 export { createUpdateCategory, type UpdateCategory } from "./update-category";
 
 export { createArchiveCategory, type ArchiveCategory } from "./archive-category";

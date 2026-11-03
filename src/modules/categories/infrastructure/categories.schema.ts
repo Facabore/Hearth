@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   check,
   index,
+  integer,
   pgTable,
   text,
   timestamp,
@@ -32,6 +33,8 @@ export const categoryGroups = pgTable(
     iconValue: text("icon_value").notNull().default("tag"),
     // D22: the palette keys live in TypeScript only (CATEGORY_COLORS), not in a database check (ruling P49).
     color: text("color", { enum: CATEGORY_COLORS }).notNull().default("GRAPHITE"),
+    // Ruling P296: the group's place in its space's list, from 0, dense over every group (archived ones included).
+    position: integer("position").notNull(),
     archivedAt: tz("archived_at"),
     createdAt: tz("created_at").notNull(),
   },
@@ -39,6 +42,9 @@ export const categoryGroups = pgTable(
     uniqueIndex("category_groups_space_name_uq").on(t.spaceId, sql`lower(${t.name})`),
     // HU-E3-05: at most one group per catalog key and space; NULL keys (groups users create) never collide.
     uniqueIndex("category_groups_space_key_uq").on(t.spaceId, t.key),
+    // Ruling P296: one group per place. Not deferrable (drizzle-kit cannot say so): a move parks its rows first.
+    unique("category_groups_space_position_uq").on(t.spaceId, t.position),
+    check("category_groups_position_non_negative", sql`${t.position} >= 0`),
   ],
 );
 
