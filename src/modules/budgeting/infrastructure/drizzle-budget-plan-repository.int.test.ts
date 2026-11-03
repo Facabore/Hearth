@@ -521,6 +521,7 @@ describe("SetMemberCapacities over PostgreSQL (HU-E6-02, spec 7)", () => {
     const spaces = new DrizzleSpaceRepository(tm);
     const set = createSetMemberCapacities({
       access: createSpaceAccess(spaces),
+      spaceLocks: spaces,
       members: spaces,
       plans: repo,
       capacities: repo,
@@ -717,6 +718,7 @@ describe("AddBudgetLine over PostgreSQL (HU-E6-03, spec 7)", () => {
     const [account, other] = [randomUUID(), randomUUID()];
     const deps = {
       access: createSpaceAccess(spaces),
+      spaceLocks: spaces,
       members: spaces,
       plans: repo,
       capacities: repo,
@@ -821,6 +823,7 @@ describe("UpdateBudgetLine and RemoveBudgetLine over PostgreSQL (HU-E6-03, HU-E6
     const [account, other] = [randomUUID(), randomUUID()];
     const deps = {
       access: createSpaceAccess(spaces),
+      spaceLocks: spaces,
       members: spaces,
       plans: repo,
       capacities: repo,
@@ -1090,6 +1093,7 @@ describe("MapCategoriesToLine over PostgreSQL (HU-E6-04, Review Focus 5, 6, spec
     const account = randomUUID();
     const deps = {
       access: createSpaceAccess(spaces),
+      spaceLocks: spaces,
       members: spaces,
       plans: repo,
       capacities: repo,
@@ -1330,6 +1334,7 @@ describe("AllocateBudgetLine over PostgreSQL (HU-E6-05, Review Focus 2, 6, spec 
     const spaces = new DrizzleSpaceRepository(tm);
     const deps = {
       access: createSpaceAccess(spaces),
+      spaceLocks: spaces,
       members: spaces,
       plans: repo,
       capacities: repo,

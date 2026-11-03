@@ -39,6 +39,25 @@ describe("CreateBudgetPlan (HU-E6-01)", () => {
     ]);
   });
 
+  it("holds the space row before it reads the membership, so a settings change in progress is waited for (#245)", async () => {
+    const { deps } = budgetingWorld();
+    const events: string[] = [];
+    const create = createCreateBudgetPlan({
+      ...deps,
+      spaceLocks: {
+        lockForMoneyWrite: async (spaceId) => {
+          events.push(`lock ${spaceId}`);
+        },
+      },
+      access: async (spaceId, userId, options) => {
+        events.push(`access ${spaceId}`);
+        return deps.access(spaceId, userId, options);
+      },
+    });
+    unwrap(await create(as("u-ana")));
+    expect(events).toEqual([`lock ${HOUSEHOLD}`, `access ${HOUSEHOLD}`]);
+  });
+
   it("allows only one plan per period", async () => {
     const { deps } = budgetingWorld();
     const create = createCreateBudgetPlan(deps);

@@ -684,6 +684,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   // HU-E6-01 … HU-E6-05: plans reach members, accounts, categories and the ledger's spending only through ports.
   const budgetingDeps = {
     access,
+    // Issue #245: creating or copying a plan holds the space row as a money write does; a settings change waits for it.
+    spaceLocks: spaceRepository,
     members: spaceRepository,
     plans: budgetPlans,
     allocations: budgetPlans,

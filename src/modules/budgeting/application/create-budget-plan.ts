@@ -19,9 +19,11 @@ export type CreateBudgetPlan = (input: NewPlanInput) => Promise<Result<BudgetPla
  * space policy around the stored plans (D10), not stored yet; personal spaces too.
  */
 export const openedPlan = async (
-  deps: Pick<BudgetingDeps, "access" | "plans" | "ids" | "clock">,
+  deps: Pick<BudgetingDeps, "access" | "spaceLocks" | "plans" | "ids" | "clock">,
   input: NewPlanInput,
 ): Promise<Result<{ space: SpaceMembership; plan: BudgetPlan }>> => {
+  // Issue #245: before the membership, so a settings change in progress is waited for and its policy is the one read.
+  await deps.spaceLocks.lockForMoneyWrite(input.spaceId);
   const manager = await authorizeSpaceAction(deps.access, input.spaceId, input.userId, "plan.manage");
   if (!manager.ok) return manager;
   const space = manager.value;

@@ -72,6 +72,7 @@ export const budgetingWorld = (
   const spending = new FixedSpending();
   const deps: BudgetingDeps = {
     access: createSpaceAccess(spaces),
+    spaceLocks: spaces,
     members: spaces,
     plans,
     spending,

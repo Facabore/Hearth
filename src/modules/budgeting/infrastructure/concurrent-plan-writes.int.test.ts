@@ -168,6 +168,7 @@ const household = async () => {
   const space = await sharedSpaceFixture(db, ana.id);
   const deps = {
     access: createSpaceAccess(spaces),
+    spaceLocks: spaces,
     members: spaces,
     plans,
     spending: nothingSpent,
