@@ -49,29 +49,46 @@ describe("the default split of RecordExpense (HU-E6-08, spec 5.3)", () => {
       ["member-juan", 120_000_000n, "BY_ALLOCATION"],
     ]);
     // The members it read for the split: budgeting weighs these and nobody else (a member who joined or left since
-    // would make the weights name someone the split cannot).
+    // would make the weights name someone the split cannot). The VIEWER Sofi is apart (P293): her stored figures
+    // still hold the line, but the default never names her.
     expect(asked).toEqual([
       {
         spaceId: "space-household",
         currency: "COP",
         categoryId: "cat-household",
         date: "2026-11-08",
-        memberIds: ["member-ana", "member-juan", "member-luis", "member-sofi", "member-pedro"],
+        memberIds: ["member-ana", "member-juan", "member-luis", "member-pedro"],
+        viewerIds: ["member-sofi"],
       },
     ]);
   });
 
-  it("defaults to EQUAL among every current member when budgeting has no allocated line", async () => {
+  it("defaults to EQUAL among every current member but the VIEWER Sofi, the guest Pedro included, when budgeting has no allocated line (P293)", async () => {
     const { defaultSplits } = budgeting(null);
     const { deps, store } = householdLedger(undefined, { defaultSplits });
     unwrap(await createRecordExpense(deps)(groceries(500_000n)));
     expect(sharesOf(store.rows)).toEqual(
-      ["member-ana", "member-juan", "member-luis", "member-sofi", "member-pedro"].map((memberId) => [
+      ["member-ana", "member-juan", "member-luis", "member-pedro"].map((memberId) => [
         memberId,
-        10_000_000n,
+        12_500_000n,
         "EQUAL",
       ]),
     );
+  });
+
+  it("still takes a split the recorder chose that names the VIEWER Sofi (P293)", async () => {
+    const { defaultSplits, asked } = budgeting();
+    const { deps, store } = householdLedger(undefined, { defaultSplits });
+    const split = {
+      method: "EQUAL" as const,
+      participants: [{ memberId: "member-ana" }, { memberId: "member-sofi" }],
+    };
+    unwrap(await createRecordExpense(deps)(groceries(2_000_000n, { split })));
+    expect(sharesOf(store.rows)).toEqual([
+      ["member-ana", 100_000_000n, "EQUAL"],
+      ["member-sofi", 100_000_000n, "EQUAL"],
+    ]);
+    expect(asked).toEqual([]);
   });
 
   it("keeps the split the member chose, and never asks for a default", async () => {

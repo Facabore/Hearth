@@ -151,7 +151,7 @@ The core insight: **a personal expense is a shared expense with one participant.
 - **Comparisons and trends** compare a period with the previous period of the same policy, not with the calendar month.
 - **Money:** stored in ISO 4217 minor units. Each currency also has a *rounding unit* for splits and allocations (COP: 1 peso = 100 minor units), so amounts never show cents.
 - **Rounding:** splits and allocations use largest-remainder rounding in rounding units; ties go to members in membership join order. Σ parts always equals the total exactly.
-- **Default split:** expenses that resolve (through their category, or a subcategory's parent, by mapping or catch-all) to an allocated line of an `ACTIVE` plan default to `BY_ALLOCATION`; all other expenses, including those in `NONE` lines, default to `EQUAL` among active members. `DRAFT` plans never drive splits. The member can always override the split.
+- **Default split:** expenses that resolve (through their category, or a subcategory's parent, by mapping or catch-all) to an allocated line of an `ACTIVE` plan default to `BY_ALLOCATION`; all other expenses, including those in `NONE` lines, default to `EQUAL` among active members. `DRAFT` plans never drive splits. A `VIEWER` takes part in neither default; guests do. A capacity or an allocation a `VIEWER` stored before still holds the line, and only the other members carry it (ruling P293). The member can always override the split, a `VIEWER` included.
 
 ### 5.4 Derived metrics (computed on read, never stored)
 

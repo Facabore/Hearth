@@ -1,5 +1,5 @@
 import type { SpaceMembership } from "@/modules/spaces/application";
-import { ok, type Money, type Result } from "@/shared/kernel";
+import { defaultSplitMembers, ok, type Money, type Result } from "@/shared/kernel";
 import { splitShares, type AllocationSplit, type SplitInput } from "../domain/split";
 import { positiveAmount, recordExpense, type Expense, type Payment } from "../domain/transaction";
 import { authorizeWriter, inSpaceCurrency, openPeriod, usableCategory } from "./checks";
@@ -41,7 +41,8 @@ export type RecordExpense = (input: RecordExpenseInput) => Promise<Result<Record
 
 /**
  * Spec 5.3, HU-E6-08: without a chosen split, BY_ALLOCATION by the line the category consumes in the ACTIVE plan
- * covering the date, else EQUAL among every current member. The member can always choose another split.
+ * covering the date, else EQUAL among every current member but the VIEWERs (P293). The member can always choose
+ * another split.
  */
 const defaultSplit = async (
   deps: Pick<LedgerDeps, "defaultSplits">,
@@ -109,7 +110,7 @@ export const createRecordExpense =
           currency: space.currency,
           categoryId: category.value,
           date,
-          memberIds,
+          ...defaultSplitMembers(members),
         }));
       const shares = splitShares(input.amount, split, memberIds);
       if (!shares.ok) return shares;

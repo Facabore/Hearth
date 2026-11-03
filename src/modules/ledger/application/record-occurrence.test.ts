@@ -68,7 +68,8 @@ const recordedForAna = {
   timeZone: null,
   version: 1,
 };
-const HOUSEHOLD_MEMBER_IDS = ["member-ana", "member-juan", "member-luis", "member-sofi", "member-pedro"];
+/** Household's current members but the VIEWER Sofi, who stays out of every default split (ruling P293). */
+const HOUSEHOLD_SPLIT_IDS = ["member-ana", "member-juan", "member-luis", "member-pedro"];
 
 /**
  * Budgeting's answer for Internet (Review Focus 4): Ana 48,000 and Juan 72,000 COP (40/60) in the ACTIVE plan of
@@ -94,7 +95,7 @@ const internetPlans = () => {
 };
 
 describe("recordOccurrence (HU-E4-12, P21)", () => {
-  it("records an expense with the template's one payer paying the whole amount, shared equally when no plan allocates it", async () => {
+  it("records an expense with the template's one payer paying the whole amount, shared equally among all but the VIEWER when no plan allocates it (P293)", async () => {
     const { deps, store } = recurrenceWorld();
     const recorded = await recordOccurrence(
       occurrenceRecorders(deps),
@@ -111,9 +112,9 @@ describe("recordOccurrence (HU-E4-12, P21)", () => {
           amount: 120_000_000n,
           categoryId: CATEGORIES.household.id,
           payments: [{ memberId: null, accountId: ACCOUNTS.householdFund.id, amount: 120_000_000n }],
-          shares: HOUSEHOLD_MEMBER_IDS.map((memberId) => ({
+          shares: HOUSEHOLD_SPLIT_IDS.map((memberId) => ({
             memberId,
-            amount: 24_000_000n,
+            amount: 30_000_000n,
             splitMethod: "EQUAL",
           })),
         },
@@ -255,7 +256,8 @@ describe("recordOccurrence (HU-E4-12, P21)", () => {
         currency: "COP",
         categoryId: CATEGORIES.household.id,
         date,
-        memberIds: HOUSEHOLD_MEMBER_IDS,
+        memberIds: HOUSEHOLD_SPLIT_IDS,
+        viewerIds: ["member-sofi"],
       })),
     );
   });

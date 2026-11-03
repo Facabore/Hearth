@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as directSplit } from "@/app/api/v1/direct-splits/route";
 import { POST as archiveSpace } from "@/app/api/v1/spaces/[spaceId]/archive/route";
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
+import { PATCH as changeMemberRole } from "@/app/api/v1/spaces/[spaceId]/members/[memberId]/route";
 import { GET as getTransaction } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, problemOf, registerUser, startTestApp } from "../support/app";
@@ -22,12 +23,15 @@ import {
   setCapacities,
 } from "../support/budgeting";
 import {
+  addGuest,
   balancesOf,
   categoryWithKey,
   cop,
+  joinHousehold,
   memberIdOf,
   newAccount,
   post,
+  type Household,
   type HouseholdMember,
   type MoneyDto,
   type TransactionDto,
@@ -425,6 +429,84 @@ describe("expenses default to their line's allocation (HU-E6-08, D4)", () => {
     expect(await balancesOf(ana, spaceId)).toEqual([
       [anaId, cop(260_000)],
       [pedroId, cop(-260_000)],
+    ]);
+  });
+});
+
+describe("a VIEWER stays out of the default split (ruling P293)", () => {
+  /** The owner changes a member's role; fails unless 200. */
+  const changeRole = async (h: Household, memberId: string, role: string) => {
+    const response = await call(
+      changeMemberRole,
+      "PATCH",
+      `/api/v1/spaces/${h.spaceId}/members/${memberId}`,
+      { user: h.ana, params: { spaceId: h.spaceId, memberId }, body: { role } },
+    );
+    expect(response.status).toBe(200);
+  };
+
+  it("previews and records EQUAL without Sofi the VIEWER, the guest Pedro included: 30,000 COP each of 90,000", async () => {
+    const { h, outings } = await activeReference({ freeIsGroupMoney: true });
+    const sofi = await joinHousehold(h, "Sofi", "VIEWER");
+    const pedro = await addGuest(h, "Pedro");
+    const everyoneButSofi = [h.ana.memberId, h.juan.memberId, pedro];
+    const preview = await getDefaultSplit(h.ana, h.spaceId, {
+      categoryId: outings,
+      date: "2026-11-12",
+      amount: "9000000",
+    });
+    expect(await preview.json()).toMatchObject({
+      method: "EQUAL",
+      shares: everyoneButSofi.map((memberId) => ({ memberId, amount: cop(30_000) })),
+    });
+    const tx = await pays(h.ana, outings, 90_000, "2026-11-12");
+    expect(sharesOf(tx)).toEqual(everyoneButSofi.map((memberId) => [memberId, cop(30_000), "EQUAL"]));
+    expect(tx.shares.map((s) => s.memberId)).not.toContain(sofi.memberId);
+  });
+
+  it("previews and records BY_ALLOCATION without Sofi, whose FIXED third of Home, stored while she was a MEMBER, stays in the plan", async () => {
+    const { h, planId, lineId } = await activeReference();
+    const sofi = await joinHousehold(h, "Sofi", "MEMBER");
+    const thirds = fixedAllocation(
+      [h.ana.memberId, 490_000],
+      [h.juan.memberId, 490_000],
+      [sofi.memberId, 490_000],
+    );
+    expect((await putAllocation(h.ana, h.spaceId, planId, lineId("Home"), thirds)).status).toBe(200);
+    await changeRole(h, sofi.memberId, "VIEWER");
+    const preview = await getDefaultSplit(h.juan, h.spaceId, {
+      categoryId: h.groceries,
+      date: "2026-11-08",
+      amount: "200000000",
+    });
+    expect(await preview.json()).toMatchObject({
+      method: "BY_ALLOCATION",
+      lineId: lineId("Home"),
+      shares: [
+        { memberId: h.ana.memberId, amount: cop(1_000_000) },
+        { memberId: h.juan.memberId, amount: cop(1_000_000) },
+      ],
+    });
+    expect(sharesOf(await pays(h.ana, h.groceries, 2_000_000, "2026-11-08"))).toEqual([
+      [h.ana.memberId, cop(1_000_000), "BY_ALLOCATION"],
+      [h.juan.memberId, cop(1_000_000), "BY_ALLOCATION"],
+    ]);
+    // "Plan percentages don't change": Home still holds, with Sofi's 490,000 COP.
+    const home = lineNamed(await planOf(h.ana, h.spaceId, planId), "Home");
+    expect(home.allocation.error).toBeNull();
+    expect(home.allocation.members.find((m) => m.memberId === sofi.memberId)?.assigned).toEqual(cop(490_000));
+  });
+
+  it("accepts a split the recorder chose that names Sofi the VIEWER, exactly as before", async () => {
+    const { h } = await activeReference();
+    const sofi = await joinHousehold(h, "Sofi", "VIEWER");
+    const withSofi = {
+      method: "EQUAL",
+      participants: [{ memberId: h.ana.memberId }, { memberId: sofi.memberId }],
+    };
+    expect(sharesOf(await pays(h.ana, h.groceries, 2_000_000, "2026-11-08", withSofi))).toEqual([
+      [h.ana.memberId, cop(1_000_000), "EQUAL"],
+      [sofi.memberId, cop(1_000_000), "EQUAL"],
     ]);
   });
 });

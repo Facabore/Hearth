@@ -586,7 +586,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     // HU-E4-06, HU-E6-07: a CLOSED plan's period takes no change; budgeting answers, the ledger never imports it.
     closedPeriods: createClosedPeriodGuard(budgetPlans),
     // HU-E6-08, spec 5.3: an expense recorded without a split follows its line's allocation in the ACTIVE plan;
-    // the ledger asks budgeting through its own port, so neither module imports the other.
+    // the ledger asks budgeting through its own port, so neither module imports the other. Ruling P293: the ledger's
+    // query already holds the VIEWERs apart (`viewerIds`), so no weight ever names one.
     defaultSplits: {
       allocationWeights: async (expense) => {
         const split = await defaultSplitOf({ plans: budgetPlans, categories: budgetCategories }, expense);
