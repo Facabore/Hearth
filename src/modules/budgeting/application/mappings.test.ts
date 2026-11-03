@@ -58,6 +58,22 @@ describe("MapCategoriesToLine (HU-E6-04)", () => {
     expect(view.figures.unbudgeted).toEqual({ spent: 0n, available: 0n });
   });
 
+  it("takes the categories' reference lock before it lists them, so a delete in progress is waited for (#245)", async () => {
+    const { deps, mapTo } = await world();
+    const events: string[] = [];
+    deps.categories = {
+      lockForReference: async (spaceId) => {
+        events.push(`lock ${spaceId}`);
+      },
+      list: async (spaceId) => {
+        events.push(`list ${spaceId}`);
+        return householdCategories.list(spaceId);
+      },
+    };
+    unwrap(await mapTo("home", ["cat-groceries"]));
+    expect(events.slice(0, 2)).toEqual([`lock ${HOUSEHOLD}`, `list ${HOUSEHOLD}`]);
+  });
+
   it("maps a category to at most one line per plan", async () => {
     const { mapTo } = await world();
     unwrap(await mapTo("home", ["cat-groceries"]));
@@ -232,6 +248,7 @@ describe("subcategories (HU-E3-04)", () => {
     spending.byCategory = [{ categoryId: "cat-vegetables", amount: 4_000_000n }];
     const underGroceries = await householdCategories.list(HOUSEHOLD);
     deps.categories = {
+      lockForReference: async () => undefined,
       list: async () =>
         underGroceries.map((c) => (c.id === "cat-vegetables" ? { ...c, parentCategoryId: null } : c)),
     };

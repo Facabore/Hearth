@@ -172,7 +172,7 @@ const household = async () => {
     members: spaces,
     plans,
     spending: nothingSpent,
-    categories: { list: async () => [] },
+    categories: { lockForReference: async () => undefined, list: async () => [] },
     // Any account is one of Ana's COP savings accounts: only the plan's lines decide whether it is still free.
     savingsAccounts: {
       find: async (id: string) => ({
@@ -223,6 +223,7 @@ const planWith = async (capacity: bigint) => {
       ...lineDeps(repository),
       mappings: plans,
       categories: {
+        lockForReference: async () => undefined,
         list: async () => [{ id: groceries, archived: false }],
       },
     });
@@ -406,7 +407,7 @@ describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Foc
       lines: plans,
       mappings: plans,
       allocations: plans,
-      categories: { list: async () => [] },
+      categories: { lockForReference: async () => undefined, list: async () => [] },
     });
 
   it("refuses a line added while the plan was being closed: its status is read after the lock (N4)", async () => {
@@ -543,7 +544,7 @@ describe("activating a DRAFT source while its carrying copy closes (issue #183, 
         lines: plans,
         mappings: plans,
         allocations: plans,
-        categories: { list: async () => [] },
+        categories: { lockForReference: async () => undefined, list: async () => [] },
       })({ spaceId: space.id, userId: ana.id, period: "2026-11" }),
     );
     const copy = view.plan;

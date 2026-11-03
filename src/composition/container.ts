@@ -451,6 +451,18 @@ export const ledgerCategoriesOf = (categories: CategoryRepository): LedgerDeps["
       .map((c) => c.id),
 });
 
+/** HU-E6-04: plans map the space's live categories; deleted ones never appear (D8). */
+export const budgetCategoriesOf = (categories: CategoryRepository): BudgetCategories => ({
+  // Issue #245: the tree lock's shared side, as the ledger's lookup takes it; a delete holds the exclusive one.
+  lockForReference: (spaceId) => categories.lockTreeForReference(spaceId),
+  list: async (spaceId) =>
+    (await categories.listCategories(spaceId)).map((c) => ({
+      id: c.id,
+      archived: c.archivedAt !== null,
+      parentCategoryId: c.parentCategoryId,
+    })),
+});
+
 /** HU-E3-03: soft-deleted transactions and every budget-line mapping, ended ones included, are references (D8). */
 export const categoryUsageOf = (
   ledger: Pick<DrizzleLedgerQueries, "isCategoryReferenced">,
@@ -538,15 +550,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   const storedPeriods: StoredPeriodSource = (spaceId) => budgetPlans.storedPeriods(spaceId);
   const getAccount = createGetAccount(accountsDeps);
   const listAccounts = createListAccounts(accountsDeps);
-  // HU-E6-04: plans map the space's live categories; deleted ones never appear (D8).
-  const budgetCategories: BudgetCategories = {
-    list: async (spaceId) =>
-      (await categoriesDeps.categories.listCategories(spaceId)).map((c) => ({
-        id: c.id,
-        archived: c.archivedAt !== null,
-        parentCategoryId: c.parentCategoryId,
-      })),
-  };
+  const budgetCategories = budgetCategoriesOf(categoryRepository);
   const ledgerDeps: LedgerDeps = {
     access,
     // Issue #89: money writes hold the space row FOR SHARE; leaving, removing and archiving hold it FOR NO KEY UPDATE.

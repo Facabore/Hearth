@@ -101,6 +101,7 @@ describe("carry-over along the chain of copies (HU-E6-09)", () => {
     const january = await copyInto("2027-01");
     const asked: string[] = [];
     const categories = {
+      lockForReference: async () => undefined,
       list: async (spaceId: string) => {
         asked.push(spaceId);
         return householdCategories.list(spaceId);

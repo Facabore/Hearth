@@ -126,6 +126,7 @@ export const savingsAccounts: SavingsAccountReader = {
 
 /** HU-E6-04: Household's live categories (`cat-old` archived); every other space has only `cat-personal`. */
 export const householdCategories: BudgetCategories = {
+  lockForReference: async () => undefined,
   list: async (spaceId) =>
     spaceId === HOUSEHOLD
       ? [

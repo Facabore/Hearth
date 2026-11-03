@@ -50,7 +50,7 @@ const budgetingDeps = (repository: DrizzleBudgetPlanRepository = plans): Budgeti
   plans: repository,
   spending: { expensesByCategory: async () => [], transfersIntoAccounts: async () => [] },
   savingsAccounts: { find: async () => null },
-  categories: { list: async () => [] },
+  categories: { lockForReference: async () => undefined, list: async () => [] },
   ids: new UuidV7IdGenerator(),
   clock,
   tm,
