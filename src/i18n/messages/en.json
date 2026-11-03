@@ -500,7 +500,8 @@
         "DIRECT": "Save and split"
       },
       "amountUnreadable": "Type an amount like {example}.",
-      "accountRequired": "Choose an account."
+      "accountRequired": "Choose an account.",
+      "erase": "Delete"
     },
     "split": {
       "title": "Who paid and for whom",

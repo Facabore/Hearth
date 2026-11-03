@@ -500,7 +500,8 @@
         "DIRECT": "Guardar y dividir"
       },
       "amountUnreadable": "Escribe un monto como {example}.",
-      "accountRequired": "Elige una cuenta."
+      "accountRequired": "Elige una cuenta.",
+      "erase": "Borrar"
     },
     "split": {
       "title": "Quién pagó y para quién",
