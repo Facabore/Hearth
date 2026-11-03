@@ -176,4 +176,16 @@ describe("RemoveGuestMember (HU-E1-12)", () => {
     const { remove } = setup(householdSpace(), {}, new RacingStore());
     expect(codeOf(await remove({ ...as("luis"), memberId: "member-pedro" }))).toBe("NotAGuest");
   });
+
+  it("answers MemberNotFound when a concurrent removal took Pedro's place first", async () => {
+    class RacingStore extends InMemorySpaceStore {
+      override async markLeft(...args: Parameters<InMemorySpaceStore["markLeft"]>): Promise<boolean> {
+        // The other removal commits between this one's read and its update.
+        await super.markLeft(...args);
+        return super.markLeft(...args);
+      }
+    }
+    const { remove } = setup(householdSpace(), {}, new RacingStore());
+    expect(codeOf(await remove({ ...as("luis"), memberId: "member-pedro" }))).toBe("MemberNotFound");
+  });
 });

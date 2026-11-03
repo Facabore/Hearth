@@ -57,17 +57,17 @@ const DEFAULT_ICONS: Readonly<Record<AccountType, AccountIcon>> = {
  * given; each field names where its rule is enforced.
  */
 export interface AccountAttributes {
-  /** 1–60 characters once trimmed: refused by the HTTP contract (Task 13) and by the domain (issue 124); the UI may suggest a Colombian catalog. */
+  /** 1–60 characters once trimmed: refused by the HTTP contract and by the domain (issue 124); the UI may suggest a Colombian catalog. */
   readonly institution: string | null;
   /**
-   * Exactly four digits, never a full number: refused by the HTTP contract (Task 13) and by the
+   * Exactly four digits, never a full number: refused by the HTTP contract and by the
    * `accounts_last_four` check in PostgreSQL.
    */
   readonly lastFour: string | null;
-  /** One of `ACCOUNT_COLORS`: refused by the HTTP contract (Task 13) and by the domain (issue 124); PostgreSQL does not check it. */
+  /** One of `ACCOUNT_COLORS`: refused by the HTTP contract and by the domain (issue 124); PostgreSQL does not check it. */
   readonly color: AccountColor | null;
   /**
-   * One of `ACCOUNT_ICONS`: refused by the HTTP contract (Task 13) and by the domain (issue 124); PostgreSQL does not check it. Null is the
+   * One of `ACCOUNT_ICONS`: refused by the HTTP contract and by the domain (issue 124); PostgreSQL does not check it. Null is the
    * type's default (`iconOf`, ruling P50).
    */
   readonly icon: AccountIcon | null;

@@ -180,7 +180,7 @@ export class DrizzleRecurrenceRepository implements RecurrenceRepository, Occurr
   async lockForWrite(spaceId: string, recurrenceId: string): Promise<Recurrence | null> {
     if (!isUuid(spaceId) || !isUuid(recurrenceId)) return null;
     // Held until the caller's transaction ends; a locking read that waited returns the row its holder committed.
-    // NO KEY UPDATE conflicts with other writers, not with the KEY SHARE an inserted occurrence takes (Task 3c).
+    // NO KEY UPDATE conflicts with other writers, not with the KEY SHARE an inserted occurrence takes.
     const [row] = await this.tm
       .executor()
       .select()

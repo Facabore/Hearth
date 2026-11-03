@@ -194,6 +194,15 @@ describe("invitations (HU-E1-06)", () => {
     expect((await accept(juan, token)).status).toBe(200);
   });
 
+  it("hides the space from a non-member who revokes one of its invitations, which stays pending", async () => {
+    const ana = await registerUser("Ana");
+    const marta = await registerUser("Marta");
+    const spaceId = await newSharedSpace(ana);
+    const { invitation } = await (await invite(ana, spaceId, { kind: "LINK", role: "MEMBER" })).json();
+    expect(await problemOf(await revoke(marta, spaceId, invitation.id))).toEqual([404, "SpaceNotFound"]);
+    expect(await statusOf(invitation.id)).toBe("PENDING");
+  });
+
   it("answers unknown and malformed invitation ids with 404", async () => {
     const ana = await registerUser("Ana");
     const spaceId = await newSharedSpace(ana);

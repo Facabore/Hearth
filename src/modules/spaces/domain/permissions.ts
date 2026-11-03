@@ -37,6 +37,9 @@ export type SpaceAction = keyof typeof MATRIX;
 
 export const SPACE_ACTIONS = Object.keys(MATRIX) as SpaceAction[];
 
+// The lists are frozen once, so a caller that holds one (MANAGERS, WRITERS) can never change the matrix.
+for (const roles of Object.values(MATRIX)) Object.freeze(roles);
+
 export const rolesFor = (action: SpaceAction): readonly SpaceRole[] => MATRIX[action];
 
 export const can = (role: SpaceRole | null, action: SpaceAction): boolean =>

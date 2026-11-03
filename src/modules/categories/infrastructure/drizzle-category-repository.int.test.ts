@@ -80,7 +80,7 @@ describe("DrizzleCategoryRepository", () => {
     ).rejects.toThrow();
   });
 
-  it("keeps a deleted category stored and referenced, out of lists and name checks (D8, Task 0a)", async () => {
+  it("keeps a deleted category stored and referenced, out of lists and name checks (D8)", async () => {
     const { space, tree } = await seeded();
     const mercado = tree.categories.find((c) => c.key === "groceries")!;
     const transactionId = randomUUID();
@@ -101,6 +101,19 @@ describe("DrizzleCategoryRepository", () => {
     await expect(
       repo.addCategories([{ ...mercado, id: ids.next<"Category">(), name: "MERCADO", key: null }]),
     ).resolves.toBeUndefined();
+  });
+
+  it("never writes a deleted category again: a later save or deletion keeps the row as it was deleted (D8)", async () => {
+    const { space, tree } = await seeded();
+    const mercado = tree.categories.find((c) => c.key === "groceries")!;
+    const deletedAt = new Date("2026-10-14T12:00:00Z");
+    await repo.deleteCategory(space.spaceId, mercado.id, deletedAt);
+    await repo.deleteCategory(space.spaceId, mercado.id, new Date("2026-10-15T12:00:00Z"));
+    await repo.saveCategories([{ ...mercado, name: "Revived", archivedAt: deletedAt }]);
+    const { rows } = await pool.query("SELECT name, archived_at, deleted_at FROM categories WHERE id = $1", [
+      mercado.id,
+    ]);
+    expect(rows).toEqual([{ name: mercado.name, archived_at: null, deleted_at: deletedAt }]);
   });
 });
 

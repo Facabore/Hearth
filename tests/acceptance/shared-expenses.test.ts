@@ -141,10 +141,21 @@ describe("shared expense rules (HU-E4-07, Review Focus 2)", () => {
     const juanPays = (accountId: string | undefined, pesos = 80_000) => [
       { memberId: h.juan.memberId, accountId, amount: cop(pesos) },
     ];
-    const cases: [unknown, number, string][] = [
-      [paidBy(h, h.ana, 80_000, { split: equal(h.ana.memberId, martasMember) }), 422, "NotASpaceMember"],
-      [paidBy(h, h.ana, 80_000, { split: equal("not-a-uuid") }), 422, "NotASpaceMember"],
+    const cases: [string, unknown, number, string][] = [
       [
+        "a participant of another space",
+        paidBy(h, h.ana, 80_000, { split: equal(h.ana.memberId, martasMember) }),
+        422,
+        "NotASpaceMember",
+      ],
+      [
+        "a malformed participant",
+        paidBy(h, h.ana, 80_000, { split: equal("not-a-uuid") }),
+        422,
+        "NotASpaceMember",
+      ],
+      [
+        "a payer of another space",
         paidBy(h, h.ana, 80_000, {
           split: both,
           payments: [{ memberId: martasMember, accountId: null, amount: cop(80_000) }],
@@ -152,16 +163,51 @@ describe("shared expense rules (HU-E4-07, Review Focus 2)", () => {
         422,
         "NotASpaceMember",
       ],
-      [paidBy(h, h.ana, 80_000, { split: equal() }), 422, "ParticipantsRequired"],
-      [paidBy(h, h.ana, 80_000, { split: equal(h.ana.memberId, h.ana.memberId) }), 422, "InvalidSplit"],
-      [paidBy(h, h.ana, 80_000, { split: both, payments: [] }), 422, "PaymentsRequired"],
-      [paidBy(h, h.ana, 80_000, { split: both, payments: juanPays(h.ana.account) }), 422, "AccountNotOwned"],
-      // D9: Ana cannot spend from Juan's own account either; Juan records his own payment (last test).
-      [paidBy(h, h.ana, 80_000, { split: both, payments: juanPays(h.juan.account) }), 422, "AccountNotOwned"],
-      [paidBy(h, h.ana, 80_000, { split: both, payments: juanPays(undefined) }), 422, "AccountRequired"],
-      // Neither accountId nor payments: the requester pays, but names no account of theirs.
-      [paidBy(h, h.ana, 80_000, { split: both, payments: undefined }), 422, "AccountRequired"],
+      ["no participants", paidBy(h, h.ana, 80_000, { split: equal() }), 422, "ParticipantsRequired"],
       [
+        "a participant named twice",
+        paidBy(h, h.ana, 80_000, { split: equal(h.ana.memberId, h.ana.memberId) }),
+        422,
+        "InvalidSplit",
+      ],
+      ["no payments", paidBy(h, h.ana, 80_000, { split: both, payments: [] }), 422, "PaymentsRequired"],
+      [
+        "Juan paying from Ana's account",
+        paidBy(h, h.ana, 80_000, { split: both, payments: juanPays(h.ana.account) }),
+        422,
+        "AccountNotOwned",
+      ],
+      // D9: Ana cannot spend from Juan's own account either; Juan records his own payment (last test).
+      [
+        "Ana recording Juan paying from his account",
+        paidBy(h, h.ana, 80_000, { split: both, payments: juanPays(h.juan.account) }),
+        422,
+        "AccountNotOwned",
+      ],
+      [
+        "Ana naming herself as payer with Juan's account",
+        paidBy(h, h.ana, 80_000, {
+          split: both,
+          payments: [{ memberId: h.ana.memberId, accountId: h.juan.account, amount: cop(80_000) }],
+        }),
+        422,
+        "AccountNotOwned",
+      ],
+      [
+        "a registered payer with no account",
+        paidBy(h, h.ana, 80_000, { split: both, payments: juanPays(undefined) }),
+        422,
+        "AccountRequired",
+      ],
+      // Neither accountId nor payments: the requester pays, but names no account of theirs.
+      [
+        "neither accountId nor payments",
+        paidBy(h, h.ana, 80_000, { split: both, payments: undefined }),
+        422,
+        "AccountRequired",
+      ],
+      [
+        "one payer named twice",
         paidBy(h, h.ana, 80_000, {
           split: both,
           payments: [
@@ -173,6 +219,7 @@ describe("shared expense rules (HU-E4-07, Review Focus 2)", () => {
         "InvalidSplit",
       ],
       [
+        "a guest paying from an account",
         paidBy(h, h.ana, 80_000, {
           split: both,
           payments: [{ memberId: pedro, accountId: h.ana.account, amount: cop(80_000) }],
@@ -181,6 +228,7 @@ describe("shared expense rules (HU-E4-07, Review Focus 2)", () => {
         "GuestHasNoAccounts",
       ],
       [
+        "payments short of the amount",
         paidBy(h, h.ana, 80_000, {
           split: both,
           payments: [{ memberId: h.ana.memberId, accountId: h.ana.account, amount: cop(70_000) }],
@@ -188,9 +236,15 @@ describe("shared expense rules (HU-E4-07, Review Focus 2)", () => {
         409,
         "SharesDoNotMatchAmount",
       ],
-      [paidBy(h, h.ana, 80_000, { split: both, accountId: h.ana.account }), 422, "ValidationFailed"],
+      [
+        "accountId together with payments",
+        paidBy(h, h.ana, 80_000, { split: both, accountId: h.ana.account }),
+        422,
+        "ValidationFailed",
+      ],
       // HU-E6-08, ruling P16: BY_ALLOCATION is the default split only; no client can request it.
       [
+        "a requested BY_ALLOCATION split",
         paidBy(h, h.ana, 80_000, {
           split: { method: "BY_ALLOCATION", participants: [{ memberId: h.ana.memberId, weight: "1" }] },
         }),
@@ -198,9 +252,13 @@ describe("shared expense rules (HU-E4-07, Review Focus 2)", () => {
         "ValidationFailed",
       ],
     ];
-    for (const [body, status, code] of cases) {
-      expect(await problemOf(await post(recordExpense, h.ana, "expenses", body))).toEqual([status, code]);
+    for (const [name, body, status, code] of cases) {
+      expect(await problemOf(await post(recordExpense, h.ana, "expenses", body)), name).toEqual([
+        status,
+        code,
+      ]);
     }
+    expect(await balanceOf(h.juan.personal, h.juan.account)).toEqual(cop(2_000_000));
     expect(await balanceOf(h.ana.personal, h.ana.account)).toEqual(cop(2_000_000));
   });
 

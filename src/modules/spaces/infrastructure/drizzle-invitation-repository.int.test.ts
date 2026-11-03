@@ -20,7 +20,7 @@ import {
   type InvitationId,
   type InvitationTarget,
 } from "../domain/invitation";
-import type { Space, SpaceMemberId, SpaceRole } from "../domain/space";
+import type { Space, SpaceId, SpaceMemberId, SpaceRole } from "../domain/space";
 import { cryptoInvitationTokens } from "./crypto-invitation-tokens";
 import { DrizzleInvitationRepository } from "./drizzle-invitation-repository";
 import { DrizzleSpaceRepository } from "./drizzle-space-repository";
@@ -485,6 +485,17 @@ describe("claim links in PostgreSQL (HU-E1-11, HU-E1-12)", () => {
     const at = new Date("2026-10-15T12:00:00Z");
     await links.revokePendingClaims(elsewhere.id, pedro as SpaceMemberId, at);
     await links.revokePendingClaims(space.id, randomUUID() as SpaceMemberId, at);
+    expect(await rowOf(claim.id)).toEqual({ status: "PENDING", revoked_at: null });
+  });
+
+  it("revokes nothing, and fails nothing, for ids that are not UUIDs", async () => {
+    const ana = await newUser("Ana");
+    const space = await household(ana.id);
+    const pedro = await guestOf(space, ana.id, "Pedro");
+    const { claim } = await claimFor(space, ana.id, pedro);
+    const at = new Date("2026-10-15T12:00:00Z");
+    await links.revokePendingClaims("not-a-uuid" as SpaceId, pedro as SpaceMemberId, at);
+    await links.revokePendingClaims(space.id, "not-a-uuid" as SpaceMemberId, at);
     expect(await rowOf(claim.id)).toEqual({ status: "PENDING", revoked_at: null });
   });
 

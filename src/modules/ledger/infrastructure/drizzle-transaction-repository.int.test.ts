@@ -212,7 +212,7 @@ describe("fund contributions and settlements (HU-E4-09, HU-E5-02)", () => {
   });
 });
 
-describe("the audit keeps every split an edit replaces (D8, Task 0b)", () => {
+describe("the audit keeps every split an edit replaces (D8)", () => {
   it("recovers the shares that save replaced from the audit read back from PostgreSQL", async () => {
     const w = await sharedLedgerFixture(db, pool);
     const ana = w.household.memberId;

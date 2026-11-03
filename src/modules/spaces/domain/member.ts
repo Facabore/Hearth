@@ -10,6 +10,19 @@ import {
 /** Same bound as a user's name at sign-up. */
 const MAX_MEMBER_NAME = 100;
 
+/**
+ * `text` cut to at most `max` UTF-16 units (the unit every name bound counts) at a whole character, so a surrogate
+ * pair is never split, and without the spaces the cut leaves at its end.
+ */
+export const cutName = (text: string, max: number): string => {
+  let cut = "";
+  for (const character of text) {
+    if (cut.length + character.length > max) break;
+    cut += character;
+  }
+  return cut.trimEnd();
+};
+
 /** Emails are trimmed and lower-cased (as HU-E1-01 does for users), so binding and matching ignore case. */
 export const normalizedEmail = (raw: string): string => raw.trim().toLowerCase();
 
@@ -62,13 +75,13 @@ export const availableDisplayName = (
   alsoTaken: readonly string[] = [],
 ): string => {
   const trimmed = userName.trim();
-  const base = trimmed === "" ? "Member" : trimmed.slice(0, MAX_MEMBER_NAME);
+  const base = trimmed === "" ? "Member" : cutName(trimmed, MAX_MEMBER_NAME);
   const taken = (name: string) =>
     current.some((m) => sameName(m.displayName, name)) || alsoTaken.some((t) => sameName(t, name));
   if (!taken(base)) return base;
   for (let suffix = 2; ; suffix += 1) {
     const tail = ` ${suffix}`;
-    const candidate = `${base.slice(0, MAX_MEMBER_NAME - tail.length)}${tail}`;
+    const candidate = `${cutName(base, MAX_MEMBER_NAME - tail.length)}${tail}`;
     if (!taken(candidate)) return candidate;
   }
 };
@@ -81,7 +94,7 @@ export const userMember = (input: {
   role: SpaceRole;
   now: Date;
   current: readonly SpaceMember[];
-  /** Names to avoid besides the current members' (names a concurrent join took, Task 8). */
+  /** Names to avoid besides the current members' (names a concurrent join took). */
   alsoTaken?: readonly string[];
 }): SpaceMember => ({
   id: input.id,
@@ -110,9 +123,12 @@ export const changeMemberRole = (
   return ok({ ...target, role });
 };
 
-/** HU-E1-08: the current member who leaves; the last OWNER stays (HU-E1-04). */
+/**
+ * HU-E1-08: the current registered member who leaves; the last OWNER stays (HU-E1-04). A guest never leaves on its own
+ * (it is removed, HU-E1-12), so a guest's id is MemberNotFound like any id that names no current member.
+ */
 export const leavingMember = (current: readonly SpaceMember[], memberId: string): Result<SpaceMember> => {
-  const leaver = current.find((m) => m.id === memberId);
+  const leaver = current.find((m) => m.id === memberId && m.kind === "USER");
   if (!leaver) return err(domainError("MemberNotFound"));
   return isLastOwner(current, leaver) ? err(domainError("LastOwnerRequired")) : ok(leaver);
 };
@@ -143,10 +159,13 @@ export const outstandingIn = (nets: readonly bigint[]): bigint => {
  * HU-E1-08, HU-E1-09, HU-E1-12: money is settled first. The outstanding amount, in minor units of the
  * space currency, is the one public detail of an error code (the problem+json member `outstanding`).
  */
-export const ensureSettled = (outstanding: bigint, currency: string): Result<void> =>
-  outstanding === 0n
+export const ensureSettled = (outstanding: bigint, currency: string): Result<void> => {
+  // outstandingIn answers zero or more; a negative amount is a broken invariant, never a detail to publish.
+  if (outstanding < 0n) throw new Error(`outstanding amount ${outstanding} is negative`);
+  return outstanding === 0n
     ? ok(undefined)
     : err(domainError("OutstandingBalance", { outstanding: { amount: outstanding.toString(), currency } }));
+};
 
 /**
  * HU-E1-11, D15: the guest's member row as the claiming user's: same id, name and join date, so all

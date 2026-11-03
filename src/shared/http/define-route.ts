@@ -37,7 +37,7 @@ export interface RouteSpec<B, Q, P> {
   readonly auth: "required" | "none";
   readonly body?: ZodType<B>;
   readonly query?: ZodType<Q>;
-  /** Wraps the handler, e.g. idempotency (Task 9). */
+  /** Wraps the handler, e.g. idempotency. */
   readonly before?: (
     ctx: RouteContext<B, Q, P>,
     next: () => Promise<Result<HttpSuccess>>,

@@ -10,10 +10,8 @@ import {
   type LocalDate,
   type Result,
 } from "@/shared/kernel";
-import { assignedAmounts } from "../domain/allocation";
-import { capacityOf } from "../domain/capacity";
 import { rolledUpCategory, type CategoryParent } from "../domain/category-rollup";
-import { lineForCategory } from "../domain/plan-figures";
+import { lineAssignment, lineForCategory } from "../domain/plan-figures";
 import type { BudgetingDeps } from "./deps";
 
 /** The ledger's split methods, as a member picks them (spec 5.2 Share); BY_ALLOCATION only as the default. */
@@ -67,12 +65,7 @@ export const defaultSplitOf = async (
   const lineId = lineForCategory(categoryId, parts);
   const line = parts.lines.find((l) => l.id === lineId);
   if (line === undefined) return equal(null);
-  const assigned = assignedAmounts(
-    line,
-    parts.allocations.filter((a) => a.lineId === line.id),
-    expense.memberIds.map((memberId) => ({ memberId, capacity: capacityOf(parts.capacities, memberId) })),
-    expense.currency,
-  );
+  const { assigned } = lineAssignment(line, parts, expense.memberIds, expense.currency);
   const weights =
     assigned.ok && assigned.value !== null
       ? assigned.value.filter((a) => a.amount > 0n).map((a) => ({ memberId: a.memberId, weight: a.amount }))

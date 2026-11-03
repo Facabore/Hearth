@@ -192,7 +192,7 @@ describe("editing and deleting (HU-E4-06)", () => {
     const after = unwrap(
       reviseTransaction(before, { amount: 9_500_000n, date: "2026-11-02" as LocalDate }, later),
     );
-    // D8 (Task 0b): the sole payment and share followed the amount, so both versions are kept.
+    // D8: the sole payment and share followed the amount, so both versions are kept.
     expect(changesBetween(before, after)).toEqual({
       date: { from: "2026-10-05", to: "2026-11-02" },
       amount: { from: "8500000", to: "9500000" },
@@ -411,7 +411,7 @@ describe("fund-paid expenses (HU-E4-10, D5)", () => {
   });
 });
 
-describe("the audit keeps every payment and share (D8, Task 0b)", () => {
+describe("the audit keeps every payment and share (D8)", () => {
   it("keeps the whole earlier split, in position order, when an edit changes it", () => {
     const before = shared();
     const after: Expense = {
@@ -536,7 +536,7 @@ describe("revising accounts and parts (ruling P186, P187)", () => {
   });
 });
 
-describe("balance parties (E5 balance rule, Task 4b)", () => {
+describe("balance parties (E5 balance rule)", () => {
   it("names the payers and participants of a member-paid expense once each, and both sides of a settlement", () => {
     expect(balanceParties(shared())).toEqual(["member-ana", "member-juan"]);
     const settlement = unwrap(

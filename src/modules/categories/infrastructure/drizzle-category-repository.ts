@@ -119,7 +119,7 @@ export class DrizzleCategoryRepository implements CategoryRepository {
   }
 
   async listCategories(spaceId: string): Promise<Category[]> {
-    // D8 (Task 0a): deleted categories stay stored, but every read skips them, so they answer as missing.
+    // D8: deleted categories stay stored, but every read skips them, so they answer as missing.
     const rows = await this.tm
       .executor()
       .select({
@@ -249,7 +249,8 @@ export class DrizzleCategoryRepository implements CategoryRepository {
           ...styleColumns(c.style),
           archivedAt: c.archivedAt,
         })
-        .where(eq(categories.id, c.id));
+        // D8: a deleted category is never written again, like every read skips it.
+        .where(and(eq(categories.id, c.id), isNull(categories.deletedAt)));
     }
   }
 
@@ -258,6 +259,9 @@ export class DrizzleCategoryRepository implements CategoryRepository {
       .executor()
       .update(categories)
       .set({ deletedAt })
-      .where(and(eq(categories.spaceId, spaceId), eq(categories.id, categoryId)));
+      // D8: deleting twice keeps the first deletion's time.
+      .where(
+        and(eq(categories.spaceId, spaceId), eq(categories.id, categoryId), isNull(categories.deletedAt)),
+      );
   }
 }

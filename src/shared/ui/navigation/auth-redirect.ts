@@ -79,7 +79,7 @@ export const nextFromPath = (pathAndQuery: string | null | undefined): string =>
 
 /**
  * The proxy's optimistic check (a cookie, not a session lookup): a protected path without a session cookie goes to the
- * sign-in screen with the path to return to. An expired cookie passes here and is caught by the shell (Task 9).
+ * sign-in screen with the path to return to. An expired cookie passes here and is caught by the shell.
  */
 export const redirectFor = (input: {
   pathname: string;

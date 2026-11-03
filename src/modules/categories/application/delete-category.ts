@@ -31,7 +31,7 @@ export const createDeleteCategory =
       if (categories.some((c) => c.parentCategoryId === category.value.id))
         return err(domainError("CategoryInUse"));
       if (await deps.usage.isCategoryReferenced(category.value.id)) return err(domainError("CategoryInUse"));
-      // D8 (Task 0a): logical; the row stays, and lists, lookups and name checks skip it.
+      // D8: logical; the row stays, and lists, lookups and name checks skip it.
       await deps.categories.deleteCategory(manager.value.spaceId, category.value.id, deps.clock.now());
       return ok(undefined);
     });

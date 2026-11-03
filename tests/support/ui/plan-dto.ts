@@ -35,17 +35,17 @@ const dashLine = (
   planned: cop(planned),
   spent: cop(spent),
   carryOver: cop(0),
-  // Task 1e (ruling P243): where a carry-over comes from; null for a line that carries nothing.
+  // Ruling P243: where a carry-over comes from; null for a line that carries nothing.
   carryOverFrom: null,
   available: cop(available),
   overspent: available < 0,
-  // Task 1b: the line's state and its overage.
+  // The line's state and its overage.
   state: available < 0 ? "OVER" : "OK",
   overBy: available < 0 ? cop(-available) : null,
   ...extra,
 });
 
-/** HU-E7-01's November 2026 dashboard of the E7 shared fixture, with the totals the API answers (Task 1). */
+/** HU-E7-01's November 2026 dashboard of the E7 shared fixture, with the totals the API answers. */
 export const e7Dashboard = (overrides: Partial<LineDashboardDto> = {}): LineDashboardDto => ({
   spaceId: "sp-household",
   period: { ...NOVEMBER },
@@ -58,7 +58,7 @@ export const e7Dashboard = (overrides: Partial<LineDashboardDto> = {}): LineDash
   ],
   unbudgeted: { spent: cop(60_000), available: cop(-60_000), overspent: true },
   totals: { planned: cop(4_000_000), spent: cop(2_810_000), available: cop(1_190_000) },
-  // Task 1b (ruling P234): the line each category consumes.
+  // Ruling P234: the line each category consumes.
   categoryLines: [
     { categoryId: "c-rent", lineId: "l-rent" },
     { categoryId: "c-groceries", lineId: "l-home" },
@@ -560,7 +560,7 @@ const flowMovement = (overrides: Partial<FlowMovement>): FlowMovement => ({
   ...overrides,
 });
 
-/** #150: Ana's next 30 days from 2026-10-28, with today's available money at 2,000,000 COP (Task 1d's shape). */
+/** #150: Ana's next 30 days from 2026-10-28, with today's available money at 2,000,000 COP. */
 export const cashFlowDto = (overrides: Partial<CashFlowDto> = {}): CashFlowDto => ({
   currency: "COP",
   from: "2026-10-28",

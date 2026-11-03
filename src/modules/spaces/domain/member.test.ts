@@ -85,6 +85,15 @@ describe("guest members (HU-E1-10)", () => {
     expect(code(memberName("x".repeat(101)))).toBe("InvalidMemberName");
     expect(memberName(`  ${"x".repeat(100)}  `)).toEqual({ ok: true, value: "x".repeat(100) });
   });
+
+  it("refuse an empty, a blank and a 101-character name with InvalidMemberName", () => {
+    const added = (displayName: string) =>
+      code(guestMember({ id: "g-1" as Id<"SpaceMember">, displayName, contactEmail: null, now, current }));
+    expect(added("")).toBe("InvalidMemberName");
+    expect(added("   ")).toBe("InvalidMemberName");
+    expect(added("x".repeat(101))).toBe("InvalidMemberName");
+    expect(added(`  ${"x".repeat(100)}  `)).toBe("ok");
+  });
 });
 
 describe("registered members joining (HU-E1-07)", () => {
@@ -120,6 +129,19 @@ describe("registered members joining (HU-E1-07)", () => {
     const name = availableDisplayName([...current, member("long", long, "MEMBER")], long);
     expect(name).toBe(`${"x".repeat(98)} 2`);
     expect(name).toHaveLength(100);
+  });
+
+  it("cut a long name at a whole character and drop the spaces the cut leaves at its end", () => {
+    expect(availableDisplayName(current, `${"x".repeat(99)} yz`)).toBe("x".repeat(99));
+    expect(availableDisplayName(current, `${"x".repeat(99)}😀`)).toBe("x".repeat(99));
+    const emoji = `${"x".repeat(97)}😀`;
+    expect(availableDisplayName([...current, member("emoji", emoji, "MEMBER")], emoji)).toBe(
+      `${"x".repeat(97)} 2`,
+    );
+    const spaced = `${"x".repeat(97)} y`;
+    expect(availableDisplayName([...current, member("spaced", spaced, "MEMBER")], spaced)).toBe(
+      `${"x".repeat(97)} 2`,
+    );
   });
 
   it("skip names the database already refused, ignoring case", () => {
@@ -176,6 +198,10 @@ describe("leaving (HU-E1-08)", () => {
   it("reports someone who is not a current member as MemberNotFound", () => {
     expect(code(leavingMember(current, "nobody"))).toBe("MemberNotFound");
   });
+
+  it("never lets a guest leave: a guest is removed instead (HU-E1-12)", () => {
+    expect(code(leavingMember(current, "pedro"))).toBe("MemberNotFound");
+  });
 });
 
 describe("removing guests (HU-E1-12)", () => {
@@ -216,6 +242,10 @@ describe("settled balances (HU-E1-08, HU-E1-09, HU-E1-12)", () => {
         details: { outstanding: { amount: "15000000", currency: "COP" } },
       },
     });
+  });
+
+  it("treats a negative outstanding amount as a broken invariant: outstandingIn never answers one", () => {
+    expect(() => ensureSettled(-1n, "COP")).toThrow(/outstanding/);
   });
 });
 

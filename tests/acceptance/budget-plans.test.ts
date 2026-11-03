@@ -23,6 +23,21 @@ afterAll(async () => {
 
 const patchSpace = (user: TestUser, spaceId: string, body: unknown) =>
   call(updateSpace, "PATCH", `/api/v1/spaces/${spaceId}`, { user, params: { spaceId }, body });
+/** `user` records a "Market" expense of `pesos` (85,000 COP unless given) on `date`; fails the test unless 201. */
+const spenderOf =
+  (user: TestUser, accountId: string, categoryId: string) =>
+  async (date: string, pesos = 85_000) =>
+    expect(
+      (
+        await post(recordExpense, user, "expenses", {
+          description: "Market",
+          amount: cop(pesos),
+          date,
+          categoryId,
+          accountId,
+        })
+      ).status,
+    ).toBe(201);
 const periods = async (user: TestUser, spaceId: string, query: string) => {
   const response = await call(listPeriods, "GET", `/api/v1/spaces/${spaceId}/periods${query}`, {
     user,
@@ -228,18 +243,7 @@ describe("read a plan (HU-E6-01)", () => {
     const ana = await registerUser("Ana");
     const accountId = await newAccount(ana, "Bancolombia", 2_000_000);
     const categoryId = await categoryWithKey(ana, "groceries");
-    const spendOn = async (date: string, pesos: number) =>
-      expect(
-        (
-          await post(recordExpense, ana, "expenses", {
-            description: "Market",
-            amount: cop(pesos),
-            date,
-            categoryId,
-            accountId,
-          })
-        ).status,
-      ).toBe(201);
+    const spendOn = spenderOf(ana, accountId, categoryId);
     const plan = await newPlan(ana, ana.spaceId, "2026-11");
     expect((await patchSpace(ana, ana.spaceId, { periodPolicy: { kind: "MONTHLY", day: 25 } })).status).toBe(
       200,
@@ -273,18 +277,7 @@ describe("plans keep their stored boundaries (D10, D6, Review Focus 4)", () => {
     const ana = await registerUser("Ana");
     const accountId = await newAccount(ana, "Bancolombia", 2_000_000);
     const categoryId = await categoryWithKey(ana, "groceries");
-    const spendOn = async (date: string) =>
-      expect(
-        (
-          await post(recordExpense, ana, "expenses", {
-            description: "Market",
-            amount: cop(85_000),
-            date,
-            categoryId,
-            accountId,
-          })
-        ).status,
-      ).toBe(201);
+    const spendOn = spenderOf(ana, accountId, categoryId);
     await newPlan(ana, ana.spaceId, "2026-11");
     expect((await patchSpace(ana, ana.spaceId, { periodPolicy: { kind: "MONTHLY", day: 25 } })).status).toBe(
       200,

@@ -44,8 +44,11 @@ export const usableSavingsAccounts = async (
   accountIds: readonly string[],
   already: readonly string[] = [],
 ): Promise<Result<void>> => {
-  for (const accountId of accountIds.filter((id) => !already.includes(id))) {
-    const account = await accounts.find(accountId);
+  // Asked together, so a reader can answer them in one query; checked in the order they were named.
+  const found = await Promise.all(
+    accountIds.filter((id) => !already.includes(id)).map((accountId) => accounts.find(accountId)),
+  );
+  for (const account of found) {
     if (account === null || account.ownerUserId !== attach.callerUserId) {
       return err(domainError("AccountNotFound"));
     }
@@ -82,8 +85,11 @@ export const copyableSavingsAccounts = async (
 ): Promise<string[]> => {
   const counts = ownedByRegisteredMember(space.members);
   const kept: string[] = [];
-  for (const accountId of new Set(accountIds)) {
-    const account = await accounts.find(accountId);
+  // Asked together, so a reader can answer them in one query; kept in the order the lines name them.
+  const ids = [...new Set(accountIds)];
+  const found = await Promise.all(ids.map((accountId) => accounts.find(accountId)));
+  for (const [index, account] of found.entries()) {
+    const accountId = ids[index]!;
     if (account === null || !counts(account)) continue;
     if (account.isSavings && !account.archived && account.currency === space.spaceCurrency) {
       kept.push(accountId);

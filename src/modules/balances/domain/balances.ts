@@ -72,15 +72,18 @@ export interface SettlementSuggestion {
  * far as they go: it stops when no creditor or no debtor is left, and the surplus of the other side stays unpaid.
  */
 export const simplifyDebts = (balances: readonly MemberBalance[]): SettlementSuggestion[] => {
-  const open = balances.map((b, order) => ({ memberId: b.memberId, net: b.net, order }));
-  /** The open member furthest from zero on the side `sign` (1n: owed money, -1n: owes money). */
-  const largest = (sign: bigint) =>
-    open
-      .filter((m) => m.net * sign > 0n)
-      .sort((a, b) => {
-        const difference = b.net * sign - a.net * sign;
-        return difference === 0n ? a.order - b.order : difference > 0n ? 1 : -1;
-      })[0];
+  const open = balances.map((b) => ({ memberId: b.memberId, net: b.net }));
+  /**
+   * The open member furthest from zero on the side `sign` (1n: owed money, -1n: owes money), in one pass: only a
+   * strictly larger amount replaces the one found, so a tie keeps the member listed first.
+   */
+  const largest = (sign: bigint) => {
+    let found: (typeof open)[number] | undefined;
+    for (const member of open) {
+      if (member.net * sign > (found === undefined ? 0n : found.net * sign)) found = member;
+    }
+    return found;
+  };
   const suggestions: SettlementSuggestion[] = [];
   for (;;) {
     const creditor = largest(1n);

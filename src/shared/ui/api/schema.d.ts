@@ -1603,25 +1603,6 @@ export interface components {
                 }[];
             };
         };
-        Category: {
-            id: string;
-            groupId: string;
-            parentCategoryId: string | null;
-            name: string;
-            key: string | null;
-            archivedAt: string | null;
-            icon: {
-                /** @constant */
-                kind: "SYMBOL";
-                name: string;
-            } | {
-                /** @constant */
-                kind: "EMOJI";
-                value: string;
-            };
-            /** @enum {string} */
-            color: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
-        };
         CategoryGroup: {
             id: string;
             name: string;

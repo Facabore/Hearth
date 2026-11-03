@@ -107,18 +107,19 @@ describe("ActivateBudgetPlan (HU-E6-07)", () => {
     expect(await left.status()).toBe("DRAFT");
   });
 
-  it("lets an ADMIN activate and refuses a VIEWER, by the matrix alone (plan.manage)", async () => {
+  it("lets an ADMIN activate and refuses a MEMBER and a VIEWER, by the matrix alone (plan.manage)", async () => {
     const { activate, input, spaces, status } = await world();
     await joinLuisAndSofi(spaces);
-    expect(codeOf(await activate(input("u-sofi")))).toBe("InsufficientRole");
+    for (const userId of ["u-juan", "u-sofi"]) {
+      expect([userId, codeOf(await activate(input(userId)))]).toEqual([userId, "InsufficientRole"]);
+    }
     expect(await status()).toBe("DRAFT");
     expect(unwrap(await activate(input("u-luis"))).plan.status).toBe("ACTIVE");
     expect(await status()).toBe("ACTIVE");
   });
 
-  it("activates only a DRAFT plan, only for owners and admins, and honours If-Match", async () => {
+  it("activates only a DRAFT plan and honours If-Match", async () => {
     const { activate, input } = await world();
-    expect(codeOf(await activate(input("u-juan")))).toBe("InsufficientRole");
     expect(codeOf(await activate(input("u-ana", 7)))).toBe("PreconditionFailed");
     unwrap(await activate(input()));
     expect(codeOf(await activate(input()))).toBe("InvalidPlanTransition");
@@ -285,20 +286,16 @@ describe("CloseBudgetPlan (HU-E6-07)", () => {
     });
   });
 
-  it("lets an ADMIN close and refuses a VIEWER, by the matrix alone (plan.manage)", async () => {
+  it("lets an ADMIN close and refuses a MEMBER and a VIEWER, by the matrix alone (plan.manage)", async () => {
     const { activate, close, input, spaces, status } = await world();
     await joinLuisAndSofi(spaces);
     unwrap(await activate(input()));
-    expect(codeOf(await close(input("u-sofi")))).toBe("InsufficientRole");
+    for (const userId of ["u-juan", "u-sofi"]) {
+      expect([userId, codeOf(await close(input(userId)))]).toEqual([userId, "InsufficientRole"]);
+    }
     expect(await status()).toBe("ACTIVE");
     expect(unwrap(await close(input("u-luis"))).plan.status).toBe("CLOSED");
     expect(await status()).toBe("CLOSED");
-  });
-
-  it("lets only owners and admins close", async () => {
-    const { activate, close, input } = await world();
-    unwrap(await activate(input()));
-    expect(codeOf(await close(input("u-juan")))).toBe("InsufficientRole");
   });
 
   it("answers SpaceNotFound to a stranger, SpaceArchived in an archived space and BudgetPlanNotFound for any other plan", async () => {

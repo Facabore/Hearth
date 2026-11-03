@@ -12,7 +12,7 @@ import { createGetUnifiedPersonalView } from "./get-unified-personal-view";
 const pesos = (n: number) => BigInt(n) * 100n;
 const NOVEMBER = "2026-11-01";
 
-/** The trees of the spaces asked for, from Ana's and Household's (Task 13); records every question. */
+/** The trees of the spaces asked for, from Ana's and Household's; records every question. */
 const treesOf = () => {
   const asked: (readonly string[])[] = [];
   const groupsAsked: (readonly string[])[] = [];
@@ -100,7 +100,7 @@ describe("personal spending by group (HU-E7-06)", () => {
     period = "2026-11",
     userId = "u-ana",
   ) => createGetPersonalSpendingByGroup({ ...w.deps, trees })({ userId, period });
-  /** HU-E7-04 Background as the ledger sums Ana's rows (Task 8b). */
+  /** HU-E7-04 Background as the ledger sums Ana's rows. */
   const background = () => [
     spent("space-ana", "cat-ana-groceries", 85_000),
     spent("space-ana", "cat-ana-restaurants", 60_000),

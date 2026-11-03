@@ -169,14 +169,17 @@ describe("DrizzleSpaceRepository direct spaces (HU-E1-13)", () => {
     },
   );
 
-  it("refuses to guess when a conflicting insert leaves no active pair behind", async () => {
-    const { ana } = await pair();
-    const space = directSpace(ana, { kind: "GUEST", displayName: "Pedro", contactEmail: null });
-    await direct.addDirect(space);
-    await expect(direct.addDirect(space)).rejects.toThrow(/conflicts with no active pair/);
-    expect(await count("SELECT count(*)::int AS n FROM space_members WHERE space_id = $1", [space.id])).toBe(
-      2,
-    );
+  it("refuses a space id already stored, with or without a pair, instead of answering the stored space", async () => {
+    const { ana, juan } = await pair();
+    const withGuest = directSpace(ana, { kind: "GUEST", displayName: "Pedro", contactEmail: null });
+    const withJuan = directSpace(ana, withUser(juan));
+    for (const space of [withGuest, withJuan]) {
+      await direct.addDirect(space);
+      await expect(direct.addDirect(space)).rejects.toThrow(/already stored/);
+      expect(
+        await count("SELECT count(*)::int AS n FROM space_members WHERE space_id = $1", [space.id]),
+      ).toBe(2);
+    }
   });
 });
 
@@ -436,7 +439,7 @@ describe("SplitWithPerson over PostgreSQL (Review Focus 3, 5 and rollback)", () 
   });
 });
 
-describe("claimed direct spaces take a free pair key (HU-E1-13, D16, Task 14b)", () => {
+describe("claimed direct spaces take a free pair key (HU-E1-13, D16)", () => {
   const claims: GuestClaimRepository = repo;
   const pedro: DirectCounterpart = { kind: "GUEST", displayName: "Pedro", contactEmail: null };
   const keyOf = async (spaceId: string): Promise<string | null> =>
@@ -546,7 +549,7 @@ describe("claimed direct spaces take a free pair key (HU-E1-13, D16, Task 14b)",
   });
 });
 
-describe("a claim that fails after keying its direct space leaves it unkeyed (Task 14b)", () => {
+describe("a claim that fails after keying its direct space leaves it unkeyed", () => {
   const invitations = new DrizzleInvitationRepository(tm);
   const claimedAt = new Date("2026-10-14T13:00:00Z");
 

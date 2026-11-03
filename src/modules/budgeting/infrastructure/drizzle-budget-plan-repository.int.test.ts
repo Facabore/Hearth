@@ -707,6 +707,54 @@ describe("DrizzleBudgetPlanRepository deleteLine mappings (HU-E6-03, D8)", () =>
       [groceries, rent, tea].sort().map((categoryId) => [categoryId !== tea, categoryId === tea ? null : at]),
     );
   });
+
+  it("supersedes the removed line's current allocation values, like its twin, and keeps their rows (D8)", async () => {
+    const { space, fixture } = await household();
+    const pedro = await guestMemberFixture(pool, fixture, "Pedro");
+    const [november, december] = [
+      aPlan(space.id, "2026-11", "2026-11-01", "2026-11-30"),
+      aPlan(space.id, "2026-12", "2026-12-01", "2026-12-31"),
+    ];
+    const removedAt = new Date("2026-10-15T09:00:00Z");
+    const id = () => randomUUID() as BudgetLineId;
+    const run = async (plans: BudgetPlanRepository & BudgetLineRepository & AllocationRepository) => {
+      const home = aLine("Home", 100n, { id: id(), planId: november.id });
+      const leisure = aLine("Leisure", 100n, { id: id(), planId: november.id });
+      await plans.add(november);
+      await plans.add(december);
+      await plans.addLine(home, at);
+      await plans.addLine(leisure, at);
+      const split = [
+        { memberId: fixture.memberId, value: 4200n },
+        { memberId: pedro, value: 5800n },
+      ];
+      await plans.setAllocation(november.id, home.id, "PERCENT", split, at);
+      await plans.setAllocation(november.id, leisure.id, "PERCENT", split, at);
+      // A line asked for through another plan stays, with its values.
+      await plans.deleteLine(december.id, home.id, removedAt);
+      await plans.deleteLine(november.id, home.id, removedAt);
+      return { home, leisure };
+    };
+    const twin = new InMemoryBudgetPlans();
+    const inMemory = await run(twin);
+    expect(twin.allocations.map((r) => [r.allocation.lineId, r.supersededAt])).toEqual([
+      [inMemory.home.id, removedAt],
+      [inMemory.home.id, removedAt],
+      [inMemory.leisure.id, null],
+      [inMemory.leisure.id, null],
+    ]);
+    const stored = await run(repo);
+    const { rows } = await pool.query(
+      "SELECT line_id, superseded_at FROM budget_allocations WHERE line_id = ANY($1) ORDER BY line_id = $2 DESC",
+      [[stored.home.id, stored.leisure.id], stored.home.id],
+    );
+    expect(rows.map((r) => [r.line_id, r.superseded_at])).toEqual([
+      [stored.home.id, removedAt],
+      [stored.home.id, removedAt],
+      [stored.leisure.id, null],
+      [stored.leisure.id, null],
+    ]);
+  });
 });
 
 describe("AddBudgetLine over PostgreSQL (HU-E6-03, spec 7)", () => {
@@ -895,7 +943,7 @@ describe("UpdateBudgetLine and RemoveBudgetLine over PostgreSQL (HU-E6-03, HU-E6
       }),
     );
     const id = (name: string) => added.figures.lines.find((l) => l.line.name === name)!.line.id;
-    // Gifts maps a category and holds a FIXED value, which its removal must not touch beyond ending the mapping (D8).
+    // Gifts maps a category and holds a FIXED value; its removal ends both and keeps their rows (D8).
     const groceries = await categoryFixture(db, fixture, "Groceries");
     await pool.query(
       "INSERT INTO budget_line_categories (plan_id, line_id, category_id, mapped_at) VALUES ($1, $2, $3, $4)",
@@ -945,7 +993,7 @@ describe("UpdateBudgetLine and RemoveBudgetLine over PostgreSQL (HU-E6-03, HU-E6
         }),
       ],
       mappings: [{ unmapped_at: later }],
-      allocations: [{ superseded_at: null }],
+      allocations: [{ superseded_at: later }],
     };
     expect(await stored()).toEqual(written);
 

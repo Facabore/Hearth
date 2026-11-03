@@ -112,6 +112,46 @@ describe("guest members (HU-E1-10)", () => {
     expect(rows.rows).toEqual([{ user_id: null, role: null }]);
   });
 
+  it("lets the OWNER add a guest too", async () => {
+    const h = await household();
+    const response = await add(h.ana, h.spaceId, { displayName: "Pedro" });
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ kind: "GUEST", displayName: "Pedro", role: null });
+  });
+
+  it("requires a session", async () => {
+    const h = await household();
+    const anonymous = await call(addGuest, "POST", `/api/v1/spaces/${h.spaceId}/guests`, {
+      params: { spaceId: h.spaceId },
+      body: { displayName: "Pedro" },
+    });
+    expect(await problemOf(anonymous)).toEqual([401, "Unauthenticated"]);
+    const guests = await app.pool.query(
+      "SELECT 1 FROM space_members WHERE space_id = $1 AND user_id IS NULL",
+      [h.spaceId],
+    );
+    expect(guests.rowCount).toBe(0);
+  });
+
+  it("takes a display name of up to 100 characters once trimmed, and refuses a longer one", async () => {
+    const h = await household();
+    const longest = "P".repeat(100);
+    expect((await add(h.luis, h.spaceId, { displayName: `  ${longest}  ` })).status).toBe(201);
+    expect(await problemOf(await add(h.luis, h.spaceId, { displayName: "Q".repeat(101) }))).toEqual([
+      422,
+      "InvalidMemberName",
+    ]);
+    expect(await problemOf(await add(h.luis, h.spaceId, { displayName: "Q".repeat(201) }))).toEqual([
+      422,
+      "ValidationFailed",
+    ]);
+    const guests = await app.pool.query(
+      "SELECT display_name FROM space_members WHERE space_id = $1 AND user_id IS NULL",
+      [h.spaceId],
+    );
+    expect(guests.rows).toEqual([{ display_name: longest }]);
+  });
+
   it("refuses guests in a personal space", async () => {
     const ana = await registerUser("Ana");
     expect(await problemOf(await add(ana, ana.spaceId, { displayName: "Pedro" }))).toEqual([

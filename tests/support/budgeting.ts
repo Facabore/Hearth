@@ -230,6 +230,21 @@ export const putCategories = (
     headers: ifMatch(version),
   });
 
+/** HU-E6-05: a PERCENT allocation body, one `[memberId, percent]` per member, in the order given. */
+export const percentAllocation = (...members: [memberId: string, percent: string][]) => ({
+  rule: "PERCENT",
+  members: members.map(([memberId, percent]) => ({ memberId, percent })),
+});
+
+/** HU-E6-05: a FIXED allocation body, one `[memberId, amount]` per member; a number is whole COP pesos. */
+export const fixedAllocation = (...members: [memberId: string, amount: number | MoneyDto][]) => ({
+  rule: "FIXED",
+  members: members.map(([memberId, amount]) => ({
+    memberId,
+    amount: typeof amount === "number" ? cop(amount) : amount,
+  })),
+});
+
 /** HU-E6-05: `user` allocates the line; `allocation` is the request body. */
 export const putAllocation = (
   user: TestUser,

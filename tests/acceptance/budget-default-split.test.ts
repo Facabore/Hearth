@@ -9,10 +9,12 @@ import {
   activatePlan,
   addLine,
   copyPlan,
+  fixedAllocation,
   getDefaultSplit,
   lineNamed,
   newPlan,
   patchLine,
+  percentAllocation,
   planOf,
   putAllocation,
   putCategories,
@@ -287,13 +289,7 @@ describe("expenses default to their line's allocation (HU-E6-08, D4)", () => {
 
   it("splits by fixed amounts: Home FIXED 490,000 / 980,000 COP shares Juan's 300,000 COP as 100,000 / 200,000", async () => {
     const { h, planId, lineId } = await activeReference();
-    const fixed = {
-      rule: "FIXED",
-      members: [
-        { memberId: h.ana.memberId, amount: cop(490_000) },
-        { memberId: h.juan.memberId, amount: cop(980_000) },
-      ],
-    };
+    const fixed = fixedAllocation([h.ana.memberId, 490_000], [h.juan.memberId, 980_000]);
     expect((await putAllocation(h.ana, h.spaceId, planId, lineId("Home"), fixed)).status).toBe(200);
     expect(sharesOf(await pays(h.juan, h.groceries, 300_000, "2026-11-10"))).toEqual([
       [h.ana.memberId, cop(100_000), "BY_ALLOCATION"],
@@ -305,19 +301,55 @@ describe("expenses default to their line's allocation (HU-E6-08, D4)", () => {
     const { h, planId, lineId } = await activeReference();
     const tx = await pays(h.ana, h.groceries, 2_000_000, "2026-11-08");
     expect(sharesOf(tx).map((share) => share[2])).toEqual(["BY_ALLOCATION", "BY_ALLOCATION"]);
-    const half = {
-      rule: "PERCENT",
-      members: [
-        { memberId: h.ana.memberId, percent: "50" },
-        { memberId: h.juan.memberId, percent: "50" },
-      ],
-    };
+    const half = percentAllocation([h.ana.memberId, "50"], [h.juan.memberId, "50"]);
     expect((await putAllocation(h.ana, h.spaceId, planId, lineId("Home"), half)).status).toBe(200);
     const read = await call(getTransaction, "GET", `/api/v1/spaces/${h.spaceId}/transactions/${tx.id}`, {
       user: h.ana,
       params: { spaceId: h.spaceId, transactionId: tx.id },
     });
     expect(sharesOf((await read.json()) as TransactionDto)).toEqual(sharesOf(tx));
+    // The new allocation drives the next Groceries expense.
+    expect(sharesOf(await pays(h.ana, h.groceries, 2_000_000, "2026-11-09"))).toEqual([
+      [h.ana.memberId, cop(1_000_000), "BY_ALLOCATION"],
+      [h.juan.memberId, cop(1_000_000), "BY_ALLOCATION"],
+    ]);
+  });
+
+  it("previews and records EQUAL for a date no plan covers", async () => {
+    const { h } = await activeReference();
+    const preview = await getDefaultSplit(h.ana, h.spaceId, {
+      categoryId: h.groceries,
+      date: "2027-03-05",
+      amount: "10000000",
+    });
+    expect(await preview.json()).toMatchObject({
+      method: "EQUAL",
+      lineId: null,
+      shares: [
+        { memberId: h.ana.memberId, amount: cop(50_000) },
+        { memberId: h.juan.memberId, amount: cop(50_000) },
+      ],
+    });
+    expect(sharesOf(await pays(h.ana, h.groceries, 100_000, "2027-03-05"))).toEqual([
+      [h.ana.memberId, cop(50_000), "EQUAL"],
+      [h.juan.memberId, cop(50_000), "EQUAL"],
+    ]);
+  });
+
+  it("breaks an EQUAL tie as the preview shows it: the peso left over goes to the earliest-joined member", async () => {
+    const { h, outings } = await activeReference({ freeIsGroupMoney: true });
+    const preview = await getDefaultSplit(h.ana, h.spaceId, {
+      categoryId: outings,
+      date: "2026-11-12",
+      amount: "5000100",
+    });
+    const { shares } = (await preview.json()) as { shares: { memberId: string; amount: MoneyDto }[] };
+    expect(shares).toEqual([
+      { memberId: h.ana.memberId, amount: cop(25_001) },
+      { memberId: h.juan.memberId, amount: cop(25_000) },
+    ]);
+    const tx = await pays(h.juan, outings, 50_001, "2026-11-12");
+    expect(sharesOf(tx)).toEqual(shares.map((s) => [s.memberId, s.amount, "EQUAL"]));
   });
 
   it("defaults an unmapped Outings expense to EQUAL through the NONE catch-all Free, which it consumes", async () => {
@@ -380,13 +412,7 @@ describe("expenses default to their line's allocation (HU-E6-08, D4)", () => {
     });
     const diningId = lineNamed(plan, "Dining").id;
     expect((await putCategories(ana, spaceId, planId, diningId, [restaurants])).status).toBe(200);
-    const fixed = {
-      rule: "FIXED",
-      members: [
-        { memberId: anaId, amount: cop(100_000) },
-        { memberId: pedroId, amount: cop(200_000) },
-      ],
-    };
+    const fixed = fixedAllocation([anaId, 100_000], [pedroId, 200_000]);
     expect((await putAllocation(ana, spaceId, planId, diningId, fixed)).status).toBe(200);
     expect((await activatePlan(ana, spaceId, planId)).status).toBe(200);
     const taxi = await splitWithPedro({ kind: "MEMBER", memberId: pedroId }, 300_000);

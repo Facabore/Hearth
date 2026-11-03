@@ -253,6 +253,19 @@ describe("direct splits that cannot happen (HU-E1-13, Review Focus 3)", () => {
     expect(await directSpacesOf(h.ana)).toEqual([]);
   });
 
+  it("refuses Ana's own member id in her existing direct space, and records nothing there", async () => {
+    const { ana, bancolombia } = await anaWithBancolombia();
+    const dinner = await splitOk(await split(ana, splitBody(bancolombia, pedroAsGuest, "Dinner", 120_000)));
+    const self = (await membersOf(ana, dinner.spaceId)).find((m) => m.userId === ana.userId)!;
+    const response = await split(
+      ana,
+      splitBody(bancolombia, { kind: "MEMBER", memberId: self.id }, "Taxi", 40_000),
+    );
+    expect(await problemOf(response)).toEqual([422, "InvalidDirectCounterpart"]);
+    expect((await expensesOf(ana, dinner.spaceId)).map((t) => t.id)).toEqual([dinner.expense.id]);
+    expect(await directSpacesOf(ana)).toHaveLength(1);
+  });
+
   it("refuses a new guest named like Ana with 409 MemberNameTaken and creates no space", async () => {
     const { ana, bancolombia } = await anaWithBancolombia();
     const namesake: Counterpart = { kind: "GUEST", displayName: "ana" };
@@ -371,7 +384,7 @@ describe("direct splits that cannot happen (HU-E1-13, Review Focus 3)", () => {
   });
 });
 
-describe("a claimed direct space is the pair's direct space (HU-E1-11, HU-E1-13, D16, Task 14b)", () => {
+describe("a claimed direct space is the pair's direct space (HU-E1-11, HU-E1-13, D16)", () => {
   it("reuses 'Ana & Pedro' after Pedro claims it, also when Ana picks him in another space they share", async () => {
     const { ana, bancolombia } = await anaWithBancolombia();
     const dinner = await splitOk(await split(ana, splitBody(bancolombia, pedroAsGuest, "Dinner", 120_000)));

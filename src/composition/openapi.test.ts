@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { buildOpenApiDocument, changedOperations, snapshotOf } from "./openapi";
+import { buildOpenApiDocument, changedOperations, snapshotOf, withoutUnusedInputForms } from "./openapi";
 
 const SNAPSHOT = "openapi/openapi.snapshot.json";
 
@@ -164,7 +164,7 @@ describe("OpenAPI document", () => {
       string,
       { properties?: Record<string, { enum?: unknown[] }> }
     >;
-    for (const name of ["Category", "CategoryOutput", "CategoryGroup", "CategoryGroupSummary"]) {
+    for (const name of ["CategoryOutput", "CategoryGroup", "CategoryGroupSummary"]) {
       expect(Object.keys(schemas[name]?.properties ?? {})).toEqual(expect.arrayContaining(["icon", "color"]));
     }
     expect(schemas.CategoryGroupSummary?.properties?.color?.enum).toHaveLength(16);
@@ -177,6 +177,45 @@ describe("OpenAPI document", () => {
         .filter((name) => name.endsWith("Output"))
         .sort(),
     ).toEqual(["CategoryOutput", "MoneyOutput"]);
+  });
+
+  it("leaves out the input form of Category, which no request uses, and keeps Money's, which requests use (#84 M1-6)", () => {
+    const names = Object.keys(doc.components.schemas);
+    expect(names).not.toContain("Category");
+    expect(names).toEqual(expect.arrayContaining(["CategoryOutput", "Money", "MoneyOutput"]));
+    const text = JSON.stringify(doc);
+    for (const name of names) {
+      if (names.includes(`${name}Output`)) expect(text).toContain(`"#/components/schemas/${name}"`);
+    }
+  });
+
+  it("drops only a component that has an Output form and that nothing but itself references", () => {
+    const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
+    const doc = {
+      paths: { "/a": { get: { body: ref("Used") } } },
+      components: {
+        schemas: {
+          Unused: { items: ref("Unused") },
+          UnusedOutput: {},
+          Used: {},
+          UsedOutput: {},
+          Alone: {},
+          // Referenced by another component only: still used.
+          Holder: ref("Nested"),
+          Nested: {},
+          NestedOutput: {},
+        },
+      },
+    };
+    expect(Object.keys(withoutUnusedInputForms(doc).components.schemas)).toEqual([
+      "UnusedOutput",
+      "Used",
+      "UsedOutput",
+      "Alone",
+      "Holder",
+      "Nested",
+      "NestedOutput",
+    ]);
   });
 
   it("names the operations that were added, removed or changed", () => {

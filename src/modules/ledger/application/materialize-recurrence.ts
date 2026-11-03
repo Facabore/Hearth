@@ -93,7 +93,7 @@ const cursorFrom = (recurrence: Pick<Recurrence, "schedule" | "endDate">, next: 
  * An unexpected failure, such as the unique key refusing a second occurrence of a date, rolls everything of this
  * recurrence back, its recorded transactions included, and the next run retries it.
  *
- * Ruling P24 (Task 2b): a run and a resume only move `dueFrom` forward, and a resume moves it to the resume day. A
+ * Ruling P24: a run and a resume only move `dueFrom` forward, and a resume moves it to the resume day. A
  * date that fell due before a pause and that no run had considered yet is therefore dropped when the recurrence
  * resumes, never recorded late. The one exception is a schedule change: a second one can move `dueFrom` back, never
  * before the edit day (`rescheduledFrom`). A recurrence with no schedule date left from `dueFrom` through its end date counts as finished (ENDED):

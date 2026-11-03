@@ -181,7 +181,7 @@ export class InMemoryTransactions implements TransactionRepository, TransactionQ
     return net;
   }
 
-  /** The in-memory twin of DrizzleLedgerQueries.memberTotals (E5 balance rule); Task 10 pins them together. */
+  /** The in-memory twin of DrizzleLedgerQueries.memberTotals (E5 balance rule); the ledger's integration tests pin them together. */
   async memberTotals(spaceId: string): Promise<MemberMoneyTotals[]> {
     type Field = "paid" | "consumed" | "settledOut" | "settledIn";
     const totals = new Map<string, Record<Field, bigint>>();

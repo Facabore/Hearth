@@ -19,7 +19,7 @@ import { createListTransactions } from "./list-transactions";
 const household = membership({ spaceId: "space-household", name: "Household", spaceKind: "SHARED" });
 const luis = membership({ ...household, memberId: "member-luis", userId: "u-luis", role: "MEMBER" });
 const asAna = { spaceId: "space-ana", userId: "u-ana" };
-/** Household's current members as the ledger reads them: Ana and Juan; Luis is not one of them (Task 4b). */
+/** Household's current members as the ledger reads them: Ana and Juan; Luis is not one of them. */
 const currentHousehold = {
   listCurrent: async () => [memberOf("Ana", "OWNER", 0), memberOf("Juan", "MEMBER", 1)],
 };
@@ -64,7 +64,7 @@ describe("EditTransaction (HU-E4-06)", () => {
         action: "UPDATED",
         actorUserId: "u-ana",
         at: deps.clock.now(),
-        // D8 (Task 0b): the sole payment and share followed the amount; the audit keeps both versions.
+        // D8: the sole payment and share followed the amount; the audit keeps both versions.
         changes: {
           amount: { from: "8500000", to: "9500000" },
           payments: {
@@ -218,7 +218,7 @@ describe("EditTransaction keeps personal accounts debited only by their owner (D
     payments: [{ memberId: null, accountId: ACCOUNTS.householdFund.id, amount: 5_000_000n }],
   });
   const setupHousehold = () => {
-    // Task 4b: amount edits check that the parties are current members, so the ledger needs Household's.
+    // Amount edits check that the parties are current members, so the ledger needs Household's.
     const fixture = ledgerFixture({ access: fakeSpaceAccess(household, juan), members: currentHousehold });
     fixture.store.rows.push(juansExpense, juansContribution, juansSettlement, fundPaid);
     return { ...fixture, edit: createEditTransaction(fixture.deps) };
@@ -272,7 +272,7 @@ describe("DeleteTransaction (HU-E4-06)", () => {
     expect(await idsIn("2026-10")).toEqual([]);
     const entries = unwrap(await history({ ...asAna, transactionId: market.id }));
     expect(entries.map((e) => [e.action, e.actorUserId])).toEqual([["DELETED", "u-ana"]]);
-    // D8 (Task 0b): the deletion keeps the whole last version, payments and shares included.
+    // D8: the deletion keeps the whole last version, payments and shares included.
     expect(entries[0]?.changes).toEqual({
       description: { from: "Market", to: null },
       date: { from: "2026-10-31", to: null },
@@ -297,7 +297,7 @@ describe("DeleteTransaction (HU-E4-06)", () => {
   });
 });
 
-describe("edits and deletes never move a former member's balance (HU-E1-08, HU-E1-12, Task 4b)", () => {
+describe("edits and deletes never move a former member's balance (HU-E1-08, HU-E1-12)", () => {
   // Luis left Household after settling: Ana paid him back for an expense he paid outside the app.
   const settledWithLuis = aSettlement("2026-10-20", 5_000_000n, {
     payerMemberId: "member-ana",

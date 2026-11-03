@@ -3,7 +3,7 @@ import type { Category, CategoryGroup, CategoryRepository } from "@/modules/cate
 export class InMemoryCategories implements CategoryRepository {
   groups: CategoryGroup[] = [];
   categories: Category[] = [];
-  /** D8 (Task 0a): when each deleted category was deleted; the rows stay, and lists skip them. */
+  /** D8: when each deleted category was deleted; the rows stay, and lists skip them. */
   readonly deleted = new Map<string, Date>();
 
   /** Ruling P90: nothing runs concurrently here, so there is nothing to serialize. */
@@ -27,10 +27,14 @@ export class InMemoryCategories implements CategoryRepository {
   async saveGroup(group: CategoryGroup) {
     this.groups = this.groups.map((g) => (g.id === group.id ? group : g));
   }
+  /** Like DrizzleCategoryRepository: a deleted category is never written again. */
   async saveCategories(changed: readonly Category[]) {
-    this.categories = this.categories.map((c) => changed.find((x) => x.id === c.id) ?? c);
+    this.categories = this.categories.map((c) =>
+      this.deleted.has(c.id) ? c : (changed.find((x) => x.id === c.id) ?? c),
+    );
   }
   async deleteCategory(spaceId: string, categoryId: string, deletedAt: Date) {
+    if (this.deleted.has(categoryId)) return;
     if (this.categories.some((c) => c.spaceId === spaceId && c.id === categoryId)) {
       this.deleted.set(categoryId, deletedAt);
     }

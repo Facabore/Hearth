@@ -159,8 +159,11 @@ export const restoreInvitation = (invitation: Invitation, now: Date): Result<Inv
   return ok({ ...invitation, status: "PENDING", revokedAt: null });
 };
 
+/** HU-E1-11: a claim link, which always names its guest (issueClaim sets it; space_invitations_claim_guest holds it). */
+export type ClaimLink = Invitation & { readonly kind: "CLAIM"; readonly guestMemberId: string };
+
 /** HU-E1-11: claim links hand over a guest's place; they never add a member. */
-export const isClaim = (invitation: Invitation): boolean => invitation.kind === "CLAIM";
+export const isClaim = (invitation: Invitation): invitation is ClaimLink => invitation.kind === "CLAIM";
 
 /**
  * HU-E1-11: a single-use bearer link for one guest, valid 7 days and not bound to the guest's contact

@@ -378,7 +378,7 @@ describe("edit and delete with an audit trail (HU-E4-06)", () => {
         action: "UPDATED",
         actorUserId: ana.userId,
         at: expect.any(String),
-        // Task 0b: the parts that followed the amount are pinned in "the audit keeps every payment and share".
+        // The parts that followed the amount are pinned in "the audit keeps every payment and share".
         changes: expect.objectContaining({ amount: { from: "8500000", to: "9500000" } }),
       }),
     ]);
@@ -630,7 +630,7 @@ describe("dates outside the supported years (Review Focus 4)", () => {
   });
 });
 
-describe("the audit keeps every payment and share (D8, Task 0b)", () => {
+describe("the audit keeps every payment and share (D8)", () => {
   const partsOf = (tx: TransactionDto) => ({
     payments: JSON.stringify(
       tx.payments.map((p) => ({ memberId: p.memberId, accountId: p.accountId, amount: p.amount.amount })),

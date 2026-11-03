@@ -61,7 +61,7 @@ describe("retiring categories (HU-E3-03)", () => {
     const food = categories.groups.find((g) => g.name === "Food")!;
     const bakery = unwrap(await create({ ...asAna, groupId: food.id, name: "Bakery" }));
     unwrap(await remove({ ...asAna, categoryId: bakery.id }));
-    // D8 (Task 0a): the row stays, marked deleted, and every list, lookup and name check skips it.
+    // D8: the row stays, marked deleted, and every list, lookup and name check skips it.
     expect(categories.categories.map((c) => c.id)).toContain(bakery.id);
     expect(categories.deleted.get(bakery.id)).toEqual(new Date("2026-10-12T12:00:00Z"));
     expect(await activeNames()).not.toContain("Bakery");

@@ -100,15 +100,33 @@ export const lineForCategory = (
   parts.lines.find((l) => l.isCatchAll)?.id ??
   null;
 
+/** `memberIds`, in their order, with the capacity each holds in the plan (0 without one). */
+const withCapacities = (capacities: readonly MemberCapacity[], memberIds: readonly string[]) =>
+  memberIds.map((memberId) => ({ memberId, capacity: capacityOf(capacities, memberId) }));
+
+/**
+ * HU-E6-05: a line's allocation values in the plan, and the amounts they assign to `memberIds` (their order). The plan's
+ * figures and the default split (HU-E6-08) both read a line's assignment here, so the two cannot drift.
+ */
+export const lineAssignment = (
+  line: Pick<BudgetLine, "id" | "allocationRule" | "plannedAmount">,
+  parts: Pick<PlanParts, "capacities" | "allocations">,
+  memberIds: readonly string[],
+  currency: string,
+) => {
+  const values: readonly LineAllocation[] = parts.allocations.filter((a) => a.lineId === line.id);
+  const members = withCapacities(parts.capacities, memberIds);
+  return { values, members, assigned: assignedAmounts(line, values, members, currency) };
+};
+
 const allocationFigure = (
   line: BudgetLine,
-  allocations: readonly LineAllocation[],
-  members: readonly { readonly memberId: string; readonly capacity: bigint }[],
+  parts: PlanParts,
+  memberIds: readonly string[],
   currency: string,
 ): AllocationFigure => {
   if (line.allocationRule === "NONE") return { rule: "NONE", members: [], invalid: false };
-  const values = allocations.filter((a) => a.lineId === line.id);
-  const assigned = assignedAmounts(line, values, members, currency);
+  const { values, members, assigned } = lineAssignment(line, parts, memberIds, currency);
   const amounts = assigned.ok ? assigned.value : null;
   return {
     rule: line.allocationRule,
@@ -138,10 +156,7 @@ export const planFigures = (input: {
 }): PlanFigures => {
   const { currency, memberIds, parts, spending, previousAvailable = [], source = null } = input;
   const total = totalCapacity(parts.capacities, memberIds);
-  const members = memberIds.map((memberId) => ({
-    memberId,
-    capacity: capacityOf(parts.capacities, memberId),
-  }));
+  const members = withCapacities(parts.capacities, memberIds);
   const spentOn = new Map<string | null, bigint>();
   for (const { categoryId, amount } of spending.byCategory) {
     const lineId = lineForCategory(categoryId, parts);
@@ -167,7 +182,7 @@ export const planFigures = (input: {
       line,
       categoryIds: parts.mappings.filter((m) => m.lineId === line.id).map((m) => m.categoryId),
       capacityShareBasisPoints: shareOfTotal(line.plannedAmount, total),
-      allocation: allocationFigure(line, parts.allocations, members, currency),
+      allocation: allocationFigure(line, parts, memberIds, currency),
       spent,
       carryOver: carried,
       carryOverFrom: from,

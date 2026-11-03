@@ -22,6 +22,7 @@ import {
   getPlan,
   newPlan,
   patchLine,
+  percentAllocation,
   planOf,
   postLine,
   putAllocation,
@@ -92,14 +93,7 @@ describe("activating a plan (HU-E6-07)", () => {
     const { h, planId, lineId } = await referencePlan();
     const luis = await joinHousehold(h, "Luis", "MEMBER");
     const free = lineId("Free");
-    const split = {
-      rule: "PERCENT",
-      members: [
-        { memberId: h.ana.memberId, percent: "42" },
-        { memberId: h.juan.memberId, percent: "57" },
-        { memberId: luis.memberId, percent: "1" },
-      ],
-    };
+    const split = percentAllocation([h.ana.memberId, "42"], [h.juan.memberId, "57"], [luis.memberId, "1"]);
     expect((await putAllocation(h.ana, h.spaceId, planId, free, split)).status).toBe(200);
     const left = await call(leaveSpace, "POST", `/api/v1/spaces/${h.spaceId}/leave`, {
       user: luis,
@@ -125,13 +119,7 @@ describe("activating a plan (HU-E6-07)", () => {
 
   it("keeps the reason of AllocateBudgetLine's InvalidAllocation private: no lineIds, no reason", async () => {
     const { h, planId, lineId } = await referencePlan();
-    const notHundred = {
-      rule: "PERCENT",
-      members: [
-        { memberId: h.ana.memberId, percent: "42" },
-        { memberId: h.juan.memberId, percent: "57" },
-      ],
-    };
+    const notHundred = percentAllocation([h.ana.memberId, "42"], [h.juan.memberId, "57"]);
     const response = await putAllocation(h.ana, h.spaceId, planId, lineId("Free"), notHundred);
     expect(response.status).toBe(422);
     expect(await keysOf(response.clone())).toEqual(["code", "requestId", "status", "title", "type"]);

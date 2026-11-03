@@ -154,7 +154,7 @@ describe("settlement suggestions (HU-E5-03)", () => {
     expect(await problemOf(anonymous)).toEqual([401, "Unauthenticated"]);
   });
 
-  it("still answers for an archived space, which only reads (HU-E1-09, the read table of Task 18b)", async () => {
+  it("still answers for an archived space, which only reads (HU-E1-09, the archived space's read table)", async () => {
     const { h } = await trip();
     const archived = await call(archiveSpace, "POST", `/api/v1/spaces/${h.spaceId}/archive`, {
       user: h.ana,

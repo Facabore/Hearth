@@ -265,6 +265,26 @@ describe("line editor (HU-E9-08)", () => {
     expect(screen.getByRole("button", { name: "Quitar rubro" })).toBeVisible();
   });
 
+  it("paints the categories card and the fold late, but never the first view's fields (#182, ruling P256)", async () => {
+    show(planLineDto({ id: "l-free", name: "Free", isCatchAll: true }));
+    const deferred = (element: Element) => element.closest("[class*='[content-visibility:auto]']");
+    // What the first frame shows is outside the region whose paint waits until it nears the viewport.
+    for (const field of [
+      screen.getByLabelText("Nombre"),
+      screen.getByLabelText("Planeado"),
+      screen.getByRole("radiogroup", { name: "¿De dónde sale?" }),
+    ]) {
+      expect(deferred(field)).toBeNull();
+    }
+    const below = deferred(screen.getByRole("group", { name: "Categorías" }));
+    expect(below).not.toBeNull();
+    expect(below).toContainElement(screen.getByRole("button", { name: "Más opciones" }));
+    // Paint containment clips at the padding box: the padding the margin takes back leaves room for a focus ring.
+    expect(below).toHaveClass("-m-1", "p-1");
+    await more();
+    expect(below).toContainElement(screen.getByRole("button", { name: "Quitar rubro" }));
+  });
+
   it("adds Rent funded by the shared fund with rollover RESET (@golden)", async () => {
     const { api, requests } = fakeApi({ [ADD]: added });
     const { container } = show(null, api);

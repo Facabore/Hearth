@@ -17,7 +17,7 @@ export interface SignUpGate {
 
 export interface SignUpDeps {
   readonly auth: AuthProvider;
-  /** Creates everything a new user needs (the personal space, Task 11). */
+  /** Creates everything a new user needs (the personal space). */
   readonly provisionUser: (user: AuthUser) => Promise<Result<void>>;
   /** HU-E1-14: stores the browser's zone; ruling P142: the visitor's language. */
   readonly profiles: Pick<UserProfiles, "setTimeZone" | "saveProfile">;

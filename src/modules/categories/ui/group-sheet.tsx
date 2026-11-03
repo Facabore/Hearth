@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useId, useMemo, useState } from "react";
-import type { PaletteKey } from "@/shared/kernel/style";
+import { CUSTOM_GROUP_STYLE, type PaletteKey } from "@/shared/kernel/style";
 import { Button, ProblemNotice, Sheet, TextField } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { CategoryGroupDto } from "@/shared/ui/api/dto";
@@ -12,11 +12,11 @@ import { IconPicker } from "./icon-picker";
 import { isSameIcon, type IconChoice } from "./style-library";
 
 /**
- * HU-E3-05: the style a group created without one takes (the domain's `CUSTOM_GROUP_STYLE`), shown preselected. The
- * sheet sends a style only once the person changed it, so the API's own default stays the one that is stored.
+ * HU-E3-05: the style a group created without one takes (`CUSTOM_GROUP_STYLE`, the one the domain stores), shown
+ * preselected. The sheet sends a style only once the person changed it, so the API's own default stays the one stored.
  */
-const DEFAULT_ICON: IconChoice = { kind: "SYMBOL", name: "tag" };
-const DEFAULT_COLOR: PaletteKey = "GRAPHITE";
+const DEFAULT_ICON: IconChoice = CUSTOM_GROUP_STYLE.icon;
+const DEFAULT_COLOR: PaletteKey = CUSTOM_GROUP_STYLE.color;
 
 /**
  * HU-E9-04: "New group", from the screen's header or the category sheet's group choice: a name, the icon picker and the

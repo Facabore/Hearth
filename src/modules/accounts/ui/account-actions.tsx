@@ -121,7 +121,7 @@ export function StarterAccountsButton({
   );
 }
 
-/** HU-E9-03, Task 2's endpoint: an archived account takes movements again. */
+/** HU-E9-03, through the restore endpoint: an archived account takes movements again. */
 export function RestoreAccountButton(props: ActionProps) {
   const t = useTranslations("accounts");
   const { run, pending, problem } = useAccountAction("restore", props);

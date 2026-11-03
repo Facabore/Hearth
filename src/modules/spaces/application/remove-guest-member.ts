@@ -39,8 +39,9 @@ export const createRemoveGuestMember =
       // Claim links first, then the member row: ClaimGuestPlace takes them in the same order, so the two
       // never deadlock, and a claim that commits first leaves the conditional markLeft nothing to match.
       await deps.invitations.revokePendingClaims(spaceId, guest.value.id, now);
-      if (!(await deps.members.markLeft(spaceId, guest.value.id, "GUEST", now))) {
-        return err(domainError("NotAGuest"));
-      }
-      return ok(undefined);
+      if (await deps.members.markLeft(spaceId, guest.value.id, "GUEST", now)) return ok(undefined);
+      // The guest changed after the read above: read again to tell a concurrent removal (MemberNotFound) from a
+      // concurrent claim (NotAGuest).
+      const again = currentGuest(await deps.members.listCurrent(spaceId), guest.value.id);
+      return again.ok ? err(domainError("NotAGuest")) : again;
     });

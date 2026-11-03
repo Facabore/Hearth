@@ -18,13 +18,15 @@ export const PeriodPolicySchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
+const RoleSchema = z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"]);
+
 export const SpaceSummarySchema = z.object({
   id: z.string(),
   name: z.string(),
   kind: z.enum(["PERSONAL", "SHARED", "DIRECT"]),
   currency: z.string(),
   periodPolicy: PeriodPolicySchema,
-  role: z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"]).nullable(),
+  role: RoleSchema.nullable(),
 });
 
 /** HU-E1-09, the M1 convention: `?archived=true` lists the archived spaces too, beside the active ones. */
@@ -54,8 +56,6 @@ export const CreateSpaceBodySchema = z.discriminatedUnion("kind", [
     periodPolicy: PeriodPolicyInputSchema.optional(),
   }),
 ]);
-
-const RoleSchema = z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"]);
 
 /** A current member (HU-E1-05, HU-E1-10): guests have kind GUEST, no user and no role. */
 export const SpaceMemberSchema = z.object({

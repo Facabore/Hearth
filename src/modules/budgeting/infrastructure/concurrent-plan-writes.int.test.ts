@@ -9,7 +9,7 @@ import { createSpaceAccess } from "@/modules/spaces/application";
 import { DrizzleSpaceRepository } from "@/modules/spaces/infrastructure/drizzle-space-repository";
 import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
-import { FixedClock, type LocalDate, type Result } from "@/shared/kernel";
+import { FixedClock, type LocalDate } from "@/shared/kernel";
 import { testDatabase } from "../../../../tests/support/database";
 import { codeOf, fixedTimeZones, money, unwrap } from "../../../../tests/support/fakes";
 import {
@@ -18,6 +18,14 @@ import {
   sharedSpaceFixture,
   userFixture,
 } from "../../../../tests/support/fixtures";
+import {
+  bothSettled,
+  heldBy,
+  holder,
+  outcomesOf,
+  someoneWaitsFor,
+  until,
+} from "../../../../tests/support/locks";
 import { createAddBudgetLine, type LineDeps, type LineInput } from "../application/add-budget-line";
 import { createClosedPeriodGuard, type ClosedPeriods } from "../application/closed-periods";
 import { createCopyBudgetPlan } from "../application/copy-budget-plan";
@@ -43,26 +51,6 @@ const nothingSpent: PlanSpending = {
 afterAll(() => pool.end());
 
 /**
- * Polls `condition` every 20 ms and throws "gave up waiting for <what>" after 500 polls (about 10 s plus the time
- * the checks take): a bound for a hung test, never a delay a passing test waits for.
- */
-const until = async (what: string, condition: () => Promise<boolean> | boolean) => {
-  for (let tries = 0; tries < 500; tries++) {
-    if (await condition()) return;
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
-  throw new Error(`gave up waiting for ${what}`);
-};
-
-/** Whether some backend is waiting for a lock that backend `pid` holds. */
-const someoneWaitsFor = async (pid: number) => {
-  const { rows } = await pool.query("SELECT 1 FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid))", [
-    pid,
-  ]);
-  return rows.length > 0;
-};
-
-/**
  * The rendezvous of two writers in separate transactions: the first to meet stays inside its transaction until the
  * second has met too, or until the second is seen queued behind a lock the first holds (the plan's version lock).
  * Either way both writers are inside their transactions and neither has committed when the first goes on. Without
@@ -79,51 +67,10 @@ const rendezvous = () => {
     const pid = Number(rows[0]?.pid);
     await until(
       `the second writer to meet or to queue behind backend ${pid}`,
-      async () => arrivals > 1 || (await someoneWaitsFor(pid)),
+      async () => arrivals > 1 || (await someoneWaitsFor(pool, pid)),
     );
   };
 };
-
-/**
- * A transaction that stops in `hold()` until another backend queues behind a lock it holds, or until `release()`
- * says the other side finished without queueing; `held` resolves once it stopped there. Both ends are observed
- * events, never a delay.
- */
-const holder = () => {
-  let released = false;
-  let stopped: () => void = () => undefined;
-  const held = new Promise<void>((resolve) => {
-    stopped = resolve;
-  });
-  const hold = async () => {
-    const { rows } = await tm.executor().execute(sql`SELECT pg_backend_pid() AS pid`);
-    const pid = Number(rows[0]?.pid);
-    stopped();
-    await until(
-      `another backend to queue behind backend ${pid}, or the other side to finish`,
-      async () => released || (await someoneWaitsFor(pid)),
-    );
-  };
-  const release = () => {
-    released = true;
-  };
-  return { held, hold, release };
-};
-
-/** What a writer that failed reports: the database's own message when there is one, so it reads in the diff. */
-const failure = (reason: unknown) => {
-  const cause = reason instanceof Error && reason.cause instanceof Error ? reason.cause : reason;
-  return `rejected: ${cause instanceof Error ? cause.message : String(cause)}`;
-};
-
-/**
- * Lets every writer run to the end, so one that fails never leaves the other running past the test with its
- * connection: the sorted outcomes are each writer's error code, "ok", or "rejected: <message>" for a raw error.
- */
-const outcomesOf = async (...writers: Promise<Result<unknown>>[]) =>
-  (await Promise.allSettled(writers))
-    .map((writer) => (writer.status === "fulfilled" ? codeOf(writer.value) : failure(writer.reason)))
-    .sort();
 
 /** The real plan repository, with the reads named in `overrides` replaced. */
 const repositoryWith = (overrides: Partial<BudgetPlanRepository>): BudgetPlanRepository => ({
@@ -335,9 +282,9 @@ describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Foc
    */
   const lineAddedWhileClosing = async (staleIfMatch: boolean) => {
     const { deps, plan, write, closeHolding } = await activePlan();
-    const h = holder();
+    const h = holder(tm, pool);
     const closing = closeHolding(h);
-    await h.held;
+    await heldBy(h, closing);
     const adding = createAddBudgetLine({ ...deps, lines: plans })({
       ...write,
       expectedVersion: staleIfMatch ? plan.version : null,
@@ -421,9 +368,9 @@ describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Foc
   it("makes a ledger write wait for a close in progress, which it then sees (P14)", async () => {
     const active = await activePlan();
     const record = await expenseInNovember(active, createClosedPeriodGuard(plans));
-    const h = holder();
+    const h = holder(tm, pool);
     const closing = active.closeHolding(h);
-    await h.held;
+    await heldBy(h, closing);
     const recording = record().finally(h.release);
     expect(await outcomesOf(closing, recording)).toEqual(["PeriodClosed", "ok"]);
     expect(await recordedExpenses(active.space.id)).toBe(0);
@@ -432,7 +379,7 @@ describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Foc
   it("makes a close wait for a ledger write that already checked the period (P14)", async () => {
     const active = await activePlan();
     const guard = createClosedPeriodGuard(plans);
-    const h = holder();
+    const h = holder(tm, pool);
     const record = await expenseInNovember(active, {
       isClosed: async (spaceId, date) => {
         const closed = await guard.isClosed(spaceId, date);
@@ -445,7 +392,7 @@ describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Foc
       order.push("ledger write");
       return result;
     });
-    await h.held;
+    await heldBy(h, recording);
     const closing = createCloseBudgetPlan({ ...active.closeDeps, statuses: plans })(active.write)
       .then((result) => {
         order.push("close");
@@ -471,7 +418,7 @@ describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Foc
       }),
     );
     const [home] = (await plans.contents(november.id)).lines;
-    const h = holder();
+    const h = holder(tm, pool);
     const updating = createUpdateBudgetLine({
       ...deps,
       lines: {
@@ -483,7 +430,7 @@ describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Foc
         },
       },
     })({ ...write, lineId: home!.id, changes: { plannedAmount: money(40_000_000n) } });
-    await h.held;
+    await heldBy(h, updating);
     const copying = copyOver({ ana, space, deps })({
       spaceId: space.id,
       userId: ana.id,
@@ -499,7 +446,7 @@ describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Foc
   it("creates one of two simultaneous copies of the same period and answers the other PlanAlreadyExists", async () => {
     const active = await activePlan();
     const input = { spaceId: active.space.id, userId: active.ana.id, period: "2026-12" };
-    const h = holder();
+    const h = holder(tm, pool);
     // The first copy stops once its plan is inserted and uncommitted; the second then queues behind that row.
     const first = copyOver(
       active,
@@ -511,10 +458,22 @@ describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Foc
         },
       }),
     )(input);
-    await h.held;
+    await heldBy(h, first);
     const second = copyOver(active)(input).finally(h.release);
-    expect(await outcomesOf(first, second)).toEqual(["PlanAlreadyExists", "ok"]);
+    const [won, lost] = await bothSettled(first, second);
+    // The held copy inserted first, so it is the one that commits; the queued one finds its row and gives up.
+    expect([codeOf(won), codeOf(lost)]).toEqual(["ok", "PlanAlreadyExists"]);
+    const copy = unwrap(won).view.plan;
     expect(await plans.storedPeriods(active.space.id)).toHaveLength(2);
+    const december = await plans.covering(active.space.id, "2026-12-15" as LocalDate);
+    expect([december?.id, december?.createdFrom, december?.status]).toEqual([
+      copy.id,
+      active.plan.id,
+      "DRAFT",
+    ]);
+    expect((await plans.contents(copy.id)).capacities).toEqual(
+      (await plans.contents(active.plan.id)).capacities.map((c) => expect.objectContaining({ ...c })),
+    );
   });
 });
 
@@ -569,9 +528,9 @@ describe("activating a DRAFT source while its carrying copy closes (issue #183, 
 
   it("makes an activation wait for the copy's close in progress, which it then refuses with CopyAlreadyClosed", async () => {
     const { activate, close, statuses } = await sourceAndCarryingCopy();
-    const h = holder();
+    const h = holder(tm, pool);
     const closing = close(h);
-    await h.held;
+    await heldBy(h, closing);
     const activating = activate().finally(h.release);
     expect(await outcomesOf(closing, activating)).toEqual(["CopyAlreadyClosed", "ok"]);
     expect(await statuses()).toEqual(["DRAFT", "CLOSED"]);
@@ -579,9 +538,9 @@ describe("activating a DRAFT source while its carrying copy closes (issue #183, 
 
   it("makes the copy's close wait for an activation in progress, which it then refuses with SourcePlanOpen", async () => {
     const { activate, close, statuses } = await sourceAndCarryingCopy();
-    const h = holder();
+    const h = holder(tm, pool);
     const activating = activate(h);
-    await h.held;
+    await heldBy(h, activating);
     const closing = close().finally(h.release);
     expect(await outcomesOf(activating, closing)).toEqual(["SourcePlanOpen", "ok"]);
     expect(await statuses()).toEqual(["ACTIVE", "ACTIVE"]);

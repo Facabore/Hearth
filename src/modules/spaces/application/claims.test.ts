@@ -248,9 +248,23 @@ describe("ClaimGuestPlace (HU-E1-11)", () => {
       expect(w.invitations.rows[0]?.status).toBe("PENDING");
     }
   });
+
+  it("answers MemberNotFound when a concurrent removal took the guest's place first", async () => {
+    const removing = new (class extends InMemorySpaceStore {
+      override async claimGuest(...args: Parameters<InMemorySpaceStore["claimGuest"]>) {
+        // The removal commits between the claim's read of the members and its update.
+        await this.markLeft(space, "member-pedro", "GUEST", created);
+        return super.claimGuest(...args);
+      }
+    })();
+    const w = world(removing);
+    await claimLinkFor(w);
+    expect(codeOf(await w.claim({ token: "token-1", userId: "u-pedro" }))).toBe("MemberNotFound");
+    expect(w.invitations.rows[0]?.status).toBe("PENDING");
+  });
 });
 
-describe("ClaimGuestPlace in a direct space (HU-E1-13, D16, Task 14b)", () => {
+describe("ClaimGuestPlace in a direct space (HU-E1-13, D16)", () => {
   const addDirect = (store: InMemorySpaceStore, id: string, members: SpaceMember[]) =>
     store.addDirect({ ...householdSpace(members), id: id as SpaceId, kind: "DIRECT", name: "Ana & Pedro" });
 
@@ -316,7 +330,7 @@ describe("ClaimGuestPlace in a direct space (HU-E1-13, D16, Task 14b)", () => {
 });
 
 // The twin of DrizzleSpaceRepository.adoptPairKey; drizzle-direct-spaces.int.test.ts pins both to the same answers.
-describe("InMemorySpaceStore.adoptPairKey (Task 14b)", () => {
+describe("InMemorySpaceStore.adoptPairKey", () => {
   const key = pairKeyOf("u-ana", "u-pedro");
   const direct = (id: string, members: SpaceMember[] = [ANA, PEDRO]): Space => ({
     ...householdSpace(members),

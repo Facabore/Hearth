@@ -100,10 +100,7 @@ export function SettingsForm({
   return (
     <div className="flex flex-col gap-3">
       {/* Issue #176: on a long screen Volver stays reachable; the page's own background hides what scrolls under it. */}
-      <div
-        data-sticky-header
-        className="sticky top-0 z-[5] -mx-4 bg-bg px-4 max-[359px]:-mx-3 max-[359px]:px-3"
-      >
+      <div data-sticky-header className="sticky top-0 z-[5] -mx-gutter bg-bg px-gutter">
         {/* The screen draws the shell itself: a prefetch of the space's home would load its script again (#196). */}
         <ScreenHeader backHref={backHref} title={t("title")} prefetch={false} />
       </div>

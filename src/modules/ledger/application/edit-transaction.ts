@@ -95,7 +95,7 @@ export const createEditTransaction =
       if (!open.ok) return open;
       const debits = await ownedDebits(deps, changedDebits(current, revised.value), input.userId);
       if (!debits.ok) return debits;
-      // HU-E1-08, HU-E1-12: a new amount, payer or split must not move the balance of a member who left (Task 4b). Both
+      // HU-E1-08, HU-E1-12: a new amount, payer or split must not move the balance of a member who left. Both
       // versions count: a fund-paid expense has no parties, but a member-paid revision of it would move its shares'.
       if (changes.amount || changes.payments || changes.shares) {
         for (const version of [current, revised.value]) {

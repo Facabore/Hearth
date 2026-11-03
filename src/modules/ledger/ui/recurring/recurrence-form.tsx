@@ -658,7 +658,7 @@ export function RecurrenceForm({
         {problem && found === "form" ? <ProblemNotice problem={problem} /> : null}
         {/* P270: pinned at the bottom of its stacked screen (P272, no bottom bar), so saving never needs a scroll.
             Board 02 draws it as a white bar across the screen, a line above it. */}
-        <div className="sticky bottom-[env(safe-area-inset-bottom)] -mx-4 border-t border-line bg-surface px-4 py-3 max-[359px]:-mx-3 max-[359px]:px-3 lg:bottom-0">
+        <div className="sticky bottom-[env(safe-area-inset-bottom)] -mx-gutter border-t border-line bg-surface px-gutter py-3 lg:bottom-0">
           <Button type="submit" size="lg" disabled={pending}>
             {edit ? t("form.saveEdit") : t("form.save")}
           </Button>

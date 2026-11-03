@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gt, inArray } from "drizzle-orm";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { isUuid } from "@/shared/kernel";
-import type { InvitationRepository } from "../application/invitation-repository";
+import type { ClaimLinkRepository, InvitationRepository } from "../application/invitation-repository";
 import type { Invitation, InvitationId, InvitationJoin } from "../domain/invitation";
 import type { SpaceId, SpaceMemberId } from "../domain/space";
 import { spaceInvitations, spaceInvitationUses } from "./spaces.schema";
@@ -10,13 +10,24 @@ const toInvitation = (
   row: typeof spaceInvitations.$inferSelect,
   joins: readonly InvitationJoin[],
 ): Invitation => ({
-  ...row,
   id: row.id as InvitationId,
   spaceId: row.spaceId as SpaceId,
+  kind: row.kind,
+  email: row.email,
+  guestMemberId: row.guestMemberId,
+  role: row.role,
+  tokenHash: row.tokenHash,
+  status: row.status,
+  createdBy: row.createdBy,
+  createdAt: row.createdAt,
+  expiresAt: row.expiresAt,
+  acceptedAt: row.acceptedAt,
+  acceptedByUserId: row.acceptedByUserId,
+  revokedAt: row.revokedAt,
   joins,
 });
 
-export class DrizzleInvitationRepository implements InvitationRepository {
+export class DrizzleInvitationRepository implements InvitationRepository, ClaimLinkRepository {
   constructor(private readonly tm: DrizzleTransactionManager) {}
 
   async add(invitation: Invitation): Promise<void> {
@@ -105,6 +116,8 @@ export class DrizzleInvitationRepository implements InvitationRepository {
   }
 
   async revokePendingClaims(spaceId: SpaceId, guestMemberId: SpaceMemberId, revokedAt: Date): Promise<void> {
+    // Anything that is not a UUID would fail the uuid cast; such an id names no claim link, so nothing is revoked.
+    if (!isUuid(spaceId) || !isUuid(guestMemberId)) return;
     await this.tm
       .executor()
       .update(spaceInvitations)

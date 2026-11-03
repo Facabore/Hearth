@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { POST as archiveAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/archive/route";
 import { POST as archiveSpace } from "@/app/api/v1/spaces/[spaceId]/archive/route";
 import { POST as archiveCategory } from "@/app/api/v1/spaces/[spaceId]/categories/[categoryId]/archive/route";
 import { POST as leaveSpace } from "@/app/api/v1/spaces/[spaceId]/leave/route";
@@ -15,6 +16,7 @@ import {
   lineNamed,
   newPlan,
   patchLine,
+  percentAllocation,
   planOf,
   plansPath,
   putAllocation,
@@ -65,13 +67,7 @@ const november = async () => {
     (await putCategories(h.ana, h.spaceId, planId, lineId("Home"), [h.groceries, utilities])).status,
   ).toBe(200);
   expect((await patchLine(h.ana, h.spaceId, planId, lineId("Free"), { isCatchAll: true })).status).toBe(200);
-  const split = {
-    rule: "PERCENT",
-    members: [
-      { memberId: h.ana.memberId, percent: "42" },
-      { memberId: h.juan.memberId, percent: "58" },
-    ],
-  };
+  const split = percentAllocation([h.ana.memberId, "42"], [h.juan.memberId, "58"]);
   expect((await putAllocation(h.ana, h.spaceId, planId, lineId("Free"), split)).status).toBe(200);
   return { ...ref, utilities };
 };
@@ -179,14 +175,7 @@ describe("copying a plan from the previous period (HU-E6-06)", () => {
   it("flags Free with InvalidAllocation when Luis, allocated 10 % of it in 2026-11, has left (Review Focus 3)", async () => {
     const { h, planId, lineId } = await november();
     const luis = await joinHousehold(h, "Luis", "MEMBER");
-    const split = {
-      rule: "PERCENT",
-      members: [
-        { memberId: h.ana.memberId, percent: "42" },
-        { memberId: h.juan.memberId, percent: "48" },
-        { memberId: luis.memberId, percent: "10" },
-      ],
-    };
+    const split = percentAllocation([h.ana.memberId, "42"], [h.juan.memberId, "48"], [luis.memberId, "10"]);
     expect((await putAllocation(h.ana, h.spaceId, planId, lineId("Free"), split)).status).toBe(200);
     await leaves(luis, h.spaceId);
     const free = lineNamed(await copied(h.ana, h.spaceId, "2026-12"), "Free");
@@ -220,6 +209,53 @@ describe("copying a plan from the previous period (HU-E6-06)", () => {
       savingsAccounts: [],
       lines: [{ originLineId: lineNamed(withTrip, "Trip").id, name: "Trip" }],
     });
+  });
+
+  it("copies a ROLLOVER and an ADJUSTED line with their modes", async () => {
+    const { h, planId, lineId } = await november();
+    expect(
+      (await patchLine(h.ana, h.spaceId, planId, lineId("Home"), { rolloverMode: "ROLLOVER" })).status,
+    ).toBe(200);
+    expect(
+      (await patchLine(h.ana, h.spaceId, planId, lineId("Free"), { rolloverMode: "ADJUSTED" })).status,
+    ).toBe(200);
+    const copy = await copied(h.ana, h.spaceId, "2026-12");
+    expect(copy.lines.map((l) => [l.name, l.rolloverMode, l.originLineId])).toEqual([
+      ["Rent", "RESET", lineId("Rent")],
+      ["Home", "ROLLOVER", lineId("Home")],
+      ["Savings", "RESET", lineId("Savings")],
+      ["Free", "ADJUSTED", lineId("Free")],
+    ]);
+  });
+
+  it("keeps a savings line with its usable account and lists the archived one it dropped", async () => {
+    const { h, planId, lineId, savings } = await november();
+    const trip = await newAccount(h.ana.personal, "Ahorros viaje", 0, "SAVINGS");
+    const both = { savingsAccountIds: [savings, trip] };
+    expect((await patchLine(h.ana, h.spaceId, planId, lineId("Savings"), both)).status).toBe(200);
+    const archived = await call(
+      archiveAccount,
+      "POST",
+      `/api/v1/spaces/${h.ana.personal.spaceId}/accounts/${trip}/archive`,
+      { user: h.ana.personal, params: { spaceId: h.ana.personal.spaceId, accountId: trip } },
+    );
+    expect(archived.status).toBe(200);
+    const copy = await copied(h.ana, h.spaceId, "2026-12");
+    const copiedSavings = lineNamed(copy, "Savings");
+    expect(copiedSavings.savingsAccountIds).toEqual([savings]);
+    expect(copy.dropped).toEqual({
+      mappings: [],
+      savingsAccounts: [{ lineId: copiedSavings.id, accountId: trip }],
+      lines: [],
+    });
+  });
+
+  it("lets an ADMIN copy the plan", async () => {
+    const { h, planId } = await november();
+    const luis = await joinHousehold(h, "Luis", "ADMIN");
+    const copy = await copied(luis, h.spaceId, "2026-12");
+    expect(copy).toMatchObject({ status: "DRAFT", createdFrom: planId });
+    expect(copy.lines.map((l) => l.name)).toEqual(["Rent", "Home", "Savings", "Free"]);
   });
 
   it("lets only owners and admins copy, and refuses non-members and archived spaces (Review Focus 5)", async () => {

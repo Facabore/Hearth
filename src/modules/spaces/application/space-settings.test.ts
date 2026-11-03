@@ -1,39 +1,27 @@
 import { describe, expect, it } from "vitest";
 import { FixedClock, type LocalDate, type PeriodPolicy, type StoredPeriod } from "@/shared/kernel";
-import {
-  codeOf,
-  memoryTm,
-  membership,
-  noSpaceLocks,
-  noStoredPeriods,
-  unwrap,
-} from "../../../../tests/support/fakes";
-import type { SpaceId } from "../domain/space";
+import { codeOf, memoryTm, noSpaceLocks, noStoredPeriods, unwrap } from "../../../../tests/support/fakes";
+import { householdSpace, InMemorySpaceStore, memberOf } from "../../../../tests/support/in-memory-spaces";
 import { createGetSpace } from "./get-space";
 import { createListSpacePeriods, type StoredPeriodSource } from "./list-space-periods";
 import { createSpaceAccess } from "./space-access";
-import type { SpaceMembership, SpaceSettings, SpaceSettingsRepository } from "./space-settings-repository";
 import { createUpdateSpaceSettings } from "./update-space-settings";
 
-class InMemorySettings implements SpaceSettingsRepository {
-  constructor(public rows: SpaceMembership[]) {}
-  async findMembership(spaceId: string, userId: string) {
-    return this.rows.find((m) => m.spaceId === spaceId && m.userId === userId) ?? null;
-  }
-  async updateSettings(spaceId: SpaceId, settings: SpaceSettings) {
-    this.rows = this.rows.map((m) => (m.spaceId === spaceId ? { ...m, ...settings } : m));
-  }
-}
-
-const ana = membership({ spaceId: "space-household", name: "Household", spaceKind: "SHARED" });
-const juan = membership({ ...ana, memberId: "member-juan", userId: "u-juan", role: "MEMBER" });
+/** "Household" with OWNER Ana and, unless left out, MEMBER Juan. */
+const householdOf = (withJuan = true) => {
+  const store = new InMemorySpaceStore();
+  store.seed(
+    householdSpace([memberOf("Ana", "OWNER", 0), ...(withJuan ? [memberOf("Juan", "MEMBER", 1)] : [])]),
+  );
+  return store;
+};
 const asAna = { spaceId: "space-household", userId: "u-ana" };
 const d = (iso: string) => iso as LocalDate;
 
 const setup = (
   options: { hasMoneyRecords?: boolean; storedPeriods?: StoredPeriodSource; now?: string } = {},
 ) => {
-  const spaces = new InMemorySettings([ana, juan]);
+  const spaces = householdOf();
   const access = createSpaceAccess(spaces);
   return {
     spaces,
@@ -86,7 +74,7 @@ describe("UpdateSpaceSettings (HU-E1-03)", () => {
   ])("rejects %o with InvalidPeriodPolicy and keeps MONTHLY(1)", async (periodPolicy) => {
     const { update, spaces } = setup();
     expect(codeOf(await update({ ...asAna, changes: { periodPolicy } }))).toBe("InvalidPeriodPolicy");
-    expect(spaces.rows[0]?.periodPolicy).toEqual({ kind: "MONTHLY", day: 1 });
+    expect(spaces.spaces[0]?.periodPolicy).toEqual({ kind: "MONTHLY", day: 1 });
   });
 
   it("does not move a period that already has a plan", async () => {
@@ -114,7 +102,7 @@ describe("UpdateSpaceSettings (HU-E1-03)", () => {
 
   it("holds the space row before it reads the membership or the money records (issue #245)", async () => {
     const events: string[] = [];
-    const spaces = new InMemorySettings([ana]);
+    const spaces = householdOf(false);
     const access = createSpaceAccess(spaces);
     const update = createUpdateSpaceSettings({
       spaces,

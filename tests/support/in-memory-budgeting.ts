@@ -118,8 +118,9 @@ export class InMemoryBudgetPlans implements BudgetPlanRepository {
     );
   }
 
-  /** BudgetLineRepository: the row stays with deletedAt, and the line's current mappings end. */
+  /** BudgetLineRepository: the row stays with deletedAt, and the line's current mappings and values end. */
   async deleteLine(planId: string, lineId: string, at: Date): Promise<void> {
+    if (!this.hasCurrentLine(planId, lineId)) return;
     this.lines = this.lines.map((r) =>
       r.line.id === lineId && r.line.planId === planId && r.deletedAt === null ? { ...r, deletedAt: at } : r,
     );
@@ -127,6 +128,9 @@ export class InMemoryBudgetPlans implements BudgetPlanRepository {
       r.planId === planId && r.mapping.lineId === lineId && r.unmappedAt === null
         ? { ...r, unmappedAt: at }
         : r,
+    );
+    this.allocations = this.allocations.map((r) =>
+      r.allocation.lineId === lineId && r.supersededAt === null ? { ...r, supersededAt: at } : r,
     );
   }
 

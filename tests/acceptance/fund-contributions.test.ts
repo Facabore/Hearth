@@ -159,6 +159,18 @@ describe("fund contributions (HU-E4-09)", () => {
     expect(await balanceOf(h.ana, h.fund)).toEqual(cop(0));
   });
 
+  it("answers a malformed member or source account with its code, and moves nothing", async () => {
+    const h = await withFund();
+    expect(
+      await problemOf(await contribute(h.ana, contribution(h, 100_000, { memberId: "not-a-uuid" }))),
+    ).toEqual([422, "NotASpaceMember"]);
+    expect(
+      await problemOf(await contribute(h.ana, contribution(h, 100_000, { sourceAccountId: "not-a-uuid" }))),
+    ).toEqual([404, "AccountNotFound"]);
+    expect(await balanceOf(h.ana, h.fund)).toEqual(cop(0));
+    expect(await balanceOf(h.ana.personal, h.ana.account)).toEqual(cop(2_000_000));
+  });
+
   it("hides the household from a non-member as SpaceNotFound", async () => {
     const h = await withFund();
     const marta = actingIn(await registerUser("Marta"), h.spaceId);

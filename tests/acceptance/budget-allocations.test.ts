@@ -6,9 +6,11 @@ import { call, problemOf, registerUser, startTestApp, type TestUser } from "../s
 import {
   addLine,
   deleteLine,
+  fixedAllocation,
   lineNamed,
   newPlan,
   patchLine,
+  percentAllocation,
   planOf,
   putAllocation,
   referencePlan,
@@ -33,29 +35,12 @@ const allocated = async (...args: Parameters<typeof putAllocation>): Promise<Pla
   expect(response.status).toBe(200);
   return (await response.json()) as PlanDto;
 };
-const percents = (ana: string, juan: string, anaPercent: string, juanPercent: string) => ({
-  rule: "PERCENT",
-  members: [
-    { memberId: ana, percent: anaPercent },
-    { memberId: juan, percent: juanPercent },
-  ],
-});
-const amounts = (ana: string, juan: string, anaPesos: number, juanPesos: number) => ({
-  rule: "FIXED",
-  members: [
-    { memberId: ana, amount: cop(anaPesos) },
-    { memberId: juan, amount: cop(juanPesos) },
-  ],
-});
-
-const percentBody = (...members: [memberId: string, percent: string][]) => ({
-  rule: "PERCENT",
-  members: members.map(([memberId, percent]) => ({ memberId, percent })),
-});
-const fixedBody = (...members: [memberId: string, amount: MoneyDto][]) => ({
-  rule: "FIXED",
-  members: members.map(([memberId, amount]) => ({ memberId, amount })),
-});
+const percents = (ana: string, juan: string, anaPercent: string, juanPercent: string) =>
+  percentAllocation([ana, anaPercent], [juan, juanPercent]);
+const amounts = (ana: string, juan: string, anaPesos: number, juanPesos: number) =>
+  fixedAllocation([ana, anaPesos], [juan, juanPesos]);
+const percentBody = percentAllocation;
+const fixedBody = fixedAllocation;
 
 /**
  * Every body is refused as `expected` (the bodies that were not, by name, with what they got instead), and a

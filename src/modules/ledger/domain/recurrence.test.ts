@@ -612,7 +612,7 @@ describe("changing the schedule of a recurrence (final review I1)", () => {
 describe("pausing, resuming and ending (HU-E4-11)", () => {
   it("skips the paused span without back-filling: paused on 2026-12-20, resumed on 2027-02-10, next on 2027-02-16", () => {
     const cleaning = rent({ description: "Cleaning", schedule: { kind: "SEMI_MONTHLY", day1: 1, day2: 16 } });
-    // A run already considered 2026-12-01 and 2026-12-16 (Task 8b moves dueFrom past them).
+    // A run already considered 2026-12-01 and 2026-12-16 (a run moves dueFrom past them).
     const scheduled = { ...cleaning, dueFrom: day("2026-12-17") };
     const paused = unwrap(pausedRecurrence(scheduled, at("2026-12-20")));
     expect([statusOf(paused), upcomingDates(paused, 1), paused.pauseReason]).toEqual(["PAUSED", [], null]);
