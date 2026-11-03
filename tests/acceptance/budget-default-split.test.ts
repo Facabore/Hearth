@@ -318,6 +318,48 @@ describe("expenses default to their line's allocation (HU-E6-08, D4)", () => {
       params: { spaceId: h.spaceId, transactionId: tx.id },
     });
     expect(sharesOf((await read.json()) as TransactionDto)).toEqual(sharesOf(tx));
+    // The new allocation drives the next Groceries expense.
+    expect(sharesOf(await pays(h.ana, h.groceries, 2_000_000, "2026-11-09"))).toEqual([
+      [h.ana.memberId, cop(1_000_000), "BY_ALLOCATION"],
+      [h.juan.memberId, cop(1_000_000), "BY_ALLOCATION"],
+    ]);
+  });
+
+  it("previews and records EQUAL for a date no plan covers", async () => {
+    const { h } = await activeReference();
+    const preview = await getDefaultSplit(h.ana, h.spaceId, {
+      categoryId: h.groceries,
+      date: "2027-03-05",
+      amount: "10000000",
+    });
+    expect(await preview.json()).toMatchObject({
+      method: "EQUAL",
+      lineId: null,
+      shares: [
+        { memberId: h.ana.memberId, amount: cop(50_000) },
+        { memberId: h.juan.memberId, amount: cop(50_000) },
+      ],
+    });
+    expect(sharesOf(await pays(h.ana, h.groceries, 100_000, "2027-03-05"))).toEqual([
+      [h.ana.memberId, cop(50_000), "EQUAL"],
+      [h.juan.memberId, cop(50_000), "EQUAL"],
+    ]);
+  });
+
+  it("breaks an EQUAL tie as the preview shows it: the peso left over goes to the earliest-joined member", async () => {
+    const { h, outings } = await activeReference({ freeIsGroupMoney: true });
+    const preview = await getDefaultSplit(h.ana, h.spaceId, {
+      categoryId: outings,
+      date: "2026-11-12",
+      amount: "5000100",
+    });
+    const { shares } = (await preview.json()) as { shares: { memberId: string; amount: MoneyDto }[] };
+    expect(shares).toEqual([
+      { memberId: h.ana.memberId, amount: cop(25_001) },
+      { memberId: h.juan.memberId, amount: cop(25_000) },
+    ]);
+    const tx = await pays(h.juan, outings, 50_001, "2026-11-12");
+    expect(sharesOf(tx)).toEqual(shares.map((s) => [s.memberId, s.amount, "EQUAL"]));
   });
 
   it("defaults an unmapped Outings expense to EQUAL through the NONE catch-all Free, which it consumes", async () => {
