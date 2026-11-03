@@ -18,7 +18,6 @@ import type { TransactionDetail } from "./transaction-detail";
 import { leaveSheet } from "./leave-sheet";
 import { actionsFor, type TransactionActions } from "./transaction-actions";
 import { useDeleteWithUndo } from "./use-delete-with-undo";
-import { kindOf } from "../movement-kind";
 
 function Definition({ term, children }: { readonly term: string; readonly children: ReactNode }) {
   return (
@@ -161,6 +160,9 @@ export function TransactionSheet({
     addAccount(t("form.from"), labelOf(tx.payerMemberId));
     addAccount(t("form.to"), labelOf(tx.receivingMemberId));
   }
+  // Issue #223: a fund contribution is named as its row names it (`kindOf` in movement-kind.ts). Kept inline: importing
+  // that module would pull a whole shared chunk into this sheet's (ADR 0004).
+  const kind = tx.type === "TRANSFER" && tx.payerMemberId !== null ? "FUND_CONTRIBUTION" : tx.type;
   const actions = actionsFor(tx, viewer, members);
   const note = actions.note;
   const noteText = note
@@ -173,7 +175,7 @@ export function TransactionSheet({
     <Sheet
       open
       onOpenChange={close}
-      title={tx.description || t(`type.${kindOf(tx)}`)}
+      title={tx.description || t(`type.${kind}`)}
       description={signed}
       footer={
         actions.edit || actions.delete ? (
@@ -189,7 +191,7 @@ export function TransactionSheet({
       }
     >
       <dl className="flex flex-col gap-3 pb-1">
-        <Definition term={t("detail.type")}>{t(`type.${kindOf(tx)}`)}</Definition>
+        <Definition term={t("detail.type")}>{t(`type.${kind}`)}</Definition>
         <Definition term={t("detail.when")}>
           {formatDate(tx.date, formats)} · {time}
         </Definition>
