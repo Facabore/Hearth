@@ -25,7 +25,11 @@ export const inSpaceCurrency = (space: SpaceMembership, money: Money): Result<Mo
     ? ok(money)
     : err(domainError("CurrencyMismatch", { expected: space.currency, actual: money.currency.code }));
 
-/** HU-E4-01 / HU-E3-03: a category of the space that is not archived. */
+/**
+ * HU-E4-01 / HU-E3-03: a category of the space that is not archived. Issue #245: the lookup waits for a delete of the
+ * space's categories in progress and keeps the next one out until this write commits, so a category deleted meanwhile
+ * is CategoryNotFound and a delete that comes later sees this reference.
+ */
 export const usableCategory = async (
   deps: Pick<LedgerDeps, "categories">,
   spaceId: string,

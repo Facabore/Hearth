@@ -167,6 +167,8 @@ import {
   type ArchiveCategory,
   type ArchiveCategoryGroup,
   type CategoriesDeps,
+  type CategoryRepository,
+  type CategoryUsage,
   type CreateCategory,
   type CreateCategoryGroup,
   type DeleteCategory,
@@ -428,6 +430,34 @@ export interface ContainerOptions {
   readonly installationRules?: InstallationRulesReader;
 }
 
+/**
+ * The ledger's categories, read from the categories module; the ledger never imports it. Only writers look one up, to
+ * name it in a movement or a recurrence, so the lookup takes the tree lock's shared side first (#245): a delete in
+ * progress is waited for and answers CategoryNotFound, and one that starts later sees the reference (CategoryInUse).
+ * Money writes hold the space row before this, and a tree writer takes no space lock, so the two never cross.
+ */
+export const ledgerCategoriesOf = (categories: CategoryRepository): LedgerDeps["categories"] => ({
+  find: async (spaceId, categoryId) => {
+    await categories.lockTreeForReference(spaceId);
+    const category = (await categories.listCategories(spaceId)).find((c) => c.id === categoryId);
+    return category ? { id: category.id, archived: category.archivedAt !== null } : null;
+  },
+  // HU-E3-04: the filter's subcategories; listCategories skips deleted rows and keeps archived ones.
+  subcategoriesOf: async (spaceId, categoryIds) =>
+    (await categories.listCategories(spaceId))
+      .filter((c) => c.parentCategoryId !== null && categoryIds.includes(c.parentCategoryId))
+      .map((c) => c.id),
+});
+
+/** HU-E3-03: soft-deleted transactions and every budget-line mapping, ended ones included, are references (D8). */
+export const categoryUsageOf = (
+  ledger: Pick<DrizzleLedgerQueries, "isCategoryReferenced">,
+  plans: Pick<DrizzleBudgetPlanRepository, "isCategoryMapped">,
+): CategoryUsage => ({
+  isCategoryReferenced: async (categoryId) =>
+    (await ledger.isCategoryReferenced(categoryId)) || (await plans.isCategoryMapped(categoryId)),
+});
+
 export const buildContainer = (env: Env, options: ContainerOptions = {}): Container => {
   const { db, pool } = createDatabase(env.DATABASE_URL);
   const tm = new DrizzleTransactionManager(db);
@@ -517,19 +547,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
           : null;
       },
     },
-    categories: {
-      find: async (spaceId, categoryId) => {
-        const category = (await categoriesDeps.categories.listCategories(spaceId)).find(
-          (c) => c.id === categoryId,
-        );
-        return category ? { id: category.id, archived: category.archivedAt !== null } : null;
-      },
-      // HU-E3-04: the filter's subcategories; listCategories skips deleted rows and keeps archived ones.
-      subcategoriesOf: async (spaceId, categoryIds) =>
-        (await categoriesDeps.categories.listCategories(spaceId))
-          .filter((c) => c.parentCategoryId !== null && categoryIds.includes(c.parentCategoryId))
-          .map((c) => c.id),
-    },
+    categories: ledgerCategoriesOf(categoryRepository),
     // HU-E4-06, HU-E6-07: a CLOSED plan's period takes no change; budgeting answers, the ledger never imports it.
     closedPeriods: createClosedPeriodGuard(budgetPlans),
     // HU-E6-08, spec 5.3: an expense recorded without a split follows its line's allocation in the ACTIVE plan;
@@ -830,14 +848,9 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       renameCategoryGroup: createRenameCategoryGroup(categoriesDeps),
       createCategory: createCreateCategory(categoriesDeps),
       updateCategory: createUpdateCategory(categoriesDeps),
-      // HU-E3-03: soft-deleted transactions and every budget-line mapping, ended ones included, are references (D8).
       deleteCategory: createDeleteCategory({
         ...categoriesDeps,
-        usage: {
-          isCategoryReferenced: async (categoryId) =>
-            (await ledgerQueries.isCategoryReferenced(categoryId)) ||
-            (await budgetPlans.isCategoryMapped(categoryId)),
-        },
+        usage: categoryUsageOf(ledgerQueries, budgetPlans),
       }),
       archiveCategory: createArchiveCategory(categoriesDeps),
       restoreCategory: createRestoreCategory(categoriesDeps),

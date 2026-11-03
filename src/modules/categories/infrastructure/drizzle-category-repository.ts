@@ -47,6 +47,15 @@ export class DrizzleCategoryRepository implements CategoryRepository {
       .execute(sql`SELECT pg_advisory_xact_lock(hashtextextended('categories:' || ${spaceId}::text, 0))`);
   }
 
+  /** The same advisory key as `lockTree`, shared: it conflicts only with `lockTree`. */
+  async lockTreeForReference(spaceId: string): Promise<void> {
+    await this.tm
+      .executor()
+      .execute(
+        sql`SELECT pg_advisory_xact_lock_shared(hashtextextended('categories:' || ${spaceId}::text, 0))`,
+      );
+  }
+
   async hasAny(spaceId: string): Promise<boolean> {
     const rows = await this.tm
       .executor()

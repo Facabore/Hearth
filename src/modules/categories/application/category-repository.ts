@@ -7,6 +7,12 @@ export interface CategoryRepository {
    * writer that waits reads what the first one wrote and decides on that (a name taken, a parent gone or archived).
    */
   lockTree(spaceId: string): Promise<void>;
+  /**
+   * Issue #245: the shared side of `lockTree`, for a writer outside this module that is about to reference one of the
+   * space's categories (a movement, a budget-line mapping). It waits for a tree write in progress, a delete above all,
+   * and keeps the next one out until the caller's transaction ends; references run side by side.
+   */
+  lockTreeForReference(spaceId: string): Promise<void>;
   hasAny(spaceId: string): Promise<boolean>;
   addGroups(groups: readonly CategoryGroup[]): Promise<void>;
   addCategories(categories: readonly Category[]): Promise<void>;
