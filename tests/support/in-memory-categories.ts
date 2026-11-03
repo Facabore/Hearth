@@ -3,7 +3,7 @@ import type { Category, CategoryGroup, CategoryRepository } from "@/modules/cate
 export class InMemoryCategories implements CategoryRepository {
   groups: CategoryGroup[] = [];
   categories: Category[] = [];
-  /** D8 (Task 0a): when each deleted category was deleted; the rows stay, and lists skip them. */
+  /** D8: when each deleted category was deleted; the rows stay, and lists skip them. */
   readonly deleted = new Map<string, Date>();
 
   /** Ruling P90: nothing runs concurrently here, so there is nothing to serialize. */

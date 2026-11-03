@@ -540,7 +540,7 @@ export const AuditEntrySchema = z.object({
   at: z.iso.datetime(),
   /**
    * Changed values as strings (amounts in minor units); an expense's `payments` and `shares` are JSON
-   * arrays (D8, Task 0b), and a deletion lists every value it retires with `to: null`. Issue #195: a conversion's
+   * arrays (D8), and a deletion lists every value it retires with `to: null`. Issue #195: a conversion's
    * deletion carries `convertedTo` (the new movement's id) and the new movement starts with an UPDATED entry carrying
    * `convertedFrom`; its undo writes the same keys back with `from` and `to` swapped.
    */

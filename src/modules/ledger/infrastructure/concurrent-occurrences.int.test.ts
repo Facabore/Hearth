@@ -405,7 +405,7 @@ describe("a confirmation, a skip and an edit (HU-E4-13, Review Focus 1)", () => 
     expect([await statusNow(), await expensesOf(w)]).toEqual(["SKIPPED", []]);
   });
 
-  // A confirmation reads its recurrence without the row lock (Task 10): the template it records is what one read
+  // A confirmation reads its recurrence without the row lock: the template it records is what one read
   // gave it, a whole version of the row, so the description and the category of one edit never come from two.
   describe("a confirm racing an edit of its recurrence", () => {
     const stops = {

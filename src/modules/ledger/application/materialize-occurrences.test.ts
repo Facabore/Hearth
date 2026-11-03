@@ -330,7 +330,7 @@ describe("MaterializeDueOccurrences (HU-E4-12)", () => {
     expect(store.rows.map((t) => t.date)).toEqual(["2026-12-01", "2026-12-16", "2027-02-16"]);
   });
 
-  it("drops a date that was due before a pause and that no run had considered, and a resume does not back-fill it (P24, Task 2b)", async () => {
+  it("drops a date that was due before a pause and that no run had considered, and a resume does not back-fill it (P24)", async () => {
     const { define, run, store, deps, clock } = materializerWorld();
     const rent = await define(rentDefinition());
     const ref = { spaceId: "space-household", userId: "u-ana", recurrenceId: rent.id };
@@ -371,7 +371,7 @@ describe("MaterializeDueOccurrences (HU-E4-12)", () => {
     expect(recurrences.occurrenceRows.map((o) => o.date)).toEqual(["2026-12-01", "2027-03-01"]);
   });
 
-  it("counts a recurrence with no schedule date left as finished: nothing due, no failure, and the scheduler stops listing it (P24, Task 2b)", async () => {
+  it("counts a recurrence with no schedule date left as finished: nothing due, no failure, and the scheduler stops listing it (P24)", async () => {
     const { define, run, store, recurrences } = materializerWorld();
     // MONTHLY(1) has 2026-12-01 and 2027-01-01 before this end date, which is not a schedule date itself.
     await define(rentDefinition({ endDate: day("2027-01-15") }));
@@ -465,7 +465,7 @@ describe("MaterializeDueOccurrences (HU-E4-12)", () => {
     });
   });
 
-  describe("the obligations of recordOccurrence (Task 8a)", () => {
+  describe("the obligations of recordOccurrence", () => {
     it("records and writes the occurrence rows in the one transaction that holds the recurrence's lock, and commits it with a refused date SKIPPED", async () => {
       const w = materializerWorld({ closed: (date) => date < "2027-01-01" });
       await w.define(rentDefinition());

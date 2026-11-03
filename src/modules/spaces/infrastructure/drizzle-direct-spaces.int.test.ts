@@ -439,7 +439,7 @@ describe("SplitWithPerson over PostgreSQL (Review Focus 3, 5 and rollback)", () 
   });
 });
 
-describe("claimed direct spaces take a free pair key (HU-E1-13, D16, Task 14b)", () => {
+describe("claimed direct spaces take a free pair key (HU-E1-13, D16)", () => {
   const claims: GuestClaimRepository = repo;
   const pedro: DirectCounterpart = { kind: "GUEST", displayName: "Pedro", contactEmail: null };
   const keyOf = async (spaceId: string): Promise<string | null> =>
@@ -549,7 +549,7 @@ describe("claimed direct spaces take a free pair key (HU-E1-13, D16, Task 14b)",
   });
 });
 
-describe("a claim that fails after keying its direct space leaves it unkeyed (Task 14b)", () => {
+describe("a claim that fails after keying its direct space leaves it unkeyed", () => {
   const invitations = new DrizzleInvitationRepository(tm);
   const claimedAt = new Date("2026-10-14T13:00:00Z");
 

@@ -94,7 +94,7 @@ export const userMember = (input: {
   role: SpaceRole;
   now: Date;
   current: readonly SpaceMember[];
-  /** Names to avoid besides the current members' (names a concurrent join took, Task 8). */
+  /** Names to avoid besides the current members' (names a concurrent join took). */
   alsoTaken?: readonly string[];
 }): SpaceMember => ({
   id: input.id,

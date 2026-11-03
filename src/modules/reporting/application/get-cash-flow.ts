@@ -28,7 +28,7 @@ export interface CashFlowDeps {
   readonly spacesOf: (
     userId: string,
   ) => Promise<readonly { readonly spaceId: string; readonly name: string }[]>;
-  /** The ledger's `listScheduledMovements` (Task 1c). */
+  /** The ledger's `listScheduledMovements`. */
   readonly scheduled: ListScheduledMovements;
   /** The user's own accounts in their personal space, whether each counts in its available money, and that total. */
   readonly ownAccountsOf: (userId: string) => Promise<{

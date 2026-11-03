@@ -119,7 +119,7 @@ export class DrizzleCategoryRepository implements CategoryRepository {
   }
 
   async listCategories(spaceId: string): Promise<Category[]> {
-    // D8 (Task 0a): deleted categories stay stored, but every read skips them, so they answer as missing.
+    // D8: deleted categories stay stored, but every read skips them, so they answer as missing.
     const rows = await this.tm
       .executor()
       .select({

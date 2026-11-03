@@ -138,7 +138,7 @@ const saved = async (deps: RecurrenceDeps, recurrence: Recurrence): Promise<Resu
  *
  * An ENDED recurrence takes no edit, whatever the edit says (`RecurrenceEnded`, checked before anything else of it is
  * looked at). An edit can also end one: a schedule or end date that leaves no date to record from the first one not
- * considered yet makes it ENDED for good, with no later edit or resume. That is accepted (P24, the Task 2a ruling),
+ * considered yet makes it ENDED for good, with no later edit or resume. That is accepted (P24),
  * as extending an ended recurrence is its own move (`createExtendRecurrence`, #115), not an edit.
  *
  * A recurrence whose creator left can be renamed, rescheduled or ended, but not checked again: every occurrence is

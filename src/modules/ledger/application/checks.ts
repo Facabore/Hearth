@@ -107,7 +107,7 @@ export const fundAccount = async (
 
 /**
  * HU-E1-08, HU-E1-12: a member who left or was removed keeps the zero balance they settled with, and
- * nobody can settle with them any more (HU-E5-02), so no edit or deletion may move it (Task 4b).
+ * nobody can settle with them any more (HU-E5-02), so no edit or deletion may move it.
  */
 export const ensureCurrentParties = async (
   deps: Pick<LedgerDeps, "members">,

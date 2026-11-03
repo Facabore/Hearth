@@ -62,7 +62,7 @@ export const categories = pgTable(
     iconValue: text("icon_value"),
     color: text("color", { enum: CATEGORY_COLORS }),
     archivedAt: tz("archived_at"),
-    // D8 (Task 0a): deleting a category is logical; the row stays for the transactions that name it.
+    // D8: deleting a category is logical; the row stays for the transactions that name it.
     deletedAt: tz("deleted_at"),
     createdAt: tz("created_at").notNull(),
   },

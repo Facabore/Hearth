@@ -371,7 +371,7 @@ describe("direct splits that cannot happen (HU-E1-13, Review Focus 3)", () => {
   });
 });
 
-describe("a claimed direct space is the pair's direct space (HU-E1-11, HU-E1-13, D16, Task 14b)", () => {
+describe("a claimed direct space is the pair's direct space (HU-E1-11, HU-E1-13, D16)", () => {
   it("reuses 'Ana & Pedro' after Pedro claims it, also when Ana picks him in another space they share", async () => {
     const { ana, bancolombia } = await anaWithBancolombia();
     const dinner = await splitOk(await split(ana, splitBody(bancolombia, pedroAsGuest, "Dinner", 120_000)));

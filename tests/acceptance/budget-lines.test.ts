@@ -604,7 +604,7 @@ describe("editing lines (HU-E6-03, HU-E6-04)", () => {
     const { h, planId, lineId } = await referencePlan();
     const reserve = await newAccount(h.ana.personal, "Reserva", 0, "SAVINGS");
     const home = lineId("Home");
-    // Category mapping has no endpoint yet (Task 15): the mapping is arranged directly in the table.
+    // The mapping is arranged directly in the table.
     await app.pool.query(
       "INSERT INTO budget_line_categories (plan_id, line_id, category_id, mapped_at) VALUES ($1, $2, $3, now())",
       [planId, home, h.groceries],
@@ -773,7 +773,7 @@ describe("removing lines (HU-E6-03, D8)", () => {
     );
     return rows as { id: string; is_catch_all: boolean; deleted_at: Date | null }[];
   };
-  /** Category mapping has no endpoint yet (Task 15): a mapping is arranged directly in the table. */
+  /** A mapping arranged directly in the table. */
   const mapCategory = (planId: string, lineId: string, categoryId: string) =>
     app.pool.query(
       "INSERT INTO budget_line_categories (plan_id, line_id, category_id, mapped_at) VALUES ($1, $2, $3, now())",

@@ -264,7 +264,7 @@ describe("ClaimGuestPlace (HU-E1-11)", () => {
   });
 });
 
-describe("ClaimGuestPlace in a direct space (HU-E1-13, D16, Task 14b)", () => {
+describe("ClaimGuestPlace in a direct space (HU-E1-13, D16)", () => {
   const addDirect = (store: InMemorySpaceStore, id: string, members: SpaceMember[]) =>
     store.addDirect({ ...householdSpace(members), id: id as SpaceId, kind: "DIRECT", name: "Ana & Pedro" });
 
@@ -330,7 +330,7 @@ describe("ClaimGuestPlace in a direct space (HU-E1-13, D16, Task 14b)", () => {
 });
 
 // The twin of DrizzleSpaceRepository.adoptPairKey; drizzle-direct-spaces.int.test.ts pins both to the same answers.
-describe("InMemorySpaceStore.adoptPairKey (Task 14b)", () => {
+describe("InMemorySpaceStore.adoptPairKey", () => {
   const key = pairKeyOf("u-ana", "u-pedro");
   const direct = (id: string, members: SpaceMember[] = [ANA, PEDRO]): Space => ({
     ...householdSpace(members),

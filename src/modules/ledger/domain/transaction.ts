@@ -384,7 +384,7 @@ export const restore = (tx: Transaction, now: Date): Transaction => ({
 const AUDITED = ["description", "date", "categoryId", "amount"] as const;
 
 /**
- * D8 (Task 0b): every audited value as a string — the fields and, for an expense, its payments and
+ * D8: every audited value as a string — the fields and, for an expense, its payments and
  * shares as deterministic JSON in position order (amounts in minor units). Saving an edit replaces
  * their rows, so the audit is where every earlier split lives.
  */
@@ -427,7 +427,7 @@ export const changesBetween = (before: Transaction, after: Transaction): ChangeS
   return changes;
 };
 
-/** D8 (Task 0b): a deletion keeps the whole last version in the audit, every value with `to: null`. */
+/** D8: a deletion keeps the whole last version in the audit, every value with `to: null`. */
 export const deletionChanges = (tx: Transaction): ChangeSet => {
   const changes: Record<string, { from: string; to: null }> = {};
   for (const [key, from] of auditedValues(tx)) if (from !== null) changes[key] = { from, to: null };

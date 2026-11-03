@@ -171,7 +171,7 @@ describe("leave a space (HU-E1-08)", () => {
   });
 });
 
-describe("a former member's balance stays settled (HU-E1-08, Task 4b)", () => {
+describe("a former member's balance stays settled (HU-E1-08)", () => {
   it("refuses changing the amount of, or deleting, what Luis took part in after he left", async () => {
     const h = await household();
     const luis = await joinHousehold(h, "Luis", "MEMBER");
@@ -217,7 +217,7 @@ describe("a former member who joined again (issue #90)", () => {
       user: h.ana,
       params: { spaceId: h.spaceId, transactionId },
     });
-    // Still a former member: refused, as before (Task 4b).
+    // Still a former member: refused, as before.
     const refused = await call(editTransaction, "PATCH", path(payback.id), {
       ...onTransaction(payback.id),
       body: { amount: cop(60_000) },

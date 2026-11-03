@@ -233,7 +233,7 @@ export const archiveCategory = (category: Category, now: Date): Category =>
 
 /**
  * HU-E3-03, HU-E3-04, ruling P47: a subcategory comes back only under a live parent; a category restores alone.
- * The caller must pass the category's own parent when it is a subcategory (Task 9a's use case does): without
+ * The caller must pass the category's own parent when it is a subcategory (RestoreCategory does): without
  * `parent` the parent rule is not checked, and this function does not compare it with `parentCategoryId`.
  */
 export const restoreCategory = (

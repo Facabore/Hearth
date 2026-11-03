@@ -463,7 +463,7 @@ describe("pending occurrences (HU-E4-13)", () => {
     expect(pending.map((p) => [p.occurrence.date, p.occurrence.status])).toEqual([["2026-12-10", "PENDING"]]);
   });
 
-  describe("the obligations of recordOccurrence (Task 8a)", () => {
+  describe("the obligations of recordOccurrence", () => {
     it("records the confirmed occurrence and writes its row in the one transaction that holds its lock, as the member who confirms, and commits it", async () => {
       const w = await pendingOccurrences({}, electricity({ template: paidFromTheFund }));
       const confirm = createConfirmOccurrence(traced(w));

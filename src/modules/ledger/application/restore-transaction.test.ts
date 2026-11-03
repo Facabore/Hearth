@@ -95,7 +95,7 @@ describe("RestoreTransaction (ruling P185)", () => {
     expect(unwrap(await as("u-juan")).deletedAt).toBeNull();
   });
 
-  it("keeps a member who left at their settled zero: their deleted expense stays deleted (Task 4b)", async () => {
+  it("keeps a member who left at their settled zero: their deleted expense stays deleted", async () => {
     const { deps, store } = householdLedger();
     const withGone = anExpense("2026-10-20", 3_000_000n, {
       spaceId: "space-household",

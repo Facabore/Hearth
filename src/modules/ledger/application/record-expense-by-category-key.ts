@@ -8,7 +8,7 @@ import type { RecordedExpense, RecordExpense, RecordExpenseInput } from "./recor
 export interface CategoryKeyReader {
   /**
    * The category of the space seeded with `key`, archived ones included; null when there is none or it was
-   * deleted logically (Task 0a).
+   * deleted logically.
    */
   findByKey(spaceId: string, key: string): Promise<LedgerCategory | null>;
 }

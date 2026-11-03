@@ -7,7 +7,7 @@ import { createRecordExpenseByCategoryKey } from "./record-expense-by-category-k
 
 /**
  * Ana's personal space, whose "groceries" category was seeded under that catalog key (D11). The reader
- * answers null for a category that was logically deleted (Task 0a), like the categories repository's list.
+ * answers null for a category that was logically deleted, like the categories repository's list.
  */
 const catalog: Readonly<Record<string, { id: string; archived: boolean } | null>> = {
   groceries: { id: CATEGORIES.groceries.id, archived: false },

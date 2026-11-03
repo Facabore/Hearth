@@ -6,7 +6,7 @@ import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { AccountsScreen } from "./accounts-screen";
 
-// The rows' archive and restore buttons (Task 13) refresh through the router.
+// The rows' archive and restore buttons refresh through the router.
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 const list = {

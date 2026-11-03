@@ -34,7 +34,7 @@ export const createRestoreTransaction =
       }
       const open = await openPeriod(deps, current.spaceId, current.date);
       if (!open.ok) return open;
-      // HU-E1-08, HU-E1-12: a member who left keeps the zero balance they settled with (Task 4b).
+      // HU-E1-08, HU-E1-12: a member who left keeps the zero balance they settled with.
       const parties = await ensureCurrentParties(deps, membership.value.spaceId, current);
       if (!parties.ok) return parties;
       const now = deps.clock.now();

@@ -80,7 +80,7 @@ describe("DrizzleCategoryRepository", () => {
     ).rejects.toThrow();
   });
 
-  it("keeps a deleted category stored and referenced, out of lists and name checks (D8, Task 0a)", async () => {
+  it("keeps a deleted category stored and referenced, out of lists and name checks (D8)", async () => {
     const { space, tree } = await seeded();
     const mercado = tree.categories.find((c) => c.key === "groceries")!;
     const transactionId = randomUUID();

@@ -202,7 +202,7 @@ describe("line checks (HU-E6-03)", () => {
 
   const ana = { callerUserId: "u-ana", spaceCurrency: "COP" };
 
-  it("checks the accounts a line newly names, and skips those it already named (Task 12b)", async () => {
+  it("checks the accounts a line newly names, and skips those it already named", async () => {
     const check = (ids: string[], already: string[] = []) =>
       usableSavingsAccounts(savingsAccounts, ana, ids, already);
     expect(codeOf(await check(["acc-old-savings"]))).toBe("AccountArchived");

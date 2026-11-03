@@ -86,7 +86,7 @@ const stateOf = (w: World) => ({
 });
 
 // Joining happens before AcceptInvitation and ClaimGuestPlace read the space back through SpaceAccess, so
-// their SpaceArchived undoes the join in a real transaction (Task 18b pins it over HTTP).
+// their SpaceArchived undoes the join in a real transaction (the acceptance tests pin it over HTTP).
 const WRITES: readonly (readonly [string, (w: World) => Promise<Result<unknown>>, boolean])[] = [
   ["UpdateSpaceSettings", (w) => w.updateSettings({ ...as("ana"), changes: { name: "Casa" } }), true],
   [
