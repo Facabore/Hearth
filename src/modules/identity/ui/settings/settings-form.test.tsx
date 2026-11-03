@@ -12,11 +12,14 @@ vi.mock("next/navigation", () => ({ useRouter: () => router }));
 beforeEach(() => vi.clearAllMocks());
 
 /** U8 (#224): each summary row opens its own sheet. */
+const FORMATS = /^Números y fechas/;
 const open = async (row: RegExp) => {
   await userEvent.click(screen.getByRole("button", { name: row }));
-  return screen.findByRole("dialog");
+  const sheet = await screen.findByRole("dialog");
+  // The Números y fechas rows load when their sheet opens (ADR 0004): wait for them, not only for the sheet.
+  if (row === FORMATS) await within(sheet).findByRole("status", { name: "Así se verá" }, { timeout: 10_000 });
+  return sheet;
 };
-const FORMATS = /^Números y fechas/;
 
 describe("settings: three summary rows (U8, issue #224)", () => {
   it("shows Apariencia e idioma first, then Números y fechas and Zona horaria, each with its current values", async () => {
