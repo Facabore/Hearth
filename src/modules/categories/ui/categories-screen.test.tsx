@@ -180,6 +180,37 @@ describe("categories screen (HU-E9-04)", () => {
     expect(await screen.findByRole("dialog", { name: "Editar categoría" })).toBeInTheDocument();
   });
 
+  it("lays the edit sheet out as board Categorías 02 does (P292): group dropdown, compact toggle, hint and actions above Guardar", async () => {
+    renderTree(household({ subcategories: [sub("c-veg", "Vegetables")] }));
+    await userEvent.click(screen.getByRole("button", { name: "Editar Groceries" }));
+    const edit = await screen.findByRole("dialog", { name: "Editar categoría" });
+    // The group is a dropdown beside the name, ending in "Nuevo grupo".
+    const groupField = within(edit).getByRole("combobox", { name: "Grupo" });
+    expect(groupField).toHaveDisplayValue("Food");
+    expect(
+      within(groupField)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["Food", "Nuevo grupo"]);
+    expect(groupField.closest(".grid-cols-2")).toContainElement(within(edit).getByLabelText("Nombre"));
+    // The Íconos/Emoji toggle sits at the right of the "Ícono" label.
+    const tabs = within(edit).getByRole("radiogroup", { name: "Tipo de ícono" });
+    expect(tabs.parentElement!.parentElement).toHaveTextContent(/^Ícono/);
+    // Saturated swatches, and the hint under them.
+    const swatch = within(edit).getByRole("radio", { name: "Arena" }).querySelector("[data-swatch]");
+    expect(swatch).toHaveClass("bg-[var(--ink)]");
+    expect(within(edit).getByText("Las subcategorías usan el mismo color.")).toBeInTheDocument();
+    // The subcategories are optional chips with "+ Agregar", which opens the field.
+    expect(within(edit).getByText("· opcionales")).toBeInTheDocument();
+    expect(within(edit).queryByLabelText("Nueva subcategoría")).not.toBeInTheDocument();
+    await userEvent.click(within(edit).getByRole("button", { name: "Agregar" }));
+    expect(within(edit).getByLabelText("Nueva subcategoría")).toHaveFocus();
+    // Archivar and Eliminar sit with Guardar cambios, out of the scrolling body.
+    const actions = within(edit).getByTestId("category-actions");
+    for (const name of ["Archivar", "Eliminar", "Guardar cambios"])
+      expect(within(actions).getByRole("button", { name })).toBeInTheDocument();
+  });
+
   it("creates a group, a category and a subcategory without a reload, and offers no level below a subcategory", async () => {
     const { requests } = renderTree(household(), {
       routes: {
@@ -222,6 +253,7 @@ describe("categories screen (HU-E9-04)", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Editar Groceries" }));
     const edit = await screen.findByRole("dialog", { name: "Editar categoría" });
+    await userEvent.click(within(edit).getByRole("button", { name: "Agregar" }));
     await userEvent.type(within(edit).getByLabelText("Nueva subcategoría"), "Vegetables");
     await userEvent.click(within(edit).getByRole("button", { name: "Agregar subcategoría" }));
     expect(await bodyOf(requests.at(-1)!)).toEqual({ parentCategoryId: "c-groceries", name: "Vegetables" });
@@ -305,7 +337,7 @@ describe("categories screen (HU-E9-04)", () => {
     );
 
     await userEvent.click(within(edit).getByRole("radio", { name: "Ciruela" }));
-    await userEvent.click(within(edit).getByRole("button", { name: "Nuevo grupo" }));
+    await userEvent.selectOptions(within(edit).getByRole("combobox", { name: "Grupo" }), "Nuevo grupo");
     const newGroup = await screen.findByRole("dialog", { name: "Nuevo grupo" });
     await userEvent.type(within(newGroup).getByLabelText("Nombre"), "Pantry");
     await userEvent.click(within(newGroup).getByRole("button", { name: "Crear grupo" }));
@@ -313,7 +345,7 @@ describe("categories screen (HU-E9-04)", () => {
     expect(await bodyOf(requests.at(-1)!)).toEqual({ name: "Pantry" });
     // Back in the category form, with the new group chosen and the draft kept.
     await waitFor(() =>
-      expect(within(edit).getByRole("radio", { name: "Pantry" })).toHaveAttribute("aria-checked", "true"),
+      expect(within(edit).getByRole("combobox", { name: "Grupo" })).toHaveDisplayValue("Pantry"),
     );
     expect(within(edit).getByRole("radio", { name: "Ciruela" })).toHaveAttribute("aria-checked", "true");
     expect(within(edit).getByRole("radio", { name: "Carrito de compras" })).toHaveAttribute(

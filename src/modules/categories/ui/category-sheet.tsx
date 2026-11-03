@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 import { useId, useMemo, useState } from "react";
 import type { PaletteKey } from "@/shared/kernel/style";
-import { Button, ChoiceGroup, Icon, ProblemNotice, Sheet, TextField } from "@/shared/ui";
+import { Button, Icon, ProblemNotice, Sheet, TextField } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { CategoryDto, CategoryGroupDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
@@ -26,9 +26,12 @@ export type CategorySheetTarget =
 
 type Confirming = "archive" | "delete" | null;
 
+/** The group dropdown's last choice: it opens the new-group sheet instead of choosing (no group id looks like it). */
+const NEW_GROUP = "new-group";
+
 /**
- * HU-E9-04 edit sheet (HU-E3-05): the name, the group choice (ending in "New group"), the icon picker, the color row and
- * the subcategories, then archive or delete. Choosing another group moves the category with its subcategories. A
+ * HU-E9-04 edit sheet (HU-E3-05), as board Categorías 02 lays it out (P292): the name beside the group dropdown (ending
+ * in "New group"), the icon picker, the color row and the subcategories, then archive or delete beside the save. Choosing another group moves the category with its subcategories. A
  * subcategory shows its parent's style, so its sheet has no pickers, no group choice and no subcategories of its own.
  */
 export function CategorySheet({
@@ -68,6 +71,7 @@ export function CategorySheet({
   const [color, setColor] = useState<PaletteKey>(style.color);
   const [newSub, setNewSub] = useState("");
   const [addingGroup, setAddingGroup] = useState(false);
+  const [addingSub, setAddingSub] = useState(false);
   const [confirming, setConfirming] = useState<Confirming>(null);
   const [pending, setPending] = useState(false);
   const [problem, setProblem] = useState<Problem | null>(null);
@@ -167,6 +171,61 @@ export function CategorySheet({
   const liveSubs =
     target.mode === "edit" && !isSub ? target.subcategories.filter((sub) => sub.archivedAt === null) : [];
 
+  const showGroup = editing !== null && !isSub;
+  const actions = (
+    <div data-testid="category-actions" className="flex flex-col gap-3">
+      {problem ? (
+        <div className="flex flex-col gap-2">
+          <ProblemNotice problem={problem} />
+          {problem.code === "CategoryInUse" && editing ? (
+            <Button variant="secondary" disabled={pending} onClick={() => void archive(editing)}>
+              <Icon name="archive" size={20} />
+              {t("archiveInstead")}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+      {editing && confirming ? (
+        <div className="flex flex-col gap-2 rounded-2xl bg-track p-3">
+          <p className="text-sm text-ink">
+            {confirming === "archive"
+              ? t("archiveConfirm", { name: editing.name })
+              : t("deleteConfirm", { name: editing.name })}
+            {confirming === "archive" && liveSubs.length > 0 ? ` ${t("archiveSubcategories")}` : null}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={confirming === "delete" ? "danger" : "primary"}
+              disabled={pending}
+              onClick={() => {
+                setConfirming(null);
+                void (confirming === "archive" ? archive(editing) : remove(editing));
+              }}
+            >
+              {confirming === "archive" ? t("archive") : t("delete")}
+            </Button>
+            <Button variant="ghost" onClick={() => setConfirming(null)}>
+              {common("cancel")}
+            </Button>
+          </div>
+        </div>
+      ) : editing ? (
+        // Board Categorías 02 (P292): Archivar and Eliminar side by side, just above Guardar.
+        <div className="grid grid-cols-2 gap-3">
+          <Button variant="secondary" size="lg" disabled={pending} onClick={() => setConfirming("archive")}>
+            {t("archive")}
+          </Button>
+          <Button variant="danger" size="lg" disabled={pending} onClick={() => setConfirming("delete")}>
+            {t("delete")}
+          </Button>
+        </div>
+      ) : null}
+      <Button size="lg" className="w-full" disabled={pending || !dirty} onClick={() => void save()}>
+        {editing ? t("save") : t("create")}
+      </Button>
+    </div>
+  );
+
   return (
     <Sheet
       open
@@ -176,37 +235,43 @@ export function CategorySheet({
       title={
         editing ? t("editTitle") : t("newTitle", { group: target.mode === "create" ? target.group.name : "" })
       }
-      footer={
-        <Button size="lg" className="w-full" disabled={pending || !dirty} onClick={() => void save()}>
-          {editing ? t("save") : t("create")}
-        </Button>
-      }
+      footer={actions}
     >
       <div className="flex flex-col gap-3">
-        <TextField
-          id={`${id}-name`}
-          label={t("name")}
-          value={name}
-          maxLength={200}
-          autoComplete="off"
-          onChange={(event) => setName(event.target.value)}
-        />
-        {editing && !isSub ? (
-          <div className="flex flex-col gap-2">
-            <ChoiceGroup
-              label={t("group")}
-              layout="chips"
-              value={groupId}
-              onValueChange={setGroupId}
-              options={groups.map((group) => ({ value: group.id, label: group.name }))}
-            />
-            <Button variant="secondary" className="self-start" onClick={() => setAddingGroup(true)}>
-              <Icon name="plus" size={20} />
-              {/* The last choice of the group choice (HU-E9-04): the same sheet as the header's "+". */}
-              {catalog("newGroup")}
-            </Button>
-          </div>
-        ) : null}
+        {/* Board Categorías 02 (P292): the group is a dropdown beside the name, its last choice "Nuevo grupo". */}
+        <div className={`grid gap-3 ${showGroup ? "grid-cols-2" : ""}`}>
+          <TextField
+            id={`${id}-name`}
+            label={t("name")}
+            value={name}
+            maxLength={200}
+            autoComplete="off"
+            onChange={(event) => setName(event.target.value)}
+          />
+          {showGroup ? (
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <label htmlFor={`${id}-group`} className="text-sm font-medium text-ink">
+                {t("group")}
+              </label>
+              <select
+                id={`${id}-group`}
+                value={groupId}
+                onChange={(event) => {
+                  if (event.target.value === NEW_GROUP) setAddingGroup(true);
+                  else setGroupId(event.target.value);
+                }}
+                className="h-[52px] w-full min-w-0 rounded-xl border border-field bg-surface px-3 text-base text-ink"
+              >
+                {groups.map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}
+                  </option>
+                ))}
+                <option value={NEW_GROUP}>{catalog("newGroup")}</option>
+              </select>
+            </div>
+          ) : null}
+        </div>
         {isSub && target.mode === "edit" ? (
           <p className="rounded-2xl bg-track p-3 text-sm text-ink">
             {t("subcategoryStyle", { parent: target.parent!.name })}
@@ -214,17 +279,15 @@ export function CategorySheet({
         ) : (
           <>
             <IconPicker value={icon} onValueChange={setIcon} />
-            <ColorRow value={color} onValueChange={setColor} />
+            <ColorRow value={color} onValueChange={setColor} hint={catalog("colorHint")} />
           </>
         )}
         {editing && !isSub ? (
           <section aria-labelledby={`${id}-subs`} className="flex flex-col gap-2">
-            <h3 id={`${id}-subs`} className="text-sm font-medium text-ink">
-              {t("subcategories")}
+            <h3 id={`${id}-subs`} className="text-sm font-semibold text-ink">
+              {t("subcategories")} <span className="font-normal text-muted">· {t("optional")}</span>
             </h3>
-            {liveSubs.length === 0 ? (
-              <p className="text-sm text-muted">{t("noSubcategories")}</p>
-            ) : (
+            {liveSubs.length > 0 ? (
               <ul className="flex flex-wrap gap-2">
                 {liveSubs.map((sub) => (
                   <li key={sub.id}>
@@ -239,76 +302,41 @@ export function CategorySheet({
                   </li>
                 ))}
               </ul>
-            )}
-            {/* At 320 px the button wraps under the field instead of squeezing it. */}
-            <div className="flex flex-wrap items-end gap-2">
-              <div className="min-w-48 flex-1">
-                <TextField
-                  id={`${id}-sub`}
-                  label={t("newSubcategory")}
-                  value={newSub}
-                  maxLength={200}
-                  autoComplete="off"
-                  onChange={(event) => setNewSub(event.target.value)}
-                />
-              </div>
-              <Button
-                variant="secondary"
-                className="h-[52px]"
-                disabled={pending || newSub.trim() === ""}
-                onClick={() => void addSubcategory(editing)}
-              >
-                {t("addSubcategory")}
-              </Button>
-            </div>
-          </section>
-        ) : null}
-        {problem ? (
-          <div className="flex flex-col gap-2">
-            <ProblemNotice problem={problem} />
-            {problem.code === "CategoryInUse" && editing ? (
-              <Button variant="secondary" disabled={pending} onClick={() => void archive(editing)}>
-                <Icon name="archive" size={20} />
-                {t("archiveInstead")}
-              </Button>
             ) : null}
-          </div>
-        ) : null}
-        {editing && confirming ? (
-          <div className="flex flex-col gap-2 rounded-2xl bg-track p-3">
-            <p className="text-sm text-ink">
-              {confirming === "archive"
-                ? t("archiveConfirm", { name: editing.name })
-                : t("deleteConfirm", { name: editing.name })}
-              {confirming === "archive" && liveSubs.length > 0 ? ` ${t("archiveSubcategories")}` : null}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant={confirming === "delete" ? "danger" : "primary"}
-                disabled={pending}
-                onClick={() => {
-                  setConfirming(null);
-                  void (confirming === "archive" ? archive(editing) : remove(editing));
-                }}
+            {addingSub ? (
+              // At 320 px the button wraps under the field instead of squeezing it.
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="min-w-48 flex-1">
+                  <TextField
+                    id={`${id}-sub`}
+                    label={t("newSubcategory")}
+                    value={newSub}
+                    maxLength={200}
+                    autoComplete="off"
+                    autoFocus
+                    onChange={(event) => setNewSub(event.target.value)}
+                  />
+                </div>
+                <Button
+                  variant="secondary"
+                  className="h-[52px]"
+                  disabled={pending || newSub.trim() === ""}
+                  onClick={() => void addSubcategory(editing)}
+                >
+                  {t("addSubcategory")}
+                </Button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setAddingSub(true)}
+                className="flex min-h-11 items-center gap-1 self-start rounded-full border border-dashed border-line px-4 text-sm font-medium text-accent"
               >
-                {confirming === "archive" ? t("archive") : t("delete")}
-              </Button>
-              <Button variant="ghost" onClick={() => setConfirming(null)}>
-                {common("cancel")}
-              </Button>
-            </div>
-          </div>
-        ) : editing ? (
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" disabled={pending} onClick={() => setConfirming("archive")}>
-              <Icon name="archive" size={20} />
-              {t("archive")}
-            </Button>
-            <Button variant="ghost" disabled={pending} onClick={() => setConfirming("delete")}>
-              <Icon name="trash" size={20} />
-              {t("delete")}
-            </Button>
-          </div>
+                <Icon name="plus" size={18} />
+                {t("add")}
+              </button>
+            )}
+          </section>
         ) : null}
       </div>
       {addingGroup ? (

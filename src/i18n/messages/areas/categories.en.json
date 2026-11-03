@@ -33,7 +33,9 @@
       "archiveConfirm": "Archive {name}? Its history stays, and it is no longer offered when you record.",
       "archiveSubcategories": "Its subcategories are archived too.",
       "deleteConfirm": "Delete {name}? This cannot be undone.",
-      "archiveInstead": "Archive instead"
+      "archiveInstead": "Archive instead",
+      "optional": "optional",
+      "add": "Add"
     },
     "groupSheet": {
       "title": "New group",
@@ -215,6 +217,7 @@
       "shopping": "Shopping",
       "money": "Money",
       "people": "People and work"
-    }
+    },
+    "colorHint": "Subcategories use the same color."
   }
 }

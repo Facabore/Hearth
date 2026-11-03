@@ -58,13 +58,21 @@ export function IconPicker({
   const choices = quickChoices(tab, value);
   return (
     <fieldset className="flex flex-col gap-2">
-      <legend className="mb-1.5 text-sm font-medium text-ink">{t("label")}</legend>
-      <ChoiceGroup
-        label={t("tabs")}
-        value={tab}
-        onValueChange={setTab}
-        options={TABS.map((kind) => ({ value: kind, label: t(kind) }))}
-      />
+      <legend className="sr-only">{t("label")}</legend>
+      {/* Board Categorías 02 (P292): a compact Íconos/Emoji toggle at the right of the label. */}
+      <div className="flex items-center justify-between gap-3">
+        <span aria-hidden="true" className="text-sm font-semibold text-ink">
+          {t("label")}
+        </span>
+        <div className="w-40 shrink-0">
+          <ChoiceGroup
+            label={t("tabs")}
+            value={tab}
+            onValueChange={setTab}
+            options={TABS.map((kind) => ({ value: kind, label: t(kind) }))}
+          />
+        </div>
+      </div>
       <div className="relative">
         <ChoiceGroup
           label={t(tab)}

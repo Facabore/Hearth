@@ -33,7 +33,9 @@
       "archiveConfirm": "¿Archivar {name}? Su historial se conserva y deja de ofrecerse al registrar.",
       "archiveSubcategories": "Sus subcategorías también se archivan.",
       "deleteConfirm": "¿Eliminar {name}? No se puede deshacer.",
-      "archiveInstead": "Archivar en su lugar"
+      "archiveInstead": "Archivar en su lugar",
+      "optional": "opcionales",
+      "add": "Agregar"
     },
     "groupSheet": {
       "title": "Nuevo grupo",
@@ -215,6 +217,7 @@
       "shopping": "Compras",
       "money": "Dinero",
       "people": "Personas y trabajo"
-    }
+    },
+    "colorHint": "Las subcategorías usan el mismo color."
   }
 }
