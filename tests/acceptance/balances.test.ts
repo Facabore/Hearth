@@ -195,6 +195,26 @@ describe("balances in a shared space (HU-E5-01)", () => {
     ]);
   });
 
+  it("keeps each space's balances to its own movements", async () => {
+    const h = await household();
+    const other = await household();
+    await pay(h, h.ana, 300_000, [h.ana.memberId, h.juan.memberId]);
+    await pay(other, other.juan, 80_000, [other.ana.memberId, other.juan.memberId]);
+    expect(await balancesOf(h.ana, h.spaceId)).toEqual([
+      [h.ana.memberId, cop(150_000)],
+      [h.juan.memberId, cop(-150_000)],
+    ]);
+    expect(await balancesOf(other.ana, other.spaceId)).toEqual([
+      [other.ana.memberId, cop(-40_000)],
+      [other.juan.memberId, cop(40_000)],
+    ]);
+    const response = await call(getBalances, "GET", `/api/v1/spaces/${other.spaceId}/balances`, {
+      user: h.ana,
+      params: { spaceId: other.spaceId },
+    });
+    expect(await problemOf(response)).toEqual([404, "SpaceNotFound"]);
+  });
+
   it("answers a non-member and a malformed space id with 404 SpaceNotFound, never 500 (Review Focus 2)", async () => {
     const h = await household();
     const marta = await registerUser("Marta");

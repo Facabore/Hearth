@@ -147,6 +147,24 @@ describe("settlements (HU-E5-02)", () => {
         409,
         "GuestHasNoAccounts",
       ],
+      // A guest is credited outside the app too: no account of anyone's may receive his money.
+      [
+        h.juan,
+        juanToAna(h, 100_000, { receivingMemberId: pedro, destinationAccountId: h.ana.account }),
+        409,
+        "GuestHasNoAccounts",
+      ],
+      // The debit is checked first: Ana spending Juan's account is refused before the guest's credit is looked at.
+      [
+        h.ana,
+        juanToAna(h, 100_000, {
+          sourceAccountId: h.juan.account,
+          receivingMemberId: pedro,
+          destinationAccountId: h.ana.account,
+        }),
+        422,
+        "AccountNotOwned",
+      ],
       [h.juan, juanToAna(h, 0), 422, "InvalidAmount"],
       [sofi, juanToAna(h, 100_000), 403, "InsufficientRole"],
     ];
