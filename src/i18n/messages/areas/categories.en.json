@@ -1,13 +1,10 @@
 {
   "categories": {
-    "subtitle": "Tap a category to edit it",
+    "subtitle": "{space} · tap a category to edit it",
     "kindLabel": "Type",
     "newGroup": "New group",
     "addCategory": "Add category to {group}",
-    "addCategoryShort": "Add category",
     "edit": "Edit {name}",
-    "subcategoriesToggle": "Subcategories of {name}",
-    "subcategoryCount": "{count, plural, one {# subcategory} other {# subcategories}}",
     "emptyGroup": "No categories yet",
     "readOnly": "You can see the categories of {space}; only its owners and admins change them.",
     "kind": {
@@ -20,12 +17,12 @@
       "restoreShort": "Restore"
     },
     "sheet": {
-      "editTitle": "Edit {name}",
+      "editTitle": "Edit category",
       "newTitle": "New category in {group}",
       "name": "Name",
       "group": "Group",
       "subcategories": "Subcategories",
-      "noSubcategories": "No subcategories yet",
+      "noSubcategories": "No subcategories",
       "newSubcategory": "New subcategory",
       "addSubcategory": "Add subcategory",
       "subcategoryStyle": "A subcategory shows the icon and color of {parent}.",

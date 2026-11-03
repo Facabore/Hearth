@@ -4,8 +4,9 @@ import { openCategoryPicker } from "../support/record";
 import type { World } from "../support/world";
 
 const ACTIONS: Record<string, string> = { "Archive instead": "categories.sheet.archiveInstead" };
-const sheetOf = (page: Page, world: World, name: string) =>
-  page.getByRole("dialog", { name: world.t("categories.sheet.editTitle", { name }) });
+// P292: board Categorías 02 titles every edit sheet "Editar categoría"; only one is open at a time.
+const sheetOf = (page: Page, world: World) =>
+  page.getByRole("dialog", { name: world.t("categories.sheet.editTitle") });
 
 Given(
   /^the category "([^"]+)" has (\d+) transactions$/,
@@ -23,7 +24,7 @@ When(
     await page.getByRole("link", { name: new RegExp(world.t("shell.profile.categories")) }).click();
     await expect(page).toHaveURL(/\/categories$/);
     await page.getByRole("button", { name: world.t("categories.edit", { name: category }) }).click();
-    const sheet = sheetOf(page, world, category);
+    const sheet = sheetOf(page, world);
     await sheet.getByRole("button", { name: world.t("categories.sheet.delete") }).click();
     await sheet.getByRole("button", { name: world.t("categories.sheet.delete") }).click();
   },

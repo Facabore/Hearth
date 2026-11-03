@@ -39,6 +39,7 @@ export function CategorySheet({
   onSaved,
   onDeleted,
   onGroupCreated,
+  onEditSubcategory,
   api: injected,
 }: {
   readonly spaceId: string;
@@ -49,6 +50,8 @@ export function CategorySheet({
   readonly onSaved: (saved: CategoryDto) => void;
   readonly onDeleted: (id: string) => void;
   readonly onGroupCreated: (group: Omit<CategoryGroupDto, "categories">) => void;
+  /** A subcategory's chip opens its own sheet (the screen lists only categories, P292). */
+  readonly onEditSubcategory: (id: string) => void;
   readonly api?: Api;
 }) {
   const t = useTranslations("categories.sheet");
@@ -171,9 +174,7 @@ export function CategorySheet({
         if (!open) onClose();
       }}
       title={
-        editing
-          ? t("editTitle", { name: editing.name })
-          : t("newTitle", { group: target.mode === "create" ? target.group.name : "" })
+        editing ? t("editTitle") : t("newTitle", { group: target.mode === "create" ? target.group.name : "" })
       }
       footer={
         <Button size="lg" className="w-full" disabled={pending || !dirty} onClick={() => void save()}>
@@ -224,10 +225,17 @@ export function CategorySheet({
             {liveSubs.length === 0 ? (
               <p className="text-sm text-muted">{t("noSubcategories")}</p>
             ) : (
-              <ul className="divide-y divide-line rounded-2xl bg-track px-3">
+              <ul className="flex flex-wrap gap-2">
                 {liveSubs.map((sub) => (
-                  <li key={sub.id} className="flex min-h-11 items-center text-sm text-ink">
-                    {sub.name}
+                  <li key={sub.id}>
+                    <button
+                      type="button"
+                      aria-label={catalog("edit", { name: sub.name })}
+                      onClick={() => onEditSubcategory(sub.id)}
+                      className="flex min-h-11 items-center rounded-full bg-track px-4 text-sm [overflow-wrap:anywhere] text-ink"
+                    >
+                      {sub.name}
+                    </button>
                   </li>
                 ))}
               </ul>

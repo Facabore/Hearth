@@ -154,6 +154,32 @@ describe("categories screen (HU-E9-04)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("follows board Categorías 01 (P292): the space in the subtitle, plain pluses, bold groups and rows that open the sheet", async () => {
+    renderTree(household({ subcategories: [sub("c-veg", "Vegetables"), sub("c-meat", "Meat")] }));
+    expect(screen.getByText("Household · toca una categoría para editarla")).toBeInTheDocument();
+    // The header's "+" and each group's are plain icons, 44 px, named by what they add.
+    for (const name of ["Nuevo grupo", "Agregar categoría a Food"]) {
+      const plus = screen.getByRole("button", { name });
+      expect(plus).toHaveClass("size-11", "bg-transparent");
+      expect(plus).not.toHaveClass("border");
+      expect(plus.textContent).toBe(name);
+    }
+    expect(
+      within(group("Food")).getByRole("button", { name: "Agregar categoría a Food" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Food" })).toHaveClass("font-semibold", "text-ink");
+    // Each row names its subcategories, or says it has none, and ends in a chevron; none expands in place.
+    const groceries = screen.getByRole("button", { name: "Editar Groceries" });
+    expect(groceries).toHaveTextContent("GroceriesVegetables · Meat");
+    expect(groceries.querySelector("[data-chevron]")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Editar Restaurants" })).toHaveTextContent(
+      "RestaurantsSin subcategorías",
+    );
+    expect(screen.queryByRole("button", { name: /^Subcategorías de/ })).not.toBeInTheDocument();
+    await userEvent.click(groceries);
+    expect(await screen.findByRole("dialog", { name: "Editar categoría" })).toBeInTheDocument();
+  });
+
   it("creates a group, a category and a subcategory without a reload, and offers no level below a subcategory", async () => {
     const { requests } = renderTree(household(), {
       routes: {
@@ -195,18 +221,20 @@ describe("categories screen (HU-E9-04)", () => {
     await waitFor(() => expect(namesIn(group("Food"))).toEqual(["Groceries", "Restaurants", "Bakery"]));
 
     await userEvent.click(screen.getByRole("button", { name: "Editar Groceries" }));
-    const edit = await screen.findByRole("dialog", { name: "Editar Groceries" });
+    const edit = await screen.findByRole("dialog", { name: "Editar categoría" });
     await userEvent.type(within(edit).getByLabelText("Nueva subcategoría"), "Vegetables");
     await userEvent.click(within(edit).getByRole("button", { name: "Agregar subcategoría" }));
     expect(await bodyOf(requests.at(-1)!)).toEqual({ parentCategoryId: "c-groceries", name: "Vegetables" });
     await waitFor(() => expect(within(edit).getByRole("listitem")).toHaveTextContent("Vegetables"));
     await userEvent.click(within(edit).getByRole("button", { name: "Cerrar" }));
+    expect(screen.getByRole("button", { name: "Editar Groceries" })).toHaveTextContent("Vegetables");
 
-    await userEvent.click(screen.getByRole("button", { name: "Subcategorías de Groceries" }));
-    const nested = screen.getByRole("list", { name: "Subcategorías de Groceries" });
-    expect(within(nested).getByRole("button", { name: "Editar Vegetables" })).toBeInTheDocument();
-    await userEvent.click(within(nested).getByRole("button", { name: "Editar Vegetables" }));
-    const vegetables = await screen.findByRole("dialog", { name: "Editar Vegetables" });
+    // A subcategory opens from its chip in its parent's sheet (the screen lists only categories, P292).
+    await userEvent.click(screen.getByRole("button", { name: "Editar Groceries" }));
+    const parent = await screen.findByRole("dialog", { name: "Editar categoría" });
+    await userEvent.click(within(parent).getByRole("button", { name: "Editar Vegetables" }));
+    const vegetables = await screen.findByRole("dialog", { name: "Editar categoría" });
+    expect(within(vegetables).getByLabelText("Nombre")).toHaveValue("Vegetables");
     expect(
       within(vegetables).queryByRole("button", { name: "Agregar subcategoría" }),
     ).not.toBeInTheDocument();
@@ -252,7 +280,7 @@ describe("categories screen (HU-E9-04)", () => {
     );
 
     await userEvent.click(screen.getByRole("button", { name: "Editar Groceries" }));
-    const edit = await screen.findByRole("dialog", { name: "Editar Groceries" });
+    const edit = await screen.findByRole("dialog", { name: "Editar categoría" });
     const quick = within(edit).getByRole("radiogroup", { name: "Íconos" });
     expect(within(quick).getAllByRole("radio")).toHaveLength(11);
     expect(within(quick).getByRole("radio", { name: "Carrito" })).toHaveAttribute("aria-checked", "true");
@@ -302,21 +330,16 @@ describe("categories screen (HU-E9-04)", () => {
     await waitFor(() => expect(namesIn(group("Pantry"))).toEqual(["Groceries"]));
     expect(namesIn(group("Food"))).toEqual(["Restaurants"]);
     const groceries = within(group("Pantry")).getByRole("button", { name: "Editar Groceries" });
-    expect(groceries).toHaveTextContent("2 subcategorías");
+    // Its subcategories moved with it.
+    expect(groceries).toHaveTextContent("Vegetables · Meat");
     expect(glyphOf(groceries)).toHaveTextContent("🛒");
     expect(glyphOf(groceries).style.getPropertyValue("--tint")).toBe("var(--pal-plum-tint)");
-    await userEvent.click(screen.getByRole("button", { name: "Subcategorías de Groceries" }));
-    for (const name of ["Vegetables", "Meat"]) {
-      const row = screen.getByRole("button", { name: `Editar ${name}` });
-      expect(glyphOf(row)).toHaveTextContent("🛒");
-      expect(glyphOf(row).style.getPropertyValue("--tint")).toBe("var(--pal-plum-tint)");
-    }
   });
 
   it("keeps the library choice-free when it is closed, and says when a search matches nothing", async () => {
     renderTree(household());
     await userEvent.click(screen.getByRole("button", { name: "Editar Groceries" }));
-    const edit = await screen.findByRole("dialog", { name: "Editar Groceries" });
+    const edit = await screen.findByRole("dialog", { name: "Editar categoría" });
     await userEvent.clear(within(edit).getByLabelText("Nombre"));
     // A name is required: an emptied one cannot be saved, even with another change.
     await userEvent.click(within(edit).getByRole("radio", { name: "Ciruela" }));
@@ -350,7 +373,7 @@ describe("categories screen (HU-E9-04)", () => {
       },
     });
     await userEvent.click(screen.getByRole("button", { name: "Editar Groceries" }));
-    const edit = await screen.findByRole("dialog", { name: "Editar Groceries" });
+    const edit = await screen.findByRole("dialog", { name: "Editar categoría" });
     await userEvent.click(within(edit).getByRole("button", { name: "Archivar" }));
     expect(within(edit).getByText(/Sus subcategorías también se archivan\./)).toBeInTheDocument();
     await userEvent.click(within(edit).getByRole("button", { name: "Cancelar" }));
@@ -412,7 +435,7 @@ describe("categories screen (HU-E9-04)", () => {
     expect(await screen.findAllByRole("region", { name: "Food" })).toHaveLength(1);
 
     await userEvent.click(screen.getByRole("button", { name: "Editar Groceries" }));
-    const edit = await screen.findByRole("dialog", { name: "Editar Groceries" });
+    const edit = await screen.findByRole("dialog", { name: "Editar categoría" });
     await userEvent.clear(within(edit).getByLabelText("Nombre"));
     await userEvent.type(within(edit).getByLabelText("Nombre"), "Restaurants");
     await userEvent.click(within(edit).getByRole("button", { name: "Guardar cambios" }));
@@ -434,7 +457,7 @@ describe("categories screen (HU-E9-04)", () => {
       },
     });
     await userEvent.click(screen.getByRole("button", { name: "Editar Groceries" }));
-    const edit = await screen.findByRole("dialog", { name: "Editar Groceries" });
+    const edit = await screen.findByRole("dialog", { name: "Editar categoría" });
     await userEvent.clear(within(edit).getByLabelText("Nombre"));
     await userEvent.type(within(edit).getByLabelText("Nombre"), "Mercado");
     await userEvent.click(within(edit).getByRole("button", { name: "Guardar cambios" }));
@@ -585,11 +608,9 @@ describe("categories screen (HU-E9-04)", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Nuevo grupo" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Subcategorías de Groceries" }));
+    // The rows still name their subcategories, but nothing opens or changes: there is no button at all.
     expect(within(group("Food")).getByText("Vegetables")).toBeInTheDocument();
-    // The only buttons left open and close subcategories.
-    for (const button of screen.getAllByRole("button"))
-      expect(button).toHaveAccessibleName(/^Subcategorías de /);
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(await axeViolations(container)).toEqual([]);
   });
 

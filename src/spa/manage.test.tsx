@@ -158,8 +158,11 @@ describe("accounts, categories and settings in the SPA (slice 3 of #199, ADR 000
 
   it("hides an account from a confirmation on its own screen, through the app's own client (P292)", async () => {
     const { routes } = server();
-    const spa = renderSpa(`${ACCOUNTS}/a-nequi/edit`, routes);
-    await userEvent.click(await screen.findByRole("button", { name: "Ocultar Nequi" }, { timeout: 5_000 }));
+    // From the list to the account's screen, as a person goes: the shell's first reads are settled by then.
+    const spa = renderSpa(ACCOUNTS, routes);
+    expect(await screen.findByText("Nequi", {}, { timeout: 5_000 })).toBeInTheDocument();
+    await spa.router.navigate({ href: `${ACCOUNTS}/a-nequi/edit` });
+    await userEvent.click(await screen.findByRole("button", { name: "Ocultar Nequi" }));
     const sheet = screen.getByRole("dialog", { name: "¿Ocultar Nequi?" });
     const before = untouched(spa.requests, [/\/accounts$/]);
     await userEvent.click(within(sheet).getByRole("button", { name: "Ocultar" }));
@@ -361,11 +364,13 @@ describe("the accounts, categories and settings areas' copy (ruling P276)", () =
   it("shows the categories' own copy after a cold load, and in English after a language change", async () => {
     const missing = watchMissingMessages();
     const spa = renderSpa("/spaces/sp-personal/categories", server().routes);
-    expect(await screen.findByText(es.categories.subtitle, {}, { timeout: 5_000 })).toBeVisible();
+    // P292: the subtitle names the space, as board Categorías 01 does.
+    const subtitle = (text: string) => text.replace("{space}", "Personal");
+    expect(await screen.findByText(subtitle(es.categories.subtitle), {}, { timeout: 5_000 })).toBeVisible();
     expect(loadedAreas(spa)).toEqual(["es:categories"]);
 
     speak(spa, "en");
-    expect(await screen.findByText(en.categories.subtitle)).toBeVisible();
+    expect(await screen.findByText(subtitle(en.categories.subtitle))).toBeVisible();
     expect(loadedAreas(spa)).toEqual(["en:categories", "es:categories"]);
     expect(missing()).toEqual([]);
   });
