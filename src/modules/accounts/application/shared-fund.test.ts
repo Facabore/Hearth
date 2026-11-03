@@ -18,13 +18,15 @@ import type { AccountsDeps } from "./deps";
 import { createRestoreAccount } from "./restore-account";
 import { createUpdateAccount } from "./update-account";
 
-// Background: "Ana" is OWNER and "Juan" is MEMBER of the shared space "Household"; "Lina" is its ADMIN.
+// Background: "Ana" is OWNER and "Juan" is MEMBER of the shared space "Household"; "Lina" is its ADMIN, "Sofi" its VIEWER.
 const household = membership({ spaceId: "space-household", spaceKind: "SHARED", name: "Household" });
 const juan = membership({ ...household, memberId: "member-juan", userId: "u-juan", role: "MEMBER" });
 const lina = membership({ ...household, memberId: "member-lina", userId: "u-lina", role: "ADMIN" });
+const sofi = membership({ ...household, memberId: "member-sofi", userId: "u-sofi", role: "VIEWER" });
 const asAna = { spaceId: "space-household", userId: "u-ana" };
 const asJuan = { spaceId: "space-household", userId: "u-juan" };
 const asLina = { spaceId: "space-household", userId: "u-lina" };
+const asSofi = { spaceId: "space-household", userId: "u-sofi" };
 const fund = { name: "Household Fund", type: "SHARED_FUND" as const, openingBalance: money(0n) };
 
 const setup = () => {
@@ -32,7 +34,7 @@ const setup = () => {
   const deps: AccountsDeps = {
     spaceLocks: noSpaceLocks,
     accounts,
-    access: fakeSpaceAccess(household, juan, lina),
+    access: fakeSpaceAccess(household, juan, lina, sofi),
     movements: new FixedMovements(),
     ids: sequentialIds("acc"),
     clock: new FixedClock(new Date("2026-10-13T12:00:00Z")),
@@ -94,6 +96,30 @@ describe("shared fund account (HU-E2-02)", () => {
     expect(unwrap(await update({ ...asAna, accountId: created.id, changes: { name: "Pot" } })).name).toBe(
       "Pot",
     );
+  });
+
+  it("lets an ADMIN archive the fund", async () => {
+    const { create, archive, accounts } = setup();
+    const created = unwrap(await create({ ...asAna, ...fund }));
+    const archived = unwrap(await archive({ ...asLina, accountId: created.id }));
+    expect(archived.archivedAt).toEqual(new Date("2026-10-13T12:00:00Z"));
+    expect((await accounts.findById(created.id))?.archivedAt).toEqual(new Date("2026-10-13T12:00:00Z"));
+  });
+
+  it("refuses a VIEWER every fund write and changes nothing", async () => {
+    const { create, update, archive, restore, accounts } = setup();
+    const created = unwrap(await create({ ...asAna, ...fund }));
+    expect(codeOf(await create({ ...asSofi, ...fund, name: "Pot" }))).toBe("InsufficientRole");
+    expect(codeOf(await update({ ...asSofi, accountId: created.id, changes: { name: "Pot" } }))).toBe(
+      "InsufficientRole",
+    );
+    expect(codeOf(await archive({ ...asSofi, accountId: created.id }))).toBe("InsufficientRole");
+    unwrap(await archive({ ...asAna, accountId: created.id }));
+    expect(codeOf(await restore({ ...asSofi, accountId: created.id }))).toBe("InsufficientRole");
+    expect(await accounts.findById(created.id)).toMatchObject({
+      name: "Household Fund",
+      archivedAt: expect.any(Date),
+    });
   });
 
   it("lets whoever may archive the fund restore it, and keeps members out (ruling P123)", async () => {

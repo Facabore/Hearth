@@ -35,6 +35,17 @@ describe("AuthorizeSpaceAction (HU-E1-05)", () => {
     expect(codeOf(requirePermission(luis, "member.invite"))).toBe("InsufficientRole");
   });
 
+  it("refuses every action, reading included, to a membership with no role, as a guest's is", async () => {
+    const pedro = membership({ ...household, memberId: "member-pedro", userId: "u-pedro", role: null });
+    const withGuest = fakeSpaceAccess(household, pedro);
+    for (const action of SPACE_ACTIONS) {
+      expect([
+        action,
+        codeOf(await authorizeSpaceAction(withGuest, "space-household", "u-pedro", action)),
+      ]).toEqual([action, "InsufficientRole"]);
+    }
+  });
+
   it("answers SpaceNotFound to non-members before looking at roles", async () => {
     expect(codeOf(await authorizeSpaceAction(access, "space-household", "u-marta", "space.read"))).toBe(
       "SpaceNotFound",

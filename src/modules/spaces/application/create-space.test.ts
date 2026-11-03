@@ -94,6 +94,21 @@ describe("CreateSpace (HU-E1-04)", () => {
     expect(spaces.spaces).toEqual([]);
   });
 
+  it("creates Ana's personal space when she has none, with her as OWNER and the default categories", async () => {
+    const { create, spaces, categories } = setup();
+    const summary = unwrap(await create({ ...ana, kind: "PERSONAL" }));
+    expect(summary).toMatchObject({ kind: "PERSONAL", currency: "COP", role: "OWNER" });
+    expect(spaces.members(summary.id)).toEqual([
+      expect.objectContaining({ kind: "USER", userId: "u-ana", displayName: "Ana", role: "OWNER" }),
+    ]);
+    expect(groupNamed(categories, summary.id, "Vivienda")).toEqual([
+      "Arriendo",
+      "Servicios",
+      "Mantenimiento",
+    ]);
+    expect(await spaces.listForUser("u-ana")).toEqual([summary]);
+  });
+
   it("refuses another personal space (HU-E1-02)", async () => {
     const { create, createPersonalSpace } = setup();
     unwrap(await createPersonalSpace({ userId: "u-ana", name: "Ana", locale: "es" }));

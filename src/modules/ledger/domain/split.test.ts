@@ -55,6 +55,17 @@ describe("equal split (HU-E4-07)", () => {
     );
   });
 
+  it("refuses a zero and a negative amount, for one participant too, as no positive share", () => {
+    for (const amount of [money(0n), pesos(-80_000n)]) {
+      for (const split of [equal("member-ana"), equal("member-ana", "member-juan")]) {
+        expect(splitShares(amount, split, MEMBERS)).toEqual({
+          ok: false,
+          error: { code: "InvalidSplit", details: { reason: "shareNotPositive" } },
+        });
+      }
+    }
+  });
+
   it("rejects an amount too small to give every participant a positive share (Review Focus 1)", () => {
     const tooSmall = splitShares(pesos(1n), equal("member-ana", "member-juan", "member-luis"), MEMBERS);
     expect(tooSmall).toEqual({

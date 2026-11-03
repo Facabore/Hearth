@@ -85,6 +85,15 @@ describe("guest members (HU-E1-10)", () => {
     expect(code(memberName("x".repeat(101)))).toBe("InvalidMemberName");
     expect(memberName(`  ${"x".repeat(100)}  `)).toEqual({ ok: true, value: "x".repeat(100) });
   });
+
+  it("refuse an empty, a blank and a 101-character name with InvalidMemberName", () => {
+    const added = (displayName: string) =>
+      code(guestMember({ id: "g-1" as Id<"SpaceMember">, displayName, contactEmail: null, now, current }));
+    expect(added("")).toBe("InvalidMemberName");
+    expect(added("   ")).toBe("InvalidMemberName");
+    expect(added("x".repeat(101))).toBe("InvalidMemberName");
+    expect(added(`  ${"x".repeat(100)}  `)).toBe("ok");
+  });
 });
 
 describe("registered members joining (HU-E1-07)", () => {

@@ -200,7 +200,8 @@ describe("AcceptInvitation (HU-E1-07)", () => {
     expect(w.store.members(space).map((m) => m.displayName)).toEqual(["Ana", "Ana 2"]);
   });
 
-  it("retries with a name not yet refused when concurrent joins take it, and gives up after three attempts", async () => {
+  describe("when concurrent joins take the name", () => {
+    /** A store whose first `failures` addMember calls answer nameTaken, as a concurrent join would. */
     class NameRaceStore extends InMemorySpaceStore {
       /** Display names offered to addMember, in order. */
       readonly tried: string[] = [];
@@ -212,14 +213,40 @@ describe("AcceptInvitation (HU-E1-07)", () => {
         return this.tried.length <= this.failures ? "nameTaken" : super.addMember(spaceId, member);
       }
     }
-    const recovering = new NameRaceStore(2);
-    const recoveringWorld = await invited({ kind: "LINK" }, "MEMBER", recovering);
-    expect(codeOf(await recoveringWorld.accept({ token: "token-1", ...juan }))).toBe("ok");
-    // The re-read members never show the refused names here, so only the taken set moves the suffix on.
-    expect(recovering.tried).toEqual(["Juan", "Juan 2", "Juan 3"]);
-    expect(juanRows(recovering.members(space)).map((m) => m.displayName)).toEqual(["Juan 3"]);
-    const failing = await invited({ kind: "LINK" }, "MEMBER", new NameRaceStore(3));
-    expect(codeOf(await failing.accept({ token: "token-1", ...juan }))).toBe("MemberNameTaken");
+
+    it("retries with a name not yet refused", async () => {
+      const recovering = new NameRaceStore(2);
+      const w = await invited({ kind: "LINK" }, "MEMBER", recovering);
+      expect(codeOf(await w.accept({ token: "token-1", ...juan }))).toBe("ok");
+      // The re-read members never show the refused names here, so only the taken set moves the suffix on.
+      expect(recovering.tried).toEqual(["Juan", "Juan 2", "Juan 3"]);
+      expect(juanRows(recovering.members(space)).map((m) => m.displayName)).toEqual(["Juan 3"]);
+    });
+
+    it("gives up after three attempts with MemberNameTaken and adds nobody", async () => {
+      const failing = new NameRaceStore(3);
+      const w = await invited({ kind: "LINK" }, "MEMBER", failing);
+      expect(codeOf(await w.accept({ token: "token-1", ...juan }))).toBe("MemberNameTaken");
+      expect(failing.tried).toEqual(["Juan", "Juan 2", "Juan 3"]);
+      expect(juanRows(failing.members(space))).toEqual([]);
+    });
+  });
+});
+
+describe("the order AcceptInvitation refuses in (HU-E1-07, M2-A review)", () => {
+  it("answers an accepted email invitation replayed after it expired as used, not expired", async () => {
+    const w = await invited();
+    unwrap(await w.accept({ token: "token-1", ...juan }));
+    w.later(8 * DAY);
+    expect(codeOf(await w.accept({ token: "token-1", ...juan }))).toBe("InvitationAlreadyUsed");
+    expect(juanRows(w.store.members(space))).toHaveLength(1);
+  });
+
+  it("answers an expired invitation as expired even to the wrong address", async () => {
+    const w = await invited();
+    w.later(8 * DAY);
+    expect(codeOf(await w.accept({ token: "token-1", ...luis }))).toBe("InvitationExpired");
+    expect(w.store.members(space).map((m) => m.displayName)).toEqual(["Ana"]);
   });
 });
 
