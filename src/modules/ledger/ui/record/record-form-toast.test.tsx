@@ -59,9 +59,9 @@ const form = (api: Api, kind: RecordKind = "EXPENSE", extra: Partial<RecordFormP
   );
 const recorded = () => jsonResponse({ ...transactionDto({ id: "t-new" }), warnings: [] }, 201);
 const chooseGroceries = async () => {
-  await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
-  await userEvent.click(screen.getByRole("radio", { name: "Groceries" }));
-  await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
+  await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+  await userEvent.click(await screen.findByRole("radio", { name: "Groceries" }));
+  await userEvent.click(screen.getByRole("radio", { name: "Sin subcategoría" }));
 };
 const saved = (text: string) => waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(text));
 

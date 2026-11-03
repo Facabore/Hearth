@@ -321,34 +321,38 @@ describe("the edit form is the compact record form (#171)", () => {
     payments: [],
     shares: [],
   });
-  const rowNames = () =>
-    within(screen.getByRole("list", { name: "Detalles del movimiento" }))
+  // Ruling P291: the edit keeps its page and Volver header, with the record form's keypad, tiles and chips inside.
+  const chipNames = () =>
+    within(screen.getByRole("group", { name: "Detalles del movimiento" }))
       .getAllByRole("button")
-      .map((row) => {
-        expect(row).toHaveClass("min-h-12");
-        return row.firstElementChild?.nextElementSibling?.textContent;
+      .map((chip) => {
+        expect(chip).toHaveClass("min-h-11");
+        return chip.querySelector(".sr-only")?.textContent?.trim();
       });
-  const expectPhoneKeyboard = () => {
+  const expectPageWithKeypad = () => {
+    expect(screen.getByRole("heading", { level: 1, name: "Editar movimiento" })).toBeVisible();
+    expect(screen.queryByTestId("record-scrim")).toBeNull();
     const amount = screen.getByLabelText("Monto");
-    expect(amount).toHaveAttribute("inputmode", "decimal");
-    // The edit leaves the focus alone, so the keyboard comes up only when the person taps the amount.
+    expect(amount).toHaveAttribute("inputmode", "none");
+    // The edit leaves the focus alone.
     expect(amount).not.toHaveFocus();
     for (const key of ["0", "1", "9", "000", "Borrar"])
-      expect(screen.queryByRole("button", { name: key })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: key })).toBeInTheDocument();
   };
 
-  it("takes an expense's amount on the phone's keyboard, with no keypad, and its details as 48 px rows", async () => {
+  it("keeps an expense's page, with the keypad, its category tile and its chips", async () => {
     const { container } = renderForm(fakeApi({}).api);
-    expectPhoneKeyboard();
-    expect(rowNames()).toEqual(["Categoría", "Cuenta", "Fecha"]);
+    expectPageWithKeypad();
+    expect(chipNames()).toEqual(["Cuenta", expect.stringMatching(/^Fecha y hora: .* · 12:30\. Cambiar$/)]);
+    expect(screen.getByRole("button", { name: "Groceries", pressed: true })).toBeInTheDocument();
     expect(screen.getAllByRole("button").at(-1)).toHaveAccessibleName("Guardar cambios");
     expect(await axeViolations(container)).toEqual([]);
   });
 
-  it("does the same for an income, whose account row names where it was received", () => {
+  it("does the same for an income, whose account chip names where it was received", () => {
     renderForm(fakeApi({}).api, LIST, { tx: income });
-    expectPhoneKeyboard();
-    expect(rowNames()).toEqual(["Categoría", "Cuenta que recibe", "Fecha"]);
+    expectPageWithKeypad();
+    expect(chipNames()[0]).toBe("Cuenta que recibe");
     expect(screen.getAllByRole("button").at(-1)).toHaveAccessibleName("Guardar cambios");
   });
 
@@ -358,10 +362,10 @@ describe("the edit form is the compact record form (#171)", () => {
       shared: sharedTwo,
       space: householdSpace({ id: "s-1" }),
     });
-    expectPhoneKeyboard();
-    // Who paid replaces the account row (P168); the division sits under Más opciones (#171).
-    expect(rowNames()).toEqual(["Categoría", "Fecha"]);
-    expect(screen.getByRole("button", { name: /Pagas tú/ })).toBeVisible();
+    expectPageWithKeypad();
+    // Who paid replaces the account chip (P168); the division sits under Más opciones (#171).
+    expect(chipNames()).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /^Pagó / })).toBeVisible();
     expect(screen.getByRole("button", { name: /División/ })).toBeInTheDocument();
     expect(screen.getAllByRole("button").at(-1)).toHaveAccessibleName("Guardar cambios");
   });
@@ -511,9 +515,9 @@ describe("change a movement's type while editing it (issue #195)", () => {
     renderForm(api, LIST, { space: householdSpace(), tx: given, shared: household([fund]) });
     expect(screen.getByRole("tab", { name: "Transferencia" })).toHaveAttribute("aria-selected", "true");
     await userEvent.click(screen.getByRole("tab", { name: "Gasto" }));
-    await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
-    await userEvent.click(screen.getByRole("radio", { name: "Groceries" }));
-    await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
+    await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Groceries" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Sin subcategoría" }));
     await save();
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith(`${LIST}&tx=t-new`));
     expect(await requests[0]!.json()).toMatchObject({
@@ -560,9 +564,9 @@ describe("change a movement's type while editing it (issue #195)", () => {
     });
     renderForm(api, LIST, { space: householdSpace(), tx: given, shared: household([fund]) });
     await userEvent.click(screen.getByRole("tab", { name: "Gasto" }));
-    await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
-    await userEvent.click(screen.getByRole("radio", { name: "Groceries" }));
-    await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
+    await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Groceries" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Sin subcategoría" }));
     await save();
     await waitFor(() =>
       expect(router.replace).toHaveBeenCalledWith(

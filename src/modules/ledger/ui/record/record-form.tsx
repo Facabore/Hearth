@@ -15,13 +15,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { AccountPicker } from "@/modules/accounts/ui";
-import {
-  activeTree,
-  CategoryPicker,
-  categoryPath,
-  groupsForKind,
-  type CategoryChoice,
-} from "@/modules/categories/ui";
+import { activeTree, categoryPath, groupsForKind, type CategoryChoice } from "@/modules/categories/ui";
 import { Button, Icon, ProblemNotice, ScreenHeader, SymbolIcon } from "@/shared/ui";
 import { useToast } from "@/shared/ui/molecules/toast";
 import { browserApi, type Api } from "@/shared/ui/api/client";
@@ -47,8 +41,12 @@ import { categoryKeyOf, directBodyOf, type DirectChoice } from "../direct/direct
 import { initialSplitDraft, type SharedExpenseContext } from "../split/shared-context";
 import { SharedFields } from "../split/shared-fields";
 import { AmountField } from "./amount-field";
+import { CategoryTiles } from "./category-tiles";
 import { DiscardConfirm, type HoldNavigation } from "./discard-confirm";
-import { DescriptionField, FormRow, RowError } from "./form-rows";
+import { ClockIcon, FormChip } from "./form-chip";
+import { DescriptionField, RowError } from "./form-rows";
+import { Keypad } from "./keypad";
+import { RecordSheet } from "./record-sheet";
 import { LineWarningConfirm, LineWarningNote } from "./line-warning";
 import { preferredAccountId, readLastAccount, rememberLastAccount } from "./last-account";
 import { offeredRecent, parseRecent, rawRecent, rememberRecent, safeStorage } from "./recent-categories";
@@ -74,6 +72,10 @@ const SplitWithPersonSheet = dynamic(
   () => import("../direct/split-with-person-sheet").then((module) => module.SplitWithPersonSheet),
   { ssr: false },
 );
+/** Ruling P291: the category picker of board B1 · 03, in a chunk of its own that loads when it first opens. */
+const CategorySheet = dynamic(() => import("./category-sheet").then((module) => module.CategorySheet), {
+  ssr: false,
+});
 
 /** Recents change only when this form saves, and it reads them again on the next mount. */
 const noSubscription = () => () => undefined;
@@ -206,6 +208,7 @@ export function RecordForm({
 }: RecordFormProps) {
   const t = useTranslations("ledger");
   const errors = useTranslations("errors");
+  const spaceLabel = useTranslations("spaces.settings");
   const router = useRouter();
   const toast = useToast();
   // Issue #172: the save lands where the form was opened, so the toast offers the movement itself.
@@ -302,6 +305,8 @@ export function RecordForm({
   const [problem, setProblem] = useState<Problem | null>(null);
   const [direct, setDirect] = useState<DirectChoice | null>(null);
   const [directOpened, setDirectOpened] = useState(false);
+  // The picker brings the dialog's code with it, so it loads on the first tap, not with the form (ADR 0004).
+  const [pickerOpened, setPickerOpened] = useState(false);
   const [directOpen, setDirectOpen] = useState(false);
   const [keylessTried, setKeylessTried] = useState(false);
   // Issue #215: what the person entered or chose, against what the form opened with; leaving asks only while they
@@ -423,6 +428,11 @@ export function RecordForm({
     });
     if (fields.includes("category")) setKeylessTried(false);
   }, []);
+  // The keypad and the keyboard write the same amount.
+  const changeAmount = (next: string) => {
+    setAmount(next);
+    clear("amount");
+  };
   // The split and who paid share their rows: either one changing clears both, and the account an API problem names.
   const changeSplit = useCallback(
     (next: NonNullable<typeof split>) => {
@@ -507,7 +517,7 @@ export function RecordForm({
     setPending(false);
   };
 
-  const row = (
+  const chip = (
     field: RecordField,
     name: string,
     value: string | null,
@@ -515,33 +525,26 @@ export function RecordForm({
     placeholder: string,
     icon: ReactNode,
     fixed = false,
-  ): ReactNode => {
-    const error = errorOf(field);
-    return (
-      <li>
-        <FormRow
-          name={name}
-          value={value ?? placeholder}
-          icon={icon}
-          onClick={fixed ? undefined : () => setSheet(open)}
-          errorId={error ? `record-${field}-error` : undefined}
-        />
-        {error ? <RowError id={`record-${field}-error`}>{error}</RowError> : null}
-      </li>
-    );
-  };
+  ): ReactNode => (
+    <FormChip
+      name={name}
+      value={value ?? placeholder}
+      icon={icon}
+      onClick={fixed ? undefined : () => setSheet(open)}
+      errorId={errorOf(field) ? `record-${field}-error` : undefined}
+    />
+  );
   const accountLabel = t(
     kind === "TRANSFER" ? "form.from" : kind === "INCOME" ? "form.receivingAccount" : "form.account",
   );
   const accountIcon = <SymbolIcon name="wallet" size={16} />;
   const fixedAccounts = kind === "TRANSFER" && edit?.fixedAccounts === true;
-  const whenError = errorOf("when");
   const directName = direct ? (direct.kind === "MEMBER" ? direct.name : direct.displayName) : "";
 
   // Issue #171: Más opciones folds how a shared expense is split (who paid stays on screen). It starts open on an edit
   // that already has a split. While the division has a problem (the API's, or a chosen split that no longer adds up and
   // disables Save) it is open and offers no Menos opciones, so the problem cannot be folded away. U11 (#222): the split
-  // with someone is a row of the details instead, never folded; a person already chosen stays on screen.
+  // with someone is a row of its own instead, never folded; a person already chosen stays on screen.
   const foldsShared = Boolean(sharedExpense && shared && split);
   const foldsDirect = canSplit && !direct;
   const sharedError = errorOf("split") ?? errorOf("payer");
@@ -550,88 +553,120 @@ export function RecordForm({
     (sharedError !== undefined || Boolean(split?.chosen && !built.ok && built.field === "split"));
   const [moreOpen, setMoreOpen] = useState(Boolean(edit?.initial.split));
   if (divisionNeedsLook && !moreOpen) setMoreOpen(true);
+  const chipErrors = (["account", "toAccount", "when"] as const).flatMap((field) => {
+    const error = errorOf(field);
+    return error ? [{ field, error }] : [];
+  });
+  const backHref = edit?.backHref ?? safeReturnTo(returnTo) ?? `/spaces/${space.id}`;
+  const offeredGroups = kind === "TRANSFER" ? [] : groupsForKind(live, kind);
+  const currency = currencyOf(space.currency);
 
-  return (
-    <div className="flex flex-col gap-3 py-3">
-      <ScreenHeader
-        backHref={edit?.backHref ?? safeReturnTo(returnTo) ?? `/spaces/${space.id}`}
-        title={edit ? t("edit.title") : t("form.title")}
-      />
-      <form
-        ref={formRef}
-        data-ready={client ? "true" : undefined}
-        onSubmit={(event) => void submit(event)}
-        noValidate
-        className="flex flex-col gap-3"
-      >
-        <div>
-          {kindTabs ? (
-            <KindTabs
-              label={t("form.kind")}
-              value={kind}
-              onChange={changeKind}
-              labelOf={(k) => t(`type.${k}`)}
-              {...(edit?.kinds ? { kinds: edit.kinds } : {})}
-            />
-          ) : (
-            <p className="text-sm text-muted">{t("edit.kind", { type: t(`type.${kind}`) })}</p>
-          )}
-          {edit && kind !== edit.initial.kind ? (
-            <p className="mt-2 text-sm text-muted">{t("edit.convertNote", { type: t(`type.${kind}`) })}</p>
-          ) : null}
-          <div
-            id={KIND_PANEL}
-            role={kindTabs ? "tabpanel" : undefined}
-            aria-labelledby={kindTabs ? kindTabId(kind) : undefined}
-            className="mt-3 flex flex-col gap-3"
-            tabIndex={-1}
-          >
-            <AmountField
-              value={amount}
-              onChange={(next) => {
-                setAmount(next);
-                clear("amount");
+  const content = (
+    <form
+      ref={formRef}
+      data-ready={client ? "true" : undefined}
+      onSubmit={(event) => void submit(event)}
+      noValidate
+      className="flex flex-col gap-3"
+    >
+      <div>
+        {kindTabs ? (
+          <KindTabs
+            label={t("form.kind")}
+            value={kind}
+            onChange={changeKind}
+            labelOf={(k) => t(`type.${k}`)}
+            {...(edit?.kinds ? { kinds: edit.kinds } : {})}
+          />
+        ) : (
+          <p className="text-sm text-muted">{t("edit.kind", { type: t(`type.${kind}`) })}</p>
+        )}
+        {edit && kind !== edit.initial.kind ? (
+          <p className="mt-2 text-sm text-muted">{t("edit.convertNote", { type: t(`type.${kind}`) })}</p>
+        ) : null}
+        {/* Ruling P291, board B1 · 01's order: amount, description, category, the split, the chips, the keypad. */}
+        <div
+          id={KIND_PANEL}
+          role={kindTabs ? "tabpanel" : undefined}
+          aria-labelledby={kindTabs ? kindTabId(kind) : undefined}
+          className="mt-3 flex flex-col gap-3"
+          tabIndex={-1}
+        >
+          <AmountField
+            value={amount}
+            onChange={changeAmount}
+            symbol={currency.symbol}
+            numberFormat={formats.numberFormat}
+            exponent={currency.exponent}
+            error={errorOf("amount")}
+            autoFocus={!edit}
+          />
+          <DescriptionField
+            value={description}
+            onChange={(next) => {
+              setDescription(next);
+              clear("description");
+            }}
+            label={t("form.description")}
+            placeholder={t("form.descriptionPlaceholder")}
+            error={errorOf("description")}
+          />
+          {kind === "TRANSFER" ? null : (
+            <CategoryTiles
+              groups={groups}
+              offered={offeredGroups}
+              recent={offered}
+              value={category}
+              onChoose={(choice) => {
+                setCategory(choice);
+                clear("category");
               }}
-              symbol={currencyOf(space.currency).symbol}
-              numberFormat={formats.numberFormat}
-              exponent={currencyOf(space.currency).exponent}
-              error={errorOf("amount")}
-              autoFocus={!edit}
+              onMore={() => {
+                setPickerOpened(true);
+                setSheet("category");
+              }}
+              error={errorOf("category")}
             />
-            <ul
-              aria-label={t("form.details")}
-              className="divide-y divide-line overflow-hidden rounded-2xl bg-surface"
+          )}
+          {/* U11 (#222): under the category, the way to split the expense with someone; a chosen person replaces it. */}
+          {foldsDirect ? (
+            <button
+              type="button"
+              aria-label={t("direct.row")}
+              onClick={() => {
+                setDirectOpened(true);
+                setDirectOpen(true);
+              }}
+              className="flex min-h-12 items-center gap-3 rounded-xl border border-field bg-surface px-3 text-left text-[15px] text-ink"
             >
-              {kind === "TRANSFER"
-                ? null
-                : row(
-                    "category",
-                    t("form.category"),
-                    // The whole tree names it: an edited record may use a category archived since (the picker hides those).
-                    category ? categoryPath(groups, category.subcategoryId ?? category.categoryId) : null,
-                    "category",
-                    t("form.chooseCategory"),
-                    <SymbolIcon name="tag" size={16} />,
-                  )}
-              {/* U11 (#222): under the category, the way to split the expense with someone; a chosen person replaces it. */}
-              {foldsDirect ? (
-                <li>
-                  <FormRow
-                    name={t("direct.shared")}
-                    value={t("direct.open")}
-                    icon={<Icon name="userPlus" size={16} />}
-                    ariaLabel={t("direct.row")}
-                    onClick={() => {
-                      setDirectOpened(true);
-                      setDirectOpen(true);
-                    }}
-                  />
-                </li>
-              ) : null}
+              <Icon name="userPlus" size={20} className="shrink-0 text-accent" />
+              <span className="min-w-0 flex-1">
+                {t("direct.shared")} <span className="font-medium text-accent">{t("direct.open")}</span>
+              </span>
+              <Icon name="chevronRight" size={20} className="shrink-0 text-muted" />
+            </button>
+          ) : null}
+          {canSplit && direct ? (
+            <div className="flex items-center justify-between gap-2 rounded-xl bg-accent-soft px-4">
+              <span className="min-w-0 py-2 font-medium break-words text-accent">
+                {t("direct.with", { name: directName })}
+              </span>
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label={t("direct.remove", { name: directName })}
+                onClick={() => setDirect(null)}
+              >
+                <Icon name="close" />
+              </Button>
+            </div>
+          ) : null}
+          <div className="flex flex-col gap-1">
+            <div role="group" aria-label={t("form.details")} className="flex flex-wrap gap-2">
               {/* A shared expense names who paid instead of one account, in its own row below (P168). */}
               {foldsShared
                 ? null
-                : row(
+                : chip(
                     "account",
                     accountLabel,
                     nameOf(accountId),
@@ -641,7 +676,7 @@ export function RecordForm({
                     fixedAccounts,
                   )}
               {kind === "TRANSFER"
-                ? row(
+                ? chip(
                     "toAccount",
                     t("form.to"),
                     nameOf(toAccountId),
@@ -651,208 +686,182 @@ export function RecordForm({
                     fixedAccounts,
                   )
                 : null}
-              <li>
-                <FormRow
-                  name={t("form.date")}
-                  value={label}
-                  icon={<Icon name="calendar" size={16} />}
-                  testId="when-chip"
-                  ariaLabel={t("form.when", { label })}
-                  errorId={whenError ? "record-when-error" : undefined}
-                  onClick={() => {
-                    setSheetNow(nowIn(new Date(), zone));
-                    setSheet("when");
-                  }}
-                />
-                {whenError ? <RowError id="record-when-error">{whenError}</RowError> : null}
-              </li>
-            </ul>
-            {kind !== "TRANSFER" && offered.length > 0 ? (
-              <div className="flex flex-col gap-2">
-                <p id="record-recent" className="text-sm text-muted">
-                  {t("form.recent")}
-                </p>
-                <div role="group" aria-labelledby="record-recent" className="flex flex-wrap gap-2">
-                  {offered.map((r) => {
-                    const id = r.subcategoryId ?? r.categoryId;
-                    const chosen =
-                      category?.categoryId === r.categoryId &&
-                      (category.subcategoryId ?? null) === r.subcategoryId;
-                    return (
-                      <button
-                        key={id}
-                        type="button"
-                        aria-pressed={chosen}
-                        onClick={() => {
-                          setCategory({ categoryId: r.categoryId, subcategoryId: r.subcategoryId });
-                          clear("category");
-                        }}
-                        className="min-h-11 rounded-full border border-line px-4 text-sm font-medium text-ink aria-pressed:border-accent aria-pressed:bg-accent-soft"
-                      >
-                        {categoryPath(groups, id)}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
-            <DescriptionField
-              value={description}
-              onChange={(next) => {
-                setDescription(next);
-                clear("description");
-              }}
-              label={t("form.description")}
-              placeholder={t("form.descriptionPlaceholder")}
-              error={errorOf("description")}
-            />
-            {foldsShared ? (
-              <div className="flex flex-col gap-3">
-                {/* Who paid stays on screen; only the division row folds (issue #171). Never unmounted (P167). */}
-                {shared && split ? (
-                  <SharedFields
-                    context={shared}
-                    draft={split}
-                    onChange={changeSplit}
-                    amount={positiveMinor}
-                    currency={space.currency}
-                    formats={formats}
-                    title={sharedTitle}
-                    spaceId={space.id}
-                    categoryId={category ? (category.subcategoryId ?? category.categoryId) : null}
-                    date={when.date}
-                    api={api}
-                    error={sharedError}
-                    defaultSplit={!edit}
-                    splitHidden={!moreOpen}
-                    splitId="record-more-split"
-                  />
-                ) : null}
-                {divisionNeedsLook ? null : (
-                  <button
-                    type="button"
-                    aria-expanded={moreOpen}
-                    aria-controls="record-more-split"
-                    onClick={() => setMoreOpen((open) => !open)}
-                    className="flex min-h-11 items-center gap-1 self-start rounded-lg px-1 text-sm font-medium text-accent"
-                  >
-                    {moreOpen ? t("form.fewerOptions") : t("form.moreOptions")}
-                    <Icon
-                      name="chevronDown"
-                      size={18}
-                      className={moreOpen ? "rotate-180 transition-transform" : "transition-transform"}
-                    />
-                  </button>
-                )}
-              </div>
-            ) : null}
-            {canSplit && direct ? (
-              <div className="flex items-center justify-between gap-2 rounded-xl bg-accent-soft px-4">
-                <span className="min-w-0 py-2 font-medium break-words text-accent">
-                  {t("direct.with", { name: directName })}
-                </span>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  aria-label={t("direct.remove", { name: directName })}
-                  onClick={() => setDirect(null)}
-                >
-                  <Icon name="close" />
-                </Button>
-              </div>
-            ) : null}
+              <FormChip
+                name={t("form.when", { label })}
+                value={label}
+                icon={<ClockIcon />}
+                testId="when-chip"
+                ariaLabel={t("form.when", { label })}
+                errorId={errorOf("when") ? "record-when-error" : undefined}
+                onClick={() => {
+                  setSheetNow(nowIn(new Date(), zone));
+                  setSheet("when");
+                }}
+              />
+              <FormChip name={spaceLabel("title")} value={space.name} icon={<Icon name="home" size={16} />} />
+            </div>
+            {chipErrors.map(({ field, error }) => (
+              <RowError key={field} id={`record-${field}-error`}>
+                {error}
+              </RowError>
+            ))}
           </div>
+          {foldsShared ? (
+            <div className="flex flex-col gap-1">
+              {/* Who paid stays on screen; only the division row folds (issue #171). Never unmounted (P167). */}
+              {shared && split ? (
+                <SharedFields
+                  context={shared}
+                  draft={split}
+                  onChange={changeSplit}
+                  amount={positiveMinor}
+                  currency={space.currency}
+                  formats={formats}
+                  title={sharedTitle}
+                  spaceId={space.id}
+                  categoryId={category ? (category.subcategoryId ?? category.categoryId) : null}
+                  date={when.date}
+                  api={api}
+                  error={sharedError}
+                  defaultSplit={!edit}
+                  splitHidden={!moreOpen}
+                  splitId="record-more-split"
+                />
+              ) : null}
+              {divisionNeedsLook ? null : (
+                <button
+                  type="button"
+                  aria-expanded={moreOpen}
+                  aria-controls="record-more-split"
+                  onClick={() => setMoreOpen((open) => !open)}
+                  className="flex min-h-11 items-center gap-1 self-start rounded-lg px-1 text-sm font-medium text-accent"
+                >
+                  {moreOpen ? t("form.fewerOptions") : t("form.moreOptions")}
+                  <Icon
+                    name="chevronDown"
+                    size={18}
+                    className={moreOpen ? "rotate-180 transition-transform" : "transition-transform"}
+                  />
+                </button>
+              )}
+            </div>
+          ) : null}
         </div>
-        {asking && warning ? (
-          <LineWarningConfirm
-            warning={warning}
-            formats={formats}
-            onConfirm={() => {
-              confirmedFor.current = asked;
-              setAskingFor(null);
-              formRef.current?.requestSubmit();
-            }}
-            onReview={() => {
-              setAskingFor(null);
-              document.getElementById("record-amount")?.focus();
-            }}
+      </div>
+      {asking && warning ? (
+        <LineWarningConfirm
+          warning={warning}
+          formats={formats}
+          onConfirm={() => {
+            confirmedFor.current = asked;
+            setAskingFor(null);
+            formRef.current?.requestSubmit();
+          }}
+          onReview={() => {
+            setAskingFor(null);
+            document.getElementById("record-amount")?.focus();
+          }}
+        />
+      ) : warning ? (
+        <LineWarningNote warning={warning} formats={formats} />
+      ) : null}
+      {problem && where === "form" ? <ProblemNotice problem={problem} /> : null}
+      {problem && where === "form" && edit?.problemAction ? edit.problemAction(problem) : null}
+      {/* While asking, the panel's two buttons replace the keypad and Save, so the last control stays in view (17c). */}
+      {asking ? null : (
+        <>
+          <Keypad
+            value={amount}
+            onChange={changeAmount}
+            numberFormat={formats.numberFormat}
+            exponent={currency.exponent}
+            // Pesos are typed whole (their shares round to whole pesos, P183): 000, not a point.
+            point={currency.roundingUnit < 10n ** BigInt(currency.exponent)}
           />
-        ) : warning ? (
-          <LineWarningNote warning={warning} formats={formats} />
-        ) : null}
-        {problem && where === "form" ? <ProblemNotice problem={problem} /> : null}
-        {problem && where === "form" && edit?.problemAction ? edit.problemAction(problem) : null}
-        {/* While asking, the panel's two buttons replace Save, so the last control stays above the bar (17c). */}
-        {asking ? null : (
           <Button
             type="submit"
-            size="md"
+            size="lg"
             className="w-full"
             disabled={pending || (!built.ok && built.field === "split")}
             aria-describedby={warning ? "record-line-warning" : undefined}
           >
             {edit ? t("edit.save") : t(`form.save.${splitting ? "DIRECT" : kind}`)}
           </Button>
-        )}
-        {directOpened && people ? (
-          <SplitWithPersonSheet
-            open={directOpen}
-            onOpenChange={setDirectOpen}
-            people={people}
-            currency={space.currency}
-            spaceName={space.name}
-            onChoose={setDirect}
-          />
-        ) : null}
-        <CategoryPicker
+        </>
+      )}
+      {directOpened && people ? (
+        <SplitWithPersonSheet
+          open={directOpen}
+          onOpenChange={setDirectOpen}
+          people={people}
+          currency={space.currency}
+          spaceName={space.name}
+          onChoose={setDirect}
+        />
+      ) : null}
+      {kind === "TRANSFER" || !pickerOpened ? null : (
+        <CategorySheet
           open={sheet === "category"}
           onOpenChange={(open) => setSheet(open ? "category" : null)}
-          groups={groupsForKind(live, kind === "INCOME" ? "INCOME" : "EXPENSE")}
+          groups={offeredGroups}
           value={category}
+          recent={offered}
           onChoose={(choice) => {
             setCategory(choice);
             clear("category");
           }}
         />
-        <AccountPicker
-          open={sheet === "account"}
-          onOpenChange={(open) => setSheet(open ? "account" : null)}
-          accounts={fromAccounts}
-          newAccountHref={newAccountHref}
-          value={accountId}
-          onChoose={(id) => {
-            setAccountId(id);
-            if (id === toAccountId) setToAccountId(null);
-            clear("account", "toAccount");
-          }}
-          label={accountLabel}
-        />
-        <AccountPicker
-          open={sheet === "toAccount"}
-          onOpenChange={(open) => setSheet(open ? "toAccount" : null)}
-          accounts={toAccounts.filter((a) => a.id !== accountId)}
-          newAccountHref={newAccountHref}
-          value={toAccountId}
-          onChoose={(id) => {
-            setToAccountId(id);
-            clear("toAccount");
-          }}
-          label={t("form.to")}
-        />
-        {answer ? <DiscardConfirm kind={kind} answer={answer} /> : null}
-        <DateTimeSheet
-          open={sheet === "when"}
-          onOpenChange={(open) => setSheet(open ? "when" : null)}
-          value={when}
-          now={sheetNow}
-          today={today}
-          formats={formats}
-          onApply={(next) => {
-            setChosenWhen(next);
-            clear("when");
-          }}
-        />
-      </form>
+      )}
+      <AccountPicker
+        open={sheet === "account"}
+        onOpenChange={(open) => setSheet(open ? "account" : null)}
+        accounts={fromAccounts}
+        newAccountHref={newAccountHref}
+        value={accountId}
+        onChoose={(id) => {
+          setAccountId(id);
+          if (id === toAccountId) setToAccountId(null);
+          clear("account", "toAccount");
+        }}
+        label={accountLabel}
+      />
+      <AccountPicker
+        open={sheet === "toAccount"}
+        onOpenChange={(open) => setSheet(open ? "toAccount" : null)}
+        accounts={toAccounts.filter((a) => a.id !== accountId)}
+        newAccountHref={newAccountHref}
+        value={toAccountId}
+        onChoose={(id) => {
+          setToAccountId(id);
+          clear("toAccount");
+        }}
+        label={t("form.to")}
+      />
+      {answer ? <DiscardConfirm kind={kind} answer={answer} /> : null}
+      <DateTimeSheet
+        open={sheet === "when"}
+        onOpenChange={(open) => setSheet(open ? "when" : null)}
+        value={when}
+        now={sheetNow}
+        today={today}
+        formats={formats}
+        onApply={(next) => {
+          setChosenWhen(next);
+          clear("when");
+        }}
+      />
+    </form>
+  );
+
+  // Ruling P291: a new record is a sheet over the screen it was opened from; an edit stays a page (P191).
+  return edit ? (
+    <div className="flex flex-col gap-3 py-3">
+      <ScreenHeader backHref={backHref} title={t("edit.title")} />
+      {content}
     </div>
+  ) : (
+    <RecordSheet backHref={backHref} title={t("form.title")}>
+      {content}
+    </RecordSheet>
   );
 }

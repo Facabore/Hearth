@@ -101,7 +101,7 @@ const planSearch = (search: Record<string, unknown>) => ({
 /**
  * Ruling P272: a stacked screen, drawn by its board with only its back header: the shell shows no space switcher and
  * no bottom navigation around it. The tab destinations (Inicio, Movimientos, the Plan views, Saldos) leave it out, and
- * so do the record and edit forms for now.
+ * so does the edit form for now. The record form is one too, drawn as a sheet with its own scrim (ruling P291).
  */
 const stackedScreen = { stacked: true } as const;
 
@@ -154,10 +154,11 @@ const transactionsRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/transactions"), "TransactionsScreen"),
 });
 
-/** HU-E9-03: the record form, `?type=` and `?returnTo=` (#172). */
+/** HU-E9-03: the record form, `?type=` and `?returnTo=` (#172); a sheet over a stacked shell (P291). */
 const recordRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "new",
+  staticData: stackedScreen,
   validateSearch: (search: Record<string, unknown>) => ({
     type: textParam(search.type),
     returnTo: textParam(search.returnTo),

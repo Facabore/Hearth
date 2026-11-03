@@ -58,9 +58,9 @@ const form = (api: Api, extra: Partial<RecordFormProps> = {}) =>
 const created = (spaceId: string, made = false) =>
   jsonResponse({ spaceId, created: made, expense: { ...transactionDto({ id: "t-1" }), warnings: [] } }, 201);
 const chooseGroceries = async () => {
-  await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
-  await userEvent.click(screen.getByRole("radio", { name: "Groceries" }));
-  await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
+  await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+  await userEvent.click(await screen.findByRole("radio", { name: "Groceries" }));
+  await userEvent.click(screen.getByRole("radio", { name: "Sin subcategoría" }));
 };
 // U11 (#222): the split with someone is a row of the details, under the category.
 const SPLIT_ROW = "¿Lo compartiste? Dividir con alguien";
@@ -76,17 +76,18 @@ const splitWith = async (name: string) => {
 };
 
 describe("the split with someone is a row under the category (U11, #222)", () => {
-  it("shows ¿Lo compartiste? Dividir con alguien in the details, with nothing to unfold first", async () => {
+  it("shows ¿Lo compartiste? Dividir con alguien as its own outlined row, with nothing to unfold first (P291)", async () => {
     const { container } = form(fakeApi({}).api);
-    const rows = within(screen.getByRole("list", { name: "Detalles del movimiento" })).getAllByRole("button");
-    expect(rows[0]).toHaveAccessibleName(/^Categoría/);
-    expect(rows[1]).toHaveAccessibleName("¿Lo compartiste? Dividir con alguien");
-    expect(rows[1]).toBeVisible();
-    expect(rows[1]).toHaveTextContent("¿Lo compartiste?Dividir con alguien");
+    const row = screen.getByRole("button", { name: "¿Lo compartiste? Dividir con alguien" });
+    const tiles = screen.getByRole("group", { name: "Categoría" });
+    expect(tiles.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(row).toBeVisible();
+    expect(row).toHaveClass("border");
+    expect(row).toHaveTextContent("¿Lo compartiste? Dividir con alguien");
     expect(screen.queryByRole("button", { name: /^(Más|Menos) opciones$/ })).not.toBeInTheDocument();
     expect(await axeViolations(container)).toEqual([]);
 
-    await userEvent.click(rows[1]!);
+    await userEvent.click(row);
     expect(await screen.findByRole("dialog", { name: "Dividir con alguien" })).toBeInTheDocument();
   });
 
@@ -162,11 +163,11 @@ describe("split with someone from Personal (HU-E9-06, ruling P172)", () => {
   it("names the personal space by its own name, renamed or not (#170)", async () => {
     form(fakeApi({}).api, { space: spaceDto({ name: "Mis finanzas" }) });
     await userEvent.type(screen.getByLabelText("Monto"), "50000");
-    await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
-    await userEvent.click(screen.getByRole("radio", { name: "Mine" }));
+    await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Mine" }));
     await splitWith("Luis");
     await userEvent.click(screen.getByRole("button", { name: "Guardar y dividir" }));
-    expect(screen.getByRole("button", { name: /Categoría/ })).toHaveAccessibleDescription(
+    expect(screen.getByRole("group", { name: "Categoría" })).toHaveAccessibleDescription(
       "Esta categoría es solo de tu espacio Mis finanzas. Elige una categoría predeterminada para dividir el gasto.",
     );
   });
@@ -175,18 +176,18 @@ describe("split with someone from Personal (HU-E9-06, ruling P172)", () => {
     const { api, requests } = fakeApi({});
     form(api);
     await userEvent.type(screen.getByLabelText("Monto"), "50000");
-    await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
-    await userEvent.click(screen.getByRole("radio", { name: "Mine" }));
+    await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Mine" }));
     await splitWith("Luis");
     await userEvent.click(screen.getByRole("button", { name: "Guardar y dividir" }));
-    expect(screen.getByRole("button", { name: /Categoría/ })).toHaveAccessibleDescription(
+    expect(screen.getByRole("group", { name: "Categoría" })).toHaveAccessibleDescription(
       "Esta categoría es solo de tu espacio Personal. Elige una categoría predeterminada para dividir el gasto.",
     );
     expect(requests).toHaveLength(0);
     await userEvent.click(screen.getByRole("button", { name: "Quitar la división con Luis" }));
     expect(screen.getByRole("button", { name: "Guardar gasto" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: SPLIT_ROW })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Categoría/ })).not.toHaveAccessibleDescription(/Personal/);
+    expect(screen.getByRole("group", { name: "Categoría" })).not.toHaveAccessibleDescription(/Personal/);
   });
 
   it("asks for a category instead of blaming a missing one on the catalog", async () => {
@@ -195,7 +196,7 @@ describe("split with someone from Personal (HU-E9-06, ruling P172)", () => {
     await userEvent.type(screen.getByLabelText("Monto"), "50000");
     await splitWith("Luis");
     await userEvent.click(screen.getByRole("button", { name: "Guardar y dividir" }));
-    expect(screen.getByRole("button", { name: /Categoría/ })).toHaveAccessibleDescription(
+    expect(screen.getByRole("group", { name: "Categoría" })).toHaveAccessibleDescription(
       "Elige una categoría.",
     );
     expect(requests).toHaveLength(0);
@@ -207,7 +208,7 @@ describe("split with someone from Personal (HU-E9-06, ruling P172)", () => {
     await userEvent.type(screen.getByLabelText("Monto"), "50000");
     await splitWith("Luis");
     await userEvent.click(screen.getByRole("button", { name: "Guardar y dividir" }));
-    expect(screen.getByRole("button", { name: /Categoría/ })).toHaveAccessibleDescription(
+    expect(screen.getByRole("group", { name: "Categoría" })).toHaveAccessibleDescription(
       "Elige una categoría.",
     );
     await chooseGroceries();
@@ -220,8 +221,8 @@ describe("split with someone from Personal (HU-E9-06, ruling P172)", () => {
     await userEvent.type(screen.getByLabelText("Monto"), "50000");
     await splitWith("Luis");
     await userEvent.click(screen.getByRole("button", { name: "Guardar y dividir" }));
-    await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
-    await userEvent.click(screen.getByRole("radio", { name: "Mine" }));
+    await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Mine" }));
     expect(screen.queryByText(/solo de tu espacio Personal/)).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Guardar y dividir" }));
     expect(screen.getByText(/solo de tu espacio Personal/)).toBeInTheDocument();

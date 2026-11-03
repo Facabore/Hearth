@@ -1,64 +1,7 @@
 import type { ReactNode } from "react";
 import { Icon } from "@/shared/ui";
 
-/**
- * Issue #171, the Main artboard: a 48 px row of the record form's details card. A 28 px tinted icon, the label in a
- * 72 px column on the left, the value, and a chevron; the card's dividers sit between the rows.
- */
-export function FormRow({
-  name,
-  value,
-  icon,
-  onClick,
-  errorId,
-  ariaLabel,
-  testId,
-}: {
-  readonly name: string;
-  readonly value: string;
-  readonly icon: ReactNode;
-  /** Without it the row only shows its value: a part the movement cannot change (P188). */
-  readonly onClick?: (() => void) | undefined;
-  readonly errorId?: string | undefined;
-  /** A name that says more than the label and the value read together (the date's "Cambiar"). */
-  readonly ariaLabel?: string;
-  readonly testId?: string;
-}) {
-  const content = (
-    <>
-      <span
-        aria-hidden="true"
-        className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent"
-      >
-        {icon}
-      </span>
-      <span className="w-[72px] shrink-0 text-[13px] leading-tight text-muted">{name}</span>
-      <span className="min-w-0 flex-1 text-[15px] font-medium break-words text-ink">{value}</span>
-    </>
-  );
-  const box = "flex min-h-12 w-full items-center gap-3 px-3 py-1 text-left";
-  if (!onClick)
-    return (
-      <div aria-describedby={errorId} data-testid={testId} className={box}>
-        {content}
-      </div>
-    );
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={ariaLabel}
-      aria-describedby={errorId}
-      data-testid={testId}
-      className={box}
-    >
-      {content}
-      <Icon name="chevronRight" size={20} className="shrink-0 text-muted" />
-    </button>
-  );
-}
-
-/** A row's error, under it inside the card, read as the row's description. */
+/** A field's error, read as its description. */
 export function RowError({ id, children }: { readonly id: string; readonly children: ReactNode }) {
   return (
     <p id={id} className="flex items-center gap-1.5 px-3 pb-2 text-sm text-danger">

@@ -88,7 +88,8 @@ describe("record form in edit mode (ruling P191)", () => {
     expect(screen.getByText("Tipo: Gasto")).toBeInTheDocument();
     expect(screen.getByLabelText("Monto")).toHaveValue("85.000");
     expect(screen.getByLabelText("Descripción")).toHaveValue("Market");
-    expect(screen.getByRole("button", { name: /Categoría/ })).toHaveTextContent("Groceries › Vegetables");
+    expect(screen.getByRole("button", { name: "Groceries", pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Vegetables", pressed: true })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Cuenta/ })).toHaveTextContent("Bancolombia");
     expect(screen.getByTestId("when-chip")).toHaveTextContent("20/10/2026 · 12:30");
     expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute(
@@ -160,7 +161,8 @@ describe("record form in edit mode (ruling P191)", () => {
         edit={value}
       />,
     );
-    expect(screen.getByRole("button", { name: /Categoría/ })).toHaveTextContent("Gym");
+    // The archived category keeps its tile, named from the whole tree.
+    expect(screen.getByRole("button", { name: "Gym", pressed: true })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
     expect(value.onSave).toHaveBeenCalledWith(
       { kind: "EXPENSE", body: expect.objectContaining({ categoryId: "c-old" }) },
@@ -273,7 +275,7 @@ describe("a shared expense in edit mode (ruling P192)", () => {
       />,
     );
     expect(screen.getByRole("button", { name: /Pagas tú|Pagó/ })).toHaveTextContent(
-      "Pagas tú desde Bancolombia (tu cuenta personal)",
+      "Pagó Ana desde Bancolombia",
     );
     expect(screen.getByRole("button", { name: /División/ })).toHaveTextContent(/Con Ana y Juan/);
     // The plan's split is asked 250 ms after the category last changed; in an edit it is never asked.

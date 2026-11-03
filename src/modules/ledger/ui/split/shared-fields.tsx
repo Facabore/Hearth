@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { memberLabel } from "@/modules/spaces/ui";
 import { Icon } from "@/shared/ui";
 import type { Api } from "@/shared/ui/api/client";
@@ -124,15 +124,17 @@ export function SharedFields({
   const { payer } = draft;
   const account =
     payer.kind === "ME" ? context.myAccounts.find((a) => a.id === payer.accountId)?.name : undefined;
+  // Ruling P291 (board E9-06 · 01): "Pagó Ana desde Bancolombia", the verb in bold, the recorder named too.
+  const b = (chunks: ReactNode) => <strong className="font-semibold">{chunks}</strong>;
   const paid =
     payer.kind === "FUND"
-      ? t("paidBy", { payer: context.funds.find((f) => f.id === payer.accountId)?.name ?? "" })
+      ? t.rich("paidBy", { b, payer: context.funds.find((f) => f.id === payer.accountId)?.name ?? "" })
       : payer.kind === "GUEST"
-        ? t("paidBy", { payer: label(payer.memberId) })
+        ? t.rich("paidBy", { b, payer: label(payer.memberId) })
         : account
           ? // A shared space holds only funds: a member pays from a personal account of their own (S7).
-            t("paidFromMine", { account })
-          : t("paidBy", { payer: label(payer.memberId) });
+            t.rich("paidFrom", { b, payer: nameOf(payer.memberId), account })
+          : t.rich("paidBy", { b, payer: label(payer.memberId) });
 
   const show = () => {
     setOpened(true);
@@ -143,7 +145,7 @@ export function SharedFields({
     <>
       <div className="flex flex-col gap-3">
         <button type="button" onClick={show} className={rowClass}>
-          <span className="font-medium text-ink">{paid}</span>
+          <span className="text-[15px] text-ink">{paid}</span>
           <Icon name="chevronRight" size={20} />
         </button>
         <div id={splitId} hidden={splitHidden} className="flex flex-col gap-1">

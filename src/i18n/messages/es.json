@@ -482,7 +482,6 @@
       "from": "Desde",
       "to": "Hacia",
       "chooseAccount": "Elegir cuenta",
-      "date": "Fecha",
       "when": "Fecha y hora: {label}. Cambiar",
       "moreOptions": "Más opciones",
       "fewerOptions": "Menos opciones",
@@ -541,8 +540,8 @@
       },
       "incomplete": "Escribe el valor de cada persona.",
       "done": "Listo",
-      "paidBy": "Pagó {payer}",
-      "paidFromMine": "Pagas tú desde {account} (tu cuenta personal)",
+      "paidBy": "<b>Pagó</b> {payer}",
+      "paidFrom": "<b>Pagó</b> {payer} desde {account}",
       "split": "División",
       "line": "{who} · {how}",
       "with": {

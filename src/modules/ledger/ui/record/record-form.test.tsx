@@ -56,8 +56,8 @@ const recorded = () => jsonResponse(transactionDto({ id: "t-new" }), 201);
 const enterMarket = async () => {
   await userEvent.type(screen.getByLabelText("Monto"), "85000");
   await userEvent.type(screen.getByLabelText("Descripción"), "Market");
-  await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
-  await userEvent.click(screen.getByRole("radio", { name: "Groceries" }));
+  await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+  await userEvent.click(await screen.findByRole("radio", { name: "Groceries" }));
 };
 
 describe("the account picker can create an account and come back (N7)", () => {
@@ -134,8 +134,8 @@ describe("the category sheet offers only the movement's own categories (issue #1
         api={fakeApi({}).api}
       />,
     );
-    await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
-    return screen.getByRole("dialog");
+    await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+    return screen.findByRole("dialog");
   };
 
   it("an expense lists Groceries but not Salario", async () => {
@@ -147,9 +147,10 @@ describe("the category sheet offers only the movement's own categories (issue #1
   it("drops a category the new kind does not offer when the kind changes", async () => {
     const dialog = await sheet("INCOME");
     await userEvent.click(within(dialog).getByRole("radio", { name: "Salario" }));
-    expect(screen.getByRole("button", { name: /Categoría/ })).toHaveTextContent("Salario");
+    expect(screen.getByRole("button", { name: "Salario", pressed: true })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("tab", { name: "Gasto" }));
-    expect(screen.getByRole("button", { name: /Categoría/ })).not.toHaveTextContent("Salario");
+    expect(screen.queryByRole("button", { name: "Salario" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Groceries", pressed: false })).toBeInTheDocument();
   });
 
   it("an income lists Salario but not Groceries", async () => {
@@ -159,7 +160,7 @@ describe("the category sheet offers only the movement's own categories (issue #1
   });
 });
 
-describe("recent categories as chips (issue #173)", () => {
+describe("recent categories as tiles (issue #173, ruling P291)", () => {
   const key = `hearth.recentCategories.${spaceDto().id}.EXPENSE`;
   afterEach(() => localStorage.clear());
 
@@ -167,9 +168,9 @@ describe("recent categories as chips (issue #173)", () => {
     localStorage.setItem(key, JSON.stringify([{ categoryId: "c-groceries", subcategoryId: "c-veg" }]));
     const { api } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
     form(api);
-    const recent = await screen.findByRole("group", { name: "Recientes" });
-    await userEvent.click(within(recent).getByRole("button", { name: "Groceries › Vegetables" }));
-    expect(screen.getByRole("button", { name: /Categoría/ })).toHaveTextContent("Groceries › Vegetables");
+    await userEvent.click(screen.getByRole("button", { name: "Groceries" }));
+    // The tile brings back the subcategory used with it last.
+    expect(screen.getByRole("button", { name: "Vegetables", pressed: true })).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Monto"), "85000");
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     await waitFor(() => expect(router.replace).toHaveBeenCalled());
@@ -186,9 +187,9 @@ describe("recent categories as chips (issue #173)", () => {
       const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
       form(api);
       await userEvent.type(screen.getByLabelText("Monto"), "85000");
-      await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
-      await userEvent.click(screen.getByRole("radio", { name: "Groceries" }));
-      await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
+      await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+      await userEvent.click(await screen.findByRole("radio", { name: "Groceries" }));
+      await userEvent.click(screen.getByRole("radio", { name: "Sin subcategoría" }));
       await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
       await waitFor(() => expect(router.replace).toHaveBeenCalled());
       expect(requests).toHaveLength(1);
@@ -198,9 +199,21 @@ describe("recent categories as chips (issue #173)", () => {
     }
   });
 
-  it("offers none without recents", () => {
+  it("lists the recents in the picker, and none without them", async () => {
+    const first = form(fakeApi({}).api);
+    await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+    expect(
+      within(await screen.findByRole("dialog")).queryByRole("heading", { name: "Recientes" }),
+    ).toBeNull();
+    first.unmount();
+    localStorage.setItem(key, JSON.stringify([{ categoryId: "c-groceries", subcategoryId: "c-veg" }]));
     form(fakeApi({}).api);
-    expect(screen.queryByRole("group", { name: "Recientes" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: "Recientes" })).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Groceries › Vegetables" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: "Vegetables", pressed: true })).toBeInTheDocument();
   });
 });
 
@@ -225,7 +238,7 @@ describe("the account a new movement starts on (issue #208)", () => {
     const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
     const first = formOn(api, accounts);
     await enterMarket();
-    await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Sin subcategoría" }));
     await userEvent.click(screen.getByRole("button", { name: /Cuenta/ }));
     await userEvent.click(within(screen.getByRole("dialog")).getByRole("radio", { name: /Visa/ }));
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
@@ -271,7 +284,7 @@ describe("record form (HU-E9-03)", () => {
     const { container } = form(api);
     expect(screen.getByTestId("when-chip")).toHaveTextContent("Hoy · 23:30");
     await enterMarket();
-    await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Sin subcategoría" }));
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     const [request] = requests;
     expect(request!.headers.get("idempotency-key")).toMatch(/^[0-9a-f-]{36}$/);
@@ -293,8 +306,9 @@ describe("record form (HU-E9-03)", () => {
     form(api);
     await enterMarket();
     await userEvent.click(screen.getByRole("radio", { name: "Vegetables" }));
-    await userEvent.click(screen.getByRole("button", { name: "Usar Groceries › Vegetables" }));
-    expect(screen.getByRole("button", { name: /Categoría/ })).toHaveTextContent("Groceries › Vegetables");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: "Groceries", pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Vegetables", pressed: true })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     expect((await requests[0]!.json()).categoryId).toBe("c-veg");
   });
@@ -325,7 +339,7 @@ describe("record form (HU-E9-03)", () => {
     });
     form(api);
     await enterMarket();
-    await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Sin subcategoría" }));
     const save = screen.getByRole("button", { name: "Guardar gasto" });
     await userEvent.dblClick(save);
     await screen.findByRole("alert");
@@ -386,21 +400,20 @@ describe("record form (HU-E9-03)", () => {
   });
 
   it.each([
-    ["CategoryArchived", /Categoría/, "Esta categoría está archivada. Elige otra o restáurala."],
+    ["CategoryArchived", "group", "Categoría", "Esta categoría está archivada. Elige otra o restáurala."],
     [
       "AccountArchived",
+      "button",
       /Cuenta/,
       "Esta cuenta está oculta. Muéstrala de nuevo para registrar movimientos en ella.",
     ],
-  ])("shows %s next to its field and keeps the draft", async (code, field, message) => {
+  ] as const)("shows %s next to its field and keeps the draft", async (code, role, field, message) => {
     const { api } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": () => problemResponse(422, code) });
     form(api);
     await enterMarket();
-    await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Sin subcategoría" }));
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: field })).toHaveAccessibleDescription(message),
-    );
+    await waitFor(() => expect(screen.getByRole(role, { name: field })).toHaveAccessibleDescription(message));
     expect(screen.getByLabelText("Monto")).toHaveValue("85.000");
     expect(screen.getByRole("button", { name: "Guardar gasto" })).toBeEnabled();
   });
@@ -471,7 +484,7 @@ describe("record form (HU-E9-03)", () => {
   it("pays the credit card with a transfer between two accounts, without a category", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/transfers": recorded });
     form(api, "TRANSFER");
-    expect(screen.queryByRole("button", { name: /Categoría/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Elegir categoría" })).toBeNull();
     await userEvent.type(screen.getByLabelText("Monto"), "200000");
     await userEvent.click(screen.getByRole("button", { name: /Hacia/ }));
     const to = screen.getByRole("dialog", { name: "Hacia" });
@@ -513,13 +526,13 @@ describe("record form: an error clears as soon as its field changes (390 px revi
     form(api);
     await userEvent.type(screen.getByLabelText("Monto"), "85000");
     await save();
-    const category = await screen.findByRole("button", { name: /Categoría/ });
+    const category = await screen.findByRole("group", { name: "Categoría" });
     await waitFor(() => expect(category).toHaveAccessibleDescription("Elige una categoría."));
-    await userEvent.click(category);
-    await userEvent.click(screen.getByRole("radio", { name: "Groceries" }));
-    await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
+    await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Groceries" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Sin subcategoría" }));
     expect(screen.queryByText("Elige una categoría.")).toBeNull();
-    expect(screen.getByRole("button", { name: /Categoría/ })).not.toHaveAccessibleDescription();
+    expect(screen.getByRole("group", { name: "Categoría" })).not.toHaveAccessibleDescription();
   });
 
   it("clears the amount error while typing, and leaves another field's error alone", async () => {
@@ -611,10 +624,44 @@ describe("record form: an error clears as soon as its field changes (390 px revi
   });
 });
 
-describe("record form: the way back (S1)", () => {
-  it("has a Volver link to the space home, next to the title", () => {
+describe("record form: the way back (S1, ruling P291)", () => {
+  it("is a sheet whose handle is a Volver link to the space home, and it keeps its title for screen readers", () => {
     form(fakeApi({}).api);
     expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute("href", "/spaces/sp-personal");
+    expect(screen.getByRole("region", { name: "Registrar movimiento" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Registrar movimiento" })).toBeInTheDocument();
+  });
+
+  it("closes back to the screen it was opened from on the scrim and on Escape", async () => {
+    renderWithIntl(
+      <RecordForm
+        space={spaceDto()}
+        accounts={accounts}
+        groups={groups}
+        formats={BUILT_IN_FORMATS}
+        initialKind="EXPENSE"
+        initialNow="2026-11-01T04:30:00.000Z"
+        timeZone="America/Bogota"
+        returnTo="/spaces/sp-personal/transactions"
+        api={fakeApi({}).api}
+      />,
+    );
+    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/transactions",
+    );
+    await userEvent.click(screen.getByTestId("record-scrim"));
+    expect(router.push).toHaveBeenLastCalledWith("/spaces/sp-personal/transactions");
+    router.push.mockClear();
+    await userEvent.keyboard("{Escape}");
+    expect(router.push).toHaveBeenLastCalledWith("/spaces/sp-personal/transactions");
+  });
+
+  it("leaves Escape to a sheet of its own while one is open", async () => {
+    form(fakeApi({}).api);
+    await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(router.push).not.toHaveBeenCalled();
   });
 });

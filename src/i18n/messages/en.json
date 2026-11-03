@@ -482,7 +482,6 @@
       "from": "From",
       "to": "To",
       "chooseAccount": "Choose an account",
-      "date": "Date",
       "when": "Date and time: {label}. Change",
       "moreOptions": "More options",
       "fewerOptions": "Fewer options",
@@ -541,8 +540,8 @@
       },
       "incomplete": "Enter a value for each person.",
       "done": "Done",
-      "paidBy": "Paid by {payer}",
-      "paidFromMine": "You pay from {account} (your personal account)",
+      "paidBy": "<b>Paid by</b> {payer}",
+      "paidFrom": "<b>Paid by</b> {payer} from {account}",
       "split": "Split",
       "line": "{who} · {how}",
       "with": {
