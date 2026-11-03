@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { localeCookie, type Locale } from "@/i18n/locale";
 import { Avatar, Button, Icon, Sheet, SymbolIcon } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
@@ -38,7 +38,16 @@ export function ProfileSheet({
       router.refresh();
     }
   };
-  const row = "flex min-h-14 items-center gap-3 rounded-xl px-2 text-ink";
+  // Board B1 · 05 (P292): Ajustes in a card of its own, then Cuentas, Categorías and Miembros in one card, each with ›.
+  const row = "flex min-h-14 items-center gap-3 px-3 py-2 text-ink";
+  const card = "mb-3 flex flex-col divide-y divide-line rounded-2xl border border-line";
+  const go = (href: string, icon: ReactNode, label: string) => (
+    <Link href={href} className={row} onClick={() => setOpen(false)}>
+      {icon}
+      <span className="flex-1">{label}</span>
+      <Icon name="chevronRight" size={20} />
+    </Link>
+  );
   return (
     <>
       <button
@@ -47,38 +56,31 @@ export function ProfileSheet({
         onClick={() => setOpen(true)}
         className="flex size-11 items-center justify-center rounded-full"
       >
-        <Avatar name={me.name} />
+        <Avatar name={me.name} tone="dark" />
       </button>
       <Sheet open={open} onOpenChange={setOpen} title={me.name}>
-        <p className="mb-4 text-sm text-muted">{me.email}</p>
-        <Link href={`/settings?from=${spaceId}`} className={row} onClick={() => setOpen(false)}>
-          <Icon name="sliders" />
-          <span className="flex flex-col">
-            <span>{t("settings")}</span>
-            <span className="text-sm text-muted">{t("settingsHint")}</span>
-          </span>
-        </Link>
-        {spaceKind !== "PERSONAL" ? (
-          <Link href={`/spaces/${spaceId}/members`} className={row} onClick={() => setOpen(false)}>
-            <Icon name="userPlus" />
-            <span className="flex flex-col">
-              <span>{t("members")}</span>
-              <span className="text-sm text-muted">{t("membersHint")}</span>
+        <div className="mb-4 flex items-center gap-3">
+          <Avatar name={me.name} size={48} tone="dark" />
+          <p className="min-w-0 text-sm [overflow-wrap:anywhere] text-muted">{me.email}</p>
+        </div>
+        <div className={card}>
+          <Link href={`/settings?from=${spaceId}`} className={row} onClick={() => setOpen(false)}>
+            <Icon name="sliders" />
+            <span className="flex flex-1 flex-col">
+              <span>{t("settings")}</span>
+              <span className="text-sm text-muted">{t("settingsHint")}</span>
             </span>
+            <Icon name="chevronRight" size={20} />
           </Link>
-        ) : null}
-        <Link href={`/spaces/${spaceId}/categories`} className={row} onClick={() => setOpen(false)}>
-          <SymbolIcon name="tag" />
-          <span className="flex flex-col">
-            <span>{t("categories")}</span>
-            <span className="text-sm text-muted">{t("categoriesHint")}</span>
-          </span>
-        </Link>
-        <Link href={`/spaces/${spaceId}/accounts`} className={row} onClick={() => setOpen(false)}>
-          <Icon name="list" />
-          {t("accounts")}
-        </Link>
-        <Button variant="danger" size="lg" className="mt-3" onClick={() => void signOut()}>
+        </div>
+        <div className={card}>
+          {go(`/spaces/${spaceId}/accounts`, <Icon name="list" />, t("accounts"))}
+          {go(`/spaces/${spaceId}/categories`, <SymbolIcon name="tag" />, t("categories"))}
+          {spaceKind !== "PERSONAL"
+            ? go(`/spaces/${spaceId}/members`, <Icon name="userPlus" />, t("members"))
+            : null}
+        </div>
+        <Button variant="danger" size="lg" className="w-full" onClick={() => void signOut()}>
           <Icon name="signOut" />
           {t("signOut")}
         </Button>

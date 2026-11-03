@@ -266,9 +266,7 @@
       "accounts": "Cuentas",
       "signOut": "Cerrar sesión",
       "members": "Miembros e invitaciones",
-      "membersHint": "Invita personas, agrega invitados y cambia roles",
-      "categories": "Categorías",
-      "categoriesHint": "Grupos, íconos y colores"
+      "categories": "Categorías"
     }
   },
   "home": {

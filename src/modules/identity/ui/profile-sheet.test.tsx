@@ -97,6 +97,34 @@ describe("profile sheet (HU-E9-01)", () => {
     expect(router.replace).toHaveBeenCalledWith("/sign-in");
   });
 
+  it("draws the person dark and filled, and lists Ajustes, then Cuentas, Categorías and Miembros (board B1 · 05, P292)", async () => {
+    renderWithIntl(
+      <ProfileSheet
+        me={{ name: "Ana", email: "ana@example.com", locale: "es" }}
+        spaceId="sp-household"
+        spaceKind="SHARED"
+        api={fakeApi({}).api}
+      />,
+    );
+    const open = screen.getByRole("button", { name: "Perfil de Ana" });
+    expect(open.querySelector("[aria-hidden='true']")).toHaveClass("bg-ink", "text-surface");
+    await userEvent.click(open);
+    const sheet = screen.getByRole("dialog", { name: "Ana" });
+    expect(
+      within(sheet).getByText("ana@example.com").closest("div")!.querySelector(".bg-ink"),
+    ).not.toBeNull();
+    expect(
+      within(sheet)
+        .getAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual([
+      "AjustesFormatos, hora, zona horaria, tema e idioma",
+      "Cuentas",
+      "Categorías",
+      "Miembros e invitaciones",
+    ]);
+  });
+
   it("links to the members of a shared space (ruling P160)", async () => {
     const { api } = fakeApi({});
     renderWithIntl(
