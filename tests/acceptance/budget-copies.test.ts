@@ -16,6 +16,7 @@ import {
   lineNamed,
   newPlan,
   patchLine,
+  percentAllocation,
   planOf,
   plansPath,
   putAllocation,
@@ -66,13 +67,7 @@ const november = async () => {
     (await putCategories(h.ana, h.spaceId, planId, lineId("Home"), [h.groceries, utilities])).status,
   ).toBe(200);
   expect((await patchLine(h.ana, h.spaceId, planId, lineId("Free"), { isCatchAll: true })).status).toBe(200);
-  const split = {
-    rule: "PERCENT",
-    members: [
-      { memberId: h.ana.memberId, percent: "42" },
-      { memberId: h.juan.memberId, percent: "58" },
-    ],
-  };
+  const split = percentAllocation([h.ana.memberId, "42"], [h.juan.memberId, "58"]);
   expect((await putAllocation(h.ana, h.spaceId, planId, lineId("Free"), split)).status).toBe(200);
   return { ...ref, utilities };
 };
@@ -180,14 +175,7 @@ describe("copying a plan from the previous period (HU-E6-06)", () => {
   it("flags Free with InvalidAllocation when Luis, allocated 10 % of it in 2026-11, has left (Review Focus 3)", async () => {
     const { h, planId, lineId } = await november();
     const luis = await joinHousehold(h, "Luis", "MEMBER");
-    const split = {
-      rule: "PERCENT",
-      members: [
-        { memberId: h.ana.memberId, percent: "42" },
-        { memberId: h.juan.memberId, percent: "48" },
-        { memberId: luis.memberId, percent: "10" },
-      ],
-    };
+    const split = percentAllocation([h.ana.memberId, "42"], [h.juan.memberId, "48"], [luis.memberId, "10"]);
     expect((await putAllocation(h.ana, h.spaceId, planId, lineId("Free"), split)).status).toBe(200);
     await leaves(luis, h.spaceId);
     const free = lineNamed(await copied(h.ana, h.spaceId, "2026-12"), "Free");

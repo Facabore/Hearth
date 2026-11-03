@@ -11,14 +11,21 @@ import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-tr
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
 import { FixedClock, type LocalDate } from "@/shared/kernel";
 import { testDatabase } from "../../../../tests/support/database";
-import { fixedTimeZones, money, unwrap } from "../../../../tests/support/fakes";
+import { codeOf, fixedTimeZones, money, unwrap } from "../../../../tests/support/fakes";
 import {
   accountFixture,
   categoryFixture,
   sharedSpaceFixture,
   userFixture,
 } from "../../../../tests/support/fixtures";
-import { heldBy, holder, outcomesOf, someoneWaitsFor, until } from "../../../../tests/support/locks";
+import {
+  bothSettled,
+  heldBy,
+  holder,
+  outcomesOf,
+  someoneWaitsFor,
+  until,
+} from "../../../../tests/support/locks";
 import { createAddBudgetLine, type LineDeps, type LineInput } from "../application/add-budget-line";
 import { createClosedPeriodGuard, type ClosedPeriods } from "../application/closed-periods";
 import { createCopyBudgetPlan } from "../application/copy-budget-plan";
@@ -453,8 +460,20 @@ describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Foc
     )(input);
     await heldBy(h, first);
     const second = copyOver(active)(input).finally(h.release);
-    expect(await outcomesOf(first, second)).toEqual(["PlanAlreadyExists", "ok"]);
+    const [won, lost] = await bothSettled(first, second);
+    // The held copy inserted first, so it is the one that commits; the queued one finds its row and gives up.
+    expect([codeOf(won), codeOf(lost)]).toEqual(["ok", "PlanAlreadyExists"]);
+    const copy = unwrap(won).view.plan;
     expect(await plans.storedPeriods(active.space.id)).toHaveLength(2);
+    const december = await plans.covering(active.space.id, "2026-12-15" as LocalDate);
+    expect([december?.id, december?.createdFrom, december?.status]).toEqual([
+      copy.id,
+      active.plan.id,
+      "DRAFT",
+    ]);
+    expect((await plans.contents(copy.id)).capacities).toEqual(
+      (await plans.contents(active.plan.id)).capacities.map((c) => expect.objectContaining({ ...c })),
+    );
   });
 });
 

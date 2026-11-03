@@ -106,8 +106,16 @@ export const call = (
     routeParams(options.params ?? {}),
   );
 
-/** Status and problem code of an error response: `expect(await problemOf(response)).toEqual([404, "SpaceNotFound"])`. */
-export const problemOf = async (response: Response): Promise<[number, string]> => [
-  response.status,
-  ((await response.json()) as { code: string }).code,
-];
+/**
+ * Status and problem code of an error response: `expect(await problemOf(response)).toEqual([404, "SpaceNotFound"])`.
+ * A response with no JSON body (a 204, say) gives "(no problem body)" as its code, so an unexpected success fails
+ * the assertion with its status instead of a JSON parse error.
+ */
+export const problemOf = async (response: Response): Promise<[number, string]> => {
+  const text = await response.text();
+  try {
+    return [response.status, (JSON.parse(text) as { code: string }).code];
+  } catch {
+    return [response.status, "(no problem body)"];
+  }
+};

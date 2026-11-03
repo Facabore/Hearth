@@ -9,6 +9,7 @@ import {
   getSuggestion,
   lineNamed,
   patchLine,
+  percentAllocation,
   planOf,
   postLine,
   putAllocation,
@@ -36,13 +37,7 @@ const archivedPlan = async () => {
   const { h, planId, lineId } = ref;
   const groceries = await categoryWithKey(h.ana, "groceries");
   expect((await putCategories(h.ana, h.spaceId, planId, lineId("Home"), [groceries])).status).toBe(200);
-  const split = {
-    rule: "PERCENT",
-    members: [
-      { memberId: h.ana.memberId, percent: "30" },
-      { memberId: h.juan.memberId, percent: "70" },
-    ],
-  };
+  const split = percentAllocation([h.ana.memberId, "30"], [h.juan.memberId, "70"]);
   expect((await putAllocation(h.ana, h.spaceId, planId, lineId("Home"), split)).status).toBe(200);
   const plan = await planOf(h.ana, h.spaceId, planId);
   const archived = await call(archiveSpace, "POST", `/api/v1/spaces/${h.spaceId}/archive`, {
