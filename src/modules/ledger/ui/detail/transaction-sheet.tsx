@@ -18,6 +18,7 @@ import type { TransactionDetail } from "./transaction-detail";
 import { leaveSheet } from "./leave-sheet";
 import { actionsFor, type TransactionActions } from "./transaction-actions";
 import { useDeleteWithUndo } from "./use-delete-with-undo";
+import { kindOf } from "../movement-kind";
 
 function Definition({ term, children }: { readonly term: string; readonly children: ReactNode }) {
   return (
@@ -172,7 +173,7 @@ export function TransactionSheet({
     <Sheet
       open
       onOpenChange={close}
-      title={tx.description || t(`type.${tx.type}`)}
+      title={tx.description || t(`type.${kindOf(tx)}`)}
       description={signed}
       footer={
         actions.edit || actions.delete ? (
@@ -188,7 +189,7 @@ export function TransactionSheet({
       }
     >
       <dl className="flex flex-col gap-3 pb-1">
-        <Definition term={t("detail.type")}>{t(`type.${tx.type}`)}</Definition>
+        <Definition term={t("detail.type")}>{t(`type.${kindOf(tx)}`)}</Definition>
         <Definition term={t("detail.when")}>
           {formatDate(tx.date, formats)} · {time}
         </Definition>

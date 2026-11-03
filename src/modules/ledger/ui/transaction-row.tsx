@@ -6,6 +6,7 @@ import type { CategoryGroupDto, TransactionDto } from "@/shared/ui/api/dto";
 import { formatDate, formatMoney, formatTimeAt, MINUS, type Formats } from "@/shared/ui/format/formatters";
 import { zoneCity } from "@/shared/ui/format/zones";
 import { relativeDay } from "@/shared/ui/time/when";
+import { kindOf } from "./movement-kind";
 
 /** What every row needs to read a transaction (serializable: the server list and "Load more" share it). */
 export interface RowContext {
@@ -80,8 +81,7 @@ export function TransactionRow({
       if (name(account) && (card || !path)) meta.push(name(account));
     }
   }
-  // Issue #223 (ruling P283): a contribution to the shared fund is a TRANSFER that names its contributor (HU-E4-09).
-  const kind = tx.type === "TRANSFER" && tx.payerMemberId !== null ? "FUND_CONTRIBUTION" : tx.type;
+  const kind = kindOf(tx);
   const money = formatMoney(tx.amount, formats);
   const amount = tx.type === "EXPENSE" ? `${MINUS}${money}` : tx.type === "INCOME" ? `+${money}` : money;
   const icon = found ? (
