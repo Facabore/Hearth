@@ -84,22 +84,35 @@ export class DrizzleAccountRepository implements AccountRepository {
     return row ? toAccount(row) : null;
   }
 
-  async save(account: Account): Promise<void> {
-    await this.tm
-      .executor()
-      .update(accounts)
-      .set({
-        name: account.name,
-        openingBalance: account.openingBalance,
-        archivedAt: account.archivedAt,
-        institution: account.institution,
-        lastFour: account.lastFour,
-        color: account.color,
-        icon: account.icon,
-        includeInAvailable: account.includeInAvailable,
-        includeInNetWorth: account.includeInNetWorth,
-        ...account.terms,
-      })
-      .where(eq(accounts.id, account.id));
+  async save(account: Account): Promise<boolean> {
+    try {
+      // A savepoint, so a name lost to a concurrent writer leaves the caller's transaction usable.
+      await this.tm.executor().transaction((savepoint) =>
+        savepoint
+          .update(accounts)
+          .set({
+            name: account.name,
+            openingBalance: account.openingBalance,
+            archivedAt: account.archivedAt,
+            institution: account.institution,
+            lastFour: account.lastFour,
+            color: account.color,
+            icon: account.icon,
+            includeInAvailable: account.includeInAvailable,
+            includeInNetWorth: account.includeInNetWorth,
+            ...account.terms,
+          })
+          .where(eq(accounts.id, account.id)),
+      );
+      return true;
+    } catch (error) {
+      // Issue #245: a rename or creation that committed after this write checked the name took it first.
+      const { code, constraint } = ((error as Error).cause ?? error) as {
+        code?: unknown;
+        constraint?: unknown;
+      };
+      if (code === "23505" && constraint === "accounts_space_name_uq") return false;
+      throw error;
+    }
   }
 }

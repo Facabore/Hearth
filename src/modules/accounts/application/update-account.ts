@@ -1,4 +1,4 @@
-import { ok, type Money, type Result } from "@/shared/kernel";
+import { domainError, err, ok, type Money, type Result } from "@/shared/kernel";
 import { reviseAccount, type AccountType, type AttributeChanges } from "../domain/account";
 import { accountForChange } from "./account-for-change";
 import { todayFor, withBalances, type AccountView } from "./account-view";
@@ -47,7 +47,8 @@ export const createUpdateAccount =
         siblings,
       );
       if (!revised.ok) return revised;
-      await deps.accounts.save(revised.value);
+      // Issue #245: a concurrent writer may take the name after `siblings` was read; the store decides then.
+      if (!(await deps.accounts.save(revised.value))) return err(domainError("AccountNameTaken"));
       const today = await todayFor(deps, input.userId);
       const [view] = await withBalances(deps.movements, [revised.value], space.currency, null, today);
       return ok(view!);

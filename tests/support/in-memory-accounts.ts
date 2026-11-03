@@ -20,7 +20,14 @@ export class InMemoryAccounts implements AccountRepository {
     return this.rows.find((a) => a.id === accountId) ?? null;
   }
   async save(account: Account) {
-    this.rows = this.rows.map((a) => (a.id === account.id ? account : a));
+    const taken = this.rows.some(
+      (a) =>
+        a.id !== account.id &&
+        a.spaceId === account.spaceId &&
+        a.name.toLowerCase() === account.name.toLowerCase(),
+    );
+    if (!taken) this.rows = this.rows.map((a) => (a.id === account.id ? account : a));
+    return !taken;
   }
 }
 
