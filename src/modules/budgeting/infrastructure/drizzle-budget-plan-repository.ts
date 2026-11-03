@@ -248,10 +248,18 @@ export class DrizzleBudgetPlanRepository implements BudgetPlanRepository {
   async deleteLine(planId: BudgetPlanId, lineId: BudgetLineId, at: Date): Promise<void> {
     const db = this.tm.executor();
     // D8: the row stays; the partial unique indexes free its name, its catch-all flag and its categories.
-    await db
+    const removed = await db
       .update(budgetLines)
       .set({ deletedAt: at, updatedAt: at })
-      .where(and(eq(budgetLines.id, lineId), eq(budgetLines.planId, planId), isNull(budgetLines.deletedAt)));
+      .where(and(eq(budgetLines.id, lineId), eq(budgetLines.planId, planId), isNull(budgetLines.deletedAt)))
+      .returning({ id: budgetLines.id });
+    // A line of another plan, or one already removed, is not found: its mappings and values stay as they are.
+    if (removed.length === 0) return;
+    // D8: its current values end with it, so no current value names a removed line.
+    await db
+      .update(budgetAllocations)
+      .set({ supersededAt: at })
+      .where(and(eq(budgetAllocations.lineId, lineId), isNull(budgetAllocations.supersededAt)));
     await db
       .update(budgetLineCategories)
       .set({ unmappedAt: at })

@@ -25,11 +25,11 @@ import {
   type BudgetPlanView,
   type CapacitySuggestion,
   type CopyDrops,
-  type PlanCopy,
   type DefaultSplitView,
   type LineChanges,
   type LineFigure,
   type LineInput,
+  type PlanCopy,
 } from "../application";
 
 const percentOrNull = (basisPoints: number | null): string | null =>
@@ -366,15 +366,18 @@ export const planSuccess = (view: BudgetPlanView, status = 200): HttpSuccess => 
   headers: [["etag", etagOf(view.plan.version)]],
 });
 
-/** HU-E6-01: 201 with the new plan, its ETag and its location. */
-export const planCreated = (view: BudgetPlanView): HttpSuccess => ({
+/** 201 with `body`, the new plan's ETag and its location. */
+const createdPlan = (view: BudgetPlanView, body: z.infer<typeof BudgetPlanSchema>): HttpSuccess => ({
   status: 201,
-  body: budgetPlanDto(view),
+  body,
   headers: [
     ["etag", etagOf(view.plan.version)],
     ["location", `/api/v1/spaces/${view.plan.spaceId}/plans/${view.plan.id}`],
   ],
 });
+
+/** HU-E6-01: 201 with the new plan, its ETag and its location. */
+export const planCreated = (view: BudgetPlanView): HttpSuccess => createdPlan(view, budgetPlanDto(view));
 
 const droppedDto = (dropped: CopyDrops): NonNullable<z.infer<typeof BudgetPlanSchema>["dropped"]> => ({
   mappings: dropped.mappings.map((m) => ({ lineId: m.lineId, categoryId: m.categoryId })),
@@ -383,10 +386,8 @@ const droppedDto = (dropped: CopyDrops): NonNullable<z.infer<typeof BudgetPlanSc
 });
 
 /** HU-E6-06: 201 like a creation, its body also listing what the copy left out (ruling P11). */
-export const planCopied = ({ view, dropped }: PlanCopy): HttpSuccess => ({
-  ...planCreated(view),
-  body: { ...budgetPlanDto(view), dropped: droppedDto(dropped) },
-});
+export const planCopied = ({ view, dropped }: PlanCopy): HttpSuccess =>
+  createdPlan(view, { ...budgetPlanDto(view), dropped: droppedDto(dropped) });
 
 const SpacePath = z.object({ spaceId: z.string() });
 const PlanPath = SpacePath.extend({ planId: z.string() });
@@ -406,8 +407,10 @@ const planWrite = <P extends z.ZodObject>(
   path: P,
   body: z.ZodType | null,
   errors: Record<string, string>,
-  status: "200" | "201" = "200",
-  editsPlan = true,
+  {
+    status = "200",
+    editsPlan = true,
+  }: { readonly status?: "200" | "201"; readonly editsPlan?: boolean } = {},
 ) => ({
   operationId,
   summary,
@@ -502,7 +505,7 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
         "422":
           "ValidationFailed, InvalidBudgetLineName, InvalidPlannedAmount, SavingsAccountRequired, InvalidSavingsAccount, CurrencyMismatch, UnknownCurrency",
       },
-      "201",
+      { status: "201" },
     ),
   },
   "/api/v1/spaces/{spaceId}/plans/{planId}/lines/{lineId}": {
@@ -571,8 +574,7 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
           "InvalidPlanTransition, PlanExceedsCapacity, CopyAlreadyClosed (a plan copied from this one is already CLOSED and carries over from it; the problem carries the closed copy's `copyPeriod`), SpaceArchived",
         "422": "InvalidAllocation (lineIds names the lines whose allocation does not hold)",
       },
-      "200",
-      false,
+      { editsPlan: false },
     ),
   },
   "/api/v1/spaces/{spaceId}/plans/{planId}/close": {
@@ -586,8 +588,7 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
         "409":
           "InvalidPlanTransition, PeriodNotOver (today is not after the period's last day), SourcePlanOpen (the plan it was copied from is still ACTIVE and a line carries over from it; the problem carries the source's `sourcePeriod`), SpaceArchived",
       },
-      "200",
-      false,
+      { editsPlan: false },
     ),
   },
   "/api/v1/spaces/{spaceId}/default-split": {

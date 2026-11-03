@@ -466,7 +466,7 @@ describe("UpdateBudgetLine and RemoveBudgetLine (HU-E6-03, HU-E6-04)", () => {
     expect(codeOf(await as("u-ana", "Home", toLuis))).toBe("AccountNotFound");
   });
 
-  it("ends the mappings of a removed line and leaves its allocations unsuperseded but out of every read (D8)", async () => {
+  it("ends the mappings and the allocation values of a removed line, keeping their rows (D8)", async () => {
     const { id, input, remove, plans, plan } = await reference();
     const homeId = id("Home");
     plans.seed(plan.id, {
@@ -476,7 +476,7 @@ describe("UpdateBudgetLine and RemoveBudgetLine (HU-E6-03, HU-E6-04)", () => {
     const view = unwrap(await remove(input(homeId)));
     expect(view.figures.lines.map((l) => l.line.name)).not.toContain("Home");
     expect(plans.mappings.map((m) => m.unmappedAt)).toEqual([NOW]);
-    expect(plans.allocations.map((a) => a.supersededAt)).toEqual([null]);
+    expect(plans.allocations.map((a) => a.supersededAt)).toEqual([NOW]);
     expect((await plans.contents(plan.id)).allocations).toEqual([]);
   });
 

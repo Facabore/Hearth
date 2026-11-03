@@ -249,7 +249,8 @@ export class DrizzleCategoryRepository implements CategoryRepository {
           ...styleColumns(c.style),
           archivedAt: c.archivedAt,
         })
-        .where(eq(categories.id, c.id));
+        // D8: a deleted category is never written again, like every read skips it.
+        .where(and(eq(categories.id, c.id), isNull(categories.deletedAt)));
     }
   }
 
@@ -258,6 +259,9 @@ export class DrizzleCategoryRepository implements CategoryRepository {
       .executor()
       .update(categories)
       .set({ deletedAt })
-      .where(and(eq(categories.spaceId, spaceId), eq(categories.id, categoryId)));
+      // D8: deleting twice keeps the first deletion's time.
+      .where(
+        and(eq(categories.spaceId, spaceId), eq(categories.id, categoryId), isNull(categories.deletedAt)),
+      );
   }
 }

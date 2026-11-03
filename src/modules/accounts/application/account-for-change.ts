@@ -15,8 +15,8 @@ export const accountForChange = async (
   const siblings = await deps.accounts.listBySpace(writer.value.spaceId);
   const account = siblings.find((a) => a.id === input.accountId);
   if (!account) return err(domainError("AccountNotFound"));
-  if (account.ownerUserId === null) {
-    // HU-E2-02: shared fund accounts are managed by OWNER and ADMIN only.
+  if (account.type === "SHARED_FUND") {
+    // HU-E2-02: shared fund accounts, the only ones without an owner, are managed by OWNER and ADMIN only.
     const manager = requirePermission(writer.value, "fund.manage");
     if (!manager.ok) return manager;
   } else if (account.ownerUserId !== input.userId) {
