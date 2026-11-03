@@ -46,6 +46,21 @@ describe("the web image (#201)", () => {
     expect(stage("spa-builder")).toMatch(/^RUN pnpm spa:build && rm -r dist\/spa\/\.vite$/m);
     expect(stage("web")).toContain("COPY --from=spa-builder /app/dist/spa /srv/app");
   });
+
+  it("builds from files the image's context holds: the build configs import nothing the context leaves out", () => {
+    const ignored = readFileSync(new URL("../../.dockerignore", import.meta.url), "utf8")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => /^[a-z]/.test(line) && !line.includes("*") && !line.startsWith(".env"));
+    for (const config of ["vite.spa.config.ts", "next.config.ts"]) {
+      const source = readFileSync(new URL(`../../${config}`, import.meta.url), "utf8");
+      const imports = [...source.matchAll(/from "\.\/([^"]+)"/g)].map((match) => match[1]!);
+      expect(
+        imports.filter((path) => ignored.some((dir) => path === dir || path.startsWith(`${dir}/`))),
+        config,
+      ).toEqual([]);
+    }
+  });
 });
 
 describe("the web image's security headers (#201, ruling P280)", () => {
