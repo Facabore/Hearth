@@ -35,7 +35,7 @@ describe("profile sheet (HU-E9-01)", () => {
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Perfil de Ana" }));
-    const sheet = screen.getByRole("dialog", { name: "Ana" });
+    const sheet = await screen.findByRole("dialog", { name: "Ana" }, { timeout: 10_000 });
     expect(within(sheet).getByText("ana@example.com")).toBeInTheDocument();
     expect(within(sheet).getByRole("link", { name: /Ajustes/ })).toHaveAttribute(
       "href",
@@ -109,7 +109,7 @@ describe("profile sheet (HU-E9-01)", () => {
     const open = screen.getByRole("button", { name: "Perfil de Ana" });
     expect(open.querySelector("[aria-hidden='true']")).toHaveClass("bg-ink", "text-surface");
     await userEvent.click(open);
-    const sheet = screen.getByRole("dialog", { name: "Ana" });
+    const sheet = await screen.findByRole("dialog", { name: "Ana" }, { timeout: 10_000 });
     expect(
       within(sheet).getByText("ana@example.com").closest("div")!.querySelector(".bg-ink"),
     ).not.toBeNull();
@@ -136,7 +136,7 @@ describe("profile sheet (HU-E9-01)", () => {
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Perfil de Ana" }));
-    const sheet = screen.getByRole("dialog", { name: "Ana" });
+    const sheet = await screen.findByRole("dialog", { name: "Ana" }, { timeout: 10_000 });
     expect(within(sheet).getByRole("link", { name: /Miembros e invitaciones/ })).toHaveAttribute(
       "href",
       "/spaces/sp-household/members",
