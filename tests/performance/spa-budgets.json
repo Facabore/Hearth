@@ -14,6 +14,8 @@
     "mutations.ts": 3,
     "../modules/ledger/ui/detail/transaction-sheet.tsx": 19,
     "../modules/ledger/ui/list-sheets.tsx": 9,
+    "../modules/ledger/ui/record/date-time-sheet.tsx": 36,
+    "../modules/identity/ui/settings/formats-fields.tsx": 19,
     "../modules/spaces/ui/space-name-section.tsx": 19,
     "../modules/ledger/ui/split/split-sheet.tsx": 36,
     "../modules/ledger/ui/direct/split-with-person-sheet.tsx": 16,
@@ -33,6 +35,7 @@
     "routes/balances.tsx": 20,
     "routes/invitation.tsx": 12,
     "routes/verify-email.tsx": 8,
+    "routes/trust.tsx": 6,
     "manage/loaders.ts": 3,
     "spaces/loaders.ts": 4,
     "routes/plan.tsx": 26,
@@ -60,6 +63,8 @@
     "../i18n/messages/areas/settings.es.json": 1,
     "../i18n/messages/areas/settings.en.json": 1,
     "../i18n/messages/areas/invitation.es.json": 1,
-    "../i18n/messages/areas/invitation.en.json": 1
+    "../i18n/messages/areas/invitation.en.json": 1,
+    "../i18n/messages/areas/trust.es.json": 1,
+    "../i18n/messages/areas/trust.en.json": 1
   }
 }

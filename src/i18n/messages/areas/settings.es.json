@@ -29,6 +29,7 @@
     "reset": "Restablecer",
     "locked": "Lo define tu instalación",
     "appearance": "Apariencia e idioma",
+    "trust": "Lo que tienes que saber",
     "timezone": {
       "hint": "Define el día y la hora de cada movimiento que registras.",
       "search": "Buscar zona horaria",

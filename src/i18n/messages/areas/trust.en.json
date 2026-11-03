@@ -1,0 +1,12 @@
+{
+  "trust": {
+    "title": "What you need to know",
+    "points": {
+      "bank": "Hearth does not connect to your bank or move money. It only keeps what you record.",
+      "server": "Your data lives on your installation's server, not in a third-party cloud.",
+      "visibility": "Only you see your personal space. In a shared space, its members see it; a Viewer can look but not change anything.",
+      "deletes": "Nothing is ever really deleted. A deleted transaction can be recovered, and every change to money is recorded.",
+      "backups": "Every night a copy of everything is saved, and the copies from the last 14 days are kept. Those copies are on the same server: whoever runs it can keep one elsewhere."
+    }
+  }
+}

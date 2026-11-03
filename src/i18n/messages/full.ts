@@ -12,6 +12,8 @@ import recurrencesEn from "./areas/recurrences.en.json" with { type: "json" };
 import recurrencesEs from "./areas/recurrences.es.json" with { type: "json" };
 import settingsEn from "./areas/settings.en.json" with { type: "json" };
 import settingsEs from "./areas/settings.es.json" with { type: "json" };
+import trustEn from "./areas/trust.en.json" with { type: "json" };
+import trustEs from "./areas/trust.es.json" with { type: "json" };
 import coreEn from "./en.json" with { type: "json" };
 import coreEs from "./es.json" with { type: "json" };
 import { mergeMessages } from "../merge";
@@ -29,6 +31,7 @@ export const es = mergeMessages(
   accountsEs,
   settingsEs,
   invitationEs,
+  trustEs,
 ) as typeof coreEs &
   typeof planEs &
   typeof recurrencesEs &
@@ -36,7 +39,8 @@ export const es = mergeMessages(
   typeof membersEs &
   typeof accountsEs &
   typeof settingsEs &
-  typeof invitationEs;
+  typeof invitationEs &
+  typeof trustEs;
 
 export const en = mergeMessages(
   coreEn,
@@ -47,4 +51,5 @@ export const en = mergeMessages(
   accountsEn,
   settingsEn,
   invitationEn,
+  trustEn,
 ) as typeof es;

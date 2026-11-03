@@ -47,7 +47,6 @@ import { categoryKeyOf, directBodyOf, type DirectChoice } from "../direct/direct
 import { initialSplitDraft, type SharedExpenseContext } from "../split/shared-context";
 import { SharedFields } from "../split/shared-fields";
 import { AmountField } from "./amount-field";
-import { DateTimeSheet } from "./date-time-sheet";
 import { DiscardConfirm, type HoldNavigation } from "./discard-confirm";
 import { DescriptionField, FormRow, RowError } from "./form-rows";
 import { LineWarningConfirm, LineWarningNote } from "./line-warning";
@@ -67,6 +66,10 @@ import { useIdempotencyKey } from "./use-idempotency-key";
 import { whenLabel, type When } from "./when-label";
 
 // The sheet's code loads only when someone opens it, so the personal form keeps its script budget (P177).
+/** The date and time sheet opens on a tap: it loads beside the form, not in its route (ADR 0004). */
+const DateTimeSheet = dynamic(() => import("./date-time-sheet").then((module) => module.DateTimeSheet), {
+  ssr: false,
+});
 const SplitWithPersonSheet = dynamic(
   () => import("../direct/split-with-person-sheet").then((module) => module.SplitWithPersonSheet),
   { ssr: false },

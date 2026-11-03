@@ -430,6 +430,21 @@ const verifyEmailRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/verify-email"), "VerifyEmailRoute"),
 });
 
+/** Issue #146, ruling P290: Lo que tienes que saber, linked from sign-up and from Ajustes, each its own way back. */
+const trustRoute = createRoute({
+  getParentRoute: () => openRoute,
+  path: "trust",
+  staticData: { areas: ["trust"] },
+  validateSearch: (search: Record<string, unknown>) => ({
+    next: textParam(search.next),
+    invitation: textsParam(search.invitation),
+    from: textParam(search.from),
+  }),
+  loader: ({ context, route }) => loadAreas(context, route),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/trust"), "TrustRoute"),
+});
+
 /** HU-E9-10, HU-E9-11: the Plan tab's own page and its views, each with `?period=` (P200). */
 const planRoute = createRoute({
   getParentRoute: () => spaceRoute,
@@ -619,7 +634,7 @@ const editLineRoute = createRoute({
 
 export const routeTree = rootRoute.addChildren([
   publicRoute.addChildren([signInRoute, signUpRoute]),
-  openRoute.addChildren([invitationRoute, claimRoute, verifyEmailRoute]),
+  openRoute.addChildren([invitationRoute, claimRoute, verifyEmailRoute, trustRoute]),
   indexRoute,
   settingsRoute,
   newSpaceRoute,

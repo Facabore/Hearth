@@ -90,6 +90,26 @@ describe("transaction detail sheet (rulings P189, P190)", () => {
     expect(await axeViolations(document.body)).toEqual([]);
   });
 
+  it("names a contribution to the fund as one, like its row, untitled or not (issue #223)", () => {
+    open(
+      detailOf(
+        transactionDto({
+          id: "t-3",
+          type: "TRANSFER",
+          description: "",
+          categoryId: null,
+          payerMemberId: "m-ana",
+          sourceAccountId: "a-bank",
+          destinationAccountId: "a-visa",
+          payments: [],
+          shares: [],
+        }),
+      ),
+    );
+    expect(screen.getByRole("dialog", { name: "Aporte al fondo" })).toBeInTheDocument();
+    expect(definition("Tipo")).toBe("Aporte al fondo");
+  });
+
   it("signs an income with a plus and names its receiving account", () => {
     open(
       detailOf(

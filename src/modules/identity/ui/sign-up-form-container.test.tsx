@@ -24,3 +24,20 @@ describe("sign-up after the session starts (#196)", () => {
     expect(router.refresh).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("sign-up's way to the trust page (issue #146, ruling P290)", () => {
+  it("links to Lo que tienes que saber with where the visitor was going and the invitation they hold", () => {
+    renderWithIntl(
+      <SignUpFormContainer next="/invitations/tok-1" invitation="tok-1" api={fakeApi({}).api} />,
+    );
+    expect(screen.getByRole("link", { name: "Lo que tienes que saber" })).toHaveAttribute(
+      "href",
+      `/trust?next=${encodeURIComponent("/invitations/tok-1")}&invitation=tok-1`,
+    );
+  });
+
+  it("links to the bare trust page when the visitor goes home and holds no invitation", () => {
+    renderWithIntl(<SignUpFormContainer api={fakeApi({}).api} />);
+    expect(screen.getByRole("link", { name: "Lo que tienes que saber" })).toHaveAttribute("href", "/trust");
+  });
+});

@@ -229,7 +229,8 @@
       "confirmPassword": "Confirmar contraseña",
       "passwordMismatch": "Las contraseñas no coinciden.",
       "closedTitle": "El registro está cerrado",
-      "closedBody": "Pídele una invitación a alguien de tu hogar."
+      "closedBody": "Pídele una invitación a alguien de tu hogar.",
+      "trust": "Lo que tienes que saber"
     }
   },
   "shell": {

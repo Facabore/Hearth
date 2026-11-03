@@ -1,0 +1,12 @@
+{
+  "trust": {
+    "title": "Lo que tienes que saber",
+    "points": {
+      "bank": "Hearth no se conecta a tu banco ni mueve plata. Solo guarda lo que tú registras.",
+      "server": "Tus datos viven en el servidor de tu instalación, no en una nube de terceros.",
+      "visibility": "Tu espacio personal solo lo ves tú. En un espacio compartido, ven sus miembros; un Lector puede ver pero no cambiar nada.",
+      "deletes": "Nada se borra de verdad. Un movimiento borrado se puede recuperar y cada cambio de plata queda registrado.",
+      "backups": "Cada noche se guarda una copia de todo, y se conservan las de los últimos 14 días. Esas copias están en el mismo servidor: quien lo administra puede guardar una aparte."
+    }
+  }
+}

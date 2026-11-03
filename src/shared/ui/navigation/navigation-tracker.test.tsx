@@ -1,7 +1,7 @@
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cameFrom, readTrail, stepsBack, writeTrail, type Trail } from "./history";
-import { NavigationTracker, trackNavigation } from "./navigation-tracker";
+import { trackNavigation } from "./navigation-tracker";
 
 const trailOf = (urls: string[], pos = urls.length - 1): Trail => ({ urls, pos });
 const here = () => `${window.location.pathname}${window.location.search}`;
@@ -20,25 +20,26 @@ beforeEach(() => {
   window.sessionStorage.clear();
   window.history.replaceState({}, "", "/");
 });
-afterEach(() => vi.restoreAllMocks());
+/** The tracker started as the SPA's entry starts it; each test stops its own. */
+const stops: (() => void)[] = [];
+const track = () => void stops.push(trackNavigation());
+afterEach(() => {
+  for (const stop of stops.splice(0)) stop();
+  vi.restoreAllMocks();
+});
 
 describe("navigation tracker: starting", () => {
-  it("renders nothing", () => {
-    const { container } = render(<NavigationTracker />);
-    expect(container).toBeEmptyDOMElement();
-  });
-
   it("starts a new trail when the page is opened by a URL: that is not a step in the tab's history", () => {
     loadedBy("navigate");
     openAt("/spaces/s1/accounts", trailOf(["/spaces/s1/transactions", "/spaces/s1/accounts"]));
-    render(<NavigationTracker />);
+    track();
     expect(readTrail()).toEqual(trailOf(["/spaces/s1/accounts"]));
   });
 
   it.each(["reload", "back_forward"])("keeps the trail when the page is loaded again by a %s", (type) => {
     loadedBy(type);
     openAt("/spaces/s1/accounts", trailOf(["/spaces/s1/transactions", "/spaces/s1/accounts"]));
-    render(<NavigationTracker />);
+    track();
     expect(readTrail()).toEqual(trailOf(["/spaces/s1/transactions", "/spaces/s1/accounts"]));
   });
 
@@ -59,7 +60,7 @@ describe("navigation tracker: starting", () => {
   it("starts a new trail when the stored one is not where the page is", () => {
     loadedBy("reload");
     openAt("/settings", trailOf(["/spaces/s1/transactions", "/spaces/s1/accounts"]));
-    render(<NavigationTracker />);
+    track();
     expect(readTrail()).toEqual(trailOf(["/settings"]));
   });
 });
@@ -71,7 +72,7 @@ describe("navigation tracker: the entries the app makes", () => {
 
   it("adds an entry for each push, as pathname plus search", () => {
     openAt("/spaces/s1/transactions?period=2026-10");
-    render(<NavigationTracker />);
+    track();
     window.history.pushState({}, "", "/spaces/s1/accounts?returnTo=%2Fspaces%2Fs1");
     expect(readTrail()).toEqual(
       trailOf(["/spaces/s1/transactions?period=2026-10", "/spaces/s1/accounts?returnTo=%2Fspaces%2Fs1"]),
@@ -81,7 +82,7 @@ describe("navigation tracker: the entries the app makes", () => {
 
   it("restarts the trail when the person switches tab", () => {
     openAt("/spaces/s1/transactions");
-    render(<NavigationTracker />);
+    track();
     window.history.pushState({}, "", "/spaces/s1/accounts");
     window.history.pushState({}, "", "/spaces/s1");
     expect(readTrail()).toEqual(trailOf(["/spaces/s1"]));
@@ -89,7 +90,7 @@ describe("navigation tracker: the entries the app makes", () => {
 
   it("keeps the list before the entry that opens a sheet on it, so closing can go back (ruling P189)", () => {
     openAt("/spaces/s1/transactions?period=2026-10");
-    render(<NavigationTracker />);
+    track();
     window.history.pushState({}, "", "/spaces/s1/transactions?period=2026-10&tx=t-1");
     expect(readTrail()).toEqual(
       trailOf(["/spaces/s1/transactions?period=2026-10", "/spaces/s1/transactions?period=2026-10&tx=t-1"]),
@@ -99,7 +100,7 @@ describe("navigation tracker: the entries the app makes", () => {
 
   it("replaces the current entry instead of adding one: the form that saved leaves no step", () => {
     openAt("/spaces/s1/transactions");
-    render(<NavigationTracker />);
+    track();
     window.history.pushState({}, "", "/spaces/s1/accounts");
     window.history.pushState({}, "", "/spaces/s1/accounts/new");
     window.history.replaceState({}, "", "/spaces/s1/accounts");
@@ -111,7 +112,7 @@ describe("navigation tracker: the entries the app makes", () => {
 
   it("ignores a replace that keeps the URL, which the router makes while it settles", () => {
     openAt("/spaces/s1/accounts");
-    render(<NavigationTracker />);
+    track();
     window.history.pushState({}, "", "/settings");
     window.history.replaceState({ settled: true }, "", "/settings");
     expect(readTrail()).toEqual(trailOf(["/spaces/s1/accounts", "/settings"]));
@@ -119,7 +120,7 @@ describe("navigation tracker: the entries the app makes", () => {
 
   it("counts every entry of the browser's history: balance periods are steps Volver skips", () => {
     openAt("/spaces/s1/balances");
-    render(<NavigationTracker />);
+    track();
     window.history.pushState({}, "", "/spaces/s1/members/m1/history");
     window.history.pushState({}, "", "/spaces/s1/members/m1/history?from=2026-09-01");
     window.history.pushState({}, "", "/spaces/s1/members/m1/history?from=2026-08-01");
@@ -128,14 +129,14 @@ describe("navigation tracker: the entries the app makes", () => {
 
   it("follows a push to an absolute URL of the same origin", () => {
     openAt("/spaces/s1/transactions");
-    render(<NavigationTracker />);
+    track();
     window.history.pushState({}, "", `${window.location.origin}/settings?from=s1`);
     expect(readTrail().urls.at(-1)).toBe("/settings?from=s1");
   });
 
   it("moves along the trail when the browser goes back", async () => {
     openAt("/spaces/s1/transactions");
-    render(<NavigationTracker />);
+    track();
     window.history.pushState({}, "", "/spaces/s1/accounts");
     window.history.pushState({}, "", "/settings");
     window.history.back();
@@ -153,19 +154,19 @@ describe("navigation tracker: the entries the app makes", () => {
       vi.spyOn(Storage.prototype, method).mockImplementation(() => {
         throw new DOMException("blocked", "SecurityError");
       });
-    render(<NavigationTracker />);
+    track();
     expect(() => window.history.pushState({}, "", "/spaces/s1/accounts")).not.toThrow();
     expect(() => window.history.replaceState({}, "", "/settings")).not.toThrow();
     vi.restoreAllMocks();
     expect(window.sessionStorage.length).toBe(0);
   });
 
-  it("stops recording, and puts the history methods back, when it unmounts", () => {
+  it("stops recording, and puts the history methods back, when it is stopped", () => {
     openAt("/spaces/s1/transactions");
     const { pushState, replaceState } = window.history;
-    const view = render(<NavigationTracker />);
+    const stop = trackNavigation();
     expect(window.history.pushState).not.toBe(pushState);
-    view.unmount();
+    stop();
     expect(window.history.pushState).toBe(pushState);
     expect(window.history.replaceState).toBe(replaceState);
     window.history.pushState({}, "", "/settings");
@@ -191,7 +192,7 @@ describe("navigation tracker: a skeleton's Volver (#196)", () => {
 
   it("goes back to the screen she came from, as the loaded header's Volver does", () => {
     openAt("/spaces/s1/transactions");
-    render(<NavigationTracker />);
+    track();
     window.history.pushState({}, "", "/spaces/s1/accounts");
     const link = skeletonBack();
     expect(fireEvent.click(link.firstChild!)).toBe(false);
@@ -201,7 +202,7 @@ describe("navigation tracker: a skeleton's Volver (#196)", () => {
 
   it("follows the link's own parent route when nothing came before, and leaves a modified click to the browser", () => {
     openAt("/spaces/s1/accounts", trailOf(["/spaces/s1/accounts"]));
-    render(<NavigationTracker />);
+    track();
     const link = skeletonBack();
     expect(fireEvent.click(link)).toBe(true);
     window.history.pushState({}, "", "/spaces/s1/categories");
@@ -212,7 +213,7 @@ describe("navigation tracker: a skeleton's Volver (#196)", () => {
 
   it("leaves every other link alone", () => {
     openAt("/spaces/s1/transactions");
-    render(<NavigationTracker />);
+    track();
     window.history.pushState({}, "", "/spaces/s1/accounts");
     const link = skeletonBack(false);
     expect(fireEvent.click(link)).toBe(true);

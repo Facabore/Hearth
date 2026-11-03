@@ -9,7 +9,7 @@ import { browserApi, type Api } from "@/shared/ui/api/client";
 import { fieldOf, problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import { browserTimeZone } from "@/shared/ui/format/zones";
-import { signInHrefOf } from "./sign-in-href";
+import { signInHrefOf, trustHrefOf } from "./sign-in-href";
 import { SignUpClosedNotice } from "./sign-up-closed-notice";
 import { SignUpForm, type SignUpField } from "./sign-up-form";
 
@@ -92,6 +92,7 @@ export function SignUpFormContainer({
       fieldErrors={fieldErrors}
       problem={problem && where === "form" ? problem : null}
       signInHref={signInHref}
+      trustHref={trustHrefOf(next, invitation)}
     />
   );
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
@@ -8,29 +10,19 @@ import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { MeDto } from "@/shared/ui/api/dto";
 import type { paths } from "@/shared/ui/api/schema";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
-import { formatDate, formatNumber } from "@/shared/ui/format/formatters";
-import { ScreenHeader, Sheet } from "@/shared/ui";
+import { Icon, ScreenHeader, Sheet } from "@/shared/ui";
 import { AppearanceSection, appLocaleOf, useDeviceTheme } from "./appearance-section";
-import { FormatPreview, formatSample } from "./format-preview";
-import { PreferenceRow } from "./preference-row";
+import { formatSample } from "./format-preview";
 import { RegionSection } from "./region-section";
 import { SummaryRow } from "./summary-row";
 import { useSavedFlash } from "@/shared/ui/molecules/saved-flash";
-import {
-  choose,
-  chooseRegion,
-  regionState,
-  reset,
-  rowState,
-  type FormatField,
-  type Preferences,
-  type RegionField,
-} from "./settings-state";
+import type { FormatChange } from "./formats-fields";
+import { chooseRegion, regionState, type FormatField, type RegionField } from "./settings-state";
 
-const NUMBER_FORMATS = ["DOT_COMMA", "COMMA_DOT", "SPACE_COMMA"] as const;
-const DATE_FORMATS = ["DMY", "MDY", "YMD"] as const;
-const TIME_FORMATS = ["H24", "H12"] as const;
-const WEEK_STARTS = ["MONDAY", "SUNDAY"] as const;
+/** The Números y fechas sheet's rows load when it opens: Ajustes' route carries only its summary (ADR 0004). */
+const FormatsFields = dynamic(() => import("./formats-fields").then((module) => module.FormatsFields), {
+  ssr: false,
+});
 type Field = FormatField | RegionField;
 type MePatch = NonNullable<paths["/api/v1/me"]["patch"]["requestBody"]>["content"]["application/json"];
 
@@ -38,6 +30,12 @@ type MePatch = NonNullable<paths["/api/v1/me"]["patch"]["requestBody"]>["content
 const rememberLocale = (locale: string) => {
   if ((LOCALES as readonly string[]).includes(locale)) document.cookie = localeCookie(locale as Locale);
 };
+
+/**
+ * Ruling P290: the trust page with the space whose home Volver returns to (`/spaces/<id>`) as `?from=`, so its own way
+ * back lands on this screen in the same shell. The trust page keeps the id only when it is one of the person's spaces.
+ */
+const trustFromSpaceHref = (backHref: string): string => `/trust?from=${backHref.slice("/spaces/".length)}`;
 
 /**
  * HU-E9-13, the Settings artboard: no Save button; each choice is stored as it is made (ruling P137). Decision U8
@@ -92,29 +90,12 @@ export function SettingsForm({
     setCurrent(previous);
     setProblems((all) => ({ ...all, [field]: problem }));
   };
-  const sendFormat = (field: FormatField, change: { next: Preferences; patch: MePatch }) =>
-    void send(field, { ...current, preferences: change.next }, change.patch);
+  const sendFormat = (field: FormatField, change: FormatChange) =>
+    void send(field, { ...current, preferences: change.next }, change.patch as MePatch);
   const sendRegion = (field: RegionField, value: string) => {
     const { next, patch } = chooseRegion(current, field, value);
     void send(field, next, patch as MePatch);
   };
-
-  const row = <F extends FormatField>(
-    field: F,
-    options: readonly { value: NonNullable<Preferences["stored"][F]>; label: string }[],
-  ) => (
-    <PreferenceRow
-      id={`settings-${field}`}
-      label={t(`field.${field as FormatField}`)}
-      value={preferences.effective[field] as NonNullable<Preferences["stored"][F]>}
-      options={options}
-      state={rowState(preferences, field)}
-      onChoose={(value) => sendFormat(field, choose(preferences, field, value))}
-      onReset={() => sendFormat(field, reset(preferences, field))}
-      problem={problems[field] ?? null}
-      saved={saved === field}
-    />
-  );
 
   return (
     <div className="flex flex-col gap-3">
@@ -145,6 +126,14 @@ export function SettingsForm({
         problem={problems.timezone ?? null}
         saved={saved === "timezone"}
       />
+      {/* Ruling P290: drawn as a summary row, a link to a page instead of a sheet. */}
+      <Link
+        href={trustFromSpaceHref(backHref)}
+        className="flex min-h-14 w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-line bg-surface px-4 py-2 text-left"
+      >
+        <span className="text-sm font-medium text-ink">{t("trust")}</span>
+        <Icon name="chevronRight" size={20} />
+      </Link>
       <Sheet {...sheetProps("appearance")} title={t("appearance")}>
         <AppearanceSection
           theme={device.theme}
@@ -158,25 +147,7 @@ export function SettingsForm({
         />
       </Sheet>
       <Sheet {...sheetProps("formats")} title={t("numbersAndDates")}>
-        <div className="flex flex-col gap-3">
-          <FormatPreview formats={preferences.effective} />
-          {row(
-            "numberFormat",
-            NUMBER_FORMATS.map((v) => ({ value: v, label: formatNumber("1234567.89", { numberFormat: v }) })),
-          )}
-          {row(
-            "dateFormat",
-            DATE_FORMATS.map((v) => ({ value: v, label: formatDate("2026-10-16", { dateFormat: v }) })),
-          )}
-          {row(
-            "timeFormat",
-            TIME_FORMATS.map((v) => ({ value: v, label: t(`timeFormat.${v}`) })),
-          )}
-          {row(
-            "weekStart",
-            WEEK_STARTS.map((v) => ({ value: v, label: t(`weekStart.${v}`) })),
-          )}
-        </div>
+        <FormatsFields preferences={preferences} problems={problems} saved={saved} onChange={sendFormat} />
       </Sheet>
     </div>
   );

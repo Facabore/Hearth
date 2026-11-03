@@ -29,6 +29,7 @@
     "reset": "Reset",
     "locked": "Set by your installation",
     "appearance": "Appearance and language",
+    "trust": "What you need to know",
     "timezone": {
       "hint": "Sets the day and time of every transaction you record.",
       "search": "Search time zone",
