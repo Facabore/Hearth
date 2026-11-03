@@ -33,9 +33,9 @@ export function TransactionRow({
   /** Issue #216: the viewer's today, for a list whose rows are not under a day's heading; the row then names its day. */
   readonly today?: string;
   /**
-   * Ruling P284 (board E9-09 00, amending P277): a row of Movimientos, inside its day's card. Its line names the
-   * account and wraps rather than cut it, and an income shows in green beside its plus sign. Inicio's rows (board
-   * B1 03) name no account beside a category, and truncate.
+   * Ruling P284 (board E9-09 00, amending P277): a row of Movimientos, inside its day's card. Its line names the time
+   * and who paid or the account, no category, and wraps rather than cut a long name; an income shows in green beside
+   * its plus sign. Inicio's rows (board B1 03) name the category and no account beside it, and truncate.
    */
   readonly card?: boolean;
   /** Ruling P278: what Inicio shows instead of the amount while its eye hides them, in the text a screen reader reads. */
@@ -63,7 +63,9 @@ export function TransactionRow({
     meta.push(t("settlement", { from: member(tx.payerMemberId), to: member(tx.receivingMemberId) }));
   else {
     const path = tx.categoryId ? categoryPath(groups, tx.categoryId) : null;
-    if (path) meta.push(path);
+    // Ruling P284 (boards E9-09 00 and 12): Movimientos reads "9:15 · pagó Ana" or "12:40 · Nequi"; its icon shows the
+    // category, so the line keeps room for the payer. Inicio (board B1 03) names the category instead.
+    if (path && !card) meta.push(path);
     const paid = tx.payments[0];
     // Ruling P171: a shared expense names who paid (a member, or the fund that paid with no member).
     const payer =

@@ -2458,8 +2458,8 @@ test.describe("a shared row names who paid in full, on its one line (UX review S
         { "idempotency-key": crypto.randomUUID() },
       );
       await page.goto(`/spaces/${sharedId}/transactions`);
-      // P284: the payer shares the line with the time and the category, "12:00 · Mercado · pagó …".
-      const payer = page.getByText(/^\d{1,2}:\d{2} · .* · pagó Carlos Alberto/);
+      // P284 (board E9-09 00): the payer follows the time on the row's one line, "12:00 PM · pagó …".
+      const payer = page.getByText(/^\d{1,2}:\d{2}[^·]* · pagó Carlos Alberto/);
       await expect(payer).toBeVisible();
       const read = await payer.evaluate((el) => {
         const r = el.getBoundingClientRect();

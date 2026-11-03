@@ -66,7 +66,7 @@ describe("transaction list (HU-E9-03)", () => {
     expect(title).toHaveClass("text-[26px]", "font-bold");
   });
 
-  it("groups by day, newest first, with times, category paths and the period totals", async () => {
+  it("groups by day, newest first, with times, no category in a row's line, and the period totals", async () => {
     const { container } = renderWithIntl(
       <TransactionList
         spaceId="sp-personal"
@@ -90,7 +90,8 @@ describe("transaction list (HU-E9-03)", () => {
       "Market",
     ]);
     expect(rows[1]).toHaveTextContent("20:45");
-    expect(rows[2]).toHaveTextContent("Groceries › Vegetables");
+    // Ruling P284 (board E9-09 00): the round icon shows the category; the line keeps the time and who paid or the account.
+    expect(rows[2]).not.toHaveTextContent("Groceries");
     expect(rows[0]).not.toHaveTextContent(/\d{2}:\d{2}/);
     const totals = screen.getByRole("region", { name: "Totales del período" });
     expect(norm(totals.textContent)).toContain("$ 245.000");

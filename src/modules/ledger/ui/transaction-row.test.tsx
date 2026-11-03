@@ -342,12 +342,13 @@ describe("a row of Movimientos (board E9-09 00, ruling P284)", () => {
       </ol>,
     );
 
-  it("sits in its day's card, not a card of its own, with a round icon and the account on its one line", async () => {
+  it("sits in its day's card, not a card of its own, with a round icon and the time and account on its one line", async () => {
     const { container } = cardRow(dinner);
     const item = screen.getByRole("listitem");
     expect(item).not.toHaveClass("rounded-2xl");
     expect(item).not.toHaveClass("bg-surface");
-    const line = screen.getByText("20:45 · Restaurants · Bancolombia");
+    // Boards E9-09 00 and 12: "12:40 · Nequi"; the round icon shows the category, the line names none.
+    const line = screen.getByText("20:45 · Bancolombia");
     expect(line).not.toHaveClass("truncate");
     expect(line).toHaveClass("break-words");
     expect(item.querySelector(".rounded-full > [aria-hidden='true']")).not.toBeNull();
