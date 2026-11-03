@@ -39,12 +39,18 @@ export function ProfileSheet({
     }
   };
   // Board B1 · 05 (P292): Ajustes in a card of its own, then Cuentas, Categorías and Miembros in one card, each with ›.
-  const row = "flex min-h-14 items-center gap-3 px-3 py-2 text-ink";
   const card = "mb-3 flex flex-col divide-y divide-line rounded-2xl border border-line";
-  const go = (href: string, icon: ReactNode, label: string) => (
-    <Link href={href} className={row} onClick={() => setOpen(false)}>
+  const go = (href: string, icon: ReactNode, label: string, hint?: string) => (
+    <Link
+      href={href}
+      className="flex min-h-14 items-center gap-3 px-3 py-2 text-ink"
+      onClick={() => setOpen(false)}
+    >
       {icon}
-      <span className="flex-1">{label}</span>
+      <span className="flex flex-1 flex-col">
+        {label}
+        {hint ? <span className="text-sm text-muted">{hint}</span> : null}
+      </span>
       <Icon name="chevronRight" size={20} />
     </Link>
   );
@@ -64,14 +70,7 @@ export function ProfileSheet({
           <p className="min-w-0 text-sm [overflow-wrap:anywhere] text-muted">{me.email}</p>
         </div>
         <div className={card}>
-          <Link href={`/settings?from=${spaceId}`} className={row} onClick={() => setOpen(false)}>
-            <Icon name="sliders" />
-            <span className="flex flex-1 flex-col">
-              <span>{t("settings")}</span>
-              <span className="text-sm text-muted">{t("settingsHint")}</span>
-            </span>
-            <Icon name="chevronRight" size={20} />
-          </Link>
+          {go(`/settings?from=${spaceId}`, <Icon name="sliders" />, t("settings"), t("settingsHint"))}
         </div>
         <div className={card}>
           {go(`/spaces/${spaceId}/accounts`, <Icon name="list" />, t("accounts"))}
