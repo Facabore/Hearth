@@ -441,7 +441,11 @@ describe("a member's balance history in SQL (HU-E5-04)", () => {
     await repo.add(
       expense(other, "2026-10-04", 7, pesos(90_000n), { memberId: ana, accountId: null }, [ana, w.pedro]),
     );
-    await repo.add(settlement(other, "2026-10-06", 8, pesos(20_000n), ana, w.pedro));
+    // A settlement names its members on the transaction row, which the database ties to its space (#249, P288):
+    // one naming another space's members cannot be written at all.
+    await expect(
+      repo.add(settlement(other, "2026-10-06", 8, pesos(20_000n), ana, w.pedro)),
+    ).rejects.toThrow();
     await repo.add(
       expense(
         other,
@@ -457,7 +461,6 @@ describe("a member's balance history in SQL (HU-E5-04)", () => {
     const there = await queries.memberHistory(other.household.spaceId, ana, open);
     expect(there.entries.map((e) => [e.type, e.change, e.balance])).toEqual([
       ["EXPENSE", pesos(45_000n), pesos(45_000n)],
-      ["SETTLEMENT", pesos(20_000n), pesos(65_000n)],
     ]);
     // Another space's member has no history here, though they have one in their own space.
     expect(

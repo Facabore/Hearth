@@ -74,7 +74,7 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
     );
     const link = screen.getByRole("link", { name: /Dinner/ });
     expect(link).toHaveAttribute("href", "/spaces/s-1/transactions?tx=t-dinner");
-    expect(norm(link.textContent)).toBe("Dinner20:45 · Restaurants · Bancolombia−$ 60.000");
+    expect(norm(link.textContent)).toBe("Dinner20:45 · Restaurants−$ 60.000");
     expect(link.closest("li")).toBe(screen.getByRole("listitem"));
     expect(link).toHaveAttribute("data-scroll", "false");
     expect(link).toHaveClass("min-h-row-lg");
@@ -94,15 +94,15 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
     expect(screen.getByText("Dinner").parentElement).toHaveClass("min-w-0");
   });
 
-  it("reads an expense: the record's wall-clock time, the category, the account and a minus sign", async () => {
+  it("reads an expense: the record's wall-clock time, the category and a minus sign, no account (board B1 03)", async () => {
     const { container } = renderRow(dinner);
-    expect(rowText()).toBe("Dinner20:45 · Restaurants · Bancolombia−$ 60.000");
+    expect(rowText()).toBe("Dinner20:45 · Restaurants−$ 60.000");
     expect(await axeViolations(container)).toEqual([]);
   });
 
   it("names a subcategory with its parent", () => {
     renderRow({ ...dinner, categoryId: "c-veg" });
-    expect(rowText()).toContain("20:45 · Groceries › Vegetables · Bancolombia");
+    expect(rowText()).toBe("Dinner20:45 · Groceries › Vegetables−$ 60.000");
   });
 
   it("shows the zone's city only when the record's zone differs from the viewer's", () => {
@@ -113,10 +113,10 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
   it("shows no time for a row without one, and the type when it has no description", () => {
     renderRow({ ...dinner, description: "", occurredAt: null, timeZone: null });
     expect(screen.getByRole("listitem")).not.toHaveTextContent(/\d{2}:\d{2}/);
-    expect(rowText()).toBe("GastoRestaurants · Bancolombia−$ 60.000");
+    expect(rowText()).toBe("GastoRestaurants−$ 60.000");
   });
 
-  it("adds an income with a plus sign and the account that received it", () => {
+  it("adds an income with a plus sign, named by its category", () => {
     renderRow(
       transactionDto({
         id: "t-salary",
@@ -127,7 +127,7 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
         destinationAccountId: "a-bank",
       }),
     );
-    expect(rowText()).toBe("SalaryWages · Bancolombia+$ 3.200.000");
+    expect(rowText()).toBe("SalaryWages+$ 3.200.000");
   });
 
   it("shows a transfer between its accounts, unsigned and without a category", () => {
@@ -290,7 +290,7 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
     expect(screen.getByRole("listitem")).toHaveTextContent("Bancolombia");
     expect(screen.getByRole("listitem")).not.toHaveTextContent("pagó");
   });
-  it("gives the payer its own line, never cut before the time or the category (390 px review, S1)", () => {
+  it("names the payer on the same line as the time and the category, wrapping a long name rather than cut it (P284, S1)", () => {
     const shared = { ...context, memberNames: { "m-pedro": "Pedro (invitado)" } };
     renderWithIntl(
       <ol>
@@ -307,35 +307,68 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
         />
       </ol>,
     );
-    const payer = screen.getByText("pagó Pedro (invitado)");
-    // Its own element: neither inside the truncated detail line nor truncated itself, so a long name wraps.
-    expect(payer.closest(".truncate")).toBeNull();
-    expect(payer).toHaveClass("break-words");
-    const detail = screen.getByText(/20:45 · Restaurants/);
-    expect(detail).toHaveClass("truncate");
-    expect(detail).not.toHaveTextContent("pagó");
+    const line = screen.getByText("20:45 · Restaurants · pagó Pedro (invitado)");
+    expect(line.closest(".truncate")).toBeNull();
+    expect(line).toHaveClass("break-words");
+  });
+
+  it("names the account that received an income with no category, as board B1 03 does", () => {
+    renderRow(
+      transactionDto({
+        id: "t-salary",
+        type: "INCOME",
+        description: "Salary",
+        amount: cop(3_200_000),
+        date: "2026-10-01",
+        categoryId: null,
+        destinationAccountId: "a-bank",
+      }),
+    );
+    expect(rowText()).toBe("SalaryBancolombia+$ 3.200.000");
+  });
+
+  it("draws a round icon, as both lists do (boards B1 03 and E9-09 00)", () => {
+    renderRow(dinner);
+    const item = screen.getByRole("listitem");
+    expect(item.querySelector(".rounded-full > [aria-hidden='true']")).not.toBeNull();
   });
 });
 
-describe("a row of Movimientos (board B1 06, ruling P277)", () => {
-  const cardRow = (tx: TransactionDto) =>
+describe("a row of Movimientos (board E9-09 00, ruling P284)", () => {
+  const cardRow = (tx: TransactionDto, rowContext: RowContext = context) =>
     renderWithIntl(
       <ol>
-        <TransactionRow tx={tx} context={context} card />
+        <TransactionRow tx={tx} context={rowContext} card />
       </ol>,
     );
 
-  it("is a card of its own with a round icon, and its line wraps so the account shows whole", async () => {
+  it("sits in its day's card, not a card of its own, with a round icon and the time and account on its one line", async () => {
     const { container } = cardRow(dinner);
     const item = screen.getByRole("listitem");
-    expect(item).toHaveClass("rounded-2xl", "bg-surface");
-    const line = screen.getByText("20:45 · Restaurants · Bancolombia");
+    expect(item).not.toHaveClass("rounded-2xl");
+    expect(item).not.toHaveClass("bg-surface");
+    // Boards E9-09 00 and 12: "12:40 · Nequi"; the round icon shows the category, the line names none.
+    const line = screen.getByText("20:45 · Bancolombia");
     expect(line).not.toHaveClass("truncate");
     expect(line).toHaveClass("break-words");
-    expect(
-      item.querySelector(".rounded-full [aria-hidden='true'], .rounded-full[aria-hidden='true']"),
-    ).not.toBeNull();
+    expect(item.querySelector(".rounded-full > [aria-hidden='true']")).not.toBeNull();
     expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("reads its second line as the time and who paid, on one line: '9:15 · pagó Ana'", () => {
+    cardRow(
+      transactionDto({
+        type: "EXPENSE",
+        description: "Mercado",
+        occurredAt: "2026-12-12T14:15:00.000Z",
+        timeZone: "America/Bogota",
+        payments: [{ memberId: "m-ana", accountId: "a-bank", amount: cop(86_400) }],
+      }),
+      { ...context, memberNames: { "m-ana": "Ana" } },
+    );
+    const [, line, ...rest] = screen.getByText("Mercado").parentElement!.children;
+    expect(line).toHaveTextContent(/^09:15 · pagó Ana$/);
+    expect(rest).toEqual([]);
   });
 
   it("shows an income in green, with its plus sign", () => {
@@ -356,6 +389,6 @@ describe("a row of Movimientos (board B1 06, ruling P277)", () => {
   it("keeps the home's rows as they were: one list, truncated", () => {
     renderRow(dinner);
     expect(screen.getByRole("listitem")).not.toHaveClass("bg-surface");
-    expect(screen.getByText("20:45 · Restaurants · Bancolombia")).toHaveClass("truncate");
+    expect(screen.getByText("20:45 · Restaurants")).toHaveClass("truncate");
   });
 });

@@ -1,4 +1,4 @@
-import { ok, type Money, type Result } from "@/shared/kernel";
+import { domainError, err, ok, type Money, type Result } from "@/shared/kernel";
 import { reviseAccount, type AccountType, type AttributeChanges } from "../domain/account";
 import { accountForChange } from "./account-for-change";
 import { todayFor, withBalances, type AccountView } from "./account-view";
@@ -24,6 +24,8 @@ export const createUpdateAccount =
   (deps: AccountsDeps): UpdateAccount =>
   (input) =>
     deps.tm.run(async () => {
+      // Issue #245: before the membership, so a currency change in progress is waited for and its currency is read.
+      await deps.spaceLocks.lockForMoneyWrite(input.spaceId);
       const target = await accountForChange(deps, input);
       if (!target.ok) return target;
       const { space, account, siblings } = target.value;
@@ -47,7 +49,8 @@ export const createUpdateAccount =
         siblings,
       );
       if (!revised.ok) return revised;
-      await deps.accounts.save(revised.value);
+      // Issue #245: a concurrent writer may take the name after `siblings` was read; the store decides then.
+      if (!(await deps.accounts.save(revised.value))) return err(domainError("AccountNameTaken"));
       const today = await todayFor(deps, input.userId);
       const [view] = await withBalances(deps.movements, [revised.value], space.currency, null, today);
       return ok(view!);

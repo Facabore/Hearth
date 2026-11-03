@@ -9,6 +9,7 @@ import {
   money,
   sequentialIds,
   unwrap,
+  noSpaceLocks,
 } from "../../../../tests/support/fakes";
 import { FixedMovements, InMemoryAccounts } from "../../../../tests/support/in-memory-accounts";
 import { NO_ATTRIBUTES, type Account, type AccountId } from "../domain/account";
@@ -53,6 +54,7 @@ const world = (where: "ana" | "household", archived: boolean, archivedAccounts: 
   );
   accounts.rows = accounts.rows.map((a) => (archivedAccounts.includes(a.id) ? { ...a, archivedAt: now } : a));
   const deps: AccountsDeps = {
+    spaceLocks: noSpaceLocks,
     accounts,
     access: fakeSpaceAccess(
       where === "ana"

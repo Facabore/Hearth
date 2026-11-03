@@ -9,6 +9,7 @@ import {
   createUpdateAccount,
   holdsMoney,
   switchesOf,
+  type AccountRepository,
   type AccountsDeps,
   type ArchiveAccount,
   type CreateAccount,
@@ -167,6 +168,8 @@ import {
   type ArchiveCategory,
   type ArchiveCategoryGroup,
   type CategoriesDeps,
+  type CategoryRepository,
+  type CategoryUsage,
   type CreateCategory,
   type CreateCategoryGroup,
   type DeleteCategory,
@@ -236,6 +239,7 @@ import {
   type ListMembers,
   type ListMySpaces,
   type ListSpacePeriods,
+  type SpaceUsage,
   type MembersDeps,
   type PreviewClaim,
   type PreviewInvitation,
@@ -428,6 +432,66 @@ export interface ContainerOptions {
   readonly installationRules?: InstallationRulesReader;
 }
 
+/**
+ * The ledger's categories, read from the categories module; the ledger never imports it. Only writers look one up, to
+ * name it in a movement or a recurrence, so the lookup takes the tree lock's shared side first (#245): a delete in
+ * progress is waited for and answers CategoryNotFound, and one that starts later sees the reference (CategoryInUse).
+ * Money writes hold the space row before this, and a tree writer takes no space lock, so the two never cross.
+ */
+export const ledgerCategoriesOf = (categories: CategoryRepository): LedgerDeps["categories"] => ({
+  find: async (spaceId, categoryId) => {
+    await categories.lockTreeForReference(spaceId);
+    const category = (await categories.listCategories(spaceId)).find((c) => c.id === categoryId);
+    return category ? { id: category.id, archived: category.archivedAt !== null } : null;
+  },
+  // HU-E3-04: the filter's subcategories; listCategories skips deleted rows and keeps archived ones.
+  subcategoriesOf: async (spaceId, categoryIds) =>
+    (await categories.listCategories(spaceId))
+      .filter((c) => c.parentCategoryId !== null && categoryIds.includes(c.parentCategoryId))
+      .map((c) => c.id),
+});
+
+/** HU-E6-04: plans map the space's live categories; deleted ones never appear (D8). */
+export const budgetCategoriesOf = (categories: CategoryRepository): BudgetCategories => ({
+  // Issue #245: the tree lock's shared side, as the ledger's lookup takes it; a delete holds the exclusive one.
+  lockForReference: (spaceId) => categories.lockTreeForReference(spaceId),
+  list: async (spaceId) =>
+    (await categories.listCategories(spaceId)).map((c) => ({
+      id: c.id,
+      archived: c.archivedAt !== null,
+      parentCategoryId: c.parentCategoryId,
+    })),
+});
+
+/** HU-E3-03: soft-deleted transactions and every budget-line mapping, ended ones included, are references (D8). */
+export const categoryUsageOf = (
+  ledger: Pick<DrizzleLedgerQueries, "isCategoryReferenced">,
+  plans: Pick<DrizzleBudgetPlanRepository, "isCategoryMapped">,
+): CategoryUsage => ({
+  isCategoryReferenced: async (categoryId) =>
+    (await ledger.isCategoryReferenced(categoryId)) || (await plans.isCategoryMapped(categoryId)),
+});
+
+/**
+ * D6, HU-E1-03: what fixes a space's currency. A plan's capacities and lines are amounts in the space currency too
+ * (HU-E6-01). Issue 169: an account records money only when it holds an amount, so sign-up's starter accounts at zero
+ * never lock the currency; an account's currency is its space's (no column of its own), so they follow a change with
+ * nothing to move. A recurrence stores its amount with its own currency and records its occurrences in it; an ended
+ * one counts too, since it keeps that amount and can be extended again (#115).
+ */
+export const spaceUsageOf = (sources: {
+  readonly accounts: Pick<AccountRepository, "listBySpace">;
+  readonly recurrences: Pick<DrizzleRecurrenceRepository, "list">;
+  readonly ledger: Pick<DrizzleLedgerQueries, "hasTransactions">;
+  readonly plans: Pick<DrizzleBudgetPlanRepository, "hasPlans">;
+}): SpaceUsage => ({
+  hasMoneyRecords: async (spaceId) =>
+    (await sources.accounts.listBySpace(spaceId)).some(holdsMoney) ||
+    (await sources.recurrences.list(spaceId)).length > 0 ||
+    (await sources.ledger.hasTransactions(spaceId)) ||
+    (await sources.plans.hasPlans(spaceId)),
+});
+
 export const buildContainer = (env: Env, options: ContainerOptions = {}): Container => {
   const { db, pool } = createDatabase(env.DATABASE_URL);
   const tm = new DrizzleTransactionManager(db);
@@ -472,6 +536,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   const accountsDeps: AccountsDeps = {
     accounts: new DrizzleAccountRepository(tm),
     access,
+    // Issue #245: creating and editing an account write an amount in the space currency, as money writes do (#89).
+    spaceLocks: spaceRepository,
     movements: ledgerQueries,
     ids,
     clock,
@@ -484,15 +550,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   const storedPeriods: StoredPeriodSource = (spaceId) => budgetPlans.storedPeriods(spaceId);
   const getAccount = createGetAccount(accountsDeps);
   const listAccounts = createListAccounts(accountsDeps);
-  // HU-E6-04: plans map the space's live categories; deleted ones never appear (D8).
-  const budgetCategories: BudgetCategories = {
-    list: async (spaceId) =>
-      (await categoriesDeps.categories.listCategories(spaceId)).map((c) => ({
-        id: c.id,
-        archived: c.archivedAt !== null,
-        parentCategoryId: c.parentCategoryId,
-      })),
-  };
+  const budgetCategories = budgetCategoriesOf(categoryRepository);
   const ledgerDeps: LedgerDeps = {
     access,
     // Issue #89: money writes hold the space row FOR SHARE; leaving, removing and archiving hold it FOR NO KEY UPDATE.
@@ -517,19 +575,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
           : null;
       },
     },
-    categories: {
-      find: async (spaceId, categoryId) => {
-        const category = (await categoriesDeps.categories.listCategories(spaceId)).find(
-          (c) => c.id === categoryId,
-        );
-        return category ? { id: category.id, archived: category.archivedAt !== null } : null;
-      },
-      // HU-E3-04: the filter's subcategories; listCategories skips deleted rows and keeps archived ones.
-      subcategoriesOf: async (spaceId, categoryIds) =>
-        (await categoriesDeps.categories.listCategories(spaceId))
-          .filter((c) => c.parentCategoryId !== null && categoryIds.includes(c.parentCategoryId))
-          .map((c) => c.id),
-    },
+    categories: ledgerCategoriesOf(categoryRepository),
     // HU-E4-06, HU-E6-07: a CLOSED plan's period takes no change; budgeting answers, the ledger never imports it.
     closedPeriods: createClosedPeriodGuard(budgetPlans),
     // HU-E6-08, spec 5.3: an expense recorded without a split follows its line's allocation in the ACTIVE plan;
@@ -642,6 +688,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   // HU-E6-01 … HU-E6-05: plans reach members, accounts, categories and the ledger's spending only through ports.
   const budgetingDeps = {
     access,
+    // Issue #245: creating or copying a plan holds the space row as a money write does; a settings change waits for it.
+    spaceLocks: spaceRepository,
     members: spaceRepository,
     plans: budgetPlans,
     allocations: budgetPlans,
@@ -768,20 +816,16 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       getSpace: createGetSpace(access),
       updateSettings: createUpdateSpaceSettings({
         spaces: spaceRepository,
+        // Issue #245: a settings change holds the space row as a leave does; money writes and plan creations share it.
+        spaceLocks: spaceRepository,
         access,
         tm,
-        usage: {
-          // D6: a plan's capacities and lines are amounts in the space currency too (HU-E6-01). Issue 169: an account
-          // records money only when it holds an amount, so sign-up's starter accounts at zero never lock the currency;
-          // an account's currency is its space's (no column of its own), so they follow a change with nothing to move.
-          // A recurrence stores its amount with its own currency and records its occurrences in it; an ended one counts
-          // too, since it keeps that amount and can be extended again (#115).
-          hasMoneyRecords: async (spaceId) =>
-            (await accountsDeps.accounts.listBySpace(spaceId)).some(holdsMoney) ||
-            (await recurrenceRepository.list(spaceId)).length > 0 ||
-            (await ledgerQueries.hasTransactions(spaceId)) ||
-            (await budgetPlans.hasPlans(spaceId)),
-        },
+        usage: spaceUsageOf({
+          accounts: accountsDeps.accounts,
+          recurrences: recurrenceRepository,
+          ledger: ledgerQueries,
+          plans: budgetPlans,
+        }),
       }),
       listPeriods: createListSpacePeriods({ access, storedPeriods, clock, timeZone: env.APP_TIMEZONE }),
       createSpace: createCreateSpace({
@@ -830,14 +874,9 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       renameCategoryGroup: createRenameCategoryGroup(categoriesDeps),
       createCategory: createCreateCategory(categoriesDeps),
       updateCategory: createUpdateCategory(categoriesDeps),
-      // HU-E3-03: soft-deleted transactions and every budget-line mapping, ended ones included, are references (D8).
       deleteCategory: createDeleteCategory({
         ...categoriesDeps,
-        usage: {
-          isCategoryReferenced: async (categoryId) =>
-            (await ledgerQueries.isCategoryReferenced(categoryId)) ||
-            (await budgetPlans.isCategoryMapped(categoryId)),
-        },
+        usage: categoryUsageOf(ledgerQueries, budgetPlans),
       }),
       archiveCategory: createArchiveCategory(categoriesDeps),
       restoreCategory: createRestoreCategory(categoriesDeps),

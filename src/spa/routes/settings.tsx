@@ -2,7 +2,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { useTranslations } from "use-intl";
 import { SettingsForm } from "@/modules/identity/ui";
-import { activeSpaceOf, spaceHomeHref, SpaceNameSection } from "@/modules/spaces/ui";
+import { activeSpaceOf, LazySpaceNameSection, spaceHomeHref } from "@/modules/spaces/ui";
 import { NotFoundScreen } from "@/shared/ui";
 import { useApis } from "../api";
 import { meQuery, spacesQuery } from "../queries";
@@ -29,7 +29,7 @@ export function SettingsRoute() {
       <div className="mx-auto flex max-w-[640px] flex-col gap-3 py-3">
         <SettingsForm me={me} backHref={spaceHomeHref(spaces, from)} />
         {/* Keyed by the space: another `?from=` starts the field afresh, its own rename's refresh does not. */}
-        <SpaceNameSection key={space.id} space={space} />
+        <LazySpaceNameSection key={space.id} space={space} />
       </div>
     </ShellFrame>
   );

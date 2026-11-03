@@ -58,6 +58,7 @@ const accountsFailingAt = (failAt: number): AccountRepository => {
 const starterDeps = (accounts: AccountRepository) => ({
   accounts,
   access: createSpaceAccess(spaces),
+  spaceLocks: spaces,
   movements: new FixedMovements(),
   ids,
   clock,

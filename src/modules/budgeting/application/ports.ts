@@ -131,6 +131,11 @@ export interface CategoryMappingRepository {
 
 /** The live categories of a space (deleted ones never appear, D8), archived ones flagged; bound to categories. */
 export interface BudgetCategories {
+  /**
+   * Issue #245: taken by a write that is about to map the space's categories, before it lists them. It waits for a
+   * delete of one of them in progress and keeps the next one out until the write commits; mappings run side by side.
+   */
+  lockForReference(spaceId: string): Promise<void>;
   list(
     spaceId: string,
   ): Promise<

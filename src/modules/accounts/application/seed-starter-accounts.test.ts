@@ -9,6 +9,7 @@ import {
   money,
   sequentialIds,
   unwrap,
+  noSpaceLocks,
 } from "../../../../tests/support/fakes";
 import { FixedMovements, InMemoryAccounts } from "../../../../tests/support/in-memory-accounts";
 import { NO_ATTRIBUTES } from "../domain/account";
@@ -24,6 +25,7 @@ const anaAsViewer = membership({ spaceId: "space-viewer", memberId: "member-view
 const setup = () => {
   const accounts = new InMemoryAccounts();
   const deps: AccountsDeps = {
+    spaceLocks: noSpaceLocks,
     accounts,
     access: fakeSpaceAccess(membership(), household, anaAsViewer),
     movements: new FixedMovements(),

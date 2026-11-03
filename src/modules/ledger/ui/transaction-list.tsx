@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
-import { Button, Icon, ProblemNotice, VisuallyHidden } from "@/shared/ui";
+import { Button, Icon, ProblemNotice } from "@/shared/ui";
 import type { Api } from "@/shared/ui/api/client";
 import type { AccountDto, MoneyDto, PeriodDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
 import { formatDate, formatMoney, formatSignedMoney } from "@/shared/ui/format/formatters";
-import { dayNet, groupByDay } from "./day-groups";
+import { groupByDay } from "./day-groups";
 import type { TransactionDetail } from "./detail/transaction-detail";
 import { TransactionSheetHost } from "./detail/transaction-sheet-host";
 import { withTx } from "./detail/tx-href";
@@ -18,7 +18,8 @@ import { TransactionRow, type RowContext } from "./transaction-row";
 
 /**
  * HU-E9-03, board B1 06 "Movimientos por día y hora" (ruling P277): the search, the period chip and the filters, the
- * API's totals, then the period's rows by day, each day with its date and its total.
+ * API's totals, then the period's rows by day. Board E9-09 00 (ruling P284): each day is headed by its date alone, with
+ * no total, and its rows share one card with dividers.
  */
 export function TransactionList({
   spaceId,
@@ -132,27 +133,14 @@ export function TransactionList({
         })}
       </section>
       {days.length === 0 ? <p className="text-muted">{t("list.empty")}</p> : null}
-      {days.map((day, index) => {
-        // A day's total waits for its last row: the last day loaded may go on in the next page.
-        const total = more.next !== null && index === days.length - 1 ? null : dayNet(day.items);
+      {days.map((day) => {
         const date = formatDate(day.date, context.formats);
         return (
           <section key={day.date} aria-labelledby={`day-${day.date}`} className="flex flex-col gap-2">
-            <header className="flex items-baseline justify-between gap-3 px-1 pt-1">
-              <h2
-                id={`day-${day.date}`}
-                className="text-[13px] font-semibold tracking-wide text-muted uppercase"
-              >
-                {day.relative ? `${t(`day.${day.relative}`)} · ${date}` : date}
-              </h2>
-              {total ? (
-                <p className="text-[13px] font-semibold whitespace-nowrap text-muted">
-                  <VisuallyHidden>{t("list.dayTotal")}</VisuallyHidden>
-                  {formatSignedMoney(total, context.formats)}
-                </p>
-              ) : null}
-            </header>
-            <ol className="flex flex-col gap-2">
+            <h2 id={`day-${day.date}`} className="px-1 pt-1 text-sm font-semibold text-muted">
+              {day.relative ? `${t(`day.${day.relative}`)} · ${date}` : date}
+            </h2>
+            <ol className="divide-y divide-line rounded-2xl border border-line bg-surface">
               {day.items.map((tx) => (
                 <TransactionRow key={tx.id} tx={tx} context={context} href={withTx(listHref, tx.id)} card />
               ))}

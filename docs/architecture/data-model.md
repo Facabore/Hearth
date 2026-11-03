@@ -153,7 +153,7 @@ erDiagram
 | `space_invitations.space_id` | `spaces.id` | no | CASCADE | The space the invitation is for. |
 | `space_invitations.created_by` | `user.id` | no | CASCADE | The user who created the invitation. |
 | `space_invitations.accepted_by_user_id` | `user.id` | yes | SET NULL | The user who accepted it; cleared if that user is deleted. |
-| `space_invitations.guest_member_id` | `space_members.id` | yes | CASCADE | The guest whose place a CLAIM link hands over; set exactly for CLAIM invitations. |
+| `space_invitations.guest_member_id`, `space_id` | `space_members.id`, `space_id` | yes | CASCADE | The guest whose place a CLAIM link hands over, a member of the link's space (`space_invitations_guest_space_fk`, #249); set exactly for CLAIM invitations. |
 
 **Unique indexes and checks.**
 
@@ -182,6 +182,7 @@ erDiagram
 **`space_members`**
 - Unique index `space_members_current_user_uq`: `(space_id, user_id)` where `left_at IS NULL` (one current row per user and space).
 - Unique index `space_members_current_name_uq`: `(space_id, lower(display_name))` where `left_at IS NULL`.
+- Unique `space_members_id_space_uq`: `(id, space_id)`, the key a claim link's guest and a transaction's members point at (#249).
 - Check `space_members_guest_user`: `(kind = 'GUEST') = (user_id IS NULL)`.
 - Check `space_members_guest_role`: `(kind = 'GUEST') = (role IS NULL)`.
 - Check `space_members_contact_email`: `contact_email IS NULL OR kind = 'GUEST'`.
@@ -298,6 +299,7 @@ erDiagram
 
 **`accounts`**
 - Unique index `accounts_space_name_uq`: `(space_id, lower(name))`.
+- Check `accounts_type`: `type` is one of the domain's `ACCOUNT_TYPES`: `CASH`, `BANK`, `WALLET`, `CREDIT_CARD`, `SAVINGS`, `INVESTMENT`, `LOAN`, `OTHER` or `SHARED_FUND` (#249).
 - Check `accounts_shared_fund_owner`: `(type = 'SHARED_FUND') = (owner_user_id IS NULL)`.
 - Check `accounts_last_four`: `last_four ~ '^[0-9]{4}$'` (null passes).
 - Check `accounts_card_terms`: `type = 'CREDIT_CARD'` or `credit_limit`, `cut_off_day`, `payment_day` and `monthly_rate_ppm` are all null.
@@ -322,6 +324,7 @@ erDiagram
 - Unique index `categories_space_key_uq`: `(space_id, key)`; null keys never collide.
 - Check `categories_not_own_parent`: `parent_category_id <> id`.
 - Check `categories_style_whole`: `icon_kind`, `icon_value` and `color` are all null or all set.
+- Unique `categories_id_space_uq`: `(id, space_id)`, the key a transaction's category points at (#249).
 - Check `categories_style_by_level`: `(parent_category_id IS NULL) = (color IS NOT NULL)`, so a category has a style and a subcategory has none.
 
 ## Ledger and recurrences
@@ -499,11 +502,11 @@ erDiagram
 | From | To | Nullable | ON DELETE | Meaning |
 |---|---|---|---|---|
 | `transactions.space_id` | `spaces.id` | no | CASCADE | The space whose budget and balances the transaction affects. |
-| `transactions.category_id` | `categories.id` | yes | NO ACTION | What the money was for; null for a TRANSFER or a SETTLEMENT. |
-| `transactions.source_account_id` | `accounts.id` | yes | NO ACTION | The account a TRANSFER leaves; null for an EXPENSE, an INCOME and a transfer paid by a guest. |
+| `transactions.category_id`, `space_id` | `categories.id`, `space_id` | yes | NO ACTION | What the money was for, a category of the same space (`transactions_category_space_fk`, #249); null for a TRANSFER or a SETTLEMENT. |
+| `transactions.source_account_id` | `accounts.id` | yes | NO ACTION | The account a TRANSFER leaves; null for an EXPENSE, an INCOME and a transfer paid by a guest. It may live in the payer's personal space (D9, ruling P288). |
 | `transactions.destination_account_id` | `accounts.id` | yes | NO ACTION | The account an INCOME or a TRANSFER lands in. |
-| `transactions.receiving_member_id` | `space_members.id` | yes | NO ACTION | The member who receives an INCOME or a SETTLEMENT. |
-| `transactions.payer_member_id` | `space_members.id` | yes | NO ACTION | The member who contributes a TRANSFER into the shared fund, or pays a SETTLEMENT. |
+| `transactions.receiving_member_id`, `space_id` | `space_members.id`, `space_id` | yes | NO ACTION | The member who receives an INCOME or a SETTLEMENT, a member of the same space (`transactions_receiving_member_space_fk`, #249). |
+| `transactions.payer_member_id`, `space_id` | `space_members.id`, `space_id` | yes | NO ACTION | The member who contributes a TRANSFER into the shared fund, or pays a SETTLEMENT, a member of the same space (`transactions_payer_member_space_fk`, #249). |
 | `payments.transaction_id` | `transactions.id` | no | CASCADE | The transaction the payment belongs to; deleting the transaction removes its payments. |
 | `payments.member_id` | `space_members.id` | yes | NO ACTION | The member who paid; null for a payment from the shared fund. |
 | `payments.account_id` | `accounts.id` | yes | NO ACTION | The account the money left; null when the payer is a guest. |
@@ -532,10 +535,12 @@ erDiagram
 - Check `payments_has_payer`: `member_id IS NOT NULL OR account_id IS NOT NULL`.
 
 **`shares`**
+- Unique index `shares_transaction_member_uq`: `(transaction_id, member_id)`; a transaction gives each member at most one share (#249).
 - Check `shares_amount_positive`: `amount > 0`.
+- Check `shares_split_method`: `split_method` is `EQUAL`, `PERCENT`, `EXACT`, `SHARES` or `BY_ALLOCATION` (#249).
 
 **`transaction_audit`**
-- No unique index or check beyond the primary key.
+- Check `transaction_audit_action`: `action` is `UPDATED`, `DELETED` or `RESTORED` (#249).
 
 **`recurrences`**
 - Check `recurrences_amount_positive`: `amount > 0`.
@@ -666,7 +671,7 @@ erDiagram
 | `budget_lines.plan_id` | `budget_plans.id` | no | NO ACTION | The plan the line belongs to. |
 | `budget_lines.origin_line_id` | `budget_lines.id` | yes | NO ACTION | The line this one was copied from, so carry-over and trends follow it across plans. |
 | `budget_line_categories.plan_id` | `budget_plans.id` | no | NO ACTION | The plan of the line, repeated so one category maps to one current line per plan. |
-| `budget_line_categories.line_id` | `budget_lines.id` | no | NO ACTION | The line the category is mapped to. |
+| `budget_line_categories.line_id`, `plan_id` | `budget_lines.id`, `plan_id` | no | NO ACTION | The line the category is mapped to; the mapping's `plan_id` is that line's plan (`budget_line_categories_line_plan_fk`, #249). |
 | `budget_line_categories.category_id` | `categories.id` | no | NO ACTION | The mapped category (never a subcategory). |
 | `budget_allocations.line_id` | `budget_lines.id` | no | NO ACTION | The line being allocated. |
 | `budget_allocations.member_id` | `space_members.id` | no | NO ACTION | The member the value is allocated to. |
@@ -676,6 +681,7 @@ erDiagram
 **`budget_plans`**
 - Unique index `budget_plans_space_start_uq`: `(space_id, start_date)`.
 - Check `budget_plans_dates`: `start_date <= end_date`.
+- Check `budget_plans_status`: `status` is `DRAFT`, `ACTIVE` or `CLOSED` (#249).
 
 **`budget_member_capacities`**
 - Check `budget_member_capacities_amount`: `amount >= 0`.
@@ -683,9 +689,13 @@ erDiagram
 **`budget_lines`**
 - Unique index `budget_lines_plan_name_uq`: `(plan_id, lower(name))` where `deleted_at IS NULL`.
 - Unique index `budget_lines_catch_all_uq`: `plan_id` where `is_catch_all AND deleted_at IS NULL` (one catch-all line per plan).
+- Unique `budget_lines_id_plan_uq`: `(id, plan_id)`, the key a category mapping points at (#249).
 - Check `budget_lines_planned_positive`: `planned_amount > 0`.
 - Check `budget_lines_savings_accounts`: `(funding = 'SAVINGS') = (cardinality(savings_account_ids) > 0)`.
 - Check `budget_lines_savings_catch_all`: `NOT (funding = 'SAVINGS' AND is_catch_all)`.
+- Check `budget_lines_funding`: `funding` is `DIRECT`, `SHARED_FUND` or `SAVINGS` (#249).
+- Check `budget_lines_rollover_mode`: `rollover_mode` is `RESET`, `ROLLOVER` or `ADJUSTED` (#249).
+- Check `budget_lines_allocation_rule`: `allocation_rule` is `PROPORTIONAL`, `PERCENT`, `FIXED` or `NONE` (#249).
 
 **`budget_line_categories`**
 - Unique index `budget_line_categories_current_uq`: `(plan_id, category_id)` where `unmapped_at IS NULL` (a category maps to one current line per plan).
@@ -693,6 +703,7 @@ erDiagram
 **`budget_allocations`**
 - Unique index `budget_allocations_current_uq`: `(line_id, member_id)` where `superseded_at IS NULL`.
 - Check `budget_allocations_value_positive`: `value > 0`.
+- Check `budget_allocations_rule`: `rule` is `PERCENT` or `FIXED`, the two rules that store member values (#249).
 
 ## Standalone: `idempotency_keys`
 
@@ -793,7 +804,7 @@ It stores, per user, route and `Idempotency-Key`, the hash of the request and th
 
 ## Migrations
 
-One line per migration, from the file in [`drizzle/`](https://github.com/Facabore/Hearth/tree/development/drizzle) and the plan that introduced it. All are generated by drizzle-kit; `0017` also holds a hand-written back-fill.
+One line per migration, from the file in [`drizzle/`](https://github.com/Facabore/Hearth/tree/development/drizzle) and the plan that introduced it. All are generated by drizzle-kit; `0017` also holds a hand-written back-fill, and the database invariants of #249 (`0021` onwards) open with a hand-written check of the existing rows: a row that would break the new constraint stops the migration with a message naming it, and nothing is rewritten or deleted.
 
 | Migration | Adds | Plan |
 |---|---|---|
@@ -817,5 +828,10 @@ One line per migration, from the file in [`drizzle/`](https://github.com/Facabor
 | [`0017_category_styles.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0017_category_styles.sql) | Icon and color on `categories` and `category_groups`, and the catalog `key` of groups; a hand-written back-fill keys and styles the seeded rows. | M3-D, Task 17a-2 |
 | [`0018_user_preferences.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0018_user_preferences.sql) | `user.number_format`, `time_format`, `date_format` and `week_start`. | M3-D, Task 18a |
 | [`0019_account_style_vocabulary.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0019_account_style_vocabulary.sql) | Maps `accounts.color` to the shared palette keys and `accounts.icon` to Hearth symbol names (no DDL). | M6a, Task 1 |
+| [`0021_ledger_vocabulary.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0021_ledger_vocabulary.sql) | The checks `accounts_type`, `shares_split_method` and `transaction_audit_action`, and one share per member of a transaction (`shares_transaction_member_uq`). | Issue #249, M1-9 |
+| [`0022_budgeting_vocabulary.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0022_budgeting_vocabulary.sql) | The checks `budget_plans_status`, `budget_lines_funding`, `budget_lines_rollover_mode`, `budget_lines_allocation_rule` and `budget_allocations_rule`. | Issue #249, M3A-2 |
+| [`0023_line_category_plan.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0023_line_category_plan.sql) | The unique key `(id, plan_id)` of `budget_lines`; a category mapping points at it with its `plan_id`, so that plan is its line's. | Issue #249, M3A-3 |
+| [`0024_claim_guest_space.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0024_claim_guest_space.sql) | The unique key `(id, space_id)` of `space_members`; a claim link points at it with its `space_id`, so its guest is a member of its space. | Issue #249, M2C-D3 |
+| [`0025_transaction_space_keys.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0025_transaction_space_keys.sql) | The unique key `(id, space_id)` of `categories`; a transaction's category, receiving member and payer member point at it and at that of `space_members` with its `space_id` (ruling P288). | Issue #249, M1-8 |
 
 Migrations are forward-only (see [Rolling back](../operations/deploy.md#rolling-back)). A migration that changes tables updates this page in the same pull request.

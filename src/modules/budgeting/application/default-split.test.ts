@@ -345,6 +345,7 @@ describe("the categories a default split reads", () => {
     const { deps } = await world();
     const asked: string[] = [];
     const categories = {
+      lockForReference: async () => undefined,
       list: async (spaceId: string) => {
         asked.push(spaceId);
         return householdCategories.list(spaceId);

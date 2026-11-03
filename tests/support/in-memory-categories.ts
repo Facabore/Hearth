@@ -8,6 +8,7 @@ export class InMemoryCategories implements CategoryRepository {
 
   /** Ruling P90: nothing runs concurrently here, so there is nothing to serialize. */
   async lockTree() {}
+  async lockTreeForReference() {}
   async hasAny(spaceId: string) {
     return this.groups.some((g) => g.spaceId === spaceId);
   }

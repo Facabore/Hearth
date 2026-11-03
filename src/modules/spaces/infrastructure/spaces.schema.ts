@@ -1,12 +1,14 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  foreignKey,
   index,
   jsonb,
   pgTable,
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -71,6 +73,8 @@ export const spaceMembers = pgTable(
     check("space_members_guest_user", sql`(${t.kind} = 'GUEST') = (${t.userId} IS NULL)`),
     check("space_members_guest_role", sql`(${t.kind} = 'GUEST') = (${t.role} IS NULL)`),
     check("space_members_contact_email", sql`${t.contactEmail} IS NULL OR ${t.kind} = 'GUEST'`),
+    // #249: the key a row's (member, space_id) points at, so the member it names is one of its space.
+    unique("space_members_id_space_uq").on(t.id, t.spaceId),
   ],
 );
 
@@ -95,8 +99,8 @@ export const spaceInvitations = pgTable(
     acceptedAt: tz("accepted_at"),
     acceptedByUserId: text("accepted_by_user_id").references(() => user.id, { onDelete: "set null" }),
     revokedAt: tz("revoked_at"),
-    // HU-E1-11: the guest whose place a CLAIM link hands over.
-    guestMemberId: uuid("guest_member_id").references(() => spaceMembers.id, { onDelete: "cascade" }),
+    // HU-E1-11: the guest whose place a CLAIM link hands over, a member of the link's space (#249, M2C-D3).
+    guestMemberId: uuid("guest_member_id"),
   },
   (t) => [
     index("space_invitations_space_id_idx").on(t.spaceId),
@@ -105,6 +109,11 @@ export const spaceInvitations = pgTable(
     index("space_invitations_accepted_by_user_id_idx").on(t.acceptedByUserId),
     // HU-E1-12: a guest's pending claim links are revoked when the guest is removed.
     index("space_invitations_guest_member_id_idx").on(t.guestMemberId),
+    foreignKey({
+      name: "space_invitations_guest_space_fk",
+      columns: [t.guestMemberId, t.spaceId],
+      foreignColumns: [spaceMembers.id, spaceMembers.spaceId],
+    }).onDelete("cascade"),
     // Email invitations are bound to one address; link invitations to none.
     check("space_invitations_email_kind", sql`(${t.kind} = 'EMAIL') = (${t.email} IS NOT NULL)`),
     // An invitation never grants OWNER.

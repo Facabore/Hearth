@@ -2428,9 +2428,9 @@ test.describe("the last control of a scrolling screen ends above the bottom bar 
   }
 });
 
-test.describe("a shared row names who paid in full (UX review, S1)", () => {
+test.describe("a shared row names who paid in full, on its one line (UX review S1, ruling P284)", () => {
   for (const viewport of [PHONE, SMALL_PHONE]) {
-    test(`a long payer name wraps on its own line instead of being cut at ${viewport.width} px`, async ({
+    test(`a long payer name follows the time on its line and wraps instead of being cut at ${viewport.width} px`, async ({
       page,
     }) => {
       await page.setViewportSize(viewport);
@@ -2458,7 +2458,8 @@ test.describe("a shared row names who paid in full (UX review, S1)", () => {
         { "idempotency-key": crypto.randomUUID() },
       );
       await page.goto(`/spaces/${sharedId}/transactions`);
-      const payer = page.getByText(/^pagó Carlos Alberto/);
+      // P284 (board E9-09 00): the payer follows the time on the row's one line, "12:00 PM · pagó …".
+      const payer = page.getByText(/^\d{1,2}:\d{2}[^·]* · pagó Carlos Alberto/);
       await expect(payer).toBeVisible();
       const read = await payer.evaluate((el) => {
         const r = el.getBoundingClientRect();
@@ -2472,7 +2473,7 @@ test.describe("a shared row names who paid in full (UX review, S1)", () => {
         };
       });
       expect(read.text).toContain(HISTORY_GUEST);
-      expect(read.truncates, "the payer line never truncates").toBe(false);
+      expect(read.truncates, "the row's line never truncates").toBe(false);
       expect(read.clipped, "the payer name is fully visible").toBe(false);
       expect(read.right).toBeLessThanOrEqual(viewport.width);
       expect(read.page, "no horizontal scroll").toBeLessThanOrEqual(viewport.width);

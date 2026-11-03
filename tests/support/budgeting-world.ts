@@ -72,6 +72,7 @@ export const budgetingWorld = (
   const spending = new FixedSpending();
   const deps: BudgetingDeps = {
     access: createSpaceAccess(spaces),
+    spaceLocks: spaces,
     members: spaces,
     plans,
     spending,
@@ -125,6 +126,7 @@ export const savingsAccounts: SavingsAccountReader = {
 
 /** HU-E6-04: Household's live categories (`cat-old` archived); every other space has only `cat-personal`. */
 export const householdCategories: BudgetCategories = {
+  lockForReference: async () => undefined,
   list: async (spaceId) =>
     spaceId === HOUSEHOLD
       ? [

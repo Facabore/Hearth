@@ -18,6 +18,7 @@ const MARTA = memberOf("Marta", "MEMBER", 4);
  * those moved under Groceries since (HU-E3-04).
  */
 const categories = (archived: readonly string[], subcategories: readonly string[]): BudgetCategories => ({
+  lockForReference: async () => undefined,
   list: async () =>
     ["cat-groceries", "cat-utilities", "cat-outings"].map((id) => ({
       id,

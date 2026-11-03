@@ -33,8 +33,9 @@ export function TransactionRow({
   /** Issue #216: the viewer's today, for a list whose rows are not under a day's heading; the row then names its day. */
   readonly today?: string;
   /**
-   * Ruling P277 (board B1 06): Movimientos draws each row as a card of its own, with a round icon, a line that wraps so
-   * the account shows whole, and an income in green beside its plus sign.
+   * Ruling P284 (board E9-09 00, amending P277): a row of Movimientos, inside its day's card. Its line names the time
+   * and who paid or the account, no category, and wraps rather than cut a long name; an income shows in green beside
+   * its plus sign. Inicio's rows (board B1 03) name the category and no account beside it, and truncate.
    */
   readonly card?: boolean;
   /** Ruling P278: what Inicio shows instead of the amount while its eye hides them, in the text a screen reader reads. */
@@ -46,8 +47,8 @@ export function TransactionRow({
   const member = (id: string | null) => (id ? (memberNames[id] ?? "") : "");
   const found = tx.categoryId ? findCategory(groups, tx.categoryId) : null;
   const meta: string[] = [];
-  // The payer of a shared expense reads on its own line: a long name wraps there instead of being cut (S1).
-  let payerLine = "";
+  // A long payer name wraps within the line instead of being cut (S1).
+  let payerNamed = false;
   // Issue #216: a list not grouped by day names it: "Hoy · 14:32", "Ayer", then the date; only today keeps its time.
   const day = today === undefined ? null : relativeDay(tx.date, today);
   if (today !== undefined)
@@ -62,15 +63,21 @@ export function TransactionRow({
     meta.push(t("settlement", { from: member(tx.payerMemberId), to: member(tx.receivingMemberId) }));
   else {
     const path = tx.categoryId ? categoryPath(groups, tx.categoryId) : null;
-    if (path) meta.push(path);
+    // Ruling P284 (boards E9-09 00 and 12): Movimientos reads "9:15 · pagó Ana" or "12:40 · Nequi"; its icon shows the
+    // category, so the line keeps room for the payer. Inicio (board B1 03) names the category instead.
+    if (path && !card) meta.push(path);
     const paid = tx.payments[0];
     // Ruling P171: a shared expense names who paid (a member, or the fund that paid with no member).
     const payer =
       tx.type === "EXPENSE" && paid ? (paid.memberId ? member(paid.memberId) : name(paid.accountId)) : "";
-    if (payer) payerLine = t("paidBy", { name: payer });
-    else {
+    // Ruling P284: the payer follows the time on the same line, "9:15 · pagó Ana", never on a line of its own.
+    if (payer) {
+      meta.push(t("paidBy", { name: payer }));
+      payerNamed = true;
+    } else {
       const account = tx.type === "INCOME" ? tx.destinationAccountId : (paid?.accountId ?? null);
-      if (name(account)) meta.push(name(account));
+      // Board B1 03: Inicio names the account only when no category names the row, as in "1 oct · Bancolombia".
+      if (name(account) && (card || !path)) meta.push(name(account));
     }
   }
   // Issue #223 (ruling P283): a contribution to the shared fund is a TRANSFER that names its contributor (HU-E4-09).
@@ -96,31 +103,33 @@ export function TransactionRow({
         : "text-muted";
   const content = (
     <>
-      {card ? <span className="shrink-0 overflow-hidden rounded-full">{icon}</span> : icon}
+      {/* Boards B1 03 and E9-09 00: the icon is round in both lists. */}
+      <span className="shrink-0 overflow-hidden rounded-full">{icon}</span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className={card ? "font-medium break-words text-ink" : "truncate font-medium text-ink"}>
           {tx.description || t(`type.${kind}`)}
         </span>
         {meta.length > 0 ? (
-          <span className={card ? "text-sm break-words text-muted" : "truncate text-sm text-muted"}>
+          <span
+            className={card || payerNamed ? "text-sm break-words text-muted" : "truncate text-sm text-muted"}
+          >
             {meta.join(" · ")}
           </span>
         ) : null}
-        {payerLine ? <span className="text-sm break-words text-muted">{payerLine}</span> : null}
       </span>
       <span className={`shrink-0 font-semibold whitespace-nowrap ${tone}`}>{maskedAmount ?? amount}</span>
     </>
   );
-  const box = card ? "rounded-2xl bg-surface px-3" : "";
-  const pad = card ? "py-3" : "py-1.5";
+  // Ruling P284: Movimientos's rows share their day's card, which draws the surface and the dividers.
+  const pad = card ? "px-3 py-3" : "py-1.5";
   // The link wraps the row's whole text, so its name holds the visible label (WCAG 2.5.3) and the target is the row.
   return href ? (
-    <li className={box || undefined}>
+    <li>
       <Link href={href} scroll={false} className={`flex min-h-row-lg items-center gap-3 rounded-xl ${pad}`}>
         {content}
       </Link>
     </li>
   ) : (
-    <li className={`flex min-h-row-lg items-center gap-3 ${pad} ${box}`.trim()}>{content}</li>
+    <li className={`flex min-h-row-lg items-center gap-3 ${pad}`}>{content}</li>
   );
 }

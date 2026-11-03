@@ -24,7 +24,7 @@ describe("performance budgets (ruling P134)", () => {
       "/spaces/:id/new: LCP 6100 ms > 5500 ms",
       "/spaces/:id/new: CLS 0.12 > 0.1",
       "/spaces/:id/new: TBT 250 ms > 200 ms",
-      "/spaces/:id/new: script 216 KiB > 213 KiB",
+      `/spaces/:id/new: script 216 KiB > ${budgets.scriptKb["/spaces/:id/new"]} KiB`,
     ]);
   });
 

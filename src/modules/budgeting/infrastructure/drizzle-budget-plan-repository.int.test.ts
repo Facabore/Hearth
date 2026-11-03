@@ -521,10 +521,11 @@ describe("SetMemberCapacities over PostgreSQL (HU-E6-02, spec 7)", () => {
     const spaces = new DrizzleSpaceRepository(tm);
     const set = createSetMemberCapacities({
       access: createSpaceAccess(spaces),
+      spaceLocks: spaces,
       members: spaces,
       plans: repo,
       capacities: repo,
-      categories: { list: async () => [] },
+      categories: { lockForReference: async () => undefined, list: async () => [] },
       savingsAccounts: { find: async () => null },
       spending: { expensesByCategory: async () => [], transfersIntoAccounts: async () => [] },
       ids: sequentialIds("budget"),
@@ -717,11 +718,12 @@ describe("AddBudgetLine over PostgreSQL (HU-E6-03, spec 7)", () => {
     const [account, other] = [randomUUID(), randomUUID()];
     const deps = {
       access: createSpaceAccess(spaces),
+      spaceLocks: spaces,
       members: spaces,
       plans: repo,
       capacities: repo,
       lines: repo,
-      categories: { list: async () => [] },
+      categories: { lockForReference: async () => undefined, list: async () => [] },
       // Ana owns `account` and `other` belongs to nobody the space knows.
       savingsAccounts: {
         find: async (id: string) =>
@@ -821,11 +823,12 @@ describe("UpdateBudgetLine and RemoveBudgetLine over PostgreSQL (HU-E6-03, HU-E6
     const [account, other] = [randomUUID(), randomUUID()];
     const deps = {
       access: createSpaceAccess(spaces),
+      spaceLocks: spaces,
       members: spaces,
       plans: repo,
       capacities: repo,
       lines: repo,
-      categories: { list: async () => [] },
+      categories: { lockForReference: async () => undefined, list: async () => [] },
       // Ana owns `account` and `other` belongs to nobody the space knows.
       savingsAccounts: {
         find: async (id: string) =>
@@ -1075,6 +1078,7 @@ describe("MapCategoriesToLine over PostgreSQL (HU-E6-04, Review Focus 5, 6, spec
       await categoryFixture(db, fixture, "Deleted"),
     ];
     const categories = {
+      lockForReference: async () => undefined,
       list: async (spaceId: string) =>
         spaceId === space.id
           ? [
@@ -1090,6 +1094,7 @@ describe("MapCategoriesToLine over PostgreSQL (HU-E6-04, Review Focus 5, 6, spec
     const account = randomUUID();
     const deps = {
       access: createSpaceAccess(spaces),
+      spaceLocks: spaces,
       members: spaces,
       plans: repo,
       capacities: repo,
@@ -1330,12 +1335,13 @@ describe("AllocateBudgetLine over PostgreSQL (HU-E6-05, Review Focus 2, 6, spec 
     const spaces = new DrizzleSpaceRepository(tm);
     const deps = {
       access: createSpaceAccess(spaces),
+      spaceLocks: spaces,
       members: spaces,
       plans: repo,
       capacities: repo,
       lines: repo,
       allocations: repo,
-      categories: { list: async () => [] },
+      categories: { lockForReference: async () => undefined, list: async () => [] },
       savingsAccounts: { find: async () => null },
       spending: { expensesByCategory: async () => [], transfersIntoAccounts: async () => [] },
       ids: new UuidV7IdGenerator(),

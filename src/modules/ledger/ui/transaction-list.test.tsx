@@ -66,7 +66,7 @@ describe("transaction list (HU-E9-03)", () => {
     expect(title).toHaveClass("text-[26px]", "font-bold");
   });
 
-  it("groups by day, newest first, with times, category paths and the period totals", async () => {
+  it("groups by day, newest first, with times, no category in a row's line, and the period totals", async () => {
     const { container } = renderWithIntl(
       <TransactionList
         spaceId="sp-personal"
@@ -90,7 +90,8 @@ describe("transaction list (HU-E9-03)", () => {
       "Market",
     ]);
     expect(rows[1]).toHaveTextContent("20:45");
-    expect(rows[2]).toHaveTextContent("Groceries › Vegetables");
+    // Ruling P284 (board E9-09 00): the round icon shows the category; the line keeps the time and who paid or the account.
+    expect(rows[2]).not.toHaveTextContent("Groceries");
     expect(rows[0]).not.toHaveTextContent(/\d{2}:\d{2}/);
     const totals = screen.getByRole("region", { name: "Totales del período" });
     expect(norm(totals.textContent)).toContain("$ 245.000");
@@ -396,49 +397,61 @@ describe("the account and type filters (board B1 06, ruling P277)", () => {
   });
 });
 
-describe("the days and their totals (board B1 06, ruling P277)", () => {
+describe("the days (board E9-09 00, ruling P284)", () => {
   const sections = () => screen.getAllByRole("heading", { level: 2 }).map((h) => h.closest("section")!);
-  const headerOf = (section: HTMLElement | undefined) => norm(section!.querySelector("header")!.textContent);
 
-  it("heads each day with today's or yesterday's name and its date, and the day's total", async () => {
+  it("heads each day with today's or yesterday's name and its date in the person's formats, and no total", async () => {
     const taxi = expense("t-taxi", "Taxi", 18_000, "2026-10-31", null, "c-dining");
-    const { container } = renderWithIntl(listOf({ page: { ...page, items: [taxi, ...page.items] } }));
+    const lunch = expense("t-lunch", "Lunch", 24_000, "2026-10-30", null, "c-dining");
+    const { container } = renderWithIntl(listOf({ page: { ...page, items: [taxi, lunch, ...page.items] } }));
     const headings = screen.getAllByRole("heading", { level: 2 });
     expect(headings.map((h) => h.textContent)).toEqual([
       "Hoy · 31/10/2026",
+      "Ayer · 30/10/2026",
       "25/10/2026",
       "12/10/2026",
       "5/10/2026",
     ]);
-    expect(headings[0]).toHaveClass("uppercase");
-    expect(sections().map(headerOf)).toEqual([
-      "Hoy · 31/10/2026Total del día−$ 18.000",
-      "25/10/2026Total del día+$ 3.200.000",
-      "12/10/2026Total del día−$ 160.000",
-      "5/10/2026Total del día−$ 85.000",
-    ]);
+    // Sentence case, as the board writes it, and nothing beside the date: a day's total is gone (P284).
+    expect(headings[0]).not.toHaveClass("uppercase");
+    expect(screen.queryByText("Total del día")).toBeNull();
+    for (const section of sections()) expect(section.querySelector("header")).toBeNull();
     expect(await axeViolations(container)).toEqual([]);
   });
 
-  it("gives a day of transfers only no total", () => {
-    const transfer = transactionDto({
-      id: "t-pay",
-      type: "TRANSFER",
-      amount: cop(500_000),
-      date: "2026-10-06",
-      sourceAccountId: "a-bank",
-      destinationAccountId: "a-visa",
-    });
-    renderWithIntl(listOf({ page: { ...page, items: [transfer] } }));
-    expect(headerOf(sections()[0])).toBe("6/10/2026");
+  it("reads the day's date in the person's date format, whatever the language", () => {
+    renderWithIntl(listOf({ context: { ...context, formats: { ...BUILT_IN_FORMATS, dateFormat: "YMD" } } }));
+    expect(screen.getAllByRole("heading", { level: 2 })[0]).toHaveTextContent("2026/10/25");
   });
 
-  it("draws each row as a card of its own", () => {
+  it("puts a day's rows in one card with dividers, never a card per row", () => {
     renderWithIntl(listOf());
-    for (const row of screen.getAllByRole("listitem")) expect(row).toHaveClass("rounded-2xl", "bg-surface");
+    const twelfth = sections()[1]!;
+    const lists = within(twelfth).getAllByRole("list");
+    expect(lists).toHaveLength(1);
+    expect(lists[0]).toHaveClass("rounded-2xl", "bg-surface", "divide-y", "divide-line");
+    expect(within(lists[0]!).getAllByRole("listitem")).toHaveLength(2);
+    for (const row of screen.getAllByRole("listitem"))
+      expect(row).not.toHaveClass("rounded-2xl", "bg-surface");
   });
 
-  it("totals the last day only once no next page may hold more of it", async () => {
+  it("names who paid on the row's one line, after the time", () => {
+    const shared = { ...context, memberNames: { "m-ana": "Ana" } };
+    const market = transactionDto({
+      id: "t-shared",
+      type: "EXPENSE",
+      description: "Mercado",
+      amount: cop(86_400),
+      date: "2026-10-31",
+      occurredAt: "2026-10-31T14:15:00.000Z",
+      timeZone: "America/Bogota",
+      payments: [{ memberId: "m-ana", accountId: "a-bank", amount: cop(86_400) }],
+    });
+    renderWithIntl(listOf({ context: shared, page: { ...page, items: [market] } }));
+    expect(screen.getByText("09:15 · pagó Ana")).toBeInTheDocument();
+  });
+
+  it("keeps a day loaded across pages under one heading and one card", async () => {
     const { api } = fakeApi({
       "GET /api/v1/spaces/{spaceId}/transactions": () =>
         jsonResponse({
@@ -448,8 +461,6 @@ describe("the days and their totals (board B1 06, ruling P277)", () => {
         }),
     });
     renderWithIntl(listOf({ page: { ...page, nextCursor: "cur-1" }, api }));
-    expect(headerOf(sections().at(-1))).toBe("5/10/2026");
-    expect(headerOf(sections()[1])).toBe("12/10/2026Total del día−$ 160.000");
     await userEvent.click(screen.getByRole("button", { name: "Cargar más" }));
     await screen.findByText("Bread");
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
@@ -457,7 +468,7 @@ describe("the days and their totals (board B1 06, ruling P277)", () => {
       "12/10/2026",
       "5/10/2026",
     ]);
-    expect(headerOf(sections().at(-1))).toBe("5/10/2026Total del día−$ 90.000");
+    expect(within(within(sections().at(-1)!).getByRole("list")).getAllByRole("listitem")).toHaveLength(2);
   });
 });
 

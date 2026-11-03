@@ -30,6 +30,8 @@ export const createMapCategoriesToLine =
       const { space, plan, parts } = write.value;
       const line = lineOf(parts, input.lineId);
       if (!line.ok) return line;
+      // Issue #245: after the plan's lock (as every plan write), before the categories it checks the mapping against.
+      await deps.categories.lockForReference(space.spaceId);
       const categories = await deps.categories.list(space.spaceId);
       const categoryIds = checkedMapping(line.value, input.categoryIds, {
         categories,

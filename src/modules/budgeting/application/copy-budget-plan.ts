@@ -49,6 +49,8 @@ export const createCopyBudgetPlan =
       if (!(await deps.plans.add(plan))) return err(domainError("PlanAlreadyExists", { label }));
       const members = await deps.members.listCurrent(space.spaceId);
       const parts = await deps.plans.contents(source.id);
+      // Issue #245: the copy maps the live categories it lists next, so a delete in progress is waited for first.
+      await deps.categories.lockForReference(space.spaceId);
       const at = deps.clock.now();
       const copy = copiedParts({
         planId: plan.id,
