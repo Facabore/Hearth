@@ -327,6 +327,47 @@ const guarded: Record<string, readonly Guard[]> = {
       fixIt: (w) => ["UPDATE space_invitations SET space_id = $2 WHERE id = $1", [w.claim, w.household]],
     },
   ],
+  "0025_transaction_space_keys": [
+    {
+      name: "a category of another space",
+      breakIt: (w) => [
+        "UPDATE transactions SET category_id = $2 WHERE id = $1",
+        [w.expense, w.personalCategory],
+      ],
+      refusal:
+        /0025_transaction_space_keys: transactions whose category belongs to another space: [0-9a-f-]{36}/,
+      readBack: (w) => ["SELECT category_id AS v FROM transactions WHERE id = $1", [w.expense]],
+      fixIt: (w) => [
+        "UPDATE transactions SET category_id = $2 WHERE id = $1",
+        [w.expense, w.householdCategory],
+      ],
+    },
+    {
+      name: "a receiving member of another space",
+      breakIt: (w) => [
+        "UPDATE transactions SET receiving_member_id = $2 WHERE id = $1",
+        [w.settlement, w.ana],
+      ],
+      refusal:
+        /0025_transaction_space_keys: transactions whose receiving member belongs to another space: [0-9a-f-]{36}/,
+      readBack: (w) => ["SELECT receiving_member_id AS v FROM transactions WHERE id = $1", [w.settlement]],
+      fixIt: (w) => [
+        "UPDATE transactions SET receiving_member_id = $2 WHERE id = $1",
+        [w.settlement, w.pedro],
+      ],
+    },
+    {
+      name: "a payer member of another space",
+      breakIt: (w) => ["UPDATE transactions SET payer_member_id = $2 WHERE id = $1", [w.settlement, w.ana]],
+      refusal:
+        /0025_transaction_space_keys: transactions whose payer member belongs to another space: [0-9a-f-]{36}/,
+      readBack: (w) => ["SELECT payer_member_id AS v FROM transactions WHERE id = $1", [w.settlement]],
+      fixIt: (w) => [
+        "UPDATE transactions SET payer_member_id = $2 WHERE id = $1",
+        [w.settlement, w.anaAtHome],
+      ],
+    },
+  ],
 };
 
 describe.each(Object.entries(guarded))("migration %s on existing rows (#249)", (tag, guards) => {

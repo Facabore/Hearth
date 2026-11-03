@@ -3,6 +3,7 @@ import {
   bigint,
   check,
   date,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -40,14 +41,16 @@ export const transactions = pgTable(
     // HU-E4-14, D19: when it happened (UTC) and the recorder's zone; both null for a transaction without a time.
     occurredAt: tz("occurred_at"),
     timeZone: text("time_zone"),
-    categoryId: uuid("category_id").references(() => categories.id),
+    // #249, M1-8: the category and both members belong to the transaction's space (composite keys below). The
+    // accounts do not: D9 lets a contribution or a settlement move money through a member's personal account.
+    categoryId: uuid("category_id"),
     amount: money("amount").notNull(),
     currency: text("currency").notNull(),
     sourceAccountId: uuid("source_account_id").references(() => accounts.id),
     destinationAccountId: uuid("destination_account_id").references(() => accounts.id),
-    receivingMemberId: uuid("receiving_member_id").references(() => spaceMembers.id),
+    receivingMemberId: uuid("receiving_member_id"),
     // HU-E4-09: the contributor of a TRANSFER into the shared fund; HU-E5-02: the payer of a SETTLEMENT.
-    payerMemberId: uuid("payer_member_id").references(() => spaceMembers.id),
+    payerMemberId: uuid("payer_member_id"),
     createdBy: text("created_by").notNull(),
     createdAt: tz("created_at").notNull(),
     updatedAt: tz("updated_at").notNull(),
@@ -67,6 +70,21 @@ export const transactions = pgTable(
     index("transactions_source_account_idx").on(t.sourceAccountId),
     index("transactions_destination_account_idx").on(t.destinationAccountId),
     index("transactions_payer_member_idx").on(t.payerMemberId),
+    foreignKey({
+      name: "transactions_category_space_fk",
+      columns: [t.categoryId, t.spaceId],
+      foreignColumns: [categories.id, categories.spaceId],
+    }),
+    foreignKey({
+      name: "transactions_receiving_member_space_fk",
+      columns: [t.receivingMemberId, t.spaceId],
+      foreignColumns: [spaceMembers.id, spaceMembers.spaceId],
+    }),
+    foreignKey({
+      name: "transactions_payer_member_space_fk",
+      columns: [t.payerMemberId, t.spaceId],
+      foreignColumns: [spaceMembers.id, spaceMembers.spaceId],
+    }),
     check("transactions_amount_positive", sql`${t.amount} > 0`),
     check("transactions_time_zone", sql`(${t.occurredAt} IS NULL) = (${t.timeZone} IS NULL)`),
     // A TRANSFER without a payer is between own accounts; with a payer it is a fund contribution, whose

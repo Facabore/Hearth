@@ -6,6 +6,7 @@ import { PLAN_STATUSES } from "@/modules/budgeting/domain/plan";
 import { AuditEntrySchema, ShareSchema } from "@/modules/ledger/contracts/ledger.contract";
 import { testDatabase } from "../../tests/support/database";
 import {
+  categoryFixture,
   guestMemberFixture,
   sharedLedgerFixture,
   type SharedLedgerFixture,
@@ -206,5 +207,76 @@ describe("a claim link's guest belongs to the link's space (#249, M2C-D3)", () =
       [guest],
     );
     expect(left.rows[0].n).toBe(0);
+  });
+});
+
+interface TransactionColumns {
+  readonly type: string;
+  readonly categoryId?: string;
+  readonly sourceAccountId?: string;
+  readonly destinationAccountId?: string;
+  readonly receivingMemberId?: string;
+  readonly payerMemberId?: string;
+}
+
+/** A transaction of Household with the references `row` names. */
+const transaction = (row: TransactionColumns) =>
+  pool.query(
+    `INSERT INTO transactions (id, space_id, type, description, date, category_id, amount, currency,
+       source_account_id, destination_account_id, receiving_member_id, payer_member_id, created_by, created_at, updated_at)
+     VALUES ($1, $2, $3, '', '2026-10-05', $4, 100, 'COP', $5, $6, $7, $8, $9, now(), now())`,
+    [
+      randomUUID(),
+      w.household.spaceId,
+      row.type,
+      row.categoryId ?? null,
+      row.sourceAccountId ?? null,
+      row.destinationAccountId ?? null,
+      row.receivingMemberId ?? null,
+      row.payerMemberId ?? null,
+      w.household.userId,
+    ],
+  );
+
+describe("a transaction's category and members belong to its space (#249, M1-8)", () => {
+  it("refuses a category of another space", async () => {
+    const personalCategory = await categoryFixture(db, w.personal, "Personal groceries");
+    await expect(transaction({ type: "EXPENSE", categoryId: w.groceries })).resolves.toBeDefined();
+    await expect(transaction({ type: "EXPENSE", categoryId: personalCategory })).rejects.toThrow(
+      /transactions_category_space_fk/,
+    );
+  });
+
+  it("refuses a payer or a receiving member of another space", async () => {
+    const elsewhere = w.personal.memberId;
+    await expect(
+      transaction({ type: "SETTLEMENT", payerMemberId: w.pedro, receivingMemberId: w.household.memberId }),
+    ).resolves.toBeDefined();
+    await expect(
+      transaction({ type: "SETTLEMENT", payerMemberId: elsewhere, receivingMemberId: w.household.memberId }),
+    ).rejects.toThrow(/transactions_payer_member_space_fk/);
+    await expect(
+      transaction({ type: "SETTLEMENT", payerMemberId: w.pedro, receivingMemberId: elsewhere }),
+    ).rejects.toThrow(/transactions_receiving_member_space_fk/);
+  });
+
+  it("still takes a member's personal account, as D9 allows (ruling P288)", async () => {
+    // A contribution into the fund and a settlement, both through Ana's account of her personal space.
+    await expect(
+      transaction({
+        type: "TRANSFER",
+        payerMemberId: w.household.memberId,
+        sourceAccountId: w.bank,
+        destinationAccountId: w.fund,
+      }),
+    ).resolves.toBeDefined();
+    await expect(
+      transaction({
+        type: "SETTLEMENT",
+        payerMemberId: w.pedro,
+        receivingMemberId: w.household.memberId,
+        destinationAccountId: w.bank,
+      }),
+    ).resolves.toBeDefined();
   });
 });

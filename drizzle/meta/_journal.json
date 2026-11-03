@@ -176,6 +176,13 @@
       "when": 1793665454555,
       "tag": "0024_claim_guest_space",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793665570604,
+      "tag": "0025_transaction_space_keys",
+      "breakpoints": true
     }
   ]
 }

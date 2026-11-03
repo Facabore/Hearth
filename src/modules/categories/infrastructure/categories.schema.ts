@@ -5,6 +5,7 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
   type AnyPgColumn,
@@ -79,5 +80,7 @@ export const categories = pgTable(
     // HU-E3-01: seeding twice can never duplicate a catalog key; NULL keys (user categories) never collide.
     uniqueIndex("categories_space_key_uq").on(t.spaceId, t.key),
     index("categories_space_idx").on(t.spaceId),
+    // #249, M1-8: the key a transaction's (category_id, space_id) points at, so its category is one of its space.
+    unique("categories_id_space_uq").on(t.id, t.spaceId),
   ],
 );
