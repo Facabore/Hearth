@@ -28,6 +28,7 @@ import {
   type MoneyDto,
   type TransactionDto,
 } from "../support/ledger";
+import { activatePlan, closePlan, newPlan } from "../support/budgeting";
 
 interface LedgerUser extends TestUser {
   bancolombia: string;
@@ -484,6 +485,30 @@ describe("edit and delete with an audit trail (HU-E4-06)", () => {
     const current = (await (await onTransaction(getTransaction, "GET", ana, tx.id)).json()) as TransactionDto;
     expect([current.amount, current.description, current.version]).toEqual([cop(85_000), "Groceries", 2]);
     expect(await auditOf(ana, tx.id)).toHaveLength(1);
+  });
+
+  it("answers an edit that changes nothing in a closed period with the movement as it is (#246)", async () => {
+    const ana = await ledgerUser("Ana");
+    const tx = await recorded(post(recordExpense, ana, "expenses", market(ana, 85_000, "2026-09-05")));
+    // HU-E6-07: September's plan, activated and closed; the clock is past its last day.
+    const { id: planId } = await newPlan(ana, ana.spaceId, "2026-09");
+    expect((await activatePlan(ana, ana.spaceId, planId)).status).toBe(200);
+    expect((await closePlan(ana, ana.spaceId, planId)).status).toBe(200);
+    const stored = async () =>
+      (await (await onTransaction(getTransaction, "GET", ana, tx.id)).json()) as TransactionDto;
+    const [movement, history] = [await stored(), await auditOf(ana, tx.id)];
+    const same = await onTransaction(editTransaction, "PATCH", ana, tx.id, {
+      body: { description: "Market", amount: cop(85_000), date: "2026-09-05", accountId: ana.bancolombia },
+      ifMatch: '"1"',
+    });
+    expect([same.status, same.headers.get("etag")]).toEqual([200, '"1"']);
+    expect((await same.json()) as TransactionDto).toEqual(movement);
+    const changed = await onTransaction(editTransaction, "PATCH", ana, tx.id, {
+      body: { description: "Groceries" },
+      ifMatch: '"1"',
+    });
+    expect([changed.status, (await changed.json()).code]).toEqual([409, "PeriodClosed"]);
+    expect([await stored(), await auditOf(ana, tx.id)]).toEqual([movement, history]);
   });
 
   it("soft-deletes: gone from lists and balances, still audited (HU-E2-04)", async () => {

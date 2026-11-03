@@ -252,7 +252,7 @@ describe("the ledger's writes in the SPA (slice 2 of #199, ADR 0006)", () => {
     const { routes, items } = ledgerServer({
       [`POST ${ONE}/convert`]: () => {
         items.splice(items.indexOf(original), 1, transfer);
-        return jsonResponse(transfer, 201);
+        return jsonResponse({ ...transfer, warnings: [] }, 201);
       },
       [`POST ${ONE}/convert/undo`]: () => {
         items.splice(items.indexOf(transfer), 1, original);

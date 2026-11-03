@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as recordContribution } from "@/app/api/v1/spaces/[spaceId]/fund-contributions/route";
+import { GET as listTransactions } from "@/app/api/v1/spaces/[spaceId]/transactions/route";
 import { setContainerForTests, type Container } from "@/composition/container";
-import { problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
+import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
 import {
   addGuest,
   balanceOf,
@@ -108,6 +109,28 @@ describe("fund contributions (HU-E4-09)", () => {
       "GuestHasNoAccounts",
     ]);
     expect(await balanceOf(h.ana, h.fund)).toEqual(cop(100_000));
+  });
+
+  it("finds each contribution by the member who paid it into the fund (#246)", async () => {
+    const h = await withFund();
+    const pedro = await addGuest(h, "Pedro");
+    const anas = (await (await contribute(h.ana, contribution(h, 480_000))).json()) as TransactionDto;
+    const pedros = (await (
+      await contribute(h.ana, contribution(h, 100_000, { memberId: pedro, sourceAccountId: null }))
+    ).json()) as TransactionDto;
+    const paidBy = async (memberId: string) => {
+      const response = await call(
+        listTransactions,
+        "GET",
+        `/api/v1/spaces/${h.spaceId}/transactions?period=2026-10&payerMemberId=${memberId}`,
+        { user: h.juan, params: { spaceId: h.spaceId } },
+      );
+      expect(response.status).toBe(200);
+      return ((await response.json()) as { items: TransactionDto[] }).items.map((t) => t.id);
+    };
+    expect(await paidBy(h.ana.memberId)).toEqual([anas.id]);
+    expect(await paidBy(pedro)).toEqual([pedros.id]);
+    expect(await paidBy(h.juan.memberId)).toEqual([]);
   });
 
   it("replays a repeated Idempotency-Key and moves the fund once (Review Focus 4)", async () => {

@@ -21,6 +21,7 @@ export default defineConfig({
             "tests/architecture/**/*.test.ts",
             "tests/support/**/*.test.ts",
             "tests/performance/**/*.test.mjs",
+            "tests/web/**/*.test.ts",
           ],
           exclude: ["src/**/*.int.test.ts", "src/spa/**"],
         },

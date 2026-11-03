@@ -205,10 +205,41 @@ export function AreaMessages({ children }: { readonly children: ReactNode }) {
 }
 
 /**
+ * The words of the screen below, written here and not in `src/i18n/messages/`: it shows when the first catalog could not
+ * load (#201), so it cannot read its texts from one. Keep it to these few lines, in both languages.
+ */
+const CATALOG_FAILED: Record<Locale, { title: string; body: string; retry: string }> = {
+  es: {
+    title: "No pudimos cargar Hearth",
+    body: "Revisa tu conexión e inténtalo de nuevo.",
+    retry: "Reintentar",
+  },
+  en: { title: "We couldn't load Hearth", body: "Check your connection and try again.", retry: "Try again" },
+};
+
+/** A first visit whose catalog did not load even after its retry: said in the visitor's language, with Reintentar. */
+function CatalogFailed({ locale, onRetry }: { readonly locale: Locale; readonly onRetry: () => void }) {
+  const copy = CATALOG_FAILED[locale];
+  return (
+    <main lang={locale} className="mx-auto flex max-w-[420px] flex-col gap-3 px-4 py-6 max-[359px]:px-3">
+      <h1 className="text-2xl font-semibold text-ink">{copy.title}</h1>
+      <p className="text-muted">{copy.body}</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="flex h-14 w-full items-center justify-center rounded-[14px] bg-accent px-6 text-base font-semibold text-on-accent"
+      >
+        {copy.retry}
+      </button>
+    </main>
+  );
+}
+
+/**
  * The texts of the whole app (use-intl over the existing catalogs). It waits for the profile, so a signed-in person
  * never sees a frame in the visitor's language, then for the catalog. A language change keeps the texts on screen until
  * the new ones are in, the core and the areas on show (ruling P276), and keeps them if one cannot load (a flaky network,
- * a chunk gone after a release). Formats never come from here (D23, P121): only `src/shared/ui/format/` formats.
+ * a chunk gone after a release); a first catalog that cannot load says so (`CatalogFailed`). Formats never come from here (D23, P121): only `src/shared/ui/format/` formats.
  */
 export function IntlRoot({ children }: { readonly children: ReactNode }) {
   const { sessionApi } = useApis();
@@ -216,18 +247,31 @@ export function IntlRoot({ children }: { readonly children: ReactNode }) {
   // A refresh may have changed the language cookie: render again and read it (the profile's language wins anyway).
   useSyncExternalStore(subscribeLocale, localeEpoch);
   const locale = visitorLocale(me.data?.locale);
-  const catalog = useQuery({ ...catalogQuery(locale), enabled: !me.isPending }).data;
+  const core = useQuery({ ...catalogQuery(locale), enabled: !me.isPending });
+  const catalog = core.data;
   const queryClient = useQueryClient();
   const areas = useSyncExternalStore(subscribeAreas, areasOnShow);
-  const areasIn =
-    useQuery({ ...areasQuery(queryClient, areas, locale), enabled: !me.isPending }).data !== undefined;
+  const onShow = useQuery({ ...areasQuery(queryClient, areas, locale), enabled: !me.isPending });
+  const areasIn = onShow.data !== undefined;
   const [shown, setShown] = useState<{ locale: Locale; messages: AbstractIntlMessages } | null>(null);
   if (catalog && areasIn && (shown?.locale !== locale || shown.messages !== catalog))
     setShown({ locale, messages: catalog });
   useEffect(() => {
     if (shown) document.documentElement.lang = shown.locale;
   }, [shown]);
-  if (me.isPending || !shown) return null;
+  if (me.isPending) return null;
+  if (!shown) {
+    if (!core.isError && !onShow.isError) return null;
+    return (
+      <CatalogFailed
+        locale={locale}
+        onRetry={() => {
+          if (core.isError) void core.refetch();
+          if (onShow.isError) void onShow.refetch();
+        }}
+      />
+    );
+  }
   return (
     <IntlProvider
       locale={shown.locale}

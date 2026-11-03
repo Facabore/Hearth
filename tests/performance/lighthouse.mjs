@@ -5,6 +5,8 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { chromium, request } from "@playwright/test";
 import lighthouse from "lighthouse";
+import planEn from "../../src/i18n/messages/areas/plan.en.json" with { type: "json" };
+import planEs from "../../src/i18n/messages/areas/plan.es.json" with { type: "json" };
 import { seedPlanRoutes } from "./seed-plan.mjs";
 
 // The mjs lint block declares only process, console, Buffer and URL as globals.
@@ -49,6 +51,53 @@ export const routeUrl = (route, ids) =>
     if (!(name in ids)) throw new Error(`No id for :${name} in ${route}`);
     return ids[name];
   });
+
+/**
+ * Issue #236 (ruling P283): the path a route is measured at. Lighthouse's Chrome keeps the wall clock, so a Plan view
+ * (every page of the Plan tab but Próximos, which counts from the server's fixed today) names the seeded period it is
+ * budgeted on instead of asking for the day's own.
+ */
+export const measuredUrl = (route, ids) => {
+  const url = routeUrl(route, ids);
+  if (!/\/plan(\/(?!calendar$)[^/]+)?$/.test(route)) return url;
+  if (!ids.period) throw new Error(`No period for ${route}`);
+  return `${url}?period=${encodeURIComponent(ids.period)}`;
+};
+
+/**
+ * Issue #236: the copy of a Plan screen with nothing to show, most specific first. A measured route that shows one
+ * measured the wrong screen: the empty trend weighed 203 KiB, the chart it is budgeted for 298.
+ */
+export const EMPTY_STATES = [
+  "reports.trend.noPlan",
+  "reports.matrix.noPlan",
+  "reports.fund.noPlan",
+  "reports.calendar.empty",
+  "reports.unified.empty",
+  "budgeting.planner.empty",
+  "reports.noPlan.title",
+];
+
+const messageAt = (catalog, path) => path.split(".").reduce((node, key) => node?.[key], catalog);
+
+/** A message as a pattern: its words, with any text where a placeholder goes, on one line. */
+const patternOf = (message) =>
+  new RegExp(
+    message
+      .split(/\{[^}]+\}/)
+      .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join("[^\\n]*?"),
+  );
+
+/** The key of the empty or no-plan state a page's text shows, in either language; null when it shows none. */
+export const emptyStateIn = (text, catalogs = [planEs, planEn]) =>
+  EMPTY_STATES.find((key) =>
+    catalogs.some((catalog) => {
+      const message = messageAt(catalog, key);
+      if (typeof message !== "string") throw new Error(`No message ${key} in the plan catalog`);
+      return patternOf(message).test(text);
+    }),
+  ) ?? null;
 
 /** The pages a visitor opens: measured without the session cookie. */
 export const isVisitorRoute = (route) => /^\/(sign-in|sign-up|invitations|claims)(\/|$)/.test(route);
@@ -330,6 +379,20 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     });
     try {
       const routes = Object.keys(budgets.scriptKb);
+      // Issue #236: each Plan route opened once as the person, before it is measured; one that shows its empty or
+      // no-plan state fails the run, since its numbers would be another screen's.
+      const viewer = await browser.newContext({ ignoreHTTPSErrors: true, extraHTTPHeaders: { cookie } });
+      try {
+        const page = await viewer.newPage();
+        for (const route of routes.filter((r) => /\/plans?(\/|$)/.test(r))) {
+          await page.goto(`${BASE}${measuredUrl(route, ids)}`, { waitUntil: "networkidle" });
+          const shown = emptyStateIn(await page.locator("body").innerText());
+          if (shown !== null)
+            failures.push(`${route}: shows its empty state (${shown}), not the screen its budget is for`);
+        }
+      } finally {
+        await viewer.close();
+      }
       const results = [];
       const startedAt = Date.now();
       const budget = confirmations();
@@ -338,7 +401,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
           results.push({ route, skipped: true });
           continue;
         }
-        const url = `${BASE}${routeUrl(route, ids)}`;
+        const url = `${BASE}${measuredUrl(route, ids)}`;
         const result = {
           route,
           ...(await measure(

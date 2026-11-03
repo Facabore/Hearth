@@ -522,6 +522,57 @@ describe("change a movement's type while editing it (issue #195)", () => {
     });
   });
 
+  it("shows a contribution's Desde and Hacia without a picker, since its accounts never change (issue #198, P188)", async () => {
+    const { api } = fakeApi({});
+    const given = transactionDto({
+      ...tx,
+      type: "TRANSFER",
+      categoryId: null,
+      payerMemberId: "m-ana",
+      sourceAccountId: "a-bank",
+      destinationAccountId: "a-fund",
+      payments: [],
+      shares: [],
+    });
+    renderForm(api, LIST, { space: householdSpace(), tx: given, shared: household([fund]) });
+    expect(screen.queryByRole("button", { name: /Desde/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Hacia/ })).not.toBeInTheDocument();
+    expect(screen.getByText("Desde").parentElement).toHaveTextContent("Bancolombia");
+    // Turned into an expense, it no longer shows the transfer's fixed accounts.
+    await userEvent.click(screen.getByRole("tab", { name: "Gasto" }));
+    expect(screen.queryByText("Desde")).not.toBeInTheDocument();
+  });
+
+  it("lands on the list's fund notice when the expense it became left the fund below zero, and still offers Deshacer (issue #198)", async () => {
+    const warning = { code: "FundBalanceNegative", accountId: "a-fund", balance: cop(-15_000) };
+    const { api } = fakeApi({
+      [CONVERT]: () => jsonResponse({ ...sharedTx, id: "t-new", warnings: [warning] }, 201),
+    });
+    const given = transactionDto({
+      ...tx,
+      type: "TRANSFER",
+      categoryId: null,
+      payerMemberId: "m-ana",
+      sourceAccountId: "a-bank",
+      destinationAccountId: "a-fund",
+      payments: [],
+      shares: [],
+    });
+    renderForm(api, LIST, { space: householdSpace(), tx: given, shared: household([fund]) });
+    await userEvent.click(screen.getByRole("tab", { name: "Gasto" }));
+    await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
+    await userEvent.click(screen.getByRole("radio", { name: "Groceries" }));
+    await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
+    await save();
+    await waitFor(() =>
+      expect(router.replace).toHaveBeenCalledWith(
+        "/spaces/sp-household/transactions?notice=FundBalanceNegative&account=a-fund",
+      ),
+    );
+    expect(router.replace).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Deshacer" })).toBeInTheDocument());
+  });
+
   it("keeps the type fixed in a shared space without a fund", () => {
     renderForm(fakeApi({}).api, LIST, { space: householdSpace(), tx: sharedTx, shared: household([]) });
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument();

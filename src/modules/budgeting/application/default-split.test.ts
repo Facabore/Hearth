@@ -186,6 +186,22 @@ describe("ResolveDefaultSplit (HU-E6-08, spec 5.3)", () => {
     expect(unwrap(await preview("cat-groceries", { amount: null })).shares).toBeNull();
   });
 
+  it("answers the record's InvalidSplit for an amount too small to give everyone a positive share (ruling P285)", async () => {
+    const shareNotPositive = {
+      ok: false,
+      error: { code: "InvalidSplit", details: { reason: "shareNotPositive" } },
+    };
+    // One minor unit over Home's 40 % / 60 %, and over EQUAL among two members through the NONE catch-all Free.
+    expect(await (await world()).preview("cat-groceries", { amount: 1n })).toEqual(shareNotPositive);
+    const free = await world({ lines: withRule("Free", "NONE") });
+    expect(await free.preview("cat-outings", { amount: 1n })).toEqual(shareNotPositive);
+    // COP rounds to whole pesos, so 2 pesos give each member one: the preview answers them, as recording takes them.
+    expect(sharesOf(unwrap(await free.preview("cat-outings", { amount: pesos(2) })))).toEqual([
+      ["member-ana", pesos(1)],
+      ["member-juan", pesos(1)],
+    ]);
+  });
+
   it("answers any member, Sofi the VIEWER included, and refuses other spaces' categories and non-members", async () => {
     const { preview } = await world({ members: BUDGET_MEMBERS });
     expect(codeOf(await preview("cat-groceries", { userId: "u-sofi" }))).toBe("ok");

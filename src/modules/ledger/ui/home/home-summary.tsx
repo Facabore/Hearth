@@ -176,8 +176,15 @@ export function HomeSummary({
                     {personal ? t("allAccountsShort") : t("allFundsShort")}
                   </Link>
                 </div>
-                {/* It scrolls sideways once the accounts outgrow the screen: the keyboard can reach it to scroll. */}
-                <ul aria-labelledby="home-accounts" tabIndex={0} className="flex gap-3 overflow-x-auto pb-1">
+                {/*
+                  It scrolls sideways once the accounts outgrow the screen: the keyboard can reach it to scroll. Issue
+                  #223: a phone draws no scrollbar under it; the cut-off card says there is more.
+                */}
+                <ul
+                  aria-labelledby="home-accounts"
+                  tabIndex={0}
+                  className="flex [scrollbar-width:none] gap-3 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden"
+                >
                   {accounts.map((account) => (
                     <li
                       key={account.id}

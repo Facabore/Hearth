@@ -419,6 +419,17 @@ const claimRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/invitation"), "ClaimRoute"),
 });
 
+/** Issue #86, ruling P286: the link of a verification email, `?token=`, confirmed through the API. */
+const verifyEmailRoute = createRoute({
+  getParentRoute: () => openRoute,
+  path: "verify-email",
+  staticData: { areas: ["invitation"] },
+  validateSearch: (search: Record<string, unknown>) => ({ token: textParam(search.token) ?? "" }),
+  loader: ({ context, route }) => loadAreas(context, route),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/verify-email"), "VerifyEmailRoute"),
+});
+
 /** HU-E9-10, HU-E9-11: the Plan tab's own page and its views, each with `?period=` (P200). */
 const planRoute = createRoute({
   getParentRoute: () => spaceRoute,
@@ -608,7 +619,7 @@ const editLineRoute = createRoute({
 
 export const routeTree = rootRoute.addChildren([
   publicRoute.addChildren([signInRoute, signUpRoute]),
-  openRoute.addChildren([invitationRoute, claimRoute]),
+  openRoute.addChildren([invitationRoute, claimRoute, verifyEmailRoute]),
   indexRoute,
   settingsRoute,
   newSpaceRoute,

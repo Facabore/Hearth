@@ -605,7 +605,8 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
         ...problems({
           "401": "Unauthenticated",
           "404": "SpaceNotFound",
-          "422": "ValidationFailed, InvalidDate, CategoryNotInSpace",
+          "422":
+            "ValidationFailed, InvalidDate, CategoryNotInSpace, InvalidSplit (the amount is too small to give every member of the default a positive share; recording the expense without a split answers the same, ruling P285)",
         }),
       },
     },

@@ -17,21 +17,15 @@ export function FormRow({
   readonly name: string;
   readonly value: string;
   readonly icon: ReactNode;
-  readonly onClick: () => void;
+  /** Without it the row only shows its value: a part the movement cannot change (P188). */
+  readonly onClick?: (() => void) | undefined;
   readonly errorId?: string | undefined;
   /** A name that says more than the label and the value read together (the date's "Cambiar"). */
   readonly ariaLabel?: string;
   readonly testId?: string;
 }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={ariaLabel}
-      aria-describedby={errorId}
-      data-testid={testId}
-      className="flex min-h-12 w-full items-center gap-3 px-3 py-1 text-left"
-    >
+  const content = (
+    <>
       <span
         aria-hidden="true"
         className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent"
@@ -40,6 +34,25 @@ export function FormRow({
       </span>
       <span className="w-[72px] shrink-0 text-[13px] leading-tight text-muted">{name}</span>
       <span className="min-w-0 flex-1 text-[15px] font-medium break-words text-ink">{value}</span>
+    </>
+  );
+  const box = "flex min-h-12 w-full items-center gap-3 px-3 py-1 text-left";
+  if (!onClick)
+    return (
+      <div aria-describedby={errorId} data-testid={testId} className={box}>
+        {content}
+      </div>
+    );
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={ariaLabel}
+      aria-describedby={errorId}
+      data-testid={testId}
+      className={box}
+    >
+      {content}
       <Icon name="chevronRight" size={20} className="shrink-0 text-muted" />
     </button>
   );

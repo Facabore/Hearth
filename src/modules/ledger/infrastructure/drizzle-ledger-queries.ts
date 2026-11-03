@@ -552,15 +552,19 @@ export class DrizzleLedgerQueries implements TransactionQuery {
       f.categoryIds === undefined || f.categoryIds.length === 0
         ? undefined
         : inArray(transactions.categoryId, [...f.categoryIds]),
+      // Issue #246: an expense's payers are on its payments; a settlement's payer and a fund contributor are on the row.
       f.payerMemberId === undefined
         ? undefined
-        : exists(
-            db
-              .select({ one: sql`1` })
-              .from(payments)
-              .where(
-                and(eq(payments.transactionId, transactions.id), eq(payments.memberId, f.payerMemberId)),
-              ),
+        : or(
+            eq(transactions.payerMemberId, f.payerMemberId),
+            exists(
+              db
+                .select({ one: sql`1` })
+                .from(payments)
+                .where(
+                  and(eq(payments.transactionId, transactions.id), eq(payments.memberId, f.payerMemberId)),
+                ),
+            ),
           ),
       f.participantMemberId === undefined
         ? undefined

@@ -1,4 +1,4 @@
-import { domainError, err, ok, type Result } from "@/shared/kernel";
+import { domainError, err, ok, type DomainError, type Err, type Result } from "@/shared/kernel";
 import {
   canModify,
   changedDebits,
@@ -64,16 +64,18 @@ export const createEditTransaction =
           domainError("CurrencyMismatch", { expected: current.currency, actual: amount.currency.code }),
         );
       }
+      // Issue #246: a closed period refuses a real change, and an edit that changes nothing answers the movement as it
+      // is, as in an open period. The check keeps its place, so a failing change still answers PeriodClosed first.
       const open = await openPeriod(deps, current.spaceId, current.date);
-      if (!open.ok) return open;
+      const refused = (failure: Err<DomainError>) => (open.ok ? failure : open);
       const now = deps.clock.now();
       // HU-E4-14: a new date keeps the wall-clock time; a new time recomputes the date (ruling P42).
       const time = await editedTime(deps, current, input.userId, { date, occurredAt, timeZone });
-      if (!time.ok) return time;
+      if (!time.ok) return refused(time);
       // Only the three time fields, so no other field of the answer can override the fields passed below.
       const { date: newDate, occurredAt: newOccurredAt, timeZone: newTimeZone } = time.value;
       const parts = await editedParts(deps, membership.value, current, input.changes, input.userId);
-      if (!parts.ok) return parts;
+      if (!parts.ok) return refused(parts);
       const revised = reviseTransaction(
         current,
         {
@@ -87,9 +89,10 @@ export const createEditTransaction =
         },
         now,
       );
-      if (!revised.ok) return revised;
+      if (!revised.ok) return refused(revised);
       const changes = changesBetween(current, revised.value);
       if (Object.keys(changes).length === 0) return ok(current);
+      if (!open.ok) return open;
       const debits = await ownedDebits(deps, changedDebits(current, revised.value), input.userId);
       if (!debits.ok) return debits;
       // HU-E1-08, HU-E1-12: a new amount, payer or split must not move the balance of a member who left (Task 4b). Both

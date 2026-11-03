@@ -2,6 +2,7 @@ export type { AuthProvider, AuthSession } from "./auth-provider";
 export { createSignIn, type SignIn } from "./sign-in";
 export { createSignOut, type SignOut } from "./sign-out";
 export { createSignUp, normalizeEmail, type SignUp, type SignUpDeps, type SignUpGate } from "./sign-up";
+export { createVerifyEmail, type EmailVerifier, type VerifyEmail } from "./verify-email";
 export {
   createGetProfile,
   createUpdateProfile,

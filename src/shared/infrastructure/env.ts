@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-const EnvSchema = z.object({
+/** An optional variable whose blank value reads as unset, as `${NAME:-}` in a compose file passes it. */
+const blankAsUnset = <T extends z.ZodType>(schema: T) =>
+  z.preprocess((value) => (value === "" ? undefined : value), schema.optional());
+
+const Variables = z.object({
   DATABASE_URL: z.string().regex(/^postgres(ql)?:\/\//),
   BETTER_AUTH_SECRET: z.string().min(32),
   BETTER_AUTH_URL: z.url(),
@@ -23,6 +27,18 @@ const EnvSchema = z.object({
    * Never set in production: `docker compose` does not pass it.
    */
   HEARTH_E2E_FIXED_NOW: z.iso.datetime({ offset: true }).optional(),
+  /**
+   * Issue #85, ADR 0007: the mail server, as `smtp://user:password@host:587` or `smtps://…` (implicit TLS). Unset, or
+   * blank as `docker compose` passes an unset variable, nothing is sent. It carries the password: never logged.
+   */
+  SMTP_URL: blankAsUnset(z.string().regex(/^smtps?:\/\/[^/?#\s]+/)),
+  /** The sender of every message, `Hearth <hearth@example.com>` or a bare address; required once SMTP_URL is set. */
+  SMTP_FROM: blankAsUnset(z.string().regex(/^[^@\s<>]+@[^@\s<>]+$|^[^<>]*<[^@\s<>]+@[^@\s<>]+>$/)),
+});
+
+const EnvSchema = Variables.superRefine((env, context) => {
+  if (env.SMTP_URL !== undefined && env.SMTP_FROM === undefined)
+    context.addIssue({ code: "custom", path: ["SMTP_FROM"], message: "Required once SMTP_URL is set" });
 });
 
 export type Env = z.infer<typeof EnvSchema>;

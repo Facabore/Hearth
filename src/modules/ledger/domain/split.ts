@@ -1,4 +1,4 @@
-import { domainError, err, map, ok, type Money, type Result } from "@/shared/kernel";
+import { domainError, err, flatMap, map, ok, positiveShares, type Money, type Result } from "@/shared/kernel";
 import type { Share } from "./transaction";
 
 /**
@@ -73,10 +73,10 @@ const amountsOf = (
           domainError("CurrencyMismatch", { expected: amount.currency.code, actual: foreign.currency.code }),
         );
       }
-      const minors = parts.map((part) => part.minor);
-      if (minors.some((minor) => minor <= 0n)) return invalid("shareNotPositive");
-      return minors.reduce((a, b) => a + b, 0n) === amount.minor
-        ? ok(minors)
+      const minors = positiveShares(parts.map((part) => part.minor));
+      if (!minors.ok) return minors;
+      return minors.value.reduce((a, b) => a + b, 0n) === amount.minor
+        ? minors
         : err(domainError("SharesDoNotMatchAmount"));
     }
   }
@@ -100,10 +100,9 @@ export const splitShares = (
   const order = ids
     .map((_, index) => index)
     .sort((a, b) => memberIds.indexOf(ids[a]!) - memberIds.indexOf(ids[b]!));
-  const amounts = amountsOf(amount, split, order);
+  // shares_amount_positive: an amount too small to give everyone a positive share is rejected (ruling P285).
+  const amounts = flatMap(amountsOf(amount, split, order), positiveShares);
   if (!amounts.ok) return amounts;
-  // shares_amount_positive: an amount too small to give everyone a positive share is rejected.
-  if (amounts.value.some((part) => part <= 0n)) return invalid("shareNotPositive");
   return ok(
     order.map((index, position) => ({
       memberId: ids[index]!,

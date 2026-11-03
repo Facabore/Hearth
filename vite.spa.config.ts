@@ -1,8 +1,11 @@
-import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import compile from "icu-minify/compile";
 import { defineConfig, type Plugin, type Rollup } from "vite";
 import { THEME_BOOTSTRAP } from "./src/shared/ui/theme/theme";
+import { API_URL, E2E_SPA_PORT } from "./e2e-ports";
 import { catalogPreload, EARLY_READS } from "./src/spa/early-html";
 import { chunkFiles, framePick, routeAreas, routePreload, routeTable } from "./src/spa/route-preload";
 
@@ -136,13 +139,65 @@ const firstScreen = (bundle: Rollup.OutputBundle): string =>
     chunkFiles(Object.values(bundle).filter((file): file is Rollup.OutputChunk => file.type === "chunk")),
   );
 
+/**
+ * Ruling P280 (#201): the page's Content-Security-Policy. Scripts come only from the app's origin or are one of the
+ * page's own inline scripts, each named by its sha256 hash, so the policy is computed from the built index.html. Styles
+ * allow 'unsafe-inline' instead of hashes: the sheets' scroll lock (Radix, through react-style-singleton) adds a style
+ * element at run time, and a hash in style-src would make browsers ignore 'unsafe-inline'.
+ */
+export const contentSecurityPolicy = (html: string): string => {
+  const inline = [...html.matchAll(/<script\b(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(
+    ([, code = ""]) => `'sha256-${createHash("sha256").update(code).digest("base64")}'`,
+  );
+  return [
+    "default-src 'self'",
+    ["script-src 'self'", ...new Set(inline)].join(" "),
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self'",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join("; ");
+};
+
+/** The policy as the Caddy directive `Caddyfile.web` imports; a policy never holds a double quote. */
+export const cspHeader = (policy: string): string => `header Content-Security-Policy "${policy}"\n`;
+
+/** Where the build writes that directive, outside the served files: the Dockerfile copies it next to the Caddyfile. */
+const CSP_FILE = from("./dist/caddy/csp.caddy");
+
+/**
+ * The build writes the policy for the index.html it just wrote, and the preview, which the e2e specs open, sends the
+ * same one, so the suite runs under the policy production sends.
+ */
+const securityPolicy = (): Plugin => ({
+  name: "hearth:content-security-policy",
+  writeBundle({ dir }) {
+    const policy = contentSecurityPolicy(readFileSync(join(dir!, "index.html"), "utf8"));
+    mkdirSync(dirname(CSP_FILE), { recursive: true });
+    writeFileSync(CSP_FILE, cspHeader(policy));
+  },
+  configurePreviewServer(server) {
+    const page = join(server.config.build.outDir, "index.html");
+    // No build yet: Vite's preview says so itself.
+    if (!existsSync(page)) return;
+    const policy = contentSecurityPolicy(readFileSync(page, "utf8"));
+    server.middlewares.use((_request, response, next) => {
+      response.setHeader("Content-Security-Policy", policy);
+      next();
+    });
+  },
+});
+
 /** ADR 0006, epic #199: the client-first SPA, at the root since the cut-over; the API stays on the app. */
 export default defineConfig({
   root: from("./src/spa"),
   base: "/",
   // The icons the HTML links to, served beside the build as files of their own.
   publicDir: from("./src/spa/public"),
-  plugins: [precompiledCatalogs(), themeBootstrap(), earlyReads()],
+  plugins: [precompiledCatalogs(), themeBootstrap(), earlyReads(), securityPolicy()],
   resolve: {
     tsconfigPaths: true,
     alias: [
@@ -181,15 +236,16 @@ export default defineConfig({
     },
   },
   preview: {
-    // The e2e front: the build at the root, /api/* from the e2e server, as Caddy routes it in production.
-    port: Number(process.env.E2E_SPA_PORT ?? Number(process.env.E2E_PORT ?? 3100) + 100),
+    // The e2e front: the build at the root, /api/* from the e2e server, as Caddy routes it in production. Both ports
+    // are the e2e's own rule (e2e-ports.ts), so the specs and this server never disagree.
+    port: Number(E2E_SPA_PORT),
     strictPort: true,
     host: "127.0.0.1",
     proxy: {
       "^/api(?:/|$)": {
-        target: `http://127.0.0.1:${process.env.E2E_PORT ?? "3100"}`,
+        target: API_URL,
         // Same origin as in production: Better Auth checks the Origin of a sign-in against its own URL.
-        headers: { origin: `http://127.0.0.1:${process.env.E2E_PORT ?? "3100"}` },
+        headers: { origin: API_URL },
       },
     },
   },

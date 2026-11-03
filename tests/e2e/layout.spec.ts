@@ -1236,13 +1236,14 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       await page.getByRole("button", { name: es.budgeting.planner.close }).click();
       await page.getByRole("dialog").getByRole("button", { name: es.budgeting.planner.close }).click();
       const alert = page.locator("main").getByRole("alert");
-      await expect(alert).toContainText(es.errors.SourcePlanOpen.replace("{period}", "2026-08"));
+      // Issue #232: the period is named in words, from the person's formats.
+      await expect(alert).toContainText(es.errors.SourcePlanOpen.replace("{period}", "agosto 2026"));
       const { overflow, message } = await overflowReport(page, "the refusal");
       expect.soft(overflow, message).toBeLessThanOrEqual(0);
       await expectFullTargets(page, "the refusal", viewport.width);
 
       const source = alert.getByRole("link", {
-        name: es.budgeting.planner.goToSource.replace("{period}", "2026-08"),
+        name: es.budgeting.planner.goToSource.replace("{period}", "agosto 2026"),
       });
       await expect(source).toHaveAttribute("href", `/spaces/${sharedId}/plans/${august.id}`);
       await source.click();

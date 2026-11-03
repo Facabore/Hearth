@@ -87,6 +87,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/verify-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm an account's email address with the token of the link it was sent; links are sent only when SMTP is configured (ruling P282) */
+        post: operations["verifyEmail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/sign-out": {
         parameters: {
             query?: never;
@@ -252,7 +269,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Join the invitation's space as the signed-in user, with the invited role */
+        /**
+         * Join the invitation's space as the signed-in user, with the invited role
+         * @description An email invitation admits only the account registered with its address. When the installation has SMTP configured, that account must also have confirmed its address through the link it was sent: until then the answer is 403 EmailNotVerified, and a fresh link is sent. Without SMTP nobody can confirm an address, so it is not asked for: whoever signs up first with the invited address, holding the token, can accept.
+         */
         post: operations["acceptInvitation"];
         delete?: never;
         options?: never;
@@ -751,7 +771,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Undo a deletion: the transaction returns to lists, balances and totals; restoring a live one changes nothing */
+        /** Undo a deletion: the transaction returns to lists, balances and totals; restoring a live one changes nothing; a converted one returns only through the conversion's undo */
         post: operations["restoreTransaction"];
         delete?: never;
         options?: never;
@@ -1684,6 +1704,45 @@ export interface components {
             expiresAt: string;
             invitedBy: string | null;
         };
+        ConvertedTransaction: {
+            id: string;
+            /** @enum {string} */
+            type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
+            description: string;
+            /** Format: date */
+            date: string;
+            occurredAt: string | null;
+            timeZone: string | null;
+            amount: components["schemas"]["MoneyOutput"];
+            categoryId: string | null;
+            payments: {
+                memberId: string | null;
+                accountId: string | null;
+                amount: components["schemas"]["MoneyOutput"];
+            }[];
+            shares: {
+                memberId: string;
+                amount: components["schemas"]["MoneyOutput"];
+                /** @enum {string} */
+                splitMethod: "EQUAL" | "PERCENT" | "EXACT" | "SHARES" | "BY_ALLOCATION";
+            }[];
+            sourceAccountId: string | null;
+            destinationAccountId: string | null;
+            receivingMemberId: string | null;
+            payerMemberId: string | null;
+            createdBy: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            version: number;
+            warnings?: {
+                /** @enum {string} */
+                code: "FundBalanceNegative";
+                accountId: string;
+                balance: components["schemas"]["MoneyOutput"];
+            }[];
+        };
         Invitation: {
             id: string;
             spaceId: string;
@@ -2393,6 +2452,39 @@ export interface operations {
             };
         };
     };
+    verifyEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    token: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The address is confirmed, now or before */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description ValidationFailed, InvalidVerificationLink (malformed, expired, forged, or naming no account) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     signOut: {
         parameters: {
             query?: never;
@@ -3077,7 +3169,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description InvitationEmailMismatch */
+            /** @description InvitationEmailMismatch, EmailNotVerified */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5516,7 +5608,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description PeriodClosed, SpaceArchived */
+            /** @description ConversionSuperseded, PeriodClosed, SpaceArchived */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -5641,13 +5733,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The new movement; ETag carries its version */
+            /** @description The new movement, with the warnings recording it gives (a fund left negative); ETag carries its version */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Transaction"];
+                    "application/json": components["schemas"]["ConvertedTransaction"];
                 };
             };
             /** @description Unauthenticated */
@@ -7823,7 +7915,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidDate, CategoryNotInSpace */
+            /** @description ValidationFailed, InvalidDate, CategoryNotInSpace, InvalidSplit (the amount is too small to give every member of the default a positive share; recording the expense without a split answers the same, ruling P285) */
             422: {
                 headers: {
                     [name: string]: unknown;

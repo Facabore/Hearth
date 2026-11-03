@@ -6,7 +6,8 @@ import { meFrom, outcomeOf, signUpModeFrom } from "@/shared/ui/api/readers";
 /**
  * ADR 0006: every read is a query keyed by module and parameters. These are the app shell's own (the guards and the
  * shell read them); the screens' reads load with the screens (`reads.ts`). The first key is the module; sign-out and a change of
- * person drop every key but `identity` and `i18n` (guards.ts).
+ * person drop every key but the profile (`queryKeys.me`), sign-up's mode (`queryKeys.signUpMode`) and the catalogs
+ * (`i18n`), as `kept` in guards.ts lists them.
  */
 export const queryKeys = {
   me: ["identity", "me"] as const,

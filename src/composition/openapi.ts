@@ -11,6 +11,7 @@ import {
 import { authPaths } from "@/modules/identity/contracts/auth.contract";
 import { mePaths } from "@/modules/identity/contracts/me.contract";
 import {
+  ConvertedTransactionSchema,
   ledgerPaths,
   RecordedExpenseSchema,
   TransactionSchema,
@@ -68,6 +69,7 @@ export const buildOpenApiDocument = (): Record<string, unknown> =>
         Period: PeriodSchema,
         Transaction: TransactionSchema,
         RecordedExpense: RecordedExpenseSchema,
+        ConvertedTransaction: ConvertedTransactionSchema,
         RecurrenceDefinition: DefineRecurrenceBodySchema,
         BudgetPlan: BudgetPlanSchema,
         Recurrence: RecurrenceSchema,

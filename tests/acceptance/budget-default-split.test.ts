@@ -248,6 +248,31 @@ describe("expenses default to their line's allocation (HU-E6-08, D4)", () => {
     ]);
   });
 
+  it("answers an amount too small for a positive share as recording does, with 422 InvalidSplit (ruling P285)", async () => {
+    const { h, outings } = await activeReference({ freeIsGroupMoney: true });
+    // One minor unit: Home's 40 % / 60 % (BY_ALLOCATION) and Free's NONE (EQUAL) both leave a member with nothing.
+    for (const categoryId of [h.groceries, outings]) {
+      const preview = await getDefaultSplit(h.ana, h.spaceId, {
+        categoryId,
+        date: "2026-11-08",
+        amount: "1",
+      });
+      expect(await problemOf(preview)).toEqual([422, "InvalidSplit"]);
+      const record = await post(recordExpense, h.ana, "expenses", {
+        description: "Market",
+        date: "2026-11-08",
+        categoryId,
+        amount: { amount: "1", currency: "COP" },
+        accountId: h.ana.account,
+      });
+      expect(await problemOf(record)).toEqual([422, "InvalidSplit"]);
+    }
+    expect(await balancesOf(h.ana, h.spaceId)).toEqual([
+      [h.ana.memberId, cop(0)],
+      [h.juan.memberId, cop(0)],
+    ]);
+  });
+
   it("keeps the split a member chooses: EQUAL gives 1,000,000 COP each", async () => {
     const { h } = await activeReference();
     const equal = {

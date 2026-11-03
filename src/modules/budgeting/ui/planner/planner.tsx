@@ -14,6 +14,7 @@ import type {
   SpaceMemberDto,
 } from "@/shared/ui/api/dto";
 import type { Problem } from "@/shared/ui/api/problem";
+import { ProblemPeriod } from "@/shared/ui/api/use-problem-message";
 import {
   formatDate,
   formatMoney,
@@ -30,10 +31,13 @@ import { canCloseOn, canManage, closesFrom, isEditable, takesPart } from "../pla
 import { ifMatch, planWrite, rereadPlan } from "../plan-write";
 import { CapacityCard } from "./capacity-card";
 import { LifecycleConfirm, type LifecycleAction } from "./lifecycle-confirm";
+import { problemPeriod } from "./problem-period";
 
 interface Failure {
   readonly problem: Problem;
   readonly lineIds: readonly string[];
+  /** Issue #232: the period the problem names, in words; null when it names none or its dates could not be read. */
+  readonly period: string | null;
 }
 
 /** Board 02: what a stored allocation that does not hold adds up to, from the line's own values. */
@@ -118,7 +122,12 @@ export function Planner({
       setFailure(null);
       router.refresh();
     } else {
-      setFailure({ problem: result.problem, lineIds: result.lineIds });
+      const named = await problemPeriod(api, space.id, plan, result.problem);
+      setFailure({
+        problem: result.problem,
+        lineIds: result.lineIds,
+        period: named === null ? null : periodText(named, space.periodPolicy, formats),
+      });
       if (result.problem.code === "PreconditionFailed") {
         const fresh = await rereadPlan(api, space.id, plan.id);
         if (fresh !== null) setPlan(fresh);
@@ -130,7 +139,7 @@ export function Planner({
 
   const detail = () => {
     if (failure === null) return undefined;
-    const { problem, lineIds } = failure;
+    const { problem, lineIds, period } = failure;
     if (problem.code === "InvalidAllocation") {
       const lines = plan.lines.filter((line) => lineIds.includes(line.id)).map((line) => line.name);
       return lines.length > 0 ? t("planner.invalidLines", { lines: lines.join(", ") }) : undefined;
@@ -139,7 +148,7 @@ export function Planner({
       return (
         <Button asChild variant="secondary" size="compact" className="mt-2">
           <Link href={`/spaces/${space.id}/plans/${plan.createdFrom}`}>
-            {t("planner.goToSource", { period: problem.sourcePeriod })}
+            {t("planner.goToSource", { period: period ?? problem.sourcePeriod })}
           </Link>
         </Button>
       );
@@ -176,7 +185,11 @@ export function Planner({
           {t("planner.closedNotice", { period: word })}
         </p>
       ) : null}
-      {failure !== null ? <ProblemNotice problem={failure.problem} detail={detail()} /> : null}
+      {failure !== null ? (
+        <ProblemPeriod.Provider value={failure.period}>
+          <ProblemNotice problem={failure.problem} detail={detail()} />
+        </ProblemPeriod.Provider>
+      ) : null}
 
       <CapacityCard
         headingId={heading("capacity")}

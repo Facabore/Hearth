@@ -1,5 +1,15 @@
 import { authorizeSpaceAction, type SpaceId } from "@/modules/spaces/application";
-import { domainError, err, Money, ok, type LocalDate, type Result } from "@/shared/kernel";
+import {
+  domainError,
+  err,
+  flatMap,
+  map,
+  Money,
+  ok,
+  positiveShares,
+  type LocalDate,
+  type Result,
+} from "@/shared/kernel";
 import { assignedAmounts } from "../domain/allocation";
 import { capacityOf } from "../domain/capacity";
 import { rolledUpCategory, type CategoryParent } from "../domain/category-rollup";
@@ -92,7 +102,8 @@ export type ResolveDefaultSplit = (input: {
 /**
  * HU-E6-08 ResolveDefaultSplit, the public query behind GET …/default-split: any member previews the default split
  * of an expense in a live category of the space (archived ones included), and of an amount when given. A preview
- * records nothing, so it is space.read and archived spaces answer it too.
+ * records nothing, so it is space.read and archived spaces answer it too. Ruling P285: an amount too small to give
+ * every member of the default a positive share answers InvalidSplit, as recording that expense would.
  */
 export const createResolveDefaultSplit =
   (deps: BudgetingDeps): ResolveDefaultSplit =>
@@ -119,9 +130,15 @@ export const createResolveDefaultSplit =
     if (input.amount !== null) {
       const total = Money.ofMinor(input.amount, space.currency);
       if (!total.ok) return total;
-      const parts = total.value.allocate(split.weights.map((w) => w.weight));
+      // Ruling P285: an amount too small to give everyone a positive share answers the InvalidSplit recording would.
+      const parts = flatMap(
+        map(total.value.allocate(split.weights.map((w) => w.weight)), (allocated) =>
+          allocated.map((p) => p.minor),
+        ),
+        positiveShares,
+      );
       if (!parts.ok) return parts;
-      shares = split.weights.map((w, index) => ({ memberId: w.memberId, amount: parts.value[index]!.minor }));
+      shares = split.weights.map((w, index) => ({ memberId: w.memberId, amount: parts.value[index]! }));
     }
     return ok({
       method: split.method,

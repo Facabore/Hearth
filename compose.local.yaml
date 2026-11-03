@@ -4,5 +4,14 @@ services:
     build: { context: ., target: migrator }
   app:
     build: { context: ., target: runner }
+    # ADR 0007: the smoke test sends its emails to Mailpit, read at http://localhost:8025.
+    environment:
+      SMTP_URL: smtp://mailpit:1025
+      SMTP_FROM: Hearth <hearth@localhost>
   web:
     build: { context: ., target: web }
+  # An SMTP sink with a web inbox; nothing it receives leaves the machine.
+  mailpit:
+    image: axllent/mailpit:v1.31.6
+    ports: ["127.0.0.1:8025:8025"]
+    networks: [internal]

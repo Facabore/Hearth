@@ -2,6 +2,7 @@ import { domainError, err, ok, type Result } from "@/shared/kernel";
 import { canModify, restorationChanges, restore, type Transaction } from "../domain/transaction";
 import { ensureCurrentParties, openPeriod } from "./checks";
 import type { LedgerDeps } from "./deps";
+import { conversionStands } from "./undo-conversion";
 
 export type RestoreTransaction = (input: {
   spaceId: string;
@@ -27,6 +28,10 @@ export const createRestoreTransaction =
         return err(domainError("InsufficientRole"));
       }
       if (current.deletedAt === null) return ok(current);
+      // Issue #198: a converted original comes back through the conversion's undo, never beside what it became.
+      if (await conversionStands(deps, membership.value.spaceId, current.id)) {
+        return err(domainError("ConversionSuperseded"));
+      }
       const open = await openPeriod(deps, current.spaceId, current.date);
       if (!open.ok) return open;
       // HU-E1-08, HU-E1-12: a member who left keeps the zero balance they settled with (Task 4b).

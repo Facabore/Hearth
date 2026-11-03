@@ -14,11 +14,14 @@ RUN pnpm build
 
 FROM deps AS spa-builder
 COPY . .
-RUN pnpm spa:build
+# Vite's manifest is for `pnpm spa:budget`, which reads it locally and in CI: the image does not serve it (#201).
+RUN pnpm spa:build && rm -r dist/spa/.vite
 
 # ADR 0006 (#199): the single-page app's static files, served at /app/ by Caddy (Caddyfile.web).
 FROM caddy:2.11.7-alpine AS web
 COPY Caddyfile.web /etc/caddy/Caddyfile
+# The Content-Security-Policy the build computed for its own index.html (ruling P280), which the Caddyfile imports.
+COPY --from=spa-builder /app/dist/caddy/csp.caddy /etc/caddy/csp.caddy
 COPY --from=spa-builder /app/dist/spa /srv/app
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=5 \

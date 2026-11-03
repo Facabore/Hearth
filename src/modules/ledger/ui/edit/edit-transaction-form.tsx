@@ -11,7 +11,7 @@ import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import type { Formats } from "@/shared/ui/format/formatters";
 import { useToast } from "@/shared/ui/molecules/toast";
 import { RecordForm } from "../record/record-form";
-import { requestOf, type RecordKind } from "../record/record-request";
+import { afterSaveUrl, fundWentNegative, requestOf, type RecordKind } from "../record/record-request";
 import type { When } from "../record/when-label";
 import type { SharedExpenseContext } from "../split/shared-context";
 import { withTx } from "../detail/tx-href";
@@ -136,7 +136,11 @@ export function EditTransactionForm({
       );
       if (response.ok && data) {
         const became = conversionBodyOf(space, built).type as RecordKind | "FUND_CONTRIBUTION";
-        router.replace(withTx(origin, data.id));
+        // Issue #198 (P281): a fund the new expense left negative is said by the list's notice (P170), as a recorded
+        // expense's is; the toast still offers Deshacer, the conversion's only way back.
+        router.replace(
+          fundWentNegative(data.warnings) ? afterSaveUrl(space.id, data.warnings) : withTx(origin, data.id),
+        );
         router.refresh();
         toast.show({
           message: t(`toast.converted.${became}`),
@@ -200,6 +204,7 @@ export function EditTransactionForm({
         backHref: sheet,
         onSave,
         ...(kinds ? { kinds } : {}),
+        ...(contribution(tx) ? { fixedAccounts: true } : {}),
         problemAction: (problem) =>
           problem.code === "PreconditionFailed" ? (
             <div className="flex flex-col gap-2">

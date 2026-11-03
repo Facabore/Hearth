@@ -30,6 +30,8 @@ export const SignInBodySchema = z.object({ email: Email, password: z.string().ma
 export const SignUpResponseSchema = z.object({ user: MeResponseSchema });
 /** Ruling P143: lets the sign-up screen explain a closed installation and the sign-in screen hide "Create account". */
 export const SignUpModeResponseSchema = z.object({ signUp: z.enum(["open", "closed"]) });
+/** Issue #86: the token of a verification link, as the SPA's /verify-email screen reads it from the URL. */
+export const VerifyEmailBodySchema = z.object({ token: z.string().min(1).max(4096) });
 export const SignInResponseSchema = z.object({ user: MeResponseSchema, token: z.string().nullable() });
 
 const json = (schema: z.ZodType) => ({ "application/json": { schema } });
@@ -71,6 +73,22 @@ export const authPaths: ZodOpenApiPathsObject = {
         "200": { description: "Signed in", content: json(SignInResponseSchema) },
         "401": { description: "InvalidCredentials", content: problemContent },
         "429": { description: "TooManyRequests", content: problemContent },
+      },
+    },
+  },
+  "/api/v1/auth/verify-email": {
+    post: {
+      operationId: "verifyEmail",
+      summary:
+        "Confirm an account's email address with the token of the link it was sent; links are sent only when SMTP is configured (ruling P282)",
+      requestBody: { content: json(VerifyEmailBodySchema) },
+      responses: {
+        "204": { description: "The address is confirmed, now or before" },
+        "422": {
+          description:
+            "ValidationFailed, InvalidVerificationLink (malformed, expired, forged, or naming no account)",
+          content: problemContent,
+        },
       },
     },
   },

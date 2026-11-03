@@ -7,6 +7,7 @@ import { GET as listTransactions } from "@/app/api/v1/spaces/[spaceId]/transacti
 import { GET as transactionAudit } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/audit/route";
 import { POST as convertTransaction } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/convert/route";
 import { POST as undoConversion } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/convert/undo/route";
+import { POST as restoreTransaction } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/restore/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, registerUser, startTestApp, type TestUser } from "../support/app";
 import {
@@ -63,6 +64,11 @@ const convert = (user: TestUser, id: string, body: unknown, ifMatch?: string) =>
   });
 const undo = (user: TestUser, id: string) =>
   call(undoConversion, "POST", inSpace(user, `transactions/${id}/convert/undo`), {
+    user,
+    params: { spaceId: user.spaceId, transactionId: id },
+  });
+const restore = (user: TestUser, id: string) =>
+  call(restoreTransaction, "POST", inSpace(user, `transactions/${id}/restore`), {
     user,
     params: { spaceId: user.spaceId, transactionId: id },
   });
@@ -209,6 +215,24 @@ describe("convert a movement's type in a personal space (issue #195)", () => {
     expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(1_915_000));
   });
 
+  it("refuses to restore a converted expense beside its income (409), so the money is never counted twice (issue #198)", async () => {
+    const ana = await owner("Ana");
+    const expense = await recorded(post(recordExpense, ana, "expenses", market(ana)));
+    const income = await recorded(
+      convert(ana, expense.id, {
+        type: "INCOME",
+        amount: cop(85_000),
+        date,
+        categoryId: ana.salary,
+        accountId: ana.bancolombia,
+      }),
+    );
+    expect(await answerOf(await restore(ana, expense.id))).toEqual([409, "ConversionSuperseded"]);
+    expect((await pageOf(ana)).items.map((t) => t.id)).toEqual([income.id]);
+    expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(2_085_000));
+    expect((await auditOf(ana, expense.id)).map((e) => e.action)).toEqual(["DELETED"]);
+  });
+
   it("refuses a stale version, a repeat, the same type and an archived account, and records nothing", async () => {
     const ana = await owner("Ana");
     const expense = await recorded(post(recordExpense, ana, "expenses", market(ana)));
@@ -292,6 +316,35 @@ describe("convert a movement's type in a shared space (issue #195, the owner's r
     ]);
     expect(await balanceOf(h.ana, fund)).toEqual(cop(0));
     expect(await spentIn(h.ana, h.spaceId)).toEqual(cop(100_000));
+  });
+
+  it("answers the fund's warning when the expense it becomes leaves the fund below zero (issue #198, HU-E4-10)", async () => {
+    const h = await household();
+    const fund = await newAccount(h.ana, "Household Fund", 0, "SHARED_FUND");
+    const shared = await paysEqually(h.ana, 100_000, [h.ana.memberId, h.juan.memberId], h.groceries);
+    const toContribution = await convert(h.ana, shared.id, {
+      type: "FUND_CONTRIBUTION",
+      amount: cop(100_000),
+      date,
+      fundAccountId: fund,
+      sourceAccountId: h.ana.account,
+    });
+    const contribution = (await toContribution.json()) as TransactionDto & { warnings: unknown[] };
+    expect(contribution.warnings).toEqual([]);
+    const paidByFund = await convert(h.ana, contribution.id, {
+      type: "EXPENSE",
+      amount: cop(100_000),
+      date,
+      categoryId: h.groceries,
+      payments: [{ memberId: null, accountId: fund, amount: cop(100_000) }],
+      split: { method: "EQUAL", participants: [{ memberId: h.ana.memberId }, { memberId: h.juan.memberId }] },
+    });
+    expect(paidByFund.status).toBe(201);
+    const body = (await paidByFund.json()) as TransactionDto & { warnings: unknown[] };
+    expect(body.type).toBe("EXPENSE");
+    // The contribution that filled the fund left with the conversion, so the fund is 100,000 short.
+    expect(body.warnings).toEqual([{ code: "FundBalanceNegative", accountId: fund, balance: cop(-100_000) }]);
+    expect(await balanceOf(h.ana, fund)).toEqual(cop(-100_000));
   });
 
   it("refuses a MEMBER who did not record it, and an income, which a shared space cannot hold (D9)", async () => {

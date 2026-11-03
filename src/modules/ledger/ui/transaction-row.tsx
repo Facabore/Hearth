@@ -73,6 +73,8 @@ export function TransactionRow({
       if (name(account)) meta.push(name(account));
     }
   }
+  // Issue #223 (ruling P283): a contribution to the shared fund is a TRANSFER that names its contributor (HU-E4-09).
+  const kind = tx.type === "TRANSFER" && tx.payerMemberId !== null ? "FUND_CONTRIBUTION" : tx.type;
   const money = formatMoney(tx.amount, formats);
   const amount = tx.type === "EXPENSE" ? `${MINUS}${money}` : tx.type === "INCOME" ? `+${money}` : money;
   const icon = found ? (
@@ -97,7 +99,7 @@ export function TransactionRow({
       {card ? <span className="shrink-0 overflow-hidden rounded-full">{icon}</span> : icon}
       <span className="flex min-w-0 flex-1 flex-col">
         <span className={card ? "font-medium break-words text-ink" : "truncate font-medium text-ink"}>
-          {tx.description || t(`type.${tx.type}`)}
+          {tx.description || t(`type.${kind}`)}
         </span>
         {meta.length > 0 ? (
           <span className={card ? "text-sm break-words text-muted" : "truncate text-sm text-muted"}>

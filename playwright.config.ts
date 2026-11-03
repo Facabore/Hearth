@@ -33,8 +33,10 @@ export default defineConfig({
     },
     {
       // ADR 0006 (#199): the SPA's build (`pnpm spa:build`) at the root, /api/* proxied to the server above, like Caddy.
+      // Every project below opens this front (BASE_URL), so it starts for all of them: run `pnpm spa:build` first.
       command: "pnpm exec vite preview --config vite.spa.config.ts",
       url: `${BASE_URL}/`,
+      // The preview reads its port and its proxy target from tests/e2e/support/base-url.ts as well.
       env: { E2E_PORT, E2E_SPA_PORT },
       reuseExistingServer: process.env.E2E_REUSE === "1",
       timeout: 60_000,

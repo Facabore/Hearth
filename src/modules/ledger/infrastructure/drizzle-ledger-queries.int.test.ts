@@ -273,6 +273,63 @@ describe("net movements of contributions and settlements (HU-E4-09, HU-E5-02)", 
     expect(net.get(w.bank)).toBe(-43_000_000n);
     expect(net.get(w.fund)).toBe(58_000_000n);
   });
+
+  it("finds a settlement's and a contribution's payer by the payer filter, as the in-memory twin does (#246)", async () => {
+    const w = await sharedLedgerFixture(db, pool);
+    const inHousehold = (date: string, amount: bigint) => ({
+      id: randomUUID() as TransactionId,
+      spaceId: w.household.spaceId,
+      date: date as LocalDate,
+      amount,
+      currency: "COP",
+      createdBy: w.household.userId,
+      now: new Date(),
+    });
+    const contribution = unwrap(
+      recordFundContribution({
+        ...inHousehold("2026-10-02", 10_000_000n),
+        payerMemberId: w.pedro,
+        sourceAccountId: null,
+        destinationAccountId: w.fund,
+      }),
+    );
+    const settlement = unwrap(
+      recordSettlement({
+        ...inHousehold("2026-10-03", 5_000_000n),
+        payerMemberId: w.pedro,
+        receivingMemberId: w.household.memberId,
+        sourceAccountId: null,
+        destinationAccountId: w.bank,
+      }),
+    );
+    // The receiving member is no payer, and an expense the household member paid is not Pedro's.
+    const paidBack = unwrap(
+      recordSettlement({
+        ...inHousehold("2026-10-04", 1_000_000n),
+        payerMemberId: w.household.memberId,
+        receivingMemberId: w.pedro,
+        sourceAccountId: w.bank,
+        destinationAccountId: null,
+      }),
+    );
+    const twin = new InMemoryTransactions();
+    for (const tx of [contribution, settlement, paidBack]) {
+      await repo.add(tx);
+      await twin.add(tx);
+    }
+    const filter: TransactionFilter = {
+      spaceId: w.household.spaceId,
+      from: "2026-10-01" as LocalDate,
+      to: "2026-10-31" as LocalDate,
+      payerMemberId: w.pedro,
+    };
+    const pedros = [settlement.id, contribution.id];
+    expect((await queries.list(filter, null, 50)).map((t) => t.id)).toEqual(pedros);
+    expect((await twin.list(filter, null, 50)).map((t) => t.id)).toEqual(pedros);
+    expect(
+      (await queries.list({ ...filter, payerMemberId: w.household.memberId }, null, 50)).map((t) => t.id),
+    ).toEqual([paidBack.id]);
+  });
 });
 
 describe("spending of a plan's period (HU-E6-03, HU-E6-04, spec 5.4)", () => {
