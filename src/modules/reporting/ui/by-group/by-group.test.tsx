@@ -1,13 +1,13 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
 import { cop, normalized } from "../../../../../tests/support/ui/dto";
 import { e7Groups } from "../../../../../tests/support/ui/plan-dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { readTrail, stepsBack } from "@/shared/ui/navigation/history";
-import { NavigationTracker } from "@/shared/ui/navigation/navigation-tracker";
+import { trackNavigation } from "@/shared/ui/navigation/navigation-tracker";
 import { SpendingChart } from "./spending-chart";
 import { treeOf, type NodeName } from "./spending-tree";
 
@@ -129,9 +129,9 @@ describe("spending by group (HU-E9-10)", () => {
 
   it("leaves each level in the navigation trail, so Volver from a screen opened at a level returns to that level", async () => {
     window.sessionStorage.clear();
+    onTestFinished(trackNavigation());
     renderWithIntl(
       <>
-        <NavigationTracker />
         <SpendingChart
           tree={treeOf(e7Groups().groups)}
           total={e7Groups().total}

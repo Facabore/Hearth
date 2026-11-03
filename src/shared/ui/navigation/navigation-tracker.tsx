@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import {
   appLocation,
   goBack,
@@ -60,9 +59,3 @@ export const trackNavigation = (): (() => void) => {
     if (window.history.replaceState === replace) window.history.replaceState = replaceState;
   };
 };
-
-/** `trackNavigation` for as long as it is mounted. */
-export function NavigationTracker() {
-  useEffect(() => trackNavigation(), []);
-  return null;
-}
