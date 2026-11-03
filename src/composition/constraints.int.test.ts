@@ -158,3 +158,19 @@ describe("closed vocabularies of budgeting (#249, M3A-2)", () => {
     }
   });
 });
+
+const mapping = (planId: string, lineId: string, categoryId: string) =>
+  pool.query(
+    "INSERT INTO budget_line_categories (plan_id, line_id, category_id, mapped_at) VALUES ($1, $2, $3, now())",
+    [planId, lineId, categoryId],
+  );
+
+describe("a category mapping names its line's plan (#249, M3A-3)", () => {
+  it("accepts the line's own plan and refuses any other", async () => {
+    const own = await plan();
+    const other = await plan();
+    const lineId = await line(own);
+    await expect(mapping(other, lineId, w.groceries)).rejects.toThrow(/budget_line_categories_line_plan_fk/);
+    await expect(mapping(own, lineId, w.groceries)).resolves.toBeDefined();
+  });
+});

@@ -305,6 +305,19 @@ const guarded: Record<string, readonly Guard[]> = {
       fixIt: (w) => ["UPDATE budget_allocations SET rule = 'PERCENT' WHERE id = $1", [w.allocation]],
     },
   ],
+  "0023_line_category_plan": [
+    {
+      name: "a mapping that names another plan than its line's",
+      breakIt: (w) => [
+        "UPDATE budget_line_categories SET plan_id = $2 WHERE line_id = $1",
+        [w.line, w.otherPlan],
+      ],
+      refusal:
+        /0023_line_category_plan: budget_line_categories whose plan_id is not their line's plan: [0-9a-f-]{36}/,
+      readBack: (w) => ["SELECT plan_id AS v FROM budget_line_categories WHERE line_id = $1", [w.line]],
+      fixIt: (w) => ["UPDATE budget_line_categories SET plan_id = $2 WHERE line_id = $1", [w.line, w.plan]],
+    },
+  ],
 };
 
 describe.each(Object.entries(guarded))("migration %s on existing rows (#249)", (tag, guards) => {

@@ -669,7 +669,7 @@ erDiagram
 | `budget_lines.plan_id` | `budget_plans.id` | no | NO ACTION | The plan the line belongs to. |
 | `budget_lines.origin_line_id` | `budget_lines.id` | yes | NO ACTION | The line this one was copied from, so carry-over and trends follow it across plans. |
 | `budget_line_categories.plan_id` | `budget_plans.id` | no | NO ACTION | The plan of the line, repeated so one category maps to one current line per plan. |
-| `budget_line_categories.line_id` | `budget_lines.id` | no | NO ACTION | The line the category is mapped to. |
+| `budget_line_categories.line_id`, `plan_id` | `budget_lines.id`, `plan_id` | no | NO ACTION | The line the category is mapped to; the mapping's `plan_id` is that line's plan (`budget_line_categories_line_plan_fk`, #249). |
 | `budget_line_categories.category_id` | `categories.id` | no | NO ACTION | The mapped category (never a subcategory). |
 | `budget_allocations.line_id` | `budget_lines.id` | no | NO ACTION | The line being allocated. |
 | `budget_allocations.member_id` | `space_members.id` | no | NO ACTION | The member the value is allocated to. |
@@ -687,6 +687,7 @@ erDiagram
 **`budget_lines`**
 - Unique index `budget_lines_plan_name_uq`: `(plan_id, lower(name))` where `deleted_at IS NULL`.
 - Unique index `budget_lines_catch_all_uq`: `plan_id` where `is_catch_all AND deleted_at IS NULL` (one catch-all line per plan).
+- Unique `budget_lines_id_plan_uq`: `(id, plan_id)`, the key a category mapping points at (#249).
 - Check `budget_lines_planned_positive`: `planned_amount > 0`.
 - Check `budget_lines_savings_accounts`: `(funding = 'SAVINGS') = (cardinality(savings_account_ids) > 0)`.
 - Check `budget_lines_savings_catch_all`: `NOT (funding = 'SAVINGS' AND is_catch_all)`.
@@ -827,5 +828,6 @@ One line per migration, from the file in [`drizzle/`](https://github.com/Facabor
 | [`0019_account_style_vocabulary.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0019_account_style_vocabulary.sql) | Maps `accounts.color` to the shared palette keys and `accounts.icon` to Hearth symbol names (no DDL). | M6a, Task 1 |
 | [`0021_ledger_vocabulary.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0021_ledger_vocabulary.sql) | The checks `accounts_type`, `shares_split_method` and `transaction_audit_action`, and one share per member of a transaction (`shares_transaction_member_uq`). | Issue #249, M1-9 |
 | [`0022_budgeting_vocabulary.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0022_budgeting_vocabulary.sql) | The checks `budget_plans_status`, `budget_lines_funding`, `budget_lines_rollover_mode`, `budget_lines_allocation_rule` and `budget_allocations_rule`. | Issue #249, M3A-2 |
+| [`0023_line_category_plan.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0023_line_category_plan.sql) | The unique key `(id, plan_id)` of `budget_lines`; a category mapping points at it with its `plan_id`, so that plan is its line's. | Issue #249, M3A-3 |
 
 Migrations are forward-only (see [Rolling back](../operations/deploy.md#rolling-back)). A migration that changes tables updates this page in the same pull request.

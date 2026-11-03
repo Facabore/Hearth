@@ -162,6 +162,13 @@
       "when": 1793664876558,
       "tag": "0022_budgeting_vocabulary",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793665320301,
+      "tag": "0023_line_category_plan",
+      "breakpoints": true
     }
   ]
 }

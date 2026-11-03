@@ -4,12 +4,14 @@ import {
   boolean,
   check,
   date,
+  foreignKey,
   index,
   integer,
   pgTable,
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
   type AnyPgColumn,
@@ -106,6 +108,8 @@ export const budgetLines = pgTable(
   (t) => [
     index("budget_lines_plan_idx").on(t.planId),
     index("budget_lines_origin_idx").on(t.originLineId),
+    // #249, M3A-3: the key a mapping's (line_id, plan_id) points at, so the plan it copies is its line's.
+    unique("budget_lines_id_plan_uq").on(t.id, t.planId),
     // HU-E6-03: names are unique per plan ignoring case, among lines that are not deleted.
     uniqueIndex("budget_lines_plan_name_uq")
       .on(t.planId, sql`lower(${t.name})`)
@@ -132,13 +136,12 @@ export const budgetLineCategories = pgTable(
   "budget_line_categories",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    // Copied from the line, so one partial index keeps a category on one current line per plan.
+    // Copied from the line, so one partial index keeps a category on one current line per plan; the composite key
+    // below keeps it equal to the line's plan (#249, M3A-3).
     planId: uuid("plan_id")
       .notNull()
       .references(() => budgetPlans.id),
-    lineId: uuid("line_id")
-      .notNull()
-      .references(() => budgetLines.id),
+    lineId: uuid("line_id").notNull(),
     categoryId: uuid("category_id")
       .notNull()
       .references(() => categories.id),
@@ -152,6 +155,11 @@ export const budgetLineCategories = pgTable(
       .on(t.planId, t.categoryId)
       .where(sql`${t.unmappedAt} IS NULL`),
     index("budget_line_categories_line_idx").on(t.lineId),
+    foreignKey({
+      name: "budget_line_categories_line_plan_fk",
+      columns: [t.lineId, t.planId],
+      foreignColumns: [budgetLines.id, budgetLines.planId],
+    }),
     // HU-E3-03: deleting a category checks whether any plan maps or mapped it.
     index("budget_line_categories_category_idx").on(t.categoryId),
   ],
