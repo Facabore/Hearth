@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
@@ -211,13 +211,21 @@ describe("new account form: where saving lands (returnTo)", () => {
   );
 });
 
-describe("new account form: the way back (S1)", () => {
-  it("has a Volver link to the accounts of the space, before the title", () => {
+describe("new account form: a sheet over Cuentas (board B1 · 08, P292)", () => {
+  it("opens as the Nueva cuenta sheet with Crear cuenta in its footer, and Escape returns to Cuentas", async () => {
     renderWithIntl(<NewAccountForm space={spaceDto()} formats={BUILT_IN_FORMATS} api={fakeApi({}).api} />);
-    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute(
-      "href",
-      "/spaces/sp-personal/accounts",
-    );
-    expect(screen.getByRole("heading", { level: 1, name: "Nueva cuenta" })).toBeInTheDocument();
+    const sheet = screen.getByRole("dialog", { name: "Nueva cuenta" });
+    const create = within(sheet).getByRole("button", { name: "Crear cuenta" });
+    // The footer sits outside the scrolling body, so the button stays at the bottom; it still submits the form.
+    expect(create).toHaveAttribute("form", within(sheet).getByRole("form").id);
+    expect(create.closest("form")).toBeNull();
+    await userEvent.keyboard("{Escape}");
+    expect(router.push).toHaveBeenCalledWith("/spaces/sp-personal/accounts");
+  });
+
+  it("draws Préstamo o deuda with the bank icon of the board", () => {
+    renderWithIntl(<NewAccountForm space={spaceDto()} formats={BUILT_IN_FORMATS} api={fakeApi({}).api} />);
+    const loan = screen.getByRole("radio", { name: "Préstamo o deuda" });
+    expect(loan.querySelector("[data-icon='bank']")).not.toBeNull();
   });
 });

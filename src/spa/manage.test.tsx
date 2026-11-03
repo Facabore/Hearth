@@ -156,15 +156,16 @@ describe("accounts, categories and settings in the SPA (slice 3 of #199, ADR 000
     expect(await screen.findByRole("button", { name: /Cuenta\s*Wallet/ })).toBeVisible();
   });
 
-  it("hides an account from a confirmation deep inside the list, through the app's own client", async () => {
+  it("hides an account from a confirmation on its own screen, through the app's own client (P292)", async () => {
     const { routes } = server();
-    const spa = renderSpa(ACCOUNTS, routes);
-    await userEvent.click(await screen.findByRole("button", { name: "Ocultar Nequi" }));
+    const spa = renderSpa(`${ACCOUNTS}/a-nequi/edit`, routes);
+    await userEvent.click(await screen.findByRole("button", { name: "Ocultar Nequi" }, { timeout: 5_000 }));
     const sheet = screen.getByRole("dialog", { name: "¿Ocultar Nequi?" });
     const before = untouched(spa.requests, [/\/accounts$/]);
     await userEvent.click(within(sheet).getByRole("button", { name: "Ocultar" }));
 
-    // The archive went through the app's fake API, and the list moved it to its archived section.
+    // The archive went through the app's fake API, and the list it lands on moved it to its archived section.
+    await waitFor(() => expect(spa.location()).toBe(ACCOUNTS));
     expect(await screen.findByRole("button", { name: "Mostrar Nequi" })).toBeInTheDocument();
     expect(count(spa.requests, "POST", /\/accounts\/a-nequi\/archive$/)).toBe(1);
     expect(untouched(spa.requests, [/\/accounts$/])).toEqual(before);

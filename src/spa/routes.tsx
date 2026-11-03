@@ -271,12 +271,13 @@ const accountsRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/accounts"), "AccountsRoute"),
 });
 
-/** HU-E9-03: a new account; `?returnTo=` is where saving lands. */
+/** HU-E9-03: a new account, a sheet over Cuentas (P292); `?returnTo=` is where saving lands. */
 const newAccountRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "accounts/new",
   staticData: { ...stackedScreen, areas: ["accounts"] },
   validateSearch: (search: Record<string, unknown>) => ({ returnTo: textParam(search.returnTo) }),
+  // The sheet's Cuentas reads its list through the query, which Cuentas has usually cached already.
   loader: ({ context, route }) => loadAreas(context, route),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "NewAccountPending"),
   errorComponent: ScreenError,

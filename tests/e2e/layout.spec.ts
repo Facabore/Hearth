@@ -2320,7 +2320,10 @@ test.describe("the last control of a scrolling screen ends above the bottom bar 
     readonly submit: string;
     /** Ruling P272: a stacked screen has no bottom bar, only the safe area under its last control. */
     readonly stacked?: boolean;
-    /** Ruling P291: the record form is a bottom sheet of a stacked screen; its own body scrolls, not the page. */
+    /**
+     * Rulings P291 and P292: a bottom sheet over its parent screen. Its own body scrolls, not the page, and it anchors
+     * its button above the safe area.
+     */
     readonly sheet?: boolean;
   }[] = [
     {
@@ -2352,7 +2355,8 @@ test.describe("the last control of a scrolling screen ends above the bottom bar 
     },
     {
       name: "new account",
-      stacked: true,
+      // Board B1 · 08 (P292): a sheet over Cuentas, Crear cuenta anchored at its bottom.
+      sheet: true,
       at: ({ spaceId }: Ids) => `/spaces/${spaceId}/accounts/new`,
       // A credit card asks for the most attributes, so the form is the longest it gets.
       prepare: async (page: Page) => {
@@ -2418,14 +2422,16 @@ test.describe("the last control of a scrolling screen ends above the bottom bar 
             ],
           };
         });
-        if (screen.stacked) {
-          expect(seen.barHeight, "a stacked screen has no bottom bar").toBe(0);
-          if (!screen.sheet)
-            expect(seen.below, "the page keeps room for the safe area").toBeGreaterThanOrEqual(34);
+        if (screen.sheet) {
+          expect(seen.barHeight, "a sheet over its screen has no bottom bar").toBe(0);
           // A sheet's own scroll stops on a whole pixel, so its last control may sit a fraction of one lower.
           expect(seen.bottom, "the button ends above the safe area").toBeLessThanOrEqual(
-            seen.viewport - 34 + (screen.sheet ? 1 : 0),
+            seen.viewport - 34 + 1,
           );
+        } else if (screen.stacked) {
+          expect(seen.barHeight, "a stacked screen has no bottom bar").toBe(0);
+          expect(seen.below, "the page keeps room for the safe area").toBeGreaterThanOrEqual(34);
+          expect(seen.bottom, "the button ends above the safe area").toBeLessThanOrEqual(seen.viewport - 34);
         } else {
           expect(seen.barInset, "the emulated safe area reaches the bar").toBe(34);
           expect(
@@ -2543,12 +2549,8 @@ test.describe("the app has an icon, so no page asks for a missing one (UX review
 test.describe("every screen below the navigation has a way back (UX: no dead ends)", () => {
   /** Where each screen's Volver link must land: the parent route, never the browser history. */
   const screens = (ids: { spaceId: string; sharedId: string; history: string; edit: string }) => [
+    // Nueva cuenta is a sheet over Cuentas (P292): Escape and its close return there (tests/e2e/spa/manage.spec.ts).
     { name: "accounts", at: `/spaces/${ids.spaceId}/accounts`, parent: `/spaces/${ids.spaceId}` },
-    {
-      name: "new account",
-      at: `/spaces/${ids.spaceId}/accounts/new`,
-      parent: `/spaces/${ids.spaceId}/accounts`,
-    },
     { name: "record form", at: `/spaces/${ids.spaceId}/new`, parent: `/spaces/${ids.spaceId}` },
     { name: "settings", at: "/settings", parent: `/spaces/${ids.spaceId}` },
     {
