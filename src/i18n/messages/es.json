@@ -339,6 +339,8 @@
       "title": "Categoría",
       "search": "Buscar categoría",
       "subcategoriesOf": "Subcategorías de {name}",
+      "optional": "{name} · subcategoría opcional",
+      "all": "Todas",
       "none": "Sin subcategoría",
       "use": "Usar {path}",
       "noMatch": "No hay ninguna categoría «{query}»."

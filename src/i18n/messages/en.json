@@ -339,6 +339,8 @@
       "title": "Category",
       "search": "Search category",
       "subcategoriesOf": "Subcategories of {name}",
+      "optional": "{name} · optional subcategory",
+      "all": "All",
       "none": "No subcategory",
       "use": "Use {path}",
       "noMatch": "There is no category “{query}”."
