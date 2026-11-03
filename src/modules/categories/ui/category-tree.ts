@@ -61,15 +61,6 @@ export const withGroup = (groups: readonly CategoryGroupDto[], group: SavedGroup
   { ...group, categories: [] },
 ];
 
-/** P296: the tree in the order a move answered; a group the answer leaves out keeps its place after the others. */
-export const inOrderOf = (
-  groups: readonly CategoryGroupDto[],
-  order: readonly { readonly id: string }[],
-): CategoryGroupDto[] => {
-  const at = new Map(order.map((g, i) => [g.id, i]));
-  return [...groups].sort((a, b) => (at.get(a.id) ?? order.length) - (at.get(b.id) ?? order.length));
-};
-
 /** The tree without the category or subcategory `id` (a delete). */
 export const withoutCategory = (groups: readonly CategoryGroupDto[], id: string): CategoryGroupDto[] =>
   groups.map((group) => ({

@@ -15,7 +15,6 @@ import {
   categoryPath,
   findCategory,
   groupsForKind,
-  inOrderOf,
   withCategory,
   withGroup,
   withoutCategory,
@@ -34,6 +33,18 @@ type Open =
 
 /** HU-E1-05, HU-E9-04: only an OWNER or an ADMIN manages the tree (a personal space's owner is its OWNER). */
 export const managesCategories = (role: SpaceDto["role"]): boolean => role === "OWNER" || role === "ADMIN";
+
+/**
+ * P296: the tree in the order a move answered; a group the answer leaves out keeps its place after the others. Kept
+ * here, not in `category-tree.ts`, whose chunk the plan's screens share.
+ */
+const inOrderOf = (
+  groups: readonly CategoryGroupDto[],
+  order: readonly { readonly id: string }[],
+): CategoryGroupDto[] => {
+  const at = new Map(order.map((g, i) => [g.id, i]));
+  return [...groups].sort((a, b) => (at.get(a.id) ?? order.length) - (at.get(b.id) ?? order.length));
+};
 
 /** The archived categories and subcategories of `groups`, in tree order; a subcategory of an archived parent too. */
 const archivedOf = (groups: readonly CategoryGroupDto[]): CategoryDto[] =>
