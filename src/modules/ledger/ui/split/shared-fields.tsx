@@ -7,7 +7,7 @@ import { memberLabel } from "@/modules/spaces/ui";
 import { Icon } from "@/shared/ui";
 import type { Api } from "@/shared/ui/api/client";
 import type { Formats } from "@/shared/ui/format/formatters";
-import type { SharedExpenseContext } from "./shared-context";
+import { defaultParticipantIds, type SharedExpenseContext } from "./shared-context";
 import { isUntouched, splitFailureMessage } from "./split-failure";
 import { splitCheckOf, type SplitDraft } from "./split-request";
 import { includedIds } from "./split-summary";
@@ -88,12 +88,13 @@ export function SharedFields({
           defaultSplit.method === "BY_ALLOCATION"
             ? (defaultSplit.shares?.filter((s) => BigInt(s.amount) > 0n).map((s) => s.memberId) ??
               draft.selected)
-            : memberIds,
+            : defaultParticipantIds(context.members),
       });
-    // The plan's split is the API's to offer: without an answer the form is back to equal parts (P167).
+    // The plan's split is the API's to offer: without an answer the form is back to equal parts (P167), among
+    // every member but the VIEWERs (P293).
     else if (defaultSplit.status === "none" && draft.method === "BY_ALLOCATION")
-      onChange({ ...draft, method: "EQUAL", selected: memberIds });
-    // `memberIds` is derived from the context on every render; the draft and the answer are what trigger this.
+      onChange({ ...draft, method: "EQUAL", selected: defaultParticipantIds(context.members) });
+    // The context is derived on every render; the draft and the answer are what trigger this.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultSplit, draft, onChange]);
 

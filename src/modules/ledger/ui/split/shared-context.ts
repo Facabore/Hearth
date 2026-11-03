@@ -36,9 +36,17 @@ export const sharedContextOf = (input: {
 };
 
 /**
+ * Ruling P293: who a split starts with, every current member but the VIEWERs (Lectores), guests included, in join
+ * order. The split sheet still lists the VIEWERs, so the recorder can tick one who really took part.
+ */
+export const defaultParticipantIds = (members: readonly MemberDto[]): string[] =>
+  members.filter((member) => member.role !== "VIEWER").map((member) => member.id);
+
+/**
  * The recorder pays from `payerAccountId` (the record form passes the one paid from last, issue #208), else their
- * first account that is not a savings account, else their first, equally among every current member, until a default
- * or a choice. The fallback is spelled here, not taken from `last-account`, so the detail sheet's chunk stays small.
+ * first account that is not a savings account, else their first, equally among every current member but the VIEWERs
+ * (P293), until a default or a choice. The fallback is spelled here, not taken from `last-account`, so the detail
+ * sheet's chunk stays small.
  */
 export const initialSplitDraft = (
   context: SharedExpenseContext,
@@ -53,7 +61,7 @@ export const initialSplitDraft = (
       null,
   },
   method: "EQUAL",
-  selected: context.members.map((member) => member.id),
+  selected: defaultParticipantIds(context.members),
   values: {},
   chosen: false,
 });
