@@ -4,6 +4,8 @@
     "kindLabel": "Tipo",
     "newGroup": "Nuevo grupo",
     "addCategory": "Agregar categoría a {group}",
+    "moveUp": "Subir {group}",
+    "moveDown": "Bajar {group}",
     "edit": "Editar {name}",
     "emptyGroup": "Aún no hay categorías",
     "readOnly": "Puedes ver las categorías de {space}; solo sus propietarios y administradores las cambian.",
@@ -38,8 +40,6 @@
       "add": "Agregar"
     },
     "groupSheet": {
-      "title": "Nuevo grupo",
-      "name": "Nombre",
       "create": "Crear grupo"
     },
     "icons": {
@@ -207,16 +207,6 @@
       "briefcase": "Maletín",
       "handshake": "Apretón de manos",
       "people": "Personas"
-    },
-    "emojiSection": {
-      "food": "Comida",
-      "home": "Hogar",
-      "transport": "Transporte",
-      "health": "Salud y cuidado",
-      "leisure": "Ocio",
-      "shopping": "Compras",
-      "money": "Dinero",
-      "people": "Personas y trabajo"
     },
     "colorHint": "Las subcategorías usan el mismo color."
   }

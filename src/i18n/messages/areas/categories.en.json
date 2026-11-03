@@ -4,6 +4,8 @@
     "kindLabel": "Type",
     "newGroup": "New group",
     "addCategory": "Add category to {group}",
+    "moveUp": "Move {group} up",
+    "moveDown": "Move {group} down",
     "edit": "Edit {name}",
     "emptyGroup": "No categories yet",
     "readOnly": "You can see the categories of {space}; only its owners and admins change them.",
@@ -38,8 +40,6 @@
       "add": "Add"
     },
     "groupSheet": {
-      "title": "New group",
-      "name": "Name",
       "create": "Create group"
     },
     "icons": {
@@ -207,16 +207,6 @@
       "briefcase": "Briefcase",
       "handshake": "Handshake",
       "people": "People"
-    },
-    "emojiSection": {
-      "food": "Food",
-      "home": "Home",
-      "transport": "Transport",
-      "health": "Health and care",
-      "leisure": "Leisure",
-      "shopping": "Shopping",
-      "money": "Money",
-      "people": "People and work"
     },
     "colorHint": "Subcategories use the same color."
   }

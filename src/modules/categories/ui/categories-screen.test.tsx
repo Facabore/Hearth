@@ -646,6 +646,69 @@ describe("categories screen (HU-E9-04)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  describe("group order (#240, P296)", () => {
+    // Gastos shows Housing, Food and Pets; Income (key "income") sits between Food and Pets, on the Ingresos tab only.
+    const ORDERED = [
+      groupDto({ id: "g-housing", name: "Housing", position: 0 }),
+      groupDto({ id: "g-food", name: "Food", position: 1 }),
+      groupDto({ id: "g-income", name: "Income", key: "income", position: 2 }),
+      groupDto({ id: "g-pets", name: "Pets", position: 3 }),
+    ];
+    const MOVE = "POST /api/v1/spaces/{spaceId}/category-groups/{groupId}/move";
+    const headings = () => screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    /** What the API answers: the groups in the order the test expects after the move. */
+    const answering =
+      (ids: readonly string[]): FakeHandler =>
+      () =>
+        jsonResponse({
+          items: ids.map((id, position) => ({
+            ...ORDERED.find((g) => g.id === id)!,
+            categories: undefined,
+            position,
+          })),
+        });
+
+    it("gives each group 44 px up and down arrows named by the group, off at the ends of the tab", async () => {
+      const { container } = renderTree(ORDERED);
+      expect(headings()).toEqual(["Housing", "Food", "Pets"]);
+      for (const name of ["Subir Housing", "Bajar Housing", "Subir Pets", "Bajar Pets"])
+        expect(screen.getByRole("button", { name })).toHaveClass("size-11");
+      expect(screen.getByRole("button", { name: "Subir Housing" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Bajar Pets" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Subir Pets" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Bajar Housing" })).toBeEnabled();
+      expect(await axeViolations(container)).toEqual([]);
+    });
+
+    it("moves a group above the group over it on the tab, past one the tab hides, and shows the answered order", async () => {
+      const { requests } = renderTree(ORDERED, {
+        routes: { [MOVE]: answering(["g-housing", "g-pets", "g-food", "g-income"]) },
+      });
+      await userEvent.click(screen.getByRole("button", { name: "Subir Pets" }));
+      expect(new URL(requests[0]!.url).pathname).toBe(
+        "/api/v1/spaces/sp-household/category-groups/g-pets/move",
+      );
+      expect(await bodyOf(requests[0]!)).toEqual({ before: "g-food" });
+      await waitFor(() => expect(headings()).toEqual(["Housing", "Pets", "Food"]));
+    });
+
+    it("moves a group below the next one with after", async () => {
+      const { requests } = renderTree(ORDERED, {
+        routes: { [MOVE]: answering(["g-food", "g-housing", "g-income", "g-pets"]) },
+      });
+      await userEvent.click(screen.getByRole("button", { name: "Bajar Housing" }));
+      expect(await bodyOf(requests[0]!)).toEqual({ after: "g-food" });
+      await waitFor(() => expect(headings()).toEqual(["Food", "Housing", "Pets"]));
+    });
+
+    it("keeps the order and says why when the API refuses a move", async () => {
+      renderTree(ORDERED, { routes: { [MOVE]: () => problemResponse(409, "CategoryGroupArchived") } });
+      await userEvent.click(screen.getByRole("button", { name: "Bajar Food" }));
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+      expect(headings()).toEqual(["Housing", "Food", "Pets"]);
+    });
+  });
+
   it("shows a VIEWER the archived section without a restore control", () => {
     renderTree(household({ archivedAt: "2026-10-20T15:00:00.000Z" }), {
       space: householdSpace({ role: "VIEWER" }),

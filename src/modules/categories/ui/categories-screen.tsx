@@ -15,6 +15,7 @@ import {
   categoryPath,
   findCategory,
   groupsForKind,
+  inOrderOf,
   withCategory,
   withGroup,
   withoutCategory,
@@ -75,6 +76,9 @@ export function CategoryTree({
   const [problem, setProblem] = useState<Problem | null>(null);
   // The categories whose restore is in flight: each button waits, so a double tap sends one request.
   const [restoring, setRestoring] = useState<ReadonlySet<string>>(new Set());
+  // P296: one move at a time; every arrow waits for its answer, and a refusal shows under the tabs.
+  const [moving, setMoving] = useState(false);
+  const [moveProblem, setMoveProblem] = useState<Problem | null>(null);
 
   const live = activeTree(tree);
   const shown = groupsForKind(live, kind);
@@ -106,6 +110,23 @@ export function CategoryTree({
     if (withCategory(tree, saved) === null) router.refresh();
   };
 
+  /** P296: one place up or down on this tab is right before or after its neighbour here, whatever other tabs hold. */
+  const move = async (groupId: string, anchor: { before: string } | { after: string }) => {
+    setMoving(true);
+    setMoveProblem(null);
+    try {
+      const { data, error, response } = await api.POST(
+        "/api/v1/spaces/{spaceId}/category-groups/{groupId}/move",
+        { params: { path: { spaceId: space.id, groupId } }, body: anchor },
+      );
+      if (data) setTree((current) => inOrderOf(current, data.items));
+      else setMoveProblem(problemFrom(error, response));
+    } catch (error) {
+      setMoveProblem(problemFrom(error, undefined));
+    }
+    setMoving(false);
+  };
+
   const restore = async (category: CategoryDto) => {
     setProblem(null);
     setRestoring((current) => new Set(current).add(category.id));
@@ -132,7 +153,11 @@ export function CategoryTree({
         backHref={`/spaces/${space.id}`}
         title={t("title")}
         subtitle={manage ? t("subtitle", { space: space.name }) : undefined}
-        action={manage ? <Plus label={t("newGroup")} onClick={() => setAddingGroup(true)} /> : null}
+        action={
+          manage ? (
+            <IconAction icon="plus" label={t("newGroup")} onClick={() => setAddingGroup(true)} />
+          ) : null
+        }
       />
       {manage ? null : (
         <p className="rounded-2xl bg-track p-3 text-sm text-ink">{t("readOnly", { space: space.name })}</p>
@@ -141,15 +166,20 @@ export function CategoryTree({
         label={t("kindLabel")}
         value={kind}
         onValueChange={(next) => {
-          // A restore refusal belongs to the tab it happened on.
+          // A restore or move refusal belongs to the tab it happened on.
           setProblem(null);
+          setMoveProblem(null);
           setKind(next);
         }}
         options={KINDS.map((value) => ({ value, label: t(`kind.${value}`) }))}
       />
-      {shown.map((group) => (
+      {moveProblem ? <ProblemNotice problem={moveProblem} /> : null}
+      {shown.map((group, i) => (
         <section key={group.id} aria-labelledby={`group-${group.id}`} className="flex flex-col gap-1.5">
-          {/* Board Categorías 01 (P292): a bold heading with its own "+" for a new category. */}
+          {/*
+            Board Categorías 01 (P292): a bold heading with its own "+" for a new category. P296: before it, arrows
+            that move the group one place on this tab, off at its ends; no drag.
+          */}
           <div className="flex items-center gap-2">
             <CategoryIcon icon={group.icon} color={group.color} size={28} />
             <h2
@@ -159,10 +189,26 @@ export function CategoryTree({
               {group.name}
             </h2>
             {manage ? (
-              <Plus
-                label={t("addCategory", { group: group.name })}
-                onClick={() => setOpen({ mode: "create", groupId: group.id })}
-              />
+              // Side by side with no gap (each target is already 44 px), so a name keeps its room at 320 px.
+              <div className="flex shrink-0">
+                <IconAction
+                  icon="arrowUp"
+                  label={t("moveUp", { group: group.name })}
+                  disabled={moving || i === 0}
+                  onClick={() => void move(group.id, { before: shown[i - 1]!.id })}
+                />
+                <IconAction
+                  icon="arrowDown"
+                  label={t("moveDown", { group: group.name })}
+                  disabled={moving || i === shown.length - 1}
+                  onClick={() => void move(group.id, { after: shown[i + 1]!.id })}
+                />
+                <IconAction
+                  icon="plus"
+                  label={t("addCategory", { group: group.name })}
+                  onClick={() => setOpen({ mode: "create", groupId: group.id })}
+                />
+              </div>
             ) : null}
           </div>
           <ul className="divide-y divide-line rounded-2xl bg-surface px-3">
@@ -244,11 +290,21 @@ export function CategoryTree({
   );
 }
 
-/** A plain "+" of the board (P292): an icon on the page, 44 px, named by what it adds. */
-function Plus({ label, onClick }: { readonly label: string; readonly onClick: () => void }) {
+/** A plain icon of the board (P292): the "+" and, P296, the move arrows; 44 px, named by what it does. */
+function IconAction({
+  icon,
+  label,
+  onClick,
+  disabled,
+}: {
+  readonly icon: "plus" | "arrowUp" | "arrowDown";
+  readonly label: string;
+  readonly onClick: () => void;
+  readonly disabled?: boolean;
+}) {
   return (
-    <Button size="iconCompact" variant="ghost" onClick={onClick}>
-      <Icon name="plus" />
+    <Button size="iconCompact" variant="ghost" onClick={onClick} disabled={disabled}>
+      <Icon name={icon} />
       <VisuallyHidden>{label}</VisuallyHidden>
     </Button>
   );
