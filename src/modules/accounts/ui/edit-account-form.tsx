@@ -20,6 +20,7 @@ import type { AccountDto, SpaceDto } from "@/shared/ui/api/dto";
 import { problemFrom } from "@/shared/ui/api/problem";
 import { currencyOf } from "@/shared/ui/format/currencies";
 import type { Formats } from "@/shared/ui/format/formatters";
+import { ArchiveAccountButton } from "./account-actions";
 import { AccountAttributeFields } from "./account-attribute-fields";
 import { editBodyOf, editOf, OWED_TYPES, type AccountEdit } from "./account-fields";
 import { ACCOUNT_ICON_CHOICES } from "./account-look";
@@ -113,7 +114,19 @@ export function EditAccountForm({
 
   return (
     <div className="flex flex-col gap-3 py-3">
-      <ScreenHeader backHref={back} title={t("edit.title")} />
+      {/* Board B1 · 07 drops the rows' archive button (P292): an account is hidden from its own screen. */}
+      <ScreenHeader
+        backHref={back}
+        title={t("edit.title")}
+        action={
+          <ArchiveAccountButton
+            spaceId={space.id}
+            account={account}
+            api={api}
+            onArchived={() => router.replace(back)}
+          />
+        }
+      />
       <form onSubmit={(event) => void submit(event)} noValidate className="flex flex-col gap-3">
         <p className="text-sm text-muted">{t("edit.type", { type: t(`type.${account.type}`) })}</p>
         <TextField

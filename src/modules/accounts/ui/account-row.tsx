@@ -46,6 +46,8 @@ export function AccountRow({
     if (terms.principal) details.push(t("loan.principal", { amount: formatMoney(terms.principal, formats) }));
     if (terms.termMonths !== null) details.push(t("loan.months", { months: String(terms.termMonths) }));
   }
+  // Board B1 · 07 (P292): with nothing else to say, the row names its type ("Billetera", "Efectivo").
+  if (details.length === 0) details.push(t(`type.${account.type}`));
   const negative = account.balance.amount.startsWith("-");
   const look = (
     <>

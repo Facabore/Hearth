@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { controlsFor } from "@/modules/spaces/ui";
-import { Icon, ScreenHeader } from "@/shared/ui";
+import { Icon, ScreenHeader, VisuallyHidden } from "@/shared/ui";
 import type { AccountListDto, SpaceDto } from "@/shared/ui/api/dto";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { safeReturnTo, withReturnTo } from "@/shared/ui/navigation/auth-redirect";
-import { ArchiveAccountButton, RestoreAccountButton, StarterAccountsButton } from "./account-actions";
+import { RestoreAccountButton, StarterAccountsButton } from "./account-actions";
 import { AccountRow } from "./account-row";
-import { sectionsOf } from "./account-sections";
+import { sectionsOf, totalOf } from "./account-sections";
 
 const ACTION =
   "flex min-h-11 flex-none items-center justify-center gap-2 rounded-full bg-accent px-4 text-sm font-semibold text-on-accent";
@@ -54,9 +54,13 @@ export function AccountsScreen({
         title={t("title")}
         action={
           canManage && !noActive ? (
-            <Link href={newHref} className={ACTION}>
-              <Icon name="plus" size={20} />
-              {shared ? t("newFund") : t("new")}
+            // Board B1 · 07 (P292): a plain "+", named by what it adds.
+            <Link
+              href={newHref}
+              className="-mr-2 flex size-11 shrink-0 items-center justify-center text-accent"
+            >
+              <Icon name="plus" />
+              <VisuallyHidden>{shared ? t("newFund") : t("new")}</VisuallyHidden>
             </Link>
           ) : undefined
         }
@@ -110,24 +114,35 @@ export function AccountsScreen({
           </dl>
         </section>
       )}
-      {active.map((section) => (
-        <section key={section.key} aria-labelledby={`accounts-${section.key}`}>
-          <h2 id={`accounts-${section.key}`} className="mb-1 text-sm font-semibold text-muted">
-            {t(`section.${section.key}`)}
-          </h2>
-          <ul className="divide-y divide-line rounded-2xl bg-surface px-3">
-            {section.accounts.map((account) => (
-              <AccountRow
-                key={account.id}
-                account={account}
-                formats={formats}
-                editHref={canManage ? `/spaces/${spaceId}/accounts/${account.id}/edit` : undefined}
-                actions={<ArchiveAccountButton spaceId={spaceId} account={account} />}
-              />
-            ))}
-          </ul>
-        </section>
-      ))}
+      {active.map((section) => {
+        const total = totalOf(section.accounts);
+        return (
+          <section key={section.key} aria-labelledby={`accounts-${section.key}`}>
+            {/* Board B1 · 07 (P292): the section total sums the balances the API gave, its sign carrying the direction. */}
+            <div className="mb-1 flex items-baseline justify-between gap-2 text-sm font-semibold">
+              <h2 id={`accounts-${section.key}`} className="text-muted">
+                {t(`section.${section.key}`)}
+              </h2>
+              <span
+                data-testid="section-total"
+                className={`whitespace-nowrap ${total.amount.startsWith("-") ? "text-owe" : "text-ink"}`}
+              >
+                {formatMoney(total, formats)}
+              </span>
+            </div>
+            <ul className="divide-y divide-line rounded-2xl bg-surface px-3">
+              {section.accounts.map((account) => (
+                <AccountRow
+                  key={account.id}
+                  account={account}
+                  formats={formats}
+                  editHref={canManage ? `/spaces/${spaceId}/accounts/${account.id}/edit` : undefined}
+                />
+              ))}
+            </ul>
+          </section>
+        );
+      })}
       {archived.length > 0 ? (
         <section aria-labelledby="accounts-archived">
           <h2 id="accounts-archived" className="mb-1 text-sm font-semibold text-muted">

@@ -52,7 +52,7 @@ describe("accounts screen (HU-E9-03)", () => {
     renderWithIntl(<AccountsScreen spaceId="sp-personal" list={list} formats={BUILT_IN_FORMATS} />);
     const totals = screen.getByRole("region", { name: "Totales" });
     expect(totals).toHaveClass("flex-wrap");
-    expect(screen.getByText("$ 4.915.000")).toHaveClass("whitespace-nowrap");
+    expect(within(totals).getByText("$ 4.915.000")).toHaveClass("whitespace-nowrap");
   });
 
   it("shows types, balances, card figures and the space's totals", async () => {
@@ -69,8 +69,10 @@ describe("accounts screen (HU-E9-03)", () => {
     expect(norm(bank.textContent)).not.toContain("fuera del disponible");
     const visa = screen.getByRole("listitem", { name: /Visa/ });
     expect(norm(visa.textContent)).toContain("−$ 350.000");
-    expect(norm(visa.textContent)).toContain("Disponible $ 4.650.000");
-    expect(norm(visa.textContent)).toContain("Paga antes del 15/11/2026");
+    // Board B1 · 07 (P292): the card's figures read as one lower-case line.
+    expect(norm(visa.textContent)).toContain(
+      "cupo $ 5.000.000 · disponible $ 4.650.000 · paga antes del 15/11/2026",
+    );
     expect(norm(visa.textContent)).toContain("fuera del disponible");
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
       "Bancos, billeteras y efectivo",
@@ -81,13 +83,38 @@ describe("accounts screen (HU-E9-03)", () => {
     expect(within(archived).getByText("Old wallet")).toBeInTheDocument();
     expect(within(archived).getByRole("button", { name: "Mostrar Old wallet" })).toBeInTheDocument();
     expect(within(archived).queryByRole("button", { name: /^Ocultar/ })).toBeNull();
-    expect(within(bank).getByRole("button", { name: "Ocultar Bancolombia" })).toBeInTheDocument();
+    // Board B1 · 07 (P292): no row carries an archive button; hiding lives on the account's own screen.
+    expect(screen.queryByRole("button", { name: /^Ocultar/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Mostrar (?!Old)/ })).toBeNull();
     expect(screen.getByRole("link", { name: "Nueva cuenta" })).toHaveAttribute(
       "href",
       "/spaces/sp-personal/accounts/new?returnTo=%2Fspaces%2Fsp-personal%2Faccounts",
     );
     expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("totals each section from its accounts' balances, the sign carrying the direction (board B1 · 07, P292)", () => {
+    renderWithIntl(<AccountsScreen spaceId="sp-personal" list={list} formats={BUILT_IN_FORMATS} />);
+    const everyday = screen.getByRole("region", { name: "Bancos, billeteras y efectivo" });
+    expect(within(everyday).getByTestId("section-total")).toHaveTextContent("$ 4.915.000");
+    const cards = screen.getByRole("region", { name: "Tarjetas de crédito" });
+    expect(within(cards).getByTestId("section-total")).toHaveTextContent("−$ 350.000");
+    expect(within(cards).getByTestId("section-total")).toHaveClass("whitespace-nowrap");
+    // The hidden accounts have no total.
+    expect(within(screen.getByRole("region", { name: "Ocultas" })).queryByTestId("section-total")).toBeNull();
+  });
+
+  it("names an account's type under it when nothing else describes it (board B1 · 07, P292)", () => {
+    const cash = accountDto({ id: "a-cash", name: "Caja", type: "CASH", icon: "cash" });
+    renderWithIntl(
+      <AccountsScreen
+        spaceId="sp-personal"
+        list={{ ...list, items: [...list.items, cash] }}
+        formats={BUILT_IN_FORMATS}
+      />,
+    );
+    expect(norm(screen.getByRole("listitem", { name: /Nequi/ }).textContent)).toContain("Billetera");
+    expect(norm(screen.getByRole("listitem", { name: /Caja/ }).textContent)).toContain("Efectivo");
   });
 
   it("has a Volver link to the home of the space, and the add link after the title (S1)", () => {
@@ -145,15 +172,15 @@ describe("accounts screen: the add button and the empty states (U4, U1)", () => 
     icon: "users",
   });
 
-  it("labels the add button with visible text, a full target, and returns to this screen", () => {
+  it("adds from a plain plus with a 44 px target and a name, and returns to this screen (board B1 · 07, P292)", () => {
     renderWithIntl(<AccountsScreen spaceId="sp-personal" list={list} formats={BUILT_IN_FORMATS} />);
     const add = screen.getByRole("link", { name: "Nueva cuenta" });
     expect(add).toHaveAttribute(
       "href",
       "/spaces/sp-personal/accounts/new?returnTo=%2Fspaces%2Fsp-personal%2Faccounts",
     );
-    expect(add).toHaveTextContent("Nueva cuenta");
-    expect(add).toHaveClass("min-h-11");
+    expect(add).toHaveClass("size-11");
+    expect(add).not.toHaveClass("bg-accent");
   });
 
   it("with no accounts explains it and offers Nueva cuenta there, once, instead of empty totals", async () => {

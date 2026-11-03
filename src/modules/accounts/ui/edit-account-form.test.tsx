@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
@@ -121,5 +121,19 @@ describe("edit account form (issue 169)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
     await waitFor(() => expect(screen.getByLabelText("Nombre")).toHaveAttribute("aria-invalid", "true"));
     expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it("hides the account from its own screen and lands on Cuentas (board B1 · 07 drops the row's button, P292)", async () => {
+    const { api, requests } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/accounts/{accountId}/archive": () =>
+        jsonResponse({ ...visa, archivedAt: "2026-10-16T00:00:00.000Z" }),
+    });
+    render(api);
+    await userEvent.click(screen.getByRole("button", { name: "Ocultar Visa" }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: "¿Ocultar Visa?" })).getByRole("button", { name: "Ocultar" }),
+    );
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/accounts"));
+    expect(new URL(requests[0]!.url).pathname).toBe("/api/v1/spaces/sp-personal/accounts/a-visa/archive");
   });
 });
