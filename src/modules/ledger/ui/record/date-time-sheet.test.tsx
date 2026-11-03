@@ -159,13 +159,13 @@ describe("date and time sheet (HU-E9-03, ruling P129)", () => {
     expect(within(sheet).getByRole("radio", { name: "AM" })).toBeChecked();
     expect(within(sheet).getByRole("button", { name: ":45" })).toHaveAttribute("aria-pressed", "true");
     const apply = within(sheet).getByRole("button", { name: /^Usar/ });
-    expect(apply.textContent?.replace(/\s/g, " ")).toBe("Usar ayer · 7:45 AM");
+    expect(apply.textContent?.replace(/\s/g, " ")).toBe("Usar Ayer, 7:45 AM");
     await userEvent.click(apply);
     expect(onApply).toHaveBeenCalledWith(at("2026-10-15", 7, 45));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  describe("the apply button reads as one sentence (issue #166)", () => {
+  describe("the apply button reads as one sentence (issue #166), as board B1 · 02 writes it (ruling P291)", () => {
     const applyText = (date: string, locale: "es" | "en") => {
       const { unmount } = renderWithIntl(
         <DateTimeSheet
@@ -186,10 +186,10 @@ describe("date and time sheet (HU-E9-03, ruling P129)", () => {
     };
 
     it.each([
-      ["2026-10-16", "Use today · 20:06", "Usar hoy · 20:06"],
-      ["2026-10-15", "Use yesterday · 20:06", "Usar ayer · 20:06"],
-      ["2026-10-14", "Use the day before yesterday · 20:06", "Usar anteayer · 20:06"],
-      ["2026-10-01", "Use 1/10/2026 · 20:06", "Usar 1/10/2026 · 20:06"],
+      ["2026-10-16", "Use Today, 20:06", "Usar Hoy, 20:06"],
+      ["2026-10-15", "Use Yesterday, 20:06", "Usar Ayer, 20:06"],
+      ["2026-10-14", "Use the day before yesterday, 20:06", "Usar Anteayer, 20:06"],
+      ["2026-10-01", "Use 1/10/2026, 20:06", "Usar 1/10/2026, 20:06"],
     ])("for %s reads %j and %j", (date, en, es) => {
       expect(applyText(date, "en")).toBe(en);
       expect(applyText(date, "es")).toBe(es);

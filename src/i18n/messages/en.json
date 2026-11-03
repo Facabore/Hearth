@@ -462,7 +462,7 @@
       "am": "AM",
       "pm": "PM",
       "now": "Now",
-      "apply": "{day, select, today {Use today · {time}} yesterday {Use yesterday · {time}} dayBeforeYesterday {Use the day before yesterday · {time}} other {Use {date} · {time}}}"
+      "apply": "{day, select, today {Use Today, {time}} yesterday {Use Yesterday, {time}} dayBeforeYesterday {Use the day before yesterday, {time}} other {Use {date}, {time}}}"
     },
     "form": {
       "title": "Record a transaction",

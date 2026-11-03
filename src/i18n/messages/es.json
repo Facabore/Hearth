@@ -462,7 +462,7 @@
       "am": "AM",
       "pm": "PM",
       "now": "Ahora",
-      "apply": "{day, select, today {Usar hoy · {time}} yesterday {Usar ayer · {time}} dayBeforeYesterday {Usar anteayer · {time}} other {Usar {date} · {time}}}"
+      "apply": "{day, select, today {Usar Hoy, {time}} yesterday {Usar Ayer, {time}} dayBeforeYesterday {Usar Anteayer, {time}} other {Usar {date}, {time}}}"
     },
     "form": {
       "title": "Registrar movimiento",
