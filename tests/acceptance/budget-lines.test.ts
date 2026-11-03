@@ -211,6 +211,57 @@ describe("budget lines and unallocated capacity (HU-E6-03)", () => {
     expect((await planOf(h.ana, h.spaceId, december)).lines).toEqual([]);
   });
 
+  it("reads every SAVINGS line's accounts in one read, each counted by its own owner's membership (P8, #84 M3A-1)", async () => {
+    const { h, planId } = await background();
+    const luis = await joinHousehold(h, "Luis", "ADMIN");
+    const anas = await starterAccount(h.ana.personal, "Ahorros");
+    const luiss = await starterAccount(luis.personal, "Ahorros");
+    const luisSecond = await newAccount(luis.personal, "Fondo", 0, "SAVINGS");
+    for (const [owner, name, accounts] of [
+      [h.ana, "Ana savings", [anas]],
+      [luis, "Luis savings", [luiss, luisSecond]],
+    ] as const) {
+      const line = await postLine(owner, h.spaceId, planId, {
+        name,
+        pesos: 600_000,
+        funding: "SAVINGS",
+        savingsAccountIds: [...accounts],
+      });
+      expect(line.status).toBe(201);
+    }
+    for (const [owner, from, to, pesos] of [
+      [h.ana, h.ana.account, anas, 100_000],
+      [luis, luis.account, luiss, 200_000],
+      [luis, luis.account, luisSecond, 50_000],
+    ] as const) {
+      const transfer = await post(recordTransfer, owner.personal, "transfers", {
+        description: "Ahorro",
+        date: "2026-11-05",
+        amount: cop(pesos),
+        sourceAccountId: from,
+        destinationAccountId: to,
+      });
+      expect(transfer.status).toBe(201);
+    }
+    const spent = async () =>
+      Object.fromEntries(
+        (await planOf(h.ana, h.spaceId, planId)).lines.map((l) => [l.name, [l.savingsAccountIds, l.spent]]),
+      );
+    expect(await spent()).toEqual({
+      "Ana savings": [[anas], cop(100_000)],
+      "Luis savings": [[luiss, luisSecond], cop(250_000)],
+    });
+    const left = await call(leaveSpace, "POST", `/api/v1/spaces/${h.spaceId}/leave`, {
+      user: luis,
+      params: { spaceId: h.spaceId },
+    });
+    expect(left.status).toBe(204);
+    expect(await spent()).toEqual({
+      "Ana savings": [[anas], cop(100_000)],
+      "Luis savings": [[luiss, luisSecond], cop(0)],
+    });
+  });
+
   it("refuses an own SAVINGS account kept in another currency than the plan's (D6)", async () => {
     const { h, planId } = await background();
     const sofi = await registerUser("Sofi");

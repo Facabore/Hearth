@@ -1,3 +1,4 @@
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { Pool } from "pg";
 import {
   createArchiveAccount,
@@ -20,6 +21,7 @@ import {
   type UpdateAccount,
 } from "@/modules/accounts/application";
 import { DrizzleAccountRepository } from "@/modules/accounts/infrastructure/drizzle-account-repository";
+import { accounts as accountsTable } from "@/modules/accounts/infrastructure/accounts.schema";
 import {
   createGetMemberNetBalance,
   createGetMemberNetBalances,
@@ -59,6 +61,7 @@ import {
   type SuggestCapacity,
   type AddBudgetLine,
   type RemoveBudgetLine,
+  type BudgetAccount,
   type SavingsAccountReader,
   type UpdateBudgetLine,
   type BudgetCategories,
@@ -257,9 +260,13 @@ import {
 import { cryptoInvitationTokens } from "@/modules/spaces/infrastructure/crypto-invitation-tokens";
 import { DrizzleInvitationRepository } from "@/modules/spaces/infrastructure/drizzle-invitation-repository";
 import { DrizzleSpaceRepository } from "@/modules/spaces/infrastructure/drizzle-space-repository";
+import {
+  spaceMembers as spaceMembersTable,
+  spaces as spacesTable,
+} from "@/modules/spaces/infrastructure/spaces.schema";
 import { mailedInvitations } from "@/modules/spaces/infrastructure/mailed-invitations";
 import { createFixedWindowLimiter, leveledLogger, type IdempotencyDeps, type RouteDeps } from "@/shared/http";
-import { createDatabase, type Database } from "@/shared/infrastructure/db/client";
+import { createDatabase, type Database, type Executor } from "@/shared/infrastructure/db/client";
 import { createDatabaseProbe } from "@/shared/infrastructure/db/probe";
 import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { DrizzleIdempotencyStore } from "@/shared/infrastructure/drizzle-idempotency-store";
@@ -664,25 +671,80 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     const { income } = await ledgerQueries.totals({ spaceId: personal.id, from, to });
     return { amount: income, currency: personal.currency };
   };
-  // HU-E6-03: SAVINGS lines name their callers' own savings accounts, which live in their personal spaces (D9).
+  /**
+   * HU-E6-03: SAVINGS lines name their callers' own savings accounts, which live in their personal spaces (D9). One
+   * query reads the accounts with the space each lives in. A shared fund has no owner, so no line names it; an owned
+   * account follows its home space's currency while its owner is a current member there (the owner's personal space,
+   * HU-E2-01, where the owner always is).
+   */
+  const savingsAccountsByIds = async (
+    executor: Executor,
+    accountIds: readonly string[],
+  ): Promise<Map<string, BudgetAccount>> => {
+    const rows = await executor
+      .select({
+        id: accountsTable.id,
+        ownerUserId: accountsTable.ownerUserId,
+        type: accountsTable.type,
+        archivedAt: accountsTable.archivedAt,
+        currency: spacesTable.currency,
+      })
+      .from(accountsTable)
+      .innerJoin(spacesTable, eq(spacesTable.id, accountsTable.spaceId))
+      .innerJoin(
+        spaceMembersTable,
+        and(
+          eq(spaceMembersTable.spaceId, accountsTable.spaceId),
+          eq(spaceMembersTable.userId, accountsTable.ownerUserId),
+          isNull(spaceMembersTable.leftAt),
+        ),
+      )
+      .where(inArray(accountsTable.id, [...accountIds]));
+    return new Map(
+      rows.flatMap((row) =>
+        row.ownerUserId === null
+          ? []
+          : [
+              [
+                row.id,
+                {
+                  id: row.id,
+                  ownerUserId: row.ownerUserId,
+                  isSavings: row.type === "SAVINGS",
+                  archived: row.archivedAt !== null,
+                  currency: row.currency,
+                },
+              ] as const,
+            ],
+      ),
+    );
+  };
+  /**
+   * #84 M3A-1: the lookups one transaction starts together (a plan view asks for every account its SAVINGS lines name
+   * at once) wait for the current microtask to end and are answered by one query. Batches are kept per executor, so a
+   * query always runs in the transaction of the lookups it answers.
+   */
+  const savingsBatches = new Map<
+    Executor,
+    { ids: Set<string>; found: Promise<Map<string, BudgetAccount>> }
+  >();
   const savingsAccounts: SavingsAccountReader = {
     find: async (accountId) => {
       // Ids come from request bodies; the port answers null for anything that is not a UUID.
       if (!isUuid(accountId)) return null;
-      const account = await accountsDeps.accounts.findById(accountId);
-      // A shared fund has no owner, so no line names it. An owned account follows its owner's currency: it lives in
-      // the owner's personal space (HU-E2-01), where the owner is always a member.
-      if (!account || account.ownerUserId === null) return null;
-      const home = await spaceRepository.findMembership(account.spaceId, account.ownerUserId);
-      return home
-        ? {
-            id: account.id,
-            ownerUserId: account.ownerUserId,
-            isSavings: account.type === "SAVINGS",
-            archived: account.archivedAt !== null,
-            currency: home.currency,
-          }
-        : null;
+      const executor = tm.executor();
+      let batch = savingsBatches.get(executor);
+      if (batch === undefined) {
+        const ids = new Set<string>();
+        const found = Promise.resolve().then(() => {
+          savingsBatches.delete(executor);
+          return savingsAccountsByIds(executor, [...ids]);
+        });
+        batch = { ids, found };
+        savingsBatches.set(executor, batch);
+      }
+      batch.ids.add(accountId);
+      return (await batch.found).get(accountId) ?? null;
     },
   };
   // HU-E6-01 … HU-E6-05: plans reach members, accounts, categories and the ledger's spending only through ports.
