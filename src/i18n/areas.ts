@@ -10,5 +10,6 @@ export const AREAS = [
   "accounts",
   "settings",
   "invitation",
+  "trust",
 ] as const;
 export type Area = (typeof AREAS)[number];

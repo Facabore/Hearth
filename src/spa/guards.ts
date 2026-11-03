@@ -49,11 +49,18 @@ const isSignedIn = async (
 };
 
 /**
+ * Issue #146, ruling P290: static pages anyone may read, signed in or not, as exact paths. Unlike the open prefixes
+ * (ruling P157) they hold no token, so nothing under them and nothing that only starts like them is open.
+ */
+export const OPEN_PAGES = ["/trust"] as const;
+
+/**
  * `src/proxy.ts` in the SPA (HU-E9-01): a protected path without a session goes to the sign-in screen with the path to
- * return to. Public, open and icon paths (`redirectFor`'s rules) pass without reading the session. A guard is only
- * navigation: the API still authorizes every request.
+ * return to. Public, open and icon paths (`redirectFor`'s rules) and the open pages pass without reading the session.
+ * A guard is only navigation: the API still authorizes every request.
  */
 export const guardSession = async (context: RouterContext, where: Where): Promise<void> => {
+  if ((OPEN_PAGES as readonly string[]).includes(where.pathname)) return;
   const target = redirectFor({ pathname: where.pathname, search: where.searchStr, hasSession: false });
   if (target !== null && !(await isSignedIn(context, { passingWhen: "signed-in" })))
     throw redirect({ href: target });

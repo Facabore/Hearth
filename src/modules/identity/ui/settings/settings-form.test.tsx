@@ -227,3 +227,13 @@ describe("settings: feedback for every saved preference (U5)", () => {
     expect(slot()).toHaveClass("h-11", "justify-end");
   });
 });
+
+describe("settings: the way to the trust page (issue #146, ruling P290)", () => {
+  it("links to Lo que tienes que saber with the space Volver returns to as ?from=", () => {
+    renderWithIntl(<SettingsForm backHref="/spaces/sp-household" me={meDto()} api={fakeApi({}).api} />);
+    expect(screen.getByRole("link", { name: "Lo que tienes que saber" })).toHaveAttribute(
+      "href",
+      "/trust?from=sp-household",
+    );
+  });
+});

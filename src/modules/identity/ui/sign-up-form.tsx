@@ -18,6 +18,8 @@ export interface SignUpFormProps {
   readonly problem: Problem | null;
   /** Ruling P157: the way back to sign in, keeping where the visitor was going and the invitation they hold. */
   readonly signInHref?: string;
+  /** Ruling P290: the trust page, keeping the same two, so its way back returns here as it was. */
+  readonly trustHref?: string;
 }
 
 /**
@@ -31,6 +33,7 @@ export function SignUpForm({
   fieldErrors,
   problem,
   signInHref = "/sign-in",
+  trustHref = "/trust",
 }: SignUpFormProps) {
   const t = useTranslations("auth");
   const [mismatch, setMismatch] = useState(false);
@@ -57,6 +60,13 @@ export function SignUpForm({
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold text-ink">{t("signUp.title")}</h1>
         <p className="text-muted">{t("signUp.subtitle")}</p>
+        {/* Ruling P290: what Hearth does with the data, read before the account exists. */}
+        <Link
+          href={trustHref}
+          className="inline-flex min-h-11 min-w-11 items-center self-start font-semibold text-accent"
+        >
+          {t("signUp.trust")}
+        </Link>
       </div>
       <TextField
         id="su-name"

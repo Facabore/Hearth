@@ -111,6 +111,7 @@ const homeRoute = createRoute({
       "areas/plan",
       "areas/recurrences",
       "areas/settings",
+      "areas/trust",
     ]);
     const areaKeys = Object.fromEntries(
       files.flatMap((file) => (file.area ? [[file.area, keysOf(file.es)] as const] : [])),

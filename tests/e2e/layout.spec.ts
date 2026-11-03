@@ -62,7 +62,9 @@ const test = base.extend<{ errors: string[]; missing: RegExp[]; wideFont: boolea
         )
           return;
         // ADR 0006: the SPA asks the API who is signed in, and on a visitor's screen the answer is a 401 on purpose.
-        const visitor = /^\/(sign-in|sign-up|invitations\/|claims\/)/.test(new URL(page.url()).pathname);
+        const visitor = /^\/(sign-in|sign-up|invitations\/|claims\/|trust$)/.test(
+          new URL(page.url()).pathname,
+        );
         if (/ 401 /.test(message.text()) && path === "/api/v1/me" && visitor) return;
         if (/ 409 /.test(message.text()) && STAGED_REFUSAL.test(url)) return;
         errors.push(`${message.text()} @ ${message.location().url}`);
@@ -671,7 +673,8 @@ for (const wideFont of [false, true]) {
           const { overflow, message } = await overflowReport(page, path);
           expect.soft(overflow, message).toBeLessThanOrEqual(0);
         };
-        for (const path of ["/sign-in?expired=1", "/sign-up", "/sign-in"]) await check(path);
+        // Ruling P290: the trust page, which sign-up links to, as a visitor reads it.
+        for (const path of ["/sign-in?expired=1", "/sign-up", "/sign-in", "/trust"]) await check(path);
 
         const { spaceId, sharedId } = await session(page, `reflow-${viewport.width}`);
         const warned = await warnedList(page, sharedId);
@@ -796,14 +799,15 @@ for (const wideFont of [false, true]) {
     }
 
     for (const viewport of [PHONE, SMALL_PHONE]) {
-      test(`the invitation and claim pages fit ${viewport.width} px with long names, signed in and as a visitor, and every action is a full target (HU-E9-05)`, async ({
+      test(`the invitation, claim and trust pages fit ${viewport.width} px with long names, signed in and as a visitor, and every action is a full target (HU-E9-05, P290)`, async ({
         page,
         browser,
         wideFont,
       }) => {
         await page.setViewportSize(viewport);
-        await session(page, `open-pages-${viewport.width}`);
-        const paths = await openPages(page);
+        const { spaceId } = await session(page, `open-pages-${viewport.width}`);
+        // Ruling P290: the trust page, open to anyone, as Ajustes links to it.
+        const paths = [...(await openPages(page)), `/trust?from=${spaceId}`];
         const visitor = await visitorPage(browser, viewport, wideFont);
         try {
           for (const [who, on] of [
@@ -2136,11 +2140,15 @@ test.describe("deleting from the detail sheet leaves the person on the list and 
 });
 
 test.describe("touch targets are at least 44 x 44 px (WCAG 2.5.5)", () => {
-  test("the sign-up page links to sign-in with a full target", async ({ page }) => {
+  test("the sign-up page links to sign-in and to the trust page (P290) with full targets", async ({
+    page,
+  }) => {
     await page.goto("/sign-up");
-    const box = await page.getByRole("link", { name: es.auth.signUp.signIn }).boundingBox();
-    expect(box!.height).toBeGreaterThanOrEqual(TARGET);
-    expect(box!.width).toBeGreaterThanOrEqual(TARGET);
+    for (const name of [es.auth.signUp.signIn, es.auth.signUp.trust]) {
+      const box = await page.getByRole("link", { name }).boundingBox();
+      expect(box!.height, name).toBeGreaterThanOrEqual(TARGET);
+      expect(box!.width, name).toBeGreaterThanOrEqual(TARGET);
+    }
   });
 
   test("the date and time sheet controls are large and the AM/PM labels sit inside their segments", async ({

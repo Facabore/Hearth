@@ -33,6 +33,7 @@
     "routes/balances.tsx": 20,
     "routes/invitation.tsx": 12,
     "routes/verify-email.tsx": 8,
+    "routes/trust.tsx": 6,
     "manage/loaders.ts": 3,
     "spaces/loaders.ts": 4,
     "routes/plan.tsx": 26,
@@ -60,6 +61,8 @@
     "../i18n/messages/areas/settings.es.json": 1,
     "../i18n/messages/areas/settings.en.json": 1,
     "../i18n/messages/areas/invitation.es.json": 1,
-    "../i18n/messages/areas/invitation.en.json": 1
+    "../i18n/messages/areas/invitation.en.json": 1,
+    "../i18n/messages/areas/trust.es.json": 1,
+    "../i18n/messages/areas/trust.en.json": 1
   }
 }

@@ -229,7 +229,8 @@
       "confirmPassword": "Confirm password",
       "passwordMismatch": "The passwords do not match.",
       "closedTitle": "Sign-up is closed",
-      "closedBody": "Ask someone in your household for an invitation."
+      "closedBody": "Ask someone in your household for an invitation.",
+      "trust": "What you need to know"
     }
   },
   "shell": {

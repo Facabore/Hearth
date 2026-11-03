@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
@@ -9,7 +10,7 @@ import type { MeDto } from "@/shared/ui/api/dto";
 import type { paths } from "@/shared/ui/api/schema";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { formatDate, formatNumber } from "@/shared/ui/format/formatters";
-import { ScreenHeader, Sheet } from "@/shared/ui";
+import { Icon, ScreenHeader, Sheet } from "@/shared/ui";
 import { AppearanceSection, appLocaleOf, useDeviceTheme } from "./appearance-section";
 import { FormatPreview, formatSample } from "./format-preview";
 import { PreferenceRow } from "./preference-row";
@@ -38,6 +39,12 @@ type MePatch = NonNullable<paths["/api/v1/me"]["patch"]["requestBody"]>["content
 const rememberLocale = (locale: string) => {
   if ((LOCALES as readonly string[]).includes(locale)) document.cookie = localeCookie(locale as Locale);
 };
+
+/**
+ * Ruling P290: the trust page with the space whose home Volver returns to (`/spaces/<id>`) as `?from=`, so its own way
+ * back lands on this screen in the same shell. The trust page keeps the id only when it is one of the person's spaces.
+ */
+const trustFromSpaceHref = (backHref: string): string => `/trust?from=${backHref.slice("/spaces/".length)}`;
 
 /**
  * HU-E9-13, the Settings artboard: no Save button; each choice is stored as it is made (ruling P137). Decision U8
@@ -145,6 +152,14 @@ export function SettingsForm({
         problem={problems.timezone ?? null}
         saved={saved === "timezone"}
       />
+      {/* Ruling P290: drawn as a summary row, a link to a page instead of a sheet. */}
+      <Link
+        href={trustFromSpaceHref(backHref)}
+        className="flex min-h-14 w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-line bg-surface px-4 py-2 text-left"
+      >
+        <span className="text-sm font-medium text-ink">{t("trust")}</span>
+        <Icon name="chevronRight" size={20} />
+      </Link>
       <Sheet {...sheetProps("appearance")} title={t("appearance")}>
         <AppearanceSection
           theme={device.theme}
