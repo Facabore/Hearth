@@ -26,6 +26,13 @@ const open = (overrides: Partial<Parameters<typeof DateTimeSheet>[0]> = {}) => {
 const clockText = () => screen.getByRole("group", { name: "Hora" }).textContent?.replace(/\s+/g, " ").trim();
 
 describe("date and time sheet (HU-E9-03, ruling P129)", () => {
+  it("names its time with a visible Hora and, as board B1 · 02 draws it, has only its drag handle on a phone (P291)", () => {
+    const { sheet } = open();
+    expect(within(sheet).getByText("Hora", { selector: "p" })).toBeVisible();
+    expect(within(sheet).getByRole("group", { name: "Hora" })).toBeInTheDocument();
+    expect(within(sheet).getByRole("button", { name: "Cerrar" })).toHaveClass("max-lg:hidden");
+  });
+
   it("offers the quick days above a calendar that starts on the person's first weekday", async () => {
     const { sheet } = open();
     const days = within(sheet).getByRole("radiogroup", { name: "Día" });

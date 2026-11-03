@@ -26,7 +26,7 @@ const pad = (n: number) => String(n).padStart(2, "0");
 export function DateTimeSheet(props: DateTimeSheetProps) {
   const t = useTranslations("ledger.when");
   return (
-    <Sheet open={props.open} onOpenChange={props.onOpenChange} title={t("title")}>
+    <Sheet open={props.open} onOpenChange={props.onOpenChange} title={t("title")} closeButton={false}>
       {/* The content mounts on open, so the draft starts from `value` each time the sheet opens. */}
       <SheetBody {...props} />
     </Sheet>
@@ -127,9 +127,13 @@ function SheetBody({ value, today, now, formats, onApply, onOpenChange }: DateTi
           </tbody>
         </table>
       </div>
+      {/* Board B1 · 02: the clock is named on screen, not only for assistive technology. */}
+      <p id="when-time" className="text-sm font-medium text-muted">
+        {t("when.time")}
+      </p>
       <div
         role="group"
-        aria-label={t("when.time")}
+        aria-labelledby="when-time"
         className="flex flex-wrap items-center justify-center gap-x-2 gap-y-3"
       >
         <div className="flex items-center">
