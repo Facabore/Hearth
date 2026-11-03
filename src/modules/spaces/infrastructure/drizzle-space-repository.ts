@@ -1,10 +1,13 @@
-import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, notExists } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { isUuid } from "@/shared/kernel";
-import type { MemberInSpace } from "../application/direct-space-repository";
+import type { DirectSpaceRepository, MemberInSpace } from "../application/direct-space-repository";
 import type {
   AddMemberOutcome,
   ClaimOutcome,
+  GuestClaimRepository,
+  MemberLifecycleRepository,
   SpaceMemberRepository,
 } from "../application/space-member-repository";
 import type { SpaceLocks } from "../application/space-locks";
@@ -57,6 +60,9 @@ export class DrizzleSpaceRepository
     SpaceRepository,
     SpaceSettingsRepository,
     SpaceMemberRepository,
+    MemberLifecycleRepository,
+    GuestClaimRepository,
+    DirectSpaceRepository,
     MemberPlaceRepository,
     SpaceLocks
 {
@@ -204,6 +210,10 @@ export class DrizzleSpaceRepository
   }
 
   async addMember(spaceId: SpaceId, member: SpaceMember): Promise<AddMemberOutcome> {
+    // Callers pass the space's stored id and a fresh member id; anything else is a broken invariant, not an answer.
+    if (!isUuid(spaceId) || !isUuid(member.id)) {
+      throw new Error(`member ${member.id} of space ${spaceId} is not named by uuids`);
+    }
     // Issue #90: one person, one row. A user who left takes their own row back instead of getting a new one, so a
     // transaction that names them (an edit or a deletion of it is refused for a former member) names a current member.
     const rejoined = member.userId === null ? null : await this.rejoin(spaceId, member);
@@ -216,9 +226,23 @@ export class DrizzleSpaceRepository
       .onConflictDoNothing()
       .returning({ id: spaceMembers.id });
     if (inserted.length > 0) return "added";
+    // The target-less ON CONFLICT also covers the primary key. Member rows are never deleted, so a stored row with this
+    // id means the id was not fresh: a broken invariant, never a taken name.
+    if (await this.memberIdStored(member.id)) throw new Error(`member id ${member.id} is already stored`);
+    // A separate read: the insert does not say which index refused it. A conflicting insert has committed by now.
     if (member.userId === null) return "nameTaken";
     const current = await this.listCurrent(spaceId);
     return current.some((m) => m.userId === member.userId) ? "alreadyMember" : "nameTaken";
+  }
+
+  private async memberIdStored(memberId: SpaceMemberId): Promise<boolean> {
+    const rows = await this.tm
+      .executor()
+      .select({ id: spaceMembers.id })
+      .from(spaceMembers)
+      .where(eq(spaceMembers.id, memberId))
+      .limit(1);
+    return rows.length > 0;
   }
 
   /**
@@ -273,6 +297,8 @@ export class DrizzleSpaceRepository
   }
 
   async updateRole(spaceId: SpaceId, memberId: SpaceMemberId, role: SpaceRole): Promise<void> {
+    // Anything that is not a UUID would fail the uuid cast; it names no member, so no role changes.
+    if (!isUuid(spaceId) || !isUuid(memberId)) return;
     await this.tm
       .executor()
       .update(spaceMembers)
@@ -287,7 +313,7 @@ export class DrizzleSpaceRepository
     leftAt: Date,
   ): Promise<boolean> {
     // Ids come from URLs; anything that is not a UUID would fail the uuid cast.
-    if (!isUuid(memberId)) return false;
+    if (!isUuid(spaceId) || !isUuid(memberId)) return false;
     const left = await this.tm
       .executor()
       .update(spaceMembers)
@@ -327,19 +353,29 @@ export class DrizzleSpaceRepository
   }
 
   async claimGuest(spaceId: SpaceId, claimed: SpaceMember, claimedAt: Date): Promise<ClaimOutcome> {
+    const { userId } = claimed;
+    // claimedGuest hands the place to a user; a claimed member without one is a broken invariant.
+    if (userId === null) throw new Error(`claimed member ${claimed.id} names no user`);
     // A malformed id matches no row; it still gets the answers below, in the order every claim gets them.
-    if (isUuid(claimed.id) && (await this.takeOverGuest(spaceId, claimed, claimedAt))) return "claimed";
+    if (isUuid(claimed.id) && (await this.takeOverGuest(spaceId, claimed, userId, claimedAt)))
+      return "claimed";
     // ClaimGuestPlace refuses a current member before it looks at the guest, so that answer comes first here too.
     const current = await this.listCurrent(spaceId);
-    return current.some((m) => m.userId === claimed.userId) ? "alreadyMember" : "notAGuest";
+    return current.some((m) => m.userId === userId) ? "alreadyMember" : "notAGuest";
   }
 
   /** One conditional UPDATE, so the database decides races with removals, other claims and joins. */
-  private async takeOverGuest(spaceId: SpaceId, claimed: SpaceMember, claimedAt: Date): Promise<boolean> {
-    const taken = await this.tm
-      .executor()
+  private async takeOverGuest(
+    spaceId: SpaceId,
+    claimed: SpaceMember,
+    userId: string,
+    claimedAt: Date,
+  ): Promise<boolean> {
+    const db = this.tm.executor();
+    const others = alias(spaceMembers, "c");
+    const taken = await db
       .update(spaceMembers)
-      .set({ kind: "USER", userId: claimed.userId, role: claimed.role, contactEmail: null, claimedAt })
+      .set({ kind: "USER", userId, role: claimed.role, contactEmail: null, claimedAt })
       .where(
         and(
           eq(spaceMembers.spaceId, spaceId),
@@ -348,7 +384,12 @@ export class DrizzleSpaceRepository
           eq(spaceMembers.kind, "GUEST"),
           isNull(spaceMembers.leftAt),
           // space_members_current_user_uq: the user is not a current member of the space yet.
-          sql`NOT EXISTS (SELECT 1 FROM space_members c WHERE c.space_id = ${spaceId} AND c.user_id = ${claimed.userId} AND c.left_at IS NULL)`,
+          notExists(
+            db
+              .select({ id: others.id })
+              .from(others)
+              .where(and(eq(others.spaceId, spaceId), eq(others.userId, userId), isNull(others.leftAt))),
+          ),
         ),
       )
       .returning({ id: spaceMembers.id });
@@ -390,6 +431,9 @@ export class DrizzleSpaceRepository
       .onConflictDoNothing()
       .returning({ id: spaces.id });
     if (inserted.length === 0) {
+      // The target-less ON CONFLICT also covers the primary key: a stored row with this id means the id was not
+      // fresh (uuid v7), a broken invariant that must not pass for the pair's space.
+      if (await this.spaceIdStored(space.id)) throw new Error(`space id ${space.id} is already stored`);
       const pairKey = directPairKey(space);
       const holder = pairKey === null ? null : await this.findByPairKey(pairKey);
       if (holder === null) throw new Error(`direct space ${space.id} conflicts with no active pair`);
@@ -397,6 +441,16 @@ export class DrizzleSpaceRepository
     }
     await db.insert(spaceMembers).values(space.members.map((m) => memberRow(space.id, m)));
     return space.id;
+  }
+
+  private async spaceIdStored(spaceId: SpaceId): Promise<boolean> {
+    const rows = await this.tm
+      .executor()
+      .select({ id: spaces.id })
+      .from(spaces)
+      .where(eq(spaces.id, spaceId))
+      .limit(1);
+    return rows.length > 0;
   }
 
   /**
@@ -407,8 +461,9 @@ export class DrizzleSpaceRepository
   async adoptPairKey(spaceId: SpaceId, pairKey: string): Promise<boolean> {
     // Anything that is not a UUID would fail the uuid cast.
     if (!isUuid(spaceId)) return false;
-    const adopted = await this.tm
-      .executor()
+    const db = this.tm.executor();
+    const holders = alias(spaces, "s");
+    const adopted = await db
       .update(spaces)
       .set({ directPairKey: pairKey })
       .where(
@@ -420,7 +475,12 @@ export class DrizzleSpaceRepository
           isNull(spaces.directPairKey),
           // spaces_direct_pair_uq counts active spaces only: an archived holder frees the pair, an active
           // one keeps it (D16: both are kept).
-          sql`NOT EXISTS (SELECT 1 FROM spaces s WHERE s.direct_pair_key = ${pairKey} AND s.archived_at IS NULL)`,
+          notExists(
+            db
+              .select({ id: holders.id })
+              .from(holders)
+              .where(and(eq(holders.directPairKey, pairKey), isNull(holders.archivedAt))),
+          ),
         ),
       )
       .returning({ id: spaces.id });

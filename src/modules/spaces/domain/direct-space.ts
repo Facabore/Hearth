@@ -1,5 +1,5 @@
 import { currencyOf, DEFAULT_PERIOD_POLICY, ok, type Result } from "@/shared/kernel";
-import { guestMember, userMember } from "./member";
+import { cutName, guestMember, userMember } from "./member";
 import {
   DIRECT_MEMBER_ROLE,
   founder,
@@ -25,8 +25,14 @@ export const directPairKey = (space: Pick<Space, "kind" | "members">): string | 
   return a && b ? pairKeyOf(a, b) : null;
 };
 
-/** "Ana & Pedro", cut to the length limit of space names. */
-const directSpaceName = (a: string, b: string): string => `${a} & ${b}`.slice(0, MAX_SPACE_NAME).trimEnd();
+/**
+ * "Ana & Pedro", cut to the length limit of space names. When nothing of the second name fits, the space is named
+ * after the first alone, so a name never ends in "&".
+ */
+const directSpaceName = (a: string, b: string): string => {
+  const cut = cutName(`${a} & ${b}`, MAX_SPACE_NAME);
+  return cut.length <= a.length + " &".length ? cutName(a, MAX_SPACE_NAME) : cut;
+};
 
 const counterpartMember = (
   creator: SpaceMember,

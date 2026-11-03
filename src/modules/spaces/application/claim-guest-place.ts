@@ -27,12 +27,21 @@ export const createClaimGuestPlace =
       const current = await deps.members.listCurrent(claim.spaceId);
       if (current.some((m) => m.userId === input.userId)) return err(domainError("AlreadyMember"));
       const spaceKind = await deps.claims.spaceKindOf(claim.spaceId);
-      // space_invitations_claim_guest: a CLAIM link always names its guest.
-      const claimed = claimedGuest(current, claim.guestMemberId!, { userId: input.userId, spaceKind });
+      const claimant = { userId: input.userId, spaceKind };
+      const claimed = claimedGuest(current, claim.guestMemberId, claimant);
       if (!claimed.ok) return claimed;
       const outcome = await deps.claims.claimGuest(claim.spaceId, claimed.value, now);
       if (outcome === "alreadyMember") return err(domainError("AlreadyMember"));
-      if (outcome === "notAGuest") return err(domainError("GuestAlreadyClaimed"));
+      if (outcome === "notAGuest") {
+        // The guest changed after the read above: read again to tell a concurrent removal (MemberNotFound) from a
+        // concurrent claim (GuestAlreadyClaimed).
+        const again = claimedGuest(
+          await deps.members.listCurrent(claim.spaceId),
+          claim.guestMemberId,
+          claimant,
+        );
+        return again.ok ? err(domainError("GuestAlreadyClaimed")) : again;
+      }
       // D16: a guest's direct space that now holds two users becomes their pair's direct space, unless the
       // pair already has an active one (then both are kept; merging is deferred).
       const other = current.find((m) => m.id !== claimed.value.id);

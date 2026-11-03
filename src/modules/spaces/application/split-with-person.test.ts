@@ -157,6 +157,13 @@ describe("SplitWithPerson with a new guest (HU-E1-13)", () => {
     expect(directSpaces(w.store).map((s) => s.currency)).toEqual(["USD"]);
   });
 
+  it("falls back to COP for a requester without a personal space (spec 3)", async () => {
+    const w = world({ anaCurrency: "USD" });
+    w.store.spaces = w.store.spaces.filter((s) => s.id !== "space-ana");
+    unwrap(await w.split(byAna({ guest: { displayName: "Pedro" } })));
+    expect(directSpaces(w.store).map((s) => s.currency)).toEqual(["COP"]);
+  });
+
   it("refuses a new guest named like Ana and creates nothing (Review Focus 3)", async () => {
     const w = world();
     expect(codeOf(await w.split(byAna({ guest: { displayName: "ana" } })))).toBe("MemberNameTaken");

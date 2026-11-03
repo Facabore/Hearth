@@ -85,6 +85,16 @@ describe("direct spaces (HU-E1-13, D16)", () => {
     expect(result.ok && result.value.name).toBe(`${"A".repeat(60)} & ${"P".repeat(17)}`);
   });
 
+  it("name the space after the creator alone when nothing of the other name fits, never ending in &", () => {
+    const named = (creatorName: string) => {
+      const result = direct(pedro, creatorName);
+      return result.ok ? result.value.name : null;
+    };
+    expect(named("A".repeat(78))).toBe("A".repeat(78));
+    expect(named("A".repeat(77))).toBe("A".repeat(77));
+    expect(named("A".repeat(76))).toBe(`${"A".repeat(76)} & P`);
+  });
+
   it("refuse a guest named like the creator and a currency the kernel does not know (Review Focus 3)", () => {
     expect(code(direct({ kind: "GUEST", displayName: "ana", contactEmail: null }))).toBe("MemberNameTaken");
     expect(code(direct(pedro, "Ana", "XYZ"))).toBe("UnknownCurrency");
@@ -124,7 +134,7 @@ describe("direct spaces (HU-E1-13, D16)", () => {
   });
 
   it("never end a cut name with a space", () => {
-    const result = direct({ kind: "GUEST", displayName: "Pedro", contactEmail: null }, "A".repeat(77));
-    expect(result.ok && result.value.name).toBe(`${"A".repeat(77)} &`);
+    const result = direct({ kind: "GUEST", displayName: "PQ RS", contactEmail: null }, "A".repeat(74));
+    expect(result.ok && result.value.name).toBe(`${"A".repeat(74)} & PQ`);
   });
 });

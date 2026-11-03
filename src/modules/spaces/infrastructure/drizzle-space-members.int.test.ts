@@ -121,6 +121,27 @@ describe("DrizzleSpaceRepository members (HU-E1-04, HU-E1-10)", () => {
     expect((await repo.findMembership(space.id, juan))?.role).toBe("ADMIN");
   });
 
+  it("changes no role for ids that are not UUIDs", async () => {
+    const space = await household(await newUser("Ana"));
+    const [ana] = space.members;
+    await repo.updateRole("not-a-uuid" as SpaceId, ana!.id, "ADMIN");
+    await repo.updateRole(space.id, "not-a-uuid" as SpaceMemberId, "ADMIN");
+    expect(await repo.listCurrent(space.id)).toEqual(space.members);
+  });
+
+  it("refuses to add a member under ids that are not UUIDs, or under a member id already stored", async () => {
+    const space = await household(await newUser("Ana"));
+    await expect(repo.addMember("not-a-uuid" as SpaceId, guest("Pedro"))).rejects.toThrow(/uuid/);
+    await expect(
+      repo.addMember(space.id, { ...guest("Pedro"), id: "not-a-uuid" as SpaceMemberId }),
+    ).rejects.toThrow(/uuid/);
+    // A fresh name under Ana's id: only the primary key refuses it, which is never a taken name.
+    await expect(repo.addMember(space.id, { ...guest("Pedro"), id: space.members[0]!.id })).rejects.toThrow(
+      /already stored/,
+    );
+    expect(await repo.listCurrent(space.id)).toEqual(space.members);
+  });
+
   it("returns no members for a malformed space id and locks rows inside a transaction", async () => {
     const space = await household(await newUser("Ana"));
     expect(await repo.listCurrent("not-a-uuid" as SpaceId)).toEqual([]);
@@ -303,6 +324,7 @@ describe("leaving and removal (HU-E1-08, HU-E1-12)", () => {
     const space = await household(ana);
     const other = await household(ana);
     expect(await lifecycle.markLeft(space.id, "not-a-uuid" as SpaceMemberId, "USER", at)).toBe(false);
+    expect(await lifecycle.markLeft("not-a-uuid" as SpaceId, space.members[0]!.id, "USER", at)).toBe(false);
     expect(await lifecycle.markLeft(other.id, space.members[0]!.id, "USER", at)).toBe(false);
     expect(await repo.listCurrent(space.id)).toEqual(space.members);
   });

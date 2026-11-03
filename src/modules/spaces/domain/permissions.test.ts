@@ -50,4 +50,8 @@ describe("permission matrix (HU-E1-05)", () => {
   it("keeps shared fund management with owners and admins (HU-E2-02)", () => {
     expect(rolesFor("fund.manage")).toEqual(["OWNER", "ADMIN"]);
   });
+
+  it("answers role lists nobody can change, so a caller never edits the matrix", () => {
+    for (const action of SPACE_ACTIONS) expect(Object.isFrozen(rolesFor(action))).toBe(true);
+  });
 });
