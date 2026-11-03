@@ -8,7 +8,7 @@ import {
   sequentialIds,
   unwrap,
 } from "../../../../tests/support/fakes";
-import { InMemoryCategories } from "../../../../tests/support/in-memory-categories";
+import { InMemoryCategories, noUsage } from "../../../../tests/support/in-memory-categories";
 import { createArchiveCategory } from "./archive-category";
 import { createCreateCategory } from "./create-category";
 import { createCreateCategoryGroup } from "./create-category-group";
@@ -44,7 +44,7 @@ const setup = async () => {
     update: createUpdateCategory(deps),
     createGroup: createCreateCategoryGroup(deps),
     renameGroup: createRenameCategoryGroup(deps),
-    list: createListCategories(deps),
+    list: createListCategories({ ...deps, counts: noUsage }),
     archive: createArchiveCategory(deps),
     restore: createRestoreCategory(deps),
   };

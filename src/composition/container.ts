@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Pool } from "pg";
 import {
   createArchiveAccount,
@@ -22,6 +22,7 @@ import {
 } from "@/modules/accounts/application";
 import { DrizzleAccountRepository } from "@/modules/accounts/infrastructure/drizzle-account-repository";
 import { accounts as accountsTable } from "@/modules/accounts/infrastructure/accounts.schema";
+import { transactions as transactionsTable } from "@/modules/ledger/infrastructure/ledger.schema";
 import {
   createGetMemberNetBalance,
   createGetMemberNetBalances,
@@ -174,6 +175,7 @@ import {
   type CategoriesDeps,
   type CategoryRepository,
   type CategoryUsage,
+  type CategoryUsageCounts,
   type CreateCategory,
   type CreateCategoryGroup,
   type DeleteCategory,
@@ -471,6 +473,28 @@ export const budgetCategoriesOf = (categories: CategoryRepository): BudgetCatego
       archived: c.archivedAt !== null,
       parentCategoryId: c.parentCategoryId,
     })),
+});
+
+/**
+ * Ruling P297: each category's live movements in the space, in one grouped read of the ledger's table, never stored
+ * (D7). A deleted movement (D8) no longer counts; a subcategory's movements are its own, under its own id.
+ */
+export const categoryUsageCountsOf = (tm: DrizzleTransactionManager): CategoryUsageCounts => ({
+  usageCountsOf: async (spaceId) => {
+    const rows = await tm
+      .executor()
+      .select({ categoryId: transactionsTable.categoryId, count: sql<number>`count(*)::integer` })
+      .from(transactionsTable)
+      .where(
+        and(
+          eq(transactionsTable.spaceId, spaceId),
+          isNull(transactionsTable.deletedAt),
+          isNotNull(transactionsTable.categoryId),
+        ),
+      )
+      .groupBy(transactionsTable.categoryId);
+    return new Map(rows.map((row) => [row.categoryId!, row.count]));
+  },
 });
 
 /** HU-E3-03: soft-deleted transactions and every budget-line mapping, ended ones included, are references (D8). */
@@ -935,7 +959,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       leaveSpace: createLeaveSpace(lifecycleDeps),
     },
     categories: {
-      listCategories: createListCategories(categoriesDeps),
+      listCategories: createListCategories({ ...categoriesDeps, counts: categoryUsageCountsOf(tm) }),
       createCategoryGroup: createCreateCategoryGroup(categoriesDeps),
       renameCategoryGroup: createRenameCategoryGroup(categoriesDeps),
       moveCategoryGroup: createMoveCategoryGroup(categoriesDeps),

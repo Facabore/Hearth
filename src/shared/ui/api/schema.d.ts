@@ -1656,6 +1656,7 @@ export interface components {
                 };
                 /** @enum {string} */
                 color: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
+                usageCount?: number;
                 subcategories: components["schemas"]["CategoryOutput"][];
             }[];
         };
@@ -1695,6 +1696,7 @@ export interface components {
             };
             /** @enum {string} */
             color: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
+            usageCount?: number;
         };
         ClaimPreview: {
             spaceName: string;

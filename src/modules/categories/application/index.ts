@@ -15,6 +15,8 @@ export {
   createListCategories,
   type CategoryGroupView,
   type CategoryNode,
+  type CategoryUsageCounts,
+  type CountedCategoryView,
   type ListCategories,
 } from "./list-categories";
 export { createSeedDefaultCategories, type SeedDefaultCategories } from "./seed-default-categories";

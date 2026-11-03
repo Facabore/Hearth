@@ -773,7 +773,7 @@ A `transactions` row holds the amount, the type (`EXPENSE`, `INCOME`, `TRANSFER`
 
 ### Balances and reports are computed on read
 
-Nothing stores a balance, a total or a report (D7). There is no table for them: the `balances` and `reporting` modules have no `infrastructure` folder and no `*.schema.ts`, and compute their figures on read from the tables above. An account's balance is its `opening_balance` plus the movements up to a date; a budget line's `spent` and `available` are derived from `transactions` and the plan.
+Nothing stores a balance, a total or a report (D7). There is no table for them: the `balances` and `reporting` modules have no `infrastructure` folder and no `*.schema.ts`, and compute their figures on read from the tables above. An account's balance is its `opening_balance` plus the movements up to a date; a budget line's `spent` and `available` are derived from `transactions` and the plan. A category's `usageCount` on the category list is one grouped count of the space's `transactions` that are not deleted, by `category_id` (ruling P297); no column holds it.
 
 ### Budgets chain plans, lines and their parts
 

@@ -1,4 +1,12 @@
-import type { Category, CategoryGroup, CategoryRepository } from "@/modules/categories/application";
+import type {
+  Category,
+  CategoryGroup,
+  CategoryRepository,
+  CategoryUsageCounts,
+} from "@/modules/categories/application";
+
+/** Ruling P297: a space where no movement names any category yet. */
+export const noUsage: CategoryUsageCounts = { usageCountsOf: async () => new Map() };
 
 export class InMemoryCategories implements CategoryRepository {
   groups: CategoryGroup[] = [];

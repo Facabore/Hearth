@@ -6,6 +6,7 @@ import {
   type CategoryGroup,
   type CategoryGroupView,
   type CategoryView,
+  type CountedCategoryView,
   type GroupAnchor,
 } from "../application";
 
@@ -29,6 +30,11 @@ export const CategorySchema = z.object({
   /** HU-E3-05: the icon and color it shows; a subcategory shows its parent's. */
   icon: IconSchema,
   color: ColorSchema,
+  /**
+   * Ruling P297: in the category list only, how many live movements of the space name it; a subcategory's count
+   * toward the subcategory itself. Computed on read, never stored (D7). Added after M6, so optional.
+   */
+  usageCount: z.number().int().optional(),
 });
 export const CategoryGroupSummarySchema = z.object({
   id: z.string(),
@@ -119,11 +125,17 @@ export const categoryGroupDto = (g: CategoryGroup): z.infer<typeof CategoryGroup
 export const anchorOf = (body: z.infer<typeof MoveCategoryGroupBodySchema>): GroupAnchor =>
   body.before !== undefined ? { before: body.before } : { after: body.after! };
 
+/** Ruling P297: a category of the list, with its usage count. */
+const countedDto = (c: CountedCategoryView): z.infer<typeof CategorySchema> => ({
+  ...categoryDto(c),
+  usageCount: c.usageCount,
+});
+
 export const categoryTreeDto = (g: CategoryGroupView): z.infer<typeof CategoryGroupSchema> => ({
   ...categoryGroupDto(g),
   categories: g.categories.map((c) => ({
-    ...categoryDto(c),
-    subcategories: c.subcategories.map(categoryDto),
+    ...countedDto(c),
+    subcategories: c.subcategories.map(countedDto),
   })),
 });
 

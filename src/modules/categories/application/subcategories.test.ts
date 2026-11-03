@@ -8,7 +8,7 @@ import {
   sequentialIds,
   unwrap,
 } from "../../../../tests/support/fakes";
-import { InMemoryCategories } from "../../../../tests/support/in-memory-categories";
+import { InMemoryCategories, noUsage } from "../../../../tests/support/in-memory-categories";
 import { createArchiveCategory } from "./archive-category";
 import { createCreateCategory } from "./create-category";
 import { createDeleteCategory } from "./delete-category";
@@ -43,7 +43,7 @@ const setup = async () => {
     archive: createArchiveCategory(deps),
     restore: createRestoreCategory(deps),
     remove: createDeleteCategory({ ...deps, usage: { isCategoryReferenced: async () => false } }),
-    list: createListCategories(deps),
+    list: createListCategories({ ...deps, counts: noUsage }),
   };
 };
 
