@@ -20,8 +20,8 @@ export function ColorRow({
 }) {
   const t = useTranslations("categories");
   return (
-    <fieldset className="flex flex-col gap-1.5">
-      <legend className="mb-1.5 text-sm font-semibold text-ink">{t("colorLabel")}</legend>
+    <fieldset className="flex flex-col gap-1">
+      <legend className="mb-1 text-sm font-semibold text-ink">{t("colorLabel")}</legend>
       <div className="[&>[role=radiogroup]]:gap-0">
         <ChoiceGroup
           label={t("colorLabel")}

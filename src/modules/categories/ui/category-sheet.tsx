@@ -237,7 +237,7 @@ export function CategorySheet({
       }
       footer={actions}
     >
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2.5">
         {/* Board Categorías 02 (P292): the group is a dropdown beside the name, its last choice "Nuevo grupo". */}
         <div className={`grid gap-3 ${showGroup ? "grid-cols-2" : ""}`}>
           <TextField
@@ -283,7 +283,7 @@ export function CategorySheet({
           </>
         )}
         {editing && !isSub ? (
-          <section aria-labelledby={`${id}-subs`} className="flex flex-col gap-2">
+          <section aria-labelledby={`${id}-subs`} className="flex flex-col gap-1.5">
             <h3 id={`${id}-subs`} className="text-sm font-semibold text-ink">
               {t("subcategories")} <span className="font-normal text-muted">· {t("optional")}</span>
             </h3>

@@ -57,7 +57,7 @@ export function IconPicker({
   const [library, setLibrary] = useState(false);
   const choices = quickChoices(tab, value);
   return (
-    <fieldset className="flex flex-col gap-2">
+    <fieldset className="flex flex-col gap-1.5">
       <legend className="sr-only">{t("label")}</legend>
       {/* Board Categorías 02 (P292): a compact Íconos/Emoji toggle at the right of the label. */}
       <div className="flex items-center justify-between gap-3">
@@ -73,7 +73,8 @@ export function IconPicker({
           />
         </div>
       </div>
-      <div className="relative">
+      {/* Board Categorías 02 (P292): 48 px tiles, a little shorter than square, so the sheet fits one view. */}
+      <div className="relative [&_[role=radio]]:aspect-auto [&_[role=radio]]:h-12">
         <ChoiceGroup
           label={t(tab)}
           layout="tiles"
@@ -89,11 +90,11 @@ export function IconPicker({
             ),
           }))}
         />
-        {/* The twelfth tile of the 6 × 2 grid: same width as a column (gap 4 px), square like the others. */}
+        {/* The twelfth tile of the 6 × 2 grid: same width as a column (gap 4 px), as tall as the others. */}
         <button
           type="button"
           onClick={() => setLibrary(true)}
-          className="absolute right-0 bottom-0 flex aspect-square w-[calc((100%-20px)/6)] min-h-11 items-center justify-center rounded-[14px] border border-dashed border-line px-0.5 text-center text-[11px] leading-tight font-medium text-ink"
+          className="absolute right-0 bottom-0 flex h-12 w-[calc((100%-20px)/6)] items-center justify-center rounded-[14px] border border-dashed border-line px-0.5 text-center text-[11px] leading-tight font-medium text-ink"
         >
           {t("seeAll")}
         </button>
