@@ -14,9 +14,9 @@
     "archived": "Ocultas",
     "outsideAvailable": "fuera del disponible",
     "card": {
-      "limit": "Cupo {amount}",
-      "available": "Disponible {amount}",
-      "payBy": "Paga antes del {date}"
+      "limit": "cupo {amount}",
+      "available": "disponible {amount}",
+      "payBy": "paga antes del {date}"
     },
     "savings": {
       "rate": "{rate} % E.A.",

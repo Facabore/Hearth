@@ -31,13 +31,29 @@ export function AccountsRoute() {
   );
 }
 
-/** HU-E9-03: create an account in the space, in the person's number format. */
+/**
+ * HU-E9-03: create an account in the space, in the person's number format. Board B1 · 08 (P292): the form is a sheet
+ * over Cuentas, at its own address, as the planner's capacities are over the planner.
+ */
 export function NewAccountRoute() {
   useTitle(useTranslations("accounts")("newTitle"));
   const { spaceId } = create.useParams();
   const { returnTo } = create.useSearch();
+  const { api } = useApis();
   const { me, space } = useViewer(spaceId);
-  return <NewAccountForm space={space} formats={me.preferences.effective} returnTo={returnTo} />;
+  const accounts = useSuspenseQuery(accountListQuery(api, spaceId, "all")).data;
+  return (
+    <>
+      <AccountsScreen
+        spaceId={spaceId}
+        kind={space.kind}
+        role={space.role}
+        list={accounts}
+        formats={me.preferences.effective}
+      />
+      <NewAccountForm space={space} formats={me.preferences.effective} returnTo={returnTo} />
+    </>
+  );
 }
 
 /** Issue 169: edit an account's name, opening balance, icon, attributes and switches. */

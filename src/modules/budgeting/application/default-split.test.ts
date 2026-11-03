@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SpaceId, SpaceMember } from "@/modules/spaces/application";
-import type { LocalDate } from "@/shared/kernel";
+import { defaultSplitMembers, type LocalDate } from "@/shared/kernel";
 import { aLine, referenceLines } from "../../../../tests/support/budget-fixtures";
 import {
   BUDGET_MEMBERS,
@@ -69,11 +69,15 @@ const groceries = {
   currency: "COP",
   categoryId: "cat-groceries",
   date: "2026-11-08" as LocalDate,
+  viewerIds: [],
 };
-/** What the ledger asks: the Groceries expense and the member ids it read, which are the space's current ones. */
+/**
+ * What the ledger asks: the Groceries expense and the current members it read, VIEWERs apart (ruling P293): they
+ * hold the line as stored, but the default never names them.
+ */
 const askedBy = async (spaces: InMemorySpaceStore) => ({
   ...groceries,
-  memberIds: (await spaces.listCurrent(HOUSEHOLD)).map((m) => m.id),
+  ...defaultSplitMembers(await spaces.listCurrent(HOUSEHOLD)),
 });
 
 describe("ResolveDefaultSplit (HU-E6-08, spec 5.3)", () => {
@@ -181,6 +185,37 @@ describe("ResolveDefaultSplit (HU-E6-08, spec 5.3)", () => {
     ]);
   });
 
+  it("previews EQUAL without the VIEWER Sofi, the guest Pedro included: 30,000 COP each of 90,000 (P293)", async () => {
+    const { preview } = await world({ members: BUDGET_MEMBERS, lines: withRule("Free", "NONE") });
+    expect(unwrap(await preview("cat-outings", { amount: pesos(90_000) }))).toEqual({
+      method: "EQUAL",
+      availableMethods: ["EQUAL", "PERCENT", "EXACT", "SHARES"],
+      lineId: "line-free",
+      currency: "COP",
+      shares: ["member-ana", "member-juan", "member-pedro"].map((memberId) => ({
+        memberId,
+        amount: pesos(30_000),
+      })),
+    });
+  });
+
+  it("previews BY_ALLOCATION without the VIEWER Sofi, whose stored FIXED third of Home stays in the plan (P293)", async () => {
+    const allocations = ["member-ana", "member-juan", "member-sofi"].map((memberId) => ({
+      lineId: "line-home",
+      memberId,
+      value: pesos(490_000),
+    }));
+    const { preview } = await world({
+      members: BUDGET_MEMBERS,
+      lines: withRule("Home", "FIXED"),
+      allocations,
+    });
+    expect(sharesOf(unwrap(await preview("cat-groceries")))).toEqual([
+      ["member-ana", pesos(1_000_000)],
+      ["member-juan", pesos(1_000_000)],
+    ]);
+  });
+
   it("previews no shares without an amount", async () => {
     const { preview } = await world();
     expect(unwrap(await preview("cat-groceries", { amount: null })).shares).toBeNull();
@@ -260,21 +295,18 @@ describe("defaultSplitOf (what the ledger's DefaultSplitSource answers)", () => 
     ]);
   });
 
-  it("answers EQUAL, never an empty BY_ALLOCATION, once the only members with a positive assigned amount left", async () => {
+  it("answers EQUAL, never an empty BY_ALLOCATION nor the VIEWER Sofi, once the only members with a positive assigned amount left (P293)", async () => {
     const { deps, spaces } = await world({ members: BUDGET_MEMBERS });
     await spaces.markLeft(HOUSEHOLD, "member-ana", "USER", NOW);
     await spaces.markLeft(HOUSEHOLD, "member-juan", "USER", NOW);
     expect(await defaultSplitOf(deps, await askedBy(spaces))).toEqual({
       method: "EQUAL",
       lineId: "line-home",
-      weights: [
-        { memberId: "member-sofi", weight: 1n },
-        { memberId: "member-pedro", weight: 1n },
-      ],
+      weights: [{ memberId: "member-pedro", weight: 1n }],
     });
   });
 
-  it("answers EQUAL, naming nobody who left, once the only holder of a FIXED Home left", async () => {
+  it("answers EQUAL, naming nobody who left nor the VIEWER Sofi, once the only holder of a FIXED Home left (P293)", async () => {
     const allocations = [{ lineId: "line-home", memberId: "member-pedro", value: pesos(1_470_000) }];
     const { deps, spaces } = await world({
       members: BUDGET_MEMBERS,
@@ -291,8 +323,57 @@ describe("defaultSplitOf (what the ledger's DefaultSplitSource answers)", () => 
       weights: [
         { memberId: "member-ana", weight: 1n },
         { memberId: "member-juan", weight: 1n },
-        { memberId: "member-sofi", weight: 1n },
       ],
+    });
+  });
+
+  it("leaves the VIEWER Sofi's stored FIXED value out of the weights, while it still makes Home hold (P263, P293)", async () => {
+    // Sofi's 300,000 COP was stored before she became a VIEWER; the plan keeps it, the expense never weighs it.
+    const allocations = [
+      { lineId: "line-home", memberId: "member-ana", value: pesos(490_000) },
+      { lineId: "line-home", memberId: "member-juan", value: pesos(680_000) },
+      { lineId: "line-home", memberId: "member-sofi", value: pesos(300_000) },
+    ];
+    const { deps, spaces } = await world({
+      members: BUDGET_MEMBERS,
+      lines: withRule("Home", "FIXED"),
+      allocations,
+    });
+    expect(await defaultSplitOf(deps, await askedBy(spaces))).toEqual({
+      method: "BY_ALLOCATION",
+      lineId: "line-home",
+      weights: [
+        { memberId: "member-ana", weight: pesos(490_000) },
+        { memberId: "member-juan", weight: pesos(680_000) },
+      ],
+    });
+  });
+
+  it("leaves the VIEWER Sofi's stored capacity out of a PROPORTIONAL Home's weights (P263, P293)", async () => {
+    const { deps, spaces, plans, plan } = await world({ members: BUDGET_MEMBERS });
+    plans.seed(plan.id, { capacities: [{ memberId: "member-sofi", amount: 100_000_000n }] });
+    // Home's 1,470,000 COP over 1,600,000 / 2,400,000 / 1,000,000: Ana and Juan keep their 40 / 60.
+    expect(await defaultSplitOf(deps, await askedBy(spaces))).toEqual({
+      method: "BY_ALLOCATION",
+      lineId: "line-home",
+      weights: [
+        { memberId: "member-ana", weight: pesos(470_400) },
+        { memberId: "member-juan", weight: pesos(705_600) },
+      ],
+    });
+  });
+
+  it("answers EQUAL among the others when the VIEWER Sofi alone holds Home (P293)", async () => {
+    const allocations = [{ lineId: "line-home", memberId: "member-sofi", value: pesos(1_470_000) }];
+    const { deps, spaces } = await world({
+      members: BUDGET_MEMBERS,
+      lines: withRule("Home", "FIXED"),
+      allocations,
+    });
+    expect(await defaultSplitOf(deps, await askedBy(spaces))).toEqual({
+      method: "EQUAL",
+      lineId: "line-home",
+      weights: ["member-ana", "member-juan", "member-pedro"].map((memberId) => ({ memberId, weight: 1n })),
     });
   });
 
@@ -384,6 +465,7 @@ describe("the default split in a personal space (HU-E6-08, ruling N5)", () => {
       categoryId: "cat-personal",
       date: "2026-11-08" as LocalDate,
       memberIds: ["member-ana-personal"],
+      viewerIds: [],
     };
     expect(await defaultSplitOf(deps, expense)).toEqual({
       method: "BY_ALLOCATION",

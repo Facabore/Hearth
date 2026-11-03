@@ -7,10 +7,10 @@ import type { NumberFormat } from "@/shared/ui/format/formatters";
 import { exampleOf, type NumberRule } from "@/shared/ui/format/number-input";
 
 /**
- * Issue #171, the Main artboard: the amount card, typed on the phone's own decimal keyboard (the 56 px keypad is
- * gone), focused when a new record opens so the keyboard comes up with it. U3: the money rule's input props, so the
- * digits are grouped as they are typed, in the person's number format (6000 reads 6.000), the caret stays after the
- * digit it was after, and the example under it says how to type one (issue #164).
+ * Ruling P291 (board B1 · 01): the amount as a large centred figure, written by the form's keypad (`Keypad`) and still
+ * typed on a physical keyboard. The phone's own keyboard stays down (`inputMode="none"`), since the keypad is on screen.
+ * U3: the money rule's input props, so the digits are grouped as they are typed, in the person's number format (6000
+ * reads 6.000), and the caret stays after the digit it was after; the example of how to type one is read out (#164).
  */
 export function AmountField({
   value,
@@ -43,21 +43,23 @@ export function AmountField({
   const sample = error ? null : exampleOf(rule);
   const described = error ? "record-amount-error" : sample ? "record-amount-hint" : undefined;
   return (
-    <div className="flex flex-col gap-0.5 rounded-2xl bg-surface px-3 py-2">
-      <label htmlFor="record-amount" className="text-xs text-muted">
+    <div className="flex flex-col items-center gap-1">
+      <label htmlFor="record-amount" className="sr-only">
         {t("amount")}
       </label>
-      <div className="flex items-center gap-1.5">
-        <span aria-hidden="true" className="text-[26px] leading-none font-semibold text-muted">
-          {symbol}
-        </span>
+      <div className="flex max-w-full items-baseline justify-center gap-2 text-[40px] leading-tight font-bold text-ink tabular-nums">
+        <span aria-hidden="true">{symbol}</span>
         <input
           ref={input}
           id="record-amount"
           {...numberInputProps(rule, { value, onChange })}
+          inputMode="none"
+          placeholder="0"
           aria-invalid={error ? true : undefined}
           aria-describedby={described}
-          className="h-10 w-full min-w-0 rounded-lg bg-transparent px-1 text-[32px] font-[650] text-ink tabular-nums aria-invalid:ring-2 aria-invalid:ring-danger"
+          // As wide as what is typed, so the figure stays centred with its symbol.
+          style={{ width: `${Math.max(value.length, 1) + 0.25}ch` }}
+          className="min-w-0 rounded-lg bg-transparent text-center placeholder:text-muted aria-invalid:ring-2 aria-invalid:ring-danger"
         />
       </div>
       {error ? (
@@ -66,7 +68,7 @@ export function AmountField({
           {error}
         </p>
       ) : sample ? (
-        <p id="record-amount-hint" className="text-xs text-muted">
+        <p id="record-amount-hint" className="sr-only">
           {common("numberExample", { example: sample })}
         </p>
       ) : null}

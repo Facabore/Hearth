@@ -86,13 +86,26 @@ const household = (api: Api, options: { edit?: RecordEdit } = {}) =>
 const amount = () => screen.getByLabelText("Monto");
 const more = () => screen.getByRole("button", { name: /^(Más|Menos) opciones$/ });
 
-describe("the amount takes the phone's own keyboard (#171, S3)", () => {
-  it("renders no keypad, and the amount asks for the decimal keyboard", () => {
-    personal(fakeApi({}).api);
-    expect(amount()).toHaveAttribute("inputmode", "decimal");
+/** Whether `a` comes before `b` in the document. */
+const before = (a: Element, b: Element) =>
+  Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+describe("the amount takes the form's keypad (ruling P291, board B1 · 01)", () => {
+  it("draws the keypad, keeps the phone's keyboard down, and still types from a physical one", async () => {
+    const { api, requests } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/expenses": () => jsonResponse(transactionDto({ id: "t-new" }), 201),
+    });
+    personal(api);
+    expect(amount()).toHaveAttribute("inputmode", "none");
     expect(amount()).toHaveAttribute("id", "record-amount");
-    for (const key of ["0", "1", "9", "000", "Borrar"])
-      expect(screen.queryByRole("button", { name: key })).not.toBeInTheDocument();
+    for (const key of ["4", "5", "000"]) await userEvent.click(screen.getByRole("button", { name: key }));
+    expect(amount()).toHaveValue("45.000");
+    await userEvent.type(amount(), "0");
+    expect(amount()).toHaveValue("450.000");
+    await userEvent.click(screen.getByRole("button", { name: "Groceries" }));
+    await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(await requests[0]!.json()).toMatchObject({ amount: { amount: "45000000", currency: "COP" } });
   });
 
   it("focuses the amount when the form opens for a new record", () => {
@@ -106,22 +119,86 @@ describe("the amount takes the phone's own keyboard (#171, S3)", () => {
   });
 });
 
-describe("category, account and date are 48 px rows in one card (#171, S3)", () => {
-  it("lists the rows in order, the split with someone under the category (U11), and keeps axe clean", async () => {
+describe("the board's order (ruling P291, board B1 · 01)", () => {
+  it("runs tabs, amount, description, tiles, the split row, the chips, the keypad and Guardar, axe clean", async () => {
     const { container } = personal(fakeApi({}).api);
-    const card = screen.getByRole("list", { name: "Detalles del movimiento" });
-    const rows = within(card).getAllByRole("button");
-    expect(rows.map((row) => row.firstElementChild?.nextElementSibling?.textContent)).toEqual([
-      "Categoría",
-      "¿Lo compartiste?",
-      "Cuenta",
-      "Fecha",
-    ]);
-    for (const row of rows) expect(row).toHaveClass("min-h-12");
-    expect(rows[3]).toBe(screen.getByTestId("when-chip"));
-    await userEvent.click(rows[2]!);
-    expect(screen.getByRole("dialog", { name: "Cuenta" })).toBeInTheDocument();
+    const order = [
+      screen.getByRole("tablist"),
+      amount(),
+      screen.getByLabelText("Descripción"),
+      screen.getByRole("group", { name: "Categoría" }),
+      screen.getByRole("button", { name: "¿Lo compartiste? Dividir con alguien" }),
+      screen.getByRole("group", { name: "Detalles del movimiento" }),
+      screen.getByRole("button", { name: "Borrar" }),
+      screen.getByRole("button", { name: "Guardar gasto" }),
+    ];
+    for (const [i, element] of order.slice(1).entries()) expect(before(order[i]!, element)).toBe(true);
     expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("names the account, the date and time and the space in compact chips; the account and date open", async () => {
+    personal(fakeApi({}).api);
+    const chips = screen.getByRole("group", { name: "Detalles del movimiento" });
+    expect(within(chips).getByRole("button", { name: /Cuenta/ })).toHaveTextContent("Bancolombia");
+    expect(within(chips).getByTestId("when-chip")).toHaveTextContent("Hoy · 23:30");
+    expect(within(chips).getByText(spaceDto().name)).toBeInTheDocument();
+    expect(within(chips).getAllByRole("button")).toHaveLength(2);
+    for (const chip of within(chips).getAllByRole("button")) expect(chip).toHaveClass("min-h-11");
+    await userEvent.click(within(chips).getByRole("button", { name: /Cuenta/ }));
+    expect(screen.getByRole("dialog", { name: "Cuenta" })).toBeInTheDocument();
+  });
+
+  it("chooses a category from its tile, and a subcategory from its chip, a second tap clearing it", async () => {
+    const withSubs = [
+      groupDto({
+        id: "g-food",
+        name: "Food",
+        categories: [
+          categoryDto({
+            id: "c-groceries",
+            name: "Groceries",
+            subcategories: [
+              categoryDto({ id: "c-veg", name: "Vegetables", parentCategoryId: "c-groceries" }),
+            ],
+          }),
+          categoryDto({ id: "c-dining", name: "Dining" }),
+        ],
+      }),
+    ];
+    const { api, requests } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/expenses": () => jsonResponse(transactionDto({ id: "t-new" }), 201),
+    });
+    renderWithIntl(
+      <RecordForm
+        space={spaceDto()}
+        accounts={accounts}
+        groups={withSubs}
+        formats={BUILT_IN_FORMATS}
+        initialKind="EXPENSE"
+        initialNow="2026-11-01T04:30:00.000Z"
+        timeZone="America/Bogota"
+        api={api}
+      />,
+    );
+    expect(screen.queryByRole("group", { name: "Subcategorías de Groceries" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Groceries" }));
+    expect(screen.getByRole("button", { name: "Groceries" })).toHaveAttribute("aria-pressed", "true");
+    const subs = screen.getByRole("group", { name: "Subcategorías de Groceries" });
+    await userEvent.click(within(subs).getByRole("button", { name: "Vegetables" }));
+    expect(within(subs).getByRole("button", { name: "Vegetables" })).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(within(subs).getByRole("button", { name: "Vegetables" }));
+    expect(within(subs).getByRole("button", { name: "Vegetables" })).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(within(subs).getByRole("button", { name: "Vegetables" }));
+    // A second tap on the chosen tile opens the picker, as the last tile does.
+    await userEvent.click(screen.getByRole("button", { name: "Groceries" }));
+    expect(await screen.findByRole("dialog", { name: "Categoría" })).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(screen.getByRole("button", { name: "Dining" }));
+    expect(screen.queryByRole("group", { name: "Subcategorías de Groceries" })).toBeNull();
+    await userEvent.type(amount(), "85000");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(await requests[0]!.json()).toMatchObject({ categoryId: "c-dining" });
   });
 });
 
@@ -135,10 +212,15 @@ describe("Más opciones folds the split (#171, S3)", () => {
   it("keeps who paid on screen, folds only the division of a shared expense, and keeps Guardar last", async () => {
     household(fakeApi({}).api);
     expect(more()).toHaveAttribute("aria-expanded", "false");
-    expect(screen.getByRole("button", { name: /Pagas tú/ })).toBeVisible();
+    // Board E9-06 · 01: "Pagó Ana desde Bancolombia", above a folded Más opciones, before the keypad.
+    const payer = screen.getByRole("button", { name: "Pagó Ana desde Bancolombia" });
+    expect(payer).toBeVisible();
+    expect(within(payer).getByText("Pagó").tagName).toBe("STRONG");
+    expect(before(payer, more())).toBe(true);
+    expect(before(more(), screen.getByRole("button", { name: "Borrar" }))).toBe(true);
     expect(screen.queryByRole("button", { name: /División/ })).not.toBeInTheDocument();
     await userEvent.click(more());
-    expect(screen.getByRole("button", { name: /Pagas tú/ })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Pagó Ana/ })).toBeVisible();
     expect(screen.getByRole("button", { name: /División/ })).toBeVisible();
     const buttons = screen.getAllByRole("button");
     expect(buttons.at(-1)).toHaveAccessibleName("Guardar gasto");
@@ -161,8 +243,8 @@ describe("Más opciones folds the split (#171, S3)", () => {
     });
     household(api);
     await userEvent.type(amount(), "2000000");
-    await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
-    await userEvent.click(screen.getByRole("radio", { name: "Groceries" }));
+    await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Groceries" }));
     await waitFor(() => expect(requests.some((r) => r.url.includes("default-split"))).toBe(true));
     expect(more()).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(more());
@@ -200,8 +282,8 @@ describe("Más opciones folds the split (#171, S3)", () => {
     });
     household(api);
     await userEvent.type(amount(), "300000");
-    await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
-    await userEvent.click(screen.getByRole("radio", { name: "Groceries" }));
+    await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Groceries" }));
     expect(more()).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     expect(await screen.findByText("Revisa cómo se divide el gasto.")).toBeVisible();

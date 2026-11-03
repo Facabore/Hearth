@@ -84,7 +84,12 @@ export function SpaceSwitcher({
         <span className="truncate">{activeSpace.name}</span>
         <Icon name="chevronDown" size={20} className="shrink-0" />
       </button>
-      <Sheet open={open} onOpenChange={setOpen} title={t(opened ? opened.title : "shell.space.title")}>
+      <Sheet
+        open={open}
+        onOpenChange={setOpen}
+        title={t(opened ? opened.title : "shell.space.title")}
+        closeButton={false}
+      >
         {opened && Flows ? (
           <div className="flex flex-col gap-2">
             {/* The board's back chevron: to the spaces, inside the same sheet. */}

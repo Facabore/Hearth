@@ -56,6 +56,16 @@ describe("sharedContextOf (HU-E9-06, ruling P168)", () => {
     ).toMatchObject({ accountId: "a-only" });
   });
 
+  it("starts the split with every member but the VIEWERs ticked, guests included (ruling P293)", () => {
+    const members = [
+      ...MEMBERS.slice(0, 2),
+      memberDto({ id: "m-sofi", userId: "u-sofi", displayName: "Sofi", role: "VIEWER" }),
+      MEMBERS[2]!,
+    ];
+    const context = { members, meMemberId: "m-ana", myAccounts: [accountDto({ id: "a-bank" })], funds: [] };
+    expect(initialSplitDraft(context).selected).toEqual(["m-ana", "m-luis", "m-pedro"]);
+  });
+
   it("answers null for someone who is not a current member", () => {
     expect(
       sharedContextOf({ meUserId: "u-x", members: MEMBERS, personalAccounts: [], spaceAccounts: [] }),

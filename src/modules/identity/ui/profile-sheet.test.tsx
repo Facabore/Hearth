@@ -35,7 +35,7 @@ describe("profile sheet (HU-E9-01)", () => {
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Perfil de Ana" }));
-    const sheet = screen.getByRole("dialog", { name: "Ana" });
+    const sheet = await screen.findByRole("dialog", { name: "Ana" }, { timeout: 10_000 });
     expect(within(sheet).getByText("ana@example.com")).toBeInTheDocument();
     expect(within(sheet).getByRole("link", { name: /Ajustes/ })).toHaveAttribute(
       "href",
@@ -97,6 +97,36 @@ describe("profile sheet (HU-E9-01)", () => {
     expect(router.replace).toHaveBeenCalledWith("/sign-in");
   });
 
+  it("draws the person dark and filled, and lists Ajustes, then Cuentas, Categorías and Miembros (board B1 · 05, P292)", async () => {
+    renderWithIntl(
+      <ProfileSheet
+        me={{ name: "Ana", email: "ana@example.com", locale: "es" }}
+        spaceId="sp-household"
+        spaceKind="SHARED"
+        api={fakeApi({}).api}
+      />,
+    );
+    const open = screen.getByRole("button", { name: "Perfil de Ana" });
+    expect(open.querySelector("[aria-hidden='true']")).toHaveClass("bg-ink", "text-surface");
+    await userEvent.click(open);
+    const sheet = await screen.findByRole("dialog", { name: "Ana" }, { timeout: 10_000 });
+    // Board B1 · 05: the avatar sits beside the name in the sheet's header, the email under it.
+    expect(
+      within(sheet).getByRole("heading", { name: "Ana" }).parentElement!.querySelector(".bg-ink"),
+    ).not.toBeNull();
+    expect(within(sheet).getByText("ana@example.com")).toBeInTheDocument();
+    expect(
+      within(sheet)
+        .getAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual([
+      "AjustesFormatos, hora, zona horaria, tema e idioma",
+      "Cuentas",
+      "Categorías",
+      "Miembros e invitaciones",
+    ]);
+  });
+
   it("links to the members of a shared space (ruling P160)", async () => {
     const { api } = fakeApi({});
     renderWithIntl(
@@ -108,7 +138,7 @@ describe("profile sheet (HU-E9-01)", () => {
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Perfil de Ana" }));
-    const sheet = screen.getByRole("dialog", { name: "Ana" });
+    const sheet = await screen.findByRole("dialog", { name: "Ana" }, { timeout: 10_000 });
     expect(within(sheet).getByRole("link", { name: /Miembros e invitaciones/ })).toHaveAttribute(
       "href",
       "/spaces/sp-household/members",

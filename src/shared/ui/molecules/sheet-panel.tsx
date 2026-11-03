@@ -14,13 +14,29 @@ export interface SheetProps {
   readonly description?: string;
   readonly children: ReactNode;
   readonly footer?: ReactNode;
+  /**
+   * P292: false where the board draws only the drag handle (the space switcher, the profile, Nueva cuenta). The button
+   * then shows only from 1024 px, where the centered panel has no handle; Escape and the scrim close it everywhere.
+   */
+  readonly closeButton?: boolean;
+  /** What the board draws before the title, such as the person's avatar or the category's icon (P292). */
+  readonly leading?: ReactNode;
 }
 
 /**
  * A bottom sheet under 1024 px, a centered panel above; Escape and the scrim close it, focus returns to the trigger.
  * It paints above the fixed bottom navigation (z-10); only its body scrolls and the page behind stays put.
  */
-export function SheetPanel({ open, onOpenChange, title, description, children, footer }: SheetProps) {
+export function SheetPanel({
+  open,
+  onOpenChange,
+  title,
+  description,
+  children,
+  footer,
+  closeButton = true,
+  leading,
+}: SheetProps) {
   const t = useTranslations("common");
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -32,11 +48,12 @@ export function SheetPanel({ open, onOpenChange, title, description, children, f
         >
           <div aria-hidden="true" className="mx-auto mb-3 h-[5px] w-10 rounded-full bg-track lg:hidden" />
           <div className="flex items-center justify-between gap-2">
-            <Dialog.Title className="min-w-0 text-lg font-semibold [overflow-wrap:anywhere] text-ink">
+            {leading ? <div className="shrink-0">{leading}</div> : null}
+            <Dialog.Title className="min-w-0 flex-1 text-lg font-semibold [overflow-wrap:anywhere] text-ink">
               {title}
             </Dialog.Title>
             <Dialog.Close asChild>
-              <Button size="icon" variant="ghost">
+              <Button size="icon" variant="ghost" className={closeButton ? undefined : "max-lg:hidden"}>
                 <Icon name="close" />
                 <VisuallyHidden>{t("close")}</VisuallyHidden>
               </Button>

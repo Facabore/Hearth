@@ -2,6 +2,7 @@ import { randomInt } from "node:crypto";
 import { expect } from "@playwright/test";
 import { test } from "../support/clock";
 import { es } from "../../../src/i18n/messages/full";
+import { chooseCategory } from "../support/record";
 import { signUp } from "../support/seed";
 
 const steps = es.home.firstSteps;
@@ -43,8 +44,7 @@ test("a new person sees the first steps, and recording an expense ticks its step
   await card.getByRole("link", { name: steps.step.expense }).click();
   await expect(page.locator("[data-ready='true']")).toBeAttached();
   await page.getByLabel(es.ledger.form.amount).fill("12000");
-  await page.getByRole("button", { name: new RegExp(es.ledger.form.category) }).click();
-  await page.getByRole("radio").first().click();
+  await chooseCategory(page, /./);
   await page.getByRole("button", { name: es.ledger.form.save.EXPENSE, exact: true }).click();
 
   await expect(page).toHaveURL(new RegExp(`/spaces/${spaceId}(\\?|$)`));

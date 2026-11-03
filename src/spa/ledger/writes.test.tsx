@@ -227,9 +227,9 @@ describe("the ledger's writes in the SPA (slice 2 of #199, ADR 0006)", () => {
     await userEvent.click(screen.getByRole("link", { name: es.shell.nav.record }));
     await userEvent.type(await screen.findByLabelText(es.ledger.form.amount), "12000");
     await userEvent.type(screen.getByLabelText(es.ledger.form.description), "Pan");
-    await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
-    await userEvent.click(screen.getByRole("radio", { name: "Groceries" }));
-    await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
+    await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Groceries" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Sin subcategoría" }));
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
 
     await waitFor(() => expect(spa.location()).toBe(LIST), SAVE_LANDS);

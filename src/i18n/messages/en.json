@@ -266,9 +266,7 @@
       "accounts": "Accounts",
       "signOut": "Sign out",
       "members": "Members and invitations",
-      "membersHint": "Invite people, add guests and change roles",
-      "categories": "Categories",
-      "categoriesHint": "Groups, icons and colors"
+      "categories": "Categories"
     }
   },
   "home": {
@@ -339,6 +337,8 @@
       "title": "Category",
       "search": "Search category",
       "subcategoriesOf": "Subcategories of {name}",
+      "optional": "{name} · optional subcategory",
+      "all": "All",
       "none": "No subcategory",
       "use": "Use {path}",
       "noMatch": "There is no category “{query}”."
@@ -462,7 +462,7 @@
       "am": "AM",
       "pm": "PM",
       "now": "Now",
-      "apply": "{day, select, today {Use today · {time}} yesterday {Use yesterday · {time}} dayBeforeYesterday {Use the day before yesterday · {time}} other {Use {date} · {time}}}"
+      "apply": "{day, select, today {Use Today, {time}} yesterday {Use Yesterday, {time}} dayBeforeYesterday {Use the day before yesterday, {time}} other {Use {date}, {time}}}"
     },
     "form": {
       "title": "Record a transaction",
@@ -480,7 +480,6 @@
       "from": "From",
       "to": "To",
       "chooseAccount": "Choose an account",
-      "date": "Date",
       "when": "Date and time: {label}. Change",
       "moreOptions": "More options",
       "fewerOptions": "Fewer options",
@@ -500,7 +499,8 @@
         "DIRECT": "Save and split"
       },
       "amountUnreadable": "Type an amount like {example}.",
-      "accountRequired": "Choose an account."
+      "accountRequired": "Choose an account.",
+      "erase": "Delete"
     },
     "split": {
       "title": "Who paid and for whom",
@@ -538,8 +538,8 @@
       },
       "incomplete": "Enter a value for each person.",
       "done": "Done",
-      "paidBy": "Paid by {payer}",
-      "paidFromMine": "You pay from {account} (your personal account)",
+      "paidBy": "<b>Paid by</b> {payer}",
+      "paidFrom": "<b>Paid by</b> {payer} from {account}",
       "split": "Split",
       "line": "{who} · {how}",
       "with": {

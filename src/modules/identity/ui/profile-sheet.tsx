@@ -1,23 +1,27 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
-import { useMemo, useState } from "react";
-import { localeCookie, type Locale } from "@/i18n/locale";
-import { Avatar, Button, Icon, Sheet, SymbolIcon } from "@/shared/ui";
-import { browserApi, type Api } from "@/shared/ui/api/client";
+import { useState } from "react";
+import type { Locale } from "@/i18n/locale";
+import { Avatar } from "@/shared/ui";
+import type { Api } from "@/shared/ui/api/client";
 import type { SpaceDto } from "@/shared/ui/api/dto";
 
-/**
- * HU-E9-01, the ProfileSheet artboard; the Categories entry is HU-E9-04 and rules come with HU-E9-14 (ruling P126); the
- * Members entry, outside the personal space, is HU-E9-05 (ruling P160).
- */
+/** The sheet's rows load on the first tap of the avatar: the shell, in every route, carries only the avatar. */
+const ProfileSheetBody = dynamic(
+  () => import("./profile-sheet-body").then((module) => module.ProfileSheetBody),
+  {
+    ssr: false,
+  },
+);
+
+/** HU-E9-01: the person's avatar in the shell header, which opens the profile sheet. */
 export function ProfileSheet({
   me,
   spaceId,
   spaceKind,
-  api: injected,
+  api,
 }: {
   readonly me: { readonly name: string; readonly email: string; readonly locale: Locale };
   readonly spaceId: string;
@@ -25,64 +29,32 @@ export function ProfileSheet({
   readonly api?: Api;
 }) {
   const t = useTranslations("shell.profile");
-  const router = useRouter();
-  const api = useMemo(() => injected ?? browserApi(), [injected]);
   const [open, setOpen] = useState(false);
-  const signOut = async () => {
-    // Ruling P149: the sign-in screen reads the visitor cookie, so it keeps the language the person had.
-    document.cookie = localeCookie(me.locale);
-    try {
-      await api.POST("/api/v1/auth/sign-out");
-    } finally {
-      router.replace("/sign-in");
-      router.refresh();
-    }
-  };
-  const row = "flex min-h-14 items-center gap-3 rounded-xl px-2 text-ink";
+  // Mounted from the first tap on, so the sheet can animate closed and opens again at once.
+  const [opened, setOpened] = useState(false);
   return (
     <>
       <button
         type="button"
         aria-label={t("open", { name: me.name })}
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setOpened(true);
+          setOpen(true);
+        }}
         className="flex size-11 items-center justify-center rounded-full"
       >
-        <Avatar name={me.name} />
+        <Avatar name={me.name} tone="dark" />
       </button>
-      <Sheet open={open} onOpenChange={setOpen} title={me.name}>
-        <p className="mb-4 text-sm text-muted">{me.email}</p>
-        <Link href={`/settings?from=${spaceId}`} className={row} onClick={() => setOpen(false)}>
-          <Icon name="sliders" />
-          <span className="flex flex-col">
-            <span>{t("settings")}</span>
-            <span className="text-sm text-muted">{t("settingsHint")}</span>
-          </span>
-        </Link>
-        {spaceKind !== "PERSONAL" ? (
-          <Link href={`/spaces/${spaceId}/members`} className={row} onClick={() => setOpen(false)}>
-            <Icon name="userPlus" />
-            <span className="flex flex-col">
-              <span>{t("members")}</span>
-              <span className="text-sm text-muted">{t("membersHint")}</span>
-            </span>
-          </Link>
-        ) : null}
-        <Link href={`/spaces/${spaceId}/categories`} className={row} onClick={() => setOpen(false)}>
-          <SymbolIcon name="tag" />
-          <span className="flex flex-col">
-            <span>{t("categories")}</span>
-            <span className="text-sm text-muted">{t("categoriesHint")}</span>
-          </span>
-        </Link>
-        <Link href={`/spaces/${spaceId}/accounts`} className={row} onClick={() => setOpen(false)}>
-          <Icon name="list" />
-          {t("accounts")}
-        </Link>
-        <Button variant="danger" size="lg" className="mt-3" onClick={() => void signOut()}>
-          <Icon name="signOut" />
-          {t("signOut")}
-        </Button>
-      </Sheet>
+      {opened ? (
+        <ProfileSheetBody
+          me={me}
+          spaceId={spaceId}
+          spaceKind={spaceKind}
+          api={api}
+          open={open}
+          onOpenChange={setOpen}
+        />
+      ) : null}
     </>
   );
 }

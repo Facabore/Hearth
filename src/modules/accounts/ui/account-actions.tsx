@@ -46,8 +46,11 @@ const useAccountAction = (action: Action, { spaceId, account, api: injected }: A
   return { run, pending, problem };
 };
 
-/** HU-E9-03: archive from a confirmation sheet; the history stays and restore brings it back (ruling P131). */
-export function ArchiveAccountButton(props: ActionProps) {
+/**
+ * HU-E9-03: archive from a confirmation sheet; the history stays and restore brings it back (ruling P131). It sits on
+ * the account's edit screen (P292), which `onArchived` leaves.
+ */
+export function ArchiveAccountButton(props: ActionProps & { readonly onArchived?: () => void }) {
   const t = useTranslations("accounts.archive");
   const [open, setOpen] = useState(false);
   const { run, pending, problem } = useAccountAction("archive", props);
@@ -67,7 +70,13 @@ export function ArchiveAccountButton(props: ActionProps) {
             variant="danger"
             size="lg"
             disabled={pending}
-            onClick={() => void run().then((done) => done && setOpen(false))}
+            onClick={() =>
+              void run().then((done) => {
+                if (!done) return;
+                setOpen(false);
+                props.onArchived?.();
+              })
+            }
           >
             {t("confirm")}
           </Button>

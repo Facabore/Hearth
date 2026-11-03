@@ -73,13 +73,9 @@ describe("amount field groups the digits while typing (U3)", () => {
     expect(field().selectionStart).toBe(3);
   });
 
-  it("asks for the phone's decimal keyboard, the numeric one without decimals, and draws no keypad (#171)", () => {
-    const { unmount } = renderWithIntl(<Harness />);
-    expect(field()).toHaveAttribute("inputmode", "decimal");
-    expect(screen.queryAllByRole("button")).toEqual([]);
-    unmount();
-    renderWithIntl(<Harness exponent={0} />);
-    expect(field()).toHaveAttribute("inputmode", "numeric");
+  it("keeps the phone's own keyboard down: the form's keypad is on screen (ruling P291)", () => {
+    renderWithIntl(<Harness />);
+    expect(field()).toHaveAttribute("inputmode", "none");
   });
 
   it("leaves a point typed in a currency without decimals alone, so the amount is reported unreadable", async () => {

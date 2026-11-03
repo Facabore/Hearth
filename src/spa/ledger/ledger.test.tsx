@@ -319,16 +319,22 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
       "href",
       "/spaces/sp-household",
     );
-    expect(within(nav()).queryByRole("link", { name: es.shell.nav.record })).not.toBeInTheDocument();
+    // The record route is a stacked screen (ruling P291): no bottom bar around it.
+    expect(screen.queryByRole("navigation", { name: es.shell.nav.main })).not.toBeInTheDocument();
   });
 
-  it("keeps the Registrar button for a member who records", async () => {
+  it("draws the form as a sheet over the stacked shell for a member who records (ruling P291)", async () => {
     const { routes } = ledgerApi({
       "GET /api/v1/spaces": () => jsonResponse({ items: [spaceDto(), householdSpace({ role: "MEMBER" })] }),
     });
     renderSpa("/spaces/sp-household/new", routes);
     expect(await screen.findByRole("button", { name: es.ledger.form.save.EXPENSE })).toBeVisible();
-    expect(within(nav()).getByRole("link", { name: es.shell.nav.record })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: es.ledger.form.title })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: es.common.back })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household",
+    );
+    expect(screen.queryByRole("navigation", { name: es.shell.nav.main })).not.toBeInTheDocument();
   });
 
   it("shows a read the API refuses as its problem, inside the shell", async () => {

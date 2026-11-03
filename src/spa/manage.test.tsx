@@ -156,15 +156,19 @@ describe("accounts, categories and settings in the SPA (slice 3 of #199, ADR 000
     expect(await screen.findByRole("button", { name: /Cuenta\s*Wallet/ })).toBeVisible();
   });
 
-  it("hides an account from a confirmation deep inside the list, through the app's own client", async () => {
+  it("hides an account from a confirmation on its own screen, through the app's own client (P292)", async () => {
     const { routes } = server();
+    // From the list to the account's screen, as a person goes: the shell's first reads are settled by then.
     const spa = renderSpa(ACCOUNTS, routes);
+    expect(await screen.findByText("Nequi", {}, { timeout: 5_000 })).toBeInTheDocument();
+    await spa.router.navigate({ href: `${ACCOUNTS}/a-nequi/edit` });
     await userEvent.click(await screen.findByRole("button", { name: "Ocultar Nequi" }));
     const sheet = screen.getByRole("dialog", { name: "¿Ocultar Nequi?" });
     const before = untouched(spa.requests, [/\/accounts$/]);
     await userEvent.click(within(sheet).getByRole("button", { name: "Ocultar" }));
 
-    // The archive went through the app's fake API, and the list moved it to its archived section.
+    // The archive went through the app's fake API, and the list it lands on moved it to its archived section.
+    await waitFor(() => expect(spa.location()).toBe(ACCOUNTS));
     expect(await screen.findByRole("button", { name: "Mostrar Nequi" })).toBeInTheDocument();
     expect(count(spa.requests, "POST", /\/accounts\/a-nequi\/archive$/)).toBe(1);
     expect(untouched(spa.requests, [/\/accounts$/])).toEqual(before);
@@ -360,11 +364,13 @@ describe("the accounts, categories and settings areas' copy (ruling P276)", () =
   it("shows the categories' own copy after a cold load, and in English after a language change", async () => {
     const missing = watchMissingMessages();
     const spa = renderSpa("/spaces/sp-personal/categories", server().routes);
-    expect(await screen.findByText(es.categories.subtitle, {}, { timeout: 5_000 })).toBeVisible();
+    // P292: the subtitle names the space, as board Categorías 01 does.
+    const subtitle = (text: string) => text.replace("{space}", "Personal");
+    expect(await screen.findByText(subtitle(es.categories.subtitle), {}, { timeout: 5_000 })).toBeVisible();
     expect(loadedAreas(spa)).toEqual(["es:categories"]);
 
     speak(spa, "en");
-    expect(await screen.findByText(en.categories.subtitle)).toBeVisible();
+    expect(await screen.findByText(subtitle(en.categories.subtitle))).toBeVisible();
     expect(loadedAreas(spa)).toEqual(["en:categories", "es:categories"]);
     expect(missing()).toEqual([]);
   });

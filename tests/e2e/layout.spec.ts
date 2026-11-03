@@ -5,6 +5,7 @@ import { en, es } from "../../src/i18n/messages/full";
 import { BASE_URL } from "./support/base-url";
 import { Person } from "./support/people";
 import { categoryIdsByKey, clientOf, seedHome, seedHousehold, seedRecurrence } from "./support/plan-seed";
+import { chooseCategory, openCategoryPicker } from "./support/record";
 import {
   archiveStarterAccounts,
   get,
@@ -189,8 +190,7 @@ const seedAdditions = async (page: Page, spaceId: string, testId: string) => {
 const askBeforeSaving = async (page: Page) => {
   await expect(page.locator("[data-ready='true']")).toBeAttached();
   await page.getByLabel(es.ledger.form.amount).fill("212300");
-  await page.getByRole("button", { name: new RegExp(es.ledger.form.category) }).click();
-  await page.getByRole("radio", { name: /^Mercado|^Groceries/ }).click();
+  await chooseCategory(page, /^Mercado|^Groceries/);
   await page.getByRole("button", { name: es.ledger.form.save.EXPENSE, exact: true }).click();
   await expect(page.getByRole("heading", { name: es.ledger.lineWarning.confirmTitle })).toBeFocused();
 };
@@ -510,7 +510,7 @@ const sheets: {
     path: "new",
     open: async (page) => {
       await expect(page.locator("[data-ready='true']")).toBeAttached();
-      await page.getByRole("button", { name: new RegExp(es.ledger.form.category) }).click();
+      await openCategoryPicker(page);
     },
   },
   {
@@ -2320,9 +2320,16 @@ test.describe("the last control of a scrolling screen ends above the bottom bar 
     readonly submit: string;
     /** Ruling P272: a stacked screen has no bottom bar, only the safe area under its last control. */
     readonly stacked?: boolean;
+    /**
+     * Rulings P291 and P292: a bottom sheet over its parent screen. Its own body scrolls, not the page, and it anchors
+     * its button above the safe area.
+     */
+    readonly sheet?: boolean;
   }[] = [
     {
       name: "record form",
+      stacked: true,
+      sheet: true,
       at: ({ spaceId }: Ids) => `/spaces/${spaceId}/new`,
       prepare: ready,
       submit: es.ledger.form.save.EXPENSE,
@@ -2348,7 +2355,8 @@ test.describe("the last control of a scrolling screen ends above the bottom bar 
     },
     {
       name: "new account",
-      stacked: true,
+      // Board B1 · 08 (P292): a sheet over Cuentas, Crear cuenta anchored at its bottom.
+      sheet: true,
       at: ({ spaceId }: Ids) => `/spaces/${spaceId}/accounts/new`,
       // A credit card asks for the most attributes, so the form is the longest it gets.
       prepare: async (page: Page) => {
@@ -2360,6 +2368,8 @@ test.describe("the last control of a scrolling screen ends above the bottom bar 
       // #142 (ruling P235): the question the form asks before an expense that takes its line over.
       name: "record form, line warning confirmation",
       household: true,
+      stacked: true,
+      sheet: true,
       at: ({ household }: Ids) => `/spaces/${household}/new`,
       prepare: askBeforeSaving,
       submit: es.ledger.lineWarning.confirm,
@@ -2383,7 +2393,8 @@ test.describe("the last control of a scrolling screen ends above the bottom bar 
         await screen.prepare(page);
         const submit = page.getByRole("button", { name: screen.submit, exact: true });
         await expect(submit).toBeVisible();
-        await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+        if (screen.sheet) await submit.scrollIntoViewIfNeeded();
+        else await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
         await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => done(null))));
         const seen = await submit.evaluate((el) => {
           const r = el.getBoundingClientRect();
@@ -2411,7 +2422,13 @@ test.describe("the last control of a scrolling screen ends above the bottom bar 
             ],
           };
         });
-        if (screen.stacked) {
+        if (screen.sheet) {
+          expect(seen.barHeight, "a sheet over its screen has no bottom bar").toBe(0);
+          // A sheet's own scroll stops on a whole pixel, so its last control may sit a fraction of one lower.
+          expect(seen.bottom, "the button ends above the safe area").toBeLessThanOrEqual(
+            seen.viewport - 34 + 1,
+          );
+        } else if (screen.stacked) {
           expect(seen.barHeight, "a stacked screen has no bottom bar").toBe(0);
           expect(seen.below, "the page keeps room for the safe area").toBeGreaterThanOrEqual(34);
           expect(seen.bottom, "the button ends above the safe area").toBeLessThanOrEqual(seen.viewport - 34);
@@ -2532,12 +2549,8 @@ test.describe("the app has an icon, so no page asks for a missing one (UX review
 test.describe("every screen below the navigation has a way back (UX: no dead ends)", () => {
   /** Where each screen's Volver link must land: the parent route, never the browser history. */
   const screens = (ids: { spaceId: string; sharedId: string; history: string; edit: string }) => [
+    // Nueva cuenta is a sheet over Cuentas (P292): Escape and its close return there (tests/e2e/spa/manage.spec.ts).
     { name: "accounts", at: `/spaces/${ids.spaceId}/accounts`, parent: `/spaces/${ids.spaceId}` },
-    {
-      name: "new account",
-      at: `/spaces/${ids.spaceId}/accounts/new`,
-      parent: `/spaces/${ids.spaceId}/accounts`,
-    },
     { name: "record form", at: `/spaces/${ids.spaceId}/new`, parent: `/spaces/${ids.spaceId}` },
     { name: "settings", at: "/settings", parent: `/spaces/${ids.spaceId}` },
     {

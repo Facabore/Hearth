@@ -14,9 +14,9 @@
     "archived": "Hidden",
     "outsideAvailable": "outside available",
     "card": {
-      "limit": "Limit {amount}",
-      "available": "Available {amount}",
-      "payBy": "Pay by {date}"
+      "limit": "limit {amount}",
+      "available": "available {amount}",
+      "payBy": "pay by {date}"
     },
     "savings": {
       "rate": "{rate}% APY",

@@ -266,9 +266,7 @@
       "accounts": "Cuentas",
       "signOut": "Cerrar sesión",
       "members": "Miembros e invitaciones",
-      "membersHint": "Invita personas, agrega invitados y cambia roles",
-      "categories": "Categorías",
-      "categoriesHint": "Grupos, íconos y colores"
+      "categories": "Categorías"
     }
   },
   "home": {
@@ -339,6 +337,8 @@
       "title": "Categoría",
       "search": "Buscar categoría",
       "subcategoriesOf": "Subcategorías de {name}",
+      "optional": "{name} · subcategoría opcional",
+      "all": "Todas",
       "none": "Sin subcategoría",
       "use": "Usar {path}",
       "noMatch": "No hay ninguna categoría «{query}»."
@@ -462,7 +462,7 @@
       "am": "AM",
       "pm": "PM",
       "now": "Ahora",
-      "apply": "{day, select, today {Usar hoy · {time}} yesterday {Usar ayer · {time}} dayBeforeYesterday {Usar anteayer · {time}} other {Usar {date} · {time}}}"
+      "apply": "{day, select, today {Usar Hoy, {time}} yesterday {Usar Ayer, {time}} dayBeforeYesterday {Usar Anteayer, {time}} other {Usar {date}, {time}}}"
     },
     "form": {
       "title": "Registrar movimiento",
@@ -480,7 +480,6 @@
       "from": "Desde",
       "to": "Hacia",
       "chooseAccount": "Elegir cuenta",
-      "date": "Fecha",
       "when": "Fecha y hora: {label}. Cambiar",
       "moreOptions": "Más opciones",
       "fewerOptions": "Menos opciones",
@@ -500,7 +499,8 @@
         "DIRECT": "Guardar y dividir"
       },
       "amountUnreadable": "Escribe un monto como {example}.",
-      "accountRequired": "Elige una cuenta."
+      "accountRequired": "Elige una cuenta.",
+      "erase": "Borrar"
     },
     "split": {
       "title": "Quién pagó y para quién",
@@ -538,8 +538,8 @@
       },
       "incomplete": "Escribe el valor de cada persona.",
       "done": "Listo",
-      "paidBy": "Pagó {payer}",
-      "paidFromMine": "Pagas tú desde {account} (tu cuenta personal)",
+      "paidBy": "<b>Pagó</b> {payer}",
+      "paidFrom": "<b>Pagó</b> {payer} desde {account}",
       "split": "División",
       "line": "{who} · {how}",
       "with": {

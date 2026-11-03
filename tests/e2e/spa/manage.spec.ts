@@ -27,6 +27,15 @@ test.describe("accounts, categories and settings (slice 3 of #199, ADR 0006)", (
     await page.goto(`/spaces/${spaceId}/accounts`);
     await expect(page.getByRole("heading", { level: 1, name: es.accounts.title })).toBeVisible();
     await scan(page, "accounts");
+    // Board B1 · 08 (P292): Nueva cuenta is a sheet over Cuentas at its own address; Escape returns to Cuentas.
+    await page.goto(`/spaces/${spaceId}/accounts/new`);
+    await expect(page.getByRole("dialog", { name: es.accounts.newTitle })).toBeVisible();
+    // Cuentas lies under the sheet, hidden from assistive technology while the sheet is open.
+    await expect(
+      page.getByRole("heading", { level: 1, name: es.accounts.title, includeHidden: true }),
+    ).toBeAttached();
+    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL(`/spaces/${spaceId}/accounts`);
     await page.goto(`/spaces/${spaceId}/accounts/new`);
     await page.getByRole("radio", { name: "Efectivo" }).click();
     await page.getByLabel("Nombre").fill("Caja menor");

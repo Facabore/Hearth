@@ -1,13 +1,10 @@
 {
   "categories": {
-    "subtitle": "Toca una categoría para editarla",
+    "subtitle": "{space} · toca una categoría para editarla",
     "kindLabel": "Tipo",
     "newGroup": "Nuevo grupo",
     "addCategory": "Agregar categoría a {group}",
-    "addCategoryShort": "Agregar categoría",
     "edit": "Editar {name}",
-    "subcategoriesToggle": "Subcategorías de {name}",
-    "subcategoryCount": "{count, plural, one {# subcategoría} other {# subcategorías}}",
     "emptyGroup": "Aún no hay categorías",
     "readOnly": "Puedes ver las categorías de {space}; solo sus propietarios y administradores las cambian.",
     "kind": {
@@ -20,12 +17,12 @@
       "restoreShort": "Restaurar"
     },
     "sheet": {
-      "editTitle": "Editar {name}",
+      "editTitle": "Editar categoría",
       "newTitle": "Nueva categoría en {group}",
       "name": "Nombre",
       "group": "Grupo",
       "subcategories": "Subcategorías",
-      "noSubcategories": "Aún no hay subcategorías",
+      "noSubcategories": "Sin subcategorías",
       "newSubcategory": "Nueva subcategoría",
       "addSubcategory": "Agregar subcategoría",
       "subcategoryStyle": "Una subcategoría muestra el ícono y el color de {parent}.",
@@ -36,7 +33,9 @@
       "archiveConfirm": "¿Archivar {name}? Su historial se conserva y deja de ofrecerse al registrar.",
       "archiveSubcategories": "Sus subcategorías también se archivan.",
       "deleteConfirm": "¿Eliminar {name}? No se puede deshacer.",
-      "archiveInstead": "Archivar en su lugar"
+      "archiveInstead": "Archivar en su lugar",
+      "optional": "opcionales",
+      "add": "Agregar"
     },
     "groupSheet": {
       "title": "Nuevo grupo",
@@ -218,6 +217,7 @@
       "shopping": "Compras",
       "money": "Dinero",
       "people": "Personas y trabajo"
-    }
+    },
+    "colorHint": "Las subcategorías usan el mismo color."
   }
 }

@@ -72,9 +72,9 @@ const CONFIRM_TITLE = "¿Guardar de todos modos?";
 const noteText = () => normalized(document.getElementById("record-line-warning")?.textContent);
 const typeExpense = async (amount: string) => {
   await userEvent.type(screen.getByLabelText("Monto"), amount);
-  await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
-  await userEvent.click(screen.getByRole("radio", { name: "Groceries" }));
-  await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
+  await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+  await userEvent.click(await screen.findByRole("radio", { name: "Groceries" }));
+  await userEvent.click(screen.getByRole("radio", { name: "Sin subcategoría" }));
 };
 const expenses = (requests: Request[]) => requests.filter((r) => r.url.endsWith("/expenses"));
 

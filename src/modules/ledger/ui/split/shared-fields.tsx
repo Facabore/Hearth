@@ -2,12 +2,12 @@
 
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { memberLabel } from "@/modules/spaces/ui";
 import { Icon } from "@/shared/ui";
 import type { Api } from "@/shared/ui/api/client";
 import type { Formats } from "@/shared/ui/format/formatters";
-import type { SharedExpenseContext } from "./shared-context";
+import { defaultParticipantIds, type SharedExpenseContext } from "./shared-context";
 import { isUntouched, splitFailureMessage } from "./split-failure";
 import { splitCheckOf, type SplitDraft } from "./split-request";
 import { includedIds } from "./split-summary";
@@ -88,12 +88,13 @@ export function SharedFields({
           defaultSplit.method === "BY_ALLOCATION"
             ? (defaultSplit.shares?.filter((s) => BigInt(s.amount) > 0n).map((s) => s.memberId) ??
               draft.selected)
-            : memberIds,
+            : defaultParticipantIds(context.members),
       });
-    // The plan's split is the API's to offer: without an answer the form is back to equal parts (P167).
+    // The plan's split is the API's to offer: without an answer the form is back to equal parts (P167), among
+    // every member but the VIEWERs (P293).
     else if (defaultSplit.status === "none" && draft.method === "BY_ALLOCATION")
-      onChange({ ...draft, method: "EQUAL", selected: memberIds });
-    // `memberIds` is derived from the context on every render; the draft and the answer are what trigger this.
+      onChange({ ...draft, method: "EQUAL", selected: defaultParticipantIds(context.members) });
+    // The context is derived on every render; the draft and the answer are what trigger this.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultSplit, draft, onChange]);
 
@@ -124,15 +125,17 @@ export function SharedFields({
   const { payer } = draft;
   const account =
     payer.kind === "ME" ? context.myAccounts.find((a) => a.id === payer.accountId)?.name : undefined;
+  // Ruling P291 (board E9-06 · 01): "Pagó Ana desde Bancolombia", the verb in bold, the recorder named too.
+  const b = (chunks: ReactNode) => <strong className="font-semibold">{chunks}</strong>;
   const paid =
     payer.kind === "FUND"
-      ? t("paidBy", { payer: context.funds.find((f) => f.id === payer.accountId)?.name ?? "" })
+      ? t.rich("paidBy", { b, payer: context.funds.find((f) => f.id === payer.accountId)?.name ?? "" })
       : payer.kind === "GUEST"
-        ? t("paidBy", { payer: label(payer.memberId) })
+        ? t.rich("paidBy", { b, payer: label(payer.memberId) })
         : account
           ? // A shared space holds only funds: a member pays from a personal account of their own (S7).
-            t("paidFromMine", { account })
-          : t("paidBy", { payer: label(payer.memberId) });
+            t.rich("paidFrom", { b, payer: nameOf(payer.memberId), account })
+          : t.rich("paidBy", { b, payer: label(payer.memberId) });
 
   const show = () => {
     setOpened(true);
@@ -143,7 +146,7 @@ export function SharedFields({
     <>
       <div className="flex flex-col gap-3">
         <button type="button" onClick={show} className={rowClass}>
-          <span className="font-medium text-ink">{paid}</span>
+          <span className="text-[15px] text-ink">{paid}</span>
           <Icon name="chevronRight" size={20} />
         </button>
         <div id={splitId} hidden={splitHidden} className="flex flex-col gap-1">

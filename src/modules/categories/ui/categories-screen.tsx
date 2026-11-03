@@ -72,7 +72,6 @@ export function CategoryTree({
   const [kind, setKind] = useState<Kind>("EXPENSE");
   const [open, setOpen] = useState<Open | null>(null);
   const [addingGroup, setAddingGroup] = useState(false);
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [problem, setProblem] = useState<Problem | null>(null);
   // The categories whose restore is in flight: each button waits, so a double tap sends one request.
   const [restoring, setRestoring] = useState<ReadonlySet<string>>(new Set());
@@ -107,13 +106,6 @@ export function CategoryTree({
     if (withCategory(tree, saved) === null) router.refresh();
   };
 
-  const toggle = (id: string) =>
-    setExpanded((current) => {
-      const next = new Set(current);
-      if (!next.delete(id)) next.add(id);
-      return next;
-    });
-
   const restore = async (category: CategoryDto) => {
     setProblem(null);
     setRestoring((current) => new Set(current).add(category.id));
@@ -139,15 +131,8 @@ export function CategoryTree({
       <ScreenHeader
         backHref={`/spaces/${space.id}`}
         title={t("title")}
-        subtitle={manage ? t("subtitle") : undefined}
-        action={
-          manage ? (
-            <Button size="icon" variant="secondary" onClick={() => setAddingGroup(true)}>
-              <Icon name="plus" />
-              <VisuallyHidden>{t("newGroup")}</VisuallyHidden>
-            </Button>
-          ) : null
-        }
+        subtitle={manage ? t("subtitle", { space: space.name }) : undefined}
+        action={manage ? <Plus label={t("newGroup")} onClick={() => setAddingGroup(true)} /> : null}
       />
       {manage ? null : (
         <p className="rounded-2xl bg-track p-3 text-sm text-ink">{t("readOnly", { space: space.name })}</p>
@@ -164,80 +149,41 @@ export function CategoryTree({
       />
       {shown.map((group) => (
         <section key={group.id} aria-labelledby={`group-${group.id}`} className="flex flex-col gap-1.5">
-          <h2 id={`group-${group.id}`} className="flex items-center gap-2 text-sm font-semibold text-muted">
+          {/* Board Categorías 01 (P292): a bold heading with its own "+" for a new category. */}
+          <div className="flex items-center gap-2">
             <CategoryIcon icon={group.icon} color={group.color} size={28} />
-            <span className="min-w-0 [overflow-wrap:anywhere]">{group.name}</span>
-          </h2>
+            <h2
+              id={`group-${group.id}`}
+              className="min-w-0 flex-1 text-base font-semibold [overflow-wrap:anywhere] text-ink"
+            >
+              {group.name}
+            </h2>
+            {manage ? (
+              <Plus
+                label={t("addCategory", { group: group.name })}
+                onClick={() => setOpen({ mode: "create", groupId: group.id })}
+              />
+            ) : null}
+          </div>
           <ul className="divide-y divide-line rounded-2xl bg-surface px-3">
             {group.categories.length === 0 ? (
               <li className="flex min-h-12 items-center text-sm text-muted">{t("emptyGroup")}</li>
             ) : null}
-            {group.categories.map((category) => {
-              const subs = category.subcategories;
-              const isOpen = expanded.has(category.id);
-              return (
-                <li key={category.id} className="flex flex-col">
-                  <div className="flex min-h-14 items-center gap-1">
-                    <CategoryLine
-                      category={category}
-                      detail={subs.length > 0 ? t("subcategoryCount", { count: subs.length }) : null}
-                      editLabel={manage ? t("edit", { name: category.name }) : null}
-                      onEdit={() => setOpen({ mode: "edit", id: category.id })}
-                    />
-                    {subs.length > 0 ? (
-                      <Button
-                        size="iconCompact"
-                        variant="ghost"
-                        aria-expanded={isOpen}
-                        aria-controls={isOpen ? `subs-${category.id}` : undefined}
-                        onClick={() => toggle(category.id)}
-                      >
-                        <Icon name="chevronDown" className={isOpen ? "rotate-180" : undefined} />
-                        <VisuallyHidden>{t("subcategoriesToggle", { name: category.name })}</VisuallyHidden>
-                      </Button>
-                    ) : null}
-                  </div>
-                  {subs.length > 0 && isOpen ? (
-                    <ul
-                      id={`subs-${category.id}`}
-                      aria-label={t("subcategoriesToggle", { name: category.name })}
-                      className="mb-2 ml-10 border-l border-line pl-3"
-                    >
-                      {subs.map((sub) => (
-                        <li key={sub.id} className="flex min-h-11 items-center gap-2">
-                          {/* HU-E3-05: a subcategory shows its parent's style. */}
-                          <CategoryIcon icon={sub.icon} color={sub.color} size={24} />
-                          {manage ? (
-                            <button
-                              type="button"
-                              aria-label={t("edit", { name: sub.name })}
-                              onClick={() => setOpen({ mode: "edit", id: sub.id })}
-                              className="flex min-h-11 flex-1 items-center text-left text-sm text-ink [overflow-wrap:anywhere]"
-                            >
-                              {sub.name}
-                            </button>
-                          ) : (
-                            <span className="text-sm text-ink [overflow-wrap:anywhere]">{sub.name}</span>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </li>
-              );
-            })}
+            {group.categories.map((category) => (
+              <li key={category.id}>
+                <CategoryLine
+                  category={category}
+                  detail={
+                    category.subcategories.length > 0
+                      ? category.subcategories.map((sub) => sub.name).join(" · ")
+                      : t("sheet.noSubcategories")
+                  }
+                  editLabel={manage ? t("edit", { name: category.name }) : null}
+                  onEdit={() => setOpen({ mode: "edit", id: category.id })}
+                />
+              </li>
+            ))}
           </ul>
-          {manage ? (
-            <Button
-              variant="ghost"
-              className="self-start"
-              aria-label={t("addCategory", { group: group.name })}
-              onClick={() => setOpen({ mode: "create", groupId: group.id })}
-            >
-              <Icon name="plus" size={20} />
-              {t("addCategoryShort")}
-            </Button>
-          ) : null}
         </section>
       ))}
       {archived.length > 0 ? (
@@ -280,6 +226,7 @@ export function CategoryTree({
           onSaved={place}
           onDeleted={(id) => setTree((current) => withoutCategory(current, id))}
           onGroupCreated={(group) => setTree((current) => withGroup(current, group))}
+          onEditSubcategory={(id) => setOpen({ mode: "edit", id })}
         />
       ) : null}
       {addingGroup ? (
@@ -297,7 +244,20 @@ export function CategoryTree({
   );
 }
 
-/** A category's row: its icon, name and subcategory count; a button that opens its sheet for who manages the tree. */
+/** A plain "+" of the board (P292): an icon on the page, 44 px, named by what it adds. */
+function Plus({ label, onClick }: { readonly label: string; readonly onClick: () => void }) {
+  return (
+    <Button size="iconCompact" variant="ghost" onClick={onClick}>
+      <Icon name="plus" />
+      <VisuallyHidden>{label}</VisuallyHidden>
+    </Button>
+  );
+}
+
+/**
+ * A category's row (board Categorías 01, P292): its icon, name and subcategories or "Sin subcategorías"; for who
+ * manages the tree, a button with a chevron that opens its sheet.
+ */
 function CategoryLine({
   category,
   detail,
@@ -305,17 +265,22 @@ function CategoryLine({
   onEdit,
 }: {
   readonly category: CategoryDto;
-  readonly detail: string | null;
+  readonly detail: string;
   readonly editLabel: string | null;
   readonly onEdit: () => void;
 }) {
   const body = (
     <>
       <CategoryIcon icon={category.icon} color={category.color} />
-      <span className="flex min-w-0 flex-col">
+      <span className="flex min-w-0 flex-1 flex-col">
         <span className="text-ink [overflow-wrap:anywhere]">{category.name}</span>
-        {detail ? <span className="text-sm text-muted">{detail}</span> : null}
+        <span className="text-sm [overflow-wrap:anywhere] text-muted">{detail}</span>
       </span>
+      {editLabel ? (
+        <span data-chevron className="shrink-0 text-ink">
+          <Icon name="chevronRight" size={20} />
+        </span>
+      ) : null}
     </>
   );
   return editLabel ? (
@@ -323,11 +288,11 @@ function CategoryLine({
       type="button"
       aria-label={editLabel}
       onClick={onEdit}
-      className="flex min-h-14 min-w-0 flex-1 items-center gap-3 text-left"
+      className="flex min-h-14 w-full min-w-0 items-center gap-3 py-1.5 text-left"
     >
       {body}
     </button>
   ) : (
-    <div className="flex min-h-14 min-w-0 flex-1 items-center gap-3">{body}</div>
+    <div className="flex min-h-14 min-w-0 items-center gap-3 py-1.5">{body}</div>
   );
 }

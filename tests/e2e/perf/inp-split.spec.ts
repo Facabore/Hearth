@@ -2,6 +2,7 @@ import { createRequire } from "node:module";
 import { expect, test } from "@playwright/test";
 import budgets from "../../performance/budgets.json" with { type: "json" };
 import { BASE_URL } from "../support/base-url";
+import { chooseCategory } from "../support/record";
 
 const WEB_VITALS = createRequire(import.meta.url).resolve("web-vitals"); // dist/web-vitals.umd.cjs: window.webVitals
 
@@ -67,8 +68,7 @@ test("INP stays within budget while editing a split on a 4× slower CPU (rulings
   await page.goto(`/spaces/${shared.id}/new`);
   await expect(page.locator("[data-ready='true']")).toBeAttached();
   await page.locator("#record-amount").pressSequentially("300000");
-  await page.getByRole("button", { name: /Categoría/ }).click();
-  await page.getByRole("radio").first().click();
+  await chooseCategory(page, /./);
   await page.getByRole("button", { name: "Más opciones" }).click();
   await page.getByRole("button", { name: /División/ }).click();
   await page.getByRole("radio", { name: "Porcentaje" }).click();

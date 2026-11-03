@@ -1,6 +1,7 @@
 import { createRequire } from "node:module";
 import { expect, test } from "@playwright/test";
 import budgets from "../../performance/budgets.json" with { type: "json" };
+import { chooseCategory } from "../support/record";
 
 const WEB_VITALS = createRequire(import.meta.url).resolve("web-vitals"); // dist/web-vitals.umd.cjs: window.webVitals
 
@@ -38,9 +39,10 @@ test("INP stays within budget over the record flow on a 4× slower CPU (ruling P
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
   await page.goto(`/spaces/${space.id}/new`);
   await expect(page.locator("[data-ready='true']")).toBeAttached();
-  await page.locator("#record-amount").pressSequentially("85000");
-  await page.getByRole("button", { name: /Categoría/ }).click();
-  await page.getByRole("radio").first().click();
+  await page.locator("#record-amount").pressSequentially("85");
+  // Ruling P291: the keypad writes into the amount too.
+  await page.getByRole("button", { name: "000", exact: true }).click();
+  await chooseCategory(page, /./);
   await page.getByTestId("when-chip").click();
   await page.getByRole("button", { name: "Una hora menos" }).click();
   await page.keyboard.press("Escape");

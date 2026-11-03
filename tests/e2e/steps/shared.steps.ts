@@ -1,6 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 import { Given, Then, When } from "../support/fixtures";
 import { minor, shown } from "../support/money";
+import { chooseCategory } from "../support/record";
 import type { World } from "../support/world";
 
 const METHOD_KEYS: Record<string, string> = {
@@ -54,8 +55,7 @@ const openForm = async (page: Page, world: World) => {
 const pick = async (page: Page, world: World, pesos: string, category: string) => {
   await page.getByLabel(world.t("ledger.form.amount")).fill(pesos.replaceAll(",", ""));
   await page.getByLabel(world.t("ledger.form.description")).fill(category);
-  await page.getByRole("button", { name: new RegExp(world.t("ledger.form.category")) }).click();
-  await page.getByRole("radio", { name: category }).click();
+  await chooseCategory(page, category);
 };
 const shareOf = async (page: Page, world: World, name: string) =>
   norm(
@@ -77,9 +77,13 @@ When(
   ) => {
     await openForm(page, world);
     await pick(page, world, pesos, category);
-    // The payer row reads "Pagas tú desde <cuenta> (tu cuenta personal)": it is found by what comes before the account.
-    const youPay = world.t("ledger.split.paidFromMine", { account: "@@" }).split("@@")[0]!.trim();
-    await page.getByRole("button", { name: new RegExp(`^${youPay}`) }).click();
+    // The payer row reads "Pagó Ana desde <cuenta>" (ruling P291): it is found by its verb, before the payer's name.
+    const paid = world
+      .t("ledger.split.paidFrom")
+      .split("{payer}")[0]!
+      .replace(/<\/?b>/g, "")
+      .trim();
+    await page.getByRole("button", { name: new RegExp(`^${paid} `) }).click();
     const sheet = splitSheet(page, world);
     await sheet
       .getByRole("radiogroup", { name: world.t("ledger.split.from") })

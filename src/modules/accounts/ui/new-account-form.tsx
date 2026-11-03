@@ -2,13 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useMemo, useState, type FormEvent } from "react";
+import { useId, useMemo, useState, type FormEvent } from "react";
 import {
   Button,
   ChoiceGroup,
   NumberField,
   ProblemNotice,
-  ScreenHeader,
+  Sheet,
   Switch,
   SymbolIcon,
   TextField,
@@ -31,7 +31,7 @@ import {
 import type { AccountType } from "./account-look";
 import { useAccountErrors } from "./use-account-errors";
 
-/** The type grid's icons: each type's default (the API's `iconOf`, P50). */
+/** The type grid's icons: each type's default (the API's `iconOf`, P50), but a loan draws board B1 · 08's bank (P292). */
 const TYPE_ICONS = {
   CASH: "cash",
   BANK: "bank",
@@ -39,12 +39,15 @@ const TYPE_ICONS = {
   CREDIT_CARD: "card",
   SAVINGS: "piggy",
   INVESTMENT: "trend",
-  LOAN: "coins",
+  LOAN: "bank",
   OTHER: "dots",
   SHARED_FUND: "users",
 } as const satisfies Record<AccountType, SymbolName>;
 
-/** HU-E9-03, the NewAccount artboard as a page: the type first, then only its attributes and the two switches. */
+/**
+ * HU-E9-03, the NewAccount artboard (board B1 · 08, P292): a sheet over Cuentas at the same address, the type first,
+ * then only its attributes and the two switches, and Crear cuenta anchored in the footer. Closing it returns to Cuentas.
+ */
 export function NewAccountForm({
   space,
   formats,
@@ -60,6 +63,7 @@ export function NewAccountForm({
   const t = useTranslations("accounts");
   const router = useRouter();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
+  const formId = useId();
   const [type, setType] = useState<AccountType | "">("");
   const [name, setName] = useState("");
   const [opening, setOpening] = useState("");
@@ -103,9 +107,26 @@ export function NewAccountForm({
   };
 
   return (
-    <div className="flex flex-col gap-3 py-3">
-      <ScreenHeader backHref={`/spaces/${space.id}/accounts`} title={t("newTitle")} />
-      <form onSubmit={(event) => void submit(event)} noValidate className="flex flex-col gap-3">
+    <Sheet
+      open
+      onOpenChange={(open) => {
+        if (!open) router.push(`/spaces/${space.id}/accounts`);
+      }}
+      title={t("newTitle")}
+      closeButton={false}
+      footer={
+        <Button type="submit" form={formId} size="lg" className="w-full" disabled={!type || pending}>
+          {t("create")}
+        </Button>
+      }
+    >
+      <form
+        id={formId}
+        aria-label={t("newTitle")}
+        onSubmit={(event) => void submit(event)}
+        noValidate
+        className="flex flex-col gap-3"
+      >
         <ChoiceGroup
           label={t("field.type")}
           layout="grid"
@@ -114,7 +135,7 @@ export function NewAccountForm({
           options={types.map((v) => ({
             value: v,
             label: (
-              <span className="flex flex-col items-center gap-1 py-2">
+              <span data-icon={TYPE_ICONS[v]} className="flex flex-col items-center gap-1 py-2">
                 <SymbolIcon name={TYPE_ICONS[v]} size={22} />
                 <span className="text-xs">{t(`type.${v}`)}</span>
               </span>
@@ -178,10 +199,7 @@ export function NewAccountForm({
           </>
         ) : null}
         {problem && where === "form" ? <ProblemNotice problem={problem} /> : null}
-        <Button type="submit" size="lg" disabled={!type || pending}>
-          {t("create")}
-        </Button>
       </form>
-    </div>
+    </Sheet>
   );
 }

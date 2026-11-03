@@ -1,5 +1,6 @@
 import { authorizeSpaceAction, type SpaceId } from "@/modules/spaces/application";
 import {
+  defaultSplitMembers,
   domainError,
   err,
   flatMap,
@@ -24,15 +25,23 @@ export interface ExpenseToSplit {
   readonly currency: string;
   readonly categoryId: string;
   readonly date: LocalDate;
-  /** The space's current members in join order, as the caller read them: the only members the split may name. */
+  /**
+   * The space's current members in join order but its VIEWERs, as the caller read them: the only members the split
+   * may name (ruling P293).
+   */
   readonly memberIds: readonly string[];
+  /**
+   * The space's current VIEWERs, read with `memberIds`. Ruling P293: they never take part in the default, but a
+   * capacity or a value stored before they became VIEWERs still makes the line's allocation hold (P263).
+   */
+  readonly viewerIds: readonly string[];
 }
 
 export interface DefaultSplit {
   readonly method: "BY_ALLOCATION" | "EQUAL";
   /** The line of the ACTIVE plan covering the date that the category consumes; null without one. */
   readonly lineId: string | null;
-  /** BY_ALLOCATION: the line's positive assigned amounts; EQUAL: 1 per current member. Join order. */
+  /** BY_ALLOCATION: the line's positive assigned amounts; EQUAL: 1 per member of `memberIds`. Join order. */
   readonly weights: readonly { readonly memberId: string; readonly weight: bigint }[];
 }
 
@@ -41,7 +50,9 @@ export interface DefaultSplit {
  * mapped line, else the catch-all line, HU-E6-04) in the ACTIVE plan covering the date, weighted by the line's
  * assigned amounts for the expense's `memberIds`, the positive ones only; EQUAL among them otherwise: no plan, a
  * DRAFT or CLOSED one, no line, a NONE line, or an allocation that does not hold (ruling P16). The caller read those
- * ids (the space's current members) and nobody else is ever named. It authorizes nothing: its callers have.
+ * ids (the space's current members but its VIEWERs, `defaultSplitMembers`) and nobody else is ever named; ruling
+ * P293: a VIEWER's stored figures still count when the line's allocation is judged, never as a weight. It authorizes
+ * nothing: its callers have.
  * HU-E3-04: an expense in a subcategory follows its parent's line, by the space's categories; a caller that read
  * them passes them as `categories`, and without them they are read here once, when a plan applies.
  */
@@ -65,10 +76,15 @@ export const defaultSplitOf = async (
   const lineId = lineForCategory(categoryId, parts);
   const line = parts.lines.find((l) => l.id === lineId);
   if (line === undefined) return equal(null);
-  const { assigned } = lineAssignment(line, parts, expense.memberIds, expense.currency);
+  // P293: the line is assigned among every current member, so a VIEWER's stored figures keep it holding (P263), and
+  // only then are the VIEWERs left out of the weights.
+  const current = [...expense.memberIds, ...expense.viewerIds];
+  const { assigned } = lineAssignment(line, parts, current, expense.currency);
   const weights =
     assigned.ok && assigned.value !== null
-      ? assigned.value.filter((a) => a.amount > 0n).map((a) => ({ memberId: a.memberId, weight: a.amount }))
+      ? assigned.value
+          .filter((a) => a.amount > 0n && expense.memberIds.includes(a.memberId))
+          .map((a) => ({ memberId: a.memberId, weight: a.amount }))
       : [];
   return weights.length === 0 ? equal(line.id) : { method: "BY_ALLOCATION", lineId: line.id, weights };
 };
@@ -115,7 +131,7 @@ export const createResolveDefaultSplit =
         currency: space.currency,
         categoryId: input.categoryId,
         date: input.date,
-        memberIds: members.map((m) => m.id),
+        ...defaultSplitMembers(members),
       },
       categories,
     );

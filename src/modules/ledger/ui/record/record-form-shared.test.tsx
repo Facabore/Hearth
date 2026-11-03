@@ -89,9 +89,9 @@ const form = (api: Api, shared = context()) =>
 const openMore = () => userEvent.click(screen.getByRole("button", { name: "Más opciones" }));
 const enter = async (pesos: string) => {
   await userEvent.type(screen.getByLabelText("Monto"), pesos);
-  await userEvent.click(screen.getByRole("button", { name: /Categoría/ }));
-  await userEvent.click(screen.getByRole("radio", { name: "Groceries" }));
-  await userEvent.click(screen.getByRole("button", { name: "Usar Groceries" }));
+  await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+  await userEvent.click(await screen.findByRole("radio", { name: "Groceries" }));
+  await userEvent.click(screen.getByRole("radio", { name: "Sin subcategoría" }));
   await openMore();
 };
 const divisionRow = () => screen.getByRole("button", { name: /División/ });
@@ -106,13 +106,13 @@ describe("the account a shared expense is paid from (issue #208)", () => {
 
   it("is never a savings account while the recorder has another one, when nothing was paid yet", () => {
     form(fakeApi({}).api, { ...context(), myAccounts: [SAVINGS, BANK] });
-    expect(payer()).toHaveTextContent("Pagas tú desde Bancolombia (tu cuenta personal)");
+    expect(payer()).toHaveTextContent("Pagó Ana desde Bancolombia");
   });
 
   it("is the account the recorder paid from last", () => {
     localStorage.setItem("hearth.lastAccount", "a-visa");
     form(fakeApi({}).api, { ...context(), myAccounts: [SAVINGS, BANK, VISA] });
-    expect(payer()).toHaveTextContent("Pagas tú desde Visa (tu cuenta personal)");
+    expect(payer()).toHaveTextContent("Pagó Ana desde Visa");
   });
 
   it("is remembered from a shared expense the recorder paid", async () => {
@@ -155,7 +155,7 @@ describe("shared expense (HU-E9-06)", () => {
     expect(screen.queryByRole("button", { name: /^Cuenta/ })).not.toBeInTheDocument();
     await enter("300000");
     expect(screen.getByRole("button", { name: /Pagas tú|Pagó/ })).toHaveTextContent(
-      "Pagas tú desde Bancolombia (tu cuenta personal)",
+      "Pagó Ana desde Bancolombia",
     );
     await waitFor(() =>
       expect(normalized(divisionRow().textContent)).toContain("Con Ana y Juan · mitad y mitad"),

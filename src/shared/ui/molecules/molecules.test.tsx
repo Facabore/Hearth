@@ -9,6 +9,18 @@ import { ProblemNotice } from "./problem-notice";
 import { Sheet } from "./sheet";
 
 describe("molecules", () => {
+  it("drops its close button under 1024 px when its board has only the drag handle, and draws what leads the title (P292)", () => {
+    renderWithIntl(
+      <Sheet open onOpenChange={vi.fn()} title="Espacios" closeButton={false} leading={<span>A</span>}>
+        <p>Contenido</p>
+      </Sheet>,
+    );
+    const dialog = screen.getByRole("dialog", { name: "Espacios" });
+    // Escape and the scrim still close it; above 1024 px, with no drag handle, the button stays.
+    expect(screen.getByRole("button", { name: "Cerrar" })).toHaveClass("max-lg:hidden");
+    expect(dialog).toHaveTextContent(/^As*Espacios/);
+  });
+
   it("loads a sheet's panel when it first opens and renders nothing while it is closed (ruling P134)", async () => {
     vi.resetModules();
     const { Sheet: FreshSheet } = await import("./sheet"); // a fresh module: its panel is not loaded yet

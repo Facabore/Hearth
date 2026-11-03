@@ -29,6 +29,15 @@ export const sectionsOf = (
   };
 };
 
+/**
+ * Board B1 · 07 (P292): a section's total, the sum of the balances the API gave its accounts (one space, one currency);
+ * nothing is computed here beyond that sum.
+ */
+export const totalOf = (accounts: readonly AccountDto[]): AccountDto["balance"] => ({
+  amount: accounts.reduce((sum, account) => sum + BigInt(account.balance.amount), 0n).toString(),
+  currency: accounts[0]!.balance.currency,
+});
+
 /** "11.2000" → "11,2": trailing zeros and a bare point dropped, then the person's number format. */
 export const rateText = (rate: string, formats: Pick<Formats, "numberFormat">): string =>
   formatNumber(rate.includes(".") ? rate.replace(/0+$/, "").replace(/\.$/, "") : rate, formats);
