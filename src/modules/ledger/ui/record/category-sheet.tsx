@@ -139,7 +139,9 @@ function SheetBody({
         />
       </div>
     ) : null;
-  const panel = "flex flex-col gap-2 rounded-2xl bg-track p-3";
+  // The tinted panel's chips are white, as the board draws them; the chosen one keeps its own tint.
+  const panel =
+    "flex flex-col gap-2 rounded-2xl bg-track p-3 [&_[role=radio][data-state=unchecked]]:bg-surface";
   return (
     <div className="flex flex-col gap-3">
       <label className="relative flex items-center">
