@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { ACCOUNT_ICONS, ACCOUNT_TYPES, switchesOf } from "@/modules/accounts/domain/account";
+import {
+  ACCOUNT_ICONS,
+  ACCOUNT_PRODUCT_TYPES,
+  ACCOUNT_TYPES,
+  productTypesOf,
+  switchesOf,
+} from "@/modules/accounts/domain/account";
 import { accountDto, cop } from "../../../../tests/support/ui/dto";
 import {
   accountBodyOf,
@@ -9,7 +15,7 @@ import {
   FIELDS_BY_TYPE,
   SWITCH_DEFAULTS,
 } from "./account-fields";
-import { ACCOUNT_ICON_CHOICES } from "./account-look";
+import { ACCOUNT_ICON_CHOICES, PRODUCT_TYPE_CHOICES } from "./account-look";
 
 describe("account form fields (HU-E9-03, ruling P131)", () => {
   it("shows each type's default switches exactly as the API applies them", () => {
@@ -18,6 +24,12 @@ describe("account form fields (HU-E9-03, ruling P131)", () => {
         switchesOf({ type, includeInAvailable: null, includeInNetWorth: null }),
       );
     }
+  });
+
+  it("asks for a product type exactly where the API takes one, with the API's choices (P295)", () => {
+    expect(PRODUCT_TYPE_CHOICES).toEqual(ACCOUNT_PRODUCT_TYPES);
+    for (const type of ACCOUNT_TYPES)
+      expect(FIELDS_BY_TYPE[type].includes("productType")).toBe(productTypesOf(type).length > 0);
   });
 
   it("asks a card for its limit, days and rate, and cash for nothing", () => {

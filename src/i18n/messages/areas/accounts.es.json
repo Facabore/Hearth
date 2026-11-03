@@ -43,7 +43,13 @@
       "termDays": "Plazo en días",
       "maturityDate": "Vencimiento",
       "principal": "Monto del crédito",
-      "termMonths": "Plazo en meses"
+      "termMonths": "Plazo en meses",
+      "productType": "Producto"
+    },
+    "productType": {
+      "none": "Sin indicar",
+      "SAVINGS_ACCOUNT": "Ahorros",
+      "CHECKING_ACCOUNT": "Corriente"
     },
     "type": {
       "BANK": "Banco",

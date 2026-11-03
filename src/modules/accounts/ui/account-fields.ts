@@ -19,6 +19,7 @@ export const PERSONAL_TYPES = [
 
 export type AccountField =
   | "institution"
+  | "productType"
   | "lastFour"
   | "creditLimit"
   | "cutOffDay"
@@ -33,10 +34,10 @@ export type AccountField =
 /**
  * HU-E2-06: the attributes the form asks per type, within the API's allow-list (ruling P131). Issue #164: a wallet is
  * not asked for Last 4 (Nequi and Daviplata go by phone, not by four digits); the API still takes it, and a wallet
- * that has one still shows it.
+ * that has one still shows it. Ruling P295: a bank is also asked which product it is (`productTypesOf`, pinned by a test).
  */
 export const FIELDS_BY_TYPE: Readonly<Record<AccountType, readonly AccountField[]>> = {
-  BANK: ["institution", "lastFour"],
+  BANK: ["institution", "productType", "lastFour"],
   WALLET: ["institution"],
   CASH: [],
   CREDIT_CARD: ["institution", "lastFour", "creditLimit", "cutOffDay", "paymentDay", "monthlyRate"],
@@ -83,7 +84,7 @@ export interface AccountDraft {
 const MONEY_TERMS: readonly AccountField[] = ["creditLimit", "principal"];
 const INTEGER_TERMS: readonly AccountField[] = ["cutOffDay", "paymentDay", "termDays", "termMonths"];
 const RATE_TERMS: readonly AccountField[] = ["monthlyRate", "annualRate"];
-const COMMON: readonly AccountField[] = ["institution", "lastFour"];
+const COMMON: readonly AccountField[] = ["institution", "productType", "lastFour"];
 
 type Built = { ok: true; body: Record<string, unknown> } | { ok: false; field: "opening" | AccountField };
 
@@ -170,9 +171,10 @@ export const editOf = (account: AccountDto, numberFormat: NumberFormat): Account
   const fields: Partial<Record<AccountField, string>> = {};
   for (const field of FIELDS_BY_TYPE[account.type]) {
     const stored = COMMON.includes(field)
-      ? account[field as "institution" | "lastFour"]
+      ? account[field as "institution" | "productType" | "lastFour"]
       : account.terms[field as keyof AccountDto["terms"]];
-    if (stored === null) continue;
+    // An answer from before P295 may leave the product type out.
+    if (stored === null || stored === undefined) continue;
     if (typeof stored === "object") fields[field] = money(stored.amount);
     else if (RATE_TERMS.includes(field)) fields[field] = rate(String(stored));
     else fields[field] = String(stored);

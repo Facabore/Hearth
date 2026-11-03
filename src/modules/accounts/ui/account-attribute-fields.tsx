@@ -6,7 +6,7 @@ import { currencyOf } from "@/shared/ui/format/currencies";
 import type { Formats } from "@/shared/ui/format/formatters";
 import type { NumberRule } from "@/shared/ui/format/number-input";
 import { FIELDS_BY_TYPE, type AccountField } from "./account-fields";
-import type { AccountType } from "./account-look";
+import { PRODUCT_TYPE_CHOICES, type AccountType } from "./account-look";
 
 /** Issue #164: how each number attribute is typed, and the example under it (as a decimal) when the kind's is not apt. */
 const NUMBER_FIELDS: Partial<
@@ -45,6 +45,35 @@ export function AccountAttributeFields({
   const currency = currencyOf(code);
   return FIELDS_BY_TYPE[type].map((field) => {
     const number = NUMBER_FIELDS[field];
+    const error = errorOf(field);
+    // Ruling P295: a closed list, so a native select; its empty choice leaves the product unsaid.
+    if (field === "productType")
+      return (
+        <div key={field} className="flex flex-col gap-1.5">
+          <label htmlFor={`${idPrefix}-${field}`} className="text-sm font-medium text-ink">
+            {t(`field.${field}`)}
+          </label>
+          <select
+            id={`${idPrefix}-${field}`}
+            value={values[field] ?? ""}
+            onChange={(event) => onChange(field, event.target.value)}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? `${idPrefix}-${field}-error` : undefined}
+            className="h-[52px] w-full rounded-xl border border-field bg-surface px-3 text-base text-ink"
+          >
+            {(["none", ...PRODUCT_TYPE_CHOICES] as const).map((value) => (
+              <option key={value} value={value === "none" ? "" : value}>
+                {t(`productType.${value}`)}
+              </option>
+            ))}
+          </select>
+          {error ? (
+            <p id={`${idPrefix}-${field}-error`} className="text-sm text-danger">
+              {error}
+            </p>
+          ) : null}
+        </div>
+      );
     return number ? (
       <NumberField
         key={field}

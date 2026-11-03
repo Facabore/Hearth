@@ -26,10 +26,10 @@ export function AccountRow({
   const color = colorOf(account);
   const { terms, derived } = account;
   const details: string[] = [];
-  if (account.institution || account.lastFour)
-    details.push(
-      [account.institution, account.lastFour ? `···${account.lastFour}` : null].filter(Boolean).join(" "),
-    );
+  // Board B1 · 07 (P295): a bank's product type reads before its last four ("Ahorros ···1203"), else the institution.
+  const label = account.productType ? t(`productType.${account.productType}`) : account.institution;
+  if (label || account.lastFour)
+    details.push([label, account.lastFour ? `···${account.lastFour}` : null].filter(Boolean).join(" "));
   if (account.type === "CREDIT_CARD") {
     if (terms.creditLimit) details.push(t("card.limit", { amount: formatMoney(terms.creditLimit, formats) }));
     if (derived.availableCredit)

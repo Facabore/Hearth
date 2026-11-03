@@ -48,6 +48,30 @@ describe("accounts screen (HU-E9-03)", () => {
     expect(norm(screen.getByRole("listitem", { name: /Daviplata/ }).textContent)).toContain("···7788");
   });
 
+  it("reads a bank's product type before its last four, as board B1 07 does, and keeps the institution otherwise (P295)", () => {
+    const savings = accountDto({
+      id: "a-savings",
+      name: "Bancolombia",
+      institution: "Bancolombia",
+      lastFour: "1203",
+      productType: "SAVINGS_ACCOUNT",
+    });
+    const checking = accountDto({ id: "a-checking", name: "Davivienda", productType: "CHECKING_ACCOUNT" });
+    const unset = accountDto({ id: "a-unset", name: "BBVA", institution: "BBVA", lastFour: "4821" });
+    renderWithIntl(
+      <AccountsScreen
+        spaceId="sp-personal"
+        list={{ ...list, items: [savings, checking, unset] }}
+        formats={BUILT_IN_FORMATS}
+      />,
+    );
+    const subtitle = (name: RegExp) => norm(screen.getByRole("listitem", { name }).textContent);
+    expect(subtitle(/Bancolombia/)).toContain("Ahorros ···1203");
+    expect(subtitle(/Bancolombia/)).not.toContain("Bancolombia ···");
+    expect(subtitle(/Davivienda/)).toContain("Corriente");
+    expect(subtitle(/BBVA/)).toContain("BBVA ···4821");
+  });
+
   it("wraps the totals instead of overflowing a narrow screen, and keeps each amount whole (S2)", () => {
     renderWithIntl(<AccountsScreen spaceId="sp-personal" list={list} formats={BUILT_IN_FORMATS} />);
     const totals = screen.getByRole("region", { name: "Totales" });

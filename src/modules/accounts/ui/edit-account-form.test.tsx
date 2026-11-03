@@ -102,6 +102,32 @@ describe("edit account form (issue 169)", () => {
     expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/accounts");
   });
 
+  it("starts a bank from its stored product type, sends a change, and clears it with null (P295)", async () => {
+    const bank = accountDto({ id: "a-bank", name: "Bancolombia", productType: "SAVINGS_ACCOUNT" });
+    const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse(bank) });
+    const edit = () =>
+      renderWithIntl(
+        <EditAccountForm space={spaceDto()} account={bank} formats={BUILT_IN_FORMATS} api={api} />,
+      );
+    const first = edit();
+    expect(screen.getByLabelText("Producto")).toHaveValue("SAVINGS_ACCOUNT");
+    await userEvent.selectOptions(screen.getByLabelText("Producto"), "Corriente");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    expect(await requests[0]!.json()).toEqual({ productType: "CHECKING_ACCOUNT" });
+    first.unmount();
+
+    edit();
+    await userEvent.selectOptions(screen.getByLabelText("Producto"), "Sin indicar");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    expect(await requests[1]!.json()).toEqual({ productType: null });
+  });
+
+  it("does not ask a card for a product type", () => {
+    const { api } = fakeApi({});
+    render(api);
+    expect(screen.queryByLabelText("Producto")).toBeNull();
+  });
+
   it("says a rate it cannot read is a number, with a rate as the example, and sends nothing", async () => {
     const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse(visa) });
     render(api);
