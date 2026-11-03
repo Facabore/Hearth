@@ -11,15 +11,21 @@ import {
   smallint,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { accounts } from "@/modules/accounts/infrastructure/accounts.schema";
 import { categories } from "@/modules/categories/infrastructure/categories.schema";
 import { spaceMembers, spaces } from "@/modules/spaces/infrastructure/spaces.schema";
+import { oneOf } from "@/shared/infrastructure/db/checks";
 import type { ChangeSet } from "../domain/transaction";
 
 const tz = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 const money = (name: string) => bigint(name, { mode: "bigint" });
+
+// #249, M1-9: the domain's SplitMethod and the audit actions (ports.ts), also the contract's enums; a CHECK keeps each.
+const SPLIT_METHODS = ["EQUAL", "PERCENT", "EXACT", "SHARES", "BY_ALLOCATION"] as const;
+const AUDIT_ACTIONS = ["UPDATED", "DELETED", "RESTORED"] as const;
 
 export const transactions = pgTable(
   "transactions",
@@ -112,14 +118,15 @@ export const shares = pgTable(
       .notNull()
       .references(() => spaceMembers.id),
     amount: money("amount").notNull(),
-    splitMethod: text("split_method", {
-      enum: ["EQUAL", "PERCENT", "EXACT", "SHARES", "BY_ALLOCATION"],
-    }).notNull(),
+    splitMethod: text("split_method", { enum: SPLIT_METHODS }).notNull(),
   },
   (t) => [
     primaryKey({ columns: [t.transactionId, t.position] }),
     index("shares_member_idx").on(t.memberId),
+    // #249, M1-9: one share per member of a transaction (the split refuses a duplicate participant).
+    uniqueIndex("shares_transaction_member_uq").on(t.transactionId, t.memberId),
     check("shares_amount_positive", sql`${t.amount} > 0`),
+    check("shares_split_method", oneOf(t.splitMethod, SPLIT_METHODS)),
   ],
 );
 
@@ -130,10 +137,13 @@ export const transactionAudit = pgTable(
     transactionId: uuid("transaction_id")
       .notNull()
       .references(() => transactions.id, { onDelete: "cascade" }),
-    action: text("action", { enum: ["UPDATED", "DELETED", "RESTORED"] }).notNull(),
+    action: text("action", { enum: AUDIT_ACTIONS }).notNull(),
     actorUserId: text("actor_user_id").notNull(),
     at: tz("at").notNull(),
     changes: jsonb("changes").$type<ChangeSet>().notNull(),
   },
-  (t) => [index("transaction_audit_transaction_idx").on(t.transactionId, t.at)],
+  (t) => [
+    index("transaction_audit_transaction_idx").on(t.transactionId, t.at),
+    check("transaction_audit_action", oneOf(t.action, AUDIT_ACTIONS)),
+  ],
 );

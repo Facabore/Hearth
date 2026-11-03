@@ -148,6 +148,13 @@
       "when": 1793388973742,
       "tag": "0020_invitation_uses",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793664535090,
+      "tag": "0021_ledger_vocabulary",
+      "breakpoints": true
     }
   ]
 }

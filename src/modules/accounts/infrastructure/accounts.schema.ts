@@ -14,6 +14,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { user } from "@/modules/identity/infrastructure/auth.schema";
 import { spaces } from "@/modules/spaces/infrastructure/spaces.schema";
+import { oneOf } from "@/shared/infrastructure/db/checks";
 import { PALETTE } from "@/shared/kernel";
 import { ACCOUNT_ICONS, ACCOUNT_TYPES } from "../domain/account";
 import { MAX_BILLING_DAY, MAX_TERM_DAYS, MAX_TERM_MONTHS, MIN_BILLING_DAY } from "../domain/account-terms";
@@ -60,6 +61,8 @@ export const accounts = pgTable(
   },
   (t) => [
     uniqueIndex("accounts_space_name_uq").on(t.spaceId, sql`lower(${t.name})`),
+    // #249, M1-9: the domain's ACCOUNT_TYPES; a new type needs a migration, which db:check asks for.
+    check("accounts_type", oneOf(t.type, ACCOUNT_TYPES)),
     check("accounts_shared_fund_owner", sql`(${t.type} = 'SHARED_FUND') = (${t.ownerUserId} IS NULL)`),
     // HU-E2-05: only the last four digits, never a full card or account number.
     check("accounts_last_four", sql`${t.lastFour} ~ '^[0-9]{4}$'`),
