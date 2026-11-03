@@ -169,6 +169,13 @@
       "when": 1793665320301,
       "tag": "0023_line_category_plan",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793665454555,
+      "tag": "0024_claim_guest_space",
+      "breakpoints": true
     }
   ]
 }

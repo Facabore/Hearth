@@ -318,6 +318,15 @@ const guarded: Record<string, readonly Guard[]> = {
       fixIt: (w) => ["UPDATE budget_line_categories SET plan_id = $2 WHERE line_id = $1", [w.line, w.plan]],
     },
   ],
+  "0024_claim_guest_space": [
+    {
+      name: "a claim link whose guest belongs to another space",
+      breakIt: (w) => ["UPDATE space_invitations SET space_id = $2 WHERE id = $1", [w.claim, w.personal]],
+      refusal: /0024_claim_guest_space: claim links whose guest belongs to another space: [0-9a-f-]{36}/,
+      readBack: (w) => ["SELECT space_id AS v FROM space_invitations WHERE id = $1", [w.claim]],
+      fixIt: (w) => ["UPDATE space_invitations SET space_id = $2 WHERE id = $1", [w.claim, w.household]],
+    },
+  ],
 };
 
 describe.each(Object.entries(guarded))("migration %s on existing rows (#249)", (tag, guards) => {

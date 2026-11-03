@@ -5,7 +5,11 @@ import { ALLOCATION_RULES, FUNDINGS, ROLLOVER_MODES } from "@/modules/budgeting/
 import { PLAN_STATUSES } from "@/modules/budgeting/domain/plan";
 import { AuditEntrySchema, ShareSchema } from "@/modules/ledger/contracts/ledger.contract";
 import { testDatabase } from "../../tests/support/database";
-import { sharedLedgerFixture, type SharedLedgerFixture } from "../../tests/support/fixtures";
+import {
+  guestMemberFixture,
+  sharedLedgerFixture,
+  type SharedLedgerFixture,
+} from "../../tests/support/fixtures";
 
 // #249: the invariants the database keeps on its own, so a writer that skips the app still cannot break them. Each
 // constraint refuses a bad row here; every value the domain and the contract know is accepted, and the integration and
@@ -172,5 +176,35 @@ describe("a category mapping names its line's plan (#249, M3A-3)", () => {
     const lineId = await line(own);
     await expect(mapping(other, lineId, w.groceries)).rejects.toThrow(/budget_line_categories_line_plan_fk/);
     await expect(mapping(own, lineId, w.groceries)).resolves.toBeDefined();
+  });
+});
+
+/** A pending CLAIM link of `spaceId` that hands over `guestMemberId`'s place. */
+const claimLink = (spaceId: string, guestMemberId: string) =>
+  pool.query(
+    `INSERT INTO space_invitations (id, space_id, kind, role, token_hash, status, created_by, created_at, expires_at,
+       guest_member_id)
+     VALUES ($1, $2, 'CLAIM', 'MEMBER', $3, 'PENDING', $4, now(), now() + interval '7 days', $5)`,
+    [randomUUID(), spaceId, randomUUID(), w.household.userId, guestMemberId],
+  );
+
+describe("a claim link's guest belongs to the link's space (#249, M2C-D3)", () => {
+  it("accepts a guest of the link's space and refuses one of another space", async () => {
+    const elsewhere = await guestMemberFixture(pool, w.personal, "Juan");
+    await expect(claimLink(w.household.spaceId, w.pedro)).resolves.toBeDefined();
+    await expect(claimLink(w.household.spaceId, elsewhere)).rejects.toThrow(
+      /space_invitations_guest_space_fk/,
+    );
+  });
+
+  it("still goes with its guest when the guest's row is deleted", async () => {
+    const guest = await guestMemberFixture(pool, w.household, "Lucía");
+    await claimLink(w.household.spaceId, guest);
+    await pool.query("DELETE FROM space_members WHERE id = $1", [guest]);
+    const left = await pool.query(
+      "SELECT count(*)::int AS n FROM space_invitations WHERE guest_member_id = $1",
+      [guest],
+    );
+    expect(left.rows[0].n).toBe(0);
   });
 });

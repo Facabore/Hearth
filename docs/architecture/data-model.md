@@ -153,7 +153,7 @@ erDiagram
 | `space_invitations.space_id` | `spaces.id` | no | CASCADE | The space the invitation is for. |
 | `space_invitations.created_by` | `user.id` | no | CASCADE | The user who created the invitation. |
 | `space_invitations.accepted_by_user_id` | `user.id` | yes | SET NULL | The user who accepted it; cleared if that user is deleted. |
-| `space_invitations.guest_member_id` | `space_members.id` | yes | CASCADE | The guest whose place a CLAIM link hands over; set exactly for CLAIM invitations. |
+| `space_invitations.guest_member_id`, `space_id` | `space_members.id`, `space_id` | yes | CASCADE | The guest whose place a CLAIM link hands over, a member of the link's space (`space_invitations_guest_space_fk`, #249); set exactly for CLAIM invitations. |
 
 **Unique indexes and checks.**
 
@@ -182,6 +182,7 @@ erDiagram
 **`space_members`**
 - Unique index `space_members_current_user_uq`: `(space_id, user_id)` where `left_at IS NULL` (one current row per user and space).
 - Unique index `space_members_current_name_uq`: `(space_id, lower(display_name))` where `left_at IS NULL`.
+- Unique `space_members_id_space_uq`: `(id, space_id)`, the key a claim link's guest points at (#249).
 - Check `space_members_guest_user`: `(kind = 'GUEST') = (user_id IS NULL)`.
 - Check `space_members_guest_role`: `(kind = 'GUEST') = (role IS NULL)`.
 - Check `space_members_contact_email`: `contact_email IS NULL OR kind = 'GUEST'`.
@@ -829,5 +830,6 @@ One line per migration, from the file in [`drizzle/`](https://github.com/Facabor
 | [`0021_ledger_vocabulary.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0021_ledger_vocabulary.sql) | The checks `accounts_type`, `shares_split_method` and `transaction_audit_action`, and one share per member of a transaction (`shares_transaction_member_uq`). | Issue #249, M1-9 |
 | [`0022_budgeting_vocabulary.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0022_budgeting_vocabulary.sql) | The checks `budget_plans_status`, `budget_lines_funding`, `budget_lines_rollover_mode`, `budget_lines_allocation_rule` and `budget_allocations_rule`. | Issue #249, M3A-2 |
 | [`0023_line_category_plan.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0023_line_category_plan.sql) | The unique key `(id, plan_id)` of `budget_lines`; a category mapping points at it with its `plan_id`, so that plan is its line's. | Issue #249, M3A-3 |
+| [`0024_claim_guest_space.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0024_claim_guest_space.sql) | The unique key `(id, space_id)` of `space_members`; a claim link points at it with its `space_id`, so its guest is a member of its space. | Issue #249, M2C-D3 |
 
 Migrations are forward-only (see [Rolling back](../operations/deploy.md#rolling-back)). A migration that changes tables updates this page in the same pull request.
