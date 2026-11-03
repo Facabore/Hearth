@@ -122,6 +122,29 @@ describe("edit account form (issue 169)", () => {
     expect(await requests[1]!.json()).toEqual({ productType: null });
   });
 
+  it("shows a card's available credit and its institution on its own screen, where the row no longer does (P298)", () => {
+    const card = accountDto({
+      ...visa,
+      institution: "Bancolombia",
+      derived: { ...visa.derived, availableCredit: cop(4_650_000) },
+    });
+    renderWithIntl(
+      <EditAccountForm space={spaceDto()} account={card} formats={BUILT_IN_FORMATS} api={fakeApi({}).api} />,
+    );
+    const available = screen.getByText("Disponible").closest("[data-available]");
+    expect(available?.textContent?.replace(/\s/g, " ")).toBe("Disponible$ 4.650.000");
+    expect(screen.getByLabelText("Entidad")).toHaveValue("Bancolombia");
+  });
+
+  it("says nothing about available credit for a card without a limit, nor for another type", () => {
+    const { api } = fakeApi({});
+    const bank = accountDto({ id: "a-bank", name: "Bancolombia" });
+    renderWithIntl(
+      <EditAccountForm space={spaceDto()} account={bank} formats={BUILT_IN_FORMATS} api={api} />,
+    );
+    expect(screen.queryByText("Disponible")).toBeNull();
+  });
+
   it("does not ask a card for a product type", () => {
     const { api } = fakeApi({});
     render(api);

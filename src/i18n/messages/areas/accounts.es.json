@@ -15,7 +15,6 @@
     "outsideAvailable": "fuera del disponible",
     "card": {
       "limit": "cupo {amount}",
-      "available": "disponible {amount}",
       "payBy": "paga antes del {date}"
     },
     "savings": {

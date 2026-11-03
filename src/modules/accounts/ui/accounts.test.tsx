@@ -28,6 +28,8 @@ const list = {
       name: "Visa",
       type: "CREDIT_CARD",
       balance: cop(-350_000),
+      institution: "Bancolombia",
+      lastFour: "4821",
       icon: "card",
       includeInAvailable: false,
       terms: { ...accountDto().terms, creditLimit: cop(5_000_000), paymentDay: 15 },
@@ -93,10 +95,11 @@ describe("accounts screen (HU-E9-03)", () => {
     expect(norm(bank.textContent)).not.toContain("fuera del disponible");
     const visa = screen.getByRole("listitem", { name: /Visa/ });
     expect(norm(visa.textContent)).toContain("−$ 350.000");
-    // Board B1 · 07 (P292): the card's figures read as one lower-case line.
-    expect(norm(visa.textContent)).toContain(
-      "cupo $ 5.000.000 · disponible $ 4.650.000 · paga antes del 15/11/2026",
-    );
+    // Board B1 · 07 (P298): the card's last four, limit and payment date, one lower-case line; the available credit
+    // and the institution live on the card's own screen.
+    expect(norm(visa.textContent)).toContain("···4821 · cupo $ 5.000.000 · paga antes del 15/11/2026");
+    expect(norm(visa.textContent)).not.toContain("disponible $");
+    expect(norm(visa.textContent)).not.toContain("Bancolombia");
     expect(norm(visa.textContent)).toContain("fuera del disponible");
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
       "Bancos, billeteras y efectivo",
