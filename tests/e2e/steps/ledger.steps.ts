@@ -14,6 +14,12 @@ const onScreen = (world: { t: (key: string) => string }, english: string) => {
   const [day = "", time = ""] = english.split(" · ");
   return `${world.t(DAY_KEYS[day]!)} · ${time}`;
 };
+/**
+ * The form's date and time row, by its whole name: it shows its label beside the value, so only the name pins the
+ * value exactly ("Fecha y hora: Hoy · 23:30. Cambiar").
+ */
+const whenRow = (world: { t: (key: string, values?: Record<string, string>) => string }, english: string) =>
+  world.t("ledger.form.when", { label: onScreen(world, english) });
 const norm = (text: string | null) => (text ?? "").replace(/\s+/g, " ").trim();
 const cop = (pesos: string) => ({ amount: minor(pesos), currency: "COP" });
 /** 2026-10-31 at 12:00 in Bogotá, the day the accounts scenario's movements happen. */
@@ -53,7 +59,7 @@ When("{string} opens the new expense form", async ({ page, world }, name: string
 });
 
 Then("the date and time chip reads {string}", async ({ page, world }, chip: string) => {
-  await expect(page.getByTestId("when-chip")).toContainText(onScreen(world, chip), { useInnerText: true });
+  await expect(page.getByTestId("when-chip")).toHaveAccessibleName(whenRow(world, chip));
 });
 
 When(
@@ -305,5 +311,5 @@ Then("the chip reads {string}", async ({ page, world }, chip: string) => {
     // ledger.when.apply is a select per day ("Usar hoy · …", "Usar 1/10/2026 · …"): its one fixed word starts it.
     .getByRole("button", { name: /^Usar / })
     .click();
-  await expect(page.getByTestId("when-chip")).toContainText(onScreen(world, chip), { useInnerText: true });
+  await expect(page.getByTestId("when-chip")).toHaveAccessibleName(whenRow(world, chip));
 });
