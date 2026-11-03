@@ -34,53 +34,67 @@ import {
 import { MoneySchema, PeriodSchema, ProblemSchema } from "@/shared/http/contracts";
 import { healthPaths, openApiPaths } from "@/shared/http/system.contract";
 
+/**
+ * #84 M1-5: a request's amount is held to PostgreSQL's bigint range, but an answer's balances and totals are sums of
+ * such amounts and may leave it. The answers' Money (MoneyOutput) documents any integer string.
+ */
+const ANY_INTEGER = String.raw`^-?\d+$`;
+const moneyAmount = MoneySchema.shape.amount;
+
 export const buildOpenApiDocument = (): Record<string, unknown> =>
-  createDocument({
-    // zod-openapi 6 types target OAS 3.2; we emit 3.1.0 by design (ADR 0002).
-    openapi: "3.1.0" as ZodOpenApiObject["openapi"],
-    info: { title: "Hearth API", version: "1.0.0" },
-    paths: {
-      ...healthPaths,
-      ...openApiPaths,
-      ...mePaths,
-      ...authPaths,
-      ...spacesPaths,
-      ...categoriesPaths,
-      ...accountsPaths,
-      ...ledgerPaths,
-      ...recurrencesPaths,
-      ...balancesPaths,
-      ...budgetingPaths,
-      ...reportingPaths,
-    },
-    components: {
-      schemas: {
-        Money: MoneySchema,
-        Problem: ProblemSchema,
-        Category: CategorySchema,
-        CategoryGroup: CategoryGroupSchema,
-        CategoryGroupSummary: CategoryGroupSummarySchema,
-        Account: AccountSchema,
-        Space: SpaceSummarySchema,
-        SpaceMember: SpaceMemberSchema,
-        Invitation: InvitationSchema,
-        InvitationPreview: InvitationPreviewSchema,
-        ClaimPreview: ClaimPreviewSchema,
-        Period: PeriodSchema,
-        Transaction: TransactionSchema,
-        RecordedExpense: RecordedExpenseSchema,
-        ConvertedTransaction: ConvertedTransactionSchema,
-        RecurrenceDefinition: DefineRecurrenceBodySchema,
-        BudgetPlan: BudgetPlanSchema,
-        Recurrence: RecurrenceSchema,
-        Occurrence: OccurrenceSchema,
+  createDocument(
+    {
+      // zod-openapi 6 types target OAS 3.2; we emit 3.1.0 by design (ADR 0002).
+      openapi: "3.1.0" as ZodOpenApiObject["openapi"],
+      info: { title: "Hearth API", version: "1.0.0" },
+      paths: {
+        ...healthPaths,
+        ...openApiPaths,
+        ...mePaths,
+        ...authPaths,
+        ...spacesPaths,
+        ...categoriesPaths,
+        ...accountsPaths,
+        ...ledgerPaths,
+        ...recurrencesPaths,
+        ...balancesPaths,
+        ...budgetingPaths,
+        ...reportingPaths,
       },
-      securitySchemes: {
-        cookieAuth: { type: "apiKey", in: "cookie", name: "hearth.session_token" },
-        bearerAuth: { type: "http", scheme: "bearer" },
+      components: {
+        schemas: {
+          Money: MoneySchema,
+          Problem: ProblemSchema,
+          Category: CategorySchema,
+          CategoryGroup: CategoryGroupSchema,
+          CategoryGroupSummary: CategoryGroupSummarySchema,
+          Account: AccountSchema,
+          Space: SpaceSummarySchema,
+          SpaceMember: SpaceMemberSchema,
+          Invitation: InvitationSchema,
+          InvitationPreview: InvitationPreviewSchema,
+          ClaimPreview: ClaimPreviewSchema,
+          Period: PeriodSchema,
+          Transaction: TransactionSchema,
+          RecordedExpense: RecordedExpenseSchema,
+          ConvertedTransaction: ConvertedTransactionSchema,
+          RecurrenceDefinition: DefineRecurrenceBodySchema,
+          BudgetPlan: BudgetPlanSchema,
+          Recurrence: RecurrenceSchema,
+          Occurrence: OccurrenceSchema,
+        },
+        securitySchemes: {
+          cookieAuth: { type: "apiKey", in: "cookie", name: "hearth.session_token" },
+          bearerAuth: { type: "http", scheme: "bearer" },
+        },
       },
     },
-  }) as unknown as Record<string, unknown>;
+    {
+      override: ({ jsonSchema, zodSchema, io }) => {
+        if (io === "output" && zodSchema === moneyAmount) jsonSchema.pattern = ANY_INTEGER;
+      },
+    },
+  ) as unknown as Record<string, unknown>;
 
 type Paths = Record<string, Record<string, unknown>>;
 

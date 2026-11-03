@@ -15148,7 +15148,7 @@
         "properties": {
           "amount": {
             "type": "string",
-            "pattern": "^-?\\d{1,19}$"
+            "pattern": "^-?\\d+$"
           },
           "currency": {
             "type": "string",
