@@ -110,9 +110,11 @@ describe("profile sheet (HU-E9-01)", () => {
     expect(open.querySelector("[aria-hidden='true']")).toHaveClass("bg-ink", "text-surface");
     await userEvent.click(open);
     const sheet = await screen.findByRole("dialog", { name: "Ana" }, { timeout: 10_000 });
+    // Board B1 · 05: the avatar sits beside the name in the sheet's header, the email under it.
     expect(
-      within(sheet).getByText("ana@example.com").closest("div")!.querySelector(".bg-ink"),
+      within(sheet).getByRole("heading", { name: "Ana" }).parentElement!.querySelector(".bg-ink"),
     ).not.toBeNull();
+    expect(within(sheet).getByText("ana@example.com")).toBeInTheDocument();
     expect(
       within(sheet)
         .getAllByRole("link")

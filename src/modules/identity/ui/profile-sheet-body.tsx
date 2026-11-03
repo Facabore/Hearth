@@ -59,11 +59,14 @@ export function ProfileSheetBody({
     </Link>
   );
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title={me.name}>
-      <div className="mb-4 flex items-center gap-3">
-        <Avatar name={me.name} size={48} tone="dark" />
-        <p className="min-w-0 text-sm [overflow-wrap:anywhere] text-muted">{me.email}</p>
-      </div>
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title={me.name}
+      closeButton={false}
+      leading={<Avatar name={me.name} size={48} tone="dark" />}
+    >
+      <p className="mb-4 text-sm [overflow-wrap:anywhere] text-muted">{me.email}</p>
       <div className={card}>
         {go(`/settings?from=${spaceId}`, <Icon name="sliders" />, t("settings"), t("settingsHint"))}
       </div>

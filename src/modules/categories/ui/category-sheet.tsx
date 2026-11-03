@@ -7,6 +7,7 @@ import { Button, Icon, ProblemNotice, Sheet, TextField } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { CategoryDto, CategoryGroupDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
+import { CategoryIcon } from "./category-icon";
 import { ColorRow } from "./color-row";
 import { GroupSheet } from "./group-sheet";
 import { IconPicker } from "./icon-picker";
@@ -235,6 +236,7 @@ export function CategorySheet({
       title={
         editing ? t("editTitle") : t("newTitle", { group: target.mode === "create" ? target.group.name : "" })
       }
+      leading={<CategoryIcon icon={icon} color={color} size={40} />}
       footer={actions}
     >
       <div className="flex flex-col gap-2.5">

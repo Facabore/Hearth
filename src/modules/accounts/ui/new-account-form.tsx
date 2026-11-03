@@ -113,6 +113,7 @@ export function NewAccountForm({
         if (!open) router.push(`/spaces/${space.id}/accounts`);
       }}
       title={t("newTitle")}
+      closeButton={false}
       footer={
         <Button type="submit" form={formId} size="lg" className="w-full" disabled={!type || pending}>
           {t("create")}
