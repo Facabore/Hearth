@@ -9,6 +9,7 @@ import {
 } from "@/shared/kernel";
 import { checkedPeriodPolicy, spaceName } from "../domain/space";
 import { MANAGERS, requireRole, toSpaceSummary, type SpaceAccess } from "./space-access";
+import type { SpaceLocks } from "./space-locks";
 import type { SpaceSummary } from "./space-repository";
 import type { SpaceSettingsRepository } from "./space-settings-repository";
 
@@ -22,6 +23,8 @@ export interface SpaceUsage {
 
 export interface UpdateSpaceSettingsDeps {
   readonly spaces: SpaceSettingsRepository;
+  /** Issue #245: the currency and the period policy change only while no money write or plan creation is inside. */
+  readonly spaceLocks: Pick<SpaceLocks, "lockForLifecycle">;
   readonly access: SpaceAccess;
   readonly usage: SpaceUsage;
   readonly tm: TransactionManager;
@@ -43,6 +46,9 @@ export const createUpdateSpaceSettings =
   (deps: UpdateSpaceSettingsDeps): UpdateSpaceSettings =>
   (input) =>
     deps.tm.run(async () => {
+      // Issue #245: before the membership, as a leave does (#89). The money writes already inside commit first, so the
+      // usage read below sees them, and the ones that follow read the settings this change commits.
+      await deps.spaceLocks.lockForLifecycle(input.spaceId);
       const membership = await deps.access(input.spaceId, input.userId);
       if (!membership.ok) return membership;
       const allowed = requireRole(membership.value, MANAGERS);

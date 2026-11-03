@@ -26,6 +26,7 @@ export {
   type SpaceSettingsChanges,
   type SpaceUsage,
   type UpdateSpaceSettings,
+  type UpdateSpaceSettingsDeps,
 } from "./update-space-settings";
 export type { AddMemberOutcome, SpaceMemberRepository } from "./space-member-repository";
 export type { SpaceLocks } from "./space-locks";

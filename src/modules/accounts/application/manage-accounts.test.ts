@@ -9,6 +9,7 @@ import {
   money,
   sequentialIds,
   unwrap,
+  noSpaceLocks,
 } from "../../../../tests/support/fakes";
 import { FixedMovements, InMemoryAccounts } from "../../../../tests/support/in-memory-accounts";
 import { NO_ATTRIBUTES, type Account, type AccountId } from "../domain/account";
@@ -51,6 +52,7 @@ const setup = (net: Record<string, bigint> = {}) => {
   );
   const movements = new FixedMovements(net);
   const deps: AccountsDeps = {
+    spaceLocks: noSpaceLocks,
     accounts,
     access: fakeSpaceAccess(...members),
     movements,

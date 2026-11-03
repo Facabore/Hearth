@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { FixedClock, type LocalDate, type PeriodPolicy, type StoredPeriod } from "@/shared/kernel";
-import { codeOf, memoryTm, membership, noStoredPeriods, unwrap } from "../../../../tests/support/fakes";
+import {
+  codeOf,
+  memoryTm,
+  membership,
+  noSpaceLocks,
+  noStoredPeriods,
+  unwrap,
+} from "../../../../tests/support/fakes";
 import type { SpaceId } from "../domain/space";
 import { createGetSpace } from "./get-space";
 import { createListSpacePeriods, type StoredPeriodSource } from "./list-space-periods";
@@ -33,6 +40,7 @@ const setup = (
     get: createGetSpace(access),
     update: createUpdateSpaceSettings({
       spaces,
+      spaceLocks: noSpaceLocks,
       access,
       usage: { hasMoneyRecords: async () => options.hasMoneyRecords ?? false },
       tm: memoryTm,
@@ -102,6 +110,33 @@ describe("UpdateSpaceSettings (HU-E1-03)", () => {
     const { update } = setup({ hasMoneyRecords: true });
     expect(codeOf(await update({ ...asAna, changes: { currency: "USD" } }))).toBe("SpaceCurrencyLocked");
     expect(codeOf(await update({ ...asAna, changes: { currency: "COP", name: "Casa" } }))).toBe("ok");
+  });
+
+  it("holds the space row before it reads the membership or the money records (issue #245)", async () => {
+    const events: string[] = [];
+    const spaces = new InMemorySettings([ana]);
+    const access = createSpaceAccess(spaces);
+    const update = createUpdateSpaceSettings({
+      spaces,
+      spaceLocks: {
+        lockForLifecycle: async (spaceId) => {
+          events.push(`lock ${spaceId}`);
+        },
+      },
+      access: async (spaceId, userId, options) => {
+        events.push(`access ${spaceId}`);
+        return access(spaceId, userId, options);
+      },
+      usage: {
+        hasMoneyRecords: async (spaceId) => {
+          events.push(`usage ${spaceId}`);
+          return false;
+        },
+      },
+      tm: memoryTm,
+    });
+    unwrap(await update({ ...asAna, changes: { currency: "USD" } }));
+    expect(events).toEqual(["lock space-household", "access space-household", "usage space-household"]);
   });
 
   it("changes name and currency of a space without money records", async () => {

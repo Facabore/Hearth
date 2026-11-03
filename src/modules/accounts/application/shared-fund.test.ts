@@ -9,6 +9,7 @@ import {
   money,
   sequentialIds,
   unwrap,
+  noSpaceLocks,
 } from "../../../../tests/support/fakes";
 import { FixedMovements, InMemoryAccounts } from "../../../../tests/support/in-memory-accounts";
 import { createArchiveAccount } from "./archive-account";
@@ -29,6 +30,7 @@ const fund = { name: "Household Fund", type: "SHARED_FUND" as const, openingBala
 const setup = () => {
   const accounts = new InMemoryAccounts();
   const deps: AccountsDeps = {
+    spaceLocks: noSpaceLocks,
     accounts,
     access: fakeSpaceAccess(household, juan, lina),
     movements: new FixedMovements(),

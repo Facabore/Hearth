@@ -21,6 +21,8 @@ export const createCreateAccount =
   (deps: AccountsDeps): CreateAccount =>
   (input) =>
     deps.tm.run(async () => {
+      // Issue #245: before the membership, so a currency change in progress is waited for and its currency is read.
+      await deps.spaceLocks.lockForMoneyWrite(input.spaceId);
       const membership = await deps.access(input.spaceId, input.userId);
       if (!membership.ok) return membership;
       const writer = requireRole(membership.value, WRITERS);

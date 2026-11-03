@@ -1,6 +1,7 @@
 import {
   createSpaceAccess,
   type SpaceAccess,
+  type SpaceLocks,
   type SpaceMembership,
   type StoredPeriodSource,
 } from "@/modules/spaces/application";
@@ -79,4 +80,10 @@ export const fixedTimeZones = (
       return byUser[userId] ?? fallback;
     },
   };
+};
+
+/** Issue #89: in memory nothing runs concurrently, so the space locks have nothing to serialize. */
+export const noSpaceLocks: SpaceLocks = {
+  lockForMoneyWrite: async () => undefined,
+  lockForLifecycle: async () => undefined,
 };

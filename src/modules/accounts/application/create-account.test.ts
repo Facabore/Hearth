@@ -9,6 +9,7 @@ import {
   money,
   sequentialIds,
   unwrap,
+  noSpaceLocks,
 } from "../../../../tests/support/fakes";
 import { FixedMovements, InMemoryAccounts } from "../../../../tests/support/in-memory-accounts";
 import { createCreateAccount } from "./create-account";
@@ -21,6 +22,7 @@ const sofi = membership({ ...household, memberId: "member-sofi", userId: "u-sofi
 const setup = () => {
   const accounts = new InMemoryAccounts();
   const deps: AccountsDeps = {
+    spaceLocks: noSpaceLocks,
     accounts,
     access: fakeSpaceAccess(membership(), household, sofi),
     movements: new FixedMovements(),

@@ -51,6 +51,7 @@ const world = async (archived: boolean) => {
     invitations,
     updateSettings: createUpdateSpaceSettings({
       spaces: store,
+      spaceLocks: store,
       access: deps.access,
       usage: { hasMoneyRecords: async () => false },
       tm: memoryTm,

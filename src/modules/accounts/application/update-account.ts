@@ -24,6 +24,8 @@ export const createUpdateAccount =
   (deps: AccountsDeps): UpdateAccount =>
   (input) =>
     deps.tm.run(async () => {
+      // Issue #245: before the membership, so a currency change in progress is waited for and its currency is read.
+      await deps.spaceLocks.lockForMoneyWrite(input.spaceId);
       const target = await accountForChange(deps, input);
       if (!target.ok) return target;
       const { space, account, siblings } = target.value;

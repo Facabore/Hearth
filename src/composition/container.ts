@@ -9,6 +9,7 @@ import {
   createUpdateAccount,
   holdsMoney,
   switchesOf,
+  type AccountRepository,
   type AccountsDeps,
   type ArchiveAccount,
   type CreateAccount,
@@ -238,6 +239,7 @@ import {
   type ListMembers,
   type ListMySpaces,
   type ListSpacePeriods,
+  type SpaceUsage,
   type MembersDeps,
   type PreviewClaim,
   type PreviewInvitation,
@@ -458,6 +460,26 @@ export const categoryUsageOf = (
     (await ledger.isCategoryReferenced(categoryId)) || (await plans.isCategoryMapped(categoryId)),
 });
 
+/**
+ * D6, HU-E1-03: what fixes a space's currency. A plan's capacities and lines are amounts in the space currency too
+ * (HU-E6-01). Issue 169: an account records money only when it holds an amount, so sign-up's starter accounts at zero
+ * never lock the currency; an account's currency is its space's (no column of its own), so they follow a change with
+ * nothing to move. A recurrence stores its amount with its own currency and records its occurrences in it; an ended
+ * one counts too, since it keeps that amount and can be extended again (#115).
+ */
+export const spaceUsageOf = (sources: {
+  readonly accounts: Pick<AccountRepository, "listBySpace">;
+  readonly recurrences: Pick<DrizzleRecurrenceRepository, "list">;
+  readonly ledger: Pick<DrizzleLedgerQueries, "hasTransactions">;
+  readonly plans: Pick<DrizzleBudgetPlanRepository, "hasPlans">;
+}): SpaceUsage => ({
+  hasMoneyRecords: async (spaceId) =>
+    (await sources.accounts.listBySpace(spaceId)).some(holdsMoney) ||
+    (await sources.recurrences.list(spaceId)).length > 0 ||
+    (await sources.ledger.hasTransactions(spaceId)) ||
+    (await sources.plans.hasPlans(spaceId)),
+});
+
 export const buildContainer = (env: Env, options: ContainerOptions = {}): Container => {
   const { db, pool } = createDatabase(env.DATABASE_URL);
   const tm = new DrizzleTransactionManager(db);
@@ -502,6 +524,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   const accountsDeps: AccountsDeps = {
     accounts: new DrizzleAccountRepository(tm),
     access,
+    // Issue #245: creating and editing an account write an amount in the space currency, as money writes do (#89).
+    spaceLocks: spaceRepository,
     movements: ledgerQueries,
     ids,
     clock,
@@ -786,20 +810,16 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       getSpace: createGetSpace(access),
       updateSettings: createUpdateSpaceSettings({
         spaces: spaceRepository,
+        // Issue #245: a settings change holds the space row as a leave does; money writes and plan creations share it.
+        spaceLocks: spaceRepository,
         access,
         tm,
-        usage: {
-          // D6: a plan's capacities and lines are amounts in the space currency too (HU-E6-01). Issue 169: an account
-          // records money only when it holds an amount, so sign-up's starter accounts at zero never lock the currency;
-          // an account's currency is its space's (no column of its own), so they follow a change with nothing to move.
-          // A recurrence stores its amount with its own currency and records its occurrences in it; an ended one counts
-          // too, since it keeps that amount and can be extended again (#115).
-          hasMoneyRecords: async (spaceId) =>
-            (await accountsDeps.accounts.listBySpace(spaceId)).some(holdsMoney) ||
-            (await recurrenceRepository.list(spaceId)).length > 0 ||
-            (await ledgerQueries.hasTransactions(spaceId)) ||
-            (await budgetPlans.hasPlans(spaceId)),
-        },
+        usage: spaceUsageOf({
+          accounts: accountsDeps.accounts,
+          recurrences: recurrenceRepository,
+          ledger: ledgerQueries,
+          plans: budgetPlans,
+        }),
       }),
       listPeriods: createListSpacePeriods({ access, storedPeriods, clock, timeZone: env.APP_TIMEZONE }),
       createSpace: createCreateSpace({

@@ -9,16 +9,17 @@
  */
 export interface SpaceLocks {
   /**
-   * A money write (expense, settlement, fund contribution, income, transfer, edit, delete, occurrence) holds the space
-   * row FOR SHARE until its transaction ends. It waits for a leave, removal or archive in progress and then reads the
-   * committed result: a member who left is no longer current and an archived space refuses the write. A no-op for an
-   * id that is not a UUID.
+   * A money write (expense, settlement, fund contribution, income, transfer, edit, delete, occurrence; issue #245: an
+   * account's creation or edit) holds the space row FOR SHARE until its transaction ends. It waits for a leave, removal,
+   * archive or settings change in progress and then reads the committed result: a member who left is no longer
+   * current, an archived space refuses the write and a new currency is the one amounts must be in. A no-op for an id
+   * that is not a UUID.
    */
   lockForMoneyWrite(spaceId: string): Promise<void>;
   /**
-   * A leave, a guest removal or an archive holds the space row FOR NO KEY UPDATE until its transaction ends. It waits
-   * for the money writes already inside, so the balance it reads next includes them, and keeps later ones out until
-   * it commits. A no-op for an id that is not a UUID.
+   * A leave, a guest removal, an archive or (issue #245) a settings change holds the space row FOR NO KEY UPDATE until
+   * its transaction ends. It waits for the money writes already inside, so the balance or the money records it reads
+   * next include them, and keeps later ones out until it commits. A no-op for an id that is not a UUID.
    */
   lockForLifecycle(spaceId: string): Promise<void>;
 }

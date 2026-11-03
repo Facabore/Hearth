@@ -48,6 +48,7 @@ const accountsDeps = (
 ): AccountsDeps => ({
   accounts,
   access: createSpaceAccess(spaces),
+  spaceLocks: spaces,
   movements: new DrizzleLedgerQueries(tm),
   ids: new UuidV7IdGenerator(),
   clock,

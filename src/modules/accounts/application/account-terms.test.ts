@@ -9,6 +9,7 @@ import {
   money,
   sequentialIds,
   unwrap,
+  noSpaceLocks,
 } from "../../../../tests/support/fakes";
 import { FixedMovements, InMemoryAccounts } from "../../../../tests/support/in-memory-accounts";
 import { createArchiveAccount } from "./archive-account";
@@ -21,6 +22,7 @@ const asAna = { spaceId: "space-ana", userId: "u-ana" };
 /** Ana's personal space on 2026-10-16 at 12:00 UTC (07:00 in Bogotá); her zone unless `zone` says otherwise. */
 const setup = (zone?: string, now = new Date("2026-10-16T12:00:00Z")) => {
   const deps: AccountsDeps = {
+    spaceLocks: noSpaceLocks,
     accounts: new InMemoryAccounts(),
     access: fakeSpaceAccess(membership()),
     movements: new FixedMovements(),
