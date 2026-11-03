@@ -146,6 +146,30 @@ describe("managing the category tree (HU-E3-02)", () => {
     expect([unknown.status, (await unknown.json()).code]).toEqual([404, "CategoryGroupNotFound"]);
   });
 
+  it("renames a category in place, and answers an empty PATCH with the category as it was", async () => {
+    const ana = await registerUser("Ana");
+    const { base, category } = helpers(ana);
+    const mercado = await category("Mercado");
+    const patch = (body: unknown) =>
+      call(updateCategory, "PATCH", `${base}/categories/${mercado.id}`, {
+        user: ana,
+        params: { spaceId: ana.spaceId, categoryId: mercado.id },
+        body,
+      });
+    const renamed = await patch({ name: "Supermercado" });
+    expect(renamed.status).toBe(200);
+    const after = (await renamed.json()) as CategoryDto;
+    expect(after).toMatchObject({
+      id: mercado.id,
+      groupId: mercado.groupId,
+      name: "Supermercado",
+      key: "groceries",
+    });
+    expect(await category("Supermercado")).toMatchObject(after);
+    const untouched = await patch({});
+    expect([untouched.status, await untouched.json()]).toEqual([200, after]);
+  });
+
   it("hides another user's space", async () => {
     const ana = await registerUser("Ana");
     const juan = await registerUser("Juan");
