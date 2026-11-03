@@ -267,6 +267,44 @@ const guarded: Record<string, readonly Guard[]> = {
       fixIt: (w) => ["UPDATE transaction_audit SET action = 'UPDATED' WHERE id = $1", [w.audit]],
     },
   ],
+  "0022_budgeting_vocabulary": [
+    {
+      name: "an unknown plan status",
+      breakIt: (w) => ["UPDATE budget_plans SET status = 'OPEN' WHERE id = $1", [w.plan]],
+      refusal: /0022_budgeting_vocabulary: budget_plans with an unknown status: .*\(OPEN\)/,
+      readBack: (w) => ["SELECT status AS v FROM budget_plans WHERE id = $1", [w.plan]],
+      fixIt: (w) => ["UPDATE budget_plans SET status = 'ACTIVE' WHERE id = $1", [w.plan]],
+    },
+    {
+      name: "an unknown funding",
+      breakIt: (w) => ["UPDATE budget_lines SET funding = 'CASH' WHERE id = $1", [w.line]],
+      refusal: /0022_budgeting_vocabulary: budget_lines with an unknown funding: .*\(CASH\)/,
+      readBack: (w) => ["SELECT funding AS v FROM budget_lines WHERE id = $1", [w.line]],
+      fixIt: (w) => ["UPDATE budget_lines SET funding = 'DIRECT' WHERE id = $1", [w.line]],
+    },
+    {
+      name: "an unknown rollover mode",
+      breakIt: (w) => ["UPDATE budget_lines SET rollover_mode = 'CARRY' WHERE id = $1", [w.line]],
+      refusal: /0022_budgeting_vocabulary: budget_lines with an unknown rollover_mode: .*\(CARRY\)/,
+      readBack: (w) => ["SELECT rollover_mode AS v FROM budget_lines WHERE id = $1", [w.line]],
+      fixIt: (w) => ["UPDATE budget_lines SET rollover_mode = 'RESET' WHERE id = $1", [w.line]],
+    },
+    {
+      name: "an unknown allocation rule",
+      breakIt: (w) => ["UPDATE budget_lines SET allocation_rule = 'EVEN' WHERE id = $1", [w.line]],
+      refusal: /0022_budgeting_vocabulary: budget_lines with an unknown allocation_rule: .*\(EVEN\)/,
+      readBack: (w) => ["SELECT allocation_rule AS v FROM budget_lines WHERE id = $1", [w.line]],
+      fixIt: (w) => ["UPDATE budget_lines SET allocation_rule = 'PERCENT' WHERE id = $1", [w.line]],
+    },
+    {
+      name: "a member value under a rule that has none",
+      breakIt: (w) => ["UPDATE budget_allocations SET rule = 'PROPORTIONAL' WHERE id = $1", [w.allocation]],
+      refusal:
+        /0022_budgeting_vocabulary: budget_allocations with a rule other than PERCENT or FIXED: .*\(PROPORTIONAL\)/,
+      readBack: (w) => ["SELECT rule AS v FROM budget_allocations WHERE id = $1", [w.allocation]],
+      fixIt: (w) => ["UPDATE budget_allocations SET rule = 'PERCENT' WHERE id = $1", [w.allocation]],
+    },
+  ],
 };
 
 describe.each(Object.entries(guarded))("migration %s on existing rows (#249)", (tag, guards) => {

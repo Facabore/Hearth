@@ -155,6 +155,13 @@
       "when": 1793664535090,
       "tag": "0021_ledger_vocabulary",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793664876558,
+      "tag": "0022_budgeting_vocabulary",
+      "breakpoints": true
     }
   ]
 }

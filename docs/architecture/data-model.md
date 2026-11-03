@@ -679,6 +679,7 @@ erDiagram
 **`budget_plans`**
 - Unique index `budget_plans_space_start_uq`: `(space_id, start_date)`.
 - Check `budget_plans_dates`: `start_date <= end_date`.
+- Check `budget_plans_status`: `status` is `DRAFT`, `ACTIVE` or `CLOSED` (#249).
 
 **`budget_member_capacities`**
 - Check `budget_member_capacities_amount`: `amount >= 0`.
@@ -689,6 +690,9 @@ erDiagram
 - Check `budget_lines_planned_positive`: `planned_amount > 0`.
 - Check `budget_lines_savings_accounts`: `(funding = 'SAVINGS') = (cardinality(savings_account_ids) > 0)`.
 - Check `budget_lines_savings_catch_all`: `NOT (funding = 'SAVINGS' AND is_catch_all)`.
+- Check `budget_lines_funding`: `funding` is `DIRECT`, `SHARED_FUND` or `SAVINGS` (#249).
+- Check `budget_lines_rollover_mode`: `rollover_mode` is `RESET`, `ROLLOVER` or `ADJUSTED` (#249).
+- Check `budget_lines_allocation_rule`: `allocation_rule` is `PROPORTIONAL`, `PERCENT`, `FIXED` or `NONE` (#249).
 
 **`budget_line_categories`**
 - Unique index `budget_line_categories_current_uq`: `(plan_id, category_id)` where `unmapped_at IS NULL` (a category maps to one current line per plan).
@@ -696,6 +700,7 @@ erDiagram
 **`budget_allocations`**
 - Unique index `budget_allocations_current_uq`: `(line_id, member_id)` where `superseded_at IS NULL`.
 - Check `budget_allocations_value_positive`: `value > 0`.
+- Check `budget_allocations_rule`: `rule` is `PERCENT` or `FIXED`, the two rules that store member values (#249).
 
 ## Standalone: `idempotency_keys`
 
@@ -821,5 +826,6 @@ One line per migration, from the file in [`drizzle/`](https://github.com/Facabor
 | [`0018_user_preferences.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0018_user_preferences.sql) | `user.number_format`, `time_format`, `date_format` and `week_start`. | M3-D, Task 18a |
 | [`0019_account_style_vocabulary.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0019_account_style_vocabulary.sql) | Maps `accounts.color` to the shared palette keys and `accounts.icon` to Hearth symbol names (no DDL). | M6a, Task 1 |
 | [`0021_ledger_vocabulary.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0021_ledger_vocabulary.sql) | The checks `accounts_type`, `shares_split_method` and `transaction_audit_action`, and one share per member of a transaction (`shares_transaction_member_uq`). | Issue #249, M1-9 |
+| [`0022_budgeting_vocabulary.sql`](https://github.com/Facabore/Hearth/blob/development/drizzle/0022_budgeting_vocabulary.sql) | The checks `budget_plans_status`, `budget_lines_funding`, `budget_lines_rollover_mode`, `budget_lines_allocation_rule` and `budget_allocations_rule`. | Issue #249, M3A-2 |
 
 Migrations are forward-only (see [Rolling back](../operations/deploy.md#rolling-back)). A migration that changes tables updates this page in the same pull request.

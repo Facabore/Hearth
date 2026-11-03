@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ACCOUNT_TYPES } from "@/modules/accounts/domain/account-type";
+import { ALLOCATION_RULES, FUNDINGS, ROLLOVER_MODES } from "@/modules/budgeting/domain/budget-line";
+import { PLAN_STATUSES } from "@/modules/budgeting/domain/plan";
 import { AuditEntrySchema, ShareSchema } from "@/modules/ledger/contracts/ledger.contract";
 import { testDatabase } from "../../tests/support/database";
 import { sharedLedgerFixture, type SharedLedgerFixture } from "../../tests/support/fixtures";
@@ -79,5 +81,80 @@ describe("closed vocabularies of the ledger and the accounts (#249, M1-9)", () =
       await expect(audit(id, action)).resolves.toBeDefined();
     }
     await expect(audit(id, "EDITED")).rejects.toThrow(/transaction_audit_action/);
+  });
+});
+
+let periods = 0;
+
+/** A plan of Household in a period of its own (one plan per space and start date). */
+const plan = async (status = "DRAFT"): Promise<string> => {
+  const id = randomUUID();
+  const year = 2100 + periods++;
+  await pool.query(
+    `INSERT INTO budget_plans (id, space_id, label, start_date, end_date, status, created_by, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now())`,
+    [id, w.household.spaceId, String(year), `${year}-01-01`, `${year}-01-31`, status, w.household.userId],
+  );
+  return id;
+};
+
+interface LineColumns {
+  readonly funding?: string;
+  readonly rolloverMode?: string;
+  readonly allocationRule?: string;
+}
+
+/** A line of `planId`; a SAVINGS line names one savings account, as budget_lines_savings_accounts asks. */
+const line = async (planId: string, columns: LineColumns = {}): Promise<string> => {
+  const id = randomUUID();
+  const funding = columns.funding ?? "DIRECT";
+  await pool.query(
+    `INSERT INTO budget_lines (id, plan_id, name, planned_amount, funding, savings_account_ids, rollover_mode,
+       is_catch_all, allocation_rule, created_at, updated_at)
+     VALUES ($1, $2, $3, 1000, $4, $5, $6, false, $7, now(), now())`,
+    [
+      id,
+      planId,
+      `Line ${id}`,
+      funding,
+      funding === "SAVINGS" ? [randomUUID()] : [],
+      columns.rolloverMode ?? "RESET",
+      columns.allocationRule ?? "PROPORTIONAL",
+    ],
+  );
+  return id;
+};
+
+const allocation = async (rule: string) =>
+  pool.query(
+    "INSERT INTO budget_allocations (line_id, member_id, rule, value, set_at) VALUES ($1, $2, $3, 100, now())",
+    [await line(await plan()), w.pedro, rule],
+  );
+
+describe("closed vocabularies of budgeting (#249, M3A-2)", () => {
+  it("accepts every plan status of the domain and refuses any other", async () => {
+    for (const status of PLAN_STATUSES) await expect(plan(status)).resolves.toBeDefined();
+    await expect(plan("OPEN")).rejects.toThrow(/budget_plans_status/);
+  });
+
+  it("accepts every funding, rollover mode and allocation rule of the domain and refuses any other", async () => {
+    const planId = await plan();
+    for (const funding of FUNDINGS) await expect(line(planId, { funding })).resolves.toBeDefined();
+    for (const rolloverMode of ROLLOVER_MODES)
+      await expect(line(planId, { rolloverMode })).resolves.toBeDefined();
+    for (const allocationRule of ALLOCATION_RULES) {
+      await expect(line(planId, { allocationRule })).resolves.toBeDefined();
+    }
+    await expect(line(planId, { funding: "CASH" })).rejects.toThrow(/budget_lines_funding/);
+    await expect(line(planId, { rolloverMode: "CARRY" })).rejects.toThrow(/budget_lines_rollover_mode/);
+    await expect(line(planId, { allocationRule: "EVEN" })).rejects.toThrow(/budget_lines_allocation_rule/);
+  });
+
+  it("keeps member values to the two rules that have them, PERCENT and FIXED", async () => {
+    const valued = ALLOCATION_RULES.filter((rule) => rule === "PERCENT" || rule === "FIXED");
+    for (const rule of valued) await expect(allocation(rule)).resolves.toBeDefined();
+    for (const rule of ["PROPORTIONAL", "NONE", "SHARE"]) {
+      await expect(allocation(rule)).rejects.toThrow(/budget_allocations_rule/);
+    }
   });
 });

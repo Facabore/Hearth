@@ -16,12 +16,21 @@ import {
 } from "drizzle-orm/pg-core";
 import { categories } from "@/modules/categories/infrastructure/categories.schema";
 import { spaceMembers, spaces } from "@/modules/spaces/infrastructure/spaces.schema";
+import { oneOf } from "@/shared/infrastructure/db/checks";
 
 const tz = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 const money = (name: string) => bigint(name, { mode: "bigint" });
 
 // Spec 5.2, HU-E6-01 … HU-E6-05. Values mirror the domain types; listed here so drizzle-kit loads no domain code.
 // Every delete is logical (D8): no foreign key cascades, so no plan part can disappear with a parent row.
+// #249, M3A-2: a CHECK keeps each text column to its list (PLAN_STATUSES, FUNDINGS, ROLLOVER_MODES, ALLOCATION_RULES;
+// only PERCENT and FIXED store member values).
+const PLAN_STATUSES = ["DRAFT", "ACTIVE", "CLOSED"] as const;
+const FUNDINGS = ["DIRECT", "SHARED_FUND", "SAVINGS"] as const;
+const ROLLOVER_MODES = ["RESET", "ROLLOVER", "ADJUSTED"] as const;
+const ALLOCATION_RULES = ["PROPORTIONAL", "PERCENT", "FIXED", "NONE"] as const;
+const VALUE_RULES = ["PERCENT", "FIXED"] as const;
+
 export const budgetPlans = pgTable(
   "budget_plans",
   {
@@ -33,7 +42,7 @@ export const budgetPlans = pgTable(
     label: text("label").notNull(),
     startDate: date("start_date", { mode: "string" }).notNull(),
     endDate: date("end_date", { mode: "string" }).notNull(),
-    status: text("status", { enum: ["DRAFT", "ACTIVE", "CLOSED"] }).notNull(),
+    status: text("status", { enum: PLAN_STATUSES }).notNull(),
     // HU-E6-06: the plan this one was copied from.
     createdFromPlanId: uuid("created_from_plan_id").references((): AnyPgColumn => budgetPlans.id),
     // The ETag; every write to the plan or its parts bumps it under a row lock (spec 7).
@@ -47,6 +56,7 @@ export const budgetPlans = pgTable(
     uniqueIndex("budget_plans_space_start_uq").on(t.spaceId, t.startDate),
     index("budget_plans_created_from_idx").on(t.createdFromPlanId),
     check("budget_plans_dates", sql`${t.startDate} <= ${t.endDate}`),
+    check("budget_plans_status", oneOf(t.status, PLAN_STATUSES)),
   ],
 );
 
@@ -81,13 +91,13 @@ export const budgetLines = pgTable(
     originLineId: uuid("origin_line_id").references((): AnyPgColumn => budgetLines.id),
     name: text("name").notNull(),
     plannedAmount: money("planned_amount").notNull(),
-    funding: text("funding", { enum: ["DIRECT", "SHARED_FUND", "SAVINGS"] }).notNull(),
+    funding: text("funding", { enum: FUNDINGS }).notNull(),
     // Spec 5.4: a SAVINGS line spends the transfers into these accounts (accounts are never deleted, D8).
     savingsAccountIds: uuid("savings_account_ids").array().notNull(),
-    rolloverMode: text("rollover_mode", { enum: ["RESET", "ROLLOVER", "ADJUSTED"] }).notNull(),
+    rolloverMode: text("rollover_mode", { enum: ROLLOVER_MODES }).notNull(),
     isCatchAll: boolean("is_catch_all").notNull(),
     // HU-E6-05: one rule per line; PERCENT and FIXED keep their member values in budget_allocations.
-    allocationRule: text("allocation_rule", { enum: ["PROPORTIONAL", "PERCENT", "FIXED", "NONE"] }).notNull(),
+    allocationRule: text("allocation_rule", { enum: ALLOCATION_RULES }).notNull(),
     createdAt: tz("created_at").notNull(),
     updatedAt: tz("updated_at").notNull(),
     // D8: removing a line is logical; the row stays and every read skips it.
@@ -112,6 +122,9 @@ export const budgetLines = pgTable(
     ),
     // Spec 5.4: a SAVINGS line consumes transfers, never the unmapped categories.
     check("budget_lines_savings_catch_all", sql`NOT (${t.funding} = 'SAVINGS' AND ${t.isCatchAll})`),
+    check("budget_lines_funding", oneOf(t.funding, FUNDINGS)),
+    check("budget_lines_rollover_mode", oneOf(t.rolloverMode, ROLLOVER_MODES)),
+    check("budget_lines_allocation_rule", oneOf(t.allocationRule, ALLOCATION_RULES)),
   ],
 );
 
@@ -155,7 +168,7 @@ export const budgetAllocations = pgTable(
     memberId: uuid("member_id")
       .notNull()
       .references(() => spaceMembers.id),
-    rule: text("rule", { enum: ["PERCENT", "FIXED"] }).notNull(),
+    rule: text("rule", { enum: VALUE_RULES }).notNull(),
     // PERCENT: basis points (42 % = 4200); FIXED: minor units of the space currency.
     value: money("value").notNull(),
     setAt: tz("set_at").notNull(),
@@ -169,5 +182,6 @@ export const budgetAllocations = pgTable(
       .where(sql`${t.supersededAt} IS NULL`),
     index("budget_allocations_member_idx").on(t.memberId),
     check("budget_allocations_value_positive", sql`${t.value} > 0`),
+    check("budget_allocations_rule", oneOf(t.rule, VALUE_RULES)),
   ],
 );
