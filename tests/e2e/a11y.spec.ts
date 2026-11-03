@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect } from "@playwright/test";
 import { test } from "./support/clock";
 import { es } from "../../src/i18n/messages/full";
+import { openCategoryPicker } from "./support/record";
 import { archiveStarterAccounts, saveIncomeFromForm, seedLedger, signUp } from "./support/seed";
 
 const WCAG = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
@@ -111,7 +112,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page.getByTestId("when-chip").click();
       await scan("date and time sheet");
       await page.keyboard.press("Escape");
-      await page.getByRole("button", { name: /Categoría/ }).click();
+      await openCategoryPicker(page);
       await scan("category picker");
     });
   });

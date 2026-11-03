@@ -2,6 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import type { DataTable } from "playwright-bdd";
 import { After, Given, Then, When } from "../support/fixtures";
 import { minor } from "../support/money";
+import { chooseCategory } from "../support/record";
 import {
   clientOf,
   householdOf,
@@ -102,8 +103,7 @@ When(
     await page.goto(`/spaces/${spaceId}/new`);
     await expect(page.locator("[data-ready='true']")).toBeAttached();
     await page.getByLabel(world.t("ledger.form.amount")).fill(pesos.replaceAll(",", ""));
-    await page.getByRole("button", { name: new RegExp(world.t("ledger.form.category")) }).click();
-    await page.getByRole("radio", { name, exact: true }).click();
+    await chooseCategory(page, name);
     typedOf.set(world, minor(pesos));
     if (!tap) return;
     expect(tap).toBe(world.t("ledger.form.save.EXPENSE"));

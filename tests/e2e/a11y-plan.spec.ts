@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect } from "@playwright/test";
 import { test } from "./support/clock";
+import { chooseCategory } from "./support/record";
 import { es } from "../../src/i18n/messages/full";
 import { BUILT_IN_FORMATS, formatSignedMoney } from "../../src/shared/ui/format/formatters";
 import {
@@ -148,8 +149,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         await page.goto(`${hh}/new`);
         await expect(page.locator("[data-ready='true']")).toBeAttached();
         await page.getByLabel(es.ledger.form.amount).fill("1350000"); // 82 % of 1,640,000 COP: the neutral note
-        await page.getByRole("button", { name: new RegExp(es.ledger.form.category) }).click();
-        await page.getByRole("radio", { name: /^Mercado|^Groceries/ }).click();
+        await chooseCategory(page, /^Mercado|^Groceries/);
         // NEAR only with October's carry: without it 1,350,000 COP is 91,84 % of 1,470,000 COP, a HIGH note.
         await expect(page.locator("[data-level='NEAR']")).toBeVisible();
         await scan("record form with the line note");

@@ -5,6 +5,7 @@ import { en, es } from "../../src/i18n/messages/full";
 import { BASE_URL } from "./support/base-url";
 import { Person } from "./support/people";
 import { categoryIdsByKey, clientOf, seedHome, seedHousehold, seedRecurrence } from "./support/plan-seed";
+import { chooseCategory, openCategoryPicker } from "./support/record";
 import {
   archiveStarterAccounts,
   get,
@@ -189,8 +190,7 @@ const seedAdditions = async (page: Page, spaceId: string, testId: string) => {
 const askBeforeSaving = async (page: Page) => {
   await expect(page.locator("[data-ready='true']")).toBeAttached();
   await page.getByLabel(es.ledger.form.amount).fill("212300");
-  await page.getByRole("button", { name: new RegExp(es.ledger.form.category) }).click();
-  await page.getByRole("radio", { name: /^Mercado|^Groceries/ }).click();
+  await chooseCategory(page, /^Mercado|^Groceries/);
   await page.getByRole("button", { name: es.ledger.form.save.EXPENSE, exact: true }).click();
   await expect(page.getByRole("heading", { name: es.ledger.lineWarning.confirmTitle })).toBeFocused();
 };
@@ -510,7 +510,7 @@ const sheets: {
     path: "new",
     open: async (page) => {
       await expect(page.locator("[data-ready='true']")).toBeAttached();
-      await page.getByRole("button", { name: new RegExp(es.ledger.form.category) }).click();
+      await openCategoryPicker(page);
     },
   },
   {
@@ -2320,9 +2320,13 @@ test.describe("the last control of a scrolling screen ends above the bottom bar 
     readonly submit: string;
     /** Ruling P272: a stacked screen has no bottom bar, only the safe area under its last control. */
     readonly stacked?: boolean;
+    /** Ruling P291: the record form is a bottom sheet of a stacked screen; its own body scrolls, not the page. */
+    readonly sheet?: boolean;
   }[] = [
     {
       name: "record form",
+      stacked: true,
+      sheet: true,
       at: ({ spaceId }: Ids) => `/spaces/${spaceId}/new`,
       prepare: ready,
       submit: es.ledger.form.save.EXPENSE,
@@ -2360,6 +2364,8 @@ test.describe("the last control of a scrolling screen ends above the bottom bar 
       // #142 (ruling P235): the question the form asks before an expense that takes its line over.
       name: "record form, line warning confirmation",
       household: true,
+      stacked: true,
+      sheet: true,
       at: ({ household }: Ids) => `/spaces/${household}/new`,
       prepare: askBeforeSaving,
       submit: es.ledger.lineWarning.confirm,
@@ -2383,7 +2389,8 @@ test.describe("the last control of a scrolling screen ends above the bottom bar 
         await screen.prepare(page);
         const submit = page.getByRole("button", { name: screen.submit, exact: true });
         await expect(submit).toBeVisible();
-        await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+        if (screen.sheet) await submit.scrollIntoViewIfNeeded();
+        else await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
         await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => done(null))));
         const seen = await submit.evaluate((el) => {
           const r = el.getBoundingClientRect();
@@ -2413,8 +2420,12 @@ test.describe("the last control of a scrolling screen ends above the bottom bar 
         });
         if (screen.stacked) {
           expect(seen.barHeight, "a stacked screen has no bottom bar").toBe(0);
-          expect(seen.below, "the page keeps room for the safe area").toBeGreaterThanOrEqual(34);
-          expect(seen.bottom, "the button ends above the safe area").toBeLessThanOrEqual(seen.viewport - 34);
+          if (!screen.sheet)
+            expect(seen.below, "the page keeps room for the safe area").toBeGreaterThanOrEqual(34);
+          // A sheet's own scroll stops on a whole pixel, so its last control may sit a fraction of one lower.
+          expect(seen.bottom, "the button ends above the safe area").toBeLessThanOrEqual(
+            seen.viewport - 34 + (screen.sheet ? 1 : 0),
+          );
         } else {
           expect(seen.barInset, "the emulated safe area reaches the bar").toBe(34);
           expect(

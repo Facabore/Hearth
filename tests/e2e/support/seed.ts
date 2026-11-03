@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import { es } from "../../../src/i18n/messages/full";
 import { STARTER_ACCOUNTS } from "../../../src/modules/accounts/domain/starter-accounts";
+import { chooseCategory } from "./record";
 
 /** Shared by the a11y and layout specs: a fresh person with a personal space, and the same seeded ledger. */
 const addresses = new WeakMap<Page, string>();
@@ -99,10 +100,7 @@ export const saveIncomeFromForm = async (page: Page, spaceId: string): Promise<v
   await page.goto(`/spaces/${spaceId}/new?type=income`);
   await page.locator("[data-ready='true']").waitFor({ state: "attached" });
   await page.getByLabel(es.ledger.form.amount).fill("1200000");
-  await page.getByRole("button", { name: new RegExp(es.ledger.form.category) }).click();
-  await page.getByRole("dialog").getByRole("radio").first().click();
-  const use = page.getByRole("dialog").getByRole("button", { name: /^Usar / });
-  if (await use.isVisible()) await use.click();
+  await chooseCategory(page, /./);
   await page.getByRole("button", { name: es.ledger.form.save.INCOME }).click();
   await page.waitForURL(new RegExp(`/spaces/${spaceId}/transactions$`));
 };

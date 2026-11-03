@@ -2,6 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { BUILT_IN_FORMATS, formatDate } from "../../../src/shared/ui/format/formatters";
 import { Given, Then, When } from "../support/fixtures";
 import { minor, shown } from "../support/money";
+import { chooseCategory } from "../support/record";
 import type { World } from "../support/world";
 
 const DAY_KEYS: Record<string, string> = {
@@ -74,8 +75,7 @@ When(
   ) => {
     await page.getByLabel(world.t("ledger.form.amount")).fill(pesos.replaceAll(",", ""));
     await page.getByLabel(world.t("ledger.form.description")).fill(description);
-    await page.getByRole("button", { name: new RegExp(world.t("ledger.form.category")) }).click();
-    await page.getByRole("radio", { name: category }).click();
+    await chooseCategory(page, category);
     await page.getByRole("button", { name: new RegExp(world.t("ledger.form.account")) }).click();
     await page.getByRole("radio", { name: new RegExp(account) }).click();
     await page.getByRole("button", { name: world.t("ledger.form.save.EXPENSE") }).click();

@@ -1,5 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { Given, Then, When } from "../support/fixtures";
+import { openCategoryPicker } from "../support/record";
 import type { World } from "../support/world";
 
 const ACTIONS: Record<string, string> = { "Archive instead": "categories.sheet.archiveInstead" };
@@ -56,9 +57,10 @@ Then(
     ).toHaveCount(0);
     await page.goto(`/spaces/${world.user!.spaceId}/new`);
     await expect(page.locator("[data-ready='true']")).toBeAttached();
-    await page.getByRole("button", { name: new RegExp(world.t("ledger.form.category")) }).click();
-    const picker = page.getByRole("dialog", { name: world.t("categories.picker.title") });
+    const picker = await openCategoryPicker(page);
     await expect(picker.getByRole("radio").first()).toBeVisible();
+    // Searched by name, so the archived category would show whichever group holds it.
+    await picker.getByRole("searchbox").fill(category);
     await expect(picker.getByRole("radio", { name: category })).toHaveCount(0);
   },
 );
