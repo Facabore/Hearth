@@ -126,6 +126,22 @@ describe("the first screen's chunks, preloaded by the HTML (ADR 0004, 2026-10-28
     expect(first("/nope/deeper")).toBeUndefined();
   });
 
+  it("turns Inter on and preloads it only when the first screen is in the app, never on a visitor's page (P299)", () => {
+    const fontAt = (pathname: string) => {
+      window.history.replaceState(null, "", pathname);
+      delete document.documentElement.dataset.font;
+      document.head.querySelectorAll("link[rel=preload][as=font]").forEach((link) => link.remove());
+      new Function(framePick(table))();
+      const link = document.head.querySelector("link[rel=preload][as=font]");
+      return [document.documentElement.dataset.font ?? null, link?.getAttribute("href") ?? null];
+    };
+    for (const visitor of ["/sign-in", "/sign-up", "/invitations/tok", "/claims/clm"])
+      expect(fontAt(visitor), visitor).toEqual([null, null]);
+    expect(fontAt("/spaces/sp-1/transactions")).toEqual(["inter", "/fonts/inter-latin-wght-normal.woff2"]);
+    const link = document.head.querySelector("link[rel=preload][as=font]")!;
+    expect([link.getAttribute("type"), link.hasAttribute("crossorigin")]).toEqual(["font/woff2", true]);
+  });
+
   it("marks the public frame on the screens the public layout wraps, and the app's elsewhere", () => {
     const frameAt = (pathname: string) => {
       window.history.replaceState(null, "", pathname);

@@ -35,6 +35,21 @@ describe("app shell (HU-E9-01)", () => {
     { id: "sp-household", name: "Household", kind: "SHARED", role: "MEMBER" },
   ] as const;
 
+  it("turns Inter on once a signed-in screen draws, so signing in from a visitor's page brings it (P299)", () => {
+    delete document.documentElement.dataset.font;
+    renderWithIntl(
+      <AppShell
+        me={{ id: "u-ana", name: "Ana", email: "ana@example.com", locale: "es" }}
+        spaces={spaces}
+        activeSpace={spaces[0]}
+        stacked
+      >
+        <h1>Ajustes</h1>
+      </AppShell>,
+    );
+    expect(document.documentElement.dataset.font).toBe("inter");
+  });
+
   it("shows the active space, the user menu and the navigation of the space", async () => {
     const { container } = renderWithIntl(
       <AppShell

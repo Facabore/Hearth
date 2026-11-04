@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import type { Locale } from "@/i18n/locale";
 import { ProfileSheet } from "@/modules/identity/ui";
 import type { Formats } from "@/shared/ui/format/formatters";
@@ -49,6 +49,11 @@ export function AppShell({
   onSwitcherOpen,
   children,
 }: AppShellProps) {
+  // Ruling P299: Inter is the signed-in screens' typeface. A first visit to one turns it on before it paints
+  // (framePick); this covers arriving from a visitor's page, such as signing in.
+  useEffect(() => {
+    document.documentElement.dataset.font = "inter";
+  }, []);
   if (stacked) {
     return (
       <div className="min-h-dvh pb-[env(safe-area-inset-bottom)]">
