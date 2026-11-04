@@ -8,7 +8,7 @@ import {
   sequentialIds,
   unwrap,
 } from "../../../../tests/support/fakes";
-import { InMemoryCategories } from "../../../../tests/support/in-memory-categories";
+import { InMemoryCategories, noUsage } from "../../../../tests/support/in-memory-categories";
 import { createArchiveCategory } from "./archive-category";
 import { createArchiveCategoryGroup } from "./archive-category-group";
 import { createCreateCategory } from "./create-category";
@@ -57,7 +57,7 @@ const world = async (archived: boolean) => {
     archive: createArchiveCategory(deps),
     restore: createRestoreCategory(deps),
     archiveGroup: createArchiveCategoryGroup(deps),
-    list: createListCategories(deps),
+    list: createListCategories({ ...deps, counts: noUsage }),
   };
 };
 type World = Awaited<ReturnType<typeof world>>;

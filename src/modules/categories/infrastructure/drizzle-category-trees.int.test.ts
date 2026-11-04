@@ -40,6 +40,7 @@ describe("the category trees a report reads (HU-E7-06)", () => {
       id: ids.next<"CategoryGroup">(),
       name: "Pets",
       key: null,
+      position: 6,
     };
     await repo.addGroups([pets]);
     // Copies of a stored row, so each has every column its level needs (HU-E3-05: a subcategory has no style).
@@ -159,6 +160,7 @@ describe("the category trees a report reads (HU-E7-06)", () => {
       id: ids.next<"CategoryGroup">(),
       name: "Empty",
       key: null,
+      position: 6,
     };
     await repo.addGroups([empty]);
     await repo.saveGroup({ ...s.group("leisure"), archivedAt: new Date() });

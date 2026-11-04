@@ -137,12 +137,12 @@ type SymbolSectionId = (typeof SYMBOL_SECTIONS)[number]["id"];
 type EmojiSectionId = (typeof EMOJI_SECTIONS)[number]["id"];
 export type EmojiId = (typeof EMOJI_SECTIONS)[number]["emoji"][number][0];
 
-/** The catalog keys (under `categories`) of the library's labels and section names. */
+/**
+ * The catalog keys (under `categories`) of the library's labels and section names. The emoji tab's sections are named
+ * like the symbol tab's (P296 dropped the identical `emojiSection` copies to make room in the catalog).
+ */
 export type LibraryKey =
-  | `symbol.${LibrarySymbol}`
-  | `symbolSection.${SymbolSectionId}`
-  | `emoji.${EmojiId}`
-  | `emojiSection.${EmojiSectionId}`;
+  `symbol.${LibrarySymbol}` | `symbolSection.${SymbolSectionId | EmojiSectionId}` | `emoji.${EmojiId}`;
 
 const LIBRARY_SYMBOLS: readonly string[] = SYMBOL_SECTIONS.flatMap((section) => section.names);
 const ALL_EMOJI: readonly (readonly [EmojiId, string])[] = EMOJI_SECTIONS.flatMap(
@@ -219,7 +219,7 @@ export const librarySections = (tab: IconTab, t: (key: LibraryKey) => string): L
       }))
     : EMOJI_SECTIONS.map((section) => ({
         id: section.id,
-        name: t(`emojiSection.${section.id}`),
+        name: t(`symbolSection.${section.id}`),
         choices: (section.emoji as readonly (readonly [EmojiId, string])[]).map(([id, value]) => ({
           icon: { kind: "EMOJI", value },
           label: t(`emoji.${id}`),

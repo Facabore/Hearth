@@ -26,14 +26,19 @@ export function AccountRow({
   const color = colorOf(account);
   const { terms, derived } = account;
   const details: string[] = [];
-  if (account.institution || account.lastFour)
-    details.push(
-      [account.institution, account.lastFour ? `···${account.lastFour}` : null].filter(Boolean).join(" "),
-    );
-  if (account.type === "CREDIT_CARD") {
+  const card = account.type === "CREDIT_CARD";
+  // Board B1 · 07 (P295): a bank's product type reads before its last four ("Ahorros ···1203"), else the institution;
+  // a card's row names none (P298), its own screen does.
+  const label = account.productType
+    ? t(`productType.${account.productType}`)
+    : card
+      ? null
+      : account.institution;
+  if (label || account.lastFour)
+    details.push([label, account.lastFour ? `···${account.lastFour}` : null].filter(Boolean).join(" "));
+  if (card) {
+    // P298: last four, limit and payment date; the available credit is on the card's own screen.
     if (terms.creditLimit) details.push(t("card.limit", { amount: formatMoney(terms.creditLimit, formats) }));
-    if (derived.availableCredit)
-      details.push(t("card.available", { amount: formatMoney(derived.availableCredit, formats) }));
     if (derived.nextPaymentDate)
       details.push(t("card.payBy", { date: formatDate(derived.nextPaymentDate, formats) }));
   }

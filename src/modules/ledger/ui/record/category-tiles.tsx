@@ -93,7 +93,10 @@ export function CategoryTiles({
               className={`${tile} ${chosen ? "border-2 border-accent bg-accent-soft" : "border-line bg-surface"}`}
             >
               <CategoryIcon icon={found.category.icon} color={found.category.color} size={28} />
-              <span className="line-clamp-2 text-center [overflow-wrap:anywhere]">{found.category.name}</span>
+              {/* A long name hyphenates in the page's language instead of breaking mid-word; anywhere stays as the last resort. */}
+              <span className="line-clamp-2 text-center hyphens-auto [overflow-wrap:anywhere]">
+                {found.category.name}
+              </span>
               {chosen ? (
                 <span
                   aria-hidden="true"

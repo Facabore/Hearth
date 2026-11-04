@@ -193,17 +193,44 @@ Then(
   },
 );
 
+/** The account `name` of the signed-in person's space, as the API answers it. */
+const accountNamed = async (
+  world: { api: { get: (path: string) => Promise<unknown> }; user?: { spaceId: string } },
+  name: string,
+) => {
+  const { items } = (await world.api.get(`/api/v1/spaces/${world.user!.spaceId}/accounts`)) as {
+    items: { id: string; name: string; derived: { nextPaymentDate: string } }[];
+  };
+  return items.find((a) => a.name === name)!;
+};
+
+// Ruling P298 (board B1 07): a card's row reads its limit and payment date; its available credit is on its own screen.
 Then(
-  /^"([^"]+)" shows (-?[\d,]+) COP with an available credit of ([\d,]+) COP and its next payment date$/,
-  async ({ page, world }, account: string, balance: string, available: string) => {
-    const { items } = (await world.api.get(`/api/v1/spaces/${world.user!.spaceId}/accounts`)) as {
-      items: { name: string; derived: { nextPaymentDate: string } }[];
-    };
-    const date = formatDate(items.find((a) => a.name === account)!.derived.nextPaymentDate, BUILT_IN_FORMATS);
+  /^"([^"]+)" shows (-?[\d,]+) COP with its credit limit of ([\d,]+) COP and its next payment date, and no available credit$/,
+  async ({ page, world }, account: string, balance: string, limit: string) => {
+    const date = formatDate((await accountNamed(world, account)).derived.nextPaymentDate, BUILT_IN_FORMATS);
     const text = norm(await page.getByRole("listitem", { name: account }).textContent());
     expect(text).toContain(norm(shown(balance)));
-    expect(text).toContain(norm(world.t("accounts.card.available", { amount: shown(available) })));
-    expect(text).toContain(norm(world.t("accounts.card.payBy", { date })));
+    expect(text).toContain(
+      norm(
+        `${world.t("accounts.card.limit", { amount: shown(limit) })} · ${world.t("accounts.card.payBy", { date })}`,
+      ),
+    );
+    // No "disponible $ …" figure; the "fuera del disponible" caption under the amount stays.
+    expect(text).not.toMatch(new RegExp(`${world.t("accounts.available")}\\s?\\$`, "i"));
+  },
+);
+
+Then(
+  /^the screen of "([^"]+)" shows an available credit of ([\d,]+) COP$/,
+  async ({ page, world }, account: string, available: string) => {
+    const { id } = await accountNamed(world, account);
+    await page.goto(`/spaces/${world.user!.spaceId}/accounts/${id}/edit`);
+    const figure = page.locator("[data-available]");
+    await expect(figure).toBeVisible();
+    expect(norm(await figure.textContent())).toBe(
+      norm(`${world.t("accounts.available")}${shown(available)}`),
+    );
   },
 );
 

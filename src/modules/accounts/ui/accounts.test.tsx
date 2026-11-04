@@ -28,6 +28,8 @@ const list = {
       name: "Visa",
       type: "CREDIT_CARD",
       balance: cop(-350_000),
+      institution: "Bancolombia",
+      lastFour: "4821",
       icon: "card",
       includeInAvailable: false,
       terms: { ...accountDto().terms, creditLimit: cop(5_000_000), paymentDay: 15 },
@@ -46,6 +48,30 @@ describe("accounts screen (HU-E9-03)", () => {
       <AccountsScreen spaceId="sp-personal" list={{ ...list, items: [wallet] }} formats={BUILT_IN_FORMATS} />,
     );
     expect(norm(screen.getByRole("listitem", { name: /Daviplata/ }).textContent)).toContain("···7788");
+  });
+
+  it("reads a bank's product type before its last four, as board B1 07 does, and keeps the institution otherwise (P295)", () => {
+    const savings = accountDto({
+      id: "a-savings",
+      name: "Bancolombia",
+      institution: "Bancolombia",
+      lastFour: "1203",
+      productType: "SAVINGS_ACCOUNT",
+    });
+    const checking = accountDto({ id: "a-checking", name: "Davivienda", productType: "CHECKING_ACCOUNT" });
+    const unset = accountDto({ id: "a-unset", name: "BBVA", institution: "BBVA", lastFour: "4821" });
+    renderWithIntl(
+      <AccountsScreen
+        spaceId="sp-personal"
+        list={{ ...list, items: [savings, checking, unset] }}
+        formats={BUILT_IN_FORMATS}
+      />,
+    );
+    const subtitle = (name: RegExp) => norm(screen.getByRole("listitem", { name }).textContent);
+    expect(subtitle(/Bancolombia/)).toContain("Ahorros ···1203");
+    expect(subtitle(/Bancolombia/)).not.toContain("Bancolombia ···");
+    expect(subtitle(/Davivienda/)).toContain("Corriente");
+    expect(subtitle(/BBVA/)).toContain("BBVA ···4821");
   });
 
   it("wraps the totals instead of overflowing a narrow screen, and keeps each amount whole (S2)", () => {
@@ -69,10 +95,11 @@ describe("accounts screen (HU-E9-03)", () => {
     expect(norm(bank.textContent)).not.toContain("fuera del disponible");
     const visa = screen.getByRole("listitem", { name: /Visa/ });
     expect(norm(visa.textContent)).toContain("−$ 350.000");
-    // Board B1 · 07 (P292): the card's figures read as one lower-case line.
-    expect(norm(visa.textContent)).toContain(
-      "cupo $ 5.000.000 · disponible $ 4.650.000 · paga antes del 15/11/2026",
-    );
+    // Board B1 · 07 (P298): the card's last four, limit and payment date, one lower-case line; the available credit
+    // and the institution live on the card's own screen.
+    expect(norm(visa.textContent)).toContain("···4821 · cupo $ 5.000.000 · paga antes del 15/11/2026");
+    expect(norm(visa.textContent)).not.toContain("disponible $");
+    expect(norm(visa.textContent)).not.toContain("Bancolombia");
     expect(norm(visa.textContent)).toContain("fuera del disponible");
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
       "Bancos, billeteras y efectivo",

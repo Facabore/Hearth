@@ -17,11 +17,11 @@ export function CategoriesRoute() {
   useTitle(useTranslations("categories")("title"));
   const { spaceId } = route.useParams();
   const { api } = useApis();
-  const { space } = useViewer(spaceId);
+  const { me, space } = useViewer(spaceId);
   const groups = useSuspenseQuery(categoriesQuery(api, spaceId, "all")).data;
   return (
     <div className="mx-auto max-w-[720px] py-3">
-      <CategoryTree space={space} groups={groups} />
+      <CategoryTree space={space} groups={groups} formats={me.preferences.effective} />
     </div>
   );
 }

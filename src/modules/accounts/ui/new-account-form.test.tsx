@@ -53,6 +53,52 @@ describe("new account form (HU-E9-03)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("asks a bank, and only a bank, for its product type, and sends it only once chosen (P295)", async () => {
+    const { api, requests } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/accounts": () => jsonResponse(accountDto({ name: "Bancolombia" }), 201),
+    });
+    const { container } = renderWithIntl(
+      <NewAccountForm space={spaceDto()} formats={BUILT_IN_FORMATS} api={api} />,
+    );
+    await userEvent.click(screen.getByRole("radio", { name: "Billetera" }));
+    expect(screen.queryByLabelText("Producto")).toBeNull();
+    await userEvent.click(screen.getByRole("radio", { name: "Banco" }));
+    const product = screen.getByLabelText("Producto");
+    expect(product).toHaveValue("");
+    expect(
+      within(product)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["Sin indicar", "Ahorros", "Corriente"]);
+    await userEvent.type(screen.getByLabelText("Nombre"), "Bancolombia");
+    await userEvent.selectOptions(product, "Ahorros");
+    await userEvent.type(screen.getByLabelText("Últimos 4"), "1203");
+    await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
+    expect(await requests[0]!.json()).toEqual({
+      name: "Bancolombia",
+      type: "BANK",
+      openingBalance: { amount: "0", currency: "COP" },
+      productType: "SAVINGS_ACCOUNT",
+      lastFour: "1203",
+    });
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("leaves the product type out of a bank's body when it stays unset (P295)", async () => {
+    const { api, requests } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/accounts": () => jsonResponse(accountDto({ name: "BBVA" }), 201),
+    });
+    renderWithIntl(<NewAccountForm space={spaceDto()} formats={BUILT_IN_FORMATS} api={api} />);
+    await userEvent.click(screen.getByRole("radio", { name: "Banco" }));
+    await userEvent.type(screen.getByLabelText("Nombre"), "BBVA");
+    await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
+    expect(await requests[0]!.json()).toEqual({
+      name: "BBVA",
+      type: "BANK",
+      openingBalance: { amount: "0", currency: "COP" },
+    });
+  });
+
   it("shows a taken name next to the name field", async () => {
     const { api } = fakeApi({
       "POST /api/v1/spaces/{spaceId}/accounts": () => problemResponse(409, "AccountNameTaken"),

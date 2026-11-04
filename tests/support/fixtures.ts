@@ -73,6 +73,8 @@ export const categoryFixture = async (
       name: `Group ${groupId}`,
       key: null,
       style: CUSTOM_GROUP_STYLE,
+      // Ruling P296: last, after whatever groups the space already holds.
+      position: (await repo.listGroups(space.spaceId)).length,
       archivedAt: null,
       createdAt: new Date(),
     },

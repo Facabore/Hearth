@@ -19,7 +19,7 @@ import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { AccountDto, SpaceDto } from "@/shared/ui/api/dto";
 import { problemFrom } from "@/shared/ui/api/problem";
 import { currencyOf } from "@/shared/ui/format/currencies";
-import type { Formats } from "@/shared/ui/format/formatters";
+import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { ArchiveAccountButton } from "./account-actions";
 import { AccountAttributeFields } from "./account-attribute-fields";
 import { editBodyOf, editOf, OWED_TYPES, type AccountEdit } from "./account-fields";
@@ -129,6 +129,15 @@ export function EditAccountForm({
       />
       <form onSubmit={(event) => void submit(event)} noValidate className="flex flex-col gap-3">
         <p className="text-sm text-muted">{t("edit.type", { type: t(`type.${account.type}`) })}</p>
+        {/* P298: a card's available credit lives here, not on its Cuentas row; its institution is the Entidad field. */}
+        {account.type === "CREDIT_CARD" && account.derived.availableCredit ? (
+          <p data-available className="flex items-baseline justify-between gap-3 rounded-2xl bg-surface p-3">
+            <span className="text-sm text-muted">{t("available")}</span>
+            <span className="font-semibold whitespace-nowrap text-ink">
+              {formatMoney(account.derived.availableCredit, formats)}
+            </span>
+          </p>
+        ) : null}
         <TextField
           id="ea-name"
           label={t("field.name")}

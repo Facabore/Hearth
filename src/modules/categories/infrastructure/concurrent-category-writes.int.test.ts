@@ -11,6 +11,7 @@ import type { CategoryRepository } from "../application/category-repository";
 import { createCreateCategory } from "../application/create-category";
 import { createDeleteCategory } from "../application/delete-category";
 import type { CategoriesDeps } from "../application/deps";
+import { createMoveCategoryGroup } from "../application/move-category-group";
 import { DrizzleCategoryRepository } from "./drizzle-category-repository";
 
 const { db, pool } = testDatabase();
@@ -84,5 +85,56 @@ describe("concurrent writes to one space's category tree (ruling P90)", () => {
     }).finally(h.release);
     expect(await outcomesOf(removing, creating)).toEqual(["CategoryNotFound", "ok"]);
     expect(await w.storedUnder(w.groceries)).toBe(0);
+  });
+});
+
+/** The real repository, but whoever reads the groups stops in `hold()` once it has read them (see HoldingCategories). */
+class HoldingGroups extends DrizzleCategoryRepository {
+  constructor(
+    manager: DrizzleTransactionManager,
+    private readonly stop: ReturnType<typeof holder>,
+  ) {
+    super(manager);
+  }
+
+  override async listGroups(spaceId: string) {
+    const rows = await super.listGroups(spaceId);
+    await this.stop.hold();
+    return rows;
+  }
+}
+
+describe("concurrent moves of one space's groups (ruling P296, under P90 and #245)", () => {
+  it("serializes two moves on the tree lock: the second reads the order the first left, and the places stay dense and unique", async () => {
+    const w = await world();
+    // Each fixture category comes in a fresh group, last.
+    await categoryFixture(db, w.space, "Fuel");
+    await categoryFixture(db, w.space, "Pharmacy");
+    const stored = async () =>
+      (
+        await pool.query("SELECT id, position FROM category_groups WHERE space_id = $1 ORDER BY position", [
+          w.space.spaceId,
+        ])
+      ).rows as { id: string; position: number }[];
+    const [a, b, c] = (await stored()).slice(-3).map((row) => row.id);
+    // Whatever the space starts with, the last three groups are A, B, C; the first move puts C before A, and the
+    // second, reading after it, puts A after B. On the order it started from, the second would have kept C last and
+    // written A and B onto places the first had just given away.
+    const h = holder(tm, pool);
+    const first = createMoveCategoryGroup(w.deps(new HoldingGroups(tm, h)))({
+      ...w.asAna,
+      groupId: c!,
+      anchor: { before: a! },
+    });
+    await heldBy(h, first);
+    const second = createMoveCategoryGroup(w.deps())({
+      ...w.asAna,
+      groupId: a!,
+      anchor: { after: b! },
+    }).finally(h.release);
+    expect(await outcomesOf(first, second)).toEqual(["ok", "ok"]);
+    const after = await stored();
+    expect(after.slice(-3).map((row) => row.id)).toEqual([c, b, a]);
+    expect(after.map((row) => row.position)).toEqual(after.map((_, i) => i));
   });
 });

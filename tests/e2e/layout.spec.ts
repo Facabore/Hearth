@@ -1856,7 +1856,8 @@ test.describe("sheets fit the screen and only their body scrolls", () => {
     expect(box.bodyScrolls, "the body is the scroller").toBe(true);
     expect(box.dialogScrolls, "the sheet itself does not scroll").toBe(false);
     expect(box.overscroll).toBe("contain");
-    await expect(dialog.getByRole("button", { name: es.common.close })).toBeInViewport();
+    // Board B1 · 02 (P291): the date sheet has only its drag handle on a phone, so its title is what proves the header.
+    await expect(dialog.getByRole("heading", { name: es.ledger.when.title })).toBeInViewport();
   });
 
   test("the sheet is capped in dvh, with a fallback", async ({ page }) => {

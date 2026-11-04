@@ -8,7 +8,7 @@ import {
   sequentialIds,
   unwrap,
 } from "../../../../tests/support/fakes";
-import { InMemoryCategories } from "../../../../tests/support/in-memory-categories";
+import { InMemoryCategories, noUsage } from "../../../../tests/support/in-memory-categories";
 import { createArchiveCategory } from "./archive-category";
 import { createArchiveCategoryGroup } from "./archive-category-group";
 import { createCreateCategory } from "./create-category";
@@ -35,7 +35,7 @@ const setup = async () => {
   unwrap(await createSeedDefaultCategories(deps)({ spaceId: "space-household", locale: "en" }));
   const named = (name: string) => categories.categories.find((c) => c.name === name)!;
   const activeNames = async () =>
-    unwrap(await createListCategories(deps)({ ...asAna, includeArchived: false }))
+    unwrap(await createListCategories({ ...deps, counts: noUsage })({ ...asAna, includeArchived: false }))
       .flatMap((g) => g.categories)
       .map((c) => c.name);
   return {
@@ -51,7 +51,7 @@ const setup = async () => {
     archive: createArchiveCategory(deps),
     restore: createRestoreCategory(deps),
     archiveGroup: createArchiveCategoryGroup(deps),
-    list: createListCategories(deps),
+    list: createListCategories({ ...deps, counts: noUsage }),
   };
 };
 

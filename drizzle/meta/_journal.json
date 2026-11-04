@@ -183,6 +183,20 @@
       "when": 1793665570604,
       "tag": "0025_transaction_space_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793746201299,
+      "tag": "0026_account_product_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1793747027657,
+      "tag": "0027_category_group_position",
+      "breakpoints": true
     }
   ]
 }

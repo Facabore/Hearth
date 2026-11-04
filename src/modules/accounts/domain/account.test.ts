@@ -3,6 +3,7 @@ import { codeOf, unwrap } from "../../../../tests/support/fakes";
 import {
   ACCOUNT_COLORS,
   ACCOUNT_ICONS,
+  ACCOUNT_PRODUCT_TYPES,
   ACCOUNT_TYPES,
   archiveAccount,
   defaultsOf,
@@ -10,6 +11,7 @@ import {
   iconOf,
   NO_ATTRIBUTES,
   openAccount,
+  productTypesOf,
   restoreAccount,
   reviseAccount,
   switchesOf,
@@ -256,5 +258,45 @@ describe("validating the attributes in the domain (issue 124)", () => {
       codeOf(reviseAccount(wallet, { name: "Nequi 2", attributes: { color: "x" as never } }, [wallet])),
     ).toBe("InvalidAccountColor");
     expect(wallet.institution).toBe("Nequi");
+  });
+});
+
+describe("a bank account's product type (#240, ruling P295)", () => {
+  it("opens a BANK account as savings or checking, and starts every account without one", () => {
+    expect(bancolombia.productType).toBeNull();
+    expect(ACCOUNT_PRODUCT_TYPES).toEqual(["SAVINGS_ACCOUNT", "CHECKING_ACCOUNT"]);
+    for (const productType of ACCOUNT_PRODUCT_TYPES)
+      expect(unwrap(open({ attributes: { productType } })).productType).toBe(productType);
+  });
+
+  it("names the types that take one: only BANK", () => {
+    expect(ACCOUNT_TYPES.filter((type) => productTypesOf(type).length > 0)).toEqual(["BANK"]);
+  });
+
+  it("refuses one on any other type, naming the attribute", () => {
+    for (const type of ACCOUNT_TYPES.filter((t) => t !== "BANK" && t !== "SHARED_FUND")) {
+      const opened = open({ type, attributes: { productType: "SAVINGS_ACCOUNT" } });
+      expect(codeOf(opened)).toBe("AccountAttributeNotAllowed");
+      expect(opened.ok ? null : opened.error.details).toEqual({ attribute: "productType" });
+    }
+    expect(codeOf(reviseAccount(nequi, { attributes: { productType: "CHECKING_ACCOUNT" } }, [nequi]))).toBe(
+      "AccountAttributeNotAllowed",
+    );
+  });
+
+  it("refuses a value outside the list, as a writer that skips HTTP could send", () => {
+    expect(codeOf(open({ attributes: { productType: "PAYROLL" as never } }))).toBe(
+      "InvalidAccountProductType",
+    );
+  });
+
+  it("changes, keeps and clears it like the other attributes", () => {
+    const savings = unwrap(open({ attributes: { productType: "SAVINGS_ACCOUNT" } }));
+    const checking = unwrap(reviseAccount(savings, { attributes: { productType: "CHECKING_ACCOUNT" } }, []));
+    expect(checking.productType).toBe("CHECKING_ACCOUNT");
+    expect(unwrap(reviseAccount(checking, { name: "Bancolombia 2" }, [])).productType).toBe(
+      "CHECKING_ACCOUNT",
+    );
+    expect(unwrap(reviseAccount(checking, { attributes: { productType: null } }, [])).productType).toBeNull();
   });
 });

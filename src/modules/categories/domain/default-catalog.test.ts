@@ -90,4 +90,15 @@ describe("group catalog keys (HU-E3-05, HU-E7-06)", () => {
     expect(tree("es").groups.map((g) => g.key)).toEqual(KEYS);
     expect(tree("en").groups.map((g) => g.key)).toEqual(KEYS);
   });
+
+  it("numbers the starter groups in board Categorías 01's order, Vivienda first (#240, P296)", () => {
+    expect(tree("es").groups.map((g) => [g.name, g.position])).toEqual([
+      ["Vivienda", 0],
+      ["Alimentación", 1],
+      ["Transporte", 2],
+      ["Salud", 3],
+      ["Ocio", 4],
+      ["Ingresos", 5],
+    ]);
+  });
 });

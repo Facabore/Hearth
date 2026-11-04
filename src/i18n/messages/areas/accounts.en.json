@@ -15,7 +15,6 @@
     "outsideAvailable": "outside available",
     "card": {
       "limit": "limit {amount}",
-      "available": "available {amount}",
       "payBy": "pay by {date}"
     },
     "savings": {
@@ -43,7 +42,13 @@
       "termDays": "Term in days",
       "maturityDate": "Maturity date",
       "principal": "Loan amount",
-      "termMonths": "Term in months"
+      "termMonths": "Term in months",
+      "productType": "Product"
+    },
+    "productType": {
+      "none": "Not set",
+      "SAVINGS_ACCOUNT": "Savings",
+      "CHECKING_ACCOUNT": "Checking"
     },
     "type": {
       "BANK": "Bank",

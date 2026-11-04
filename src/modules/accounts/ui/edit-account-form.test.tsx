@@ -102,6 +102,55 @@ describe("edit account form (issue 169)", () => {
     expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/accounts");
   });
 
+  it("starts a bank from its stored product type, sends a change, and clears it with null (P295)", async () => {
+    const bank = accountDto({ id: "a-bank", name: "Bancolombia", productType: "SAVINGS_ACCOUNT" });
+    const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse(bank) });
+    const edit = () =>
+      renderWithIntl(
+        <EditAccountForm space={spaceDto()} account={bank} formats={BUILT_IN_FORMATS} api={api} />,
+      );
+    const first = edit();
+    expect(screen.getByLabelText("Producto")).toHaveValue("SAVINGS_ACCOUNT");
+    await userEvent.selectOptions(screen.getByLabelText("Producto"), "Corriente");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    expect(await requests[0]!.json()).toEqual({ productType: "CHECKING_ACCOUNT" });
+    first.unmount();
+
+    edit();
+    await userEvent.selectOptions(screen.getByLabelText("Producto"), "Sin indicar");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    expect(await requests[1]!.json()).toEqual({ productType: null });
+  });
+
+  it("shows a card's available credit and its institution on its own screen, where the row no longer does (P298)", () => {
+    const card = accountDto({
+      ...visa,
+      institution: "Bancolombia",
+      derived: { ...visa.derived, availableCredit: cop(4_650_000) },
+    });
+    renderWithIntl(
+      <EditAccountForm space={spaceDto()} account={card} formats={BUILT_IN_FORMATS} api={fakeApi({}).api} />,
+    );
+    const available = screen.getByText("Disponible").closest("[data-available]");
+    expect(available?.textContent?.replace(/\s/g, " ")).toBe("Disponible$ 4.650.000");
+    expect(screen.getByLabelText("Entidad")).toHaveValue("Bancolombia");
+  });
+
+  it("says nothing about available credit for a card without a limit, nor for another type", () => {
+    const { api } = fakeApi({});
+    const bank = accountDto({ id: "a-bank", name: "Bancolombia" });
+    renderWithIntl(
+      <EditAccountForm space={spaceDto()} account={bank} formats={BUILT_IN_FORMATS} api={api} />,
+    );
+    expect(screen.queryByText("Disponible")).toBeNull();
+  });
+
+  it("does not ask a card for a product type", () => {
+    const { api } = fakeApi({});
+    render(api);
+    expect(screen.queryByLabelText("Producto")).toBeNull();
+  });
+
   it("says a rate it cannot read is a number, with a rate as the example, and sends nothing", async () => {
     const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse(visa) });
     render(api);

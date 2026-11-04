@@ -155,9 +155,12 @@ Feature: Personal ledger screens
     And "Ana" archived the account "Old wallet"
     When "Ana" opens the accounts screen
     Then "Bancolombia" shows a balance of 4,415,000 COP with its type icon, color, institution and last four digits
-    And "Visa" shows -350,000 COP with an available credit of 4,650,000 COP and its next payment date
+    And "Visa" shows -350,000 COP with its credit limit of 5,000,000 COP and its next payment date, and no available credit
     And the header shows "Available" 4,915,000 COP and "Net worth" 4,565,000 COP
     And "Old wallet" is listed under archived accounts and is not offered in the account picker of the new expense form
+    # Amended 2026-11-03 (owner, ruling P298): a card's row shows only its last four, limit and payment date, as board
+    # B1 07 does; its available credit and its institution move to the card's own screen.
+    And the screen of "Visa" shows an available credit of 4,650,000 COP
 
   Scenario: Pick an optional subcategory
     Given "Groceries" has the subcategories "Vegetables" and "Meat"

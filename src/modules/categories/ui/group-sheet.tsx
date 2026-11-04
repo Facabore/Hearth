@@ -33,7 +33,7 @@ export function GroupSheet({
   readonly onCreated: (group: Omit<CategoryGroupDto, "categories">) => void;
   readonly api?: Api;
 }) {
-  const t = useTranslations("categories.groupSheet");
+  const t = useTranslations("categories");
   const id = useId();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   const [name, setName] = useState("");
@@ -71,17 +71,17 @@ export function GroupSheet({
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
-      title={t("title")}
+      title={t("newGroup")}
       footer={
         <Button size="lg" disabled={pending || name.trim() === ""} onClick={() => void create()}>
-          {t("create")}
+          {t("groupSheet.create")}
         </Button>
       }
     >
       <div className="flex flex-col gap-3">
         <TextField
           id={`${id}-name`}
-          label={t("name")}
+          label={t("sheet.name")}
           value={name}
           maxLength={200}
           autoComplete="off"

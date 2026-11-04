@@ -14,6 +14,7 @@ import {
 import {
   ACCOUNT_COLORS,
   ACCOUNT_ICONS,
+  ACCOUNT_PRODUCT_TYPES,
   ACCOUNT_TYPES,
   defaultsOf,
   iconOf,
@@ -32,6 +33,8 @@ const Institution = z.string().trim().min(1).max(60);
 const LastFour = z.string().regex(/^\d{4}$/, { error: "Exactly the last four digits" });
 const Color = z.enum(ACCOUNT_COLORS);
 const Icon = z.enum(ACCOUNT_ICONS);
+/** Ruling P295: the closed list; which type takes one is the domain's (AccountAttributeNotAllowed). */
+const ProductType = z.enum(ACCOUNT_PRODUCT_TYPES);
 // HU-E2-06: ranges and rates are the domain's (InvalidBillingDay, InvalidRate, …); the contract only bounds sizes.
 // Amounts are MoneySchema's, which already stops at the PostgreSQL bigint range (ValidationFailed, never a 500).
 const Rate = z.string().min(1).max(16);
@@ -115,6 +118,8 @@ export const AccountSchema = z.object({
   archivedAt: z.iso.datetime().nullable(),
   institution: z.string().nullable(),
   lastFour: z.string().nullable(),
+  /** Ruling P295: a bank account's product, savings or checking; null when unset. Added after M6, so optional. */
+  productType: ProductType.nullable().optional(),
   color: Color.nullable(),
   /** The icon shown: the chosen one, else the type's default. */
   icon: Icon,
@@ -158,6 +163,7 @@ export const CreateAccountBodySchema = z.object({
   openingBalance: MoneySchema,
   institution: Institution.optional(),
   lastFour: LastFour.optional(),
+  productType: ProductType.optional(),
   color: Color.optional(),
   icon: Icon.optional(),
   includeInAvailable: z.boolean().optional(),
@@ -171,6 +177,7 @@ export const UpdateAccountBodySchema = z.object({
   openingBalance: MoneySchema.optional(),
   institution: Institution.nullable().optional(),
   lastFour: LastFour.nullable().optional(),
+  productType: ProductType.nullable().optional(),
   color: Color.nullable().optional(),
   icon: Icon.nullable().optional(),
   /** null returns a switch to the type's default. */
@@ -183,11 +190,12 @@ export const UpdateAccountBodySchema = z.object({
 export const attributesFromBody = (
   body: Pick<
     z.infer<typeof UpdateAccountBodySchema>,
-    "institution" | "lastFour" | "color" | "icon" | "includeInAvailable" | "includeInNetWorth"
+    "institution" | "lastFour" | "productType" | "color" | "icon" | "includeInAvailable" | "includeInNetWorth"
   >,
 ): AttributeChanges => ({
   institution: body.institution,
   lastFour: body.lastFour,
+  productType: body.productType,
   color: body.color,
   icon: body.icon,
   includeInAvailable: body.includeInAvailable,
@@ -233,6 +241,7 @@ export const accountDto = (view: AccountView): z.infer<typeof AccountSchema> => 
   archivedAt: view.archivedAt?.toISOString() ?? null,
   institution: view.institution,
   lastFour: view.lastFour,
+  productType: view.productType,
   color: view.color,
   icon: iconOf(view),
   ...switchesOf(view),

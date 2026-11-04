@@ -15,7 +15,7 @@ import { createSeedDefaultCategories } from "./seed-default-categories";
 
 const asAna = { spaceId: "space-ana", userId: "u-ana" };
 
-const setup = () => {
+const setup = (counts: ReadonlyMap<string, number> = new Map()) => {
   const categories = new InMemoryCategories();
   const deps: CategoriesDeps = {
     categories,
@@ -24,7 +24,19 @@ const setup = () => {
     clock: new FixedClock(new Date("2026-10-12T12:00:00Z")),
     tm: memoryTm,
   };
-  return { categories, seed: createSeedDefaultCategories(deps), list: createListCategories(deps) };
+  const asked: string[] = [];
+  const usage = {
+    usageCountsOf: async (spaceId: string) => {
+      asked.push(spaceId);
+      return counts;
+    },
+  };
+  return {
+    categories,
+    asked,
+    seed: createSeedDefaultCategories(deps),
+    list: createListCategories({ ...deps, counts: usage }),
+  };
 };
 
 describe("SeedDefaultCategories (HU-E3-01)", () => {
@@ -61,19 +73,19 @@ describe("SeedDefaultCategories (HU-E3-01)", () => {
 });
 
 describe("ListCategories", () => {
-  it("returns the active tree sorted by name, with catalog keys", async () => {
+  it("returns the active tree, groups in their own order (P296) and categories by name, with catalog keys", async () => {
     const { seed, list } = setup();
     unwrap(await seed({ spaceId: "space-ana", locale: "es" }));
     const tree = unwrap(await list({ ...asAna, includeArchived: false }));
     expect(tree.map((g) => g.name)).toEqual([
-      "Alimentación",
-      "Ingresos",
-      "Ocio",
-      "Salud",
-      "Transporte",
       "Vivienda",
+      "Alimentación",
+      "Transporte",
+      "Salud",
+      "Ocio",
+      "Ingresos",
     ]);
-    expect(tree[0]?.categories.map((c) => [c.name, c.key])).toEqual([
+    expect(tree[1]?.categories.map((c) => [c.name, c.key])).toEqual([
       ["Mercado", "groceries"],
       ["Restaurantes", "restaurants"],
     ]);
@@ -101,5 +113,37 @@ describe("ListCategories", () => {
     expect(codeOf(await list({ spaceId: "space-ana", userId: "u-luis", includeArchived: false }))).toBe(
       "SpaceNotFound",
     );
+  });
+});
+
+describe("usage count per category (#240, ruling P297)", () => {
+  it("gives every category and subcategory its own count, 0 for one no movement names, from one read of the space", async () => {
+    const counts = new Map<string, number>();
+    const { categories, asked, seed, list } = setup(counts);
+    unwrap(await seed({ spaceId: "space-ana", locale: "es" }));
+    const groceries = categories.categories.find((c) => c.key === "groceries")!;
+    const rent = categories.categories.find((c) => c.key === "rent")!;
+    const vegetables = {
+      ...groceries,
+      id: "cat-veg" as typeof groceries.id,
+      parentCategoryId: groceries.id,
+      name: "Verduras",
+      key: null,
+      style: null,
+    };
+    categories.categories.push(vegetables);
+    counts.set(groceries.id, 12).set(rent.id, 1).set(vegetables.id, 3);
+
+    const tree = unwrap(await list({ ...asAna, includeArchived: false }));
+    const food = tree.find((g) => g.key === "food")!;
+    const node = food.categories.find((c) => c.id === groceries.id)!;
+    // A subcategory's movements count toward the subcategory, never its parent.
+    expect(node.usageCount).toBe(12);
+    expect(node.subcategories.map((s) => [s.name, s.usageCount])).toEqual([["Verduras", 3]]);
+    expect(food.categories.find((c) => c.key === "restaurants")!.usageCount).toBe(0);
+    expect(tree.find((g) => g.key === "housing")!.categories.find((c) => c.id === rent.id)!.usageCount).toBe(
+      1,
+    );
+    expect(asked).toEqual(["space-ana"]);
   });
 });

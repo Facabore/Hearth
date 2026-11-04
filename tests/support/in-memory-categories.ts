@@ -1,4 +1,12 @@
-import type { Category, CategoryGroup, CategoryRepository } from "@/modules/categories/application";
+import type {
+  Category,
+  CategoryGroup,
+  CategoryRepository,
+  CategoryUsageCounts,
+} from "@/modules/categories/application";
+
+/** Ruling P297: a space where no movement names any category yet. */
+export const noUsage: CategoryUsageCounts = { usageCountsOf: async () => new Map() };
 
 export class InMemoryCategories implements CategoryRepository {
   groups: CategoryGroup[] = [];
@@ -19,7 +27,16 @@ export class InMemoryCategories implements CategoryRepository {
     this.categories.push(...categories);
   }
   async listGroups(spaceId: string) {
-    return this.groups.filter((g) => g.spaceId === spaceId);
+    return this.groups.filter((g) => g.spaceId === spaceId).sort((a, b) => a.position - b.position);
+  }
+  /** Like DrizzleCategoryRepository: refuses a move that would leave two groups of a space in one place. */
+  async saveGroupPositions(spaceId: string, moved: readonly CategoryGroup[]) {
+    const next = this.groups.map((g) =>
+      g.spaceId === spaceId ? (moved.find((m) => m.id === g.id) ?? g) : g,
+    );
+    const places = next.filter((g) => g.spaceId === spaceId).map((g) => g.position);
+    if (new Set(places).size !== places.length) throw new Error("category_groups_space_position_uq");
+    this.groups = next;
   }
   async listCategories(spaceId: string) {
     return this.categories.filter((c) => c.spaceId === spaceId && !this.deleted.has(c.id));

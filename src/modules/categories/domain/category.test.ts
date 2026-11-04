@@ -6,6 +6,7 @@ import {
   movedTree,
   newCategory,
   newGroup,
+  placeGroup,
   renameGroup,
   restoreCategory,
   restyleGroup,
@@ -19,12 +20,13 @@ import { CUSTOM_GROUP_STYLE, type CategoryStyle, type StyleChange } from "./cate
 
 const now = new Date("2026-10-12T12:00:00Z");
 const ids = sequentialIds("c");
-const group = (id: string, name: string, archivedAt: Date | null = null): CategoryGroup => ({
+const group = (id: string, name: string, archivedAt: Date | null = null, position = 0): CategoryGroup => ({
   id: id as CategoryGroup["id"],
   spaceId: "space-ana",
   name,
   key: null,
   style: CUSTOM_GROUP_STYLE,
+  position,
   archivedAt,
   createdAt: now,
 });
@@ -334,5 +336,59 @@ describe("category styles (HU-E3-05)", () => {
       color: "SAGE",
     });
     expect(unwrap(reviseCategory(pharmacy, { parent: styledGroceries }, tree)).style).toBeNull();
+  });
+});
+
+describe("the order of a space's groups (#240, ruling P296)", () => {
+  // Positions over every group, archived ones included: Housing 0, Food 1, Old 2 (archived), Health 3, Income 4.
+  const housing = group("g-housing", "Housing", null, 0);
+  const food1 = group("g-food", "Food", null, 1);
+  const old = group("g-old", "Old", now, 2);
+  const health3 = group("g-health", "Health", null, 3);
+  const income = group("g-income", "Income", null, 4);
+  const groups = [income, old, housing, health3, food1];
+  const order = (moved: readonly CategoryGroup[]) => {
+    const at = new Map(moved.map((g) => [g.id, g.position]));
+    return [...groups]
+      .map((g) => ({ id: g.id, position: at.get(g.id) ?? g.position }))
+      .sort((a, b) => a.position - b.position);
+  };
+
+  it("puts a new group last", () => {
+    const pets = unwrap(
+      newGroup({ id: ids.next<"CategoryGroup">(), spaceId: "space-ana", name: "Pets", now, groups }),
+    );
+    expect(pets.position).toBe(5);
+    expect(
+      unwrap(newGroup({ id: ids.next<"CategoryGroup">(), spaceId: "s", name: "Pets", now, groups: [] }))
+        .position,
+    ).toBe(0);
+  });
+
+  it("moves a group right before another, shifting the ones between, and answers only the groups that moved", () => {
+    const moved = unwrap(placeGroup(groups, "g-health", { before: "g-food" }));
+    expect(moved.map((g) => [g.id, g.position])).toEqual([
+      ["g-health", 1],
+      ["g-food", 2],
+      ["g-old", 3],
+    ]);
+    expect(order(moved).map((g) => g.position)).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("moves a group right after another, past an archived one", () => {
+    const moved = unwrap(placeGroup(groups, "g-food", { after: "g-health" }));
+    expect(order(moved).map((g) => g.id)).toEqual(["g-housing", "g-old", "g-health", "g-food", "g-income"]);
+  });
+
+  it("changes nothing when the group already sits there, or is its own anchor", () => {
+    expect(unwrap(placeGroup(groups, "g-food", { after: "g-housing" }))).toEqual([]);
+    expect(unwrap(placeGroup(groups, "g-income", { after: "g-income" }))).toEqual([]);
+  });
+
+  it("refuses an unknown group or anchor, and an archived one", () => {
+    expect(codeOf(placeGroup(groups, "g-nope", { before: "g-food" }))).toBe("CategoryGroupNotFound");
+    expect(codeOf(placeGroup(groups, "g-food", { after: "g-nope" }))).toBe("CategoryGroupNotFound");
+    expect(codeOf(placeGroup(groups, "g-old", { before: "g-food" }))).toBe("CategoryGroupArchived");
+    expect(codeOf(placeGroup(groups, "g-food", { before: "g-old" }))).toBe("CategoryGroupArchived");
   });
 });

@@ -16,7 +16,7 @@ import { user } from "@/modules/identity/infrastructure/auth.schema";
 import { spaces } from "@/modules/spaces/infrastructure/spaces.schema";
 import { oneOf } from "@/shared/infrastructure/db/checks";
 import { PALETTE } from "@/shared/kernel";
-import { ACCOUNT_ICONS, ACCOUNT_TYPES } from "../domain/account";
+import { ACCOUNT_ICONS, ACCOUNT_PRODUCT_TYPES, ACCOUNT_TYPES } from "../domain/account";
 import { MAX_BILLING_DAY, MAX_TERM_DAYS, MAX_TERM_MONTHS, MIN_BILLING_DAY } from "../domain/account-terms";
 import { MAX_RATE_PPM } from "../domain/rate";
 
@@ -41,6 +41,8 @@ export const accounts = pgTable(
     // HU-E2-05: optional common attributes; a null icon means the type's default (ruling P50).
     institution: text("institution"),
     lastFour: text("last_four"),
+    // Ruling P295: a bank account's product (savings or checking); null says nothing, as on every account before it.
+    productType: text("product_type", { enum: ACCOUNT_PRODUCT_TYPES }),
     // Ruling P122: the app's palette keys and Hearth symbol names, from the same lists the domain and the contract use.
     color: text("color", { enum: PALETTE }),
     icon: text("icon", { enum: ACCOUNT_ICONS }),
@@ -66,6 +68,9 @@ export const accounts = pgTable(
     check("accounts_shared_fund_owner", sql`(${t.type} = 'SHARED_FUND') = (${t.ownerUserId} IS NULL)`),
     // HU-E2-05: only the last four digits, never a full card or account number.
     check("accounts_last_four", sql`${t.lastFour} ~ '^[0-9]{4}$'`),
+    // Ruling P295: the domain's closed list, and only on a BANK account (productTypesOf); the domain answers first.
+    check("accounts_product_type", oneOf(t.productType, ACCOUNT_PRODUCT_TYPES)),
+    check("accounts_product_type_bank", sql`${t.productType} IS NULL OR ${t.type} = 'BANK'`),
     // HU-E2-06: which type holds which term; the domain answers AccountAttributeNotAllowed first.
     check(
       "accounts_card_terms",

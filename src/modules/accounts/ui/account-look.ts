@@ -3,6 +3,13 @@ import type { AccountDto } from "@/shared/ui/api/dto";
 
 export type AccountType = AccountDto["type"];
 export type AccountIcon = AccountDto["icon"];
+export type AccountProductType = NonNullable<AccountDto["productType"]>;
+
+/** Ruling P295: a bank account's products, in the API's order (`ACCOUNT_PRODUCT_TYPES`, pinned by a test). */
+export const PRODUCT_TYPE_CHOICES = [
+  "SAVINGS_ACCOUNT",
+  "CHECKING_ACCOUNT",
+] as const satisfies readonly AccountProductType[];
 
 /** Issue 169: the icons an account may take, in the API's order (`ACCOUNT_ICONS`, pinned by a test). */
 export const ACCOUNT_ICON_CHOICES = [

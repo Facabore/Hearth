@@ -11,6 +11,7 @@ import {
 } from "../../../../tests/support/ui/fake-api";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import type { CategoryGroupDto, SpaceDto } from "@/shared/ui/api/dto";
+import { BUILT_IN_FORMATS, type Formats } from "@/shared/ui/format/formatters";
 import { CategoryTree } from "./categories-screen";
 
 type Node = CategoryGroupDto["categories"][number];
@@ -106,10 +107,14 @@ const household = (groceries: Partial<Node> = {}): CategoryGroupDto[] => [
 
 const renderTree = (
   groups: readonly CategoryGroupDto[],
-  { space = householdSpace(), routes = {} }: { space?: SpaceDto; routes?: Record<string, FakeHandler> } = {},
+  {
+    space = householdSpace(),
+    routes = {},
+    formats = BUILT_IN_FORMATS,
+  }: { space?: SpaceDto; routes?: Record<string, FakeHandler>; formats?: Formats } = {},
 ) => {
   const { api, requests } = fakeApi(routes);
-  const view = renderWithIntl(<CategoryTree space={space} groups={groups} api={api} />);
+  const view = renderWithIntl(<CategoryTree space={space} groups={groups} formats={formats} api={api} />);
   return { ...view, requests };
 };
 
@@ -604,10 +609,10 @@ describe("categories screen (HU-E9-04)", () => {
   it("shows a fresh read of the tree when the server sends one", () => {
     const { api } = fakeApi({});
     const { rerender } = renderWithIntl(
-      <CategoryTree space={householdSpace()} groups={household()} api={api} />,
+      <CategoryTree space={householdSpace()} groups={household()} formats={BUILT_IN_FORMATS} api={api} />,
     );
     expect(namesIn(group("Food"))).toEqual(["Groceries", "Restaurants"]);
-    rerender(<CategoryTree space={householdSpace()} groups={SEEDED} api={api} />);
+    rerender(<CategoryTree space={householdSpace()} groups={SEEDED} formats={BUILT_IN_FORMATS} api={api} />);
     expect(namesIn(group("Vivienda"))).toEqual(["Arriendo", "Servicios", "Mantenimiento"]);
     expect(screen.queryByRole("region", { name: "Food" })).not.toBeInTheDocument();
   });
@@ -644,6 +649,96 @@ describe("categories screen (HU-E9-04)", () => {
     expect(within(group("Food")).getByText("Vegetables")).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("shows each row's usage count before its chevron, in the person's number format, outside its name (P297)", () => {
+    const groups = household({
+      usageCount: 1204,
+      subcategories: [sub("c-veg", "Vegetables", { usageCount: 3 })],
+    });
+    const { container } = renderTree(groups, {
+      formats: { ...BUILT_IN_FORMATS, numberFormat: "DOT_COMMA" },
+    });
+    const groceries = screen.getByRole("button", { name: "Editar Groceries" });
+    const count = groceries.querySelector("[data-usage]");
+    expect(count?.textContent).toBe("1.204");
+    expect(count?.nextElementSibling?.hasAttribute("data-chevron")).toBe(true);
+    // Restaurants carries no count in this answer, so it shows none rather than a guess.
+    expect(
+      screen.getByRole("button", { name: "Editar Restaurants" }).querySelector("[data-usage]"),
+    ).toBeNull();
+    expect(container.querySelectorAll("[data-usage]")).toHaveLength(1);
+  });
+
+  it("shows the count to a VIEWER too, in the comma format", () => {
+    renderTree(household({ usageCount: 0 }), {
+      space: householdSpace({ role: "VIEWER" }),
+      formats: { ...BUILT_IN_FORMATS, numberFormat: "COMMA_DOT" },
+    });
+    expect(within(group("Food")).getByText("0")).toHaveAttribute("data-usage");
+  });
+
+  describe("group order (#240, P296)", () => {
+    // Gastos shows Housing, Food and Pets; Income (key "income") sits between Food and Pets, on the Ingresos tab only.
+    const ORDERED = [
+      groupDto({ id: "g-housing", name: "Housing", position: 0 }),
+      groupDto({ id: "g-food", name: "Food", position: 1 }),
+      groupDto({ id: "g-income", name: "Income", key: "income", position: 2 }),
+      groupDto({ id: "g-pets", name: "Pets", position: 3 }),
+    ];
+    const MOVE = "POST /api/v1/spaces/{spaceId}/category-groups/{groupId}/move";
+    const headings = () => screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    /** What the API answers: the groups in the order the test expects after the move. */
+    const answering =
+      (ids: readonly string[]): FakeHandler =>
+      () =>
+        jsonResponse({
+          items: ids.map((id, position) => ({
+            ...ORDERED.find((g) => g.id === id)!,
+            categories: undefined,
+            position,
+          })),
+        });
+
+    it("gives each group 44 px up and down arrows named by the group, off at the ends of the tab", async () => {
+      const { container } = renderTree(ORDERED);
+      expect(headings()).toEqual(["Housing", "Food", "Pets"]);
+      for (const name of ["Subir Housing", "Bajar Housing", "Subir Pets", "Bajar Pets"])
+        expect(screen.getByRole("button", { name })).toHaveClass("size-11");
+      expect(screen.getByRole("button", { name: "Subir Housing" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Bajar Pets" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Subir Pets" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Bajar Housing" })).toBeEnabled();
+      expect(await axeViolations(container)).toEqual([]);
+    });
+
+    it("moves a group above the group over it on the tab, past one the tab hides, and shows the answered order", async () => {
+      const { requests } = renderTree(ORDERED, {
+        routes: { [MOVE]: answering(["g-housing", "g-pets", "g-food", "g-income"]) },
+      });
+      await userEvent.click(screen.getByRole("button", { name: "Subir Pets" }));
+      expect(new URL(requests[0]!.url).pathname).toBe(
+        "/api/v1/spaces/sp-household/category-groups/g-pets/move",
+      );
+      expect(await bodyOf(requests[0]!)).toEqual({ before: "g-food" });
+      await waitFor(() => expect(headings()).toEqual(["Housing", "Pets", "Food"]));
+    });
+
+    it("moves a group below the next one with after", async () => {
+      const { requests } = renderTree(ORDERED, {
+        routes: { [MOVE]: answering(["g-food", "g-housing", "g-income", "g-pets"]) },
+      });
+      await userEvent.click(screen.getByRole("button", { name: "Bajar Housing" }));
+      expect(await bodyOf(requests[0]!)).toEqual({ after: "g-food" });
+      await waitFor(() => expect(headings()).toEqual(["Food", "Housing", "Pets"]));
+    });
+
+    it("keeps the order and says why when the API refuses a move", async () => {
+      renderTree(ORDERED, { routes: { [MOVE]: () => problemResponse(409, "CategoryGroupArchived") } });
+      await userEvent.click(screen.getByRole("button", { name: "Bajar Food" }));
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+      expect(headings()).toEqual(["Housing", "Food", "Pets"]);
+    });
   });
 
   it("shows a VIEWER the archived section without a restore control", () => {
