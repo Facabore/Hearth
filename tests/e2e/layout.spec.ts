@@ -3093,3 +3093,30 @@ test.describe("the toast after a delete never hides or crowds the navigation (P1
     });
   }
 });
+
+test.describe("the typeface (ruling P299)", () => {
+  const fontOf = (page: Page) =>
+    page.evaluate(async () => {
+      await document.fonts.ready;
+      return getComputedStyle(document.body).fontFamily;
+    });
+
+  test("a visitor's page keeps the system font and downloads none; a signed-in screen draws Inter", async ({
+    page,
+  }) => {
+    const fonts: string[] = [];
+    page.on("request", (request) => {
+      if (request.resourceType() === "font") fonts.push(new URL(request.url()).pathname);
+    });
+    await page.goto("/sign-in");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    expect(await fontOf(page)).not.toContain("Inter");
+    expect(fonts, "no font on a visitor's page").toEqual([]);
+
+    const { spaceId } = await session(page, "typeface");
+    await page.goto(`/spaces/${spaceId}`);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    expect(await fontOf(page)).toMatch(/^"Inter Variable"/);
+    expect(fonts).toContain("/fonts/inter-latin-wght-normal.woff2");
+  });
+});

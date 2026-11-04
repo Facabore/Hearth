@@ -177,7 +177,7 @@
   --color-track: var(--track);
   --color-danger: var(--danger);
   --color-scrim: var(--scrim);
-  --font-sans: "Inter Variable", "Inter Fallback", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --spacing-row: var(--row);
   --spacing-row-lg: var(--row-lg);
   --spacing-gutter: var(--gutter);
@@ -220,6 +220,11 @@
  * ADR 0004 (amended 2026-10-28): index.html's static frames show the one the address needs until React replaces
  * both (`framePick` in src/spa/route-preload.ts).
  */
+/* Ruling P299: the boards' typeface on the signed-in screens only; a visitor's page keeps the system font and its LCP. */
+html[data-font="inter"] {
+  --font-sans: "Inter Variable", "Inter Fallback", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
 html[data-frame="public"] .hearth-frame-app,
 html:not([data-frame="public"]) .hearth-frame-public {
   display: none;

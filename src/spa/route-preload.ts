@@ -152,10 +152,17 @@ export const chunkFiles = (chunks: readonly BuiltChunk[]): Record<string, string
  * as the sign-in screen shows it) on the screens the public layout wraps, the app's (its header and bottom bar)
  * elsewhere. React replaces both when it renders, so nothing on screen moves (CLS counts elements that move, not ones
  * that go away).
+ *
+ * Ruling P299: a screen in the app also turns Inter on and preloads it. A visitor's page (sign-in, sign-up, an
+ * invitation, a claim) keeps the system font and downloads no font, so its LCP keeps its margin (ADR 0004).
  */
 export const framePick = (table: readonly RouteChunks[]): string => {
   const visitor = table
     .filter((route) => route.modules.includes("routes/public-layout"))
     .map((route) => `^${route.pattern.replace(/\$\w+/g, "[^/]+")}/?$`);
-  return `(function(){try{var v=${JSON.stringify(visitor)};var p=location.pathname;var f="app";for(var i=0;i<v.length;i++)if(new RegExp(v[i]).test(p))f="public";document.documentElement.dataset.frame=f}catch(e){}})();`;
+  const inter = `document.documentElement.dataset.font="inter";var l=document.createElement("link");l.setAttribute("rel","preload");l.setAttribute("as","font");l.setAttribute("type","font/woff2");l.setAttribute("crossorigin","");l.setAttribute("href",${JSON.stringify(INTER_FILE)});document.head.appendChild(l)`;
+  return `(function(){try{var v=${JSON.stringify(visitor)};var p=location.pathname;var f="app";for(var i=0;i<v.length;i++)if(new RegExp(v[i]).test(p))f="public";document.documentElement.dataset.frame=f;if(f==="app"){${inter}}}catch(e){}})();`;
 };
+
+/** Ruling P299: the boards' typeface, which only a signed-in screen loads. */
+export const INTER_FILE = "/fonts/inter-latin-wght-normal.woff2";
