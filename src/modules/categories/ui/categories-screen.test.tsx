@@ -11,6 +11,7 @@ import {
 } from "../../../../tests/support/ui/fake-api";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import type { CategoryGroupDto, SpaceDto } from "@/shared/ui/api/dto";
+import { BUILT_IN_FORMATS, type Formats } from "@/shared/ui/format/formatters";
 import { CategoryTree } from "./categories-screen";
 
 type Node = CategoryGroupDto["categories"][number];
@@ -106,10 +107,14 @@ const household = (groceries: Partial<Node> = {}): CategoryGroupDto[] => [
 
 const renderTree = (
   groups: readonly CategoryGroupDto[],
-  { space = householdSpace(), routes = {} }: { space?: SpaceDto; routes?: Record<string, FakeHandler> } = {},
+  {
+    space = householdSpace(),
+    routes = {},
+    formats = BUILT_IN_FORMATS,
+  }: { space?: SpaceDto; routes?: Record<string, FakeHandler>; formats?: Formats } = {},
 ) => {
   const { api, requests } = fakeApi(routes);
-  const view = renderWithIntl(<CategoryTree space={space} groups={groups} api={api} />);
+  const view = renderWithIntl(<CategoryTree space={space} groups={groups} formats={formats} api={api} />);
   return { ...view, requests };
 };
 
@@ -604,10 +609,10 @@ describe("categories screen (HU-E9-04)", () => {
   it("shows a fresh read of the tree when the server sends one", () => {
     const { api } = fakeApi({});
     const { rerender } = renderWithIntl(
-      <CategoryTree space={householdSpace()} groups={household()} api={api} />,
+      <CategoryTree space={householdSpace()} groups={household()} formats={BUILT_IN_FORMATS} api={api} />,
     );
     expect(namesIn(group("Food"))).toEqual(["Groceries", "Restaurants"]);
-    rerender(<CategoryTree space={householdSpace()} groups={SEEDED} api={api} />);
+    rerender(<CategoryTree space={householdSpace()} groups={SEEDED} formats={BUILT_IN_FORMATS} api={api} />);
     expect(namesIn(group("Vivienda"))).toEqual(["Arriendo", "Servicios", "Mantenimiento"]);
     expect(screen.queryByRole("region", { name: "Food" })).not.toBeInTheDocument();
   });
@@ -644,6 +649,33 @@ describe("categories screen (HU-E9-04)", () => {
     expect(within(group("Food")).getByText("Vegetables")).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("shows each row's usage count before its chevron, in the person's number format, outside its name (P297)", () => {
+    const groups = household({
+      usageCount: 1204,
+      subcategories: [sub("c-veg", "Vegetables", { usageCount: 3 })],
+    });
+    const { container } = renderTree(groups, {
+      formats: { ...BUILT_IN_FORMATS, numberFormat: "DOT_COMMA" },
+    });
+    const groceries = screen.getByRole("button", { name: "Editar Groceries" });
+    const count = groceries.querySelector("[data-usage]");
+    expect(count?.textContent).toBe("1.204");
+    expect(count?.nextElementSibling?.hasAttribute("data-chevron")).toBe(true);
+    // Restaurants carries no count in this answer, so it shows none rather than a guess.
+    expect(
+      screen.getByRole("button", { name: "Editar Restaurants" }).querySelector("[data-usage]"),
+    ).toBeNull();
+    expect(container.querySelectorAll("[data-usage]")).toHaveLength(1);
+  });
+
+  it("shows the count to a VIEWER too, in the comma format", () => {
+    renderTree(household({ usageCount: 0 }), {
+      space: householdSpace({ role: "VIEWER" }),
+      formats: { ...BUILT_IN_FORMATS, numberFormat: "COMMA_DOT" },
+    });
+    expect(within(group("Food")).getByText("0")).toHaveAttribute("data-usage");
   });
 
   describe("group order (#240, P296)", () => {

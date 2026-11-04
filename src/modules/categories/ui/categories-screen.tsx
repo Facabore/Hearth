@@ -8,6 +8,8 @@ import { Button, ChoiceGroup, Icon, ProblemNotice, ScreenHeader, VisuallyHidden 
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { CategoryDto, CategoryGroupDto, SpaceDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
+import { formatCount } from "@/shared/ui/format/count";
+import type { NumberFormat } from "@/shared/ui/format/formatters";
 import { CategoryIcon } from "./category-icon";
 import type { CategorySheetTarget } from "./category-sheet";
 import {
@@ -63,11 +65,14 @@ const archivedOf = (groups: readonly CategoryGroupDto[]): CategoryDto[] =>
 export function CategoryTree({
   space,
   groups,
+  formats,
   api: injected,
 }: {
   readonly space: SpaceDto;
   /** The whole tree, archived groups and categories included (`?archived=true`). */
   readonly groups: readonly CategoryGroupDto[];
+  /** P297: the person's effective number format, for the rows' usage counts (P121, D23). */
+  readonly formats: { readonly numberFormat: NumberFormat };
   readonly api?: Api;
 }) {
   const t = useTranslations("categories");
@@ -230,6 +235,10 @@ export function CategoryTree({
               <li key={category.id}>
                 <CategoryLine
                   category={category}
+                  count={
+                    // P297: an answer from before the count carries none, so the row shows none.
+                    category.usageCount === undefined ? null : formatCount(category.usageCount, formats)
+                  }
                   detail={
                     category.subcategories.length > 0
                       ? category.subcategories.map((sub) => sub.name).join(" · ")
@@ -327,11 +336,14 @@ function IconAction({
  */
 function CategoryLine({
   category,
+  count,
   detail,
   editLabel,
   onEdit,
 }: {
   readonly category: CategoryDto;
+  /** P297: the movements that name it, already in the person's number format. */
+  readonly count: string | null;
   readonly detail: string;
   readonly editLabel: string | null;
   readonly onEdit: () => void;
@@ -343,6 +355,11 @@ function CategoryLine({
         <span className="text-ink [overflow-wrap:anywhere]">{category.name}</span>
         <span className="text-sm [overflow-wrap:anywhere] text-muted">{detail}</span>
       </span>
+      {count === null ? null : (
+        <span data-usage className="shrink-0 text-sm text-muted tabular-nums">
+          {count}
+        </span>
+      )}
       {editLabel ? (
         <span data-chevron className="shrink-0 text-ink">
           <Icon name="chevronRight" size={20} />
