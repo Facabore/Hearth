@@ -8,7 +8,7 @@ import type { TransactionDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import { useToast } from "@/shared/ui/molecules/toast";
-import { leaveSheet } from "./leave-sheet";
+import { leaveSheet } from "@/shared/ui/navigation/leave-sheet";
 
 /** Ruling P194: a soft delete at once (D8), undone by a restore from the toast; never a confirmation dialog. */
 export const useDeleteWithUndo = ({

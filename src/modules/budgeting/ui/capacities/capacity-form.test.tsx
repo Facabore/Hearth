@@ -14,9 +14,10 @@ import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import type { Api } from "@/shared/ui/api/client";
 import type { BudgetPlanDto, CapacitySuggestionDto, SpaceDto, SpaceMemberDto } from "@/shared/ui/api/dto";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
+import { writeTrail } from "@/shared/ui/navigation/history";
 import { CapacityForm } from "./capacity-form";
 
-const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
+const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router, notFound: vi.fn(), redirect: vi.fn() }));
 beforeEach(() => vi.clearAllMocks());
 
@@ -71,7 +72,7 @@ describe("capacities (HU-E9-08)", () => {
         { memberId: "m-juan", amount: { amount: "240000000", currency: "COP" } },
       ],
     });
-    expect(router.push).toHaveBeenCalledWith("/spaces/sp-household/plans/p-nov");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-household/plans/p-nov", { scroll: false });
     expect(router.refresh).toHaveBeenCalled();
     expect(await axeViolations(container)).toEqual([]);
   });
@@ -174,7 +175,24 @@ describe("capacities (HU-E9-08)", () => {
     expect(sheet).toHaveAccessibleDescription("Lo que cada persona pone en noviembre 2026");
     expect(within(sheet).getByRole("button", { name: "Guardar aportes" })).toBeVisible();
     await userEvent.click(within(sheet).getByRole("button", { name: "Cerrar" }));
-    expect(router.push).toHaveBeenCalledWith("/spaces/sp-household/plans/p-nov");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-household/plans/p-nov", { scroll: false });
+  });
+
+  it("goes back to the planner it was opened from, so Volver there never reopens it (ruling P303)", async () => {
+    const planner = "/spaces/sp-household/plans/p-nov";
+    window.history.replaceState(null, "", `${planner}/capacities`);
+    writeTrail({ urls: [planner, `${planner}/capacities`], pos: 1 });
+    try {
+      show({ viewer: "u-ana" });
+      const sheet = await screen.findByRole("dialog", { name: "Cuánto aporta cada uno" });
+      await userEvent.click(within(sheet).getByRole("button", { name: "Cerrar" }));
+      expect(router.back).toHaveBeenCalledTimes(1);
+      expect(router.push).not.toHaveBeenCalled();
+      expect(router.replace).not.toHaveBeenCalled();
+    } finally {
+      sessionStorage.clear();
+      window.history.replaceState(null, "", "/");
+    }
   });
 
   it("shows a refused amount next to its member's field, and an unreadable one before any call", async () => {
@@ -197,7 +215,7 @@ describe("capacities (HU-E9-08)", () => {
       expect(screen.getByLabelText("Aporte de Ana")).toHaveAttribute("aria-invalid", "true"),
     );
     expect(screen.getByLabelText("Aporte de Juan")).not.toHaveAttribute("aria-invalid");
-    expect(router.push).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
   });
 
   it("shows a refusal that names no member above the button", async () => {
@@ -232,7 +250,7 @@ describe("capacities (HU-E9-08)", () => {
     await waitFor(() => expect(screen.getByLabelText("Aporte de Ana")).toHaveValue("1.700.000"));
     expect(screen.getByRole("alert")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Guardar aportes" }));
-    await waitFor(() => expect(router.push).toHaveBeenCalled());
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
     expect(
       requests.filter((request) => request.method === "PUT").map((r) => r.headers.get("if-match")),
     ).toEqual(['"7"', '"9"']);
@@ -249,7 +267,7 @@ describe("capacities (HU-E9-08)", () => {
     expect(save).toBeDisabled();
     expect(requests.filter((request) => request.method === "PUT")).toHaveLength(1);
     release(jsonResponse(referencePlanDto({ version: 8 })));
-    await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledTimes(1));
   });
 
   it("ignores a second Save that arrives before the button is re-rendered as disabled", async () => {
@@ -268,7 +286,7 @@ describe("capacities (HU-E9-08)", () => {
     });
     expect(requests.filter((request) => request.method === "PUT")).toHaveLength(1);
     release(jsonResponse(referencePlanDto({ version: 8 })));
-    await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledTimes(1));
   });
 });
 

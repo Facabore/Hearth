@@ -15,7 +15,7 @@ import { zoneCity } from "@/shared/ui/format/zones";
 import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import type { RowContext } from "../transaction-row";
 import type { TransactionDetail } from "./transaction-detail";
-import { leaveSheet } from "./leave-sheet";
+import { leaveSheet } from "@/shared/ui/navigation/leave-sheet";
 import { actionsFor, type TransactionActions } from "./transaction-actions";
 import { useDeleteWithUndo } from "./use-delete-with-undo";
 

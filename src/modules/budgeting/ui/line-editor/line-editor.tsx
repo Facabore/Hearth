@@ -28,6 +28,7 @@ import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import { minorOf, parseDecimal } from "@/shared/ui/format/amount-input";
 import { currencyOf } from "@/shared/ui/format/currencies";
 import { formatMoney, formatNumber, formatPercent, type Formats } from "@/shared/ui/format/formatters";
+import { leaveSheet } from "@/shared/ui/navigation/leave-sheet";
 import { findCategory } from "@/modules/categories/ui";
 import { CarryText } from "../carry-text";
 import { takesPart } from "../plan-access";
@@ -274,8 +275,8 @@ export function LineEditor({
       },
     );
     if (outcome.ok) {
-      router.push(back);
-      router.refresh();
+      // P303: the form leaves without a history entry, so Volver on the planner never reopens it.
+      leaveSheet(router, back, () => router.refresh());
     } else {
       setPlan(outcome.plan);
       if (outcome.lineId !== null)
@@ -302,8 +303,8 @@ export function LineEditor({
     setPending(true);
     const result = await removeLine(api, { spaceId: space.id, plan, lineId: line.id });
     if (result.ok) {
-      router.push(back);
-      router.refresh();
+      // P303: the form leaves without a history entry, so Volver on the planner never reopens it.
+      leaveSheet(router, back, () => router.refresh());
     } else if (result.problem.code === "PreconditionFailed") await conflict(result.problem);
     else setFormProblem(result.problem);
     inFlight.current = false;

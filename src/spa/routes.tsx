@@ -577,11 +577,15 @@ const myConsumptionRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/my-consumption"), "MyConsumptionRoute"),
 });
 
-/** HU-E9-08: the planner of one plan, its capacities and its lines. */
+/**
+ * HU-E9-08: the planner of one plan, its capacities and its lines. Ruling P303 (owner, 2026-11-06: "que la barra
+ * principal sea lo prioritario"): the planner and its contributions sheet keep the shell, its bottom bar the way out
+ * that always works, as the Plan tab's own screens do; the line form stays a stacked screen with its Volver.
+ */
 const plannerRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "plans/$planId",
-  staticData: { ...stackedScreen, areas: ["plan"] },
+  staticData: { areas: ["plan"] },
   loader: async ({ context, params, cause, route }) =>
     withAreas(
       loadAreas(context, route),
@@ -595,7 +599,7 @@ const plannerRoute = createRoute({
 const capacitiesRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "plans/$planId/capacities",
-  staticData: { ...stackedScreen, areas: ["plan"] },
+  staticData: { areas: ["plan"] },
   loader: async ({ context, params, cause, route }) =>
     withAreas(
       loadAreas(context, route),

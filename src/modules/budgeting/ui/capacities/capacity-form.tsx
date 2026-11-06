@@ -9,6 +9,7 @@ import type { BudgetPlanDto, CapacitySuggestionDto, SpaceDto, SpaceMemberDto } f
 import type { Problem } from "@/shared/ui/api/problem";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import { currencyOf } from "@/shared/ui/format/currencies";
+import { leaveSheet } from "@/shared/ui/navigation/leave-sheet";
 import {
   decimalOf,
   formatMoney,
@@ -52,6 +53,7 @@ export function CapacityForm({
 }) {
   const t = useTranslations("budgeting");
   const router = useRouter();
+  const planner = `/spaces/${space.id}/plans/${initial.id}`;
   const periodText = usePeriodText();
   const messageOf = useProblemMessage();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
@@ -96,8 +98,8 @@ export function CapacityForm({
     );
     if (result.ok) {
       setPlan(result.plan);
-      router.push(`/spaces/${space.id}/plans/${plan.id}`);
-      router.refresh();
+      // P303: the sheet leaves without a history entry, so Volver on the planner never reopens it.
+      leaveSheet(router, planner, () => router.refresh());
     } else if (result.problem.code === "PreconditionFailed") {
       // Ruling P206: the message stays, and the fields start again from what the server has now.
       setFormProblem(result.problem);
@@ -126,7 +128,7 @@ export function CapacityForm({
     <Sheet
       open
       onOpenChange={(open) => {
-        if (!open) router.push(`/spaces/${space.id}/plans/${plan.id}`);
+        if (!open) leaveSheet(router, planner);
       }}
       title={t("capacity.title")}
       description={t("capacity.subtitle", { period: periodText(plan.period, space.periodPolicy, formats) })}

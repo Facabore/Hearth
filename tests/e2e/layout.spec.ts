@@ -1024,11 +1024,12 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         [`/spaces/${sharedId}/plan/groups`, 5],
         // Tendencia: a card per line against the previous period (board E9-11 04), never wider than the page.
         [`/spaces/${sharedId}/plan/trend`, 5],
-        // HU-E9-11: Rubros, the personal space's own page (ruling P267), and its Lines address.
-        [`/spaces/${spaceId}/plan`, 4],
-        [`/spaces/${spaceId}/plan/lines`, 4],
+        // HU-E9-11: Rubros, the personal space's own page (ruling P267), and its Lines address. Personal has Saldos too
+        // (P302), so its bar has the board's five slots.
+        [`/spaces/${spaceId}/plan`, 5],
+        [`/spaces/${spaceId}/plan/lines`, 5],
         // HU-E9-11: By group, the person's own spending merged across their spaces.
-        [`/spaces/${spaceId}/plan/groups`, 4],
+        [`/spaces/${spaceId}/plan/groups`, 5],
       ] as const) {
         await page.goto(path);
         await settle(page);
@@ -1059,6 +1060,34 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
             expect
               .soft(box.x, `${path}: tab ${index} does not overlap the one before`)
               .toBeGreaterThanOrEqual(boxes[index - 1]!.right - 0.5);
+          }
+        });
+        // P302: Registrar sits in the middle of the bar, as on the board, in every space and at every width.
+        const record = (await nav.getByRole("link", { name: es.shell.nav.record }).boundingBox())!;
+        expect
+          .soft(Math.abs(record.x + record.width / 2 - viewport.width / 2), `${path}: Registrar is centered`)
+          .toBeLessThanOrEqual(1);
+        // A label wider than its tab (Movimientos at 320 px) spills evenly around it, and no two labels touch.
+        const labels = (await links.evaluateAll((els) =>
+          els
+            .map((el) => {
+              const range = document.createRange();
+              range.selectNodeContents(el);
+              const r = range.getBoundingClientRect();
+              return { x: r.x, right: r.right, label: el.textContent?.trim() ?? "" };
+            })
+            .filter((label) => label.label)
+            .sort((a, b) => a.x - b.x),
+        )) as { x: number; right: number; label: string }[];
+        labels.forEach((label, index) => {
+          expect.soft(label.x, `${path}: ${label.label} starts on screen`).toBeGreaterThanOrEqual(0);
+          expect
+            .soft(label.right, `${path}: ${label.label} ends on screen`)
+            .toBeLessThanOrEqual(viewport.width);
+          if (index > 0) {
+            expect
+              .soft(label.x, `${path}: ${label.label} does not touch ${labels[index - 1]!.label}`)
+              .toBeGreaterThan(labels[index - 1]!.right);
           }
         });
 
@@ -1179,18 +1208,15 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       expect.soft(overflow, message).toBeLessThanOrEqual(0);
       await expectFullTargets(page, "the planner", viewport.width);
 
-      // Activate is the last control: scrolled to the end of the page it ends on screen. The planner is a stacked
-      // screen (ruling P272), so no bottom bar covers it.
+      // Activate is the last control: scrolled to the end of the page it ends above the bottom bar, which the planner
+      // keeps (ruling P303) as the way out that always works.
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
       const activate = (await page
         .getByRole("button", { name: es.budgeting.planner.activate })
         .boundingBox())!;
-      await expect(
-        page.getByRole("navigation", { name: es.shell.nav.main }),
-        "a stacked screen has no bottom bar (P272)",
-      ).toHaveCount(0);
-      expect(activate.y + activate.height, "Activar plan ends on screen").toBeLessThanOrEqual(
-        viewport.height,
+      const bar = (await page.getByRole("navigation", { name: es.shell.nav.main }).boundingBox())!;
+      expect(activate.y + activate.height, "Activar plan ends above the bottom bar").toBeLessThanOrEqual(
+        bar.y,
       );
 
       // The way back is the shared header's link to the dashboard of the plan's period.

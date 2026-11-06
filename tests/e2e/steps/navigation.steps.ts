@@ -242,3 +242,58 @@ When(
 Then("the balances page of {string} is shown", async ({ page, world }, space: string) => {
   await expect(page).toHaveURL(new RegExp(`/spaces/${world.spaces.get(space)}/balances$`));
 });
+
+/** Ruling P303 (#240): the planner and its contributions sheet keep the main bar, with Plan current. */
+Then("the planner shows the main navigation", async ({ page, world }) => {
+  const nav = page.getByRole("navigation", { name: world.t("shell.nav.main") });
+  await expect(nav.getByRole("link", { name: world.t("shell.nav.plan"), exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(nav.getByRole("link")).toHaveCount(5);
+});
+
+When(/^she saves her capacity ([\d,]+) COP$/, async ({ page, world }, capacity: string) => {
+  await page.getByRole("link", { name: world.t("budgeting.planner.editCapacities") }).click();
+  await page
+    .getByLabel(world.t("budgeting.capacity.field", { name: world.user!.name }))
+    .fill(capacity.replaceAll(",", ""));
+  await page.getByRole("button", { name: world.t("budgeting.capacity.save") }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+When("she closes the contributions sheet", async ({ page, world }) => {
+  await page.getByRole("link", { name: world.t("budgeting.planner.editCapacities") }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: world.t("common.close") })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+When(
+  /^she adds the line "([^"]+)" with ([\d,]+) COP$/,
+  async ({ page, world }, line: string, planned: string) => {
+    await page.getByRole("link", { name: world.t("budgeting.planner.addLine") }).click();
+    await page.getByLabel(world.t("budgeting.lineEditor.field.name")).fill(line);
+    await page.getByLabel(world.t("budgeting.lineEditor.field.planned")).fill(planned.replaceAll(",", ""));
+    // A line needs categories or Todo lo demás, as in personal-plan.steps.ts.
+    await page.getByRole("checkbox", { name: world.t("budgeting.lineEditor.field.catchAll") }).click();
+    await page.getByRole("button", { name: world.t("budgeting.lineEditor.add") }).click();
+    await expect(page.getByRole("listitem", { name: line })).toBeVisible();
+  },
+);
+
+Then("the Plan tab of her personal space is shown", async ({ page, world }) => {
+  await expect(page).toHaveURL(new RegExp(`${escaped(homePath(world))}/plan(\\?period=[\\d-]+)?$`));
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: world.t("shell.nav.plan"), exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+});
+
+Then("the planner is shown", async ({ page, world }) => {
+  await expect(page).toHaveURL(new RegExp(`${escaped(homePath(world))}/plans/[0-9a-f-]{36}$`));
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});

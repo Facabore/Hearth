@@ -45,8 +45,10 @@ export function NavLinks({
   // themselves, so that prefetch would load the shell's script a second time (+14 KiB on their budgets): there a tab
   // loads when it is tapped, as before.
   const prefetch = pathname === home || pathname.startsWith(`${home}/`) ? {} : { prefetch: false };
+  // `min-w-0`: the four tabs share the bar evenly, so Registrar stays in its middle (P302); a label wider than its tab
+  // (Movimientos at 320 px) spills evenly around it instead of pushing Registrar aside.
   const item =
-    "flex min-h-11 flex-1 flex-col items-center justify-center gap-1 text-xs text-muted aria-[current=page]:text-accent lg:flex-none lg:flex-row lg:justify-start lg:gap-3 lg:rounded-xl lg:px-3 lg:text-base";
+    "flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs text-muted aria-[current=page]:text-accent lg:flex-none lg:flex-row lg:justify-start lg:gap-3 lg:rounded-xl lg:px-3 lg:text-base";
   return (
     <nav
       aria-label={t("main")}
