@@ -14,6 +14,12 @@ const MIN_RESUMED_MS = 1_000;
 const GHOST =
   "inline-flex shrink-0 items-center justify-center gap-2 bg-transparent font-semibold text-accent";
 const SVG = "http://www.w3.org/2000/svg";
+/**
+ * Ruling P301: an open bottom sheet marks itself with `data-sheet` and owns the bottom of the screen, where its main
+ * action is. While one is open the region shows the toast at the top (`data-placement="top"`), moved and never
+ * dismissed, so an action such as Deshacer stays reachable.
+ */
+const SHEET = "[data-sheet]";
 
 let dismissCurrent: (() => void) | undefined;
 
@@ -74,10 +80,18 @@ export const showToast = (toast: ToastInput): void => {
   let paused = false;
   let closed = false;
   const holds = { pointer: false, focus: false };
+  const place = (): void => {
+    if (document.querySelector(SHEET)) region.dataset.placement = "top";
+    else delete region.dataset.placement;
+  };
+  // A sheet can open or close while the toast is up (a save, then Registrar again): the placement follows it.
+  const sheets = new MutationObserver(place);
   const dismiss = (): void => {
     closed = true;
     clearTimeout(timer);
     window.removeEventListener("keydown", onWindowKey);
+    sheets.disconnect();
+    delete region.dataset.placement;
     card.remove();
     if (dismissCurrent === dismiss) dismissCurrent = undefined;
   };
@@ -135,6 +149,8 @@ export const showToast = (toast: ToastInput): void => {
   window.addEventListener("keydown", onWindowKey);
 
   dismissCurrent = dismiss;
+  place();
   target.append(card);
+  sheets.observe(document.body, { childList: true, subtree: true });
   start(action ? TOAST_ACTION_MS : TOAST_MS);
 };

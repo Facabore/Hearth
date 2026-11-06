@@ -536,4 +536,27 @@ describe("the record sheet draws the screen it was opened from behind it, from t
     expect(calls(spa.requests, "GET", /\/transactions/)).toHaveLength(0);
     expect(calls(spa.requests, "GET", /\/categories\?archived=true$/)).toHaveLength(0);
   });
+
+  it("moves the save's toast to the top when the sheet opens again, off its save button (P301)", async () => {
+    const { routes } = ledgerApi({
+      "POST /api/v1/spaces/{spaceId}/expenses": () =>
+        jsonResponse({ ...octoberPage.items[0]!, id: "t-new", warnings: [] }, 201),
+    });
+    const spa = renderSpa(HOME, routes);
+    expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
+    await settled(spa);
+    const region = () => document.querySelector<HTMLElement>("[data-toast-region]")!;
+
+    await record();
+    await openForm(spa);
+    await userEvent.type(screen.getByLabelText(es.ledger.form.amount), "55000");
+    await userEvent.click(screen.getByRole("button", { name: es.ledger.form.save.EXPENSE }));
+    expect(await within(region()).findByText(es.ledger.saved.title)).toBeInTheDocument();
+    await waitFor(() => expect(spa.location()).toBe(HOME));
+    expect(region()).not.toHaveAttribute("data-placement");
+
+    await record();
+    await openForm(spa);
+    await waitFor(() => expect(region()).toHaveAttribute("data-placement", "top"));
+  });
 });

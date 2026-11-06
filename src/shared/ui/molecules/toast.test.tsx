@@ -1,10 +1,12 @@
-import { act, screen } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { TOAST_ACTION_MS, TOAST_MS, useToast, type ToastInput } from "./toast";
 import { ToastProvider } from "./toast-provider";
+import { Sheet } from "./sheet";
 
 // Fake timers make findBy* give up before a real module import settles: load the toast host once, up front.
 beforeAll(() => import("./toast-host"));
@@ -150,6 +152,69 @@ describe("Toast (ruling P195)", () => {
       "bottom-[calc(76px+env(safe-area-inset-bottom)+0.5rem)]",
       "lg:bottom-4",
     );
+  });
+
+  it("stays at the bottom while no sheet is open", async () => {
+    withProvider({ message: "Gasto guardado" });
+    await open(user());
+    const region = screen.getByRole("region", { name: "Notificaciones (F8)" });
+    expect(region).not.toHaveAttribute("data-placement");
+    expect(region).toHaveClass("bottom-[calc(76px+env(safe-area-inset-bottom)+0.5rem)]", "lg:bottom-4");
+  });
+
+  it("moves to the top while a sheet is open, so it never covers the sheet's action (P301)", async () => {
+    function WithSheet() {
+      const [sheetOpen, setSheetOpen] = useState(false);
+      return (
+        <>
+          <Trigger
+            toast={{ message: "Gasto eliminado", action: { label: "Deshacer", onAction: () => {} } }}
+          />
+          <button onClick={() => setSheetOpen(true)}>Registrar</button>
+          <Sheet open={sheetOpen} onOpenChange={setSheetOpen} title="Nuevo movimiento">
+            <button>Guardar gasto</button>
+          </Sheet>
+        </>
+      );
+    }
+    renderWithIntl(
+      <ToastProvider stacked>
+        <WithSheet />
+      </ToastProvider>,
+    );
+    const u = user();
+    // The toast was already up when the sheet opened, as after a save and a quick reopen.
+    await open(u);
+    const region = screen.getByRole("region", { name: "Notificaciones (F8)" });
+    expect(region).not.toHaveAttribute("data-placement");
+    await u.click(screen.getByRole("button", { name: "Registrar" }));
+    await waitFor(() => expect(region).toHaveAttribute("data-placement", "top"));
+    expect(region).toHaveClass(
+      "data-[placement=top]:top-[calc(env(safe-area-inset-top)+0.5rem)]",
+      "data-[placement=top]:bottom-auto",
+      "lg:data-[placement=top]:bottom-auto",
+    );
+    // A toast with an action is moved, never dismissed: Deshacer stays reachable (P194).
+    expect(screen.getByTestId("toast")).toHaveTextContent("Gasto eliminado");
+    await u.keyboard("{Escape}");
+    await waitFor(() => expect(region).not.toHaveAttribute("data-placement"));
+    expect(screen.getByRole("button", { name: "Deshacer" })).toBeInTheDocument();
+  });
+
+  it("opens at the top when a sheet is already open, and leaves no placement behind when it goes", async () => {
+    renderWithIntl(
+      <ToastProvider stacked>
+        <section data-sheet="">
+          <Trigger toast={{ message: "Gasto guardado" }} />
+        </section>
+      </ToastProvider>,
+    );
+    await open(user());
+    const region = screen.getByRole("region", { name: "Notificaciones (F8)" });
+    expect(region).toHaveAttribute("data-placement", "top");
+    act(() => vi.advanceTimersByTime(TOAST_MS));
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    expect(region).not.toHaveAttribute("data-placement");
   });
 
   it("does nothing outside a provider, so screens without one render as before", async () => {

@@ -56,6 +56,7 @@ export function RecordSheet({
       />
       <section
         aria-labelledby="record-title"
+        data-sheet=""
         className="fixed inset-x-0 bottom-0 z-40 mx-auto flex max-h-[calc(100dvh-1.5rem)] w-full max-w-[560px] flex-col overflow-y-auto overscroll-contain rounded-t-[20px] bg-surface px-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
       >
         <Link
