@@ -72,7 +72,24 @@ describe("the record form's space can change (ruling P305)", () => {
       description: "Farmacia",
       when: null,
     });
-    release("sp-household");
+    release();
+  });
+
+  it("keeps an income an income in the space it moves to", async () => {
+    show({ spaces: [spaceDto(), householdSpace()], initialKind: "INCOME" });
+    await userEvent.click(screen.getByRole("button", { name: "Espacio: Personal. Cambiar" }));
+    const sheet = await screen.findByRole("dialog", { name: "¿En qué espacio lo registras?" });
+    await userEvent.click(within(sheet).getByRole("button", { name: /Household/ }));
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-household/new?type=income");
+    expect(heldFor("sp-household")?.kind).toBe("INCOME");
+    release();
+  });
+
+  it("drops a draft whose move never arrived, so the next form starts empty", () => {
+    handOver("sp-household", { kind: "EXPENSE", amount: "25.000", description: "Farmacia", when: null });
+    // The person ended up on another space's form instead.
+    show({ space: spaceDto() });
+    expect(heldFor("sp-household")).toBeNull();
   });
 
   it("starts from what another space's form handed over, and still asks before that draft is lost", async () => {
@@ -90,6 +107,8 @@ describe("the record form's space can change (ruling P305)", () => {
   it("keeps the space a plain value with one space to record in, and while editing", () => {
     const { unmount } = show({ spaces: [spaceDto()] });
     expect(screen.queryByRole("button", { name: /^Espacio:/ })).toBeNull();
+    // A value that cannot change never announces "Cambiar".
+    expect(screen.queryByLabelText(/Cambiar/, { selector: "span" })).toBeNull();
     unmount();
     const initial: RecordInitial = {
       kind: "EXPENSE",

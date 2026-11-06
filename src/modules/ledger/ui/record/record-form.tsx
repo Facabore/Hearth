@@ -217,7 +217,7 @@ export function RecordForm({
   const errors = useTranslations("errors");
   // P305: what the form of another space handed over when the person moved it here; never in an edit.
   const [carried] = useState(() => (edit ? null : heldFor(space.id)));
-  useEffect(() => release(space.id), [space.id]);
+  useEffect(release, []);
   const spaceLabel = useTranslations("spaces.settings");
   const router = useRouter();
   const toast = useToast();
@@ -706,15 +706,15 @@ export function RecordForm({
                 name={spaceLabel("title")}
                 value={space.name}
                 icon={<Icon name="home" size={16} />}
-                ariaLabel={t("form.space", { name: space.name })}
-                onClick={
-                  !edit && spaces.length > 1
-                    ? () => {
+                {...(!edit && spaces.length > 1
+                  ? {
+                      ariaLabel: t("form.space", { name: space.name }),
+                      onClick: () => {
                         setSpaceOpened(true);
                         setSheet("space");
-                      }
-                    : undefined
-                }
+                      },
+                    }
+                  : {})}
               />
             </div>
             {chipErrors.map(({ field, error }) => (

@@ -7,7 +7,8 @@ import { handOver, type RecordCarry } from "./record-carry";
 /**
  * Ruling P305: the spaces the person records in, the current one marked. Choosing another hands it what was typed and
  * replaces the form's address with that space's form, keeping the kind and where the form was opened from, so Volver
- * and the save still land there and leaving never asks (#215). It loads apart from the form, on the first tap (ADR 0004).
+ * and the save still land there. The move is a replace, so it does not ask (#215); leaving the new form still does,
+ * since what it received counts as typed. It loads apart from the form, on the first tap (ADR 0004).
  */
 export function SpaceSheet({
   open,
