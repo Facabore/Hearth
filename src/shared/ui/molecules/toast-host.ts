@@ -17,7 +17,8 @@ const SVG = "http://www.w3.org/2000/svg";
 /**
  * Ruling P301: an open bottom sheet marks itself with `data-sheet` and owns the bottom of the screen, where its main
  * action is. While one is open the region shows the toast at the top (`data-placement="top"`), moved and never
- * dismissed, so an action such as Deshacer stays reachable.
+ * dismissed. Over the record sheet (z-40, like the region) its Deshacer stays reachable; a Radix sheet (z-50) still
+ * lays its scrim over the region and hides the page from assistive technology, as it did before P301.
  */
 const SHEET = "[data-sheet]";
 
