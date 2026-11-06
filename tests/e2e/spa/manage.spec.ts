@@ -57,8 +57,14 @@ test.describe("accounts, categories and settings (slice 3 of #199, ADR 0006)", (
     // U8 (#224): the formats sit in the "Números y fechas" sheet.
     await page.getByRole("button", { name: new RegExp(`^${es.settings.numbersAndDates}`) }).click();
     await scan(page, "settings, numbers and dates");
+    // The radio checks at once; the profile's answer comes after, and leaving before it lands reads the old format.
+    const saved = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/v1/me") && response.request().method() === "PATCH" && response.ok(),
+    );
     await page.getByRole("radio", { name: "1,234,567.89" }).click();
     await expect(page.getByRole("radio", { name: "1,234,567.89" })).toBeChecked();
+    await saved;
     await page.goto(`/spaces/${spaceId}/accounts`);
     await expect(page.getByText(/150,000/).first()).toBeVisible();
 
