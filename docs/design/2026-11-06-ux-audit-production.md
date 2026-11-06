@@ -34,6 +34,7 @@ The weak points are again about **trust in the numbers**:
 1. A settlement the person receives **lands in no account by default**, and on a small phone the choice sits below the fold (H1, M2). The owner's net worth reads 3,500,000 lower than it is.
 2. On a 375×667 phone, **"Guardar gasto" is below the fold** of the record sheet (M1).
 3. The Plan answers "how much is left" with **three different figures** (H2).
+4. The planner **traps the person in a loop** between itself and the contributions sheet (M6). It is fixed on `development` and waits for a release.
 
 ## 2. Strengths to keep
 
@@ -90,6 +91,19 @@ Ordered by priority. H = found on desktop, M = found on the mobile pass. Fields 
 - **Effort:** low.
 - **Metric:** as H1.
 - **Validation:** as H1, at 320×640.
+
+### M6. The planner traps the person in a loop · P1 · Verified, fixed on `development`
+
+- **Problem:** after closing (or saving) the contributions sheet, the planner's Volver reopens the sheet; closing it returns to the planner, and so on. The planner has no bottom bar in production, so there is no other way out. Reported by the owner on 2026-11-06 ("no puedo salir de allí de ninguna forma").
+- **Who:** everyone who edits a plan; saving a line does the same.
+- **Context:** Plan › Editar plan › Editar aportes › Cerrar › Volver.
+- **Evidence:** reproduced at 390×844 without saving: "Cerrar → /plans/ID", then "Volver → /plans/ID/capacities".
+- **Root cause (high certainty):** saving or closing the sheet returned to the planner with a push, so the history held the sheet before the planner, and Volver (`goBack`) and Back went to it.
+- **Consequence:** the person cannot leave the plan without closing the app.
+- **Solution:** already on `development` in `176007a5` (Refs #240): the sheet and the line form leave through `leaveSheet` (P189), and the planner keeps the main bar (P303). Six e2e scenarios cover Volver and Back after saving or closing the contributions and after adding a line; CI is green on `caca2414`. Production needs a release.
+- **Effort:** none beyond releasing.
+- **Metric:** sessions that end on a planner screen.
+- **Validation:** after the release, repeat the path above in production at 390×844.
 
 ### H2. The Plan gives three answers to "how much is left" · P1 · Figures verified, confusion a hypothesis
 
