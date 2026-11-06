@@ -138,10 +138,20 @@ describe("shared spaces in the SPA (slice 4 of #199, ADR 0006)", () => {
     expect(count(spa.requests, "GET", /\/invitations$/)).toBeGreaterThan(reads);
   });
 
-  it("answers a personal space's members, balances and history with the not-found screen (P159)", async () => {
+  it("answers a personal space's members and history with the not-found screen (P159)", async () => {
+    const { routes } = server();
+    const first = renderSpa("/spaces/sp-personal/members", routes);
+    expect(await screen.findByRole("heading", { name: es.notFound.title })).toBeVisible();
+    first.unmount();
+    renderSpa("/spaces/sp-personal/members/m-ana/history", routes);
+    expect(await screen.findByRole("heading", { name: es.notFound.title })).toBeVisible();
+  });
+
+  it("opens a personal space's Saldos, which says the person is al día with nothing to settle (P302)", async () => {
     const { routes } = server();
     renderSpa("/spaces/sp-personal/balances", routes);
-    expect(await screen.findByRole("heading", { name: es.notFound.title })).toBeVisible();
+    expect(await screen.findByText("Personal es solo tuyo: aquí no hay nada que saldar.")).toBeVisible();
+    expect(screen.queryByRole("heading", { name: es.notFound.title })).not.toBeInTheDocument();
   });
 
   it("settles up from a suggestion: the balances, the suggestions and the ledger are read again, the profile is not", async () => {
