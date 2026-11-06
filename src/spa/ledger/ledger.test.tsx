@@ -279,6 +279,29 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     expect(document.title).toBe(`${es.ledger.form.title} · Hearth`);
   });
 
+  it("moves the record form to another space with what was typed, and keeps where it was opened from (P305)", async () => {
+    const { routes } = ledgerApi();
+    const returnTo = encodeURIComponent("/spaces/sp-personal/transactions");
+    const spa = renderSpa(`/spaces/sp-personal/new?returnTo=${returnTo}`, routes);
+    const amount = await screen.findByLabelText(es.ledger.form.amount);
+    await userEvent.type(amount, "25000");
+    await userEvent.type(screen.getByLabelText(es.ledger.form.description), "Farmacia");
+    // A category of this space, chosen before the move.
+    const tile = document.querySelector<HTMLButtonElement>('button[aria-pressed="false"]')!;
+    await userEvent.click(tile);
+    expect(tile).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(screen.getByRole("button", { name: /^Espacio: Personal/ }));
+    const sheet = await screen.findByRole("dialog", { name: es.ledger.form.spaceTitle });
+    await userEvent.click(within(sheet).getByRole("button", { name: /Household/ }));
+    await waitFor(() => expect(spa.location()).toBe(`/spaces/sp-household/new?returnTo=${returnTo}`));
+    expect(await screen.findByRole("button", { name: /^Espacio: Household/ })).toBeVisible();
+    expect(screen.getByLabelText(es.ledger.form.amount)).toHaveValue("25.000");
+    expect(screen.getByLabelText(es.ledger.form.description)).toHaveValue("Farmacia");
+    // The amount never travels in the address, and what depends on the space starts afresh.
+    expect(spa.location()).not.toContain("25");
+    expect(document.querySelector('button[aria-pressed="true"]')).toBeNull();
+  });
+
   it("opens the edit form on the transaction, and a transaction that does not exist is not found", async () => {
     const { routes } = ledgerApi();
     renderSpa(

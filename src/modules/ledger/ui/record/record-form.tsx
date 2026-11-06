@@ -60,6 +60,7 @@ import {
   type RecordField,
   type RecordKind,
 } from "./record-request";
+import { heldFor, release } from "./record-carry";
 import { useIdempotencyKey } from "./use-idempotency-key";
 import { whenLabel, type When } from "./when-label";
 
@@ -76,6 +77,9 @@ const SplitWithPersonSheet = dynamic(
 const CategorySheet = dynamic(() => import("./category-sheet").then((module) => module.CategorySheet), {
   ssr: false,
 });
+
+/** Ruling P305: the spaces to record in, in a chunk of its own that loads on the first tap. */
+const SpaceSheet = dynamic(() => import("./space-sheet").then((module) => module.SpaceSheet), { ssr: false });
 
 /** Recents change only when this form saves, and it reads them again on the next mount. */
 const noSubscription = () => () => undefined;
@@ -139,7 +143,7 @@ function KindTabs({
   );
 }
 
-type Sheet = "category" | "account" | "toAccount" | "when" | null;
+type Sheet = "category" | "account" | "toAccount" | "when" | "space" | null;
 
 /** Ruling P191: the form as the edit route uses it: it starts from a transaction and hands Save to the caller. */
 export interface RecordEdit {
@@ -186,6 +190,8 @@ export interface RecordFormProps {
   readonly returnTo?: string | null;
   /** Issue #215: leaving with something typed asks first; without it, leaving never asks. */
   readonly holdNavigation?: HoldNavigation;
+  /** Ruling P305: the spaces the person records in; with more than one, the space chip changes it (never in an edit). */
+  readonly spaces?: readonly Pick<SpaceDto, "id" | "name">[];
 }
 
 /** HU-E9-03, the QuickAdd artboard as a page: amount, description, category, accounts, date and time, Save. */
@@ -205,9 +211,13 @@ export function RecordForm({
   lineWatch = null,
   returnTo = null,
   holdNavigation,
+  spaces = [],
 }: RecordFormProps) {
   const t = useTranslations("ledger");
   const errors = useTranslations("errors");
+  // P305: what the form of another space handed over when the person moved it here; never in an edit.
+  const [carried] = useState(() => (edit ? null : heldFor(space.id)));
+  useEffect(release, []);
   const spaceLabel = useTranslations("spaces.settings");
   const router = useRouter();
   const toast = useToast();
@@ -247,7 +257,7 @@ export function RecordForm({
   const start = client?.now ?? nowIn(new Date(initialNow), serverZone);
   const today = start.date;
 
-  const [kind, setKind] = useState<RecordKind>(edit?.initial.kind ?? initialKind);
+  const [kind, setKind] = useState<RecordKind>(edit?.initial.kind ?? carried?.kind ?? initialKind);
   const kindTabs = !edit || edit.kinds !== undefined;
   // Issue #195: a shared space's transfer goes from the recorder's own account into its fund.
   const fundTransfer = edit !== undefined && shared !== undefined && kind === "TRANSFER";
@@ -260,8 +270,8 @@ export function RecordForm({
     () => null,
   );
   const recent = useMemo(() => parseRecent(recentText), [recentText]);
-  const [amount, setAmount] = useState(edit?.initial.amount ?? "");
-  const [description, setDescription] = useState(edit?.initial.description ?? "");
+  const [amount, setAmount] = useState(edit?.initial.amount ?? carried?.amount ?? "");
+  const [description, setDescription] = useState(edit?.initial.description ?? carried?.description ?? "");
   const [category, setCategory] = useState<CategoryChoice>(edit?.initial.category ?? null);
   const changeKind = (nextKind: RecordKind) => {
     setKind(nextKind);
@@ -292,7 +302,8 @@ export function RecordForm({
     edit ? edit.initial.accountId : preferredAccountId(accounts, readLastAccount()),
   );
   const [toAccountId, setToAccountId] = useState<string | null>(edit?.initial.toAccountId ?? null);
-  const [chosenWhen, setChosenWhen] = useState<When | null>(edit?.initial.when ?? null);
+  const [chosenWhen, setChosenWhen] = useState<When | null>(edit?.initial.when ?? carried?.when ?? null);
+  const [spaceOpened, setSpaceOpened] = useState(false);
   const [sheet, setSheet] = useState<Sheet>(null);
   const [sheetNow, setSheetNow] = useState<When>(start);
   const [pending, setPending] = useState(false);
@@ -311,18 +322,11 @@ export function RecordForm({
   const [keylessTried, setKeylessTried] = useState(false);
   // Issue #215: what the person entered or chose, against what the form opened with; leaving asks only while they
   // differ. The default split may change the method by itself (P167), so only who paid and a chosen split count.
-  const entered = JSON.stringify([
-    amount,
-    description,
-    category,
-    chosenWhen,
-    accountId,
-    toAccountId,
-    direct,
-    split?.payer,
-    split?.chosen,
-  ]);
-  const [pristine] = useState(entered);
+  const enteredOf = (typed: unknown[]) =>
+    JSON.stringify([...typed, category, accountId, toAccountId, direct, split?.payer, split?.chosen]);
+  const entered = enteredOf([amount, description, chosenWhen]);
+  // P305: what another space's form handed over is the person's typing too, so it counts as entered.
+  const [pristine] = useState(() => (carried ? enteredOf(["", "", null]) : entered));
   const dirty = entered !== pristine;
   // Settles the held navigation while the question is shown: true leaves, false stays.
   const [answer, setAnswer] = useState<((leave: boolean) => void) | null>(null);
@@ -698,7 +702,20 @@ export function RecordForm({
                   setSheet("when");
                 }}
               />
-              <FormChip name={spaceLabel("title")} value={space.name} icon={<Icon name="home" size={16} />} />
+              <FormChip
+                name={spaceLabel("title")}
+                value={space.name}
+                icon={<Icon name="home" size={16} />}
+                {...(!edit && spaces.length > 1
+                  ? {
+                      ariaLabel: t("form.space", { name: space.name }),
+                      onClick: () => {
+                        setSpaceOpened(true);
+                        setSheet("space");
+                      },
+                    }
+                  : {})}
+              />
             </div>
             {chipErrors.map(({ field, error }) => (
               <RowError key={field} id={`record-${field}-error`}>
@@ -838,6 +855,16 @@ export function RecordForm({
         label={t("form.to")}
       />
       {answer ? <DiscardConfirm kind={kind} answer={answer} /> : null}
+      {spaceOpened ? (
+        <SpaceSheet
+          open={sheet === "space"}
+          spaces={spaces}
+          currentId={space.id}
+          carry={{ kind, amount, description, when: chosenWhen }}
+          returnTo={returnTo}
+          onClose={() => setSheet(null)}
+        />
+      ) : null}
       <DateTimeSheet
         open={sheet === "when"}
         onOpenChange={(open) => setSheet(open ? "when" : null)}

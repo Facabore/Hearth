@@ -8,7 +8,8 @@ import { MEASURED_PERIOD, SEEDED_PERIODS } from "./seed-plan.mjs";
 /**
  * Ruling P221 (amended by P242): the caps of the Plan routes; each budget is set from its measurement under them. The
  * owner raised the views' caps (190–195) and the planner's (200) on 2026-10-28 for the SPA's cold load (ADR 0004), and
- * the views' (205) and the trends' (305) on 2026-11-02 for #77's recurring screens (ADR 0004).
+ * the views' (205) and the trends' (305) on 2026-11-02 for #77's recurring screens (ADR 0004), and Capacidades' (218) on
+ * 2026-11-06 for #264 (ADR 0004).
  */
 const CAPS = {
   "/spaces/:shared/plan": 205,
@@ -17,7 +18,7 @@ const CAPS = {
   "/spaces/:shared/plan/groups": 205,
   "/spaces/:shared/plan/trend": 305,
   "/spaces/:shared/plans/:plan": 210,
-  "/spaces/:shared/plans/:plan/capacities": 215,
+  "/spaces/:shared/plans/:plan/capacities": 218,
   "/spaces/:shared/plans/:plan/lines/new": 215,
   "/spaces/:shared/plans/:plan/lines/:line": 215,
   "/spaces/:id/plan": 205,
