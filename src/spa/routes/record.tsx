@@ -93,6 +93,7 @@ function RecordFormScreen({
         returnTo={returnTo ?? null}
         holdNavigation={holdNavigation}
         api={api}
+        spaces={viewer.spaces.filter((space) => controlsFor(space.role, space.kind).recordMoney)}
       />
     </div>
   );

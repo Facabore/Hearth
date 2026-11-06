@@ -481,6 +481,8 @@
       "to": "Hacia",
       "chooseAccount": "Elegir cuenta",
       "when": "Fecha y hora: {label}. Cambiar",
+      "space": "Espacio: {name}. Cambiar",
+      "spaceTitle": "¿En qué espacio lo registras?",
       "moreOptions": "Más opciones",
       "fewerOptions": "Menos opciones",
       "discard": {

@@ -19,6 +19,7 @@
     "../modules/identity/ui/profile-sheet-body.tsx": 6,
     "../modules/ledger/ui/record/date-time-sheet.tsx": 36,
     "../modules/ledger/ui/record/category-sheet.tsx": 21,
+    "../modules/ledger/ui/record/space-sheet.tsx": 36,
     "../modules/identity/ui/settings/formats-fields.tsx": 19,
     "../modules/spaces/ui/space-name-section.tsx": 19,
     "../modules/ledger/ui/split/split-sheet.tsx": 36,

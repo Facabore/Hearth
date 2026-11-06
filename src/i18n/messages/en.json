@@ -481,6 +481,8 @@
       "to": "To",
       "chooseAccount": "Choose an account",
       "when": "Date and time: {label}. Change",
+      "space": "Space: {name}. Change",
+      "spaceTitle": "Which space do you record it in?",
       "moreOptions": "More options",
       "fewerOptions": "Fewer options",
       "discard": {
