@@ -201,7 +201,18 @@ describe("the Plan tab and the planner in the SPA (slice 5 of #199, ADR 0006)", 
     // Household's Lines and My spending, read earlier in the session: the person's share counts in both (D11).
     spa.queryClient.setQueryData(["reports", "sp-household", "lines", "2026-11"], e7Dashboard());
     spa.queryClient.setQueryData(["reports", "sp-personal", "unified", { period: "2026-11" }], e74Unified());
-    const linesBefore = count(spa.requests, "GET", /\/reports\/lines$/);
+    // October's Lines, read earlier too: no screen watches it now, so the save leaves it stale.
+    spa.queryClient.setQueryData(["reports", "sp-household", "lines", "2026-10"], e7Dashboard());
+    const novemberLines = () =>
+      spa.requests.filter((request) => {
+        const url = new URL(request.url);
+        return (
+          request.method === "GET" &&
+          url.pathname === "/api/v1/spaces/sp-household/reports/lines" &&
+          url.searchParams.get("period") === "2026-11"
+        );
+      }).length;
+    const linesBefore = novemberLines();
     await userEvent.click(save);
 
     await waitFor(() => expect(spa.location()).toBe(`${HOUSEHOLD}/plans/p-nov`));
@@ -213,7 +224,8 @@ describe("the Plan tab and the planner in the SPA (slice 5 of #199, ADR 0006)", 
     };
     // #264: the planner itself watches the period's Lines (its "Gastos sin rubro"), so that report is read again at once
     // instead of waiting stale; the person's own reports, which nothing on screen watches, stay marked.
-    await waitFor(() => expect(count(spa.requests, "GET", /\/reports\/lines$/)).toBeGreaterThan(linesBefore));
+    await waitFor(() => expect(novemberLines()).toBeGreaterThan(linesBefore));
+    expect(stale(["reports", "sp-household", "lines", "2026-10"])).toBe(true);
     expect(stale(["reports", "sp-personal"])).toBe(true);
     expect(count(spa.requests, "PUT", /\/capacities$/)).toBe(1);
     expect(count(spa.requests, "GET", /\/transactions$/)).toBe(0);
