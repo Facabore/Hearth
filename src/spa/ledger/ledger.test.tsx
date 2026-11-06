@@ -448,3 +448,91 @@ describe("the record form asks before discarding what was typed (#215, F9)", () 
     expect(screen.queryByRole("dialog", { name: discard.title.EXPENSE })).not.toBeInTheDocument();
   });
 });
+
+describe("the record sheet draws the screen it was opened from behind it, from the cache (P300, #240)", () => {
+  const HOME = "/spaces/sp-personal";
+  const discard = es.ledger.form.discard;
+  const behind = () => screen.findByTestId("record-backdrop", {}, { timeout: 5_000 });
+  const openForm = async (spa: ReturnType<typeof renderSpa>) => {
+    expect(
+      await screen.findByRole("button", { name: es.ledger.form.save.EXPENSE }, { timeout: 5_000 }),
+    ).toBeVisible();
+    await settled(spa);
+  };
+  const record = () => userEvent.click(within(nav()).getByRole("link", { name: es.shell.nav.record }));
+
+  it("draws Inicio under the scrim, inert and hidden from assistive technology, and the form still closes back", async () => {
+    const spa = renderSpa(HOME, ledgerApi().routes);
+    expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
+    await settled(spa);
+    const before = spa.requests.length;
+
+    await record();
+    await openForm(spa);
+
+    const backdrop = await behind();
+    expect(backdrop).toHaveAttribute("inert");
+    expect(backdrop).toHaveAttribute("aria-hidden", "true");
+    expect(within(backdrop).getByRole("heading", { name: es.home.recent, hidden: true })).toBeInTheDocument();
+    // Hidden from assistive technology: a person reaches only the form.
+    expect(screen.queryByRole("heading", { name: es.home.recent })).not.toBeInTheDocument();
+    // It comes before the scrim, so the scrim and the sheet lie over it.
+    expect(
+      backdrop.compareDocumentPosition(screen.getByTestId("record-scrim")) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    // Drawn from what Inicio already read: no page, account or category is read again for it.
+    const after = spa.requests.slice(before);
+    expect(calls(after, "GET", /\/transactions/)).toHaveLength(0);
+    expect(calls(after, "GET", /\/categories\?archived=true$/)).toHaveLength(0);
+
+    await userEvent.type(screen.getByLabelText(es.ledger.form.amount), "55000");
+    expect(screen.getByLabelText(es.ledger.form.amount)).toHaveValue("55.000");
+    await userEvent.click(screen.getByRole("link", { name: es.common.back }));
+    const dialog = await screen.findByRole("dialog", { name: discard.title.EXPENSE });
+    await userEvent.click(within(dialog).getByRole("button", { name: discard.confirm }));
+    await waitFor(() => expect(spa.location()).toBe(HOME));
+    expect(screen.queryByTestId("record-backdrop")).not.toBeInTheDocument();
+  });
+
+  it("draws Movimientos behind it when the sheet was opened there, under the list's own filter", async () => {
+    const spa = renderSpa(`${HOME}/transactions?period=2026-10`, ledgerApi().routes);
+    expect(await screen.findByText("Salary")).toBeVisible();
+    await settled(spa);
+    const before = spa.requests.length;
+
+    await record();
+    await openForm(spa);
+
+    const backdrop = await behind();
+    expect(
+      within(backdrop).getByRole("heading", { level: 1, name: es.ledger.list.title, hidden: true }),
+    ).toBeInTheDocument();
+    expect(within(backdrop).getByText("Salary")).toBeInTheDocument();
+    expect(calls(spa.requests.slice(before), "GET", /\/transactions/)).toHaveLength(0);
+  });
+
+  it("draws the space's Inicio behind it for any other origin", async () => {
+    const spa = renderSpa(HOME, ledgerApi().routes);
+    expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
+    await settled(spa);
+
+    await spa.router.navigate({ href: `${HOME}/new?returnTo=${encodeURIComponent(`${HOME}/accounts`)}` });
+    await openForm(spa);
+
+    const backdrop = await behind();
+    expect(within(backdrop).getByRole("heading", { name: es.home.recent, hidden: true })).toBeInTheDocument();
+  });
+
+  it("draws nothing behind a deep link whose screen is not in the cache, and reads nothing for it", async () => {
+    const spa = renderSpa(
+      `${HOME}/new?returnTo=${encodeURIComponent(`${HOME}/transactions`)}`,
+      ledgerApi().routes,
+    );
+    await openForm(spa);
+
+    expect(await behind()).toBeEmptyDOMElement();
+    await settled(spa);
+    expect(calls(spa.requests, "GET", /\/transactions/)).toHaveLength(0);
+    expect(calls(spa.requests, "GET", /\/categories\?archived=true$/)).toHaveLength(0);
+  });
+});
