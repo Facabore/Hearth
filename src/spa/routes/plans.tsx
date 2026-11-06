@@ -1,4 +1,4 @@
-import { useSuspenseQueries } from "@tanstack/react-query";
+import { useQuery, useSuspenseQueries } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { useTranslations } from "use-intl";
 import { canManage } from "@/modules/budgeting/ui";
@@ -14,7 +14,15 @@ import { personalSpaceOf } from "@/modules/spaces/ui";
 import { NotFoundScreen, ScreenHeader } from "@/shared/ui";
 import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
-import { accountsQuery, capacitySuggestionQuery, categoriesQuery, membersQuery, planQuery } from "../reads";
+import type { BudgetPlanDto, SpaceDto } from "@/shared/ui/api/dto";
+import {
+  accountsQuery,
+  capacitySuggestionQuery,
+  categoriesQuery,
+  lineReportQuery,
+  membersQuery,
+  planQuery,
+} from "../reads";
 import { useTitle } from "../title";
 import { useViewer } from "../viewer";
 
@@ -22,6 +30,19 @@ const planner = getRouteApi("/spaces/$spaceId/plans/$planId");
 const capacities = getRouteApi("/spaces/$spaceId/plans/$planId/capacities");
 const newLine = getRouteApi("/spaces/$spaceId/plans/$planId/lines/new");
 const editLine = getRouteApi("/spaces/$spaceId/plans/$planId/lines/$lineId");
+
+/**
+ * #264 (H13): the categories the plan's period spent in that no line counts, read only for whoever can map them; the
+ * planner shows them once they arrive and waits for nothing. This check only spares the read: the planner's own check
+ * decides what is shown.
+ */
+const useUnbudgeted = (spaceId: string, plan: BudgetPlanDto, role: SpaceDto["role"]) => {
+  const { api } = useApis();
+  return useQuery({
+    ...lineReportQuery(api, spaceId, plan.period.label),
+    enabled: canManage(role) && isEditable(plan),
+  }).data?.unbudgeted?.categoryIds;
+};
 
 /** HU-E9-08: the planner of one plan, in the person's formats and today's date in their zone. */
 export function PlannerRoute() {
@@ -36,6 +57,7 @@ export function PlannerRoute() {
       categoriesQuery(api, spaceId, "all"),
     ],
   });
+  const unbudgeted = useUnbudgeted(spaceId, plan.data, space.role);
   // The planner keeps the plan it last saved in its own state: a new plan, or a newer version of this one read after a
   // write, must start it afresh, as each page visit did under Next.js.
   return (
@@ -47,6 +69,7 @@ export function PlannerRoute() {
       groups={groups.data}
       formats={me.preferences.effective}
       today={nowIn(new Date(), me.timezone).date}
+      unbudgetedCategoryIds={unbudgeted}
     />
   );
 }
@@ -68,6 +91,7 @@ export function CapacitiesRoute() {
       capacitySuggestionQuery(api, spaceId, planId),
     ],
   });
+  const unbudgeted = useUnbudgeted(spaceId, plan.data, space.role);
   return (
     <>
       <Planner
@@ -78,6 +102,7 @@ export function CapacitiesRoute() {
         groups={groups.data}
         formats={me.preferences.effective}
         today={nowIn(new Date(), me.timezone).date}
+        unbudgetedCategoryIds={unbudgeted}
       />
       <CapacityForm
         key={planId}

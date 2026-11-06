@@ -11,6 +11,10 @@ export const capacityEditable = (
   viewerUserId: string,
 ): boolean => canManage(role) || (role === "MEMBER" && member.userId === viewerUserId);
 
+/** Ruling P212: a savings line takes no categories; every other line counts the expenses of the ones mapped to it. */
+export const takesCategories = (line: Pick<BudgetPlanDto["lines"][number], "funding">): boolean =>
+  line.funding !== "SAVINGS";
+
 /** HU-E6-07: a CLOSED plan refuses every edit. */
 export const isEditable = (plan: Pick<BudgetPlanDto, "status">): boolean => plan.status !== "CLOSED";
 
