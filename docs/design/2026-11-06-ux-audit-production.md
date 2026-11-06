@@ -1,7 +1,7 @@
 # UX audit of production, pass 2
 
-- **Status:** Diagnosis, pass 2 (2026-11-06). No finding has an issue yet, and no recommendation is approved: each one needs the owner's decision before it reaches the board.
-- **Build audited:** production at https://hearth-test.duckdns.org/ on 2026-11-06. It does not yet carry `547059b6` and `176007a5` from `development` (the centered Registrar in Personal, finding M4).
+- **Status:** Diagnosis, pass 2 (2026-11-06). M4 and M6 are fixed and released (main `f84f69c1`). H13 is on the board as #264, waiting for the owner to pick its solution. The other recommendations need the owner's decision before they reach the board.
+- **Build audited:** production at https://hearth-test.duckdns.org/ on 2026-11-06, before the release of main `f84f69c1` that same day, which fixed M4 and M6.
 - **Method:** heuristic and task-based audit of the live app, signed in as the owner's own account. The numbers on screen were checked against `/api/v1`, and each root cause against the code. Desktop pass in Chrome at 1536×730; mobile pass in the desktop app's built-in browser with viewport emulation at 390×844, 375×667 and 320×640 (dark theme). DOM measurements per screen: horizontal overflow, targets under 44 px, the save button against the fold, a way back.
 - **Nothing was written:** every form was walked up to its save button and closed. Sign-up, onboarding and invitations were not audited, because they need signing out or creating accounts.
 - **Related:** [pass 1, 2026-10-28](2026-10-28-ux-audit.md) audited `development` locally with seeded personas. This pass checks what reached production and what changed since.
@@ -34,7 +34,8 @@ The weak points are again about **trust in the numbers**:
 1. A settlement the person receives **lands in no account by default**, and on a small phone the choice sits below the fold (H1, M2). The owner's net worth reads 3,500,000 lower than it is.
 2. On a 375×667 phone, **"Guardar gasto" is below the fold** of the record sheet (M1).
 3. The Plan answers "how much is left" with **three different figures** (H2).
-4. The planner **traps the person in a loop** between itself and the contributions sheet (M6). It is fixed on `development` and waits for a release.
+4. The planner **traps the person in a loop** between itself and the contributions sheet (M6). Fixed and released on 2026-11-06 (main `f84f69c1`).
+5. **A plan's lines count no expense** when they have no category, and nothing says so (H13).
 
 ## 2. Strengths to keep
 
@@ -92,6 +93,19 @@ Ordered by priority. H = found on desktop, M = found on the mobile pass. Fields 
 - **Metric:** as H1.
 - **Validation:** as H1, at 320×640.
 
+### H13. A plan's lines count no expense, and nothing says so · P1 · Verified
+
+- **Problem:** a line counts the expenses of the categories mapped to it, but creating a line never asks for categories, and the screens never say a line has none. The owner's November plan has four lines (Arriendo, Ahorrro, Mercado, "No sé xd"), none with a category and none marked "Todo lo demás", so every expense lands in "Sin presupuesto". The owner asked on 2026-11-06: "tengo un plan creado, como sabe qué cosa va en qué cosa? … que el rubro que se cree vaya por categoría?"
+- **Who:** everyone who sets up a plan, personal or shared.
+- **Context:** setting up the month's plan, then reading it.
+- **Evidence:** `GET /plans/{id}` answers `categoryIds: []` and `isCatchAll: false` for all four lines. A new line with no category sends no mapping and saves without a word ([`line-editor.tsx:257-265`](https://github.com/Facabore/Hearth/blob/development/src/modules/budgeting/ui/line-editor/line-editor.tsx#L257-L265)). The planner's line row reads "Cada uno paga · Según aportes · Empieza de cero", with no mention of categories. "Sin presupuesto" names the orphan category ("Gastado $ 2.505 en categorías sin rubro · Pharmacy") but offers no way to map it.
+- **Root cause (high certainty):** the mapping is an optional card inside the line form, not a step of creating a line, and no screen reports an empty mapping.
+- **Consequence:** the plan never moves, so it reads as broken; the person cannot tell what goes where, which is the plan's whole job.
+- **Solution:** needs the owner's decision. Options: (a) creating a line asks for its categories, or for "Todo lo demás", before saving; (b) the planner marks a line with no category: "Sin categorías: no cuenta ningún gasto · Elegir"; (c) "Sin presupuesto" offers "Asignar a un rubro" for each orphan category. (b) and (c) are cheap and fix existing plans; (a) prevents new ones.
+- **Effort:** low for (b) and (c); medium for (a).
+- **Metric:** share of active lines with no category and not the catch-all; share of the period's spending that lands in "Sin presupuesto".
+- **Validation:** a database query for both metrics before and after; a task test: "Haz que tus gastos de mercado cuenten en el rubro Mercado".
+
 ### M6. The planner traps the person in a loop · P1 · Verified, fixed on `development`
 
 - **Problem:** after closing (or saving) the contributions sheet, the planner's Volver reopens the sheet; closing it returns to the planner, and so on. The planner has no bottom bar in production, so there is no other way out. Reported by the owner on 2026-11-06 ("no puedo salir de allí de ninguna forma").
@@ -100,10 +114,9 @@ Ordered by priority. H = found on desktop, M = found on the mobile pass. Fields 
 - **Evidence:** reproduced at 390×844 without saving: "Cerrar → /plans/ID", then "Volver → /plans/ID/capacities".
 - **Root cause (high certainty):** saving or closing the sheet returned to the planner with a push, so the history held the sheet before the planner, and Volver (`goBack`) and Back went to it.
 - **Consequence:** the person cannot leave the plan without closing the app.
-- **Solution:** already on `development` in `176007a5` (Refs #240): the sheet and the line form leave through `leaveSheet` (P189), and the planner keeps the main bar (P303). Six e2e scenarios cover Volver and Back after saving or closing the contributions and after adding a line; CI is green on `caca2414`. Production needs a release.
-- **Effort:** none beyond releasing.
+- **Solution:** `176007a5` (Refs #240): the sheet and the line form leave through `leaveSheet` (P189), and the planner keeps the main bar (P303). Six e2e scenarios cover Volver and Back after saving or closing the contributions and after adding a line.
+- **Status:** released on 2026-11-06 (PR #263, main `f84f69c1`). In production at 390×844, Editar aportes › Cerrar › Volver lands on Plan, and Back after Cerrar does too.
 - **Metric:** sessions that end on a planner screen.
-- **Validation:** after the release, repeat the path above in production at 390×844.
 
 ### H2. The Plan gives three answers to "how much is left" · P1 · Figures verified, confusion a hypothesis
 
@@ -189,9 +202,8 @@ Ordered by priority. H = found on desktop, M = found on the mobile pass. Fields 
 - **Who:** every personal user, on every screen with the bar.
 - **Evidence:** DOM measurement at 390×844.
 - **Root cause (high certainty):** a four-item bar with the button third.
-- **Solution:** already on `development` (`547059b6`, `176007a5`); it needs a release.
-- **Effort:** none beyond deploying.
-- **Validation:** recheck at 390 px after the release.
+- **Solution:** `547059b6` and `176007a5`: the personal bar has five slots, Saldos included.
+- **Status:** released on 2026-11-06 (main `f84f69c1`); in production "+" now sits at x = 195 of 390.
 
 ### H8. Quick categories follow the browser, not the person · P3 · Verified
 
