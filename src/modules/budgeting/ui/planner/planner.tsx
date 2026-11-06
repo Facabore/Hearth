@@ -29,6 +29,8 @@ import { usePeriodWord } from "../period-word";
 import { PlanStatusBadge } from "../plan-status-badge";
 import { canCloseOn, canManage, closesFrom, isEditable, takesPart } from "../plan-access";
 import { ifMatch, planWrite, rereadPlan } from "../plan-write";
+import { findCategory } from "@/modules/categories/ui";
+import { AssignCategorySheet } from "./assign-category-sheet";
 import { CapacityCard } from "./capacity-card";
 import { LifecycleConfirm, type LifecycleAction } from "./lifecycle-confirm";
 import { problemPeriod } from "./problem-period";
@@ -69,6 +71,7 @@ export function Planner({
   formats,
   groups,
   today,
+  unbudgetedCategoryIds = [],
   api: injected,
 }: {
   readonly space: SpaceDto;
@@ -78,6 +81,8 @@ export function Planner({
   readonly groups: CategoryGroupDto[];
   readonly formats: Formats;
   readonly today: string;
+  /** #264 (H13): the categories the period spent in that no line counts, the most spent first; none while unread. */
+  readonly unbudgetedCategoryIds?: readonly string[] | undefined;
   readonly api?: Api;
 }) {
   const t = useTranslations("budgeting");
@@ -90,10 +95,20 @@ export function Planner({
   const [failure, setFailure] = useState<Failure | null>(null);
   const [pending, setPending] = useState(false);
   const [confirming, setConfirming] = useState<LifecycleAction | null>(null);
+  const [assigned, setAssigned] = useState<readonly string[]>([]);
+  const [assigning, setAssigning] = useState<{ readonly id: string; readonly name: string } | null>(null);
   const inFlight = useRef(false);
 
   const manager = canManage(space.role);
   const editable = isEditable(plan);
+  // #264 (H13): what the period spent that no line counts, each with its name; mapped ones leave the list at once.
+  const orphans =
+    manager && editable
+      ? unbudgetedCategoryIds.flatMap((id) => {
+          const category = assigned.includes(id) ? undefined : findCategory(groups, id)?.category;
+          return category ? [{ id, name: category.name }] : [];
+        })
+      : [];
   const base = `/spaces/${space.id}/plans/${plan.id}`;
   const names = new Map(members.map((member) => [member.id, member.displayName]));
   // #217: a viewer's zero capacity is no capacity, so it is not listed; a former member's row stays.
@@ -268,6 +283,13 @@ export function Planner({
                       })}
                     </p>
                     <CarryText line={line} policy={space.periodPolicy} formats={formats} />
+                    {/* #264 (H13): a spending line counts only its categories; the catch-all counts the rest. */}
+                    {line.categoryIds.length === 0 && !line.isCatchAll && line.funding !== "SAVINGS" ? (
+                      <p className="flex items-center gap-1 text-sm font-medium text-owe-ink">
+                        <Icon name="alert" size={16} />
+                        {t("planner.noCategories")}
+                      </p>
+                    ) : null}
                     {line.allocation.error !== null ? (
                       <p className="flex items-center gap-1 text-sm font-semibold text-danger">
                         <Icon name="alert" size={16} />
@@ -291,6 +313,46 @@ export function Planner({
           </ul>
         )}
       </section>
+
+      {orphans.length > 0 ? (
+        <section aria-labelledby={heading("orphans")} className="flex flex-col gap-2">
+          <h2 id={heading("orphans")} className="text-base font-semibold text-ink">
+            {t("planner.orphans")}
+          </h2>
+          <p className="text-sm [overflow-wrap:anywhere] text-muted">
+            {t("planner.orphansHint", { period: word })}
+          </p>
+          <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
+            {orphans.map((category) => (
+              <li key={category.id} className="flex min-h-11 items-center justify-between gap-3 px-4 py-2">
+                <span className="min-w-0 font-medium [overflow-wrap:anywhere] text-ink">{category.name}</span>
+                <Button
+                  variant="secondary"
+                  size="compact"
+                  aria-label={t("planner.assignTitle", { category: category.name })}
+                  onClick={() => setAssigning(category)}
+                >
+                  {t("planner.assign")}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      <AssignCategorySheet
+        spaceId={space.id}
+        plan={plan}
+        category={assigning}
+        formats={formats}
+        api={api}
+        onAssigned={(next, categoryId) => {
+          setPlan(next);
+          setAssigned((current) => [...current, categoryId]);
+          router.refresh();
+        }}
+        onPlan={setPlan}
+        onClose={() => setAssigning(null)}
+      />
 
       {manager && plan.status === "DRAFT" ? (
         <div className="flex flex-col gap-2">

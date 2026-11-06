@@ -30,6 +30,12 @@
       "goToSource": "Go to the plan for {period}",
       "percentRule": "Percentage {ratio}",
       "invalidAllocationSum": "Invalid allocation: it adds up to {sum}",
+      "noCategories": "No categories: it counts no expense",
+      "orphans": "Spending with no line",
+      "orphansHint": "This spending in {period} counts in no line.",
+      "assign": "Assign",
+      "assignTitle": "Assign {category} to a line",
+      "assignHint": "From now on, its expenses count in the line you choose.",
       "confirmActivate": {
         "title": "Activate the plan for {period}?",
         "splitDefault": "“By the plan” becomes the default split",

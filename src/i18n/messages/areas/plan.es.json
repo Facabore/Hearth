@@ -30,6 +30,12 @@
       "goToSource": "Ir al plan de {period}",
       "percentRule": "Porcentaje {ratio}",
       "invalidAllocationSum": "Asignación inválida: suma {sum}",
+      "noCategories": "Sin categorías: no cuenta ningún gasto",
+      "orphans": "Gastos sin rubro",
+      "orphansHint": "Estos gastos de {period} no cuentan en ningún rubro.",
+      "assign": "Asignar",
+      "assignTitle": "Asignar {category} a un rubro",
+      "assignHint": "Desde ahora, sus gastos cuentan en el rubro que elijas.",
       "confirmActivate": {
         "title": "¿Activar el plan de {period}?",
         "splitDefault": "«Según el plan» pasa a ser la división por defecto",
