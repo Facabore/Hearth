@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import compile from "icu-minify/compile";
@@ -183,9 +183,24 @@ const securityPolicy = (): Plugin => ({
     const page = join(server.config.build.outDir, "index.html");
     // No build yet: Vite's preview says so itself.
     if (!existsSync(page)) return;
-    const policy = contentSecurityPolicy(readFileSync(page, "utf8"));
+    // The preview reads index.html from disk on each request, so a build while it runs (`pnpm spa:build` by hand or
+    // another agent's) serves a page whose inline scripts the policy of the old page refuses: the policy follows the
+    // page, computed again when the file changes, and the last one stays while a build has emptied the folder.
+    const read = () => ({
+      mtimeMs: statSync(page).mtimeMs,
+      header: contentSecurityPolicy(readFileSync(page, "utf8")),
+    });
+    let policy = read();
+    const current = () => {
+      try {
+        if (statSync(page).mtimeMs !== policy.mtimeMs) policy = read();
+      } catch {
+        // Mid-build: no index.html for the moment.
+      }
+      return policy.header;
+    };
     server.middlewares.use((_request, response, next) => {
-      response.setHeader("Content-Security-Policy", policy);
+      response.setHeader("Content-Security-Policy", current());
       next();
     });
   },

@@ -44,6 +44,10 @@ if (!url) {
     "--label",
     // The teardown removes only its own run's containers (tests/e2e/support/base-url.ts).
     `hearth.test.e2e.port=${PORT}`,
+    "--label",
+    // The Playwright run that owns this database (playwright.config.ts), or this script when it runs alone: a run that
+    // reuses this server (E2E_REUSE=1) never removes it while its owner lives.
+    `hearth.test.e2e.runner=${process.env.E2E_RUNNER_PID ?? process.pid}`,
     "-e",
     "POSTGRES_DB=hearth",
     "-e",
