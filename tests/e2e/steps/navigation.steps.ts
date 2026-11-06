@@ -297,3 +297,17 @@ Then("the planner is shown", async ({ page, world }) => {
   await expect(page).toHaveURL(new RegExp(`${escaped(homePath(world))}/plans/[0-9a-f-]{36}$`));
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
+
+/** Ruling P302 (#240): Saldos in the personal space says the person is al día, with nothing to settle. */
+Then("the balances page of her personal space is shown", async ({ page, world }) => {
+  await expect(page).toHaveURL(new RegExp(`${escaped(homePath(world))}/balances$`));
+  await expect(page.getByText(world.t("balances.you.settled"), { exact: true })).toBeVisible();
+  await expect(
+    // The personal space is named "Personal" when it is created (space.ts).
+    page.getByText(world.t("balances.personalNote", { space: "Personal" })),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: world.t("shell.nav.balances"), exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+});

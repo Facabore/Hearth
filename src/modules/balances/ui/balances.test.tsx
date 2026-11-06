@@ -47,6 +47,26 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("says the personal space is al día, with no one to settle with and no history to open (P302, P159)", async () => {
+    const { container } = view({
+      space: householdSpace({ id: "sp-personal", name: "Personal", kind: "PERSONAL", role: "OWNER" }),
+      members: [ANA],
+      meUserId: "u-ana",
+      balances: [net("m-ana", 0)],
+      suggestions: [],
+    });
+    expect(screen.getByRole("heading", { level: 1, name: "Saldos" })).toBeInTheDocument();
+    expect(normalized(screen.getByRole("region", { name: "Tu saldo en Personal" }).textContent)).toContain(
+      "Estás al día",
+    );
+    expect(screen.getByText("Personal es solo tuyo: aquí no hay nada que saldar.")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Para quedar al día" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Cada miembro" })).toBeNull();
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
   it("colors who owes and who is owed, never by the sign alone", () => {
     view();
     // P272 (board 01): the headline is ink whatever the direction; its words say who puts and who receives.

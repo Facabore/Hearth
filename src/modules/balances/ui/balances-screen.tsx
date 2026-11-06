@@ -79,7 +79,10 @@ export function BalancesScreen({
   const mine = viewer ? netOf(viewer.id) : netOf("");
   const state = netState(mine);
 
-  const canSettle = viewer !== undefined && controlsFor(space.role, space.kind).recordMoney;
+  // P302: the personal space has Saldos too, where the person is always al día; it has no one to settle with and no
+  // history to open (P159), so the screen says so instead of listing suggestions and members.
+  const personal = space.kind === "PERSONAL";
+  const canSettle = !personal && viewer !== undefined && controlsFor(space.role, space.kind).recordMoney;
   // #217: a VIEWER records nothing, so one whose balance is zero is no one to settle with and is not offered.
   const settleable = members.filter(
     (member) => member.role !== "VIEWER" || BigInt(netOf(member.id).amount) !== 0n,
@@ -115,100 +118,110 @@ export function BalancesScreen({
           {t(`you.${state}`, { amount: formatMoney(absolute(mine), formats) })}
         </span>
       </section>
-      <section aria-labelledby="balances-suggestions" className="flex flex-col gap-2">
-        <h2 id="balances-suggestions" className="text-[17px] font-semibold text-ink">
-          {t("suggestions")}
-        </h2>
-        {suggestions.length === 0 ? (
-          <p className="rounded-2xl bg-track p-3 text-sm text-ink">
-            {t("allSettled", { space: space.name })}
-          </p>
-        ) : (
-          <>
-            <ol className="flex flex-col gap-2">
-              {suggestions.map((suggestion) => {
-                const payer = names.get(suggestion.payerMemberId) ?? "";
-                const receiver = names.get(suggestion.receivingMemberId) ?? "";
-                const sentence = t("owes", {
-                  payer,
-                  receiver,
-                  amount: formatMoney(suggestion.amount, formats),
-                });
-                return (
-                  <li
-                    key={`${suggestion.payerMemberId}-${suggestion.receivingMemberId}`}
-                    className="flex min-h-row-lg items-center gap-3 rounded-2xl border border-line bg-surface px-3 py-2.5"
-                  >
-                    <Avatar name={payer} />
-                    <span className="min-w-0 flex-1 text-[15px] text-ink tabular-nums [overflow-wrap:anywhere]">
-                      {sentence}
-                    </span>
-                    {canSettle ? (
-                      <Button
-                        size="chip"
-                        className="shrink-0"
-                        aria-label={t("settle.suggestion", {
-                          payer,
-                          receiver,
-                          amount: formatMoney(suggestion.amount, formats),
-                        })}
-                        onClick={() => setSettling(prefill(suggestion))}
+      {personal ? (
+        <p className="rounded-2xl bg-track p-3 text-sm text-ink">
+          {t("personalNote", { space: space.name })}
+        </p>
+      ) : (
+        <>
+          <section aria-labelledby="balances-suggestions" className="flex flex-col gap-2">
+            <h2 id="balances-suggestions" className="text-[17px] font-semibold text-ink">
+              {t("suggestions")}
+            </h2>
+            {suggestions.length === 0 ? (
+              <p className="rounded-2xl bg-track p-3 text-sm text-ink">
+                {t("allSettled", { space: space.name })}
+              </p>
+            ) : (
+              <>
+                <ol className="flex flex-col gap-2">
+                  {suggestions.map((suggestion) => {
+                    const payer = names.get(suggestion.payerMemberId) ?? "";
+                    const receiver = names.get(suggestion.receivingMemberId) ?? "";
+                    const sentence = t("owes", {
+                      payer,
+                      receiver,
+                      amount: formatMoney(suggestion.amount, formats),
+                    });
+                    return (
+                      <li
+                        key={`${suggestion.payerMemberId}-${suggestion.receivingMemberId}`}
+                        className="flex min-h-row-lg items-center gap-3 rounded-2xl border border-line bg-surface px-3 py-2.5"
                       >
-                        {t("settle.action")}
-                      </Button>
-                    ) : null}
+                        <Avatar name={payer} />
+                        <span className="min-w-0 flex-1 text-[15px] text-ink tabular-nums [overflow-wrap:anywhere]">
+                          {sentence}
+                        </span>
+                        {canSettle ? (
+                          <Button
+                            size="chip"
+                            className="shrink-0"
+                            aria-label={t("settle.suggestion", {
+                              payer,
+                              receiver,
+                              amount: formatMoney(suggestion.amount, formats),
+                            })}
+                            onClick={() => setSettling(prefill(suggestion))}
+                          >
+                            {t("settle.action")}
+                          </Button>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ol>
+                <p className="text-[13px] text-muted">{t("suggestionsNote")}</p>
+              </>
+            )}
+          </section>
+          <section aria-labelledby="balances-members" className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between gap-3">
+              <h2 id="balances-members" className="min-w-0 text-[17px] font-semibold text-ink">
+                {t("members")}
+              </h2>
+              {canSettle ? (
+                <Button
+                  variant="ghost"
+                  size="compact"
+                  className="shrink-0"
+                  onClick={() => setSettling(prefill(null))}
+                >
+                  {t("record")}
+                </Button>
+              ) : null}
+            </div>
+            <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface empty:hidden">
+              {listed.map((member) => {
+                const net = netOf(member.id);
+                const memberState = netState(net);
+                const sentence = memberSentence(net, formats, t);
+                const name = memberLabel(member, meUserId, tMembers);
+                return (
+                  <li key={member.id}>
+                    <Link
+                      href={`/spaces/${space.id}/members/${member.id}/history`}
+                      aria-label={t("member.link", { name, sentence })}
+                      prefetch={false}
+                      className="flex min-h-row-lg items-center gap-2 py-1.5 pr-2.5 pl-3.5"
+                    >
+                      <span className="min-w-0 flex-1 font-medium [overflow-wrap:anywhere] text-ink">
+                        {name}
+                      </span>
+                      <span
+                        className={`text-[15px] font-semibold tabular-nums ${memberState === "owes" ? "text-owe" : memberState === "owed" ? "text-accent" : "text-muted"}`}
+                      >
+                        {sentence}
+                      </span>
+                      {/* Board 01: the chevron says the row opens the member's history. */}
+                      <Icon name="chevronRight" size={20} className="shrink-0 text-muted" />
+                    </Link>
                   </li>
                 );
               })}
-            </ol>
-            <p className="text-[13px] text-muted">{t("suggestionsNote")}</p>
-          </>
-        )}
-      </section>
-      <section aria-labelledby="balances-members" className="flex flex-col gap-1.5">
-        <div className="flex items-center justify-between gap-3">
-          <h2 id="balances-members" className="min-w-0 text-[17px] font-semibold text-ink">
-            {t("members")}
-          </h2>
-          {canSettle ? (
-            <Button
-              variant="ghost"
-              size="compact"
-              className="shrink-0"
-              onClick={() => setSettling(prefill(null))}
-            >
-              {t("record")}
-            </Button>
-          ) : null}
-        </div>
-        <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface empty:hidden">
-          {listed.map((member) => {
-            const net = netOf(member.id);
-            const memberState = netState(net);
-            const sentence = memberSentence(net, formats, t);
-            const name = memberLabel(member, meUserId, tMembers);
-            return (
-              <li key={member.id}>
-                <Link
-                  href={`/spaces/${space.id}/members/${member.id}/history`}
-                  aria-label={t("member.link", { name, sentence })}
-                  prefetch={false}
-                  className="flex min-h-row-lg items-center gap-2 py-1.5 pr-2.5 pl-3.5"
-                >
-                  <span className="min-w-0 flex-1 font-medium [overflow-wrap:anywhere] text-ink">{name}</span>
-                  <span
-                    className={`text-[15px] font-semibold tabular-nums ${memberState === "owes" ? "text-owe" : memberState === "owed" ? "text-accent" : "text-muted"}`}
-                  >
-                    {sentence}
-                  </span>
-                  {/* Board 01: the chevron says the row opens the member's history. */}
-                  <Icon name="chevronRight" size={20} className="shrink-0 text-muted" />
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
+            </ul>
+          </section>
+        </>
+      )}
       {canSettle && settling ? (
         <SettleUpSheet
           open

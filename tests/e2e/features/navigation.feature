@@ -128,3 +128,10 @@ Feature: Volver returns to where the person was, and a flow returns to where it 
       | leave                    |
       | chooses Volver           |
       | goes back in the browser |
+
+  # Ruling P302 (#240): the personal space has Saldos too, so its bar has the board's five slots.
+  @e2e
+  Scenario: Saldos in the personal space opens and says she is al día
+    When "Ana" opens the Movimientos tab
+    And "Ana" opens the Saldos tab
+    Then the balances page of her personal space is shown
