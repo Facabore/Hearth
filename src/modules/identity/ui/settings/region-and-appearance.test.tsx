@@ -75,7 +75,8 @@ describe("settings: region, theme and language (HU-E9-13)", () => {
       "Numbers and dates1,234,567.89 · 16/10/2026 · 2:30 PM · Weeks start on Monday",
     );
     await userEvent.click(screen.getByRole("button", { name: /^Numbers and dates/ }));
-    const preview = screen.getByRole("status", { name: "This is how it will look" });
+    // The sheet's body loads apart, so its preview arrives after the click.
+    const preview = await screen.findByRole("status", { name: "This is how it will look" });
     expect(normalized(preview.textContent)).toContain("1,234,567.89");
     expect(normalized(preview.textContent)).toContain("2:30 PM");
   });
