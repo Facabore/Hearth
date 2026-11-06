@@ -96,3 +96,42 @@ Feature: Volver returns to where the person was, and a flow returns to where it 
     And "Ana" steps to the previous period 2 times
     And "Ana" chooses Volver
     Then the balances page of "Household" is shown
+
+  # Ruling P303 (#240): the planner's sheet and forms leave without adding a history entry, so neither Volver nor the
+  # browser's Back ever reopens them, and the planner keeps the main bar, the way out that always works.
+  @e2e
+  Scenario Outline: <leave> from the planner returns to Plan after she <action>
+    When "Ana" opens the Plan tab of her personal space for 2026-11 and starts its plan
+    And she <action>
+    Then the planner is shown
+    And the planner shows the main navigation
+    When "Ana" <leave>
+    Then the Plan tab of her personal space is shown
+
+    Examples:
+      | action                                   | leave                   |
+      | saves her capacity 1,000,000 COP         | chooses Volver          |
+      | saves her capacity 1,000,000 COP         | goes back in the browser |
+      | closes the contributions sheet           | chooses Volver          |
+      | closes the contributions sheet           | goes back in the browser |
+
+  @e2e
+  Scenario Outline: <leave> from the planner returns to Plan after adding a line, not to the line's form
+    When "Ana" opens the Plan tab of her personal space for 2026-11 and starts its plan
+    And she saves her capacity 1,000,000 COP
+    And she adds the line "Mercado" with 200,000 COP
+    Then the planner is shown
+    When "Ana" <leave>
+    Then the Plan tab of her personal space is shown
+
+    Examples:
+      | leave                    |
+      | chooses Volver           |
+      | goes back in the browser |
+
+  # Ruling P302 (#240): the personal space has Saldos too, so its bar has the board's five slots.
+  @e2e
+  Scenario: Saldos in the personal space opens and says she is al día
+    When "Ana" opens the Movimientos tab
+    And "Ana" opens the Saldos tab
+    Then the balances page of her personal space is shown

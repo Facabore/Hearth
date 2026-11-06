@@ -18,7 +18,7 @@ import type { CategoryGroupDto, PlanLineDto } from "@/shared/ui/api/dto";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { LineEditor } from "./line-editor";
 
-const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
+const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router, notFound: vi.fn(), redirect: vi.fn() }));
 beforeEach(() => vi.clearAllMocks());
 
@@ -303,7 +303,7 @@ describe("line editor (HU-E9-08)", () => {
       isCatchAll: false,
       savingsAccountIds: [],
     });
-    expect(router.push).toHaveBeenCalledWith("/spaces/sp-household/plans/p-nov");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-household/plans/p-nov", { scroll: false });
     expect(await axeViolations(container)).toEqual([]);
   });
 
@@ -411,7 +411,7 @@ describe("line editor (HU-E9-08)", () => {
     await userEvent.type(screen.getByLabelText("Planeado"), "100.000");
     await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
     await waitFor(() => expect(screen.getByLabelText("Nombre")).toHaveAttribute("aria-invalid", "true"));
-    expect(router.push).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
   });
 
   it("removes a line after its confirmation", async () => {
@@ -424,7 +424,9 @@ describe("line editor (HU-E9-08)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Quitar rubro" }));
     const sheet = await screen.findByRole("dialog", { name: "¿Quitar Free?" });
     await userEvent.click(within(sheet).getByRole("button", { name: "Quitar" }));
-    await waitFor(() => expect(router.push).toHaveBeenCalledWith("/spaces/sp-household/plans/p-nov"));
+    await waitFor(() =>
+      expect(router.replace).toHaveBeenCalledWith("/spaces/sp-household/plans/p-nov", { scroll: false }),
+    );
     expect(requests[0]!.method).toBe("DELETE");
   });
 
@@ -509,7 +511,7 @@ describe("line editor (HU-E9-08)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(screen.getByLabelText("Nombre")).not.toHaveAttribute("aria-invalid");
-    expect(router.push).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
   });
 
   it("says when someone else changed the plan, reads it again and keeps the draft (ruling P206)", async () => {
@@ -553,7 +555,7 @@ describe("line editor (HU-E9-08)", () => {
     });
     await waitFor(() => expect(button).toBeDisabled());
     release();
-    await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledTimes(1));
     expect(requests).toHaveLength(1);
   });
 
@@ -568,7 +570,7 @@ describe("line editor (HU-E9-08)", () => {
     const sheet = await screen.findByRole("dialog", { name: "¿Quitar Free?" });
     await userEvent.click(within(sheet).getByRole("button", { name: "Quitar" }));
     expect(await within(sheet).findByRole("alert")).toBeInTheDocument();
-    expect(router.push).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
   });
 
   it("offers no removal and no figures for a new line", async () => {
@@ -659,7 +661,7 @@ describe("line editor (HU-E9-08)", () => {
     expect(screen.getByLabelText("Valor de Juan")).toHaveValue("58");
     await userEvent.click(screen.getByRole("radio", { name: "Ajusta" }));
     await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
-    await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledTimes(1));
     expect(requests.map((r) => r.method)).toEqual(["PATCH"]);
   });
 
@@ -751,7 +753,7 @@ describe("line editor (HU-E9-08)", () => {
       await more();
       await userEvent.click(screen.getByRole("radio", { name: "Ajusta" }));
       await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
-      await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(router.replace).toHaveBeenCalledTimes(1));
       expect(requests.map((r) => r.method)).toEqual(["PATCH"]);
     });
 
@@ -762,7 +764,7 @@ describe("line editor (HU-E9-08)", () => {
       show(planLineDto({ categoryIds: ["c-groceries"] }), api, referencePlanDto(), food);
       await choose("Groceries", "Utilities");
       await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
-      await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(router.replace).toHaveBeenCalledTimes(1));
       expect(requests.map((r) => new URL(r.url).pathname)).toEqual([
         "/api/v1/spaces/sp-household/plans/p-nov/lines/l-home/categories",
       ]);
@@ -778,7 +780,7 @@ describe("line editor (HU-E9-08)", () => {
       await userEvent.click(screen.getByRole("radio", { name: "Va al ahorro" }));
       await userEvent.click(screen.getByRole("checkbox", { name: "Ahorros" }));
       await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
-      await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(router.replace).toHaveBeenCalledTimes(1));
       expect(requests.map((r) => r.method)).toEqual(["POST"]);
     });
 
@@ -803,9 +805,9 @@ describe("line editor (HU-E9-08)", () => {
       await choose("Groceries");
       await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
       expect(await screen.findByText("Esa categoría ya está en otro rubro del plan.")).toBeVisible();
-      expect(router.push).not.toHaveBeenCalled();
+      expect(router.replace).not.toHaveBeenCalled();
       await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
-      await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(router.replace).toHaveBeenCalledTimes(1));
       expect(requests.map((r) => [r.method, new URL(r.url).pathname.split("/").slice(-2).join("/")])).toEqual(
         [
           ["POST", "p-nov/lines"],
@@ -826,7 +828,7 @@ describe("line editor (HU-E9-08)", () => {
       await userEvent.click(screen.getByRole("radio", { name: "Sin asignar" }));
       await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
       expect(await screen.findByText(/El reparto de este rubro no cuadra/)).toBeVisible();
-      expect(router.push).not.toHaveBeenCalled();
+      expect(router.replace).not.toHaveBeenCalled();
     });
   });
 });
@@ -877,7 +879,7 @@ describe("viewers in a line's allocation (#217)", () => {
     await userEvent.clear(screen.getByLabelText("Valor de Tomás"));
     await userEvent.type(screen.getByLabelText("Valor de Tomás"), "15");
     await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
-    await waitFor(() => expect(router.push).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledTimes(1));
     expect(await requests[0]!.json()).toEqual({
       rule: "PERCENT",
       members: [

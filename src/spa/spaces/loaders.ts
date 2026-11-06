@@ -19,7 +19,10 @@ const settled = (read: Promise<unknown>): Promise<void> =>
     () => undefined,
   );
 
-/** A shared or direct space; a personal one has no members, balances or history (ruling P159), so it is not found. */
+/**
+ * A shared or direct space; a personal one has no members or history (ruling P159), so it is not found. Saldos is the
+ * exception (P302): it opens in the personal space too.
+ */
 const sharedOnly = async (load: Load, spaceId: string): Promise<Viewer> => {
   const viewer = await viewerOf(load, spaceId);
   if (!viewer || viewer.space.kind === "PERSONAL") throw notFound();
@@ -48,7 +51,10 @@ export const loadMembers = async (load: Load, spaceId: string) => {
 export const loadBalances = async (load: Load, spaceId: string) => {
   const ensure = ensurer(load);
   const { api } = load.apis;
-  const { space, spaces } = await sharedOnly(load, spaceId);
+  // P302: Saldos opens in every space, the personal one included, where it says the person is al día.
+  const viewer = await viewerOf(load, spaceId);
+  if (!viewer) throw notFound();
+  const { space, spaces } = viewer;
   await Promise.all([
     ensure(membersQuery(api, spaceId)),
     ensure(netBalancesQuery(api, spaceId)),

@@ -5,24 +5,22 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Icon, Logo, VisuallyHidden } from "@/shared/ui";
 import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
-import type { SpaceDto } from "@/shared/ui/api/dto";
 
 /**
  * One landmark for both layouts: a bar fixed at the bottom under 1024 px, a 240 px rail from 1024 px (the Desktop
- * artboard). Ruling P160: the Batch 2 order, Inicio, Movimientos, Registrar, Plan, Saldos; Saldos only where balances
- * exist (shared and direct spaces). Plan (HU-E9-10, ruling P200, amending P141) is current on every path under
+ * artboard). Ruling P160: the Batch 2 order, Inicio, Movimientos, Registrar, Plan, Saldos; Saldos in every space,
+ * the personal one included, as the boards draw it (P272, ruling P302), so Registrar stays in the middle of the bar.
+ * Plan (HU-E9-10, ruling P200, amending P141) is current on every path under
  * `/plan` and `/plans`. Registrar only for someone who records in the space (#207): a viewer never meets a form she
  * cannot save. The Movimientos tab carries the space's pending occurrences as a badge (HU-E9-09, ruling P270); the shell
  * passes their count only to someone who records money, so a viewer never sees it, and nothing shows at zero.
  */
 export function NavLinks({
   spaceId,
-  spaceKind,
   canRecord,
   pendingCount = 0,
 }: {
   readonly spaceId: string;
-  readonly spaceKind: SpaceDto["kind"];
   readonly canRecord: boolean;
   readonly pendingCount?: number;
 }) {
@@ -47,8 +45,10 @@ export function NavLinks({
   // themselves, so that prefetch would load the shell's script a second time (+14 KiB on their budgets): there a tab
   // loads when it is tapped, as before.
   const prefetch = pathname === home || pathname.startsWith(`${home}/`) ? {} : { prefetch: false };
+  // `min-w-0`: the four tabs share the bar evenly, so Registrar stays in its middle (P302); a label wider than its tab
+  // (Movimientos at 320 px) spills evenly around it instead of pushing Registrar aside.
   const item =
-    "flex min-h-11 flex-1 flex-col items-center justify-center gap-1 text-xs text-muted aria-[current=page]:text-accent lg:flex-none lg:flex-row lg:justify-start lg:gap-3 lg:rounded-xl lg:px-3 lg:text-base";
+    "flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs text-muted aria-[current=page]:text-accent lg:flex-none lg:flex-row lg:justify-start lg:gap-3 lg:rounded-xl lg:px-3 lg:text-base";
   return (
     <nav
       aria-label={t("main")}
@@ -94,12 +94,10 @@ export function NavLinks({
         <Icon name="chart" />
         {t("plan")}
       </Link>
-      {spaceKind !== "PERSONAL" ? (
-        <Link href={balances} {...prefetch} aria-current={current(balances)} className={item}>
-          <Icon name="swap" />
-          {t("balances")}
-        </Link>
-      ) : null}
+      <Link href={balances} {...prefetch} aria-current={current(balances)} className={item}>
+        <Icon name="swap" />
+        {t("balances")}
+      </Link>
     </nav>
   );
 }
