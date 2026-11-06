@@ -10,6 +10,7 @@ import { useViewer } from "../viewer";
 import { useHoldNavigation } from "../ledger/hold-navigation";
 import type { Viewer } from "../load";
 import { useTitle } from "../title";
+import { QuietBoundary } from "../quiet-boundary";
 
 const route = getRouteApi("/spaces/$spaceId/new");
 
@@ -59,9 +60,12 @@ function RecordFormScreen({
   return (
     <div className="mx-auto max-w-[560px]">
       {sheetShown ? (
-        <Suspense fallback={null}>
-          <RecordBehind viewer={viewer} returnTo={returnTo} />
-        </Suspense>
+        // A backdrop that fails to load or to draw shows nothing; the form never goes down with it.
+        <QuietBoundary>
+          <Suspense fallback={null}>
+            <RecordBehind viewer={viewer} returnTo={returnTo} />
+          </Suspense>
+        </QuietBoundary>
       ) : null}
       <RecordForm
         key={spaceId}
