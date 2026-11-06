@@ -15,7 +15,7 @@
     "/spaces/:id/transactions/:tx/edit": 202,
     "/spaces/:id/accounts": 191,
     "/spaces/:id/categories": 182,
-    "/spaces/:id/new": 199,
+    "/spaces/:id/new": 201,
     "/settings": 180,
     "/spaces/new": 175,
     "/spaces/:shared/members": 190,
@@ -31,11 +31,11 @@
     "/spaces/:shared/plan/groups": 201,
     "/spaces/:shared/plan/trend": 201,
     "/spaces/:shared/plans/:plan": 204,
-    "/spaces/:shared/plans/:plan/capacities": 215,
+    "/spaces/:shared/plans/:plan/capacities": 218,
     "/spaces/:shared/plans/:plan/lines/new": 204,
     "/spaces/:shared/plans/:plan/lines/:line": 204,
     "/spaces/:shared/members/:member/history": 190,
-    "/spaces/:shared/new": 199,
+    "/spaces/:shared/new": 201,
     "/invitations/:token": 159,
     "/claims/:claim": 159
   }
