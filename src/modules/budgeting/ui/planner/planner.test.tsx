@@ -534,7 +534,13 @@ describe("planner: lines with no category (#264)", () => {
 
   it("lists the period's spending no line counts and maps Pharmacy to Home with the plan's version", async () => {
     const plan = referencePlanDto({ lines: referencePlanDto().lines.filter((line) => !line.isCatchAll) });
-    const mapped = { ...plan, version: 8 };
+    const mapped = {
+      ...plan,
+      version: 8,
+      lines: plan.lines.map((line) =>
+        line.id === "l-home" ? { ...line, categoryIds: ["c-pharmacy"] } : line,
+      ),
+    };
     const { api, requests } = fakeApi({ [PUT_CATEGORIES]: () => jsonResponse(mapped) });
     show({ plan, api, groups: [health], unbudgetedCategoryIds: ["c-pharmacy"] });
     const orphans = screen.getByRole("region", { name: "Gastos sin rubro" });
@@ -585,6 +591,54 @@ describe("planner: lines with no category (#264)", () => {
     );
     expect(screen.getByRole("dialog", { name: "Asignar Pharmacy a un rubro" })).toBeInTheDocument();
     expect(router.refresh).not.toHaveBeenCalled();
+  });
+
+  it("reads the plan again after a stale version and retries with the new version and the line's new categories", async () => {
+    const plan = referencePlanDto({ lines: referencePlanDto().lines.filter((line) => !line.isCatchAll) });
+    const fresh = {
+      ...plan,
+      version: 9,
+      lines: plan.lines.map((line) =>
+        line.id === "l-home" ? { ...line, categoryIds: ["c-medical"] } : line,
+      ),
+    };
+    let release: () => void = () => undefined;
+    const reread = new Promise<void>((resolve) => (release = resolve));
+    const puts = [problemResponse(412, "PreconditionFailed"), jsonResponse({ ...fresh, version: 10 })];
+    const { api, requests } = fakeApi({
+      [PUT_CATEGORIES]: () => puts.shift()!,
+      "GET /api/v1/spaces/{spaceId}/plans/{planId}": async () => {
+        await reread;
+        return jsonResponse(fresh);
+      },
+    });
+    show({ plan, api, groups: [health], unbudgetedCategoryIds: ["c-pharmacy"] });
+    await userEvent.click(screen.getByRole("button", { name: "Asignar Pharmacy a un rubro" }));
+    const sheet = await screen.findByRole("dialog", { name: "Asignar Pharmacy a un rubro" });
+    await userEvent.click(within(sheet).getByRole("radio", { name: /Home/ }));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Asignar" }));
+    expect(await within(sheet).findByRole("alert")).toHaveTextContent(
+      "Alguien cambió esto mientras lo editabas.",
+    );
+    // Until the plan is read again, a retry would carry the stale version.
+    expect(within(sheet).getByRole("button", { name: "Asignar" })).toBeDisabled();
+    await act(async () => release());
+    await waitFor(() => expect(within(sheet).getByRole("button", { name: "Asignar" })).toBeEnabled());
+    await userEvent.click(within(sheet).getByRole("button", { name: "Asignar" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    const retry = requests.filter((request) => request.method === "PUT")[1]!;
+    expect(retry.headers.get("if-match")).toBe('"9"');
+    expect(await retry.json()).toEqual({ categoryIds: ["c-medical", "c-pharmacy"] });
+  });
+
+  it("drops a category from the list once the plan maps it, even after the planner starts afresh", () => {
+    const plan = referencePlanDto({ lines: referencePlanDto().lines.filter((line) => !line.isCatchAll) });
+    plan.lines = plan.lines.map((line) =>
+      line.id === "l-home" ? { ...line, categoryIds: ["c-pharmacy"] } : line,
+    );
+    // The line report may still name it until it is read again.
+    show({ plan, groups: [health], unbudgetedCategoryIds: ["c-pharmacy"] });
+    expect(screen.queryByRole("region", { name: "Gastos sin rubro" })).toBeNull();
   });
 
   it("offers no assignment to a member who cannot manage the plan, nor in a closed plan", () => {

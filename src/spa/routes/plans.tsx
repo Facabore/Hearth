@@ -33,7 +33,8 @@ const editLine = getRouteApi("/spaces/$spaceId/plans/$planId/lines/$lineId");
 
 /**
  * #264 (H13): the categories the plan's period spent in that no line counts, read only for whoever can map them; the
- * planner shows them once they arrive and waits for nothing.
+ * planner shows them once they arrive and waits for nothing. This check only spares the read: the planner's own check
+ * decides what is shown.
  */
 const useUnbudgeted = (spaceId: string, plan: BudgetPlanDto, role: SpaceDto["role"]) => {
   const { api } = useApis();

@@ -27,7 +27,7 @@ import { CopyNotice } from "../copy-notice";
 import { allocationDraftOf, previewOf } from "../line-editor/allocation";
 import { usePeriodWord } from "../period-word";
 import { PlanStatusBadge } from "../plan-status-badge";
-import { canCloseOn, canManage, closesFrom, isEditable, takesPart } from "../plan-access";
+import { canCloseOn, canManage, closesFrom, isEditable, takesCategories, takesPart } from "../plan-access";
 import { ifMatch, planWrite, rereadPlan } from "../plan-write";
 import { findCategory } from "@/modules/categories/ui";
 import { AssignCategorySheet } from "./assign-category-sheet";
@@ -95,17 +95,19 @@ export function Planner({
   const [failure, setFailure] = useState<Failure | null>(null);
   const [pending, setPending] = useState(false);
   const [confirming, setConfirming] = useState<LifecycleAction | null>(null);
-  const [assigned, setAssigned] = useState<readonly string[]>([]);
   const [assigning, setAssigning] = useState<{ readonly id: string; readonly name: string } | null>(null);
   const inFlight = useRef(false);
 
   const manager = canManage(space.role);
   const editable = isEditable(plan);
-  // #264 (H13): what the period spent that no line counts, each with its name; mapped ones leave the list at once.
+  // #264 (H13): what the period spent that no line counts, each with its name. This check decides what is shown; the
+  // route's only spares the read. The plan in hand drops what a line already maps, so a mapping leaves the list at once
+  // even while the line report still names it.
+  const mapped = new Set(plan.lines.flatMap((line) => line.categoryIds));
   const orphans =
     manager && editable
       ? unbudgetedCategoryIds.flatMap((id) => {
-          const category = assigned.includes(id) ? undefined : findCategory(groups, id)?.category;
+          const category = mapped.has(id) ? undefined : findCategory(groups, id)?.category;
           return category ? [{ id, name: category.name }] : [];
         })
       : [];
@@ -284,7 +286,7 @@ export function Planner({
                     </p>
                     <CarryText line={line} policy={space.periodPolicy} formats={formats} />
                     {/* #264 (H13): a spending line counts only its categories; the catch-all counts the rest. */}
-                    {line.categoryIds.length === 0 && !line.isCatchAll && line.funding !== "SAVINGS" ? (
+                    {line.categoryIds.length === 0 && !line.isCatchAll && takesCategories(line) ? (
                       <p className="flex items-center gap-1 text-sm font-medium text-owe-ink">
                         <Icon name="alert" size={16} />
                         {t("planner.noCategories")}
@@ -345,9 +347,8 @@ export function Planner({
         category={assigning}
         formats={formats}
         api={api}
-        onAssigned={(next, categoryId) => {
+        onAssigned={(next) => {
           setPlan(next);
-          setAssigned((current) => [...current, categoryId]);
           router.refresh();
         }}
         onPlan={setPlan}

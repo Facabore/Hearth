@@ -6,6 +6,7 @@ import type { BudgetPlanDto } from "@/shared/ui/api/dto";
 import type { Problem } from "@/shared/ui/api/problem";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { RadioCard } from "../line-editor/radio-card";
+import { takesCategories } from "../plan-access";
 import { ifMatch, planWrite, rereadPlan } from "../plan-write";
 
 /**
@@ -29,7 +30,7 @@ export function AssignCategorySheet({
   readonly category: { readonly id: string; readonly name: string } | null;
   readonly formats: Formats;
   readonly api: Api;
-  readonly onAssigned: (plan: BudgetPlanDto, categoryId: string) => void;
+  readonly onAssigned: (plan: BudgetPlanDto) => void;
   /** A newer plan read after a stale write. */
   readonly onPlan: (plan: BudgetPlanDto) => void;
   readonly onClose: () => void;
@@ -40,7 +41,9 @@ export function AssignCategorySheet({
   const [problem, setProblem] = useState<Problem | null>(null);
   const [pending, setPending] = useState(false);
   const inFlight = useRef(false);
-  const lines = plan.lines.filter((line) => line.funding !== "SAVINGS");
+  const lines = plan.lines.filter(takesCategories);
+  // A plan read again may no longer hold the line picked before; then nothing is picked.
+  const picked = lines.find((line) => line.id === lineId);
 
   const close = () => {
     setLineId("");
@@ -49,7 +52,7 @@ export function AssignCategorySheet({
   };
 
   const assign = async () => {
-    const line = lines.find((other) => other.id === lineId);
+    const line = picked;
     // A second click can arrive before the re-render that disables the button.
     if (category === null || line === undefined || inFlight.current) return;
     inFlight.current = true;
@@ -62,18 +65,21 @@ export function AssignCategorySheet({
         body: { categoryIds: [...line.categoryIds, category.id] },
       }),
     );
-    inFlight.current = false;
-    setPending(false);
     if (result.ok) {
-      onAssigned(result.plan, category.id);
+      inFlight.current = false;
+      setPending(false);
+      onAssigned(result.plan);
       close();
       return;
     }
     setProblem(result.problem);
+    // A retry before the plan is read again would carry the same stale version, so the button waits for it.
     if (result.problem.code === "PreconditionFailed") {
       const fresh = await rereadPlan(api, spaceId, plan.id);
       if (fresh !== null) onPlan(fresh);
     }
+    inFlight.current = false;
+    setPending(false);
   };
 
   return (
@@ -87,7 +93,7 @@ export function AssignCategorySheet({
         <Button
           size="lg"
           className="w-full"
-          disabled={pending || lineId === ""}
+          disabled={pending || picked === undefined}
           onClick={() => void assign()}
         >
           {t("planner.assign")}
@@ -101,7 +107,7 @@ export function AssignCategorySheet({
         </p>
         <RadioCard
           labelledBy={`${ids}-lines`}
-          value={lineId}
+          value={picked?.id ?? ""}
           options={lines.map((line) => ({
             value: line.id,
             label: line.name,
