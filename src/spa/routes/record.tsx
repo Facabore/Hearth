@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { lazy, Suspense, useDeferredValue, useState } from "react";
 import { useTranslations } from "use-intl";
@@ -6,6 +7,7 @@ import { controlsFor } from "@/modules/spaces/ui";
 import { safeReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { useApis } from "../api";
 import { useRecord } from "../ledger/form-hooks";
+import { ledgerKeys } from "../ledger/queries";
 import { useViewer } from "../viewer";
 import { useHoldNavigation } from "../ledger/hold-navigation";
 import type { Viewer } from "../load";
@@ -57,9 +59,18 @@ function RecordFormScreen({
   const holdNavigation = useHoldNavigation();
   // Ruling P300: the screen it was opened from, dimmed under the scrim, in a render after the sheet's first.
   const sheetShown = useDeferredValue(true, false);
+  // It draws only what the cache already holds, so a cold load (a deep link, a reload) holds no movements of the space
+  // and downloads none of the backdrop's chunks (ADR 0004's budget for this route).
+  const cache = useQueryClient();
+  const [cached] = useState(() =>
+    cache
+      .getQueryCache()
+      .findAll({ queryKey: ledgerKeys.pages(spaceId) })
+      .some((query) => query.state.data !== undefined),
+  );
   return (
     <div className="mx-auto max-w-[560px]">
-      {sheetShown ? (
+      {sheetShown && cached ? (
         // A backdrop that fails to load or to draw shows nothing; the form never goes down with it.
         <QuietBoundary>
           <Suspense fallback={null}>

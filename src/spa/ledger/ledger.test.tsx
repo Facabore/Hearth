@@ -523,15 +523,16 @@ describe("the record sheet draws the screen it was opened from behind it, from t
     expect(within(backdrop).getByRole("heading", { name: es.home.recent, hidden: true })).toBeInTheDocument();
   });
 
-  it("draws nothing behind a deep link whose screen is not in the cache, and reads nothing for it", async () => {
+  it("loads no backdrop for a deep link whose screen is not in the cache, and reads nothing for it", async () => {
     const spa = renderSpa(
       `${HOME}/new?returnTo=${encodeURIComponent(`${HOME}/transactions`)}`,
       ledgerApi().routes,
     );
     await openForm(spa);
 
-    expect(await behind()).toBeEmptyDOMElement();
+    // A cold load has no movements in the cache, so the frame and its chunks never download (ADR 0004's record budget).
     await settled(spa);
+    expect(screen.queryByTestId("record-backdrop")).not.toBeInTheDocument();
     expect(calls(spa.requests, "GET", /\/transactions/)).toHaveLength(0);
     expect(calls(spa.requests, "GET", /\/categories\?archived=true$/)).toHaveLength(0);
   });
