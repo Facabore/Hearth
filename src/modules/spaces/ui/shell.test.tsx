@@ -79,7 +79,7 @@ describe("app shell (HU-E9-01)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
-  it("shows Plan, then Saldos in a shared space, after Movimientos and Registrar, and no Saldos in the personal one (rulings P160, P200)", () => {
+  it("shows Plan, then Saldos, after Movimientos and Registrar, in a shared space and in the personal one (P160, P200; P272 brings Saldos to Personal)", () => {
     const { unmount } = renderWithIntl(
       <AppShell
         me={{ id: "u-ana", name: "Ana", email: "ana@example.com", locale: "es" }}
@@ -112,7 +112,18 @@ describe("app shell (HU-E9-01)", () => {
         <h1>Inicio</h1>
       </AppShell>,
     );
-    expect(screen.queryByRole("link", { name: "Saldos" })).not.toBeInTheDocument();
+    // The personal space's bar has the same five slots as the board, so Registrar stays in the middle.
+    expect(
+      within(screen.getByRole("navigation", { name: "Principal" }))
+        .getAllByRole("link")
+        .map((l) => withoutQuery(l.getAttribute("href"))),
+    ).toEqual([
+      `/spaces/${spaces[0]!.id}`,
+      `/spaces/${spaces[0]!.id}/transactions`,
+      `/spaces/${spaces[0]!.id}/new`,
+      `/spaces/${spaces[0]!.id}/plan`,
+      `/spaces/${spaces[0]!.id}/balances`,
+    ]);
   });
 
   const openSwitcher = async () => {
