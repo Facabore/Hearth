@@ -8,6 +8,8 @@
     "routes/space-home.tsx": 19,
     "routes/transactions.tsx": 24,
     "routes/record.tsx": 36,
+    "ledger/record-behind.tsx": 2,
+    "routes/record-backdrop.tsx": 27,
     "routes/edit-transaction.tsx": 38,
     "routes/pending.tsx": 7,
     "ledger/writes.ts": 6,

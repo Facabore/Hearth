@@ -1,5 +1,5 @@
 import { getRouteApi } from "@tanstack/react-router";
-import { useState } from "react";
+import { lazy, Suspense, useDeferredValue, useState } from "react";
 import { useTranslations } from "use-intl";
 import { RecordForm, RecordNotAllowed } from "@/modules/ledger/ui";
 import { controlsFor } from "@/modules/spaces/ui";
@@ -10,10 +10,16 @@ import { useViewer } from "../viewer";
 import { useHoldNavigation } from "../ledger/hold-navigation";
 import type { Viewer } from "../load";
 import { useTitle } from "../title";
+import { QuietBoundary } from "../quiet-boundary";
 
 const route = getRouteApi("/spaces/$spaceId/new");
 
 const KINDS = { income: "INCOME", transfer: "TRANSFER" } as const;
+
+// Ruling P300: the screen behind the sheet loads apart, once the sheet is on screen (ADR 0004).
+const RecordBehind = lazy(() =>
+  import("../ledger/record-behind").then((module) => ({ default: module.RecordBehind })),
+);
 
 /**
  * HU-E9-03: record an expense, an income or a transfer (`?type=expense|income|transfer`). Issue #172: `?returnTo=` is
@@ -49,8 +55,18 @@ function RecordFormScreen({
   const { accounts, groups, shared, people, lineWatch } = useRecord(viewer);
   const [now] = useState(() => new Date().toISOString());
   const holdNavigation = useHoldNavigation();
+  // Ruling P300: the screen it was opened from, dimmed under the scrim, in a render after the sheet's first.
+  const sheetShown = useDeferredValue(true, false);
   return (
     <div className="mx-auto max-w-[560px]">
+      {sheetShown ? (
+        // A backdrop that fails to load or to draw shows nothing; the form never goes down with it.
+        <QuietBoundary>
+          <Suspense fallback={null}>
+            <RecordBehind viewer={viewer} returnTo={returnTo} />
+          </Suspense>
+        </QuietBoundary>
+      ) : null}
       <RecordForm
         key={spaceId}
         space={viewer.space}
