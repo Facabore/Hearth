@@ -1,16 +1,21 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
 import { accountDto, spaceDto } from "../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse } from "../../../../tests/support/ui/fake-api";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
+import { writeTrail } from "@/shared/ui/navigation/history";
+import type { HoldNavigation } from "@/shared/ui/navigation/hold-navigation";
 import { NewAccountForm } from "./new-account-form";
 
-const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn(), push: vi.fn() }));
+const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn(), push: vi.fn(), back: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  sessionStorage.clear();
+});
 
 describe("new account form (HU-E9-03)", () => {
   it("shows only the chosen type's attributes and creates the account", async () => {
@@ -49,7 +54,7 @@ describe("new account form (HU-E9-03)", () => {
       openingBalance: { amount: "-35000000", currency: "COP" },
       terms: { creditLimit: { amount: "500000000", currency: "COP" }, paymentDay: 15 },
     });
-    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/accounts");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/accounts", { scroll: false });
     expect(await axeViolations(container)).toEqual([]);
   });
 
@@ -244,7 +249,7 @@ describe("new account form: where saving lands (returnTo)", () => {
 
   it("returns to the screen the flow started from", async () => {
     await create("/spaces/sp-personal");
-    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal", { scroll: false });
     expect(router.refresh).toHaveBeenCalled();
   });
 
@@ -252,7 +257,7 @@ describe("new account form: where saving lands (returnTo)", () => {
     "keeps the accounts screen when returnTo is %j",
     async (returnTo) => {
       await create(returnTo);
-      expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/accounts");
+      expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/accounts", { scroll: false });
     },
   );
 });
@@ -266,12 +271,104 @@ describe("new account form: a sheet over Cuentas (board B1 · 08, P292)", () => 
     expect(create).toHaveAttribute("form", within(sheet).getByRole("form").id);
     expect(create.closest("form")).toBeNull();
     await userEvent.keyboard("{Escape}");
-    expect(router.push).toHaveBeenCalledWith("/spaces/sp-personal/accounts");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/accounts", { scroll: false });
   });
 
   it("draws Préstamo o deuda with the bank icon of the board", () => {
     renderWithIntl(<NewAccountForm space={spaceDto()} formats={BUILT_IN_FORMATS} api={fakeApi({}).api} />);
     const loan = screen.getByRole("radio", { name: "Préstamo o deuda" });
     expect(loan.querySelector("[data-icon='bank']")).not.toBeNull();
+  });
+});
+
+describe("new account form: leaving it (ruling P307)", () => {
+  const cuentas = "/spaces/sp-personal/accounts";
+  const here = `${cuentas}/new?returnTo=${encodeURIComponent(cuentas)}`;
+  /** The person is on the form, which `from` opened by a push in this tab. */
+  const openedFrom = (from: string) => {
+    window.history.replaceState(null, "", here);
+    writeTrail({ urls: [from, here], pos: 1 });
+  };
+  afterEach(() => window.history.replaceState(null, "", "/"));
+  const renderForm = (props: { api?: ReturnType<typeof fakeApi>["api"]; hold?: HoldNavigation } = {}) =>
+    renderWithIntl(
+      <NewAccountForm
+        space={spaceDto()}
+        formats={BUILT_IN_FORMATS}
+        returnTo={cuentas}
+        holdNavigation={props.hold}
+        api={props.api ?? fakeApi({}).api}
+      />,
+    );
+
+  it("closes back to the Cuentas that opened it, so Volver and Back never reopen it", async () => {
+    openedFrom(cuentas);
+    renderForm();
+    await userEvent.keyboard("{Escape}");
+    expect(router.back).toHaveBeenCalledOnce();
+    expect(router.push).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it("closes back to Cuentas opened from a first step, with its own query", async () => {
+    openedFrom(`${cuentas}?returnTo=%2Fspaces%2Fsp-personal`);
+    renderForm();
+    await userEvent.keyboard("{Escape}");
+    expect(router.back).toHaveBeenCalledOnce();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it("saves back to the Cuentas that opened it, so one Back then leaves Cuentas, and reads it again", async () => {
+    openedFrom(cuentas);
+    const { api } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/accounts": () => jsonResponse(accountDto({ name: "Nequi" }), 201),
+    });
+    renderForm({ api });
+    await userEvent.click(screen.getByRole("radio", { name: "Efectivo" }));
+    await userEvent.type(screen.getByLabelText("Nombre"), "Nequi");
+    await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
+    await waitFor(() => expect(router.back).toHaveBeenCalledOnce());
+    expect(router.replace).not.toHaveBeenCalled();
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(router.refresh).toHaveBeenCalledOnce();
+  });
+
+  it("asks before dropping what was typed: Seguir editando stays, Descartar leaves", async () => {
+    renderForm();
+    await userEvent.click(screen.getByRole("radio", { name: "Efectivo" }));
+    await userEvent.type(screen.getByLabelText("Nombre"), "Caja");
+    await userEvent.keyboard("{Escape}");
+    const question = await screen.findByRole("dialog", { name: "¿Descartar esta cuenta?" });
+    expect(router.replace).not.toHaveBeenCalled();
+    await userEvent.click(within(question).getByRole("button", { name: "Seguir editando" }));
+    expect(screen.queryByRole("dialog", { name: "¿Descartar esta cuenta?" })).toBeNull();
+    expect(screen.getByLabelText("Nombre")).toHaveValue("Caja");
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(
+      within(await screen.findByRole("dialog", { name: "¿Descartar esta cuenta?" })).getByRole("button", {
+        name: "Descartar",
+      }),
+    );
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith(cuentas, { scroll: false }));
+  });
+
+  it("holds Back and other screens behind the same question once something is typed (issue #215)", async () => {
+    let stay: (() => Promise<boolean>) | undefined;
+    const release = vi.fn();
+    const hold = vi.fn((asked: () => Promise<boolean>) => {
+      stay = asked;
+      return release;
+    });
+    renderForm({ hold });
+    expect(hold).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("radio", { name: "Efectivo" }));
+    expect(hold).toHaveBeenCalledOnce();
+    const staying = stay!();
+    await userEvent.click(
+      within(await screen.findByRole("dialog", { name: "¿Descartar esta cuenta?" })).getByRole("button", {
+        name: "Descartar",
+      }),
+    );
+    await expect(staying).resolves.toBe(false);
   });
 });

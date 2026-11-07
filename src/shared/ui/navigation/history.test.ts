@@ -176,6 +176,13 @@ describe("traversed: the browser went back or forward to a URL", () => {
   it("restarts the trail when it lands on a root", () => {
     expect(traversed(trailOf([home, movements, accounts]), movements)).toEqual(trailOf([movements]));
   });
+
+  it("keeps the root's own entries before a sheet over it it returns to (P307)", () => {
+    const sheet = `${movements}?tx=t1`;
+    const edit = "/spaces/s1/transactions/t1/edit";
+    expect(traversed(trailOf([home, movements, sheet, edit]), sheet)).toEqual(trailOf([movements, sheet]));
+    expect(cameFrom(traversed(trailOf([movements, sheet, edit]), sheet), sheet)).toBe(movements);
+  });
 });
 
 describe("stepsBack: how far the browser goes to reach the previous screen", () => {

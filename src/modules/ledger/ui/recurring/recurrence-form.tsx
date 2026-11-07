@@ -60,6 +60,7 @@ import {
 } from "./recurrence-request";
 import { useRecurrenceSplit } from "./recurrence-split";
 import { useSchedulePreview } from "./use-schedule-preview";
+import { leaveSheet } from "@/shared/ui/navigation/leave-sheet";
 
 export interface RecurrenceFormProps {
   readonly space: SpaceDto;
@@ -299,10 +300,12 @@ export function RecurrenceForm({
       if (response.ok && data) {
         if (!edit) renew();
         toast.show({ message: t(edit ? "form.edited" : "form.saved") });
-        router.replace(
+        // Ruling P307: back to the list or the detail it was opened from, so one Back then leaves it.
+        leaveSheet(
+          router,
           edit ? `/spaces/${space.id}/recurrences/${edit.id}` : `/spaces/${space.id}/recurrences`,
+          () => router.refresh(),
         );
-        router.refresh();
         return;
       }
       setProblem(problemFrom(error, response));

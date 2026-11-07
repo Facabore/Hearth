@@ -1,16 +1,21 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
 import { accountDto, cop, spaceDto } from "../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse } from "../../../../tests/support/ui/fake-api";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
+import { writeTrail } from "@/shared/ui/navigation/history";
+import type { HoldNavigation } from "@/shared/ui/navigation/hold-navigation";
 import { EditAccountForm } from "./edit-account-form";
 
-const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn(), push: vi.fn() }));
+const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn(), push: vi.fn(), back: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router, notFound: vi.fn() }));
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  sessionStorage.clear();
+});
 
 /** A card that chose its own icon and left both switches at the type's defaults. */
 const visa = accountDto({
@@ -77,7 +82,9 @@ describe("edit account form (issue 169)", () => {
       icon: null,
       includeInAvailable: true,
     });
-    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/accounts"));
+    await waitFor(() =>
+      expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/accounts", { scroll: false }),
+    );
     expect(router.refresh).toHaveBeenCalled();
   });
 
@@ -99,7 +106,7 @@ describe("edit account form (issue 169)", () => {
     render(api);
     await userEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
     expect(requests).toHaveLength(0);
-    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/accounts");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/accounts", { scroll: false });
   });
 
   it("starts a bank from its stored product type, sends a change, and clears it with null (P295)", async () => {
@@ -182,7 +189,55 @@ describe("edit account form (issue 169)", () => {
     await userEvent.click(
       within(screen.getByRole("dialog", { name: "¿Ocultar Visa?" })).getByRole("button", { name: "Ocultar" }),
     );
-    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/accounts"));
+    await waitFor(() =>
+      expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/accounts", { scroll: false }),
+    );
     expect(new URL(requests[0]!.url).pathname).toBe("/api/v1/spaces/sp-personal/accounts/a-visa/archive");
+  });
+});
+
+describe("edit account form: leaving it (ruling P307)", () => {
+  const cuentas = "/spaces/sp-personal/accounts";
+  afterEach(() => window.history.replaceState(null, "", "/"));
+
+  it("saves back to the Cuentas that opened it, so one Back then leaves Cuentas", async () => {
+    const here = `${cuentas}/a-visa/edit`;
+    window.history.replaceState(null, "", here);
+    writeTrail({ urls: [cuentas, here], pos: 1 });
+    const { api } = fakeApi({ [PATCH]: () => jsonResponse(visa) });
+    render(api);
+    await userEvent.clear(screen.getByLabelText("Nombre"));
+    await userEvent.type(screen.getByLabelText("Nombre"), "Visa Oro");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    await waitFor(() => expect(router.back).toHaveBeenCalledOnce());
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it("holds Volver and Back behind a question once a change is typed; Seguir editando stays", async () => {
+    let stay: (() => Promise<boolean>) | undefined;
+    const hold = vi.fn((asked: () => Promise<boolean>) => {
+      stay = asked;
+      return vi.fn();
+    });
+    renderWithIntl(
+      <EditAccountForm
+        space={spaceDto()}
+        account={visa}
+        formats={BUILT_IN_FORMATS}
+        holdNavigation={hold as HoldNavigation}
+        api={fakeApi({}).api}
+      />,
+    );
+    expect(hold).not.toHaveBeenCalled();
+    await userEvent.type(screen.getByLabelText("Nombre"), " Oro");
+    expect(hold).toHaveBeenCalledOnce();
+    const staying = stay!();
+    await userEvent.click(
+      within(await screen.findByRole("dialog", { name: "¿Descartar los cambios?" })).getByRole("button", {
+        name: "Seguir editando",
+      }),
+    );
+    await expect(staying).resolves.toBe(true);
+    expect(screen.getByLabelText("Nombre")).toHaveValue("Visa Oro");
   });
 });

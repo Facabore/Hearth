@@ -344,7 +344,13 @@
     },
     "createFund": "Crear un fondo",
     "fundsNote": "Cada persona paga desde sus cuentas personales; aquí solo viven los fondos del espacio.",
-    "directNote": "Este espacio es entre dos personas: cada una paga desde sus cuentas personales."
+    "directNote": "Este espacio es entre dos personas: cada una paga desde sus cuentas personales.",
+    "discard": {
+      "new": "¿Descartar esta cuenta?",
+      "edit": "¿Descartar los cambios?",
+      "confirm": "Descartar",
+      "keep": "Seguir editando"
+    }
   },
   "categories": {
     "picker": {

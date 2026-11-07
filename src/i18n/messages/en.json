@@ -344,7 +344,13 @@
     },
     "createFund": "Create a fund",
     "fundsNote": "Everyone pays from their personal accounts; only the space's funds live here.",
-    "directNote": "This space is between two people: each pays from their personal accounts."
+    "directNote": "This space is between two people: each pays from their personal accounts.",
+    "discard": {
+      "new": "Discard this account?",
+      "edit": "Discard your changes?",
+      "confirm": "Discard",
+      "keep": "Keep editing"
+    }
   },
   "categories": {
     "picker": {

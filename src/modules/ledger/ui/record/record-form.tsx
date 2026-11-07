@@ -42,6 +42,8 @@ import { initialSplitDraft, type SharedExpenseContext } from "../split/shared-co
 import { SharedFields } from "../split/shared-fields";
 import { AmountField } from "./amount-field";
 import { CategoryTiles } from "./category-tiles";
+import { useLeaveQuestion } from "@/shared/ui/navigation/hold-navigation";
+import { leaveSheet } from "@/shared/ui/navigation/leave-sheet";
 import { DiscardConfirm, type HoldNavigation } from "./discard-confirm";
 import { ClockIcon, FormChip } from "./form-chip";
 import { DescriptionField, RowError } from "./form-rows";
@@ -328,23 +330,9 @@ export function RecordForm({
   // P305: what another space's form handed over is the person's typing too, so it counts as entered.
   const [pristine] = useState(() => (carried ? enteredOf(["", "", null]) : entered));
   const dirty = entered !== pristine;
-  // Settles the held navigation while the question is shown: true leaves, false stays.
-  const [answer, setAnswer] = useState<((leave: boolean) => void) | null>(null);
-  useEffect(
-    () =>
-      dirty && holdNavigation
-        ? holdNavigation(
-            () =>
-              new Promise((resolve) =>
-                setAnswer(() => (leave: boolean) => {
-                  setAnswer(null);
-                  resolve(!leave);
-                }),
-              ),
-          )
-        : undefined,
-    [holdNavigation, dirty],
-  );
+  // Settles the held navigation while the question is shown: true leaves, false stays. A save on its way is the
+  // person leaving on purpose, so it is held no longer (ruling P307: the save goes back to where the form came from).
+  const { answer } = useLeaveQuestion(dirty && !pending, holdNavigation);
 
   const when = chosenWhen ?? start;
   const draft = { kind, amount, description, category, accountId, toAccountId, when, timeZone: zone };
@@ -485,8 +473,10 @@ export function RecordForm({
           const split = data as DirectSplitDto;
           if (!fundWentNegative(split.expense.warnings))
             savedToast("EXPENSE", split.spaceId, split.expense.id);
-          router.replace(afterSaveUrl(split.spaceId, split.expense.warnings, returnTo));
-          router.refresh();
+          // Ruling P307: back to where the form was opened from, when that is where the save lands.
+          leaveSheet(router, afterSaveUrl(split.spaceId, split.expense.warnings, returnTo), () =>
+            router.refresh(),
+          );
           return;
         }
         setProblem(problemFrom(error, response));
@@ -510,8 +500,8 @@ export function RecordForm({
         const recorded = data as RecordedExpenseDto | undefined;
         const warnings = built.kind === "EXPENSE" ? recorded?.warnings : undefined;
         if (!fundWentNegative(warnings)) savedToast(built.kind, space.id, recorded?.id);
-        router.replace(afterSaveUrl(space.id, warnings, returnTo));
-        router.refresh();
+        // Ruling P307: back to where the form was opened from, when that is where the save lands.
+        leaveSheet(router, afterSaveUrl(space.id, warnings, returnTo), () => router.refresh());
         return;
       }
       setProblem(problemFrom(error, response));

@@ -53,15 +53,21 @@ export const replaced = (trail: Trail, url: string): Trail => {
   return { urls: trail.urls.with(trail.pos, url), pos: trail.pos };
 };
 
-/** The browser went back or forward to `url`: the nearest entry with it (back first), or a new trail if unknown. */
+/**
+ * The browser went back or forward to `url`: the nearest entry with it (back first), or a new trail if unknown. A root
+ * restarts the trail, but keeps its own entries just before it (ruling P307): returning to a sheet over Movimientos
+ * (`?tx=`) still knows the list under it, so closing the sheet goes back to the list rather than adding another.
+ */
 export const traversed = (trail: Trail, url: string): Trail => {
   const found = trail.urls
     .map((candidate, index) => (candidate === url ? index : -1))
     .filter((index) => index >= 0)
     .sort((a, b) => Math.abs(a - trail.pos) - Math.abs(b - trail.pos) || a - b)[0];
-  return found === undefined || isRootScreen(url)
-    ? { urls: [url], pos: 0 }
-    : { urls: trail.urls, pos: found };
+  if (found === undefined) return { urls: [url], pos: 0 };
+  if (!isRootScreen(url)) return { urls: trail.urls, pos: found };
+  let start = found;
+  while (start > 0 && screenOf(trail.urls[start - 1]!) === screenOf(url)) start -= 1;
+  return { urls: trail.urls.slice(start, found + 1), pos: found - start };
 };
 
 /**
