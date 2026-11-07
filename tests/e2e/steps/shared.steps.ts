@@ -287,7 +287,7 @@ Then(
   },
 );
 
-When(/^"([^"]+)" opens her personal home$/, async ({ page, world }, _name: string) => {
+When(/^"[^"]+" opens her personal home$/, async ({ page, world }) => {
   await page.goto(`/spaces/${world.user!.spaceId}`);
   await expect(page.getByRole("heading", { name: world.t("home.recent") })).toBeVisible();
 });
