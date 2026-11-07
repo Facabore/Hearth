@@ -83,7 +83,10 @@ export const createGetUnifiedPersonalView =
     const paidOut = await deps.sums.cashOut(memberIds, period.start, period.end);
     const others = new Map(otherCurrencies.map((p) => [p.spaceId as string, p]));
     // Ruling P306: one read per space, over every member row of the caller there (a former one included).
-    const spacesOf = [...new Map(places.map((p) => [p.spaceId as string, p])).values()];
+    // The personal space first, even when a claimed guest place is older than the person's sign-up; then the others.
+    const spacesOf = [...new Map(places.map((p) => [p.spaceId as string, p])).values()].sort(
+      (a, b) => Number(b.spaceId === personal.spaceId) - Number(a.spaceId === personal.spaceId),
+    );
     const bySpace = await Promise.all(
       spacesOf.map(async (place): Promise<SpaceFigures> => {
         const rowsIn = places.filter((p) => p.spaceId === place.spaceId).map((p) => p.memberId);

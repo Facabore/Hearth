@@ -49,6 +49,17 @@ describe("unified personal view (HU-E7-04)", () => {
     expect(view.bySpace.reduce((sum, s) => sum + s.consumed, 0n)).toBe(view.consumption.total);
   });
 
+  it("lists the personal space first even when an older shared place comes first (ruling P306)", async () => {
+    const w = personalWorld([ANA_PLACES[1]!, ANA_PLACES[0]!]);
+    w.sums.consumption[NOVEMBER] = [
+      { spaceId: "space-household", categoryId: "cat-rent", amount: pesos(480_000) },
+    ];
+    w.sums.paidOutBy["member-ana-personal"] = { payments: pesos(10_000) };
+    w.sums.paidOutBy["member-ana"] = {};
+    const view = unwrap(await read(w));
+    expect(view.bySpace.map((s) => s.space.id)).toEqual(["space-ana", "space-household"]);
+  });
+
   it("leaves out a space with nothing consumed or paid in the period, never the personal one (ruling P306)", async () => {
     const w = personalWorld([
       ...ANA_PLACES,
