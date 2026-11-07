@@ -14,6 +14,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { user } from "@/modules/identity/infrastructure/auth.schema";
 import type { PeriodPolicy } from "@/shared/kernel";
+import { PALETTE } from "@/shared/kernel/style";
 
 const tz = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
@@ -32,6 +33,8 @@ export const spaces = pgTable(
     directPairKey: text("direct_pair_key"),
     archivedAt: tz("archived_at"),
     createdAt: tz("created_at").notNull(),
+    // Ruling P306: the color a manager chose; null shows the one derived from the id (`spaceColor`).
+    color: text("color", { enum: PALETTE }),
   },
   (t) => [
     check("spaces_personal_owner", sql`(${t.kind} = 'PERSONAL') = (${t.personalOwnerUserId} IS NOT NULL)`),

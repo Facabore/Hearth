@@ -1,3 +1,4 @@
+import { spaceColor } from "../domain/space";
 import { describe, expect, it } from "vitest";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
 import {
@@ -106,6 +107,7 @@ describe("ClaimGuestPlace (HU-E1-11)", () => {
       currency: "COP",
       periodPolicy: { kind: "MONTHLY", day: 1 },
       role: "MEMBER",
+      color: spaceColor(space, null),
     });
     expect(pedroOf(w)).toEqual({
       ...PEDRO,

@@ -37,6 +37,27 @@ describe("space settings (HU-E1-03)", () => {
     expect([renamed.status, (await renamed.json()).name]).toEqual([200, "Casa"]);
   });
 
+  it("shows a color derived from the space until a manager picks one, then the one picked (ruling P306)", async () => {
+    const ana = await registerUser("Ana");
+    const read = async () =>
+      (await (
+        await call(getSpace, "GET", `/api/v1/spaces/${ana.spaceId}`, {
+          user: ana,
+          params: { spaceId: ana.spaceId },
+        })
+      ).json()) as { color: string };
+    const derived = (await read()).color;
+    expect(derived).toMatch(/^[A-Z]+$/);
+    expect(derived).not.toBe("GRAPHITE");
+    expect((await read()).color).toBe(derived);
+    const picked = derived === "ROSE" ? "INDIGO" : "ROSE";
+    const answer = await patch(ana, { color: picked });
+    expect([answer.status, (await answer.json()).color]).toEqual([200, picked]);
+    expect((await read()).color).toBe(picked);
+    expect((await patch(ana, { color: "PINK" })).status).toBe(422);
+    expect((await read()).color).toBe(picked);
+  });
+
   it("switches to a cut-off on the 25th", async () => {
     const ana = await registerUser("Ana");
     expect((await patch(ana, { periodPolicy: { kind: "MONTHLY", day: 25 } })).status).toBe(200);

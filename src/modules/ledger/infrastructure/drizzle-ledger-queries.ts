@@ -5,6 +5,7 @@ import {
   desc,
   eq,
   exists,
+  gte,
   ilike,
   inArray,
   isNotNull,
@@ -64,6 +65,22 @@ export class DrizzleLedgerQueries implements TransactionQuery {
             ? undefined
             : sql`(${transactions.date}, ${listTime}, ${transactions.createdAt}, ${transactions.id}) < (${after.date}::date, ${after.occurredAt?.toISOString() ?? "-infinity"}::timestamptz, ${after.createdAt.toISOString()}::timestamptz, ${after.id}::uuid)`,
         ),
+      )
+      .orderBy(desc(transactions.date), desc(listTime), desc(transactions.createdAt), desc(transactions.id))
+      .limit(limit);
+    return loadTransactions(db, rows);
+  }
+
+  /** Ruling P306: the live transactions of several spaces from `from`, in `list`'s order; `[]` without valid ids. */
+  async recentIn(spaceIds: readonly string[], from: LocalDate, limit: number): Promise<Transaction[]> {
+    const ids = spaceIds.filter(isUuid);
+    if (ids.length === 0) return [];
+    const db = this.tm.executor();
+    const rows = await db
+      .select()
+      .from(transactions)
+      .where(
+        and(inArray(transactions.spaceId, ids), isNull(transactions.deletedAt), gte(transactions.date, from)),
       )
       .orderBy(desc(transactions.date), desc(listTime), desc(transactions.createdAt), desc(transactions.id))
       .limit(limit);

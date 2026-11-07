@@ -7,6 +7,8 @@ import {
   ensureArchivable,
   ensureCanAddMember,
   ensureMembersCanChange,
+  spaceColor,
+  checkedSpaceColor,
   spaceName,
 } from "./space";
 
@@ -135,5 +137,28 @@ describe("archiving (HU-E1-09)", () => {
     expect(ensureArchivable({ kind: "DIRECT" })).toEqual({ ok: true, value: undefined });
     const personal = ensureArchivable({ kind: "PERSONAL" });
     expect(!personal.ok && personal.error.code).toBe("PersonalSpaceNotArchivable");
+  });
+});
+
+describe("space color (ruling P306)", () => {
+  it("shows the color a manager chose", () => {
+    expect(spaceColor("s-1", "PLUM")).toBe("PLUM");
+    expect(spaceColor("s-1", "GRAPHITE")).toBe("GRAPHITE");
+  });
+
+  it("derives one from the id until then: the same for the same space, never GRAPHITE, and spread over the palette", () => {
+    const ids = Array.from(
+      { length: 300 },
+      (_, i) => `7f0c${i.toString(16).padStart(4, "0")}-0000-4000-8000-000000000000`,
+    );
+    const colors = ids.map((id) => spaceColor(id, null));
+    expect(colors).toEqual(ids.map((id) => spaceColor(id, null)));
+    expect(colors).not.toContain("GRAPHITE");
+    expect(new Set(colors).size).toBe(15);
+  });
+
+  it("accepts only the palette's keys", () => {
+    expect(checkedSpaceColor("SKY")).toEqual({ ok: true, value: "SKY" });
+    expect(checkedSpaceColor("PINK")).toMatchObject({ ok: false, error: { code: "InvalidSpaceColor" } });
   });
 });

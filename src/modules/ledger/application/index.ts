@@ -161,3 +161,13 @@ export {
   type PendingOccurrenceView,
   type SkipOccurrence,
 } from "./pending-occurrences";
+export {
+  createListMyActivity,
+  MAX_ACTIVITY,
+  type ActivityCategories,
+  type ActivityItem,
+  type ListMyActivity,
+  type MemberNames,
+  type MyActivityDeps,
+  type RecentTransactions,
+} from "./list-my-activity";

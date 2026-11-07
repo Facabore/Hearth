@@ -44,6 +44,29 @@
       "hint": "Only the texts change. The number and date formats do not depend on the language.",
       "es": "Español",
       "en": "English"
+    },
+    "spaceColor": {
+      "colorLabel": "Color",
+      "hint": "We pick one until you choose another. Everyone in the space sees it on their Home.",
+      "preview": "How it looks in Recent:",
+      "color": {
+        "PINE": "Pine",
+        "SAGE": "Sage",
+        "OLIVE": "Olive",
+        "SAND": "Sand",
+        "MUSTARD": "Mustard",
+        "AMBER": "Amber",
+        "EMBER": "Ember",
+        "CORAL": "Coral",
+        "ROSE": "Rose",
+        "PLUM": "Plum",
+        "LAVENDER": "Lavender",
+        "INDIGO": "Indigo",
+        "SKY": "Sky",
+        "TEAL": "Teal",
+        "STEEL": "Steel",
+        "GRAPHITE": "Graphite"
+      }
     }
   }
 }

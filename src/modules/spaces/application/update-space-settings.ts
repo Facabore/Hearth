@@ -7,7 +7,7 @@ import {
   type Result,
   type TransactionManager,
 } from "@/shared/kernel";
-import { checkedPeriodPolicy, spaceName } from "../domain/space";
+import { checkedPeriodPolicy, checkedSpaceColor, spaceName } from "../domain/space";
 import { MANAGERS, requireRole, toSpaceSummary, type SpaceAccess } from "./space-access";
 import type { SpaceLocks } from "./space-locks";
 import type { SpaceSummary } from "./space-repository";
@@ -34,6 +34,8 @@ export interface SpaceSettingsChanges {
   readonly name?: string;
   readonly currency?: string;
   readonly periodPolicy?: PeriodPolicy;
+  /** Ruling P306: a palette key; null goes back to the derived color. */
+  readonly color?: string | null;
 }
 
 export type UpdateSpaceSettings = (input: {
@@ -64,11 +66,23 @@ export const createUpdateSpaceSettings =
       if (!periodPolicy.ok) return periodPolicy;
       const currency = currencyOf(changes.currency ?? current.currency);
       if (!currency.ok) return currency;
+      const color =
+        changes.color === undefined
+          ? ok(current.color)
+          : changes.color === null
+            ? ok(null)
+            : checkedSpaceColor(changes.color);
+      if (!color.ok) return color;
       // D6, HU-E1-03: one currency per space, fixed once money has been recorded in it.
       if (currency.value.code !== current.currency && (await deps.usage.hasMoneyRecords(current.spaceId))) {
         return err(domainError("SpaceCurrencyLocked"));
       }
-      const settings = { name: name.value, currency: currency.value.code, periodPolicy: periodPolicy.value };
+      const settings = {
+        name: name.value,
+        currency: currency.value.code,
+        periodPolicy: periodPolicy.value,
+        color: color.value,
+      };
       // D10: plan boundaries are stored, so a new policy only affects periods without a plan.
       await deps.spaces.updateSettings(current.spaceId, settings);
       return ok(toSpaceSummary({ ...current, ...settings }));

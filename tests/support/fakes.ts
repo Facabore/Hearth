@@ -48,6 +48,7 @@ export const membership = (overrides: MembershipOverrides = {}): SpaceMembership
     periodPolicy: { kind: "MONTHLY", day: 1 },
     userId: "u-ana",
     role: "OWNER",
+    color: null,
     archived: false,
     ...rest,
     spaceId: spaceId as SpaceMembership["spaceId"],

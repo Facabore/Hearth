@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNotNull, isNull, notExists } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, notExists } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { isUuid } from "@/shared/kernel";
@@ -19,6 +19,7 @@ import type {
   SpaceSettingsRepository,
 } from "../application/space-settings-repository";
 import type { Space, SpaceId, SpaceKind, SpaceMember, SpaceMemberId, SpaceRole } from "../domain/space";
+import { spaceColor } from "../domain/space";
 import { directPairKey } from "../domain/direct-space";
 import { spaceMembers, spaces } from "./spaces.schema";
 
@@ -97,6 +98,7 @@ export class DrizzleSpaceRepository
         currency: spaces.currency,
         periodPolicy: spaces.periodPolicy,
         role: spaceMembers.role,
+        color: spaces.color,
       })
       .from(spaces)
       .innerJoin(spaceMembers, eq(spaceMembers.spaceId, spaces.id))
@@ -108,7 +110,8 @@ export class DrizzleSpaceRepository
           options.includeArchived === true ? undefined : isNull(spaces.archivedAt),
         ),
       )
-      .orderBy(asc(spaces.createdAt));
+      .orderBy(asc(spaces.createdAt))
+      .then((rows) => rows.map((row) => ({ ...row, color: spaceColor(row.id, row.color) })));
   }
 
   async placesOf(userId: string): Promise<MemberPlace[]> {
@@ -121,6 +124,7 @@ export class DrizzleSpaceRepository
         spaceKind: spaces.kind,
         currency: spaces.currency,
         periodPolicy: spaces.periodPolicy,
+        color: spaces.color,
       })
       .from(spaceMembers)
       .innerJoin(spaces, eq(spaces.id, spaceMembers.spaceId))
@@ -131,7 +135,27 @@ export class DrizzleSpaceRepository
       ...row,
       memberId: row.memberId as SpaceMemberId,
       spaceId: row.spaceId as SpaceId,
+      color: spaceColor(row.spaceId, row.color),
     }));
+  }
+
+  /** Ruling P306: every member row of `spaceIds`, former ones included; `[]` without valid ids. */
+  async namesIn(spaceIds: readonly string[]) {
+    const ids = spaceIds.filter(isUuid);
+    if (ids.length === 0) return [];
+    const rows = await this.tm
+      .executor()
+      .select({
+        memberId: spaceMembers.id,
+        spaceId: spaceMembers.spaceId,
+        userId: spaceMembers.userId,
+        displayName: spaceMembers.displayName,
+        leftAt: spaceMembers.leftAt,
+      })
+      .from(spaceMembers)
+      .where(inArray(spaceMembers.spaceId, ids))
+      .orderBy(asc(spaceMembers.joinedAt), asc(spaceMembers.id));
+    return rows.map(({ leftAt, ...row }) => ({ ...row, current: leftAt === null }));
   }
 
   async findMembership(spaceId: string, userId: string): Promise<SpaceMembership | null> {
@@ -148,6 +172,7 @@ export class DrizzleSpaceRepository
         memberId: spaceMembers.id,
         role: spaceMembers.role,
         archivedAt: spaces.archivedAt,
+        color: spaces.color,
       })
       .from(spaces)
       .innerJoin(spaceMembers, eq(spaceMembers.spaceId, spaces.id))
@@ -192,7 +217,12 @@ export class DrizzleSpaceRepository
     await this.tm
       .executor()
       .update(spaces)
-      .set({ name: settings.name, currency: settings.currency, periodPolicy: settings.periodPolicy })
+      .set({
+        name: settings.name,
+        currency: settings.currency,
+        periodPolicy: settings.periodPolicy,
+        color: settings.color,
+      })
       .where(eq(spaces.id, spaceId));
   }
 

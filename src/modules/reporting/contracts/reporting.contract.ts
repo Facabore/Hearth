@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PALETTE } from "@/shared/kernel/style";
 import type { ZodOpenApiPathsObject } from "zod-openapi";
 import { ALLOCATION_RULES, FUNDINGS, PLAN_STATUSES } from "@/modules/budgeting/application";
 import {
@@ -347,6 +348,25 @@ export const UnifiedViewSchema = z.object({
       }),
     ),
   }),
+  /**
+   * Ruling P306: the caller's figures per space, the personal one first, then every other space with consumption or
+   * payments in the period. Σ consumed is the consumption's total; Σ paid leaves out savings transfers, which belong to
+   * no space.
+   */
+  bySpace: z
+    .array(
+      z.object({
+        space: z.object({
+          id: z.string(),
+          name: z.string(),
+          kind: z.enum(["PERSONAL", "SHARED", "DIRECT"]),
+          color: z.enum(PALETTE),
+        }),
+        consumed: MoneySchema,
+        paid: MoneySchema,
+      }),
+    )
+    .optional(),
   /** payments + fund contributions + savings transfers (spec 5.4); settlements are not cash out. */
   cashOut: z.object({
     total: MoneySchema,
@@ -383,6 +403,11 @@ export const unifiedViewDto = (view: UnifiedPersonalView): z.infer<typeof Unifie
       savingsTransfers: money(view.cashOut.savingsTransfers),
       outsideTheApp: money(view.cashOut.outsideTheApp),
     },
+    bySpace: view.bySpace.map((s) => ({
+      space: { ...s.space },
+      consumed: money(s.consumed),
+      paid: money(s.paid),
+    })),
     otherCurrencySpaces: view.otherCurrencySpaces.map((s) => ({ ...s })),
   };
 };

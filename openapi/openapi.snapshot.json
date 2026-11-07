@@ -1391,6 +1391,27 @@
                       }
                     ],
                     "type": "object"
+                  },
+                  "color": {
+                    "type": "string",
+                    "enum": [
+                      "PINE",
+                      "SAGE",
+                      "OLIVE",
+                      "SAND",
+                      "MUSTARD",
+                      "AMBER",
+                      "EMBER",
+                      "CORAL",
+                      "ROSE",
+                      "PLUM",
+                      "LAVENDER",
+                      "INDIGO",
+                      "SKY",
+                      "TEAL",
+                      "STEEL",
+                      "GRAPHITE"
+                    ]
                   }
                 }
               }
@@ -5106,6 +5127,312 @@
           },
           "409": {
             "description": "SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/activity": {
+      "get": {
+        "operationId": "listMyActivity",
+        "summary": "What happened lately in the caller's shared and direct spaces, newest first",
+        "description": "Ruling P306: the live movements of every shared and direct space the caller currently belongs to, dated `from` or later, in Movimientos' order, each with its space, who recorded it and the caller's part of it. Personal spaces are never listed: the caller reads their own as Movimientos does, and no one else's is reachable.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 10,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The movements, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "space": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "PERSONAL",
+                                  "SHARED",
+                                  "DIRECT"
+                                ]
+                              },
+                              "color": {
+                                "type": "string",
+                                "enum": [
+                                  "PINE",
+                                  "SAGE",
+                                  "OLIVE",
+                                  "SAND",
+                                  "MUSTARD",
+                                  "AMBER",
+                                  "EMBER",
+                                  "CORAL",
+                                  "ROSE",
+                                  "PLUM",
+                                  "LAVENDER",
+                                  "INDIGO",
+                                  "SKY",
+                                  "TEAL",
+                                  "STEEL",
+                                  "GRAPHITE"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "kind",
+                              "color"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "transaction": {
+                            "$ref": "#/components/schemas/Transaction"
+                          },
+                          "recordedBy": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "you": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "you"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "you": {
+                            "type": "object",
+                            "properties": {
+                              "memberIds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "share": {
+                                "anyOf": [
+                                  {
+                                    "$ref": "#/components/schemas/MoneyOutput"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "paid": {
+                                "anyOf": [
+                                  {
+                                    "$ref": "#/components/schemas/MoneyOutput"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "memberIds",
+                              "share",
+                              "paid"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "memberNames": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "type": "string"
+                            }
+                          },
+                          "category": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "path": {
+                                    "type": "string"
+                                  },
+                                  "icon": {
+                                    "anyOf": [
+                                      {
+                                        "oneOf": [
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "kind": {
+                                                "type": "string",
+                                                "const": "SYMBOL"
+                                              },
+                                              "name": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "kind",
+                                              "name"
+                                            ],
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "object",
+                                            "properties": {
+                                              "kind": {
+                                                "type": "string",
+                                                "const": "EMOJI"
+                                              },
+                                              "value": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "kind",
+                                              "value"
+                                            ],
+                                            "additionalProperties": false
+                                          }
+                                        ],
+                                        "type": "object"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "color": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "PINE",
+                                          "SAGE",
+                                          "OLIVE",
+                                          "SAND",
+                                          "MUSTARD",
+                                          "AMBER",
+                                          "EMBER",
+                                          "CORAL",
+                                          "ROSE",
+                                          "PLUM",
+                                          "LAVENDER",
+                                          "INDIGO",
+                                          "SKY",
+                                          "TEAL",
+                                          "STEEL",
+                                          "GRAPHITE"
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "name",
+                                  "path",
+                                  "icon",
+                                  "color"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "space",
+                          "transaction",
+                          "recordedBy",
+                          "you",
+                          "memberNames",
+                          "category"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed, InvalidDate",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -12316,6 +12643,73 @@
                       ],
                       "additionalProperties": false
                     },
+                    "bySpace": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "space": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "PERSONAL",
+                                  "SHARED",
+                                  "DIRECT"
+                                ]
+                              },
+                              "color": {
+                                "type": "string",
+                                "enum": [
+                                  "PINE",
+                                  "SAGE",
+                                  "OLIVE",
+                                  "SAND",
+                                  "MUSTARD",
+                                  "AMBER",
+                                  "EMBER",
+                                  "CORAL",
+                                  "ROSE",
+                                  "PLUM",
+                                  "LAVENDER",
+                                  "INDIGO",
+                                  "SKY",
+                                  "TEAL",
+                                  "STEEL",
+                                  "GRAPHITE"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "kind",
+                              "color"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "consumed": {
+                            "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "paid": {
+                            "$ref": "#/components/schemas/MoneyOutput"
+                          }
+                        },
+                        "required": [
+                          "space",
+                          "consumed",
+                          "paid"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
                     "cashOut": {
                       "type": "object",
                       "properties": {
@@ -16389,6 +16783,27 @@
               {
                 "type": "null"
               }
+            ]
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "PINE",
+              "SAGE",
+              "OLIVE",
+              "SAND",
+              "MUSTARD",
+              "AMBER",
+              "EMBER",
+              "CORAL",
+              "ROSE",
+              "PLUM",
+              "LAVENDER",
+              "INDIGO",
+              "SKY",
+              "TEAL",
+              "STEEL",
+              "GRAPHITE"
             ]
           }
         },

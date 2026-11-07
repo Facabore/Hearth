@@ -29,6 +29,38 @@ const read = (w: ReturnType<typeof personalWorld>, period = "2026-11", userId = 
   createGetUnifiedPersonalView(w.deps)({ userId, period });
 
 describe("unified personal view (HU-E7-04)", () => {
+  it("breaks the month down per space, the personal one first, and what she paid in each (ruling P306)", async () => {
+    const w = background();
+    w.sums.paidOutBy["member-ana-personal"] = { payments: pesos(145_000) };
+    w.sums.paidOutBy["member-ana"] = { payments: pesos(2_000_000), fundContributions: pesos(480_000) };
+    const view = unwrap(await read(w));
+    expect(view.bySpace).toEqual([
+      {
+        space: { id: "space-ana", name: "Personal", kind: "PERSONAL", color: "SKY" },
+        consumed: pesos(145_000),
+        paid: pesos(145_000),
+      },
+      {
+        space: { id: "space-household", name: "Household", kind: "SHARED", color: "SKY" },
+        consumed: pesos(1_430_000),
+        paid: pesos(2_480_000),
+      },
+    ]);
+    expect(view.bySpace.reduce((sum, s) => sum + s.consumed, 0n)).toBe(view.consumption.total);
+  });
+
+  it("leaves out a space with nothing consumed or paid in the period, never the personal one (ruling P306)", async () => {
+    const w = personalWorld([
+      ...ANA_PLACES,
+      place("space-trip", "member-ana-trip", "Trip", { color: "PLUM" }),
+    ]);
+    w.sums.paidOutBy["member-ana-personal"] = {};
+    w.sums.paidOutBy["member-ana"] = {};
+    w.sums.paidOutBy["member-ana-trip"] = {};
+    const view = unwrap(await read(w));
+    expect(view.bySpace.map((s) => [s.space.name, s.consumed, s.paid])).toEqual([["Personal", 0n, 0n]]);
+  });
+
   it("totals Ana's consumption across spaces, Groceries of both under the key groceries (@critical)", async () => {
     const view = unwrap(await read(background()));
     expect(view.consumption.total).toBe(pesos(1_575_000));
@@ -105,6 +137,9 @@ describe("unified personal view (HU-E7-04)", () => {
     expect(w.sums.asked).toEqual([
       { memberIds: ["member-ana-personal", "member-ana"], from: "2026-11-01", to: "2026-11-30" },
       { memberIds: ["member-ana-personal", "member-ana"], from: "2026-11-01", to: "2026-11-30" },
+      // Ruling P306: what she paid in each space, one row set at a time.
+      { memberIds: ["member-ana-personal"], from: "2026-11-01", to: "2026-11-30" },
+      { memberIds: ["member-ana"], from: "2026-11-01", to: "2026-11-30" },
     ]);
   });
 
@@ -123,7 +158,7 @@ describe("unified personal view (HU-E7-04)", () => {
     expect(unwrap(await read(w)).period).toMatchObject({ start: "2026-11-05", end: "2026-12-04" });
     // Every question, the sums' and the transfers', covers the stored period and not the policy's.
     const range = { from: "2026-11-05", to: "2026-12-04" };
-    expect(w.sums.asked.map(({ from, to }) => ({ from, to }))).toEqual([range, range]);
+    expect(w.sums.asked.map(({ from, to }) => ({ from, to }))).toEqual([range, range, range, range]);
     expect(w.transfersAsked.map(({ from, to }) => ({ from, to }))).toEqual([range]);
   });
 
@@ -200,6 +235,8 @@ describe("unified personal view (HU-E7-04)", () => {
     expect(w.sums.asked.map((a) => a.memberIds)).toEqual([
       ["member-ana-personal", "member-ana"],
       ["member-ana-personal", "member-ana"],
+      ["member-ana-personal"],
+      ["member-ana"],
     ]);
     expect(view.currency).toBe("COP");
   });

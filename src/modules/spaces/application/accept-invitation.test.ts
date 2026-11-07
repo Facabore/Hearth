@@ -1,3 +1,4 @@
+import { spaceColor } from "../domain/space";
 import { describe, expect, it } from "vitest";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
 import {
@@ -47,6 +48,7 @@ describe("AcceptInvitation (HU-E1-07)", () => {
       currency: "COP",
       periodPolicy: { kind: "MONTHLY", day: 1 },
       role: "MEMBER",
+      color: spaceColor(space, null),
     });
     expect(juanRows(w.store.members(space))).toEqual([
       {

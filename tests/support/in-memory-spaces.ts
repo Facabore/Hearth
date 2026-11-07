@@ -25,7 +25,12 @@ import {
   type SpaceSettingsRepository,
   type SpaceSummary,
 } from "@/modules/spaces/application";
-import { createPersonalSpace } from "@/modules/spaces/domain/space";
+import { createPersonalSpace, spaceColor } from "@/modules/spaces/domain/space";
+import type { PaletteKey } from "@/shared/kernel/style";
+
+/** Ruling P306: the color a manager chose, which `updateSettings` spreads over the stored space. */
+const colorOf = (space: Space): PaletteKey | null =>
+  (space as Space & { color?: PaletteKey | null }).color ?? null;
 import { directPairKey } from "@/modules/spaces/domain/direct-space";
 import type { Clock } from "@/shared/kernel";
 import { memoryTm, sequentialIds } from "./fakes";
@@ -94,6 +99,7 @@ export class InMemorySpaceStore
         currency: s.currency,
         periodPolicy: s.periodPolicy,
         role: me.role,
+        color: spaceColor(s.id, colorOf(s)),
       };
       return [summary];
     });
@@ -113,6 +119,7 @@ export class InMemorySpaceStore
       userId,
       role: me.role,
       archived: this.archived.has(space.id),
+      color: colorOf(space),
     };
   }
 

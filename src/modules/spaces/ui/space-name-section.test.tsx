@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
@@ -84,5 +84,45 @@ describe("space name in Settings (#167)", () => {
     renderWithIntl(<SpaceNameSection space={householdSpace({ role })} api={fakeApi({}).api} />);
     expect(screen.queryByLabelText("Nombre del espacio")).toBeNull();
     expect(screen.queryByRole("heading", { name: "Espacio" })).toBeNull();
+  });
+});
+
+describe("space color in Settings (ruling P306)", () => {
+  it("stores the swatch a manager picks at once, says Guardado, refreshes and previews the chip", async () => {
+    const { api, requests } = fakeApi({
+      "PATCH /api/v1/spaces/{spaceId}": () => jsonResponse(householdSpace({ color: "SKY" })),
+    });
+    const { container } = renderWithIntl(
+      <SpaceNameSection space={householdSpace({ color: "SAGE" })} api={api} />,
+    );
+    const colors = screen.getByRole("radiogroup", { name: "Color" });
+    expect(within(colors).getByRole("radio", { name: "Salvia" })).toBeChecked();
+    await userEvent.click(within(colors).getByRole("radio", { name: "Cielo" }));
+    expect(requests).toHaveLength(1);
+    expect(requests[0]!.method).toBe("PATCH");
+    expect(new URL(requests[0]!.url).pathname).toBe("/api/v1/spaces/sp-household");
+    expect(await requests[0]!.json()).toEqual({ color: "SKY" });
+    expect(await screen.findByRole("status")).toHaveTextContent("Guardado");
+    expect(within(colors).getByRole("radio", { name: "Cielo" })).toBeChecked();
+    expect(router.refresh).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Así se ve en Recientes:")).toBeInTheDocument();
+    expect(container.querySelector("[data-space-chip]")).toHaveTextContent("Household");
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("puts the stored color back when the API refuses, and refreshes nothing", async () => {
+    const { api } = fakeApi({
+      "PATCH /api/v1/spaces/{spaceId}": () => problemResponse(403, "InsufficientRole"),
+    });
+    renderWithIntl(<SpaceNameSection space={householdSpace({ color: "SAGE" })} api={api} />);
+    const colors = screen.getByRole("radiogroup", { name: "Color" });
+    await userEvent.click(within(colors).getByRole("radio", { name: "Cielo" }));
+    await waitFor(() => expect(within(colors).getByRole("radio", { name: "Salvia" })).toBeChecked());
+    expect(router.refresh).not.toHaveBeenCalled();
+  });
+
+  it("offers no color for the personal space, whose rows carry no chip", () => {
+    renderWithIntl(<SpaceNameSection space={spaceDto({ color: "SAGE" })} api={fakeApi({}).api} />);
+    expect(screen.queryByRole("radiogroup", { name: "Color" })).not.toBeInTheDocument();
   });
 });
