@@ -9,7 +9,7 @@
   "scriptKb": {
     "/sign-in": 157,
     "/sign-up": 158,
-    "/spaces/:id": 182,
+    "/spaces/:id": 186,
     "/spaces/:id/transactions": 185,
     "/spaces/:id/transactions?tx=:tx": 202,
     "/spaces/:id/transactions/:tx/edit": 202,
