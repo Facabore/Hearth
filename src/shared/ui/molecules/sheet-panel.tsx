@@ -2,7 +2,8 @@
 
 import { useTranslations } from "next-intl";
 import { Dialog } from "radix-ui";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
+import { closeSheetEntry, openSheetEntry, sheetDepth } from "../navigation/sheet-history";
 import { Button } from "../atoms/button";
 import { Icon } from "../atoms/icon";
 import { VisuallyHidden } from "../atoms/visually-hidden";
@@ -21,6 +22,34 @@ export interface SheetProps {
   readonly closeButton?: boolean;
   /** What the board draws before the title, such as the person's avatar or the category's icon (P292). */
   readonly leading?: ReactNode;
+  /**
+   * Ruling P307: false for a sheet that has an address of its own (`?tx=`, `/accounts/new`) or that a navigation opens
+   * (the discard question). Any other sheet takes an entry of the browser's history while open, so Back closes it.
+   */
+  readonly historyEntry?: boolean;
+}
+
+/** Ruling P307: the sheet's entry of the browser's history while it is open; Back to the entry below closes it. */
+function useSheetEntry(onOpenChange: (open: boolean) => void, on: boolean) {
+  const close = useRef(onOpenChange);
+  useEffect(() => {
+    close.current = onOpenChange;
+  });
+  const kept = useRef(0);
+  useEffect(() => {
+    if (!on) return undefined;
+    const depth = openSheetEntry(kept.current);
+    kept.current = depth;
+    if (depth === 0) return undefined;
+    const onPop = () => {
+      if (sheetDepth() < depth) close.current(false);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      closeSheetEntry(depth);
+    };
+  }, [on]);
 }
 
 /**
@@ -36,8 +65,10 @@ export function SheetPanel({
   footer,
   closeButton = true,
   leading,
+  historyEntry = true,
 }: SheetProps) {
   const t = useTranslations("common");
+  useSheetEntry(onOpenChange, open && historyEntry);
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
