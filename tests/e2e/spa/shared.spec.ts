@@ -4,6 +4,7 @@ import { expect, type Page } from "@playwright/test";
 import { test, todayInBogota } from "../support/clock";
 import { es } from "../../../src/i18n/messages/full";
 import { get, post, signUp } from "../support/seed";
+import { sheetsSettled } from "../support/sheets";
 
 const WCAG = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
 
@@ -114,6 +115,8 @@ test.describe("shared spaces (slice 4 of #199, ADR 0006)", () => {
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "Guardar pago" }).click();
     await expect(suggestion).toHaveCount(0);
+    await expect(dialog).toBeHidden();
+    await sheetsSettled(page);
 
     // Juan's history in the period.
     await page.goto(`/spaces/${space.id}/members/${juanId}/history`);

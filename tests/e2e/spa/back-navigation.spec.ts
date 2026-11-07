@@ -3,6 +3,7 @@ import { expect, type Page } from "@playwright/test";
 import { test, todayInBogota } from "../support/clock";
 import { es } from "../../../src/i18n/messages/full";
 import { get, post, signUp } from "../support/seed";
+import { sheetsSettled } from "../support/sheets";
 
 /**
  * Ruling P307 (the QA of 2026-11-07): Volver, the browser's Back and closing a sheet never trap the person, never
@@ -11,12 +12,6 @@ import { get, post, signUp } from "../support/seed";
 const ip = () => `10.${randomInt(256)}.${randomInt(256)}.${randomInt(1, 255)}`;
 const nav = (page: Page) => page.getByRole("navigation", { name: es.shell.nav.main });
 const dialog = (page: Page, name: string) => page.getByRole("dialog", { name });
-/** A sheet's entry of the history goes once its close has settled (ruling P307): a person's next Back comes after. */
-const settled = (page: Page) =>
-  expect
-    .poll(() => page.evaluate(() => (history.state as { hearthSheet?: number } | null)?.hearthSheet ?? 0))
-    .toBe(0);
-
 const withMovement = async (page: Page, spaceId: string, description: string) => {
   const space = `/api/v1/spaces/${spaceId}`;
   const account = await post(page, `${space}/accounts`, {
@@ -178,7 +173,7 @@ test.describe("back navigation (ruling P307)", () => {
     await expect(dialog(page, es.settings.numbersAndDates)).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(dialog(page, es.settings.numbersAndDates)).toBeHidden();
-    await settled(page);
+    await sheetsSettled(page);
     await page.goBack();
     await expect(page).toHaveURL(home);
   });
