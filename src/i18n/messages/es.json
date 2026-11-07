@@ -204,6 +204,7 @@
       "subtitle": "Entra para ver tus cuentas y lo que queda del mes.",
       "submit": "Iniciar sesión",
       "createAccount": "Crear una cuenta",
+      "noAccount": "¿No tienes cuenta?",
       "forgot": "¿Olvidaste tu contraseña?",
       "forgotHelp": "Pídele a quien administra Hearth que la restablezca."
     },

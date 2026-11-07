@@ -204,6 +204,7 @@
       "subtitle": "Sign in to see your accounts and what is left of the month.",
       "submit": "Sign in",
       "createAccount": "Create an account",
+      "noAccount": "No account yet?",
       "forgot": "Forgot your password?",
       "forgotHelp": "Ask whoever runs Hearth to reset it."
     },

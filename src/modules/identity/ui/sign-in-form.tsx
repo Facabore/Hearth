@@ -24,7 +24,8 @@ const FORGOT_HELP = "si-forgot-help";
 
 /**
  * HU-E9-01, the Main artboard: email, password, the main action and the way to sign up. Rulings: P143 and P146 hide
- * the sign-up link while sign-up is closed; P144 and P146 answer a forgotten password with an inline note (the
+ * the sign-up link while sign-up is closed, and P307 says in its place how to get an account (an invitation from
+ * someone in the household, as the closed sign-up screen says); P144 and P146 answer a forgotten password with an inline note (the
  * operator resets it); P146 keeps the email and refocuses an emptied password after a problem; P151 says why a
  * visitor came back.
  */
@@ -109,7 +110,11 @@ export function SignInForm({
         <Button asChild variant="secondary" size="lg">
           <Link href={createAccount}>{t("signIn.createAccount")}</Link>
         </Button>
-      ) : null}
+      ) : (
+        <p className="text-center text-sm text-muted">
+          <span className="font-semibold text-ink">{t("signIn.noAccount")}</span> {t("signUp.closedBody")}
+        </p>
+      )}
     </form>
   );
 }

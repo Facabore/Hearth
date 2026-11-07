@@ -84,6 +84,15 @@ describe("sign-in screen (HU-E9-01)", () => {
     expect(screen.queryByRole("link", { name: "Crear una cuenta" })).not.toBeInTheDocument();
   });
 
+  it("tells a visitor without an account how to get one while sign-up is closed (P307)", () => {
+    const { unmount } = renderWithIntl(<SignInFormContainer next="/" signUp="closed" />);
+    expect(screen.getByText("¿No tienes cuenta?")).toBeInTheDocument();
+    expect(screen.getByText("Pídele una invitación a alguien de tu hogar.")).toBeInTheDocument();
+    unmount();
+    renderWithIntl(<SignInFormContainer next="/" signUp="open" />);
+    expect(screen.queryByText("¿No tienes cuenta?")).not.toBeInTheDocument();
+  });
+
   it("keeps the invitation of the URL in the link to sign-up, beside next (rulings P142, P147)", () => {
     const { unmount } = renderWithIntl(<SignInFormContainer next="/" invitation="tok 1" />);
     expect(screen.getByRole("link", { name: "Crear una cuenta" })).toHaveAttribute(
