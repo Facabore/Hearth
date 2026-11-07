@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { Dialog } from "radix-ui";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { closeSheetEntry, openSheetEntry, sheetDepth } from "../navigation/sheet-history";
 import { Button } from "../atoms/button";
 import { Icon } from "../atoms/icon";
@@ -36,7 +36,9 @@ function useSheetEntry(onOpenChange: (open: boolean) => void, on: boolean) {
     close.current = onOpenChange;
   });
   const kept = useRef(0);
-  useEffect(() => {
+  // A layout effect: the entry goes back in the same commit that removes the sheet, before anyone sees it gone and
+  // starts another navigation that the late Back would cut short.
+  useLayoutEffect(() => {
     if (!on) return undefined;
     const depth = openSheetEntry(kept.current);
     kept.current = depth;
