@@ -1,7 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { useTranslations } from "use-intl";
-import { firstStepsOf, HomeSummary, TransactionSheetHost } from "@/modules/ledger/ui";
+import {
+  firstStepsOf,
+  HomeSummary,
+  UnifiedRecent,
+  mergedFeed,
+  TransactionSheetHost,
+  UnifiedSummary,
+  unifiedMonthOf,
+} from "@/modules/ledger/ui";
 import { myConsumptionHref } from "@/modules/reporting/ui";
 import { SpaceStanding, type MyBalanceDto } from "@/modules/spaces/ui";
 import type { SpaceDto } from "@/shared/ui/api/dto";
@@ -9,7 +17,8 @@ import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
 import { useHome, useTransactionDetail, useViewer } from "../ledger/hooks";
 import { showsUnifiedMonth } from "../load";
-import { lineReportQuery, unifiedViewQuery } from "../reads";
+import { FEED_ROWS } from "../ledger/queries";
+import { lineReportQuery, myActivityQuery, unifiedViewQuery } from "../reads";
 import { myBalancesQuery, spaceStandingSlot } from "../shell";
 import { useTitle } from "../title";
 
@@ -54,11 +63,17 @@ export function SpaceHome() {
   const detail = useTransactionDetail(viewer, tx);
   const { space } = viewer;
   const home = `/spaces/${spaceId}`;
+  const today = nowIn(new Date(), viewer.me.timezone).date;
   // U4 (#209): the personal home of someone with other spaces also says what her month costs across all of them, and
   // opens Mi consumo for that period, a stacked screen (U10, ruling P267).
   const unified = showsUnifiedMonth(viewer);
   const allSpaces = useQuery({
     ...unifiedViewQuery(api, spaceId, page.period.label),
+    enabled: unified,
+  }).data;
+  // Ruling P306: Recientes merges her shared and direct spaces' latest movements from the period's start.
+  const activity = useQuery({
+    ...myActivityQuery(api, spaceId, page.period.startDate, FEED_ROWS),
     enabled: unified,
   }).data;
   // #152 (P265): the first steps' plan step reads the period's line dashboard, only where the card can show.
@@ -81,11 +96,30 @@ export function SpaceHome() {
         page={page}
         accounts={accounts}
         context={context}
-        today={nowIn(new Date(), viewer.me.timezone).date}
-        allSpaces={
-          unified && allSpaces
-            ? { total: allSpaces.consumption.total, href: myConsumptionHref(space, page.period.label) }
-            : undefined
+        today={today}
+        // Ruling P306: the personal home of someone with other spaces counts her month in all of them and merges their
+        // latest movements into Recientes.
+        summary={
+          unified && allSpaces ? (
+            <UnifiedSummary
+              unified={unifiedMonthOf(allSpaces, myConsumptionHref(space, page.period.label))}
+              page={page}
+              policy={space.periodPolicy}
+              formats={context.formats}
+              personId={viewer.me.id}
+            />
+          ) : undefined
+        }
+        recent={
+          unified && activity ? (
+            <UnifiedRecent
+              feed={mergedFeed(page.items, activity, FEED_ROWS)}
+              spaceId={spaceId}
+              context={context}
+              today={today}
+              personId={viewer.me.id}
+            />
+          ) : undefined
         }
         // #220 (F14): the personal home proposes a new person's first steps, from what it already read.
         firstSteps={

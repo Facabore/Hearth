@@ -24,3 +24,10 @@ Feature: Shared expense form
     When "Ana" chooses "Editar", changes the amount to 400,000 COP and saves
     Then the status message reads "Cambios guardados"
     And "Groceries" in "Household" has shares of 200,000 COP for "Ana" and 200,000 COP for "Juan"
+
+  @e2e
+  Scenario: The personal home shows the household's movement with its space and Ana's part (P306)
+    Given "Ana" recorded "Groceries" in "Household" for 300,000 COP paid from "Bancolombia", split equally between "Ana" and "Juan"
+    When "Ana" opens her personal home
+    Then Recientes shows "Groceries" tagged "Household" reading "Registraste tú · pagaste $ 300.000 · tu parte $ 150.000"
+    And the headline breaks the month down into "Personal" and "Household"

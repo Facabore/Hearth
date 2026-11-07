@@ -8,11 +8,15 @@ import {
   cop,
   octoberExpense,
   octoberPage,
+  activityItemDto,
   rowContext,
+  transactionDto,
 } from "../../../../../tests/support/ui/dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import type { TransactionDetail } from "../detail/transaction-detail";
 import { HomeSummary } from "./home-summary";
+import { UnifiedRecent } from "./unified-home";
+import { UnifiedSummary } from "./unified-summary";
 
 // A row opens the detail sheet, which closes with the router.
 const mocks = vi.hoisted(() => ({ router: { push: vi.fn(), replace: vi.fn(), refresh: vi.fn() } }));
@@ -140,8 +144,90 @@ describe("the home's recent rows say which day they are from (#216, F10)", () =>
   });
 });
 
-describe("the month across every space (U4, issue #209)", () => {
-  const home = (allSpaces?: ComponentProps<typeof HomeSummary>["allSpaces"]) =>
+describe("the personal space shows everything (ruling P306)", () => {
+  const unified = {
+    consumed: cop(725_000),
+    paid: cop(1_055_000),
+    bySpace: [
+      {
+        id: "sp-personal",
+        name: "Personal",
+        kind: "PERSONAL" as const,
+        color: "PINE" as const,
+        consumed: cop(245_000),
+        paid: cop(245_000),
+      },
+      {
+        id: "sp-hogar",
+        name: "Hogar",
+        kind: "SHARED" as const,
+        color: "SKY" as const,
+        consumed: cop(410_000),
+        paid: cop(600_000),
+      },
+      {
+        id: "sp-viaje",
+        name: "Viaje Cartagena",
+        kind: "SHARED" as const,
+        color: "PLUM" as const,
+        consumed: cop(70_000),
+        paid: cop(210_000),
+      },
+    ],
+    href: "/spaces/sp-personal/my-consumption?period=2026-10",
+  };
+  const groceries = activityItemDto({
+    transaction: transactionDto({
+      id: "t-hogar",
+      description: "Mercado del mes",
+      date: "2026-10-31",
+      amount: cop(180_000),
+      createdBy: "u-juan",
+      payments: [{ memberId: "m-juan", accountId: null, amount: cop(180_000) }],
+      shares: [
+        { memberId: "m-juan", amount: cop(90_000), splitMethod: "EQUAL" },
+        { memberId: "m-ana", amount: cop(90_000), splitMethod: "EQUAL" },
+      ],
+    }),
+    recordedBy: { name: "Juan", you: false },
+    you: { memberIds: ["m-ana"], share: cop(90_000), paid: null },
+  });
+  const hotel = activityItemDto({
+    space: { id: "sp-viaje", name: "Viaje Cartagena", kind: "SHARED", color: "PLUM" },
+    transaction: transactionDto({
+      id: "t-hotel",
+      description: "Hotel",
+      date: "2026-10-30",
+      amount: cop(210_000),
+    }),
+    recordedBy: { name: "Ana", you: true },
+    you: { memberIds: ["m-ana-viaje"], share: cop(70_000), paid: cop(210_000) },
+  });
+  const settlement = activityItemDto({
+    transaction: transactionDto({
+      id: "t-settle",
+      type: "SETTLEMENT",
+      description: "",
+      date: "2026-10-29",
+      amount: cop(50_000),
+      payerMemberId: "m-juan",
+      receivingMemberId: "m-ana",
+    }),
+    memberNames: { "m-juan": "Juan", "m-ana": "Ana" },
+  });
+  const gas = activityItemDto({
+    transaction: transactionDto({ id: "t-gas", description: "Gas", date: "2026-10-28", amount: cop(45_000) }),
+    you: { memberIds: ["m-ana"], share: null, paid: null },
+  });
+  const feed = [
+    { kind: "group" as const, item: groceries },
+    { kind: "group" as const, item: hotel },
+    { kind: "own" as const, tx: octoberPage.items[0]! },
+    { kind: "group" as const, item: settlement },
+    { kind: "group" as const, item: gas },
+  ];
+  // Inicio's route fills the two slots for the personal home of someone with other spaces.
+  const home = (props: Partial<ComponentProps<typeof HomeSummary>> = {}) =>
     renderWithIntl(
       <HomeSummary
         spaceId="sp-personal"
@@ -150,20 +236,100 @@ describe("the month across every space (U4, issue #209)", () => {
         page={octoberPage}
         accounts={[accountDto()]}
         context={rowContext}
-        allSpaces={allSpaces}
+        summary={
+          <UnifiedSummary
+            unified={unified}
+            page={octoberPage}
+            policy={{ kind: "MONTHLY", day: 1 }}
+            formats={rowContext.formats}
+            personId="u-ana"
+          />
+        }
+        recent={
+          <UnifiedRecent
+            feed={feed}
+            spaceId="sp-personal"
+            context={rowContext}
+            today="2026-10-31"
+            personId="u-ana"
+          />
+        }
+        personId="u-ana"
+        {...props}
       />,
     );
+  const rowOf = (name: string) =>
+    within(screen.getByRole("region", { name: "Recientes" }))
+      .getAllByRole("listitem")
+      .find((row) => row.textContent?.includes(name))!;
 
-  it("adds the person's consumption across her spaces under the summary, one tap from Mi consumo", () => {
-    home({ total: cop(1_383_000), href: "/spaces/sp-personal/plan" });
-    const link = screen.getByRole("link", { name: /Tu mes en todos tus espacios/ });
-    expect(norm(link.textContent)).toContain("Tu mes en todos tus espacios: $ 1.383.000");
-    expect(link).toHaveAttribute("href", "/spaces/sp-personal/plan");
+  it("counts her share of every space in the headline, broken down per space, one tap from Mi consumo", async () => {
+    const { container } = home();
+    const summary = screen.getByRole("region", { name: "Resumen del período" });
+    expect(norm(summary.textContent)).toContain("Gastado en octubre$ 725.000");
+    const bySpace = within(summary).getByRole("list", { name: "Por espacio" });
+    expect(
+      within(bySpace)
+        .getAllByRole("listitem")
+        .map((row) => norm(row.textContent)),
+    ).toEqual(["Personal$ 245.000", "Hogar$ 410.000", "Viaje Cartagena$ 70.000"]);
+    expect(container.querySelectorAll("[data-space-chip]").length).toBeGreaterThanOrEqual(2);
+    expect(within(summary).getByRole("button", { name: "Tu parte" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(summary).getByRole("link", { name: "Ver por categoría" })).toHaveAttribute(
+      "href",
+      unified.href,
+    );
+    expect(screen.queryByText(/Tu mes en todos tus espacios/)).not.toBeInTheDocument();
+    expect(await axeViolations(container)).toEqual([]);
   });
 
-  it("shows nothing more without it, as in a space of its own", () => {
+  it("switches the headline to what she paid in each space", async () => {
     home();
-    expect(screen.queryByRole("link", { name: /Tu mes en todos tus espacios/ })).not.toBeInTheDocument();
+    const summary = screen.getByRole("region", { name: "Resumen del período" });
+    await userEvent.click(within(summary).getByRole("button", { name: "Lo que pagaste" }));
+    expect(within(summary).getByRole("button", { name: "Lo que pagaste" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(norm(summary.textContent)).toContain("Pagaste en octubre$ 1.055.000");
+    const bySpace = within(summary).getByRole("list", { name: "Por espacio" });
+    expect(
+      within(bySpace)
+        .getAllByRole("listitem")
+        .map((row) => norm(row.textContent)),
+    ).toEqual(["Personal$ 245.000", "Hogar$ 600.000", "Viaje Cartagena$ 210.000"]);
+  });
+
+  it("merges her spaces' movements into Recientes with their space, who recorded them and her part", () => {
+    home();
+    const rows = within(screen.getByRole("region", { name: "Recientes" })).getAllByRole("listitem");
+    expect(rows).toHaveLength(5);
+    expect(norm(rowOf("Mercado del mes").textContent)).toBe(
+      "Mercado del mesHoyHogarJuan registró · tu parte $ 90.000 de $ 180.000−$ 90.000",
+    );
+    expect(within(rowOf("Mercado del mes")).getByRole("link")).toHaveAttribute(
+      "href",
+      "/spaces/sp-hogar?tx=t-hogar",
+    );
+    expect(norm(rowOf("Hotel").textContent)).toBe(
+      "HotelAyerViaje CartagenaRegistraste tú · pagaste $ 210.000 · tu parte $ 70.000−$ 70.000",
+    );
+    expect(norm(rowOf("te pagó").textContent)).toBe(
+      "Juan te pagó29/10/2026HogarSaldo entre ustedes+$ 50.000",
+    );
+    expect(norm(rowOf("Gas").textContent)).toBe("Gas28/10/2026HogarJuan registró · no te incluye$ 45.000");
+    // Her own row is the one Inicio always drew, opening on her personal home.
+    expect(within(rowOf("Salary")).getByRole("link")).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal?tx=t-salary",
+    );
+  });
+
+  it("keeps the old home without the unified month: no switch, no breakdown, only her own rows", () => {
+    home({ summary: undefined, recent: undefined });
+    expect(screen.queryByRole("button", { name: "Tu parte" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Por espacio" })).not.toBeInTheDocument();
+    expect(document.querySelector("[data-activity-row]")).toBeNull();
   });
 });
 

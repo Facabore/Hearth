@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import type { ReactNode } from "react";
 import { controlsFor, JoinedNotice, MASKED_AMOUNT, shownAmount, useAmountsHidden } from "@/modules/spaces/ui";
 import { Icon, SymbolIcon } from "@/shared/ui";
 import type { AccountDto, MoneyDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
@@ -28,7 +29,8 @@ export function HomeSummary({
   accounts,
   context,
   detail,
-  allSpaces,
+  summary,
+  recent,
   today,
   firstSteps,
   personId,
@@ -49,10 +51,13 @@ export function HomeSummary({
   /** Ruling P189: the transaction behind `?tx=`, shown in a sheet over the home. */
   readonly detail?: TransactionDetail | undefined;
   /**
-   * U4 (issue #209): on the personal home while the person has other spaces, her consumption in all of them this
-   * period (HU-E7-04), one tap from Mi consumo. The period total above counts this space only.
+   * Ruling P306 (amends U4): what stands in for the period's summary, on the personal home of someone with other spaces
+   * her month across all of them (`UnifiedSummary`). The route fills it, so the screens that redraw Inicio, such as the
+   * record sheet's backdrop (P300), never load it.
    */
-  readonly allSpaces?: { readonly total: MoneyDto; readonly href: string } | undefined;
+  readonly summary?: ReactNode;
+  /** Ruling P306: what stands in for Recientes' rows, her own and her spaces' merged (`UnifiedRecent`). */
+  readonly recent?: ReactNode;
   /** Issues #220 (F14) and #152: on the personal home, a new person's four first steps, under the period's figure. */
   readonly firstSteps?: { readonly personId: string; readonly done: FirstStepsDone } | undefined;
   /** Ruling P278: the person, for Inicio's eye, which hides every amount and is remembered per person. */
@@ -115,31 +120,22 @@ export function HomeSummary({
           </section>
         ) : (
           <>
-            <section aria-label={t("summary")} className="rounded-2xl bg-surface p-3">
-              <p className="text-sm text-muted">
-                {name.kind === "month"
-                  ? t("spentIn", { month: common(`month.${name.month as 1}`) })
-                  : t("spentBetween", {
-                      start: formatDate(name.start, formats),
-                      end: formatDate(name.end, formats),
-                    })}
-              </p>
-              <p className="text-[clamp(1.75rem,8.5vw,2rem)] leading-tight font-semibold [overflow-wrap:anywhere] text-ink">
-                {money(page.totals.expenses)}
-              </p>
-              <p className="text-sm text-muted">{t("income", { amount: money(page.totals.income) })}</p>
-            </section>
-            {allSpaces ? (
-              <Link
-                href={allSpaces.href}
-                className="flex min-h-11 items-center justify-between gap-2 rounded-2xl bg-surface px-3 text-sm font-medium text-ink"
-              >
-                <span className="min-w-0 [overflow-wrap:anywhere]">
-                  {t("allSpaces", { amount: money(allSpaces.total) })}
-                </span>
-                <Icon name="chevronRight" size={18} />
-              </Link>
-            ) : null}
+            {summary ?? (
+              <section aria-label={t("summary")} className="rounded-2xl bg-surface p-3">
+                <p className="text-sm text-muted">
+                  {name.kind === "month"
+                    ? t("spentIn", { month: common(`month.${name.month as 1}`) })
+                    : t("spentBetween", {
+                        start: formatDate(name.start, formats),
+                        end: formatDate(name.end, formats),
+                      })}
+                </p>
+                <p className="text-[clamp(1.75rem,8.5vw,2rem)] leading-tight font-semibold [overflow-wrap:anywhere] text-ink">
+                  {money(page.totals.expenses)}
+                </p>
+                <p className="text-sm text-muted">{t("income", { amount: money(page.totals.income) })}</p>
+              </section>
+            )}
             {owes?.map((owe) => (
               <OweCard key={owe.spaceId} owe={owe} amount={money(owe.amount)} />
             ))}
@@ -211,23 +207,24 @@ export function HomeSummary({
             {t("allTransactionsShort")}
           </Link>
         </div>
-        {page.items.length === 0 ? (
-          <p className="rounded-2xl bg-surface p-3 text-sm text-muted">{t("recentEmpty")}</p>
-        ) : (
-          // Board B1 · 03: plain rows on the page, with dividers; while the eye hides amounts, each row's is masked.
-          <ol className="divide-y divide-line">
-            {page.items.map((tx) => (
-              <TransactionRow
-                key={tx.id}
-                tx={tx}
-                context={context}
-                href={withTx(`/spaces/${spaceId}`, tx.id)}
-                today={today}
-                maskedAmount={hidden ? MASKED_AMOUNT : undefined}
-              />
-            ))}
-          </ol>
-        )}
+        {recent ??
+          (page.items.length === 0 ? (
+            <p className="rounded-2xl bg-surface p-3 text-sm text-muted">{t("recentEmpty")}</p>
+          ) : (
+            // Board B1 · 03: plain rows on the page, with dividers; while the eye hides amounts, each row's is masked.
+            <ol className="divide-y divide-line">
+              {page.items.map((tx) => (
+                <TransactionRow
+                  key={tx.id}
+                  tx={tx}
+                  context={context}
+                  href={withTx(`/spaces/${spaceId}`, tx.id)}
+                  today={today}
+                  maskedAmount={hidden ? MASKED_AMOUNT : undefined}
+                />
+              ))}
+            </ol>
+          ))}
       </section>
       {detail ? (
         <TransactionSheetHost

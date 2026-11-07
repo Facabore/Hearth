@@ -1,18 +1,25 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, useRef, useState, type FormEvent } from "react";
-import { PALETTE, type PaletteKey } from "@/shared/kernel/style";
+import type { PaletteKey } from "@/shared/kernel/style";
 import { TextField } from "@/shared/ui";
-import { ColorRow } from "@/shared/ui/molecules/color-row";
 import { SavedFlash, useSavedFlash } from "@/shared/ui/molecules/saved-flash";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { SpaceDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import { controlsFor } from "./members/space-controls";
-import { SpaceChip } from "@/shared/ui/atoms/space-chip";
+
+/** Ruling P306: the color's swatches load in a chunk of their own, under the name's field. */
+const SpaceColorField = dynamic(
+  () => import("./space-color-field").then((module) => module.SpaceColorField),
+  {
+    ssr: false,
+  },
+);
 
 /**
  * #167: the Settings screen's section for the space the person came from, where an OWNER or ADMIN renames it, the
@@ -32,8 +39,7 @@ export function SpaceNameSection({ space, api: injected }: { readonly space: Spa
   const [problem, setProblem] = useState<Problem | null>(null);
   // #170: the same "Guardado" as the Settings screen's own fields (U5).
   const savedFlash = useSavedFlash<"name" | "color">();
-  const tc = useTranslations("settings.spaceColor");
-  const [color, setColor] = useState<PaletteKey>(space.color ?? PALETTE[0]);
+  const [color, setColor] = useState<PaletteKey>(space.color ?? "PINE");
   const inFlight = useRef(false);
 
   if (!controlsFor(space.role, space.kind).rename) return null;
@@ -106,18 +112,11 @@ export function SpaceNameSection({ space, api: injected }: { readonly space: Spa
         />
       </form>
       {space.kind === "PERSONAL" ? null : (
-        <div className="flex flex-col gap-2">
-          <ColorRow
-            value={color}
-            onValueChange={(next) => void storeColor(next)}
-            hint={tc("hint")}
-            label={tc("colorLabel")}
-            colorName={(key) => tc(`color.${key}`)}
-          />
-          <p className="flex flex-wrap items-center gap-2 text-sm text-muted">
-            {tc("preview")} <SpaceChip name={name.trim() || stored} color={color} />
-          </p>
-        </div>
+        <SpaceColorField
+          value={color}
+          onValueChange={(next) => void storeColor(next)}
+          name={name.trim() || stored}
+        />
       )}
     </section>
   );

@@ -22,6 +22,7 @@
     "../modules/ledger/ui/record/space-sheet.tsx": 36,
     "../modules/identity/ui/settings/formats-fields.tsx": 19,
     "../modules/spaces/ui/space-name-section.tsx": 19,
+    "../modules/spaces/ui/space-color-field.tsx": 4,
     "../modules/ledger/ui/split/split-sheet.tsx": 36,
     "../modules/ledger/ui/direct/split-with-person-sheet.tsx": 16,
     "../shared/ui/molecules/sheet-panel.tsx": 18,

@@ -6,6 +6,9 @@ export { hrefOf as transactionListHref, type ListFilter, type TransactionKind } 
 // The ledger's screens as the single-page app composes them over its query cache (ADR 0006); server.ts holds the
 // Next.js containers.
 export { HomeSummary } from "./home/home-summary";
+export { mergedFeed, unifiedMonthOf, type FeedEntry, type UnifiedMonth } from "./home/feed";
+export { UnifiedSummary } from "./home/unified-summary";
+export { UnifiedRecent } from "./home/unified-home";
 export { firstStepsOf } from "./home/first-steps";
 export { TransactionList } from "./transaction-list";
 export { TransactionSheetHost } from "./detail/transaction-sheet-host";

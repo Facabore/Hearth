@@ -286,3 +286,29 @@ Then(
     });
   },
 );
+
+When(/^"([^"]+)" opens her personal home$/, async ({ page, world }, _name: string) => {
+  await page.goto(`/spaces/${world.user!.spaceId}`);
+  await expect(page.getByRole("heading", { name: world.t("home.recent") })).toBeVisible();
+});
+
+Then(
+  /^Recientes shows "([^"]+)" tagged "([^"]+)" reading "([^"]+)"$/,
+  async ({ page }, description: string, space: string, detail: string) => {
+    // Ruling P306: a shared space's movement in the personal feed carries its space's chip and the person's part.
+    const row = page.locator("[data-activity-row]").filter({ hasText: description });
+    await expect(row).toHaveCount(1);
+    await expect(row.locator("[data-space-chip]")).toHaveText(space);
+    expect(norm(await row.textContent())).toContain(detail);
+  },
+);
+
+Then(
+  /^the headline breaks the month down into "([^"]+)" and "([^"]+)"$/,
+  async ({ page, world }, personal: string, space: string) => {
+    const bySpace = page.getByRole("list", { name: world.t("home.bySpace") });
+    await expect(bySpace.getByRole("listitem")).toHaveCount(2);
+    await expect(bySpace.getByRole("listitem").first()).toContainText(personal);
+    await expect(bySpace.locator("[data-space-chip]")).toHaveText(space);
+  },
+);

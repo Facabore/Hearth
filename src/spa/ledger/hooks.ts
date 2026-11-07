@@ -5,7 +5,7 @@ import type { CategoryGroupDto, MeDto } from "@/shared/ui/api/dto";
 import { useApis } from "../api";
 import { accountsQuery, categoriesQuery, membersQuery } from "../reads";
 import { sharedSpace, type Viewer } from "../load";
-import { HOME_ROWS, pageQuery, transactionQuery } from "./queries";
+import { homeRowsOf, pageQuery, transactionQuery } from "./queries";
 
 export { useViewer } from "../viewer";
 
@@ -65,7 +65,7 @@ export const useHome = (viewer: Viewer) => {
   const spaceId = viewer.space.id;
   const [page, accounts, groups] = useSuspenseQueries({
     queries: [
-      pageQuery(api, spaceId, { limit: HOME_ROWS }),
+      pageQuery(api, spaceId, { limit: homeRowsOf(viewer) }),
       accountsQuery(api, spaceId, "active"),
       categoriesQuery(api, spaceId, "all"),
     ],

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { spaceColor } from "@/modules/spaces/domain/space";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { POST as acceptClaim } from "@/app/api/v1/claims/[token]/accept/route";
 import { GET as previewClaim } from "@/app/api/v1/claims/[token]/route";
@@ -202,6 +203,8 @@ describe("claim a guest place (HU-E1-11)", () => {
       currency: "COP",
       periodPolicy: { kind: "MONTHLY", day: 1 },
       role: "MEMBER",
+      // Ruling P306: the color derived from the space id until a manager picks one.
+      color: spaceColor(h.spaceId, null),
     });
     expect(await memberIn(h.ana, h.spaceId, pedro)).toEqual({
       id: pedro,

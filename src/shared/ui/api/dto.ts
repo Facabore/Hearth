@@ -58,6 +58,8 @@ export type SpendingByGroupDto = Json<
   paths["/api/v1/spaces/{spaceId}/reports/spending-by-group"]["get"]["responses"][200]
 >;
 export type UnifiedViewDto = Json<paths["/api/v1/me/unified-view"]["get"]["responses"][200]>;
+/** Ruling P306: a movement of one of the person's shared or direct spaces, for the personal feed. */
+export type ActivityItemDto = Json<paths["/api/v1/me/activity"]["get"]["responses"][200]>["items"][number];
 export type PersonalSpendingByGroupDto = Json<
   paths["/api/v1/me/reports/spending-by-group"]["get"]["responses"][200]
 >;
