@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { CategoryIcon } from "@/modules/categories/ui";
-import { paletteVars, SymbolIcon } from "@/shared/ui";
+import { Icon, paletteVars, SymbolIcon } from "@/shared/ui";
 import { SpaceChip } from "@/shared/ui/atoms/space-chip";
 import type { ActivityItemDto, MoneyDto } from "@/shared/ui/api/dto";
 import { formatDate, formatTimeAt, MINUS, type Formats } from "@/shared/ui/format/formatters";
@@ -123,7 +123,12 @@ export function ActivityRow({
         style={paletteVars("GRAPHITE")}
         className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--tint)] text-[var(--ink)]"
       >
-        <SymbolIcon name={tx.type === "TRANSFER" ? "cash" : "dots"} size={22} />
+        {/* Boards "Inicio personal · todo en un lugar": a settlement between members wears the swap arrows. */}
+        {tx.type === "SETTLEMENT" ? (
+          <Icon name="swap" size={22} />
+        ) : (
+          <SymbolIcon name={tx.type === "TRANSFER" ? "cash" : "dots"} size={22} />
+        )}
       </span>
     );
   const tone = part.sign === null ? "text-muted" : part.sign === "+" ? "text-accent" : "text-ink";

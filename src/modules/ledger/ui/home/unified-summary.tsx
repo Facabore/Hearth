@@ -62,7 +62,9 @@ export function UnifiedSummary({
               aria-pressed={mode === option}
               onClick={() => setMode(option)}
               className={`min-h-11 rounded-full px-3 text-sm ${
-                mode === option ? "bg-surface font-semibold text-ink" : "font-medium text-muted"
+                mode === option
+                  ? "bg-surface font-semibold text-ink shadow-sm ring-1 ring-line"
+                  : "font-medium text-muted"
               }`}
             >
               {t(`mode.${option}`)}
