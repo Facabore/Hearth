@@ -1,4 +1,5 @@
 import { ok, type Period, type Result } from "@/shared/kernel";
+import type { PaletteKey } from "@/shared/kernel/style";
 import { cashOutOf, consumptionGroups, type CashOut } from "../domain/unified-view";
 import { consumptionRows, personalScope, type PersonalDeps } from "./personal-scope";
 
@@ -14,6 +15,30 @@ export interface UnifiedGroup {
   readonly spaces: readonly { readonly id: string; readonly name: string }[];
 }
 
+/** Ruling P306: the caller's consumption and what they paid in one space, for Inicio's breakdown. */
+export interface SpaceFigures {
+  readonly space: {
+    readonly id: string;
+    readonly name: string;
+    readonly kind: "PERSONAL" | "SHARED" | "DIRECT";
+    readonly color: PaletteKey;
+  };
+  /** Σ the caller's shares of the space's live expenses in the period. */
+  readonly consumed: bigint;
+  /** Σ the caller's payments of the space's expenses and fund contributions in the period (spec 5.4). */
+  readonly paid: bigint;
+  /**
+   * Ruling P306 ("Solo tú"): the personal space only, what it spent per category, a subcategory under its parent, the
+   * largest first, each with the color the category shows (null without one).
+   */
+  readonly categories?: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly color: PaletteKey | null;
+    readonly amount: bigint;
+  }[];
+}
+
 export interface UnifiedPersonalView {
   /** The personal space's currency, every amount's (D6). */
   readonly currency: string;
@@ -21,6 +46,11 @@ export interface UnifiedPersonalView {
   readonly period: Period;
   readonly consumption: { readonly total: bigint; readonly groups: readonly UnifiedGroup[] };
   readonly cashOut: CashOut;
+  /**
+   * Ruling P306: the figures per space, the personal one first and then every other space with consumption or payments
+   * in the period; Σ consumed is the consumption's total. Savings transfers are no space's, so Σ paid leaves them out.
+   */
+  readonly bySpace: readonly SpaceFigures[];
   /** Spaces in another currency, left out of every sum, each named once (ruling P37). */
   readonly otherCurrencySpaces: readonly {
     readonly spaceId: string;
@@ -28,6 +58,35 @@ export interface UnifiedPersonalView {
     readonly currency: string;
   }[];
 }
+
+/** Ruling P306: the personal space's spending per top-level category, the largest first. */
+const personalCategories = (
+  rows: readonly { readonly spaceId: string; readonly categoryId: string; readonly amount: bigint }[],
+  categories: readonly {
+    readonly id: string;
+    readonly spaceId: string;
+    readonly name: string;
+    readonly parentCategoryId: string | null;
+    readonly style?: { readonly color: PaletteKey } | null;
+  }[],
+  personalSpaceId: string,
+): NonNullable<SpaceFigures["categories"]> => {
+  const own = categories.filter((c) => c.spaceId === personalSpaceId);
+  const totals = new Map<string, bigint>();
+  for (const row of rows) {
+    if (row.spaceId !== personalSpaceId) continue;
+    const category = own.find((c) => c.id === row.categoryId);
+    const top = category?.parentCategoryId ?? row.categoryId;
+    totals.set(top, (totals.get(top) ?? 0n) + row.amount);
+  }
+  return [...totals.entries()]
+    .map(([id, amount]) => {
+      const category = own.find((c) => c.id === id);
+      return { id, name: category?.name ?? "", color: category?.style?.color ?? null, amount };
+    })
+    .filter((c) => c.amount !== 0n)
+    .sort((a, b) => (a.amount === b.amount ? a.name.localeCompare(b.name) : a.amount > b.amount ? -1 : 1));
+};
 
 export type GetUnifiedPersonalView = (input: {
   readonly userId: string;
@@ -62,6 +121,25 @@ export const createGetUnifiedPersonalView =
         : await deps.spending.transfersIntoAccounts(savings, period.start, period.end);
     const paidOut = await deps.sums.cashOut(memberIds, period.start, period.end);
     const others = new Map(otherCurrencies.map((p) => [p.spaceId as string, p]));
+    // Ruling P306: one read per space, over every member row of the caller there (a former one included).
+    // The personal space first, even when a claimed guest place is older than the person's sign-up; then the others.
+    const spacesOf = [...new Map(places.map((p) => [p.spaceId as string, p])).values()].sort(
+      (a, b) => Number(b.spaceId === personal.spaceId) - Number(a.spaceId === personal.spaceId),
+    );
+    const bySpace = await Promise.all(
+      spacesOf.map(async (place): Promise<SpaceFigures> => {
+        const rowsIn = places.filter((p) => p.spaceId === place.spaceId).map((p) => p.memberId);
+        const out = await deps.sums.cashOut(rowsIn, period.start, period.end);
+        return {
+          space: { id: place.spaceId, name: place.spaceName, kind: place.spaceKind, color: place.color },
+          consumed: rows.filter((r) => r.spaceId === place.spaceId).reduce((sum, r) => sum + r.amount, 0n),
+          paid: out.payments + out.fundContributions,
+          ...(place.spaceId === personal.spaceId
+            ? { categories: personalCategories(rows, categories, personal.spaceId) }
+            : {}),
+        };
+      }),
+    );
     return ok({
       currency: personal.currency,
       period,
@@ -82,6 +160,7 @@ export const createGetUnifiedPersonalView =
         paidOut,
         transfers.reduce((sum, t) => sum + t.amount, 0n),
       ),
+      bySpace: bySpace.filter((s) => s.space.id === personal.spaceId || s.consumed !== 0n || s.paid !== 0n),
       otherCurrencySpaces: [...others.values()].map((p) => ({
         spaceId: p.spaceId,
         name: p.spaceName,

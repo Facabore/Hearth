@@ -24,7 +24,9 @@ import {
   type Money,
   type Result,
 } from "@/shared/kernel";
+import { PALETTE } from "@/shared/kernel/style";
 import type {
+  ActivityItem,
   AuditEntry,
   ConversionTarget,
   ConvertedTransaction,
@@ -40,6 +42,7 @@ import type {
   TransactionPage,
   TransactionPosition,
 } from "../application";
+import { MAX_ACTIVITY } from "../application";
 import { EqualSplitSchema, MAX_PARTS, PercentSplitSchema, SharesSplitSchema, splitOf } from "./split-body";
 import type { DirectSplit, DirectSplitCounterpart } from "@/modules/spaces/application";
 
@@ -660,7 +663,87 @@ const recording = (
 const invalidMoney =
   "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey";
 
+/** Ruling P306: `from` is the first date listed (the personal period's start on Inicio); `limit` caps the list. */
+export const MyActivityQuerySchema = z.object({
+  from: z.iso.date(),
+  limit: z.coerce.number().int().min(1).max(MAX_ACTIVITY).default(10),
+});
+
+const ActivityIconSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("SYMBOL"), name: z.string() }),
+  z.object({ kind: z.literal("EMOJI"), value: z.string() }),
+]);
+
+/** Ruling P306 (#268): one movement of a shared or direct space, as the person's personal feed shows it. */
+export const ActivityItemSchema = z.object({
+  space: z.object({
+    id: z.string(),
+    name: z.string(),
+    kind: z.enum(["PERSONAL", "SHARED", "DIRECT"]),
+    /** The space's color (chosen, or derived from its id), always shown with its name. */
+    color: z.enum(PALETTE),
+  }),
+  transaction: TransactionSchema,
+  /** Who recorded it, by their name in the space (null when no member row names them); `you` for the caller. */
+  recordedBy: z.object({ name: z.string().nullable(), you: z.boolean() }),
+  you: z.object({
+    /** The caller's member rows in the space, a former one or a claimed guest's included. */
+    memberIds: z.array(z.string()),
+    /** An expense's share of the caller; null when they take no part in it, and for every other type. */
+    share: MoneySchema.nullable(),
+    /** What the caller paid of an expense; null when they paid nothing of it, and for every other type. */
+    paid: MoneySchema.nullable(),
+  }),
+  /** Member id to name, for the members the movement names. */
+  memberNames: z.record(z.string(), z.string()),
+  /** Its category as the space shows it; a subcategory's path is "parent › name" and its style its parent's. */
+  category: z
+    .object({
+      name: z.string(),
+      path: z.string(),
+      icon: ActivityIconSchema.nullable(),
+      color: z.enum(PALETTE).nullable(),
+    })
+    .nullable(),
+});
+export const MyActivitySchema = z.object({ items: z.array(ActivityItemSchema) });
+
+export const activityItemDto = (item: ActivityItem): z.infer<typeof ActivityItemSchema> => {
+  const money = (minor: bigint | null) =>
+    minor === null ? null : { amount: minor.toString(), currency: item.transaction.currency };
+  return {
+    space: item.space,
+    transaction: transactionDto(item.transaction),
+    recordedBy: item.recordedBy,
+    you: { memberIds: [...item.you.memberIds], share: money(item.you.share), paid: money(item.you.paid) },
+    memberNames: { ...item.memberNames },
+    category:
+      item.category === null
+        ? null
+        : {
+            name: item.category.name,
+            path: item.category.path,
+            icon: item.category.style?.icon ?? null,
+            color: item.category.style?.color ?? null,
+          },
+  };
+};
+
 export const ledgerPaths: ZodOpenApiPathsObject = {
+  "/api/v1/me/activity": {
+    get: {
+      operationId: "listMyActivity",
+      summary: "What happened lately in the caller's shared and direct spaces, newest first",
+      description:
+        "Ruling P306: the live movements of every shared and direct space the caller currently belongs to, dated `from` or later, in Movimientos' order, each with its space, who recorded it and the caller's part of it. Personal spaces are never listed: the caller reads their own as Movimientos does, and no one else's is reachable.",
+      ...securedByUser,
+      requestParams: { query: MyActivityQuerySchema },
+      responses: {
+        "200": { description: "The movements, newest first", content: jsonContent(MyActivitySchema) },
+        ...problems({ "401": "Unauthenticated", "422": "ValidationFailed, InvalidDate" }),
+      },
+    },
+  },
   "/api/v1/spaces/{spaceId}/expenses": recording(
     "recordExpense",
     "Record an expense paid by members (registered or guest) or by the shared fund, shared among members",

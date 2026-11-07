@@ -10,6 +10,7 @@ import {
   writeTrail,
   type Trail,
 } from "./history";
+import { sheetDepth } from "./sheet-gate";
 
 const here = () => {
   const { pathname, search } = appLocation();
@@ -36,7 +37,8 @@ export const trackNavigation = (): (() => void) => {
   const { pushState, replaceState } = window.history;
   const push: History["pushState"] = function (this: History, ...args) {
     const result = pushState.apply(this, args);
-    record(pushed);
+    // Ruling P307: a sheet's entry is the screen it is over, not a step of the trail.
+    if (sheetDepth(args[0]) === 0) record(pushed);
     return result;
   };
   const replace: History["replaceState"] = function (this: History, ...args) {

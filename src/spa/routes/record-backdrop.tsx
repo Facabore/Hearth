@@ -7,7 +7,7 @@ import { useApis } from "../api";
 import { movedOf, rowContextOf } from "../ledger/hooks";
 import { recentPeriodsQuery } from "../ledger/list-hooks";
 import { listFilterOf } from "../ledger/list-search";
-import { HOME_ROWS, listQueryOf, pageQuery } from "../ledger/queries";
+import { homeRowsOf, listQueryOf, pageQuery } from "../ledger/queries";
 import { sharedSpace, type Viewer } from "../load";
 import { accountListQuery, categoriesQuery, membersQuery, netBalancesQuery, periodQuery } from "../reads";
 import { pendingOccurrencesQuery } from "../recurring-pending/queries";
@@ -46,7 +46,7 @@ function HomeBehind({ viewer }: { readonly viewer: Viewer }) {
   const { api } = useApis();
   const cache = useQueryClient();
   const { me, space } = viewer;
-  const page = cache.getQueryData(pageQuery(api, space.id, { limit: HOME_ROWS }).queryKey);
+  const page = cache.getQueryData(pageQuery(api, space.id, { limit: homeRowsOf(viewer) }).queryKey);
   const accounts = cache.getQueryData(accountListQuery(api, space.id, "active").queryKey)?.items;
   const groups = cache.getQueryData(categoriesQuery(api, space.id, "all").queryKey);
   if (!page || !accounts || !groups) return null;

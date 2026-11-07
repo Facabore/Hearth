@@ -7,7 +7,7 @@ import {
   type Result,
   type TransactionManager,
 } from "@/shared/kernel";
-import { createSharedSpace, type Space } from "../domain/space";
+import { createSharedSpace, spaceColor, type Space } from "../domain/space";
 import type { CreatePersonalSpace, SpaceCreatedListener } from "./create-personal-space";
 import type { SpaceRepository, SpaceSummary } from "./space-repository";
 
@@ -46,6 +46,8 @@ const ownedSummary = (space: Space): SpaceSummary => ({
   currency: space.currency,
   periodPolicy: space.periodPolicy,
   role: "OWNER",
+  // Ruling P306: a new space shows its derived color until a manager picks one.
+  color: spaceColor(space.id, null),
 });
 
 export const createCreateSpace =

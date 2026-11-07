@@ -1,3 +1,4 @@
+import { spaceColor } from "@/modules/spaces/domain/space";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as acceptClaim } from "@/app/api/v1/claims/[token]/accept/route";
 import { POST as directSplit } from "@/app/api/v1/direct-splits/route";
@@ -122,6 +123,8 @@ describe("split with one person through a direct space (HU-E1-13)", () => {
       currency: "COP",
       periodPolicy: { kind: "MONTHLY", day: 1 },
       role: "OWNER",
+      // Ruling P306: the color derived from the space id until a manager picks one.
+      color: spaceColor(dinner.spaceId, null),
     });
     const members = await membersOf(ana, dinner.spaceId);
     expect(members.map((m) => [m.displayName, m.kind, m.role])).toEqual([

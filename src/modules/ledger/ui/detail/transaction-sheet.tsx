@@ -112,7 +112,12 @@ export function TransactionSheet({
   };
   if (!tx) {
     return (
-      <Sheet open onOpenChange={close} title={problem ? problemMessage(problem).message : ""}>
+      <Sheet
+        open
+        historyEntry={false}
+        onOpenChange={close}
+        title={problem ? problemMessage(problem).message : ""}
+      >
         {problem ? <ProblemNotice problem={problem} /> : null}
       </Sheet>
     );
@@ -174,6 +179,8 @@ export function TransactionSheet({
   return (
     <Sheet
       open
+      // Ruling P307: the sheet has an address of its own (P189), which Back already leaves.
+      historyEntry={false}
       onOpenChange={close}
       title={tx.description || t(`type.${kind}`)}
       description={signed}

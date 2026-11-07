@@ -204,6 +204,7 @@
       "subtitle": "Sign in to see your accounts and what is left of the month.",
       "submit": "Sign in",
       "createAccount": "Create an account",
+      "noAccount": "No account yet?",
       "forgot": "Forgot your password?",
       "forgotHelp": "Ask whoever runs Hearth to reset it."
     },
@@ -290,8 +291,9 @@
     "summary": "Period summary",
     "spentIn": "Spent in {month}",
     "spentBetween": "Spent from {start} to {end}",
+    "solo": "Just you",
+    "withOthers": "With others",
     "income": "Income +{amount}",
-    "allSpaces": "Your month across all your spaces: {amount}",
     "accounts": "Accounts",
     "allAccounts": "See all accounts",
     "allAccountsShort": "See all",
@@ -299,6 +301,19 @@
     "allFundsShort": "See all",
     "recent": "Recent",
     "recentEmpty": "No transactions yet. Record the first one with +.",
+    "feed": {
+      "recordedBy": "{name} recorded",
+      "recordedByYou": "You recorded",
+      "recorded": "Recorded",
+      "shareOf": "your share {share} of {total}",
+      "paidAndShare": "you paid {paid} · your share {share}",
+      "paid": "you paid {paid}",
+      "notYou": "doesn't include you",
+      "betweenYou": "Settled between you",
+      "settled": "{from} paid {to}",
+      "settledToYou": "{name} paid you",
+      "settledByYou": "You paid {name}"
+    },
     "allTransactions": "See all transactions",
     "allTransactionsShort": "See all",
     "members": "Members",
@@ -330,7 +345,13 @@
     },
     "createFund": "Create a fund",
     "fundsNote": "Everyone pays from their personal accounts; only the space's funds live here.",
-    "directNote": "This space is between two people: each pays from their personal accounts."
+    "directNote": "This space is between two people: each pays from their personal accounts.",
+    "discard": {
+      "new": "Discard this account?",
+      "edit": "Discard your changes?",
+      "confirm": "Discard",
+      "keep": "Keep editing"
+    }
   },
   "categories": {
     "picker": {

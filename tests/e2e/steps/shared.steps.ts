@@ -286,3 +286,28 @@ Then(
     });
   },
 );
+
+When(/^"[^"]+" opens her personal home$/, async ({ page, world }) => {
+  await page.goto(`/spaces/${world.user!.spaceId}`);
+  await expect(page.getByRole("heading", { name: world.t("home.recent") })).toBeVisible();
+});
+
+Then(
+  /^Recientes shows "([^"]+)" tagged "([^"]+)" reading "([^"]+)"$/,
+  async ({ page }, description: string, space: string, detail: string) => {
+    // Ruling P306: a shared space's movement in the personal feed carries its space's chip and the person's part.
+    const row = page.locator("[data-activity-row]").filter({ hasText: description });
+    await expect(row).toHaveCount(1);
+    await expect(row.locator("[data-space-chip]")).toHaveText(space);
+    expect(norm(await row.textContent())).toContain(detail);
+  },
+);
+
+Then(/^the headline's "Con otros" opens to "([^"]+)"$/, async ({ page, world }, space: string) => {
+  // Ruling P306: one figure, split into "Solo tú" and "Con otros"; the latter opens to her groups' chips.
+  const summary = page.getByRole("region", { name: world.t("home.summary") });
+  // "Solo tú" opens only when she spent something alone; here it reads $ 0, so it is text, not a button.
+  await expect(summary).toContainText(world.t("home.solo"));
+  await summary.getByRole("button", { name: new RegExp(world.t("home.withOthers")) }).click();
+  await expect(summary.locator("[data-space-chip]")).toHaveText(space);
+});

@@ -1,3 +1,4 @@
+import { spaceColor } from "../domain/space";
 import { describe, expect, it } from "vitest";
 import { FixedClock, type LocalDate, type PeriodPolicy, type StoredPeriod } from "@/shared/kernel";
 import { codeOf, memoryTm, noSpaceLocks, noStoredPeriods, unwrap } from "../../../../tests/support/fakes";
@@ -137,7 +138,26 @@ describe("UpdateSpaceSettings (HU-E1-03)", () => {
       currency: "USD",
       periodPolicy: { kind: "MONTHLY", day: 1 },
       role: "OWNER",
+      color: spaceColor("space-household", null),
     });
+  });
+
+  it("stores the color a manager picks and shows it from then on (ruling P306)", async () => {
+    const { update, get } = setup();
+    const before = unwrap(await get(asAna)).color;
+    const next = before === "PLUM" ? "TEAL" : "PLUM";
+    expect(unwrap(await update({ ...asAna, changes: { color: next } })).color).toBe(next);
+    expect(unwrap(await get(asAna)).color).toBe(next);
+    expect(unwrap(await update({ ...asAna, changes: { name: "Casa" } })).color).toBe(next);
+  });
+
+  it("refuses a color outside the palette, and a member who does not manage the space (ruling P306)", async () => {
+    const { update, get } = setup();
+    const before = unwrap(await get(asAna)).color;
+    expect(codeOf(await update({ ...asAna, changes: { color: "PINK" } }))).toBe("InvalidSpaceColor");
+    const asJuan = { spaceId: "space-household", userId: "u-juan" };
+    expect(codeOf(await update({ ...asJuan, changes: { color: "PLUM" } }))).toBe("InsufficientRole");
+    expect(unwrap(await get(asAna)).color).toBe(before);
   });
 
   it("rejects blank names and unknown currencies", async () => {

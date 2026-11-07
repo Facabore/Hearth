@@ -7,6 +7,7 @@ import { sharedSpaceFixture } from "../../../../tests/support/fixtures";
 import type { SpaceArchiveRepository } from "../application/space-repository";
 import { createPersonalSpace } from "../domain/space";
 import { DrizzleSpaceRepository } from "./drizzle-space-repository";
+import { spaceColor } from "../domain/space";
 
 const { db, pool } = testDatabase();
 const repo = new DrizzleSpaceRepository(new DrizzleTransactionManager(db));
@@ -44,6 +45,7 @@ describe("DrizzleSpaceRepository", () => {
         currency: "COP",
         periodPolicy: { kind: "MONTHLY", day: 1 },
         role: "OWNER",
+        color: spaceColor(space.id, null),
       },
     ]);
   });
@@ -89,7 +91,25 @@ describe("DrizzleSpaceRepository memberships and settings (HU-E1-03)", () => {
       userId,
       role: "OWNER",
       archived: false,
+      // Ruling P306: the stored color, null until a manager picks one.
+      color: null,
     });
+  });
+
+  it("stores the color a manager picks and keeps it through other settings changes (ruling P306)", async () => {
+    const userId = await newUser();
+    const space = personal(userId);
+    await repo.add(space);
+    const settings = {
+      name: "Personal",
+      currency: "COP",
+      periodPolicy: { kind: "MONTHLY" as const, day: 1 },
+    };
+    await repo.updateSettings(space.id, { ...settings, color: "PLUM" });
+    expect((await repo.findMembership(space.id, userId))?.color).toBe("PLUM");
+    await repo.updateSettings(space.id, { ...settings, name: "Casa" });
+    expect((await repo.findMembership(space.id, userId))?.color).toBe("PLUM");
+    expect((await repo.listForUser(userId))[0]?.color).toBe("PLUM");
   });
 
   it("finds nothing for another user or a malformed id", async () => {

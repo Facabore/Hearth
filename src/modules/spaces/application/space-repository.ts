@@ -1,4 +1,5 @@
 import type { PeriodPolicy } from "@/shared/kernel";
+import type { PaletteKey } from "@/shared/kernel/style";
 import type { Space, SpaceId, SpaceKind, SpaceRole } from "../domain/space";
 
 export interface SpaceSummary {
@@ -8,6 +9,8 @@ export interface SpaceSummary {
   readonly currency: string;
   readonly periodPolicy: PeriodPolicy;
   readonly role: SpaceRole | null;
+  /** Ruling P306: the color the space shows, chosen or derived (`spaceColor`). */
+  readonly color: PaletteKey;
 }
 
 export interface SpaceRepository {

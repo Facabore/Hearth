@@ -7,6 +7,7 @@ import type {
   MoneyDto,
   SpaceDto,
   TransactionDto,
+  ActivityItemDto,
 } from "@/shared/ui/api/dto";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 
@@ -193,6 +194,17 @@ export const transactionDto = (overrides: Partial<TransactionDto> = {}): Transac
   createdAt: "2026-10-01T12:00:00.000Z",
   updatedAt: "2026-10-01T12:00:00.000Z",
   version: 1,
+  ...overrides,
+});
+
+/** Ruling P306: a movement of Ana's "Hogar" that Juan recorded and that does not include her, unless overridden. */
+export const activityItemDto = (overrides: Partial<ActivityItemDto> = {}): ActivityItemDto => ({
+  space: { id: "sp-hogar", name: "Hogar", kind: "SHARED", color: "SKY" },
+  transaction: transactionDto({ id: "t-group", createdBy: "u-juan" }),
+  recordedBy: { name: "Juan", you: false },
+  you: { memberIds: ["m-ana"], share: null, paid: null },
+  memberNames: {},
+  category: null,
   ...overrides,
 });
 

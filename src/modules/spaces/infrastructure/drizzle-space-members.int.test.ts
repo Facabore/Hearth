@@ -12,6 +12,7 @@ import { createSpaceAccess } from "../application/space-access";
 import type { GuestClaimRepository, MemberLifecycleRepository } from "../application/space-member-repository";
 import type { SpaceId, SpaceMember, SpaceMemberId, SpaceRole } from "../domain/space";
 import { DrizzleSpaceRepository } from "./drizzle-space-repository";
+import { spaceColor } from "../domain/space";
 
 const { db, pool } = testDatabase();
 const tm = new DrizzleTransactionManager(db);
@@ -56,6 +57,7 @@ describe("DrizzleSpaceRepository members (HU-E1-04, HU-E1-10)", () => {
         currency: "COP",
         periodPolicy: { kind: "MONTHLY", day: 1 },
         role: "OWNER",
+        color: spaceColor(space.id, null),
       },
     ]);
     expect(await repo.listCurrent(space.id)).toEqual(space.members);

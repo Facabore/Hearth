@@ -127,6 +127,8 @@ export function CapacityForm({
   return (
     <Sheet
       open
+      // Ruling P307: the sheet has an address of its own (P189), which Back already leaves.
+      historyEntry={false}
       onOpenChange={(open) => {
         if (!open) leaveSheet(router, planner);
       }}

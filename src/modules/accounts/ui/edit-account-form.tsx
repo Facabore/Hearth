@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
   Badge,
   Button,
@@ -20,6 +20,9 @@ import type { AccountDto, SpaceDto } from "@/shared/ui/api/dto";
 import { problemFrom } from "@/shared/ui/api/problem";
 import { currencyOf } from "@/shared/ui/format/currencies";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
+import { DiscardConfirm } from "@/shared/ui/molecules/discard-confirm";
+import { useLeaveQuestion, type HoldNavigation } from "@/shared/ui/navigation/hold-navigation";
+import { leaveSheet, screenUnder } from "@/shared/ui/navigation/leave-sheet";
 import { ArchiveAccountButton } from "./account-actions";
 import { AccountAttributeFields } from "./account-attribute-fields";
 import { editBodyOf, editOf, OWED_TYPES, type AccountEdit } from "./account-fields";
@@ -50,16 +53,22 @@ function DefaultOrReset({ stored, label, onReset }: { stored: unknown; label: st
 /**
  * Issue 169: edit an account's name, opening balance, icon, attributes and switches. The type never changes. Saving
  * sends only what changed (`PATCH`) and lands on the Accounts screen.
+ *
+ * Ruling P307: saving or hiding goes back to Cuentas when Cuentas opened the form (a replace otherwise), so one Back
+ * then leaves Cuentas; with a change typed, Volver and Back ask first.
  */
 export function EditAccountForm({
   space,
   account,
   formats,
+  holdNavigation,
   api: injected,
 }: {
   readonly space: SpaceDto;
   readonly account: AccountDto;
   readonly formats: Formats;
+  /** The router's hold on a navigation away while a change is typed (issue #215). */
+  readonly holdNavigation?: HoldNavigation;
   readonly api?: Api;
 }) {
   const t = useTranslations("accounts");
@@ -71,6 +80,13 @@ export function EditAccountForm({
   const { problem, setProblem, setUnreadable, where, errorOf, clear } = useAccountErrors(formats);
 
   const back = `/spaces/${space.id}/accounts`;
+  const [leaving, setLeaving] = useState(false);
+  const changed = JSON.stringify(edit) !== JSON.stringify(before);
+  const { answer } = useLeaveQuestion(changed && !pending && !leaving, holdNavigation);
+  // Hidden: leaves once the hold is released, which the render that set `leaving` does.
+  useEffect(() => {
+    if (leaving) leaveSheet(router, screenUnder(back));
+  }, [leaving, router, back]);
   const currency = currencyOf(space.currency);
   const style = (key: Style, value: AccountEdit[Style]) => setEdit((all) => ({ ...all, [key]: value }));
 
@@ -84,7 +100,7 @@ export function EditAccountForm({
     }
     setUnreadable(null);
     if (Object.keys(built.body).length === 0) {
-      router.replace(back);
+      leaveSheet(router, screenUnder(back));
       return;
     }
     setPending(true);
@@ -94,8 +110,7 @@ export function EditAccountForm({
         body: built.body as never,
       });
       if (response.ok) {
-        router.replace(back);
-        router.refresh();
+        leaveSheet(router, screenUnder(back), () => router.refresh());
         return;
       }
       setProblem(problemFrom(error, response));
@@ -123,7 +138,7 @@ export function EditAccountForm({
             spaceId={space.id}
             account={account}
             api={api}
-            onArchived={() => router.replace(back)}
+            onArchived={() => setLeaving(true)}
           />
         }
       />
@@ -224,6 +239,14 @@ export function EditAccountForm({
           {t("edit.save")}
         </Button>
       </form>
+      {answer ? (
+        <DiscardConfirm
+          title={t("discard.edit")}
+          confirm={t("discard.confirm")}
+          keep={t("discard.keep")}
+          answer={answer}
+        />
+      ) : null}
     </div>
   );
 }

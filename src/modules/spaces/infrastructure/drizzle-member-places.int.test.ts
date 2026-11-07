@@ -10,6 +10,7 @@ import {
 } from "../../../../tests/support/fixtures";
 import type { SpaceMember, SpaceMemberId } from "../domain/space";
 import { DrizzleSpaceRepository } from "./drizzle-space-repository";
+import { spaceColor } from "../domain/space";
 
 const { db, pool } = testDatabase();
 const repo = new DrizzleSpaceRepository(new DrizzleTransactionManager(db));
@@ -24,6 +25,8 @@ const place = (spaceId: string, memberId: string, spaceName: string, spaceKind: 
   spaceKind,
   currency: "COP",
   periodPolicy: { kind: "MONTHLY", day: 1 },
+  // Ruling P306: no manager picked one, so the color derived from the space id.
+  color: spaceColor(spaceId, null),
 });
 
 describe("a user's places (HU-E7-04, D15)", () => {

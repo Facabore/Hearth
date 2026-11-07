@@ -8,7 +8,7 @@ import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { CategoryDto, CategoryGroupDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { CategoryIcon } from "./category-icon";
-import { ColorRow } from "./color-row";
+import { ColorRow } from "@/shared/ui/molecules/color-row";
 import { GroupSheet } from "./group-sheet";
 import { IconPicker } from "./icon-picker";
 import { isSameIcon, type IconChoice } from "./style-library";
@@ -281,7 +281,13 @@ export function CategorySheet({
         ) : (
           <>
             <IconPicker value={icon} onValueChange={setIcon} />
-            <ColorRow value={color} onValueChange={setColor} hint={catalog("colorHint")} />
+            <ColorRow
+              value={color}
+              onValueChange={setColor}
+              hint={catalog("colorHint")}
+              label={catalog("colorLabel")}
+              colorName={(key) => catalog(`color.${key}`)}
+            />
           </>
         )}
         {editing && !isSub ? (

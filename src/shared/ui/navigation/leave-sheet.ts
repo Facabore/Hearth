@@ -19,3 +19,13 @@ export const leaveSheet = (router: ReturnType<typeof useRouter>, origin: string,
     then?.();
   }
 };
+
+/**
+ * Ruling P307: where a form over `screen` leaves to: the entry it was opened from when that is `screen` with any query
+ * (Cuentas opened with `?returnTo=`), so `leaveSheet` goes back to it; `screen` itself otherwise.
+ */
+export const screenUnder = (screen: string): string => {
+  const { pathname, search } = appLocation();
+  const before = cameFrom(readTrail(), `${pathname}${search}`);
+  return before?.split("?")[0] === screen ? before : screen;
+};

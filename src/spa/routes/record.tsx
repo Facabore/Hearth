@@ -9,7 +9,7 @@ import { useApis } from "../api";
 import { useRecord } from "../ledger/form-hooks";
 import { ledgerKeys } from "../ledger/queries";
 import { useViewer } from "../viewer";
-import { useHoldNavigation } from "../ledger/hold-navigation";
+import { useHoldNavigation } from "../hold-navigation";
 import type { Viewer } from "../load";
 import { useTitle } from "../title";
 import { QuietBoundary } from "../quiet-boundary";

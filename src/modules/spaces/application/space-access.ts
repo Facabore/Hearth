@@ -1,6 +1,6 @@
 import { domainError, err, flatMap, ok, type Result } from "@/shared/kernel";
 import { can, isReadOnly, rolesFor, type SpaceAction } from "../domain/permissions";
-import type { SpaceRole } from "../domain/space";
+import { spaceColor, type SpaceRole } from "../domain/space";
 import type { SpaceSummary } from "./space-repository";
 import type { SpaceMembership, SpaceSettingsRepository } from "./space-settings-repository";
 
@@ -65,4 +65,5 @@ export const toSpaceSummary = (m: SpaceMembership): SpaceSummary => ({
   currency: m.currency,
   periodPolicy: m.periodPolicy,
   role: m.role,
+  color: spaceColor(m.spaceId, m.color),
 });

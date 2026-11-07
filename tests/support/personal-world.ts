@@ -14,6 +14,8 @@ const NOTHING_PAID = {
 export class PersonalSumsByPeriod implements PersonalSums {
   readonly consumption: Record<string, { spaceId: string; categoryId: string; amount: bigint }[]> = {};
   readonly paidOut: Record<string, typeof NOTHING_PAID> = {};
+  /** Ruling P306: what single member rows paid, keyed by member id; a question about them sums these instead. */
+  readonly paidOutBy: Record<string, Partial<typeof NOTHING_PAID>> = {};
   readonly asked: { memberIds: readonly string[]; from: LocalDate; to: LocalDate }[] = [];
 
   async consumptionByCategory(memberIds: readonly string[], from: LocalDate, to: LocalDate) {
@@ -23,7 +25,16 @@ export class PersonalSumsByPeriod implements PersonalSums {
 
   async cashOut(memberIds: readonly string[], from: LocalDate, to: LocalDate) {
     this.asked.push({ memberIds, from, to });
-    return this.paidOut[from] ?? NOTHING_PAID;
+    const own = memberIds.flatMap((id) => (this.paidOutBy[id] ? [this.paidOutBy[id]] : []));
+    if (own.length === 0) return this.paidOut[from] ?? NOTHING_PAID;
+    const sum = (field: keyof typeof NOTHING_PAID) =>
+      own.reduce((total, part) => total + (part[field] ?? 0n), 0n);
+    return {
+      payments: sum("payments"),
+      paymentsOutsideTheApp: sum("paymentsOutsideTheApp"),
+      fundContributions: sum("fundContributions"),
+      contributionsOutsideTheApp: sum("contributionsOutsideTheApp"),
+    };
   }
 }
 
@@ -40,6 +51,7 @@ export const place = (
   spaceKind: "SHARED",
   currency: "COP",
   periodPolicy: { kind: "MONTHLY", day: 1 },
+  color: "SKY",
   ...overrides,
 });
 

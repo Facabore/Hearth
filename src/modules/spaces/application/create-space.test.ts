@@ -1,3 +1,4 @@
+import { spaceColor } from "../domain/space";
 import { describe, expect, it } from "vitest";
 import { createSeedDefaultCategories } from "@/modules/categories/application";
 import { domainError, err, FixedClock } from "@/shared/kernel";
@@ -49,6 +50,7 @@ describe("CreateSpace (HU-E1-04)", () => {
       currency: "COP",
       periodPolicy: { kind: "MONTHLY", day: 1 },
       role: "OWNER",
+      color: spaceColor("id-1", null),
     });
     expect(spaces.members("id-1")).toEqual([
       expect.objectContaining({

@@ -17,6 +17,7 @@ import {
   membersQuery,
   netBalancesQuery,
   periodQuery,
+  myActivityQuery,
   unifiedViewQuery,
 } from "../reads";
 import { ensurer, sharedSpace, showsUnifiedMonth, viewerOf, type Load, type Viewer } from "../load";
@@ -24,6 +25,12 @@ import { read } from "../read";
 
 /** The home's latest rows and the list's page size, as the Next.js containers read them. */
 export const HOME_ROWS = 3;
+/** Ruling P306 (board "Inicio personal · todo en un lugar"): the personal Inicio's merged Recientes shows six rows. */
+export const FEED_ROWS = 6;
+
+/** Ruling P306: how many of its own rows a home reads; the merged feed needs as many as it shows. */
+export const homeRowsOf = (viewer: Pick<Viewer, "space" | "spaces"> | null): number =>
+  viewer && showsUnifiedMonth(viewer) ? FEED_ROWS : HOME_ROWS;
 export const PAGE_SIZE = 50;
 
 /** One page of a space's transactions: the API's own query, so it is the key too. */
@@ -139,15 +146,22 @@ const loadDetail = async (load: Load, viewer: Viewer, transactionId: string): Pr
 export const loadHome = async (load: Load, spaceId: string, transactionId?: string) => {
   const ensure = ensurer(load);
   const { api } = load.apis;
-  const page = ensure(pageQuery(api, spaceId, { limit: HOME_ROWS }));
-  // U4 (#209): a personal home with other spaces refreshes the month across all of them beside it, never holding it.
-  void Promise.all([page, viewerOf(load, spaceId)])
-    .then(([{ period }, viewer]) =>
-      viewer && showsUnifiedMonth(viewer) ? ensure(unifiedViewQuery(api, spaceId, period.label)) : undefined,
+  const viewer = await viewerOf(load, spaceId);
+  const page = ensure(pageQuery(api, spaceId, { limit: homeRowsOf(viewer) }));
+  const unified = viewer !== null && showsUnifiedMonth(viewer);
+  // Ruling P306: a personal home with other spaces counts her month across all of them in its headline, so the screen
+  // waits for it (a failed read leaves the plain headline), and the headline never moves what is under it. Her spaces'
+  // latest movements only add rows at the foot of Recientes, so they never hold the screen.
+  void page
+    .then(({ period }) =>
+      unified ? ensure(myActivityQuery(api, spaceId, period.startDate, FEED_ROWS)) : undefined,
     )
     .catch(() => undefined);
   await Promise.all([
     page,
+    unified
+      ? page.then(({ period }) => settled(ensure(unifiedViewQuery(api, spaceId, period.label))))
+      : undefined,
     ensure(accountsQuery(api, spaceId, "active")),
     ensure(categoriesQuery(api, spaceId, "all")),
     transactionId

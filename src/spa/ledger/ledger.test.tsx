@@ -5,12 +5,14 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { es } from "@/i18n/messages/full";
 import {
   accountDto,
+  activityItemDto,
   householdSpace,
   meDto,
   memberDto,
   octoberPage,
   rowContext,
   spaceDto,
+  transactionDto,
 } from "../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse, type FakeHandler } from "../../../tests/support/ui/fake-api";
 import { e74Unified, e7Dashboard } from "../../../tests/support/ui/plan-dto";
@@ -76,19 +78,38 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     expect(await screen.findByRole("dialog", { name: "Dinner" })).toBeVisible();
     // The modal sheet hides the home from assistive technology; the home is still under it.
     expect(screen.getByRole("heading", { name: es.home.recent, hidden: true })).toBeInTheDocument();
-    expect(calls(spa.requests, "GET", /\/transactions\?limit=3$/)).toHaveLength(1);
+    // Ruling P306: the personal home of someone with another space merges six rows, so it reads six of its own.
+    expect(calls(spa.requests, "GET", /\/transactions\?limit=6$/)).toHaveLength(1);
     expect(document.title).toBe(`${es.home.title} · Hearth`);
   });
 
-  it("adds the month across every space to the personal home, leading to Mi consumo for that period (U4, #209, P267)", async () => {
+  it("counts the month across every space on the personal home and merges their movements into Recientes (P306)", async () => {
     const { routes } = ledgerApi({
       "GET /api/v1/me/unified-view": () => jsonResponse(e74Unified({ period: { ...octoberPage.period } })),
+      "GET /api/v1/me/activity": () =>
+        jsonResponse({
+          items: [
+            activityItemDto({
+              transaction: transactionDto({
+                id: "t-hogar",
+                description: "Mercado del mes",
+                date: "2026-10-30",
+              }),
+            }),
+          ],
+        }),
     });
     const spa = renderSpa("/spaces/sp-personal", routes);
-    const link = await screen.findByRole("link", { name: /Tu mes en todos tus espacios/ });
-    expect(link).toHaveAttribute("href", "/spaces/sp-personal/my-consumption?period=2026-10");
-    expect(link.textContent?.replace(/\s/g, " ")).toContain("$ 1.575.000");
+    // Ruling P306: one figure, her month across her spaces, split into "Solo tú" and "Con otros".
+    const summary = await screen.findByRole("region", { name: es.home.summary });
+    await waitFor(() => expect(summary.textContent).toContain(es.home.solo));
+    expect(summary.textContent?.replace(/\s/g, " ")).toContain("$ 1.575.000");
+    expect(summary.textContent).toContain(es.home.withOthers);
+    const row = await screen.findByRole("link", { name: /Mercado del mes/ });
+    expect(row).toHaveAttribute("href", "/spaces/sp-hogar?tx=t-hogar");
+    expect(within(row).getByText("Hogar")).toBeInTheDocument();
     expect(calls(spa.requests, "GET", /\/me\/unified-view\?period=2026-10$/)).toHaveLength(1);
+    expect(calls(spa.requests, "GET", /\/me\/activity\?from=2026-10-01&limit=6$/)).toHaveLength(1);
   });
 
   it("keeps the personal home without the line when the unified month cannot be read", async () => {
@@ -105,7 +126,7 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
         ).toMatchObject({ status: "error", fetchStatus: "idle" }),
       { timeout: 5_000 },
     );
-    expect(screen.queryByRole("link", { name: /Tu mes en todos tus espacios/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(es.home.withOthers)).not.toBeInTheDocument();
     // The toast provider's live region is always mounted; a failed optional read leaves it empty.
     expect(screen.getByRole("alert")).toBeEmptyDOMElement();
   });
@@ -122,8 +143,10 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     const shared = renderSpa("/spaces/sp-household", ledgerApi().routes);
     expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
     await settled(shared);
-    expect(screen.queryByRole("link", { name: /Tu mes en todos tus espacios/ })).not.toBeInTheDocument();
-    expect(calls([...spa.requests, ...shared.requests], "GET", /\/me\/unified-view/)).toHaveLength(0);
+    expect(screen.queryByText(es.home.withOthers)).not.toBeInTheDocument();
+    expect(calls([...spa.requests, ...shared.requests], "GET", /\/me\/(unified-view|activity)/)).toHaveLength(
+      0,
+    );
   });
 
   it("proposes the month's plan on the personal home until its period's plan has a line (#152)", async () => {

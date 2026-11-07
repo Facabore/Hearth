@@ -10,6 +10,7 @@ import {
   type PeriodPolicy,
   type Result,
 } from "@/shared/kernel";
+import { PALETTE, type PaletteKey } from "@/shared/kernel/style";
 
 export type SpaceId = Id<"Space">;
 export type SpaceMemberId = Id<"SpaceMember">;
@@ -139,6 +140,29 @@ export const spaceName = (raw: string): Result<string> => {
     ? ok(name)
     : err(domainError("InvalidSpaceName", { length: name.length }));
 };
+
+/**
+ * Ruling P306: the colors a space takes on its own. GRAPHITE is left out: the personal feed draws a movement that does
+ * not include the person in it.
+ */
+const AUTOMATIC_COLORS = PALETTE.filter((key) => key !== "GRAPHITE");
+
+/** FNV-1a over the id: the same space always gets the same color, on every device and for every member. */
+const hashOf = (id: string): number => {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < id.length; i++) hash = Math.imul(hash ^ id.charCodeAt(i), 0x01000193);
+  return hash >>> 0;
+};
+
+/** Ruling P306: the color a space shows, the one a manager chose, or else one derived from its id. */
+export const spaceColor = (id: string, chosen: PaletteKey | null): PaletteKey =>
+  chosen ?? AUTOMATIC_COLORS[hashOf(id) % AUTOMATIC_COLORS.length]!;
+
+/** Ruling P306: a chosen color is one of the palette's keys (D22). */
+export const checkedSpaceColor = (color: string): Result<PaletteKey> =>
+  (PALETTE as readonly string[]).includes(color)
+    ? ok(color as PaletteKey)
+    : err(domainError("InvalidSpaceColor"));
 
 /** Re-checks a policy that arrived from outside: the wire format accepts any integer days. */
 export const checkedPeriodPolicy = (policy: PeriodPolicy): Result<PeriodPolicy> =>

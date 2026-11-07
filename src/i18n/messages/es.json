@@ -204,6 +204,7 @@
       "subtitle": "Entra para ver tus cuentas y lo que queda del mes.",
       "submit": "Iniciar sesión",
       "createAccount": "Crear una cuenta",
+      "noAccount": "¿No tienes cuenta?",
       "forgot": "¿Olvidaste tu contraseña?",
       "forgotHelp": "Pídele a quien administra Hearth que la restablezca."
     },
@@ -290,8 +291,9 @@
     "summary": "Resumen del período",
     "spentIn": "Gastado en {month}",
     "spentBetween": "Gastado del {start} al {end}",
+    "solo": "Solo tú",
+    "withOthers": "Con otros",
     "income": "Ingresos +{amount}",
-    "allSpaces": "Tu mes en todos tus espacios: {amount}",
     "accounts": "Cuentas",
     "allAccounts": "Ver todas las cuentas",
     "allAccountsShort": "Ver todas",
@@ -299,6 +301,19 @@
     "allFundsShort": "Ver todos",
     "recent": "Recientes",
     "recentEmpty": "Aún no hay movimientos. Registra el primero con +.",
+    "feed": {
+      "recordedBy": "{name} registró",
+      "recordedByYou": "Registraste tú",
+      "recorded": "Registrado",
+      "shareOf": "tu parte {share} de {total}",
+      "paidAndShare": "pagaste {paid} · tu parte {share}",
+      "paid": "pagaste {paid}",
+      "notYou": "no te incluye",
+      "betweenYou": "Saldo entre ustedes",
+      "settled": "{from} le pagó a {to}",
+      "settledToYou": "{name} te pagó",
+      "settledByYou": "Le pagaste a {name}"
+    },
     "allTransactions": "Ver todos los movimientos",
     "allTransactionsShort": "Ver todo",
     "members": "Miembros",
@@ -330,7 +345,13 @@
     },
     "createFund": "Crear un fondo",
     "fundsNote": "Cada persona paga desde sus cuentas personales; aquí solo viven los fondos del espacio.",
-    "directNote": "Este espacio es entre dos personas: cada una paga desde sus cuentas personales."
+    "directNote": "Este espacio es entre dos personas: cada una paga desde sus cuentas personales.",
+    "discard": {
+      "new": "¿Descartar esta cuenta?",
+      "edit": "¿Descartar los cambios?",
+      "confirm": "Descartar",
+      "keep": "Seguir editando"
+    }
   },
   "categories": {
     "picker": {

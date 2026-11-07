@@ -75,7 +75,7 @@ describe("record form save feedback (ruling P196)", () => {
     await chooseGroceries();
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     await saved("Gasto guardado");
-    expect(router.replace).toHaveBeenCalledWith(`/spaces/${PERSONAL.id}/transactions`);
+    expect(router.replace).toHaveBeenCalledWith(`/spaces/${PERSONAL.id}/transactions`, { scroll: false });
   });
 
   it("announces Ingreso guardado on the incomes endpoint", async () => {
@@ -84,7 +84,7 @@ describe("record form save feedback (ruling P196)", () => {
     await userEvent.type(screen.getByLabelText("Monto"), "1.200.000");
     await userEvent.click(screen.getByRole("button", { name: "Guardar ingreso" }));
     await saved("Ingreso guardado");
-    expect(router.replace).toHaveBeenCalledWith(`/spaces/${PERSONAL.id}/transactions`);
+    expect(router.replace).toHaveBeenCalledWith(`/spaces/${PERSONAL.id}/transactions`, { scroll: false });
   });
 
   it("announces Transferencia guardada on the transfers endpoint", async () => {
@@ -121,7 +121,7 @@ describe("record form save feedback (ruling P196)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Seguir con Juan" }));
     await userEvent.click(screen.getByRole("button", { name: "Guardar y dividir" }));
     await saved("Gasto guardado");
-    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-ana-juan/transactions");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-ana-juan/transactions", { scroll: false });
   });
 
   it("goes back to the screen it was recorded from, and Ver opens the movement (issue #172)", async () => {
@@ -135,7 +135,7 @@ describe("record form save feedback (ruling P196)", () => {
     await chooseGroceries();
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     await saved("Gasto guardado");
-    expect(router.replace).toHaveBeenCalledWith(`/spaces/${PERSONAL.id}?period=2026-10`);
+    expect(router.replace).toHaveBeenCalledWith(`/spaces/${PERSONAL.id}?period=2026-10`, { scroll: false });
     await userEvent.click(screen.getByRole("button", { name: "Ver" }));
     expect(router.push).toHaveBeenCalledWith(`/spaces/${PERSONAL.id}/transactions?tx=t-new`);
   });
@@ -146,7 +146,7 @@ describe("record form save feedback (ruling P196)", () => {
     await userEvent.type(screen.getByLabelText("Monto"), "1.200.000");
     await userEvent.click(screen.getByRole("button", { name: "Guardar ingreso" }));
     await saved("Ingreso guardado");
-    expect(router.replace).toHaveBeenCalledWith(`/spaces/${PERSONAL.id}/transactions`);
+    expect(router.replace).toHaveBeenCalledWith(`/spaces/${PERSONAL.id}/transactions`, { scroll: false });
   });
 
   it("goes back after a split with someone, and Ver opens it in the direct space (issue #172)", async () => {
@@ -172,7 +172,7 @@ describe("record form save feedback (ruling P196)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Seguir con Juan" }));
     await userEvent.click(screen.getByRole("button", { name: "Guardar y dividir" }));
     await saved("Gasto guardado");
-    expect(router.replace).toHaveBeenCalledWith(`/spaces/${PERSONAL.id}`);
+    expect(router.replace).toHaveBeenCalledWith(`/spaces/${PERSONAL.id}`, { scroll: false });
     await userEvent.click(screen.getByRole("button", { name: "Ver" }));
     expect(router.push).toHaveBeenCalledWith("/spaces/sp-ana-juan/transactions?tx=t-1");
   });
@@ -237,6 +237,7 @@ describe("record form save feedback (ruling P196)", () => {
     await waitFor(() =>
       expect(router.replace).toHaveBeenCalledWith(
         `/spaces/${HOUSEHOLD.id}/transactions?notice=FundBalanceNegative&account=a-fund`,
+        { scroll: false },
       ),
     );
     expect(screen.getByRole("status")).toBeEmptyDOMElement();

@@ -197,6 +197,13 @@
       "when": 1793747027657,
       "tag": "0027_category_group_position",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1794012616753,
+      "tag": "0028_space_color",
+      "breakpoints": true
     }
   ]
 }

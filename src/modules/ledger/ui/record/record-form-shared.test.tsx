@@ -171,7 +171,7 @@ describe("shared expense (HU-E9-06)", () => {
       split: { method: "EQUAL", participants: [{ memberId: "m-ana" }, { memberId: "m-juan" }] },
     });
     expect(body).not.toHaveProperty("accountId");
-    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-household/transactions");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-household/transactions", { scroll: false });
     expect(await axeViolations(container)).toEqual([]);
   });
 
@@ -203,6 +203,7 @@ describe("shared expense (HU-E9-06)", () => {
     await waitFor(() =>
       expect(router.replace).toHaveBeenCalledWith(
         "/spaces/sp-household/transactions?notice=FundBalanceNegative&account=a-fund",
+        { scroll: false },
       ),
     );
     // The warning is not an error: the expense was recorded (201) and the form shows no problem.

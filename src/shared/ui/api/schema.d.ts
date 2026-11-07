@@ -641,6 +641,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What happened lately in the caller's shared and direct spaces, newest first
+         * @description Ruling P306: the live movements of every shared and direct space the caller currently belongs to, dated `from` or later, in Movimientos' order, each with its space, who recorded it and the caller's part of it. Personal spaces are never listed: the caller reads their own as Movimientos does, and no one else's is reachable.
+         */
+        get: operations["listMyActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/spaces/{spaceId}/expenses": {
         parameters: {
             query?: never;
@@ -2007,6 +2027,8 @@ export interface components {
                 day2: number;
             };
             role: ("OWNER" | "ADMIN" | "MEMBER" | "VIEWER") | null;
+            /** @enum {string} */
+            color?: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
         };
         SpaceMember: {
             id: string;
@@ -2691,6 +2713,8 @@ export interface operations {
                         day1: number;
                         day2: number;
                     };
+                    /** @enum {string} */
+                    color?: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
                 };
             };
         };
@@ -4831,6 +4855,85 @@ export interface operations {
             };
             /** @description SpaceArchived */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    listMyActivity: {
+        parameters: {
+            query: {
+                from: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The movements, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            space: {
+                                id: string;
+                                name: string;
+                                /** @enum {string} */
+                                kind: "PERSONAL" | "SHARED" | "DIRECT";
+                                /** @enum {string} */
+                                color: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
+                            };
+                            transaction: components["schemas"]["Transaction"];
+                            recordedBy: {
+                                name: string | null;
+                                you: boolean;
+                            };
+                            you: {
+                                memberIds: string[];
+                                share: components["schemas"]["MoneyOutput"] | null;
+                                paid: components["schemas"]["MoneyOutput"] | null;
+                            };
+                            memberNames: {
+                                [key: string]: string;
+                            };
+                            category: {
+                                name: string;
+                                path: string;
+                                icon: ({
+                                    /** @constant */
+                                    kind: "SYMBOL";
+                                    name: string;
+                                } | {
+                                    /** @constant */
+                                    kind: "EMOJI";
+                                    value: string;
+                                }) | null;
+                                color: ("PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE") | null;
+                            } | null;
+                        }[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed, InvalidDate */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8333,6 +8436,24 @@ export interface operations {
                                 }[];
                             }[];
                         };
+                        bySpace?: {
+                            space: {
+                                id: string;
+                                name: string;
+                                /** @enum {string} */
+                                kind: "PERSONAL" | "SHARED" | "DIRECT";
+                                /** @enum {string} */
+                                color: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
+                            };
+                            consumed: components["schemas"]["MoneyOutput"];
+                            paid: components["schemas"]["MoneyOutput"];
+                            categories?: {
+                                id: string;
+                                name: string;
+                                color: ("PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE") | null;
+                                amount: components["schemas"]["MoneyOutput"];
+                            }[];
+                        }[];
                         cashOut: {
                             total: components["schemas"]["MoneyOutput"];
                             payments: components["schemas"]["MoneyOutput"];

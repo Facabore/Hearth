@@ -14,6 +14,7 @@ import { RecordForm } from "../record/record-form";
 import { afterSaveUrl, fundWentNegative, requestOf, type RecordKind } from "../record/record-request";
 import type { When } from "../record/when-label";
 import type { SharedExpenseContext } from "../split/shared-context";
+import { leaveSheet } from "@/shared/ui/navigation/leave-sheet";
 import { withTx } from "../detail/tx-href";
 import { initialOf, draftOf } from "./edit-initial";
 import { editBodyOf, ifMatchOf } from "./edit-request";
@@ -162,7 +163,7 @@ export function EditTransactionForm({
     const whenChanged = JSON.stringify(state.when) !== JSON.stringify(initial.when);
     const body = editBodyOf({ tx, baseline, current: built.body, whenChanged });
     if (Object.keys(body).length === 0) {
-      router.replace(sheet);
+      leaveSheet(router, sheet);
       return null;
     }
     try {
@@ -175,9 +176,9 @@ export function EditTransactionForm({
         body: body as never,
       });
       if (response.ok) {
-        // Replacing the entry keeps the browser's Back from returning to a form that was used (nav1).
-        router.replace(sheet);
-        router.refresh();
+        // Leaving the entry keeps the browser's Back from returning to a form that was used (nav1); opened from the
+        // sheet, it goes back to it, so one more Back leaves the list (ruling P307).
+        leaveSheet(router, sheet, () => router.refresh());
         toast.show({ message: t("toast.edited") });
         return null;
       }

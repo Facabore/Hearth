@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { ZodOpenApiPathsObject } from "zod-openapi";
 import { jsonContent, PeriodSchema, problems, securedByUser } from "@/shared/http/contracts";
+import { PALETTE } from "@/shared/kernel/style";
 import type {
   ClaimPreview,
   CreatedInvitation,
@@ -20,6 +21,9 @@ export const PeriodPolicySchema = z.discriminatedUnion("kind", [
 
 const RoleSchema = z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"]);
 
+/** Ruling P306: a palette key (D22) that tags the space's rows in the person's personal feed. */
+const SpaceColorSchema = z.enum(PALETTE);
+
 export const SpaceSummarySchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -27,6 +31,8 @@ export const SpaceSummarySchema = z.object({
   currency: z.string(),
   periodPolicy: PeriodPolicySchema,
   role: RoleSchema.nullable(),
+  /** Ruling P306: the color a manager chose, or else one derived from the id; never shown without the name. */
+  color: SpaceColorSchema.optional(),
 });
 
 /** HU-E1-09, the M1 convention: `?archived=true` lists the archived spaces too, beside the active ones. */
@@ -93,6 +99,8 @@ export const UpdateSpaceBodySchema = z.object({
     .regex(/^[A-Z]{3}$/, { error: "Currency must be an ISO 4217 code" })
     .optional(),
   periodPolicy: PeriodPolicyInputSchema.optional(),
+  /** Ruling P306: an OWNER or ADMIN picks the space's color. */
+  color: SpaceColorSchema.optional(),
 });
 
 export const ListPeriodsQuerySchema = z.object({

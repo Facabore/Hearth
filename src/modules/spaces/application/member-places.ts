@@ -1,4 +1,5 @@
 import type { PeriodPolicy } from "@/shared/kernel";
+import type { PaletteKey } from "@/shared/kernel/style";
 import type { SpaceId, SpaceKind, SpaceMemberId } from "../domain/space";
 
 /** HU-E7-04, D15: one member row of a user in one space, current or former; a claimed guest place included. */
@@ -9,6 +10,8 @@ export interface MemberPlace {
   readonly spaceKind: SpaceKind;
   readonly currency: string;
   readonly periodPolicy: PeriodPolicy;
+  /** Ruling P306: the color the space shows (`spaceColor`). */
+  readonly color: PaletteKey;
 }
 
 export interface MemberPlaceRepository {

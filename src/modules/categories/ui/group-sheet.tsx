@@ -7,7 +7,7 @@ import { Button, ProblemNotice, Sheet, TextField } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { CategoryGroupDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
-import { ColorRow } from "./color-row";
+import { ColorRow } from "@/shared/ui/molecules/color-row";
 import { IconPicker } from "./icon-picker";
 import { isSameIcon, type IconChoice } from "./style-library";
 
@@ -88,7 +88,12 @@ export function GroupSheet({
           onChange={(event) => setName(event.target.value)}
         />
         <IconPicker value={icon} onValueChange={setIcon} />
-        <ColorRow value={color} onValueChange={setColor} />
+        <ColorRow
+          value={color}
+          onValueChange={setColor}
+          label={t("colorLabel")}
+          colorName={(key) => t(`color.${key}`)}
+        />
         {problem ? <ProblemNotice problem={problem} /> : null}
       </div>
     </Sheet>

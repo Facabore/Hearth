@@ -1,3 +1,4 @@
+import { spaceColor } from "@/modules/spaces/domain/space";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GET as listCategories } from "@/app/api/v1/spaces/[spaceId]/categories/route";
 import { GET as listMembers } from "@/app/api/v1/spaces/[spaceId]/members/route";
@@ -42,6 +43,8 @@ describe("create a shared space (HU-E1-04)", () => {
       currency: "COP",
       periodPolicy: { kind: "MONTHLY", day: 1 },
       role: "OWNER",
+      // Ruling P306: the color derived from the space id until a manager picks one.
+      color: spaceColor(space.id, null),
     });
     const listed = await (await call(listSpaces, "GET", "/api/v1/spaces", { user: ana })).json();
     expect(listed.items.map((s: { kind: string }) => s.kind)).toEqual(["PERSONAL", "SHARED"]);
