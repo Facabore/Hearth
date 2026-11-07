@@ -39,6 +39,10 @@ describe("unified personal view (HU-E7-04)", () => {
         space: { id: "space-ana", name: "Personal", kind: "PERSONAL", color: "SKY" },
         consumed: pesos(145_000),
         paid: pesos(145_000),
+        categories: [
+          { id: "cat-ana-groceries", name: "Groceries", color: null, amount: pesos(85_000) },
+          { id: "cat-ana-restaurants", name: "Restaurants", color: null, amount: pesos(60_000) },
+        ],
       },
       {
         space: { id: "space-household", name: "Household", kind: "SHARED", color: "SKY" },
@@ -47,6 +51,25 @@ describe("unified personal view (HU-E7-04)", () => {
       },
     ]);
     expect(view.bySpace.reduce((sum, s) => sum + s.consumed, 0n)).toBe(view.consumption.total);
+  });
+
+  it('breaks her personal space down by category for "Solo tú", a subcategory under its parent (ruling P306)', async () => {
+    const w = background();
+    w.sums.consumption[NOVEMBER]!.push({
+      spaceId: "space-ana",
+      categoryId: "cat-ana-verduras",
+      amount: pesos(15_000),
+    });
+    w.sums.paidOutBy["member-ana-personal"] = {};
+    w.sums.paidOutBy["member-ana"] = {};
+    const view = unwrap(await read(w));
+    const [personal, household] = view.bySpace;
+    expect(personal!.categories).toEqual([
+      { id: "cat-ana-groceries", name: "Groceries", color: null, amount: pesos(100_000) },
+      { id: "cat-ana-restaurants", name: "Restaurants", color: null, amount: pesos(60_000) },
+    ]);
+    expect(personal!.categories!.reduce((sum, c) => sum + c.amount, 0n)).toBe(personal!.consumed);
+    expect(household!.categories).toBeUndefined();
   });
 
   it("lists the personal space first even when an older shared place comes first (ruling P306)", async () => {

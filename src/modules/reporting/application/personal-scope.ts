@@ -10,6 +10,7 @@ import {
   type Result,
   type StoredPeriod,
 } from "@/shared/kernel";
+import type { PaletteKey } from "@/shared/kernel/style";
 
 /** HU-E7-04: one user's sums across their member rows, by the ledger on read (D7). */
 export interface PersonalSums {
@@ -43,6 +44,8 @@ export interface ReportCategories {
       readonly key: string | null;
       readonly name: string;
       readonly parentCategoryId: string | null;
+      /** HU-E3-05: its own style; null for a subcategory, which shows its parent's (ruling P306 reads its color). */
+      readonly style?: { readonly color: PaletteKey } | null;
     }[]
   >;
 }

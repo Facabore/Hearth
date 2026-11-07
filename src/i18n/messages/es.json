@@ -290,15 +290,8 @@
     "summary": "Resumen del período",
     "spentIn": "Gastado en {month}",
     "spentBetween": "Gastado del {start} al {end}",
-    "paidIn": "Pagaste en {month}",
-    "paidBetween": "Pagaste del {start} al {end}",
-    "mode": {
-      "label": "Qué cifra ver",
-      "share": "Tu parte",
-      "paid": "Lo que pagaste"
-    },
-    "bySpace": "Por espacio",
-    "byCategory": "Ver por categoría",
+    "solo": "Solo tú",
+    "withOthers": "Con otros",
     "income": "Ingresos +{amount}",
     "accounts": "Cuentas",
     "allAccounts": "Ver todas las cuentas",

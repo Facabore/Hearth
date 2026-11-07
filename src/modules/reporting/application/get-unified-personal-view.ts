@@ -27,6 +27,16 @@ export interface SpaceFigures {
   readonly consumed: bigint;
   /** Σ the caller's payments of the space's expenses and fund contributions in the period (spec 5.4). */
   readonly paid: bigint;
+  /**
+   * Ruling P306 ("Solo tú"): the personal space only, what it spent per category, a subcategory under its parent, the
+   * largest first, each with the color the category shows (null without one).
+   */
+  readonly categories?: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly color: PaletteKey | null;
+    readonly amount: bigint;
+  }[];
 }
 
 export interface UnifiedPersonalView {
@@ -48,6 +58,35 @@ export interface UnifiedPersonalView {
     readonly currency: string;
   }[];
 }
+
+/** Ruling P306: the personal space's spending per top-level category, the largest first. */
+const personalCategories = (
+  rows: readonly { readonly spaceId: string; readonly categoryId: string; readonly amount: bigint }[],
+  categories: readonly {
+    readonly id: string;
+    readonly spaceId: string;
+    readonly name: string;
+    readonly parentCategoryId: string | null;
+    readonly style?: { readonly color: PaletteKey } | null;
+  }[],
+  personalSpaceId: string,
+): NonNullable<SpaceFigures["categories"]> => {
+  const own = categories.filter((c) => c.spaceId === personalSpaceId);
+  const totals = new Map<string, bigint>();
+  for (const row of rows) {
+    if (row.spaceId !== personalSpaceId) continue;
+    const category = own.find((c) => c.id === row.categoryId);
+    const top = category?.parentCategoryId ?? row.categoryId;
+    totals.set(top, (totals.get(top) ?? 0n) + row.amount);
+  }
+  return [...totals.entries()]
+    .map(([id, amount]) => {
+      const category = own.find((c) => c.id === id);
+      return { id, name: category?.name ?? "", color: category?.style?.color ?? null, amount };
+    })
+    .filter((c) => c.amount !== 0n)
+    .sort((a, b) => (a.amount === b.amount ? a.name.localeCompare(b.name) : a.amount > b.amount ? -1 : 1));
+};
 
 export type GetUnifiedPersonalView = (input: {
   readonly userId: string;
@@ -95,6 +134,9 @@ export const createGetUnifiedPersonalView =
           space: { id: place.spaceId, name: place.spaceName, kind: place.spaceKind, color: place.color },
           consumed: rows.filter((r) => r.spaceId === place.spaceId).reduce((sum, r) => sum + r.amount, 0n),
           paid: out.payments + out.fundContributions,
+          ...(place.spaceId === personal.spaceId
+            ? { categories: personalCategories(rows, categories, personal.spaceId) }
+            : {}),
         };
       }),
     );

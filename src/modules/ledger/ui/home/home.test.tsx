@@ -147,34 +147,21 @@ describe("the home's recent rows say which day they are from (#216, F10)", () =>
 describe("the personal space shows everything (ruling P306)", () => {
   const unified = {
     consumed: cop(725_000),
-    paid: cop(1_055_000),
-    bySpace: [
-      {
-        id: "sp-personal",
-        name: "Personal",
-        kind: "PERSONAL" as const,
-        color: "PINE" as const,
-        consumed: cop(245_000),
-        paid: cop(245_000),
-      },
-      {
-        id: "sp-hogar",
-        name: "Hogar",
-        kind: "SHARED" as const,
-        color: "SKY" as const,
-        consumed: cop(410_000),
-        paid: cop(600_000),
-      },
-      {
-        id: "sp-viaje",
-        name: "Viaje Cartagena",
-        kind: "SHARED" as const,
-        color: "PLUM" as const,
-        consumed: cop(70_000),
-        paid: cop(210_000),
-      },
-    ],
-    href: "/spaces/sp-personal/my-consumption?period=2026-10",
+    solo: {
+      amount: cop(245_000),
+      items: [
+        { id: "c-market", name: "Mercado", color: "SAND" as const, amount: cop(150_000) },
+        { id: "c-food", name: "Restaurantes", color: "ROSE" as const, amount: cop(60_000) },
+        { id: "c-bus", name: "Transporte", color: null, amount: cop(35_000) },
+      ],
+    },
+    withOthers: {
+      amount: cop(480_000),
+      items: [
+        { id: "sp-hogar", name: "Hogar", color: "SKY" as const, amount: cop(410_000) },
+        { id: "sp-viaje", name: "Viaje Cartagena", color: "PLUM" as const, amount: cop(70_000) },
+      ],
+    },
   };
   const groceries = activityItemDto({
     transaction: transactionDto({
@@ -263,41 +250,51 @@ describe("the personal space shows everything (ruling P306)", () => {
       .getAllByRole("listitem")
       .find((row) => row.textContent?.includes(name))!;
 
-  it("counts her share of every space in the headline, broken down per space, one tap from Mi consumo", async () => {
+  it("shows one figure, her month, and its two parts closed: Solo tú and Con otros", async () => {
     const { container } = home();
     const summary = screen.getByRole("region", { name: "Resumen del período" });
     expect(norm(summary.textContent)).toContain("Gastado en octubre$ 725.000");
-    const bySpace = within(summary).getByRole("list", { name: "Por espacio" });
-    expect(
-      within(bySpace)
-        .getAllByRole("listitem")
-        .map((row) => norm(row.textContent)),
-    ).toEqual(["Personal$ 245.000", "Hogar$ 410.000", "Viaje Cartagena$ 70.000"]);
-    expect(container.querySelectorAll("[data-space-chip]").length).toBeGreaterThanOrEqual(2);
-    expect(within(summary).getByRole("button", { name: "Tu parte" })).toHaveAttribute("aria-pressed", "true");
-    expect(within(summary).getByRole("link", { name: "Ver por categoría" })).toHaveAttribute(
-      "href",
-      unified.href,
-    );
-    expect(screen.queryByText(/Tu mes en todos tus espacios/)).not.toBeInTheDocument();
+    const solo = within(summary).getByRole("button", { name: /Solo tú/ });
+    const others = within(summary).getByRole("button", { name: /Con otros/ });
+    expect(norm(solo.textContent)).toBe("Solo tú$ 245.000");
+    expect(norm(others.textContent)).toBe("Con otros$ 480.000");
+    expect(solo).toHaveAttribute("aria-expanded", "false");
+    expect(others).toHaveAttribute("aria-expanded", "false");
+    expect(within(summary).queryByText("Mercado")).not.toBeVisible();
+    expect(screen.queryByRole("button", { name: "Lo que pagaste" })).not.toBeInTheDocument();
     expect(await axeViolations(container)).toEqual([]);
   });
 
-  it("switches the headline to what she paid in each space", async () => {
-    home();
+  it("opens Solo tú into her categories and Con otros into her groups, each named beside its color", async () => {
+    const { container } = home();
     const summary = screen.getByRole("region", { name: "Resumen del período" });
-    await userEvent.click(within(summary).getByRole("button", { name: "Lo que pagaste" }));
-    expect(within(summary).getByRole("button", { name: "Lo que pagaste" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(norm(summary.textContent)).toContain("Pagaste en octubre$ 1.055.000");
-    const bySpace = within(summary).getByRole("list", { name: "Por espacio" });
+    await userEvent.click(within(summary).getByRole("button", { name: /Solo tú/ }));
+    const soloPanel = document.getElementById(
+      within(summary)
+        .getByRole("button", { name: /Solo tú/ })
+        .getAttribute("aria-controls")!,
+    )!;
+    expect(within(summary).getByRole("button", { name: /Solo tú/ })).toHaveAttribute("aria-expanded", "true");
     expect(
-      within(bySpace)
+      within(soloPanel)
         .getAllByRole("listitem")
         .map((row) => norm(row.textContent)),
-    ).toEqual(["Personal$ 245.000", "Hogar$ 600.000", "Viaje Cartagena$ 210.000"]);
+    ).toEqual(["Mercado$ 150.000", "Restaurantes$ 60.000", "Transporte$ 35.000"]);
+    await userEvent.click(within(summary).getByRole("button", { name: /Con otros/ }));
+    const othersPanel = document.getElementById(
+      within(summary)
+        .getByRole("button", { name: /Con otros/ })
+        .getAttribute("aria-controls")!,
+    )!;
+    expect(
+      within(othersPanel)
+        .getAllByRole("listitem")
+        .map((row) => norm(row.textContent)),
+    ).toEqual(["Hogar$ 410.000", "Viaje Cartagena$ 70.000"]);
+    expect(othersPanel.querySelectorAll("[data-space-chip]")).toHaveLength(2);
+    expect(await axeViolations(container)).toEqual([]);
+    await userEvent.click(within(summary).getByRole("button", { name: /Solo tú/ }));
+    expect(soloPanel).not.toBeVisible();
   });
 
   it("merges her spaces' movements into Recientes with their space, who recorded them and her part", () => {
@@ -325,10 +322,9 @@ describe("the personal space shows everything (ruling P306)", () => {
     );
   });
 
-  it("keeps the old home without the unified month: no switch, no breakdown, only her own rows", () => {
+  it("keeps the old home without the unified month: no parts, only her own rows", () => {
     home({ summary: undefined, recent: undefined });
-    expect(screen.queryByRole("button", { name: "Tu parte" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("list", { name: "Por espacio" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Solo tú/ })).not.toBeInTheDocument();
     expect(document.querySelector("[data-activity-row]")).toBeNull();
   });
 });

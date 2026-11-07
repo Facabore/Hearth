@@ -303,12 +303,11 @@ Then(
   },
 );
 
-Then(
-  /^the headline breaks the month down into "([^"]+)" and "([^"]+)"$/,
-  async ({ page, world }, personal: string, space: string) => {
-    const bySpace = page.getByRole("list", { name: world.t("home.bySpace") });
-    await expect(bySpace.getByRole("listitem")).toHaveCount(2);
-    await expect(bySpace.getByRole("listitem").first()).toContainText(personal);
-    await expect(bySpace.locator("[data-space-chip]")).toHaveText(space);
-  },
-);
+Then(/^the headline's "Con otros" opens to "([^"]+)"$/, async ({ page, world }, space: string) => {
+  // Ruling P306: one figure, split into "Solo tú" and "Con otros"; the latter opens to her groups' chips.
+  const summary = page.getByRole("region", { name: world.t("home.summary") });
+  // "Solo tú" opens only when she spent something alone; here it reads $ 0, so it is text, not a button.
+  await expect(summary).toContainText(world.t("home.solo"));
+  await summary.getByRole("button", { name: new RegExp(world.t("home.withOthers")) }).click();
+  await expect(summary.locator("[data-space-chip]")).toHaveText(space);
+});

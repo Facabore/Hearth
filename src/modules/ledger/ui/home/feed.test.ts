@@ -47,34 +47,52 @@ const view = (bySpace?: UnifiedViewDto["bySpace"]) =>
   }) as unknown as UnifiedViewDto;
 
 describe("unifiedMonthOf (ruling P306)", () => {
-  it("takes her share from the consumption and what she paid from the sum per space", () => {
+  it("splits her month into what she spent alone, by category, and her part of each group", () => {
     const month = unifiedMonthOf(
       view([
         {
           space: { id: "p", name: "Personal", kind: "PERSONAL", color: "PINE" },
           consumed: cop(245_000),
           paid: cop(245_000),
+          categories: [
+            { id: "c-market", name: "Mercado", color: "SAND", amount: cop(150_000) },
+            { id: "c-food", name: "Restaurantes", color: null, amount: cop(95_000) },
+          ],
         },
         {
           space: { id: "h", name: "Hogar", kind: "SHARED", color: "SKY" },
-          consumed: cop(480_000),
-          paid: cop(810_000),
+          consumed: cop(410_000),
+          paid: cop(600_000),
+        },
+        {
+          space: { id: "v", name: "Viaje", kind: "SHARED", color: "PLUM" },
+          consumed: cop(70_000),
+          paid: cop(210_000),
+        },
+        // A group where she only paid takes no part of her month.
+        {
+          space: { id: "f", name: "Finca", kind: "SHARED", color: "TEAL" },
+          consumed: cop(0),
+          paid: cop(50_000),
         },
       ]),
-      "/mi-consumo",
     );
     expect(month.consumed).toEqual(cop(725_000));
-    expect(month.paid).toEqual(cop(1_055_000));
-    expect(month.bySpace.map((s) => [s.name, s.color])).toEqual([
-      ["Personal", "PINE"],
-      ["Hogar", "SKY"],
+    expect(month.solo.amount).toEqual(cop(245_000));
+    expect(month.solo.items.map((c) => [c.name, c.color])).toEqual([
+      ["Mercado", "SAND"],
+      ["Restaurantes", null],
     ]);
-    expect(month.href).toBe("/mi-consumo");
+    expect(month.withOthers.amount).toEqual(cop(480_000));
+    expect(month.withOthers.items.map((g) => [g.name, g.color, g.amount])).toEqual([
+      ["Hogar", "SKY", cop(410_000)],
+      ["Viaje", "PLUM", cop(70_000)],
+    ]);
   });
 
-  it("breaks nothing down for an API without bySpace", () => {
-    const month = unifiedMonthOf(view(undefined), "/mi-consumo");
-    expect(month.bySpace).toEqual([]);
-    expect(month.paid).toEqual(cop(0));
+  it("counts everything as hers alone for an API without bySpace", () => {
+    const month = unifiedMonthOf(view(undefined));
+    expect(month.solo).toEqual({ amount: cop(725_000), items: [] });
+    expect(month.withOthers).toEqual({ amount: cop(0), items: [] });
   });
 });

@@ -8447,6 +8447,12 @@ export interface operations {
                             };
                             consumed: components["schemas"]["MoneyOutput"];
                             paid: components["schemas"]["MoneyOutput"];
+                            categories?: {
+                                id: string;
+                                name: string;
+                                color: ("PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE") | null;
+                                amount: components["schemas"]["MoneyOutput"];
+                            }[];
                         }[];
                         cashOut: {
                             total: components["schemas"]["MoneyOutput"];

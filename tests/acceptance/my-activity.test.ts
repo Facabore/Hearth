@@ -113,21 +113,44 @@ describe("GET /api/v1/me/activity (ruling P306)", () => {
 });
 
 describe("GET /api/v1/me/unified-view bySpace (ruling P306)", () => {
-  it("gives Ana her share and what she paid in each space, her personal space first", async () => {
+  it("gives Ana her share and what she paid in each space, her personal space first, broken down by category", async () => {
     const h = await household();
     await paysEqually(h.ana, 100_000, [h.ana.memberId, h.juan.memberId], h.groceries);
+    const market = await post(recordExpense, h.ana.personal, "expenses", {
+      description: "Market",
+      amount: cop(30_000),
+      date: "2026-10-07",
+      categoryId: await categoryWithKey(h.ana.personal, "groceries"),
+      accountId: h.ana.account,
+    });
+    expect(market.status).toBe(201);
     const response = await call(unifiedView, "GET", "/api/v1/me/unified-view?period=2026-10", {
       user: h.ana,
     });
     expect(response.status).toBe(200);
     const view = (await response.json()) as {
       consumption: { total: MoneyDto };
-      bySpace: { space: { id: string; kind: string }; consumed: MoneyDto; paid: MoneyDto }[];
+      bySpace: {
+        space: { id: string; kind: string };
+        consumed: MoneyDto;
+        paid: MoneyDto;
+        categories?: { name: string; color: string | null; amount: MoneyDto }[];
+      }[];
     };
     expect(view.bySpace.map((s) => [s.space.kind, s.consumed, s.paid])).toEqual([
-      ["PERSONAL", cop(0), cop(0)],
+      ["PERSONAL", cop(30_000), cop(30_000)],
       ["SHARED", cop(50_000), cop(100_000)],
     ]);
-    expect(view.consumption.total).toEqual(cop(50_000));
+    expect(view.consumption.total).toEqual(cop(80_000));
+    // "Solo tú": her personal space's categories with their colors; a shared space lists none.
+    expect(view.bySpace[0]!.categories).toEqual([
+      {
+        id: expect.any(String),
+        name: expect.any(String),
+        color: expect.stringMatching(/^[A-Z]+$/),
+        amount: cop(30_000),
+      },
+    ]);
+    expect(view.bySpace[1]!.categories).toBeUndefined();
   });
 });

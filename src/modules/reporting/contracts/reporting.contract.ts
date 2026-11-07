@@ -364,6 +364,20 @@ export const UnifiedViewSchema = z.object({
         }),
         consumed: MoneySchema,
         paid: MoneySchema,
+        /**
+         * Ruling P306 ("Solo tú"): the personal space only, its spending per category (a subcategory under its parent),
+         * the largest first, each with the color it shows (null without one).
+         */
+        categories: z
+          .array(
+            z.object({
+              id: z.string(),
+              name: z.string(),
+              color: z.enum(PALETTE).nullable(),
+              amount: MoneySchema,
+            }),
+          )
+          .optional(),
       }),
     )
     .optional(),
@@ -407,6 +421,7 @@ export const unifiedViewDto = (view: UnifiedPersonalView): z.infer<typeof Unifie
       space: { ...s.space },
       consumed: money(s.consumed),
       paid: money(s.paid),
+      ...(s.categories ? { categories: s.categories.map((c) => ({ ...c, amount: money(c.amount) })) } : {}),
     })),
     otherCurrencySpaces: view.otherCurrencySpaces.map((s) => ({ ...s })),
   };

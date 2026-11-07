@@ -30,4 +30,4 @@ Feature: Shared expense form
     Given "Ana" recorded "Groceries" in "Household" for 300,000 COP paid from "Bancolombia", split equally between "Ana" and "Juan"
     When "Ana" opens her personal home
     Then Recientes shows "Groceries" tagged "Household" reading "Registraste tú · pagaste $ 300.000 · tu parte $ 150.000"
-    And the headline breaks the month down into "Personal" and "Household"
+    And the headline's "Con otros" opens to "Household"

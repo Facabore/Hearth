@@ -100,10 +100,11 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
         }),
     });
     const spa = renderSpa("/spaces/sp-personal", routes);
-    const link = await screen.findByRole("link", { name: "Ver por categoría" });
-    expect(link).toHaveAttribute("href", "/spaces/sp-personal/my-consumption?period=2026-10");
-    const summary = screen.getByRole("region", { name: es.home.summary });
+    // Ruling P306: one figure, her month across her spaces, split into "Solo tú" and "Con otros".
+    const summary = await screen.findByRole("region", { name: es.home.summary });
+    await waitFor(() => expect(summary.textContent).toContain(es.home.solo));
     expect(summary.textContent?.replace(/\s/g, " ")).toContain("$ 1.575.000");
+    expect(summary.textContent).toContain(es.home.withOthers);
     const row = await screen.findByRole("link", { name: /Mercado del mes/ });
     expect(row).toHaveAttribute("href", "/spaces/sp-hogar?tx=t-hogar");
     expect(within(row).getByText("Hogar")).toBeInTheDocument();
@@ -125,7 +126,7 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
         ).toMatchObject({ status: "error", fetchStatus: "idle" }),
       { timeout: 5_000 },
     );
-    expect(screen.queryByRole("link", { name: "Ver por categoría" })).not.toBeInTheDocument();
+    expect(screen.queryByText(es.home.withOthers)).not.toBeInTheDocument();
     // The toast provider's live region is always mounted; a failed optional read leaves it empty.
     expect(screen.getByRole("alert")).toBeEmptyDOMElement();
   });
@@ -142,7 +143,7 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     const shared = renderSpa("/spaces/sp-household", ledgerApi().routes);
     expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
     await settled(shared);
-    expect(screen.queryByRole("link", { name: "Ver por categoría" })).not.toBeInTheDocument();
+    expect(screen.queryByText(es.home.withOthers)).not.toBeInTheDocument();
     expect(calls([...spa.requests, ...shared.requests], "GET", /\/me\/(unified-view|activity)/)).toHaveLength(
       0,
     );

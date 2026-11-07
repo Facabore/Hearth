@@ -10,7 +10,6 @@ import {
   UnifiedSummary,
   unifiedMonthOf,
 } from "@/modules/ledger/ui";
-import { myConsumptionHref } from "@/modules/reporting/ui";
 import { SpaceStanding, type MyBalanceDto } from "@/modules/spaces/ui";
 import type { SpaceDto } from "@/shared/ui/api/dto";
 import { nowIn } from "@/shared/ui/time/when";
@@ -102,7 +101,7 @@ export function SpaceHome() {
         summary={
           unified && allSpaces ? (
             <UnifiedSummary
-              unified={unifiedMonthOf(allSpaces, myConsumptionHref(space, page.period.label))}
+              unified={unifiedMonthOf(allSpaces)}
               page={page}
               policy={space.periodPolicy}
               formats={context.formats}

@@ -1,18 +1,114 @@
-import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { shownAmount, useAmountsHidden } from "@/modules/spaces/ui";
+import { Icon, paletteVars } from "@/shared/ui";
 import { SpaceChip } from "@/shared/ui/atoms/space-chip";
 import type { MoneyDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
 import { formatDate, type Formats } from "@/shared/ui/format/formatters";
 import { periodName } from "@/shared/ui/time/period-name";
-import type { UnifiedMonth } from "./feed";
+import type { MonthPart, UnifiedMonth } from "./feed";
+
+/** A share of the bar in basis points, from the amounts (bigint, minor units); a share that shows is never under 2 %. */
+const shareOf = (amount: MoneyDto, total: MoneyDto): number => {
+  const whole = BigInt(total.amount);
+  return whole <= 0n ? 0 : Math.max(200, Number((BigInt(amount.amount) * 10_000n) / whole));
+};
 
 /**
- * Ruling P306 (boards "Inicio personal · todo en un lugar · tu parte" and "… · lo que pagaste"): the personal Inicio's
- * headline for someone with other spaces. Her share of the period by default, what she paid on the switch, broken down
- * per space (the personal one by name, the others by their chip), and Ver por categoría into Mi consumo. It draws in
- * the first paint, so its height never moves what is under it.
+ * One part of the month, "Solo tú" or "Con otros": a button with its amount that opens, in the card, a bar in the
+ * colors of what it holds and the list of it, each named (never color alone); the bar itself is decoration.
+ */
+function Part({
+  label,
+  part,
+  chips,
+  money,
+}: {
+  readonly label: string;
+  readonly part: MonthPart;
+  /** Groups wear their space's chip; categories a dot of their color before their name. */
+  readonly chips: boolean;
+  readonly money: (amount: MoneyDto) => string;
+}) {
+  const id = useId();
+  const [open, setOpen] = useState(false);
+  const any = part.items.length > 0;
+  const head = (
+    <>
+      <span className="font-medium text-ink">{label}</span>
+      <span className="flex items-center gap-1.5 font-semibold whitespace-nowrap text-ink">
+        {money(part.amount)}
+        {any ? (
+          <Icon
+            name="chevronDown"
+            size={18}
+            className={open ? "rotate-180 transition-transform" : "transition-transform"}
+          />
+        ) : null}
+      </span>
+    </>
+  );
+  return (
+    <div className="flex flex-col">
+      {any ? (
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={id}
+          onClick={() => setOpen((was) => !was)}
+          className="flex min-h-12 items-center justify-between gap-3 text-left"
+        >
+          {head}
+        </button>
+      ) : (
+        <div className="flex min-h-12 items-center justify-between gap-3">{head}</div>
+      )}
+      {any ? (
+        <div id={id} hidden={!open} className="flex flex-col gap-2 pb-2">
+          <div aria-hidden="true" className="flex h-2.5 gap-0.5 overflow-hidden rounded-full">
+            {part.items.map((item) => (
+              <span
+                key={item.id}
+                style={{
+                  ...paletteVars(item.color ?? "GRAPHITE"),
+                  flexGrow: shareOf(item.amount, part.amount),
+                }}
+                className="h-full bg-[var(--ink)]"
+              />
+            ))}
+          </div>
+          <ul className="flex flex-col">
+            {part.items.map((item) => (
+              <li key={item.id} className="flex items-center justify-between gap-3 py-1 text-sm">
+                {chips ? (
+                  <SpaceChip name={item.name} color={item.color ?? "GRAPHITE"} />
+                ) : (
+                  <span className="flex min-w-0 items-center gap-2 text-ink-2">
+                    <span
+                      aria-hidden="true"
+                      style={paletteVars(item.color ?? "GRAPHITE")}
+                      className="size-2.5 shrink-0 rounded-full bg-[var(--ink)]"
+                    />
+                    <span className="[overflow-wrap:anywhere]">{item.name}</span>
+                  </span>
+                )}
+                <span className="shrink-0 font-semibold whitespace-nowrap text-ink">
+                  {money(item.amount)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Ruling P306 (boards "Inicio personal · solo tú y con otros · cerrado" and "… · abiertos", amending the switch of
+ * "Tu parte / Lo que pagaste"): the personal Inicio's headline for someone with other spaces. One figure, what her month
+ * cost her, and its two parts, "Solo tú" and "Con otros", each opening in the card. What she paid for others lives in
+ * "Te toca poner / recibir" under it. It draws in the first paint, so it never moves what is under it.
  */
 export function UnifiedSummary({
   unified,
@@ -32,69 +128,22 @@ export function UnifiedSummary({
   const common = useTranslations("common");
   const hidden = useAmountsHidden(personId);
   const money = (amount: MoneyDto) => shownAmount(amount, hidden, formats);
-  const [mode, setMode] = useState<"share" | "paid">("share");
-  const paid = mode === "paid";
   const name = periodName(page.period, policy);
   return (
-    <section aria-label={t("summary")} className="flex flex-col gap-1.5 rounded-2xl bg-surface p-3">
+    <section aria-label={t("summary")} className="flex flex-col rounded-2xl bg-surface p-3">
       <p className="text-sm text-muted">
         {name.kind === "month"
-          ? t(paid ? "paidIn" : "spentIn", { month: common(`month.${name.month as 1}`) })
-          : t(paid ? "paidBetween" : "spentBetween", {
-              start: formatDate(name.start, formats),
-              end: formatDate(name.end, formats),
-            })}
+          ? t("spentIn", { month: common(`month.${name.month as 1}`) })
+          : t("spentBetween", { start: formatDate(name.start, formats), end: formatDate(name.end, formats) })}
       </p>
       <p className="text-[clamp(1.75rem,8.5vw,2rem)] leading-tight font-semibold [overflow-wrap:anywhere] text-ink">
-        {money(paid ? unified.paid : unified.consumed)}
+        {money(unified.consumed)}
       </p>
-      {/* An API without the per-space figures (bySpace) has no "what she paid": her share alone, as before. */}
-      {unified.bySpace.length > 0 ? (
-        <div
-          role="group"
-          aria-label={t("mode.label")}
-          className="grid grid-cols-2 gap-1 rounded-full bg-bg p-1"
-        >
-          {(["share", "paid"] as const).map((option) => (
-            <button
-              key={option}
-              type="button"
-              aria-pressed={mode === option}
-              onClick={() => setMode(option)}
-              className={`min-h-11 rounded-full px-3 text-sm ${
-                mode === option
-                  ? "bg-surface font-semibold text-ink shadow-sm ring-1 ring-line"
-                  : "font-medium text-muted"
-              }`}
-            >
-              {t(`mode.${option}`)}
-            </button>
-          ))}
-        </div>
-      ) : null}
-      {unified.bySpace.length > 0 ? (
-        <ul aria-label={t("bySpace")} className="flex flex-col divide-y divide-line rounded-xl bg-bg px-3">
-          {unified.bySpace.map((space) => (
-            <li key={space.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-              {space.kind === "PERSONAL" ? (
-                <span className="min-w-0 [overflow-wrap:anywhere] text-ink-2">{space.name}</span>
-              ) : (
-                <SpaceChip name={space.name} color={space.color} />
-              )}
-              <span className="shrink-0 font-semibold whitespace-nowrap text-ink">
-                {money(paid ? space.paid : space.consumed)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      <div className="mt-1 flex flex-col divide-y divide-line">
+        <Part label={t("solo")} part={unified.solo} chips={false} money={money} />
+        <Part label={t("withOthers")} part={unified.withOthers} chips money={money} />
+      </div>
       <p className="text-sm text-muted">{t("income", { amount: money(page.totals.income) })}</p>
-      <Link
-        href={unified.href}
-        className="flex min-h-11 items-center self-start text-sm font-medium text-accent"
-      >
-        {t("byCategory")}
-      </Link>
     </section>
   );
 }

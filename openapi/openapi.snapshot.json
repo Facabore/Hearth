@@ -12700,6 +12700,58 @@
                           },
                           "paid": {
                             "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "categories": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "color": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "PINE",
+                                        "SAGE",
+                                        "OLIVE",
+                                        "SAND",
+                                        "MUSTARD",
+                                        "AMBER",
+                                        "EMBER",
+                                        "CORAL",
+                                        "ROSE",
+                                        "PLUM",
+                                        "LAVENDER",
+                                        "INDIGO",
+                                        "SKY",
+                                        "TEAL",
+                                        "STEEL",
+                                        "GRAPHITE"
+                                      ]
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "amount": {
+                                  "$ref": "#/components/schemas/MoneyOutput"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "color",
+                                "amount"
+                              ],
+                              "additionalProperties": false
+                            }
                           }
                         },
                         "required": [
