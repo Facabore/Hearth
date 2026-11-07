@@ -297,7 +297,7 @@ describe("record form (HU-E9-03)", () => {
       amount: { amount: "8500000", currency: "COP" },
       accountId: "a-bank",
     });
-    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/transactions");
+    expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/transactions", { scroll: false });
     expect(await axeViolations(container)).toEqual([]);
   });
 

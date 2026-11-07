@@ -137,7 +137,9 @@ describe("the recurrence form (HU-E9-09, P270)", () => {
     expect(screen.getByRole("radio", { name: "Automático" })).toBeChecked();
     await userEvent.click(screen.getByRole("button", { name: "Guardar recurrente" }));
 
-    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/recurrences"));
+    await waitFor(() =>
+      expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/recurrences", { scroll: false }),
+    );
     const define = requests.find(
       (r) => r.method === "POST" && /\/recurrences$/.test(new URL(r.url).pathname),
     )!;
@@ -288,7 +290,9 @@ describe("the recurrence form (HU-E9-09, P270)", () => {
     await userEvent.type(amount, "1300000");
     await userEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
     await waitFor(() =>
-      expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/recurrences/r-rent"),
+      expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/recurrences/r-rent", {
+        scroll: false,
+      }),
     );
     const [patch] = await bodies(requests, "PATCH", /\/recurrences\/r-rent$/);
     expect(patch).toEqual({

@@ -104,7 +104,7 @@ describe("edit a transaction (rulings P191, P193)", () => {
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
     await retype("95000");
     await save();
-    await waitFor(() => expect(router.replace).toHaveBeenCalledWith(SHEET));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith(SHEET, { scroll: false }));
     expect(requests).toHaveLength(1);
     const [request] = requests;
     expect(request!.method).toBe("PATCH");
@@ -119,7 +119,7 @@ describe("edit a transaction (rulings P191, P193)", () => {
     const { api, requests } = fakeApi({});
     renderForm(api);
     await save();
-    await waitFor(() => expect(router.replace).toHaveBeenCalledWith(SHEET));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith(SHEET, { scroll: false }));
     expect(requests).toEqual([]);
     expect(router.refresh).not.toHaveBeenCalled();
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
@@ -292,7 +292,7 @@ describe("edit a transaction (rulings P191, P193)", () => {
     });
     renderForm(api, LIST, { tx: guestPaid, shared, space: householdSpace({ id: "s-1" }) });
     await save();
-    await waitFor(() => expect(router.replace).toHaveBeenCalledWith(SHEET));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith(SHEET, { scroll: false }));
     expect(requests).toEqual([]);
   });
 });
@@ -452,7 +452,7 @@ describe("change a movement's type while editing it (issue #195)", () => {
     expect(screen.queryByText(/este movimiento cambia a/)).not.toBeInTheDocument();
     await retype("95000");
     await save();
-    await waitFor(() => expect(router.replace).toHaveBeenCalledWith(SHEET));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith(SHEET, { scroll: false }));
     expect(requests.map((r) => r.method)).toEqual(["PATCH"]);
   });
 
