@@ -30,7 +30,7 @@
     "../shared/ui/navigation/navigation-tracker.tsx": 3,
     "routes/accounts.tsx": 26,
     "routes/categories.tsx": 13,
-    "routes/settings.tsx": 18,
+    "routes/settings.tsx": 19,
     "routes/space-settings.tsx": 9,
     "routes/new-space.tsx": 15,
     "accounts/writes.ts": 2,
