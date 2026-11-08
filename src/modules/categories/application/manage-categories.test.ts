@@ -173,4 +173,18 @@ describe("category tree management (HU-E3-02)", () => {
     });
     expect(codeOf(result)).toBe("CategoryGroupNotFound");
   });
+
+  it("never lets a member who records place a category in another space's group or under its category (P308)", async () => {
+    const { categories, group, category, create } = await setup();
+    const before = categories.categories.length;
+    const personalFood = group("space-ana", "Alimentación");
+    expect(codeOf(await create({ ...asLuis, groupId: personalFood.id, name: "Pan" }))).toBe(
+      "CategoryGroupNotFound",
+    );
+    const personalMarket = category("space-ana", "Mercado");
+    expect(codeOf(await create({ ...asLuis, parentCategoryId: personalMarket.id, name: "Pan" }))).toBe(
+      "CategoryNotFound",
+    );
+    expect(categories.categories).toHaveLength(before);
+  });
 });

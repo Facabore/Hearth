@@ -320,7 +320,8 @@ function SheetBody({
             // Ruling P308: what was searched becomes the new category's name, in the group the picker showed.
             <button
               type="button"
-              onClick={() => onNew(query.trim(), openGroup ?? live[0]!.id)}
+              // A category's name has at most 60 characters, as its field does.
+              onClick={() => onNew(query.trim().slice(0, 60), openGroup ?? live[0]!.id)}
               className="flex min-h-14 items-center gap-3 rounded-2xl border-[1.5px] border-accent bg-accent-soft px-3 py-2 text-left"
             >
               <span

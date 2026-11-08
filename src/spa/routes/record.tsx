@@ -96,14 +96,16 @@ function RecordFormScreen({
         api={api}
         spaces={viewer.spaces.filter((space) => controlsFor(space.role, space.kind).recordMoney)}
         onCategoryCreated={(made) => {
-          // Ruling P308: the form's tree holds the new category at once, and every read of the space's tree is redone.
-          cache.setQueryData(categoriesQuery(api, spaceId, "active").queryKey, (tree) =>
-            tree?.map((g) =>
-              g.id === made.groupId
-                ? { ...g, categories: [...g.categories, { ...made, subcategories: [] }] }
-                : g,
-            ),
-          );
+          // Ruling P308: the space's trees hold the new category at once (the form's and the one the screens behind
+          // it name rows with), and every read of them is redone.
+          for (const archived of ["active", "all"] as const)
+            cache.setQueryData(categoriesQuery(api, spaceId, archived).queryKey, (tree) =>
+              tree?.map((g) =>
+                g.id === made.groupId
+                  ? { ...g, categories: [...g.categories, { ...made, subcategories: [] }] }
+                  : g,
+              ),
+            );
           void cache.invalidateQueries({ queryKey: ["categories", spaceId] });
         }}
       />
