@@ -1,5 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
 import {
@@ -136,12 +137,18 @@ describe("the board's order (ruling P291, board B1 · 01)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
-  it("names the account, the date and time and the space in compact chips; the account and date open", async () => {
+  it("names the account and the date and time in compact chips, the space first (P308); the account and date open", async () => {
     personal(fakeApi({}).api);
     const chips = screen.getByRole("group", { name: "Detalles del movimiento" });
     expect(within(chips).getByRole("button", { name: /Cuenta/ })).toHaveTextContent("Bancolombia");
     expect(within(chips).getByTestId("when-chip")).toHaveTextContent("Hoy · 23:30");
-    expect(within(chips).getByText(spaceDto().name)).toBeInTheDocument();
+    expect(within(chips).queryByText(spaceDto().name)).toBeNull();
+    // Ruling P308: the space is named above the kind tabs, since what follows depends on it.
+    const recordIn = screen.getByText("Registrar en");
+    expect(recordIn.parentElement).toHaveTextContent(spaceDto().name);
+    expect(
+      recordIn.compareDocumentPosition(screen.getByRole("tablist")) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(within(chips).getAllByRole("button")).toHaveLength(2);
     for (const chip of within(chips).getAllByRole("button")) expect(chip).toHaveClass("min-h-11");
     await userEvent.click(within(chips).getByRole("button", { name: /Cuenta/ }));
@@ -199,6 +206,76 @@ describe("the board's order (ruling P291, board B1 · 01)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     await waitFor(() => expect(requests).toHaveLength(1));
     expect(await requests[0]!.json()).toMatchObject({ categoryId: "c-dining" });
+  });
+});
+
+describe("a category created from the picker (ruling P308)", () => {
+  it("offers no new category without a way to hand it back", async () => {
+    personal(fakeApi({}).api);
+    await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+    const picker = await screen.findByRole("dialog", { name: "Categoría" });
+    expect(within(picker).getByText("Categorías de Personal")).toBeInTheDocument();
+    expect(within(picker).queryByRole("button", { name: "Nueva categoría" })).toBeNull();
+  });
+
+  it("comes back chosen in the form, keeps what was typed, and the save records the movement in it", async () => {
+    const onCategoryCreated = vi.fn();
+    // The route puts the new category in the tree it hands the form, as this harness does.
+    function Harness({ api }: { readonly api: Api }) {
+      const [tree, setTree] = useState(groups);
+      return (
+        <RecordForm
+          space={householdSpace({ name: "Viaje" })}
+          accounts={accounts}
+          groups={tree}
+          formats={BUILT_IN_FORMATS}
+          initialKind="EXPENSE"
+          initialNow="2026-11-01T04:30:00.000Z"
+          timeZone="America/Bogota"
+          api={api}
+          onCategoryCreated={(made) => {
+            onCategoryCreated(made);
+            setTree((list) =>
+              list.map((g) =>
+                g.id === made.groupId
+                  ? { ...g, categories: [...g.categories, { ...made, subcategories: [] }] }
+                  : g,
+              ),
+            );
+          }}
+        />
+      );
+    }
+    const { api, requests } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/categories": async (request) => {
+        const body = await request.clone().json();
+        return jsonResponse(categoryDto({ id: "c-hotel", ...body }), 201);
+      },
+      "POST /api/v1/spaces/{spaceId}/expenses": () => jsonResponse(transactionDto({ id: "t-new" }), 201),
+    });
+    renderWithIntl(<Harness api={api} />);
+    await userEvent.type(amount(), "45000");
+    await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+    const picker = await screen.findByRole("dialog", { name: "Categoría" });
+    expect(within(picker).getByText("Categorías de Viaje")).toBeInTheDocument();
+    await userEvent.click(within(picker).getByRole("button", { name: "Nueva categoría" }));
+    const sheet = await screen.findByRole("dialog", { name: "Nueva categoría" });
+    expect(within(sheet).getByText("En Viaje · la verán todos en el espacio")).toBeInTheDocument();
+    await userEvent.type(await within(sheet).findByLabelText("Nombre"), "Bebidas en el hotel");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Crear y usar en el gasto" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(onCategoryCreated).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "c-hotel", groupId: "g-food" }),
+    );
+    // The new category is the chosen tile, and the amount typed before is still there.
+    expect(screen.getByRole("button", { name: "Bebidas en el hotel" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(amount()).toHaveValue("45.000");
+    const categoryRequest = requests.find((r) => new URL(r.url).pathname.endsWith("/categories"))!;
+    expect(new URL(categoryRequest.url).pathname).toBe(`/api/v1/spaces/${householdSpace().id}/categories`);
+    expect(await categoryRequest.clone().json()).toEqual({ groupId: "g-food", name: "Bebidas en el hotel" });
   });
 });
 

@@ -21,6 +21,7 @@ import { useToast } from "@/shared/ui/molecules/toast";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type {
   AccountDto,
+  CategoryDto,
   CategoryGroupDto,
   DirectSplitDto,
   RecordedExpenseDto,
@@ -194,6 +195,11 @@ export interface RecordFormProps {
   readonly holdNavigation?: HoldNavigation;
   /** Ruling P305: the spaces the person records in; with more than one, the space chip changes it (never in an edit). */
   readonly spaces?: readonly Pick<SpaceDto, "id" | "name">[];
+  /**
+   * Ruling P308: the picker offers "Nueva categoría" only with it; the category made there is handed to it, which puts
+   * it in `groups`, and the form chooses it.
+   */
+  readonly onCategoryCreated?: (category: CategoryDto) => void;
 }
 
 /** HU-E9-03, the QuickAdd artboard as a page: amount, description, category, accounts, date and time, Save. */
@@ -214,6 +220,7 @@ export function RecordForm({
   returnTo = null,
   holdNavigation,
   spaces = [],
+  onCategoryCreated,
 }: RecordFormProps) {
   const t = useTranslations("ledger");
   const errors = useTranslations("errors");
@@ -564,6 +571,25 @@ export function RecordForm({
       className="flex flex-col gap-3"
     >
       <div>
+        {/* Ruling P308: the space comes first, since the categories, the accounts and the split below depend on it. */}
+        <div className="mb-3 flex items-center gap-2">
+          {edit ? null : <span className="text-sm text-muted">{t("form.recordIn")}</span>}
+          <FormChip
+            name={spaceLabel("title")}
+            value={space.name}
+            icon={<Icon name="home" size={16} />}
+            {...(!edit && spaces.length > 1
+              ? {
+                  opens: true,
+                  ariaLabel: t("form.space", { name: space.name }),
+                  onClick: () => {
+                    setSpaceOpened(true);
+                    setSheet("space");
+                  },
+                }
+              : {})}
+          />
+        </div>
         {kindTabs ? (
           <KindTabs
             label={t("form.kind")}
@@ -692,20 +718,6 @@ export function RecordForm({
                   setSheet("when");
                 }}
               />
-              <FormChip
-                name={spaceLabel("title")}
-                value={space.name}
-                icon={<Icon name="home" size={16} />}
-                {...(!edit && spaces.length > 1
-                  ? {
-                      ariaLabel: t("form.space", { name: space.name }),
-                      onClick: () => {
-                        setSpaceOpened(true);
-                        setSheet("space");
-                      },
-                    }
-                  : {})}
-              />
             </div>
             {chipErrors.map(({ field, error }) => (
               <RowError key={field} id={`record-${field}-error`}>
@@ -817,6 +829,20 @@ export function RecordForm({
             setCategory(choice);
             clear("category");
           }}
+          space={space}
+          {...(onCategoryCreated
+            ? {
+                creation: {
+                  api,
+                  kind,
+                  onCreated: (made: CategoryDto) => {
+                    onCategoryCreated(made);
+                    setCategory({ categoryId: made.id, subcategoryId: null });
+                    clear("category");
+                  },
+                },
+              }
+            : {})}
         />
       )}
       <AccountPicker

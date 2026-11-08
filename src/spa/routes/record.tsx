@@ -8,6 +8,7 @@ import { safeReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { useApis } from "../api";
 import { useRecord } from "../ledger/form-hooks";
 import { ledgerKeys } from "../ledger/queries";
+import { categoriesQuery } from "../reads";
 import { useViewer } from "../viewer";
 import { useHoldNavigation } from "../hold-navigation";
 import type { Viewer } from "../load";
@@ -94,6 +95,17 @@ function RecordFormScreen({
         holdNavigation={holdNavigation}
         api={api}
         spaces={viewer.spaces.filter((space) => controlsFor(space.role, space.kind).recordMoney)}
+        onCategoryCreated={(made) => {
+          // Ruling P308: the form's tree holds the new category at once, and every read of the space's tree is redone.
+          cache.setQueryData(categoriesQuery(api, spaceId, "active").queryKey, (tree) =>
+            tree?.map((g) =>
+              g.id === made.groupId
+                ? { ...g, categories: [...g.categories, { ...made, subcategories: [] }] }
+                : g,
+            ),
+          );
+          void cache.invalidateQueries({ queryKey: ["categories", spaceId] });
+        }}
       />
     </div>
   );

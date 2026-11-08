@@ -362,7 +362,16 @@
       "all": "Todas",
       "none": "Sin subcategoría",
       "use": "Usar {path}",
-      "noMatch": "No hay ninguna categoría «{query}»."
+      "noMatch": "No hay ninguna categoría «{query}».",
+      "of": "Categorías de {space}",
+      "new": "Nueva categoría",
+      "create": "Crear «{name}» como categoría",
+      "createIn": "En {space}, sin salir del registro",
+      "shared": "En {space} · la verán todos en el espacio",
+      "own": "En {space} · solo tú la ves",
+      "name": "Nombre",
+      "group": "Grupo",
+      "save": "Crear y usar en el {kind, select, INCOME {ingreso} other {gasto}}"
     },
     "title": "Categorías"
   },
@@ -502,6 +511,7 @@
       "to": "Hacia",
       "chooseAccount": "Elegir cuenta",
       "when": "Fecha y hora: {label}. Cambiar",
+      "recordIn": "Registrar en",
       "space": "Espacio: {name}. Cambiar",
       "spaceTitle": "¿En qué espacio lo registras?",
       "moreOptions": "Más opciones",

@@ -689,6 +689,8 @@ Feature: Personal dashboards
 
 **User story:** As a member who manages the category tree, I want to create or edit a category from the expense form without losing what I typed, so that recording an expense never stops for housekeeping.
 
+> **Ruling P308 (2026-11-07, #272)** took this story's new-category entry, trimmed to a name and a group, for any member who records (OWNER, ADMIN, MEMBER), not only those who manage the tree; the last scenario below no longer holds for creating. Editing from the form, icons and colors, subcategories and new groups from the form remain this story's.
+
 ```gherkin
 Feature: Manage categories without leaving the expense form
 

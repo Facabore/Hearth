@@ -362,7 +362,16 @@
       "all": "All",
       "none": "No subcategory",
       "use": "Use {path}",
-      "noMatch": "There is no category “{query}”."
+      "noMatch": "There is no category “{query}”.",
+      "of": "{space} categories",
+      "new": "New category",
+      "create": "Create “{name}” as a category",
+      "createIn": "In {space}, without leaving the record",
+      "shared": "In {space} · everyone in the space will see it",
+      "own": "In {space} · only you see it",
+      "name": "Name",
+      "group": "Group",
+      "save": "Create and use in the {kind, select, INCOME {income} other {expense}}"
     },
     "title": "Categories"
   },
@@ -502,6 +511,7 @@
       "to": "To",
       "chooseAccount": "Choose an account",
       "when": "Date and time: {label}. Change",
+      "recordIn": "Record in",
       "space": "Space: {name}. Change",
       "spaceTitle": "Which space do you record it in?",
       "moreOptions": "More options",
