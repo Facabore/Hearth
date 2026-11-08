@@ -6,6 +6,7 @@ import { es } from "@/i18n/messages/full";
 import {
   accountDto,
   activityItemDto,
+  categoryDto,
   householdSpace,
   meDto,
   memberDto,
@@ -323,6 +324,45 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     // The amount never travels in the address, and what depends on the space starts afresh.
     expect(spa.location()).not.toContain("25");
     expect(document.querySelector('button[aria-pressed="true"]')).toBeNull();
+  });
+
+  it("creates a category in the form's space from its picker, chooses it, and reads the space's tree again (P308)", async () => {
+    let tree = rowContext.groups;
+    // A MEMBER, who does not manage the tree, creates one (P308).
+    const { routes } = ledgerApi({
+      "GET /api/v1/spaces": () => jsonResponse({ items: [spaceDto(), householdSpace({ role: "MEMBER" })] }),
+      "GET /api/v1/spaces/{spaceId}/categories": () => jsonResponse({ items: tree }),
+      "POST /api/v1/spaces/{spaceId}/categories": async (request) => {
+        const body = await request.clone().json();
+        const made = categoryDto({ id: "c-hotel", ...body });
+        tree = tree.map((g) => (g.id === body.groupId ? { ...g, categories: [...g.categories, made] } : g));
+        return jsonResponse(made, 201);
+      },
+    });
+    const spa = renderSpa("/spaces/sp-household/new", routes);
+    await userEvent.type(await screen.findByLabelText(es.ledger.form.amount), "45000");
+    // Ruling P308: the space is named first, above the kind tabs.
+    expect(screen.getByText(es.ledger.form.recordIn)).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: es.ledger.form.chooseCategory }));
+    const picker = await screen.findByRole("dialog", { name: es.categories.picker.title });
+    expect(within(picker).getByText("Categorías de Household")).toBeVisible();
+    await userEvent.click(within(picker).getByRole("button", { name: es.categories.picker.new }));
+    const sheet = await screen.findByRole("dialog", { name: es.categories.picker.new });
+    await userEvent.type(
+      await within(sheet).findByLabelText(es.categories.picker.name),
+      "Bebidas en el hotel",
+    );
+    const reads = calls(spa.requests, "GET", /\/sp-household\/categories/).length;
+    await userEvent.click(within(sheet).getByRole("button", { name: "Crear y usar en el gasto" }));
+    expect(await screen.findByRole("button", { name: "Bebidas en el hotel" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(calls(spa.requests, "POST", /\/sp-household\/categories$/)).toHaveLength(1);
+    await waitFor(() =>
+      expect(calls(spa.requests, "GET", /\/sp-household\/categories/).length).toBeGreaterThan(reads),
+    );
+    expect(screen.getByLabelText(es.ledger.form.amount)).toHaveValue("45.000");
   });
 
   it("opens the edit form on the transaction, and a transaction that does not exist is not found", async () => {

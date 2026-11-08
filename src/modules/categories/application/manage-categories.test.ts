@@ -18,13 +18,15 @@ import { createUpdateCategory } from "./update-category";
 
 const household = membership({ spaceId: "space-household", name: "Household", spaceKind: "SHARED" });
 const sofi = membership({ ...household, memberId: "member-sofi", userId: "u-sofi", role: "VIEWER" });
+const luis = membership({ ...household, memberId: "member-luis", userId: "u-luis", role: "MEMBER" });
+const asLuis = { spaceId: "space-household", userId: "u-luis" };
 const asAna = { spaceId: "space-household", userId: "u-ana" };
 
 const setup = async () => {
   const categories = new InMemoryCategories();
   const deps: CategoriesDeps = {
     categories,
-    access: fakeSpaceAccess(household, sofi, membership()),
+    access: fakeSpaceAccess(household, sofi, luis, membership()),
     ids: sequentialIds("cat"),
     clock: new FixedClock(new Date("2026-10-12T12:00:00Z")),
     tm: memoryTm,
@@ -92,6 +94,33 @@ describe("category tree management (HU-E3-02)", () => {
     expect(codeOf(await create({ ...asAna, groupId: food.id, name: "groceries" }))).toBe("CategoryNameTaken");
   });
 
+  it("lets a member who records create a category and a subcategory (P308)", async () => {
+    const { categories, group, category, create } = await setup();
+    const food = group("space-household", "Food");
+    const bakery = unwrap(await create({ ...asLuis, groupId: food.id, name: "Bakery" }));
+    expect(bakery).toMatchObject({ groupId: food.id, name: "Bakery" });
+    const groceries = category("space-household", "Groceries");
+    expect(unwrap(await create({ ...asLuis, parentCategoryId: groceries.id, name: "Bread" }))).toMatchObject({
+      parentCategoryId: groceries.id,
+    });
+    expect(categories.categories.filter((c) => c.spaceId === "space-household").map((c) => c.name)).toEqual(
+      expect.arrayContaining(["Bakery", "Bread"]),
+    );
+  });
+
+  it("still keeps groups and edits to OWNER and ADMIN (P308)", async () => {
+    const { group, category, createGroup, renameGroup, update } = await setup();
+    const food = group("space-household", "Food");
+    expect(codeOf(await createGroup({ ...asLuis, name: "Trips" }))).toBe("InsufficientRole");
+    expect(codeOf(await renameGroup({ ...asLuis, groupId: food.id, name: "Eating" }))).toBe(
+      "InsufficientRole",
+    );
+    const groceries = category("space-household", "Groceries");
+    expect(codeOf(await update({ ...asLuis, categoryId: groceries.id, name: "Market" }))).toBe(
+      "InsufficientRole",
+    );
+  });
+
   it("forbids viewers", async () => {
     const { group, create } = await setup();
     const leisure = group("space-household", "Leisure");
@@ -143,5 +172,19 @@ describe("category tree management (HU-E3-02)", () => {
       name: "Pan",
     });
     expect(codeOf(result)).toBe("CategoryGroupNotFound");
+  });
+
+  it("never lets a member who records place a category in another space's group or under its category (P308)", async () => {
+    const { categories, group, category, create } = await setup();
+    const before = categories.categories.length;
+    const personalFood = group("space-ana", "Alimentación");
+    expect(codeOf(await create({ ...asLuis, groupId: personalFood.id, name: "Pan" }))).toBe(
+      "CategoryGroupNotFound",
+    );
+    const personalMarket = category("space-ana", "Mercado");
+    expect(codeOf(await create({ ...asLuis, parentCategoryId: personalMarket.id, name: "Pan" }))).toBe(
+      "CategoryNotFound",
+    );
+    expect(categories.categories).toHaveLength(before);
   });
 });

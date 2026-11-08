@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Icon } from "@/shared/ui";
 
 /**
  * Ruling P291 (board B1 · 01): a compact chip of the record form (the account, the date and time, the space): an icon
@@ -13,6 +14,7 @@ export function FormChip({
   errorId,
   ariaLabel,
   testId,
+  opens,
 }: {
   readonly name: string;
   readonly value: string;
@@ -22,6 +24,8 @@ export function FormChip({
   /** A name that says more than the name and the value read together (the date's "Cambiar"). */
   readonly ariaLabel?: string;
   readonly testId?: string;
+  /** Ruling P308: a chevron says the chip opens a choice (the space at the top of Registrar). */
+  readonly opens?: boolean;
 }) {
   const content = (
     <>
@@ -30,6 +34,7 @@ export function FormChip({
       </span>
       <span className="sr-only">{`${name} `}</span>
       <span className="min-w-0 truncate">{value}</span>
+      {opens ? <Icon name="chevronDown" size={16} className="shrink-0 text-muted" /> : null}
     </>
   );
   const box =

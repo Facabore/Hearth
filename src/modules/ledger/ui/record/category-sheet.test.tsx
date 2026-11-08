@@ -1,11 +1,17 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
 import { categoryDto, groupDto } from "../../../../../tests/support/ui/dto";
+import {
+  fakeApi,
+  jsonResponse,
+  problemResponse,
+  type FakeHandler,
+} from "../../../../../tests/support/ui/fake-api";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import type { CategoryChoice } from "@/modules/categories/ui";
-import { CategorySheet } from "./category-sheet";
+import { CategorySheet, type CategoryCreation } from "./category-sheet";
 import type { RecentCategory } from "./recent-categories";
 
 const market = categoryDto({
@@ -32,7 +38,11 @@ const groups = [
   groupDto({ id: "g-old", key: "old", name: "Vieja", archivedAt: "2026-01-01T00:00:00Z", categories: [] }),
 ];
 
-const open = (value: CategoryChoice = null, recent: readonly RecentCategory[] = []) => {
+const open = (
+  value: CategoryChoice = null,
+  recent: readonly RecentCategory[] = [],
+  extra: { creation?: CategoryCreation; personal?: boolean } = {},
+) => {
   const onChoose = vi.fn();
   const onOpenChange = vi.fn();
   const view = renderWithIntl(
@@ -43,6 +53,8 @@ const open = (value: CategoryChoice = null, recent: readonly RecentCategory[] = 
       value={value}
       onChoose={onChoose}
       recent={recent}
+      space={{ id: "s-trip", name: "Viaje", kind: extra.personal ? "PERSONAL" : "SHARED" }}
+      {...(extra.creation ? { creation: extra.creation } : {})}
     />,
   );
   return { ...view, onChoose, onOpenChange, sheet: screen.getByRole("dialog", { name: "Categoría" }) };
@@ -117,5 +129,99 @@ describe("the record form's category picker (ruling P291, board B1 · 03)", () =
     await userEvent.clear(within(sheet).getByRole("searchbox"));
     await userEvent.type(within(sheet).getByRole("searchbox"), "zz");
     expect(within(sheet).getByText("No hay ninguna categoría «zz».")).toBeInTheDocument();
+  });
+});
+
+describe("a new category from the picker (ruling P308)", () => {
+  const creating = (handler?: FakeHandler, personal = false) => {
+    const onCreated = vi.fn();
+    const { api, requests } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/categories":
+        handler ??
+        (async (request) => {
+          const body = await request.clone().json();
+          return jsonResponse(categoryDto({ id: "c-new", ...body }), 201);
+        }),
+    });
+    const view = open(null, [], {
+      creation: { api, kind: "EXPENSE", onCreated },
+      personal,
+    });
+    return { ...view, onCreated, requests };
+  };
+
+  it("names the space whose categories it shows, and offers no new one without a way to create it", () => {
+    const { sheet } = open();
+    expect(within(sheet).getByText("Categorías de Viaje")).toBeInTheDocument();
+    expect(within(sheet).queryByRole("button", { name: "Nueva categoría" })).toBeNull();
+  });
+
+  it("creates the category in the space and group the picker shows, and hands it back chosen", async () => {
+    const { sheet, onCreated, onOpenChange, requests, baseElement } = creating();
+    await userEvent.click(within(sheet).getByRole("button", { name: /Alimentación/ }));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Nueva categoría" }));
+    const form = screen.getByRole("dialog", { name: "Nueva categoría" });
+    expect(within(form).getByText("En Viaje · la verán todos en el espacio")).toBeInTheDocument();
+    // The group the picker was showing is the one chosen; any live group of the kind can be.
+    // The form loads on the first "Nueva categoría", in a chunk of its own.
+    const group = await within(form).findByRole("radiogroup", { name: "Grupo" });
+    expect(within(group).getByRole("radio", { name: "Alimentación" })).toBeChecked();
+    expect(within(group).queryByRole("radio", { name: "Vieja" })).toBeNull();
+    const save = within(form).getByRole("button", { name: "Crear y usar en el gasto" });
+    expect(save).toBeDisabled();
+    await userEvent.type(within(form).getByLabelText("Nombre"), "  Bebidas en el hotel ");
+    expect(await axeViolations(baseElement)).toEqual([]);
+    await userEvent.click(save);
+    await waitFor(() => expect(onCreated).toHaveBeenCalled());
+    expect(requests).toHaveLength(1);
+    expect(new URL(requests[0]!.url).pathname).toBe("/api/v1/spaces/s-trip/categories");
+    expect(await requests[0]!.json()).toEqual({ groupId: "g-food", name: "Bebidas en el hotel" });
+    expect(onCreated).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "c-new", name: "Bebidas en el hotel" }),
+    );
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("turns a search with no match into the new category's name", async () => {
+    const { sheet, requests } = creating();
+    await userEvent.type(within(sheet).getByRole("searchbox"), "Pana");
+    await userEvent.click(
+      within(sheet).getByRole("button", {
+        name: /Crear «Pana» como categoría.*En Viaje, sin salir del registro/,
+      }),
+    );
+    const form = screen.getByRole("dialog", { name: "Nueva categoría" });
+    expect(await within(form).findByLabelText("Nombre")).toHaveValue("Pana");
+    await userEvent.click(within(form).getByRole("radio", { name: "Vivienda" }));
+    await userEvent.click(within(form).getByRole("button", { name: "Crear y usar en el gasto" }));
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(await requests[0]!.json()).toEqual({ groupId: "g-home", name: "Pana" });
+  });
+
+  it("says why it could not create, keeps what was typed, and goes back to the picker on cancel or Escape", async () => {
+    const { sheet, onCreated, onOpenChange } = creating(() => problemResponse(409, "CategoryNameTaken"));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Nueva categoría" }));
+    const form = screen.getByRole("dialog", { name: "Nueva categoría" });
+    await userEvent.type(await within(form).findByLabelText("Nombre"), "Mercado");
+    await userEvent.click(within(form).getByRole("button", { name: "Crear y usar en el gasto" }));
+    expect(await within(form).findByRole("alert")).toHaveTextContent(
+      "Ya hay una categoría con ese nombre aquí.",
+    );
+    expect(within(form).getByLabelText("Nombre")).toHaveValue("Mercado");
+    expect(onCreated).not.toHaveBeenCalled();
+    await userEvent.click(within(form).getByRole("button", { name: "Cancelar" }));
+    expect(screen.getByRole("dialog", { name: "Categoría" })).toBeInTheDocument();
+    await userEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Nueva categoría" }),
+    );
+    await userEvent.keyboard("{Escape}");
+    expect(screen.getByRole("dialog", { name: "Categoría" })).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("tells the person that a personal space's category is theirs alone", async () => {
+    const { sheet } = creating(undefined, true);
+    await userEvent.click(within(sheet).getByRole("button", { name: "Nueva categoría" }));
+    expect(screen.getByText("En Viaje · solo tú la ves")).toBeInTheDocument();
   });
 });
