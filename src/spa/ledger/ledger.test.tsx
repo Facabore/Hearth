@@ -458,7 +458,6 @@ describe("the personal Inicio is the person's hub (ruling P310, #274)", () => {
     vi.useRealTimers();
   });
 
-  const september = { label: "2026-09", startDate: "2026-09-01", endDate: "2026-09-30" };
   /** A monthly space's period holding `from`. */
   const monthOf = (from: string) => {
     const [year, month] = from.split("-").map(Number) as [number, number];
@@ -470,12 +469,16 @@ describe("the personal Inicio is the person's hub (ruling P310, #274)", () => {
     ledgerApi({
       "GET /api/v1/spaces/{spaceId}/periods": (request) =>
         jsonResponse({ items: [monthOf(new URL(request.url).searchParams.get("from")!)] }),
-      "GET /api/v1/spaces/{spaceId}/transactions": (request) =>
-        jsonResponse(
-          new URL(request.url).searchParams.get("period") === "2026-09"
-            ? { ...octoberPage, period: september, items: [] }
-            : octoberPage,
-        ),
+      "GET /api/v1/spaces/{spaceId}/transactions": (request) => {
+        const asked = new URL(request.url).searchParams.get("period");
+        // The API refuses a period that is no label (ValidationFailed); any other month answers empty.
+        if (asked !== null && !/^\d{4}-\d{2}$/.test(asked)) return problemResponse(422, "ValidationFailed");
+        return jsonResponse(
+          asked === null || asked === "2026-10"
+            ? octoberPage
+            : { ...octoberPage, period: monthOf(`${asked}-01`), items: [] },
+        );
+      },
       "GET /api/v1/me/unified-view": (request) =>
         jsonResponse(
           e74Unified({
@@ -541,6 +544,23 @@ describe("the personal Inicio is the person's hub (ruling P310, #274)", () => {
     expect(calls(spa.requests, "GET", /\/me\/activity\?from=2026-09-01&to=2026-09-30&limit=6$/)).toHaveLength(
       1,
     );
+  });
+
+  it("shows the current period for a `?period=` that is no period, rather than an error", async () => {
+    const spa = renderSpa("/spaces/sp-personal?period=octubre", hubApi());
+    expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
+    expect(screen.getByText("octubre 2026")).toBeInTheDocument();
+    await settled(spa);
+    expect(calls(spa.requests, "GET", /\/transactions\?/).map((r) => new URL(r.url).search)).toEqual([
+      "?limit=6",
+    ]);
+  });
+
+  it("keeps today's balances on a period after today's, which is not past", async () => {
+    renderSpa("/spaces/sp-personal?period=2026-12", hubApi());
+    expect(await screen.findByText("diciembre 2026")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: es.home.recent })).toBeVisible();
+    expect(screen.getByRole("heading", { name: es.home.accounts })).toBeVisible();
   });
 
   it("opens each part's movements: a category in the personal space, a space in its own period", async () => {

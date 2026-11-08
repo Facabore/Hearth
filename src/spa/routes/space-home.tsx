@@ -19,7 +19,7 @@ import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
 import { useHome, useTransactionDetail, useViewer } from "../ledger/hooks";
 import { showsUnifiedMonth } from "../load";
-import { FEED_ROWS, neighboursOf } from "../ledger/queries";
+import { FEED_ROWS, homeQueryOf, neighboursOf } from "../ledger/queries";
 import { lineReportQuery, myActivityQuery, periodQuery, unifiedViewQuery } from "../reads";
 import { myBalancesQuery, spaceStandingSlot } from "../shell";
 import { useTitle } from "../title";
@@ -70,9 +70,10 @@ export function SpaceHome() {
   // Ruling P310: the personal Inicio steps between periods; the current one is the plain address, as the API answers it.
   const holdsToday = (p: Pick<PeriodDto, "startDate" | "endDate">) =>
     p.startDate <= today && today <= p.endDate;
-  // Without `?period=` the API answers today's period, so the plain address is never a past one.
-  const current = period === undefined || holdsToday(page.period);
-  const past = personal && !current;
+  // Without a period asked for, the API answers today's, so the plain address is never another one.
+  const current = homeQueryOf(viewer, period).period === undefined || holdsToday(page.period);
+  // Only a period that ended before today hides today's balances; one after today's keeps them.
+  const past = personal && !current && page.period.endDate < today;
   const periodHref = (p: PeriodDto) =>
     holdsToday(p) ? home : `${home}?period=${encodeURIComponent(p.label)}`;
   const [previous, next] = useQueries({

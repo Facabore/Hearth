@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { categoryDto, groupDto } from "../../../../tests/support/ui/dto";
 import {
   activeTree,
+  categoryIdsOf,
   categoryPath,
   groupsForKind,
   matches,
@@ -140,5 +141,34 @@ describe("tree updates from what the API answered (HU-E9-04)", () => {
   it("gives no tree for an answer it has no group or parent for, rather than losing the category", () => {
     expect(withCategory(food, { ...saved, groupId: "g-unknown" })).toBeNull();
     expect(withCategory(food, categoryDto({ id: "c-x", parentCategoryId: "c-unknown" }))).toBeNull();
+  });
+});
+
+describe("categoryIdsOf (ruling P310)", () => {
+  const parent = (subcategories: number) =>
+    groupDto({
+      categories: [
+        {
+          ...categoryDto({ id: "c-market", name: "Market" }),
+          subcategories: Array.from({ length: subcategories }, (_, i) =>
+            categoryDto({ id: `c-sub-${i}`, name: `Sub ${i}`, parentCategoryId: "c-market" }),
+          ),
+        },
+      ],
+    });
+
+  it("names a category first, then its subcategories", () => {
+    expect(categoryIdsOf("c-market", [parent(2)])).toBe("c-market,c-sub-0,c-sub-1");
+  });
+
+  it("keeps a subcategory, or a category the tree does not hold, alone", () => {
+    expect(categoryIdsOf("c-sub-0", [parent(2)])).toBe("c-sub-0");
+    expect(categoryIdsOf("c-gone", [parent(2)])).toBe("c-gone");
+  });
+
+  it("stops at the 50 ids the API takes, the category among them", () => {
+    const ids = categoryIdsOf("c-market", [parent(60)]).split(",");
+    expect(ids).toHaveLength(50);
+    expect(ids[0]).toBe("c-market");
   });
 });

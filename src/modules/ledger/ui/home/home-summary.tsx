@@ -9,7 +9,7 @@ import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { periodName } from "@/shared/ui/time/period-name";
 import type { TransactionDetail } from "../detail/transaction-detail";
 import { TransactionSheetHost } from "../detail/transaction-sheet-host";
-import { withTx } from "../detail/tx-href";
+import { hrefOf, withTx } from "../detail/tx-href";
 import { TransactionRow, type RowContext } from "../transaction-row";
 import { AmountsEye } from "./amounts-eye";
 import { FirstSteps, type FirstStepsDone } from "./first-steps";
@@ -69,8 +69,8 @@ export function HomeSummary({
   /** Ruling P310: the personal Inicio's step between periods, above the period's figure. */
   readonly stepper?: ReactNode;
   /**
-   * Ruling P310: a period before today's. It shows that period's figure and movements, never today's balances: no
-   * "Te toca poner", first steps or accounts.
+   * Ruling P310: a period that ended before today. It shows that period's figure and movements, never today's balances:
+   * no "Te toca poner", first steps or accounts.
    */
   readonly past?: boolean;
 }) {
@@ -221,7 +221,7 @@ export function HomeSummary({
                   })}
           </h2>
           <Link
-            href={`/spaces/${spaceId}/transactions${past ? `?period=${encodeURIComponent(page.period.label)}` : ""}`}
+            href={hrefOf(spaceId, past ? { period: page.period.label } : {})}
             aria-label={t("allTransactions")}
             className={link}
           >

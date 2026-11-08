@@ -140,11 +140,20 @@ const loadDetail = async (load: Load, viewer: Viewer, transactionId: string): Pr
 };
 
 /**
+ * A period's label as the API names it (`2026-10`, `2026-11 H1`: the kernel's `periodByLabel`, which the SPA may not
+ * import, ruling P119).
+ */
+const PERIOD_LABEL = /^\d{4}-\d{2}(?: H[12])?$/;
+
+/**
  * Inicio's own page: its latest rows, of the period `?period=` names on the personal Inicio (ruling P310); a shared or
  * direct space's home always shows the current one.
  */
 export const homeQueryOf = (viewer: Pick<Viewer, "space" | "spaces"> | null, period?: string): PageQuery => ({
-  ...(period !== undefined && viewer?.space.kind === "PERSONAL" ? { period } : {}),
+  // A `?period=` that is no label shows the current period rather than the API's refusal.
+  ...(period !== undefined && PERIOD_LABEL.test(period) && viewer?.space.kind === "PERSONAL"
+    ? { period }
+    : {}),
   limit: homeRowsOf(viewer),
 });
 

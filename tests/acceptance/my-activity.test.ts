@@ -114,7 +114,13 @@ describe("GET /api/v1/me/activity (ruling P306)", () => {
 
   it("refuses a request without a date or with a limit over 50, and one without a session", async () => {
     const ana = await registerUser("Ana");
-    for (const query of ["", "?from=2026-13-01", "?from=2026-10-01&limit=51"]) {
+    // Ruling P310: a `to` that is no date is refused like a `from`.
+    for (const query of [
+      "",
+      "?from=2026-13-01",
+      "?from=2026-10-01&limit=51",
+      "?from=2026-10-01&to=2026-10-32",
+    ]) {
       const response = await call(myActivity, "GET", `/api/v1/me/activity${query}`, { user: ana });
       expect((await problemOf(response))[0]).toBe(422);
     }
