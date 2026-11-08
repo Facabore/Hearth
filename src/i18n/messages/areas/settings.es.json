@@ -44,29 +44,6 @@
       "hint": "Solo cambia los textos. Los formatos de números y fechas no dependen del idioma.",
       "es": "Español",
       "en": "English"
-    },
-    "spaceColor": {
-      "colorLabel": "Color",
-      "hint": "Te damos uno hasta que elijas otro. Todos en el espacio lo verán en su Inicio.",
-      "preview": "Así se ve en Recientes:",
-      "color": {
-        "PINE": "Pino",
-        "SAGE": "Salvia",
-        "OLIVE": "Oliva",
-        "SAND": "Arena",
-        "MUSTARD": "Mostaza",
-        "AMBER": "Ámbar",
-        "EMBER": "Brasa",
-        "CORAL": "Coral",
-        "ROSE": "Rosa",
-        "PLUM": "Ciruela",
-        "LAVENDER": "Lavanda",
-        "INDIGO": "Índigo",
-        "SKY": "Cielo",
-        "TEAL": "Verde azulado",
-        "STEEL": "Acero",
-        "GRAPHITE": "Grafito"
-      }
     }
   }
 }

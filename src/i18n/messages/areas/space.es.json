@@ -1,0 +1,56 @@
+{
+  "settings": {
+    "spaceColor": {
+      "colorLabel": "Color",
+      "hint": "Te damos uno hasta que elijas otro. Todos en el espacio lo verán en su Inicio.",
+      "preview": "Así se ve en Recientes:",
+      "color": {
+        "PINE": "Pino",
+        "SAGE": "Salvia",
+        "OLIVE": "Oliva",
+        "SAND": "Arena",
+        "MUSTARD": "Mostaza",
+        "AMBER": "Ámbar",
+        "EMBER": "Brasa",
+        "CORAL": "Coral",
+        "ROSE": "Rosa",
+        "PLUM": "Ciruela",
+        "LAVENDER": "Lavanda",
+        "INDIGO": "Índigo",
+        "SKY": "Cielo",
+        "TEAL": "Verde azulado",
+        "STEEL": "Acero",
+        "GRAPHITE": "Grafito"
+      }
+    }
+  },
+  "spaces": {
+    "screen": {
+      "title": "Ajustes de {space}",
+      "subtitle": "{kind} · {currency} · {policy}",
+      "kind": {
+        "PERSONAL": "Solo tú",
+        "SHARED": "Compartido",
+        "DIRECT": "Entre dos personas"
+      },
+      "members": "Miembros e invitados",
+      "categories": "Categorías",
+      "accountsAndFunds": "Cuentas y fondos",
+      "accounts": "Cuentas",
+      "readOnly": "Solo quienes administran {space} cambian su nombre y su color.",
+      "leave": "Salir de {space}",
+      "leaveHint": "Para salir, tu saldo en {space} tiene que estar en cero.",
+      "archive": "Archivar {space}",
+      "archiveHint": "{space} queda para consulta: nadie registra más movimientos. Antes, todos tienen que quedar en cero.",
+      "leaveSheet": {
+        "title": "¿Salir de {space}?",
+        "body": "Dejarás de ver sus movimientos y sus saldos. Lo que registraste se queda en {space} con tu nombre. Para volver, alguien tiene que invitarte."
+      },
+      "archiveSheet": {
+        "title": "¿Archivar {space}?",
+        "body": "{space} queda para consulta: todos siguen viendo sus movimientos, pero nadie registra más."
+      },
+      "cancel": "Cancelar"
+    }
+  }
+}

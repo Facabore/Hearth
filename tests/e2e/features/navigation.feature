@@ -7,7 +7,7 @@ Feature: Volver returns to where the person was, and a flow returns to where it 
   @e2e
   Scenario: Volver from Accounts returns to Movimientos, not to the home
     When "Ana" opens the Movimientos tab
-    And "Ana" opens Accounts from the user menu
+    And "Ana" opens Accounts from her space's settings
     Then the accounts screen is shown
     When "Ana" chooses Volver
     Then the transactions page is shown
@@ -24,11 +24,11 @@ Feature: Volver returns to where the person was, and a flow returns to where it 
     When "Ana" opens the Movimientos tab
     And "Ana" opens the Inicio tab
     And "Ana" opens the Movimientos tab
-    And "Ana" opens Accounts from the user menu
+    And "Ana" opens Accounts from her space's settings
     And "Ana" chooses Volver
     Then the transactions page is shown
     When "Ana" opens the Inicio tab
-    And "Ana" opens Accounts from the user menu
+    And "Ana" opens Accounts from her space's settings
     And "Ana" chooses Volver
     Then the home page of her personal space is shown
 
@@ -43,7 +43,7 @@ Feature: Volver returns to where the person was, and a flow returns to where it 
   @e2e
   Scenario: Creating an account from Accounts returns to Accounts, and Volver skips the form
     When "Ana" opens the Movimientos tab
-    And "Ana" opens Accounts from the user menu
+    And "Ana" opens Accounts from her space's settings
     And "Ana" creates the CASH account "Wallet" from the accounts screen
     Then the accounts screen is shown
     And the accounts screen lists "Wallet"

@@ -344,6 +344,17 @@ const newSpaceRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/new-space"), "NewSpaceRoute"),
 });
 
+/** Ruling P309: a space's own settings (its screens, name and color, leaving and archiving), from the switcher. */
+const spaceSettingsRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "settings",
+  staticData: { ...stackedScreen, areas: ["space"] },
+  loader: ({ context, route }) => loadAreas(context, route),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "SpaceSettingsPending"),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/space-settings"), "SpaceSettingsRoute"),
+});
+
 /** HU-E9-05: the members of a shared or direct space; `?invite=1` opens the invite sheet (N10). */
 const membersRoute = createRoute({
   getParentRoute: () => spaceRoute,
@@ -658,6 +669,7 @@ export const routeTree = rootRoute.addChildren([
     newAccountRoute,
     editAccountRoute,
     categoriesRoute,
+    spaceSettingsRoute,
     membersRoute,
     historyRoute,
     balancesRoute,

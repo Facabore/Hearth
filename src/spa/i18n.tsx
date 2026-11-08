@@ -51,6 +51,11 @@ const AREA_CATALOGS: Record<Area, Record<Locale, () => Promise<{ default: unknow
     es: () => import("@/i18n/messages/areas/settings.es.json"),
     en: () => import("@/i18n/messages/areas/settings.en.json"),
   },
+  // Ruling P309: a space's own settings (its screen, its name and color).
+  space: {
+    es: () => import("@/i18n/messages/areas/space.es.json"),
+    en: () => import("@/i18n/messages/areas/space.en.json"),
+  },
   invitation: {
     es: () => import("@/i18n/messages/areas/invitation.es.json"),
     en: () => import("@/i18n/messages/areas/invitation.en.json"),

@@ -252,7 +252,8 @@
       "join": "Join with an invitation link",
       "members": "{others} and {last}",
       "owes": "You owe",
-      "owed": "You are owed"
+      "owed": "You are owed",
+      "settings": "{name} settings"
     },
     "role": {
       "OWNER": "Owner",
@@ -264,10 +265,7 @@
       "open": "{name}'s profile",
       "settings": "Settings",
       "settingsHint": "Formats, time, time zone, theme and language",
-      "accounts": "Accounts",
-      "signOut": "Sign out",
-      "members": "Members and invitations",
-      "categories": "Categories"
+      "signOut": "Sign out"
     }
   },
   "home": {
@@ -620,7 +618,9 @@
     "settings": {
       "title": "Space",
       "name": "Space name",
-      "nameHint": "How it appears in the space switcher and on its screens."
+      "nameHint": "How it appears in the space switcher and on its screens.",
+      "nameAndColor": "Name and color",
+      "nameOnly": "Name"
     },
     "new": {
       "title": "Create a shared space",

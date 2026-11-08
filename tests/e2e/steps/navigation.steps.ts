@@ -1,6 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 import { BASE_URL } from "../support/base-url";
 import { Given, Then, When } from "../support/fixtures";
+import { openSpaceSettings } from "../support/space-settings";
 import type { World } from "../support/world";
 
 const homePath = (world: World) => `/spaces/${world.user!.spaceId}`;
@@ -27,10 +28,12 @@ When(/^"([^"]+)" opens the (Inicio|Movimientos) tab$/, async ({ page, world }, n
   await expect(page).toHaveURL(new RegExp(`${escaped(homePath(world))}${suffix}$`));
 });
 
-When("{string} opens Accounts from the user menu", async ({ page, world }, name: string) => {
-  await page.getByRole("button", { name: world.t("shell.profile.open", { name }) }).click();
+When("{string} opens Accounts from her space's settings", async ({ page, world }, name: string) => {
+  expect(name).toBe(world.user!.name);
+  // Ruling P309: a space's accounts are in its own settings, from the space switcher.
+  await openSpaceSettings(page, world);
   // Exact: the first-steps card on the home also links to Cuentas (#152).
-  await page.getByRole("link", { name: world.t("shell.profile.accounts"), exact: true }).click();
+  await page.getByRole("link", { name: world.t("spaces.screen.accounts"), exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`${escaped(homePath(world))}/accounts`));
 });
 

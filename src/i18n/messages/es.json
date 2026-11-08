@@ -252,7 +252,8 @@
       "join": "Unirme con un enlace de invitación",
       "members": "{others} y {last}",
       "owes": "Te toca poner",
-      "owed": "Te toca recibir"
+      "owed": "Te toca recibir",
+      "settings": "Ajustes de {name}"
     },
     "role": {
       "OWNER": "Propietario",
@@ -264,10 +265,7 @@
       "open": "Perfil de {name}",
       "settings": "Ajustes",
       "settingsHint": "Formatos, hora, zona horaria, tema e idioma",
-      "accounts": "Cuentas",
-      "signOut": "Cerrar sesión",
-      "members": "Miembros e invitaciones",
-      "categories": "Categorías"
+      "signOut": "Cerrar sesión"
     }
   },
   "home": {
@@ -620,7 +618,9 @@
     "settings": {
       "title": "Espacio",
       "name": "Nombre del espacio",
-      "nameHint": "Así aparece en el selector de espacios y en sus pantallas."
+      "nameHint": "Así aparece en el selector de espacios y en sus pantallas.",
+      "nameAndColor": "Nombre y color",
+      "nameOnly": "Nombre"
     },
     "new": {
       "title": "Crear un espacio compartido",

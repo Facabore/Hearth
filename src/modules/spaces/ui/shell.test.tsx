@@ -155,6 +155,17 @@ describe("app shell (HU-E9-01)", () => {
     expect(within(sheet).getAllByRole("button").at(-1)).toBe(join);
   });
 
+  it("offers the active space's own settings under the spaces, a 56 px link before the divider (ruling P309)", async () => {
+    const sheet = await openSwitcher();
+    const settings = within(sheet).getByRole("link", { name: "Ajustes de Personal" });
+    expect(settings).toHaveAttribute("href", `/spaces/${spaces[0]!.id}/settings`);
+    expect(settings).toHaveClass("min-h-14");
+    expect(
+      settings.compareDocumentPosition(within(sheet).getByRole("separator")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("opens Crear un espacio compartido as a sheet over the switcher, with a way back to the spaces (E9-05 · 07)", async () => {
     const sheet = await openSwitcher();
     await userEvent.click(within(sheet).getByRole("button", { name: "Crear un espacio compartido" }));
@@ -230,8 +241,8 @@ describe("app shell (HU-E9-01)", () => {
       screen.getByRole("button", { name: "Espacio actual: Personal. Cambiar de espacio" }),
     );
     const sheet = screen.getByRole("dialog", { name: "Espacios" });
-    expect(within(sheet).getByRole("link", { name: /Personal/ })).toHaveAttribute("aria-current", "true");
-    expect(within(sheet).getByRole("link", { name: /Personal/ })).toHaveTextContent("Solo tú");
+    expect(within(sheet).getByRole("link", { name: /^Personal/ })).toHaveAttribute("aria-current", "true");
+    expect(within(sheet).getByRole("link", { name: /^Personal/ })).toHaveTextContent("Solo tú");
     // Board B1 · 04: a shared space names its members once they are read, never the role.
     expect(within(sheet).getByRole("link", { name: /Household/ })).not.toHaveTextContent("Miembro");
     expect(within(sheet).getByRole("link", { name: /Household/ })).not.toHaveAttribute("aria-current");
@@ -357,7 +368,7 @@ describe("app shell (HU-E9-01)", () => {
 
     it("marks the current space with a check on its card", async () => {
       const sheet = await open({ myBalances: balances });
-      const current = within(sheet).getByRole("link", { name: /Personal/ });
+      const current = within(sheet).getByRole("link", { name: /^Personal/ });
       expect(current).toHaveAttribute("aria-current", "true");
       expect(current).toHaveClass("border-accent");
       expect(current.querySelectorAll("svg")).toHaveLength(1);

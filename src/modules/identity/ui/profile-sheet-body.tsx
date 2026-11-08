@@ -5,26 +5,23 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, type ReactNode } from "react";
 import { localeCookie, type Locale } from "@/i18n/locale";
-import { Avatar, Button, Icon, Sheet, SymbolIcon } from "@/shared/ui";
+import { Avatar, Button, Icon, Sheet } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
-import type { SpaceDto } from "@/shared/ui/api/dto";
 
 /**
- * HU-E9-01, the ProfileSheet artboard; the Categories entry is HU-E9-04 and rules come with HU-E9-14 (ruling P126); the
- * Members entry, outside the personal space, is HU-E9-05 (ruling P160). It loads when the avatar is first tapped, so
- * the shell, which every route carries, holds only the avatar (ADR 0004).
+ * HU-E9-01, the ProfileSheet artboard: only what belongs to the person and the app. Ruling P309: the space's accounts,
+ * categories and members moved to the space's own settings (Ajustes de {space}, from the space switcher). It loads when
+ * the avatar is first tapped, so the shell, which every route carries, holds only the avatar (ADR 0004).
  */
 export function ProfileSheetBody({
   me,
   spaceId,
-  spaceKind,
   api: injected,
   open,
   onOpenChange,
 }: {
   readonly me: { readonly name: string; readonly email: string; readonly locale: Locale };
   readonly spaceId: string;
-  readonly spaceKind: SpaceDto["kind"];
   readonly api?: Api | undefined;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
@@ -42,7 +39,7 @@ export function ProfileSheetBody({
       router.refresh();
     }
   };
-  // Board B1 · 05 (P292): Ajustes in a card of its own, then Cuentas, Categorías and Miembros in one card, each with ›.
+  // Board B1 · 05 (P292, P309): Ajustes in a card of its own, with ›.
   const card = "mb-3 flex flex-col divide-y divide-line rounded-2xl border border-line";
   const go = (href: string, icon: ReactNode, label: string, hint?: string) => (
     <Link
@@ -69,13 +66,6 @@ export function ProfileSheetBody({
       <p className="mb-4 text-sm [overflow-wrap:anywhere] text-muted">{me.email}</p>
       <div className={card}>
         {go(`/settings?from=${spaceId}`, <Icon name="sliders" />, t("settings"), t("settingsHint"))}
-      </div>
-      <div className={card}>
-        {go(`/spaces/${spaceId}/accounts`, <Icon name="list" />, t("accounts"))}
-        {go(`/spaces/${spaceId}/categories`, <SymbolIcon name="tag" />, t("categories"))}
-        {spaceKind !== "PERSONAL"
-          ? go(`/spaces/${spaceId}/members`, <Icon name="userPlus" />, t("members"))
-          : null}
       </div>
       <Button variant="danger" size="lg" className="w-full" onClick={() => void signOut()}>
         <Icon name="signOut" />

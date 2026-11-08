@@ -22,8 +22,8 @@ const SpaceColorField = dynamic(
 );
 
 /**
- * #167: the Settings screen's section for the space the person came from, where an OWNER or ADMIN renames it, the
- * personal one included. Like every setting there it has no Save button (ruling P137): the name is stored when the
+ * #167, ruling P309: the space settings screen's section where an OWNER or ADMIN renames the space, the personal one
+ * included (it moved there from the app's Settings). Like every setting there it has no Save button (ruling P137): the name is stored when the
  * field is left or on Enter, says Guardado for about two seconds (U5), and the refresh renames it in the shell. The
  * API stays the authority on the name (1 to 80 characters once trimmed): its refusal stays under the field.
  * Ruling P306 (board "Ajustes · Tu espacio: nombre y color"): a shared or direct space's managers also pick its color,
@@ -96,8 +96,12 @@ export function SpaceNameSection({ space, api: injected }: { readonly space: Spa
   return (
     <section aria-labelledby="settings-space" className="relative flex flex-col gap-3">
       <SavedFlash show={savedFlash.saved !== null} className="top-0" />
-      <h2 id="settings-space" className="text-lg font-semibold text-ink">
-        {t("title")}
+      {/* Ruling P309 (boards "Ajustes de Hogar", "Ajustes de Personal"): the personal space has only its name's field. */}
+      <h2
+        id="settings-space"
+        className={space.kind === "PERSONAL" ? "sr-only" : "text-lg font-semibold text-ink"}
+      >
+        {t(space.kind === "PERSONAL" ? "nameOnly" : "nameAndColor")}
       </h2>
       <form onSubmit={submit} noValidate>
         <TextField

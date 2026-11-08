@@ -1,0 +1,56 @@
+{
+  "settings": {
+    "spaceColor": {
+      "colorLabel": "Color",
+      "hint": "We pick one until you choose another. Everyone in the space sees it on their Home.",
+      "preview": "How it looks in Recent:",
+      "color": {
+        "PINE": "Pine",
+        "SAGE": "Sage",
+        "OLIVE": "Olive",
+        "SAND": "Sand",
+        "MUSTARD": "Mustard",
+        "AMBER": "Amber",
+        "EMBER": "Ember",
+        "CORAL": "Coral",
+        "ROSE": "Rose",
+        "PLUM": "Plum",
+        "LAVENDER": "Lavender",
+        "INDIGO": "Indigo",
+        "SKY": "Sky",
+        "TEAL": "Teal",
+        "STEEL": "Steel",
+        "GRAPHITE": "Graphite"
+      }
+    }
+  },
+  "spaces": {
+    "screen": {
+      "title": "{space} settings",
+      "subtitle": "{kind} · {currency} · {policy}",
+      "kind": {
+        "PERSONAL": "Only you",
+        "SHARED": "Shared",
+        "DIRECT": "Between two people"
+      },
+      "members": "Members and guests",
+      "categories": "Categories",
+      "accountsAndFunds": "Accounts and funds",
+      "accounts": "Accounts",
+      "readOnly": "Only the people who manage {space} change its name and color.",
+      "leave": "Leave {space}",
+      "leaveHint": "To leave, your balance in {space} has to be zero.",
+      "archive": "Archive {space}",
+      "archiveHint": "{space} stays for reference: no one records new movements. First, everyone has to be at zero.",
+      "leaveSheet": {
+        "title": "Leave {space}?",
+        "body": "You'll stop seeing its movements and balances. What you recorded stays in {space} under your name. To come back, someone has to invite you."
+      },
+      "archiveSheet": {
+        "title": "Archive {space}?",
+        "body": "{space} stays for reference: everyone still sees its movements, but no one records new ones."
+      },
+      "cancel": "Cancel"
+    }
+  }
+}

@@ -23,6 +23,10 @@ const ACTIONS = [
   { flow: "join", icon: "link", title: "spaces.join.title" },
 ] as const;
 
+/** The sheet's rows under the spaces, each with its round grey icon, 56 px tall. */
+const ROW = "flex min-h-14 w-full items-center gap-3 rounded-xl px-1 text-left font-medium text-ink";
+const ROUND = "flex size-10 shrink-0 items-center justify-center rounded-full bg-track";
+
 /** A space's initial in its round tint: the personal space green, a shared one terracotta (boards B1 · 03 and 04). */
 function SpaceInitial({ space, size }: { readonly space: SpaceSummary; readonly size: number }) {
   return (
@@ -37,8 +41,9 @@ function SpaceInitial({ space, size }: { readonly space: SpaceSummary; readonly 
 }
 
 /**
- * HU-E9-01, the SpaceSheet artboard: every current space as a link, then, under a divider, the boards' two ways to
- * another space (HU-E9-05): "Crear un espacio compartido" and "Unirme con un enlace de invitación", 56 px targets.
+ * HU-E9-01, the SpaceSheet artboard: every current space as a link, "Ajustes de {space}" for the active one (ruling
+ * P309), then, under a divider, the boards' two ways to another space (HU-E9-05): "Crear un espacio compartido" and
+ * "Unirme con un enlace de invitación", 56 px targets.
  * Each opens in the same sheet, over the switcher, with a way back to the spaces (ruling P272).
  */
 export function SpaceSwitcher({
@@ -142,6 +147,13 @@ export function SpaceSwitcher({
                 );
               })}
             </ul>
+            {/* Ruling P309: the active space's own settings live with the space, under its card. */}
+            <Link href={`/spaces/${activeSpace.id}/settings`} onClick={close} className={`mt-2 ${ROW}`}>
+              <span aria-hidden="true" className={ROUND}>
+                <Icon name="sliders" size={20} />
+              </span>
+              {t("shell.space.settings", { name: activeSpace.name })}
+            </Link>
             {Flows ? (
               <>
                 <hr className="my-3 border-line" />
@@ -150,12 +162,9 @@ export function SpaceSwitcher({
                     key={action.flow}
                     type="button"
                     onClick={() => setFlow(action.flow)}
-                    className="flex min-h-14 w-full items-center gap-3 rounded-xl px-1 text-left font-medium text-ink"
+                    className={ROW}
                   >
-                    <span
-                      aria-hidden="true"
-                      className="flex size-10 shrink-0 items-center justify-center rounded-full bg-track"
-                    >
+                    <span aria-hidden="true" className={ROUND}>
                       <Icon name={action.icon} size={20} />
                     </span>
                     {t(`shell.space.${action.flow}`)}

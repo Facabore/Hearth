@@ -221,15 +221,43 @@ describe("accounts, categories and settings in the SPA (slice 3 of #199, ADR 000
     expect(count(spa.requests, "GET", /\/me$/)).toBe(profile);
   });
 
-  it("renames the space in Settings and the shell of a tab shows the new name at once", async () => {
+  it("keeps Settings for the person and the app: a space's name is not there (ruling P309)", async () => {
     const { routes } = server();
-    const spa = renderSpa("/settings", routes);
+    renderSpa("/settings?from=sp-household", routes);
+    expect(await screen.findByRole("button", { name: /^Números y fechas/ })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Nombre del espacio")).not.toBeInTheDocument();
+  });
+
+  it("opens a space's own settings from the switcher, with its screens and a way back (ruling P309)", async () => {
+    const { routes } = server();
+    const spa = renderSpa("/spaces/sp-household", routes);
+    await userEvent.click(
+      await screen.findByRole("button", { name: es.shell.space.current.replace("{name}", "Household") }),
+    );
+    await userEvent.click(await screen.findByRole("link", { name: "Ajustes de Household" }));
+    await waitFor(() => expect(spa.location()).toBe("/spaces/sp-household/settings"));
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Ajustes de Household" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Miembros e invitados" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household/members",
+    );
+    expect(screen.getByRole("link", { name: es.common.back })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household",
+    );
+  });
+
+  it("renames the space in its own settings and the shell of a tab shows the new name at once (#167, P309)", async () => {
+    const { routes } = server();
+    const spa = renderSpa("/spaces/sp-personal/settings", routes);
     const field = await screen.findByLabelText("Nombre del espacio");
     await userEvent.clear(field);
     await userEvent.type(field, "Mis finanzas");
     await userEvent.tab();
     await waitFor(() => expect(count(spa.requests, "PATCH", /\/spaces\/sp-personal$/)).toBe(1));
-    // Settings is a stacked screen without the switcher (ruling P272): a tab's shell names the renamed space.
+    // The space's settings are a stacked screen without the switcher (ruling P272): a tab's shell names the new name.
     await spa.router.navigate({ href: "/spaces/sp-personal/transactions" });
 
     expect(

@@ -18,7 +18,8 @@ describe("space name in Settings (#167)", () => {
   it("renames the personal space when the field is left, says Guardado and refreshes the shell", async () => {
     const { api, requests } = fakeApi({ "PATCH /api/v1/spaces/{spaceId}": renamed("Mis finanzas") });
     const { container } = renderWithIntl(<SpaceNameSection space={spaceDto()} api={api} />);
-    expect(screen.getByRole("heading", { level: 2, name: "Espacio" })).toBeInTheDocument();
+    // Ruling P309: the personal space has only its name, so its heading is for screen readers.
+    expect(screen.getByRole("heading", { level: 2, name: "Nombre" })).toHaveClass("sr-only");
     const field = screen.getByLabelText("Nombre del espacio");
     expect(field).toHaveValue("Personal");
     await userEvent.clear(field);
@@ -83,7 +84,7 @@ describe("space name in Settings (#167)", () => {
   it.each(["MEMBER", "VIEWER"] as const)("shows a %s no way to rename the space", (role) => {
     renderWithIntl(<SpaceNameSection space={householdSpace({ role })} api={fakeApi({}).api} />);
     expect(screen.queryByLabelText("Nombre del espacio")).toBeNull();
-    expect(screen.queryByRole("heading", { name: "Espacio" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: /Nombre/ })).toBeNull();
   });
 });
 

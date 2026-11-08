@@ -66,6 +66,11 @@ export const NewSpacePending = () => (
   <LoadingScreen header={{ backHref: "/", title: useTranslations("spaces.new")("title") }} shape="form" />
 );
 
+/** Ruling P309: a space's own settings; its title names the space, which only the read knows. */
+export const SpaceSettingsPending = () => (
+  <SpaceScreenPending title={useTranslations("settings")("title")} shape="form" />
+);
+
 export const MembersPending = () => (
   <SpaceScreenPending title={useTranslations("members")("title")} shape="list" />
 );

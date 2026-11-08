@@ -80,7 +80,7 @@ export function AppShell({
           <div className="flex shrink-0 items-center gap-1">
             {/* Inicio's eye sits in the header (board B1 · 03): the screen portals it here (HEADER_SLOT_ID). */}
             <div id="shell-actions" className="contents" />
-            <ProfileSheet me={me} spaceId={activeSpace.id} spaceKind={activeSpace.kind} />
+            <ProfileSheet me={me} spaceId={activeSpace.id} />
           </div>
         </header>
         <main id="main">{children}</main>

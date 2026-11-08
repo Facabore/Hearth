@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
 import { Given, Then, When } from "../support/fixtures";
+import { openSpaceSettings } from "../support/space-settings";
 import { minor } from "../support/money";
 
 /** The feature's English names, as keys of the Spanish screen. */
@@ -7,7 +8,6 @@ const KEYS: Record<string, string> = {
   "Numbers and dates": "settings.numbersAndDates",
   "Time zone": "settings.field.timezone",
   "Appearance and language": "settings.appearance",
-  Space: "spaces.settings.title",
   "12-hour": "settings.timeFormat.H12",
   "24-hour": "settings.timeFormat.H24",
 };
@@ -33,20 +33,27 @@ Given(
   },
 );
 
+When("{string} opens her space's settings from the space switcher", async ({ page, world }, name: string) => {
+  expect(name).toBe(world.user!.name);
+  await page.goto(`/spaces/${world.user!.spaceId}`);
+  await openSpaceSettings(page, world);
+});
+
 When("{string} opens the Settings screen", async ({ page, world }, name: string) => {
   expect(name).toBe(world.user!.name);
   await page.goto("/settings");
 });
 
 Then(
-  /^it shows the rows "([^"]+)", "([^"]+)" and "([^"]+)", then the section "([^"]+)"$/,
-  async ({ page, world }, first: string, second: string, third: string, section: string) => {
-    // U8 (#224): three summary rows, each opening its own sheet, before the space's own section.
+  /^it shows the rows "([^"]+)", "([^"]+)" and "([^"]+)", and no section of a space$/,
+  async ({ page, world }, first: string, second: string, third: string) => {
+    // U8 (#224): three summary rows, each opening its own sheet. Ruling P309: a space's name is in its own settings.
     const rows = [first, second, third].map((row) => world.t(KEYS[row]!));
     const buttons = page.getByRole("main").getByRole("button", { name: new RegExp(`^(${rows.join("|")})`) });
     await expect(buttons).toHaveCount(3);
     for (const [index, row] of rows.entries()) await expect(buttons.nth(index)).toContainText(row);
-    await expect(page.getByRole("heading", { level: 2 })).toHaveText([world.t(KEYS[section]!)]);
+    await expect(page.getByRole("heading", { level: 2 })).toHaveCount(0);
+    await expect(page.getByLabel(world.t("spaces.settings.name"))).toHaveCount(0);
   },
 );
 
