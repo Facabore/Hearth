@@ -22,8 +22,11 @@ export function NoPlan({
   readonly space: SpaceDto;
   readonly dashboard: LineDashboardDto;
   readonly formats: Pick<Formats, "numberFormat" | "dateFormat">;
-  /** The previous period when it has a plan to copy, null when it has none, absent while not known (P311). */
-  readonly previous?: PeriodDto | null | undefined;
+  /**
+   * The previous period when it has a plan to copy, null when it has none, absent while not known, and `true` when it
+   * could not be read: the copy is offered anyway, and the API refuses it with its own message if there is nothing (P311).
+   */
+  readonly previous?: PeriodDto | true | null | undefined;
 }) {
   const t = useTranslations("reports.noPlan");
   const tc = useTranslations("common");
@@ -53,7 +56,7 @@ export function NoPlan({
             <PlanStartActions
               spaceId={space.id}
               period={dashboard.period.label}
-              previous={previous ? wordsOf(previous) : previous}
+              previous={previous && previous !== true ? wordsOf(previous) : previous}
             />
             <p className="text-xs text-muted">{t("managersSee")}</p>
           </div>

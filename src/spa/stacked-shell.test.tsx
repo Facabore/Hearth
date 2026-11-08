@@ -100,6 +100,19 @@ describe("the header's ⚙ and the bar's Más (ruling P311)", () => {
     expect(screen.getByRole("button", { name: "Personal" })).toBeVisible();
   });
 
+  it("names the space's Configuración Space settings in English, apart from the person's own Settings", async () => {
+    renderSpa(`${PERSONAL}/more`, {
+      ...server(),
+      "GET /api/v1/me": () => jsonResponse(meDto({ locale: "en" })),
+    });
+    const tile = await screen.findByRole("link", { name: "Space settings" }, { timeout: 5_000 });
+    expect(tile).toHaveAttribute("href", `${PERSONAL}/settings`);
+    await userEvent.click(tile);
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Space settings" }, { timeout: 5_000 }),
+    ).toBeVisible();
+  });
+
   it("opens the module grid from the bar's Más, which is current there", async () => {
     renderSpa(`${PERSONAL}/transactions`, server());
     const bar = await screen.findByRole("navigation", { name: es.shell.nav.main }, { timeout: 5_000 });
@@ -177,6 +190,54 @@ describe("the Configuración's statuses and its space dropdown (ruling P311)", (
     expect(within(menu).getByRole("link", { name: /Personal/ })).toHaveAttribute(
       "href",
       `${PERSONAL}/settings`,
+    );
+  });
+
+  it("says how much the period's plan went over, in words, when its spending passed it", async () => {
+    renderSpa(`${PERSONAL}/settings`, {
+      ...server(),
+      "GET /api/v1/spaces/{spaceId}/reports/lines": () =>
+        jsonResponse(
+          e7Dashboard({
+            totals: { planned: cop(4_000_000), spent: cop(4_250_000), available: cop(-250_000) },
+          }),
+        ),
+    });
+    const list = await screen.findByRole("navigation", { name: "Configuración" }, { timeout: 5_000 });
+    const plan = within(list).getByRole("link", { name: /Plan del mes/ });
+    await waitFor(() => expect(plan.textContent).toMatch(/Te pasaste \$\u00A0250\.000/));
+    expect(plan.textContent).not.toMatch(/[−-]/);
+  });
+
+  it("counts the active space's people from its members, in the dropdown as in the Miembros row", async () => {
+    const guest = { ...HOUSEHOLD_MEMBERS[1]!, id: "m-marta", userId: null, displayName: "Marta" };
+    renderSpa(household, {
+      ...server(),
+      "GET /api/v1/spaces/{spaceId}/members": () => jsonResponse({ items: [...HOUSEHOLD_MEMBERS, guest] }),
+      // An older read of the person's balances, from before Marta joined.
+      "GET /api/v1/me/balances": () =>
+        jsonResponse({
+          items: [
+            {
+              spaceId: "sp-household",
+              memberId: "m-ana",
+              net: cop(0),
+              members: HOUSEHOLD_MEMBERS.map((member) => ({ memberId: member.id, name: member.displayName })),
+              payments: [],
+            },
+          ],
+        }),
+    });
+    const list = await screen.findByRole("navigation", { name: "Configuración" }, { timeout: 5_000 });
+    await waitFor(() =>
+      expect(within(list).getByRole("link", { name: /Miembros e invitados/ })).toHaveTextContent(
+        "3 personas",
+      ),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Household" }));
+    const menu = screen.getByRole("list", { name: es.shell.space.title });
+    expect(within(menu).getByRole("link", { name: /Household/ })).toHaveTextContent(
+      "Compartido · 3 personas",
     );
   });
 

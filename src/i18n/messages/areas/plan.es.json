@@ -76,6 +76,7 @@
     "start": {
       "create": "Crear plan",
       "copy": "Copiar el plan de {period}",
+      "copyPrevious": "Copiar el plan anterior",
       "copyHint": "Mismos rubros, montos, reglas y aportes; después ajustas lo que cambió.",
       "noPrevious": "No hay un plan anterior para copiar: cuando tengas uno, podrás empezar el mes siguiente desde él."
     },

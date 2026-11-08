@@ -26,7 +26,7 @@
   },
   "spaces": {
     "screen": {
-      "title": "Settings",
+      "title": "Space settings",
       "subtitle": "{kind} · {currency} · {policy}",
       "kind": {
         "PERSONAL": "Only you",
@@ -61,6 +61,7 @@
       },
       "plan": "This month's plan",
       "planLeft": "{amount} left",
+      "planOver": "{amount} over",
       "noPlan": "No plan",
       "recurring": "Recurring",
       "name": "Name"

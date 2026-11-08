@@ -269,7 +269,7 @@
     "settings": "{name} settings",
     "more": {
       "title": "More",
-      "settings": "Settings",
+      "settings": "Space settings",
       "accounts": "Accounts",
       "categories": "Categories",
       "recurring": "Recurring",
@@ -339,6 +339,7 @@
       "title": "Your {month} plan",
       "titleRange": "Your plan from {start} to {end}",
       "left": "{available} left of {planned}",
+      "overspent": "{over} over the {planned} planned",
       "over": "{line} went over: {amount} more than planned",
       "overMore": "{line} went over: {amount} more than planned · and {count} more"
     },

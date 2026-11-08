@@ -61,6 +61,7 @@
       },
       "plan": "Plan del mes",
       "planLeft": "Quedan {amount}",
+      "planOver": "Te pasaste {amount}",
       "noPlan": "Sin plan",
       "recurring": "Recurrentes",
       "name": "Nombre"

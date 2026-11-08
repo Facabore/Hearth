@@ -339,6 +339,7 @@
       "title": "Tu plan de {month}",
       "titleRange": "Tu plan del {start} al {end}",
       "left": "Te quedan {available} de {planned}",
+      "overspent": "Te pasaste {over} de {planned} planeados",
       "over": "{line} se pasó: {amount} más de lo planeado",
       "overMore": "{line} se pasó: {amount} más de lo planeado · y {count} más"
     },

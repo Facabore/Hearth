@@ -101,6 +101,35 @@ describe('Inicio\'s plan card, "Tu plan de {mes}" (ruling P311, #275)', () => {
     expect(empty.container).toBeEmptyDOMElement();
   });
 
+  describe("a plan the period's spending went past", () => {
+    const overspent = personal({
+      totals: { planned: cop(4_000_000), spent: cop(4_250_000), available: cop(-250_000) },
+    });
+    /** No-break spaces between symbol and digits, and no minus sign: the words carry the direction. */
+    const NBSP_AMOUNT = /\$\u00A0250\.000/;
+
+    it("says how much it went over, in words, never with a minus sign", () => {
+      renderWithIntl(
+        <PlanCard dashboard={overspent} policy={MONTHLY} formats={BUILT_IN_FORMATS} href={HREF} />,
+      );
+      const text = screen.getByText(/^Te pasaste/).textContent;
+      expect(normalized(text)).toBe("Te pasaste $ 250.000 de $ 4.000.000 planeados");
+      expect(text).toMatch(NBSP_AMOUNT);
+      expect(text).not.toMatch(/[−-]/);
+      expect(screen.queryByText(/^Te quedan/)).toBeNull();
+    });
+
+    it("says it in English too", () => {
+      renderWithIntl(
+        <PlanCard dashboard={overspent} policy={MONTHLY} formats={BUILT_IN_FORMATS} href={HREF} />,
+        { locale: "en" },
+      );
+      expect(normalized(screen.getByText(/over the/).textContent)).toBe(
+        "$ 250.000 over the $ 4.000.000 planned",
+      );
+    });
+  });
+
   it("speaks English when the person does", () => {
     renderWithIntl(
       <PlanCard dashboard={personal()} policy={MONTHLY} formats={BUILT_IN_FORMATS} href={HREF} />,

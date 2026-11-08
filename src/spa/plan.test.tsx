@@ -326,6 +326,38 @@ describe("an empty plan leads with Crear plan (ruling P311, #275)", () => {
       spa.requests.filter((r) => new URL(r.url).search === "?period=2026-10" && /reports\/lines/.test(r.url)),
     ).toHaveLength(1);
   });
+
+  it("still offers the copy, named by the previous period, when its dashboard cannot be read", async () => {
+    const routes = emptyNovember(true);
+    const lines = routes["GET /api/v1/spaces/{spaceId}/reports/lines"]!;
+    renderSpa(`${PERSONAL}/plan?period=2026-11`, {
+      ...routes,
+      "GET /api/v1/spaces/{spaceId}/reports/lines": (request, params) =>
+        new URL(request.url).searchParams.get("period") === "2026-10"
+          ? problemResponse(500, "Unknown")
+          : lines(request, params),
+    });
+    expect(
+      await screen.findByRole("button", { name: "Copiar el plan de octubre" }, { timeout: 5_000 }),
+    ).toBeVisible();
+    expect(screen.queryByText(es.budgeting.start.noPrevious)).toBeNull();
+  });
+
+  it("still offers the copy when the previous period cannot be read: the API refuses it if there is nothing", async () => {
+    const routes = emptyNovember(false);
+    const periods = routes["GET /api/v1/spaces/{spaceId}/periods"]!;
+    renderSpa(`${PERSONAL}/plan?period=2026-11`, {
+      ...routes,
+      "GET /api/v1/spaces/{spaceId}/periods": (request, params) =>
+        new URL(request.url).searchParams.get("from") === "2026-10-31"
+          ? problemResponse(500, "Unknown")
+          : periods(request, params),
+    });
+    expect(
+      await screen.findByRole("button", { name: es.budgeting.start.copyPrevious }, { timeout: 5_000 }),
+    ).toBeVisible();
+    expect(screen.queryByText(es.budgeting.start.noPrevious)).toBeNull();
+  });
 });
 
 describe("the Plan views' origins (#240, ruling P272)", () => {

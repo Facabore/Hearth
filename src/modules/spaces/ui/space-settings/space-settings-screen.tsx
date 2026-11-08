@@ -12,7 +12,7 @@ import { LazySpaceNameSection } from "../lazy-space-name-section";
 import { controlsFor } from "../members/space-controls";
 import type { SpaceSummary } from "../space-helpers";
 import { lifecycleFor } from "./lifecycle-controls";
-import { LazySpaceLifecycleSheet } from "./lazy-space-lifecycle-sheet";
+import { loadSpaceLifecycleSheet, type LifecycleSheet } from "./lazy-space-lifecycle-sheet";
 import type { SpaceLifecycle } from "./space-lifecycle-sheet";
 
 /** What a row of the list says on its right, as the app reads it; nothing while it has not. */
@@ -57,9 +57,14 @@ export function SpaceSettingsScreen({
   const switcher = useTranslations("shell.space");
   const names = useTranslations("members");
   const settings = useTranslations("spaces.settings");
+  const common = useTranslations("common");
   const router = useRouter();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
-  const [sheet, setSheet] = useState<SpaceLifecycle | null>(null);
+  const [opening, setOpening] = useState<SpaceLifecycle | null>(null);
+  const [sheet, setSheet] = useState<{
+    readonly action: SpaceLifecycle;
+    readonly Sheet: LifecycleSheet;
+  } | null>(null);
   const [picking, setPicking] = useState(false);
   const [naming, setNaming] = useState(false);
   const menuId = useId();
@@ -98,13 +103,32 @@ export function SpaceSettingsScreen({
       <ul className="flex flex-col divide-y divide-line">{rows}</ul>
     </>
   );
+  // The sheet's code loads on the press; until it is here the row says so, and a failed load waits for another tap.
+  const ask = (action: SpaceLifecycle) => {
+    setOpening(action);
+    loadSpaceLifecycleSheet().then(
+      (Sheet) => {
+        setOpening(null);
+        setSheet({ action, Sheet });
+      },
+      () => setOpening(null),
+    );
+  };
   const danger = (action: SpaceLifecycle, icon: ReactNode) => (
     <li>
-      <button type="button" className={`${ROW} text-danger`} onClick={() => setSheet(action)}>
+      <button
+        type="button"
+        aria-busy={opening === action || undefined}
+        className={`${ROW} text-danger`}
+        onPointerDown={() => void loadSpaceLifecycleSheet().catch(() => undefined)}
+        onClick={() => ask(action)}
+      >
         {icon}
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="font-medium [overflow-wrap:anywhere]">{t(action, values)}</span>
-          <span className="text-sm text-muted">{t(`${action}Hint`, values)}</span>
+          <span className="text-sm text-muted">
+            {opening === action ? common("loading") : t(`${action}Hint`, values)}
+          </span>
         </span>
       </button>
     </li>
@@ -224,8 +248,8 @@ export function SpaceSettingsScreen({
         )}
       </nav>
       {sheet ? (
-        <LazySpaceLifecycleSheet
-          action={sheet}
+        <sheet.Sheet
+          action={sheet.action}
           space={space}
           api={api}
           open

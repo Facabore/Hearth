@@ -32,9 +32,10 @@ const overOf = (lines: readonly Line[]) => {
 
 /**
  * Ruling P311 (board "Inicio personal · tu plan del mes"): on the personal Inicio, the shown period's plan as one link
- * to its Plan screen: "Tu plan de {mes}", what is left of what was planned (the API's totals, P201), a bar of what was
- * spent, and the line that went over the most, in words (never color alone). A period without a plan or without lines
- * shows nothing: the first steps propose the plan.
+ * to its Plan screen: "Tu plan de {mes}", what is left of what was planned (the API's totals, P201), or how much the
+ * spending went past it ("Te pasaste $ X de $ Y planeados", in words, never a minus sign), a bar of what was spent,
+ * and the line that went over the most, in words (never color alone). A period without a plan or without lines shows
+ * nothing: the first steps propose the plan.
  */
 export function PlanCard({
   dashboard,
@@ -73,7 +74,12 @@ export function PlanCard({
         <Icon name="chevronRight" size={18} className="shrink-0 text-muted" />
       </span>
       <span className="text-sm [overflow-wrap:anywhere] text-muted">
-        {t("left", { available: money(totals.available), planned: money(totals.planned) })}
+        {BigInt(totals.available.amount) < 0n
+          ? t("overspent", {
+              over: money({ ...totals.available, amount: totals.available.amount.replace(/^-/, "") }),
+              planned: money(totals.planned),
+            })
+          : t("left", { available: money(totals.available), planned: money(totals.planned) })}
       </span>
       <span
         data-plan-bar

@@ -18,11 +18,10 @@ import {
   unbudgetedNamesOf,
 } from "@/modules/reporting/ui/screens";
 import { canManage } from "@/modules/budgeting/ui";
-import { addDays, type LocalDate } from "@/shared/kernel/local-date";
 import type { LineDashboardDto, PeriodDto, ReportPlanDto } from "@/shared/ui/api/dto";
 import { useApis } from "../api";
 import type { Viewer } from "../load";
-import { daysOf, noPeriod, windowOf } from "../plan/loaders";
+import { daysOf, noPeriod, previousPlanReads, windowOf } from "../plan/loaders";
 import {
   cashFlowQuery,
   categoriesQuery,
@@ -30,7 +29,6 @@ import {
   lineTrendQuery,
   membersQuery,
   overviewQuery,
-  periodQuery,
   personalGroupsQuery,
   personalTrendQuery,
   spaceReportQuery,
@@ -83,25 +81,37 @@ function Frame({
   );
 }
 
+/** What a read gave so far: its answer once it has one, and whether it failed. */
+interface ReadState<T> {
+  readonly data: T | undefined;
+  readonly isError: boolean;
+}
+
 /**
- * Ruling P311: the period before a period without a plan, when it has a plan a copy can start from (the plan covering
- * the day before, as the API copies it); null when it has none; undefined while not known. Read only for whoever may
- * create the plan (P207), from the same reads the frame's step and the loader already make.
+ * The previous period when it has a plan to copy, null when it has none, undefined while not known, and `true` when a
+ * read failed: the copy is offered anyway, and the API answers with its own message when there is nothing to copy.
  */
-function usePreviousPlan(viewer: Viewer, dashboard: LineDashboardDto): PeriodDto | null | undefined {
+const previousPlanOf = (
+  period: ReadState<PeriodDto | null>,
+  dashboard: ReadState<LineDashboardDto>,
+): PeriodDto | true | null | undefined => {
+  if (period.isError) return true;
+  // No previous period (null) or not known yet (undefined); a dashboard that fails still offers the copy.
+  if (!period.data || dashboard.isError) return period.data;
+  return dashboard.data && (dashboard.data.plan === null ? null : period.data);
+};
+
+/**
+ * Ruling P311: whether the period before a period without a plan has a plan to copy (`previousPlanOf`), read only
+ * for whoever may create the plan (P207), through the same reads as the loader (`previousPlanReads`).
+ */
+function usePreviousPlan(viewer: Viewer, dashboard: LineDashboardDto): PeriodDto | true | null | undefined {
   const { api } = useApis();
-  const wanted = dashboard.plan === null && canManage(viewer.space.role);
-  const before = useQuery({
-    ...periodQuery(api, viewer.space.id, addDays(dashboard.period.startDate as LocalDate, -1)),
-    enabled: wanted,
-  });
-  const report = useQuery({
-    ...lineReportQuery(api, viewer.space.id, before.data?.label ?? ""),
-    enabled: wanted && Boolean(before.data),
-  }).data;
-  if (!wanted || before.data === undefined) return undefined;
-  if (before.data === null) return null;
-  return report === undefined ? undefined : report.plan === null ? null : before.data;
+  const reads = previousPlanReads(api, viewer.space.id, dashboard);
+  const wanted = reads.wanted && canManage(viewer.space.role);
+  const before = useQuery({ ...reads.period, enabled: wanted });
+  const report = useQuery({ ...reads.dashboard(before.data), enabled: wanted && Boolean(before.data) });
+  return wanted ? previousPlanOf(before, report) : undefined;
 }
 
 /** HU-E9-10: the period's line dashboard, with a shared space's desktop overview when it has a plan (P216). */
