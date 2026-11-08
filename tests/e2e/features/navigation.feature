@@ -5,10 +5,12 @@ Feature: Volver returns to where the person was, and a flow returns to where it 
     And "Ana" is signed in
 
   @e2e
-  Scenario: Volver from Accounts returns to Movimientos, not to the home
+  Scenario: Volver from Accounts returns to the space's settings, then to Movimientos, not to the home (P309)
     When "Ana" opens the Movimientos tab
     And "Ana" opens Accounts from her space's settings
     Then the accounts screen is shown
+    When "Ana" chooses Volver
+    Then her space's settings are shown
     When "Ana" chooses Volver
     Then the transactions page is shown
 
@@ -25,11 +27,15 @@ Feature: Volver returns to where the person was, and a flow returns to where it 
     And "Ana" opens the Inicio tab
     And "Ana" opens the Movimientos tab
     And "Ana" opens Accounts from her space's settings
-    And "Ana" chooses Volver
+    When "Ana" chooses Volver
+    Then her space's settings are shown
+    When "Ana" chooses Volver
     Then the transactions page is shown
     When "Ana" opens the Inicio tab
     And "Ana" opens Accounts from her space's settings
-    And "Ana" chooses Volver
+    When "Ana" chooses Volver
+    Then her space's settings are shown
+    When "Ana" chooses Volver
     Then the home page of her personal space is shown
 
   @e2e
@@ -47,6 +53,8 @@ Feature: Volver returns to where the person was, and a flow returns to where it 
     And "Ana" creates the CASH account "Wallet" from the accounts screen
     Then the accounts screen is shown
     And the accounts screen lists "Wallet"
+    When "Ana" chooses Volver
+    Then her space's settings are shown
     When "Ana" chooses Volver
     Then the transactions page is shown
 

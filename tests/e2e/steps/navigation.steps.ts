@@ -139,7 +139,13 @@ When("{string} goes back to the spaces in the sheet", async ({ page, world }, na
 
 Then("the space switcher lists her spaces", async ({ page, world }) => {
   const sheet = page.getByRole("dialog", { name: world.t("shell.space.title") });
-  await expect(sheet.getByRole("link", { name: /Personal/ })).toBeVisible();
+  // Anchored: "Ajustes de Personal" (ruling P309) names the space too.
+  await expect(sheet.getByRole("link", { name: /^Personal/ })).toBeVisible();
+});
+
+Then("her space's settings are shown", async ({ page, world }) => {
+  await expect(page).toHaveURL(new RegExp(`${escaped(homePath(world))}/settings$`));
+  await expect(page.getByRole("heading", { level: 1, name: /^Ajustes de / })).toBeVisible();
 });
 
 When("{string} creates the shared space {string}", async ({ page, world }, name: string, space: string) => {
