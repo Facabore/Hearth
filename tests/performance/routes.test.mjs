@@ -18,14 +18,15 @@ const CAPS = {
   "/spaces/:shared/plan/groups": 205,
   "/spaces/:shared/plan/trend": 305,
   "/spaces/:shared/plans/:plan": 210,
-  "/spaces/:shared/plans/:plan/capacities": 218,
+  // Owner, 2026-11-08 ("Sí, med + 3"): the release of P308–P311 measured 220 and 203 KiB in CI (ADR 0004).
+  "/spaces/:shared/plans/:plan/capacities": 223,
   "/spaces/:shared/plans/:plan/lines/new": 215,
   "/spaces/:shared/plans/:plan/lines/:line": 215,
   "/spaces/:id/plan": 205,
   "/spaces/:id/plan/lines": 205,
   "/spaces/:id/plan/groups": 205,
   "/spaces/:id/plan/trend": 305,
-  "/spaces/:id/plan/calendar": 205,
+  "/spaces/:id/plan/calendar": 206,
 };
 
 const ROUTES = readFileSync(join("src", "spa", "routes.tsx"), "utf8");
