@@ -4964,6 +4964,8 @@ export interface operations {
         parameters: {
             query: {
                 from: string;
+                /** @description Ruling P310: the last date listed, a past period's end; none when absent. Before `from`, nothing. */
+                to?: string;
                 limit?: number;
             };
             header?: never;

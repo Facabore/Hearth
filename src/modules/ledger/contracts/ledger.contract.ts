@@ -663,9 +663,18 @@ const recording = (
 const invalidMoney =
   "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey";
 
-/** Ruling P306: `from` is the first date listed (the personal period's start on Inicio); `limit` caps the list. */
+/**
+ * Ruling P306: `from` is the first date listed (the personal period's start on Inicio); `limit` caps the list. Ruling
+ * P310: `to`, optional, is the last date listed (a past period's end).
+ */
 export const MyActivityQuerySchema = z.object({
   from: z.iso.date(),
+  to: z.iso
+    .date()
+    .optional()
+    .describe(
+      "Ruling P310: the last date listed, a past period's end; none when absent. Before `from`, nothing.",
+    ),
   limit: z.coerce.number().int().min(1).max(MAX_ACTIVITY).default(10),
 });
 
