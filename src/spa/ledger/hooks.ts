@@ -30,6 +30,11 @@ export const rowContextOf = (
   memberNames,
 });
 
+/** A space's members by id, as its rows name them. */
+export const memberNamesOf = (
+  members: readonly { readonly id: string; readonly displayName: string }[],
+): Record<string, string> => Object.fromEntries(members.map((m) => [m.id, m.displayName]));
+
 /** Ruling P189: the detail sheet's data behind `?tx=`, or nothing while no row is open. */
 export const useTransactionDetail = (
   viewer: Viewer,
@@ -70,10 +75,16 @@ export const useHome = (viewer: Viewer) => {
       categoriesQuery(api, spaceId, "all"),
     ],
   });
+  // P307: a shared or direct space's rows name its members ("Juan → Ana", "pagó Juan"), as Movimientos' do. The
+  // members are an empty list of queries elsewhere, so the hooks run the same way on every render.
+  const memberQueries: ReturnType<typeof membersQuery>[] = sharedSpace(viewer.space)
+    ? [membersQuery(api, spaceId)]
+    : [];
+  const members = useSuspenseQueries({ queries: memberQueries });
   return {
     page: page.data,
     accounts: accounts.data,
-    context: rowContextOf(viewer.me, groups.data, accounts.data),
+    context: rowContextOf(viewer.me, groups.data, accounts.data, memberNamesOf(members[0]?.data ?? [])),
   };
 };
 

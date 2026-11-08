@@ -164,6 +164,8 @@ export const loadHome = async (load: Load, spaceId: string, transactionId?: stri
       : undefined,
     ensure(accountsQuery(api, spaceId, "active")),
     ensure(categoriesQuery(api, spaceId, "all")),
+    // P307: a shared or direct space's rows name its members.
+    viewer && sharedSpace(viewer.space) ? ensure(membersQuery(api, spaceId)) : undefined,
     transactionId
       ? viewerOf(load, spaceId).then((viewer) => viewer && loadDetail(load, viewer, transactionId))
       : undefined,
