@@ -577,7 +577,9 @@
         "EXACT": "by amounts",
         "SHARES": "by shares",
         "BY_ALLOCATION": "per the plan"
-      }
+      },
+      "addGuests": "Add guests",
+      "addGuestsHint": "Someone without an account who paid or takes part"
     },
     "direct": {
       "open": "Split with someone",
@@ -663,7 +665,22 @@
       "SEMI_MONTHLY": "twice a month, days {day1} and {day2}"
     },
     "you": "{name} (you)",
-    "guestSuffix": "(guest)"
+    "guestSuffix": "(guest)",
+    "guestsSheet": {
+      "title": "Add guests to {space}",
+      "intro": "For someone who does not use Hearth. They can pay, owe, have capacity in the plan and receive payments, only in {space}. They cannot sign in.",
+      "guest": "Guest {number}",
+      "remove": "Remove",
+      "name": "Name",
+      "nameHint": "It shows with \"(guest)\" next to it. It cannot repeat another member's name.",
+      "nameHintNamed": "It shows as \"{name}\". It cannot repeat another member's name.",
+      "email": "Email (optional)",
+      "emailPlaceholder": "To remember it; nothing is sent",
+      "another": "Add another guest",
+      "submit": "{count, plural, one {Add guest} other {Add # guests}}",
+      "nobodyYet": "Nobody was added yet: fix the marked name and try again.",
+      "claimNote": "If any of them signs up later, you send them a link to claim their place and they keep all its history."
+    }
   },
   "notFound": {
     "title": "This page does not exist",

@@ -50,19 +50,8 @@
     "revokeLink": "Revoke the invitation link as {role}",
     "revoked": "Invitation revoked",
     "undo": "Undo",
-    "addGuest": "Add guest",
+    "addGuest": "Add guests",
     "guestOptions": "Options for {name}",
-    "guestSheet": {
-      "addTitle": "Add a guest to {space}",
-      "intro": "For someone who does not use Hearth. They can pay, owe, have capacity in the plan and receive payments, only in {space}. They cannot sign in.",
-      "name": "Name",
-      "nameHint": "It shows with \"(guest)\" next to it. It cannot repeat another member's name.",
-      "nameHintNamed": "It shows as \"{name}\". It cannot repeat another member's name.",
-      "email": "Email (optional)",
-      "emailPlaceholder": "To remember it; nothing is sent",
-      "claimNote": "If they sign up later, you send them a link to claim this place and they keep all its history.",
-      "claimNoteNamed": "If {name} signs up later, you send them a link to claim this place and they keep all its history."
-    },
     "guest": {
       "balance": "In {space} · {sentence}",
       "claimTitle": "A link for {name} to claim their place",

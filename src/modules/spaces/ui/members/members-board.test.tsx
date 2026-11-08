@@ -94,10 +94,10 @@ const screenAs = (
 const rowOf = (name: string) => screen.getByRole("listitem", { name });
 
 describe("Miembros as its board (E9-05 · 01-03, ruling P272)", () => {
-  it("puts Invitar and Agregar invitado side by side at equal width for an OWNER, with no rename section", () => {
+  it("puts Invitar and Agregar invitados side by side at equal width for an OWNER, with no rename section", () => {
     screenAs("u-ana", "OWNER");
     const invite = screen.getByRole("button", { name: "Invitar" });
-    const add = screen.getByRole("button", { name: "Agregar invitado" });
+    const add = screen.getByRole("button", { name: "Agregar invitados" });
     expect(invite.parentElement).toBe(add.parentElement);
     expect(invite.parentElement).toHaveClass("grid", "grid-cols-2");
     // The board has no "Espacio / Nombre del espacio" block: the space is renamed in Ajustes.
@@ -114,9 +114,9 @@ describe("Miembros as its board (E9-05 · 01-03, ruling P272)", () => {
     expect(within(rowOf("Juan")).getByText("Se unió el 3/10/2026")).toBeInTheDocument();
   });
 
-  it("gives a MEMBER one full-width Agregar invitado and every role as plain text (board 02)", () => {
+  it("gives a MEMBER one full-width Agregar invitados and every role as plain text (board 02)", () => {
     screenAs("u-luis", "MEMBER");
-    expect(screen.getByRole("button", { name: "Agregar invitado" })).toHaveClass("w-full");
+    expect(screen.getByRole("button", { name: "Agregar invitados" })).toHaveClass("w-full");
     expect(screen.queryByRole("button", { name: "Invitar" })).not.toBeInTheDocument();
     for (const [name, role] of [
       ["Ana", "Propietario"],
@@ -140,7 +140,7 @@ describe("Miembros as its board (E9-05 · 01-03, ruling P272)", () => {
 
   it("keeps every control of the screen at least 44 px tall", () => {
     screenAs("u-ana", "OWNER", { invitations: PENDING });
-    for (const name of ["Invitar", "Agregar invitado"])
+    for (const name of ["Invitar", "Agregar invitados"])
       expect(screen.getByRole("button", { name })).toHaveClass("h-12");
     expect(screen.getByRole("button", { name: "Rol de Juan: Administrador. Cambiar" })).toHaveClass(
       "min-h-11",
@@ -254,11 +254,11 @@ describe("the guest sheet (E9-05 · 06)", () => {
   });
 });
 
-describe("the add-guest sheet (E9-05 · 05)", () => {
-  it("words the intro as the board, hints the email inside the field, and names the guest in the claim note", async () => {
+describe("the add-guests sheet (E9-05 · 05, P309)", () => {
+  it("words the intro as the board, hints the email inside the field, and words the claim note for one guest or several", async () => {
     screenAs("u-ana", "OWNER");
-    await userEvent.click(screen.getByRole("button", { name: "Agregar invitado" }));
-    const sheet = screen.getByRole("dialog", { name: "Agregar invitado a Household" });
+    await userEvent.click(screen.getByRole("button", { name: "Agregar invitados" }));
+    const sheet = await screen.findByRole("dialog", { name: "Agregar invitados a Household" });
     expect(sheet).toHaveAccessibleDescription(
       "Para alguien que no usa Hearth. Puede pagar, poner su parte, aportar al plan y recibir pagos, solo en Household. No inicia sesión.",
     );
@@ -267,11 +267,7 @@ describe("the add-guest sheet (E9-05 · 05)", () => {
       "Para recordarlo; no recibe nada",
     );
     expect(within(sheet).getByRole("note")).toHaveTextContent(
-      "Si se registra después, le envías un enlace para reclamar este lugar y se lleva todo su historial.",
-    );
-    await userEvent.type(within(sheet).getByLabelText("Nombre"), "Pedro");
-    expect(within(sheet).getByRole("note")).toHaveTextContent(
-      "Si Pedro se registra después, le envías un enlace para reclamar este lugar y se lleva todo su historial.",
+      "Si alguno se registra después, le envías un enlace para reclamar su lugar y se lleva todo su historial.",
     );
   });
 });
@@ -382,7 +378,12 @@ describe("the members copy speaks tú in Spanish and plain English", () => {
     expect(es.members.roleSheet.lock).toBe(
       "Solo el Propietario cambia roles. Propietario no se asigna aquí.",
     );
-    for (const text of [es.members.readOnlyNote, es.members.guest.blocked, es.members.guestSheet.claimNote])
+    for (const text of [
+      es.members.readOnlyNote,
+      es.members.guest.blocked,
+      ...Object.values(es.members.guestsSheet),
+      es.ledger.split.addGuestsHint,
+    ])
       expect(text).not.toMatch(/\b(podés|tenés|querés|registrá|pegá|sos)\b/);
     expect(en.members.roleSheet.lock).toBe("Only the Owner changes roles. Owner is not assigned here.");
     expect(en.members.guest.blocked).toBe(

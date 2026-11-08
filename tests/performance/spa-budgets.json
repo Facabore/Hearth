@@ -24,6 +24,7 @@
     "../modules/spaces/ui/space-name-section.tsx": 20,
     "../modules/spaces/ui/space-color-field.tsx": 4,
     "../modules/ledger/ui/split/split-sheet.tsx": 36,
+    "../modules/spaces/ui/members/add-guests-sheet.tsx": 8,
     "../modules/ledger/ui/direct/split-with-person-sheet.tsx": 16,
     "../shared/ui/molecules/sheet-panel.tsx": 18,
     "../shared/ui/molecules/toast-host.ts": 4,

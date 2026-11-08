@@ -8,7 +8,7 @@ import type { InvitationDto, MemberDto, MoneyDto, SpaceDto } from "@/shared/ui/a
 import { formatDate, type Formats } from "@/shared/ui/format/formatters";
 import { localDateIn } from "@/shared/kernel/time-zone";
 import { Button, Icon, ScreenHeader } from "@/shared/ui";
-import { AddGuestSheet } from "./add-guest-sheet";
+import { LazyAddGuestsSheet } from "./lazy-add-guests-sheet";
 import { GuestSheet } from "./guest-sheet";
 import { InviteSheet } from "./invite-sheet";
 import { memberLabel } from "./member-label";
@@ -160,7 +160,7 @@ export function MembersScreen({
           api={api}
         />
       ) : null}
-      {addingGuest ? <AddGuestSheet open onOpenChange={setAddingGuest} space={space} api={api} /> : null}
+      {addingGuest ? <LazyAddGuestsSheet open onOpenChange={setAddingGuest} space={space} api={api} /> : null}
       {guest ? (
         <GuestSheet
           open
