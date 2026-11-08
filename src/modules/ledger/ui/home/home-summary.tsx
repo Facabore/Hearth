@@ -1,17 +1,16 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
-import { controlsFor, JoinedNotice, MASKED_AMOUNT, shownAmount, useAmountsHidden } from "@/modules/spaces/ui";
+import { controlsFor, JoinedNotice } from "@/modules/spaces/ui";
 import { Icon, SymbolIcon } from "@/shared/ui";
 import type { AccountDto, MoneyDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
-import { formatDate } from "@/shared/ui/format/formatters";
+import { formatDate, formatMoney } from "@/shared/ui/format/formatters";
 import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { periodName } from "@/shared/ui/time/period-name";
 import type { TransactionDetail } from "../detail/transaction-detail";
 import { TransactionSheetHost } from "../detail/transaction-sheet-host";
 import { hrefOf, withTx } from "../detail/tx-href";
 import { TransactionRow, type RowContext } from "../transaction-row";
-import { AmountsEye } from "./amounts-eye";
 import { FirstSteps, type FirstStepsDone } from "./first-steps";
 import { OweCard, type Owe } from "./owe-card";
 
@@ -33,7 +32,6 @@ export function HomeSummary({
   recent,
   today,
   firstSteps,
-  personId,
   owes,
   stepper,
   past = false,
@@ -62,8 +60,6 @@ export function HomeSummary({
   readonly recent?: ReactNode;
   /** Issues #220 (F14) and #152: on the personal home, a new person's four first steps, under the period's figure. */
   readonly firstSteps?: { readonly personId: string; readonly done: FirstStepsDone } | undefined;
-  /** Ruling P278: the person, for Inicio's eye, which hides every amount and is remembered per person. */
-  readonly personId?: string | undefined;
   /** Ruling P278 (board B1 · 03): each shared space where it is the person's turn to put money in. */
   readonly owes?: readonly Owe[] | undefined;
   /** Ruling P310: the personal Inicio's step between periods, above the period's figure. */
@@ -85,12 +81,10 @@ export function HomeSummary({
   const canInvite = controls.invite;
   const accountsNote = useTranslations("accounts");
   const personal = kind === "PERSONAL";
-  const hidden = useAmountsHidden(personId ?? "") && personId !== undefined;
-  const money = (amount: MoneyDto) => shownAmount(amount, hidden, formats);
+  const money = (amount: MoneyDto) => formatMoney(amount, formats);
   return (
     <div className="grid grid-cols-1 gap-3 py-3 lg:grid-cols-2">
       <h1 className="sr-only">{t("title")}</h1>
-      {personId ? <AmountsEye personId={personId} /> : null}
       {joined ? (
         <div className="lg:col-span-2">
           <JoinedNotice space={joined.space} dismissHref={joined.dismissHref} />
@@ -241,7 +235,6 @@ export function HomeSummary({
                   context={context}
                   href={withTx(`/spaces/${spaceId}`, tx.id)}
                   today={today}
-                  maskedAmount={hidden ? MASKED_AMOUNT : undefined}
                 />
               ))}
             </ol>

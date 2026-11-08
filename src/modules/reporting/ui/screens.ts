@@ -12,4 +12,4 @@ export { treeOf } from "./by-group/spending-tree";
 export { unbudgetedNamesOf } from "./lines/unbudgeted-names";
 export { LineTrend } from "./trend/line-trend";
 export { PersonalTrend } from "./trend/personal-trend";
-export { CashFlowCalendar } from "./calendar/cash-flow-calendar";
+export { LazyCashFlowCalendar } from "./calendar/lazy-cash-flow-calendar";

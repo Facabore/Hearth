@@ -26,7 +26,7 @@
   },
   "spaces": {
     "screen": {
-      "title": "Ajustes de {space}",
+      "title": "Configuración",
       "subtitle": "{kind} · {currency} · {policy}",
       "kind": {
         "PERSONAL": "Solo tú",
@@ -50,7 +50,20 @@
         "title": "¿Archivar {space}?",
         "body": "{space} queda para consulta: todos siguen viendo sus movimientos, pero nadie registra más."
       },
-      "cancel": "Cancelar"
+      "cancel": "Cancelar",
+      "withPeople": "{kind} · {count, plural, one {# persona} other {# personas}}",
+      "people": "{count, plural, one {# persona} other {# personas}}",
+      "section": {
+        "plan": "Plan",
+        "people": "Personas",
+        "money": "Dinero",
+        "space": "Espacio"
+      },
+      "plan": "Plan del mes",
+      "planLeft": "Quedan {amount}",
+      "noPlan": "Sin plan",
+      "recurring": "Recurrentes",
+      "name": "Nombre"
     }
   }
 }

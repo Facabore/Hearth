@@ -68,6 +68,9 @@ for (const colorScheme of ["light", "dark"] as const) {
         // HU-E9-11: its By group view, the person's own spending merged across spaces.
         `/spaces/${spaceId}/plan/groups`,
         "/settings",
+        // Ruling P311: Más, the bar's module grid, and the space's Configuración from the header's gear.
+        `/spaces/${spaceId}/more`,
+        `/spaces/${spaceId}/settings`,
         // N1: the app's own not-found page, for an address and for a space.
         "/nope",
         "/spaces/does-not-exist/accounts",
@@ -75,6 +78,15 @@ for (const colorScheme of ["light", "dark"] as const) {
         await page.goto(path);
         await scan(path);
       }
+      // Ruling P311: Configuración with its space dropdown open, then with its name unfolded.
+      await page.goto(`/spaces/${spaceId}/settings`);
+      await page.getByRole("button", { name: "Personal", exact: true }).click();
+      await expect(page.getByRole("list", { name: es.shell.space.title })).toBeVisible();
+      await scan("Configuración with its space dropdown open");
+      await page.keyboard.press("Escape");
+      await page.getByRole("button", { name: es.spaces.screen.name, exact: true }).click();
+      await expect(page.getByLabel(es.spaces.settings.name)).toBeVisible();
+      await scan("Configuración with its name unfolded");
       // HU-E9-04: a category's edit sheet (icon picker, color row) and the icon library over it.
       await page.goto(`/spaces/${spaceId}/categories`);
       await page.getByRole("button", { name: es.categories.edit.replace("{name}", "Arriendo") }).click();

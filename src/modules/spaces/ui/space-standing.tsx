@@ -2,7 +2,6 @@ import { useTranslations } from "next-intl";
 import type { ComponentType } from "react";
 import type { paths } from "@/shared/ui/api/schema";
 import { BUILT_IN_FORMATS, formatMoney, type Formats } from "@/shared/ui/format/formatters";
-import { MASKED_AMOUNT, useAmountsHidden } from "./hidden-amounts";
 
 /** The person's standing in one shared or direct space (`GET /api/v1/me/balances`, ruling P278). */
 export type MyBalanceDto =
@@ -12,19 +11,11 @@ export interface SpaceStandingProps {
   /** The space's name, the card's title. */
   readonly name: string;
   readonly balance: MyBalanceDto;
-  readonly personId: string;
   readonly formats?: Pick<Formats, "numberFormat"> | undefined;
 }
 
 /** The component that draws a shared space's card text; the app loads it with Inicio's chunk (ruling P278). */
 export type SpaceStandingView = ComponentType<SpaceStandingProps>;
-
-/** The amount as the person sees it: masked while she hides her amounts (Inicio's eye). */
-export const shownAmount = (
-  money: { readonly amount: string; readonly currency: string },
-  hidden: boolean,
-  formats: Pick<Formats, "numberFormat">,
-): string => (hidden ? MASKED_AMOUNT : formatMoney(money, formats));
 
 /** "Ana, Juan, Sofi y Pedro": a space's members by name, the last joined with the language's "y". */
 const useMemberNames = () => {
@@ -40,10 +31,9 @@ const useMemberNames = () => {
  * person puts in or receives there, always in words (never by color alone); nothing when she is al día. It loads
  * with Inicio's chunk, so the shell stays as light as it was.
  */
-export function SpaceStanding({ name, balance, personId, formats = BUILT_IN_FORMATS }: SpaceStandingProps) {
+export function SpaceStanding({ name, balance, formats = BUILT_IN_FORMATS }: SpaceStandingProps) {
   const t = useTranslations("shell.space");
   const names = useMemberNames();
-  const hidden = useAmountsHidden(personId);
   const net = BigInt(balance.net.amount);
   return (
     <>
@@ -59,9 +49,8 @@ export function SpaceStanding({ name, balance, personId, formats = BUILT_IN_FORM
         >
           <span>{t(net < 0n ? "owes" : "owed")}</span>
           <span className="whitespace-nowrap">
-            {shownAmount(
+            {formatMoney(
               { amount: (net < 0n ? -net : net).toString(), currency: balance.net.currency },
-              hidden,
               formats,
             )}
           </span>

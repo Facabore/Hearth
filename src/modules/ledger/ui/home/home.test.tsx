@@ -229,19 +229,9 @@ describe("the personal space shows everything (ruling P306)", () => {
             page={octoberPage}
             policy={{ kind: "MONTHLY", day: 1 }}
             formats={rowContext.formats}
-            personId="u-ana"
           />
         }
-        recent={
-          <UnifiedRecent
-            feed={feed}
-            spaceId="sp-personal"
-            context={rowContext}
-            today="2026-10-31"
-            personId="u-ana"
-          />
-        }
-        personId="u-ana"
+        recent={<UnifiedRecent feed={feed} spaceId="sp-personal" context={rowContext} today="2026-10-31" />}
         {...props}
       />,
     );
@@ -687,43 +677,14 @@ describe("Inicio's turn to put money in and its eye (board B1 · 03, ruling P278
     expect(screen.queryByRole("region", { name: /Te toca poner/ })).not.toBeInTheDocument();
   });
 
-  it("hides every amount with the eye, and this browser remembers it for the person", async () => {
+  it("shows every amount, with no eye to hide them, whatever an older visit stored (ruling P311)", () => {
+    localStorage.setItem("hearth.hideAmounts.u-eye", "1");
+    renderWithIntl(home({ owes: [owe] }));
+    expect(screen.queryByRole("button", { name: "Ocultar montos" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Resumen del período" })).toHaveTextContent("245.000");
+    expect(screen.getByRole("region", { name: /Te toca poner/ })).toHaveTextContent("120.000");
+    expect(document.body).not.toHaveTextContent("••••••");
     localStorage.clear();
-    const { unmount } = renderWithIntl(home({ personId: "u-eye", owes: [owe] }));
-    const eye = screen.getByRole("button", { name: "Ocultar montos" });
-    expect(eye).toHaveAttribute("aria-pressed", "false");
-    await userEvent.click(eye);
-    expect(eye).toHaveAttribute("aria-pressed", "true");
-    const summary = screen.getByRole("region", { name: "Resumen del período" });
-    expect(summary).not.toHaveTextContent("245.000");
-    expect(summary).not.toHaveTextContent("3.200.000");
-    expect(summary).toHaveTextContent("••••••");
-    expect(screen.getByRole("region", { name: "Cuentas" })).not.toHaveTextContent("4.455.000");
-    expect(screen.getByRole("region", { name: /Te toca poner/ })).not.toHaveTextContent("120.000");
-    // Masked in the text itself, so a screen reader does not read them out either.
-    const recent = screen.getByRole("region", { name: "Recientes" });
-    expect(recent).toHaveTextContent("••••••");
-    expect(recent).not.toHaveTextContent(/\$\s?\d/);
-    expect(localStorage.getItem("hearth.hideAmounts.u-eye")).toBe("1");
-    unmount();
-    renderWithIntl(home({ personId: "u-eye", owes: [owe] }));
-    expect(screen.getByRole("button", { name: "Ocultar montos" })).toHaveAttribute("aria-pressed", "true");
-    await userEvent.click(screen.getByRole("button", { name: "Ocultar montos" }));
-    expect(screen.getByRole("region", { name: "Resumen del período" })).toHaveTextContent("$ 245.000");
-    expect(localStorage.getItem("hearth.hideAmounts.u-eye")).toBeNull();
-  });
-
-  it("keeps the choice for the visit when the browser blocks its storage", async () => {
-    const blocked = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-      throw new DOMException("blocked", "SecurityError");
-    });
-    try {
-      renderWithIntl(home({ personId: "u-blocked" }));
-      await userEvent.click(screen.getByRole("button", { name: "Ocultar montos" }));
-      expect(screen.getByRole("region", { name: "Resumen del período" })).not.toHaveTextContent("245.000");
-    } finally {
-      blocked.mockRestore();
-    }
   });
 
   it("draws Recientes as plain rows on the page, not in a card (B1 · 03)", () => {

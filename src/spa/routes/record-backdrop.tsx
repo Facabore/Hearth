@@ -68,8 +68,6 @@ function HomeBehind({ viewer }: { readonly viewer: Viewer }) {
           : {},
       )}
       today={nowIn(new Date(), me.timezone).date}
-      // The person's eye: amounts she hid on Inicio stay hidden behind the sheet.
-      personId={me.id}
     />
   );
 }

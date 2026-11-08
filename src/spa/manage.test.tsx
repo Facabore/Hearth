@@ -228,18 +228,14 @@ describe("accounts, categories and settings in the SPA (slice 3 of #199, ADR 000
     expect(screen.queryByLabelText("Nombre del espacio")).not.toBeInTheDocument();
   });
 
-  it("opens a space's own settings from the switcher, with its screens and a way back (ruling P309)", async () => {
+  it("opens a space's Configuración from the header's ⚙, with its screens and a way back (rulings P309, P311)", async () => {
     const { routes } = server();
     const spa = renderSpa("/spaces/sp-household", routes);
-    await userEvent.click(
-      await screen.findByRole("button", { name: es.shell.space.current.replace("{name}", "Household") }),
-    );
-    await userEvent.click(await screen.findByRole("link", { name: "Ajustes de Household" }));
+    await userEvent.click(await screen.findByRole("link", { name: "Configuración de Household" }));
     await waitFor(() => expect(spa.location()).toBe("/spaces/sp-household/settings"));
-    expect(
-      await screen.findByRole("heading", { level: 1, name: "Ajustes de Household" }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Miembros e invitados" })).toHaveAttribute(
+    expect(await screen.findByRole("heading", { level: 1, name: "Configuración" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Household" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Miembros e invitados/ })).toHaveAttribute(
       "href",
       "/spaces/sp-household/members",
     );
@@ -252,6 +248,8 @@ describe("accounts, categories and settings in the SPA (slice 3 of #199, ADR 000
   it("renames the space in its own settings and the shell of a tab shows the new name at once (#167, P309)", async () => {
     const { routes } = server();
     const spa = renderSpa("/spaces/sp-personal/settings", routes);
+    // Ruling P311: the name sits behind its row of the flat list, "Nombre" in the personal space.
+    await userEvent.click(await screen.findByRole("button", { name: "Nombre" }));
     const field = await screen.findByLabelText("Nombre del espacio");
     await userEvent.clear(field);
     await userEvent.type(field, "Mis finanzas");

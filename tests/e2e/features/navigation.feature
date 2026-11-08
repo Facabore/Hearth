@@ -106,15 +106,15 @@ Feature: Volver returns to where the person was, and a flow returns to where it 
     Then the balances page of "Household" is shown
 
   # Ruling P303 (#240): the planner's sheet and forms leave without adding a history entry, so neither Volver nor the
-  # browser's Back ever reopens them, and the planner keeps the main bar, the way out that always works.
+  # browser's Back ever reopens them. Ruling P311: the planner is a stacked screen, Volver its way out.
   @e2e
   Scenario Outline: <leave> from the planner returns to Plan after she <action>
     When "Ana" opens the Plan tab of her personal space for 2026-11 and starts its plan
     And she <action>
     Then the planner is shown
-    And the planner shows the main navigation
+    And the planner is a stacked screen with its way back
     When "Ana" <leave>
-    Then the Plan tab of her personal space is shown
+    Then the Plan of her personal space is shown
 
     Examples:
       | action                                   | leave                   |
@@ -130,7 +130,7 @@ Feature: Volver returns to where the person was, and a flow returns to where it 
     And she adds the line "Mercado" with 200,000 COP
     Then the planner is shown
     When "Ana" <leave>
-    Then the Plan tab of her personal space is shown
+    Then the Plan of her personal space is shown
 
     Examples:
       | leave                    |
@@ -143,3 +143,13 @@ Feature: Volver returns to where the person was, and a flow returns to where it 
     When "Ana" opens the Movimientos tab
     And "Ana" opens the Saldos tab
     Then the balances page of her personal space is shown
+
+  # Ruling P311 (#275): the bar's Más opens the app's modules, and the header's ⚙ opens the space's Configuración.
+  @e2e
+  Scenario: Más opens the module grid and the header's gear opens the space's Configuración
+    When "Ana" opens the Movimientos tab
+    And "Ana" opens Más from the bar
+    Then the module grid is shown, with the modules to come marked Próximamente
+    When "Ana" opens the Movimientos tab
+    And "Ana" opens her space's Configuración from the header's gear
+    Then her space's settings are shown

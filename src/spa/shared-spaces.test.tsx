@@ -179,7 +179,8 @@ describe("shared spaces in the SPA (slice 4 of #199, ADR 0006)", () => {
     const { routes } = server();
     const spa = renderSpa(`${HOUSEHOLD}/settings`, routes);
     await userEvent.click(
-      await screen.findByRole("button", { name: "Salir de Household" }, { timeout: 5_000 }),
+      // Ruling P311: the row carries its hint under the name.
+      await screen.findByRole("button", { name: /^Salir de Household/ }, { timeout: 5_000 }),
     );
     const sheet = await screen.findByRole("dialog", { name: "¿Salir de Household?" }, { timeout: 10_000 });
     await userEvent.click(within(sheet).getByRole("button", { name: "Salir de Household" }));

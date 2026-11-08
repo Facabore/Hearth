@@ -25,7 +25,6 @@ export function TransactionRow({
   href,
   today,
   card = false,
-  maskedAmount,
 }: {
   readonly tx: TransactionDto;
   readonly context: RowContext;
@@ -39,8 +38,6 @@ export function TransactionRow({
    * its plus sign. Inicio's rows (board B1 03) name the category and no account beside it, and truncate.
    */
   readonly card?: boolean;
-  /** Ruling P278: what Inicio shows instead of the amount while its eye hides them, in the text a screen reader reads. */
-  readonly maskedAmount?: string;
 }) {
   const t = useTranslations("ledger");
   const { formats, viewerZone, groups, accountNames, memberNames } = context;
@@ -117,7 +114,7 @@ export function TransactionRow({
           </span>
         ) : null}
       </span>
-      <span className={`shrink-0 font-semibold whitespace-nowrap ${tone}`}>{maskedAmount ?? amount}</span>
+      <span className={`shrink-0 font-semibold whitespace-nowrap ${tone}`}>{amount}</span>
     </>
   );
   // Ruling P284: Movimientos's rows share their day's card, which draws the surface and the dividers.

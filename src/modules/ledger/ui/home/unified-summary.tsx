@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useId, useState } from "react";
-import { shownAmount, useAmountsHidden } from "@/modules/spaces/ui";
 import { Icon, paletteVars } from "@/shared/ui";
 import { SpaceChip } from "@/shared/ui/atoms/space-chip";
 import type { MoneyDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
-import { formatDate, type Formats } from "@/shared/ui/format/formatters";
+import { formatDate, formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { periodName } from "@/shared/ui/time/period-name";
 import type { MonthPart, UnifiedMonth } from "./feed";
 
@@ -135,7 +134,6 @@ export function UnifiedSummary({
   page,
   policy,
   formats,
-  personId,
   soloHref,
   othersHref,
 }: {
@@ -143,8 +141,6 @@ export function UnifiedSummary({
   readonly page: TransactionPageDto;
   readonly policy: SpaceDto["periodPolicy"];
   readonly formats: Formats;
-  /** Ruling P278: Inicio's eye hides every amount. */
-  readonly personId: string;
   /** Ruling P310: where a "Solo tú" category opens its movements. */
   readonly soloHref?: ((categoryId: string) => string | undefined) | undefined;
   /** Ruling P310: where a "Con otros" space opens its movements. */
@@ -152,8 +148,7 @@ export function UnifiedSummary({
 }) {
   const t = useTranslations("home");
   const common = useTranslations("common");
-  const hidden = useAmountsHidden(personId);
-  const money = (amount: MoneyDto) => shownAmount(amount, hidden, formats);
+  const money = (amount: MoneyDto) => formatMoney(amount, formats);
   const name = periodName(page.period, policy);
   return (
     <section aria-label={t("summary")} className="flex flex-col rounded-2xl bg-surface p-3">

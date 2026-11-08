@@ -708,6 +708,11 @@ for (const wideFont of [false, true]) {
           warned,
           "/spaces/new",
           "/settings",
+          // Ruling P311: Más's module grid and each space's Configuración.
+          `/spaces/${spaceId}/more`,
+          `/spaces/${sharedId}/more`,
+          `/spaces/${spaceId}/settings`,
+          `/spaces/${sharedId}/settings`,
           // N3: Settings and New space opened from a shared space wear its shell.
           `/settings?from=${sharedId}`,
           `/spaces/new?from=${sharedId}`,
@@ -1016,31 +1021,56 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       await page.setViewportSize(viewport);
       const { spaceId, sharedId } = await session(page, `plan-tab-${viewport.width}`);
       await seedOverBudgetPlan(page, sharedId);
-      for (const [path, tabs] of [
-        [`/spaces/${sharedId}/plan`, 5],
+      for (const path of [
+        `/spaces/${sharedId}/plan`,
         // The member matrix: a card per member, so no table scrolls and no figure is cut off.
-        [`/spaces/${sharedId}/plan/members`, 5],
-        [`/spaces/${sharedId}/plan/fund`, 5],
-        [`/spaces/${sharedId}/plan/groups`, 5],
+        `/spaces/${sharedId}/plan/members`,
+        `/spaces/${sharedId}/plan/fund`,
+        `/spaces/${sharedId}/plan/groups`,
         // Tendencia: a card per line against the previous period (board E9-11 04), never wider than the page.
-        [`/spaces/${sharedId}/plan/trend`, 5],
-        // HU-E9-11: Rubros, the personal space's own page (ruling P267), and its Lines address. Personal has Saldos too
-        // (P302), so its bar has the board's five slots.
-        [`/spaces/${spaceId}/plan`, 5],
-        [`/spaces/${spaceId}/plan/lines`, 5],
+        `/spaces/${sharedId}/plan/trend`,
+        // HU-E9-11: Rubros, the personal space's own page (ruling P267), and its Lines address.
+        `/spaces/${spaceId}/plan`,
+        `/spaces/${spaceId}/plan/lines`,
         // HU-E9-11: By group, the person's own spending merged across their spaces.
-        [`/spaces/${spaceId}/plan/groups`, 5],
-      ] as const) {
+        `/spaces/${spaceId}/plan/groups`,
+      ]) {
         await page.goto(path);
         await settle(page);
-        await expect(page.getByRole("heading", { level: 1 })).toHaveText(/octubre 2026/i);
+        // Ruling P311: Plan left the bar; each view is a stacked screen titled Plan, its way back the Configuración.
+        await expect(page.getByRole("heading", { level: 1 })).toHaveText(es.reports.title);
+        // The period heads the frame; a view may add its own level-2 headings under it ("… no tiene plan").
+        await expect(page.getByRole("heading", { level: 2 }).first()).toHaveText(/octubre 2026/i);
+        await expect(page.getByRole("link", { name: es.common.back })).toHaveAttribute(
+          "href",
+          /\/spaces\/[^/]+\/settings$/,
+        );
+        await expect(page.getByRole("navigation", { name: es.shell.nav.main })).toHaveCount(0);
         const { overflow, message } = await overflowReport(page, path);
         expect.soft(overflow, message).toBeLessThanOrEqual(0);
 
+        // The dashboard's own controls: the period links and the view tabs are full targets.
+        for (const link of await page.locator("main").getByRole("link").all()) {
+          const box = (await link.boundingBox())!;
+          expect
+            .soft(box.height, "a link of the dashboard is at least 44 px tall")
+            .toBeGreaterThanOrEqual(TARGET);
+          // Issue #174 (U3): the view tabs wrap to a second row, so every link, a tab included, ends on screen where
+          // it stands, with no scrolling.
+          expect.soft(box.x + box.width, "and ends on screen").toBeLessThanOrEqual(viewport.width);
+        }
+      }
+      // Ruling P311 (amends P302): the bar reads Inicio, Movimientos, Registrar, Saldos and Más in every space, Más
+      // current on its own grid.
+      for (const path of [`/spaces/${sharedId}/more`, `/spaces/${spaceId}/more`]) {
+        await page.goto(path);
+        await settle(page);
+        const { overflow, message } = await overflowReport(page, path);
+        expect.soft(overflow, message).toBeLessThanOrEqual(0);
         const nav = page.getByRole("navigation", { name: es.shell.nav.main });
         const links = nav.getByRole("link");
-        await expect(links, `${path}: the tabs`).toHaveCount(tabs);
-        await expect(nav.getByRole("link", { name: es.shell.nav.plan, exact: true })).toHaveAttribute(
+        await expect(links, `${path}: the tabs`).toHaveCount(5);
+        await expect(nav.getByRole("link", { name: es.shell.nav.more, exact: true })).toHaveAttribute(
           "aria-current",
           "page",
         );
@@ -1091,15 +1121,14 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
           }
         });
 
-        // The dashboard's own controls: the period links and the view tabs are full targets.
-        for (const link of await page.locator("main").getByRole("link").all()) {
-          const box = (await link.boundingBox())!;
+        // Más's tiles are full targets, three to a row, each on screen.
+        for (const tile of await page.locator("main").getByRole("link").all()) {
+          const box = (await tile.boundingBox())!;
+          expect.soft(box.height, `${path}: a tile is at least 44 px tall`).toBeGreaterThanOrEqual(TARGET);
+          expect.soft(box.width, `${path}: a tile is at least 44 px wide`).toBeGreaterThanOrEqual(TARGET);
           expect
-            .soft(box.height, "a link of the dashboard is at least 44 px tall")
-            .toBeGreaterThanOrEqual(TARGET);
-          // Issue #174 (U3): the view tabs wrap to a second row, so every link, a tab included, ends on screen where
-          // it stands, with no scrolling.
-          expect.soft(box.x + box.width, "and ends on screen").toBeLessThanOrEqual(viewport.width);
+            .soft(box.x + box.width, `${path}: a tile ends on screen`)
+            .toBeLessThanOrEqual(viewport.width);
         }
       }
       // U3 (#224): every space lists its views in one order.
@@ -1208,15 +1237,15 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       expect.soft(overflow, message).toBeLessThanOrEqual(0);
       await expectFullTargets(page, "the planner", viewport.width);
 
-      // Activate is the last control: scrolled to the end of the page it ends above the bottom bar, which the planner
-      // keeps (ruling P303) as the way out that always works.
+      // Ruling P311 (amends P303): with Plan out of the bar, the planner is a stacked screen, Volver its way out.
+      // Activate is the last control: scrolled to the end of the page it ends on screen.
+      await expect(page.getByRole("navigation", { name: es.shell.nav.main })).toHaveCount(0);
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
       const activate = (await page
         .getByRole("button", { name: es.budgeting.planner.activate })
         .boundingBox())!;
-      const bar = (await page.getByRole("navigation", { name: es.shell.nav.main }).boundingBox())!;
-      expect(activate.y + activate.height, "Activar plan ends above the bottom bar").toBeLessThanOrEqual(
-        bar.y,
+      expect(activate.y + activate.height, "Activar plan ends on screen").toBeLessThanOrEqual(
+        viewport.height,
       );
 
       // The way back is the shared header's link to the dashboard of the plan's period.
@@ -1313,11 +1342,16 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       const { overflow, message } = await overflowReport(page, "the period without a plan");
       expect.soft(overflow, message).toBeLessThanOrEqual(0);
       await expectFullTargets(page, "the period without a plan", viewport.width);
-      // The last control sits above the bottom bar once the page is scrolled to its end.
+      // Ruling P311: the Plan views are stacked, with no bottom bar; the last control ends on screen once the page is
+      // scrolled to its end, and Volver leads to the space's Configuración.
+      await expect(page.getByRole("navigation", { name: es.shell.nav.main })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: es.common.back, exact: true })).toHaveAttribute(
+        "href",
+        `/spaces/${sharedId}/settings`,
+      );
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-      const nav = (await page.getByRole("navigation", { name: es.shell.nav.main }).boundingBox())!;
       const last = (await create.boundingBox())!;
-      expect(last.y + last.height, "Crear plan ends above the bottom bar").toBeLessThanOrEqual(nav.y);
+      expect(last.y + last.height, "Crear plan ends on screen").toBeLessThanOrEqual(viewport.height);
 
       await copy.click();
       await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Plan de octubre 2026/i);
@@ -1744,7 +1778,7 @@ test.describe("the By group view (HU-E9-10, ruling P215)", () => {
 
       await page.goto(path);
       await settle(page);
-      await expect(page.getByRole("heading", { level: 1 })).toHaveText(/octubre 2026/i);
+      await expect(page.getByRole("heading", { level: 2 }).first()).toHaveText(/octubre 2026/i);
       await expect(page.getByText(es.reports.byGroup.hint.groups)).toBeVisible();
       await fits("groups");
 
@@ -1773,7 +1807,7 @@ test.describe("the By group view (HU-E9-10, ruling P215)", () => {
       await trail.getByRole("button", { name: es.reports.byGroup.all }).click();
       await expect(page.getByText(es.reports.byGroup.hint.groups)).toBeVisible();
       expect(drills()).toEqual([]);
-      await expect(page.getByRole("heading", { level: 1 })).toHaveText(/octubre 2026/i);
+      await expect(page.getByRole("heading", { level: 2 }).first()).toHaveText(/octubre 2026/i);
     });
   }
 });
@@ -1792,8 +1826,11 @@ test.describe("the personal By group view (HU-E9-11, rulings P76 and P215)", () 
         es.reports.spaceScoped.replace("{space}", "Casa").replace("{name}", name);
       const fits = (where: string) => levelFits(page, viewport, where);
 
-      // The tab opens from the personal Plan tab's own row of views, on the same period.
-      await page.goto(`/spaces/${spaceId}/plan`);
+      // Ruling P311: the Plan opens from the space's Configuración (Plan del mes), then its own row of views, on the
+      // same period.
+      await page.goto(`/spaces/${spaceId}/settings`);
+      await page.getByRole("link", { name: new RegExp(`^${es.spaces.screen.plan}`) }).click();
+      await expect(page).toHaveURL(`/spaces/${spaceId}/plan`);
       await settle(page);
       await page.getByRole("link", { name: es.reports.view.groups }).click();
       await expect(page).toHaveURL(`/spaces/${spaceId}/plan/groups?period=2026-10`);
@@ -1819,7 +1856,7 @@ test.describe("the personal By group view (HU-E9-11, rulings P76 and P215)", () 
       await trail.getByRole("button", { name: es.reports.byGroup.all }).click();
       await expect(page.getByText(es.reports.byGroup.hint.groups)).toBeVisible();
       expect(drills()).toEqual([]);
-      await expect(page.getByRole("heading", { level: 1 })).toHaveText(/octubre 2026/i);
+      await expect(page.getByRole("heading", { level: 2 }).first()).toHaveText(/octubre 2026/i);
     });
   }
 });

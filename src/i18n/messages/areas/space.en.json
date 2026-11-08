@@ -26,7 +26,7 @@
   },
   "spaces": {
     "screen": {
-      "title": "{space} settings",
+      "title": "Settings",
       "subtitle": "{kind} · {currency} · {policy}",
       "kind": {
         "PERSONAL": "Only you",
@@ -50,7 +50,20 @@
         "title": "Archive {space}?",
         "body": "{space} stays for reference: everyone still sees its movements, but no one records new ones."
       },
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "withPeople": "{kind} · {count, plural, one {# person} other {# people}}",
+      "people": "{count, plural, one {# person} other {# people}}",
+      "section": {
+        "plan": "Plan",
+        "people": "People",
+        "money": "Money",
+        "space": "Space"
+      },
+      "plan": "This month's plan",
+      "planLeft": "{amount} left",
+      "noPlan": "No plan",
+      "recurring": "Recurring",
+      "name": "Name"
     }
   }
 }

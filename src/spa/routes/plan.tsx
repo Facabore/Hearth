@@ -4,10 +4,10 @@ import type { ComponentProps, ReactNode } from "react";
 import { useTranslations } from "use-intl";
 import type { PlanView as FrameView } from "@/modules/reporting/ui";
 import {
-  CashFlowCalendar,
   DashboardFrame,
   DashOverview,
   FundTracking,
+  LazyCashFlowCalendar,
   LineDashboard,
   LineTrend,
   MemberMatrix,
@@ -301,5 +301,5 @@ export function CalendarRoute() {
   const viewer = useViewer(calendar.useParams().spaceId);
   const { api } = useApis();
   const flow = useSuspenseQuery(cashFlowQuery(api, viewer.space.id, daysOf(calendar.useSearch().days))).data;
-  return <CashFlowCalendar space={viewer.space} flow={flow} formats={viewer.me.preferences.effective} />;
+  return <LazyCashFlowCalendar space={viewer.space} flow={flow} formats={viewer.me.preferences.effective} />;
 }

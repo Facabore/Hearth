@@ -272,8 +272,14 @@ When(/^she opens "([^"]+)" with (\d+) days$/, async ({ page, world }, view: stri
     .getByRole("link", { name: world.t("reports.calendar.days", { days }) })
     .click();
   await expect(page).toHaveURL(new RegExp(`/plan/calendar\\?days=${days}$`));
+  // Ruling P311: a stacked screen titled Plan, its way back the space's Configuración; the view's title under it.
+  await expect(page.getByRole("heading", { level: 1, name: world.t("reports.title") })).toBeVisible();
+  await expect(page.getByRole("link", { name: world.t("common.back") })).toHaveAttribute(
+    "href",
+    `/spaces/${world.user!.spaceId}/settings`,
+  );
   await expect(
-    page.getByRole("heading", { level: 1, name: world.t("reports.calendar.title", { days }) }),
+    page.getByRole("heading", { level: 2, name: world.t("reports.calendar.title", { days }) }),
   ).toBeVisible();
 });
 

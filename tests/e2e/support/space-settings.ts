@@ -9,9 +9,12 @@ const anyName = (world: World, key: string) => {
   return new RegExp(`^${escaped(before)}.+${escaped(after)}$`);
 };
 
-/** Ruling P309: a space's own settings, from the space switcher's "Ajustes de {space}". */
+/** Ruling P311 (amends P309): a space's Configuración, from the ⚙ in the header of every tab. */
 export async function openSpaceSettings(page: Page, world: World): Promise<void> {
-  await page.getByRole("button", { name: anyName(world, "shell.space.current") }).click();
-  await page.getByRole("link", { name: anyName(world, "shell.space.settings") }).click();
+  await page
+    .getByRole("banner")
+    .getByRole("link", { name: anyName(world, "shell.settings") })
+    .click();
   await expect(page).toHaveURL(/\/spaces\/[^/]+\/settings$/);
+  await expect(page.getByRole("heading", { level: 1, name: world.t("spaces.screen.title") })).toBeVisible();
 }

@@ -2,3 +2,4 @@
 export { MembersScreen } from "./members/members-screen";
 export { InvitationCard } from "./invitations/invitation-card";
 export { SpaceSettingsScreen } from "./space-settings/space-settings-screen";
+export { MoreScreen } from "./more-screen";

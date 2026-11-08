@@ -1,6 +1,6 @@
 import { useTranslations } from "next-intl";
-import { MASKED_AMOUNT, shownAmount, useAmountsHidden } from "@/modules/spaces/ui";
 import type { MoneyDto } from "@/shared/ui/api/dto";
+import { formatMoney } from "@/shared/ui/format/formatters";
 import { withTx } from "../detail/tx-href";
 import { TransactionRow, type RowContext } from "../transaction-row";
 import { ActivityRow } from "./activity-row";
@@ -15,19 +15,14 @@ export function UnifiedRecent({
   spaceId,
   context,
   today,
-  personId,
 }: {
   readonly feed: readonly FeedEntry[];
   readonly spaceId: string;
   readonly context: RowContext;
   readonly today: string;
-  /** Ruling P278: Inicio's eye hides every amount. */
-  readonly personId: string;
 }) {
   const t = useTranslations("home");
-  const hidden = useAmountsHidden(personId);
-  const money = (amount: MoneyDto) => shownAmount(amount, hidden, context.formats);
-  const masked = hidden ? MASKED_AMOUNT : undefined;
+  const money = (amount: MoneyDto) => formatMoney(amount, context.formats);
   if (feed.length === 0)
     return <p className="rounded-2xl bg-surface p-3 text-sm text-muted">{t("recentEmpty")}</p>;
   return (
@@ -40,7 +35,6 @@ export function UnifiedRecent({
             context={context}
             href={withTx(`/spaces/${spaceId}`, entry.tx.id)}
             today={today}
-            maskedAmount={masked}
           />
         ) : (
           <ActivityRow
@@ -50,7 +44,6 @@ export function UnifiedRecent({
             viewerZone={context.viewerZone}
             today={today}
             money={money}
-            maskedAmount={masked}
           />
         ),
       )}

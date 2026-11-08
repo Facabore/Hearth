@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Badge, Icon, VisuallyHidden } from "@/shared/ui";
+import { Badge, Icon, ScreenHeader, VisuallyHidden } from "@/shared/ui";
 import type { CashFlowDto, SpaceDto } from "@/shared/ui/api/dto";
 import { formatDate, formatMoney, formatSignedMoney, type Formats } from "@/shared/ui/format/formatters";
 import { chipClass, PlanTabs } from "../plan-tabs";
@@ -33,14 +33,16 @@ export function CashFlowCalendar({
   const money = (value: Money) => formatMoney(value, formats);
   return (
     <div className="mx-auto flex w-full max-w-[720px] min-w-0 flex-col gap-3 py-3">
+      {/* Ruling P311: a stacked screen titled Plan, its way back the space's Configuración, as every Plan view. */}
+      <ScreenHeader backHref={`/spaces/${space.id}/settings`} title={t("title")} />
       {/* Board E9-09 12 (ruling P272): the Plan views first, then this view's title, what it lists, and its window. */}
       <PlanTabs space={space} view="calendar" />
-      <header className="flex flex-col gap-1">
-        <h1 className="text-[17px] leading-tight font-semibold">
+      <div className="flex flex-col gap-1">
+        <h2 className="text-[17px] leading-tight font-semibold">
           {t("calendar.title", { days: flow.days })}
-        </h1>
+        </h2>
         <p className="text-sm text-muted">{t("calendar.explain")}</p>
-      </header>
+      </div>
       <nav aria-label={t("calendar.window")} className="flex gap-2">
         {WINDOWS.map((days) => (
           <Link

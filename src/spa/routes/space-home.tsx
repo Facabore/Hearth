@@ -126,7 +126,6 @@ export function SpaceHome() {
               page={page}
               policy={space.periodPolicy}
               formats={context.formats}
-              personId={viewer.me.id}
               // Ruling P310: a category opens with its subcategories, which its amount counts too.
               soloHref={(id) =>
                 transactionListHref(spaceId, {
@@ -148,7 +147,6 @@ export function SpaceHome() {
               spaceId={spaceId}
               context={context}
               today={today}
-              personId={viewer.me.id}
             />
           ) : undefined
         }
@@ -158,7 +156,6 @@ export function SpaceHome() {
             ? { personId: viewer.me.id, done: firstStepsOf({ accounts, page, spaces: viewer.spaces, plan }) }
             : undefined
         }
-        personId={viewer.me.id}
         owes={balances ? owesOf(balances, viewer.spaces, space) : undefined}
         past={past}
         stepper={

@@ -6,7 +6,7 @@ import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS, NBSP } from "@/shared/ui/format/formatters";
 import { ChartFrame } from "./chart-frame";
 import { LazyTrendChart } from "./lazy-trend-chart";
-import { pointOf } from "./trend-series";
+import { pointOf } from "./trend-point";
 
 const periods = [
   "junio 2026",

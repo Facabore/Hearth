@@ -14,7 +14,7 @@ Feature: Settings screen
     And the transaction list shows her amounts, dates and times in the new formats
 
   @e2e
-  Scenario: Rename the personal space in its own settings (#167, P309)
-    When "Ana" opens her space's settings from the space switcher
+  Scenario: Rename the personal space in its own Configuración (#167, P309, P311)
+    When "Ana" opens her space's Configuración from the header
     And she renames her space "Mis finanzas"
-    Then it says "Guardado" and the space switcher and the Plan tab name her space "Mis finanzas"
+    Then it says "Guardado" and the space switcher names her space "Mis finanzas"

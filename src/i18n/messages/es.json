@@ -241,8 +241,8 @@
       "transactions": "Movimientos",
       "record": "Registrar movimiento",
       "recordShort": "Registrar",
-      "plan": "Plan",
-      "balances": "Saldos"
+      "balances": "Saldos",
+      "more": "Más"
     },
     "space": {
       "current": "Espacio actual: {name}. Cambiar de espacio",
@@ -252,8 +252,7 @@
       "join": "Unirme con un enlace de invitación",
       "members": "{others} y {last}",
       "owes": "Te toca poner",
-      "owed": "Te toca recibir",
-      "settings": "Ajustes de {name}"
+      "owed": "Te toca recibir"
     },
     "role": {
       "OWNER": "Propietario",
@@ -266,6 +265,19 @@
       "settings": "Ajustes",
       "settingsHint": "Formatos, hora, zona horaria, tema e idioma",
       "signOut": "Cerrar sesión"
+    },
+    "settings": "Configuración de {name}",
+    "more": {
+      "title": "Más",
+      "settings": "Configuración",
+      "accounts": "Cuentas",
+      "categories": "Categorías",
+      "recurring": "Recurrentes",
+      "stats": "Estadísticas",
+      "calendar": "Calendario",
+      "exportImport": "Exportar e importar",
+      "soon": "Próximamente",
+      "note": "Tus datos, formatos e idioma están en tu foto, arriba a la derecha."
     }
   },
   "home": {
@@ -323,7 +335,6 @@
     "members": "Miembros",
     "invite": "Invitar",
     "funds": "Fondos",
-    "hideAmounts": "Ocultar montos",
     "owe": {
       "in": "En {space}",
       "to": "a {name}",

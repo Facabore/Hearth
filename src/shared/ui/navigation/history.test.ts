@@ -19,6 +19,7 @@ const home = "/spaces/s1";
 const movements = "/spaces/s1/transactions";
 const balances = "/spaces/s1/balances";
 const plan = "/spaces/s1/plan";
+const more = "/spaces/s1/more";
 const accounts = "/spaces/s1/accounts";
 const create = "/spaces/s1/accounts/new";
 const settings = "/settings";
@@ -28,14 +29,15 @@ const trailOf = (urls: string[], pos = urls.length - 1): Trail => ({ urls, pos }
 const EMPTY: Trail = { urls: [], pos: -1 };
 
 describe("root screens (the bottom navigation's destinations)", () => {
-  it.each([home, movements, balances, plan, "/", `${movements}?period=2026-10`, `${plan}?period=2026-11`])(
-    "%s is a root",
-    (path) => {
-      expect(isRootScreen(path)).toBe(true);
-    },
-  );
+  it.each([home, movements, balances, more, "/", `${movements}?period=2026-10`])("%s is a root", (path) => {
+    expect(isRootScreen(path)).toBe(true);
+  });
 
   it.each([
+    // Ruling P311: Plan left the bar; its views are stacked screens below Configuración.
+    plan,
+    `${plan}?period=2026-11`,
+    "/spaces/s1/settings",
     "/spaces/s1/plans/p1",
     "/spaces/s1/plans/p1/lines/new",
     accounts,

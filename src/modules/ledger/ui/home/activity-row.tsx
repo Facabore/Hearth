@@ -69,16 +69,13 @@ export function ActivityRow({
   viewerZone,
   today,
   money,
-  maskedAmount,
 }: {
   readonly item: ActivityItemDto;
   readonly formats: Formats;
   readonly viewerZone: string;
   readonly today: string;
-  /** Inicio's formatter, which masks every amount while its eye hides them (P278). */
+  /** Inicio's money formatter, from the person's formats. */
   readonly money: (amount: MoneyDto) => string;
-  /** Ruling P278: while the eye hides amounts, what the row shows instead of its signed amount. */
-  readonly maskedAmount?: string | undefined;
 }) {
   const t = useTranslations("home.feed");
   const ledger = useTranslations("ledger");
@@ -148,7 +145,7 @@ export function ActivityRow({
           <span className="text-sm break-words text-muted">{detail}</span>
         </span>
         <span className={`shrink-0 font-semibold whitespace-nowrap ${tone}`}>
-          {maskedAmount ?? signed(part.sign, money(part.amount))}
+          {signed(part.sign, money(part.amount))}
         </span>
       </Link>
     </li>

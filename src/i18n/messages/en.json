@@ -241,8 +241,8 @@
       "transactions": "Transactions",
       "record": "Record a transaction",
       "recordShort": "Record",
-      "plan": "Plan",
-      "balances": "Balances"
+      "balances": "Balances",
+      "more": "More"
     },
     "space": {
       "current": "Current space: {name}. Switch space",
@@ -252,8 +252,7 @@
       "join": "Join with an invitation link",
       "members": "{others} and {last}",
       "owes": "You owe",
-      "owed": "You are owed",
-      "settings": "{name} settings"
+      "owed": "You are owed"
     },
     "role": {
       "OWNER": "Owner",
@@ -266,6 +265,19 @@
       "settings": "Settings",
       "settingsHint": "Formats, time, time zone, theme and language",
       "signOut": "Sign out"
+    },
+    "settings": "{name} settings",
+    "more": {
+      "title": "More",
+      "settings": "Settings",
+      "accounts": "Accounts",
+      "categories": "Categories",
+      "recurring": "Recurring",
+      "stats": "Statistics",
+      "calendar": "Calendar",
+      "exportImport": "Export and import",
+      "soon": "Coming soon",
+      "note": "Your details, formats and language are under your photo, top right."
     }
   },
   "home": {
@@ -323,7 +335,6 @@
     "members": "Members",
     "invite": "Invite",
     "funds": "Funds",
-    "hideAmounts": "Hide amounts",
     "owe": {
       "in": "In {space}",
       "to": "to {name}",

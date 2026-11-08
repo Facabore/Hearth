@@ -145,7 +145,7 @@ Then("the space switcher lists her spaces", async ({ page, world }) => {
 
 Then("her space's settings are shown", async ({ page, world }) => {
   await expect(page).toHaveURL(new RegExp(`${escaped(homePath(world))}/settings$`));
-  await expect(page.getByRole("heading", { level: 1, name: /^Ajustes de / })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: world.t("spaces.screen.title") })).toBeVisible();
 });
 
 When("{string} creates the shared space {string}", async ({ page, world }, name: string, space: string) => {
@@ -252,14 +252,10 @@ Then("the balances page of {string} is shown", async ({ page, world }, space: st
   await expect(page).toHaveURL(new RegExp(`/spaces/${world.spaces.get(space)}/balances$`));
 });
 
-/** Ruling P303 (#240): the planner and its contributions sheet keep the main bar, with Plan current. */
-Then("the planner shows the main navigation", async ({ page, world }) => {
-  const nav = page.getByRole("navigation", { name: world.t("shell.nav.main") });
-  await expect(nav.getByRole("link", { name: world.t("shell.nav.plan"), exact: true })).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
-  await expect(nav.getByRole("link")).toHaveCount(5);
+/** Ruling P311 (amends P303): with Plan out of the bar, the planner is a stacked screen whose way out is Volver. */
+Then("the planner is a stacked screen with its way back", async ({ page, world }) => {
+  await expect(page.getByRole("link", { name: world.t("common.back") })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: world.t("shell.nav.main") })).toHaveCount(0);
 });
 
 When(/^she saves her capacity ([\d,]+) COP$/, async ({ page, world }, capacity: string) => {
@@ -293,12 +289,13 @@ When(
   },
 );
 
-Then("the Plan tab of her personal space is shown", async ({ page, world }) => {
+/** Ruling P311: the Plan views are a stacked screen whose way back is the space's Configuración. */
+Then("the Plan of her personal space is shown", async ({ page, world }) => {
   await expect(page).toHaveURL(new RegExp(`${escaped(homePath(world))}/plan(\\?period=[\\d-]+)?$`));
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page.getByRole("link", { name: world.t("shell.nav.plan"), exact: true })).toHaveAttribute(
-    "aria-current",
-    "page",
+  await expect(page.getByRole("link", { name: world.t("common.back") })).toHaveAttribute(
+    "href",
+    `${homePath(world)}/settings`,
   );
 });
 
@@ -320,3 +317,40 @@ Then("the balances page of her personal space is shown", async ({ page, world })
     "page",
   );
 });
+
+/** Ruling P311: Más, the bar's fifth tab. */
+When("{string} opens Más from the bar", async ({ page, world }, name: string) => {
+  expect(name).toBe(world.user!.name);
+  const nav = page.getByRole("navigation", { name: world.t("shell.nav.main") });
+  await nav.getByRole("link", { name: world.t("shell.nav.more"), exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`${escaped(homePath(world))}/more$`));
+});
+
+Then("the module grid is shown, with the modules to come marked Próximamente", async ({ page, world }) => {
+  await expect(page.getByRole("heading", { level: 1, name: world.t("shell.more.title") })).toBeVisible();
+  const nav = page.getByRole("navigation", { name: world.t("shell.nav.main") });
+  await expect(nav.getByRole("link", { name: world.t("shell.nav.more"), exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  const grid = page.getByRole("main").getByRole("list");
+  for (const [key, suffix] of [
+    ["shell.more.settings", "/settings"],
+    ["shell.more.accounts", "/accounts"],
+    ["shell.more.categories", "/categories"],
+    ["shell.more.recurring", "/recurrences"],
+  ] as const)
+    await expect(grid.getByRole("link", { name: world.t(key), exact: true })).toHaveAttribute(
+      "href",
+      `${homePath(world)}${suffix}`,
+    );
+  await expect(grid.getByText(world.t("shell.more.soon"), { exact: true })).toHaveCount(3);
+});
+
+When(
+  "{string} opens her space's Configuración from the header's gear",
+  async ({ page, world }, name: string) => {
+    expect(name).toBe(world.user!.name);
+    await openSpaceSettings(page, world);
+  },
+);

@@ -33,7 +33,7 @@ Given(
   },
 );
 
-When("{string} opens her space's settings from the space switcher", async ({ page, world }, name: string) => {
+When("{string} opens her space's Configuración from the header", async ({ page, world }, name: string) => {
   expect(name).toBe(world.user!.name);
   await page.goto(`/spaces/${world.user!.spaceId}`);
   await openSpaceSettings(page, world);
@@ -109,6 +109,8 @@ When(/^she renames her space "([^"]+)"$/, async ({ page, world }, name: string) 
       r.request().method() === "PATCH" &&
       r.status() === 200,
   );
+  // Ruling P311: the name sits behind its row in the flat list ("Nombre" in the personal space).
+  await page.getByRole("button", { name: world.t("spaces.screen.name"), exact: true }).click();
   const field = page.getByLabel(world.t("spaces.settings.name"));
   await field.fill(name);
   await field.press("Enter");
@@ -116,14 +118,13 @@ When(/^she renames her space "([^"]+)"$/, async ({ page, world }, name: string) 
 });
 
 Then(
-  /^it says "Guardado" and the space switcher and the Plan tab name her space "([^"]+)"$/,
+  /^it says "Guardado" and the space switcher names her space "([^"]+)"$/,
   async ({ page, world }, name: string) => {
     await expect(page.getByRole("status").filter({ hasText: world.t("common.saved") })).toBeVisible();
     const space = (await world.api.get(`/api/v1/spaces/${world.user!.spaceId}`)) as { name: string };
     expect(space.name).toBe(name);
-    // Settings is a stacked screen without the switcher (ruling P272): the Plan tab's switcher names the space. Its page
-    // names it only in the context line of a period with a plan (board E9-10), and a new person's period has none.
-    await page.goto(`/spaces/${world.user!.spaceId}/plan`);
+    // Configuración is a stacked screen without the switcher (ruling P272): a tab's switcher names the space.
+    await page.goto(`/spaces/${world.user!.spaceId}/transactions`);
     await expect(page.getByRole("button", { name: world.t("shell.space.current", { name }) })).toBeVisible();
   },
 );

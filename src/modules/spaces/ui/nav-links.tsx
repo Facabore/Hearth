@@ -8,10 +8,10 @@ import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 
 /**
  * One landmark for both layouts: a bar fixed at the bottom under 1024 px, a 240 px rail from 1024 px (the Desktop
- * artboard). Ruling P160: the Batch 2 order, Inicio, Movimientos, Registrar, Plan, Saldos; Saldos in every space,
+ * artboard). Ruling P311 (amends P200 and P302): Inicio, Movimientos, Registrar, Saldos, Más; Saldos in every space,
  * the personal one included, as the boards draw it (P272, ruling P302), so Registrar stays in the middle of the bar.
- * Plan (HU-E9-10, ruling P200, amending P141) is current on every path under
- * `/plan` and `/plans`. Registrar only for someone who records in the space (#207): a viewer never meets a form she
+ * Plan left the bar: it opens from the space's Configuración. Más opens the space's modules and is current there.
+ * Registrar only for someone who records in the space (#207): a viewer never meets a form she
  * cannot save. The Movimientos tab carries the space's pending occurrences as a badge (HU-E9-09, ruling P270); the shell
  * passes their count only to someone who records money, so a viewer never sees it, and nothing shows at zero.
  * Ruling P310 (amends P125 for this tab): Inicio always opens the person's personal Inicio, where everything she does
@@ -40,12 +40,9 @@ export function NavLinks({
     pathname === `${home}/new` ? null : `${pathname}${search ? `?${search}` : ""}`,
   );
   const transactions = `${home}/transactions`;
-  const plan = `${home}/plan`;
   const balances = `${home}/balances`;
+  const more = `${home}/more`;
   const current = (href: string) => (pathname === href ? ("page" as const) : undefined);
-  const underPlan = [plan, `${home}/plans`].some(
-    (root) => pathname === root || pathname.startsWith(`${root}/`),
-  );
   // Issue #196: a tab prefetches its skeleton under the space's own layout. Settings and New space draw this shell
   // themselves, so that prefetch would load the shell's script a second time (+14 KiB on their budgets): there a tab
   // loads when it is tapped, as before.
@@ -100,13 +97,13 @@ export function NavLinks({
           <span className="hidden lg:inline">{t("recordShort")}</span>
         </Link>
       ) : null}
-      <Link href={plan} {...prefetch} aria-current={underPlan ? "page" : undefined} className={item}>
-        <Icon name="chart" />
-        {t("plan")}
-      </Link>
       <Link href={balances} {...prefetch} aria-current={current(balances)} className={item}>
         <Icon name="swap" />
         {t("balances")}
+      </Link>
+      <Link href={more} {...prefetch} aria-current={current(more)} className={item}>
+        <Icon name="dots" />
+        {t("more")}
       </Link>
     </nav>
   );

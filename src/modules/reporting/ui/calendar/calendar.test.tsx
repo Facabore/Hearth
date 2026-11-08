@@ -20,9 +20,18 @@ const show = (flow = cashFlowDto()) =>
 const day = (name: string) => normalized(screen.getByRole("listitem", { name }).textContent);
 
 describe("the cash-flow calendar (#150, ruling P241 of M6c)", () => {
+  it("is a stacked screen titled Plan whose way back is the space's Configuración (ruling P311)", () => {
+    show();
+    expect(screen.getByRole("heading", { level: 1, name: "Plan" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/settings",
+    );
+  });
+
   it("lists each date's movements and the balance after it, as the API answers them (@golden)", async () => {
     const { container } = show();
-    expect(screen.getByRole("heading", { level: 1, name: "Próximos 30 días" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Próximos 30 días" })).toBeInTheDocument();
     const dates = within(screen.getByRole("list", { name: "Movimientos por día" }))
       .getAllByRole("listitem")
       .filter((item) => item.getAttribute("aria-labelledby"));
@@ -111,7 +120,7 @@ describe("the cash-flow calendar (#150, ruling P241 of M6c)", () => {
   it("orders the view as its board: the tabs, the title, what it lists, then the window (ruling P272)", () => {
     show(cashFlowDto({ dates: [] }));
     const tabs = screen.getByRole("navigation", { name: "Vistas del plan" });
-    const title = screen.getByRole("heading", { level: 1, name: "Próximos 30 días" });
+    const title = screen.getByRole("heading", { level: 2, name: "Próximos 30 días" });
     const explain = screen.getByText(/Los movimientos recurrentes de tus cuentas/);
     const window = screen.getByRole("navigation", { name: "Ventana" });
     const follows = (a: Node, b: Node) =>

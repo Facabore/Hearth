@@ -50,18 +50,19 @@ const names = () =>
     .getAllByRole("link")
     .map((link) => link.getAttribute("aria-label") ?? link.textContent?.trim());
 
-describe("the Plan tab (ruling P200, amends P141; P160 for the order)", () => {
-  it("comes after Registrar and before Saldos, and is current on every plan screen", () => {
+describe("the Más tab (ruling P311, amends P200 and P302)", () => {
+  it("comes after Saldos, where Plan was, opens the space's modules and leaves Plan out of the bar", () => {
     renderWithIntl(<NavLinks spaceId="sp-household" canRecord />);
-    const plan = screen.getByRole("link", { name: "Plan" });
-    expect(plan).toHaveAttribute("href", "/spaces/sp-household/plan");
-    expect(plan).toHaveAttribute("aria-current", "page");
-    expect(names()).toEqual(["Inicio", "Movimientos", "Registrar movimiento", "Plan", "Saldos"]);
+    const more = screen.getByRole("link", { name: "Más" });
+    expect(more).toHaveAttribute("href", "/spaces/sp-household/more");
+    expect(more.querySelector("svg")).not.toBeNull();
+    expect(names()).toEqual(["Inicio", "Movimientos", "Registrar movimiento", "Saldos", "Más"]);
+    expect(screen.queryByRole("link", { name: "Plan" })).toBeNull();
   });
 
-  it("keeps Saldos in a personal space too, so Registrar stays in the middle of the bar (P272 overrides P160)", () => {
+  it("keeps the same five slots in a personal space, so Registrar stays in the middle of the bar (P302)", () => {
     renderWithIntl(<NavLinks spaceId="sp-personal" canRecord />);
-    expect(names()).toEqual(["Inicio", "Movimientos", "Registrar movimiento", "Plan", "Saldos"]);
+    expect(names()).toEqual(["Inicio", "Movimientos", "Registrar movimiento", "Saldos", "Más"]);
     expect(screen.getByRole("link", { name: "Saldos" })).toHaveAttribute(
       "href",
       "/spaces/sp-personal/balances",
@@ -70,24 +71,20 @@ describe("the Plan tab (ruling P200, amends P141; P160 for the order)", () => {
 
   it("leaves Registrar out for someone who cannot record in the space (#207)", () => {
     renderWithIntl(<NavLinks spaceId="sp-household" canRecord={false} />);
-    expect(names()).toEqual(["Inicio", "Movimientos", "Plan", "Saldos"]);
+    expect(names()).toEqual(["Inicio", "Movimientos", "Saldos", "Más"]);
   });
 
-  it.each([
-    "/spaces/sp-household/plan",
-    "/spaces/sp-household/plan/members",
-    "/spaces/sp-household/plans/p-nov/lines/new",
-  ])("is current on %s", (pathname) => {
-    where.pathname = pathname;
-    renderWithIntl(<NavLinks spaceId="sp-household" canRecord />);
-    expect(screen.getByRole("link", { name: "Plan" })).toHaveAttribute("aria-current", "page");
-  });
-
-  it("is not current on the home, nor on a path that only starts with the same letters", () => {
-    for (const pathname of ["/spaces/sp-household", "/spaces/sp-household/planning"]) {
+  it("is current on Más only", () => {
+    for (const [pathname, current] of [
+      ["/spaces/sp-household/more", true],
+      ["/spaces/sp-household/plan", false],
+      ["/spaces/sp-household", false],
+    ] as const) {
       where.pathname = pathname;
       const { unmount } = renderWithIntl(<NavLinks spaceId="sp-household" canRecord />);
-      expect(screen.getByRole("link", { name: "Plan" })).not.toHaveAttribute("aria-current");
+      const more = screen.getByRole("link", { name: "Más" });
+      if (current) expect(more).toHaveAttribute("aria-current", "page");
+      else expect(more).not.toHaveAttribute("aria-current");
       unmount();
     }
   });

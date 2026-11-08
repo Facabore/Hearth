@@ -100,7 +100,7 @@ const planSearch = (search: Record<string, unknown>) => ({
 
 /**
  * Ruling P272: a stacked screen, drawn by its board with only its back header: the shell shows no space switcher and
- * no bottom navigation around it. The tab destinations (Inicio, Movimientos, the Plan views, Saldos) leave it out, and
+ * no bottom navigation around it. The tab destinations (Inicio, Movimientos, Saldos, Más) leave it out, and
  * so does the edit form for now. The record form is one too, drawn as a sheet with its own scrim (ruling P291).
  */
 const stackedScreen = { stacked: true } as const;
@@ -346,7 +346,7 @@ const newSpaceRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/new-space"), "NewSpaceRoute"),
 });
 
-/** Ruling P309: a space's own settings (its screens, name and color, leaving and archiving), from the switcher. */
+/** Ruling P311 (amends P309): a space's Configuración (its plan, people, money and the space itself), from the ⚙. */
 const spaceSettingsRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "settings",
@@ -355,6 +355,14 @@ const spaceSettingsRoute = createRoute({
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "SpaceSettingsPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/space-settings"), "SpaceSettingsRoute"),
+});
+
+/** Ruling P311: Más, the bar's fifth tab, the grid of the app's modules; a tab destination with the shell. */
+const moreRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "more",
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/more"), "MoreRoute"),
 });
 
 /** HU-E9-05: the members of a shared or direct space; `?invite=1` opens the invite sheet (N10). */
@@ -464,7 +472,7 @@ const trustRoute = createRoute({
 const planRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "plan",
-  staticData: { areas: ["plan"] },
+  staticData: { ...stackedScreen, areas: ["plan"] },
   validateSearch: planSearch,
   loaderDeps: ({ search }) => search,
   loader: async ({ context, params, deps, cause, route }) =>
@@ -480,7 +488,7 @@ const planRoute = createRoute({
 const linesRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "plan/lines",
-  staticData: { areas: ["plan"] },
+  staticData: { ...stackedScreen, areas: ["plan"] },
   validateSearch: planSearch,
   loaderDeps: ({ search }) => search,
   loader: async ({ context, params, deps, cause, route }) =>
@@ -496,7 +504,7 @@ const linesRoute = createRoute({
 const groupsRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "plan/groups",
-  staticData: { areas: ["plan"] },
+  staticData: { ...stackedScreen, areas: ["plan"] },
   validateSearch: planSearch,
   loaderDeps: ({ search }) => search,
   loader: async ({ context, params, deps, cause, route }) =>
@@ -512,7 +520,7 @@ const groupsRoute = createRoute({
 const trendRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "plan/trend",
-  staticData: { areas: ["plan"] },
+  staticData: { ...stackedScreen, areas: ["plan"] },
   validateSearch: planSearch,
   loaderDeps: ({ search }) => search,
   loader: async ({ context, params, deps, cause, route }) =>
@@ -528,7 +536,7 @@ const trendRoute = createRoute({
 const fundRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "plan/fund",
-  staticData: { areas: ["plan"] },
+  staticData: { ...stackedScreen, areas: ["plan"] },
   validateSearch: planSearch,
   loaderDeps: ({ search }) => search,
   loader: async ({ context, params, deps, cause, route }) =>
@@ -544,7 +552,7 @@ const fundRoute = createRoute({
 const matrixRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "plan/members",
-  staticData: { areas: ["plan"] },
+  staticData: { ...stackedScreen, areas: ["plan"] },
   validateSearch: planSearch,
   loaderDeps: ({ search }) => search,
   loader: async ({ context, params, deps, cause, route }) =>
@@ -560,7 +568,7 @@ const matrixRoute = createRoute({
 const calendarRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "plan/calendar",
-  staticData: { areas: ["plan"] },
+  staticData: { ...stackedScreen, areas: ["plan"] },
   validateSearch: planSearch,
   loaderDeps: ({ search }) => search,
   loader: async ({ context, params, deps, cause, route }) =>
@@ -591,14 +599,14 @@ const myConsumptionRoute = createRoute({
 });
 
 /**
- * HU-E9-08: the planner of one plan, its capacities and its lines. Ruling P303 (owner, 2026-11-06: "que la barra
- * principal sea lo prioritario"): the planner and its contributions sheet keep the shell, its bottom bar the way out
- * that always works, as the Plan tab's own screens do; the line form stays a stacked screen with its Volver.
+ * HU-E9-08: the planner of one plan, its capacities and its lines. Ruling P311 (amends P303): with Plan out of the
+ * bar, the planner and its contributions sheet are stacked screens like the Plan views, Volver their way out; the line
+ * form stays a stacked screen with its Volver.
  */
 const plannerRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "plans/$planId",
-  staticData: { areas: ["plan"] },
+  staticData: { ...stackedScreen, areas: ["plan"] },
   loader: async ({ context, params, cause, route }) =>
     withAreas(
       loadAreas(context, route),
@@ -612,7 +620,7 @@ const plannerRoute = createRoute({
 const capacitiesRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "plans/$planId/capacities",
-  staticData: { areas: ["plan"] },
+  staticData: { ...stackedScreen, areas: ["plan"] },
   loader: async ({ context, params, cause, route }) =>
     withAreas(
       loadAreas(context, route),
@@ -672,6 +680,7 @@ export const routeTree = rootRoute.addChildren([
     editAccountRoute,
     categoriesRoute,
     spaceSettingsRoute,
+    moreRoute,
     membersRoute,
     historyRoute,
     balancesRoute,

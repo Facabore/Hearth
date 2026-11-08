@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { cop } from "../../../../../tests/support/ui/dto";
 import { BUILT_IN_FORMATS, NBSP } from "@/shared/ui/format/formatters";
-import { chartRows, pointOf, textAt } from "./trend-series";
+import { pointOf } from "./trend-point";
+import { chartRows, textAt } from "./trend-series";
 
 describe("trend series (ruling P202)", () => {
   it("plots major units and keeps each point's text from the app's formatter", () => {

@@ -70,22 +70,16 @@ describe("Inicio and the space switcher read the person's balances (#240, ruling
     ).toHaveTextContent("En Household");
   });
 
-  it("puts Inicio's eye in the header, and hiding the amounts hides the switcher's too", async () => {
+  it("puts no eye in the header: Inicio and the switcher show the amounts (ruling P311)", async () => {
     renderSpa("/spaces/sp-personal", api());
     const banner = await screen.findByRole("banner", {}, { timeout: 15_000 });
-    const eye = await within(banner).findByRole("button", { name: es.home.hideAmounts });
-    await userEvent.click(eye);
-    expect(await screen.findByRole("region", { name: /Te toca poner/ })).not.toHaveTextContent("120.000");
+    expect(await screen.findByRole("region", { name: /Te toca poner/ })).toHaveTextContent("120.000");
+    expect(within(banner).queryByRole("button", { name: /Ocultar montos/ })).toBeNull();
     await userEvent.click(within(banner).getByRole("button", { name: /Cambiar de espacio/ }));
     const sheet = await screen.findByRole("dialog", { name: es.shell.space.title });
     const household = within(sheet).getByRole("link", { name: /Household/ });
     await waitFor(() => expect(household).toHaveTextContent("Ana, Juan y Luis"));
-    expect(household).toHaveTextContent("Te toca poner");
-    expect(household).not.toHaveTextContent("120.000");
-    // The choice outlives the screen for the rest of the visit: show the amounts again for the next test.
-    await userEvent.keyboard("{Escape}");
-    await userEvent.click(within(banner).getByRole("button", { name: es.home.hideAmounts }));
-    expect(localStorage.getItem("hearth.hideAmounts.u-ana")).toBeNull();
+    expect(household).toHaveTextContent("120.000");
   });
 
   it("names Household's members and Ana's turn in the switcher", async () => {

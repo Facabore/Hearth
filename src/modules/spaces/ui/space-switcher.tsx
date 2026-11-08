@@ -41,8 +41,8 @@ function SpaceInitial({ space, size }: { readonly space: SpaceSummary; readonly 
 }
 
 /**
- * HU-E9-01, the SpaceSheet artboard: every current space as a link, "Ajustes de {space}" for the active one (ruling
- * P309), then, under a divider, the boards' two ways to another space (HU-E9-05): "Crear un espacio compartido" and
+ * HU-E9-01, the SpaceSheet artboard: every current space as a link (the active space's settings moved to the header's
+ * ⚙, ruling P311, amending P309), then, under a divider, the boards' two ways to another space (HU-E9-05): "Crear un espacio compartido" and
  * "Unirme con un enlace de invitación", 56 px targets.
  * Each opens in the same sheet, over the switcher, with a way back to the spaces (ruling P272).
  */
@@ -50,7 +50,6 @@ export function SpaceSwitcher({
   spaces,
   activeSpace,
   flows: Flows,
-  personId,
   formats,
   balances,
   standing: Standing,
@@ -59,7 +58,6 @@ export function SpaceSwitcher({
   readonly spaces: readonly SpaceSummary[];
   readonly activeSpace: SpaceSummary;
   readonly flows?: SpaceFlows | undefined;
-  readonly personId: string;
   readonly formats?: Pick<Formats, "numberFormat"> | undefined;
   /** Ruling P278: the person's standing in each shared space, once read (the app reads it when the sheet opens). */
   readonly balances?: readonly MyBalanceDto[] | undefined;
@@ -131,12 +129,7 @@ export function SpaceSwitcher({
                       <SpaceInitial space={space} size={44} />
                       {Standing && balance ? (
                         <Suspense fallback={plain}>
-                          <Standing
-                            name={space.name}
-                            balance={balance}
-                            personId={personId}
-                            formats={formats}
-                          />
+                          <Standing name={space.name} balance={balance} formats={formats} />
                         </Suspense>
                       ) : (
                         plain
@@ -147,13 +140,6 @@ export function SpaceSwitcher({
                 );
               })}
             </ul>
-            {/* Ruling P309: the active space's own settings live with the space, under its card. */}
-            <Link href={`/spaces/${activeSpace.id}/settings`} onClick={close} className={`mt-2 ${ROW}`}>
-              <span aria-hidden="true" className={ROUND}>
-                <Icon name="sliders" size={20} />
-              </span>
-              {t("shell.space.settings", { name: activeSpace.name })}
-            </Link>
             {Flows ? (
               <>
                 <hr className="my-3 border-line" />
