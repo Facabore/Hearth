@@ -6,6 +6,7 @@ export { JoinByLinkForm } from "./join-by-link-form";
 export type { SpaceFlow, SpaceFlows } from "./space-switcher";
 export { SpaceNameSection } from "./space-name-section";
 export { LazySpaceNameSection } from "./lazy-space-name-section";
+export { LazyAddGuestsSheet } from "./members/lazy-add-guests-sheet";
 export { controlsFor, type MemberControls } from "./members/space-controls";
 export { memberLabel, type MemberLabelT } from "./members/member-label";
 export { HEADER_SLOT_ID, MASKED_AMOUNT, setAmountsHidden, useAmountsHidden } from "./hidden-amounts";

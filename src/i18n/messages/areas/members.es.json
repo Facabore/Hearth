@@ -50,19 +50,8 @@
     "revokeLink": "Revocar el enlace de invitación como {role}",
     "revoked": "Invitación revocada",
     "undo": "Deshacer",
-    "addGuest": "Agregar invitado",
+    "addGuest": "Agregar invitados",
     "guestOptions": "Opciones de {name}",
-    "guestSheet": {
-      "addTitle": "Agregar invitado a {space}",
-      "intro": "Para alguien que no usa Hearth. Puede pagar, poner su parte, aportar al plan y recibir pagos, solo en {space}. No inicia sesión.",
-      "name": "Nombre",
-      "nameHint": "Se verá con «(invitado)» al lado. No puede repetir el nombre de otro miembro.",
-      "nameHintNamed": "Se verá como «{name}». No puede repetir el nombre de otro miembro.",
-      "email": "Correo (opcional)",
-      "emailPlaceholder": "Para recordarlo; no recibe nada",
-      "claimNote": "Si se registra después, le envías un enlace para reclamar este lugar y se lleva todo su historial.",
-      "claimNoteNamed": "Si {name} se registra después, le envías un enlace para reclamar este lugar y se lleva todo su historial."
-    },
     "guest": {
       "balance": "En {space} · {sentence}",
       "claimTitle": "Enlace para que {name} reclame su lugar",

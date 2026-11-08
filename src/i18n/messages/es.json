@@ -575,7 +575,9 @@
         "EXACT": "por montos",
         "SHARES": "por partes",
         "BY_ALLOCATION": "según el plan"
-      }
+      },
+      "addGuests": "Agregar invitados",
+      "addGuestsHint": "Alguien sin cuenta que pagó o participa"
     },
     "direct": {
       "open": "Dividir con alguien",
@@ -663,7 +665,22 @@
       "SEMI_MONTHLY": "quincenal, días {day1} y {day2}"
     },
     "you": "{name} (tú)",
-    "guestSuffix": "(invitado)"
+    "guestSuffix": "(invitado)",
+    "guestsSheet": {
+      "title": "Agregar invitados a {space}",
+      "intro": "Para alguien que no usa Hearth. Puede pagar, poner su parte, aportar al plan y recibir pagos, solo en {space}. No inicia sesión.",
+      "guest": "Invitado {number}",
+      "remove": "Quitar",
+      "name": "Nombre",
+      "nameHint": "Se verá con «(invitado)» al lado. No puede repetir el nombre de otro miembro.",
+      "nameHintNamed": "Se verá como «{name}». No puede repetir el nombre de otro miembro.",
+      "email": "Correo (opcional)",
+      "emailPlaceholder": "Para recordarlo; no recibe nada",
+      "another": "Agregar otro invitado",
+      "submit": "{count, plural, one {Agregar invitado} other {Agregar # invitados}}",
+      "nobodyYet": "No agregamos a nadie todavía: corrige el nombre marcado y vuelve a intentarlo.",
+      "claimNote": "Si alguno se registra después, le envías un enlace para reclamar su lugar y se lleva todo su historial."
+    }
   },
   "notFound": {
     "title": "Esta página no existe",

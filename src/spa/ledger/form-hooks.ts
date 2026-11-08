@@ -49,7 +49,8 @@ export const useShared = (
     personalAccounts: personal.data,
   });
   if (!context) throw notFound();
-  return { shared: context };
+  // Ruling P309 (S6): the split sheet offers to add guests when the viewer's role in this space allows it.
+  return { shared: { ...context, space: viewer.space } };
 };
 
 export const useRecord = (viewer: Viewer) => {

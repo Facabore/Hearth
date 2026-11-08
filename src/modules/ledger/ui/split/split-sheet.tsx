@@ -1,14 +1,17 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { memberLabel } from "@/modules/spaces/ui";
+import { useState } from "react";
+import { controlsFor, LazyAddGuestsSheet, memberLabel } from "@/modules/spaces/ui";
 import { Button, ChoiceGroup, Icon, Sheet, cn, numberInputProps } from "@/shared/ui";
+import type { Api } from "@/shared/ui/api/client";
 import type { AccountDto, MemberDto } from "@/shared/ui/api/dto";
 import { currencyOf } from "@/shared/ui/format/currencies";
 import { parseDecimal } from "@/shared/ui/format/amount-input";
 import { formatMoney, formatNumber, type Formats } from "@/shared/ui/format/formatters";
 import { exampleOf, type NumberRule } from "@/shared/ui/format/number-input";
 import { preferredAccountId, readLastAccount } from "../record/last-account";
+import type { SharedExpenseContext } from "./shared-context";
 import { equalPercents, remainingPercent, SPLIT_METHODS, type SplitMethod } from "./split-math";
 import { isUntouched, splitFailureMessage, type SplitFailure } from "./split-failure";
 import { splitCheckOf, type SplitDraft } from "./split-request";
@@ -32,6 +35,8 @@ export interface SplitSheetProps {
   readonly currency: string;
   readonly formats: Formats;
   readonly defaultSplit: DefaultSplitState;
+  /** Ruling P309 (S6): when given, Para quién ends with a row that opens the add-guests sheet. */
+  readonly onAddGuests?: () => void;
 }
 
 const payerValue = (payer: SplitDraft["payer"]) =>
@@ -47,7 +52,7 @@ const wrapped = (text: string) => <span className="block max-w-full break-words 
 /** HU-E9-06, the Split artboard: who paid, how it is split and for whom, with the preview of each share (P166, P167). */
 export function SplitSheet(props: SplitSheetProps) {
   const { open, onOpenChange, members, meUserId, myAccounts, funds, draft, onChange } = props;
-  const { amount, currency, formats, defaultSplit } = props;
+  const { amount, currency, formats, defaultSplit, onAddGuests } = props;
   const t = useTranslations("ledger.split");
   const names = useTranslations("members");
   const common = useTranslations("common");
@@ -323,9 +328,82 @@ export function SplitSheet(props: SplitSheetProps) {
                 </li>
               );
             })}
+            {onAddGuests ? (
+              // Board "Para quién · Agregar invitados" (P309): the accent label, the muted hint, a white row.
+              <li className="border-b border-line bg-surface last:border-b-0">
+                <button
+                  type="button"
+                  onClick={onAddGuests}
+                  aria-labelledby="split-add-guests"
+                  aria-describedby="split-add-guests-hint"
+                  className="flex min-h-11 w-full flex-col items-start justify-center px-3.5 py-2 text-left"
+                >
+                  <span
+                    id="split-add-guests"
+                    className="flex items-center gap-1.5 text-base font-semibold text-accent"
+                  >
+                    <Icon name="plus" size={20} />
+                    {t("addGuests")}
+                  </span>
+                  <span id="split-add-guests-hint" className="text-sm text-muted">
+                    {t("addGuestsHint")}
+                  </span>
+                </button>
+              </li>
+            ) : null}
           </ul>
         </section>
       </div>
     </Sheet>
+  );
+}
+
+export type SharedSplitSheetProps = Omit<
+  SplitSheetProps,
+  "members" | "myAccounts" | "funds" | "onAddGuests"
+> & {
+  readonly context: SharedExpenseContext;
+  readonly api: Api;
+};
+
+/**
+ * Ruling P309 (S6): the split sheet of a shared expense. Whoever may add guests to the space (`controlsFor`) gets
+ * "Agregar invitados" at the end of Para quién: it opens the add-guests sheet over this one, and the guests it adds come
+ * back ticked (a choice of the person's own, so the plan's split no longer replaces it) and offered in Pagó, until the
+ * members read again holds them.
+ */
+export function SharedSplitSheet({ context, api, ...props }: SharedSplitSheetProps) {
+  const [adding, setAdding] = useState(false);
+  const [added, setAdded] = useState<readonly MemberDto[]>([]);
+  const members = [
+    ...context.members,
+    ...added.filter((guest) => !context.members.some((member) => member.id === guest.id)),
+  ];
+  const space = context.space;
+  const mayAdd = space !== undefined && controlsFor(space.role, space.kind).addGuest;
+  const selectAdded = (guests: readonly MemberDto[]) => {
+    setAdded((before) => [...before, ...guests]);
+    const ids = guests.map((guest) => guest.id);
+    const { draft } = props;
+    props.onChange({
+      ...draft,
+      method: draft.method === "BY_ALLOCATION" ? "EQUAL" : draft.method,
+      selected: [...draft.selected.filter((id) => !ids.includes(id)), ...ids],
+      chosen: true,
+    });
+  };
+  return (
+    <>
+      <SplitSheet
+        {...props}
+        members={members}
+        myAccounts={context.myAccounts}
+        funds={context.funds}
+        {...(mayAdd ? { onAddGuests: () => setAdding(true) } : {})}
+      />
+      {adding && space ? (
+        <LazyAddGuestsSheet open onOpenChange={setAdding} space={space} api={api} onAdded={selectAdded} />
+      ) : null}
+    </>
   );
 }

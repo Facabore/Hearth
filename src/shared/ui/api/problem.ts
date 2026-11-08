@@ -13,6 +13,8 @@ export interface Problem {
   readonly sourcePeriod?: string;
   /** Issue #158: the public `copyPeriod` of CopyAlreadyClosed, the period label of the CLOSED copy that blocks activation. */
   readonly copyPeriod?: string;
+  /** Ruling P309: the public `guest` of a refused batch of guests, the index of the guest whose name is refused. */
+  readonly guest?: number;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -44,6 +46,9 @@ export const problemFrom = (error: unknown, response: Response | undefined): Pro
         : {}),
       ...(typeof error.copyPeriod === "string" && error.copyPeriod !== ""
         ? { copyPeriod: error.copyPeriod }
+        : {}),
+      ...(Number.isInteger(error.guest) && (error.guest as number) >= 0
+        ? { guest: error.guest as number }
         : {}),
     };
   }

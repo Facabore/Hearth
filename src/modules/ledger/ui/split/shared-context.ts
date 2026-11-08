@@ -1,4 +1,4 @@
-import type { AccountDto, MemberDto } from "@/shared/ui/api/dto";
+import type { AccountDto, MemberDto, SpaceDto } from "@/shared/ui/api/dto";
 import type { SplitDraft } from "./split-request";
 
 /** HU-E9-06, ruling P168: what a shared expense's payer and split are chosen from. */
@@ -10,6 +10,11 @@ export interface SharedExpenseContext {
   readonly myAccounts: readonly AccountDto[];
   /** The space's active shared funds, which pay with no payer member (HU-E4-10). */
   readonly funds: readonly AccountDto[];
+  /**
+   * Ruling P309 (S6): the space as the viewer holds it. The split sheet's chunk decides from its kind and the viewer's
+   * role whether Para quién offers to add guests (`controlsFor`), so the record form's chunks carry none of it.
+   */
+  readonly space?: Pick<SpaceDto, "id" | "name" | "role" | "kind">;
 }
 
 const active = (account: AccountDto) => account.archivedAt === null;

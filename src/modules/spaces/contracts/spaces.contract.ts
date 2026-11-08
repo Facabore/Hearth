@@ -82,6 +82,10 @@ export const AddGuestBodySchema = z.object({
   contactEmail: z.email().max(254).optional(),
 });
 
+/** P309: up to 20 guests in one request, added all or nothing; a refusal names the guest's index as `guest`. */
+export const AddGuestsBodySchema = z.object({ guests: z.array(AddGuestBodySchema).min(1).max(20) });
+export const AddGuestsResponseSchema = z.object({ items: z.array(SpaceMemberSchema) });
+
 export const memberDto = (member: SpaceMember): z.infer<typeof SpaceMemberSchema> => ({
   id: member.id,
   kind: member.kind,
@@ -420,6 +424,30 @@ export const spacesPaths: ZodOpenApiPathsObject = {
           "404": "SpaceNotFound",
           "409": "MemberNameTaken, PersonalSpaceNotShareable, DirectSpaceIsFull, SpaceArchived",
           "422": "ValidationFailed, InvalidMemberName",
+        }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/guests/batch": {
+    post: {
+      operationId: "addGuestMembers",
+      summary:
+        "Add 1 to 20 guests at once, all or nothing; a taken or invalid name adds nobody and names its guest's index",
+      ...securedByUser,
+      requestParams: { path: SpacePath },
+      requestBody: { content: jsonContent(AddGuestsBodySchema) },
+      responses: {
+        "201": {
+          description: "The new guest members, in the order given",
+          content: jsonContent(AddGuestsResponseSchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound",
+          "409":
+            "MemberNameTaken (with the guest's index), PersonalSpaceNotShareable, DirectSpaceIsFull, SpaceArchived",
+          "422": "ValidationFailed, InvalidMemberName (with the guest's index)",
         }),
       },
     },

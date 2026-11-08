@@ -210,6 +210,7 @@ import { DrizzleUserProfiles } from "@/modules/identity/infrastructure/drizzle-u
 import {
   createAcceptInvitation,
   createAddGuestMember,
+  createAddGuestMembers,
   createChangeMemberRole,
   createCreateInvitation,
   createCreatePersonalSpace,
@@ -234,6 +235,7 @@ import {
   createPreviewInvitation,
   type AcceptInvitation,
   type AddGuestMember,
+  type AddGuestMembers,
   type ChangeMemberRole,
   type ClaimGuestPlace,
   type ClaimsDeps,
@@ -318,6 +320,7 @@ export interface Container extends RouteDeps {
     readonly previewInvitation: PreviewInvitation;
     readonly previewClaim: PreviewClaim;
     readonly addGuest: AddGuestMember;
+    readonly addGuests: AddGuestMembers;
     readonly changeMemberRole: ChangeMemberRole;
     readonly archiveSpace: ArchiveSpace;
     readonly splitWithPerson: SplitWithPerson<DirectSplitExpense, RecordedExpense>;
@@ -939,6 +942,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       previewInvitation: createPreviewInvitation(invitationsDeps),
       previewClaim: createPreviewClaim(invitationsDeps),
       addGuest: createAddGuestMember(membersDeps),
+      addGuests: createAddGuestMembers(membersDeps),
       changeMemberRole: createChangeMemberRole(membersDeps),
       // HU-E1-09: every current member's net from one aggregate (balances' GetMemberNetBalances).
       archiveSpace: createArchiveSpace({

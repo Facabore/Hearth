@@ -40,6 +40,7 @@ export { createChangeMemberRole, type ChangeMemberRole } from "./change-member-r
 export { createListMembers, type ListMembers } from "./list-members";
 export type { MembersDeps } from "./members-deps";
 export { createAddGuestMember, type AddGuestMember } from "./add-guest-member";
+export { createAddGuestMembers, type AddGuestMembers, type GuestToAdd } from "./add-guest-members";
 export type {
   InvitableRole,
   Invitation,

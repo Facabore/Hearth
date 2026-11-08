@@ -13,8 +13,9 @@ import { splitCheckOf, type SplitDraft } from "./split-request";
 import { includedIds } from "./split-summary";
 import { useDefaultSplit } from "./use-default-split";
 
-// The editor's code (the sheet, the preview, the Radix dialog) loads only when a shared expense's rows are opened.
-const SplitSheet = dynamic(() => import("./split-sheet").then((module) => module.SplitSheet), {
+// The editor's code (the sheet, the preview, the Radix dialog, adding guests) loads only when a shared expense's rows
+// are opened.
+const SplitSheet = dynamic(() => import("./split-sheet").then((module) => module.SharedSplitSheet), {
   ssr: false,
 });
 
@@ -174,10 +175,9 @@ export function SharedFields({
           open={open}
           onOpenChange={setOpen}
           title={title}
-          members={context.members}
+          context={context}
+          api={api}
           meUserId={meUserId}
-          myAccounts={context.myAccounts}
-          funds={context.funds}
           draft={draft}
           onChange={onChange}
           amount={amount}
