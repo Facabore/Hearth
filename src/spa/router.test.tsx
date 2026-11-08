@@ -99,7 +99,9 @@ describe("sign-in to the app shell", () => {
     expect(await screen.findByRole("button", { name: /Household/ })).toBeVisible();
     expect(spa.location()).toBe("/spaces/sp-household");
     const nav = screen.getByRole("navigation", { name: "Principal" });
-    expect(within(nav).getByRole("link", { name: "Inicio" })).toHaveAttribute("aria-current", "page");
+    // Ruling P310: Inicio is always the personal one, so a shared space's home is not its tab.
+    expect(within(nav).getByRole("link", { name: "Inicio" })).toHaveAttribute("href", "/spaces/sp-personal");
+    expect(within(nav).getByRole("link", { name: "Inicio" })).not.toHaveAttribute("aria-current");
     expect(within(nav).getByRole("link", { name: "Movimientos" })).toHaveAttribute(
       "href",
       "/spaces/sp-household/transactions",

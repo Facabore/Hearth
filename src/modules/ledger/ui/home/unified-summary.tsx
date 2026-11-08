@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useId, useState } from "react";
 import { shownAmount, useAmountsHidden } from "@/modules/spaces/ui";
@@ -23,12 +24,15 @@ function Part({
   part,
   chips,
   money,
+  hrefOf,
 }: {
   readonly label: string;
   readonly part: MonthPart;
   /** Groups wear their space's chip; categories a dot of their color before their name. */
   readonly chips: boolean;
   readonly money: (amount: MoneyDto) => string;
+  /** Ruling P310: where a row opens its movements; a row without one (not known yet) stays plain. */
+  readonly hrefOf?: ((id: string) => string | undefined) | undefined;
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -78,25 +82,41 @@ function Part({
             ))}
           </div>
           <ul className="flex flex-col">
-            {part.items.map((item) => (
-              <li key={item.id} className="flex items-center justify-between gap-3 py-1 text-sm">
-                {chips ? (
-                  <SpaceChip name={item.name} color={item.color ?? "GRAPHITE"} />
-                ) : (
-                  <span className="flex min-w-0 items-center gap-2 text-ink-2">
-                    <span
-                      aria-hidden="true"
-                      style={paletteVars(item.color ?? "GRAPHITE")}
-                      className="size-2.5 shrink-0 rounded-full bg-[var(--ink)]"
-                    />
-                    <span className="[overflow-wrap:anywhere]">{item.name}</span>
+            {part.items.map((item) => {
+              const href = hrefOf?.(item.id);
+              const row = (
+                <>
+                  {chips ? (
+                    <SpaceChip name={item.name} color={item.color ?? "GRAPHITE"} />
+                  ) : (
+                    <span className="flex min-w-0 items-center gap-2 text-ink-2">
+                      <span
+                        aria-hidden="true"
+                        style={paletteVars(item.color ?? "GRAPHITE")}
+                        className="size-2.5 shrink-0 rounded-full bg-[var(--ink)]"
+                      />
+                      <span className="[overflow-wrap:anywhere]">{item.name}</span>
+                    </span>
+                  )}
+                  <span className="ml-auto shrink-0 font-semibold whitespace-nowrap text-ink">
+                    {money(item.amount)}
                   </span>
-                )}
-                <span className="shrink-0 font-semibold whitespace-nowrap text-ink">
-                  {money(item.amount)}
-                </span>
-              </li>
-            ))}
+                </>
+              );
+              // Ruling P310: each row opens the movements behind its amount, a 44 px target ending in a chevron.
+              return (
+                <li key={item.id}>
+                  {href ? (
+                    <Link href={href} className="flex min-h-11 items-center gap-3 text-sm">
+                      {row}
+                      <Icon name="chevronRight" size={18} className="shrink-0 text-muted" />
+                    </Link>
+                  ) : (
+                    <p className="flex min-h-11 items-center gap-3 text-sm">{row}</p>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       ) : null}
@@ -116,6 +136,8 @@ export function UnifiedSummary({
   policy,
   formats,
   personId,
+  soloHref,
+  othersHref,
 }: {
   readonly unified: UnifiedMonth;
   readonly page: TransactionPageDto;
@@ -123,6 +145,10 @@ export function UnifiedSummary({
   readonly formats: Formats;
   /** Ruling P278: Inicio's eye hides every amount. */
   readonly personId: string;
+  /** Ruling P310: where a "Solo tú" category opens its movements. */
+  readonly soloHref?: ((categoryId: string) => string | undefined) | undefined;
+  /** Ruling P310: where a "Con otros" space opens its movements. */
+  readonly othersHref?: ((spaceId: string) => string | undefined) | undefined;
 }) {
   const t = useTranslations("home");
   const common = useTranslations("common");
@@ -140,8 +166,8 @@ export function UnifiedSummary({
         {money(unified.consumed)}
       </p>
       <div className="mt-1 flex flex-col divide-y divide-line">
-        <Part label={t("solo")} part={unified.solo} chips={false} money={money} />
-        <Part label={t("withOthers")} part={unified.withOthers} chips money={money} />
+        <Part label={t("solo")} part={unified.solo} chips={false} money={money} hrefOf={soloHref} />
+        <Part label={t("withOthers")} part={unified.withOthers} chips money={money} hrefOf={othersHref} />
       </div>
       <p className="text-sm text-muted">{t("income", { amount: money(page.totals.income) })}</p>
     </section>

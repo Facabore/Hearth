@@ -122,10 +122,12 @@ const spaceHomeRoute = createRoute({
   validateSearch: (search: Record<string, unknown>) => ({
     joined: textParam(search.joined),
     tx: textParam(search.tx),
+    // Ruling P310: the personal Inicio's period; the current one when absent.
+    period: textParam(search.period),
   }),
-  loaderDeps: ({ search }) => ({ tx: search.tx }),
+  loaderDeps: ({ search }) => ({ tx: search.tx, period: search.period }),
   loader: async ({ context, params, deps, cause }) =>
-    (await ledger()).loadHome({ ...context, cause }, params.spaceId, deps.tx),
+    (await ledger()).loadHome({ ...context, cause }, params.spaceId, deps.tx, deps.period),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "HomePending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/space-home"), "SpaceHome"),

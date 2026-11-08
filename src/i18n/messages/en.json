@@ -298,6 +298,12 @@
     "allFunds": "See all funds",
     "allFundsShort": "See all",
     "recent": "Recent",
+    "recentIn": "In {month}",
+    "recentBetween": "{start} to {end}",
+    "period": {
+      "previous": "Previous period",
+      "next": "Next period"
+    },
     "recentEmpty": "No transactions yet. Record the first one with +.",
     "feed": {
       "recordedBy": "{name} recorded",

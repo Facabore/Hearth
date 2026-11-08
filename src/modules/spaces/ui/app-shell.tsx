@@ -87,6 +87,7 @@ export function AppShell({
       </div>
       <NavLinks
         spaceId={activeSpace.id}
+        homeSpaceId={spaces.find((space) => space.kind === "PERSONAL")?.id ?? activeSpace.id}
         canRecord={controlsFor(activeSpace.role, activeSpace.kind).recordMoney}
         {...(pendingCount === undefined ? {} : { pendingCount })}
       />

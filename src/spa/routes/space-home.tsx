@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { useTranslations } from "use-intl";
 import {
@@ -6,18 +6,21 @@ import {
   HomeSummary,
   UnifiedRecent,
   mergedFeed,
+  PeriodStepper,
   TransactionSheetHost,
+  transactionListHref,
   UnifiedSummary,
   unifiedMonthOf,
 } from "@/modules/ledger/ui";
+import { categoryIdsOf } from "@/modules/categories/ui";
 import { SpaceStanding, type MyBalanceDto } from "@/modules/spaces/ui";
-import type { SpaceDto } from "@/shared/ui/api/dto";
+import type { PeriodDto, SpaceDto } from "@/shared/ui/api/dto";
 import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
 import { useHome, useTransactionDetail, useViewer } from "../ledger/hooks";
 import { showsUnifiedMonth } from "../load";
-import { FEED_ROWS } from "../ledger/queries";
-import { lineReportQuery, myActivityQuery, unifiedViewQuery } from "../reads";
+import { FEED_ROWS, neighboursOf } from "../ledger/queries";
+import { lineReportQuery, myActivityQuery, periodQuery, unifiedViewQuery } from "../reads";
 import { myBalancesQuery, spaceStandingSlot } from "../shell";
 import { useTitle } from "../title";
 
@@ -55,14 +58,26 @@ const owesOf = (balances: readonly MyBalanceDto[], spaces: readonly SpaceDto[], 
 export function SpaceHome() {
   useTitle(useTranslations("home")("title"));
   const { spaceId } = route.useParams();
-  const { joined, tx } = route.useSearch();
+  const { joined, tx, period } = route.useSearch();
   const { api } = useApis();
   const viewer = useViewer(spaceId);
-  const { page, accounts, context } = useHome(viewer);
+  const { page, accounts, context } = useHome(viewer, period);
   const detail = useTransactionDetail(viewer, tx);
   const { space } = viewer;
   const home = `/spaces/${spaceId}`;
   const today = nowIn(new Date(), viewer.me.timezone).date;
+  const personal = space.kind === "PERSONAL";
+  // Ruling P310: the personal Inicio steps between periods; the current one is the plain address, as the API answers it.
+  const holdsToday = (p: Pick<PeriodDto, "startDate" | "endDate">) =>
+    p.startDate <= today && today <= p.endDate;
+  // Without `?period=` the API answers today's period, so the plain address is never a past one.
+  const current = period === undefined || holdsToday(page.period);
+  const past = personal && !current;
+  const periodHref = (p: PeriodDto) =>
+    holdsToday(p) ? home : `${home}?period=${encodeURIComponent(p.label)}`;
+  const [previous, next] = useQueries({
+    queries: neighboursOf(api, spaceId, page.period).map((query) => ({ ...query, enabled: personal })),
+  });
   // U4 (#209): the personal home of someone with other spaces also says what her month costs across all of them, and
   // opens Mi consumo for that period, a stacked screen (U10, ruling P267).
   const unified = showsUnifiedMonth(viewer);
@@ -72,14 +87,19 @@ export function SpaceHome() {
   }).data;
   // Ruling P306: Recientes merges her shared and direct spaces' latest movements from the period's start.
   const activity = useQuery({
-    ...myActivityQuery(api, spaceId, page.period.startDate, FEED_ROWS),
+    ...myActivityQuery(api, spaceId, page.period.startDate, FEED_ROWS, page.period.endDate),
     enabled: unified,
   }).data;
+  // Ruling P310: a "Con otros" row opens its space's Movimientos in that space's period holding this one's start.
+  const others =
+    unified && allSpaces ? unifiedMonthOf(allSpaces).withOthers.items.map((item) => item.id) : [];
+  const otherPeriods = useQueries({
+    queries: others.map((id) => periodQuery(api, id, page.period.startDate)),
+  });
   // #152 (P265): the first steps' plan step reads the period's line dashboard, only where the card can show.
-  const personal = space.kind === "PERSONAL";
   const plan = useQuery({
     ...lineReportQuery(api, spaceId, page.period.label),
-    enabled: personal && accounts.length > 0,
+    enabled: personal && !past && accounts.length > 0,
   }).data;
   // Ruling P278: the card "Te toca poner", for someone with a shared or direct space.
   const shared = viewer.spaces.some((s) => s.kind !== "PERSONAL");
@@ -106,6 +126,17 @@ export function SpaceHome() {
               policy={space.periodPolicy}
               formats={context.formats}
               personId={viewer.me.id}
+              // Ruling P310: a category opens with its subcategories, which its amount counts too.
+              soloHref={(id) =>
+                transactionListHref(spaceId, {
+                  period: page.period.label,
+                  categoryId: categoryIdsOf(id, context.groups),
+                })
+              }
+              othersHref={(id) => {
+                const label = otherPeriods[others.indexOf(id)]?.data?.label;
+                return label ? transactionListHref(id, { period: label }) : undefined;
+              }}
             />
           ) : undefined
         }
@@ -128,6 +159,18 @@ export function SpaceHome() {
         }
         personId={viewer.me.id}
         owes={balances ? owesOf(balances, viewer.spaces, space) : undefined}
+        past={past}
+        stepper={
+          personal ? (
+            <PeriodStepper
+              period={page.period}
+              policy={space.periodPolicy}
+              formats={context.formats}
+              previousHref={previous?.data ? periodHref(previous.data) : undefined}
+              nextHref={!current && next?.data ? periodHref(next.data) : undefined}
+            />
+          ) : undefined
+        }
       />
       {detail ? (
         <TransactionSheetHost spaceId={spaceId} detail={detail} context={context} origin={home} api={api} />

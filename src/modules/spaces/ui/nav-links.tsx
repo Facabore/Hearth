@@ -14,13 +14,18 @@ import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
  * `/plan` and `/plans`. Registrar only for someone who records in the space (#207): a viewer never meets a form she
  * cannot save. The Movimientos tab carries the space's pending occurrences as a badge (HU-E9-09, ruling P270); the shell
  * passes their count only to someone who records money, so a viewer never sees it, and nothing shows at zero.
+ * Ruling P310 (amends P125 for this tab): Inicio always opens the person's personal Inicio, where everything she does
+ * meets; a shared or direct space's own home is reached by choosing it in the space switcher.
  */
 export function NavLinks({
   spaceId,
+  homeSpaceId = spaceId,
   canRecord,
   pendingCount = 0,
 }: {
   readonly spaceId: string;
+  /** Ruling P310: the person's personal space, whose Inicio the Inicio tab opens from every space. */
+  readonly homeSpaceId?: string;
   readonly canRecord: boolean;
   readonly pendingCount?: number;
 }) {
@@ -57,7 +62,12 @@ export function NavLinks({
       <div className="hidden lg:mb-6 lg:block">
         <Logo />
       </div>
-      <Link href={home} {...prefetch} aria-current={current(home)} className={item}>
+      <Link
+        href={`/spaces/${homeSpaceId}`}
+        {...prefetch}
+        aria-current={current(`/spaces/${homeSpaceId}`)}
+        className={item}
+      >
         <Icon name="home" />
         {t("home")}
       </Link>

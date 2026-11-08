@@ -93,6 +93,27 @@ describe("the Plan tab (ruling P200, amends P141; P160 for the order)", () => {
   });
 });
 
+describe("the Inicio tab (ruling P310, amends P125 for this tab)", () => {
+  it("opens the personal Inicio from a shared space, and is not current there", () => {
+    where.pathname = "/spaces/sp-household";
+    renderWithIntl(<NavLinks spaceId="sp-household" homeSpaceId="sp-personal" canRecord />);
+    const home = screen.getByRole("link", { name: "Inicio" });
+    expect(home).toHaveAttribute("href", "/spaces/sp-personal");
+    expect(home).not.toHaveAttribute("aria-current");
+    // The other tabs stay the space's own.
+    expect(screen.getByRole("link", { name: "Movimientos" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household/transactions",
+    );
+  });
+
+  it("is current on the personal Inicio", () => {
+    where.pathname = "/spaces/sp-personal";
+    renderWithIntl(<NavLinks spaceId="sp-personal" homeSpaceId="sp-personal" canRecord />);
+    expect(screen.getByRole("link", { name: "Inicio" })).toHaveAttribute("aria-current", "page");
+  });
+});
+
 describe("the navigation's prefetch (#196)", () => {
   const prefetches = () =>
     within(screen.getByRole("navigation", { name: "Principal" }))

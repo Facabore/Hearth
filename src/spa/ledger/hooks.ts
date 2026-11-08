@@ -5,7 +5,7 @@ import type { CategoryGroupDto, MeDto } from "@/shared/ui/api/dto";
 import { useApis } from "../api";
 import { accountsQuery, categoriesQuery, membersQuery } from "../reads";
 import { sharedSpace, type Viewer } from "../load";
-import { homeRowsOf, pageQuery, transactionQuery } from "./queries";
+import { homeQueryOf, pageQuery, transactionQuery } from "./queries";
 
 export { useViewer } from "../viewer";
 
@@ -65,12 +65,13 @@ export const useTransactionDetail = (
   };
 };
 
-export const useHome = (viewer: Viewer) => {
+/** Inicio's reads; `period` is the personal Inicio's `?period=` (ruling P310). */
+export const useHome = (viewer: Viewer, period?: string) => {
   const { api } = useApis();
   const spaceId = viewer.space.id;
   const [page, accounts, groups] = useSuspenseQueries({
     queries: [
-      pageQuery(api, spaceId, { limit: homeRowsOf(viewer) }),
+      pageQuery(api, spaceId, homeQueryOf(viewer, period)),
       accountsQuery(api, spaceId, "active"),
       categoriesQuery(api, spaceId, "all"),
     ],

@@ -143,18 +143,41 @@ const loadDetail = async (load: Load, viewer: Viewer, transactionId: string): Pr
  * HU-E9-01's home: its latest rows, the active accounts, every category (old rows keep their names) and the detail
  * behind `?tx=`.
  */
-export const loadHome = async (load: Load, spaceId: string, transactionId?: string) => {
+/**
+ * Inicio's own page: its latest rows, of the period `?period=` names on the personal Inicio (ruling P310); a shared or
+ * direct space's home always shows the current one.
+ */
+export const homeQueryOf = (viewer: Pick<Viewer, "space" | "spaces"> | null, period?: string): PageQuery => ({
+  ...(period !== undefined && viewer?.space.kind === "PERSONAL" ? { period } : {}),
+  limit: homeRowsOf(viewer),
+});
+
+/** Ruling P310: the periods either side of `period`, which the personal Inicio steps to. */
+export const neighboursOf = (api: Api, spaceId: string, period: { startDate: string; endDate: string }) =>
+  [addDays(period.startDate as LocalDate, -1), addDays(period.endDate as LocalDate, 1)].map((from) =>
+    periodQuery(api, spaceId, from),
+  );
+
+export const loadHome = async (load: Load, spaceId: string, transactionId?: string, period?: string) => {
   const ensure = ensurer(load);
   const { api } = load.apis;
   const viewer = await viewerOf(load, spaceId);
-  const page = ensure(pageQuery(api, spaceId, { limit: homeRowsOf(viewer) }));
+  const page = ensure(pageQuery(api, spaceId, homeQueryOf(viewer, period)));
   const unified = viewer !== null && showsUnifiedMonth(viewer);
   // Ruling P306: a personal home with other spaces counts her month across all of them in its headline, so the screen
   // waits for it (a failed read leaves the plain headline), and the headline never moves what is under it. Her spaces'
-  // latest movements only add rows at the foot of Recientes, so they never hold the screen.
+  // latest movements only add rows at the foot of Recientes, so they never hold the screen. Ruling P310: they stop at
+  // the period's end, and the periods either side are read ahead, so stepping to them is immediate.
   void page
-    .then(({ period }) =>
-      unified ? ensure(myActivityQuery(api, spaceId, period.startDate, FEED_ROWS)) : undefined,
+    .then(({ period: shown }) =>
+      Promise.all([
+        unified
+          ? ensure(myActivityQuery(api, spaceId, shown.startDate, FEED_ROWS, shown.endDate))
+          : undefined,
+        viewer?.space.kind === "PERSONAL"
+          ? Promise.all(neighboursOf(api, spaceId, shown).map((query) => settled(ensure(query))))
+          : undefined,
+      ]),
     )
     .catch(() => undefined);
   await Promise.all([

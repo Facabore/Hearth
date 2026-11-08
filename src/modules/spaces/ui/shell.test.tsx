@@ -95,7 +95,8 @@ describe("app shell (HU-E9-01)", () => {
         .getAllByRole("link")
         .map((l) => withoutQuery(l.getAttribute("href"))),
     ).toEqual([
-      "/spaces/sp-household",
+      // Ruling P310: Inicio is always the personal one.
+      "/spaces/sp-personal",
       "/spaces/sp-household/transactions",
       "/spaces/sp-household/new",
       "/spaces/sp-household/plan",

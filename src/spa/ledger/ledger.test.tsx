@@ -1,7 +1,7 @@
 import { createBrowserHistory } from "@tanstack/react-router";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { es } from "@/i18n/messages/full";
 import {
   accountDto,
@@ -110,7 +110,10 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     expect(row).toHaveAttribute("href", "/spaces/sp-hogar?tx=t-hogar");
     expect(within(row).getByText("Hogar")).toBeInTheDocument();
     expect(calls(spa.requests, "GET", /\/me\/unified-view\?period=2026-10$/)).toHaveLength(1);
-    expect(calls(spa.requests, "GET", /\/me\/activity\?from=2026-10-01&limit=6$/)).toHaveLength(1);
+    // Ruling P310: the feed stops at the period's end, so a past period lists only its own.
+    expect(calls(spa.requests, "GET", /\/me\/activity\?from=2026-10-01&to=2026-10-31&limit=6$/)).toHaveLength(
+      1,
+    );
   });
 
   it("keeps the personal home without the line when the unified month cannot be read", async () => {
@@ -443,6 +446,131 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     renderSpa("/spaces/sp-personal/transactions", routes);
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(nav()).toBeInTheDocument();
+  });
+});
+
+describe("the personal Inicio is the person's hub (ruling P310, #274)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T15:00:00Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const september = { label: "2026-09", startDate: "2026-09-01", endDate: "2026-09-30" };
+  /** A monthly space's period holding `from`. */
+  const monthOf = (from: string) => {
+    const [year, month] = from.split("-").map(Number) as [number, number];
+    const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const mm = String(month).padStart(2, "0");
+    return { label: `${year}-${mm}`, startDate: `${year}-${mm}-01`, endDate: `${year}-${mm}-${last}` };
+  };
+  const hubApi = (overrides: Record<string, FakeHandler> = {}) =>
+    ledgerApi({
+      "GET /api/v1/spaces/{spaceId}/periods": (request) =>
+        jsonResponse({ items: [monthOf(new URL(request.url).searchParams.get("from")!)] }),
+      "GET /api/v1/spaces/{spaceId}/transactions": (request) =>
+        jsonResponse(
+          new URL(request.url).searchParams.get("period") === "2026-09"
+            ? { ...octoberPage, period: september, items: [] }
+            : octoberPage,
+        ),
+      "GET /api/v1/me/unified-view": (request) =>
+        jsonResponse(
+          e74Unified({
+            period: monthOf(`${new URL(request.url).searchParams.get("period")!}-01`),
+            bySpace: [
+              {
+                space: { id: "sp-personal", name: "Personal", kind: "PERSONAL", color: "GRAPHITE" },
+                consumed: { amount: "150000", currency: "COP" },
+                paid: { amount: "150000", currency: "COP" },
+                categories: [
+                  {
+                    id: "c-groceries",
+                    name: "Groceries",
+                    color: null,
+                    amount: { amount: "150000", currency: "COP" },
+                  },
+                ],
+              },
+              {
+                space: { id: "sp-household", name: "Household", kind: "SHARED", color: "TEAL" },
+                consumed: { amount: "90000", currency: "COP" },
+                paid: { amount: "0", currency: "COP" },
+              },
+            ],
+          }),
+        ),
+      "GET /api/v1/me/activity": () => jsonResponse({ items: [] }),
+      ...overrides,
+    }).routes;
+
+  it("steps back from the current period, and cannot step past it", async () => {
+    renderSpa("/spaces/sp-personal", hubApi());
+    expect(await screen.findByRole("link", { name: es.home.period.previous })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal?period=2026-09",
+    );
+    expect(screen.getByRole("button", { name: es.home.period.next })).toBeDisabled();
+    expect(screen.getByText("octubre 2026")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: es.home.accounts })).toBeVisible();
+  });
+
+  it("shows a past period's month and movements, without today's balances, and steps forward to the current one", async () => {
+    const spa = renderSpa("/spaces/sp-personal?period=2026-09", hubApi());
+    expect(await screen.findByRole("heading", { name: "En septiembre" })).toBeVisible();
+    expect(screen.getByText("septiembre 2026")).toBeInTheDocument();
+    // The current period is the plain address, as the API answers it.
+    expect(screen.getByRole("link", { name: es.home.period.next })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal",
+    );
+    expect(screen.getByRole("link", { name: es.home.period.previous })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal?period=2026-08",
+    );
+    expect(screen.getByRole("link", { name: es.home.allTransactions })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/transactions?period=2026-09",
+    );
+    expect(screen.queryByRole("heading", { name: es.home.accounts })).not.toBeInTheDocument();
+    await settled(spa);
+    expect(calls(spa.requests, "GET", /\/transactions\?period=2026-09&limit=6$/)).toHaveLength(1);
+    expect(calls(spa.requests, "GET", /\/me\/unified-view\?period=2026-09$/)).toHaveLength(1);
+    expect(calls(spa.requests, "GET", /\/me\/activity\?from=2026-09-01&to=2026-09-30&limit=6$/)).toHaveLength(
+      1,
+    );
+  });
+
+  it("opens each part's movements: a category in the personal space, a space in its own period", async () => {
+    const user = userEvent.setup({ advanceTimers: () => undefined });
+    renderSpa("/spaces/sp-personal", hubApi());
+    const summary = await screen.findByRole("region", { name: es.home.summary });
+    await user.click(await within(summary).findByRole("button", { name: new RegExp(es.home.solo) }));
+    expect(within(summary).getByRole("link", { name: /Groceries/ })).toHaveAttribute(
+      "href",
+      // Its amount counts its subcategory, Vegetables, so the list asks for both.
+      "/spaces/sp-personal/transactions?period=2026-10&category=c-groceries%2Cc-veg",
+    );
+    await user.click(within(summary).getByRole("button", { name: new RegExp(es.home.withOthers) }));
+    expect(await within(summary).findByRole("link", { name: /Household/ })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household/transactions?period=2026-10",
+    );
+  });
+
+  it("names a category opened with its subcategories by the category, and asks the API for all of them", async () => {
+    vi.useRealTimers();
+    const spa = renderSpa(
+      "/spaces/sp-personal/transactions?category=c-groceries%2Cc-veg",
+      ledgerApi().routes,
+    );
+    expect(await screen.findByRole("heading", { level: 1, name: es.ledger.list.title })).toBeVisible();
+    expect(
+      calls(spa.requests, "GET", /\/transactions\?categoryIds=c-groceries(,|%2C)c-veg&limit=50$/),
+    ).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /Groceries/ })).toBeVisible();
   });
 });
 

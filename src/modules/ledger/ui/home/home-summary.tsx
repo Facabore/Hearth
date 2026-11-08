@@ -35,6 +35,8 @@ export function HomeSummary({
   firstSteps,
   personId,
   owes,
+  stepper,
+  past = false,
 }: {
   readonly spaceId: string;
   /** Issue #216: the viewer's today, so each recent row says which day it is from. */
@@ -64,6 +66,13 @@ export function HomeSummary({
   readonly personId?: string | undefined;
   /** Ruling P278 (board B1 · 03): each shared space where it is the person's turn to put money in. */
   readonly owes?: readonly Owe[] | undefined;
+  /** Ruling P310: the personal Inicio's step between periods, above the period's figure. */
+  readonly stepper?: ReactNode;
+  /**
+   * Ruling P310: a period before today's. It shows that period's figure and movements, never today's balances: no
+   * "Te toca poner", first steps or accounts.
+   */
+  readonly past?: boolean;
 }) {
   const t = useTranslations("home");
   const common = useTranslations("common");
@@ -88,6 +97,7 @@ export function HomeSummary({
         </div>
       ) : null}
       <div className="flex min-w-0 flex-col gap-3">
+        {stepper}
         {kind !== "PERSONAL" ? (
           <div className="flex flex-wrap gap-2">
             <Link href={`/spaces/${spaceId}/members`} className={pill}>
@@ -136,10 +146,10 @@ export function HomeSummary({
                 <p className="text-sm text-muted">{t("income", { amount: money(page.totals.income) })}</p>
               </section>
             )}
-            {owes?.map((owe) => (
-              <OweCard key={owe.spaceId} owe={owe} amount={money(owe.amount)} />
-            ))}
-            {firstSteps ? (
+            {past
+              ? null
+              : owes?.map((owe) => <OweCard key={owe.spaceId} owe={owe} amount={money(owe.amount)} />)}
+            {firstSteps && !past ? (
               <FirstSteps spaceId={spaceId} personId={firstSteps.personId} done={firstSteps.done} />
             ) : null}
             {personal ? null : (
@@ -147,7 +157,7 @@ export function HomeSummary({
                 {kind === "DIRECT" ? accountsNote("directNote") : accountsNote("fundsNote")}
               </p>
             )}
-            {accounts.length === 0 ? (
+            {past ? null : accounts.length === 0 ? (
               kind === "SHARED" && controls.manageFunds ? (
                 <Link
                   href={withReturnTo(`/spaces/${spaceId}/accounts/new`, `/spaces/${spaceId}`)}
@@ -201,9 +211,20 @@ export function HomeSummary({
       <section aria-labelledby="home-recent" className="flex min-w-0 flex-col gap-2">
         <div className="flex items-center justify-between">
           <h2 id="home-recent" className="text-lg font-semibold text-ink">
-            {t("recent")}
+            {!past
+              ? t("recent")
+              : name.kind === "month"
+                ? t("recentIn", { month: common(`month.${name.month as 1}`) })
+                : t("recentBetween", {
+                    start: formatDate(name.start, formats),
+                    end: formatDate(name.end, formats),
+                  })}
           </h2>
-          <Link href={`/spaces/${spaceId}/transactions`} aria-label={t("allTransactions")} className={link}>
+          <Link
+            href={`/spaces/${spaceId}/transactions${past ? `?period=${encodeURIComponent(page.period.label)}` : ""}`}
+            aria-label={t("allTransactions")}
+            className={link}
+          >
             {t("allTransactionsShort")}
           </Link>
         </div>

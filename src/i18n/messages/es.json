@@ -298,6 +298,12 @@
     "allFunds": "Ver todos los fondos",
     "allFundsShort": "Ver todos",
     "recent": "Recientes",
+    "recentIn": "En {month}",
+    "recentBetween": "Del {start} al {end}",
+    "period": {
+      "previous": "Período anterior",
+      "next": "Período siguiente"
+    },
     "recentEmpty": "Aún no hay movimientos. Registra el primero con +.",
     "feed": {
       "recordedBy": "{name} registró",
