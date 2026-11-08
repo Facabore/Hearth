@@ -140,10 +140,6 @@ const loadDetail = async (load: Load, viewer: Viewer, transactionId: string): Pr
 };
 
 /**
- * HU-E9-01's home: its latest rows, the active accounts, every category (old rows keep their names) and the detail
- * behind `?tx=`.
- */
-/**
  * Inicio's own page: its latest rows, of the period `?period=` names on the personal Inicio (ruling P310); a shared or
  * direct space's home always shows the current one.
  */
@@ -158,6 +154,11 @@ export const neighboursOf = (api: Api, spaceId: string, period: { startDate: str
     periodQuery(api, spaceId, from),
   );
 
+/**
+ * HU-E9-01's home: its latest rows, the active accounts, every category (old rows keep their names) and the detail
+ * behind `?tx=`; on the personal
+ * Inicio, the period `?period=` names (ruling P310).
+ */
 export const loadHome = async (load: Load, spaceId: string, transactionId?: string, period?: string) => {
   const ensure = ensurer(load);
   const { api } = load.apis;
@@ -205,11 +206,7 @@ export const loadList = async (load: Load, spaceId: string, filter: ListFilter, 
   const viewer = viewerOf(load, spaceId);
   await Promise.all([
     ensure(pageQuery(api, spaceId, listQueryOf(filter))).then(({ period }) =>
-      Promise.all(
-        [addDays(period.startDate as LocalDate, -1), addDays(period.endDate as LocalDate, 1)].map((from) =>
-          settled(ensure(periodQuery(api, spaceId, from))),
-        ),
-      ),
+      Promise.all(neighboursOf(api, spaceId, period).map((query) => settled(ensure(query)))),
     ),
     ensure(categoriesQuery(api, spaceId, "all")),
     ensure(accountsQuery(api, spaceId, "all")),
