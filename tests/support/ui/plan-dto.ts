@@ -22,7 +22,8 @@ export const householdDto = (overrides: Partial<SpaceDto> = {}): SpaceDto =>
 export const NOVEMBER = { label: "2026-11", startDate: "2026-11-01", endDate: "2026-11-30" } as const;
 
 type DashLine = LineDashboardDto["lines"][number];
-const dashLine = (
+/** One line of a line dashboard: planned, spent and available in pesos; OVER with its overage when available is negative. */
+export const dashLine = (
   lineId: string,
   name: string,
   [planned, spent, available]: readonly [number, number, number],

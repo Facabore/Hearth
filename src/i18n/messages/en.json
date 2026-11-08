@@ -335,6 +335,13 @@
     "members": "Members",
     "invite": "Invite",
     "funds": "Funds",
+    "plan": {
+      "title": "Your {month} plan",
+      "titleRange": "Your plan from {start} to {end}",
+      "left": "{available} left of {planned}",
+      "over": "{line} went over: {amount} more than planned",
+      "overMore": "{line} went over: {amount} more than planned · and {count} more"
+    },
     "owe": {
       "in": "In {space}",
       "to": "to {name}",

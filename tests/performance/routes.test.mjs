@@ -90,7 +90,13 @@ describe("the Plan routes' budgets (rulings P221, P242)", () => {
     expect(emptyStateIn("Plan\nTendencia\nEste período no tiene plan: no hay rubros que comparar.")).toBe(
       "reports.trend.noPlan",
     );
-    expect(emptyStateIn("Plan\noctubre 2026 no tiene plan\nCrear plan")).toBe("reports.noPlan.title");
+    // Ruling P311: the empty plan names whose plan is missing.
+    expect(emptyStateIn("Plan\nAún no tienes un plan para octubre 2026\nCrear plan")).toBe(
+      "reports.noPlan.titlePersonal",
+    );
+    expect(emptyStateIn("Plan\nHogar aún no tiene un plan para octubre 2026\nCrear plan")).toBe(
+      "reports.noPlan.titleShared",
+    );
     expect(emptyStateIn("Plan\nThis plan has no lines yet.")).toBe("budgeting.planner.empty");
     expect(emptyStateIn("Nothing is scheduled in the next 30 days.")).toBe("reports.calendar.empty");
     expect(emptyStateIn("Plan\nOctubre 2026\nMercado\nGastado $ 120.000 de $ 1.470.000")).toBeNull();

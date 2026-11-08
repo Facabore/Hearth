@@ -592,6 +592,58 @@ describe("the personal Inicio is the person's hub (ruling P310, #274)", () => {
     ).toHaveLength(1);
     expect(screen.getByRole("button", { name: /Groceries/ })).toBeVisible();
   });
+
+  /** The line dashboard of the period asked for, with the E7 plan's lines unless `withPlan` is false. */
+  const linesOf =
+    (withPlan = true): FakeHandler =>
+    (request) =>
+      jsonResponse(
+        e7Dashboard({
+          spaceId: "sp-personal",
+          period: monthOf(`${new URL(request.url).searchParams.get("period")!}-01`),
+          ...(withPlan ? {} : { plan: null, lines: [] }),
+        }),
+      );
+  const planCard = () => screen.queryByRole("link", { name: /^Tu plan de/ });
+
+  it("shows the period's plan under its figure in the first paint, opening the personal Plan screen (P311)", async () => {
+    const spa = renderSpa(
+      "/spaces/sp-personal",
+      hubApi({ "GET /api/v1/spaces/{spaceId}/reports/lines": linesOf() }),
+    );
+    const summary = await screen.findByRole("region", { name: es.home.summary });
+    // Read before the screen draws: it is there with the figure, so it never moves what is under it.
+    const card = planCard()!;
+    expect(card).toHaveAttribute("href", "/spaces/sp-personal/plan");
+    expect(card).toHaveTextContent(/^Tu plan de octubre/);
+    expect(summary.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await settled(spa);
+    expect(calls(spa.requests, "GET", /\/spaces\/sp-personal\/reports\/lines\?period=2026-10$/)).toHaveLength(
+      1,
+    );
+  });
+
+  it("opens a past period's plan at that period (P311)", async () => {
+    renderSpa(
+      "/spaces/sp-personal?period=2026-09",
+      hubApi({ "GET /api/v1/spaces/{spaceId}/reports/lines": linesOf() }),
+    );
+    expect(await screen.findByRole("heading", { name: "En septiembre" })).toBeVisible();
+    expect(planCard()).toHaveAttribute("href", "/spaces/sp-personal/plan?period=2026-09");
+    expect(planCard()).toHaveTextContent(/^Tu plan de septiembre/);
+  });
+
+  it("shows no plan card for a period without a plan, nor on a shared space's home (P311)", async () => {
+    const routes = hubApi({ "GET /api/v1/spaces/{spaceId}/reports/lines": linesOf(false) });
+    const spa = renderSpa("/spaces/sp-personal", routes);
+    expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
+    await settled(spa);
+    expect(planCard()).toBeNull();
+    spa.unmount();
+    renderSpa("/spaces/sp-household", hubApi({ "GET /api/v1/spaces/{spaceId}/reports/lines": linesOf() }));
+    expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
+    expect(screen.queryByRole("link", { name: /plan de/ })).toBeNull();
+  });
 });
 
 describe("the record form asks before discarding what was typed (#215, F9)", () => {

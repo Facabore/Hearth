@@ -29,6 +29,7 @@ export function HomeSummary({
   context,
   detail,
   summary,
+  plan,
   recent,
   today,
   firstSteps,
@@ -56,6 +57,11 @@ export function HomeSummary({
    * record sheet's backdrop (P300), never load it.
    */
   readonly summary?: ReactNode;
+  /**
+   * Ruling P311: under the period's figure on the personal Inicio, the period's plan as one link to its Plan screen
+   * (`PlanCard`). The route fills it, so the record sheet's backdrop never loads it.
+   */
+  readonly plan?: ReactNode;
   /** Ruling P306: what stands in for Recientes' rows, her own and her spaces' merged (`UnifiedRecent`). */
   readonly recent?: ReactNode;
   /** Issues #220 (F14) and #152: on the personal home, a new person's four first steps, under the period's figure. */
@@ -140,6 +146,7 @@ export function HomeSummary({
                 <p className="text-sm text-muted">{t("income", { amount: money(page.totals.income) })}</p>
               </section>
             )}
+            {plan}
             {past
               ? null
               : owes?.map((owe) => <OweCard key={owe.spaceId} owe={owe} amount={money(owe.amount)} />)}

@@ -75,7 +75,9 @@
     },
     "start": {
       "create": "Create plan",
-      "copy": "Copy previous plan"
+      "copy": "Copy the {period} plan",
+      "copyHint": "Same lines, amounts, rules and contributions; then you adjust what changed.",
+      "noPrevious": "There is no previous plan to copy: once you have one, you can start the next month from it."
     },
     "copy": {
       "title": "Copied from the previous plan",
@@ -310,8 +312,10 @@
       "unbudgetedCaptionIn": "Spent {spent} in categories with no line · {categories}"
     },
     "noPlan": {
-      "title": "{period} has no plan",
-      "body": "Without a plan, everything spent in {period} shows as Unbudgeted and the default split is equal shares.",
+      "titlePersonal": "You don't have a plan for {period} yet",
+      "titleShared": "{space} doesn't have a plan for {period} yet",
+      "bodyPersonal": "A plan splits what comes in across lines (Groceries, Rent, Transport…) and tells you each day how much you have left in each one.",
+      "bodyShared": "A plan splits what comes in across lines (Groceries, Rent, Transport…) and tells everyone how much is left in each one.",
       "managersOnly": "Only an Owner or an Admin can create the plan.",
       "thisPeriod": "this period",
       "managersSee": "Only an Owner or an Admin sees these actions.",

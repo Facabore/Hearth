@@ -278,6 +278,56 @@ describe("the Plan tab and the planner in the SPA (slice 5 of #199, ADR 0006)", 
   });
 });
 
+describe("an empty plan leads with Crear plan (ruling P311, #275)", () => {
+  /** A monthly space's period holding `from`. */
+  const monthOf = (from: string) => {
+    const [year, month] = from.split("-").map(Number) as [number, number];
+    const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const mm = String(month).padStart(2, "0");
+    return { label: `${year}-${mm}`, startDate: `${year}-${mm}-01`, endDate: `${year}-${mm}-${last}` };
+  };
+  /** November has no plan; October has one only when `previous` says so. */
+  const emptyNovember = (previous: boolean): Record<string, FakeHandler> => ({
+    ...server(),
+    "GET /api/v1/spaces/{spaceId}/periods": (request) =>
+      jsonResponse({ items: [monthOf(new URL(request.url).searchParams.get("from")!)] }),
+    "GET /api/v1/spaces/{spaceId}/reports/lines": (request) => {
+      const period = monthOf(`${new URL(request.url).searchParams.get("period")!}-01`);
+      const planned = previous && period.label === "2026-10";
+      return jsonResponse(
+        e7Dashboard({ spaceId: "sp-personal", period, ...(planned ? {} : { plan: null, lines: [] }) }),
+      );
+    },
+  });
+
+  it("offers a new person Crear plan alone, and says when a copy will be possible", async () => {
+    renderSpa(`${PERSONAL}/plan?period=2026-11`, emptyNovember(false));
+    expect(
+      await screen.findByRole(
+        "heading",
+        { level: 2, name: "Aún no tienes un plan para noviembre" },
+        { timeout: 5_000 },
+      ),
+    ).toBeVisible();
+    // The loader read October's dashboard ahead: the line is there with the title, never after it.
+    expect(screen.getByText(es.budgeting.start.noPrevious)).toBeVisible();
+    expect(screen.getAllByRole("button", { name: /plan/ }).map((button) => button.textContent)).toEqual([
+      es.budgeting.start.create,
+    ]);
+  });
+
+  it("offers the copy second, named by the previous period, when it has a plan", async () => {
+    const spa = renderSpa(`${PERSONAL}/plan?period=2026-11`, emptyNovember(true));
+    const create = await screen.findByRole("button", { name: es.budgeting.start.create }, { timeout: 5_000 });
+    const copy = screen.getByRole("button", { name: "Copiar el plan de octubre" });
+    expect(create.compareDocumentPosition(copy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByText(es.budgeting.start.noPrevious)).toBeNull();
+    expect(
+      spa.requests.filter((r) => new URL(r.url).search === "?period=2026-10" && /reports\/lines/.test(r.url)),
+    ).toHaveLength(1);
+  });
+});
+
 describe("the Plan views' origins (#240, ruling P272)", () => {
   it("names the categories of Sin presupuesto from the space's categories (board E9-10 01)", async () => {
     renderSpa(`${HOUSEHOLD}/plan/lines?period=2026-11`, {

@@ -13,6 +13,7 @@ import {
   unifiedMonthOf,
 } from "@/modules/ledger/ui";
 import { categoryIdsOf } from "@/modules/categories/ui";
+import { PlanCard } from "@/modules/reporting/ui";
 import { SpaceStanding, type MyBalanceDto } from "@/modules/spaces/ui";
 import type { PeriodDto, SpaceDto } from "@/shared/ui/api/dto";
 import { nowIn } from "@/shared/ui/time/when";
@@ -97,11 +98,10 @@ export function SpaceHome() {
   const otherPeriods = useQueries({
     queries: others.map((id) => periodQuery(api, id, page.period.startDate)),
   });
-  // #152 (P265): the first steps' plan step reads the period's line dashboard, only where the card can show.
-  const plan = useQuery({
-    ...lineReportQuery(api, spaceId, page.period.label),
-    enabled: personal && !past && accounts.length > 0,
-  }).data;
+  // #152 (P265): the first steps' plan step reads the period's line dashboard; ruling P311: so does the card "Tu plan de
+  // {mes}" under the figure, in any period. The loader reads it ahead, so the card draws in the first paint.
+  const plan = useQuery({ ...lineReportQuery(api, spaceId, page.period.label), enabled: personal }).data;
+  const planHref = `${home}/plan${holdsToday(page.period) ? "" : `?period=${encodeURIComponent(page.period.label)}`}`;
   // Ruling P278: the card "Te toca poner", for someone with a shared or direct space.
   const shared = viewer.spaces.some((s) => s.kind !== "PERSONAL");
   const balances = useQuery({ ...myBalancesQuery(api), enabled: shared }).data;
@@ -137,6 +137,16 @@ export function SpaceHome() {
                 const label = otherPeriods[others.indexOf(id)]?.data?.label;
                 return label ? transactionListHref(id, { period: label }) : undefined;
               }}
+            />
+          ) : undefined
+        }
+        plan={
+          personal && plan ? (
+            <PlanCard
+              dashboard={plan}
+              policy={space.periodPolicy}
+              formats={context.formats}
+              href={planHref}
             />
           ) : undefined
         }

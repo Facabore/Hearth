@@ -17,7 +17,9 @@ import {
   treeOf,
   unbudgetedNamesOf,
 } from "@/modules/reporting/ui/screens";
-import type { PeriodDto, ReportPlanDto } from "@/shared/ui/api/dto";
+import { canManage } from "@/modules/budgeting/ui";
+import { addDays, type LocalDate } from "@/shared/kernel/local-date";
+import type { LineDashboardDto, PeriodDto, ReportPlanDto } from "@/shared/ui/api/dto";
 import { useApis } from "../api";
 import type { Viewer } from "../load";
 import { daysOf, noPeriod, windowOf } from "../plan/loaders";
@@ -28,6 +30,7 @@ import {
   lineTrendQuery,
   membersQuery,
   overviewQuery,
+  periodQuery,
   personalGroupsQuery,
   personalTrendQuery,
   spaceReportQuery,
@@ -80,6 +83,27 @@ function Frame({
   );
 }
 
+/**
+ * Ruling P311: the period before a period without a plan, when it has a plan a copy can start from (the plan covering
+ * the day before, as the API copies it); null when it has none; undefined while not known. Read only for whoever may
+ * create the plan (P207), from the same reads the frame's step and the loader already make.
+ */
+function usePreviousPlan(viewer: Viewer, dashboard: LineDashboardDto): PeriodDto | null | undefined {
+  const { api } = useApis();
+  const wanted = dashboard.plan === null && canManage(viewer.space.role);
+  const before = useQuery({
+    ...periodQuery(api, viewer.space.id, addDays(dashboard.period.startDate as LocalDate, -1)),
+    enabled: wanted,
+  });
+  const report = useQuery({
+    ...lineReportQuery(api, viewer.space.id, before.data?.label ?? ""),
+    enabled: wanted && Boolean(before.data),
+  }).data;
+  if (!wanted || before.data === undefined) return undefined;
+  if (before.data === null) return null;
+  return report === undefined ? undefined : report.plan === null ? null : before.data;
+}
+
 /** HU-E9-10: the period's line dashboard, with a shared space's desktop overview when it has a plan (P216). */
 function Lines({ viewer, asked }: { readonly viewer: Viewer; readonly asked: string | undefined }) {
   const { api } = useApis();
@@ -94,6 +118,7 @@ function Lines({ viewer, asked }: { readonly viewer: Viewer; readonly asked: str
     enabled: dashboard.plan !== null && (unbudgetedIds?.length ?? 0) > 0,
   }).data;
   const formats = viewer.me.preferences.effective;
+  const previous = usePreviousPlan(viewer, dashboard);
   return (
     <Frame
       viewer={viewer}
@@ -103,7 +128,7 @@ function Lines({ viewer, asked }: { readonly viewer: Viewer; readonly asked: str
       plan={dashboard.plan}
     >
       {dashboard.plan === null ? (
-        <NoPlan space={viewer.space} dashboard={dashboard} formats={formats} />
+        <NoPlan space={viewer.space} dashboard={dashboard} formats={formats} previous={previous} />
       ) : (
         <LineDashboard
           dashboard={dashboard}

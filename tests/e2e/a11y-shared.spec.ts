@@ -392,9 +392,13 @@ for (const colorScheme of ["light", "dark"] as const) {
         .find((category: { id: string }) => category.id === mercado.categoryIds[0]);
       await post(page, `/api/v1/spaces/${ids.household}/categories/${fed.id}/archive`, {});
       await page.goto(`${h}/plan?period=2026-11`);
-      await expect(page.getByRole("button", { name: es.budgeting.start.copy })).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: es.budgeting.start.copy.replace("{period}", "octubre") }),
+      ).toBeVisible();
       await scan("the period without a plan");
-      await page.getByRole("button", { name: es.budgeting.start.copy }).click();
+      await page
+        .getByRole("button", { name: es.budgeting.start.copy.replace("{period}", "octubre") })
+        .click();
       const notice = page.getByRole("status").filter({ hasText: es.budgeting.copy.title });
       await expect(notice).toContainText(
         es.budgeting.copy.droppedMapping.replace("{category}", fed.name).replace("{line}", "Mercado"),

@@ -57,3 +57,25 @@ Then(
     await expect(main.getByRole("button", { name: world.t("budgeting.start.create") })).toHaveCount(0);
   },
 );
+
+When(
+  /^"[^"]+" opens the Plan tab of her personal space for (\S+)$/,
+  async ({ page, world }, period: string) => {
+    await page.goto(`/spaces/${world.user!.spaceId}/plan?period=${period}`);
+  },
+);
+
+/**
+ * Ruling P311 (#275; owner: "si es un usuario nuevo, es un botón que tiene todo el foco y no hace nada"): "Crear plan"
+ * leads, and without a previous plan there is no copy, only the line saying when there will be one.
+ */
+Then(
+  /^its empty plan offers "Crear plan" as its only action, and says a copy needs a previous plan$/,
+  async ({ page, world }) => {
+    const main = page.getByRole("main");
+    await expect(main.getByText(world.t("budgeting.start.noPrevious"))).toBeVisible();
+    const create = main.getByRole("button", { name: world.t("budgeting.start.create") });
+    await expect(create).toBeVisible();
+    await expect(main.getByRole("button", { name: /^Copiar el plan de/ })).toHaveCount(0);
+  },
+);

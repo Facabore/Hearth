@@ -75,7 +75,9 @@
     },
     "start": {
       "create": "Crear plan",
-      "copy": "Copiar plan anterior"
+      "copy": "Copiar el plan de {period}",
+      "copyHint": "Mismos rubros, montos, reglas y aportes; después ajustas lo que cambió.",
+      "noPrevious": "No hay un plan anterior para copiar: cuando tengas uno, podrás empezar el mes siguiente desde él."
     },
     "copy": {
       "title": "Copiado del plan anterior",
@@ -310,8 +312,10 @@
       "unbudgetedCaptionIn": "Gastado {spent} en categorías sin rubro · {categories}"
     },
     "noPlan": {
-      "title": "{period} no tiene plan",
-      "body": "Sin plan, todo lo que se gaste en {period} aparece como Sin presupuesto y la división por defecto es en partes iguales.",
+      "titlePersonal": "Aún no tienes un plan para {period}",
+      "titleShared": "{space} aún no tiene un plan para {period}",
+      "bodyPersonal": "Un plan reparte lo que entra en rubros (Mercado, Arriendo, Transporte…) y te dice cada día cuánto te queda en cada uno.",
+      "bodyShared": "Un plan reparte lo que entra en rubros (Mercado, Arriendo, Transporte…) y les dice a todos cuánto queda en cada uno.",
       "managersOnly": "Solo Propietario y Administrador pueden crear el plan.",
       "thisPeriod": "este período",
       "managersSee": "Solo Propietario y Administrador ven estas acciones.",

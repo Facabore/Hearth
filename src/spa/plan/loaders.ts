@@ -89,6 +89,16 @@ export const loadPlanView = async (load: Load, spaceId: string, view: PlanView, 
     const dashboard = await ensure(lineReportQuery(api, spaceId, label));
     await Promise.all([
       loadNeighbours(load, spaceId, dashboard.period),
+      // Ruling P311: whether the previous period has a plan to copy, so the empty plan draws its copy (or the line
+      // saying there is none) with the rest; a failed read only leaves it out. The screen offers it to managers only
+      // (P207); the loader does not tell them apart, so Mi consumo, which shares these loaders, ships no plan-access code.
+      dashboard.plan === null
+        ? settled(
+            ensure(periodQuery(api, spaceId, addDays(dashboard.period.startDate as LocalDate, -1))).then(
+              (before) => before && ensure(lineReportQuery(api, spaceId, before.label)),
+            ),
+          )
+        : undefined,
       !personal && dashboard.plan !== null ? settled(ensure(overviewQuery(api, spaceId, label))) : undefined,
       // #240: the categories that name Unbudgeted's, which never block the screen.
       dashboard.plan !== null && (dashboard.unbudgeted?.categoryIds?.length ?? 0) > 0

@@ -1310,7 +1310,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Plan de agosto 2026/i);
     });
 
-    test(`a period without a plan offers to copy the previous one, and the planner says what the copy left out at ${viewport.width} px (HU-E9-10, ruling P209)`, async ({
+    test(`a period without a plan offers Crear plan first and the copy of the previous one, and the planner says what the copy left out at ${viewport.width} px (HU-E9-10, rulings P209 and P311)`, async ({
       page,
     }) => {
       await page.setViewportSize(viewport);
@@ -1334,10 +1334,13 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       await page.goto(`/spaces/${sharedId}/plan?period=2026-10`);
       await settle(page);
       await expect(
-        page.getByRole("heading", { level: 2, name: /^octubre 2026 no tiene plan$/i }),
+        page.getByRole("heading", { level: 2, name: /aún no tiene un plan para octubre$/i }),
       ).toBeVisible();
       const create = page.getByRole("button", { name: es.budgeting.start.create });
-      const copy = page.getByRole("button", { name: es.budgeting.start.copy });
+      // Ruling P311: Crear plan leads; September has a plan, so the copy follows, named by it.
+      const copy = page.getByRole("button", {
+        name: es.budgeting.start.copy.replace("{period}", "septiembre"),
+      });
       await expect(create).toBeVisible();
       const { overflow, message } = await overflowReport(page, "the period without a plan");
       expect.soft(overflow, message).toBeLessThanOrEqual(0);
@@ -1350,8 +1353,10 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         `/spaces/${sharedId}/settings`,
       );
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-      const last = (await create.boundingBox())!;
-      expect(last.y + last.height, "Crear plan ends on screen").toBeLessThanOrEqual(viewport.height);
+      const last = (await copy.boundingBox())!;
+      expect(last.y + last.height, "the copy, the last action, ends on screen").toBeLessThanOrEqual(
+        viewport.height,
+      );
 
       await copy.click();
       await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Plan de octubre 2026/i);
@@ -1378,7 +1383,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       await expect(
         page.getByRole("list", { name: es.reports.lines.caption }).getByText(LONG_LINE).first(),
       ).toBeVisible();
-      await expect(page.getByRole("heading", { level: 2, name: /no tiene plan/i })).toHaveCount(0);
+      await expect(page.getByRole("heading", { level: 2, name: /no tiene un plan/i })).toHaveCount(0);
     });
   }
 

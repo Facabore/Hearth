@@ -165,8 +165,7 @@ export const neighboursOf = (api: Api, spaceId: string, period: { startDate: str
 
 /**
  * HU-E9-01's home: its latest rows, the active accounts, every category (old rows keep their names) and the detail
- * behind `?tx=`; on the personal
- * Inicio, the period `?period=` names (ruling P310).
+ * behind `?tx=`; on the personal Inicio, the period `?period=` names (ruling P310) and its line dashboard (P311).
  */
 export const loadHome = async (load: Load, spaceId: string, transactionId?: string, period?: string) => {
   const ensure = ensurer(load);
@@ -194,6 +193,11 @@ export const loadHome = async (load: Load, spaceId: string, transactionId?: stri
     page,
     unified
       ? page.then(({ period }) => settled(ensure(unifiedViewQuery(api, spaceId, period.label))))
+      : undefined,
+    // Ruling P311: the card "Tu plan de {mes}" under the figure draws in the first paint, so it never moves what is
+    // under it; a failed read only leaves it out.
+    viewer?.space.kind === "PERSONAL"
+      ? page.then(({ period }) => settled(ensure(lineReportQuery(api, spaceId, period.label))))
       : undefined,
     ensure(accountsQuery(api, spaceId, "active")),
     ensure(categoriesQuery(api, spaceId, "all")),
