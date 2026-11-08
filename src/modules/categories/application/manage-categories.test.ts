@@ -112,9 +112,13 @@ describe("category tree management (HU-E3-02)", () => {
     const { group, category, createGroup, renameGroup, update } = await setup();
     const food = group("space-household", "Food");
     expect(codeOf(await createGroup({ ...asLuis, name: "Trips" }))).toBe("InsufficientRole");
-    expect(codeOf(await renameGroup({ ...asLuis, groupId: food.id, name: "Eating" }))).toBe("InsufficientRole");
+    expect(codeOf(await renameGroup({ ...asLuis, groupId: food.id, name: "Eating" }))).toBe(
+      "InsufficientRole",
+    );
     const groceries = category("space-household", "Groceries");
-    expect(codeOf(await update({ ...asLuis, categoryId: groceries.id, name: "Market" }))).toBe("InsufficientRole");
+    expect(codeOf(await update({ ...asLuis, categoryId: groceries.id, name: "Market" }))).toBe(
+      "InsufficientRole",
+    );
   });
 
   it("forbids viewers", async () => {

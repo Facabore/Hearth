@@ -16,7 +16,14 @@ import { POST as archiveGroup } from "@/app/api/v1/spaces/[spaceId]/category-gro
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
 import { GET as getTransaction } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/route";
 import { setContainerForTests, type Container } from "@/composition/container";
-import { call, problemOf, registerUser, startTestApp, type RouteHandler, type TestUser } from "../support/app";
+import {
+  call,
+  problemOf,
+  registerUser,
+  startTestApp,
+  type RouteHandler,
+  type TestUser,
+} from "../support/app";
 import { actingIn, joinAs, newSharedSpace } from "../support/spaces";
 
 interface CategoryDto {
@@ -154,11 +161,16 @@ describe("managing the category tree (HU-E3-02)", () => {
       body: { groupId: food.id, name: "Snacks" },
     });
     expect(await problemOf(viewer)).toEqual([403, "InsufficientRole"]);
-    const renamed = await call(updateCategory, "PATCH", `${base}/categories/${(await category("Mercado")).id}`, {
-      user: actingIn(luis, ana.spaceId),
-      params: { ...params, categoryId: (await category("Mercado")).id },
-      body: { name: "Supermercado" },
-    });
+    const renamed = await call(
+      updateCategory,
+      "PATCH",
+      `${base}/categories/${(await category("Mercado")).id}`,
+      {
+        user: actingIn(luis, ana.spaceId),
+        params: { ...params, categoryId: (await category("Mercado")).id },
+        body: { name: "Supermercado" },
+      },
+    );
     expect(await problemOf(renamed)).toEqual([403, "InsufficientRole"]);
     const grouped = await call(createGroup, "POST", `${base}/category-groups`, {
       user: actingIn(luis, ana.spaceId),
