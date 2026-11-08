@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { accountDto, guestDto, memberDto } from "../../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse, problemResponse } from "../../../../../tests/support/ui/fake-api";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
@@ -10,6 +10,10 @@ import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { initialSplitDraft, type SharedExpenseContext } from "./shared-context";
 import { SharedFields } from "./shared-fields";
 import type { SplitDraft } from "./split-request";
+
+const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
+beforeEach(() => vi.clearAllMocks());
 
 const CONTEXT: SharedExpenseContext = {
   members: [memberDto(), memberDto({ id: "m-juan", userId: "u-juan", displayName: "Juan", role: "MEMBER" })],
@@ -168,5 +172,71 @@ describe("a VIEWER in the split (ruling P293)", () => {
     await waitFor(() =>
       expect(drafts.at(-1)).toMatchObject({ method: "EQUAL", selected: OUTSIDE_THE_PLAN, chosen: false }),
     );
+  });
+});
+
+describe("adding guests from the split sheet (P309, S6)", () => {
+  const EQUAL = () =>
+    jsonResponse({
+      method: "EQUAL",
+      availableMethods: ["EQUAL", "PERCENT", "EXACT", "SHARES"],
+      lineId: null,
+      shares: null,
+    });
+  const pedro = guestDto();
+  const marta = guestDto({ id: "m-marta", displayName: "Marta", joinedAt: "2026-11-08T12:00:00.000Z" });
+
+  it("opens the add-guests sheet over the split sheet and selects the guests it added, who can pay too", async () => {
+    const user = userEvent.setup();
+    const { api, requests } = fakeApi({
+      "GET /api/v1/spaces/{spaceId}/default-split": EQUAL,
+      "POST /api/v1/spaces/{spaceId}/guests/batch": () => jsonResponse({ items: [pedro, marta] }, 201),
+    });
+    const drafts: SplitDraft[] = [];
+    const context: SharedExpenseContext = {
+      ...CONTEXT,
+      space: { id: "sp-household", name: "Household", role: "MEMBER", kind: "SHARED" },
+    };
+    renderWithIntl(
+      <Harness api={api} amount="30000000" seen={(draft) => drafts.push(draft)} context={context} />,
+    );
+    await user.click(screen.getByRole("button", { name: /División/ }));
+    const split = await screen.findByRole("dialog", { name: "Quién pagó y para quién" });
+    await user.click(within(split).getByRole("button", { name: "Agregar invitados" }));
+    const guests = await screen.findByRole("dialog", { name: "Agregar invitados a Household" });
+    await user.type(within(guests).getByLabelText("Nombre"), "Pedro");
+    await user.click(within(guests).getByRole("button", { name: "Agregar otro invitado" }));
+    await user.type(within(guests).getAllByLabelText("Nombre")[1]!, "Marta");
+    await user.click(within(guests).getByRole("button", { name: "Agregar 2 invitados" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: /Agregar invitados/ })).not.toBeInTheDocument(),
+    );
+    expect(requests.some((r) => new URL(r.url).pathname === "/api/v1/spaces/sp-household/guests/batch")).toBe(
+      true,
+    );
+    expect(drafts.at(-1)).toMatchObject({
+      selected: ["m-ana", "m-juan", "m-pedro", "m-marta"],
+      chosen: true,
+    });
+    const back = screen.getByRole("dialog", { name: "Quién pagó y para quién" });
+    expect(within(back).getByRole("checkbox", { name: "Pedro (invitado)" })).toBeChecked();
+    expect(within(back).getByRole("checkbox", { name: "Marta (invitado)" })).toBeChecked();
+    expect(within(back).getByRole("radio", { name: "Marta (invitado)" })).toBeInTheDocument();
+  });
+
+  it.each([
+    ["a VIEWER of a shared space", { role: "VIEWER", kind: "SHARED" }],
+    ["a member of a direct space", { role: "OWNER", kind: "DIRECT" }],
+  ] as const)("offers no way to add guests to %s", async (_, viewer) => {
+    const user = userEvent.setup();
+    const { api } = fakeApi({ "GET /api/v1/spaces/{spaceId}/default-split": EQUAL });
+    const context: SharedExpenseContext = {
+      ...CONTEXT,
+      space: { id: "sp-household", name: "Household", ...viewer },
+    };
+    renderWithIntl(<Harness api={api} amount="30000000" seen={() => undefined} context={context} />);
+    await user.click(screen.getByRole("button", { name: /División/ }));
+    const split = await screen.findByRole("dialog", { name: "Quién pagó y para quién" });
+    expect(within(split).queryByRole("button", { name: "Agregar invitados" })).not.toBeInTheDocument();
   });
 });
