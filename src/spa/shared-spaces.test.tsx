@@ -27,12 +27,22 @@ const server = (signedIn = true) => {
     spaces: [spaceDto(), householdSpace()] as SpaceDto[],
     invitations: [invitationDto()] as InvitationDto[],
     owed: 100_000,
+    guests: [] as string[],
   };
   const routes: Record<string, FakeHandler> = {
     "GET /api/v1/me": () => (signedIn ? jsonResponse(meDto()) : problemResponse(401, "Unauthenticated")),
     "GET /api/v1/auth/sign-up": () => jsonResponse({ signUp: "open" }),
     "GET /api/v1/spaces": () => jsonResponse({ items: state.spaces }),
-    "GET /api/v1/spaces/{spaceId}/members": () => jsonResponse({ items: [memberDto(), JUAN] }),
+    "GET /api/v1/spaces/{spaceId}/members": () =>
+      jsonResponse({
+        items: [
+          memberDto(),
+          JUAN,
+          ...state.guests.map((name) =>
+            memberDto({ id: `m-${name}`, kind: "GUEST", userId: null, displayName: name, role: null }),
+          ),
+        ],
+      }),
     "GET /api/v1/spaces/{spaceId}/balances": () =>
       jsonResponse({
         members: [
@@ -85,6 +95,22 @@ const server = (signedIn = true) => {
         expiresAt: "2026-10-31T12:00:00.000Z",
         invitedBy: "Juan",
       }),
+    // Ruling P309: guests several at a time, and leaving a space.
+    "POST /api/v1/spaces/{spaceId}/guests/batch": () => {
+      state.guests = ["Marta", "Luis"];
+      return jsonResponse(
+        {
+          items: state.guests.map((name) =>
+            memberDto({ id: `m-${name}`, kind: "GUEST", userId: null, displayName: name, role: null }),
+          ),
+        },
+        201,
+      );
+    },
+    "POST /api/v1/spaces/{spaceId}/leave": (_, { spaceId }) => {
+      state.spaces = state.spaces.filter((space) => space.id !== spaceId);
+      return new Response(null, { status: 204 });
+    },
     "POST /api/v1/invitations/{token}/accept": () => {
       const trip = householdSpace({ id: "sp-trip", name: "Trip", role: "MEMBER" });
       state.spaces = [...state.spaces, trip];
@@ -122,6 +148,48 @@ describe("shared spaces in the SPA (slice 4 of #199, ADR 0006)", () => {
     await waitFor(() => expect(count(spa.requests, "GET", /\/invitations$/)).toBeGreaterThan(1));
     expect(count(spa.requests, "GET", /\/transactions$/)).toBe(ledger);
     expect(count(spa.requests, "GET", /\/me$/)).toBe(me);
+  });
+
+  it("adds two guests at once from Miembros and reads only the members and the balances again (P309)", async () => {
+    const { routes } = server();
+    const spa = renderSpa(`${HOUSEHOLD}/members`, routes);
+    await userEvent.click(
+      await screen.findByRole("button", { name: es.members.addGuest }, { timeout: 5_000 }),
+    );
+    const sheet = await screen.findByRole(
+      "dialog",
+      { name: "Agregar invitados a Household" },
+      { timeout: 10_000 },
+    );
+    await userEvent.type(within(sheet).getAllByLabelText(/^Nombre/)[0]!, "Marta");
+    await userEvent.click(within(sheet).getByRole("button", { name: /Agregar otro invitado/ }));
+    await userEvent.type(within(sheet).getAllByLabelText(/^Nombre/)[1]!, "Luis");
+    const ledger = count(spa.requests, "GET", /\/transactions$/);
+    const spaces = count(spa.requests, "GET", /\/spaces$/);
+    await userEvent.click(within(sheet).getByRole("button", { name: "Agregar 2 invitados" }));
+
+    await waitFor(() => expect(count(spa.requests, "POST", /\/guests\/batch$/)).toBe(1));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(await screen.findByText(named("Marta (invitado)"), {}, { timeout: 5_000 })).toBeVisible();
+    expect(count(spa.requests, "GET", /\/transactions$/)).toBe(ledger);
+    expect(count(spa.requests, "GET", /\/spaces$/)).toBe(spaces);
+  });
+
+  it("leaves a space from its own settings and lands on the personal home, without the space in the switcher (P309)", async () => {
+    const { routes } = server();
+    const spa = renderSpa(`${HOUSEHOLD}/settings`, routes);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Salir de Household" }, { timeout: 5_000 }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "¿Salir de Household?" }, { timeout: 10_000 });
+    await userEvent.click(within(sheet).getByRole("button", { name: "Salir de Household" }));
+
+    await waitFor(() => expect(spa.location()).toBe("/spaces/sp-personal"));
+    await userEvent.click(
+      await screen.findByRole("button", { name: es.shell.space.current.replace("{name}", "Personal") }),
+    );
+    const switcher = await screen.findByRole("dialog", { name: es.shell.space.title });
+    expect(within(switcher).queryByRole("link", { name: /^Household/ })).not.toBeInTheDocument();
   });
 
   it("brings a revoked invitation back with Deshacer, which restores it on the server (ruling P274)", async () => {
