@@ -108,6 +108,23 @@ describe("category tree management (HU-E3-02)", () => {
     );
   });
 
+  it("keeps a new category's style to OWNER and ADMIN: a member's category takes its group's (P308)", async () => {
+    const { categories, group, create } = await setup();
+    const food = group("space-household", "Food");
+    const before = categories.categories.length;
+    const styled = await create({ ...asLuis, groupId: food.id, name: "Bakery", color: "ROSE" });
+    expect(codeOf(styled)).toBe("InsufficientRole");
+    expect(
+      codeOf(
+        await create({ ...asLuis, groupId: food.id, name: "Bakery", icon: { kind: "EMOJI", value: "🥐" } }),
+      ),
+    ).toBe("InsufficientRole");
+    expect(categories.categories).toHaveLength(before);
+    // The owner still chooses one.
+    unwrap(await create({ ...asAna, groupId: food.id, name: "Bakery", color: "ROSE" }));
+    expect(categories.categories.find((c) => c.name === "Bakery")?.style?.color).toBe("ROSE");
+  });
+
   it("still keeps groups and edits to OWNER and ADMIN (P308)", async () => {
     const { group, category, createGroup, renameGroup, update } = await setup();
     const food = group("space-household", "Food");
