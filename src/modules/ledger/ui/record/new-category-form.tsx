@@ -71,13 +71,20 @@ export function NewCategoryForm({
         autoFocus
         onChange={(event) => setTyped(event.target.value)}
       />
-      <ChoiceGroup
-        label={t("group")}
-        layout="chips"
-        value={group}
-        onValueChange={setGroup}
-        options={groups.map((g) => ({ value: g.id, label: g.name }))}
-      />
+      {/* The board names the group's chips above them, as "Nombre" names the field. */}
+      <div className="flex flex-col gap-1.5">
+        <p id={`${id}-group`} className="text-sm font-medium text-ink">
+          {t("group")}
+        </p>
+        <ChoiceGroup
+          label={t("group")}
+          labelledBy={`${id}-group`}
+          layout="chips"
+          value={group}
+          onValueChange={setGroup}
+          options={groups.map((g) => ({ value: g.id, label: g.name }))}
+        />
+      </div>
       {problem ? <ProblemNotice problem={problem} /> : null}
       <Button type="submit" disabled={trimmed === "" || pending}>
         {t("save", { kind })}

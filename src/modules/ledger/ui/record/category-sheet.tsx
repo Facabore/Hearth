@@ -205,6 +205,8 @@ function SheetBody({
   );
   const group = live.find((g) => g.id === openGroup);
   const found = query.trim() === "" ? null : nodes.filter((c) => matches(c.name, query));
+  // Ruling P308: a search with no match offers itself as the new category's name, within a name's 60 characters.
+  const searched = query.trim().slice(0, 60);
   const heading = "text-sm font-medium text-muted";
   const tile =
     "flex min-h-[84px] flex-col items-center justify-center gap-1.5 rounded-xl border border-line px-1 py-2 text-xs font-medium text-ink";
@@ -320,8 +322,7 @@ function SheetBody({
             // Ruling P308: what was searched becomes the new category's name, in the group the picker showed.
             <button
               type="button"
-              // A category's name has at most 60 characters, as its field does.
-              onClick={() => onNew(query.trim().slice(0, 60), openGroup ?? live[0]!.id)}
+              onClick={() => onNew(searched, openGroup ?? live[0]!.id)}
               className="flex min-h-14 items-center gap-3 rounded-2xl border-[1.5px] border-accent bg-accent-soft px-3 py-2 text-left"
             >
               <span
@@ -332,7 +333,7 @@ function SheetBody({
               </span>
               <span className="flex min-w-0 flex-col">
                 <span className="font-semibold text-accent [overflow-wrap:anywhere]">
-                  {t("create", { name: query.trim() })}
+                  {t("create", { name: searched })}
                 </span>
                 <span className="text-xs text-muted">{t("createIn", { space: spaceName })}</span>
               </span>

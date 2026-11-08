@@ -1,3 +1,4 @@
+import { MANAGERS, requireRole } from "@/modules/spaces/application";
 import { ok, type Result } from "@/shared/kernel";
 import { newCategory } from "../domain/category";
 import { styleChangeOf, type CategoryColor, type IconInput } from "../domain/category-style";
@@ -27,6 +28,11 @@ export const createCreateCategory =
     deps.tm.run(async () => {
       const creator = await authorizeCreator(deps.access, input.spaceId, input.userId);
       if (!creator.ok) return creator;
+      // P308: a member who records creates a category in its group's style; choosing another stays with the managers.
+      if (input.icon !== undefined || input.color !== undefined) {
+        const manager = requireRole(creator.value, MANAGERS);
+        if (!manager.ok) return manager;
+      }
       const { spaceId } = creator.value;
       await deps.categories.lockTree(spaceId);
       const categories = await deps.categories.listCategories(spaceId);

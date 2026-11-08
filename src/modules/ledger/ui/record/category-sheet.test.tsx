@@ -198,6 +198,17 @@ describe("a new category from the picker (ruling P308)", () => {
     expect(await requests[0]!.json()).toEqual({ groupId: "g-home", name: "Pana" });
   });
 
+  it("offers and starts the same name from a search longer than a category's 60 characters", async () => {
+    const { sheet } = creating();
+    const long = "x".repeat(70);
+    await userEvent.type(within(sheet).getByRole("searchbox"), long);
+    await userEvent.click(
+      within(sheet).getByRole("button", { name: new RegExp(`Crear «${"x".repeat(60)}» como`) }),
+    );
+    const form = screen.getByRole("dialog", { name: "Nueva categoría" });
+    expect(await within(form).findByLabelText("Nombre")).toHaveValue("x".repeat(60));
+  });
+
   it("says why it could not create, keeps what was typed, and goes back to the picker on cancel or Escape", async () => {
     const { sheet, onCreated, onOpenChange } = creating(() => problemResponse(409, "CategoryNameTaken"));
     await userEvent.click(within(sheet).getByRole("button", { name: "Nueva categoría" }));
