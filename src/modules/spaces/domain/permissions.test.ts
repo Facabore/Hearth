@@ -26,6 +26,10 @@ describe("permission matrix (HU-E1-05)", () => {
     ["Luis creates a plan", "MEMBER", "plan.manage", false],
     ["Luis sets his own capacity", "MEMBER", "capacity.setOwn", true],
     ["Sofi sets her own capacity", "VIEWER", "capacity.setOwn", false],
+    ["Luis creates a category (P308)", "MEMBER", "category.create", true],
+    ["Juan creates a category (P308)", "ADMIN", "category.create", true],
+    ["Sofi creates a category (P308)", "VIEWER", "category.create", false],
+    ["Luis renames a category group", "MEMBER", "space.manage", false],
   ])("%s", (_scenario, role, action, allowed) => {
     expect(can(role, action)).toBe(allowed);
   });
