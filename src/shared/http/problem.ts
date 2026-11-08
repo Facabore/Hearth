@@ -76,6 +76,9 @@ const PUBLIC_DETAILS: ReadonlyMap<string, readonly string[]> = new Map([
   ["AccountAttributeNotAllowed", ["field"]],
   // Ruling P188: which part of the body the transaction's type keeps.
   ["FieldNotEditable", ["field"]],
+  // Ruling P309: the index of the guest a batch of guests refuses; the single-guest endpoint never sets it.
+  ["MemberNameTaken", ["guest"]],
+  ["InvalidMemberName", ["guest"]],
 ]);
 
 /** The details of `code` that are part of the API contract, e.g. the outstanding amount (HU-E1-08). */
