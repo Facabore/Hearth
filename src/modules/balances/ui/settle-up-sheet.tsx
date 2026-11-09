@@ -83,8 +83,9 @@ export function SettleUpSheet({
   const messageOf = useProblemMessage();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   // Issue #219: a payment of the viewer's leaves from the account they last paid from (the record form's, #208), else
-  // their first that is not a savings account; Ninguna stays a choice and the receiving account starts on none. Every
-  // active account stays offered, a new one at zero too, with the one last paid from first and the rest in order.
+  // their first that is not a savings account. Ruling P312 (#282): a payment the viewer receives lands in that same
+  // account by default, so it never reaches no account unnoticed; Ninguna stays a choice on both sides. Every active
+  // account stays offered, a new one at zero too, with the one last paid from first and the rest in order.
   const [lastAccountId] = useState(() => readLastAccount());
   const accounts = useMemo(() => {
     const last = myAccounts.find((account) => account.id === lastAccountId);
@@ -93,6 +94,7 @@ export function SettleUpSheet({
   const [draft, setDraft] = useState<SettlementDraft>(() => ({
     ...initial,
     sourceAccountId: initial.sourceAccountId ?? preferredAccountId(myAccounts, lastAccountId),
+    destinationAccountId: initial.destinationAccountId ?? preferredAccountId(myAccounts, lastAccountId),
   }));
   const [unbuilt, setUnbuilt] = useState<SettlementField | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);

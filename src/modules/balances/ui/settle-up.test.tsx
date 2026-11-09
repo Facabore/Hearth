@@ -319,12 +319,26 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
       expect(optional).toHaveClass("font-normal", "text-muted");
     });
 
-    it("never starts the receiving account on one: a payment arrives where the viewer says", async () => {
+    it("starts the receiving account on the one last used and sends it, so the payment lands in an account (#282)", async () => {
       localStorage.setItem("hearth.lastAccount", "a-bank");
-      screenAs("u-ana", fakeApi({}).api);
+      const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
+      screenAs("u-ana", api);
       await userEvent.click(screen.getByRole("button", { name: LUIS_PAYS }));
       const to = within(dialog()).getByRole("radiogroup", { name: "Llega a (opcional)" });
-      expect(within(to).getByRole("radio", { name: "Ninguna" })).toBeChecked();
+      expect(within(to).getByRole("radio", { name: "Bancolombia" })).toBeChecked();
+      expect(within(to).getByRole("radio", { name: "Ninguna" })).not.toBeChecked();
+      await userEvent.click(save());
+      expect(await requests[0]!.json()).toMatchObject({ receivingMemberId: "m-ana", destinationAccountId: "a-bank" });
+    });
+
+    it("still records a received payment without an account when the viewer picks Ninguna (#282)", async () => {
+      const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
+      screenAs("u-ana", api);
+      await userEvent.click(screen.getByRole("button", { name: LUIS_PAYS }));
+      const to = within(dialog()).getByRole("radiogroup", { name: "Llega a (opcional)" });
+      await userEvent.click(within(to).getByRole("radio", { name: "Ninguna" }));
+      await userEvent.click(save());
+      expect(await requests[0]!.json()).not.toHaveProperty("destinationAccountId");
     });
   });
 
@@ -363,7 +377,6 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
       within(dialog()).queryByRole("radiogroup", { name: "Sale de (opcional)" }),
     ).not.toBeInTheDocument();
     const to = within(dialog()).getByRole("radiogroup", { name: "Llega a (opcional)" });
-    expect(within(to).getByRole("radio", { name: "Ninguna" })).toBeChecked();
     await userEvent.click(within(to).getByRole("radio", { name: "Bancolombia" }));
     await userEvent.click(save());
     expect(await requests[0]!.json()).toMatchObject({
