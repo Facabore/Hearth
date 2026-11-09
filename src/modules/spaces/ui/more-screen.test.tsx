@@ -6,7 +6,7 @@ import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { MoreScreen } from "./more-screen";
 
 describe("Más, the space's modules (ruling P311)", () => {
-  it("draws a grid of square tiles in three columns: Configuración, Cuentas, Categorías and Recurrentes open", async () => {
+  it("draws a grid of square tiles in three columns: Planea tu mes, Configuración, Cuentas, Categorías and Recurrentes open", async () => {
     const { container } = renderWithIntl(<MoreScreen spaceId="sp-household" />);
     expect(screen.getByRole("heading", { level: 1, name: "Más" })).toBeInTheDocument();
     const grid = screen.getByRole("list");
@@ -16,6 +16,8 @@ describe("Más, the space's modules (ruling P311)", () => {
         .getAllByRole("link")
         .map((link) => [link.textContent, link.getAttribute("href")]),
     ).toEqual([
+      // #284 (ruling P314): the space's plan has a door of its own, since Plan left the bar (P311).
+      ["Planea tu mes", "/spaces/sp-household/plan"],
       ["Configuración", "/spaces/sp-household/settings"],
       ["Cuentas", "/spaces/sp-household/accounts"],
       ["Categorías", "/spaces/sp-household/categories"],
@@ -49,5 +51,6 @@ describe("Más, the space's modules (ruling P311)", () => {
     renderWithIntl(<MoreScreen spaceId="sp-household" />, { locale: "en" });
     expect(screen.getByRole("heading", { level: 1, name: "More" })).toBeInTheDocument();
     expect(screen.getAllByText(en.shell.more.soon)).toHaveLength(3);
+    expect(screen.getByRole("link", { name: "Plan your month" })).toHaveAttribute("href", "/spaces/sp-household/plan");
   });
 });

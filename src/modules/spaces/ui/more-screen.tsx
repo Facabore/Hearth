@@ -12,7 +12,8 @@ const TILE =
  * Ruling P311 (board "Más · módulos · P311"): the bar's Más, where the app's modules live as a grid of square tiles in
  * three columns. The live ones open the active space's Configuración, Cuentas, Categorías and Recurrentes; the
  * modules still to come (Estadísticas #277, Calendario #278, Exportar e importar #279) say "Próximamente" and open
- * nothing. The person's own settings stay in her profile, as the note under the grid says.
+ * nothing. The person's own settings stay in her profile, as the note under the grid says. Ruling P314 (#284, audit
+ * pass 3 A4): "Planea tu mes" leads the grid and opens the space's Plan, which otherwise has only Configuración's row.
  */
 export function MoreScreen({ spaceId }: { readonly spaceId: string }) {
   const t = useTranslations("shell.more");
@@ -38,6 +39,7 @@ export function MoreScreen({ spaceId }: { readonly spaceId: string }) {
     <div className="mx-auto flex max-w-[640px] flex-col gap-4 py-3">
       <h1 className="text-[22px] font-semibold text-ink">{t("title")}</h1>
       <ul className="grid grid-cols-3 gap-3">
+        {live(`${base}/plan`, <Icon name="chart" />, t("plan"))}
         {live(`${base}/settings`, <Icon name="sliders" />, t("settings"))}
         {live(`${base}/accounts`, <SymbolIcon name="wallet" />, t("accounts"))}
         {live(`${base}/categories`, <SymbolIcon name="tag" />, t("categories"))}

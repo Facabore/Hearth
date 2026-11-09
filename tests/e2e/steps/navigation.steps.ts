@@ -335,6 +335,8 @@ Then("the module grid is shown, with the modules to come marked Próximamente", 
   );
   const grid = page.getByRole("main").getByRole("list");
   for (const [key, suffix] of [
+    // #284 (ruling P314): the space's plan has a door in Más.
+    ["shell.more.plan", "/plan"],
     ["shell.more.settings", "/settings"],
     ["shell.more.accounts", "/accounts"],
     ["shell.more.categories", "/categories"],
