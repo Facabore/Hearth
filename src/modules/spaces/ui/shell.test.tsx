@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { cleanup, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -161,6 +161,22 @@ describe("app shell (HU-E9-01)", () => {
     );
     return screen.getByRole("dialog", { name: "Espacios" });
   };
+
+  it("keeps the tab the person is on when she changes space, and opens a space's Inicio from anywhere else (#293)", async () => {
+    // Owner, 2026-11-09: "estando en movimientos si cambio de espacio, se sale de los movimientos del espacio".
+    for (const [tab, expected] of [
+      ["/spaces/sp-personal/transactions", "/spaces/sp-household/transactions"],
+      ["/spaces/sp-personal/balances", "/spaces/sp-household/balances"],
+      ["/spaces/sp-personal/more", "/spaces/sp-household/more"],
+      ["/spaces/sp-personal", "/spaces/sp-household"],
+      ["/spaces/sp-personal/accounts", "/spaces/sp-household"],
+    ] as const) {
+      navigation.pathname = tab;
+      const sheet = await openSwitcher();
+      expect(within(sheet).getByRole("link", { name: /Household/ }), tab).toHaveAttribute("href", expected);
+      cleanup();
+    }
+  });
 
   it("ends the space sheet with Crear un espacio compartido and Unirme con un enlace de invitación, under a divider (B1 · 04)", async () => {
     const sheet = await openSwitcher();

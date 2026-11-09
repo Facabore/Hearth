@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Suspense, useState, type ComponentType } from "react";
 import { Button, Icon, Sheet } from "@/shared/ui";
@@ -22,6 +23,9 @@ const ACTIONS = [
   { flow: "create", icon: "plus", title: "spaces.new.title" },
   { flow: "join", icon: "link", title: "spaces.join.title" },
 ] as const;
+
+/** #293: the tabs a space change keeps; from any other screen the chosen space opens on its Inicio. */
+const TABS = ["transactions", "balances", "more"] as const;
 
 /** The sheet's rows under the spaces, each with its round grey icon, 56 px tall. */
 const ROW = "flex min-h-14 w-full items-center gap-3 rounded-xl px-1 text-left font-medium text-ink";
@@ -70,6 +74,9 @@ export function SpaceSwitcher({
   const [flow, setFlow] = useState<SpaceFlow | null>(null);
   const close = () => setOpen(false);
   const opened = ACTIONS.find((action) => action.flow === flow);
+  // #293 (owner, 2026-11-09): from Movimientos, Saldos or Más, the chosen space opens on the same tab.
+  const pathname = usePathname();
+  const tab = TABS.find((name) => pathname === `/spaces/${activeSpace.id}/${name}`);
   return (
     <>
       <button
@@ -121,7 +128,7 @@ export function SpaceSwitcher({
                   <li key={space.id}>
                     {/* Board B1 · 04: each space is a card; the current one has a green border, a tint and a check. */}
                     <Link
-                      href={`/spaces/${space.id}`}
+                      href={tab ? `/spaces/${space.id}/${tab}` : `/spaces/${space.id}`}
                       aria-current={current ? "true" : undefined}
                       onClick={close}
                       className={`flex min-h-[72px] items-center gap-3 rounded-2xl border px-3 py-2 ${current ? "border-accent bg-accent-soft/40" : "border-line"}`}
