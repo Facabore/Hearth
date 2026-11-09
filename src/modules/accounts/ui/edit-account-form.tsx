@@ -235,9 +235,12 @@ export function EditAccountForm({
           />,
         )}
         {problem && where === "form" ? <ProblemNotice problem={problem} /> : null}
-        <Button type="submit" size="lg" disabled={pending}>
-          {t("edit.save")}
-        </Button>
+        {/* #281 (audit pass 3, A1): Save stays pinned at the bottom of the page while the fields scroll above it. */}
+        <div className="sticky bottom-0 z-10 flex flex-col bg-bg pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <Button type="submit" size="lg" disabled={pending}>
+            {t("edit.save")}
+          </Button>
+        </div>
       </form>
       {answer ? (
         <DiscardConfirm
