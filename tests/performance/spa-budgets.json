@@ -16,6 +16,7 @@
     "ledger/writes.ts": 6,
     "mutations.ts": 3,
     "../modules/ledger/ui/detail/transaction-sheet.tsx": 19,
+    "../modules/balances/ui/settle-up-sheet.tsx": 17,
     "../modules/ledger/ui/list-sheets.tsx": 9,
     "../modules/identity/ui/profile-sheet-body.tsx": 6,
     "../modules/ledger/ui/record/date-time-sheet.tsx": 38,

@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
 import {
   accountDto,
@@ -91,6 +91,14 @@ const juanInToasts = (api: Api) =>
       />
     </ToastProvider>,
   );
+// The sheet loads in a chunk of its own (#296): it is resolved once here, so every test, run alone or in any order,
+// opens it as the screen does once that chunk is in.
+beforeAll(async () => {
+  const { unmount } = screenAs("u-juan", fakeApi({}).api, "m-juan");
+  await screen.findByRole("dialog", { name: "Saldar" });
+  unmount();
+});
+
 const dialog = () => screen.getByRole("dialog", { name: "Saldar" });
 const payerGroup = () => within(dialog()).getByRole("radiogroup", { name: "Quién paga" });
 const save = () => within(dialog()).getByRole("button", { name: "Guardar pago" });

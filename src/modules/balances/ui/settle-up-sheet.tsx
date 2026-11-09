@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { preferredAccountId, readLastAccount, useIdempotencyKey } from "@/modules/ledger/ui";
+import { useIdempotencyKey } from "@/modules/ledger/ui";
 import { memberLabel } from "@/modules/spaces/ui";
 import { Button, ChoiceGroup, Icon, NumberField, ProblemNotice, Sheet, SymbolIcon } from "@/shared/ui";
 import { currencyOf } from "@/shared/ui/format/currencies";
@@ -44,6 +44,10 @@ export interface SettleUpSheetProps {
   readonly initial: SettlementDraft;
   /** A suggestion filled the draft in: the sheet says so, and offers as payer only who owes the receiver (board 02). */
   readonly suggested?: boolean;
+  /** The account this browser last paid from (#219), as the screen read it when the sheet opened. */
+  readonly lastAccountId: string | null;
+  /** The account a payment starts on, on either side, from `myAccounts` and `lastAccountId` (#219, P312). */
+  readonly preferredAccountId: string | null;
   readonly formats: Formats;
   /** The zone the payment is dated in; by default the browser's. */
   readonly timeZone?: string;
@@ -69,6 +73,8 @@ export function SettleUpSheet({
   suggestions,
   initial,
   suggested = false,
+  lastAccountId,
+  preferredAccountId,
   formats,
   timeZone,
   api: injected,
@@ -86,15 +92,14 @@ export function SettleUpSheet({
   // their first that is not a savings account. Ruling P312 (#282): a payment the viewer receives lands in that same
   // account by default, so it never reaches no account unnoticed; Ninguna stays a choice on both sides. Every active
   // account stays offered, a new one at zero too, with the one last paid from first and the rest in order.
-  const [lastAccountId] = useState(() => readLastAccount());
   const accounts = useMemo(() => {
     const last = myAccounts.find((account) => account.id === lastAccountId);
     return last ? [last, ...myAccounts.filter((account) => account !== last)] : myAccounts;
   }, [myAccounts, lastAccountId]);
   const [draft, setDraft] = useState<SettlementDraft>(() => ({
     ...initial,
-    sourceAccountId: initial.sourceAccountId ?? preferredAccountId(myAccounts, lastAccountId),
-    destinationAccountId: initial.destinationAccountId ?? preferredAccountId(myAccounts, lastAccountId),
+    sourceAccountId: initial.sourceAccountId ?? preferredAccountId,
+    destinationAccountId: initial.destinationAccountId ?? preferredAccountId,
   }));
   const [unbuilt, setUnbuilt] = useState<SettlementField | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);

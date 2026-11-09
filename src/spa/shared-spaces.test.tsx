@@ -229,7 +229,7 @@ describe("shared spaces in the SPA (slice 4 of #199, ADR 0006)", () => {
     await userEvent.click(
       await screen.findByRole("button", { name: named("Saldar: Juan le paga $ 100.000 a Ana") }),
     );
-    const dialog = screen.getByRole("dialog", { name: "Saldar" });
+    const dialog = await screen.findByRole("dialog", { name: "Saldar" });
     const balances = count(spa.requests, "GET", /\/balances$/);
     const me = count(spa.requests, "GET", /\/me$/);
 

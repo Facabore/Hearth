@@ -1,17 +1,11 @@
-import type { SuggestionDto } from "@/shared/ui/api/dto";
 import type { Problem } from "@/shared/ui/api/problem";
 import { minorOf, parseDecimal } from "@/shared/ui/format/amount-input";
 import { currencyOf } from "@/shared/ui/format/currencies";
-import { decimalOf, formatNumber, type NumberFormat } from "@/shared/ui/format/formatters";
+import type { NumberFormat } from "@/shared/ui/format/formatters";
+import type { SettlementDraft } from "./settlement-prefill";
 
-export interface SettlementDraft {
-  readonly payerMemberId: string | null;
-  readonly receivingMemberId: string | null;
-  /** As typed, in the person's number format. */
-  readonly amount: string;
-  readonly sourceAccountId: string | null;
-  readonly destinationAccountId: string | null;
-}
+export { prefillOf, type SettlementDraft } from "./settlement-prefill";
+
 export type SettlementField = "payer" | "receiver" | "amount";
 
 /**
@@ -68,24 +62,3 @@ export const settlementFieldOf = (problem: Problem): SettlementField | "form" =>
   BY_CODE[problem.code] ??
   (problem.code === "ValidationFailed" ? BY_PATH[problem.errors[0]?.path.split(".")[0] ?? ""] : undefined) ??
   "form";
-
-/** Ruling P175: a suggestion fills in payer, receiver and amount; otherwise the viewer receives, from `payerMemberId`. */
-export const prefillOf = (input: {
-  readonly suggestion: SuggestionDto | null;
-  readonly payerMemberId?: string | null;
-  readonly meMemberId: string;
-  readonly currency: string;
-  readonly numberFormat: NumberFormat;
-}): SettlementDraft => {
-  const { suggestion } = input;
-  const amount = suggestion
-    ? formatNumber(decimalOf(suggestion.amount.amount, currencyOf(input.currency).exponent), input)
-    : "";
-  return {
-    payerMemberId: suggestion?.payerMemberId ?? input.payerMemberId ?? null,
-    receivingMemberId: suggestion?.receivingMemberId ?? input.meMemberId,
-    amount,
-    sourceAccountId: null,
-    destinationAccountId: null,
-  };
-};
