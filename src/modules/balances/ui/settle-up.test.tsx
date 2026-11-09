@@ -98,7 +98,7 @@ const radioNames = (group: HTMLElement) =>
   within(group)
     .getAllByRole("radio")
     .map((radio) => normalized(radio.textContent));
-/** Board 02: the receiver is a fixed row, "A Ana (tú)", not a choice. */
+/** Board 02: the receiver is a fixed row, "Recibe Ana (tú)", not a choice. */
 const receiverRow = () => within(dialog()).getByTestId("settle-receiver");
 /** An accessible name whose spaces match the formatters' non-breaking ones. */
 const named = (text: string) => new RegExp(`^${text.replace(/[.()$]/g, "\\$&").replace(/ /g, "\\s")}$`);
@@ -123,7 +123,7 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
     expect(within(payerGroup()).getByRole("radio", { name: "Juan (tú)" })).toBeChecked();
     expect(radioNames(payerGroup())).toEqual(["Juan (tú)", "Luis"]);
     expect(within(dialog()).queryByRole("radiogroup", { name: "Quién recibe" })).toBeNull();
-    expect(normalized(receiverRow().textContent)).toBe("A Ana");
+    expect(normalized(receiverRow().textContent)).toBe("Recibe Ana");
     expect(within(dialog()).getByLabelText("Monto")).toHaveValue("100.000");
     // A prefilled amount needs no example of how to write one.
     expect(within(dialog()).getByLabelText("Monto")).not.toHaveAccessibleDescription(/Ej:/);
@@ -416,7 +416,7 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
     expect(within(dialog()).queryByText(/prellenado/)).toBeNull();
     expect(radioNames(payerGroup())).toEqual(["Juan", "Luis", "Pedro (invitado)"]);
     expect(within(payerGroup()).queryByRole("radio", { checked: true })).toBeNull();
-    expect(normalized(receiverRow().textContent)).toBe("A Ana (tú)");
+    expect(normalized(receiverRow().textContent)).toBe("Recibe Ana (tú)");
     expect(within(dialog()).getByLabelText("Monto")).toHaveAccessibleDescription("Ej: 1.250,50");
   });
 

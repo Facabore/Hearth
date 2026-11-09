@@ -235,6 +235,7 @@
     }
   },
   "shell": {
+    "skip": "Skip to content",
     "nav": {
       "main": "Main",
       "home": "Home",
@@ -295,7 +296,7 @@
       "step": {
         "balances": "How much is in your accounts today?",
         "expense": "Record your first expense",
-        "share": "Share with your household",
+        "share": "Create your household's space",
         "plan": "Set up the month's plan"
       }
     },
@@ -304,6 +305,7 @@
     "spentBetween": "Spent from {start} to {end}",
     "solo": "Just you",
     "withOthers": "With others",
+    "viewerNote": "You are a Viewer here: you see the movements and balances, but you do not record.",
     "whyNotPaid": "Why is it not what you paid?",
     "income": "Income +{amount}",
     "accounts": "Accounts",
@@ -622,12 +624,12 @@
       "shared": "Did you share it?",
       "row": "Did you share it? Split with someone",
       "title": "Split with someone",
-      "intro": "The expense goes to a space for just the two of you. If it exists it is reused; if not, it is created in {currency}, the currency of your space {space}.",
+      "intro": "The expense goes to a space for just the two of you; if it exists, it is reused.",
       "people": "People you share a space with",
       "existing": "You already have \"{space}\": it is reused",
       "new": "A space for the two of you is created",
       "guestOf": "From \"{space}\"",
-      "guestsNote": "A shared space's guests are not listed here: they exist only in their space.",
+      "guestsNote": "A group's guests, such as a household's or a trip's, are not listed here: they exist only in that group.",
       "newGuest": "Or someone who does not use Hearth",
       "guestName": "New guest's name",
       "use": "Use",

@@ -235,6 +235,7 @@
     }
   },
   "shell": {
+    "skip": "Saltar al contenido",
     "nav": {
       "main": "Principal",
       "home": "Inicio",
@@ -295,7 +296,7 @@
       "step": {
         "balances": "¿Cuánto tienes hoy en tus cuentas?",
         "expense": "Registra tu primer gasto",
-        "share": "Comparte con tu hogar",
+        "share": "Crea el espacio de tu hogar",
         "plan": "Arma el plan del mes"
       }
     },
@@ -304,6 +305,7 @@
     "spentBetween": "Gastado del {start} al {end}",
     "solo": "Solo tú",
     "withOthers": "Con otros",
+    "viewerNote": "Eres Lector aquí: ves los movimientos y los saldos, pero no registras.",
     "whyNotPaid": "¿Por qué no es lo que pagaste?",
     "income": "Ingresos +{amount}",
     "accounts": "Cuentas",
@@ -622,12 +624,12 @@
       "shared": "¿Lo compartiste?",
       "row": "¿Lo compartiste? Dividir con alguien",
       "title": "Dividir con alguien",
-      "intro": "El gasto queda en un espacio solo para ustedes dos. Si ya existe, se usa el mismo; si no, se crea en {currency}, la moneda de tu espacio {space}.",
+      "intro": "El gasto queda en un espacio solo para ustedes dos; si ya existe, se usa el mismo.",
       "people": "Personas con las que compartes un espacio",
       "existing": "Ya tienen «{space}»: se usa ese",
       "new": "Se crea un espacio para los dos",
       "guestOf": "De «{space}»",
-      "guestsNote": "Los invitados de un espacio compartido no aparecen aquí: solo existen en su espacio.",
+      "guestsNote": "Los invitados de un grupo, como un hogar o un viaje, no aparecen aquí: solo existen en ese grupo.",
       "newGuest": "O alguien que no usa Hearth",
       "guestName": "Nombre del nuevo invitado",
       "use": "Usar",

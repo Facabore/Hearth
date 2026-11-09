@@ -10,22 +10,11 @@ export interface SplitWithPersonSheetProps {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly people: readonly Person[];
-  /** The Personal space's currency: a new direct space is created in it. */
-  readonly currency: string;
-  /** The personal space's own name, which the person may have renamed (#170). */
-  readonly spaceName: string;
   readonly onChoose: (choice: DirectChoice) => void;
 }
 
 /** HU-E9-06, the SplitWithPerson artboard (ruling P172): who to split with, from the people the recorder shares a space with. */
-export function SplitWithPersonSheet({
-  open,
-  onOpenChange,
-  people,
-  currency,
-  spaceName,
-  onChoose,
-}: SplitWithPersonSheetProps) {
+export function SplitWithPersonSheet({ open, onOpenChange, people, onChoose }: SplitWithPersonSheetProps) {
   const t = useTranslations("ledger.direct");
   const names = useTranslations("members");
   const [picked, setPicked] = useState("");
@@ -49,7 +38,7 @@ export function SplitWithPersonSheet({
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
       title={t("title")}
-      description={t("intro", { currency, space: spaceName })}
+      description={t("intro")}
       footer={
         <Button
           size="lg"

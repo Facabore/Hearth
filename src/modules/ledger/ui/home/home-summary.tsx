@@ -112,6 +112,8 @@ export function HomeSummary({
             ) : null}
           </div>
         ) : null}
+        {/* #290 (audit pass 3, A16): a viewer's bar has no Registrar; the home says why. */}
+        {!personal && role === "VIEWER" ? <p className="text-sm text-muted">{t("viewerNote")}</p> : null}
         {personal && accounts.length === 0 ? (
           <section
             aria-labelledby="home-first-account"

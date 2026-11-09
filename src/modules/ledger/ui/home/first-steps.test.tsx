@@ -42,7 +42,7 @@ describe("a new person's first steps (#220, F14)", () => {
     expect(links.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
       ["¿Cuánto tienes hoy en tus cuentas?", "/spaces/sp-1/accounts?returnTo=%2Fspaces%2Fsp-1"],
       ["Registra tu primer gasto", "/spaces/sp-1/new?returnTo=%2Fspaces%2Fsp-1"],
-      ["Comparte con tu hogar", "/spaces/new?from=sp-1&returnTo=%2Fspaces%2Fsp-1"],
+      ["Crea el espacio de tu hogar", "/spaces/new?from=sp-1&returnTo=%2Fspaces%2Fsp-1"],
       ["Arma el plan del mes", "/spaces/sp-1/plan/lines"],
     ]);
     expect(within(card()!).queryByText("Hecho")).toBeNull();

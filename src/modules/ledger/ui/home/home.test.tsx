@@ -552,6 +552,20 @@ describe("the home of a shared or direct space leads to its members (N10)", () =
     }
   });
 
+  it("tells a Lector why there is no Registrar, and no one else (#290)", () => {
+    // Audit pass 3, A16: the + and Invitar vanished for Sofi with no word about her role.
+    const viewer = home("SHARED", "VIEWER");
+    expect(
+      screen.getByText("Eres Lector aquí: ves los movimientos y los saldos, pero no registras."),
+    ).toBeInTheDocument();
+    viewer.unmount();
+    for (const role of ["OWNER", "ADMIN", "MEMBER"] as const) {
+      const { unmount } = home("SHARED", role);
+      expect(screen.queryByText(/Eres Lector aquí/)).toBeNull();
+      unmount();
+    }
+  });
+
   it("shows neither in a personal space", () => {
     home("PERSONAL", "OWNER");
     expect(screen.queryByRole("link", { name: "Miembros" })).toBeNull();

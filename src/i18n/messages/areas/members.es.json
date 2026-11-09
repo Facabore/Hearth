@@ -111,7 +111,7 @@
       "title": "Saldar",
       "prefilled": "{space} · prellenado desde la sugerencia",
       "payer": "Quién paga",
-      "receiver": "A",
+      "receiver": "Recibe",
       "amount": "Monto",
       "debt": "Para quedar al día, {payer} le paga {amount} a {receiver}. Puedes registrar un pago parcial; si pagas de más, el saldo cambia de lado.",
       "noDebt": "{payer} ya está al día con {receiver}.",

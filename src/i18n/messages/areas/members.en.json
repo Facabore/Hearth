@@ -111,7 +111,7 @@
       "title": "Settle",
       "prefilled": "{space} · filled in from the suggestion",
       "payer": "Who pays",
-      "receiver": "To",
+      "receiver": "Receives",
       "amount": "Amount",
       "debt": "{payer} owes {receiver} {amount}. You can record a partial payment; paying more turns the debt around.",
       "noDebt": "{payer} owes {receiver} nothing.",

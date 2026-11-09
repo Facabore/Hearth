@@ -822,8 +822,6 @@ export function RecordForm({
           open={directOpen}
           onOpenChange={setDirectOpen}
           people={people}
-          currency={space.currency}
-          spaceName={space.name}
           onChoose={setDirect}
         />
       ) : null}
