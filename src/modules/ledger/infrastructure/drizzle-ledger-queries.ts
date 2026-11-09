@@ -42,6 +42,19 @@ const negatedSumAsText = (column: AnyColumn) => sql<string>`(-sum(${column}))::t
 // The cursor round-trips only because writers store millisecond instants: never write occurred_at with now(), defaultNow() or SQL.
 const listTime = sql`coalesce(${transactions.occurredAt}, '-infinity'::timestamptz)`;
 
+/** Inclusive dates, as `between` reads them. */
+interface DateRange {
+  readonly start: LocalDate;
+  readonly end: LocalDate;
+}
+
+/** `(i, start, end)` rows for a VALUES list, i being each range's index. */
+const rangeRows = (ranges: readonly DateRange[]) =>
+  sql.join(
+    ranges.map((range, i) => sql`(${i}::integer, ${range.start}::date, ${range.end}::date)`),
+    sql`, `,
+  );
+
 /** Ruling P277: `%`, `_` and the escape character itself match only themselves in a LIKE pattern. */
 const literalLike = (text: string) => text.replace(/[\\%_]/g, (c) => `\\${c}`);
 
@@ -305,6 +318,58 @@ export class DrizzleLedgerQueries implements TransactionQuery {
     return rows.flatMap((row) =>
       row.accountId === null ? [] : [{ accountId: row.accountId, amount: BigInt(row.total) }],
     );
+  }
+
+  /**
+   * `expensesByCategory` for each of `ranges` in one statement, so a view figuring a chain of plans sums every period
+   * at once; the answer at index i is the rows `expensesByCategory(spaceId, ranges[i].start, ranges[i].end)` gives.
+   */
+  async expensesByCategoryIn(
+    spaceId: string,
+    ranges: readonly DateRange[],
+  ): Promise<{ categoryId: string; amount: bigint }[][]> {
+    const found = ranges.map((): { categoryId: string; amount: bigint }[] => []);
+    if (!isUuid(spaceId) || ranges.length === 0) return found;
+    const { rows } = await this.tm.executor().execute<{ i: number; key: string; total: string }>(sql`
+      SELECT r.i AS i, ${transactions.categoryId} AS key, sum(${transactions.amount})::text AS total
+      FROM (VALUES ${rangeRows(ranges)}) AS r(i, start_date, end_date)
+      JOIN ${transactions} ON ${transactions.date} BETWEEN r.start_date AND r.end_date
+      WHERE ${and(
+        eq(transactions.spaceId, spaceId),
+        eq(transactions.type, "EXPENSE"),
+        isNull(transactions.deletedAt),
+        isNotNull(transactions.categoryId),
+      )}
+      GROUP BY r.i, ${transactions.categoryId}
+      ORDER BY r.i, ${transactions.categoryId}`);
+    for (const row of rows) found[row.i]?.push({ categoryId: row.key, amount: BigInt(row.total) });
+    return found;
+  }
+
+  /**
+   * `transfersIntoAccounts` for each of `ranges` in one statement; the answer at index i is the rows
+   * `transfersIntoAccounts(accountIds, ranges[i].start, ranges[i].end)` gives.
+   */
+  async transfersIntoAccountsIn(
+    accountIds: readonly string[],
+    ranges: readonly DateRange[],
+  ): Promise<{ accountId: string; amount: bigint }[][]> {
+    const found = ranges.map((): { accountId: string; amount: bigint }[] => []);
+    const ids = accountIds.filter(isUuid);
+    if (ids.length === 0 || ranges.length === 0) return found;
+    const { rows } = await this.tm.executor().execute<{ i: number; key: string; total: string }>(sql`
+      SELECT r.i AS i, ${transactions.destinationAccountId} AS key, sum(${transactions.amount})::text AS total
+      FROM (VALUES ${rangeRows(ranges)}) AS r(i, start_date, end_date)
+      JOIN ${transactions} ON ${transactions.date} BETWEEN r.start_date AND r.end_date
+      WHERE ${and(
+        eq(transactions.type, "TRANSFER"),
+        isNull(transactions.deletedAt),
+        inArray(transactions.destinationAccountId, ids),
+      )}
+      GROUP BY r.i, ${transactions.destinationAccountId}
+      ORDER BY r.i, ${transactions.destinationAccountId}`);
+    for (const row of rows) found[row.i]?.push({ accountId: row.key, amount: BigInt(row.total) });
+    return found;
   }
 
   /**

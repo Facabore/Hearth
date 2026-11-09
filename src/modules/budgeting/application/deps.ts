@@ -1,6 +1,12 @@
 import type { SpaceAccess, SpaceLocks, SpaceMemberRepository } from "@/modules/spaces/application";
 import type { Clock, IdGenerator, TransactionManager } from "@/shared/kernel";
-import type { BudgetCategories, BudgetPlanRepository, PlanSpending, SavingsAccountReader } from "./ports";
+import type {
+  BudgetCategories,
+  BudgetPlanRepository,
+  PlanHistoryReader,
+  PlanSpending,
+  SavingsAccountReader,
+} from "./ports";
 
 /** What every budgeting use case needs; the composition root binds each port (budgeting imports only spaces). */
 export interface BudgetingDeps {
@@ -18,6 +24,11 @@ export interface BudgetingDeps {
   readonly savingsAccounts: SavingsAccountReader;
   /** HU-E3-04: the space's live categories with their parents, so subcategories roll up (D20). */
   readonly categories: BudgetCategories;
+  /**
+   * A plan's carry-over chain read in one batch (API efficiency); without it a view reads the chain plan by plan
+   * through `plans` and `spending`, with the same figures.
+   */
+  readonly history?: PlanHistoryReader;
   readonly ids: IdGenerator;
   readonly clock: Clock;
   readonly tm: TransactionManager;

@@ -1,6 +1,7 @@
 import {
   loadPlanView,
   planViewCache,
+  requestReadsOf,
   type BudgetPlanView,
   type PlanStatus,
   type PlanViewCache,
@@ -45,7 +46,8 @@ export const planViewIn = async (
   period: Period,
   cache: PlanViewCache,
 ): Promise<BudgetPlanView | null> => {
-  const plan = await deps.plans.covering(space.spaceId, period.start);
+  // A window of periods asks once per period: once a view read the space's plan history, it answers.
+  const plan = await (await requestReadsOf(deps, space, cache)).plans.covering(space.spaceId, period.start);
   return plan === null ? null : loadPlanView(deps, space, plan, cache);
 };
 

@@ -4,7 +4,11 @@ import {
   type CategoryLine,
   type Funding,
   type LineFigure,
+  planViewCache,
+  requestReadsOf,
   unbudgetedCategoriesOf,
+  viewReadsOf,
+  type ViewReads,
 } from "@/modules/budgeting/application";
 import { ok, type Period, type Result } from "@/shared/kernel";
 import { lineStateOf, type LineState } from "@/shared/kernel/line-state";
@@ -101,13 +105,13 @@ const totalsOf = (lines: readonly DashboardLine[], rest: UnbudgetedSpending | nu
 
 /** #240: Unbudgeted's categories within the plan's stored dates, which its figures count; none to name when it is 0. */
 const unbudgetedIn = async (
-  deps: ReportingDeps,
   view: BudgetPlanView,
-  categories: Awaited<ReturnType<ReportingDeps["categories"]["list"]>>,
+  categories: ViewReads["categories"],
+  ledger: Pick<ReportingDeps["spending"], "expensesByCategory">,
 ): Promise<readonly string[]> => {
   if (view.figures.unbudgeted?.spent === 0n) return [];
   const { spaceId, period } = view.plan;
-  const spending = await deps.spending.expensesByCategory(spaceId, period.start, period.end);
+  const spending = await ledger.expensesByCategory(spaceId, period.start, period.end);
   return unbudgetedCategoriesOf(view, categories, spending);
 };
 
@@ -118,12 +122,14 @@ const unbudgetedIn = async (
 export const createGetLineDashboard =
   (deps: ReportingDeps): GetLineDashboard =>
   async (input) => {
-    const report = await spaceReport(deps, input);
+    const cache = planViewCache();
+    const report = await spaceReport(deps, input, cache);
     if (!report.ok) return report;
     const { space, period, view } = report.value;
     const base = { spaceId: space.spaceId, currency: space.currency, period, plan: reportPlanOf(view) };
-    const categories = await deps.categories.list(space.spaceId);
+    // The categories and the spending the view was figured from, read once in the request.
     if (view === null) {
+      const categories = await deps.categories.list(space.spaceId);
       const spending = await deps.spending.expensesByCategory(space.spaceId, period.start, period.end);
       const rest = unbudgeted(
         spending.reduce((sum, c) => sum + c.amount, 0n),
@@ -131,6 +137,7 @@ export const createGetLineDashboard =
       );
       return ok({ ...base, lines: [], unbudgeted: rest, totals: totalsOf([], rest), categoryLines: [] });
     }
+    const { categories } = await viewReadsOf(deps, space, cache);
     const { figures } = view;
     const lines = figures.lines.map((f) => ({
       lineId: f.line.id,
@@ -151,7 +158,10 @@ export const createGetLineDashboard =
     const rest =
       figures.unbudgeted === null
         ? null
-        : unbudgeted(figures.unbudgeted.spent, await unbudgetedIn(deps, view, categories));
+        : unbudgeted(
+            figures.unbudgeted.spent,
+            await unbudgetedIn(view, categories, (await requestReadsOf(deps, space, cache)).spending),
+          );
     const categoryLines = categoryLinesOf(view, categories);
     return ok({ ...base, lines, unbudgeted: rest, totals: totalsOf(lines, rest), categoryLines });
   };

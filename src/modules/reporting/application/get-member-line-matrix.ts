@@ -1,7 +1,11 @@
 import {
   lineForCategory,
   ownedByRegisteredMember,
+  planViewCache,
+  requestReadsOf,
   rolledUpCategory,
+  viewReadsOf,
+  type ChainReads,
   type AllocationRule,
   type BudgetLine,
   type Funding,
@@ -46,7 +50,7 @@ export type GetMemberLineMatrix = (input: SpaceReportInput) => Promise<Result<Me
  * registered member owns, credited to that owner, who is the one who transferred (HU-E4-03).
  */
 const savingsByMember = async (
-  deps: MemberSumsDeps,
+  deps: Pick<ChainReads, "savingsAccounts" | "spending">,
   members: readonly SpaceMember[],
   line: BudgetLine,
   period: Period,
@@ -84,12 +88,15 @@ const savingsByMember = async (
 export const createGetMemberLineMatrix =
   (deps: MemberSumsDeps): GetMemberLineMatrix =>
   async (input) => {
-    const report = await spaceReport(deps, input);
+    const cache = planViewCache();
+    const report = await spaceReport(deps, input, cache);
     if (!report.ok) return report;
     const { space, period, view } = report.value;
     const base = { spaceId: space.spaceId, currency: space.currency, period, plan: reportPlanOf(view) };
     if (view === null) return ok({ ...base, lines: [], members: [] });
-    const members = await deps.members.listCurrent(space.spaceId);
+    // The members, categories, accounts and transfers the view was figured from, read once in the request.
+    const { members, categories } = await viewReadsOf(deps, space, cache);
+    const reads = await requestReadsOf(deps, space, cache);
     const figures = view.figures.lines;
     const parts = {
       lines: figures.map((f) => f.line),
@@ -97,7 +104,6 @@ export const createGetMemberLineMatrix =
         f.categoryIds.map((categoryId) => ({ lineId: f.line.id, categoryId })),
       ),
     };
-    const categories = await deps.categories.list(space.spaceId);
     const sums = new Map<string, { paid: bigint; consumed: bigint }>();
     for (const row of await deps.sums.memberSumsByCategory(space.spaceId, period.start, period.end)) {
       // HU-E3-04: a subcategory's payments and shares count on the line its category consumes, as its spending does.
@@ -110,7 +116,7 @@ export const createGetMemberLineMatrix =
     const lines = await Promise.all(
       figures.map(async ({ line, allocation }): Promise<MatrixLine> => {
         const savings =
-          line.funding === "SAVINGS" ? await savingsByMember(deps, members, line, period) : null;
+          line.funding === "SAVINGS" ? await savingsByMember(reads, members, line, period) : null;
         const row = matrixRow({
           funding: line.funding,
           allocated: allocation.rule !== "NONE",

@@ -24,6 +24,8 @@ export type {
   BudgetPlanRepository,
   CapacityRepository,
   PlanContents,
+  PlanHistory,
+  PlanHistoryReader,
   PlanSpending,
   PreviousIncome,
 } from "./ports";
@@ -37,6 +39,10 @@ export {
   type CategoryLine,
   type PlanViewCache,
   type PlanViewDeps,
+  type ViewReads,
+  viewReadsOf,
+  requestReadsOf,
+  type ChainReads,
 } from "./plan-view";
 export { createCreateBudgetPlan, type CreateBudgetPlan } from "./create-budget-plan";
 export { createGetBudgetPlan, type GetBudgetPlan } from "./get-budget-plan";

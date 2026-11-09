@@ -14,7 +14,8 @@ import { createCopyBudgetPlan } from "./copy-budget-plan";
 import { createCreateBudgetPlan } from "./create-budget-plan";
 import { createGetBudgetPlan } from "./get-budget-plan";
 import { loadPlanView, planViewCache, type BudgetPlanView } from "./plan-view";
-import type { PlanSpending } from "./ports";
+import type { BudgetPlan } from "../domain/plan";
+import type { PlanContents, PlanHistory, PlanSpending } from "./ports";
 import { createRemoveBudgetLine } from "./remove-budget-line";
 import { createUpdateBudgetLine } from "./update-budget-line";
 
@@ -419,5 +420,72 @@ describe("one request's plan figures, shared by plan id (ruling P105)", () => {
     expect(await loadPlanView(deps, space, december.plan, planViewCache())).toEqual(
       await read(december.plan.id),
     );
+  });
+});
+
+describe("a copy's chain read from its space's plan history (API efficiency)", () => {
+  /** The history as the ports answer it plan by plan, so every figure read from it must be the same. */
+  const historyFrom = (deps: Awaited<ReturnType<typeof world>>["deps"], plans: { plans: BudgetPlan[] }) => {
+    // Bound now, so a spy set on the port later counts only the views' own reads.
+    const contentsOf = deps.plans.contents.bind(deps.plans);
+    const spending: PlanSpending = deps.spending;
+    return {
+      reads: 0,
+      async historyOf(spaceId: string): Promise<PlanHistory> {
+        this.reads += 1;
+        const inSpace = plans.plans.filter((plan) => plan.spaceId === spaceId);
+        const contents = new Map<string, PlanContents>();
+        const expenses = new Map<string, { categoryId: string; amount: bigint }[]>();
+        const transfers = new Map<string, { accountId: string; amount: bigint }[]>();
+        for (const plan of inSpace) {
+          const parts = await contentsOf(plan.id);
+          const named = parts.lines.flatMap((line) => line.savingsAccountIds);
+          contents.set(plan.id, parts);
+          expenses.set(
+            plan.id,
+            await spending.expensesByCategory(spaceId, plan.period.start, plan.period.end),
+          );
+          transfers.set(
+            plan.id,
+            await spending.transfersIntoAccounts(named, plan.period.start, plan.period.end),
+          );
+        }
+        return { plans: inSpace, contents, expenses, transfers };
+      },
+    };
+  };
+
+  it("figures every plan of a chain of four as the plan-by-plan walk does, reading the history once per request", async () => {
+    const w = await (async () => {
+      const base = await world("ROLLOVER", {
+        "2026-11-01": pesos(1_270_000),
+        "2026-12-01": pesos(1_800_000),
+        "2027-01-01": pesos(1_000_000),
+      });
+      await base.close(base.november.id);
+      const december = await base.copyInto("2026-12");
+      await base.close(december.plan.id);
+      const january = await base.copyInto("2027-01");
+      await base.close(january.plan.id);
+      const february = await base.copyInto("2027-02");
+      return { ...base, chain: [base.november, december.plan, january.plan, february.plan] };
+    })();
+    const space = unwrap(await authorizeSpaceAction(w.deps.access, HOUSEHOLD, "u-ana", "space.read"));
+    const alone = await Promise.all(w.chain.map((plan) => loadPlanView(w.deps, space, plan)));
+    const history = historyFrom(w.deps, w.plans);
+    const withHistory = { ...w.deps, history };
+    // Each view alone reads the history once; the views of one request share one read.
+    expect(await Promise.all(w.chain.map((plan) => loadPlanView(withHistory, space, plan)))).toEqual(alone);
+    expect(history.reads).toBe(3);
+    const find = vi.spyOn(w.deps.plans, "find");
+    const contents = vi.spyOn(w.deps.plans, "contents");
+    const cache = planViewCache();
+    expect(await Promise.all(w.chain.map((plan) => loadPlanView(withHistory, space, plan, cache)))).toEqual(
+      alone,
+    );
+    expect(history.reads).toBe(4);
+    // Only the first plan, which is no copy, is read on its own; the copies' chains come from the history.
+    expect(find).not.toHaveBeenCalled();
+    expect(contents.mock.calls.map(([planId]) => planId)).toEqual([w.november.id]);
   });
 });

@@ -4,6 +4,7 @@ import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-tr
 import type { LocalDate } from "@/shared/kernel";
 import { testDatabase } from "../../../../tests/support/database";
 import { unwrap } from "../../../../tests/support/fakes";
+import { statementsDuring } from "../../../../tests/support/sql-statements";
 import {
   accountFixture,
   categoryFixture,
@@ -430,6 +431,48 @@ describe("spending of a plan's period (HU-E6-03, HU-E6-04, spec 5.4)", () => {
     expect(await queries.transfersIntoAccounts([w.wallet], from, to)).toEqual([
       { accountId: w.wallet, amount: 12_000_000_000_000_000_002n },
     ]);
+  });
+
+  it("sums several periods in one statement, each as its own read sums it (a plan's history)", async () => {
+    const w = await world();
+    const elsewhere = await world();
+    await store(
+      expense(w, "2026-10-31", 1_000_000n),
+      expense(w, "2026-11-01", 8_500_000n),
+      expense(w, "2026-11-15", 6_000_000n, { categoryId: w.restaurants }),
+      expense(w, "2026-12-01", 2_000_000n),
+      softDelete(expense(w, "2026-12-20", 4_000_000n), new Date()),
+      income(w, "2026-11-25", 320_000_000n),
+      expense(elsewhere, "2026-11-10", 7_000_000n),
+      transfer(w, "2026-10-31", 4_000_000n),
+      transfer(w, "2026-11-01", 20_000_000n),
+      transfer(w, "2026-12-01", 9_000_000n),
+      softDelete(transfer(w, "2026-11-06", 3_000_000n), new Date()),
+    );
+    const ranges = [
+      { start: "2026-10-01" as LocalDate, end: "2026-10-31" as LocalDate },
+      { start: from, end: to },
+      { start: "2026-12-01" as LocalDate, end: "2026-12-31" as LocalDate },
+      { start: "2027-01-01" as LocalDate, end: "2027-01-31" as LocalDate },
+    ];
+    const accounts = [w.wallet, w.bank, "not-a-uuid"];
+    const { result: batched, statements } = await statementsDuring(async () => ({
+      expenses: await queries.expensesByCategoryIn(w.space.spaceId, ranges),
+      transfers: await queries.transfersIntoAccountsIn(accounts, ranges),
+    }));
+    const { expenses, transfers } = batched;
+    expect(statements).toHaveLength(2);
+    expect(expenses).toEqual(
+      await Promise.all(ranges.map((r) => queries.expensesByCategory(w.space.spaceId, r.start, r.end))),
+    );
+    expect(transfers).toEqual(
+      await Promise.all(ranges.map((r) => queries.transfersIntoAccounts(accounts, r.start, r.end))),
+    );
+    expect(expenses.flat()).not.toEqual([]);
+    expect(transfers.flat()).not.toEqual([]);
+    expect(await queries.expensesByCategoryIn("not-a-uuid", ranges)).toEqual([[], [], [], []]);
+    expect(await queries.transfersIntoAccountsIn([], ranges)).toEqual([[], [], [], []]);
+    expect(await queries.expensesByCategoryIn(w.space.spaceId, [])).toEqual([]);
   });
 });
 

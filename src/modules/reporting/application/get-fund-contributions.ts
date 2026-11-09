@@ -1,3 +1,4 @@
+import { planViewCache, viewReadsOf } from "@/modules/budgeting/application";
 import { ok, type Period, type Result } from "@/shared/kernel";
 import { fundContributions, type FundContribution } from "../domain/fund-contributions";
 import { compareText } from "../domain/unified-view";
@@ -41,10 +42,15 @@ export type GetFundContributions = (input: SpaceReportInput) => Promise<Result<F
 export const createGetFundContributions =
   (deps: FundDeps): GetFundContributions =>
   async (input) => {
-    const report = await spaceReport(deps, input);
+    const cache = planViewCache();
+    const report = await spaceReport(deps, input, cache);
     if (!report.ok) return report;
     const { space, period, view } = report.value;
-    const members = await deps.members.listCurrent(space.spaceId);
+    // The members the view was figured against, read once in the request.
+    const members =
+      view === null
+        ? await deps.members.listCurrent(space.spaceId)
+        : (await viewReadsOf(deps, space, cache)).members;
     const fundLines = (view?.figures.lines ?? [])
       .filter((f) => f.line.funding === "SHARED_FUND")
       .map((f) => ({ members: f.allocation.members }));
