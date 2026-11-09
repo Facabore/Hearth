@@ -283,11 +283,11 @@
       "actual": "Aportado",
       "difference": "Diferencia",
       "byMember": "Por miembro",
-      "upToDate": "Al día",
+      "upToDate": "Al día con el fondo",
       "noPlan": "Sin plan, nadie tiene un aporte esperado.",
       "note": "Esperado: lo asignado a cada uno en los rubros pagados con el fondo. Cuentan los aportes fechados en el período.",
       "missing": "Falta",
-      "behindBy": "Le faltan {amount}"
+      "behindBy": "Le faltan {amount} para el fondo"
     },
     "lines": {
       "summary": "Resumen del plan",
@@ -333,9 +333,9 @@
       "hideDetail": "Ocultar detalle",
       "detailOf": "de {member}",
       "total": {
-        "OVER_CONTRIBUTED": "Le sobran {amount}",
-        "UNDER_CONTRIBUTED": "Le faltan {amount}",
-        "ON_TARGET": "Al día",
+        "OVER_CONTRIBUTED": "Le sobran {amount} sobre su parte",
+        "UNDER_CONTRIBUTED": "Le faltan {amount} de su parte",
+        "ON_TARGET": "Al día con su parte",
         "none": "Sin diferencia que comparar"
       },
       "member": "Miembro",

@@ -283,11 +283,11 @@
       "actual": "Contributed",
       "difference": "Difference",
       "byMember": "By member",
-      "upToDate": "Up to date",
+      "upToDate": "Up to date with the fund",
       "noPlan": "Without a plan, nobody has an expected contribution.",
       "note": "Expected: what each one is assigned on the lines paid from the fund. Contributions dated in the period count.",
       "missing": "Missing",
-      "behindBy": "Short by {amount}"
+      "behindBy": "Short by {amount} for the fund"
     },
     "lines": {
       "summary": "Plan summary",
@@ -333,9 +333,9 @@
       "hideDetail": "Hide detail",
       "detailOf": "for {member}",
       "total": {
-        "OVER_CONTRIBUTED": "Over by {amount}",
-        "UNDER_CONTRIBUTED": "Short by {amount}",
-        "ON_TARGET": "On target",
+        "OVER_CONTRIBUTED": "Over their share by {amount}",
+        "UNDER_CONTRIBUTED": "Short of their share by {amount}",
+        "ON_TARGET": "Even with their share",
         "none": "No gap to compare"
       },
       "member": "Member",

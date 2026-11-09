@@ -1196,7 +1196,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       // overflow). The person and the guest both still have to pay in.
       await page.goto(`/spaces/${sharedId}/plan/fund`);
       await expect(
-        page.getByText(new RegExp(`^${es.reports.fund.behindBy.replace("{amount}", "")}`)).first(),
+        page.getByText(new RegExp(`^${es.reports.fund.behindBy.split("{amount}")[0]}`)).first(),
       ).toBeVisible();
       await expect(page.getByText(es.reports.fund.note)).toBeVisible();
     });
