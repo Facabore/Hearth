@@ -5,6 +5,7 @@
 - **Method:** heuristic and task-based audit of the live app, signed in as the owner's own account. The numbers on screen were checked against `/api/v1`, and each root cause against the code. Desktop pass in Chrome at 1536×730; mobile pass in the desktop app's built-in browser with viewport emulation at 390×844, 375×667 and 320×640 (dark theme). DOM measurements per screen: horizontal overflow, targets under 44 px, the save button against the fold, a way back.
 - **Nothing was written:** every form was walked up to its save button and closed. Sign-up, onboarding and invitations were not audited, because they need signing out or creating accounts.
 - **Related:** [pass 1, 2026-10-28](2026-10-28-ux-audit.md) audited `development` locally with seeded personas. This pass checks what reached production and what changed since.
+- **Follow-up:** [pass 3, 2026-11-08](2026-11-08-ux-audit-pass3.md) audited `main` after the November release.
 
 ## How to read this
 
