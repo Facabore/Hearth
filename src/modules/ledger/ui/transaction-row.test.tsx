@@ -110,10 +110,21 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
     expect(rowText()).toContain("05:30 · Madrid · Restaurants");
   });
 
-  it("shows no time for a row without one, and the type when it has no description", () => {
+  it("shows no time for a row without one, and names an expense with no description by its category (#286)", () => {
     renderRow({ ...dinner, description: "", occurredAt: null, timeZone: null });
     expect(screen.getByRole("listitem")).not.toHaveTextContent(/\d{2}:\d{2}/);
-    expect(rowText()).toBe("GastoRestaurants−$ 60.000");
+    // Audit pass 3, A12: the category is the title, so a screen reader hears it too; the account takes its line.
+    expect(rowText()).toBe("RestaurantsBancolombia−$ 60.000");
+  });
+
+  it("names a subcategorized expense with no description by its subcategory (#286)", () => {
+    renderRow({ ...dinner, description: "", occurredAt: null, timeZone: null, categoryId: "c-veg" });
+    expect(rowText()).toBe("VegetablesBancolombia−$ 60.000");
+  });
+
+  it("falls back to the type when an expense has neither a description nor a known category", () => {
+    renderRow({ ...dinner, description: "", occurredAt: null, timeZone: null, categoryId: "c-gone" });
+    expect(rowText()).toBe("GastoBancolombia−$ 60.000");
   });
 
   it("adds an income with a plus sign, named by its category", () => {
