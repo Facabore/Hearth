@@ -46,7 +46,8 @@ function PlanStatus({ viewer }: { readonly viewer: Viewer }) {
   }).data;
   if (!dashboard) return null;
   if (dashboard.plan === null) return t("noPlan");
-  const left = dashboard.totals.available;
+  // #283 (ruling P313): what is left to spend, savings apart, as the API answers it.
+  const left = dashboard.totals.withoutSavings?.available ?? dashboard.totals.available;
   // The amount without its sign: the words say which way it went.
   const amount = formatMoney(
     { ...left, amount: left.amount.replace(/^-/, "") },

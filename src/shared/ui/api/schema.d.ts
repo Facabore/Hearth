@@ -8283,6 +8283,8 @@ export interface operations {
                             withoutSavings?: {
                                 planned: components["schemas"]["MoneyOutput"];
                                 spent: components["schemas"]["MoneyOutput"];
+                                /** @description available without the SAVINGS lines (Unbudgeted's available still counts): what is left to spend. */
+                                available?: components["schemas"]["MoneyOutput"];
                             };
                         };
                         /** @description Every live category of the space with the line its expenses consume in the plan: its mapped line, its parent's line for a subcategory, else the catch-all line; null for Unbudgeted. Empty without a plan. */

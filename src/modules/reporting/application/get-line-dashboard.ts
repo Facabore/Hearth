@@ -49,8 +49,11 @@ export interface LineTotals {
   readonly available: bigint;
   /** #214 (ruling P262): Σ what reached the SAVINGS lines, which `spent` also counts. */
   readonly saved: bigint;
-  /** #214 (ruling P262): `planned` and `spent` without the SAVINGS lines, for the "Gastado … de …" headline. */
-  readonly withoutSavings: { readonly planned: bigint; readonly spent: bigint };
+  /**
+   * #214 (ruling P262): `planned` and `spent` without the SAVINGS lines, for the "Gastado … de …" headline. #283
+   * (ruling P313): `available` too, what is left to spend, so savings not yet moved never read as money to spend.
+   */
+  readonly withoutSavings: { readonly planned: bigint; readonly spent: bigint; readonly available: bigint };
 }
 
 export interface LineDashboard {
@@ -91,6 +94,7 @@ const totalsOf = (lines: readonly DashboardLine[], rest: UnbudgetedSpending | nu
     withoutSavings: {
       planned: sumOf(spending, "planned"),
       spent: sumOf(spending, "spent") + (rest?.spent ?? 0n),
+      available: sumOf(spending, "available") + (rest?.available ?? 0n),
     },
   };
 };

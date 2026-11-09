@@ -426,6 +426,20 @@ describe("the plan in the household's words (#214)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("heads with what is left to spend, so savings not yet moved never read as money to spend (#283)", () => {
+    const dashboard = savedTotals();
+    show({
+      ...dashboard,
+      totals: {
+        ...dashboard.totals,
+        withoutSavings: { planned: cop(3_400_000), spent: cop(2_810_000), available: cop(590_000) },
+      },
+    });
+    const summary = screen.getByRole("region", { name: "Resumen del plan" });
+    expect(normalized(summary.textContent)).toContain("Disponible$ 590.000");
+    expect(normalized(summary.textContent)).not.toContain("990.000");
+  });
+
   it("shows the figures the API answers, never a difference of its own (ruling P201)", () => {
     const dashboard = savedTotals();
     show({

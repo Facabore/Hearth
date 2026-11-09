@@ -59,7 +59,7 @@ describe("line dashboard over HTTP (HU-E7-01)", () => {
       spent: cop(2_810_000),
       available: cop(1_190_000),
       saved: cop(0),
-      withoutSavings: { planned: cop(3_400_000), spent: cop(2_810_000) },
+      withoutSavings: { planned: cop(3_400_000), spent: cop(2_810_000), available: cop(590_000) },
     });
     expect(dashboard.categoryLines).toContainEqual({
       categoryId: r.category.groceries,
@@ -159,7 +159,7 @@ describe("line dashboard over HTTP (HU-E7-01)", () => {
       spent: cop(100_000),
       available: cop(-100_000),
       saved: cop(0),
-      withoutSavings: { planned: cop(0), spent: cop(100_000) },
+      withoutSavings: { planned: cop(0), spent: cop(100_000), available: cop(-100_000) },
     });
     expect(dashboard.categoryLines).toEqual([]);
   });
@@ -183,7 +183,7 @@ describe("line dashboard over HTTP (HU-E7-01)", () => {
       spent: cop(3_010_000),
       available: cop(990_000),
       saved: cop(200_000),
-      withoutSavings: { planned: cop(3_400_000), spent: cop(2_810_000) },
+      withoutSavings: { planned: cop(3_400_000), spent: cop(2_810_000), available: cop(590_000) },
     });
   });
 

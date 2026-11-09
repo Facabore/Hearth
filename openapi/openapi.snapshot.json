@@ -12060,6 +12060,10 @@
                             },
                             "spent": {
                               "$ref": "#/components/schemas/MoneyOutput"
+                            },
+                            "available": {
+                              "description": "available without the SAVINGS lines (Unbudgeted's available still counts): what is left to spend.",
+                              "$ref": "#/components/schemas/MoneyOutput"
                             }
                           },
                           "required": [

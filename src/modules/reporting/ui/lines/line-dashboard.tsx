@@ -41,6 +41,8 @@ export function LineDashboard({
   const { totals } = dashboard;
   // #214 (ruling P262): the headline is what was spent, savings apart, as the API answers it; never a subtraction.
   const spending = totals.withoutSavings ?? totals;
+  // #283 (ruling P313): the headline is what is left to spend, savings apart, as the API answers it.
+  const left = spending.available ?? totals.available;
   const money = (value: MoneyDto) => formatMoney(value, formats);
   return (
     <>
@@ -51,9 +53,9 @@ export function LineDashboard({
         <p className="flex flex-col">
           <span className="text-sm text-muted">{t("totalAvailable")}</span>
           <span
-            className={`text-3xl font-semibold${isNegative(totals.available) ? " text-owe" : " text-ink"}`}
+            className={`text-3xl font-semibold${isNegative(left) ? " text-owe" : " text-ink"}`}
           >
-            {money(totals.available)}
+            {money(left)}
           </span>
         </p>
         <p className="text-sm text-muted">

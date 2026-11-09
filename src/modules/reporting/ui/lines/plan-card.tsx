@@ -12,7 +12,7 @@ type Line = LineDashboardDto["lines"][number];
  * never shown as a figure. It is `barWidth`'s rule (P202) without a carry-over, kept here so Inicio and the Plan
  * screen share no chunk of script for 4 lines: that chunk's name alone pushed the shell over its budget (ADR 0004).
  */
-const spentShare = ({ spent, planned }: LineDashboardDto["totals"]): number => {
+const spentShare = ({ spent, planned }: { spent: MoneyDto; planned: MoneyDto }): number => {
   const used = BigInt(spent.amount);
   const plan = BigInt(planned.amount);
   if (plan <= 0n) return used > 0n ? 100 : 0;
@@ -52,7 +52,14 @@ export function PlanCard({
   const t = useTranslations("home.plan");
   const common = useTranslations("common");
   if (dashboard.plan === null || dashboard.lines.length === 0) return null;
-  const { totals } = dashboard;
+  // #283 (ruling P313): what is left to spend of what was planned to spend, savings apart, as the API answers it; an
+  // older API without those figures falls back to the totals.
+  const { withoutSavings } = dashboard.totals;
+  const totals = {
+    planned: withoutSavings?.planned ?? dashboard.totals.planned,
+    spent: withoutSavings?.spent ?? dashboard.totals.spent,
+    available: withoutSavings?.available ?? dashboard.totals.available,
+  };
   const money = (amount: MoneyDto) => formatMoney(amount, formats);
   const name = periodName(dashboard.period, policy);
   const over = overOf(dashboard.lines);
