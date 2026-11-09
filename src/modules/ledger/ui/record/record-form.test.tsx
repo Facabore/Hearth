@@ -481,6 +481,17 @@ describe("record form (HU-E9-03)", () => {
     uuid.mockRestore();
   });
 
+  it("says on screen which account the transfer leaves and which it reaches (#286)", () => {
+    form(fakeApi({}).api, "TRANSFER");
+    // Audit pass 3, A13: "Bancolombia" and "Elegir cuenta" alone did not say which was which.
+    const from = screen.getByRole("button", { name: /Desde/ });
+    const to = screen.getByRole("button", { name: /Hacia/ });
+    expect(within(from).getByText("Desde")).not.toHaveClass("sr-only");
+    expect(within(to).getByText("Hacia")).not.toHaveClass("sr-only");
+    expect(from.textContent?.replace(/\s+/g, " ").trim()).toBe("Desde Bancolombia");
+    expect(to.textContent?.replace(/\s+/g, " ").trim()).toBe("Hacia Elegir cuenta");
+  });
+
   it("pays the credit card with a transfer between two accounts, without a category", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/transfers": recorded });
     form(api, "TRANSFER");

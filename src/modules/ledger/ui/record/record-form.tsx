@@ -533,6 +533,7 @@ export function RecordForm({
       icon={icon}
       onClick={fixed ? undefined : () => setSheet(open)}
       errorId={errorOf(field) ? `record-${field}-error` : undefined}
+      showName={kind === "TRANSFER"}
     />
   );
   const accountLabel = t(
