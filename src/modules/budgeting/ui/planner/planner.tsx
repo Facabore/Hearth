@@ -281,12 +281,12 @@ export function Planner({
                     <p className="text-sm text-muted">
                       {/* #286 (audit pass 3, A11): who pays and how a line is shared mean nothing to one person. */}
                       {space.kind === "PERSONAL"
-                        ? [
-                            line.funding === "DIRECT" ? null : t(`funding.${line.funding}`),
-                            t(`rollover.${line.rolloverMode}`),
-                          ]
-                            .filter((part) => part !== null)
-                            .join(" · ")
+                        ? line.funding === "DIRECT"
+                          ? t(`rollover.${line.rolloverMode}`)
+                          : t("planner.metaPersonal", {
+                              funding: t(`funding.${line.funding}`),
+                              rollover: t(`rollover.${line.rolloverMode}`),
+                            })
                         : t("planner.meta", {
                             funding: t(`funding.${line.funding}`),
                             rule: ruleOf(line),

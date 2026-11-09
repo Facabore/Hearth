@@ -30,6 +30,12 @@ export const rememberLastAccount = (
 const minorOf = (account: { readonly balance?: AccountDto["balance"] }): bigint =>
   BigInt(account.balance?.amount ?? "0");
 
+/** A missing balance reads as zero in any currency; two balances compare only in the same one. */
+const sameCurrency = (
+  a: { readonly balance?: AccountDto["balance"] },
+  b: { readonly balance?: AccountDto["balance"] },
+): boolean => a.balance === undefined || b.balance === undefined || a.balance.currency === b.balance.currency;
+
 /**
  * The account a new movement starts on (issue #208): the one last paid from while the form still offers it. Else, #285
  * (audit pass 3, A8): where the money is, the non-savings account with the highest balance (list order breaks a tie),
@@ -45,7 +51,8 @@ export const preferredAccountId = (
     accounts
       .filter((a) => a.type !== "SAVINGS")
       .reduce<(typeof accounts)[number] | undefined>(
-        (best, a) => (best === undefined || minorOf(a) > minorOf(best) ? a : best),
+        // A balance is compared only with one in its own currency: list order decides across currencies.
+        (best, a) => (best === undefined || (sameCurrency(a, best) && minorOf(a) > minorOf(best)) ? a : best),
         undefined,
       ) ??
     accounts[0]

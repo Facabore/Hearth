@@ -21,6 +21,7 @@
       "addLine": "Agregar rubro",
       "empty": "Este plan aún no tiene rubros.",
       "meta": "{funding} · {rule} · {rollover}",
+      "metaPersonal": "{funding} · {rollover}",
       "ofCapacity": "{share} de lo aportado",
       "invalidAllocation": "Asignación inválida",
       "editLine": "Editar {name}",

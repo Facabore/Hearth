@@ -21,6 +21,7 @@
       "addLine": "Add line",
       "empty": "This plan has no lines yet.",
       "meta": "{funding} · {rule} · {rollover}",
+      "metaPersonal": "{funding} · {rollover}",
       "ofCapacity": "{share} of what is put in",
       "invalidAllocation": "Invalid allocation",
       "editLine": "Edit {name}",

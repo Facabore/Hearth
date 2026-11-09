@@ -47,6 +47,11 @@ describe("the account a new movement starts on (#208, #285)", () => {
     expect(preferredAccountId([], null)).toBeNull();
   });
 
+  it("never compares balances across currencies: the list order decides there", () => {
+    const usd = { ...account("dollars", "BANK", 0), balance: { amount: "900000", currency: "USD" } };
+    expect(preferredAccountId([account("cop", "BANK", 1_000), usd], null)).toBe("cop");
+  });
+
   it("reads an account without a balance as zero", () => {
     expect(preferredAccountId([{ id: "a", type: "BANK" }, account("b", "CASH", 5_000)], null)).toBe("b");
   });
