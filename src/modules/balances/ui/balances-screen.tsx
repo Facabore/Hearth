@@ -1,22 +1,34 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { preferredAccountId, readLastAccount } from "@/modules/ledger/ui";
 import { controlsFor, memberLabel } from "@/modules/spaces/ui";
 import { Avatar, Button, Icon } from "@/shared/ui";
 import type { Api } from "@/shared/ui/api/client";
 import type { AccountDto, BalancesDto, MemberDto, SpaceDto, SuggestionDto } from "@/shared/ui/api/dto";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { absolute, memberSentence, netState } from "./net-state";
-import { SettleUpSheet } from "./settle-up-sheet";
-import { prefillOf, type SettlementDraft } from "./settlement-request";
+import { prefillOf, type SettlementDraft } from "./settlement-prefill";
 
-/** An open settle-up sheet: its draft, and whether a suggestion filled it in. */
+// The settle-up sheet's code, its form and the Radix dialog under it, load only when the sheet opens (ADR 0004: the
+// route's script budget), as the transaction sheet's do (P189).
+const SettleUpSheet = dynamic(() => import("./settle-up-sheet").then((module) => module.SettleUpSheet), {
+  ssr: false,
+});
+
+/**
+ * An open settle-up sheet: its draft, whether a suggestion filled it in, and the account this browser last paid from,
+ * read when the sheet opens (#219). The screen reads it so the lazy sheet's chunk carries no copy of the record form's
+ * account code (#296).
+ */
 interface Settling {
   readonly draft: SettlementDraft;
   readonly suggested: boolean;
+  readonly lastAccountId: string | null;
 }
 
 /**
@@ -97,6 +109,7 @@ export function BalancesScreen({
       numberFormat: formats.numberFormat,
     }),
     suggested: suggestion !== null,
+    lastAccountId: readLastAccount(),
   });
   // The sheet is mounted only while it is open, so each opening starts from its own prefill and forgets the last attempt.
   const [settling, setSettling] = useState<Settling | null>(() =>
@@ -239,6 +252,8 @@ export function BalancesScreen({
           suggestions={suggestions}
           initial={settling.draft}
           suggested={settling.suggested}
+          lastAccountId={settling.lastAccountId}
+          preferredAccountId={preferredAccountId(myAccounts, settling.lastAccountId)}
           formats={formats}
           timeZone={timeZone}
           api={api}
