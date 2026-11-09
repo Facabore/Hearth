@@ -11,7 +11,7 @@ import {
 } from "../domain/plan-figures";
 import type { BudgetingDeps } from "./deps";
 import { ownedByRegisteredMember } from "./line-checks";
-import type { PlanContents, SavingsAccountReader } from "./ports";
+import type { BudgetAccount, PlanContents, PlanHistory, PlanSpending, SavingsAccountReader } from "./ports";
 
 /** A plan with every figure derived on read (D7), its amounts in the space currency. */
 export interface BudgetPlanView {
@@ -20,7 +20,17 @@ export interface BudgetPlanView {
   readonly figures: PlanFigures;
 }
 
-type ViewDeps = Pick<BudgetingDeps, "members" | "plans" | "spending" | "savingsAccounts" | "categories">;
+type ViewDeps = Pick<
+  BudgetingDeps,
+  "members" | "plans" | "spending" | "savingsAccounts" | "categories" | "history"
+>;
+
+/** What walking a chain of plans reads: each plan, its contents, its spending and the accounts its lines name. */
+export interface ChainReads {
+  readonly plans: Pick<BudgetingDeps["plans"], "find" | "contents" | "covering">;
+  readonly spending: PlanSpending;
+  readonly savingsAccounts: SavingsAccountReader;
+}
 
 /** What reading a plan's figures takes; reporting reads plans through the same ports (HU-E7-01, ruling P32). */
 export type PlanViewDeps = ViewDeps;
@@ -29,7 +39,7 @@ export type PlanViewDeps = ViewDeps;
  * What one view reads once and shares along the chain of plans it walks: the space's current members and its
  * categories with their parents (HU-E3-04), so every plan of the chain is figured against the same tree.
  */
-interface ViewReads {
+export interface ViewReads {
   readonly members: readonly SpaceMember[];
   readonly categories: readonly CategoryParent[];
 }
@@ -62,9 +72,15 @@ export interface PlanViewCache {
   readonly reads: Map<string, Promise<ViewReads>>;
   /** The figures of each plan, by plan id; the promise is shared while it is being computed. */
   readonly figures: Map<string, Promise<PlanFigures>>;
+  /** The chain reads of each space, answered from its plan history (`historyReads`), by space id. */
+  readonly chains: Map<string, Promise<ChainReads>>;
 }
 
-export const planViewCache = (): PlanViewCache => ({ reads: new Map(), figures: new Map() });
+export const planViewCache = (): PlanViewCache => ({
+  reads: new Map(),
+  figures: new Map(),
+  chains: new Map(),
+});
 
 /** How a view walks its chain of plans: the plans already on it, and the request's cache if it has one. */
 interface Walk {
@@ -91,7 +107,7 @@ const NO_CARRY: Carry = { source: null, available: [] };
  * it never wait on each other; a source that is not earlier (malformed rows) is figured without it, as before.
  */
 const carryOf = async (
-  deps: ViewDeps,
+  deps: ChainReads,
   space: SpaceMembership,
   plan: BudgetPlan,
   context: {
@@ -128,7 +144,7 @@ const carryOf = async (
 
 /** The figures of `plan` for the current members: its parts, the spending within its stored dates, its carry-over. */
 const figuresOf = async (
-  deps: ViewDeps,
+  deps: ChainReads,
   space: SpaceMembership,
   plan: BudgetPlan,
   reads: ViewReads,
@@ -170,7 +186,7 @@ const figuresOf = async (
 
 /** Ruling P105: `plan`'s figures from the request's cache, computed by the first view that reaches it. */
 const cachedFiguresOf = (
-  deps: ViewDeps,
+  deps: ChainReads,
   space: SpaceMembership,
   plan: BudgetPlan,
   reads: ViewReads,
@@ -189,6 +205,111 @@ const viewReads = async (deps: ViewDeps, space: SpaceMembership): Promise<ViewRe
 });
 
 /**
+ * The space's current members and categories as the request's views read them (ruling P105): read once per space and
+ * request, so a report that also needs them reuses the ones its view was figured against.
+ */
+export const viewReadsOf = (
+  deps: ViewDeps,
+  space: SpaceMembership,
+  cache: PlanViewCache,
+): Promise<ViewReads> => {
+  let reads = cache.reads.get(space.spaceId);
+  if (reads === undefined) {
+    reads = viewReads(deps, space);
+    cache.reads.set(space.spaceId, reads);
+  }
+  return reads;
+};
+
+/**
+ * The chain reads of `spaceId` answered from its plan history, read in one batch: a plan of the space, its contents,
+ * and the spending within a plan's stored dates come from the history; anything else (another space, other dates, an
+ * account no line of that plan names) is read as before. Each account is looked up once per request.
+ */
+const historyReads = (deps: ViewDeps, spaceId: string, history: PlanHistory): ChainReads => {
+  const plans = new Map(history.plans.map((plan) => [plan.id as string, plan]));
+  const planOf = (from: string, to: string) =>
+    history.plans.find((plan) => plan.period.start === from && plan.period.end === to);
+  const named = new Map(
+    history.plans.map((plan) => [
+      plan.id as string,
+      new Set(history.contents.get(plan.id)?.lines.flatMap((line) => line.savingsAccountIds) ?? []),
+    ]),
+  );
+  const accounts = new Map<string, Promise<BudgetAccount | null>>();
+  return {
+    plans: {
+      find: async (space, planId) =>
+        space === spaceId && plans.has(planId) ? plans.get(planId)! : deps.plans.find(space, planId),
+      // As the repository answers it: the latest-starting plan whose stored dates hold `date`; a lock reads the row.
+      covering: async (space, date, options) =>
+        space !== spaceId || options?.share === true
+          ? deps.plans.covering(space, date, options)
+          : (history.plans.findLast((plan) => plan.period.start <= date && date <= plan.period.end) ?? null),
+      contents: async (planId) => history.contents.get(planId) ?? deps.plans.contents(planId),
+    },
+    spending: {
+      expensesByCategory: async (space, from, to) => {
+        const plan = space === spaceId ? planOf(from, to) : undefined;
+        const rows = plan === undefined ? undefined : history.expenses.get(plan.id);
+        return rows === undefined ? deps.spending.expensesByCategory(space, from, to) : [...rows];
+      },
+      transfersIntoAccounts: async (accountIds, from, to) => {
+        const plan = planOf(from, to);
+        const rows = plan === undefined ? undefined : history.transfers.get(plan.id);
+        const known = plan === undefined ? undefined : named.get(plan.id);
+        return rows === undefined || known === undefined || !accountIds.every((id) => known.has(id))
+          ? deps.spending.transfersIntoAccounts(accountIds, from, to)
+          : rows.filter((row) => accountIds.includes(row.accountId));
+      },
+    },
+    savingsAccounts: {
+      find: (accountId) => {
+        let account = accounts.get(accountId);
+        if (account === undefined) {
+          account = deps.savingsAccounts.find(accountId);
+          accounts.set(accountId, account);
+        }
+        return account;
+      },
+    },
+  };
+};
+
+/**
+ * The plan, spending and account reads of `space` for this request: answered from the space's plan history once a view
+ * of the request read it, else read as the ports answer them. Reports read through it what their views already read.
+ */
+export const requestReadsOf = (
+  deps: ViewDeps,
+  space: SpaceMembership,
+  cache: PlanViewCache,
+): ChainReads | Promise<ChainReads> => cache.chains.get(space.spaceId) ?? deps;
+
+/**
+ * What `plan`'s view reads its chain through: a copy (its createdFrom set) may walk back through every earlier plan, so
+ * with a history reader it reads the space's history once (per request, with a cache) instead of plan by plan.
+ */
+const chainReadsOf = (
+  deps: ViewDeps,
+  space: SpaceMembership,
+  plan: BudgetPlan,
+  cache?: PlanViewCache,
+): ChainReads | Promise<ChainReads> => {
+  const reader = deps.history;
+  if (reader === undefined || plan.createdFrom === null) return cache?.chains.get(space.spaceId) ?? deps;
+  const read = () =>
+    reader.historyOf(space.spaceId).then((history) => historyReads(deps, space.spaceId, history));
+  if (cache === undefined) return read();
+  let chain = cache.chains.get(space.spaceId);
+  if (chain === undefined) {
+    chain = read();
+    cache.chains.set(space.spaceId, chain);
+  }
+  return chain;
+};
+
+/**
  * The plan's parts, its space's current members, the spending within its stored dates and its carry-over. A request
  * that loads several views passes one `cache` to all of them (ruling P105); without it the view reads everything.
  */
@@ -199,15 +320,15 @@ export const loadPlanView = async (
   cache?: PlanViewCache,
 ): Promise<BudgetPlanView> => {
   if (cache === undefined) {
-    const figures = await figuresOf(deps, space, plan, await viewReads(deps, space), { seen: new Set() });
+    const reads = await viewReads(deps, space);
+    const figures = await figuresOf(await chainReadsOf(deps, space, plan), space, plan, reads, {
+      seen: new Set(),
+    });
     return { plan, currency: space.currency, figures };
   }
-  let reads = cache.reads.get(space.spaceId);
-  if (reads === undefined) {
-    reads = viewReads(deps, space);
-    cache.reads.set(space.spaceId, reads);
-  }
-  const figures = await cachedFiguresOf(deps, space, plan, await reads, { seen: new Set(), cache });
+  const reads = await viewReadsOf(deps, space, cache);
+  const chain = await chainReadsOf(deps, space, plan, cache);
+  const figures = await cachedFiguresOf(chain, space, plan, reads, { seen: new Set(), cache });
   return { plan, currency: space.currency, figures };
 };
 

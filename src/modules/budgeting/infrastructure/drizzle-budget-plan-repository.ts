@@ -174,36 +174,93 @@ export class DrizzleBudgetPlanRepository implements BudgetPlanRepository {
   }
 
   async contents(planId: BudgetPlanId): Promise<PlanContents> {
+    return (await this.contentsOf([planId])).get(planId)!;
+  }
+
+  /**
+   * The contents of each plan, as `contents` reads one, in the same four statements whatever the number of plans: a
+   * view figuring a chain of copies reads them together instead of plan by plan. Every id asked for has an entry.
+   */
+  async contentsOf(planIds: readonly BudgetPlanId[]): Promise<Map<BudgetPlanId, PlanContents>> {
+    const ids = [...new Set(planIds)];
+    const found = new Map(
+      ids.map((id) => [
+        id,
+        {
+          capacities: [] as MemberCapacity[],
+          lines: [] as BudgetLine[],
+          mappings: [] as PlanContents["mappings"][number][],
+          allocations: [] as PlanContents["allocations"][number][],
+        },
+      ]),
+    );
+    if (ids.length === 0) return found;
     const db = this.tm.executor();
     const capacities = await db
-      .select({ memberId: budgetMemberCapacities.memberId, amount: budgetMemberCapacities.amount })
+      .select({
+        planId: budgetMemberCapacities.planId,
+        memberId: budgetMemberCapacities.memberId,
+        amount: budgetMemberCapacities.amount,
+      })
       .from(budgetMemberCapacities)
-      .where(eq(budgetMemberCapacities.planId, planId))
-      .orderBy(asc(budgetMemberCapacities.memberId));
+      .where(inArray(budgetMemberCapacities.planId, ids))
+      .orderBy(asc(budgetMemberCapacities.planId), asc(budgetMemberCapacities.memberId));
+    for (const { planId, ...capacity } of capacities)
+      found.get(planId as BudgetPlanId)?.capacities.push(capacity);
     const lineRows = await db
       .select()
       .from(budgetLines)
-      .where(and(eq(budgetLines.planId, planId), isNull(budgetLines.deletedAt)))
-      .orderBy(asc(budgetLines.createdAt), asc(budgetLines.id));
+      .where(and(inArray(budgetLines.planId, ids), isNull(budgetLines.deletedAt)))
+      .orderBy(asc(budgetLines.planId), asc(budgetLines.createdAt), asc(budgetLines.id));
+    for (const row of lineRows) found.get(row.planId as BudgetPlanId)?.lines.push(toLine(row));
     const mappings = await db
-      .select({ lineId: budgetLineCategories.lineId, categoryId: budgetLineCategories.categoryId })
+      .select({
+        planId: budgetLineCategories.planId,
+        lineId: budgetLineCategories.lineId,
+        categoryId: budgetLineCategories.categoryId,
+      })
       .from(budgetLineCategories)
-      .where(and(eq(budgetLineCategories.planId, planId), isNull(budgetLineCategories.unmappedAt)))
-      .orderBy(asc(budgetLineCategories.lineId), asc(budgetLineCategories.categoryId));
-    const lineIds = lineRows.map((row) => row.id);
-    const allocations =
-      lineIds.length === 0
-        ? []
-        : await db
-            .select({
-              lineId: budgetAllocations.lineId,
-              memberId: budgetAllocations.memberId,
-              value: budgetAllocations.value,
-            })
-            .from(budgetAllocations)
-            .where(and(inArray(budgetAllocations.lineId, lineIds), isNull(budgetAllocations.supersededAt)))
-            .orderBy(asc(budgetAllocations.lineId), asc(budgetAllocations.memberId));
-    return { capacities, lines: lineRows.map(toLine), mappings, allocations };
+      .where(and(inArray(budgetLineCategories.planId, ids), isNull(budgetLineCategories.unmappedAt)))
+      .orderBy(
+        asc(budgetLineCategories.planId),
+        asc(budgetLineCategories.lineId),
+        asc(budgetLineCategories.categoryId),
+      );
+    for (const { planId, ...mapping } of mappings) found.get(planId as BudgetPlanId)?.mappings.push(mapping);
+    const planOfLine = new Map(lineRows.map((row) => [row.id, row.planId as BudgetPlanId]));
+    if (planOfLine.size > 0) {
+      const allocations = await db
+        .select({
+          lineId: budgetAllocations.lineId,
+          memberId: budgetAllocations.memberId,
+          value: budgetAllocations.value,
+        })
+        .from(budgetAllocations)
+        .where(
+          and(
+            inArray(budgetAllocations.lineId, [...planOfLine.keys()]),
+            isNull(budgetAllocations.supersededAt),
+          ),
+        )
+        .orderBy(asc(budgetAllocations.lineId), asc(budgetAllocations.memberId));
+      for (const allocation of allocations) {
+        const planId = planOfLine.get(allocation.lineId);
+        if (planId !== undefined) found.get(planId)?.allocations.push(allocation);
+      }
+    }
+    return found;
+  }
+
+  /** Every plan of the space, oldest first; `[]` for malformed ids. */
+  async inSpace(spaceId: string): Promise<BudgetPlan[]> {
+    if (!isUuid(spaceId)) return [];
+    const rows = await this.tm
+      .executor()
+      .select()
+      .from(budgetPlans)
+      .where(eq(budgetPlans.spaceId, spaceId))
+      .orderBy(asc(budgetPlans.startDate));
+    return rows.map(toPlan);
   }
 
   async setCapacities(planId: BudgetPlanId, capacities: readonly MemberCapacity[], at: Date): Promise<void> {

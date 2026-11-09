@@ -68,6 +68,7 @@ import {
   type BudgetCategories,
   type MapCategoriesToLine,
   type AllocateBudgetLine,
+  type PlanHistoryReader,
 } from "@/modules/budgeting/application";
 import { DrizzleBudgetPlanRepository } from "@/modules/budgeting/infrastructure/drizzle-budget-plan-repository";
 import {
@@ -782,6 +783,29 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       return (await batch.found).get(accountId) ?? null;
     },
   };
+  /**
+   * A copied plan's view walks its carry-over chain back through every earlier plan: its history is read in one batch
+   * of seven statements (the plans, their contents, the expenses and the savings transfers within each plan's dates),
+   * whatever the chain's length, within the request and never stored (D7).
+   */
+  const planHistory: PlanHistoryReader = {
+    historyOf: async (spaceId) => {
+      const plans = await budgetPlans.inSpace(spaceId);
+      const contents = await budgetPlans.contentsOf(plans.map((plan) => plan.id));
+      const ranges = plans.map((plan) => plan.period);
+      const expenses = await ledgerQueries.expensesByCategoryIn(spaceId, ranges);
+      const named = [...contents.values()].flatMap((parts) =>
+        parts.lines.flatMap((line) => line.savingsAccountIds),
+      );
+      const transfers = await ledgerQueries.transfersIntoAccountsIn([...new Set(named)], ranges);
+      return {
+        plans,
+        contents,
+        expenses: new Map(plans.map((plan, i) => [plan.id, expenses[i] ?? []])),
+        transfers: new Map(plans.map((plan, i) => [plan.id, transfers[i] ?? []])),
+      };
+    },
+  };
   // HU-E6-01 … HU-E6-05: plans reach members, accounts, categories and the ledger's spending only through ports.
   const budgetingDeps = {
     access,
@@ -795,6 +819,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     categories: budgetCategories,
     lines: budgetPlans,
     savingsAccounts,
+    history: planHistory,
     capacities: budgetPlans,
     previousIncome,
     spending: ledgerQueries,
@@ -827,6 +852,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     spending: ledgerQueries,
     savingsAccounts,
     categories: budgetCategories,
+    history: planHistory,
   };
   const invitationRepository = new DrizzleInvitationRepository(tm);
   const invitationsDeps: InvitationsDeps = {

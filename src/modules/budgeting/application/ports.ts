@@ -67,6 +67,24 @@ export interface PlanSpending {
   ): Promise<{ accountId: string; amount: bigint }[]>;
 }
 
+/**
+ * What figuring a chain of copied plans reads, for every plan of one space at once: the plans, each plan's contents,
+ * the space's expenses per category within each plan's stored dates, and the transfers within them into every account a
+ * line of that plan names. Each figure is what `contents`, `expensesByCategory` and `transfersIntoAccounts` answer for
+ * that plan, so a view that walks a chain reads a constant number of statements instead of several per plan.
+ */
+export interface PlanHistory {
+  readonly plans: readonly BudgetPlan[];
+  readonly contents: ReadonlyMap<string, PlanContents>;
+  readonly expenses: ReadonlyMap<string, readonly { categoryId: string; amount: bigint }[]>;
+  readonly transfers: ReadonlyMap<string, readonly { accountId: string; amount: bigint }[]>;
+}
+
+export interface PlanHistoryReader {
+  /** The space's plan history; empty for malformed ids. Read within the caller's transaction, when there is one. */
+  historyOf(spaceId: string): Promise<PlanHistory>;
+}
+
 /** HU-E6-02: capacities are edited in place; a member without one counts as 0. */
 export interface CapacityRepository {
   /** Inserts or replaces the capacity of each listed member; members not listed keep theirs. */

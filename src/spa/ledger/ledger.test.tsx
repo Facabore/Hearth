@@ -273,6 +273,27 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     );
   });
 
+  it("reads a screen once however often the pointer passes over its link, and a tap still revalidates it", async () => {
+    const { routes } = ledgerApi();
+    const spa = renderSpa("/spaces/sp-personal", routes);
+    await screen.findByRole("heading", { name: es.home.recent });
+    const link = within(nav()).getByRole("link", { name: es.shell.nav.transactions });
+    const list = () => calls(spa.requests, "GET", /\/transactions\?limit=50$/).length;
+
+    for (let pass = 0; pass < 3; pass += 1) {
+      await userEvent.hover(link);
+      await waitFor(() => expect(list()).toBe(1));
+      await userEvent.unhover(link);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(list()).toBe(1);
+
+    await userEvent.click(link);
+    await screen.findByText("Salary");
+    // Arriving at the screen is a visit, which refreshes what it shows in the background (ADR 0006).
+    await waitFor(() => expect(list()).toBe(2));
+  });
+
   it("prefetches a row's detail on intent, so tapping it opens the sheet without waiting on the API", async () => {
     const { routes, hold } = ledgerApi();
     const spa = renderSpa("/spaces/sp-personal/transactions", routes);

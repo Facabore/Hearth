@@ -39,12 +39,13 @@ export interface Load extends RouterContext {
 }
 
 /**
- * ADR 0006's stale-while-revalidate: a read already in the cache resolves at once, and arriving at a screen (a visit,
- * or the prefetch a tap then reuses) refreshes it in the background, so the screen paints from the cache and then
- * shows what changed elsewhere. Staying on the screen reads only what it is missing: opening a sheet or closing it reads
- * the list again for nothing. A read not in the cache is waited for.
+ * ADR 0006's stale-while-revalidate: a read already in the cache resolves at once, and arriving at a screen (a visit)
+ * refreshes it in the background, so the screen paints from the cache and then shows what changed elsewhere. A
+ * prefetch on intent and staying on the screen read only what is missing: a pointer passing over a link, or opening a
+ * sheet, reads nothing the cache holds (the router runs a loader again only on "enter", `router.tsx`). A read not in
+ * the cache is waited for.
  */
 export const ensurer =
   ({ queryClient, cause }: Load): QueryClient["ensureQueryData"] =>
   (options) =>
-    queryClient.ensureQueryData({ ...options, revalidateIfStale: cause !== "stay" });
+    queryClient.ensureQueryData({ ...options, revalidateIfStale: cause === "enter" });

@@ -16,6 +16,7 @@ import {
 } from "../../../../tests/support/fixtures";
 import { codeOf, money, sequentialIds, unwrap } from "../../../../tests/support/fakes";
 import { InMemoryBudgetPlans } from "../../../../tests/support/in-memory-budgeting";
+import { statementsDuring } from "../../../../tests/support/sql-statements";
 import type {
   AllocationRepository,
   BudgetLineRepository,
@@ -339,6 +340,20 @@ describe("DrizzleBudgetPlanRepository contents (D7, D8)", () => {
       expect(await plans.contents(november.id)).toEqual(expectedNovember);
       expect(await plans.contents(december.id)).toEqual(expectedDecember);
     }
+    // A plan's history reads every plan's parts together, each as `contents` reads it alone; a plan without any has none.
+    const empty = randomUUID() as BudgetPlanId;
+    const { result: together, statements } = await statementsDuring(() =>
+      repo.contentsOf([december.id, november.id, empty]),
+    );
+    expect(statements).toHaveLength(4);
+    expect([...together]).toEqual([
+      [december.id, expectedDecember],
+      [november.id, expectedNovember],
+      [empty, { capacities: [], lines: [], mappings: [], allocations: [] }],
+    ]);
+    expect(await repo.contentsOf([])).toEqual(new Map());
+    expect((await repo.inSpace(space.id)).map((plan) => plan.id)).toEqual([november.id, december.id]);
+    expect(await repo.inSpace("not-a-uuid")).toEqual([]);
   });
 });
 
