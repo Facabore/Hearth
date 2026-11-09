@@ -9,6 +9,7 @@ export const AREAS = [
   "members",
   "accounts",
   "settings",
+  "space",
   "invitation",
   "trust",
 ] as const;

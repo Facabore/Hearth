@@ -16,7 +16,15 @@ import { POST as archiveGroup } from "@/app/api/v1/spaces/[spaceId]/category-gro
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
 import { GET as getTransaction } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/route";
 import { setContainerForTests, type Container } from "@/composition/container";
-import { call, registerUser, startTestApp, type RouteHandler, type TestUser } from "../support/app";
+import {
+  call,
+  problemOf,
+  registerUser,
+  startTestApp,
+  type RouteHandler,
+  type TestUser,
+} from "../support/app";
+import { actingIn, joinAs, newSharedSpace } from "../support/spaces";
 
 interface CategoryDto {
   id: string;
@@ -125,6 +133,52 @@ describe("managing the category tree (HU-E3-02)", () => {
       body: { groupId: food.id },
     });
     expect(await moved.json()).toMatchObject({ id: pharmacy.id, groupId: food.id, key: "pharmacy" });
+  });
+
+  it("lets anyone who records in a shared space create a category, while the tree's edits stay with its managers (P308)", async () => {
+    const owner = await registerUser("Ana");
+    const ana = actingIn(owner, await newSharedSpace(owner, "Viaje"));
+    const [luis, sofi] = [await registerUser("Luis"), await registerUser("Sofi")];
+    await joinAs(ana, ana.spaceId, luis, "MEMBER");
+    await joinAs(ana, ana.spaceId, sofi, "VIEWER");
+    const { base, group, category } = helpers(ana);
+    const params = { spaceId: ana.spaceId };
+    const food = await group("Alimentación");
+
+    const drinks = await call(createCategory, "POST", `${base}/categories`, {
+      user: actingIn(luis, ana.spaceId),
+      params,
+      body: { groupId: food.id, name: "Bebidas en el hotel" },
+    });
+    expect(drinks.status).toBe(201);
+    expect(await drinks.json()).toMatchObject({ groupId: food.id, name: "Bebidas en el hotel", key: null });
+    // Every member of the space shares it, the owner included.
+    expect(await category("Bebidas en el hotel")).toMatchObject({ groupId: food.id });
+
+    const viewer = await call(createCategory, "POST", `${base}/categories`, {
+      user: actingIn(sofi, ana.spaceId),
+      params,
+      body: { groupId: food.id, name: "Snacks" },
+    });
+    expect(await problemOf(viewer)).toEqual([403, "InsufficientRole"]);
+    const renamed = await call(
+      updateCategory,
+      "PATCH",
+      `${base}/categories/${(await category("Mercado")).id}`,
+      {
+        user: actingIn(luis, ana.spaceId),
+        params: { ...params, categoryId: (await category("Mercado")).id },
+        body: { name: "Supermercado" },
+      },
+    );
+    expect(await problemOf(renamed)).toEqual([403, "InsufficientRole"]);
+    const grouped = await call(createGroup, "POST", `${base}/category-groups`, {
+      user: actingIn(luis, ana.spaceId),
+      params,
+      body: { name: "Paseos" },
+    });
+    expect(await problemOf(grouped)).toEqual([403, "InsufficientRole"]);
+    expect((await groupsIn(await treeOf(ana, ana.spaceId))).map((g) => g.name)).not.toContain("Paseos");
   });
 
   it("answers tree violations with stable codes", async () => {

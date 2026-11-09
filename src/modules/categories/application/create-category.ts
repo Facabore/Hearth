@@ -1,14 +1,16 @@
+import { MANAGERS, requireRole } from "@/modules/spaces/application";
 import { ok, type Result } from "@/shared/kernel";
 import { newCategory } from "../domain/category";
 import { styleChangeOf, type CategoryColor, type IconInput } from "../domain/category-style";
-import { authorizeManager } from "./authorize";
+import { authorizeCreator } from "./authorize";
 import { viewOf, type CategoryView } from "./category-view";
 import type { CategoriesDeps } from "./deps";
 import { categoryById, groupById } from "./lookups";
 
 /**
  * HU-E3-02, HU-E3-04, HU-E3-05: a category in `groupId`, or a subcategory of `parentCategoryId` (the contract sends
- * one). A category copies its group's style with `icon` and `color` over it; a subcategory takes neither.
+ * one). A category copies its group's style with `icon` and `color` over it; a subcategory takes neither. P308: anyone
+ * who records in the space creates one; the rest of the tree stays with its managers.
  */
 export type CreateCategory = (input: {
   spaceId: string;
@@ -24,9 +26,14 @@ export const createCreateCategory =
   (deps: CategoriesDeps): CreateCategory =>
   (input) =>
     deps.tm.run(async () => {
-      const manager = await authorizeManager(deps.access, input.spaceId, input.userId);
-      if (!manager.ok) return manager;
-      const { spaceId } = manager.value;
+      const creator = await authorizeCreator(deps.access, input.spaceId, input.userId);
+      if (!creator.ok) return creator;
+      // P308: a member who records creates a category in its group's style; choosing another stays with the managers.
+      if (input.icon !== undefined || input.color !== undefined) {
+        const manager = requireRole(creator.value, MANAGERS);
+        if (!manager.ok) return manager;
+      }
+      const { spaceId } = creator.value;
       await deps.categories.lockTree(spaceId);
       const categories = await deps.categories.listCategories(spaceId);
       const groups = await deps.categories.listGroups(spaceId);

@@ -62,6 +62,16 @@ describe("problemFrom (HU-E9-02)", () => {
     expect(problemFrom({ code: "SpaceArchived" }, response(409))).not.toHaveProperty("copyPeriod");
   });
 
+  it("keeps the public guest index of a batch of guests and nothing malformed (ruling P309)", () => {
+    const body = { code: "MemberNameTaken", status: 409, requestId: "r", guest: 1 };
+    expect(problemFrom(body, response(409)).guest).toBe(1);
+    expect(problemFrom({ ...body, guest: 0 }, response(409)).guest).toBe(0);
+    expect(problemFrom({ ...body, guest: "1" }, response(409))).not.toHaveProperty("guest");
+    expect(problemFrom({ ...body, guest: -1 }, response(409))).not.toHaveProperty("guest");
+    expect(problemFrom({ ...body, guest: 1.5 }, response(409))).not.toHaveProperty("guest");
+    expect(problemFrom({ code: "MemberNameTaken" }, response(409))).not.toHaveProperty("guest");
+  });
+
   it("reads anything else as Unknown, with the request id when the response has one", () => {
     expect(problemFrom("<html>502 Bad Gateway</html>", response(502, "req-2"))).toEqual({
       code: "Unknown",

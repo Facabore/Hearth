@@ -77,27 +77,27 @@ const claimed = () =>
 describe("guests (HU-E9-05, ruling P163)", () => {
   it("shows Luis, a MEMBER, Add guest but not Invite, and Sofi, a VIEWER, neither", () => {
     const { unmount } = screenAs("u-luis", "MEMBER", fakeApi({}).api);
-    expect(screen.getByRole("button", { name: "Agregar invitado" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Agregar invitados" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Invitar" })).not.toBeInTheDocument();
     unmount();
     screenAs("u-sofi", "VIEWER", fakeApi({}).api);
-    expect(screen.queryByRole("button", { name: "Agregar invitado" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Agregar invitados" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Invitar" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Opciones de Pedro (invitado)" })).not.toBeInTheDocument();
   });
 
   it("adds the guest Pedro with an optional email", async () => {
     const { api, requests } = fakeApi({
-      "POST /api/v1/spaces/{spaceId}/guests": () => jsonResponse(guestDto(), 201),
+      "POST /api/v1/spaces/{spaceId}/guests/batch": () => jsonResponse({ items: [guestDto()] }, 201),
     });
     screenAs("u-luis", "MEMBER", api);
-    await userEvent.click(screen.getByRole("button", { name: "Agregar invitado" }));
-    const sheet = screen.getByRole("dialog", { name: "Agregar invitado a Household" });
+    await userEvent.click(screen.getByRole("button", { name: "Agregar invitados" }));
+    const sheet = await screen.findByRole("dialog", { name: "Agregar invitados a Household" });
     await userEvent.type(within(sheet).getByLabelText("Nombre"), " Pedro ");
     await userEvent.dblClick(within(sheet).getByRole("button", { name: "Agregar invitado" }));
     await waitFor(() => expect(router.refresh).toHaveBeenCalled());
     expect(requests).toHaveLength(1);
-    expect(await requests[0]!.json()).toEqual({ displayName: "Pedro" });
+    expect(await requests[0]!.json()).toEqual({ guests: [{ displayName: "Pedro" }] });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -105,14 +105,14 @@ describe("guests (HU-E9-05, ruling P163)", () => {
     let release: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => (release = resolve));
     const { api, requests } = fakeApi({
-      "POST /api/v1/spaces/{spaceId}/guests": async () => {
+      "POST /api/v1/spaces/{spaceId}/guests/batch": async () => {
         await gate;
-        return jsonResponse(guestDto(), 201);
+        return jsonResponse({ items: [guestDto()] }, 201);
       },
     });
     screenAs("u-ana", "OWNER", api);
-    await userEvent.click(screen.getByRole("button", { name: "Agregar invitado" }));
-    const sheet = screen.getByRole("dialog", { name: "Agregar invitado a Household" });
+    await userEvent.click(screen.getByRole("button", { name: "Agregar invitados" }));
+    const sheet = await screen.findByRole("dialog", { name: "Agregar invitados a Household" });
     await userEvent.type(within(sheet).getByLabelText("Nombre"), "Pedro");
     await userEvent.dblClick(within(sheet).getByRole("button", { name: "Agregar invitado" }));
     release();
@@ -122,25 +122,24 @@ describe("guests (HU-E9-05, ruling P163)", () => {
 
   it("sends the email when one is given", async () => {
     const { api, requests } = fakeApi({
-      "POST /api/v1/spaces/{spaceId}/guests": () => jsonResponse(guestDto(), 201),
+      "POST /api/v1/spaces/{spaceId}/guests/batch": () => jsonResponse({ items: [guestDto()] }, 201),
     });
     screenAs("u-ana", "OWNER", api);
-    await userEvent.click(screen.getByRole("button", { name: "Agregar invitado" }));
-    const sheet = screen.getByRole("dialog", { name: "Agregar invitado a Household" });
+    await userEvent.click(screen.getByRole("button", { name: "Agregar invitados" }));
+    const sheet = await screen.findByRole("dialog", { name: "Agregar invitados a Household" });
     await userEvent.type(within(sheet).getByLabelText("Nombre"), "Pedro");
     await userEvent.type(within(sheet).getByLabelText("Correo (opcional)"), "pedro@example.com");
     await userEvent.click(within(sheet).getByRole("button", { name: "Agregar invitado" }));
     await waitFor(() => expect(router.refresh).toHaveBeenCalled());
     expect(await requests[0]!.json()).toEqual({
-      displayName: "Pedro",
-      contactEmail: "pedro@example.com",
+      guests: [{ displayName: "Pedro", contactEmail: "pedro@example.com" }],
     });
   });
 
   it("previews the name as it will show, live, as the artboard does (390 px review, S7)", async () => {
     screenAs("u-ana", "OWNER", fakeApi({}).api);
-    await userEvent.click(screen.getByRole("button", { name: "Agregar invitado" }));
-    const sheet = screen.getByRole("dialog", { name: "Agregar invitado a Household" });
+    await userEvent.click(screen.getByRole("button", { name: "Agregar invitados" }));
+    const sheet = await screen.findByRole("dialog", { name: "Agregar invitados a Household" });
     const name = within(sheet).getByLabelText("Nombre");
     expect(name).toHaveAccessibleDescription(
       "Se verá con «(invitado)» al lado. No puede repetir el nombre de otro miembro.",
@@ -158,11 +157,12 @@ describe("guests (HU-E9-05, ruling P163)", () => {
 
   it("puts MemberNameTaken under the name", async () => {
     const { api } = fakeApi({
-      "POST /api/v1/spaces/{spaceId}/guests": () => problemResponse(409, "MemberNameTaken"),
+      "POST /api/v1/spaces/{spaceId}/guests/batch": () =>
+        problemResponse(409, "MemberNameTaken", { guest: 0 }),
     });
     screenAs("u-ana", "OWNER", api);
-    await userEvent.click(screen.getByRole("button", { name: "Agregar invitado" }));
-    const sheet = screen.getByRole("dialog", { name: "Agregar invitado a Household" });
+    await userEvent.click(screen.getByRole("button", { name: "Agregar invitados" }));
+    const sheet = await screen.findByRole("dialog", { name: "Agregar invitados a Household" });
     await userEvent.type(within(sheet).getByLabelText("Nombre"), "Juan");
     await userEvent.type(within(sheet).getByLabelText("Correo (opcional)"), "juan@example.com");
     await userEvent.click(within(sheet).getByRole("button", { name: "Agregar invitado" }));
@@ -278,7 +278,7 @@ describe("guests (HU-E9-05, ruling P163)", () => {
         api={fakeApi({}).api}
       />,
     );
-    expect(screen.queryByRole("button", { name: "Agregar invitado" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Agregar invitados" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Opciones de Pedro (invitado)" }));
     const sheet = screen.getByRole("dialog", { name: "Pedro (invitado)" });
     expect(within(sheet).getByRole("button", { name: "Crear enlace para reclamar" })).toBeInTheDocument();

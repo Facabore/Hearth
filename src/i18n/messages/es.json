@@ -241,8 +241,8 @@
       "transactions": "Movimientos",
       "record": "Registrar movimiento",
       "recordShort": "Registrar",
-      "plan": "Plan",
-      "balances": "Saldos"
+      "balances": "Saldos",
+      "more": "Más"
     },
     "space": {
       "current": "Espacio actual: {name}. Cambiar de espacio",
@@ -264,10 +264,20 @@
       "open": "Perfil de {name}",
       "settings": "Ajustes",
       "settingsHint": "Formatos, hora, zona horaria, tema e idioma",
+      "signOut": "Cerrar sesión"
+    },
+    "settings": "Configuración de {name}",
+    "more": {
+      "title": "Más",
+      "settings": "Configuración",
       "accounts": "Cuentas",
-      "signOut": "Cerrar sesión",
-      "members": "Miembros e invitaciones",
-      "categories": "Categorías"
+      "categories": "Categorías",
+      "recurring": "Recurrentes",
+      "stats": "Estadísticas",
+      "calendar": "Calendario",
+      "exportImport": "Exportar e importar",
+      "soon": "Próximamente",
+      "note": "Tus datos, formatos e idioma están en tu foto, arriba a la derecha."
     }
   },
   "home": {
@@ -300,6 +310,12 @@
     "allFunds": "Ver todos los fondos",
     "allFundsShort": "Ver todos",
     "recent": "Recientes",
+    "recentIn": "En {month}",
+    "recentBetween": "Del {start} al {end}",
+    "period": {
+      "previous": "Período anterior",
+      "next": "Período siguiente"
+    },
     "recentEmpty": "Aún no hay movimientos. Registra el primero con +.",
     "feed": {
       "recordedBy": "{name} registró",
@@ -319,7 +335,14 @@
     "members": "Miembros",
     "invite": "Invitar",
     "funds": "Fondos",
-    "hideAmounts": "Ocultar montos",
+    "plan": {
+      "title": "Tu plan de {month}",
+      "titleRange": "Tu plan del {start} al {end}",
+      "left": "Te quedan {available} de {planned}",
+      "overspent": "Te pasaste {over} de {planned} planeados",
+      "over": "{line} se pasó: {amount} más de lo planeado",
+      "overMore": "{line} se pasó: {amount} más de lo planeado · y {count} más"
+    },
     "owe": {
       "in": "En {space}",
       "to": "a {name}",
@@ -362,7 +385,16 @@
       "all": "Todas",
       "none": "Sin subcategoría",
       "use": "Usar {path}",
-      "noMatch": "No hay ninguna categoría «{query}»."
+      "noMatch": "No hay ninguna categoría «{query}».",
+      "of": "Categorías de {space}",
+      "new": "Nueva categoría",
+      "create": "Crear «{name}» como categoría",
+      "createIn": "En {space}, sin salir del registro",
+      "shared": "En {space} · la verán todos en el espacio",
+      "own": "En {space} · solo tú la ves",
+      "name": "Nombre",
+      "group": "Grupo",
+      "save": "Crear y usar en el {kind, select, INCOME {ingreso} other {gasto}}"
     },
     "title": "Categorías"
   },
@@ -502,6 +534,7 @@
       "to": "Hacia",
       "chooseAccount": "Elegir cuenta",
       "when": "Fecha y hora: {label}. Cambiar",
+      "recordIn": "Registrar en",
       "space": "Espacio: {name}. Cambiar",
       "spaceTitle": "¿En qué espacio lo registras?",
       "moreOptions": "Más opciones",
@@ -577,7 +610,9 @@
         "EXACT": "por montos",
         "SHARES": "por partes",
         "BY_ALLOCATION": "según el plan"
-      }
+      },
+      "addGuests": "Agregar invitados",
+      "addGuestsHint": "Alguien sin cuenta que pagó o participa"
     },
     "direct": {
       "open": "Dividir con alguien",
@@ -620,7 +655,9 @@
     "settings": {
       "title": "Espacio",
       "name": "Nombre del espacio",
-      "nameHint": "Así aparece en el selector de espacios y en sus pantallas."
+      "nameHint": "Así aparece en el selector de espacios y en sus pantallas.",
+      "nameAndColor": "Nombre y color",
+      "nameOnly": "Nombre"
     },
     "new": {
       "title": "Crear un espacio compartido",
@@ -663,7 +700,22 @@
       "SEMI_MONTHLY": "quincenal, días {day1} y {day2}"
     },
     "you": "{name} (tú)",
-    "guestSuffix": "(invitado)"
+    "guestSuffix": "(invitado)",
+    "guestsSheet": {
+      "title": "Agregar invitados a {space}",
+      "intro": "Para alguien que no usa Hearth. Puede pagar, poner su parte, aportar al plan y recibir pagos, solo en {space}. No inicia sesión.",
+      "guest": "Invitado {number}",
+      "remove": "Quitar",
+      "name": "Nombre",
+      "nameHint": "Se verá con «(invitado)» al lado. No puede repetir el nombre de otro miembro.",
+      "nameHintNamed": "Se verá como «{name}». No puede repetir el nombre de otro miembro.",
+      "email": "Correo (opcional)",
+      "emailPlaceholder": "Para recordarlo; no recibe nada",
+      "another": "Agregar otro invitado",
+      "submit": "{count, plural, one {Agregar invitado} other {Agregar # invitados}}",
+      "nobodyYet": "No agregamos a nadie todavía: corrige el nombre marcado y vuelve a intentarlo.",
+      "claimNote": "Si alguno se registra después, le envías un enlace para reclamar su lugar y se lleva todo su historial."
+    }
   },
   "notFound": {
     "title": "Esta página no existe",

@@ -5,7 +5,7 @@ import type { CategoryGroupDto, MeDto } from "@/shared/ui/api/dto";
 import { useApis } from "../api";
 import { accountsQuery, categoriesQuery, membersQuery } from "../reads";
 import { sharedSpace, type Viewer } from "../load";
-import { homeRowsOf, pageQuery, transactionQuery } from "./queries";
+import { homeQueryOf, pageQuery, transactionQuery } from "./queries";
 
 export { useViewer } from "../viewer";
 
@@ -29,6 +29,11 @@ export const rowContextOf = (
   accountNames: Object.fromEntries(accounts.map((a) => [a.id, a.name])),
   memberNames,
 });
+
+/** A space's members by id, as its rows name them. */
+export const memberNamesOf = (
+  members: readonly { readonly id: string; readonly displayName: string }[],
+): Record<string, string> => Object.fromEntries(members.map((m) => [m.id, m.displayName]));
 
 /** Ruling P189: the detail sheet's data behind `?tx=`, or nothing while no row is open. */
 export const useTransactionDetail = (
@@ -60,20 +65,27 @@ export const useTransactionDetail = (
   };
 };
 
-export const useHome = (viewer: Viewer) => {
+/** Inicio's reads; `period` is the personal Inicio's `?period=` (ruling P310). */
+export const useHome = (viewer: Viewer, period?: string) => {
   const { api } = useApis();
   const spaceId = viewer.space.id;
   const [page, accounts, groups] = useSuspenseQueries({
     queries: [
-      pageQuery(api, spaceId, { limit: homeRowsOf(viewer) }),
+      pageQuery(api, spaceId, homeQueryOf(viewer, period)),
       accountsQuery(api, spaceId, "active"),
       categoriesQuery(api, spaceId, "all"),
     ],
   });
+  // P307: a shared or direct space's rows name its members ("Juan → Ana", "pagó Juan"), as Movimientos' do. The
+  // members are an empty list of queries elsewhere, so the hooks run the same way on every render.
+  const memberQueries: ReturnType<typeof membersQuery>[] = sharedSpace(viewer.space)
+    ? [membersQuery(api, spaceId)]
+    : [];
+  const members = useSuspenseQueries({ queries: memberQueries });
   return {
     page: page.data,
     accounts: accounts.data,
-    context: rowContextOf(viewer.me, groups.data, accounts.data),
+    context: rowContextOf(viewer.me, groups.data, accounts.data, memberNamesOf(members[0]?.data ?? [])),
   };
 };
 

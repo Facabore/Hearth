@@ -8,6 +8,7 @@ export { hrefOf as transactionListHref, type ListFilter, type TransactionKind } 
 export { HomeSummary } from "./home/home-summary";
 export { mergedFeed, unifiedMonthOf, type FeedEntry, type UnifiedMonth } from "./home/feed";
 export { UnifiedSummary } from "./home/unified-summary";
+export { PeriodStepper } from "./home/period-stepper";
 export { UnifiedRecent } from "./home/unified-home";
 export { firstStepsOf } from "./home/first-steps";
 export { TransactionList } from "./transaction-list";

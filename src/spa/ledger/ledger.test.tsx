@@ -1,11 +1,12 @@
 import { createBrowserHistory } from "@tanstack/react-router";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { es } from "@/i18n/messages/full";
 import {
   accountDto,
   activityItemDto,
+  categoryDto,
   householdSpace,
   meDto,
   memberDto,
@@ -109,7 +110,10 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     expect(row).toHaveAttribute("href", "/spaces/sp-hogar?tx=t-hogar");
     expect(within(row).getByText("Hogar")).toBeInTheDocument();
     expect(calls(spa.requests, "GET", /\/me\/unified-view\?period=2026-10$/)).toHaveLength(1);
-    expect(calls(spa.requests, "GET", /\/me\/activity\?from=2026-10-01&limit=6$/)).toHaveLength(1);
+    // Ruling P310: the feed stops at the period's end, so a past period lists only its own.
+    expect(calls(spa.requests, "GET", /\/me\/activity\?from=2026-10-01&to=2026-10-31&limit=6$/)).toHaveLength(
+      1,
+    );
   });
 
   it("keeps the personal home without the line when the unified month cannot be read", async () => {
@@ -325,6 +329,45 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     expect(document.querySelector('button[aria-pressed="true"]')).toBeNull();
   });
 
+  it("creates a category in the form's space from its picker, chooses it, and reads the space's tree again (P308)", async () => {
+    let tree = rowContext.groups;
+    // A MEMBER, who does not manage the tree, creates one (P308).
+    const { routes } = ledgerApi({
+      "GET /api/v1/spaces": () => jsonResponse({ items: [spaceDto(), householdSpace({ role: "MEMBER" })] }),
+      "GET /api/v1/spaces/{spaceId}/categories": () => jsonResponse({ items: tree }),
+      "POST /api/v1/spaces/{spaceId}/categories": async (request) => {
+        const body = await request.clone().json();
+        const made = categoryDto({ id: "c-hotel", ...body });
+        tree = tree.map((g) => (g.id === body.groupId ? { ...g, categories: [...g.categories, made] } : g));
+        return jsonResponse(made, 201);
+      },
+    });
+    const spa = renderSpa("/spaces/sp-household/new", routes);
+    await userEvent.type(await screen.findByLabelText(es.ledger.form.amount), "45000");
+    // Ruling P308: the space is named first, above the kind tabs.
+    expect(screen.getByText(es.ledger.form.recordIn)).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: es.ledger.form.chooseCategory }));
+    const picker = await screen.findByRole("dialog", { name: es.categories.picker.title });
+    expect(within(picker).getByText("Categorías de Household")).toBeVisible();
+    await userEvent.click(within(picker).getByRole("button", { name: es.categories.picker.new }));
+    const sheet = await screen.findByRole("dialog", { name: es.categories.picker.new });
+    await userEvent.type(
+      await within(sheet).findByLabelText(es.categories.picker.name),
+      "Bebidas en el hotel",
+    );
+    const reads = calls(spa.requests, "GET", /\/sp-household\/categories/).length;
+    await userEvent.click(within(sheet).getByRole("button", { name: "Crear y usar en el gasto" }));
+    expect(await screen.findByRole("button", { name: "Bebidas en el hotel" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(calls(spa.requests, "POST", /\/sp-household\/categories$/)).toHaveLength(1);
+    await waitFor(() =>
+      expect(calls(spa.requests, "GET", /\/sp-household\/categories/).length).toBeGreaterThan(reads),
+    );
+    expect(screen.getByLabelText(es.ledger.form.amount)).toHaveValue("45.000");
+  });
+
   it("opens the edit form on the transaction, and a transaction that does not exist is not found", async () => {
     const { routes } = ledgerApi();
     renderSpa(
@@ -369,6 +412,19 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     expect(screen.queryByRole("navigation", { name: es.shell.nav.main })).not.toBeInTheDocument();
   });
 
+  it("offers a member of a shared space to add guests from Registrar's split sheet (ruling P309)", async () => {
+    const { routes } = ledgerApi({
+      "GET /api/v1/spaces": () => jsonResponse({ items: [spaceDto(), householdSpace({ role: "MEMBER" })] }),
+    });
+    renderSpa("/spaces/sp-household/new", routes);
+    await userEvent.click(await screen.findByRole("button", { name: /^Pagó/ }, { timeout: 5_000 }));
+    const sheet = await screen.findByRole("dialog", { name: es.ledger.split.title }, { timeout: 10_000 });
+    await userEvent.click(within(sheet).getByRole("button", { name: new RegExp(es.ledger.split.addGuests) }));
+    expect(
+      await screen.findByRole("dialog", { name: "Agregar invitados a Household" }, { timeout: 10_000 }),
+    ).toBeVisible();
+  });
+
   it("draws the form as a sheet over the stacked shell for a member who records (ruling P291)", async () => {
     const { routes } = ledgerApi({
       "GET /api/v1/spaces": () => jsonResponse({ items: [spaceDto(), householdSpace({ role: "MEMBER" })] }),
@@ -390,6 +446,203 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     renderSpa("/spaces/sp-personal/transactions", routes);
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(nav()).toBeInTheDocument();
+  });
+});
+
+describe("the personal Inicio is the person's hub (ruling P310, #274)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T15:00:00Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** A monthly space's period holding `from`. */
+  const monthOf = (from: string) => {
+    const [year, month] = from.split("-").map(Number) as [number, number];
+    const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const mm = String(month).padStart(2, "0");
+    return { label: `${year}-${mm}`, startDate: `${year}-${mm}-01`, endDate: `${year}-${mm}-${last}` };
+  };
+  const hubApi = (overrides: Record<string, FakeHandler> = {}) =>
+    ledgerApi({
+      "GET /api/v1/spaces/{spaceId}/periods": (request) =>
+        jsonResponse({ items: [monthOf(new URL(request.url).searchParams.get("from")!)] }),
+      "GET /api/v1/spaces/{spaceId}/transactions": (request) => {
+        const asked = new URL(request.url).searchParams.get("period");
+        // The API refuses a period that is no label (ValidationFailed); any other month answers empty.
+        if (asked !== null && !/^\d{4}-\d{2}$/.test(asked)) return problemResponse(422, "ValidationFailed");
+        return jsonResponse(
+          asked === null || asked === "2026-10"
+            ? octoberPage
+            : { ...octoberPage, period: monthOf(`${asked}-01`), items: [] },
+        );
+      },
+      "GET /api/v1/me/unified-view": (request) =>
+        jsonResponse(
+          e74Unified({
+            period: monthOf(`${new URL(request.url).searchParams.get("period")!}-01`),
+            bySpace: [
+              {
+                space: { id: "sp-personal", name: "Personal", kind: "PERSONAL", color: "GRAPHITE" },
+                consumed: { amount: "150000", currency: "COP" },
+                paid: { amount: "150000", currency: "COP" },
+                categories: [
+                  {
+                    id: "c-groceries",
+                    name: "Groceries",
+                    color: null,
+                    amount: { amount: "150000", currency: "COP" },
+                  },
+                ],
+              },
+              {
+                space: { id: "sp-household", name: "Household", kind: "SHARED", color: "TEAL" },
+                consumed: { amount: "90000", currency: "COP" },
+                paid: { amount: "0", currency: "COP" },
+              },
+            ],
+          }),
+        ),
+      "GET /api/v1/me/activity": () => jsonResponse({ items: [] }),
+      ...overrides,
+    }).routes;
+
+  it("steps back from the current period, and cannot step past it", async () => {
+    renderSpa("/spaces/sp-personal", hubApi());
+    expect(await screen.findByRole("link", { name: es.home.period.previous })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal?period=2026-09",
+    );
+    expect(screen.getByRole("button", { name: es.home.period.next })).toBeDisabled();
+    expect(screen.getByText("octubre 2026")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: es.home.accounts })).toBeVisible();
+  });
+
+  it("shows a past period's month and movements, without today's balances, and steps forward to the current one", async () => {
+    const spa = renderSpa("/spaces/sp-personal?period=2026-09", hubApi());
+    expect(await screen.findByRole("heading", { name: "En septiembre" })).toBeVisible();
+    expect(screen.getByText("septiembre 2026")).toBeInTheDocument();
+    // The current period is the plain address, as the API answers it.
+    expect(screen.getByRole("link", { name: es.home.period.next })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal",
+    );
+    expect(screen.getByRole("link", { name: es.home.period.previous })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal?period=2026-08",
+    );
+    expect(screen.getByRole("link", { name: es.home.allTransactions })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/transactions?period=2026-09",
+    );
+    expect(screen.queryByRole("heading", { name: es.home.accounts })).not.toBeInTheDocument();
+    await settled(spa);
+    expect(calls(spa.requests, "GET", /\/transactions\?period=2026-09&limit=6$/)).toHaveLength(1);
+    expect(calls(spa.requests, "GET", /\/me\/unified-view\?period=2026-09$/)).toHaveLength(1);
+    expect(calls(spa.requests, "GET", /\/me\/activity\?from=2026-09-01&to=2026-09-30&limit=6$/)).toHaveLength(
+      1,
+    );
+  });
+
+  it("shows the current period for a `?period=` that is no period, rather than an error", async () => {
+    const spa = renderSpa("/spaces/sp-personal?period=octubre", hubApi());
+    expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
+    expect(screen.getByText("octubre 2026")).toBeInTheDocument();
+    await settled(spa);
+    expect(calls(spa.requests, "GET", /\/transactions\?/).map((r) => new URL(r.url).search)).toEqual([
+      "?limit=6",
+    ]);
+  });
+
+  it("keeps today's balances on a period after today's, which is not past", async () => {
+    renderSpa("/spaces/sp-personal?period=2026-12", hubApi());
+    expect(await screen.findByText("diciembre 2026")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: es.home.recent })).toBeVisible();
+    expect(screen.getByRole("heading", { name: es.home.accounts })).toBeVisible();
+  });
+
+  it("opens each part's movements: a category in the personal space, a space in its own period", async () => {
+    const user = userEvent.setup({ advanceTimers: () => undefined });
+    renderSpa("/spaces/sp-personal", hubApi());
+    const summary = await screen.findByRole("region", { name: es.home.summary });
+    await user.click(await within(summary).findByRole("button", { name: new RegExp(es.home.solo) }));
+    expect(within(summary).getByRole("link", { name: /Groceries/ })).toHaveAttribute(
+      "href",
+      // Its amount counts its subcategory, Vegetables, so the list asks for both.
+      "/spaces/sp-personal/transactions?period=2026-10&category=c-groceries%2Cc-veg",
+    );
+    await user.click(within(summary).getByRole("button", { name: new RegExp(es.home.withOthers) }));
+    expect(await within(summary).findByRole("link", { name: /Household/ })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household/transactions?period=2026-10",
+    );
+  });
+
+  it("names a category opened with its subcategories by the category, and asks the API for all of them", async () => {
+    vi.useRealTimers();
+    const spa = renderSpa(
+      "/spaces/sp-personal/transactions?category=c-groceries%2Cc-veg",
+      ledgerApi().routes,
+    );
+    expect(await screen.findByRole("heading", { level: 1, name: es.ledger.list.title })).toBeVisible();
+    expect(
+      calls(spa.requests, "GET", /\/transactions\?categoryIds=c-groceries(,|%2C)c-veg&limit=50$/),
+    ).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /Groceries/ })).toBeVisible();
+  });
+
+  /** The line dashboard of the period asked for, with the E7 plan's lines unless `withPlan` is false. */
+  const linesOf =
+    (withPlan = true): FakeHandler =>
+    (request) =>
+      jsonResponse(
+        e7Dashboard({
+          spaceId: "sp-personal",
+          period: monthOf(`${new URL(request.url).searchParams.get("period")!}-01`),
+          ...(withPlan ? {} : { plan: null, lines: [] }),
+        }),
+      );
+  const planCard = () => screen.queryByRole("link", { name: /^Tu plan de/ });
+
+  it("shows the period's plan under its figure in the first paint, opening the personal Plan screen (P311)", async () => {
+    const spa = renderSpa(
+      "/spaces/sp-personal",
+      hubApi({ "GET /api/v1/spaces/{spaceId}/reports/lines": linesOf() }),
+    );
+    const summary = await screen.findByRole("region", { name: es.home.summary });
+    // Read before the screen draws: it is there with the figure, so it never moves what is under it.
+    const card = planCard()!;
+    expect(card).toHaveAttribute("href", "/spaces/sp-personal/plan");
+    expect(card).toHaveTextContent(/^Tu plan de octubre/);
+    expect(summary.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await settled(spa);
+    expect(calls(spa.requests, "GET", /\/spaces\/sp-personal\/reports\/lines\?period=2026-10$/)).toHaveLength(
+      1,
+    );
+  });
+
+  it("opens a past period's plan at that period (P311)", async () => {
+    renderSpa(
+      "/spaces/sp-personal?period=2026-09",
+      hubApi({ "GET /api/v1/spaces/{spaceId}/reports/lines": linesOf() }),
+    );
+    expect(await screen.findByRole("heading", { name: "En septiembre" })).toBeVisible();
+    expect(planCard()).toHaveAttribute("href", "/spaces/sp-personal/plan?period=2026-09");
+    expect(planCard()).toHaveTextContent(/^Tu plan de septiembre/);
+  });
+
+  it("shows no plan card for a period without a plan, nor on a shared space's home (P311)", async () => {
+    const routes = hubApi({ "GET /api/v1/spaces/{spaceId}/reports/lines": linesOf(false) });
+    const spa = renderSpa("/spaces/sp-personal", routes);
+    expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
+    await settled(spa);
+    expect(planCard()).toBeNull();
+    spa.unmount();
+    renderSpa("/spaces/sp-household", hubApi({ "GET /api/v1/spaces/{spaceId}/reports/lines": linesOf() }));
+    expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
+    expect(screen.queryByRole("link", { name: /plan de/ })).toBeNull();
   });
 });
 

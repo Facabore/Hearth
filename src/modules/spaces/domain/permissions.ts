@@ -7,8 +7,10 @@ import type { SpaceRole } from "./space";
 const MATRIX = {
   /** View the space, its members and transactions, and (HU-E5-01) its balances. */
   "space.read": ["OWNER", "ADMIN", "MEMBER", "VIEWER"],
-  /** Rename, currency and period policy (HU-E1-03); the category tree (HU-E3-02). */
+  /** Rename, currency and period policy (HU-E1-03); the category tree's groups, edits, archive and order (HU-E3-02). */
   "space.manage": ["OWNER", "ADMIN"],
+  /** P308: whoever records adds a category or subcategory to the space's tree, so a new one never waits on a manager. */
+  "category.create": ["OWNER", "ADMIN", "MEMBER"],
   /** HU-E1-09. */
   "space.archive": ["OWNER"],
   /** HU-E1-08: any current member leaves; the last OWNER and unsettled members cannot. */

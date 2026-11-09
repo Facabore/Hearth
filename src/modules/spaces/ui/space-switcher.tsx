@@ -23,6 +23,10 @@ const ACTIONS = [
   { flow: "join", icon: "link", title: "spaces.join.title" },
 ] as const;
 
+/** The sheet's rows under the spaces, each with its round grey icon, 56 px tall. */
+const ROW = "flex min-h-14 w-full items-center gap-3 rounded-xl px-1 text-left font-medium text-ink";
+const ROUND = "flex size-10 shrink-0 items-center justify-center rounded-full bg-track";
+
 /** A space's initial in its round tint: the personal space green, a shared one terracotta (boards B1 · 03 and 04). */
 function SpaceInitial({ space, size }: { readonly space: SpaceSummary; readonly size: number }) {
   return (
@@ -37,15 +41,15 @@ function SpaceInitial({ space, size }: { readonly space: SpaceSummary; readonly 
 }
 
 /**
- * HU-E9-01, the SpaceSheet artboard: every current space as a link, then, under a divider, the boards' two ways to
- * another space (HU-E9-05): "Crear un espacio compartido" and "Unirme con un enlace de invitación", 56 px targets.
+ * HU-E9-01, the SpaceSheet artboard: every current space as a link (the active space's settings moved to the header's
+ * ⚙, ruling P311, amending P309), then, under a divider, the boards' two ways to another space (HU-E9-05): "Crear un espacio compartido" and
+ * "Unirme con un enlace de invitación", 56 px targets.
  * Each opens in the same sheet, over the switcher, with a way back to the spaces (ruling P272).
  */
 export function SpaceSwitcher({
   spaces,
   activeSpace,
   flows: Flows,
-  personId,
   formats,
   balances,
   standing: Standing,
@@ -54,7 +58,6 @@ export function SpaceSwitcher({
   readonly spaces: readonly SpaceSummary[];
   readonly activeSpace: SpaceSummary;
   readonly flows?: SpaceFlows | undefined;
-  readonly personId: string;
   readonly formats?: Pick<Formats, "numberFormat"> | undefined;
   /** Ruling P278: the person's standing in each shared space, once read (the app reads it when the sheet opens). */
   readonly balances?: readonly MyBalanceDto[] | undefined;
@@ -126,12 +129,7 @@ export function SpaceSwitcher({
                       <SpaceInitial space={space} size={44} />
                       {Standing && balance ? (
                         <Suspense fallback={plain}>
-                          <Standing
-                            name={space.name}
-                            balance={balance}
-                            personId={personId}
-                            formats={formats}
-                          />
+                          <Standing name={space.name} balance={balance} formats={formats} />
                         </Suspense>
                       ) : (
                         plain
@@ -150,12 +148,9 @@ export function SpaceSwitcher({
                     key={action.flow}
                     type="button"
                     onClick={() => setFlow(action.flow)}
-                    className="flex min-h-14 w-full items-center gap-3 rounded-xl px-1 text-left font-medium text-ink"
+                    className={ROW}
                   >
-                    <span
-                      aria-hidden="true"
-                      className="flex size-10 shrink-0 items-center justify-center rounded-full bg-track"
-                    >
+                    <span aria-hidden="true" className={ROUND}>
                       <Icon name={action.icon} size={20} />
                     </span>
                     {t(`shell.space.${action.flow}`)}

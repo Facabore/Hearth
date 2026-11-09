@@ -8,6 +8,7 @@ const SPACE = "/api/v1/spaces/{spaceId}";
 /** HU-E9-05's writes on a space's people: guests, claim links, invitations and roles. */
 const MEMBERS = new Set([
   `POST ${SPACE}/guests`,
+  `POST ${SPACE}/guests/batch`,
   `DELETE ${SPACE}/guests/{memberId}`,
   `POST ${SPACE}/guests/{memberId}/claim-links`,
   `POST ${SPACE}/invitations`,
@@ -16,6 +17,8 @@ const MEMBERS = new Set([
   `PATCH ${SPACE}/members/{memberId}`,
 ]);
 const ACCEPTS = new Set(["/api/v1/invitations/{token}/accept", "/api/v1/claims/{token}/accept"]);
+/** Ruling P309: leaving or archiving a space takes it out of the person's spaces. */
+const GONE = new Set([`${SPACE}/leave`, `${SPACE}/archive`]);
 
 /**
  * A space someone just joined or created: it joins the person's cached spaces before the screen lands in it. When none
@@ -34,6 +37,8 @@ const joined = (queryClient: QueryClient, space: SpaceDto) => {
  * - A new space, or one joined from an invitation or a claim (P157), joins the list before the screen lands in it,
  *   so the shell finds it at once; the list is read again.
  * - A renamed space shows its new name everywhere the list does.
+ * - A space left or archived (P309) leaves the list at once, so the switcher never offers it again; the list is read
+ *   again.
  * - Signing out leaves the cache to the sign-in screen's guard, which drops the person's answers.
  * - A preference changes every format on every screen, and the profile's answer is the whole profile: it replaces the
  *   cached one, so every screen formats again without reading anything.
@@ -48,6 +53,17 @@ export const spaceWrites: WritePlanner = (call) => {
       accepted: (queryClient) => {
         void queryClient.invalidateQueries({ queryKey: moduleKeys.members(spaceId) });
         void queryClient.invalidateQueries({ queryKey: moduleKeys.balances(spaceId) });
+      },
+    };
+  }
+  if (call.method === "POST" && GONE.has(call.path)) {
+    const { spaceId = "" } = call.params;
+    return {
+      accepted: (queryClient) => {
+        queryClient.setQueryData<SpaceDto[]>(queryKeys.spaces, (spaces) =>
+          spaces?.filter((space) => space.id !== spaceId),
+        );
+        void queryClient.invalidateQueries({ queryKey: queryKeys.spaces });
       },
     };
   }

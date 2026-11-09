@@ -75,7 +75,9 @@ export const EMPTY_STATES = [
   "reports.calendar.empty",
   "reports.unified.empty",
   "budgeting.planner.empty",
-  "reports.noPlan.title",
+  // Ruling P311: the empty plan names whose plan is missing, the person's or the space's.
+  "reports.noPlan.titlePersonal",
+  "reports.noPlan.titleShared",
 ];
 
 const messageAt = (catalog, path) => path.split(".").reduce((node, key) => node?.[key], catalog);

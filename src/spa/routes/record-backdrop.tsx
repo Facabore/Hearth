@@ -4,7 +4,7 @@ import { addDays, type LocalDate } from "@/shared/kernel/local-date";
 import { safeReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
-import { movedOf, rowContextOf } from "../ledger/hooks";
+import { memberNamesOf, movedOf, rowContextOf } from "../ledger/hooks";
 import { recentPeriodsQuery } from "../ledger/list-hooks";
 import { listFilterOf } from "../ledger/list-search";
 import { homeRowsOf, listQueryOf, pageQuery } from "../ledger/queries";
@@ -58,10 +58,16 @@ function HomeBehind({ viewer }: { readonly viewer: Viewer }) {
       policy={space.periodPolicy}
       page={page}
       accounts={accounts}
-      context={rowContextOf(me, groups, accounts)}
+      // P307: a shared space's rows name its members when the cache holds them; the backdrop never waits for them.
+      context={rowContextOf(
+        me,
+        groups,
+        accounts,
+        sharedSpace(space)
+          ? memberNamesOf(cache.getQueryData(membersQuery(api, space.id).queryKey) ?? [])
+          : {},
+      )}
       today={nowIn(new Date(), me.timezone).date}
-      // The person's eye: amounts she hid on Inicio stay hidden behind the sheet.
-      personId={me.id}
     />
   );
 }

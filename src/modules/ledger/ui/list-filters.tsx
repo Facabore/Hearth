@@ -116,7 +116,8 @@ export function ListFilters({
         {name}
       </Button>
     );
-  const category = filter.categoryId ? categoryPath(groups, filter.categoryId) : null;
+  // Ruling P310: Inicio opens a category with its subcategories ("id,sub,…"); the chip names the first, the category.
+  const category = filter.categoryId ? categoryPath(groups, filter.categoryId.split(",")[0]!) : null;
   return (
     <div className="flex flex-col gap-3">
       <SearchField

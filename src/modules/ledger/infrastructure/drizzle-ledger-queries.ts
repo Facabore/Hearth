@@ -72,7 +72,12 @@ export class DrizzleLedgerQueries implements TransactionQuery {
   }
 
   /** Ruling P306: the live transactions of several spaces from `from`, in `list`'s order; `[]` without valid ids. */
-  async recentIn(spaceIds: readonly string[], from: LocalDate, limit: number): Promise<Transaction[]> {
+  async recentIn(
+    spaceIds: readonly string[],
+    from: LocalDate,
+    limit: number,
+    to?: LocalDate,
+  ): Promise<Transaction[]> {
     const ids = spaceIds.filter(isUuid);
     if (ids.length === 0) return [];
     const db = this.tm.executor();
@@ -80,7 +85,12 @@ export class DrizzleLedgerQueries implements TransactionQuery {
       .select()
       .from(transactions)
       .where(
-        and(inArray(transactions.spaceId, ids), isNull(transactions.deletedAt), gte(transactions.date, from)),
+        and(
+          inArray(transactions.spaceId, ids),
+          isNull(transactions.deletedAt),
+          gte(transactions.date, from),
+          to === undefined ? undefined : lte(transactions.date, to),
+        ),
       )
       .orderBy(desc(transactions.date), desc(listTime), desc(transactions.createdAt), desc(transactions.id))
       .limit(limit);

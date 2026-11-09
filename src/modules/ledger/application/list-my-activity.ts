@@ -17,9 +17,17 @@ export interface MemberNames {
   >;
 }
 
-/** Ruling P306: the live transactions of `spaceIds` dated `from` or later, newest first as Movimientos orders them. */
+/**
+ * Ruling P306: the live transactions of `spaceIds` dated `from` or later (and `to` or earlier, ruling P310, when given),
+ * newest first as Movimientos orders them.
+ */
 export interface RecentTransactions {
-  recentIn(spaceIds: readonly string[], from: LocalDate, limit: number): Promise<Transaction[]>;
+  recentIn(
+    spaceIds: readonly string[],
+    from: LocalDate,
+    limit: number,
+    to?: LocalDate,
+  ): Promise<Transaction[]>;
 }
 
 /** The categories of a space, archived ones included (D8: deleted ones answer as missing). */
@@ -61,6 +69,8 @@ export interface ActivityItem {
 export type ListMyActivity = (input: {
   readonly userId: string;
   readonly from: LocalDate;
+  /** Ruling P310: the last date listed, a past period's end. */
+  readonly to?: LocalDate;
   readonly limit: number;
 }) => Promise<Result<readonly ActivityItem[]>>;
 
@@ -93,13 +103,15 @@ const namedMembers = (tx: Transaction): string[] => {
  */
 export const createListMyActivity =
   (deps: MyActivityDeps): ListMyActivity =>
-  async ({ userId, from, limit }) => {
+  async ({ userId, from, to, limit }) => {
     if (!Number.isInteger(limit) || limit < 1 || limit > MAX_ACTIVITY)
       return err(domainError("InvalidActivityLimit", { max: MAX_ACTIVITY }));
+    // Ruling P310: a range that ends before it starts holds nothing.
+    if (to !== undefined && to < from) return ok([]);
     const spaces = (await deps.spaces.listForUser(userId)).filter((s) => s.kind !== "PERSONAL");
     if (spaces.length === 0) return ok([]);
     const spaceIds = spaces.map((s) => s.id);
-    const transactions = await deps.recent.recentIn(spaceIds, from, limit);
+    const transactions = await deps.recent.recentIn(spaceIds, from, limit, to);
     if (transactions.length === 0) return ok([]);
     const touched = [...new Set(transactions.map((tx) => tx.spaceId))];
     const [places, rows, categories] = await Promise.all([

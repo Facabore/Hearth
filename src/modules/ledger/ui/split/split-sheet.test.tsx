@@ -415,3 +415,41 @@ describe("split sheet (HU-E9-06)", () => {
     expect(open).toBe(false);
   });
 });
+
+describe("adding guests from Para quién (P309, S6)", () => {
+  const sheetWith = (onAddGuests?: () => void) =>
+    renderWithIntl(
+      <SplitSheet
+        open
+        onOpenChange={() => undefined}
+        title="t"
+        members={MEMBERS}
+        meUserId="u-ana"
+        myAccounts={[BANK]}
+        funds={[]}
+        draft={start}
+        onChange={() => undefined}
+        amount="30000000"
+        currency="COP"
+        formats={BUILT_IN_FORMATS}
+        defaultSplit={EQUAL_DEFAULT}
+        {...(onAddGuests ? { onAddGuests } : {})}
+      />,
+    );
+
+  it("ends the list with Agregar invitados, and its hint, only when the sheet is given a way to add them", async () => {
+    let asked = 0;
+    const { unmount } = sheetWith(() => (asked += 1));
+    const add = within(sheet()).getByRole("button", { name: "Agregar invitados" });
+    expect(add).toHaveAccessibleDescription("Alguien sin cuenta que pagó o participa");
+    expect(add).toHaveClass("min-h-11");
+    const list = within(sheet()).getByRole("list", { name: "Para quién" });
+    expect(list.lastElementChild).toContainElement(add);
+    await userEvent.click(add);
+    expect(asked).toBe(1);
+    expect(await axeViolations(document.body)).toEqual([]);
+    unmount();
+    sheetWith();
+    expect(within(sheet()).queryByRole("button", { name: "Agregar invitados" })).not.toBeInTheDocument();
+  });
+});

@@ -132,3 +132,17 @@ export const withCategory = (
         },
   );
 };
+
+/** The API takes at most 50 category ids. */
+const MAX_CATEGORY_IDS = 50;
+
+/**
+ * Ruling P310: a category and its subcategories, comma-separated, so a top-level category lists everything Inicio's
+ * "Solo tú" counts under it; a subcategory, or a category the tree does not hold, is itself alone.
+ */
+export const categoryIdsOf = (categoryId: string, groups: readonly CategoryGroupDto[]): string => {
+  const category = groups.flatMap((group) => group.categories).find((c) => c.id === categoryId);
+  return [categoryId, ...(category?.subcategories.map((s) => s.id) ?? [])]
+    .slice(0, MAX_CATEGORY_IDS)
+    .join(",");
+};

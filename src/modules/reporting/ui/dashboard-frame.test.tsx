@@ -24,7 +24,7 @@ describe("dashboard frame (HU-E9-10)", () => {
         <p>Contenido</p>
       </DashboardFrame>,
     );
-    expect(screen.getByRole("heading", { level: 1, name: "noviembre 2026" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "noviembre 2026" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Período anterior" })).toHaveAttribute(
       "href",
       "/spaces/sp-household/plan?period=2026-10",
@@ -37,6 +37,28 @@ describe("dashboard frame (HU-E9-10)", () => {
     const tabs = screen.getByRole("navigation", { name: "Vistas del plan" });
     expect(within(tabs).getByRole("link", { name: "Rubros" })).toHaveAttribute("aria-current", "page");
     expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("is a stacked screen titled Plan whose way back is the space's Configuración (ruling P311)", () => {
+    renderWithIntl(
+      <DashboardFrame
+        space={householdDto()}
+        view="groups"
+        period={{ ...NOVEMBER }}
+        previous={null}
+        next={null}
+        formats={BUILT_IN_FORMATS}
+        plan={null}
+      >
+        <p>Contenido</p>
+      </DashboardFrame>,
+    );
+    expect(screen.getByRole("heading", { level: 1, name: "Plan" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household/settings",
+    );
+    expect(screen.getByRole("heading", { level: 2, name: "noviembre 2026" })).toBeInTheDocument();
   });
 
   it.each([
@@ -161,7 +183,7 @@ describe("dashboard frame (HU-E9-10)", () => {
 
     it("puts Rubros' status beside the period and Editar plan above it, with no line naming the space", () => {
       const { container } = frame("lines");
-      const heading = screen.getByRole("heading", { level: 1, name: "noviembre 2026" });
+      const heading = screen.getByRole("heading", { level: 2, name: "noviembre 2026" });
       expect(heading.parentElement).toContainElement(screen.getByText("Activo"));
       const edit = screen.getByRole("link", { name: "Editar plan" });
       expect(edit.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -210,13 +232,13 @@ describe("dashboard frame (HU-E9-10)", () => {
 
     it("reads a shared space's line trend up to its period", () => {
       frame("trend");
-      expect(screen.getByRole("heading", { level: 1, name: "Hasta noviembre 2026" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { level: 2, name: "Hasta noviembre 2026" })).toBeInTheDocument();
     });
 
     it("writes no context under the period in the personal space", () => {
       const { container } = frame("groups", spaceDto());
       expect(subtitle(container)).toBeNull();
-      expect(screen.getByRole("heading", { level: 1, name: "noviembre 2026" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { level: 2, name: "noviembre 2026" })).toBeInTheDocument();
     });
 
     it("fills the chosen tab with ink and outlines the others", () => {
@@ -242,7 +264,7 @@ describe("dashboard frame (HU-E9-10)", () => {
         </DashboardFrame>,
         { locale: "en" },
       );
-      expect(screen.getByRole("heading", { level: 1, name: "Up to November 2026" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { level: 2, name: "Up to November 2026" })).toBeInTheDocument();
       expect(screen.getByText("Household · against the previous period")).toBeInTheDocument();
     });
   });
@@ -261,6 +283,6 @@ describe("dashboard frame (HU-E9-10)", () => {
         <p>Contenido</p>
       </DashboardFrame>,
     );
-    expect(normalized(screen.getByRole("heading", { level: 1 }).textContent)).toBe("15/11/2026 – 14/12/2026");
+    expect(normalized(screen.getByRole("heading", { level: 2 }).textContent)).toBe("15/11/2026 – 14/12/2026");
   });
 });

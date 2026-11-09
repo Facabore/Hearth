@@ -311,3 +311,29 @@ Then(/^the headline's "Con otros" opens to "([^"]+)"$/, async ({ page, world }, 
   await summary.getByRole("button", { name: new RegExp(world.t("home.withOthers")) }).click();
   await expect(summary.locator("[data-space-chip]")).toHaveText(space);
 });
+
+When(/^she opens "([^"]+)" from the headline's "Con otros"$/, async ({ page, world }, space: string) => {
+  // Ruling P310: each "Con otros" row opens its space's movements of the period.
+  const summary = page.getByRole("region", { name: world.t("home.summary") });
+  await summary.getByRole("button", { name: new RegExp(world.t("home.withOthers")) }).click();
+  await summary.getByRole("link", { name: new RegExp(space) }).click();
+});
+
+Then(
+  /^she is on "([^"]+)"'s Movimientos listing "([^"]+)"$/,
+  async ({ page, world }, space: string, description: string) => {
+    await expect(page).toHaveURL(new RegExp(`/spaces/${world.spaces.get(space)!}/transactions\\?period=`));
+    await expect(page.getByRole("heading", { level: 1, name: world.t("ledger.list.title") })).toBeVisible();
+    await expect(page.getByRole("link", { name: new RegExp(description) }).first()).toBeVisible();
+  },
+);
+
+Then(/^the bar's Inicio leads back to her personal home$/, async ({ page, world }) => {
+  // Ruling P310: the Inicio tab is always the personal one, from any space.
+  await page
+    .getByRole("navigation", { name: world.t("shell.nav.main") })
+    .getByRole("link", { name: world.t("shell.nav.home"), exact: true })
+    .click();
+  await expect(page).toHaveURL(new RegExp(`/spaces/${world.user!.spaceId}$`));
+  await expect(page.getByRole("heading", { name: world.t("home.recent") })).toBeVisible();
+});

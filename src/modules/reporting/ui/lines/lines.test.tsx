@@ -1,7 +1,7 @@
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
-import { categoryDto, cop, groupDto, normalized } from "../../../../../tests/support/ui/dto";
+import { categoryDto, cop, groupDto, normalized, spaceDto } from "../../../../../tests/support/ui/dto";
 import { e7Dashboard, householdDto } from "../../../../../tests/support/ui/plan-dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
@@ -189,8 +189,9 @@ describe("line dashboard (HU-E9-10)", () => {
     );
   });
 
-  it("shows all spending under Unbudgeted and offers managers to create or copy a plan (2027-01)", async () => {
+  it("shows all spending under Unbudgeted and offers managers to create a plan first, or copy December's (2027-01)", async () => {
     const january = { label: "2027-01", startDate: "2027-01-01", endDate: "2027-01-31" };
+    const december = { label: "2026-12", startDate: "2026-12-01", endDate: "2026-12-31" };
     const dashboard = e7Dashboard({
       period: january,
       plan: null,
@@ -199,17 +200,21 @@ describe("line dashboard (HU-E9-10)", () => {
       totals: { planned: cop(0), spent: cop(100_000), available: cop(-100_000) },
     });
     const owner = renderWithIntl(
-      <NoPlan space={householdDto()} dashboard={dashboard} formats={BUILT_IN_FORMATS} />,
+      <NoPlan space={householdDto()} dashboard={dashboard} formats={BUILT_IN_FORMATS} previous={december} />,
     );
-    const title = screen.getByRole("heading", { level: 2, name: "enero 2027 no tiene plan" });
-    expect(title).toHaveClass("first-letter:uppercase");
+    // Ruling P311 (board "Plan del mes de Hogar · sin plan, con uno anterior: Crear plan primero").
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Household aún no tiene un plan para enero" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Sin plan, todo lo que se gaste en enero aparece como Sin presupuesto y la división por defecto es en partes iguales.",
+        "Un plan reparte lo que entra en rubros (Mercado, Arriendo, Transporte…) y les dice a todos cuánto queda en cada uno.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Crear plan" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Copiar plan anterior" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual([
+      "Crear plan",
+      "Copiar el plan de diciembre",
+    ]);
     expect(screen.getByText("Solo Propietario y Administrador ven estas acciones.")).toBeInTheDocument();
     // Board E9-10 02: no totals, and Unbudgeted as one compact card that names the month.
     expect(screen.queryByRole("region", { name: "Resumen del plan" })).toBeNull();
@@ -220,7 +225,7 @@ describe("line dashboard (HU-E9-10)", () => {
       <NoPlan space={householdDto({ role: "MEMBER" })} dashboard={dashboard} formats={BUILT_IN_FORMATS} />,
     );
     expect(screen.queryByRole("button", { name: "Crear plan" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Copiar plan anterior" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Copiar/ })).toBeNull();
     expect(screen.getByText("Solo Propietario y Administrador pueden crear el plan.")).toBeInTheDocument();
     expect(screen.queryByText("Solo Propietario y Administrador ven estas acciones.")).toBeNull();
   });
@@ -236,9 +241,16 @@ describe("line dashboard (HU-E9-10)", () => {
         space={householdDto({ periodPolicy: { kind: "MONTHLY", day: 15 } })}
         dashboard={dashboard}
         formats={BUILT_IN_FORMATS}
+        previous={{ label: "2026-10-15", startDate: "2026-10-15", endDate: "2026-11-14" }}
       />,
     );
-    expect(screen.getByText(/todo lo que se gaste en este período aparece/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Household aún no tiene un plan para este período" }),
+    ).toBeInTheDocument();
+    // Ruling P311: the copy names the period it starts from by its dates.
+    expect(
+      screen.getByRole("button", { name: "Copiar el plan de 15/10/2026 – 14/11/2026" }),
+    ).toBeInTheDocument();
     expect(lineRows()).toEqual([
       ["Sin presupuesto", "Disponible −$ 100.000", "Gastado $ 100.000 en este período"],
     ]);
@@ -316,14 +328,39 @@ describe("line dashboard (HU-E9-10)", () => {
     );
   });
 
-  it("explains the default split in English", () => {
+  it("says what a plan does in English", () => {
     const dashboard = e7Dashboard({ plan: null, lines: [] });
-    renderWithIntl(<NoPlan space={householdDto()} dashboard={dashboard} formats={BUILT_IN_FORMATS} />, {
-      locale: "en",
-    });
-    expect(screen.getByRole("heading", { level: 2, name: "November 2026 has no plan" })).toBeInTheDocument();
-    expect(screen.getByText(/everything spent in November shows as Unbudgeted/)).toBeInTheDocument();
-    expect(screen.getByText(/the default split is equal shares/)).toBeInTheDocument();
+    renderWithIntl(
+      <NoPlan space={householdDto()} dashboard={dashboard} formats={BUILT_IN_FORMATS} previous={null} />,
+      { locale: "en" },
+    );
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Household doesn't have a plan for November yet" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/and tells everyone how much is left in each one.$/)).toBeInTheDocument();
+    expect(screen.getByText(/^There is no previous plan to copy: once you have one/)).toBeInTheDocument();
+  });
+
+  it("speaks to the person in her own space, and offers no copy without a previous plan (ruling P311)", async () => {
+    const dashboard = e7Dashboard({ spaceId: "sp-personal", plan: null, lines: [] });
+    const { container } = renderWithIntl(
+      <NoPlan space={spaceDto()} dashboard={dashboard} formats={BUILT_IN_FORMATS} previous={null} />,
+    );
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Aún no tienes un plan para noviembre" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Un plan reparte lo que entra en rubros (Mercado, Arriendo, Transporte…) y te dice cada día cuánto te queda en cada uno.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Crear plan"]);
+    expect(
+      screen.getByText(
+        "No hay un plan anterior para copiar: cuando tengas uno, podrás empezar el mes siguiente desde él.",
+      ),
+    ).toBeInTheDocument();
+    expect(await axeViolations(container)).toEqual([]);
   });
 });
 

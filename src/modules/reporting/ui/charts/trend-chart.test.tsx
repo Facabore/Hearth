@@ -4,7 +4,7 @@ import { cop } from "../../../../../tests/support/ui/dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS, NBSP } from "@/shared/ui/format/formatters";
 import { TrendChart } from "./trend-chart";
-import { pointOf } from "./trend-series";
+import { pointOf } from "./trend-point";
 
 const data = {
   periods: ["a", "b", "c"],

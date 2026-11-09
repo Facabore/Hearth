@@ -18,14 +18,15 @@ const CAPS = {
   "/spaces/:shared/plan/groups": 205,
   "/spaces/:shared/plan/trend": 305,
   "/spaces/:shared/plans/:plan": 210,
-  "/spaces/:shared/plans/:plan/capacities": 218,
+  // Owner, 2026-11-08 ("Sí, med + 3"): the release of P308–P311 measured 220 and 203 KiB in CI (ADR 0004).
+  "/spaces/:shared/plans/:plan/capacities": 223,
   "/spaces/:shared/plans/:plan/lines/new": 215,
   "/spaces/:shared/plans/:plan/lines/:line": 215,
   "/spaces/:id/plan": 205,
   "/spaces/:id/plan/lines": 205,
   "/spaces/:id/plan/groups": 205,
   "/spaces/:id/plan/trend": 305,
-  "/spaces/:id/plan/calendar": 205,
+  "/spaces/:id/plan/calendar": 206,
 };
 
 const ROUTES = readFileSync(join("src", "spa", "routes.tsx"), "utf8");
@@ -90,7 +91,13 @@ describe("the Plan routes' budgets (rulings P221, P242)", () => {
     expect(emptyStateIn("Plan\nTendencia\nEste período no tiene plan: no hay rubros que comparar.")).toBe(
       "reports.trend.noPlan",
     );
-    expect(emptyStateIn("Plan\noctubre 2026 no tiene plan\nCrear plan")).toBe("reports.noPlan.title");
+    // Ruling P311: the empty plan names whose plan is missing.
+    expect(emptyStateIn("Plan\nAún no tienes un plan para octubre 2026\nCrear plan")).toBe(
+      "reports.noPlan.titlePersonal",
+    );
+    expect(emptyStateIn("Plan\nHogar aún no tiene un plan para octubre 2026\nCrear plan")).toBe(
+      "reports.noPlan.titleShared",
+    );
     expect(emptyStateIn("Plan\nThis plan has no lines yet.")).toBe("budgeting.planner.empty");
     expect(emptyStateIn("Nothing is scheduled in the next 30 days.")).toBe("reports.calendar.empty");
     expect(emptyStateIn("Plan\nOctubre 2026\nMercado\nGastado $ 120.000 de $ 1.470.000")).toBeNull();

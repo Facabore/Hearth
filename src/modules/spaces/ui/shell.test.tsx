@@ -79,7 +79,7 @@ describe("app shell (HU-E9-01)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
-  it("shows Plan, then Saldos, after Movimientos and Registrar, in a shared space and in the personal one (P160, P200; P272 brings Saldos to Personal)", () => {
+  it("shows Saldos, then Más, after Movimientos and Registrar, in a shared space and in the personal one (P311 takes Plan out of the bar; P272 brings Saldos to Personal)", () => {
     const { unmount } = renderWithIntl(
       <AppShell
         me={{ id: "u-ana", name: "Ana", email: "ana@example.com", locale: "es" }}
@@ -95,11 +95,12 @@ describe("app shell (HU-E9-01)", () => {
         .getAllByRole("link")
         .map((l) => withoutQuery(l.getAttribute("href"))),
     ).toEqual([
-      "/spaces/sp-household",
+      // Ruling P310: Inicio is always the personal one.
+      "/spaces/sp-personal",
       "/spaces/sp-household/transactions",
       "/spaces/sp-household/new",
-      "/spaces/sp-household/plan",
       "/spaces/sp-household/balances",
+      "/spaces/sp-household/more",
     ]);
     expect(within(nav).getByRole("link", { name: "Saldos" })).toBeInTheDocument();
     unmount();
@@ -121,8 +122,8 @@ describe("app shell (HU-E9-01)", () => {
       `/spaces/${spaces[0]!.id}`,
       `/spaces/${spaces[0]!.id}/transactions`,
       `/spaces/${spaces[0]!.id}/new`,
-      `/spaces/${spaces[0]!.id}/plan`,
       `/spaces/${spaces[0]!.id}/balances`,
+      `/spaces/${spaces[0]!.id}/more`,
     ]);
   });
 
@@ -153,6 +154,37 @@ describe("app shell (HU-E9-01)", () => {
       expect(action.querySelector("svg")).not.toBeNull();
     }
     expect(within(sheet).getAllByRole("button").at(-1)).toBe(join);
+  });
+
+  it("lists no settings row under the spaces: the header's ⚙ opens them (ruling P311, amends P309)", async () => {
+    const sheet = await openSwitcher();
+    expect(within(sheet).queryByRole("link", { name: /Ajustes de|Configuración de/ })).toBeNull();
+    expect(
+      within(sheet)
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href")),
+    ).toEqual(["/spaces/sp-personal", "/spaces/sp-household"]);
+  });
+
+  it("puts a ⚙ between the switcher and the profile that opens the active space's Configuración (ruling P311)", async () => {
+    const { container } = renderWithIntl(
+      <AppShell
+        me={{ id: "u-ana", name: "Ana", email: "ana@example.com", locale: "es" }}
+        spaces={spaces}
+        activeSpace={spaces[1]}
+      >
+        <h1>Inicio</h1>
+      </AppShell>,
+    );
+    const header = screen.getByRole("banner");
+    const gear = within(header).getByRole("link", { name: "Configuración de Household" });
+    expect(gear).toHaveAttribute("href", "/spaces/sp-household/settings");
+    expect(gear).toHaveClass("size-11");
+    const profile = within(header).getByRole("button", { name: "Perfil de Ana" });
+    expect(gear.compareDocumentPosition(profile) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The eye that hid the amounts (P278) is gone.
+    expect(within(header).queryByRole("button", { name: /Ocultar montos/ })).toBeNull();
+    expect(await axeViolations(container)).toEqual([]);
   });
 
   it("opens Crear un espacio compartido as a sheet over the switcher, with a way back to the spaces (E9-05 · 07)", async () => {
@@ -230,8 +262,8 @@ describe("app shell (HU-E9-01)", () => {
       screen.getByRole("button", { name: "Espacio actual: Personal. Cambiar de espacio" }),
     );
     const sheet = screen.getByRole("dialog", { name: "Espacios" });
-    expect(within(sheet).getByRole("link", { name: /Personal/ })).toHaveAttribute("aria-current", "true");
-    expect(within(sheet).getByRole("link", { name: /Personal/ })).toHaveTextContent("Solo tú");
+    expect(within(sheet).getByRole("link", { name: /^Personal/ })).toHaveAttribute("aria-current", "true");
+    expect(within(sheet).getByRole("link", { name: /^Personal/ })).toHaveTextContent("Solo tú");
     // Board B1 · 04: a shared space names its members once they are read, never the role.
     expect(within(sheet).getByRole("link", { name: /Household/ })).not.toHaveTextContent("Miembro");
     expect(within(sheet).getByRole("link", { name: /Household/ })).not.toHaveAttribute("aria-current");
@@ -357,7 +389,7 @@ describe("app shell (HU-E9-01)", () => {
 
     it("marks the current space with a check on its card", async () => {
       const sheet = await open({ myBalances: balances });
-      const current = within(sheet).getByRole("link", { name: /Personal/ });
+      const current = within(sheet).getByRole("link", { name: /^Personal/ });
       expect(current).toHaveAttribute("aria-current", "true");
       expect(current).toHaveClass("border-accent");
       expect(current.querySelectorAll("svg")).toHaveLength(1);
@@ -368,13 +400,13 @@ describe("app shell (HU-E9-01)", () => {
       ).toBeNull();
     });
 
-    it("hides the balance while the person hides her amounts (the Inicio eye)", async () => {
+    it("always shows the balance: the eye that hid it left the header (ruling P311)", async () => {
       localStorage.setItem("hearth.hideAmounts.u-ana", "1");
       const sheet = await open({ myBalances: balances });
       const household = within(sheet).getByRole("link", { name: /Household/ });
       expect(household).toHaveTextContent("Te toca poner");
-      expect(household).toHaveTextContent("••••••");
-      expect(household).not.toHaveTextContent("120.000");
+      expect(household).not.toHaveTextContent("••••••");
+      expect(household).toHaveTextContent("120.000");
     });
 
     it("joins the names in English with and", () => {

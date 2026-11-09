@@ -95,6 +95,17 @@ describe("GET /api/v1/me/activity (ruling P306)", () => {
     expect(await activityOf(h.ana, "?from=2026-10-01&limit=1")).toHaveLength(1);
   });
 
+  it("stops at `to` when asked, so a past period lists only its own movements (ruling P310)", async () => {
+    const h = await household();
+    const luis = await joinHousehold(h, "Luis", "MEMBER");
+    const gas = await paysEqually(h.juan, 45_000, [h.juan.memberId, luis.memberId], h.groceries, "Gas");
+    await settles(h.juan, h.juan.memberId, h.ana.memberId, 50_000);
+    const items = await activityOf(h.ana, "?from=2026-10-01&to=2026-10-29");
+    expect(items.map((i) => i.transaction.id)).toEqual([gas.id]);
+    expect(await activityOf(h.ana, "?from=2026-10-01&to=2026-10-30")).toHaveLength(2);
+    expect(await activityOf(h.ana, "?from=2026-10-10&to=2026-10-01")).toEqual([]);
+  });
+
   it("answers nothing to someone outside every shared space", async () => {
     await household();
     const pedro = await registerUser("Pedro");
@@ -103,7 +114,13 @@ describe("GET /api/v1/me/activity (ruling P306)", () => {
 
   it("refuses a request without a date or with a limit over 50, and one without a session", async () => {
     const ana = await registerUser("Ana");
-    for (const query of ["", "?from=2026-13-01", "?from=2026-10-01&limit=51"]) {
+    // Ruling P310: a `to` that is no date is refused like a `from`.
+    for (const query of [
+      "",
+      "?from=2026-13-01",
+      "?from=2026-10-01&limit=51",
+      "?from=2026-10-01&to=2026-10-32",
+    ]) {
       const response = await call(myActivity, "GET", `/api/v1/me/activity${query}`, { user: ana });
       expect((await problemOf(response))[0]).toBe(422);
     }

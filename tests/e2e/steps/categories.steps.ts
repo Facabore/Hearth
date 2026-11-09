@@ -1,5 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { Given, Then, When } from "../support/fixtures";
+import { openSpaceSettings } from "../support/space-settings";
 import { openCategoryPicker } from "../support/record";
 import type { World } from "../support/world";
 
@@ -17,11 +18,13 @@ Given(
 );
 
 When(
-  /^"([^"]+)" opens the categories screen from her profile and deletes "([^"]+)"$/,
+  /^"([^"]+)" opens the categories screen from her space's settings and deletes "([^"]+)"$/,
   async ({ page, world }, name: string, category: string) => {
+    expect(name).toBe(world.user!.name);
     await page.goto(`/spaces/${world.user!.spaceId}`);
-    await page.getByRole("button", { name: world.t("shell.profile.open", { name }) }).click();
-    await page.getByRole("link", { name: new RegExp(world.t("shell.profile.categories")) }).click();
+    // Ruling P309: a space's categories are in its own settings, from the space switcher.
+    await openSpaceSettings(page, world);
+    await page.getByRole("link", { name: world.t("spaces.screen.categories"), exact: true }).click();
     await expect(page).toHaveURL(/\/categories$/);
     await page.getByRole("button", { name: world.t("categories.edit", { name: category }) }).click();
     const sheet = sheetOf(page, world);

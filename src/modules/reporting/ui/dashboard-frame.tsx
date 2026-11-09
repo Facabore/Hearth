@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { canManage, PlanStatusBadge } from "@/modules/budgeting/ui";
-import { Button, Icon, usePeriodText, VisuallyHidden } from "@/shared/ui";
+import { Button, Icon, ScreenHeader, usePeriodText, VisuallyHidden } from "@/shared/ui";
 import type { PeriodDto, ReportPlanDto, SpaceDto } from "@/shared/ui/api/dto";
 import type { Formats } from "@/shared/ui/format/formatters";
 import { useNamesText } from "./origin";
@@ -39,8 +39,8 @@ const useSubtitle = () => {
 /**
  * The frame every dashboard of the Plan tab shares (ruling P200), as the E9-10 boards draw it (P272): the period as
  * the heading between its neighbours with a line of context under it, the plan's status beside it and the link to the
- * planner on Rubros, and the view tabs. It is the tab's root screen: the bottom navigation leads here, so it has no
- * Volver of its own. A shared space's line trend is read up to its period ("Hasta noviembre 2026").
+ * planner on Rubros, and the view tabs. Ruling P311 (amends P200): Plan left the bar, so the frame is a stacked screen
+ * titled Plan whose way back is the space's Configuración, where Plan del mes opens it. A shared space's line trend is read up to its period ("Hasta noviembre 2026").
  */
 export function DashboardFrame({
   space,
@@ -78,9 +78,10 @@ export function DashboardFrame({
   const nextHref = next ? viewHref(space, view, next.label) : null;
   return (
     <div
-      className={`mx-auto flex w-full max-w-[720px] flex-col gap-3 py-4${wide ? " lg:max-w-[1220px]" : ""}`}
+      className={`mx-auto flex w-full max-w-[720px] flex-col gap-3 py-3${wide ? " lg:max-w-[1220px]" : ""}`}
     >
-      <header className="flex flex-col gap-1">
+      <ScreenHeader backHref={`/spaces/${space.id}/settings`} title={t("title")} />
+      <div className="flex flex-col gap-1">
         {lines ? (
           <Button asChild variant="secondary" size="compact" className="self-end">
             <Link href={`/spaces/${space.id}/plans/${lines.id}`}>
@@ -100,9 +101,9 @@ export function DashboardFrame({
           )}
           <div className="flex min-w-0 flex-col items-center text-center">
             <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
-              <h1 className="text-lg font-semibold text-ink first-letter:uppercase [overflow-wrap:anywhere]">
+              <h2 className="text-lg font-semibold text-ink first-letter:uppercase [overflow-wrap:anywhere]">
                 {title}
-              </h1>
+              </h2>
               {lines ? <PlanStatusBadge status={lines.status} /> : null}
             </div>
             {subtitle ? (
@@ -120,7 +121,7 @@ export function DashboardFrame({
             </Link>
           )}
         </div>
-      </header>
+      </div>
       <PlanTabs space={space} view={view} period={period.label} />
       <div className="flex flex-col gap-3">{children}</div>
     </div>

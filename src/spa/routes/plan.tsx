@@ -4,10 +4,10 @@ import type { ComponentProps, ReactNode } from "react";
 import { useTranslations } from "use-intl";
 import type { PlanView as FrameView } from "@/modules/reporting/ui";
 import {
-  CashFlowCalendar,
   DashboardFrame,
   DashOverview,
   FundTracking,
+  LazyCashFlowCalendar,
   LineDashboard,
   LineTrend,
   MemberMatrix,
@@ -17,10 +17,11 @@ import {
   treeOf,
   unbudgetedNamesOf,
 } from "@/modules/reporting/ui/screens";
-import type { PeriodDto, ReportPlanDto } from "@/shared/ui/api/dto";
+import { canManage } from "@/modules/budgeting/ui";
+import type { LineDashboardDto, PeriodDto, ReportPlanDto } from "@/shared/ui/api/dto";
 import { useApis } from "../api";
 import type { Viewer } from "../load";
-import { daysOf, noPeriod, windowOf } from "../plan/loaders";
+import { daysOf, noPeriod, previousPlanReads, windowOf } from "../plan/loaders";
 import {
   cashFlowQuery,
   categoriesQuery,
@@ -80,6 +81,39 @@ function Frame({
   );
 }
 
+/** What a read gave so far: its answer once it has one, and whether it failed. */
+interface ReadState<T> {
+  readonly data: T | undefined;
+  readonly isError: boolean;
+}
+
+/**
+ * The previous period when it has a plan to copy, null when it has none, undefined while not known, and `true` when a
+ * read failed: the copy is offered anyway, and the API answers with its own message when there is nothing to copy.
+ */
+const previousPlanOf = (
+  period: ReadState<PeriodDto | null>,
+  dashboard: ReadState<LineDashboardDto>,
+): PeriodDto | true | null | undefined => {
+  if (period.isError) return true;
+  // No previous period (null) or not known yet (undefined); a dashboard that fails still offers the copy.
+  if (!period.data || dashboard.isError) return period.data;
+  return dashboard.data && (dashboard.data.plan === null ? null : period.data);
+};
+
+/**
+ * Ruling P311: whether the period before a period without a plan has a plan to copy (`previousPlanOf`), read only
+ * for whoever may create the plan (P207), through the same reads as the loader (`previousPlanReads`).
+ */
+function usePreviousPlan(viewer: Viewer, dashboard: LineDashboardDto): PeriodDto | true | null | undefined {
+  const { api } = useApis();
+  const reads = previousPlanReads(api, viewer.space.id, dashboard);
+  const wanted = reads.wanted && canManage(viewer.space.role);
+  const before = useQuery({ ...reads.period, enabled: wanted });
+  const report = useQuery({ ...reads.dashboard(before.data), enabled: wanted && Boolean(before.data) });
+  return wanted ? previousPlanOf(before, report) : undefined;
+}
+
 /** HU-E9-10: the period's line dashboard, with a shared space's desktop overview when it has a plan (P216). */
 function Lines({ viewer, asked }: { readonly viewer: Viewer; readonly asked: string | undefined }) {
   const { api } = useApis();
@@ -94,6 +128,7 @@ function Lines({ viewer, asked }: { readonly viewer: Viewer; readonly asked: str
     enabled: dashboard.plan !== null && (unbudgetedIds?.length ?? 0) > 0,
   }).data;
   const formats = viewer.me.preferences.effective;
+  const previous = usePreviousPlan(viewer, dashboard);
   return (
     <Frame
       viewer={viewer}
@@ -103,7 +138,7 @@ function Lines({ viewer, asked }: { readonly viewer: Viewer; readonly asked: str
       plan={dashboard.plan}
     >
       {dashboard.plan === null ? (
-        <NoPlan space={viewer.space} dashboard={dashboard} formats={formats} />
+        <NoPlan space={viewer.space} dashboard={dashboard} formats={formats} previous={previous} />
       ) : (
         <LineDashboard
           dashboard={dashboard}
@@ -301,5 +336,5 @@ export function CalendarRoute() {
   const viewer = useViewer(calendar.useParams().spaceId);
   const { api } = useApis();
   const flow = useSuspenseQuery(cashFlowQuery(api, viewer.space.id, daysOf(calendar.useSearch().days))).data;
-  return <CashFlowCalendar space={viewer.space} flow={flow} formats={viewer.me.preferences.effective} />;
+  return <LazyCashFlowCalendar space={viewer.space} flow={flow} formats={viewer.me.preferences.effective} />;
 }

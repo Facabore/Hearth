@@ -241,8 +241,8 @@
       "transactions": "Transactions",
       "record": "Record a transaction",
       "recordShort": "Record",
-      "plan": "Plan",
-      "balances": "Balances"
+      "balances": "Balances",
+      "more": "More"
     },
     "space": {
       "current": "Current space: {name}. Switch space",
@@ -264,10 +264,20 @@
       "open": "{name}'s profile",
       "settings": "Settings",
       "settingsHint": "Formats, time, time zone, theme and language",
+      "signOut": "Sign out"
+    },
+    "settings": "{name} settings",
+    "more": {
+      "title": "More",
+      "settings": "Space settings",
       "accounts": "Accounts",
-      "signOut": "Sign out",
-      "members": "Members and invitations",
-      "categories": "Categories"
+      "categories": "Categories",
+      "recurring": "Recurring",
+      "stats": "Statistics",
+      "calendar": "Calendar",
+      "exportImport": "Export and import",
+      "soon": "Coming soon",
+      "note": "Your details, formats and language are under your photo, top right."
     }
   },
   "home": {
@@ -300,6 +310,12 @@
     "allFunds": "See all funds",
     "allFundsShort": "See all",
     "recent": "Recent",
+    "recentIn": "In {month}",
+    "recentBetween": "{start} to {end}",
+    "period": {
+      "previous": "Previous period",
+      "next": "Next period"
+    },
     "recentEmpty": "No transactions yet. Record the first one with +.",
     "feed": {
       "recordedBy": "{name} recorded",
@@ -319,7 +335,14 @@
     "members": "Members",
     "invite": "Invite",
     "funds": "Funds",
-    "hideAmounts": "Hide amounts",
+    "plan": {
+      "title": "Your {month} plan",
+      "titleRange": "Your plan from {start} to {end}",
+      "left": "{available} left of {planned}",
+      "overspent": "{over} over the {planned} planned",
+      "over": "{line} went over: {amount} more than planned",
+      "overMore": "{line} went over: {amount} more than planned · and {count} more"
+    },
     "owe": {
       "in": "In {space}",
       "to": "to {name}",
@@ -362,7 +385,16 @@
       "all": "All",
       "none": "No subcategory",
       "use": "Use {path}",
-      "noMatch": "There is no category “{query}”."
+      "noMatch": "There is no category “{query}”.",
+      "of": "{space} categories",
+      "new": "New category",
+      "create": "Create “{name}” as a category",
+      "createIn": "In {space}, without leaving the record",
+      "shared": "In {space} · everyone in the space will see it",
+      "own": "In {space} · only you see it",
+      "name": "Name",
+      "group": "Group",
+      "save": "Create and use in the {kind, select, INCOME {income} other {expense}}"
     },
     "title": "Categories"
   },
@@ -502,6 +534,7 @@
       "to": "To",
       "chooseAccount": "Choose an account",
       "when": "Date and time: {label}. Change",
+      "recordIn": "Record in",
       "space": "Space: {name}. Change",
       "spaceTitle": "Which space do you record it in?",
       "moreOptions": "More options",
@@ -577,7 +610,9 @@
         "EXACT": "by amounts",
         "SHARES": "by shares",
         "BY_ALLOCATION": "per the plan"
-      }
+      },
+      "addGuests": "Add guests",
+      "addGuestsHint": "Someone without an account who paid or takes part"
     },
     "direct": {
       "open": "Split with someone",
@@ -620,7 +655,9 @@
     "settings": {
       "title": "Space",
       "name": "Space name",
-      "nameHint": "How it appears in the space switcher and on its screens."
+      "nameHint": "How it appears in the space switcher and on its screens.",
+      "nameAndColor": "Name and color",
+      "nameOnly": "Name"
     },
     "new": {
       "title": "Create a shared space",
@@ -663,7 +700,22 @@
       "SEMI_MONTHLY": "twice a month, days {day1} and {day2}"
     },
     "you": "{name} (you)",
-    "guestSuffix": "(guest)"
+    "guestSuffix": "(guest)",
+    "guestsSheet": {
+      "title": "Add guests to {space}",
+      "intro": "For someone who does not use Hearth. They can pay, owe, have capacity in the plan and receive payments, only in {space}. They cannot sign in.",
+      "guest": "Guest {number}",
+      "remove": "Remove",
+      "name": "Name",
+      "nameHint": "It shows with \"(guest)\" next to it. It cannot repeat another member's name.",
+      "nameHintNamed": "It shows as \"{name}\". It cannot repeat another member's name.",
+      "email": "Email (optional)",
+      "emailPlaceholder": "To remember it; nothing is sent",
+      "another": "Add another guest",
+      "submit": "{count, plural, one {Add guest} other {Add # guests}}",
+      "nobodyYet": "Nobody was added yet: fix the marked name and try again.",
+      "claimNote": "If any of them signs up later, you send them a link to claim their place and they keep all its history."
+    }
   },
   "notFound": {
     "title": "This page does not exist",

@@ -1,7 +1,8 @@
 import { notFound } from "@tanstack/react-router";
 import { personalSpaceOf } from "@/modules/spaces/ui";
 import { addDays, type LocalDate } from "@/shared/kernel/local-date";
-import type { PeriodDto } from "@/shared/ui/api/dto";
+import type { Api } from "@/shared/ui/api/client";
+import type { LineDashboardDto, PeriodDto } from "@/shared/ui/api/dto";
 import { preloadSheet } from "@/shared/ui/molecules/sheet";
 import { nowIn } from "@/shared/ui/time/when";
 import { ensurer, viewerOf, type Load, type Viewer } from "../load";
@@ -58,6 +59,18 @@ export const reportLabel = async (load: Load, viewer: Viewer, asked: string | un
   return period.label;
 };
 
+/**
+ * Ruling P311: the reads that tell an empty period whether the period before it has a plan a copy can start from (the
+ * plan covering the day before, as the API copies it), shared by the Plan view's loader and its screen so their gating
+ * and their query keys cannot drift. Only a period without a plan asks; the screen also asks only for whoever may
+ * create the plan (P207), which the loader leaves out so Mi consumo, sharing its loaders, ships no plan-access code.
+ */
+export const previousPlanReads = (api: Api, spaceId: string, dashboard: LineDashboardDto) => ({
+  wanted: dashboard.plan === null,
+  period: periodQuery(api, spaceId, addDays(dashboard.period.startDate as LocalDate, -1)),
+  dashboard: (before: PeriodDto | null | undefined) => lineReportQuery(api, spaceId, before?.label ?? ""),
+});
+
 /** The periods before and after `period` (P130), each one that fails just absent. */
 const loadNeighbours = (load: Load, spaceId: string, period: PeriodDto) => {
   const ensure = ensurer(load);
@@ -87,8 +100,15 @@ export const loadPlanView = async (load: Load, spaceId: string, view: PlanView, 
   const label = await reportLabel(load, viewer, search.period);
   if (view === "home" || view === "lines") {
     const dashboard = await ensure(lineReportQuery(api, spaceId, label));
+    const previous = previousPlanReads(api, spaceId, dashboard);
     await Promise.all([
       loadNeighbours(load, spaceId, dashboard.period),
+      // Ruling P311: whether the previous period has a plan to copy, so the empty plan draws its copy (or the line
+      // saying there is none) with the rest; a failed read is the screen's to meet (it offers the copy anyway). The
+      // screen offers it to managers only (P207); `previousPlanReads` says why the loader does not tell them apart.
+      previous.wanted
+        ? settled(ensure(previous.period).then((before) => before && ensure(previous.dashboard(before))))
+        : undefined,
       !personal && dashboard.plan !== null ? settled(ensure(overviewQuery(api, spaceId, label))) : undefined,
       // #240: the categories that name Unbudgeted's, which never block the screen.
       dashboard.plan !== null && (dashboard.unbudgeted?.categoryIds?.length ?? 0) > 0

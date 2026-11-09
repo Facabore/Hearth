@@ -111,6 +111,7 @@ const homeRoute = createRoute({
       "areas/plan",
       "areas/recurrences",
       "areas/settings",
+      "areas/space",
       "areas/trust",
     ]);
     const areaKeys = Object.fromEntries(

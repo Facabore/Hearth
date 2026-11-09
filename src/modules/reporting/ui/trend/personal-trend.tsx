@@ -3,7 +3,7 @@ import type { PersonalTrendDto, SpaceDto } from "@/shared/ui/api/dto";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { ChartFrame } from "../charts/chart-frame";
 import { LazyTrendChart } from "../charts/lazy-trend-chart";
-import { pointOf } from "../charts/trend-series";
+import { pointOf } from "../charts/trend-point";
 import { changeFigure } from "./change-text";
 import { useShortPeriod } from "./short-period";
 import { TrendWindow } from "./trend-window";

@@ -6,7 +6,7 @@ Feature: Categories screen
   @e2e
   Scenario: A referenced category is offered for archiving instead of deletion
     Given the category "Groceries" has 12 transactions
-    When "Ana" opens the categories screen from her profile and deletes "Groceries"
+    When "Ana" opens the categories screen from her space's settings and deletes "Groceries"
     Then the message of the key "errors.CategoryInUse" is shown with the action "Archive instead"
     When "Ana" chooses "Archive instead"
     Then "Groceries" moves to the archived section and is no longer offered in the expense form

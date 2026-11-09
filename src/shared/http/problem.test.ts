@@ -198,6 +198,13 @@ describe("public details (HU-E1-08)", () => {
     ).toMatchObject({ code: "FieldNotEditable", status: 409, field: "accountId" });
   });
 
+  it("names the guest a batch refuses by its index, and keeps a name's length private (P309)", () => {
+    expect(publicDetailsOf("MemberNameTaken", { guest: 1 })).toEqual({ guest: 1 });
+    expect(publicDetailsOf("InvalidMemberName", { length: 0, guest: 0 })).toEqual({ guest: 0 });
+    expect(publicDetailsOf("InvalidMemberName", { length: 0 })).toEqual({});
+    expect(publicDetailsOf("SpaceArchived", { guest: 1 })).toEqual({});
+  });
+
   it("names the flagged lines of an InvalidAllocation, and none of AllocateBudgetLine's reasons (HU-E6-07)", () => {
     expect(publicDetailsOf("InvalidAllocation", { lineIds: ["line-free"] })).toEqual({
       lineIds: ["line-free"],

@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
 import { Given, Then, When } from "../support/fixtures";
+import { openSpaceSettings } from "../support/space-settings";
 import { minor } from "../support/money";
 
 /** The feature's English names, as keys of the Spanish screen. */
@@ -7,7 +8,6 @@ const KEYS: Record<string, string> = {
   "Numbers and dates": "settings.numbersAndDates",
   "Time zone": "settings.field.timezone",
   "Appearance and language": "settings.appearance",
-  Space: "spaces.settings.title",
   "12-hour": "settings.timeFormat.H12",
   "24-hour": "settings.timeFormat.H24",
 };
@@ -33,20 +33,27 @@ Given(
   },
 );
 
+When("{string} opens her space's Configuración from the header", async ({ page, world }, name: string) => {
+  expect(name).toBe(world.user!.name);
+  await page.goto(`/spaces/${world.user!.spaceId}`);
+  await openSpaceSettings(page, world);
+});
+
 When("{string} opens the Settings screen", async ({ page, world }, name: string) => {
   expect(name).toBe(world.user!.name);
   await page.goto("/settings");
 });
 
 Then(
-  /^it shows the rows "([^"]+)", "([^"]+)" and "([^"]+)", then the section "([^"]+)"$/,
-  async ({ page, world }, first: string, second: string, third: string, section: string) => {
-    // U8 (#224): three summary rows, each opening its own sheet, before the space's own section.
+  /^it shows the rows "([^"]+)", "([^"]+)" and "([^"]+)", and no section of a space$/,
+  async ({ page, world }, first: string, second: string, third: string) => {
+    // U8 (#224): three summary rows, each opening its own sheet. Ruling P309: a space's name is in its own settings.
     const rows = [first, second, third].map((row) => world.t(KEYS[row]!));
     const buttons = page.getByRole("main").getByRole("button", { name: new RegExp(`^(${rows.join("|")})`) });
     await expect(buttons).toHaveCount(3);
     for (const [index, row] of rows.entries()) await expect(buttons.nth(index)).toContainText(row);
-    await expect(page.getByRole("heading", { level: 2 })).toHaveText([world.t(KEYS[section]!)]);
+    await expect(page.getByRole("heading", { level: 2 })).toHaveCount(0);
+    await expect(page.getByLabel(world.t("spaces.settings.name"))).toHaveCount(0);
   },
 );
 
@@ -102,6 +109,8 @@ When(/^she renames her space "([^"]+)"$/, async ({ page, world }, name: string) 
       r.request().method() === "PATCH" &&
       r.status() === 200,
   );
+  // Ruling P311: the name sits behind its row in the flat list ("Nombre" in the personal space).
+  await page.getByRole("button", { name: world.t("spaces.screen.name"), exact: true }).click();
   const field = page.getByLabel(world.t("spaces.settings.name"));
   await field.fill(name);
   await field.press("Enter");
@@ -109,14 +118,13 @@ When(/^she renames her space "([^"]+)"$/, async ({ page, world }, name: string) 
 });
 
 Then(
-  /^it says "Guardado" and the space switcher and the Plan tab name her space "([^"]+)"$/,
+  /^it says "Guardado" and the space switcher names her space "([^"]+)"$/,
   async ({ page, world }, name: string) => {
     await expect(page.getByRole("status").filter({ hasText: world.t("common.saved") })).toBeVisible();
     const space = (await world.api.get(`/api/v1/spaces/${world.user!.spaceId}`)) as { name: string };
     expect(space.name).toBe(name);
-    // Settings is a stacked screen without the switcher (ruling P272): the Plan tab's switcher names the space. Its page
-    // names it only in the context line of a period with a plan (board E9-10), and a new person's period has none.
-    await page.goto(`/spaces/${world.user!.spaceId}/plan`);
+    // Configuración is a stacked screen without the switcher (ruling P272): a tab's switcher names the space.
+    await page.goto(`/spaces/${world.user!.spaceId}/transactions`);
     await expect(page.getByRole("button", { name: world.t("shell.space.current", { name }) })).toBeVisible();
   },
 );

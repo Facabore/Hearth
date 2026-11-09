@@ -140,21 +140,53 @@ const loadDetail = async (load: Load, viewer: Viewer, transactionId: string): Pr
 };
 
 /**
- * HU-E9-01's home: its latest rows, the active accounts, every category (old rows keep their names) and the detail
- * behind `?tx=`.
+ * A period's label as the API names it (`2026-10`, `2026-11 H1`: the kernel's `periodByLabel`, which the SPA may not
+ * import, ruling P119).
  */
-export const loadHome = async (load: Load, spaceId: string, transactionId?: string) => {
+const PERIOD_LABEL = /^\d{4}-\d{2}(?: H[12])?$/;
+
+/**
+ * Inicio's own page: its latest rows, of the period `?period=` names on the personal Inicio (ruling P310); a shared or
+ * direct space's home always shows the current one.
+ */
+export const homeQueryOf = (viewer: Pick<Viewer, "space" | "spaces"> | null, period?: string): PageQuery => ({
+  // A `?period=` that is no label shows the current period rather than the API's refusal.
+  ...(period !== undefined && PERIOD_LABEL.test(period) && viewer?.space.kind === "PERSONAL"
+    ? { period }
+    : {}),
+  limit: homeRowsOf(viewer),
+});
+
+/** Ruling P310: the periods either side of `period`, which the personal Inicio steps to. */
+export const neighboursOf = (api: Api, spaceId: string, period: { startDate: string; endDate: string }) =>
+  [addDays(period.startDate as LocalDate, -1), addDays(period.endDate as LocalDate, 1)].map((from) =>
+    periodQuery(api, spaceId, from),
+  );
+
+/**
+ * HU-E9-01's home: its latest rows, the active accounts, every category (old rows keep their names) and the detail
+ * behind `?tx=`; on the personal Inicio, the period `?period=` names (ruling P310) and its line dashboard (P311).
+ */
+export const loadHome = async (load: Load, spaceId: string, transactionId?: string, period?: string) => {
   const ensure = ensurer(load);
   const { api } = load.apis;
   const viewer = await viewerOf(load, spaceId);
-  const page = ensure(pageQuery(api, spaceId, { limit: homeRowsOf(viewer) }));
+  const page = ensure(pageQuery(api, spaceId, homeQueryOf(viewer, period)));
   const unified = viewer !== null && showsUnifiedMonth(viewer);
   // Ruling P306: a personal home with other spaces counts her month across all of them in its headline, so the screen
   // waits for it (a failed read leaves the plain headline), and the headline never moves what is under it. Her spaces'
-  // latest movements only add rows at the foot of Recientes, so they never hold the screen.
+  // latest movements only add rows at the foot of Recientes, so they never hold the screen. Ruling P310: they stop at
+  // the period's end, and the periods either side are read ahead, so stepping to them is immediate.
   void page
-    .then(({ period }) =>
-      unified ? ensure(myActivityQuery(api, spaceId, period.startDate, FEED_ROWS)) : undefined,
+    .then(({ period: shown }) =>
+      Promise.all([
+        unified
+          ? ensure(myActivityQuery(api, spaceId, shown.startDate, FEED_ROWS, shown.endDate))
+          : undefined,
+        viewer?.space.kind === "PERSONAL"
+          ? Promise.all(neighboursOf(api, spaceId, shown).map((query) => settled(ensure(query))))
+          : undefined,
+      ]),
     )
     .catch(() => undefined);
   await Promise.all([
@@ -162,8 +194,15 @@ export const loadHome = async (load: Load, spaceId: string, transactionId?: stri
     unified
       ? page.then(({ period }) => settled(ensure(unifiedViewQuery(api, spaceId, period.label))))
       : undefined,
+    // Ruling P311: the card "Tu plan de {mes}" under the figure draws in the first paint, so it never moves what is
+    // under it; a failed read only leaves it out.
+    viewer?.space.kind === "PERSONAL"
+      ? page.then(({ period }) => settled(ensure(lineReportQuery(api, spaceId, period.label))))
+      : undefined,
     ensure(accountsQuery(api, spaceId, "active")),
     ensure(categoriesQuery(api, spaceId, "all")),
+    // P307: a shared or direct space's rows name its members.
+    viewer && sharedSpace(viewer.space) ? ensure(membersQuery(api, spaceId)) : undefined,
     transactionId
       ? viewerOf(load, spaceId).then((viewer) => viewer && loadDetail(load, viewer, transactionId))
       : undefined,
@@ -180,11 +219,7 @@ export const loadList = async (load: Load, spaceId: string, filter: ListFilter, 
   const viewer = viewerOf(load, spaceId);
   await Promise.all([
     ensure(pageQuery(api, spaceId, listQueryOf(filter))).then(({ period }) =>
-      Promise.all(
-        [addDays(period.startDate as LocalDate, -1), addDays(period.endDate as LocalDate, 1)].map((from) =>
-          settled(ensure(periodQuery(api, spaceId, from))),
-        ),
-      ),
+      Promise.all(neighboursOf(api, spaceId, period).map((query) => settled(ensure(query)))),
     ),
     ensure(categoriesQuery(api, spaceId, "all")),
     ensure(accountsQuery(api, spaceId, "all")),

@@ -13,14 +13,22 @@ import { planWrite } from "./plan-write";
 /**
  * HU-E9-10 and HU-E9-08 (the NoPlan artboard): create a period's plan, or copy the previous one, then open the
  * planner. A copy hands what it left out to the planner once (ruling P209). Offered to managers only (ruling P207).
+ * Ruling P311: "Crear plan" leads; the copy, named by the period it starts from, shows only when that period has a
+ * plan, and without one a line says when it will.
  */
 export function PlanStartActions({
   spaceId,
   period,
+  previous,
   api: injected,
 }: {
   readonly spaceId: string;
   readonly period: string;
+  /**
+   * The previous period in words when it has a plan to copy, null when it has none, absent while not known, and `true`
+   * when it could not be read: the copy is offered unnamed, and the API refuses it if there is nothing to copy.
+   */
+  readonly previous?: string | true | null | undefined;
   readonly api?: Api;
 }) {
   const t = useTranslations("budgeting.start");
@@ -57,12 +65,25 @@ export function PlanStartActions({
 
   return (
     <div className="flex flex-col gap-2">
-      <Button size="lg" disabled={pending} onClick={() => void start(true)}>
-        {t("copy")}
-      </Button>
-      <Button size="lg" variant="secondary" disabled={pending} onClick={() => void start(false)}>
+      <Button size="lg" disabled={pending} onClick={() => void start(false)}>
         {t("create")}
       </Button>
+      {previous ? (
+        <>
+          <Button
+            size="lgFlow"
+            variant="secondary"
+            className="min-h-14 py-3"
+            disabled={pending}
+            onClick={() => void start(true)}
+          >
+            {previous === true ? t("copyPrevious") : t("copy", { period: previous })}
+          </Button>
+          <p className="text-sm text-muted">{t("copyHint")}</p>
+        </>
+      ) : previous === null ? (
+        <p className="text-sm text-muted">{t("noPrevious")}</p>
+      ) : null}
       {problem !== null ? (
         <p role="alert" className="text-sm text-danger">
           {messageOf(problem).message}

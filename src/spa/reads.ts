@@ -272,12 +272,13 @@ export const unifiedViewQuery = (api: Api, personalSpaceId: string, period: stri
  * Ruling P306: the latest movements of the person's shared and direct spaces from `from`, for the personal Inicio. Keyed
  * under the personal space's reports, so a movement in any of the person's spaces reads it again.
  */
-export const myActivityQuery = (api: Api, personalSpaceId: string, from: string, limit: number) =>
+export const myActivityQuery = (api: Api, personalSpaceId: string, from: string, limit: number, to: string) =>
   queryOptions<ActivityItemDto[]>({
     ...LOADER_OWNED,
-    queryKey: moduleKeys.report(personalSpaceId, "activity", { from, limit }),
+    // Ruling P310: up to the period's end, so a past period lists only its own movements.
+    queryKey: moduleKeys.report(personalSpaceId, "activity", { from, to, limit }),
     queryFn: async () =>
-      (await read(api.GET("/api/v1/me/activity", { params: { query: { from, limit } } }))).items,
+      (await read(api.GET("/api/v1/me/activity", { params: { query: { from, to, limit } } }))).items,
   });
 
 export const personalGroupsQuery = (api: Api, personalSpaceId: string, period: string) =>

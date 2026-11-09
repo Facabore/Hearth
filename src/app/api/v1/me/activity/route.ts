@@ -12,9 +12,12 @@ export const GET = defineRoute({
   handler: async ({ user, query }) => {
     const from = localDate(query.from);
     if (!from.ok) return from;
+    const to = query.to === undefined ? undefined : localDate(query.to);
+    if (to && !to.ok) return to;
     const result = await getContainer().ledger.listMyActivity({
       userId: user!.id,
       from: from.value,
+      ...(to ? { to: to.value } : {}),
       limit: query.limit,
     });
     return result.ok ? ok({ status: 200, body: { items: result.value.map(activityItemDto) } }) : result;

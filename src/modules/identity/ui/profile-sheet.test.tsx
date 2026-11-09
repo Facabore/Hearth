@@ -22,7 +22,7 @@ describe("profile sheet (HU-E9-01)", () => {
     router.refresh.mockClear();
   });
 
-  it("shows the person, links to settings, categories and accounts, and signs out to the sign-in screen", async () => {
+  it("shows the person, links to settings and signs out to the sign-in screen", async () => {
     const { api, requests } = fakeApi({
       "POST /api/v1/auth/sign-out": () => new Response(null, { status: 204 }),
     });
@@ -30,7 +30,6 @@ describe("profile sheet (HU-E9-01)", () => {
       <ProfileSheet
         me={{ name: "Ana", email: "ana@example.com", locale: "es" }}
         spaceId="sp-personal"
-        spaceKind="PERSONAL"
         api={api}
       />,
     );
@@ -41,16 +40,6 @@ describe("profile sheet (HU-E9-01)", () => {
       "href",
       "/settings?from=sp-personal",
     );
-    expect(within(sheet).getByRole("link", { name: /Cuentas/ })).toHaveAttribute(
-      "href",
-      "/spaces/sp-personal/accounts",
-    );
-    // HU-E9-04: Avatar › Categories, in every kind of space.
-    expect(within(sheet).getByRole("link", { name: /Categorías/ })).toHaveAttribute(
-      "href",
-      "/spaces/sp-personal/categories",
-    );
-    expect(within(sheet).queryByRole("link", { name: /Miembros/ })).not.toBeInTheDocument();
     await userEvent.click(within(sheet).getByRole("button", { name: "Cerrar sesión" }));
     expect(requests[0]!.method).toBe("POST");
     expect(router.replace).toHaveBeenCalledWith("/sign-in");
@@ -70,7 +59,6 @@ describe("profile sheet (HU-E9-01)", () => {
       <ProfileSheet
         me={{ name: "Ana", email: "ana@example.com", locale: "en" }}
         spaceId="sp-personal"
-        spaceKind="PERSONAL"
         api={api}
       />,
     );
@@ -87,7 +75,6 @@ describe("profile sheet (HU-E9-01)", () => {
       <ProfileSheet
         me={{ name: "Ana", email: "ana@example.com", locale: "en" }}
         spaceId="sp-personal"
-        spaceKind="PERSONAL"
         api={api}
       />,
     );
@@ -97,12 +84,11 @@ describe("profile sheet (HU-E9-01)", () => {
     expect(router.replace).toHaveBeenCalledWith("/sign-in");
   });
 
-  it("draws the person dark and filled, and lists Ajustes, then Cuentas, Categorías and Miembros (board B1 · 05, P292)", async () => {
+  it("draws the person dark and filled, and lists only the person's and the app's entries (board B1 · 05, P309)", async () => {
     renderWithIntl(
       <ProfileSheet
         me={{ name: "Ana", email: "ana@example.com", locale: "es" }}
         spaceId="sp-household"
-        spaceKind="SHARED"
         api={fakeApi({}).api}
       />,
     );
@@ -115,33 +101,12 @@ describe("profile sheet (HU-E9-01)", () => {
       within(sheet).getByRole("heading", { name: "Ana" }).parentElement!.querySelector(".bg-ink"),
     ).not.toBeNull();
     expect(within(sheet).getByText("ana@example.com")).toBeInTheDocument();
+    // Ruling P309: the space's accounts, categories and members live in the space's own settings, not in the profile.
     expect(
       within(sheet)
         .getAllByRole("link")
         .map((link) => link.textContent),
-    ).toEqual([
-      "AjustesFormatos, hora, zona horaria, tema e idioma",
-      "Cuentas",
-      "Categorías",
-      "Miembros e invitaciones",
-    ]);
-  });
-
-  it("links to the members of a shared space (ruling P160)", async () => {
-    const { api } = fakeApi({});
-    renderWithIntl(
-      <ProfileSheet
-        me={{ name: "Ana", email: "ana@example.com", locale: "es" }}
-        spaceId="sp-household"
-        spaceKind="SHARED"
-        api={api}
-      />,
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Perfil de Ana" }));
-    const sheet = await screen.findByRole("dialog", { name: "Ana" }, { timeout: 10_000 });
-    expect(within(sheet).getByRole("link", { name: /Miembros e invitaciones/ })).toHaveAttribute(
-      "href",
-      "/spaces/sp-household/members",
-    );
+    ).toEqual(["AjustesFormatos, hora, zona horaria, tema e idioma"]);
+    expect(within(sheet).getByRole("button", { name: "Cerrar sesión" })).toBeInTheDocument();
   });
 });

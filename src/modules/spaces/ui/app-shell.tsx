@@ -1,6 +1,9 @@
+import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useEffect, type ReactNode } from "react";
 import type { Locale } from "@/i18n/locale";
 import { ProfileSheet } from "@/modules/identity/ui";
+import { Icon } from "@/shared/ui";
 import type { Formats } from "@/shared/ui/format/formatters";
 import { controlsFor } from "./members/space-controls";
 import { NavLinks } from "./nav-links";
@@ -36,7 +39,11 @@ export interface AppShellProps {
   readonly children: ReactNode;
 }
 
-/** HU-E9-01, the Home and Desktop artboards: the header, the navigation of the active space and the page. */
+/**
+ * HU-E9-01, the Home and Desktop artboards: the header, the navigation of the active space and the page. Ruling P311:
+ * the header reads [space switcher] … [⚙] [profile] on every tab destination; the ⚙ opens the active space's
+ * Configuración.
+ */
 export function AppShell({
   me,
   spaces,
@@ -49,6 +56,7 @@ export function AppShell({
   onSwitcherOpen,
   children,
 }: AppShellProps) {
+  const t = useTranslations("shell");
   // Ruling P299: Inter is the signed-in screens' typeface. A first visit to one turns it on before it paints
   // (framePick); this covers arriving from a visitor's page, such as signing in.
   useEffect(() => {
@@ -71,22 +79,27 @@ export function AppShell({
             spaces={spaces}
             activeSpace={activeSpace}
             flows={spaceFlows}
-            personId={me.id}
             formats={me.formats}
             balances={myBalances}
             standing={spaceStanding}
             onOpen={onSwitcherOpen}
           />
           <div className="flex shrink-0 items-center gap-1">
-            {/* Inicio's eye sits in the header (board B1 · 03): the screen portals it here (HEADER_SLOT_ID). */}
-            <div id="shell-actions" className="contents" />
-            <ProfileSheet me={me} spaceId={activeSpace.id} spaceKind={activeSpace.kind} />
+            <Link
+              href={`/spaces/${activeSpace.id}/settings`}
+              aria-label={t("settings", { name: activeSpace.name })}
+              className="flex size-11 items-center justify-center rounded-full text-ink"
+            >
+              <Icon name="sliders" />
+            </Link>
+            <ProfileSheet me={me} spaceId={activeSpace.id} />
           </div>
         </header>
         <main id="main">{children}</main>
       </div>
       <NavLinks
         spaceId={activeSpace.id}
+        homeSpaceId={spaces.find((space) => space.kind === "PERSONAL")?.id ?? activeSpace.id}
         canRecord={controlsFor(activeSpace.role, activeSpace.kind).recordMoney}
         {...(pendingCount === undefined ? {} : { pendingCount })}
       />

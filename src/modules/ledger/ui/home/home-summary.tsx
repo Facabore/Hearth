@@ -1,17 +1,16 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
-import { controlsFor, JoinedNotice, MASKED_AMOUNT, shownAmount, useAmountsHidden } from "@/modules/spaces/ui";
+import { controlsFor, JoinedNotice } from "@/modules/spaces/ui";
 import { Icon, SymbolIcon } from "@/shared/ui";
 import type { AccountDto, MoneyDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
-import { formatDate } from "@/shared/ui/format/formatters";
+import { formatDate, formatMoney } from "@/shared/ui/format/formatters";
 import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { periodName } from "@/shared/ui/time/period-name";
 import type { TransactionDetail } from "../detail/transaction-detail";
 import { TransactionSheetHost } from "../detail/transaction-sheet-host";
-import { withTx } from "../detail/tx-href";
+import { hrefOf, withTx } from "../detail/tx-href";
 import { TransactionRow, type RowContext } from "../transaction-row";
-import { AmountsEye } from "./amounts-eye";
 import { FirstSteps, type FirstStepsDone } from "./first-steps";
 import { OweCard, type Owe } from "./owe-card";
 
@@ -30,11 +29,13 @@ export function HomeSummary({
   context,
   detail,
   summary,
+  plan,
   recent,
   today,
   firstSteps,
-  personId,
   owes,
+  stepper,
+  past = false,
 }: {
   readonly spaceId: string;
   /** Issue #216: the viewer's today, so each recent row says which day it is from. */
@@ -56,14 +57,24 @@ export function HomeSummary({
    * record sheet's backdrop (P300), never load it.
    */
   readonly summary?: ReactNode;
+  /**
+   * Ruling P311: under the period's figure on the personal Inicio, the period's plan as one link to its Plan screen
+   * (`PlanCard`). The route fills it, so the record sheet's backdrop never loads it.
+   */
+  readonly plan?: ReactNode;
   /** Ruling P306: what stands in for Recientes' rows, her own and her spaces' merged (`UnifiedRecent`). */
   readonly recent?: ReactNode;
   /** Issues #220 (F14) and #152: on the personal home, a new person's four first steps, under the period's figure. */
   readonly firstSteps?: { readonly personId: string; readonly done: FirstStepsDone } | undefined;
-  /** Ruling P278: the person, for Inicio's eye, which hides every amount and is remembered per person. */
-  readonly personId?: string | undefined;
   /** Ruling P278 (board B1 · 03): each shared space where it is the person's turn to put money in. */
   readonly owes?: readonly Owe[] | undefined;
+  /** Ruling P310: the personal Inicio's step between periods, above the period's figure. */
+  readonly stepper?: ReactNode;
+  /**
+   * Ruling P310: a period that ended before today. It shows that period's figure and movements, never today's balances:
+   * no "Te toca poner", first steps or accounts.
+   */
+  readonly past?: boolean;
 }) {
   const t = useTranslations("home");
   const common = useTranslations("common");
@@ -76,18 +87,17 @@ export function HomeSummary({
   const canInvite = controls.invite;
   const accountsNote = useTranslations("accounts");
   const personal = kind === "PERSONAL";
-  const hidden = useAmountsHidden(personId ?? "") && personId !== undefined;
-  const money = (amount: MoneyDto) => shownAmount(amount, hidden, formats);
+  const money = (amount: MoneyDto) => formatMoney(amount, formats);
   return (
     <div className="grid grid-cols-1 gap-3 py-3 lg:grid-cols-2">
       <h1 className="sr-only">{t("title")}</h1>
-      {personId ? <AmountsEye personId={personId} /> : null}
       {joined ? (
         <div className="lg:col-span-2">
           <JoinedNotice space={joined.space} dismissHref={joined.dismissHref} />
         </div>
       ) : null}
       <div className="flex min-w-0 flex-col gap-3">
+        {stepper}
         {kind !== "PERSONAL" ? (
           <div className="flex flex-wrap gap-2">
             <Link href={`/spaces/${spaceId}/members`} className={pill}>
@@ -136,10 +146,11 @@ export function HomeSummary({
                 <p className="text-sm text-muted">{t("income", { amount: money(page.totals.income) })}</p>
               </section>
             )}
-            {owes?.map((owe) => (
-              <OweCard key={owe.spaceId} owe={owe} amount={money(owe.amount)} />
-            ))}
-            {firstSteps ? (
+            {plan}
+            {past
+              ? null
+              : owes?.map((owe) => <OweCard key={owe.spaceId} owe={owe} amount={money(owe.amount)} />)}
+            {firstSteps && !past ? (
               <FirstSteps spaceId={spaceId} personId={firstSteps.personId} done={firstSteps.done} />
             ) : null}
             {personal ? null : (
@@ -147,7 +158,7 @@ export function HomeSummary({
                 {kind === "DIRECT" ? accountsNote("directNote") : accountsNote("fundsNote")}
               </p>
             )}
-            {accounts.length === 0 ? (
+            {past ? null : accounts.length === 0 ? (
               kind === "SHARED" && controls.manageFunds ? (
                 <Link
                   href={withReturnTo(`/spaces/${spaceId}/accounts/new`, `/spaces/${spaceId}`)}
@@ -201,9 +212,20 @@ export function HomeSummary({
       <section aria-labelledby="home-recent" className="flex min-w-0 flex-col gap-2">
         <div className="flex items-center justify-between">
           <h2 id="home-recent" className="text-lg font-semibold text-ink">
-            {t("recent")}
+            {!past
+              ? t("recent")
+              : name.kind === "month"
+                ? t("recentIn", { month: common(`month.${name.month as 1}`) })
+                : t("recentBetween", {
+                    start: formatDate(name.start, formats),
+                    end: formatDate(name.end, formats),
+                  })}
           </h2>
-          <Link href={`/spaces/${spaceId}/transactions`} aria-label={t("allTransactions")} className={link}>
+          <Link
+            href={hrefOf(spaceId, past ? { period: page.period.label } : {})}
+            aria-label={t("allTransactions")}
+            className={link}
+          >
             {t("allTransactionsShort")}
           </Link>
         </div>
@@ -220,7 +242,6 @@ export function HomeSummary({
                   context={context}
                   href={withTx(`/spaces/${spaceId}`, tx.id)}
                   today={today}
-                  maskedAmount={hidden ? MASKED_AMOUNT : undefined}
                 />
               ))}
             </ol>
