@@ -355,6 +355,8 @@ describe("line dashboard (HU-E9-10)", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Crear plan"]);
+    // #286 (audit pass 3, A11): the person is alone in her space, so no line about who sees the actions.
+    expect(screen.queryByText("Solo Propietario y Administrador ven estas acciones.")).toBeNull();
     expect(
       screen.getByText(
         "No hay un plan anterior para copiar: cuando tengas uno, podrás empezar el mes siguiente desde él.",

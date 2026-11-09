@@ -210,6 +210,7 @@ export function Planner({
 
       <CapacityCard
         headingId={heading("capacity")}
+        personal={space.kind === "PERSONAL"}
         total={plan.totalCapacity}
         unallocated={plan.unallocated}
         rows={plan.capacities.filter(listed).map((capacity) => ({
@@ -278,11 +279,19 @@ export function Planner({
                       {line.isCatchAll ? <Badge>{t("line.catchAll")}</Badge> : null}
                     </div>
                     <p className="text-sm text-muted">
-                      {t("planner.meta", {
-                        funding: t(`funding.${line.funding}`),
-                        rule: ruleOf(line),
-                        rollover: t(`rollover.${line.rolloverMode}`),
-                      })}
+                      {/* #286 (audit pass 3, A11): who pays and how a line is shared mean nothing to one person. */}
+                      {space.kind === "PERSONAL"
+                        ? [
+                            line.funding === "DIRECT" ? null : t(`funding.${line.funding}`),
+                            t(`rollover.${line.rolloverMode}`),
+                          ]
+                            .filter((part) => part !== null)
+                            .join(" · ")
+                        : t("planner.meta", {
+                            funding: t(`funding.${line.funding}`),
+                            rule: ruleOf(line),
+                            rollover: t(`rollover.${line.rolloverMode}`),
+                          })}
                     </p>
                     <CarryText line={line} policy={space.periodPolicy} formats={formats} />
                     {/* #264 (H13): a spending line counts only its categories; the catch-all counts the rest. */}

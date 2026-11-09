@@ -58,7 +58,8 @@ export function NoPlan({
               period={dashboard.period.label}
               previous={previous && previous !== true ? wordsOf(previous) : previous}
             />
-            <p className="text-xs text-muted">{t("managersSee")}</p>
+            {/* #286 (audit pass 3, A11): the personal space has only its owner, so roles go unsaid there. */}
+            {personal ? null : <p className="text-xs text-muted">{t("managersSee")}</p>}
           </div>
         ) : (
           <p className="text-sm text-muted">{t("managersOnly")}</p>
