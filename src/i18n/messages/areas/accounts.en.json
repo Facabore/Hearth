@@ -2,7 +2,10 @@
   "accounts": {
     "totals": "Totals",
     "available": "Available",
+    "availableNote": "What you can use today",
     "netWorth": "Net worth",
+    "netWorthNote": "What you have minus what you owe",
+    "missingOpening": "Missing its opening balance?",
     "section": {
       "everyday": "Banks, wallets and cash",
       "cards": "Credit cards",

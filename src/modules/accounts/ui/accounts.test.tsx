@@ -81,6 +81,32 @@ describe("accounts screen (HU-E9-03)", () => {
     expect(within(totals).getByText("$ 4.915.000")).toHaveClass("whitespace-nowrap");
   });
 
+  it("says what each total means, and asks about a cash or bank account below zero (#289)", () => {
+    const cash = accountDto({
+      id: "a-cash",
+      name: "Caja menor",
+      type: "CASH",
+      balance: cop(-30_500),
+      icon: "cash",
+    });
+    renderWithIntl(
+      <AccountsScreen
+        spaceId="sp-personal"
+        list={{ ...list, items: [...list.items, cash] }}
+        formats={BUILT_IN_FORMATS}
+      />,
+    );
+    // Audit pass 3, A15: the totals were bare words, and a cash box below zero said nothing.
+    const totals = screen.getByRole("region", { name: "Totales" });
+    expect(norm(totals.textContent)).toContain("Lo que puedes usar hoy");
+    expect(norm(totals.textContent)).toContain("Lo que tienes menos lo que debes");
+    expect(norm(screen.getByRole("listitem", { name: /Caja menor/ }).textContent)).toContain(
+      "¿Falta el saldo inicial?",
+    );
+    // A card below zero is a debt, as it should be: no question there.
+    expect(norm(screen.getByRole("listitem", { name: /Visa/ }).textContent)).not.toContain("saldo inicial");
+  });
+
   it("shows types, balances, card figures and the space's totals", async () => {
     const { container } = renderWithIntl(
       <AccountsScreen spaceId="sp-personal" list={list} formats={BUILT_IN_FORMATS} />,

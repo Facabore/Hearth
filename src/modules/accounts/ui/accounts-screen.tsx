@@ -104,12 +104,15 @@ export function AccountsScreen({
               <dd className="text-xl font-semibold whitespace-nowrap text-ink">
                 {formatMoney(list.totals.available, formats)}
               </dd>
+              {/* #289 (audit pass 3, A15): each total says what it counts. */}
+              <dd className="text-xs text-muted">{t("availableNote")}</dd>
             </div>
             <div className="flex-auto rounded-2xl bg-surface p-3">
               <dt className="text-sm text-muted">{t("netWorth")}</dt>
               <dd className="text-xl font-semibold whitespace-nowrap text-ink">
                 {formatMoney(list.totals.netWorth, formats)}
               </dd>
+              <dd className="text-xs text-muted">{t("netWorthNote")}</dd>
             </div>
           </dl>
         </section>

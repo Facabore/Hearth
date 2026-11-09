@@ -2,7 +2,10 @@
   "accounts": {
     "totals": "Totales",
     "available": "Disponible",
+    "availableNote": "Lo que puedes usar hoy",
     "netWorth": "Patrimonio neto",
+    "netWorthNote": "Lo que tienes menos lo que debes",
+    "missingOpening": "¿Falta el saldo inicial?",
     "section": {
       "everyday": "Bancos, billeteras y efectivo",
       "cards": "Tarjetas de crédito",
