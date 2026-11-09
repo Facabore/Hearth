@@ -299,6 +299,17 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
       expect(within(from()).getByRole("radio", { name: "Nequi" })).toBeChecked();
     });
 
+    it("never sends a receiving account when the viewer pays someone else (#282)", async () => {
+      localStorage.setItem("hearth.lastAccount", "a-davi");
+      const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
+      screenAs("u-juan", api);
+      await userEvent.click(screen.getByRole("button", { name: JUAN_PAYS }));
+      await userEvent.click(save());
+      const body = await requests[0]!.json();
+      expect(body).toMatchObject({ payerMemberId: "m-juan", sourceAccountId: "a-davi" });
+      expect(body).not.toHaveProperty("destinationAccountId");
+    });
+
     it("records the payment without an account when Juan picks Ninguna", async () => {
       localStorage.setItem("hearth.lastAccount", "a-davi");
       const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
