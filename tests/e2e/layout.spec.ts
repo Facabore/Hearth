@@ -1905,7 +1905,9 @@ test.describe("the primary action of a form stays in view on a small phone (#281
     { width: 375, height: 667 },
     { width: 320, height: 640 },
   ]) {
-    test(`Registrar, Editar movimiento and Editar cuenta at ${size.width}×${size.height}`, async ({ page }) => {
+    test(`Registrar, Editar movimiento and Editar cuenta at ${size.width}×${size.height}`, async ({
+      page,
+    }) => {
       await page.setViewportSize(size);
       const { spaceId } = await session(page, `save-${size.width}`);
       const inView = (name: string) =>

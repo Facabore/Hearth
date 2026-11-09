@@ -52,9 +52,7 @@ export function LineDashboard({
         </h2>
         <p className="flex flex-col">
           <span className="text-sm text-muted">{t("totalAvailable")}</span>
-          <span
-            className={`text-3xl font-semibold${isNegative(left) ? " text-owe" : " text-ink"}`}
-          >
+          <span className={`text-3xl font-semibold${isNegative(left) ? " text-owe" : " text-ink"}`}>
             {money(left)}
           </span>
         </p>
@@ -100,7 +98,6 @@ export function LineList({
   const t = useTranslations("reports.lines");
   const base = useId();
   const { unbudgeted } = dashboard;
-  const currency = dashboard.totals.planned.currency;
   const money = (value: MoneyDto) => formatMoney(value, formats);
   const available = (value: MoneyDto) => (
     <>
@@ -185,7 +182,7 @@ export function LineList({
             <span
               data-bar
               className="block h-full rounded-full bg-muted"
-              style={{ width: `${barWidth(unbudgeted.spent, { amount: "0", currency })}%` }}
+              style={{ width: `${barWidth(unbudgeted.spent, { ...unbudgeted.spent, amount: "0" })}%` }}
             />
           </span>
           <span data-caption className="text-sm text-muted tabular-nums">

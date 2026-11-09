@@ -339,7 +339,10 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
       expect(within(to).getByRole("radio", { name: "Bancolombia" })).toBeChecked();
       expect(within(to).getByRole("radio", { name: "Ninguna" })).not.toBeChecked();
       await userEvent.click(save());
-      expect(await requests[0]!.json()).toMatchObject({ receivingMemberId: "m-ana", destinationAccountId: "a-bank" });
+      expect(await requests[0]!.json()).toMatchObject({
+        receivingMemberId: "m-ana",
+        destinationAccountId: "a-bank",
+      });
     });
 
     it("still records a received payment without an account when the viewer picks Ninguna (#282)", async () => {

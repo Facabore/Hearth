@@ -25,16 +25,20 @@ describe("the account a new movement starts on (#208, #285)", () => {
     expect(preferredAccountId(starters(100_000), null)).toBe("cash");
     expect(
       preferredAccountId(
-        [account("wallet", "WALLET", 0), account("davivienda", "BANK", 2_000_000), account("cash", "CASH", 0)],
+        [
+          account("wallet", "WALLET", 0),
+          account("davivienda", "BANK", 2_000_000),
+          account("cash", "CASH", 0),
+        ],
         "archived",
       ),
     ).toBe("davivienda");
   });
 
   it("never picks a savings account for its balance alone", () => {
-    expect(preferredAccountId([account("savings", "SAVINGS", 9_000_000), account("wallet", "WALLET", 0)], null)).toBe(
-      "wallet",
-    );
+    expect(
+      preferredAccountId([account("savings", "SAVINGS", 9_000_000), account("wallet", "WALLET", 0)], null),
+    ).toBe("wallet");
   });
 
   it("keeps the list order when every balance is the same, and falls back to the first account", () => {

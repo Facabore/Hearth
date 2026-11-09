@@ -51,6 +51,9 @@ describe("Más, the space's modules (ruling P311)", () => {
     renderWithIntl(<MoreScreen spaceId="sp-household" />, { locale: "en" });
     expect(screen.getByRole("heading", { level: 1, name: "More" })).toBeInTheDocument();
     expect(screen.getAllByText(en.shell.more.soon)).toHaveLength(3);
-    expect(screen.getByRole("link", { name: "Plan your month" })).toHaveAttribute("href", "/spaces/sp-household/plan");
+    expect(screen.getByRole("link", { name: "Plan your month" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household/plan",
+    );
   });
 });
