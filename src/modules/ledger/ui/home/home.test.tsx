@@ -15,6 +15,7 @@ import {
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import type { TransactionDetail } from "../detail/transaction-detail";
 import { HomeSummary } from "./home-summary";
+import { NeedsToday } from "./needs-today";
 import { UnifiedRecent } from "./unified-home";
 import { UnifiedSummary } from "./unified-summary";
 
@@ -680,6 +681,10 @@ describe("Inicio's turn to put money in and its eye (board B1 · 03, ruling P278
     amount: cop(120_000),
     to: "Juan",
   };
+  /** #288: Inicio's "Te necesita hoy", as the route fills HomeSummary's slot with it. */
+  const needs = (props: Partial<ComponentProps<typeof NeedsToday>> = {}) => (
+    <NeedsToday pending={[]} owed={[]} owes={[]} today="2026-10-31" formats={rowContext.formats} {...props} />
+  );
   const home = (props: Partial<ComponentProps<typeof HomeSummary>> = {}) => (
     <HomeSummary
       spaceId="sp-personal"
@@ -693,8 +698,8 @@ describe("Inicio's turn to put money in and its eye (board B1 · 03, ruling P278
   );
 
   it("says it is the person's turn to put money in a shared space, and Saldar opens Saldos' settle sheet", async () => {
-    const { container } = renderWithIntl(home({ owes: [owe] }));
-    const card = screen.getByRole("region", { name: /Te toca poner/ });
+    const { container } = renderWithIntl(home({ needs: needs({ owes: [owe] }) }));
+    const card = await screen.findByRole("region", { name: "Te necesita hoy" });
     expect(norm(card.textContent)).toContain("Te toca poner $ 120.000 a Juan");
     expect(card).toHaveTextContent("En Household");
     const settle = within(card).getByRole("link", { name: "Saldar con Juan en Household" });
@@ -703,17 +708,67 @@ describe("Inicio's turn to put money in and its eye (board B1 · 03, ruling P278
     expect(await axeViolations(container)).toEqual([]);
   });
 
-  it("shows no such card when the person owes nothing", () => {
-    renderWithIntl(home({ owes: [] }));
-    expect(screen.queryByRole("region", { name: /Te toca poner/ })).not.toBeInTheDocument();
+  it("shows no such card when nothing needs the person", () => {
+    renderWithIntl(home({ needs: needs() }));
+    expect(screen.queryByRole("region", { name: "Te necesita hoy" })).not.toBeInTheDocument();
   });
 
-  it("shows every amount, with no eye to hide them, whatever an older visit stored (ruling P311)", () => {
+  describe("Te necesita hoy gathers a bill to confirm and what she is owed too (#288)", () => {
+    const energy = {
+      spaceId: "sp-household",
+      space: "Household",
+      count: 1,
+      name: "Energía",
+      date: "2026-10-31",
+      amount: cop(180_000),
+    };
+    const owed = [
+      { spaceId: "sp-household", space: "Household", amount: cop(311_400) },
+      { spaceId: "sp-direct", space: "Ana & Mateo", amount: cop(30_000) },
+    ];
+
+    it("lists the bill, what she is owed and her turn, each with its way to act", async () => {
+      const { container } = renderWithIntl(home({ needs: needs({ owes: [owe], pending: [energy], owed }) }));
+      const card = await screen.findByRole("region", { name: "Te necesita hoy" });
+      const rows = within(card)
+        .getAllByRole("listitem")
+        .map((row) => norm(row.textContent));
+      expect(rows[0]).toContain("Energía por confirmar");
+      expect(rows[0]).toContain("Household · hoy · sugerido $ 180.000");
+      expect(rows[1]).toContain("Te deben $ 341.400");
+      expect(rows[1]).toContain("Household $ 311.400 · Ana & Mateo $ 30.000");
+      expect(rows[2]).toContain("Te toca poner $ 120.000");
+      expect(within(card).getByRole("link", { name: "Revisar Energía en Household" })).toHaveAttribute(
+        "href",
+        "/spaces/sp-household/pending-occurrences",
+      );
+      // Saldos of the space that owes her the most.
+      expect(within(card).getByRole("link", { name: "Ver lo que te deben" })).toHaveAttribute(
+        "href",
+        "/spaces/sp-household/balances",
+      );
+      expect(await axeViolations(container)).toEqual([]);
+    });
+
+    it("counts several bills of one space, and dates one from before today", async () => {
+      renderWithIntl(home({ needs: needs({ pending: [{ ...energy, count: 2, date: "2026-10-28" }] }) }));
+      const card = await screen.findByRole("region", { name: "Te necesita hoy" });
+      expect(norm(card.textContent)).toContain("2 movimientos por confirmar");
+      expect(norm(card.textContent)).toMatch(/Household · desde el 28\/10\/2026/);
+    });
+
+    it("leaves it all out of a period that already ended", () => {
+      renderWithIntl(home({ needs: needs({ owes: [owe], pending: [energy], owed }), past: true }));
+      expect(screen.queryByRole("region", { name: "Te necesita hoy" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows every amount, with no eye to hide them, whatever an older visit stored (ruling P311)", async () => {
     localStorage.setItem("hearth.hideAmounts.u-eye", "1");
-    renderWithIntl(home({ owes: [owe] }));
+    renderWithIntl(home({ needs: needs({ owes: [owe] }) }));
     expect(screen.queryByRole("button", { name: "Ocultar montos" })).toBeNull();
     expect(screen.getByRole("region", { name: "Resumen del período" })).toHaveTextContent("245.000");
-    expect(screen.getByRole("region", { name: /Te toca poner/ })).toHaveTextContent("120.000");
+    expect(await screen.findByRole("region", { name: "Te necesita hoy" })).toHaveTextContent("120.000");
     expect(document.body).not.toHaveTextContent("••••••");
     localStorage.clear();
   });

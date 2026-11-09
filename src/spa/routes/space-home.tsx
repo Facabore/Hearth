@@ -14,43 +14,30 @@ import {
 } from "@/modules/ledger/ui";
 import { categoryIdsOf } from "@/modules/categories/ui";
 import { myConsumptionHref, PlanCard } from "@/modules/reporting/ui";
-import { SpaceStanding, type MyBalanceDto } from "@/modules/spaces/ui";
-import type { PeriodDto, SpaceDto } from "@/shared/ui/api/dto";
+import dynamic from "next/dynamic";
+import { SpaceStanding } from "@/modules/spaces/ui";
+import type { PeriodDto } from "@/shared/ui/api/dto";
 import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
 import { useHome, useTransactionDetail, useViewer } from "../ledger/hooks";
 import { showsUnifiedMonth } from "../load";
 import { FEED_ROWS, homeQueryOf, neighboursOf } from "../ledger/queries";
 import { lineReportQuery, myActivityQuery, periodQuery, unifiedViewQuery } from "../reads";
-import { myBalancesQuery, spaceStandingSlot } from "../shell";
+import { spaceStandingSlot } from "../shell";
 import { useTitle } from "../title";
+
+/** #288: "Te necesita hoy" reads and draws in a chunk of its own (ADR 0004). */
+const NeedsTodayHost = dynamic(
+  () => import("../home/needs-today-host").then((module) => module.NeedsTodayHost),
+  {
+    ssr: false,
+  },
+);
 
 // Ruling P278: the switcher's cards with the person's standing ride in this chunk, which already holds the formats.
 spaceStandingSlot.current = SpaceStanding;
 
 const route = getRouteApi("/spaces/$spaceId/");
-
-/**
- * Board B1 · 03 (ruling P278): each space where it is the person's turn to put money in, and whom she pays first:
- * every shared one on the personal home, this one on a shared home.
- */
-const owesOf = (balances: readonly MyBalanceDto[], spaces: readonly SpaceDto[], space: SpaceDto) =>
-  balances
-    .filter((b) => BigInt(b.net.amount) < 0n && (space.kind === "PERSONAL" || b.spaceId === space.id))
-    .flatMap((b) => {
-      const named = spaces.find((s) => s.id === b.spaceId);
-      if (!named) return [];
-      const first = b.payments[0];
-      return [
-        {
-          spaceId: b.spaceId,
-          space: named.name,
-          memberId: b.memberId,
-          amount: { amount: (-BigInt(b.net.amount)).toString(), currency: b.net.currency },
-          to: b.members.find((m) => m.memberId === first?.receivingMemberId)?.name,
-        },
-      ];
-    });
 
 /**
  * HU-E9-01: the home of a space from the query cache (ADR 0006). `?joined=1` (U6) welcomes a person who has just
@@ -102,9 +89,6 @@ export function SpaceHome() {
   // {mes}" under the figure, in any period. The loader reads it ahead, so the card draws in the first paint.
   const plan = useQuery({ ...lineReportQuery(api, spaceId, page.period.label), enabled: personal }).data;
   const planHref = `${home}/plan${holdsToday(page.period) ? "" : `?period=${encodeURIComponent(page.period.label)}`}`;
-  // Ruling P278: the card "Te toca poner", for someone with a shared or direct space.
-  const shared = viewer.spaces.some((s) => s.kind !== "PERSONAL");
-  const balances = useQuery({ ...myBalancesQuery(api), enabled: shared }).data;
   return (
     <>
       <HomeSummary
@@ -167,7 +151,9 @@ export function SpaceHome() {
             ? { personId: viewer.me.id, done: firstStepsOf({ accounts, page, spaces: viewer.spaces, plan }) }
             : undefined
         }
-        owes={balances ? owesOf(balances, viewer.spaces, space) : undefined}
+        needs={
+          <NeedsTodayHost space={space} spaces={viewer.spaces} today={today} formats={context.formats} />
+        }
         past={past}
         stepper={
           personal ? (

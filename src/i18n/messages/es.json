@@ -347,6 +347,19 @@
       "over": "{line} se pasó: {amount} más de lo planeado",
       "overMore": "{line} se pasó: {amount} más de lo planeado · y {count} más"
     },
+    "today": {
+      "title": "Te necesita hoy",
+      "pendingOne": "{name} por confirmar",
+      "pendingMany": "{count} movimientos por confirmar",
+      "pendingDetail": "{space} · {when} · sugerido {amount}",
+      "today": "hoy",
+      "since": "desde el {date}",
+      "review": "Revisar",
+      "reviewIn": "Revisar {name} en {space}",
+      "owed": "Te deben",
+      "see": "Ver",
+      "seeOwed": "Ver lo que te deben"
+    },
     "owe": {
       "in": "En {space}",
       "to": "a {name}",
