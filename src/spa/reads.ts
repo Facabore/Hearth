@@ -29,8 +29,9 @@ import { isTransient, read } from "./read";
 // app shell, whose own reads are in queries.ts.
 
 /**
- * Reads whose screens' loaders revalidate them on every visit and on every prefetch (ADR 0006): mounting a screen never
- * fetches them again, so a visit costs one background read per query, and a write invalidates them by key.
+ * Reads whose screens' loaders revalidate them on every visit (ADR 0006): mounting a screen never fetches them again,
+ * so a visit costs one background read per query, a prefetch on intent reads only what the cache lacks, and a write
+ * invalidates them by key.
  */
 export const LOADER_OWNED = { refetchOnMount: false } as const;
 
