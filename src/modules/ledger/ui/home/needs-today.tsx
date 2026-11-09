@@ -37,7 +37,7 @@ export interface OwedToday {
   readonly amount: MoneyDto;
 }
 
-const LINK = "flex min-h-11 shrink-0 items-center text-sm font-medium text-accent";
+const LINK = "flex min-h-11 min-w-11 shrink-0 items-center justify-center text-sm font-medium text-accent";
 
 /** The sum of the amounts when they share one currency; null across currencies, which never add up. */
 const totalOf = (amounts: readonly MoneyDto[]): MoneyDto | null => {

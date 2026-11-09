@@ -742,6 +742,9 @@ describe("Inicio's turn to put money in and its eye (board B1 · 03, ruling P278
         "href",
         "/spaces/sp-household/pending-occurrences",
       );
+      // Every action is a full 44 × 44 target, the short "Ver" included (AGENTS.md, UI).
+      for (const name of ["Revisar Energía en Household", "Ver lo que te deben"])
+        expect(within(card).getByRole("link", { name })).toHaveClass("min-h-11", "min-w-11");
       // Saldos of the space that owes her the most.
       expect(within(card).getByRole("link", { name: "Ver lo que te deben" })).toHaveAttribute(
         "href",
