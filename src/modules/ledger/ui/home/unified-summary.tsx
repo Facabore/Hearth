@@ -136,6 +136,7 @@ export function UnifiedSummary({
   formats,
   soloHref,
   othersHref,
+  consumptionHref,
 }: {
   readonly unified: UnifiedMonth;
   readonly page: TransactionPageDto;
@@ -145,6 +146,8 @@ export function UnifiedSummary({
   readonly soloHref?: ((categoryId: string) => string | undefined) | undefined;
   /** Ruling P310: where a "Con otros" space opens its movements. */
   readonly othersHref?: ((spaceId: string) => string | undefined) | undefined;
+  /** #287 (audit pass 3, A7): Mi consumo of this period, which says why the month is not what was paid. */
+  readonly consumptionHref?: string | undefined;
 }) {
   const t = useTranslations("home");
   const common = useTranslations("common");
@@ -165,6 +168,11 @@ export function UnifiedSummary({
         <Part label={t("withOthers")} part={unified.withOthers} chips money={money} hrefOf={othersHref} />
       </div>
       <p className="text-sm text-muted">{t("income", { amount: money(page.totals.income) })}</p>
+      {consumptionHref ? (
+        <Link href={consumptionHref} className="flex min-h-11 items-center text-sm font-medium text-accent">
+          {t("whyNotPaid")}
+        </Link>
+      ) : null}
     </section>
   );
 }

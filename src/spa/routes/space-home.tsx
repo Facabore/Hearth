@@ -13,7 +13,7 @@ import {
   unifiedMonthOf,
 } from "@/modules/ledger/ui";
 import { categoryIdsOf } from "@/modules/categories/ui";
-import { PlanCard } from "@/modules/reporting/ui";
+import { myConsumptionHref, PlanCard } from "@/modules/reporting/ui";
 import { SpaceStanding, type MyBalanceDto } from "@/modules/spaces/ui";
 import type { PeriodDto, SpaceDto } from "@/shared/ui/api/dto";
 import { nowIn } from "@/shared/ui/time/when";
@@ -137,6 +137,7 @@ export function SpaceHome() {
                 const label = otherPeriods[others.indexOf(id)]?.data?.label;
                 return label ? transactionListHref(id, { period: label }) : undefined;
               }}
+              consumptionHref={myConsumptionHref(space, page.period.label)}
             />
           ) : undefined
         }

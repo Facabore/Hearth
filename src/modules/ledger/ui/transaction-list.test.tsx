@@ -587,6 +587,15 @@ describe("the list's states (HU-E9-03, ruling P140)", () => {
   });
 });
 
+describe("whose figures the totals are (#287)", () => {
+  it("names the space in a shared space's totals, so they never read as the person's own share", () => {
+    renderWithIntl(listOf({ spaceName: "Hogar" }));
+    const totals = screen.getByRole("region", { name: "Totales del período" });
+    // Audit pass 3, A6: Inicio shows Ana's share of Hogar; here the whole space's spending, and it says so.
+    expect(norm(totals.textContent)).toBe("Gastos de Hogar $ 245.000 · Ingresos +$ 3.200.000");
+  });
+});
+
 describe("Load more (HU-E9-03, ruling P130)", () => {
   const more = [
     expense("t-bread", "Bread", 5_000, "2026-10-05", "2026-10-05T12:00:00.000Z", "c-groceries"),

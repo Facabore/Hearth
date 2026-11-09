@@ -255,6 +255,23 @@ describe("the personal space shows everything (ruling P306)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("links to Mi consumo, which explains why her month is not what she paid (#287)", () => {
+    // Audit pass 3, A7: since P306 nothing led to Mi consumo and its "¿Por qué es distinto?".
+    renderWithIntl(
+      <UnifiedSummary
+        unified={unified}
+        page={octoberPage}
+        policy={{ kind: "MONTHLY", day: 1 }}
+        formats={rowContext.formats}
+        consumptionHref="/spaces/sp-personal/my-consumption?period=2026-10"
+      />,
+    );
+    expect(screen.getByRole("link", { name: "¿Por qué no es lo que pagaste?" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/my-consumption?period=2026-10",
+    );
+  });
+
   it("opens Solo tú into her categories and Con otros into her groups, each named beside its color", async () => {
     const { container } = home();
     const summary = screen.getByRole("region", { name: "Resumen del período" });
