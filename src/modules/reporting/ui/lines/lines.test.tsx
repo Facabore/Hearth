@@ -355,6 +355,8 @@ describe("line dashboard (HU-E9-10)", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Crear plan"]);
+    // #286 (audit pass 3, A11): the person is alone in her space, so no line about who sees the actions.
+    expect(screen.queryByText("Solo Propietario y Administrador ven estas acciones.")).toBeNull();
     expect(
       screen.getByText(
         "No hay un plan anterior para copiar: cuando tengas uno, podrás empezar el mes siguiente desde él.",
@@ -424,6 +426,20 @@ describe("the plan in the household's words (#214)", () => {
     expect(normalized(summary.textContent)).toContain("Ahorrado $ 200.000");
     expect(normalized(summary.textContent)).not.toContain("3.010.000");
     expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("heads with what is left to spend, so savings not yet moved never read as money to spend (#283)", () => {
+    const dashboard = savedTotals();
+    show({
+      ...dashboard,
+      totals: {
+        ...dashboard.totals,
+        withoutSavings: { planned: cop(3_400_000), spent: cop(2_810_000), available: cop(590_000) },
+      },
+    });
+    const summary = screen.getByRole("region", { name: "Resumen del plan" });
+    expect(normalized(summary.textContent)).toContain("Disponible$ 590.000");
+    expect(normalized(summary.textContent)).not.toContain("990.000");
   });
 
   it("shows the figures the API answers, never a difference of its own (ruling P201)", () => {

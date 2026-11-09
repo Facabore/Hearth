@@ -41,6 +41,8 @@ export function LineDashboard({
   const { totals } = dashboard;
   // #214 (ruling P262): the headline is what was spent, savings apart, as the API answers it; never a subtraction.
   const spending = totals.withoutSavings ?? totals;
+  // #283 (ruling P313): the headline is what is left to spend, savings apart, as the API answers it.
+  const left = spending.available ?? totals.available;
   const money = (value: MoneyDto) => formatMoney(value, formats);
   return (
     <>
@@ -50,10 +52,8 @@ export function LineDashboard({
         </h2>
         <p className="flex flex-col">
           <span className="text-sm text-muted">{t("totalAvailable")}</span>
-          <span
-            className={`text-3xl font-semibold${isNegative(totals.available) ? " text-owe" : " text-ink"}`}
-          >
-            {money(totals.available)}
+          <span className={`text-3xl font-semibold${isNegative(left) ? " text-owe" : " text-ink"}`}>
+            {money(left)}
           </span>
         </p>
         <p className="text-sm text-muted">
@@ -98,7 +98,6 @@ export function LineList({
   const t = useTranslations("reports.lines");
   const base = useId();
   const { unbudgeted } = dashboard;
-  const currency = dashboard.totals.planned.currency;
   const money = (value: MoneyDto) => formatMoney(value, formats);
   const available = (value: MoneyDto) => (
     <>
@@ -183,7 +182,7 @@ export function LineList({
             <span
               data-bar
               className="block h-full rounded-full bg-muted"
-              style={{ width: `${barWidth(unbudgeted.spent, { amount: "0", currency })}%` }}
+              style={{ width: `${barWidth(unbudgeted.spent, { ...unbudgeted.spent, amount: "0" })}%` }}
             />
           </span>
           <span data-caption className="text-sm text-muted tabular-nums">

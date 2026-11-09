@@ -122,7 +122,9 @@ export function TransactionList({
         movedMemberIds={movedMemberIds}
       />
       <section aria-label={t("list.totals")} className="text-sm text-ink">
-        {t.rich("list.expenses", {
+        {/* #287 (audit pass 3, A6): a shared space's totals are the whole space's, so they name it. */}
+        {t.rich(spaceName ? "list.expensesOf" : "list.expenses", {
+          space: spaceName ?? "",
           amount: formatMoney(page.totals.expenses, context.formats),
           b: figure(page.totals.expenses, false),
         })}{" "}

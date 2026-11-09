@@ -15,6 +15,7 @@ export function FormChip({
   ariaLabel,
   testId,
   opens,
+  showName = false,
 }: {
   readonly name: string;
   readonly value: string;
@@ -26,13 +27,15 @@ export function FormChip({
   readonly testId?: string;
   /** Ruling P308: a chevron says the chip opens a choice (the space at the top of Registrar). */
   readonly opens?: boolean;
+  /** #286 (audit pass 3, A13): the name shows before the value, as a transfer's "Desde" and "Hacia" must. */
+  readonly showName?: boolean;
 }) {
   const content = (
     <>
       <span aria-hidden="true" className="flex shrink-0 text-muted">
         {icon}
       </span>
-      <span className="sr-only">{`${name} `}</span>
+      <span className={showName ? "shrink-0 font-normal text-muted" : "sr-only"}>{`${name} `}</span>
       <span className="min-w-0 truncate">{value}</span>
       {opens ? <Icon name="chevronDown" size={16} className="shrink-0 text-muted" /> : null}
     </>

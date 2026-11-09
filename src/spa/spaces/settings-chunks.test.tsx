@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { es } from "@/i18n/messages/full";
-import { meDto, spaceDto } from "../../../tests/support/ui/dto";
+import { cop, meDto, spaceDto } from "../../../tests/support/ui/dto";
 import { jsonResponse, type FakeHandler } from "../../../tests/support/ui/fake-api";
 import { e7Dashboard, HOUSEHOLD_MEMBERS, householdDto, NOVEMBER } from "../../../tests/support/ui/plan-dto";
 import { renderSpa } from "../../../tests/support/ui/spa";
@@ -37,7 +37,17 @@ const server = (): Record<string, FakeHandler> => ({
   "GET /api/v1/spaces": () => jsonResponse({ items: [spaceDto(), householdDto()] }),
   "GET /api/v1/spaces/{spaceId}/periods": () => jsonResponse({ items: [NOVEMBER] }),
   "GET /api/v1/spaces/{spaceId}/members": () => jsonResponse({ items: HOUSEHOLD_MEMBERS }),
-  "GET /api/v1/spaces/{spaceId}/reports/lines": () => jsonResponse(e7Dashboard()),
+  // #283: the status is what is left to spend, savings apart, as the API answers it.
+  "GET /api/v1/spaces/{spaceId}/reports/lines": () => {
+    const dashboard = e7Dashboard();
+    return jsonResponse({
+      ...dashboard,
+      totals: {
+        ...dashboard.totals,
+        withoutSavings: { planned: cop(3_400_000), spent: cop(2_810_000), available: cop(590_000) },
+      },
+    });
+  },
   "GET /api/v1/spaces/{spaceId}/pending-occurrences": () => jsonResponse({ items: [] }),
   "GET /api/v1/me/balances": () => jsonResponse({ items: [] }),
 });
@@ -73,7 +83,7 @@ describe("the Configuración's lazy chunks (ruling P311)", () => {
         within(screen.getByRole("navigation", { name: "Configuración" }))
           .getByRole("link", { name: /Plan del mes/ })
           .textContent?.replace(/\s/g, " "),
-      ).toContain("Quedan $ 1.190.000"),
+      ).toContain("Quedan $ 590.000"),
     );
     vi.mocked(console.error).mockRestore();
   });

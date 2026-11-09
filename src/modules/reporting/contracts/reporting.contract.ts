@@ -114,7 +114,13 @@ export const LineDashboardSchema = z.object({
         "Σ of the SAVINGS lines' spent: what reached the savings accounts. spent still counts it.",
       ),
       withoutSavings: z
-        .object({ planned: MoneySchema, spent: MoneySchema })
+        .object({
+          planned: MoneySchema,
+          spent: MoneySchema,
+          available: MoneySchema.optional().describe(
+            "available without the SAVINGS lines (Unbudgeted's available still counts): what is left to spend.",
+          ),
+        })
         .optional()
         .describe(
           "planned and spent without the SAVINGS lines (Unbudgeted's spent still counts), so a client shows what was spent apart from what was saved without subtracting.",
@@ -174,6 +180,7 @@ export const lineDashboardDto = (dashboard: LineDashboard): z.infer<typeof LineD
     withoutSavings: {
       planned: moneyOf(dashboard.totals.withoutSavings.planned, dashboard.currency),
       spent: moneyOf(dashboard.totals.withoutSavings.spent, dashboard.currency),
+      available: moneyOf(dashboard.totals.withoutSavings.available, dashboard.currency),
     },
   },
   categoryLines: dashboard.categoryLines.map((c) => ({ categoryId: c.categoryId, lineId: c.lineId })),

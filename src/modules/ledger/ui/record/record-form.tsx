@@ -533,6 +533,7 @@ export function RecordForm({
       icon={icon}
       onClick={fixed ? undefined : () => setSheet(open)}
       errorId={errorOf(field) ? `record-${field}-error` : undefined}
+      showName={kind === "TRANSFER"}
     />
   );
   const accountLabel = t(
@@ -797,15 +798,23 @@ export function RecordForm({
             // Pesos are typed whole (their shares round to whole pesos, P183): 000, not a point.
             point={currency.roundingUnit < 10n ** BigInt(currency.exponent)}
           />
-          <Button
-            type="submit"
-            size="lg"
-            className="w-full"
-            disabled={pending || (!built.ok && built.field === "split")}
-            aria-describedby={warning ? "record-line-warning" : undefined}
+          {/* #281 (audit pass 3, A1): Save is pinned to the bottom of whatever scrolls (the sheet, or the edit page), so
+              on a 375×667 or 320×640 phone it is on screen before any scroll and the fields scroll above it. */}
+          <div
+            className={`sticky bottom-0 z-10 pt-2 ${
+              edit ? "bg-bg pb-[max(0.75rem,env(safe-area-inset-bottom))]" : "bg-surface pb-1"
+            }`}
           >
-            {edit ? t("edit.save") : t(`form.save.${splitting ? "DIRECT" : kind}`)}
-          </Button>
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full"
+              disabled={pending || (!built.ok && built.field === "split")}
+              aria-describedby={warning ? "record-line-warning" : undefined}
+            >
+              {edit ? t("edit.save") : t(`form.save.${splitting ? "DIRECT" : kind}`)}
+            </Button>
+          </div>
         </>
       )}
       {directOpened && people ? (
@@ -813,8 +822,6 @@ export function RecordForm({
           open={directOpen}
           onOpenChange={setDirectOpen}
           people={people}
-          currency={space.currency}
-          spaceName={space.name}
           onChoose={setDirect}
         />
       ) : null}

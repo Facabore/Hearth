@@ -9,22 +9,28 @@ import type { RecentCategory } from "./recent-categories";
 /** Board B1 · 01: three category tiles, then the one that opens every category. */
 const TILES = 3;
 
+/** #289 (audit pass 3, A14): the seeded categories most records fall in, before the tree's order (housing first). */
+const EVERYDAY = ["groceries", "restaurants", "public_transport", "salary"];
+
 /**
- * The categories the tiles show: the chosen one, then the recent ones, then the first of the kind's tree. The chosen
- * one may be archived since (an edit), so it is named from the whole tree.
+ * The categories the tiles show: the chosen one, then the recent ones, then the everyday seeded ones, then the rest of
+ * the kind's tree in its order. The chosen one may be archived since (an edit), so it is named from the whole tree.
  */
 export const tileIds = (
   offered: readonly CategoryGroupDto[],
   recent: readonly RecentCategory[],
   chosen: string | null,
-): string[] =>
-  [
+): string[] => {
+  const tree = offered.flatMap((g) => g.categories);
+  return [
     ...new Set([
       ...(chosen ? [chosen] : []),
       ...recent.map((r) => r.categoryId),
-      ...offered.flatMap((g) => g.categories.map((c) => c.id)),
+      ...EVERYDAY.flatMap((key) => tree.filter((c) => c.key === key).map((c) => c.id)),
+      ...tree.map((c) => c.id),
     ]),
   ].slice(0, TILES);
+};
 
 /** Four 2 × 2 squares: "every category". */
 function GridIcon() {

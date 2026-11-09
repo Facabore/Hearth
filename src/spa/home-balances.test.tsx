@@ -54,7 +54,7 @@ beforeEach(() => {
 describe("Inicio and the space switcher read the person's balances (#240, ruling P278)", () => {
   it("shows the personal home her turn to put money in Household, with Saldar opening its settle sheet", async () => {
     renderSpa("/spaces/sp-personal", api());
-    const card = await screen.findByRole("region", { name: /Te toca poner/ }, { timeout: 15_000 });
+    const card = await screen.findByRole("region", { name: "Te necesita hoy" }, { timeout: 15_000 });
     expect(card.textContent?.replace(/\s/g, " ")).toContain("Te toca poner $ 120.000 a Juan");
     expect(card).toHaveTextContent("En Household");
     expect(within(card).getByRole("link", { name: "Saldar con Juan en Household" })).toHaveAttribute(
@@ -63,17 +63,71 @@ describe("Inicio and the space switcher read the person's balances (#240, ruling
     );
   });
 
+  it("gathers Household's bill to confirm and what the others owe her in one card (#288)", async () => {
+    const owedInTrip = {
+      ...anaOwesJuan,
+      spaceId: "sp-trip",
+      net: cop(30_000),
+      payments: [],
+    };
+    renderSpa(
+      "/spaces/sp-personal",
+      api({
+        "GET /api/v1/spaces": () =>
+          jsonResponse({
+            items: [spaceDto(), householdSpace(), { ...householdSpace(), id: "sp-trip", name: "Viaje" }],
+          }),
+        "GET /api/v1/me/balances": () => jsonResponse({ items: [anaOwesJuan, owedInTrip] }),
+        "GET /api/v1/spaces/{spaceId}/pending-occurrences": (_request, params) =>
+          jsonResponse({
+            items:
+              params.spaceId === "sp-household"
+                ? [
+                    {
+                      id: "o-energy",
+                      recurrenceId: "r-energy",
+                      type: "EXPENSE",
+                      description: "Energía",
+                      date: "2026-10-20",
+                      status: "PENDING",
+                      amount: cop(180_000),
+                      categoryId: null,
+                      transactionId: null,
+                      reason: null,
+                    },
+                  ]
+                : [],
+          }),
+      }),
+    );
+    const card = await screen.findByRole("region", { name: "Te necesita hoy" }, { timeout: 15_000 });
+    await waitFor(() => expect(card).toHaveTextContent("Energía por confirmar"));
+    const text = card.textContent?.replace(/\s/g, " ");
+    expect(text).toContain("sugerido $ 180.000");
+    expect(text).toContain("Te deben $ 30.000");
+    expect(text).toContain("Viaje $ 30.000");
+    expect(text).toContain("Te toca poner $ 120.000 a Juan");
+    expect(within(card).getByRole("link", { name: "Revisar Energía en Household" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household/pending-occurrences",
+    );
+    expect(within(card).getByRole("link", { name: "Ver lo que te deben" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-trip/balances",
+    );
+  });
+
   it("shows a shared home the card of that space only", async () => {
     renderSpa("/spaces/sp-household", api());
     expect(
-      await screen.findByRole("region", { name: /Te toca poner/ }, { timeout: 15_000 }),
+      await screen.findByRole("region", { name: "Te necesita hoy" }, { timeout: 15_000 }),
     ).toHaveTextContent("En Household");
   });
 
   it("puts no eye in the header: Inicio and the switcher show the amounts (ruling P311)", async () => {
     renderSpa("/spaces/sp-personal", api());
     const banner = await screen.findByRole("banner", {}, { timeout: 15_000 });
-    expect(await screen.findByRole("region", { name: /Te toca poner/ })).toHaveTextContent("120.000");
+    expect(await screen.findByRole("region", { name: "Te necesita hoy" })).toHaveTextContent("120.000");
     expect(within(banner).queryByRole("button", { name: /Ocultar montos/ })).toBeNull();
     await userEvent.click(within(banner).getByRole("button", { name: /Cambiar de espacio/ }));
     const sheet = await screen.findByRole("dialog", { name: es.shell.space.title });
@@ -104,6 +158,6 @@ describe("Inicio and the space switcher read the person's balances (#240, ruling
     expect(await screen.findByRole("dialog", { name: es.shell.space.title })).toBeVisible();
     await waitFor(() => expect(spa.queryClient.isFetching()).toBe(0));
     expect(balanceReads(spa.requests)).toBe(0);
-    expect(screen.queryByRole("region", { name: /Te toca poner/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Te necesita hoy" })).not.toBeInTheDocument();
   });
 });

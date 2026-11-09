@@ -20,8 +20,8 @@ describe("fund tracking (HU-E9-10)", () => {
     expect(juan).toContain("Esperado$ 720.000");
     expect(juan).toContain("Aportado$ 500.000");
     expect(juan).toContain("Diferencia−$ 220.000");
-    expect(juan).toContain("Le faltan $ 220.000");
-    expect(card("Ana")).toContain("Al día");
+    expect(juan).toContain("Le faltan $ 220.000 para el fondo");
+    expect(card("Ana")).toContain("Al día con el fondo");
     expect(screen.queryByText("Sin plan, nadie tiene un aporte esperado.")).not.toBeInTheDocument();
     expect(await axeViolations(container)).toEqual([]);
   });
@@ -42,9 +42,9 @@ describe("fund tracking (HU-E9-10)", () => {
     ];
     show(e7Fund({ members }));
     expect(card("Ana")).toContain("Diferencia+$ 50.000");
-    expect(card("Ana")).toContain("Al día");
+    expect(card("Ana")).toContain("Al día con el fondo");
     expect(card("Juan")).toContain("Diferencia$ 0");
-    expect(card("Juan")).toContain("Al día");
+    expect(card("Juan")).toContain("Al día con el fondo");
     expect(card("Juan")).not.toContain("Le faltan");
   });
 

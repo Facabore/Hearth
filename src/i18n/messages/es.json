@@ -235,6 +235,7 @@
     }
   },
   "shell": {
+    "skip": "Saltar al contenido",
     "nav": {
       "main": "Principal",
       "home": "Inicio",
@@ -269,6 +270,7 @@
     "settings": "Configuración de {name}",
     "more": {
       "title": "Más",
+      "plan": "Planea tu mes",
       "settings": "Configuración",
       "accounts": "Cuentas",
       "categories": "Categorías",
@@ -294,7 +296,7 @@
       "step": {
         "balances": "¿Cuánto tienes hoy en tus cuentas?",
         "expense": "Registra tu primer gasto",
-        "share": "Comparte con tu hogar",
+        "share": "Crea el espacio de tu hogar",
         "plan": "Arma el plan del mes"
       }
     },
@@ -303,6 +305,8 @@
     "spentBetween": "Gastado del {start} al {end}",
     "solo": "Solo tú",
     "withOthers": "Con otros",
+    "viewerNote": "Eres Lector aquí: ves los movimientos y los saldos, pero no registras.",
+    "whyNotPaid": "¿Por qué no es lo que pagaste?",
     "income": "Ingresos +{amount}",
     "accounts": "Cuentas",
     "allAccounts": "Ver todas las cuentas",
@@ -342,6 +346,19 @@
       "overspent": "Te pasaste {over} de {planned} planeados",
       "over": "{line} se pasó: {amount} más de lo planeado",
       "overMore": "{line} se pasó: {amount} más de lo planeado · y {count} más"
+    },
+    "today": {
+      "title": "Te necesita hoy",
+      "pendingOne": "{name} por confirmar",
+      "pendingMany": "{count} movimientos por confirmar",
+      "pendingDetail": "{space} · {when} · sugerido {amount}",
+      "today": "hoy",
+      "since": "desde el {date}",
+      "review": "Revisar",
+      "reviewIn": "Revisar {name} en {space}",
+      "owed": "Te deben",
+      "see": "Ver",
+      "seeOwed": "Ver lo que te deben"
     },
     "owe": {
       "in": "En {space}",
@@ -403,6 +420,7 @@
       "title": "Movimientos",
       "totals": "Totales del período",
       "expenses": "Gastos <b>{amount}</b>",
+      "expensesOf": "Gastos de {space} <b>{amount}</b>",
       "income": "Ingresos <b>{amount}</b>",
       "period": "Período {label}",
       "periods": "Elegir período",
@@ -619,12 +637,12 @@
       "shared": "¿Lo compartiste?",
       "row": "¿Lo compartiste? Dividir con alguien",
       "title": "Dividir con alguien",
-      "intro": "El gasto queda en un espacio solo para ustedes dos. Si ya existe, se usa el mismo; si no, se crea en {currency}, la moneda de tu espacio {space}.",
+      "intro": "El gasto queda en un espacio solo para ustedes dos; si ya existe, se usa el mismo.",
       "people": "Personas con las que compartes un espacio",
       "existing": "Ya tienen «{space}»: se usa ese",
       "new": "Se crea un espacio para los dos",
       "guestOf": "De «{space}»",
-      "guestsNote": "Los invitados de un espacio compartido no aparecen aquí: solo existen en su espacio.",
+      "guestsNote": "Los invitados de un grupo, como un hogar o un viaje, no aparecen aquí: solo existen en ese grupo.",
       "newGuest": "O alguien que no usa Hearth",
       "guestName": "Nombre del nuevo invitado",
       "use": "Usar",

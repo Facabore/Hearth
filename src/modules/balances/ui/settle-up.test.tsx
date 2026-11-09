@@ -98,7 +98,7 @@ const radioNames = (group: HTMLElement) =>
   within(group)
     .getAllByRole("radio")
     .map((radio) => normalized(radio.textContent));
-/** Board 02: the receiver is a fixed row, "A Ana (tú)", not a choice. */
+/** Board 02: the receiver is a fixed row, "Recibe Ana (tú)", not a choice. */
 const receiverRow = () => within(dialog()).getByTestId("settle-receiver");
 /** An accessible name whose spaces match the formatters' non-breaking ones. */
 const named = (text: string) => new RegExp(`^${text.replace(/[.()$]/g, "\\$&").replace(/ /g, "\\s")}$`);
@@ -123,7 +123,7 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
     expect(within(payerGroup()).getByRole("radio", { name: "Juan (tú)" })).toBeChecked();
     expect(radioNames(payerGroup())).toEqual(["Juan (tú)", "Luis"]);
     expect(within(dialog()).queryByRole("radiogroup", { name: "Quién recibe" })).toBeNull();
-    expect(normalized(receiverRow().textContent)).toBe("A Ana");
+    expect(normalized(receiverRow().textContent)).toBe("Recibe Ana");
     expect(within(dialog()).getByLabelText("Monto")).toHaveValue("100.000");
     // A prefilled amount needs no example of how to write one.
     expect(within(dialog()).getByLabelText("Monto")).not.toHaveAccessibleDescription(/Ej:/);
@@ -299,6 +299,17 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
       expect(within(from()).getByRole("radio", { name: "Nequi" })).toBeChecked();
     });
 
+    it("never sends a receiving account when the viewer pays someone else (#282)", async () => {
+      localStorage.setItem("hearth.lastAccount", "a-davi");
+      const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
+      screenAs("u-juan", api);
+      await userEvent.click(screen.getByRole("button", { name: JUAN_PAYS }));
+      await userEvent.click(save());
+      const body = await requests[0]!.json();
+      expect(body).toMatchObject({ payerMemberId: "m-juan", sourceAccountId: "a-davi" });
+      expect(body).not.toHaveProperty("destinationAccountId");
+    });
+
     it("records the payment without an account when Juan picks Ninguna", async () => {
       localStorage.setItem("hearth.lastAccount", "a-davi");
       const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
@@ -319,12 +330,29 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
       expect(optional).toHaveClass("font-normal", "text-muted");
     });
 
-    it("never starts the receiving account on one: a payment arrives where the viewer says", async () => {
+    it("starts the receiving account on the one last used and sends it, so the payment lands in an account (#282)", async () => {
       localStorage.setItem("hearth.lastAccount", "a-bank");
-      screenAs("u-ana", fakeApi({}).api);
+      const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
+      screenAs("u-ana", api);
       await userEvent.click(screen.getByRole("button", { name: LUIS_PAYS }));
       const to = within(dialog()).getByRole("radiogroup", { name: "Llega a (opcional)" });
-      expect(within(to).getByRole("radio", { name: "Ninguna" })).toBeChecked();
+      expect(within(to).getByRole("radio", { name: "Bancolombia" })).toBeChecked();
+      expect(within(to).getByRole("radio", { name: "Ninguna" })).not.toBeChecked();
+      await userEvent.click(save());
+      expect(await requests[0]!.json()).toMatchObject({
+        receivingMemberId: "m-ana",
+        destinationAccountId: "a-bank",
+      });
+    });
+
+    it("still records a received payment without an account when the viewer picks Ninguna (#282)", async () => {
+      const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
+      screenAs("u-ana", api);
+      await userEvent.click(screen.getByRole("button", { name: LUIS_PAYS }));
+      const to = within(dialog()).getByRole("radiogroup", { name: "Llega a (opcional)" });
+      await userEvent.click(within(to).getByRole("radio", { name: "Ninguna" }));
+      await userEvent.click(save());
+      expect(await requests[0]!.json()).not.toHaveProperty("destinationAccountId");
     });
   });
 
@@ -363,7 +391,6 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
       within(dialog()).queryByRole("radiogroup", { name: "Sale de (opcional)" }),
     ).not.toBeInTheDocument();
     const to = within(dialog()).getByRole("radiogroup", { name: "Llega a (opcional)" });
-    expect(within(to).getByRole("radio", { name: "Ninguna" })).toBeChecked();
     await userEvent.click(within(to).getByRole("radio", { name: "Bancolombia" }));
     await userEvent.click(save());
     expect(await requests[0]!.json()).toMatchObject({
@@ -389,7 +416,7 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
     expect(within(dialog()).queryByText(/prellenado/)).toBeNull();
     expect(radioNames(payerGroup())).toEqual(["Juan", "Luis", "Pedro (invitado)"]);
     expect(within(payerGroup()).queryByRole("radio", { checked: true })).toBeNull();
-    expect(normalized(receiverRow().textContent)).toBe("A Ana (tú)");
+    expect(normalized(receiverRow().textContent)).toBe("Recibe Ana (tú)");
     expect(within(dialog()).getByLabelText("Monto")).toHaveAccessibleDescription("Ej: 1.250,50");
   });
 

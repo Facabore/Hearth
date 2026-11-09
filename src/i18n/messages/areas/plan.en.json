@@ -11,7 +11,9 @@
       "dates": "{space} · {start} – {end}",
       "closedNotice": "Closed plan: it is read-only now, like the expenses dated in {period}.",
       "capacity": "What everyone puts in",
+      "capacityPersonal": "What you have for the period",
       "unallocated": "{amount} left to assign",
+      "unallocatedPersonal": "{amount} still to assign",
       "memberShare": "{name} {amount} · {share}",
       "memberAmount": "{name} {amount}",
       "editCapacities": "Edit contributions",
@@ -19,6 +21,7 @@
       "addLine": "Add line",
       "empty": "This plan has no lines yet.",
       "meta": "{funding} · {rule} · {rollover}",
+      "metaPersonal": "{funding} · {rollover}",
       "ofCapacity": "{share} of what is put in",
       "invalidAllocation": "Invalid allocation",
       "editLine": "Edit {name}",
@@ -281,11 +284,11 @@
       "actual": "Contributed",
       "difference": "Difference",
       "byMember": "By member",
-      "upToDate": "Up to date",
+      "upToDate": "Up to date with the fund",
       "noPlan": "Without a plan, nobody has an expected contribution.",
       "note": "Expected: what each one is assigned on the lines paid from the fund. Contributions dated in the period count.",
       "missing": "Missing",
-      "behindBy": "Short by {amount}"
+      "behindBy": "Short by {amount} for the fund"
     },
     "lines": {
       "summary": "Plan summary",
@@ -331,9 +334,9 @@
       "hideDetail": "Hide detail",
       "detailOf": "for {member}",
       "total": {
-        "OVER_CONTRIBUTED": "Over by {amount}",
-        "UNDER_CONTRIBUTED": "Short by {amount}",
-        "ON_TARGET": "On target",
+        "OVER_CONTRIBUTED": "Over their share by {amount}",
+        "UNDER_CONTRIBUTED": "Short of their share by {amount}",
+        "ON_TARGET": "Even with their share",
         "none": "No gap to compare"
       },
       "member": "Member",

@@ -27,13 +27,33 @@ export const rememberLastAccount = (
   }
 };
 
+const minorOf = (account: { readonly balance?: AccountDto["balance"] }): bigint =>
+  BigInt(account.balance?.amount ?? "0");
+
+/** A missing balance reads as zero in any currency; two balances compare only in the same one. */
+const sameCurrency = (
+  a: { readonly balance?: AccountDto["balance"] },
+  b: { readonly balance?: AccountDto["balance"] },
+): boolean => a.balance === undefined || b.balance === undefined || a.balance.currency === b.balance.currency;
+
 /**
- * The account a new movement starts on (issue #208): the one last paid from while the form still offers it, else the
- * first that is not a savings account, else the first. Never a savings account by alphabetical accident.
+ * The account a new movement starts on (issue #208): the one last paid from while the form still offers it. Else, #285
+ * (audit pass 3, A8): where the money is, the non-savings account with the highest balance (list order breaks a tie),
+ * so a new person who loaded Efectivo does not start on "Billetera digital" by alphabetical accident; else the first.
+ * Never a savings account for its balance alone.
  */
 export const preferredAccountId = (
-  accounts: readonly Pick<AccountDto, "id" | "type">[],
+  accounts: readonly (Pick<AccountDto, "id" | "type"> & { readonly balance?: AccountDto["balance"] })[],
   lastAccountId: string | null,
 ): string | null =>
-  (accounts.find((a) => a.id === lastAccountId) ?? accounts.find((a) => a.type !== "SAVINGS") ?? accounts[0])
-    ?.id ?? null;
+  (
+    accounts.find((a) => a.id === lastAccountId) ??
+    accounts
+      .filter((a) => a.type !== "SAVINGS")
+      .reduce<(typeof accounts)[number] | undefined>(
+        // A balance is compared only with one in its own currency: list order decides across currencies.
+        (best, a) => (best === undefined || (sameCurrency(a, best) && minorOf(a) > minorOf(best)) ? a : best),
+        undefined,
+      ) ??
+    accounts[0]
+  )?.id ?? null;

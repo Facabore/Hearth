@@ -50,6 +50,24 @@ describe("app shell (HU-E9-01)", () => {
     expect(document.documentElement.dataset.font).toBe("inter");
   });
 
+  it("starts with a link that skips to the screen's content, and the content takes the focus (#290)", async () => {
+    // Audit pass 3, A17: a keyboard reached Registrar after twenty Tabs, with no way past the header.
+    renderWithIntl(
+      <AppShell
+        me={{ id: "u-ana", name: "Ana", email: "ana@example.com", locale: "es" }}
+        spaces={spaces}
+        activeSpace={spaces[0]}
+      >
+        <h1>Inicio</h1>
+      </AppShell>,
+    );
+    await userEvent.tab();
+    const skip = screen.getByRole("link", { name: "Saltar al contenido" });
+    expect(skip).toHaveFocus();
+    expect(skip).toHaveAttribute("href", "#main");
+    expect(screen.getByRole("main")).toHaveAttribute("tabindex", "-1");
+  });
+
   it("shows the active space, the user menu and the navigation of the space", async () => {
     const { container } = renderWithIntl(
       <AppShell

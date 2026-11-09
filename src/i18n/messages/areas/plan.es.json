@@ -11,7 +11,9 @@
       "dates": "{space} · {start} – {end}",
       "closedNotice": "Plan cerrado: queda en solo lectura, igual que los gastos fechados en {period}.",
       "capacity": "Lo que aportan entre todos",
+      "capacityPersonal": "Lo que tienes para el período",
       "unallocated": "Por repartir {amount}",
+      "unallocatedPersonal": "Te falta asignar {amount}",
       "memberShare": "{name} {amount} · {share}",
       "memberAmount": "{name} {amount}",
       "editCapacities": "Editar aportes",
@@ -19,6 +21,7 @@
       "addLine": "Agregar rubro",
       "empty": "Este plan aún no tiene rubros.",
       "meta": "{funding} · {rule} · {rollover}",
+      "metaPersonal": "{funding} · {rollover}",
       "ofCapacity": "{share} de lo aportado",
       "invalidAllocation": "Asignación inválida",
       "editLine": "Editar {name}",
@@ -281,11 +284,11 @@
       "actual": "Aportado",
       "difference": "Diferencia",
       "byMember": "Por miembro",
-      "upToDate": "Al día",
+      "upToDate": "Al día con el fondo",
       "noPlan": "Sin plan, nadie tiene un aporte esperado.",
       "note": "Esperado: lo asignado a cada uno en los rubros pagados con el fondo. Cuentan los aportes fechados en el período.",
       "missing": "Falta",
-      "behindBy": "Le faltan {amount}"
+      "behindBy": "Le faltan {amount} para el fondo"
     },
     "lines": {
       "summary": "Resumen del plan",
@@ -331,9 +334,9 @@
       "hideDetail": "Ocultar detalle",
       "detailOf": "de {member}",
       "total": {
-        "OVER_CONTRIBUTED": "Le sobran {amount}",
-        "UNDER_CONTRIBUTED": "Le faltan {amount}",
-        "ON_TARGET": "Al día",
+        "OVER_CONTRIBUTED": "Le sobran {amount} sobre su parte",
+        "UNDER_CONTRIBUTED": "Le faltan {amount} de su parte",
+        "ON_TARGET": "Al día con su parte",
         "none": "Sin diferencia que comparar"
       },
       "member": "Miembro",

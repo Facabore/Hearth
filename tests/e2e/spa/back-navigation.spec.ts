@@ -141,7 +141,7 @@ test.describe("back navigation (ruling P307)", () => {
     await nav(page).getByRole("link", { name: es.shell.nav.home }).click();
     await nav(page).getByRole("link", { name: es.shell.nav.record }).click();
     for (const digit of ["3", "000"]) await page.getByRole("button", { name: digit, exact: true }).click();
-    await page.getByRole("button", { name: "Arriendo", exact: true }).click();
+    await page.getByRole("button", { name: "Mercado", exact: true }).click();
     await page.getByRole("button", { name: es.ledger.form.save.EXPENSE }).click();
     await expect(page).toHaveURL(home);
     await page.goBack();

@@ -69,7 +69,7 @@ describe("line dashboard (HU-E7-01)", () => {
       spent: pesos(2_810_000),
       available: pesos(1_190_000),
       saved: 0n,
-      withoutSavings: { planned: pesos(3_400_000), spent: pesos(2_810_000) },
+      withoutSavings: { planned: pesos(3_400_000), spent: pesos(2_810_000), available: pesos(590_000) },
     });
   });
 
@@ -83,7 +83,7 @@ describe("line dashboard (HU-E7-01)", () => {
       spent: pesos(3_010_000),
       available: pesos(990_000),
       saved: pesos(200_000),
-      withoutSavings: { planned: pesos(3_400_000), spent: pesos(2_810_000) },
+      withoutSavings: { planned: pesos(3_400_000), spent: pesos(2_810_000), available: pesos(590_000) },
     });
   });
 
@@ -95,7 +95,7 @@ describe("line dashboard (HU-E7-01)", () => {
       spent: pesos(100_000),
       available: -pesos(100_000),
       saved: 0n,
-      withoutSavings: { planned: 0n, spent: pesos(100_000) },
+      withoutSavings: { planned: 0n, spent: pesos(100_000), available: -pesos(100_000) },
     });
   });
 
@@ -336,7 +336,7 @@ describe("line dashboard (HU-E7-01)", () => {
       spent: pesos(2_810_000),
       available: pesos(1_190_000),
       saved: 0n,
-      withoutSavings: { planned: pesos(3_400_000), spent: pesos(2_810_000) },
+      withoutSavings: { planned: pesos(3_400_000), spent: pesos(2_810_000), available: pesos(590_000) },
     });
     expect(dashboard.lines.find((l) => l.name === "Free")).toMatchObject({
       isCatchAll: true,

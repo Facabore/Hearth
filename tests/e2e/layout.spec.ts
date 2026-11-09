@@ -1196,7 +1196,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       // overflow). The person and the guest both still have to pay in.
       await page.goto(`/spaces/${sharedId}/plan/fund`);
       await expect(
-        page.getByText(new RegExp(`^${es.reports.fund.behindBy.replace("{amount}", "")}`)).first(),
+        page.getByText(new RegExp(`^${es.reports.fund.behindBy.split("{amount}")[0]}`)).first(),
       ).toBeVisible();
       await expect(page.getByText(es.reports.fund.note)).toBeVisible();
     });
@@ -1894,6 +1894,49 @@ test.describe("bottom sheets sit above the bottom navigation", () => {
     });
     expect(covered, "the navigation still receives the point under the sheet").toBe(false);
   });
+});
+
+/**
+ * #281 (audit pass 3, A1): on an iPhone SE-class phone and at 320 px, every form's primary action is on screen before
+ * any scroll; the fields scroll above it, as Saldar's pinned footer does.
+ */
+test.describe("the primary action of a form stays in view on a small phone (#281)", () => {
+  for (const size of [
+    { width: 375, height: 667 },
+    { width: 320, height: 640 },
+  ]) {
+    test(`Registrar, Editar movimiento and Editar cuenta at ${size.width}×${size.height}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(size);
+      const { spaceId } = await session(page, `save-${size.width}`);
+      const inView = (name: string) =>
+        expect(page.getByRole("button", { name, exact: true }), name).toBeInViewport({ ratio: 1 });
+
+      await page.goto(`/spaces/${spaceId}/new`);
+      await expect(page.locator("[data-ready='true']")).toBeAttached();
+      await inView(es.ledger.form.save.EXPENSE);
+      await page.getByRole("tab", { name: es.ledger.type.INCOME }).click();
+      await inView(es.ledger.form.save.INCOME);
+      await page.getByRole("tab", { name: es.ledger.type.TRANSFER }).click();
+      await inView(es.ledger.form.save.TRANSFER);
+
+      const { items } = (await get(page, `/api/v1/spaces/${spaceId}/transactions?period=2026-10`)) as {
+        items: { id: string; description: string }[];
+      };
+      const market = items.find((tx) => tx.description === "Market")!;
+      await page.goto(`/spaces/${spaceId}/transactions/${market.id}/edit`);
+      await expect(page.locator("[data-ready='true']")).toBeAttached();
+      await inView(es.ledger.edit.save);
+
+      const { items: accounts } = (await get(page, `/api/v1/spaces/${spaceId}/accounts`)) as {
+        items: { id: string; name: string }[];
+      };
+      const bank = accounts.find((account) => account.name === "Bancolombia")!;
+      await page.goto(`/spaces/${spaceId}/accounts/${bank.id}/edit`);
+      await inView(es.accounts.edit.save);
+    });
+  }
 });
 
 test.describe("sheets fit the screen and only their body scrolls", () => {

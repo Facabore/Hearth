@@ -459,8 +459,10 @@ describe("the planner of a personal space", () => {
         groups={[]}
       />,
     );
-    const card = screen.getByRole("region", { name: "Lo que aportan entre todos" });
-    expect(normalized(card.textContent)).toContain("Por repartir $ 1.900.000");
+    // #286 (audit pass 3, A11): alone in her space, the person reads her own words, not a household's.
+    const card = screen.getByRole("region", { name: "Lo que tienes para el período" });
+    expect(normalized(card.textContent)).toContain("Te falta asignar $ 1.900.000");
+    expect(screen.queryByText(/aportan entre todos|Según aportes|Cada uno paga/)).toBeNull();
     const parts = [...card.querySelector("[data-share-bar]")!.children] as HTMLElement[];
     expect(parts.map((part) => part.style.flexBasis)).toEqual(["100%"]);
     expect(within(card).getByText("100,00 %").tagName).toBe("STRONG");

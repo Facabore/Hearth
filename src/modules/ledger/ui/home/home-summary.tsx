@@ -12,7 +12,6 @@ import { TransactionSheetHost } from "../detail/transaction-sheet-host";
 import { hrefOf, withTx } from "../detail/tx-href";
 import { TransactionRow, type RowContext } from "../transaction-row";
 import { FirstSteps, type FirstStepsDone } from "./first-steps";
-import { OweCard, type Owe } from "./owe-card";
 
 /**
  * HU-E9-01, the Home and Desktop artboards for M6a (the "no plan" variant, ruling P126): the period's spending and
@@ -33,7 +32,7 @@ export function HomeSummary({
   recent,
   today,
   firstSteps,
-  owes,
+  needs,
   stepper,
   past = false,
 }: {
@@ -66,8 +65,11 @@ export function HomeSummary({
   readonly recent?: ReactNode;
   /** Issues #220 (F14) and #152: on the personal home, a new person's four first steps, under the period's figure. */
   readonly firstSteps?: { readonly personId: string; readonly done: FirstStepsDone } | undefined;
-  /** Ruling P278 (board B1 · 03): each shared space where it is the person's turn to put money in. */
-  readonly owes?: readonly Owe[] | undefined;
+  /**
+   * #288: what needs the person today ("Te necesita hoy": bills to confirm, what she is owed, her turn to put money in).
+   * The route fills it from a chunk of its own, so the record sheet's backdrop never loads it.
+   */
+  readonly needs?: ReactNode;
   /** Ruling P310: the personal Inicio's step between periods, above the period's figure. */
   readonly stepper?: ReactNode;
   /**
@@ -112,6 +114,8 @@ export function HomeSummary({
             ) : null}
           </div>
         ) : null}
+        {/* #290 (audit pass 3, A16): a viewer's bar has no Registrar; the home says why. */}
+        {!personal && role === "VIEWER" ? <p className="text-sm text-muted">{t("viewerNote")}</p> : null}
         {personal && accounts.length === 0 ? (
           <section
             aria-labelledby="home-first-account"
@@ -147,9 +151,8 @@ export function HomeSummary({
               </section>
             )}
             {plan}
-            {past
-              ? null
-              : owes?.map((owe) => <OweCard key={owe.spaceId} owe={owe} amount={money(owe.amount)} />)}
+            {/* #288: what needs the person today; a period that ended shows none of today's. */}
+            {past ? null : needs}
             {firstSteps && !past ? (
               <FirstSteps spaceId={spaceId} personId={firstSteps.personId} done={firstSteps.done} />
             ) : null}

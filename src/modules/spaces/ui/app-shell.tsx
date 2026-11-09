@@ -73,6 +73,13 @@ export function AppShell({
   }
   return (
     <div className="min-h-dvh pb-[calc(76px+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-[240px]">
+      {/* #290 (audit pass 3, A17): the first Tab offers to skip the header and land on the screen itself. */}
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-xl focus:bg-surface focus:px-4 focus:py-3 focus:font-medium focus:text-ink"
+      >
+        {t("skip")}
+      </a>
       <div className="mx-auto max-w-[1200px] px-gutter">
         <header className="flex h-14 items-center justify-between gap-2">
           <SpaceSwitcher
@@ -95,7 +102,9 @@ export function AppShell({
             <ProfileSheet me={me} spaceId={activeSpace.id} />
           </div>
         </header>
-        <main id="main">{children}</main>
+        <main id="main" tabIndex={-1} className="outline-none">
+          {children}
+        </main>
       </div>
       <NavLinks
         spaceId={activeSpace.id}

@@ -54,6 +54,9 @@ export function AccountRow({
   // Board B1 · 07 (P292): with nothing else to say, the row names its type ("Billetera", "Efectivo").
   if (details.length === 0) details.push(t(`type.${account.type}`));
   const negative = account.balance.amount.startsWith("-");
+  // #289 (audit pass 3, A15): only a debt may go below zero; anything else most likely lacks its opening balance.
+  if (negative && account.type !== "CREDIT_CARD" && account.type !== "LOAN")
+    details.push(t("missingOpening"));
   const look = (
     <>
       <span

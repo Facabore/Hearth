@@ -33,6 +33,25 @@ describe('Inicio\'s plan card, "Tu plan de {mes}" (ruling P311, #275)', () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("says what is left to spend of what was planned to spend, savings apart (#283)", () => {
+    const dashboard = personal();
+    renderWithIntl(
+      <PlanCard
+        dashboard={{
+          ...dashboard,
+          totals: {
+            ...dashboard.totals,
+            withoutSavings: { planned: cop(3_400_000), spent: cop(2_810_000), available: cop(590_000) },
+          },
+        }}
+        policy={MONTHLY}
+        formats={BUILT_IN_FORMATS}
+        href={HREF}
+      />,
+    );
+    expect(normalized(screen.getByText(/^Te quedan/).textContent)).toBe("Te quedan $ 590.000 de $ 3.400.000");
+  });
+
   it("names a period that is not a calendar month by its dates", () => {
     renderWithIntl(
       <PlanCard

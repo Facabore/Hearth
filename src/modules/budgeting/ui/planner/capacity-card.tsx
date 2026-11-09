@@ -26,6 +26,7 @@ export function CapacityCard({
   rows,
   formats,
   action,
+  personal = false,
 }: {
   readonly headingId: string;
   readonly total: MoneyDto;
@@ -33,6 +34,8 @@ export function CapacityCard({
   readonly rows: readonly CapacityRow[];
   readonly formats: Formats;
   readonly action?: ReactNode;
+  /** #286 (audit pass 3, A11): the personal space's one person reads her own words, not a household's. */
+  readonly personal?: boolean;
 }) {
   const t = useTranslations("budgeting.planner");
   const money = (value: MoneyDto) => formatMoney(value, formats);
@@ -44,10 +47,10 @@ export function CapacityCard({
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h2 id={headingId} className="text-sm font-normal text-muted">
-          {t("capacity")}
+          {t(personal ? "capacityPersonal" : "capacity")}
         </h2>
         <p className="text-sm [overflow-wrap:anywhere] text-muted">
-          {t("unallocated", { amount: money(unallocated) })}
+          {t(personal ? "unallocatedPersonal" : "unallocated", { amount: money(unallocated) })}
         </p>
       </div>
       <p className="text-3xl font-semibold [overflow-wrap:anywhere] text-ink">{money(total)}</p>

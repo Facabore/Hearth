@@ -64,8 +64,8 @@ describe("one row per member first (#213, ruling P262)", () => {
   it("shows each member's total gap in words, and no per-line figure until it is opened", async () => {
     const { container } = show();
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual(["Ana", "Juan"]);
-    expect(totalOf("Ana")).toBe("Le sobran $ 312.000");
-    expect(totalOf("Juan")).toBe("Le faltan $ 482.000");
+    expect(totalOf("Ana")).toBe("Le sobran $ 312.000 sobre su parte");
+    expect(totalOf("Juan")).toBe("Le faltan $ 482.000 de su parte");
     expect(screen.queryByRole("list", { name: /por rubro$/ })).toBeNull();
     expect(await axeViolations(container)).toEqual([]);
   });
@@ -107,12 +107,12 @@ describe("one row per member first (#213, ruling P262)", () => {
 
   it("writes the total the API answers, never a sum of the lines (ruling P201)", () => {
     show(withTotal({ memberId: "m-ana", gap: cop(7), status: "OVER_CONTRIBUTED" }));
-    expect(totalOf("Ana")).toBe("Le sobran $ 7");
+    expect(totalOf("Ana")).toBe("Le sobran $ 7 sobre su parte");
   });
 
   it("says a member is on target in words, without an arrow", () => {
     show(withTotal({ memberId: "m-ana", gap: cop(0), status: "ON_TARGET" }));
-    expect(totalOf("Ana")).toBe("Al día");
+    expect(totalOf("Ana")).toBe("Al día con su parte");
     expect(memberSection("Ana").querySelector("h2 + p svg")).toBeNull();
   });
 
@@ -131,7 +131,7 @@ describe("one row per member first (#213, ruling P262)", () => {
   it("says when no line gives a member a gap, and when the API sends no totals", () => {
     show(withTotal({ memberId: "m-ana", gap: null, status: null }));
     expect(totalOf("Ana")).toBe("Sin diferencia que comparar");
-    expect(totalOf("Juan")).toBe("Le faltan $ 482.000");
+    expect(totalOf("Juan")).toBe("Le faltan $ 482.000 de su parte");
     document.body.innerHTML = "";
     show({ ...e7Matrix(), members: undefined });
     expect(totalOf("Ana")).toBe("Sin diferencia que comparar");
@@ -156,8 +156,8 @@ describe("one row per member first (#213, ruling P262)", () => {
 
   it("reads in English with the same figures", async () => {
     const { container } = show(withTotals(), "en");
-    expect(totalOf("Ana")).toBe("Over by $ 312.000");
-    expect(totalOf("Juan")).toBe("Short by $ 482.000");
+    expect(totalOf("Ana")).toBe("Over their share by $ 312.000");
+    expect(totalOf("Juan")).toBe("Short of their share by $ 482.000");
     open("Ana", "Show detail by line for");
     const home = lineOf("Ana", "Home", "Ana by line");
     expect(home.gap).toBe("+$ 312.000 over-contributed");
@@ -353,7 +353,7 @@ describe("members with nothing in the period (#213, #217)", () => {
 
   it("keeps a member with any figure in the period, with every line in their detail", () => {
     showWith(withSofi([null, null, 40_000, null]));
-    expect(totalOf("Sofi")).toBe("Al día");
+    expect(totalOf("Sofi")).toBe("Al día con su parte");
     open("Sofi");
     expect(lineOf("Sofi", "Free").caption).toContain("Consumió $ 40.000");
     expect(lineOf("Sofi", "Home").caption).toBe("Asignado $ 0 · Aportó $ 0 · Consumió $ 0");

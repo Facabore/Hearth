@@ -60,7 +60,8 @@ export function TransactionRow({
   else if (tx.type === "SETTLEMENT")
     meta.push(t("settlement", { from: member(tx.payerMemberId), to: member(tx.receivingMemberId) }));
   else {
-    const path = tx.categoryId ? categoryPath(groups, tx.categoryId) : null;
+    // #286 (audit pass 3, A12): a movement with no description is titled by its category, so its line does not repeat it.
+    const path = tx.categoryId && (tx.description || !found) ? categoryPath(groups, tx.categoryId) : null;
     // Ruling P284 (boards E9-09 00 and 12): Movimientos reads "9:15 · pagó Ana" or "12:40 · Nequi"; its icon shows the
     // category, so the line keeps room for the payer. Inicio (board B1 03) names the category instead.
     if (path && !card) meta.push(path);
@@ -104,7 +105,7 @@ export function TransactionRow({
       <span className="shrink-0 overflow-hidden rounded-full">{icon}</span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className={card ? "font-medium break-words text-ink" : "truncate font-medium text-ink"}>
-          {tx.description || t(`type.${kind}`)}
+          {tx.description || found?.category.name || t(`type.${kind}`)}
         </span>
         {meta.length > 0 ? (
           <span
